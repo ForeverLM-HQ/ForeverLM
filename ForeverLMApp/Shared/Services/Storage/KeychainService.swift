@@ -2412,6 +2412,23 @@ enum KeychainService {
         setOwnRoute(AITaskModelRoute(provider: .openRouter, model: AIModelDefaults.canvasVoice), for: .canvasVoice)
     }
 
+    /// The synced mark that Card Answer Check was given its starting model
+    /// (`aiSeeded.task.<task>`), as Canvas Voice's.
+    static let cardAnswerCheckSeededKey = "aiSeeded.task." + AITask.cardAnswerCheck.rawValue
+
+    /// Gives Card Answer Check its starting model
+    /// (`AIModelDefaults.cardAnswerCheck`) as a model of its own, once for the
+    /// account, when it has none. Check followed the chat's model, which can
+    /// be a free one that no longer answers, and had no model of its own to
+    /// change. It then shows, and is changed, in Settings › Background › Tasks.
+    static func seedCardAnswerCheckRoute() {
+        guard canHaveOwnRoute(.cardAnswerCheck),
+              !UserDefaults.standard.bool(forKey: cardAnswerCheckSeededKey),
+              storedRoute(forKey: AIModelPreferenceKey.taskRoute(.cardAnswerCheck)) == nil else { return }
+        PreferenceStore.set(true, forKey: cardAnswerCheckSeededKey)
+        setOwnRoute(AITaskModelRoute(provider: .openRouter, model: AIModelDefaults.cardAnswerCheck), for: .cardAnswerCheck)
+    }
+
     // MARK: - Docs Model
 
     /// The model a Doc's Edit with AI runs on, when the learner gave Docs one

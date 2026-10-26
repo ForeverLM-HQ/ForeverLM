@@ -3,8 +3,8 @@ import Foundation
 // MARK: - Check in the card review
 //
 // docs/memory-design.md, "The answer is checked". One call on the Card Answer
-// Check task's route (`AITask.cardAnswerCheck`, the chat's model by default:
-// the learner pressed Check and waits, as for Go Deeper), sent the card's
+// Check task's route (`AITask.cardAnswerCheck`, a model of its own, set in
+// Settings › Background › Tasks: the learner pressed Check and waits), sent the card's
 // front, back, why and quote and the learner's answer, and nothing else.
 // Never answered from the response cache: an answer is never the same twice,
 // and a cached verdict for a different answer would be wrong. A reply with no

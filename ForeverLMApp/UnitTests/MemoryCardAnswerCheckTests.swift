@@ -42,7 +42,9 @@ struct MemoryCardAnswerCheckTests {
         #expect(AITask.advancedTasks.contains(.cardAnswerCheck), "settable in Settings and over set_ai_task_settings")
         #expect(!AITask.cardAnswerCheck.isBackgroundWork, "the learner pressed Check and waits")
         #expect(AITask.cardAnswerCheck.usageNeed == .requested)
-        #expect(!AITask.cardAnswerCheck.usesBackgroundModelDefault, "the chat's model, as Go Deeper")
+        #expect(AITask.cardAnswerCheck.usesBackgroundModelDefault, "a model of its own, so a paid one can be picked")
+        #expect(KeychainService.canHaveOwnRoute(.cardAnswerCheck))
+        #expect(!AIFreeModels.isFreeModelID(AIModelDefaults.cardAnswerCheck), "the starting model is a paid one")
         #expect(AIUsageTaskLabel.text(for: "card_answer_check") == "Check a Card Answer")
     }
 

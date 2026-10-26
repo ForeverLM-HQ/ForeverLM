@@ -48,6 +48,13 @@ enum AIModelDefaults {
     /// Haiku 5.5 was 48 of 48 at 0.94 s, Gemini 3.8 Flash 48 of 48 at 1.9 s,
     /// gpt-oss-120b 45 of 48 at 0.66 s; Apple's on-device model 9 of 16 at 2.8 s.
     static let canvasVoice = "deepseek/deepseek-v4.1-flash"
+
+    /// The model Card Answer Check starts on
+    /// (`KeychainService.seedCardAnswerCheckRoute`): a verdict and one line,
+    /// waited on at each Check, so a fast cheap paid model, the one Canvas
+    /// Voice's eval put first. A learner whose Default Model was a free one
+    /// had every check fail when that free endpoint went away.
+    static let cardAnswerCheck = "deepseek/deepseek-v4.1-flash"
 }
 
 extension AIModelDefaults {

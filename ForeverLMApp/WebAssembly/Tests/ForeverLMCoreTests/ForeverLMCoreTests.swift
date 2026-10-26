@@ -220,14 +220,14 @@ struct ForeverLMCoreTests {
         ]
         let tasks = AITaskSettingsCatalog.tasks
 
-        #expect(AITaskSettingsCatalog.version == 41)
+        #expect(AITaskSettingsCatalog.version == 42)
         #expect(AITaskSettingsCatalog.descriptor(forRawID: "video_quiz_grading") == nil)
         #expect(tasks.map(\.id) == expectedIDs)
         #expect(Set(tasks.map(\.id)).count == tasks.count)
         #expect(tasks.allSatisfy { !$0.displayName.isEmpty && !$0.description.isEmpty })
         #expect(Set(tasks.filter { $0.modelDefault == .chat }.map(\.id)) == [
             "chat", "deep_research", "source_discovery",
-            "card_go_deeper", "card_answer_check", "canvas_ask", "atlas_writing",
+            "card_go_deeper", "canvas_ask", "atlas_writing",
         ])
         #expect(Set(tasks.filter(\.requiresVision).map(\.id)) == [
             "slide_frame_classification", "slide_citation_extraction", "paper_figure_understanding",

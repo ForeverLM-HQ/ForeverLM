@@ -486,12 +486,14 @@ extension StudioViewModel {
 
     /// Check's step for a card review (docs/memory-design.md, "The answer is
     /// checked"): the Card Answer Check task's route, resolved at each check
-    /// so a model picked mid-review is the one asked. No model set up is said
-    /// on the card, and the learner grades themselves.
+    /// so a model picked mid-review is the one asked. The learner pressed
+    /// Check, so the background-usage consent is not asked again. No model
+    /// set up is said on the card, and the learner grades themselves.
     func memoryCardAnswerCheck() -> MemoryCardSessionModel.AnswerCheckStep {
         let ai = aiService
         return { request, cardID, sourceTitle in
-            guard let config = KeychainService.resolveConfig(for: .cardAnswerCheck) else {
+            KeychainService.seedCardAnswerCheckRoute()
+            guard let config = KeychainService.resolveConfig(for: .cardAnswerCheck, explicitlyAuthorizedBackgroundUsage: true) else {
                 throw CardAnswerCheckUnavailable(
                     message: KeychainService.backgroundAIUnavailableMessage(for: .cardAnswerCheck)
                         ?? "No model is set up for Card Answer Check. Sign in and check Settings › AI Models."
