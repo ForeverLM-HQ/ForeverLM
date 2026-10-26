@@ -1140,12 +1140,16 @@ extension StudioViewModel {
 
     /// A fresh chat beside the pane showing a card to check, filed where this
     /// window files new chats. It carries no attachment of its own: the card
-    /// on screen rides every message (`ChatContextAdditions.cardFraming`).
+    /// on screen rides every message (`ChatContextAdditions.cardFraming`), and
+    /// the chat keeps it pinned (`ReviewSessionManager.pinnedCard`), because
+    /// opening the chat can take the Memory pane's place and a Reader behind
+    /// it would otherwise be what the chat is about.
     func requestChatAboutCardOnScreen() {
         pendingChatCanvasCards = nil
         pendingReviewChatNotebookID = newChatNotebookID()
         pendingReviewChatDraft = nil
         pendingReviewChatCanvasQuestions = []
+        pendingReviewChatCard = activeWindowState.memoryCardOnScreen
         reviewChatResetRequestID = UUID()
         reviewChatFocusRequestID = UUID()
         openCenterTabBeside(.chat)

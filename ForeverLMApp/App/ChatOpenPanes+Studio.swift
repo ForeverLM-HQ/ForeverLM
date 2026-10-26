@@ -50,8 +50,14 @@ extension ChatOpenPanes {
     /// read the way a message sent from a chat in `state` reads it: what the
     /// chip over that chat's composer shows.
     @MainActor
-    static func cardOnScreen(chatWindow state: StudioWindowState, vm: StudioViewModel) -> ChatContextAdditions.CardOnScreen? {
-        studio(chatWindow: state, chatSessionID: nil, vm: vm).cardOnScreen
+    static func cardOnScreen(
+        chatWindow state: StudioWindowState,
+        vm: StudioViewModel,
+        pinned: ChatContextAdditions.CardOnScreen? = nil
+    ) -> ChatContextAdditions.CardOnScreen? {
+        var panes = studio(chatWindow: state, chatSessionID: nil, vm: vm)
+        panes.pinnedCard = pinned
+        return panes.cardOnScreen
     }
 
     @MainActor

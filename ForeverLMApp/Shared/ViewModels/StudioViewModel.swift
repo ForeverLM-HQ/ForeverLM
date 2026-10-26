@@ -1781,6 +1781,10 @@ class StudioViewModel {
     /// consumed alongside `reviewChatResetRequestID`; empty for every other
     /// chat.
     @ObservationIgnored var pendingReviewChatCanvasQuestions: [String] = []
+    /// The flashcard the next fresh chat is about (Ask in Chat on a card to
+    /// check), consumed alongside `reviewChatResetRequestID`; nil for every
+    /// other chat.
+    @ObservationIgnored var pendingReviewChatCard: ChatContextAdditions.CardOnScreen?
     /// The mode the next fresh chat opens in, when the request names one: a
     /// notebook Studio's Deep research opens a Deep Research chat
     /// (`requestNotebookDeepResearch`). Consumed alongside

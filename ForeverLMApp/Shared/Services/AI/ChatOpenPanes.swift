@@ -92,6 +92,11 @@ struct ChatOpenPanes: Equatable {
 
     var windows: [Window]
 
+    /// The flashcard this chat was opened about (Ask in Chat on a card to
+    /// check). It is the chat's card for as long as the chat lives, whatever
+    /// else comes to fill the pane the Memory pane was in.
+    var pinnedCard: ChatContextAdditions.CardOnScreen? = nil
+
     /// "Left", "Right"; "Middle" in a third pane; nil for a lone pane.
     static func positionName(index: Int, count: Int) -> String? {
         guard count > 1 else { return nil }
@@ -148,13 +153,22 @@ struct ChatOpenPanes: Equatable {
     /// the chat's own window first. Every message the learner sends carries
     /// it (`ChatContextAdditions.cardFraming`), so "this question is phrased
     /// weird" means that card.
+    ///
+    /// A chat opened about a card (`pinnedCard`) is told of that card, read
+    /// live while the Memory pane still shows it (so a turned-over card says
+    /// so) and as it was when asked about once it does not (product owner,
+    /// 2026-10-26: Ask in Chat on a card must "ALWAYS" be for that card,
+    /// "regardless of whatever else is open on the side").
     var cardOnScreen: ChatContextAdditions.CardOnScreen? {
-        for window in windowsChatsFirst {
+        var shown: ChatContextAdditions.CardOnScreen?
+        search: for window in windowsChatsFirst {
             for case let .card(card) in window.panes.flatMap(\.onScreen.contents) {
-                return card
+                shown = card
+                break search
             }
         }
-        return nil
+        guard let pinnedCard else { return shown }
+        return shown?.id == pinnedCard.id ? shown : pinnedCard
     }
 
     /// The windows with these sources (and the card, by its id) taken out,
@@ -174,6 +188,7 @@ struct ChatOpenPanes: Equatable {
                 }
             }
         }
+        let pinned = pinnedCard.flatMap { sourceIDs.contains($0.id) ? nil : $0 }
         return ChatOpenPanes(windows: windows.map { window in
             var window = window
             window.panes = window.panes.map { pane in
@@ -189,7 +204,17 @@ struct ChatOpenPanes: Equatable {
             window.alsoOnScreen = kept(window.alsoOnScreen)
             window.videoPlayheads = window.videoPlayheads.filter { !sourceIDs.contains($0.key) }
             return window
-        })
+        }, pinnedCard: pinned)
+    }
+
+    /// Whether a pane draws the card with this id.
+    private func showsCard(_ id: String) -> Bool {
+        windows.contains { window in
+            window.panes.flatMap(\.onScreen.contents).contains {
+                if case let .card(card) = $0 { return card.id == id }
+                return false
+            }
+        }
     }
 
     /// The tool result.
@@ -218,6 +243,10 @@ struct ChatOpenPanes: Equatable {
                 let shown = window.alsoOnScreen.map(Self.describe).joined(separator: "; ")
                 lines.append("- Also on screen in this window: \(shown).")
             }
+        }
+        if let pinnedCard, cardOnScreen?.id == pinnedCard.id, !showsCard(pinnedCard.id) {
+            lines.append("")
+            lines.append("This chat was opened about \(Self.describe(.card(pinnedCard))).")
         }
         if !sourceIDs.isEmpty {
             lines.append("")

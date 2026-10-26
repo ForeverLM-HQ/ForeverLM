@@ -250,6 +250,48 @@ struct ChatOpenPanesLeftOutTests {
         #expect(panes.cardOnScreen == Self.card)
     }
 
+    /// The chat beside a Reader: the Memory pane it was opened from is gone.
+    private static let readerBesideChat = ChatOpenPanes(windows: [
+        .init(isChatsWindow: true, panes: [
+            .init(onScreen: .init(name: "Chat", contents: [.chat(title: "New chat", isThisChat: true)])),
+            .init(onScreen: .init(name: "Reader", contents: [.source(id: "src-paper", title: "A paper", kind: "paper", position: nil)])),
+        ]),
+    ])
+
+    @Test("A chat opened about a card keeps it when a Reader takes the Memory pane's place")
+    func pinnedCardSurvivesAReaderTakingItsPlace() {
+        var panes = Self.readerBesideChat
+        panes.pinnedCard = Self.card
+        #expect(panes.cardOnScreen == Self.card)
+        #expect(panes.sourcesOnScreen.map(\.id) == ["src-paper"], "the paper is still on screen beside it")
+        #expect(panes.text.contains("This chat was opened about the flashcard “What persists despite organ loss?”"))
+    }
+
+    @Test("A pinned card wins over another card the pane shows, and reads live while it is the one shown")
+    func pinnedCardAgainstTheShownOne() {
+        var other = Self.card
+        other.id = "card-2"
+        var shown = Self.cardBesideChat
+        shown.pinnedCard = other
+        #expect(shown.cardOnScreen == other)
+
+        var turned = Self.card
+        turned.answerShown = true
+        var live = ChatOpenPanes(windows: [
+            .init(isChatsWindow: true, panes: [.init(onScreen: .init(name: "Memory, To Check", contents: [.card(turned)]))]),
+        ])
+        live.pinnedCard = Self.card
+        #expect(live.cardOnScreen == turned)
+    }
+
+    @Test("The chip's × leaves a pinned card out")
+    func pinnedCardCanBeLeftOut() {
+        var panes = Self.readerBesideChat
+        panes.pinnedCard = Self.card
+        #expect(panes.leavingOut([Self.card.id]).cardOnScreen == nil)
+        #expect(panes.leavingOut(["somewhere-else"]).cardOnScreen == Self.card)
+    }
+
     @Test("Every message carries the card in its mark, and the framing says what it is")
     func cardRidesBesideTheMessage() throws {
         let stored = try #require(ChatContextAdditions.contextContent(nil, onScreen: [], card: Self.card))

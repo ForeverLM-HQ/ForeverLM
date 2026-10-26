@@ -4723,8 +4723,8 @@ private struct InternalReviewPanelContent: View {
     /// The flashcard the Memory pane beside the chat has in front of the
     /// learner, read as a message sent now reads it.
     private var cardOnScreenBesideChat: ChatContextAdditions.CardOnScreen? {
-        guard let windowState else { return nil }
-        return ChatOpenPanes.cardOnScreen(chatWindow: windowState, vm: vm)
+        guard let windowState else { return manager.pinnedCard }
+        return ChatOpenPanes.cardOnScreen(chatWindow: windowState, vm: vm, pinned: manager.pinnedCard)
     }
 
     /// The open card the tray gives a chip: less what the learner left out
@@ -7555,6 +7555,7 @@ private struct InternalReviewPanelContent: View {
             vm.pendingReviewChatDraft = nil
             vm.pendingReviewChatCanvasQuestions = []
             vm.pendingReviewChatMode = nil
+            vm.pendingReviewChatCard = nil
             vm.reviewChatResetRequestID = nil
             return
         }
@@ -7566,6 +7567,10 @@ private struct InternalReviewPanelContent: View {
         canvasSuggestedQuestions = vm.pendingReviewChatCanvasQuestions
         vm.pendingReviewChatCanvasQuestions = []
         manager.endSession()
+        // A card asked about from the Memory pane is this chat's card from the
+        // first moment, whatever takes that pane's place beside it.
+        manager.pinnedCard = vm.pendingReviewChatCard
+        vm.pendingReviewChatCard = nil
         // Cards asked for with this chat (Ask in Chat, Add to Chat with no
         // chat beside the canvas) are its context from the first moment.
         if let handOff = vm.pendingChatCanvasCards,

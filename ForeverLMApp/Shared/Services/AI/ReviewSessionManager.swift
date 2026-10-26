@@ -2668,6 +2668,7 @@ final class ReviewSessionManager {
         courseQuiz = nil
         // What the last chat left out of what is open is that chat's.
         onScreenSourcesLeftOut = []
+        pinnedCard = nil
 
         // Everything from here down is session setup, so hold `isSearching` for
         // all of it rather than only for the source hydration. The transcript now
@@ -4147,6 +4148,7 @@ final class ReviewSessionManager {
         contextDocs = []
         canvasContext = nil
         onScreenSourcesLeftOut = []
+        pinnedCard = nil
         discardPendingImages()
         sourceManifest = ""
         sourceContext = ""
@@ -12382,8 +12384,19 @@ final class ReviewSessionManager {
     /// What the chat's window and the other windows have open, less what the
     /// learner left out of this chat. Nil for a chat outside a Studio window.
     private func openPanesForThisChat() -> ChatOpenPanes? {
-        openPanesProvider.map { $0().leavingOut(onScreenSourcesLeftOut) }
+        openPanesProvider.map { provider in
+            var panes = provider()
+            panes.pinnedCard = pinnedCard
+            return panes.leavingOut(onScreenSourcesLeftOut)
+        }
     }
+
+    /// The flashcard this chat was opened about (Ask in Chat on a card to
+    /// check). The chat is told of it with every message whether or not the
+    /// Memory pane still shows it, because opening the chat can take that
+    /// pane's place; the chip's × leaves it out like any open card's. A new
+    /// or reopened chat starts with none.
+    var pinnedCard: ChatContextAdditions.CardOnScreen?
 
     /// The chip's ×: this chat stops seeing the source while it stays open.
     func leaveOutOnScreenSource(_ sourceID: String) {
