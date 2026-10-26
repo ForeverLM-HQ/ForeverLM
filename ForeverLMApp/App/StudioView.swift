@@ -188,9 +188,6 @@ struct StudioView: View {
             guard requestID != nil else { return }
             makeRoomForCenterPanes(totalWidth: totalWidth, animated: true)
         }
-        .onChange(of: StudioCenterTabGroupSizing.minimumWidth(for: windowState.centerTabGroups.groups)) { _, _ in
-            makeRoomForCenterPanes(totalWidth: totalWidth, animated: true)
-        }
         // The notebook's center only: a column the learner unfolds is theirs,
         // and must not fold straight back in a narrow window.
         .onChange(of: windowState.notebook.map(NotebookWorkspaceSizing.centerMinimumWidth(for:))) { _, _ in
@@ -205,35 +202,18 @@ struct StudioView: View {
         }
     }
 
-    /// Keep every center pane at or above the same minimum width its internal
-    /// divider enforces: when they do not fit, the navigation rail yields.
-    /// This applies to restored launch state as
-    /// well as newly opened panes so titlebar controls never begin life in a
-    /// clipped, mutually overlapping viewport.
+    /// Make room for a notebook's columns when the window is too narrow for
+    /// them. Only a notebook folds anything. The navigation rail never folds
+    /// itself because the panes do not fit: it is the learner's to fold with
+    /// the sidebar toggle (product owner, 2026-10-26: "when I click memory,
+    /// the left sidebar disappears randomly ... get rid of that"). A window
+    /// too narrow for its panes clips them (`centerMinimumWidth`) instead.
     private func makeRoomForCenterPanes(totalWidth: CGFloat, animated: Bool) {
-        guard totalWidth > 0 else { return }
-        if let notebook = windowState.notebook {
-            makeRoomForNotebook(notebook, totalWidth: totalWidth, animated: animated)
-            return
-        }
-        let requiredCenterWidth = StudioCenterTabGroupSizing.minimumWidth(for: windowState.centerTabGroups.groups)
-        guard requiredCenterWidth > 0 else { return }
-
-        let shouldCollapseNavigationRail = windowState.navigationRailVisible
-            && totalWidth < requiredCenterWidth
-
-        guard shouldCollapseNavigationRail else { return }
-        let changes = {
-            windowState.navigationRailVisible = false
-        }
-        if animated {
-            withAnimation(.easeInOut(duration: 0.22), changes)
-        } else {
-            changes()
-        }
+        guard totalWidth > 0, let notebook = windowState.notebook else { return }
+        makeRoomForNotebook(notebook, totalWidth: totalWidth, animated: animated)
     }
 
-    /// The notebook's version of the same rule (`NotebookWorkspaceSizing.folds`):
+    /// The notebook's rule (`NotebookWorkspaceSizing.folds`):
     /// the notebook's Sources column folds to its strip first, then its
     /// Studio. The folds go into the notebook's arrangement, which only this
     /// window's scene snapshot keeps. The navigation rail is not folded here:
