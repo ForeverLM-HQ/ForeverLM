@@ -6,6 +6,15 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.177.0 (build 257) — 2026-10-26
+
+**Highlights:**
+- **A card's answer box has a mic and a model chip.**
+- **A figure still shows when its explanation fails.**
+
+- **`inspect_paper_figure` still shows the figure when its explanation cannot be made.** If the model call that explains a figure failed, the tool failed whole and an assistant got neither the picture nor the caption. It now returns the caption and the cropped picture and says the explanation is missing.
+- **A card's answer box has the chat's mic and model chip.** The answer field on a card took only macOS dictation, with no mic button and no way to see which model checks the answer. It now looks like the chat's field, with the model chip under it and a mic whose recording meter takes the row while it is open; Stop puts the words in the field and checks them, and the x leaves them there. It is the same box in the card review, in To Check and in the knowledge map's review.
+
 ## 0.176.0 (build 256) — 2026-10-26
 
 **Highlights:**
