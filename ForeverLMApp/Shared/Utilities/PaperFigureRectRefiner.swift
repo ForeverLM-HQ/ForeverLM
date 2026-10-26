@@ -631,6 +631,18 @@ enum PaperFigureRectRefiner {
     /// prose rather than a label inside a figure.
     static let runningHeadMinimumWidthShare: CGFloat = 0.45
 
+    /// How far under the row above, as a share of its own height, the next
+    /// row of a banner may start: set at their line pitch, a banner's lines
+    /// leave about half a line between them, a figure's rows of labels a whole
+    /// one. A gap of a full row height let Nature's "Brief Communication"
+    /// head take in Figure 1's three top rows (panel letters, panel titles,
+    /// legends), 68 pt in all, and the crop started under them (2026-10-26).
+    /// Over the 2,979 figure pages of the library, 0.6 changed the head of 65
+    /// pages, every one a head that had taken in figure rows or body text, and
+    /// left the one head set 0.52 of a row under a badge line (RSC's "View
+    /// Article Online") as it was, which 0.5 lost.
+    static let bannerLinePitchShare: CGFloat = 0.6
+
     /// A row of the page's top this short, holding a digit, is its folio: a
     /// page number ("38", "e1234", "Page 4") set alone over the running head.
     static let folioMaximumCharacters = 6
@@ -727,9 +739,10 @@ enum PaperFigureRectRefiner {
         var onlyFolios = true
         let bodyText = rows.isEmpty ? [] : bodyTextLines(on: page)
         for row in rows {
-            if let above, above.minY - row.bounds.maxY > row.bounds.height {
-                // A banner's next line is set at its line pitch; the body
-                // starts after a margin, however wide its first row: a
+            if let above, above.minY - row.bounds.maxY > row.bounds.height * bannerLinePitchShare {
+                // A banner's next line is set at its line pitch, a fraction of
+                // a line under the one above (`bannerLinePitchShare`); the
+                // body starts after a margin, however wide its first row: a
                 // column's line beside a figure's panel letter, a figure's
                 // titles set across it.
                 guard head == nil, onlyFolios else { break }
