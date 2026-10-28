@@ -247,6 +247,14 @@ struct SourceReaderPanel: View {
                                 .transition(.move(edge: .trailing))
                         }
 
+                        // Every figure's legend, following the page
+                        // (ReaderFigureLegendsPanel); the same column too.
+                        if showsFigureLegendsPanel(for: article) {
+                            Divider()
+                            ReaderFigureLegendsPanel(article: article)
+                                .transition(.move(edge: .trailing))
+                        }
+
                         if vm.readerNotesListVisible {
                             Divider()
                             ReaderNotesList(sourceID: article.id)
@@ -257,6 +265,7 @@ struct SourceReaderPanel: View {
                     .animation(.easeInOut(duration: 0.18), value: vm.readerNotesListVisible)
                     .animation(.easeInOut(duration: 0.18), value: ReaderLevelsPanelState.shared.isVisible)
                     .animation(.easeInOut(duration: 0.18), value: ReaderReferencesPanelState.shared.isVisible)
+                    .animation(.easeInOut(duration: 0.18), value: ReaderFigureLegendsPanelState.shared.isVisible)
                     .contextMenu { readerContextMenu(for: article) }
                     .onChange(of: selectedText) { _, newValue in
                         guard !isDisplayingExternalPage else { return }
@@ -777,6 +786,13 @@ struct SourceReaderPanel: View {
         ReaderReferencesPanelState.shared.isVisible && !isDisplayingExternalPage
     }
 
+    /// The Figure Legends panel shows beside a paper the Reader has open as a
+    /// PDF; the figure index reads that file.
+    private func showsFigureLegendsPanel(for article: StudioArticle) -> Bool {
+        ReaderFigureLegendsPanelState.shared.isVisible && !isDisplayingExternalPage
+            && ReaderFigureLegends.offers(article)
+    }
+
     /// Everything the Reader can do that its bar does not carry (Quiet chrome,
     /// docs/ui-design.md, 2026-10-06), at every width. Find and zoom stay
     /// listed for discoverability, but their primary interface is the
@@ -1100,6 +1116,10 @@ struct SourceReaderPanel: View {
             }
             // The passages that link the source, in a panel beside it.
             ReaderReferencesMenuItem()
+            // A paper's legends beside its pages, wherever they are printed.
+            if ReaderFigureLegends.offers(article) {
+                ReaderFigureLegendsMenuItem()
+            }
         }
 
         if showsHistory {

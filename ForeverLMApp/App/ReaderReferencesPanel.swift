@@ -28,10 +28,10 @@ final class ReaderReferencesPanelState {
 
     var isVisible = false {
         didSet {
-            // Levels and Linked References share the trailing column.
-            if isVisible, ReaderLevelsPanelState.shared.isVisible {
-                ReaderLevelsPanelState.shared.isVisible = false
-            }
+            // Levels, Linked References and Figure Legends share the trailing column.
+            guard isVisible else { return }
+            if ReaderLevelsPanelState.shared.isVisible { ReaderLevelsPanelState.shared.isVisible = false }
+            if ReaderFigureLegendsPanelState.shared.isVisible { ReaderFigureLegendsPanelState.shared.isVisible = false }
         }
     }
 

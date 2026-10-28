@@ -110,11 +110,11 @@ final class ReaderLevelsPanelState {
 
     var isVisible = false {
         didSet {
-            // Levels and Linked References share the trailing column
-            // (ReaderReferencesPanel.swift): one at a time.
-            if isVisible, ReaderReferencesPanelState.shared.isVisible {
-                ReaderReferencesPanelState.shared.isVisible = false
-            }
+            // Levels, Linked References and Figure Legends share the trailing
+            // column (ReaderReferencesPanel.swift): one at a time.
+            guard isVisible else { return }
+            if ReaderReferencesPanelState.shared.isVisible { ReaderReferencesPanelState.shared.isVisible = false }
+            if ReaderFigureLegendsPanelState.shared.isVisible { ReaderFigureLegendsPanelState.shared.isVisible = false }
         }
     }
     var zoom: Zoom = .sections

@@ -338,6 +338,12 @@ struct SourceReaderWindow: View {
                     ReaderReferencesPanel(article: displayedArticle)
                 }
 
+                // Every figure's legend, following the page, as in the docked Reader.
+                if ReaderFigureLegendsPanelState.shared.isVisible, ReaderFigureLegends.offers(displayedArticle) {
+                    Divider()
+                    ReaderFigureLegendsPanel(article: displayedArticle)
+                }
+
                 if vm.readerNotesListVisible {
                     Divider()
                     ReaderNotesList(sourceID: displayedArticle.id)
@@ -630,6 +636,9 @@ struct SourceReaderWindow: View {
 
             LinkedInMenuItems(article: article)
             ReaderReferencesMenuItem()
+            if ReaderFigureLegends.offers(displayedArticle) {
+                ReaderFigureLegendsMenuItem()
+            }
 
             Button {
                 vm.readerNotesListVisible.toggle()

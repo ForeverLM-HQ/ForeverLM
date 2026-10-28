@@ -66,6 +66,10 @@ A paper's reference list is the reading list its authors wrote for you. When a p
 
 Nothing is read until you ask. Reading the list is a background AI call per stretch of references plus a free catalog lookup per entry, with at most eight paid web searches for entries the catalogs could not place, so a long reference list can take a minute; once it finishes, the menu item becomes **Cited Papers** and says how many are waiting to be added, and opens the panel, whose **Read references again** reads the list once more. The model behind it is the **Paper Reference Extraction** task, on the **Tasks** tab of **Settings → Background**; the chat can change it too (`set_ai_task_settings`).
 
+## Reading a Figure Beside its Legend
+
+A journal often prints a figure on one page and its legend on another: overleaf, a few pages on, or at the end of a preprint. When a paper is open in the reader, choose **Figure Legends** from the reader's **⋯** menu and a column opens beside the PDF with every figure's legend. It follows the page you are on: the figures drawn on that page are marked and their legends scroll into view, wherever the legend itself is printed. Click a figure's name to go to its page. The legends are read from the paper's own PDF, free, with no model call, and a figure whose legend the paper does not print shows "No legend found". Figure Legends shares the reader's side column with Levels and Linked References, so opening one closes the others. It is on the Mac, in the reader and in a Source Reader window, for papers open as a PDF; the web does not have it yet.
+
 ## How PDF Loading Works
 
 When you add a paper, ForeverLM tries to get the full PDF automatically:

@@ -6,6 +6,8 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **A paper's figure legends sit beside its pages.** A legend printed a few pages from its figure meant scrolling away and back. The reader's **⋯** menu has **Figure Legends**: a column beside the PDF with every figure's legend, following the page you are on, so the legend of the figure on screen is already beside it. Click a figure to go to its page.
+
 ## 0.177.0 (build 257) — 2026-10-26
 
 **Highlights:**

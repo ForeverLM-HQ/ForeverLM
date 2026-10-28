@@ -2623,11 +2623,12 @@ enum PaperFigureCaptionTitle {
     static let maximumTitleCharacters = 220
     static let maximumPanelCaptionCharacters = 320
 
-    /// "Fig. 1. Atlas of lysosomal changes during aging reveals accumulation
-    /// of cystine and GPDs. (A) …" → "Atlas of lysosomal changes during aging
-    /// reveals accumulation of cystine and GPDs". Nil when nothing follows the
-    /// label.
-    static func title(from caption: String) -> String? {
+    /// The whole legend with its label taken off, on one line: "Fig. 1. Atlas
+    /// of lysosomal changes during aging reveals accumulation of cystine and
+    /// GPDs. (A) …" → "Atlas of lysosomal changes during aging reveals
+    /// accumulation of cystine and GPDs. (A) …". Empty when only the label
+    /// was printed.
+    static func words(from caption: String) -> String {
         var text = collapsed(caption)
         if let regex = try? NSRegularExpression(
             pattern: #"^\s*(?:(?:supplementary|supplemental|extended\s+data)\s+)?(?:figure|fig\.?)\s*[A-Za-z]?\d+(?:[.\-–]\d+)?[A-Za-z]?\s*[.|:\-–—]?\s*"#,
@@ -2638,7 +2639,15 @@ enum PaperFigureCaptionTitle {
                 text.removeSubrange(labelRange)
             }
         }
-        text = text.trimmingCharacters(in: .whitespaces)
+        return text.trimmingCharacters(in: .whitespaces)
+    }
+
+    /// "Fig. 1. Atlas of lysosomal changes during aging reveals accumulation
+    /// of cystine and GPDs. (A) …" → "Atlas of lysosomal changes during aging
+    /// reveals accumulation of cystine and GPDs". Nil when nothing follows the
+    /// label.
+    static func title(from caption: String) -> String? {
+        let text = words(from: caption)
         guard !text.isEmpty else { return nil }
         var title = String(text[..<(sentenceEnd(in: text) ?? text.endIndex)])
         if let pipe = title.range(of: " | ") { title = String(title[..<pipe.lowerBound]) }
