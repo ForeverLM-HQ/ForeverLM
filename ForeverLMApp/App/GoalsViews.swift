@@ -1191,14 +1191,8 @@ struct SetGoalSheet: View {
     private var notebookTag: some View {
         if isTagging {
             HStack(spacing: StudioDesign.Spacing.small) {
-                Picker("Notebook", selection: $notebookID) {
-                    Text("No notebook").tag(String?.none)
-                    ForEach(vm.notebooks) { notebook in
-                        Text(notebook.title).tag(String?.some(notebook.id))
-                    }
-                }
-                .labelsHidden()
-                .frame(maxWidth: 240)
+                NotebookPickerField(label: "Notebook", notebookID: $notebookID)
+                    .frame(maxWidth: 240, alignment: .leading)
                 .accessibilityIdentifier("studio.goals.sheet.notebook")
                 Text("Its sources come along.")
                     .zoomedSystemFont(size: 11)

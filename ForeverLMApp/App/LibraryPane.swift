@@ -114,6 +114,7 @@ struct LibraryBulkBar: View {
     @Environment(StudioViewModel.self) private var vm
     @Environment(StudioWindowState.self) private var windowState
     @Environment(StudioSidebarStore.self) private var sidebar
+    @State private var isPickingBulkNotebook = false
     /// The sidebar's New Notebook sheet, for the sources the selection stands for.
     let onNewNotebook: ([String]) -> Void
     /// The sidebar's Remove… dialog, for the selection's rows.
@@ -144,21 +145,22 @@ struct LibraryBulkBar: View {
                 .monospacedDigit()
                 .textSelection(.disabled)
             if takesNotebooks {
-                Menu {
-                    ForEach(notebooks) { notebook in
-                        Button(NotebookTitle(notebook.title).text) {
-                            perform(.addToNotebook(notebook.id), on: selection, inBooks: inBooks)
-                        }
-                    }
+                Button {
+                    isPickingBulkNotebook = true
                 } label: {
                     Label("Add to Notebook", systemImage: "folder.badge.plus")
                         .zoomedSystemFont(size: 12)
                 }
-                .menuStyle(.button)
-                .buttonStyle(.plain)
-                .menuIndicator(.hidden)
-                .fixedSize()
-                .hoverHighlight()
+                .buttonStyle(.hoverWash)
+                .popover(isPresented: $isPickingBulkNotebook, arrowEdge: .top) {
+                    NotebookPickerPopover(
+                        placeholder: "Search notebooks",
+                        notebooks: notebooks,
+                        pick: { perform(.addToNotebook($0.id), on: selection, inBooks: inBooks) },
+                        close: { isPickingBulkNotebook = false }
+                    )
+                    .environment(vm)
+                }
                 .disabled(notebooks.isEmpty)
                 .help("Add the selected sources to a notebook")
                 .accessibilityIdentifier("library.bulk.addToNotebook")

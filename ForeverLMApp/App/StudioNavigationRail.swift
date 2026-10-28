@@ -3050,6 +3050,7 @@ private struct RailChatRow: View {
     /// Once revealed, keep the Menu alive for the row's lifetime so moving the
     /// pointer from its label into the open menu cannot tear down the presenter.
     @State private var hasRevealedActionsMenu = false
+    @State private var isPickingNotebook = false
 
     /// True while a chat from this row's own section is in flight. Drives both
     /// the drop outline and whether the row lights up, so a chat that cannot be
@@ -3143,6 +3144,23 @@ private struct RailChatRow: View {
             handleChatDrop(providers)
         }
         .contextMenu { menuItems }
+        .popover(isPresented: $isPickingNotebook, arrowEdge: .trailing) {
+            NotebookPickerPopover(
+                placeholder: "Search notebooks",
+                notebooks: notebooks + goals,
+                checkedIDs: displayedNotebookID.map { [$0] } ?? [],
+                none: hasExplicitNotebook
+                    ? .init(
+                        title: goals.contains { $0.id == displayedNotebookID } ? "Remove from Goal" : "Remove from Notebook"
+                    ) { moveToNotebook(nil) }
+                    : nil,
+                pick: { picked in
+                    if picked.id != displayedNotebookID { moveToNotebook(picked.id) }
+                },
+                close: { isPickingNotebook = false }
+            )
+            .environment(vm)
+        }
     }
 
     /// The section guard runs against the payload rather than `canAcceptCurrentDrag`,
@@ -3226,48 +3244,12 @@ private struct RailChatRow: View {
             Divider()
         }
         if !notebooks.isEmpty || !goals.isEmpty {
-            Menu {
-                ForEach(notebooks) { notebook in
-                    Button {
-                        moveToNotebook(notebook.id)
-                    } label: {
-                        if notebook.id == displayedNotebookID {
-                            Label(notebookTitle(notebook), systemImage: "checkmark")
-                        } else {
-                            Text(notebookTitle(notebook))
-                        }
-                    }
-                    .disabled(notebook.id == displayedNotebookID)
-                }
-                if !goals.isEmpty {
-                    Section("Goals") {
-                        ForEach(goals) { goal in
-                            Button {
-                                moveToNotebook(goal.id)
-                            } label: {
-                                if goal.id == displayedNotebookID {
-                                    Label(goal.title, systemImage: "checkmark")
-                                } else {
-                                    Text(goal.title)
-                                }
-                            }
-                            .disabled(goal.id == displayedNotebookID)
-                        }
-                    }
-                }
-                if hasExplicitNotebook {
-                    Divider()
-                    Button {
-                        moveToNotebook(nil)
-                    } label: {
-                        Label(
-                            goals.contains { $0.id == displayedNotebookID } ? "Remove from Goal" : "Remove from Notebook",
-                            systemImage: "folder.badge.minus"
-                        )
-                    }
-                }
+            // A popover under the row with a search field, not a menu of every
+            // notebook and Goal.
+            Button {
+                isPickingNotebook = true
             } label: {
-                Label("Move to Notebook", systemImage: "folder")
+                Label("Move to Notebook…", systemImage: "folder")
             }
         }
         // An exploring chat becomes a notebook of its own (product owner,

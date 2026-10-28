@@ -400,6 +400,8 @@ struct SpaceBrowseView: View {
     @State private var renameDraft = ""
     /// The page Move to Page… is asking a parent for.
     @State private var movingToPage: ArtifactRecord?
+    /// The chat Move to Notebook… is asking a notebook for.
+    @State private var movingChat: ReviewSessionRecord?
     /// The pages whose subpages the list shows, as their ids joined by commas:
     /// this Mac's own arrangement, like Recents' fold (`space.pagesExpanded`).
     @AppStorage("space.pagesExpanded") private var expandedPagesRaw = ""
@@ -549,6 +551,33 @@ struct SpaceBrowseView: View {
         .notebookCollectionDeleteConfirmation($collectionToDelete)
         .sheet(item: $movingToPage) { page in
             PageParentPickerSheet(page: page)
+        }
+        .sheet(item: $movingChat) { chat in
+            VStack(alignment: .leading, spacing: 0) {
+                Text("Move \u{2018}\(chat.title)\u{2019} to a notebook")
+                    .zoomedSystemFont(size: 13, weight: .semibold)
+                    .lineLimit(2)
+                    .padding(.horizontal, 12)
+                    .padding(.top, 12)
+                    .padding(.bottom, 4)
+                NotebookPickerPopover(
+                    placeholder: "Search notebooks",
+                    notebooks: vm.notebooks,
+                    checkedIDs: chat.goalID.map { [$0] } ?? [],
+                    none: chat.goalID.map { goalID in
+                        .init(title: vm.notebook(id: goalID)?.isGoal == true ? "Remove from Goal" : "Remove from Notebook") {
+                            Task { await vm.moveReviewSession(chat.id, toNotebook: nil) }
+                        }
+                    },
+                    pick: { picked in
+                        if picked.id != chat.goalID {
+                            Task { await vm.moveReviewSession(chat.id, toNotebook: picked.id) }
+                        }
+                    },
+                    close: { movingChat = nil }
+                )
+            }
+            .environment(vm)
         }
         .confirmationDialog(
             "Delete ‘\(deletingChat?.title ?? "this chat")’?",
@@ -1904,34 +1933,9 @@ struct SpaceBrowseView: View {
                 renameDraft = item.title
                 renaming = item
             }
-            let notebooks = vm.notebooks.sorted(by: NotebooksHomeSort.titleOrder)
-            if !notebooks.isEmpty {
-                Menu {
-                    ForEach(notebooks) { notebook in
-                        let title = NotebookTitle(notebook.title).text
-                        Button {
-                            Task { await vm.moveReviewSession(chat.id, toNotebook: notebook.id) }
-                        } label: {
-                            if notebook.id == chat.goalID {
-                                Label(title, systemImage: "checkmark")
-                            } else {
-                                Text(title)
-                            }
-                        }
-                        .disabled(notebook.id == chat.goalID)
-                    }
-                    if let goalID = chat.goalID {
-                        Divider()
-                        Button(
-                            vm.notebook(id: goalID)?.isGoal == true ? "Remove from Goal" : "Remove from Notebook",
-                            systemImage: "folder.badge.minus"
-                        ) {
-                            Task { await vm.moveReviewSession(chat.id, toNotebook: nil) }
-                        }
-                    }
-                } label: {
-                    Label("Move to Notebook", systemImage: "folder")
-                }
+            if !vm.notebooks.isEmpty {
+                // A sheet with a search field, not a menu of every notebook.
+                Button("Move to Notebook…", systemImage: "folder") { movingChat = chat }
             }
         }
         Divider()

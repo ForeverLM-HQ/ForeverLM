@@ -67,10 +67,19 @@ extension NotebookTint {
 /// a picker that `staysOpenOnPick` lets the learner tick several in a row.
 /// Most recently changed first; one grey row, as the sidebar selects.
 struct NotebookPickerPopover: View {
+    /// A row above the notebooks that picks none of them ("No notebook",
+    /// "Remove from Notebook"), shown while the field is empty.
+    struct NoneRow {
+        let title: String
+        var isChecked = false
+        let action: () -> Void
+    }
+
     let placeholder: String
     let notebooks: [LearningGoalRecord]
     var checkedIDs: Set<String> = []
     var staysOpenOnPick = false
+    var none: NoneRow?
     let pick: (LearningGoalRecord) -> Void
     let close: () -> Void
 
@@ -81,12 +90,22 @@ struct NotebookPickerPopover: View {
     static let width: CGFloat = 300
     private static let rowHeight: CGFloat = 28
     private static let visibleRows = 8
+    private static let noneID = "notebook.picker.none"
 
     private var shown: [LearningGoalRecord] {
         let ordered = notebooks.sorted { $0.updatedAt > $1.updatedAt }
         let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !needle.isEmpty else { return ordered }
         return ordered.filter { NotebookTitle($0.title).text.localizedStandardContains(needle) }
+    }
+
+    /// The ids the arrow keys walk: the none row first, then the notebooks.
+    private func walkable(_ rows: [LearningGoalRecord]) -> [String] {
+        (showsNone ? [Self.noneID] : []) + rows.map(\.id)
+    }
+
+    private var showsNone: Bool {
+        none != nil && query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     var body: some View {
@@ -101,7 +120,11 @@ struct NotebookPickerPopover: View {
                         .textFieldStyle(.plain)
                         .focused($searchFocused)
                         .onSubmit {
-                            if let notebook = rows.first(where: { $0.id == highlightedID }) { choose(notebook) }
+                            if highlightedID == Self.noneID {
+                                chooseNone()
+                            } else if let notebook = rows.first(where: { $0.id == highlightedID }) {
+                                choose(notebook)
+                            }
                         }
                         .onKeyPress(.upArrow) { move(-1, in: rows, proxy: proxy); return .handled }
                         .onKeyPress(.downArrow) { move(1, in: rows, proxy: proxy); return .handled }
@@ -110,7 +133,7 @@ struct NotebookPickerPopover: View {
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
                 Divider()
-                if rows.isEmpty {
+                if rows.isEmpty, !showsNone {
                     Text("No notebooks match")
                         .zoomedSystemFont(size: 12)
                         .foregroundStyle(.secondary)
@@ -119,22 +142,25 @@ struct NotebookPickerPopover: View {
                 } else {
                     ScrollView {
                         LazyVStack(spacing: 0) {
+                            if showsNone, let none {
+                                noneRow(none)
+                            }
                             ForEach(rows) { notebook in
                                 row(notebook)
                             }
                         }
                         .padding(6)
                     }
-                    .frame(height: min(CGFloat(rows.count), CGFloat(Self.visibleRows)) * Self.rowHeight + 12)
+                    .frame(height: min(CGFloat(walkable(rows).count), CGFloat(Self.visibleRows)) * Self.rowHeight + 12)
                 }
             }
         }
         .frame(width: Self.width)
         .onAppear {
             searchFocused = true
-            highlightedID = shown.first?.id
+            highlightedID = walkable(shown).first
         }
-        .onChange(of: query) { _, _ in highlightedID = shown.first?.id }
+        .onChange(of: query) { _, _ in highlightedID = walkable(shown).first }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("notebook.picker")
     }
@@ -149,6 +175,11 @@ struct NotebookPickerPopover: View {
                     .foregroundStyle(.primary)
                     .lineLimit(1)
                     .truncationMode(.tail)
+                if !notebook.isNotebook {
+                    Text("Goal")
+                        .zoomedSystemFont(size: 11)
+                        .foregroundStyle(.secondary)
+                }
                 Spacer(minLength: 8)
                 if checkedIDs.contains(notebook.id) {
                     Image(systemName: "checkmark")
@@ -169,17 +200,90 @@ struct NotebookPickerPopover: View {
         .accessibilityIdentifier("notebook.picker.row")
     }
 
+    private func noneRow(_ none: NoneRow) -> some View {
+        Button { chooseNone() } label: {
+            HStack(spacing: 8) {
+                Text(none.title)
+                    .zoomedSystemFont(size: 13)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                if none.isChecked {
+                    Image(systemName: "checkmark")
+                        .zoomedSystemFont(size: 11, weight: .semibold)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 8)
+            .frame(height: Self.rowHeight)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(StudioSelectionBackground(isSelected: highlightedID == Self.noneID, isHovered: false))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { if $0 { highlightedID = Self.noneID } }
+        .id(Self.noneID)
+        .accessibilityIdentifier("notebook.picker.none")
+    }
+
+    private func chooseNone() {
+        none?.action()
+        if !staysOpenOnPick { close() }
+    }
+
     private func choose(_ notebook: LearningGoalRecord) {
         pick(notebook)
         if !staysOpenOnPick { close() }
     }
 
     private func move(_ delta: Int, in rows: [LearningGoalRecord], proxy: ScrollViewProxy) {
-        guard !rows.isEmpty else { return }
-        let current = rows.firstIndex { $0.id == highlightedID } ?? (delta > 0 ? -1 : rows.count)
-        let next = min(max(current + delta, 0), rows.count - 1)
-        highlightedID = rows[next].id
-        proxy.scrollTo(rows[next].id)
+        let ids = walkable(rows)
+        guard !ids.isEmpty else { return }
+        let current = ids.firstIndex { $0 == highlightedID } ?? (delta > 0 ? -1 : ids.count)
+        let next = min(max(current + delta, 0), ids.count - 1)
+        highlightedID = ids[next]
+        proxy.scrollTo(ids[next])
+    }
+}
+
+/// A form's notebook choice: the chosen title in a field that opens
+/// `NotebookPickerPopover`, where a form used a `Picker` listing every
+/// notebook. `notebookID` nil reads `noneTitle` ("No notebook").
+struct NotebookPickerField: View {
+    @Environment(StudioViewModel.self) private var vm
+    let label: String
+    var noneTitle = "No notebook"
+    @Binding var notebookID: String?
+    @State private var isChoosing = false
+
+    var body: some View {
+        let chosen = notebookID.flatMap { vm.notebook(id: $0) }
+        Button { isChoosing = true } label: {
+            HStack(spacing: 6) {
+                Text(chosen.map { NotebookTitle($0.title).text } ?? noneTitle)
+                    .foregroundStyle(chosen == nil ? .secondary : .primary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Image(systemName: "chevron.up.chevron.down")
+                    .zoomedSystemFont(size: 10, weight: .semibold)
+                    .foregroundStyle(.secondary)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .popover(isPresented: $isChoosing, arrowEdge: .bottom) {
+            NotebookPickerPopover(
+                placeholder: "Search notebooks",
+                notebooks: vm.notebooks,
+                checkedIDs: notebookID.map { [$0] } ?? [],
+                none: .init(title: noneTitle, isChecked: notebookID == nil) { notebookID = nil },
+                pick: { notebookID = $0.id },
+                close: { isChoosing = false }
+            )
+            .environment(vm)
+        }
+        .accessibilityLabel(label)
+        .accessibilityValue(chosen?.title ?? noneTitle)
     }
 }
 

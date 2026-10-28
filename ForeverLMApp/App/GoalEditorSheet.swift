@@ -350,17 +350,8 @@ struct GoalEditorSheet: View {
     /// went on 2026-10-06.
     private var notebookPicker: some View {
         HStack(spacing: StudioDesign.Spacing.small) {
-            Picker("Notebook", selection: $edit.notebookID) {
-                Text("No notebook").tag(String?.none)
-                ForEach(vm.notebooks) { notebook in
-                    Text(notebook.title).tag(String?.some(notebook.id))
-                }
-                if let current = edit.notebookID, !vm.notebooks.contains(where: { $0.id == current }) {
-                    Text(vm.notebook(id: current)?.title ?? "A notebook no longer here").tag(String?.some(current))
-                }
-            }
-            .labelsHidden()
-            .frame(maxWidth: 260)
+            NotebookPickerField(label: "Notebook", notebookID: $edit.notebookID)
+                .frame(maxWidth: 260, alignment: .leading)
             .accessibilityIdentifier("studio.goals.editor.notebook")
         }
     }

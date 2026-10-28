@@ -496,16 +496,7 @@ private struct ScheduledTaskEditor: View {
     }
 
     private var notebookPicker: some View {
-        Picker("Notebook", selection: Binding(
-            get: { draft.notebookID ?? "" },
-            set: { draft.notebookID = $0.isEmpty ? nil : $0 }
-        )) {
-            Text("No notebook").tag("")
-            ForEach(vm.notebooks) { notebook in
-                Text(notebook.title).tag(notebook.id)
-            }
-        }
-        .pickerStyle(.menu)
+        NotebookPickerField(label: "Notebook", notebookID: $draft.notebookID)
     }
 
     private var sourcePicker: some View {
