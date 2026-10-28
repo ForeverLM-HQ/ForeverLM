@@ -6,9 +6,12 @@ import PDFKit
 private enum PaperFigureIndexerError: LocalizedError {
     case missingPDF(String)
     case unreadablePDF(String)
+    case readingTimedOut(String, Double)
 
     var errorDescription: String? {
         switch self {
+        case .readingTimedOut(let label, let seconds):
+            return "The vision model did not finish reading \(label) within \(Int(seconds)) seconds, so the reading was stopped; it may be busy, and asking again can work."
         case .missingPDF(let path): return "The paper PDF is not available at \(path)."
         case .unreadablePDF(let path): return "The paper PDF could not be opened at \(path)."
         }
@@ -58,7 +61,8 @@ actor PaperFigureIndexer {
 
         var figures = try await storage.paperFigures(sourceID: sourceID)
         if figures.isEmpty {
-            figures = try await prepare(sourceID: sourceID, analyzing: [requested])
+            // The index alone: the reading below is the one pass with a deadline.
+            figures = try await prepareStructure(sourceID: sourceID)
         }
         guard let match = Self.figure(labelled: requested, in: figures) else { return figures }
         if let analysis = match.analysis, analysis.analysisVersion == PaperFigureAnalysis.currentVersion {
@@ -72,7 +76,12 @@ actor PaperFigureIndexer {
             return try await value(of: task, key: "figure:" + match.id)
         }
         let task = Task { [storage] in
-            try await self.analyzeSingle(figure: match, config: config)
+            try await Self.withDeadline(
+                seconds: Self.singleFigureReadingSeconds,
+                timeout: PaperFigureIndexerError.readingTimedOut(match.figureLabel, Self.singleFigureReadingSeconds)
+            ) {
+                try await self.analyzeSingle(figure: match, config: config)
+            }
             return try await storage.paperFigures(sourceID: sourceID)
         }
         inFlightFigures[match.id] = task
@@ -80,6 +89,33 @@ actor PaperFigureIndexer {
             if inFlightFigures[match.id] == task { inFlightFigures[match.id] = nil }
         }
         return try await value(of: task, key: "figure:" + match.id)
+    }
+
+    /// How long a chat or an MCP client waits for one figure's vision reading.
+    /// Model calls carry no request timeout of their own (a slow provider is
+    /// not a failed import), so a reading on a busy free route never ended:
+    /// the chat's tool row spun until the learner pressed Stop, and an MCP
+    /// client timed out with neither a picture nor a reason. Past this the
+    /// reading is given up and the caller shows the figure without it.
+    private static let singleFigureReadingSeconds = 45.0
+
+    /// Runs `operation`, and cancels it and throws `timeout` when it has not
+    /// finished in `seconds`.
+    private static func withDeadline<T: Sendable>(
+        seconds: Double,
+        timeout: any Error,
+        _ operation: @escaping @Sendable () async throws -> T
+    ) async throws -> T {
+        try await withThrowingTaskGroup(of: T.self) { group in
+            group.addTask { try await operation() }
+            group.addTask {
+                try await Task.sleep(for: .seconds(seconds))
+                throw timeout
+            }
+            defer { group.cancelAll() }
+            guard let first = try await group.next() else { throw CancellationError() }
+            return first
+        }
     }
 
     /// Waits for a shared task, and ends it when this caller is cancelled and
