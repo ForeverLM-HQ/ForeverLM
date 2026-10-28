@@ -2536,6 +2536,39 @@ enum StudioCenterTabGroupSizing {
     }
 }
 
+extension StudioViewModel {
+    /// Whether the Reader in `windowState` holds a video: a YouTube video, a
+    /// video source, a generated explainer, or a meeting with a playable
+    /// recording. Its tab then says Video, since a Reader names a document.
+    func readerShowsVideo(in windowState: StudioWindowState) -> Bool {
+        let article: StudioArticle?
+        if let external = windowState.externalReaderPage {
+            article = external.article
+        } else {
+            article = windowState.readerSourceID(fallingBackTo: selectedArticleId).flatMap { articlesById[$0] }
+        }
+        guard let article else { return false }
+        if article.offersWatchedMarks || article.isYouTubeURL || GeneratedExplainerVideo.isVideoURL(article.url) {
+            return true
+        }
+        return article.sourceType == .meeting
+            && MeetingRecordingMedia.resolve(from: meetingArtifactsBySourceId[article.id] ?? []) != nil
+    }
+}
+
+extension StudioCenterTab {
+    /// What a tab in a strip is called: the Reader says Video while it holds one.
+    func stripTitle(readerShowsVideo: Bool) -> String {
+        self == .reader && readerShowsVideo ? "Video" : title
+    }
+
+    /// The glyph a tab in a strip draws: the Reader draws a player while it
+    /// holds a video.
+    func stripSystemImage(readerShowsVideo: Bool) -> String {
+        self == .reader && readerShowsVideo ? "play.rectangle" : ShellPlaces.descriptor(for: self).glyph
+    }
+}
+
 private extension StudioCenterTab {
     /// Familiar, monochrome symbols help distinguish peer destinations without
     /// introducing another color system into the titlebar: the place
@@ -2925,7 +2958,8 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
         at groupIndex: Int,
         trailingOverflow: CGFloat
     ) -> some View {
-        HStack(spacing: 2) {
+        let readerShowsVideo = vm.readerShowsVideo(in: windowState)
+        return HStack(spacing: 2) {
             ForEach(Array(group.openTabs.enumerated()), id: \.element) { tabIndex, tab in
                 if dropTarget == .tab(group: groupIndex, index: tabIndex) {
                     dropIndicatorCapsule
@@ -2933,8 +2967,8 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                 let isAlone = group.openTabs == [tab]
                 let atCapacity = !windowState.centerTabGroups.canCreateDraggedGroup
                 StudioCenterTabButton(
-                    title: tab.title,
-                    systemImage: tab.systemImage,
+                    title: tab.stripTitle(readerShowsVideo: readerShowsVideo),
+                    systemImage: tab.stripSystemImage(readerShowsVideo: readerShowsVideo),
                     isActive: group.activeTab == tab,
                     action: { vm.activateCenterTab(tab, in: windowState) },
                     payload: StudioCenterTabDragPayload.string(for: tab),
@@ -3809,6 +3843,8 @@ struct NotebookSlotTabStrip: View {
     let onCloseTab: (StudioCenterTab) -> Void
     let onCloseSlot: () -> Void
     var memoryReviewFocused = false
+    /// Whether the Reader holds a video, which its tab is then named for.
+    var readerShowsVideo = false
     /// What the leading edge must clear: ‹ › and the sidebar toggle, which in
     /// full screen stand on this row when the slot is the window's leftmost.
     var leadingClearance: CGFloat = 0
@@ -3817,8 +3853,8 @@ struct NotebookSlotTabStrip: View {
         HStack(spacing: 2) {
             ForEach(tabs, id: \.self) { tab in
                 StudioCenterTabButton(
-                    title: tab.title,
-                    systemImage: tab.systemImage,
+                    title: tab.stripTitle(readerShowsVideo: readerShowsVideo),
+                    systemImage: tab.stripSystemImage(readerShowsVideo: readerShowsVideo),
                     isActive: tab == activeTab,
                     action: { onSelect(tab) },
                     payload: StudioCenterTabDragPayload.string(for: tab),

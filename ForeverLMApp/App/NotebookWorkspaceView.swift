@@ -980,6 +980,7 @@ struct NotebookWorkspaceView: View {
             onCloseTab: { vm.closeCenterTab($0, in: windowState) },
             onCloseSlot: { windowState.notebook = windowState.notebook?.closingSlot() },
             memoryReviewFocused: windowState.memoryReviewFocusSessionID != nil,
+            readerShowsVideo: vm.readerShowsVideo(in: windowState),
             leadingClearance: titlebarBandHeight == nil ? leadingReservation(start: start) : 0
         )
         return StudioPaneHost(

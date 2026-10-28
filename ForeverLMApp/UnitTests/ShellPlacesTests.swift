@@ -50,6 +50,18 @@ struct ShellPlacesTests {
         }
     }
 
+    @Test("The Reader's tab says Video while it holds a video, and nothing else changes")
+    func readerTabNamesAVideo() {
+        #expect(StudioCenterTab.reader.stripTitle(readerShowsVideo: true) == "Video")
+        #expect(StudioCenterTab.reader.stripTitle(readerShowsVideo: false) == "Reader")
+        #expect(StudioCenterTab.reader.stripSystemImage(readerShowsVideo: true) == "play.rectangle")
+        #expect(StudioCenterTab.reader.stripSystemImage(readerShowsVideo: false) == "doc.text")
+        for tab in StudioCenterTab.allCases where tab != .reader {
+            #expect(tab.stripTitle(readerShowsVideo: true) == tab.title)
+            #expect(tab.stripSystemImage(readerShowsVideo: true) == ShellPlaces.descriptor(for: tab).glyph)
+        }
+    }
+
     @Test("A glyph a module also draws elsewhere is the same symbol there")
     @MainActor
     func glyphsAgreeWithTheirModules() {
