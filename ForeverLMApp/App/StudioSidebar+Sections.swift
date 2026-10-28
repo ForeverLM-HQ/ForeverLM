@@ -1253,38 +1253,18 @@ extension StudioSidebar {
 
             if sidebar.sidebarTab == .meetings, !showsMeetingsEmptyHelp {
                 Section {
-                    HStack(spacing: 8) {
-                        Button(action: startGoogleDriveMeetingImport) {
-                            Label(
-                                isGoogleDriveWorking
-                                    ? "Waiting for Google… Cancel"
-                                    : (isGoogleDriveSignedIn && !hasGoogleDriveFolderReadAccess
-                                        ? "Reconnect Google Drive…"
-                                        : "Add Meeting Folder…"),
-                                systemImage: isGoogleDriveWorking ? "xmark.circle" : "folder.badge.plus"
-                            )
-                                .font(.subheadline.weight(.medium))
-                                .frame(maxWidth: .infinity)
-                                .padding(.vertical, 6)
+                    // Side by side where the column has room, stacked where it
+                    // does not: two labels that cannot shrink ran past a narrow
+                    // Library column and were cut at both its edges.
+                    ViewThatFits(in: .horizontal) {
+                        HStack(spacing: 8) {
+                            addMeetingFolderButton
+                            addRecordingButton
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.blue.opacity(0.8))
-                        .controlSize(.small)
-
-                        // Followed the Zoom tab down here when the tabs merged:
-                        // pasting a recording link is how one provider's
-                        // sessions arrive, not a place of its own.
-                        Button {
-                            alertText = ""
-                            zoomPasscodeText = ""
-                            activeAlert = .addZoomRecording
-                        } label: {
-                            Label("Add Recording…", systemImage: "video.badge.plus")
-                                .font(.subheadline.weight(.medium))
-                                .padding(.vertical, 6)
+                        VStack(spacing: 8) {
+                            addMeetingFolderButton
+                            addRecordingButton
                         }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
                     }
                 }
             }
@@ -1481,6 +1461,45 @@ extension StudioSidebar {
         .padding(.vertical, 36)
         .listRowBackground(Color.clear)
         .listRowSeparator(.hidden)
+    }
+
+    /// The Meetings tab's primary action, filling its row where it has room.
+    private var addMeetingFolderButton: some View {
+        Button(action: startGoogleDriveMeetingImport) {
+            Label(
+                isGoogleDriveWorking
+                    ? "Waiting for Google… Cancel"
+                    : (isGoogleDriveSignedIn && !hasGoogleDriveFolderReadAccess
+                        ? "Reconnect Google Drive…"
+                        : "Add Meeting Folder…"),
+                systemImage: isGoogleDriveWorking ? "xmark.circle" : "folder.badge.plus"
+            )
+                .font(.subheadline.weight(.medium))
+                .lineLimit(1)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 6)
+        }
+        .buttonStyle(.borderedProminent)
+        .tint(.blue.opacity(0.8))
+        .controlSize(.small)
+    }
+
+    /// Followed the Zoom tab down here when the tabs merged: pasting a
+    /// recording link is how one provider's sessions arrive, not a place of its
+    /// own.
+    private var addRecordingButton: some View {
+        Button {
+            alertText = ""
+            zoomPasscodeText = ""
+            activeAlert = .addZoomRecording
+        } label: {
+            Label("Add Recording…", systemImage: "video.badge.plus")
+                .font(.subheadline.weight(.medium))
+                .lineLimit(1)
+                .padding(.vertical, 6)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
     }
 
     private func startGoogleDriveMeetingImport() {

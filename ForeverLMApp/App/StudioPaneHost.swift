@@ -421,7 +421,13 @@ struct StudioPaneHost<Content: View, Corner: View>: View {
                     .environment(\.studioChromeLineReservation, chromeLineReservation(swapReservation: swapReservation))
                     .environment(\.studioPaneChromePlacement, placement)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .frame(width: contentWidth)
+                    // Leading, not the default centre: a pane whose content
+                    // needs more than it is given then runs over on its
+                    // trailing side, under the clip below, and not equally to
+                    // both sides, where the leading half was drawn over the
+                    // sidebar beside the pane (the Library at 218pt beside a
+                    // 200pt sidebar, 2026-10-28).
+                    .frame(width: contentWidth, alignment: .leading)
                     .frame(maxHeight: .infinity)
                     // The pane lives inside the outer center column; both may
                     // be clipped at once, so its own overflow rides on top of
