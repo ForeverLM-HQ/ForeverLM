@@ -2006,3 +2006,48 @@ struct PaperFigureUnderBannerHeadTests {
         )
     }
 }
+
+/// A paper nobody has asked about has no figure index: the index is built the
+/// first time something needs it. `focus_source_anchor` refused "Figure 1" of
+/// such a paper as not found (2026-10-28, a freshly imported preprint with its
+/// index still queued), though the caption was printed on the page.
+@Suite("Chat points at a figure of an unindexed paper")
+@MainActor
+struct FocusAnchorUnindexedPaperTests {
+
+    @Test("Figure 1 of a paper with no index is found by reading its captions")
+    func figureOfUnindexedPaperIsIndexedOnDemand() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("FocusAnchorUnindexed_\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let pdf = root.appendingPathComponent("zara-holt-preprint.pdf")
+        try SyntheticPaperPage.write(to: pdf)
+
+        let storage = StorageService(storeRoot: root.appendingPathComponent("store", isDirectory: true))
+        var paper = StudioArticle(
+            url: "https://example.org/zara-holt-preprint",
+            title: "A synthetic preprint",
+            sourceType: .paper,
+            localFilePath: pdf.path
+        )
+        paper.state = .ready
+        try await storage.saveSource(paper)
+        #expect(try await storage.paperFigures(sourceID: paper.id).isEmpty)
+
+        let manager = ReviewSessionManager(storage: storage)
+        manager.walkthroughFocusHandler = { _ in }
+        manager.walkthroughReaderShowsSource = { _ in true }
+
+        let result = await manager.focusSourceAnchorForTesting(
+            arguments: ["source_id": paper.id, "figure_label": "Figure 1"]
+        )
+
+        #expect(!result.isError)
+        #expect(!result.text.contains("was not found"))
+        #expect(result.text.contains("Pointed the Reader at Figure 1"))
+        let indexed = try await storage.paperFigures(sourceID: paper.id)
+        #expect(indexed.map(\.figureLabel) == ["Figure 1"])
+        #expect(indexed.first?.analysis == nil)
+    }
+}
