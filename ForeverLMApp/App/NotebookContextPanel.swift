@@ -1409,32 +1409,36 @@ private struct NotebookContextNotebookGroup: View {
     }
 }
 
-/// Add a Notebook to Context: the notebooks of the library this one does not
-/// link to yet, each linking it and putting it into this notebook's chats in
-/// one step (`addContextNotebook`). In the notebook's ⋯ menu
-/// and the inspector's "Uses context from".
-struct AddContextNotebookMenu: View {
+/// Add a Notebook to Context: the popover under the notebook's name, from its
+/// ⋯ menu's "Add a Notebook to Context…" (`NotebookPickerPopover`, never a
+/// menu of every notebook). A pick links the notebook and puts it into this
+/// notebook's chats in one step (`addContextNotebook`); one already linked
+/// wears a tick, and a pick on it takes it out again
+/// (`takeContextNotebookOut`). The popover stays open for the next.
+struct NotebookContextPicker: View {
     @Environment(StudioViewModel.self) private var vm
     let goal: LearningGoalRecord
-
-    private var candidates: [LearningGoalRecord] {
-        let linked = Set(goal.relatedNotebookIDs ?? [])
-        return vm.notebooks.filter { $0.id != goal.id && !linked.contains($0.id) }
-    }
+    let close: () -> Void
 
     var body: some View {
-        Menu {
-            ForEach(candidates) { notebook in
-                Button(NotebookTitle(notebook.title).text) {
-                    let notebookID = notebook.id
-                    let goalID = goal.id
+        let live = vm.notebook(id: goal.id) ?? goal
+        let linked = Set(live.relatedNotebookIDs ?? [])
+        NotebookPickerPopover(
+            placeholder: "Search notebooks",
+            notebooks: vm.notebooks.filter { $0.id != goal.id },
+            checkedIDs: linked,
+            staysOpenOnPick: true,
+            pick: { notebook in
+                let notebookID = notebook.id
+                let goalID = goal.id
+                if linked.contains(notebookID) {
+                    Task { await vm.takeContextNotebookOut(notebookID, of: goalID) }
+                } else {
                     Task { await vm.addContextNotebook(notebookID, to: goalID) }
                 }
-            }
-        } label: {
-            Label("Add a Notebook to Context", systemImage: "books.vertical")
-        }
-        .disabled(candidates.isEmpty || vm.importableNotebook(goal.id) == nil)
+            },
+            close: close
+        )
     }
 }
 

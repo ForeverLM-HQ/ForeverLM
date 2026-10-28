@@ -59,6 +59,130 @@ extension NotebookTint {
     }
 }
 
+/// The one way to pick among notebooks: a small popover, a search field on
+/// top and a short list under it, never a menu of every notebook (product
+/// owner, 2026-10-28, of the ⋯ menu's "Add a Notebook to Context" list: "don't
+/// do these kind of apple long laundry list"). Type to filter; ↑ ↓ move and
+/// Return picks; Escape closes. A notebook in `checkedIDs` wears a tick, and
+/// a picker that `staysOpenOnPick` lets the learner tick several in a row.
+/// Most recently changed first; one grey row, as the sidebar selects.
+struct NotebookPickerPopover: View {
+    let placeholder: String
+    let notebooks: [LearningGoalRecord]
+    var checkedIDs: Set<String> = []
+    var staysOpenOnPick = false
+    let pick: (LearningGoalRecord) -> Void
+    let close: () -> Void
+
+    @State private var query = ""
+    @State private var highlightedID: String?
+    @FocusState private var searchFocused: Bool
+
+    static let width: CGFloat = 300
+    private static let rowHeight: CGFloat = 28
+    private static let visibleRows = 8
+
+    private var shown: [LearningGoalRecord] {
+        let ordered = notebooks.sorted { $0.updatedAt > $1.updatedAt }
+        let needle = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !needle.isEmpty else { return ordered }
+        return ordered.filter { NotebookTitle($0.title).text.localizedStandardContains(needle) }
+    }
+
+    var body: some View {
+        let rows = shown
+        ScrollViewReader { proxy in
+            VStack(spacing: 0) {
+                HStack(spacing: 6) {
+                    Image(systemName: "magnifyingglass")
+                        .zoomedSystemFont(size: 12)
+                        .foregroundStyle(.secondary)
+                    TextField(placeholder, text: $query)
+                        .textFieldStyle(.plain)
+                        .focused($searchFocused)
+                        .onSubmit {
+                            if let notebook = rows.first(where: { $0.id == highlightedID }) { choose(notebook) }
+                        }
+                        .onKeyPress(.upArrow) { move(-1, in: rows, proxy: proxy); return .handled }
+                        .onKeyPress(.downArrow) { move(1, in: rows, proxy: proxy); return .handled }
+                        .accessibilityIdentifier("notebook.picker.search")
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+                Divider()
+                if rows.isEmpty {
+                    Text("No notebooks match")
+                        .zoomedSystemFont(size: 12)
+                        .foregroundStyle(.secondary)
+                        .textSelection(.disabled)
+                        .frame(maxWidth: .infinity, minHeight: Self.rowHeight * 2)
+                } else {
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            ForEach(rows) { notebook in
+                                row(notebook)
+                            }
+                        }
+                        .padding(6)
+                    }
+                    .frame(height: min(CGFloat(rows.count), CGFloat(Self.visibleRows)) * Self.rowHeight + 12)
+                }
+            }
+        }
+        .frame(width: Self.width)
+        .onAppear {
+            searchFocused = true
+            highlightedID = shown.first?.id
+        }
+        .onChange(of: query) { _, _ in highlightedID = shown.first?.id }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("notebook.picker")
+    }
+
+    private func row(_ notebook: LearningGoalRecord) -> some View {
+        let title = NotebookTitle(notebook.title)
+        return Button { choose(notebook) } label: {
+            HStack(spacing: 8) {
+                if let icon = title.icon { Text(icon) }
+                Text(title.text)
+                    .zoomedSystemFont(size: 13)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer(minLength: 8)
+                if checkedIDs.contains(notebook.id) {
+                    Image(systemName: "checkmark")
+                        .zoomedSystemFont(size: 11, weight: .semibold)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, 8)
+            .frame(height: Self.rowHeight)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(StudioSelectionBackground(isSelected: highlightedID == notebook.id, isHovered: false))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { if $0 { highlightedID = notebook.id } }
+        .id(notebook.id)
+        .accessibilityAddTraits(checkedIDs.contains(notebook.id) ? .isSelected : [])
+        .accessibilityIdentifier("notebook.picker.row")
+    }
+
+    private func choose(_ notebook: LearningGoalRecord) {
+        pick(notebook)
+        if !staysOpenOnPick { close() }
+    }
+
+    private func move(_ delta: Int, in rows: [LearningGoalRecord], proxy: ScrollViewProxy) {
+        guard !rows.isEmpty else { return }
+        let current = rows.firstIndex { $0.id == highlightedID } ?? (delta > 0 ? -1 : rows.count)
+        let next = min(max(current + delta, 0), rows.count - 1)
+        highlightedID = rows[next].id
+        proxy.scrollTo(rows[next].id)
+    }
+}
+
 /// The menu entry every Notebook surface offers for merging. It stays visible
 /// with nothing to merge into, disabled, so the action is discoverable from a
 /// library with one Notebook as well as from one with twenty.
@@ -83,6 +207,7 @@ struct NotebookMergeSheet: View {
     @State private var survivorID: String?
     @State private var title = ""
     @State private var isMerging = false
+    @State private var isChoosingSurvivor = false
 
     private var candidates: [LearningGoalRecord] {
         vm.mergeCandidates(for: goal)
@@ -121,13 +246,36 @@ struct NotebookMergeSheet: View {
                 Text("Into")
                     .zoomedSystemFont(size: 11, weight: .medium)
                     .foregroundStyle(.secondary)
-                Picker("Into", selection: $survivorID) {
-                    ForEach(candidates) { candidate in
-                        Text(candidate.title).tag(Optional(candidate.id))
+                Button { isChoosingSurvivor = true } label: {
+                    HStack(spacing: 8) {
+                        Text(survivor?.title ?? "Choose a notebook")
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                        Spacer(minLength: 8)
+                        Image(systemName: "chevron.up.chevron.down")
+                            .zoomedSystemFont(size: 10, weight: .semibold)
+                            .foregroundStyle(.secondary)
                     }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 5)
+                    .background(RoundedRectangle(cornerRadius: 6).fill(Color(nsColor: .textBackgroundColor)))
+                    .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color(nsColor: .separatorColor)))
+                    .contentShape(Rectangle())
                 }
-                .labelsHidden()
-                .frame(maxWidth: .infinity, alignment: .leading)
+                .buttonStyle(.plain)
+                .popover(isPresented: $isChoosingSurvivor, arrowEdge: .bottom) {
+                    NotebookPickerPopover(
+                        placeholder: "Search notebooks",
+                        notebooks: candidates,
+                        checkedIDs: survivorID.map { [$0] } ?? [],
+                        pick: { survivorID = $0.id },
+                        close: { isChoosingSurvivor = false }
+                    )
+                    .environment(vm)
+                }
+                .accessibilityLabel("Into")
+                .accessibilityValue(survivor?.title ?? "None chosen")
+                .accessibilityIdentifier("notebook.merge.into")
             }
 
             VStack(alignment: .leading, spacing: 6) {

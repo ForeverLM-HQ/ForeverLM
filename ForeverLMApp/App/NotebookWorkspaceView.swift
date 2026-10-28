@@ -322,6 +322,7 @@ struct NotebookWorkspaceView: View {
     @State private var renameText = ""
     @State private var showDeleteConfirm = false
     @State private var showMergeSheet = false
+    @State private var isPickingContextNotebook = false
     /// The Share popover from the workspace's top right, for Share… while the
     /// Studio column, where Share lives, is not on screen.
     @State private var isShowingShareUnderMenu = false
@@ -686,6 +687,11 @@ struct NotebookWorkspaceView: View {
             .accessibilityLabel(goal.title)
             .accessibilityHint("Notebook actions")
             .accessibilityIdentifier("notebook.name")
+            // The menu's Add a Notebook to Context…, under the name.
+            .popover(isPresented: $isPickingContextNotebook, arrowEdge: .bottom) {
+                NotebookContextPicker(goal: goal) { isPickingContextNotebook = false }
+                    .environment(vm)
+            }
             // ForeverLM could not name a notebook made without one: the
             // placeholder stays, and this says why (`NotebookNaming`).
             if let namingError = vm.notebookNamingErrors[goal.id] {
@@ -712,15 +718,6 @@ struct NotebookWorkspaceView: View {
         }
     }
 
-    /// Close Notebook: the window shows the Space's All list, the one place a
-    /// window holding no notebook shows; the notebook's row there or its rail
-    /// row brings it back as it was.
-    private func closeNotebook() {
-        withAnimation(.easeInOut(duration: 0.22)) {
-            vm.showSpaceAll(in: windowState)
-        }
-    }
-
     // MARK: - The notebook's actions
 
     @ViewBuilder
@@ -731,7 +728,11 @@ struct NotebookWorkspaceView: View {
         let isReadOnly = vm.isNotebookReadOnly(goal)
         Button("Add Sources…", systemImage: "plus") { isAddingSources = true }
             .disabled(vm.importableNotebook(goal.id) == nil)
-        AddContextNotebookMenu(goal: goal)
+        // A popover under the name, not a menu of every notebook.
+        Button("Add a Notebook to Context…", systemImage: "books.vertical") {
+            isPickingContextNotebook = true
+        }
+        .disabled(vm.importableNotebook(goal.id) == nil || !vm.notebooks.contains { $0.id != goal.id })
         // This notebook's own Think first level over the library's: the
         // learner's, so it is offered on a read-only team's notebook too.
         NotebookThinkFirstMenu(notebookID: goal.id)
@@ -762,11 +763,9 @@ struct NotebookWorkspaceView: View {
         // The notebook's Share popover, under the Share at the top right of
         // Studio; from the workspace's top right while Studio is folded or an
         // immersive video has its place.
+        // Share with Team is in that popover too, so the menu has one row.
         Button("Share…", systemImage: "person.badge.plus") {
             NotificationCenter.default.post(name: .showNotebookShare, object: windowState.id)
-        }
-        ShareWithTeamMenu { teamID in
-            Task { await vm.shareNotebook(goal.id, withTeam: teamID) }
         }
         Divider()
         NotebookMergeMenuButton(goal: goal) { showMergeSheet = true }
@@ -775,7 +774,6 @@ struct NotebookWorkspaceView: View {
             currentWindowState: windowState,
             openNewWindow: { openWindow(id: "studio") }
         )
-        Button("Close Notebook", systemImage: "xmark") { closeNotebook() }
         Divider()
         Button("Delete Notebook…", systemImage: "trash", role: .destructive) {
             showDeleteConfirm = true
