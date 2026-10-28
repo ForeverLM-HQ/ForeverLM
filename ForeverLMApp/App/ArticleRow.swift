@@ -373,18 +373,24 @@ struct ArticleRow: View {
             if showsThumbnail {
                 compactThumbnail
             }
+            // A row whose source changes under it (a new session lands above
+            // it in the Meetings list and the rows shift down) must swap its
+            // words, not fade one title over the other: the default text
+            // transition drew "October 25" and "October 18" on top of each other.
             Text(displayTitle)
                 .zoomedSystemFont(size: 13)
                 .foregroundStyle(trackingStatus == .unread ? .primary : .secondary)
                 .lineLimit(1)
                 .truncationMode(.tail)
                 .layoutPriority(1)
+                .contentTransition(.identity)
             if let byline = compactByline {
                 Text(byline)
                     .zoomedSystemFont(size: 12)
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
                     .truncationMode(.tail)
+                    .contentTransition(.identity)
             }
             Spacer(minLength: 4)
             if let paperProcessingStepLabel {
