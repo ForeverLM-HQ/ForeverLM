@@ -13353,7 +13353,7 @@ final class ReviewSessionManager {
             return AppToolResult(text: "Error: focus_source_anchor needs a figure_label, a passage copied from the source, or a page_number.", isError: true)
         }
         let sourceID = article.id
-        let figures = (try? await storage.paperFigures(sourceID: sourceID)) ?? []
+        var figures = (try? await storage.paperFigures(sourceID: sourceID)) ?? []
         var record: PaperFigureRecord?
         if let label = anchor.figureLabel {
             guard PaperWalkthroughSubject.allowsFigureAnchors(article) else {
@@ -13361,6 +13361,23 @@ final class ReviewSessionManager {
                     text: "Error: \"\(article.title)\" is shown as text and has no figures to outline. Point at a passage copied from its text instead.",
                     isError: true
                 )
+            }
+            // A paper's figure index is built the first time something asks
+            // for it, and a paper nobody has asked about has none: on
+            // 2026-10-28 "Figure 1" of a freshly imported preprint was refused
+            // as "not found" with 700 papers still queued, though its caption
+            // is printed. Reading the captions is free (no model, nothing
+            // spent), so it is done here as inspect_paper_figure does it; a
+            // failed read is reported as that, never as a missing figure.
+            if figures.isEmpty {
+                do {
+                    figures = try await paperFigureIndexer.prepareStructure(sourceID: sourceID)
+                } catch {
+                    return AppToolResult(
+                        text: "Error: the figures of \"\(article.title)\" could not be indexed: \(error.localizedDescription) Call show_source_image with this source_id and page set to a PDF page to show the picture from the paper itself.",
+                        isError: true
+                    )
+                }
             }
             guard let found = WalkthroughAnchorResolver.figureRecord(labelled: label, in: figures) else {
                 return AppToolResult(
