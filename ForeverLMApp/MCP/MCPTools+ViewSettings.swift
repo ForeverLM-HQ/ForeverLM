@@ -345,6 +345,16 @@ extension MCPDataStore {
                 key: "reader.meetingVideoPaneFraction", kind: fraction, absent: 0.0
             ),
             preferenceEntry(
+                id: "reader.meeting_transcript_beside_video", pane: "Reader › Meetings (no pane)", title: "Meeting transcript beside the recording",
+                detail: "Whether a meeting's transcript sits beside its recording rather than below it. Off by default.",
+                key: "reader.meetingTranscriptBesideVideo", kind: .boolean, absent: false
+            ),
+            preferenceEntry(
+                id: "reader.meeting_video_pane_width_fraction", pane: "Reader › Meetings (no pane)", title: "Meeting recording share of the pane's width",
+                detail: "The recording's share of the reader pane's width when the transcript is beside it, from 0 to 1; 0 means automatic.",
+                key: "reader.meetingVideoPaneWidthFraction", kind: fraction, absent: 0.0
+            ),
+            preferenceEntry(
                 id: "docs.page_width", pane: "Doc editor (no pane)", title: "Doc page width",
                 detail: "How wide a Doc's page is drawn: standard, wide or full width.",
                 key: ArtifactPageWidth.key, kind: .choice, absent: ArtifactPageWidth.standard.rawValue,

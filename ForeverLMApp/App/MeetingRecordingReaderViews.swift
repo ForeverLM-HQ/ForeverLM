@@ -122,7 +122,8 @@ private final class MeetingWatchProgressTracker {
 }
 
 /// Meeting session reader in the YouTube layout: recording on top, transcript
-/// below, split by the same draggable divider. Local recordings bridge playback
+/// below, split by the same draggable divider (or the transcript beside the
+/// recording, by the toggle in the bar above the transcript). Local recordings bridge playback
 /// time both ways — the transcript playhead follows the video and clicking a
 /// timestamped turn seeks — and persist the same `VideoWatchProgress` locator
 /// the YouTube reader uses, so resume and "% watched" behave identically.
@@ -205,8 +206,32 @@ struct MeetingRecordingReaderView: View {
     @State private var draggedVideoHeight: CGFloat?
     @State private var dragStartVideoHeight: CGFloat?
 
+    /// Layout choice: the transcript beside the recording instead of below it,
+    /// as the video reader offers (`reader.youtubeTranscriptBesideVideo`). Off
+    /// by default, so a meeting opens as it always has.
+    @SyncedStorage(wrappedValue: false, "reader.meetingTranscriptBesideVideo") private var transcriptBesideVideo: Bool
+    /// The recording column's width as a fraction of the pane when the
+    /// transcript is beside it; 0 means automatic.
+    @SyncedStorage(wrappedValue: 0, "reader.meetingVideoPaneWidthFraction") private var storedVideoWidthFraction: Double
+    @State private var draggedVideoWidth: CGFloat?
+    @State private var dragStartVideoWidth: CGFloat?
+
+    private static let minVideoPaneWidth: CGFloat = 280
+    private static let minTranscriptPaneWidth: CGFloat = 340
+    private static let sideBySideHandleWidth: CGFloat = 8
+    /// Narrower than this, the transcript stays below even when the choice is
+    /// beside, so neither column is squeezed to a sliver.
+    private static let minSideBySidePaneWidth: CGFloat =
+        minVideoPaneWidth + minTranscriptPaneWidth + sideBySideHandleWidth
+
     var body: some View {
         GeometryReader { geo in
+            // The container switches through AnyLayout so the player keeps its
+            // identity: a structural swap would rebuild it and restart playback.
+            let sideBySide = transcriptBesideVideo && geo.size.width >= Self.minSideBySidePaneWidth
+            let layout = sideBySide
+                ? AnyLayout(HStackLayout(spacing: 0))
+                : AnyLayout(VStackLayout(spacing: 0))
             VStack(spacing: 0) {
                 // The recording's own pane already carries the reconnect card
                 // when the load failed on it; the bar covers the rest, such as
@@ -219,16 +244,25 @@ struct MeetingRecordingReaderView: View {
                     )
                 }
 
-                videoPane
-                    .frame(height: videoHeight(in: geo.size))
-                    // Not into the safe area: the reader toolbar hangs in the
-                    // titlebar band above this pane, and a background that
-                    // extends there paints over it (see YouTubeVideoReaderView).
-                    .background(Color.black, ignoresSafeAreaEdges: [])
+                layout {
+                    videoPane
+                        .frame(width: sideBySide ? videoWidth(in: geo.size) : nil)
+                        .frame(height: sideBySide ? nil : videoHeight(in: geo.size))
+                        .frame(maxHeight: sideBySide ? .infinity : nil)
+                        // Not into the safe area: the reader toolbar hangs in the
+                        // titlebar band above this pane, and a background that
+                        // extends there paints over it (see YouTubeVideoReaderView).
+                        .background(Color.black, ignoresSafeAreaEdges: [])
 
-                videoResizeHandle(in: geo.size)
+                    if sideBySide {
+                        videoWidthResizeHandle(in: geo.size)
+                    } else {
+                        videoResizeHandle(in: geo.size)
+                    }
 
-                transcriptSection
+                    transcriptSection
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
         .task(id: article.id) {
@@ -576,6 +610,17 @@ struct MeetingRecordingReaderView: View {
 
             Spacer()
 
+            Button {
+                transcriptBesideVideo.toggle()
+            } label: {
+                Image(systemName: transcriptBesideVideo ? "rectangle.split.1x2" : "rectangle.split.2x1")
+                    .font(.caption)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .help(transcriptBesideVideo ? "Move the transcript below the recording" : "Move the transcript beside the recording")
+            .accessibilityLabel(transcriptBesideVideo ? "Move Transcript Below Recording" : "Move Transcript Beside Recording")
+
             slidesButton
 
             if citedPapers.isEmpty {
@@ -789,6 +834,58 @@ struct MeetingRecordingReaderView: View {
                         }
                         dragStartVideoHeight = nil
                         draggedVideoHeight = nil
+                    }
+            )
+    }
+
+    /// The recording column's width when the transcript is beside it.
+    private func videoWidth(in size: CGSize) -> CGFloat {
+        let width: CGFloat
+        if let draggedVideoWidth {
+            width = draggedVideoWidth
+        } else if storedVideoWidthFraction > 0 {
+            width = size.width * CGFloat(storedVideoWidthFraction)
+        } else {
+            width = size.width * 0.5
+        }
+        return Self.clampedVideoWidth(width, in: size)
+    }
+
+    private static func clampedVideoWidth(_ width: CGFloat, in size: CGSize) -> CGFloat {
+        let maxWidth = max(minVideoPaneWidth, size.width - minTranscriptPaneWidth)
+        return min(max(width, minVideoPaneWidth), maxWidth)
+    }
+
+    /// The side-by-side counterpart of `videoResizeHandle`: a vertical divider,
+    /// dragged horizontally; double-click returns to the automatic split.
+    private func videoWidthResizeHandle(in size: CGSize) -> some View {
+        Rectangle()
+            .fill(Color.clear)
+            .frame(width: Self.sideBySideHandleWidth)
+            .frame(maxHeight: .infinity)
+            .overlay {
+                // A Divider in this context draws horizontally; the column
+                // split needs an explicit vertical hairline.
+                Rectangle()
+                    .fill(Color(nsColor: .separatorColor))
+                    .frame(width: 1)
+            }
+            .contentShape(Rectangle())
+            .cursor(.resizeLeftRight)
+            .onTapGesture(count: 2) { storedVideoWidthFraction = 0 }
+            .gesture(
+                DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                    .onChanged { value in
+                        let start = dragStartVideoWidth ?? videoWidth(in: size)
+                        dragStartVideoWidth = start
+                        draggedVideoWidth = Self.clampedVideoWidth(start + value.translation.width, in: size)
+                    }
+                    .onEnded { _ in
+                        if let width = draggedVideoWidth, size.width > 0 {
+                            storedVideoWidthFraction = Double(width / size.width)
+                        }
+                        dragStartVideoWidth = nil
+                        draggedVideoWidth = nil
                     }
             )
     }

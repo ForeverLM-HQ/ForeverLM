@@ -327,7 +327,7 @@ struct PreferenceSyncTests {
 
     @Test("The reader layout and the rail's hidden rows follow the account")
     func displayPreferencesFollowTheAccount() {
-        // The four reader keys are fractions and a mode, not the absolute pixel
+        // The reader keys are fractions and modes, not the absolute pixel
         // widths beside them in the registry, so they mean the same thing on any
         // display and travel with the rest of the reading preferences.
         for key in [
@@ -335,6 +335,8 @@ struct PreferenceSyncTests {
             "reader.youtubeVideoPaneFraction",
             "reader.youtubeVideoPaneWidthFraction",
             "reader.meetingVideoPaneFraction",
+            "reader.meetingTranscriptBesideVideo",
+            "reader.meetingVideoPaneWidthFraction",
         ] {
             #expect(SyncedPreferenceKeys.isSynced(key), "\(key) should follow the account")
         }

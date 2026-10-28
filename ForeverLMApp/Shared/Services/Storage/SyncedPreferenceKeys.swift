@@ -191,6 +191,10 @@ enum SyncedPreferenceKeys {
         "reader.youtubeTranscriptBesideVideo",
         "reader.youtubeVideoPaneFraction", "reader.youtubeVideoPaneWidthFraction",
         "reader.meetingVideoPaneFraction",
+        // A meeting's transcript beside its recording, and the recording
+        // column's share of the pane's width: the same mode and fraction as the
+        // video reader's.
+        "reader.meetingTranscriptBesideVideo", "reader.meetingVideoPaneWidthFraction",
 
         // The navigation rail's hidden rows and its folds. Hiding a row is the
         // same act as `studio.hiddenTabs` and the pins above,
