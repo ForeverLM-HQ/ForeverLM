@@ -6,7 +6,22 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.178.0 (build 258) — 2026-10-29
+
+**Highlights:**
+- **A paper's figure legends sit beside its pages.**
+- **A meeting's transcript can sit beside its recording.**
+- **A notebook's menu opens a searchable picker.**
+
 - **A paper's figure legends sit beside its pages.** A legend printed a few pages from its figure meant scrolling away and back. The reader's **⋯** menu has **Figure Legends**: a column beside the PDF with every figure's legend, following the page you are on, so the legend of the figure on screen is already beside it. Click a figure to go to its page. The web library's Reader has the same menu item; it lists the legends and opens the PDF at a figure, but cannot follow the page.
+- **A meeting's transcript can sit beside its recording.** The meeting reader only stacked the recording above the transcript. A button above the transcript now moves it to the recording's side, with a divider to drag (double-click returns it to automatic), and it stacks again when the pane is narrow. It is off until you turn it on, so a meeting opens as before. The choice and the recording's width sync between your Macs and are settable over MCP (`reader.meeting_transcript_beside_video`, `reader.meeting_video_pane_width_fraction`).
+- **A notebook's menu opens a searchable picker.** Add a Notebook to Context and the merge sheet's Into now open a picker with a search field and arrow keys, instead of a menu listing every notebook; Move to Notebook, the library's Add to Notebook and the notebook pickers in the task and goal editors use the same picker. The notebook menu no longer repeats Share with Team and Close Notebook, which live in the Share popover and the File menu.
+- **A chat can point at Figure 1 of a paper that has no figure index yet.** `focus_source_anchor` refused "Figure 1" as not found when a paper's figure index had never been built; it now reads the paper's captions on the spot (free, no model) and reports an indexing failure as that.
+- **`inspect_paper_figure` stops waiting on a slow figure reading.** The model call that explains a figure had no deadline, so a busy free route left the tool running until you pressed Stop. It now gives up after 45 seconds and shows the figure and its caption without the explanation.
+- **A card's model chip keeps the model you picked.** The chip under a card's answer box dropped a paid pick and fell back to the Background model on the next read; it now stores the pick as Card Answer Check's own model, the same one Settings > Background > Tasks shows.
+- **The Reader's tab says Video while it holds a video.** A YouTube video, a video source, an explainer or a meeting with a recording is something you watch, so its tab and icon now say Video.
+- **A narrow Library column stays inside its column.** Beside the Reader at about 220 pt, the Library's list drew over Home's sidebar and cut the Meetings rows on the left; the content now anchors to the column's leading edge, and the Meetings tab's Add Meeting Folder and Add Recording buttons stack when they do not fit side by side.
+- **A meeting row swaps its title instead of fading one over the other.** When a new meeting landed above a row in the Meetings list, the row below drew its old and new titles on top of each other while the list shifted.
 
 ## 0.177.0 (build 257) — 2026-10-26
 
