@@ -491,6 +491,14 @@ struct InlineModelPicker: View {
 
     private var currentSpeed: AISpeed { selectedSpeed ?? .standard }
 
+    /// The speed the chip names: the one the Speed submenu checks, for a model
+    /// that submenu is offered on; none otherwise.
+    private var chipSpeed: AISpeed? {
+        guard tunesEffortAndSpeed, showsSelectedModel, isEntryAvailableForCurrentSelection,
+              speedSlug != nil, !supportedSpeeds.isEmpty else { return nil }
+        return currentSpeed
+    }
+
     /// The efforts the current model takes, fastest first; empty for a model
     /// with no effort parameter, or a picker that is not task-scoped, where
     /// the chip names the model alone and the menu has no Effort submenu.
@@ -804,10 +812,18 @@ struct InlineModelPicker: View {
                 .foregroundStyle(.primary.opacity(0.85))
                 .lineLimit(1)
             // The effort, ChatGPT's "GPT-5.6 Sol High": the picker's second
-            // word. A speed tier is not named here (its ⚡ and tortoise left
-            // the chip on 2026-10-06); the help and the Speed submenu say it.
+            // word. A model whose Speed submenu exists names its speed as the
+            // third ("Opus 5.5 · Low · Fast"; product owner, 2026-10-29: "for
+            // models where speed is supported, that should also be shown
+            // here"), as the menu's Speed row checks it.
             if let effort = currentEffort {
                 Text("\u{00B7} \(effort.displayName)")
+                    .zoomedSystemFont(size: 11, weight: .medium)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            if let speed = chipSpeed {
+                Text("\u{00B7} \(speed.displayName)")
                     .zoomedSystemFont(size: 11, weight: .medium)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
