@@ -137,7 +137,7 @@ actor PDFReferenceEntries {
             pages.append(page)
         }
         let named = NamedDestinations(catalog: catalog)
-        func landing(_ object: CGPDFObjectRef) -> Landing? {
+        func landing(_ object: CGPDFObjectRef) -> Destination? {
             switch CGPDFObjectGetType(object) {
             case .array:
                 var array: CGPDFArrayRef?
@@ -157,6 +157,7 @@ actor PDFReferenceEntries {
             }
         }
         var targets: [Int: [Target]] = [:]
+        var boxesByPage: [Int: [CGRect]] = [:]
         for (index, page) in pages.enumerated() {
             guard let dictionary = page.dictionary else { continue }
             var annotations: CGPDFArrayRef?
@@ -173,19 +174,103 @@ actor PDFReferenceEntries {
                           pdfName(action, "S") == "GoTo" else { continue }
                     CGPDFDictionaryGetObject(action, "D", &destination)
                 }
-                guard let destination, let target = landing(destination) else { continue }
+                guard let destination, let reached = landing(destination) else { continue }
+                var target = reached.landing
+                if let band = reached.band {
+                    // A band names a line but not its column: the link's own
+                    // number says which entry on that line it means.
+                    let boxes = boxesByPage[target.pageIndex] ?? {
+                        let made = document.page(at: target.pageIndex).map(characterBoxes(on:)) ?? []
+                        boxesByPage[target.pageIndex] = made
+                        return made
+                    }()
+                    let number = document.page(at: index).flatMap { citedNumber(under: bounds, on: $0) }
+                    guard let page = document.page(at: target.pageIndex),
+                          let start = bandEntryStart(in: band, citing: number, on: page, boxes: boxes) else { continue }
+                    target = Landing(pageIndex: target.pageIndex, point: CGPoint(x: boxes[start].minX, y: boxes[start].maxY))
+                }
                 targets[index, default: []].append(Target(bounds: bounds, landing: target))
             }
         }
         return targets
     }
 
+    /// Where a destination leads. A page-wide rectangle names a line but no
+    /// column, so it comes with the vertical range of that line.
+    private struct Destination {
+        let landing: Landing
+        let band: ClosedRange<CGFloat>?
+    }
+
+    /// The number a citation link prints: the one digit run under it, nil for
+    /// a link that prints none or several (an author-year citation, a range).
+    private nonisolated static func citedNumber(under bounds: CGRect, on page: PDFPage) -> Int? {
+        guard let text = page.selection(for: bounds)?.string else { return nil }
+        let runs = text.split { !$0.isNumber }
+        guard runs.count == 1 else { return nil }
+        return Int(runs[0])
+    }
+
+    /// The first glyph of the entry a page-wide band points at. Each column
+    /// with a line in the band offers one, and the one whose entry is
+    /// numbered as the link is wins. With no number to go by, or no line so
+    /// numbered, there is none: a band cannot tell an entry from a figure's
+    /// caption or a paragraph, and text from the wrong place is worse than
+    /// nothing.
+    private nonisolated static func bandEntryStart(
+        in band: ClosedRange<CGFloat>,
+        citing number: Int?,
+        on page: PDFPage,
+        boxes: [CGRect]
+    ) -> Int? {
+        let slack: CGFloat = 2
+        let inBand = boxes.enumerated().filter { !$0.element.isNull && $0.element.midY >= band.lowerBound - slack && $0.element.midY <= band.upperBound + slack }
+        let starts = inBand.filter { index, box in
+            !inBand.contains { other in
+                other.offset != index && onLine(other.element, midY: box.midY)
+                    && other.element.maxX > box.minX - columnGutter && other.element.minX < box.minX - 0.1
+            }
+        }
+        // One per column, the line nearest the band's middle: columns are
+        // further apart than any indent, and the line above may poke into the
+        // band's edge.
+        let middle = (band.lowerBound + band.upperBound) / 2
+        var columns: [(offset: Int, element: CGRect)] = []
+        for start in starts.sorted(by: { $0.element.minX < $1.element.minX }) {
+            if let last = columns.last, start.element.minX - last.element.minX < 30 {
+                if abs(start.element.midY - middle) < abs(last.element.midY - middle) {
+                    columns[columns.count - 1] = start
+                }
+            } else {
+                columns.append(start)
+            }
+        }
+        guard let number else { return nil }
+        let text = (page.string ?? "") as NSString
+        // Its number is the digits it opens with ("13." or "[13]"); a PDF may
+        // read the line with no space after them.
+        return columns.first { column in
+            var position = column.offset
+            while position < text.length, [0x5B, 0x28].contains(text.character(at: position)) { position += 1 }
+            var digits = ""
+            while position < text.length, let scalar = Unicode.Scalar(text.character(at: position)), scalar.properties.numericType == .decimal {
+                digits.unicodeScalars.append(scalar)
+                position += 1
+            }
+            return digits == String(number)
+        }?.offset
+    }
+
+    /// The tallest page-wide rectangle that still names a line: a body line is
+    /// about 10 points, and a band of two lines is as loose as one may be.
+    private nonisolated static let fullWidthLineHeight: CGFloat = 12
+
     /// `[page /XYZ left top zoom]` or `[page /FitR left bottom right top]`.
     private nonisolated static func explicitLanding(
         _ array: CGPDFArrayRef,
         pageIndexByObject: [CGPDFDictionaryRef: Int],
         pages: [CGPDFPage]
-    ) -> Landing? {
+    ) -> Destination? {
         var pageDictionary: CGPDFDictionaryRef?
         guard CGPDFArrayGetCount(array) >= 2, CGPDFArrayGetDictionary(array, 0, &pageDictionary), let pageDictionary,
               let pageIndex = pageIndexByObject[pageDictionary] else { return nil }
@@ -200,15 +285,28 @@ actor PDFReferenceEntries {
         // column it means: one that names a height alone (`/FitH`, or `/XYZ`
         // with no left or a left at the page's edge) was seen landing on the
         // acknowledgements beside a supplement heading, and on a running head.
-        let edge = pages[pageIndex].getBoxRect(.cropBox).minX
+        let crop = pages[pageIndex].getBoxRect(.cropBox)
+        let edge = crop.minX
         let corner: (left: CGFloat?, top: CGFloat?)
         switch String(cString: kind) {
         case "XYZ": corner = (number(2), number(3))
         case "FitR": corner = (number(2), number(5))
         default: return nil
         }
-        guard let left = corner.left, let top = corner.top, left > edge + 1 else { return nil }
-        return Landing(pageIndex: pageIndex, point: CGPoint(x: left, y: top))
+        guard let left = corner.left, let top = corner.top else { return nil }
+        if left > edge + 1 { return Destination(landing: Landing(pageIndex: pageIndex, point: CGPoint(x: left, y: top)), band: nil) }
+        // Springer Nature sets every entry's destination as a rectangle the
+        // width of the page and the height of one line (`/FitR 0 747 596 736`,
+        // its bottom and top written either way round): no column, but the
+        // line is named, so the entry is the one whose first line sits in it,
+        // in whichever column that is (`bandEntryStart`). A `/FitH` or `/XYZ`
+        // at the edge names no band and stays rejected.
+        guard String(cString: kind) == "FitR", let first = number(3), let second = number(5), let right = number(4),
+              right >= crop.maxX - 1, abs(first - second) <= 2 * fullWidthLineHeight, first != second else { return nil }
+        return Destination(
+            landing: Landing(pageIndex: pageIndex, point: CGPoint(x: edge, y: max(first, second))),
+            band: min(first, second)...max(first, second)
+        )
     }
 
     /// The catalog's named destinations: the `/Names /Dests` name tree, and

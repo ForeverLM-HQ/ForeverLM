@@ -214,6 +214,33 @@ struct ReaderPDFReferencePreviewTests {
         #expect(popover?.isVisible == true)
     }
 
+    @Test("A citation linked by a page-wide band of one line reads the entry in the column its number names")
+    func pageWideBandCitation() async throws {
+        let paper = Self.bandPaper(rightColumnNumbers: [1, 2, 3])
+        let entries = PDFReferenceEntries(.bytes(paper.data))
+        let entry = try #require(await entries.entry(for: .init(pageIndex: 0, bounds: paper.link)))
+        // The left column has a line in the same band; the entry is the
+        // right column's, numbered as the link is.
+        #expect(entry.hasPrefix("2. Jones"))
+        #expect(!entry.contains("Methods"))
+        let landing = try #require(await entries.landing(for: .init(pageIndex: 0, bounds: paper.link)))
+        #expect(landing.point.x > 300)
+    }
+
+    @Test("A page-wide band with no line numbered as the link shows nothing rather than another column's text")
+    func pageWideBandWithoutMatchingNumber() async throws {
+        let paper = Self.bandPaper(rightColumnNumbers: [1, 3, 4])
+        let entries = PDFReferenceEntries(.bytes(paper.data))
+        #expect(await entries.entry(for: .init(pageIndex: 0, bounds: paper.link)) == nil)
+    }
+
+    @Test("A page-wide band as tall as a paragraph names no line")
+    func pageWideBandTooTall() throws {
+        let paper = Self.bandPaper(rightColumnNumbers: [1, 2, 3], bandHeight: 200)
+        let document = try #require(PDFDocument(data: paper.data))
+        #expect(PDFReferenceEntries.targets(in: document)[0] == nil)
+    }
+
     // MARK: Fixture
 
     private static func entry(ofLink index: Int, in document: PDFDocument) throws -> String? {
@@ -288,5 +315,43 @@ struct ReaderPDFReferencePreviewTests {
         context.endPDFPage()
         context.closePDF()
         return data as Data
+    }
+
+    /// One page of two columns set on shared baselines: methods text on the
+    /// left, a numbered reference list on the right, and above them a link
+    /// over the number 2 to the named destination `bib2`, which is a
+    /// rectangle the width of the page and the height of the line numbered 2
+    /// (its edges written top first, as Springer Nature writes them).
+    private static func bandPaper(rightColumnNumbers: [Int], bandHeight: CGFloat = 12) -> (data: Data, link: CGRect) {
+        let names = ["Smith, A. Segmenting shapes.", "Jones, C. Live imaging of organelles.", "Brown, D. Another entry.", "Green, E. Last entry."]
+        var content = "BT /F1 10 Tf 72 740 Td (Citing reference) Tj ET\nBT /F1 10 Tf 200 740 Td (2) Tj ET\n"
+        var lineOfTwo: CGFloat = 0
+        for (index, number) in rightColumnNumbers.enumerated() {
+            let baseline = CGFloat(400 - 12 * index)
+            content += "BT /F1 10 Tf 72 \(baseline) Td (Methods text in the left column \(index).) Tj ET\n"
+            content += "BT /F1 10 Tf 320 \(baseline) Td (\(number). \(names[number - 1])) Tj ET\n"
+            if number == 2 { lineOfTwo = baseline }
+        }
+        let top = lineOfTwo + 9
+        let objects = [
+            "<< /Type /Catalog /Pages 2 0 R /Names << /Dests 6 0 R >> >>",
+            "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
+            "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 5 0 R >> >> /Contents 4 0 R /Annots [7 0 R] >>",
+            "<< /Length \(content.utf8.count) >>\nstream\n\(content)endstream",
+            "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+            "<< /Names [(bib2) << /D [3 0 R /FitR 0 \(top) 612 \(top - bandHeight)] >>] >>",
+            "<< /Type /Annot /Subtype /Link /Rect [199 738 206 750] /Border [0 0 0] /Dest (bib2) >>",
+        ]
+        var pdf = "%PDF-1.4\n"
+        var offsets: [Int] = []
+        for (index, body) in objects.enumerated() {
+            offsets.append(pdf.utf8.count)
+            pdf += "\(index + 1) 0 obj\n\(body)\nendobj\n"
+        }
+        let xref = pdf.utf8.count
+        pdf += "xref\n0 \(objects.count + 1)\n0000000000 65535 f \n"
+        for offset in offsets { pdf += String(format: "%010d 00000 n \n", offset) }
+        pdf += "trailer\n<< /Size \(objects.count + 1) /Root 1 0 R >>\nstartxref\n\(xref)\n%%EOF\n"
+        return (Data(pdf.utf8), CGRect(x: 199, y: 738, width: 7, height: 12))
     }
 }
