@@ -1688,7 +1688,7 @@ enum AIModelPriceRefresher {
         AIFreeModelPrices.record(Dictionary(
             rows.filter { AIFreeModels.isFreeModelID($0.id) }.map { ($0.id, $0.isZeroPriced) },
             uniquingKeysWith: { $1 }
-        ))
+        ), isWhole: rows.count >= AIModelPriceWatch.minimumDirectoryRows)
         AIModelPriceWatch.observe(rows)
         let mappedAuthorPrefixes = ["anthropic/", "x-ai/", "google/", "openai/", "meta/"]
         let keepIDs = Set(AIModelDefaults.preferredOpenRouter)

@@ -92,7 +92,7 @@ enum AIBackgroundRetry {
                     await pacer.release(lane, after: error)
                     if AITransientErrorClassifier.isCancellation(error) { throw error }
                     errors.append(error)
-                    guard hasNext, AIBackupModels.shouldTryBackup(after: error) else { break }
+                    guard hasNext, AIBackupModels.shouldTryBackup(after: error, from: candidate) else { break }
                     backgroundRetryLogger.notice(
                         "\(candidate.model, privacy: .public) failed, trying backup \(chain[index + 1].model, privacy: .public): \(error.localizedDescription, privacy: .public)"
                     )
@@ -232,8 +232,11 @@ enum AIBackupModels {
     }
 
     /// Whether another model could get past this failure. A failure every
-    /// model would meet the same way stops the chain.
-    static func shouldTryBackup(after error: Error) -> Bool {
+    /// model would meet the same way stops the chain. `candidate` is the model
+    /// that failed: a free one that gets a 402 is the one model OpenRouter now
+    /// charges for ("no longer free"), not an empty balance, so its backups
+    /// still answer.
+    static func shouldTryBackup(after error: Error, from candidate: AITaskConfig? = nil) -> Bool {
         if AITransientErrorClassifier.isCancellation(error) { return false }
         // The connection, not the model.
         if error is URLError { return false }
@@ -242,6 +245,8 @@ enum AIBackupModels {
             return false
         case AIError.httpError(let status, _, _):
             // 401 is the key and 402 the balance, whichever model is asked.
+            if status == 402, let candidate,
+               AIFreeModels.isFreeSelection(provider: candidate.provider, model: candidate.model) { return true }
             return status != 401 && status != 402
         default:
             return true
@@ -288,7 +293,7 @@ enum AIBackupModels {
         // A free backup whose free period ended would bill for work the
         // learner set up to cost nothing. The price watch says so, and the
         // replacement moves the backup on; until then it sits out.
-        if AIFreeModels.isFreeModelID(routed.model), AIFreeModelPrices.isListedAsPaid(routed.model) { return nil }
+        if AIFreeModels.isFreeModelID(routed.model), AIFreeModelPrices.hasEnded(routed.model) { return nil }
         // OpenRouter refuses it to ForeverLM, or it failed a test run of this
         // work: asking it again only delays the answer.
         if AIFreeModelRestrictions.isRestricted(routed.model) { return nil }
@@ -336,7 +341,7 @@ enum AIBackupModels {
                 } catch {
                     if AITransientErrorClassifier.isCancellation(error) { throw error }
                     errors.append(error)
-                    guard index + 1 < chain.count, shouldTryBackup(after: error) else { break }
+                    guard index + 1 < chain.count, shouldTryBackup(after: error, from: candidate) else { break }
                     backgroundRetryLogger.notice(
                         "\(candidate.model, privacy: .public) failed, trying backup \(chain[index + 1].model, privacy: .public): \(error.localizedDescription, privacy: .public)"
                     )

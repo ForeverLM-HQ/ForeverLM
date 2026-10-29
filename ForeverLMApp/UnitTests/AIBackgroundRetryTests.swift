@@ -253,6 +253,16 @@ struct AIBackgroundRetryTests {
         #expect(AIBackupModels.shouldTryBackup(after: AIError.httpError(status: 403, message: "only available on agentic harnesses (403)", retryAfterSeconds: nil)))
     }
 
+    @Test("A free model's 402 is that model's own, so its backups answer; a paid model's is the balance")
+    func paymentRefusalByCandidate() {
+        let refusal = AIError.httpError(status: 402, message: "No longer free (402)", retryAfterSeconds: nil)
+        let free = AITaskConfig(provider: .openRouter, apiKey: "key", model: "openrouter/free")
+        let paid = AITaskConfig(provider: .openRouter, apiKey: "key", model: "deepseek/deepseek-v4.1-flash")
+        #expect(AIBackupModels.shouldTryBackup(after: refusal, from: free))
+        #expect(!AIBackupModels.shouldTryBackup(after: refusal, from: paid))
+        #expect(!AIBackupModels.shouldTryBackup(after: refusal))
+    }
+
     @Test("When no model answers, a failure worth waiting out is retried and reported over a permanent one")
     func chainFailurePrefersTheTransient() async throws {
         let config = AITaskConfig(provider: .openRouter, apiKey: "", model: "deepseek/deepseek-v4-flash")

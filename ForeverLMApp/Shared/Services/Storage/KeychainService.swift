@@ -2367,12 +2367,28 @@ enum KeychainService {
     /// follows Background, and while the pick is a free model that OpenRouter
     /// now charges for.
     static func ownRoute(for task: AITask) -> AITaskModelRoute? {
+        guard let route = storedOwnRoute(for: task) else { return nil }
+        if AIFreeModels.isFreeModelID(route.model), AIFreeModelPrices.hasEnded(route.model) { return nil }
+        return route
+    }
+
+    /// The model the learner set for `task` as stored, including a free model
+    /// whose free period ended (`ownRoute` hides that one).
+    static func storedOwnRoute(for task: AITask) -> AITaskModelRoute? {
         guard canHaveOwnRoute(task),
               let stored = storedRoute(forKey: AIModelPreferenceKey.taskRoute(task)),
               let provider = AIProvider(rawValue: stored.provider) else { return nil }
-        let route = AITaskModelRoute(provider: provider, model: stored.model)
-        if AIFreeModels.isFreeModelID(stored.model), AIFreeModelPrices.isListedAsPaid(stored.model) { return nil }
-        return route
+        return AITaskModelRoute(provider: provider, model: stored.model)
+    }
+
+    /// The tasks whose own pick is `model`, as stored: unlike `ownRoute`, still
+    /// naming a free model whose free period ended, so the price watch can move it.
+    static func tasksWithOwnRoute(on model: String) -> [AITask] {
+        let wanted = model.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return AITask.allCases.filter { task in
+            guard let route = storedOwnRoute(for: task), route.provider == .openRouter else { return false }
+            return route.model.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() == wanted
+        }
     }
 
     /// Gives `task` a model of its own, or with nil sends it back to

@@ -607,6 +607,15 @@ enum FreeModelReplacement {
                 FreeModelsSetup.setFreeBackground($0, multimodal: true)
             }
         }
+        // A task with a model of its own on the ended one (Card Wording Check,
+        // Card Drafting, ...) moves like Background's does. The learner's pick
+        // for it was a free model, so its replacement is one too.
+        for task in KeychainService.tasksWithOwnRoute(on: endedID) {
+            move(task.displayName, to: replacement(for: endedID, needsVision: task.requiresVision, from: directory)) { model in
+                FreeModelsSetup.catalog(model)
+                KeychainService.setOwnRoute(AITaskModelRoute(provider: .openRouter, model: model.id), for: task)
+            }
+        }
         // A backup on the ended model takes the next free model for the same
         // work that its setting does not already run on; with none, it goes.
         for (slot, backups) in AIBackupModels.allStored().sorted(by: { $0.key < $1.key }) {
@@ -701,6 +710,9 @@ enum AIModelPriceWatch {
     /// Device-local, like the price table it sits beside: each Mac reads the
     /// directory and notifies for itself.
     static let recordKey = "aiModelPriceWatch.lastSeen.v1"
+    /// The free models reported as ended on first sight (`compare`'s
+    /// `announced`), kept while the settings still name them.
+    static let announcedKey = "aiModelPriceWatch.announcedEnded.v1"
     static let identifierPrefix = "com.foreverlm.modelprice."
     /// The banner for a free model that ended, when it was not switched on
     /// its own, asks whether to switch: this action does it.
@@ -719,10 +731,18 @@ enum AIModelPriceWatch {
     /// changes to announce and the record to keep: only watched models, a
     /// paid model missing from one read kept as it was, a free one that
     /// vanished reported once and then forgotten.
+    ///
+    /// A `:free` id with no earlier record is judged by this read alone: the
+    /// record only holds models seen while listed, so a pick made after its
+    /// row left, or a task's own pick the record never took, would otherwise
+    /// never be noticed (the Card Wording Check on a delisted Nemotron,
+    /// 2026-10-29). `announced` holds the ids already reported that way, so a
+    /// model nothing could replace is not announced on every read.
     static func compare(
         watched: Set<String>,
         previous: [String: Seen],
-        directory: [OpenRouterDirectoryModel]
+        directory: [OpenRouterDirectoryModel],
+        announced: Set<String> = []
     ) -> (changes: [Change], record: [String: Seen]) {
         guard directory.count >= minimumDirectoryRows else { return ([], previous) }
         let rows = Dictionary(directory.map { ($0.id.lowercased(), $0) }, uniquingKeysWith: { first, _ in first })
@@ -738,12 +758,19 @@ enum AIModelPriceWatch {
                     } else {
                         record[key] = before
                     }
+                } else if key.hasSuffix(":free"), rows[key] == nil, !announced.contains(key) {
+                    changes.append(.freeVariantEnded(id: id, name: id))
                 }
                 continue
             }
             let now = Seen(name: row.name, input: input, output: output)
             record[key] = now
-            guard let before else { continue }
+            guard let before else {
+                if key.hasSuffix(":free"), !now.isFree, !announced.contains(key) {
+                    changes.append(.noLongerFree(id: row.id, name: row.name, now: now))
+                }
+                continue
+            }
             if before.isFree, !now.isFree {
                 changes.append(.noLongerFree(id: row.id, name: row.name, now: now))
             } else if !before.isFree,
@@ -771,6 +798,9 @@ enum AIModelPriceWatch {
         for task in AITask.allCases {
             let selection = KeychainService.resolvedSelection(for: task)
             add(selection.provider, selection.model)
+            // A free pick of its own that ended resolves to Background's model
+            // above, so it is named here as the learner set it.
+            if let own = KeychainService.storedOwnRoute(for: task) { add(own.provider, own.model) }
         }
         for route in AIBackupModels.allStored().values.flatMap({ $0 }) {
             add(route.provider, route.model)
@@ -788,9 +818,15 @@ enum AIModelPriceWatch {
         let changes: [Change] = lock.withLock {
             let previous = UserDefaults.standard.data(forKey: recordKey)
                 .flatMap { try? JSONDecoder().decode([String: Seen].self, from: $0) } ?? [:]
-            let result = compare(watched: watched, previous: previous, directory: directory)
+            let announced = Set(UserDefaults.standard.stringArray(forKey: announcedKey) ?? [])
+            let result = compare(watched: watched, previous: previous, directory: directory, announced: announced)
             if result.record != previous, let data = try? JSONEncoder().encode(result.record) {
                 UserDefaults.standard.set(data, forKey: recordKey)
+            }
+            let lowered = Set(watched.map { $0.lowercased() })
+            let kept = announced.union(result.changes.filter(\.endsFree).map { $0.modelID.lowercased() }).intersection(lowered)
+            if kept != announced {
+                UserDefaults.standard.set(kept.sorted(), forKey: announcedKey)
             }
             return result.changes
         }

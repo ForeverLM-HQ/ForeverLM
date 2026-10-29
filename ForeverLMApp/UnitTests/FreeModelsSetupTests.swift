@@ -202,6 +202,20 @@ struct FreeModelsSetupTests {
         #expect(AIFreeModelPrices.isListedAsPaid("test/now-paid:free"))
     }
 
+    @Test("A :free id the last whole read did not list has ended; a short read says nothing")
+    func delistedFreeModel() {
+        defer { AIFreeModelPrices.record(["test/reset:free": true]) }
+        AIFreeModelPrices.record(["test/listed:free": true], isWhole: true)
+        #expect(AIFreeModelPrices.isDelisted("Test/Gone:free"))
+        #expect(AIFreeModelPrices.hasEnded("test/gone:free"))
+        #expect(!AIFreeModelPrices.isDelisted("test/listed:free"))
+        #expect(!AIFreeModelPrices.hasEnded("test/listed:free"))
+        #expect(!AIFreeModelPrices.isDelisted("test/gone"))
+        #expect(!AIFreeModelPrices.isDelisted("openrouter/free"))
+        AIFreeModelPrices.record(["test/listed:free": true])
+        #expect(!AIFreeModelPrices.isDelisted("test/gone:free"))
+    }
+
     @Test("Free models' trade-offs name the limited time and each model's terms")
     func pickTradeoffs() {
         #expect(FreeModelsSetup.pickTradeoffs.contains("terms"))
@@ -267,6 +281,29 @@ struct AIModelPriceWatchTests {
         #expect(first.record[id] == nil)
         let second = AIModelPriceWatch.compare(watched: [id], previous: first.record, directory: directory([]))
         #expect(second.changes.isEmpty)
+    }
+
+    @Test("A free model never recorded is judged by the read alone, once")
+    func neverRecordedFreeModel() {
+        let gone = "nvidia/nemotron-3-super-120b-a12b:free"
+        let first = AIModelPriceWatch.compare(watched: [gone], previous: [:], directory: directory([]))
+        #expect(first.changes == [.freeVariantEnded(id: gone, name: gone)])
+        let again = AIModelPriceWatch.compare(watched: [gone], previous: [:], directory: directory([]), announced: [gone])
+        #expect(again.changes.isEmpty)
+
+        let priced = "test/now-priced:free"
+        let paid = AIModelPriceWatch.compare(
+            watched: [priced],
+            previous: [:],
+            directory: directory([row(priced, input: 0.1, output: 0.2)])
+        )
+        #expect(paid.changes.map(\.modelID) == [priced])
+        #expect(paid.changes.first?.endsFree == true)
+
+        // Only a `:free` id is known to have ended; a paid model absent from
+        // its first read is just not recorded.
+        let unrecorded = AIModelPriceWatch.compare(watched: ["anthropic/claude-sonnet-5"], previous: [:], directory: directory([]))
+        #expect(unrecorded.changes.isEmpty)
     }
 
     @Test("A paid model that costs more is announced; a cut or a steady price is not")

@@ -676,7 +676,7 @@ enum AIFreeModels {
     /// their own model ids), so the provider-shaped check is the Mac's. A
     /// `:free` id the live directory now lists with a price is not free.
     static func isFreeSelection(provider: AIProvider, model: String) -> Bool {
-        provider == .openRouter && isFreeModelID(model) && !AIFreeModelPrices.isListedAsPaid(model)
+        provider == .openRouter && isFreeModelID(model) && !AIFreeModelPrices.hasEnded(model)
     }
     #endif
 
@@ -693,13 +693,20 @@ enum AIFreeModels {
 enum AIFreeModelPrices {
     private static let lock = NSLock()
     nonisolated(unsafe) private static var zeroPriced: [String: Bool] = [:]
+    nonisolated(unsafe) private static var readWasWhole = false
 
     /// Replaces the table with one directory read, keyed by lowercased id.
     /// An empty read (a truncated response) keeps the previous table.
-    static func record(_ table: [String: Bool]) {
+    /// `isWhole` says the read was long enough to be the whole directory, so
+    /// an id it does not list has left it (`isDelisted`); a short read says
+    /// nothing about absent ids.
+    static func record(_ table: [String: Bool], isWhole: Bool = false) {
         guard !table.isEmpty else { return }
         let normalized = Dictionary(table.map { ($0.key.lowercased(), $0.value) }, uniquingKeysWith: { $1 })
-        lock.withLock { zeroPriced = normalized }
+        lock.withLock {
+            zeroPriced = normalized
+            readWasWhole = isWhole
+        }
     }
 
     /// True only when the last read listed this id with a price. An id it
@@ -707,6 +714,22 @@ enum AIFreeModelPrices {
     static func isListedAsPaid(_ id: String) -> Bool {
         let key = id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         return lock.withLock { zeroPriced[key] == false }
+    }
+
+    /// True when the last whole read did not list this `:free` id at all,
+    /// which is how OpenRouter ends a free variant: the row goes, and a
+    /// request for it is refused ("no longer free", 2026-10-29). The price
+    /// watch only sees a model it recorded while it was listed, so this is
+    /// what keeps a pick made after the row left from being sent.
+    static func isDelisted(_ id: String) -> Bool {
+        let key = id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        guard key.hasSuffix(":free") else { return false }
+        return lock.withLock { readWasWhole && zeroPriced[key] == nil }
+    }
+
+    /// A `:free` id whose free period is over: listed with a price, or gone.
+    static func hasEnded(_ id: String) -> Bool {
+        isListedAsPaid(id) || isDelisted(id)
     }
 }
 
