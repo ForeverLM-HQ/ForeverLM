@@ -1606,6 +1606,12 @@ struct MeetingIconTests {
         #expect(ImageGenerationPrice.perImage(0.0336).label == "$0.0336 a picture")
         #expect(ImageGenerationPrice.perMillionTokens(8).label == "$8 / 1M image tokens")
         #expect(ImageGenerationPrice.perMillionTokens(0).label == "Free")
+        // A call whose response reported no charge is priced from the same
+        // figure: by the picture, or by the image tokens it drew.
+        #expect(ImageGenerationPrice.perImage(0.04).cost(pictures: 1, imageTokens: nil) == 0.04)
+        #expect(abs((ImageGenerationPrice.perMillionTokens(8).cost(pictures: 1, imageTokens: 1_600) ?? 0) - 0.0128) < 1e-9)
+        #expect(ImageGenerationPrice.perMillionTokens(8).cost(pictures: 1, imageTokens: nil) == nil)
+        #expect(ImageGenerationPrice.perMillionTokens(0).cost(pictures: 1, imageTokens: 900) == 0)
         // A model whose endpoint record lists no price keeps the general
         // directory's published image-output rate.
         let directory = Data(#"{"data":[{"id":"krea/krea-2-large","pricing":{"prompt":"0","image_output":"0.0000143712574850299"}},{"id":"x/unpriced","pricing":{"prompt":"0"}}]}"#.utf8)

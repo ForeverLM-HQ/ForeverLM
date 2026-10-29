@@ -47,6 +47,19 @@ enum ImageGenerationPrice: Equatable, Sendable {
         return nil
     }
 
+    /// What `pictures` pictures that drew `imageTokens` tokens cost at this
+    /// price, for a call whose response reported no charge of its own. A
+    /// per-megapixel price counts each picture as the one megapixel a 1K
+    /// picture is; nil when a token price meets a call that recorded no tokens.
+    func cost(pictures: Int, imageTokens: Int?) -> Double? {
+        switch self {
+        case .perImage(let usd), .perMegapixel(let usd): return usd * Double(max(pictures, 1))
+        case .perMillionTokens(let usd):
+            guard let imageTokens, imageTokens > 0 else { return nil }
+            return usd * Double(imageTokens) / 1_000_000
+        }
+    }
+
     /// The figure alone, in its unit's dollars: "$0.035", "$8".
     var amountLabel: String {
         switch self {

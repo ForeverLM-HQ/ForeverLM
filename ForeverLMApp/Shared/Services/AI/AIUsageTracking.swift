@@ -188,6 +188,11 @@ actor AIUsageTracker {
             if corrected > 0 {
                 usageLedgerLogger.info("Zeroed \(corrected, privacy: .public) usage estimates OpenRouter never billed")
             }
+            // Picture calls are priced from OpenRouter's image directory;
+            // read it only when a picture row is waiting for a price.
+            if try await storage.unpricedImageUsageEventCount() > 0 {
+                _ = try? await ImageGenerationDirectory.modelsWithPrices()
+            }
             let priced = try await storage.repriceUnpricedAIUsageEvents()
             if priced > 0 {
                 usageLedgerLogger.info("Priced \(priced, privacy: .public) usage rows that had no recorded cost")

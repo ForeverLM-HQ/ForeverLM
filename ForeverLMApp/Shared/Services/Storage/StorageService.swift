@@ -1415,6 +1415,11 @@ actor StorageService {
         try knowledgeStore().repriceUnpricedAIUsageEvents()
     }
 
+    /// See `KnowledgeStore.unpricedImageUsageEventCount`.
+    func unpricedImageUsageEventCount() throws -> Int {
+        try knowledgeStore().unpricedImageUsageEventCount()
+    }
+
     /// See `KnowledgeStore.aiUsageEventsAwaitingGenerationCost`.
     func aiUsageEventsAwaitingGenerationCost(limit: Int) throws -> [(id: String, rawUsageJSON: String)] {
         try knowledgeStore().aiUsageEventsAwaitingGenerationCost(limit: limit)

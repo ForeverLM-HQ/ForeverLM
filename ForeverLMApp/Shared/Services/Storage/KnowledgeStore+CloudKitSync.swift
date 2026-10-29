@@ -2953,6 +2953,23 @@ extension KnowledgeStore {
         return priced.count
     }
 
+    /// How many picture calls still have no cost. Their price is OpenRouter's
+    /// image directory's, which is read over the network, so the repricing
+    /// sweep reads it only when this is above zero.
+    func unpricedImageUsageEventCount() throws -> Int {
+        var count = 0
+        try query("""
+            SELECT COUNT(*)
+            FROM ai_usage_events
+            WHERE server_ledger_id IS NULL
+              AND operation = 'image_generation'
+              AND \(Self.aiUsageEventCostExpression) IS NULL
+        """) { stmt in
+            count = Int(sqlite3_column_int64(stmt, 0))
+        }
+        return count
+    }
+
     /// Rows OpenRouter has charged for but whose charge the ledger has not
     /// read yet: a generation id is stored (`CloudArticleTTS.generationMarker`)
     /// and no cost is. Newest first, so what the learner is looking at settles

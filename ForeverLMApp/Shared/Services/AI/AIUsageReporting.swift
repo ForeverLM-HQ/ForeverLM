@@ -1052,6 +1052,16 @@ enum AIProviderPricing {
             add(tokenCostUSD(rates: rates, report: report))
         }
 
+        // A picture model OpenRouter bills by the picture, the megapixel or
+        // the image token has no text rate above; its price is the one the
+        // Image API's directory lists, so a call whose response carried no
+        // charge is still priced (product owner, 2026-10-29: "everything must
+        // be priced").
+        if total == nil, (report.imageCount ?? 0) > 0,
+           let price = ImageGenerationDirectory.snapshot.first(where: { $0.id.lowercased() == model })?.price {
+            add(price.cost(pictures: report.imageCount ?? 1, imageTokens: report.imageOutputTokens ?? report.outputTokens))
+        }
+
         return total
     }
 

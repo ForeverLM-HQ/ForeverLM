@@ -258,6 +258,11 @@ enum ManagedImageGeneration {
             report.providerReportedCost = cost.doubleValue
             report.currency = "USD"
         }
+        // A response that billed nothing it can name is priced from the
+        // model's OpenRouter price, read now so the ledger row has it.
+        if (report.providerReportedCost ?? 0) <= 0 {
+            _ = try? await ImageGenerationDirectory.priced(model)
+        }
         try? await AIUsageTracker.shared.record(
             provider: "OpenRouter",
             model: model.id,
