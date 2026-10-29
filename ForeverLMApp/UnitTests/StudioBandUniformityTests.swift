@@ -341,6 +341,24 @@ struct StudioBandUniformityTests {
         }
     }
 
+    /// The chat's band row hangs on the panel inside the host inset, so it is
+    /// `hostInset` short of each side; a host backing that reaches into the
+    /// band is the white strip beside the lights.
+    @Test("the docked chat host's backing stays out of the band")
+    func dockedChatHostBackingStaysOutOfBand() throws {
+        let file = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("App/StudioAssistantBar.swift")
+        let source = try String(contentsOf: file, encoding: .utf8)
+        let start = try #require(source.range(of: "struct StudioDockedAssistantPanel: View"))
+        let open = try #require(source[start.upperBound...].firstIndex(of: "{"))
+        let close = try #require(Self.matchingBrace(in: source, from: open))
+        let body = String(source[open...close])
+        #expect(!body.contains(".background(Color(nsColor: .windowBackgroundColor))"),
+                "the docked chat host's backing reaches up into the titlebar band")
+        #expect(body.contains(".background(Color(nsColor: .windowBackgroundColor), ignoresSafeAreaEdges: [])"))
+    }
+
     private static func matchingBrace(in source: String, from open: String.Index) -> String.Index? {
         var depth = 0
         var index = open

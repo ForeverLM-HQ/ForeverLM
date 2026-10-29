@@ -604,7 +604,13 @@ struct StudioDockedAssistantPanel: View {
         // lifted to sit level with the reader's docked toolbar next door.
         .padding([.horizontal, .bottom], Self.hostInset)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
+        // Not into the top safe area: the band's chrome (`studioBandOverlay`)
+        // is hung on the panel inside the host inset, so it stops `hostInset`
+        // short of each side, and a backing that reached up into the band
+        // showed there as a white strip beside the lights, the card's leading
+        // edge wide (product owner, 2026-10-29: "what is this white stuff?
+        // looks bad").
+        .background(Color(nsColor: .windowBackgroundColor), ignoresSafeAreaEdges: [])
         .overlay {
             // The visible center strip owns the x at toolbar height. When the
             // strip is hidden, this fallback follows the chat title: into the
