@@ -6,6 +6,15 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.179.0 (build 259) — 2026-10-29
+
+**Highlights:**
+- **A card the chat saves is checked on the chat's model.**
+- **A delisted free model no longer strands a task.**
+
+- **A card the chat saves is checked on the chat's model.** A chat on a paid model could not save a card when the Card Wording Check was set to a free model that OpenRouter had stopped serving. Saving or editing a card from the in-app chat now runs the wording check on the model the chat is using, since you asked for it there; assistants outside the app keep the Card Wording Check setting.
+- **A free model that OpenRouter delists no longer strands a task.** A task whose own model was a free one that disappeared (Card Wording Check, Card Drafting) kept sending to it and failing. ForeverLM now notices, moves the task to another free model with a banner, and a free model that starts charging lets the task's backups answer instead of stopping.
+
 ## 0.178.0 (build 258) — 2026-10-29
 
 **Highlights:**
