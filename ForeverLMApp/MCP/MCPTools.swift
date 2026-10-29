@@ -5072,7 +5072,11 @@ final class MCPToolRegistry: @unchecked Sendable {
         // popup in the Studio window while it runs (MCPToolActivity.swift).
         let activity = await store.beginToolActivity(name: name, arguments: normalizedArguments, access: access)
         let hold = holdsStoreGate ? MCPStoreGateHold(gateMode) : nil
-        let outcome: ToolCallOutcome = await MCPStoreGateHold.$current.withValue(hold) {
+        let chatModel = access.clientID == MCPAccessContext.internalFullAccess.clientID && ChatRequestedModel.toolNames.contains(name)
+            ? ChatRequestedModel.config(forSession: hostSessionID)
+            : nil
+        let outcome: ToolCallOutcome = await ChatRequestedModel.$current.withValue(chatModel) {
+          await MCPStoreGateHold.$current.withValue(hold) {
             await MCPToolActivityReporter.$current.withValue(activity) {
                 if let media = await executeMediaTool(name: name, arguments: normalizedArguments) {
                     // The picture tools answer with text and images; every other tool
@@ -5087,6 +5091,7 @@ final class MCPToolRegistry: @unchecked Sendable {
                 )
                 return ToolCallOutcome(text: result, isError: Self.isFailureResult(result))
             }
+          }
         }
         hold?.end()
         await activity?.end(outcome)

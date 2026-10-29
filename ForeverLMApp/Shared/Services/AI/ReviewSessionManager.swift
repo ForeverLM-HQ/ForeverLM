@@ -11540,6 +11540,18 @@ final class ReviewSessionManager {
                 isError: true
             )
         }
+        // A tool that checks what it saves does so on the model this chat is
+        // on (`ChatRequestedModel`), not on a background task's own route.
+        if let sessionID, ChatRequestedModel.toolNames.contains(call.name) {
+            let resolved: AITaskConfig?
+            if let modelOverride {
+                resolved = modelOverride
+            } else {
+                resolved = await Self.resolveChatConfig().config
+            }
+            ChatRequestedModel.set(resolved, forSession: sessionID)
+        }
+        defer { if let sessionID { ChatRequestedModel.set(nil, forSession: sessionID) } }
         let result = try await Self.runAppToolCall(
             name: call.name,
             arguments: notebookScopedArguments(toolName: call.name, arguments: call.arguments),

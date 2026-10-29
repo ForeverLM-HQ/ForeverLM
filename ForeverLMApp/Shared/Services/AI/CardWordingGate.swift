@@ -26,12 +26,53 @@ protocol CardWordingBackend: Sendable {
     func reword(user: String, cardCount: Int, answersMayChange: Bool, usage: AIUsageSource) async throws -> String
 }
 
+/// The model of the chat that asked for a tool action, for the checks that
+/// action makes on the way. A card the learner has the chat save is work they
+/// wait on, so its wording check runs on the model they see in the chat, not
+/// on the Card Wording Check route a background pass would use (product
+/// owner, 2026-10-29: "if i tell the model in the chat to do something, it
+/// should use THAT model"). Callers outside the in-app chat bind nothing and
+/// keep the task's own route.
+enum ChatRequestedModel {
+    /// The tools whose wording check follows the chat's model.
+    static let toolNames: Set<String> = [
+        "save_card_drafts", "update_card", "draft_cards",
+        "save_mnemonic_reading", "answer_mnemonic_question",
+    ]
+
+    /// What the tool call now running was asked on, set by `MCPToolRegistry`
+    /// around a call the in-app chat made.
+    @TaskLocal static var current: AITaskConfig?
+
+    private static let lock = NSLock()
+    private nonisolated(unsafe) static var configs: [String: AITaskConfig] = [:]
+
+    /// The chat session's model while one of its tool calls runs.
+    static func set(_ config: AITaskConfig?, forSession sessionID: String) {
+        lock.lock()
+        defer { lock.unlock() }
+        configs[sessionID] = config
+    }
+
+    static func config(forSession sessionID: String?) -> AITaskConfig? {
+        guard let sessionID else { return nil }
+        lock.lock()
+        defer { lock.unlock() }
+        return configs[sessionID]
+    }
+}
+
 /// The learner's Card Wording Check route (Settings › AI Models ›
-/// Background), resolved at each call.
+/// Background), resolved at each call, or the chat's model when the chat
+/// asked for the action (`ChatRequestedModel`).
 struct LiveCardWordingBackend: CardWordingBackend {
     let aiService: AIService
 
     private func config() throws -> AITaskConfig {
+        if var chat = ChatRequestedModel.current {
+            chat.taskLabel = AITask.cardWordingCheck.rawValue
+            return chat
+        }
         guard let config = KeychainService.resolveConfig(for: .cardWordingCheck) else {
             throw CardWordingGate.Unavailable(
                 message: KeychainService.backgroundAIUnavailableMessage(for: .cardWordingCheck)

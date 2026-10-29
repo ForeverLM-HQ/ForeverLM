@@ -72,6 +72,20 @@ struct CardWordingGateTests {
         #expect(AITask.advancedTasks.contains(.cardWordingCheck))
     }
 
+    @Test("A card the chat saves is checked on the chat's model: the registry follows the session, and only the card tools use it")
+    func chatRequestedModel() {
+        let chat = AITaskConfig(provider: .openRouter, apiKey: "key", model: "anthropic/claude-opus-5-5", taskLabel: "chat")
+        #expect(ChatRequestedModel.config(forSession: "chat-a") == nil)
+        ChatRequestedModel.set(chat, forSession: "chat-a")
+        #expect(ChatRequestedModel.config(forSession: "chat-a")?.model == "anthropic/claude-opus-5-5")
+        #expect(ChatRequestedModel.config(forSession: "chat-b") == nil)
+        #expect(ChatRequestedModel.config(forSession: nil) == nil)
+        ChatRequestedModel.set(nil, forSession: "chat-a")
+        #expect(ChatRequestedModel.config(forSession: "chat-a") == nil)
+        #expect(ChatRequestedModel.toolNames.contains("save_card_drafts"))
+        #expect(!ChatRequestedModel.toolNames.contains("get_due_cards"))
+    }
+
     @Test("No prompt that writes or judges a question models a question that opens by pointing at its source")
     func noPromptTeachesPointingOpeners() {
         let questionPrompts: [(name: String, text: String)] = [
