@@ -6,6 +6,18 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.183.0 (build 263) — 2026-10-30
+
+**Highlights:**
+- **Card drafts no longer expire.**
+- **Sort a notebook's sources** in 13 orders.
+- **Retry a failed paper** from its notebook row.
+
+- **A card draft no longer disappears after 14 days.** Drafts that were never kept or skipped stopped being offered a fortnight after they were drafted, and the chat told you a draft "runs out tonight". A draft now waits in To Check until you keep or skip it, and drafts that had already lapsed come back. The cards tool no longer reports an expiry.
+- **A notebook's Sources column has a sort button with 13 orders.** Title, author, added, published, length, in chat, reading status, study order and more, beside Select all and beside Add sources on the Notebook page. The choice is kept on this Mac, a book stays one row, and a non-default order shows in the accent colour.
+- **A paper that failed cleanup or ingestion can be retried from its row in a notebook.** The row carries a Retry button and a Retry menu item when a second try can clear the failure, turns back to a spinner, and drops the warning when it succeeds.
+- **A linked Google Doc keeps Google's own title.** The header no longer draws a ForeverLM title chip beside it and Rename is gone from its menus; the stored title follows the name Google reports each time. Add to Chat in the menu is the way in when the list is hidden.
+
 ## 0.182.0 (build 262) — 2026-10-30
 
 **Highlights:**
