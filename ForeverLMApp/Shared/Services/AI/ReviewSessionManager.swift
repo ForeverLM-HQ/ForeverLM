@@ -6654,6 +6654,11 @@ final class ReviewSessionManager {
             } else if Self.nonEmptyTrimmed(arguments["notebook_id"] as? String) != nil {
                 scoped["notebook_id"] = notebookSourceScopeID
             }
+        case "search_sources_keyword":
+            // No exclude_notebook_id here: a sweep names this Notebook or none.
+            if Self.nonEmptyTrimmed(arguments["notebook_id"] as? String) != nil {
+                scoped["notebook_id"] = notebookSourceScopeID
+            }
         case "get_notebook_context", "list_notebook_sources", "add_notebook_sources", "set_notebook_source_selection":
             scoped["notebook_id"] = notebookSourceScopeID
         case "import_paper_from_url", "add_source", "add_sources":
