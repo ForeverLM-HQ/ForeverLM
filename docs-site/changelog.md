@@ -6,6 +6,20 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.182.0 (build 262) — 2026-10-30
+
+**Highlights:**
+- **Long chats cost far less.** A chat reads a notebook's sources as it needs them, so a Feynman Technique chat sends tens of thousands of tokens a call, not hundreds of thousands.
+- **A figure the chat looks at is read on the chat's own model.**
+- **The Redraw button opens a dialog** with the prompt to edit and prices.
+
+- **A chat reads a notebook's sources as it needs them, instead of carrying all of their text in every request.** The Feynman Technique loaded every ticked source in full, and a chat's source text could grow to about 400,000 tokens on a large model, so one long Feynman Technique chat sent about 334,000 tokens a call and a cold cache rewrite of it cost $2.65. The Feynman Technique now attaches the notebook as a list and reads the passages and figures it needs, the source text a chat holds is capped at 100,000 tokens, and a passage that no longer fits says so to the model instead of vanishing.
+- **A figure the chat looks at is read on the chat's own model.** The chat reported that the vision model did not finish reading a figure within 45 seconds, because the reading ran on a free route that is often busy. It now runs on the model you chose for the chat when that model reads images.
+- **A chat no longer says a paper is missing from your library because another paper cites it.** A notebook chat said a paper was only cited, and linked the citing paper, when the paper was in the library outside the notebook. The chat now searches the whole library by title and first author before it says one is absent, and its keyword search of a notebook stays in that notebook.
+- **The Redraw button opens a dialog.** It shows the picture's prompt to edit and a model picker with each model's price, and opens at once while the prices fill in. The Redraw menus also list each image model's price beside its name.
+- **An open Worked fold draws each run of tool calls as one soft card**, a check and the step on the left and what it returned on the right.
+- **The blue outline on a Nature figure no longer starts under its top panels.** On Fig. 5 of the mtDNA-in-blood paper the box cut off the panel titles and the first row of plots. The page's head was read as a row of tick labels, because the figure's own rows (panel letters, titles, a legend) were each passed over as "short lines of a banner" until a wide row came. A short row now passes only when it is written text, a folio or a small mark such as Cell Press's logo. Over 21,808 library pages the head changed on 15, all of them a figure's or a table's row that had been taken for a head.
+
 ## 0.181.0 (build 261) — 2026-10-30
 
 **Highlights:**
