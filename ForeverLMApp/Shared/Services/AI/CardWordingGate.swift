@@ -84,6 +84,15 @@ struct LiveCardWordingBackend: CardWordingBackend {
         return config
     }
 
+    // Both calls are a verdict or a one-line rewording, so neither asks for
+    // thinking. On the chat's model they would otherwise inherit the chat's
+    // effort: on Claude Opus 5.5 a one-card check spent 368 of its 400 output
+    // tokens on thinking about the card's subject, and a card on a pathogenic
+    // mtDNA mutation (3243A>G heteroplasmy) was then stopped by the provider's
+    // `content_filter` three times (2026-10-30), though the same model had
+    // discussed the paper in the chat. With no thinking the reply is the
+    // verdict JSON alone.
+
     func check(user: String, cardCount: Int, usage: AIUsageSource) async throws -> String {
         let config = try config()
         return try await AIUsageAttribution.withSource(usage, activityID: AIUsageAttribution.activityID ?? UUID().uuidString) {
@@ -93,6 +102,7 @@ struct LiveCardWordingBackend: CardWordingBackend {
                 user: user,
                 maxTokens: CardWordingCheck.maxTokens(cardCount: cardCount),
                 temperature: 0,
+                disablesReasoning: true,
                 jsonMode: true,
                 validateResponse: { _ = try CardWordingCheck.verdicts(from: $0, count: cardCount) }
             )
@@ -108,6 +118,7 @@ struct LiveCardWordingBackend: CardWordingBackend {
                 user: user,
                 maxTokens: CardWordingCheck.maxTokens(cardCount: cardCount) * 2,
                 temperature: 0.3,
+                disablesReasoning: true,
                 allowsResponseCache: false,
                 jsonMode: true,
                 validateResponse: {
