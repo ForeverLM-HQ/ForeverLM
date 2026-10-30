@@ -1248,6 +1248,18 @@ actor MobileCloudSourceCatalog {
         Set(await memoryInputs().notebookMembers.keys)
     }
 
+    /// The notebooks this phone holds with at least one kept card, the ones
+    /// a card review's scope menu offers.
+    func currentNotebookIDsWithCards() async -> Set<String> {
+        let inputs = await memoryInputs()
+        let scopes = inputs.notebookMembers.keys.compactMap { Self.notebookCardScope(notebookID: $0, in: inputs) }
+        return MobileCardReviewDealing.notebookIDsWithCards(
+            items: reviewableMemoryItems(in: inputs, restrictToSourceIDs: nil),
+            attempts: inputs.attempts,
+            scopes: scopes
+        )
+    }
+
     /// One card's item, whatever its status, and its whole history as this
     /// phone holds it: what a self-graded answer is decided from
     /// (`MobileSelfGradedAnswer`). Nil once the item is gone from the phone.
@@ -4061,6 +4073,11 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     /// The notebooks a card review may be narrowed to, archived ones included.
     func cardReviewNotebookIDs() async -> Set<String> {
         await sourceCatalog.currentCardReviewNotebookIDs()
+    }
+
+    /// The notebooks holding at least one kept card.
+    func cardReviewNotebookIDsWithCards() async -> Set<String> {
+        await sourceCatalog.currentNotebookIDsWithCards()
     }
 
     func cardAnswerContext(memoryItemID: String) async -> (item: MemoryItem, history: [MemoryAttempt])? {

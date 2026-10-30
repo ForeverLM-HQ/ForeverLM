@@ -119,6 +119,23 @@ struct MobileCardReviewTests {
         #expect(narrowed.today == mac.today)
     }
 
+    @Test("The scope menu offers only the notebooks that hold a kept card")
+    func notebooksWithCards() throws {
+        let seeded = try seededStore(now: Date())
+        let reviewable = try seeded.store.reviewableMemoryItems()
+        let withCards = MobileCardReviewDealing.notebookIDsWithCards(
+            items: reviewable.items,
+            attempts: reviewable.attempts,
+            scopes: [
+                MobileNotebookCards.scope(notebookID: "mito", memberSourceIDs: ["src-1"]),
+                MobileNotebookCards.scope(notebookID: "sleep", memberSourceIDs: ["src-2"]),
+                MobileNotebookCards.scope(notebookID: "empty", memberSourceIDs: ["src-3"]),
+            ]
+        )
+        #expect(withCards == ["mito", "sleep"], "a notebook with no kept card is left out")
+        #expect(MobileCardReviewDealing.notebookIDsWithCards(items: [], attempts: [], scopes: []).isEmpty)
+    }
+
     @Test("A notebook's Practice deals its kept cards as the Mac's does — due, new (kept today among them), then not yet due — and its Studio line counts kept and due")
     func notebookPracticeMatchesTheStore() throws {
         let now = Date()

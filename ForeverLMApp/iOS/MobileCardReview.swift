@@ -307,6 +307,14 @@ enum MobileCardReviewCopy {
 // All Cards over every notebook, read from what the phone holds.
 
 extension MobileCardReviewDealing {
+    /// The notebooks among `scopes` that hold a kept card (active, with a
+    /// face to show) in `items`.
+    static func notebookIDsWithCards(items: [MemoryItem], attempts: [MemoryAttempt], scopes: [MemoryCardScope]) -> Set<String> {
+        let attemptsByItemID = Dictionary(grouping: attempts, by: \.memoryItemID)
+        let kept = cards(in: items, attemptsByItemID: attemptsByItemID).filter { $0.status == .active }
+        return Set(scopes.filter { scope in kept.contains(where: scope.contains) }.map(\.notebookID))
+    }
+
     /// Every kept card over `items` — active, with a face to show — oldest
     /// kept first: the Mac's `memoryCardReviewSnapshot` listings over every
     /// notebook, which the Memory screen's All Cards lists.

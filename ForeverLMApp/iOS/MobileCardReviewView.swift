@@ -63,6 +63,9 @@ final class MobileCardReviewSession: ObservableObject {
         var deal: @MainActor (_ mode: Mode, _ kind: MemoryCardSitting.Kind, _ now: Date) async -> Deal
         /// The notebooks a review may be narrowed to.
         var notebookIDs: @MainActor () async -> Set<String>
+        /// The notebooks holding at least one kept card: the only ones the
+        /// scope menu lists.
+        var notebookIDsWithCards: @MainActor () async -> Set<String> = { [] }
         /// A card's item, whatever its status, and its whole history.
         var answerContext: @MainActor (_ itemID: String) async -> (item: MemoryItem, history: [MemoryAttempt])?
         /// Writes one decided answer.
@@ -106,6 +109,8 @@ final class MobileCardReviewSession: ObservableObject {
     /// dictated, before Check turns the card.
     @Published var attemptDraft = ""
     @Published private(set) var answerCount = 0
+    /// The notebooks the scope menu offers: those with a kept card.
+    @Published private(set) var notebookIDsWithCards: Set<String> = []
 
     private let backend: Backend
     /// Whether opening deals the scope's new cards outside today's deal as
@@ -158,6 +163,7 @@ final class MobileCardReviewSession: ObservableObject {
             if valid != scope { mode = .today(valid) }
         }
         async let chat = backend.dayChatIsUnderway()
+        notebookIDsWithCards = await backend.notebookIDsWithCards()
         await deal(kind: openingKind)
         dayChatIsUnderway = await chat
     }
@@ -456,6 +462,7 @@ extension MobileCardReviewSession.Backend {
                 }
             },
             notebookIDs: { await vm.cardReviewNotebookIDs() },
+            notebookIDsWithCards: { await vm.cardReviewNotebookIDsWithCards() },
             answerContext: { await vm.cardAnswerContext(memoryItemID: $0) },
             write: { attempt, fingerprint in
                 try await MobileMemoryAttemptRecorder.shared.recordSelfGraded(attempt, parentCurriculumFingerprint: fingerprint)
@@ -824,22 +831,43 @@ struct MobileCardReviewScreen: View {
         }
     }
 
-    /// All notebooks or one, as the Mac's Memory scope menu. A notebook this
-    /// phone lists no more (archived) stays in the menu while the review is
-    /// narrowed to it.
+    /// All notebooks or one. Only a notebook with a kept card is offered, so
+    /// the menu is not the whole library; the one the review is narrowed to
+    /// stays in it (an archived notebook, or one whose cards are all retired).
+    @ViewBuilder
     private func scopeMenu(_ scope: MemoryReviewScope) -> some View {
         let binding = Binding<MemoryReviewScope>(
             get: { scope },
             set: { session.changeScope($0) }
         )
-        let listed = Set(vm.notebooks.map(\.id))
-        return Menu {
+        let withCards = session.notebookIDsWithCards
+        let offered = MobileNotebookOrdering.sorted(vm.notebooks, lastChatAt: vm.lastNotebookChatAt)
+            .filter { withCards.contains($0.id) || scope == .notebook($0.id) }
+        let offeredIDs = Set(offered.map(\.id))
+        if offered.isEmpty, scope == .allNotebooks {
+            Text(scopeTitle)
+                .font(.headline)
+                .lineLimit(1)
+                .frame(minHeight: MobileDesign.Metrics.minimumTouchTarget)
+                .accessibilityIdentifier("memory.cards.scope")
+        } else {
+            scopePicker(scope, binding: binding, offered: offered, offeredIDs: offeredIDs)
+        }
+    }
+
+    private func scopePicker(
+        _ scope: MemoryReviewScope,
+        binding: Binding<MemoryReviewScope>,
+        offered: [MobileCloudNotebook],
+        offeredIDs: Set<String>
+    ) -> some View {
+        Menu {
             Picker("Cards From", selection: binding) {
                 Text("All notebooks").tag(MemoryReviewScope.allNotebooks)
-                if case .notebook(let id) = scope, !listed.contains(id) {
+                if case .notebook(let id) = scope, !offeredIDs.contains(id) {
                     Text(scopeTitle).tag(scope)
                 }
-                ForEach(MobileNotebookOrdering.sorted(vm.notebooks, lastChatAt: vm.lastNotebookChatAt)) { notebook in
+                ForEach(offered) { notebook in
                     Text(notebook.title).tag(MemoryReviewScope.notebook(notebook.id))
                 }
             }
