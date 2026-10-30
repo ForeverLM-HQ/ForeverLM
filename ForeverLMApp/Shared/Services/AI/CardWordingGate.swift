@@ -26,18 +26,20 @@ protocol CardWordingBackend: Sendable {
     func reword(user: String, cardCount: Int, answersMayChange: Bool, usage: AIUsageSource) async throws -> String
 }
 
-/// The model of the chat that asked for a tool action, for the checks that
-/// action makes on the way. A card the learner has the chat save is work they
-/// wait on, so its wording check runs on the model they see in the chat, not
-/// on the Card Wording Check route a background pass would use (product
+/// The model of the chat that asked for a tool action, for the model calls
+/// that action makes on the way. A card the learner has the chat save, or a
+/// figure they have it look at, is work they wait on, so it runs on the model
+/// they see in the chat, not on the background task's own route (product
 /// owner, 2026-10-29: "if i tell the model in the chat to do something, it
 /// should use THAT model"). Callers outside the in-app chat bind nothing and
 /// keep the task's own route.
 enum ChatRequestedModel {
-    /// The tools whose wording check follows the chat's model.
+    /// The tools whose inner model calls follow the chat's model: the card
+    /// wording check, and the vision reading of one figure.
     static let toolNames: Set<String> = [
         "save_card_drafts", "update_card", "draft_cards",
         "save_mnemonic_reading", "answer_mnemonic_question",
+        "inspect_paper_figure",
     ]
 
     /// What the tool call now running was asked on, set by `MCPToolRegistry`

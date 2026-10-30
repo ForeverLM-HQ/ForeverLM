@@ -84,6 +84,8 @@ struct CardWordingGateTests {
         #expect(ChatRequestedModel.config(forSession: "chat-a") == nil)
         #expect(ChatRequestedModel.toolNames.contains("save_card_drafts"))
         #expect(!ChatRequestedModel.toolNames.contains("get_due_cards"))
+        // A figure the chat looks at is read on the chat's model too.
+        #expect(ChatRequestedModel.toolNames.contains("inspect_paper_figure"))
     }
 
     @Test("No prompt that writes or judges a question models a question that opens by pointing at its source")

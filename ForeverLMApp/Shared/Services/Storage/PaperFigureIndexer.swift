@@ -68,7 +68,7 @@ actor PaperFigureIndexer {
         if let analysis = match.analysis, analysis.analysisVersion == PaperFigureAnalysis.currentVersion {
             return figures
         }
-        guard let config = KeychainService.resolveConfig(for: .paperFigureUnderstanding) else {
+        guard let config = Self.readingConfig() else {
             return figures
         }
 
@@ -89,6 +89,24 @@ actor PaperFigureIndexer {
             if inFlightFigures[match.id] == task { inFlightFigures[match.id] = nil }
         }
         return try await value(of: task, key: "figure:" + match.id)
+    }
+
+    /// The model that reads one figure for a reader who asked about it. When
+    /// the in-app chat asked, that is the chat's own model (product owner,
+    /// 2026-10-29: "if i tell the model in the chat to do something, it should
+    /// use THAT model"): the Figure Understanding route is a free model that
+    /// is often busy, and the learner sees only the chat's model. Reading is
+    /// a look at a picture, so the chat's reasoning effort is not carried
+    /// over. A chat model that cannot read images, and every caller outside
+    /// the chat, use the task's own route.
+    private static func readingConfig() -> AITaskConfig? {
+        if var chat = ChatRequestedModel.current,
+           KeychainService.modelSupportsVision(provider: chat.provider, model: chat.model) != false {
+            chat.taskLabel = AITask.paperFigureUnderstanding.rawValue
+            chat.effort = nil
+            return chat
+        }
+        return KeychainService.resolveConfig(for: .paperFigureUnderstanding)
     }
 
     /// How long a chat or an MCP client waits for one figure's vision reading.
