@@ -1894,7 +1894,7 @@ final class ReviewSessionManager {
     }
 
     /// The Feynman Technique: a chat in the notebook, its ticked sources
-    /// loaded in full, that opens by asking the learner what they know of it
+    /// attached as a catalog and read on demand, that opens by asking the learner what they know of it
     /// from memory, with no model turn before it (`TeachBack.openingMessage`).
     /// The tutor (`Prompts.teachBackTutor`) takes over from the learner's first
     /// reply. Kept as a review: private to the learner and a review on the
@@ -1906,7 +1906,9 @@ final class ReviewSessionManager {
             mode: .review,
             goalID: notebookID,
             notebookScopeID: notebookID,
-            preloadSourceIDs: Set(articles.map(\.id)),
+            // Catalog only: the tutor reads the passages and figures it needs
+            // with retrieve_sources. Preloading a whole notebook put 330k
+            // tokens in every request (`AIService.sourceContextMaxTokens`).
             fixedSessionID: TeachBack.sessionID(),
             scriptedOpening: TeachBack.openingMessage(notebookTitle: notebookTitle)
         )
@@ -10470,7 +10472,8 @@ final class ReviewSessionManager {
 
     private func sourceContextForPrompt() -> String {
         let cleanContext = sourceContext.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard cleanContext.count > sourceContextPromptCharacterLimit else {
+        // The budget-reached note rides past the limit on purpose.
+        guard cleanContext.count > sourceContextPromptCharacterLimit + Self.sourceBudgetReachedNote.count else {
             return cleanContext
         }
 
@@ -15097,10 +15100,17 @@ final class ReviewSessionManager {
         // byte of the already-cached source block and cost a full cache miss on
         // every remaining turn; keeping the prefix preserves the cached head and
         // drops only the newest excerpt.
+        // A cut says so, in the text itself: otherwise the excerpt the model just
+        // asked for vanishes and it answers as though it had read it. The note
+        // sits past the limit and is cut off again by the next append's prefix,
+        // so it is always the last thing in the block and never accumulates.
         sourceContext = combined.count > sourceContextCharacterLimit
-            ? String(combined.prefix(sourceContextCharacterLimit))
+            ? String(combined.prefix(sourceContextCharacterLimit)) + Self.sourceBudgetReachedNote
             : combined
     }
+
+    static let sourceBudgetReachedNote =
+        "\n\n[The source text held in this chat is full, so the newest excerpt was not added. Answer from the text already loaded and the catalog, and tell the learner when something you need is not available here.]"
 
     /// Fold a retrieval result into the session's context. Paged full-source
     /// reads append too: replacing the block on every page used to discard the

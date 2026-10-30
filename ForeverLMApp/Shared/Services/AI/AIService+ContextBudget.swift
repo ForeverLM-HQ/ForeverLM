@@ -234,6 +234,15 @@ extension AIService {
     /// trim in `budgetedChatRequest` still stands behind it.
     private static let sourceContextShare = 0.5
 
+    /// Hard ceiling on the resident source block, in tokens, whatever the
+    /// window. A share of a million-token window is ~400k tokens resent on every
+    /// round, and a cold cache turns each rewrite of it into a multi-dollar
+    /// call (a teach-back over a whole notebook measured 330k tokens a call:
+    /// $2.65 per rewrite, 4 rewrites, $10.61 of one chat's $15.17). Past the
+    /// ceiling a source is read on demand with `retrieve_sources`, which
+    /// appends only the passage asked for.
+    static let sourceContextMaxTokens = 100_000
+
     static let budgetSourceTruncationNote =
         "\n\n[Attached source text truncated to fit this model's context window. Use retrieve_sources for focused passages from omitted text.]"
     static let budgetHistoryTruncationNote =
@@ -303,7 +312,7 @@ extension AIService {
             model: model,
             requestedMaxTokens: requestedMaxTokens
         ) else { return nil }
-        return max(0, Int(Double(input) * sourceContextShare))
+        return max(0, min(Int(Double(input) * sourceContextShare), sourceContextMaxTokens * approxCharsPerToken))
     }
 
     /// The response-token budget a request may claim for a given provider+model:

@@ -2045,13 +2045,18 @@ struct ChatRobustnessTests {
         let quarterMillionWindow = try #require(AIService.sourceContextCharacterBudget(
             provider: .openai, model: "gpt-5.6-sol", requestedMaxTokens: 8_000
         ))
-        #expect(millionWindow > quarterMillionWindow)
+        #expect(millionWindow >= quarterMillionWindow)
         #expect(quarterMillionWindow > 64_000)
 
+        // The share is capped: half of a million-token window is ~400k tokens
+        // resent every round, and one cold cache rewrite of it cost $2.65.
         let input = try #require(AIService.inputCharacterBudget(
             provider: .anthropic, model: "claude-opus-5", requestedMaxTokens: 8_000
         ))
-        #expect(millionWindow == input / 2)
+        let ceiling = AIService.sourceContextMaxTokens * AIService.approxCharsPerToken
+        #expect(input / 2 > ceiling)
+        #expect(millionWindow == ceiling)
+        #expect(quarterMillionWindow <= ceiling)
 
         // No published window: nothing to derive from, so the caller keeps its
         // standing figure instead of budgeting against a guess.
