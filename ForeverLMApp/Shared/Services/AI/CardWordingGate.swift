@@ -84,6 +84,15 @@ struct LiveCardWordingBackend: CardWordingBackend {
         return config
     }
 
+    /// A check the chat asked for runs on the chat's model alone: the learner
+    /// chose it, and a chat has no backups (`AIBackupModels`), which the task
+    /// label would otherwise bring in. A refusal then surfaces as the chat
+    /// model's own, not as a free backup's unlogged failure.
+    private func run<T: Sendable>(_ operation: () async throws -> T) async rethrows -> T {
+        guard ChatRequestedModel.current != nil else { return try await operation() }
+        return try await AIBackupModels.$chainIsRunning.withValue(true) { try await operation() }
+    }
+
     // Both calls are a verdict or a one-line rewording, so neither asks for
     // thinking. On the chat's model they would otherwise inherit the chat's
     // effort: on Claude Opus 5.5 a one-card check spent 368 of its 400 output
@@ -95,36 +104,40 @@ struct LiveCardWordingBackend: CardWordingBackend {
 
     func check(user: String, cardCount: Int, usage: AIUsageSource) async throws -> String {
         let config = try config()
-        return try await AIUsageAttribution.withSource(usage, activityID: AIUsageAttribution.activityID ?? UUID().uuidString) {
-            try await aiService.call(
-                config: config,
-                system: AITask.cardWordingCheck.effectivePrompt ?? Prompts.cardWordingCheck,
-                user: user,
-                maxTokens: CardWordingCheck.maxTokens(cardCount: cardCount),
-                temperature: 0,
-                disablesReasoning: true,
-                jsonMode: true,
-                validateResponse: { _ = try CardWordingCheck.verdicts(from: $0, count: cardCount) }
-            )
+        return try await run {
+            try await AIUsageAttribution.withSource(usage, activityID: AIUsageAttribution.activityID ?? UUID().uuidString) {
+                try await aiService.call(
+                    config: config,
+                    system: AITask.cardWordingCheck.effectivePrompt ?? Prompts.cardWordingCheck,
+                    user: user,
+                    maxTokens: CardWordingCheck.maxTokens(cardCount: cardCount),
+                    temperature: 0,
+                    disablesReasoning: true,
+                    jsonMode: true,
+                    validateResponse: { _ = try CardWordingCheck.verdicts(from: $0, count: cardCount) }
+                )
+            }
         }
     }
 
     func reword(user: String, cardCount: Int, answersMayChange: Bool, usage: AIUsageSource) async throws -> String {
         let config = try config()
-        return try await AIUsageAttribution.withSource(usage, activityID: AIUsageAttribution.activityID ?? UUID().uuidString) {
-            try await aiService.call(
-                config: config,
-                system: Prompts.cardWordingRewrite,
-                user: user,
-                maxTokens: CardWordingCheck.maxTokens(cardCount: cardCount) * 2,
-                temperature: 0.3,
-                disablesReasoning: true,
-                allowsResponseCache: false,
-                jsonMode: true,
-                validateResponse: {
-                    _ = try CardWordingCheck.rewordings(from: $0, count: cardCount, answersMayChange: answersMayChange)
-                }
-            )
+        return try await run {
+            try await AIUsageAttribution.withSource(usage, activityID: AIUsageAttribution.activityID ?? UUID().uuidString) {
+                try await aiService.call(
+                    config: config,
+                    system: Prompts.cardWordingRewrite,
+                    user: user,
+                    maxTokens: CardWordingCheck.maxTokens(cardCount: cardCount) * 2,
+                    temperature: 0.3,
+                    disablesReasoning: true,
+                    allowsResponseCache: false,
+                    jsonMode: true,
+                    validateResponse: {
+                        _ = try CardWordingCheck.rewordings(from: $0, count: cardCount, answersMayChange: answersMayChange)
+                    }
+                )
+            }
         }
     }
 }
