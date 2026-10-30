@@ -6506,6 +6506,16 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.184.0 (build 264) — 2026-10-30
+
+**Highlights:**
+- **Long chats on Claude cost far less**, by reading the source text and the conversation from the cache.
+- **Saving a card from the chat is no longer refused** by the provider's content filter.
+
+- **A chat on Claude reads the source text and the conversation from the cache instead of rewriting them.** Each time the chat read a passage of a source, the whole prompt was written to the cache again, so a long Feynman Technique chat paid the full price of its prompt many times over. The instructions and the source text are now cached as separate blocks, so a new passage rewrites only itself, and the conversation so far is read from the cache at the start of each turn instead of rewritten. Other models are unchanged.
+- **A card the chat saves is checked without thinking.** On Claude Opus 5.5 the one-card wording check spent nearly all of its tokens thinking about the card's subject, and cards on a pathogenic mutation came back refused by the provider's content filter three times, so nothing saved. The check and the rewording now run without reasoning, which also removes about 60% of a check's cost, and a check the chat asked for runs on the chat's model alone, with no Background backups.
+- **A draft card in a chat's saved-cards row is found by its own id.** The row read a draft only through the source ids its link named, so a link that no longer matched said the cards were no longer in Memory while the draft was still in the store. A deletion arriving from another device no longer removes a draft's row.
+
 ## 0.183.0 (build 263) — 2026-10-30
 
 **Highlights:**
