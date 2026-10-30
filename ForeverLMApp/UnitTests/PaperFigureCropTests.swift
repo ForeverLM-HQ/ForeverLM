@@ -2007,6 +2007,91 @@ struct PaperFigureUnderBannerHeadTests {
     }
 }
 
+/// Nature's Fig. 5 of the mtDNA-in-blood paper (2026-10-30): "Article" is the
+/// head, and the figure's top rows are a row of panel letters and titles, a
+/// legend and a row of tick labels, each a few points under the one above. The
+/// search for the head passed the narrow rows over one by one, then took the
+/// wide row of tick labels for the head, and the crop began under the figure's
+/// top panels with the blue outline cutting them off.
+@Suite("Paper Figure Under A Head Over Rows Of Labels")
+struct PaperFigureUnderLabelRowsTests {
+
+    private static let mediaBox = CGRect(x: 0, y: 0, width: 595, height: 791)
+    private static let caption = "Fig. 5 | Individuals with identified CH tend to have increased accumulation of age-accumulating mtSNVs relative to the general population and do not show evidence of positive selection."
+    /// The top of the panel letters and titles, normalized from the page's top.
+    private static var lettersTop: Double { (mediaBox.maxY - 743) / mediaBox.height }
+
+    /// Three pages that print "Article" alike, as a journal's head runs, the
+    /// middle one with the figure.
+    private func withPage(_ body: (PDFPage) throws -> Void) throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("PaperFigureLabelRowsTests_\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let url = root.appendingPathComponent("pages.pdf")
+        var box = Self.mediaBox
+        let consumer = try #require(CGDataConsumer(url: url as CFURL))
+        let context = try #require(CGContext(consumer: consumer, mediaBox: &box, nil))
+        for index in 0..<3 {
+            context.beginPDFPage(nil)
+            Self.draw("Article", at: CGPoint(x: 40, y: 750), size: 18, font: "Helvetica-Bold", in: context)
+            if index == 1 { Self.drawFigure(in: context) }
+            context.endPDFPage()
+        }
+        context.closePDF()
+        try body(try #require(PDFDocument(url: url)?.page(at: 1)))
+    }
+
+    private static func drawFigure(in context: CGContext) {
+        // Panel letters and titles, the legend, then tick labels and panel
+        // titles joined into one wide row, as PDFKit reads them.
+        for (text, x) in [("a", 83), ("A>C", 120), ("A>G", 175), ("A>T", 230), ("C>A", 285), ("b", 330)] as [(String, CGFloat)] {
+            draw(text, at: CGPoint(x: x, y: 734.4), size: 11, in: context)
+        }
+        draw("CH Matched non-CH", at: CGPoint(x: 422, y: 723.3), size: 7, in: context)
+        draw("LoF Missense Synonymous", at: CGPoint(x: 380, y: 709.5), size: 8, in: context)
+        draw("2 x 10-4", at: CGPoint(x: 99, y: 700), size: 14, in: context)
+        context.setFillColor(gray: 0.2, alpha: 1)
+        context.fill(CGRect(x: 100, y: 480, width: 420, height: 215))
+        context.setFillColor(gray: 0, alpha: 1)
+        draw(caption, at: CGPoint(x: 40, y: 468), size: 8, in: context)
+        for index in 0..<10 {
+            draw("Running prose of the page under the legend goes on across the measure of the column here \(index)",
+                 at: CGPoint(x: 40, y: 440 - CGFloat(index) * 12), size: 9, in: context)
+        }
+    }
+
+    @Test("A row of tick labels under narrow rows of letters and titles is not the head")
+    func tickLabelRowIsNotTheHead() throws {
+        try withPage { page in
+            let mask = try #require(PaperFigureRectRefiner.mask(for: page))
+            // Whatever head the page has, it is not the figure's rows: "Article"
+            // here has no rule under it, so the page may have none.
+            let head = PaperFigureRectRefiner.runningHeadBounds(on: page, mask: mask)
+            #expect(head == nil || head!.minY > 743)
+        }
+    }
+
+    @Test("The crop reaches the figure's panel letters")
+    func cropKeepsTheTopPanels() throws {
+        try withPage { page in
+            let crop = try #require(PaperFigureRectRefiner.figureCrop(forCaption: Self.caption, on: page))
+            #expect(crop.y <= Self.lettersTop + 0.01)
+        }
+    }
+
+    private static func draw(_ text: String, at point: CGPoint, size: CGFloat, font: String = "Helvetica", in context: CGContext) {
+        context.textPosition = point
+        CTLineDraw(
+            CTLineCreateWithAttributedString(NSAttributedString(
+                string: text,
+                attributes: [.font: CTFontCreateWithName(font as CFString, size, nil)]
+            )),
+            context
+        )
+    }
+}
+
 /// A paper nobody has asked about has no figure index: the index is built the
 /// first time something needs it. `focus_source_anchor` refused "Figure 1" of
 /// such a paper as not found (2026-10-28, a freshly imported preprint with its

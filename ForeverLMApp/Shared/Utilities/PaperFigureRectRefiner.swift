@@ -643,6 +643,14 @@ enum PaperFigureRectRefiner {
     /// Article Online") as it was, which 0.5 lost.
     static let bannerLinePitchShare: CGFloat = 0.6
 
+    /// A row of the page's top no wider than this share of the page that is
+    /// not written text is a mark (a journal's logo, a lone panel letter) the
+    /// head's search passes over. A figure's row of panel titles is wider.
+    /// Over the 21,808 pages of the library's first 40 pages a paper, this
+    /// and the written-text rule changed the head of 15 pages, every one a
+    /// head that was a figure's or a table's row.
+    static let runningHeadMarkMaximumWidthShare: CGFloat = 0.1
+
     /// A row of the page's top this short, holding a digit, is its folio: a
     /// page number ("38", "e1234", "Page 4") set alone over the running head.
     static let folioMaximumCharacters = 6
@@ -756,6 +764,15 @@ enum PaperFigureRectRefiner {
             above = row.bounds
             guard row.bounds.width >= box.width * runningHeadMinimumWidthShare else {
                 if head != nil { break }
+                // A banner's short line is written text, a folio or a mark (the
+                // "ll" over Cell Press's head). A figure's row of panel letters
+                // and titles is none of them: passing it over let the row of
+                // tick labels under it become the head, and Fig. 5 of the
+                // mtDNA-in-blood paper was cropped from under its top panels
+                // (2026-10-30).
+                guard isFolio(row.text)
+                    || row.bounds.width <= box.width * runningHeadMarkMaximumWidthShare
+                    || isWrittenLine(row.bounds, characters: row.text.filter { !$0.isWhitespace }.count, on: box) else { break }
                 onlyFolios = onlyFolios && isFolio(row.text)
                 continue
             }
