@@ -564,7 +564,7 @@ Home: `library` (always the personal Library).
 
 | Field | JSON | Kind | Policy | Req | Meaning |
 |---|---|---|---|---|---|
-| `status` | string (CardStatus) | scalar | L | ✓ | The codec never writes a transition out of retired; a draft expires 14 days after draftedAt (computed on read). Never leaves retired. |
+| `status` | string (CardStatus) | scalar | L | ✓ | The codec never writes a transition out of retired. Never leaves retired. |
 | `deckSourceID` | id → Source | scalar | S | ✓ | The source the card is drafted from. |
 | `origin` | string (CardOrigin) | scalar | S | ✓ |  |
 | `seedKey` | string | scalar | S |  | e.g. walk:<srcID>#q3, qz:<id>#<qid>, hl:<id>, idea:<ideaKey>. Never spills. |

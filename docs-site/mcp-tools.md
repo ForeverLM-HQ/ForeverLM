@@ -977,7 +977,7 @@ from idling to sleep while a task is due and it is plugged in.
 A card is a question with its answer, standing on a passage of one of your
 sources. Cards drafted for you wait in Memory's **To Check** until you keep,
 edit or skip each one; only a kept card is ever asked, first the day after you
-keep it. A draft you have not gone through within 14 days stops being offered,
+keep it. A draft waits until you go through it and never expires,
 and the cards from before cards (questions you missed in a walkthrough or a
 course quiz) are offered there once. Cards are your own: they never enter a
 team. An assistant can run your card review too: `get_due_cards` deals today's

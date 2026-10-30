@@ -813,31 +813,19 @@ struct MemoryCardTests {
         #expect(appended.deck.markdown.hasPrefix(before), "the deck grows at its end, and only there")
     }
 
-    @Test("A draft that lapsed unseen holds nothing: its seed and front can be drafted again, under a new id; a kept or skipped one still holds them")
-    func lapsedDraftsCanBeDraftedAgain() {
-        let lapsed = draft(seed: "walk-step:step-2", id: "card-a")
-        let kept = draft("Which protein lets protons leak back?", seed: "highlight:h-2", id: "card-b")
-        let skipped = draft("What does the synthase use?", seed: "highlight:h-3", id: "card-c")
-        let fresh = draft("Where is the gradient held?", seed: "highlight:h-4", at: Self.keptAt.addingTimeInterval(13 * Self.day), id: "card-d")
-        let deck = FlashcardDeck(title: "Cards to check: Mitochondria", cards: [lapsed, kept, skipped, fresh])
-        var state = MemoryCardDeckState()
-        state.markKept(cardID: "card-b", memoryItemID: "item-b", at: Self.keptAt)
-        state.markSkipped(cardID: "card-c", at: Self.keptAt)
-        let now = Self.keptAt.addingTimeInterval(15 * Self.day)
-
-        let ids = MemoryCardTriage.lapsedDraftIDs(deck, state: state, itemIDs: [], now: now)
-        #expect(ids == ["card-a"], "offered two weeks and never gone through; card-d is still offered")
-        // Kept on another Mac whose row has not arrived: its item says so.
-        #expect(MemoryCardTriage.lapsedDraftIDs(deck, state: state, itemIDs: [MemoryTutorIdentity.cardItemID(cardID: "card-a")], now: now).isEmpty)
+    @Test("A draft the learner never went through still holds its seed and front, however old it is")
+    func anOldDraftStillHoldsItsSeedAndFront() {
+        let old = draft(seed: "walk-step:step-2", at: Self.keptAt.addingTimeInterval(-400 * Self.day), id: "card-a")
+        let deck = FlashcardDeck(title: "Cards to check: Mitochondria", cards: [old])
 
         let again = deck.appending([
-            draft(seed: "walk-step:step-2", at: now, id: "card-a2"),
-            draft("Which protein lets protons leak back?", seed: "highlight:h-2", at: now, id: "card-b2"),
-            draft("What does the synthase use?", seed: "highlight:h-3", at: now, id: "card-c2"),
-        ], ignoring: ids)
-        #expect(again.added.map(\.id) == ["card-a2"])
-        #expect(Set(again.alreadyDrafted.map(\.id)) == ["card-b2", "card-c2"])
-        #expect(again.deck.cards.map(\.id) == ["card-a", "card-b", "card-c", "card-d", "card-a2"], "the deck only grows")
+            draft(seed: "walk-step:step-2", id: "card-a2"),
+            draft("What couples respiration to ATP synthesis?", seed: "highlight:h-9", id: "card-a3"),
+            draft("Where is the gradient held?", seed: "highlight:h-4", id: "card-d"),
+        ])
+        #expect(again.added.map(\.id) == ["card-d"])
+        #expect(Set(again.alreadyDrafted.map(\.id)) == ["card-a2", "card-a3"])
+        #expect(again.deck.cards.map(\.id) == ["card-a", "card-d"], "the deck only grows")
     }
 
     @Test("Two Macs that drafted for one source keep both sets of cards, card by card")
@@ -858,7 +846,7 @@ struct MemoryCardTests {
 
     // MARK: Cards to check: which wait
 
-    @Test("A draft waits until it is kept or skipped, or until 14 days after drafting, computed on reading; an item from before cards waits until it is gone through")
+    @Test("A draft waits until it is kept or skipped, however old it is; an item from before cards waits until it is gone through")
     func toCheckPile() throws {
         let now = Self.keptAt.addingTimeInterval(3 * Self.day)
         let deckID = MemoryCard.draftDeckID(sourceID: "src-1")
@@ -867,34 +855,31 @@ struct MemoryCardTests {
             draft("Kept?", seed: "s-k", id: "card-kept"),
             draft("Skipped?", seed: "s-s", id: "card-skipped"),
             draft("Kept on the other Mac?", seed: "s-e", id: "card-elsewhere"),
-            draft("Drafted 14 days ago?", seed: "s-o", at: now.addingTimeInterval(-MemoryCardTriage.draftLifetime), id: "card-old"),
-            draft("Drafted just after?", seed: "s-j", at: now.addingTimeInterval(-MemoryCardTriage.draftLifetime + 1), id: "card-just"),
+            draft("Drafted a year ago?", seed: "s-o", at: now.addingTimeInterval(-365 * Self.day), id: "card-old"),
         ]))
         var row = MemoryCardDeckState()
         row.markKept(cardID: "card-kept", memoryItemID: "item-k", at: now)
         row.markSkipped(cardID: "card-skipped", seed: "s-s", at: now)
         let legacy = legacyItem(target: "What is an uncoupler? — A protein that lets protons leak back.", criteria: ["Protons leak back."], id: "legacy-1")
         let attempts = ["legacy-1": [attempt("a-1", on: "legacy-1", prompt: "What is an uncoupler?", at: 60)]]
-        func pile(_ states: [String: MemoryCardDeckState], at time: Date) -> [MemoryCardToCheck] {
+        func pile(_ states: [String: MemoryCardDeckState]) -> [MemoryCardToCheck] {
             MemoryCardTriage.toCheck(
                 decks: [deck],
                 deckStates: states,
                 itemIDs: [MemoryTutorIdentity.cardItemID(cardID: "card-elsewhere")],
                 legacyItems: [legacy],
-                attemptsByItemID: attempts,
-                now: time
+                attemptsByItemID: attempts
             )
         }
 
-        let waiting = pile([deckID: row], at: now)
-        #expect(waiting.map(\.cardID) == ["card-fresh", "card-just", "legacy-1"])
+        let waiting = pile([deckID: row])
+        #expect(waiting.map(\.cardID) == ["card-fresh", "card-old", "legacy-1"])
         #expect(MemoryCardTriage.summary(waiting) == "3 cards from 1 source")
         let fresh = try #require(waiting.first)
         #expect(fresh.kind == .draft)
         #expect(fresh.face.deckID == deckID)
         #expect(fresh.face.origin == .assistant)
         #expect(fresh.quote == Self.quote)
-        #expect(fresh.expiresAt == Self.keptAt.addingTimeInterval(MemoryCardTriage.draftLifetime))
         #expect(!fresh.isKeptByDefault)
         let fromBefore = try #require(waiting.last)
         #expect(fromBefore.kind == .legacy)
@@ -903,14 +888,10 @@ struct MemoryCardTests {
         #expect(fromBefore.deckID == deckID)
         #expect(fromBefore.face.front == "What is an uncoupler?")
         #expect(fromBefore.face.back == "A protein that lets protons leak back.")
-        #expect(fromBefore.expiresAt == nil)
 
-        // A second later the draft made 14 days less a second ago has expired:
-        // nothing was written for it.
-        #expect(pile([deckID: row], at: now.addingTimeInterval(1)).map(\.cardID) == ["card-fresh", "legacy-1"])
         // Once gone through, the item from before cards is not offered again.
         row.markKept(cardID: "legacy-1", memoryItemID: "legacy-1", at: now)
-        #expect(pile([deckID: row], at: now).map(\.cardID) == ["card-fresh", "card-just"])
+        #expect(pile([deckID: row]).map(\.cardID) == ["card-fresh", "card-old"])
         #expect(MemoryCardTriage.summary([]) == nil)
     }
 
@@ -935,8 +916,7 @@ struct MemoryCardTests {
                 deckStates: [deckID: row],
                 itemIDs: itemIDs,
                 legacyItems: [],
-                attemptsByItemID: [:],
-                now: Self.keptAt
+                attemptsByItemID: [:]
             ).map(\.cardID)
         }
 
@@ -956,7 +936,7 @@ struct MemoryCardTests {
             draft("Asked and unticked?", seed: "s-2", requested: true, id: "asked-2"),
             draft("Drafted unasked?", seed: "s-3", id: "unasked"),
         ]))
-        let cards = MemoryCardTriage.toCheck(decks: [deck], deckStates: [:], itemIDs: [], legacyItems: [], attemptsByItemID: [:], now: Self.keptAt)
+        let cards = MemoryCardTriage.toCheck(decks: [deck], deckStates: [:], itemIDs: [], legacyItems: [], attemptsByItemID: [:])
         let all = MemoryCardTriage.keepAll(cards)
         #expect(all.map(\.card.cardID) == ["asked-1", "asked-2", "unasked"])
         #expect(all.map(\.action) == [.keep, .keep, .keep])
@@ -1072,12 +1052,10 @@ struct MemoryCardTests {
         #expect(try await cardsToCheck(storage, defaults, at: now).isEmpty)
         #expect(try await storage.loadMemoryItems().isEmpty)
         // Drafted again from the same seed — or with the same front — it is
-        // not offered twice. Read against this test's card rows and clock: on
-        // the real clock and the shared defaults, card-a has no row and lapsed
-        // unseen 14 days after `keptAt` (2026-10-09), which frees its seed.
+        // not offered twice.
         let redrafted = try await storage.saveCardDrafts(
             [draft("A new wording of the same seed?", id: "card-b"), draft(seed: "highlight:h-9", id: "card-c")],
-            sourceID: "src-1", sourceTitle: "Mitochondria", stateDefaults: defaults, now: now
+            sourceID: "src-1", sourceTitle: "Mitochondria"
         )
         #expect(redrafted.added.isEmpty)
         #expect(Set(redrafted.alreadyDrafted.map(\.id)) == ["card-b", "card-c"])

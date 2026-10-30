@@ -80,8 +80,8 @@ struct MobileCardTriageTests {
             try Self.draft("d4", deck: "src2", front: "Same seed, drafted twice?", seed: "s"),
             // Skipped: never offered again.
             try Self.draft("d5", deck: "src2", front: "Skipped?", seed: "t", status: "skipped"),
-            // Lapsed: drafted more than 14 days ago.
-            try Self.draft("d6", deck: "src2", front: "Lapsed?", draftedAt: Self.now.addingTimeInterval(-15 * 86_400)),
+            // Old: a draft waits however long ago it was drafted.
+            try Self.draft("d6", deck: "src2", front: "Old and still waiting?", draftedAt: Self.now.addingTimeInterval(-15 * 86_400)),
             // No quote: cannot be kept, so not offered.
             try Self.draft("d7", deck: "src3", front: "Quotes nothing?", quote: nil),
             // A source this phone does not list waits until it does.
@@ -90,7 +90,7 @@ struct MobileCardTriageTests {
         ])
         let records = try await Self.cards(replica)
         let offered = MobileCardRecords.toCheck(records, availableSourceIDs: ["src1", "src2", "src3"], now: Self.now)
-        #expect(offered.map(\.cardID) == ["d9", "d1", "d2"])
+        #expect(offered.map(\.cardID) == ["d9", "d1", "d2", "d6"])
         let first = try #require(offered.first { $0.cardID == "d1" })
         #expect(first.kind == .draft)
         #expect(first.deckID == "carddeck-src1")

@@ -147,7 +147,7 @@ enum MobileCardRecords {
     /// The cards to check among `records`, in To Check's order (`MemoryCardTriage.toCheck`, the Mac's
     /// rules): a deck is a draft's source, its cards in the order they were drafted; a card gone through
     /// (kept, skipped or retired) holds its seed and front, so a twin drafted before the devices synced
-    /// is not offered; a draft lapses 14 days after it was drafted; a draft whose source the phone does
+    /// is not offered; a draft whose source the phone does
     /// not list (`availableSourceIDs`) waits until it does. The items from before cards are not offered
     /// here: a generation-2 Card does not say whether one was gone through, so they are the Mac's.
     static func toCheck(_ records: [MobileCardRecord], availableSourceIDs: Set<String>?, now: Date) -> [MemoryCardToCheck] {

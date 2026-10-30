@@ -66,7 +66,7 @@ struct CardRecordLifecycleTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let given = Self.draft(id: "minted-1")
         let unseeded = Self.draft("Which proteins let protons leak back?", seed: nil, requested: true, ideaID: "idea-7", id: "card-u")
-        let saved = try await storage.saveCardDrafts([given, unseeded], sourceID: "src-1", sourceTitle: "Mitochondria", now: Self.now)
+        let saved = try await storage.saveCardDrafts([given, unseeded], sourceID: "src-1", sourceTitle: "Mitochondria")
         #expect(saved.added.map(\.id) == [Self.seeded, "card-u"])
         #expect(saved.givenID(of: saved.added[0]) == "minted-1", "the caller still finds the draft it made")
 
@@ -97,7 +97,7 @@ struct CardRecordLifecycleTests {
         #expect(Set(try await Self.toCheck(storage).map(\.cardID)) == [Self.seeded, "card-u"])
 
         // Drafted again: the deck holds the seed and the front, so nothing is written.
-        let again = try await storage.saveCardDrafts([Self.draft(id: "minted-2")], sourceID: "src-1", sourceTitle: "Mitochondria", now: Self.now)
+        let again = try await storage.saveCardDrafts([Self.draft(id: "minted-2")], sourceID: "src-1", sourceTitle: "Mitochondria")
         #expect(again.added.isEmpty && again.alreadyDrafted.count == 1)
         #expect(try F.count(store, "SELECT COUNT(*) FROM memory_card_states") == 2)
 
@@ -106,16 +106,15 @@ struct CardRecordLifecycleTests {
         #expect(runs.map(\.cardCount) == [1] && runs.first?.draftedAt == Self.draftedAt)
     }
 
-    @Test("A draft of a seed that lapsed unseen is drafted again as a Card of its own; the lapsed one is never written over")
-    func lapsedSeedDraftsAgain() async throws {
-        let (root, store, storage) = try await Self.makeStorage("lapsed")
+    @Test("A draft the learner never went through holds its seed however long it waits: the same seed is not drafted again")
+    func oldDraftHoldsItsSeed() async throws {
+        let (root, store, storage) = try await Self.makeStorage("old-draft")
         defer { try? FileManager.default.removeItem(at: root) }
-        _ = try await storage.saveCardDrafts([Self.draft(id: "old")], sourceID: "src-1", sourceTitle: "Mitochondria", now: Self.now)
-        let later = Self.now.addingTimeInterval(MemoryCardTriage.draftLifetime + 60)
-        let fresh = try await storage.saveCardDrafts([Self.draft("Couples what to what?", id: "fresh")], sourceID: "src-1", sourceTitle: "Mitochondria", now: later)
-        #expect(fresh.added.map(\.id) == ["fresh"])
+        _ = try await storage.saveCardDrafts([Self.draft(id: "old")], sourceID: "src-1", sourceTitle: "Mitochondria")
+        let again = try await storage.saveCardDrafts([Self.draft("Couples what to what?", id: "fresh")], sourceID: "src-1", sourceTitle: "Mitochondria")
+        #expect(again.added.isEmpty && again.alreadyDrafted.map(\.id) == ["fresh"])
         #expect(try Self.row(store, Self.seeded, "draft_json") != nil)
-        #expect(try F.count(store, "SELECT COUNT(*) FROM memory_card_states WHERE status = 'draft'") == 2)
+        #expect(try F.count(store, "SELECT COUNT(*) FROM memory_card_states WHERE status = 'draft'") == 1)
     }
 
     // MARK: Going through them, both ways
@@ -127,7 +126,7 @@ struct CardRecordLifecycleTests {
         _ = try await storage.saveCardDrafts([
             Self.draft(id: "a"), Self.draft("Which proteins let protons leak back?", seed: "idea:leak", id: "b"),
             Self.draft("What does Complex I pump?", seed: "highlight:h-1", id: "c"),
-        ], sourceID: "src-1", sourceTitle: "Mitochondria", now: Self.now)
+        ], sourceID: "src-1", sourceTitle: "Mitochondria")
         let records = MemoryCardStateStore.Records(storage: storage)
         try await MemoryCardStateStore.$bound.withValue(records) {
             let cards = try await Self.toCheck(storage)
@@ -171,7 +170,7 @@ struct CardRecordLifecycleTests {
     func keptCardMenu() async throws {
         let (root, store, storage) = try await Self.makeStorage("menu")
         defer { try? FileManager.default.removeItem(at: root) }
-        _ = try await storage.saveCardDrafts([Self.draft(id: "a")], sourceID: "src-1", sourceTitle: "Mitochondria", now: Self.now)
+        _ = try await storage.saveCardDrafts([Self.draft(id: "a")], sourceID: "src-1", sourceTitle: "Mitochondria")
         let records = MemoryCardStateStore.Records(storage: storage)
         try await MemoryCardStateStore.$bound.withValue(records) {
             let card = try #require(try await Self.toCheck(storage).first)
@@ -246,7 +245,7 @@ struct CardRecordLifecycleTests {
             Self.draft("Skipped one?", seed: "highlight:h-1", id: "card-s"),
             Self.draft("Still to check?", seed: "walk-step:step-3", id: "card-d"),
             Self.draft("Asked for, no seed?", seed: nil, requested: true, id: "card-u"),
-        ], sourceID: "src-1", sourceTitle: "Mitochondria", now: Self.now)
+        ], sourceID: "src-1", sourceTitle: "Mitochondria")
         #expect(saved.added.count == 4)
         #expect(try store.loadArtifact(Self.deckID) != nil, "not activated yet: generation 1's deck")
         let face = MemoryCard(

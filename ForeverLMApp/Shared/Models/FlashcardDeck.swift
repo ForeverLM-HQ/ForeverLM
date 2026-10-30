@@ -30,8 +30,7 @@ import Foundation
 /// is the `<!-- card:<id> -->` line under it; the lines after that, up to the
 /// card's `> Why:` and its metadata lines, are its back. The metadata says
 /// where the card stands on its source (the quote its source prints), what it
-/// was drafted from (`Seed:`, and `Idea:` for a source idea), when (`Drafted:`,
-/// which the 14-day expiry is computed from on read), by whom (`Origin:`, a
+/// was drafted from (`Seed:`, and `Idea:` for a source idea), when (`Drafted:`), by whom (`Origin:`, a
 /// `MemoryCardOrigin`), and whether the learner asked for it (`Requested:`,
 /// kept by default). A line this build does not know is left out of the card.
 ///
@@ -200,14 +199,12 @@ struct FlashcardDeck: Equatable, Sendable {
     /// The deck with `drafts` added at its end, in their order: only those
     /// whose id, seed and front are all new to it, and only those its format
     /// gives back whole. Nothing already in the deck changes. The seeds and
-    /// fronts of `lapsed` cards (`MemoryCardTriage.lapsedDraftIDs`: offered
-    /// for two weeks and never gone through) do not count as drafted.
-    func appending(_ drafts: [Flashcard], ignoring lapsed: Set<String> = []) -> Appended {
+    /// fronts a draft holds count as drafted whether the learner has gone through it or not.
+    func appending(_ drafts: [Flashcard]) -> Appended {
         var result = Appended(deck: self)
         var ids = Set(cards.map(\.id))
-        let counted = cards.filter { !lapsed.contains($0.id) }
-        var seeds = Set(counted.compactMap { $0.seed.flatMap(Self.nonEmptySingleLine) })
-        var fronts = Set(counted.map { Flashcard.normalizedFront($0.front) })
+        var seeds = Set(cards.compactMap { $0.seed.flatMap(Self.nonEmptySingleLine) })
+        var fronts = Set(cards.map { Flashcard.normalizedFront($0.front) })
         for draft in drafts {
             guard let read = Self.readBack(draft.asWritten) else {
                 result.unreadable.append(draft)

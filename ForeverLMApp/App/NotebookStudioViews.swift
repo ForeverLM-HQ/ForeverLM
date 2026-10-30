@@ -132,8 +132,8 @@ struct NotebookStudioColumn: View {
     }
 
     /// A card kept, skipped or answered, a deck grown, a source added to the
-    /// notebook, or a new day (a draft expires and a card falls due on
-    /// reading) reads the counts again.
+    /// notebook, or a new day (a card falls due on reading) reads the counts
+    /// again.
     private var cardsKey: String {
         "\(goal.id)#\(goal.updatedAt.timeIntervalSinceReferenceDate)#\(vm.memoryCardRevision)#\(vm.notebookMembershipRevision)#\(vm.recordingScopeRevision)#\(MemoryReviewGoal.dayKey(for: Date()))"
     }

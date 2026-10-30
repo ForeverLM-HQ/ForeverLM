@@ -372,7 +372,6 @@ extension MCPDataStore {
                 entry["sources"] = Self.cardSourcesPayload(card.links, titles: titles, excluded: excluded)
                 if let seed = card.seed { entry["seed"] = seed }
                 if let draftedAt = card.draftedAt { entry["drafted_at"] = ISO8601DateFormatter().string(from: draftedAt) }
-                if let expiresAt = card.expiresAt { entry["expires_at"] = ISO8601DateFormatter().string(from: expiresAt) }
                 if let itemID = card.memoryItemID { entry["item_id"] = itemID }
                 return entry
             }
@@ -424,7 +423,7 @@ extension MCPDataStore {
         payload["status"] = status
         payload["guidance"] = status == "kept"
             ? "Kept cards are reviewed by the app's card review; ask a card by its ask wording. memory_review lists the ones due now."
-            : "A draft is offered for 14 days after it was drafted (expires_at). Keep, edit or skip cards with triage_cards, only on the learner's word."
+            : "A draft waits in To Check until it is kept or skipped; it never expires. Keep, edit or skip cards with triage_cards, only on the learner's word."
         return try jsonString(payload)
     }
 
@@ -701,7 +700,7 @@ extension MCPDataStore {
         }
         if !notFound.isEmpty {
             payload["not_found"] = notFound
-            payload["not_found_guidance"] = "Not among the cards to check: kept or skipped already, expired 14 days after drafting, or not a card id list_cards returned."
+            payload["not_found_guidance"] = "Not among the cards to check: kept or skipped already, or not a card id list_cards returned."
         }
         if !unknownSources.isEmpty {
             payload["sources_with_nothing_to_check"] = unknownSources.sorted()

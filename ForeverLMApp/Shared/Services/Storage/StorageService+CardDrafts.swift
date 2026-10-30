@@ -150,9 +150,7 @@ extension StorageService {
     func saveCardDrafts(
         _ drafts: [Flashcard],
         sourceID requestedSourceID: String,
-        sourceTitle: String,
-        stateDefaults: UserDefaults = .standard,
-        now: Date = Date()
+        sourceTitle: String
     ) throws -> MemoryCardDraftsSaved {
         let store = try notebookFilesKnowledgeStore()
         guard let requested = try store.loadSourceWithoutContent(requestedSourceID) else {
@@ -187,7 +185,7 @@ extension StorageService {
         if try store.recordsMemoryForGeneration2() {
             try saveCardDraftRecords(
                 grounded, sourceID: sourceID, content: content, linkHashes: linkSources.hashes,
-                into: &result, store: store, now: now
+                into: &result, store: store
             )
             return result
         }
@@ -203,14 +201,7 @@ extension StorageService {
             current = FlashcardDeck(title: FlashcardDeck.title(forSourceTitle: sourceTitle))
             revision = nil
         }
-        // A draft that lapsed unseen does not hold its seed or front.
-        let lapsed = MemoryCardTriage.lapsedDraftIDs(
-            current,
-            state: MemoryCardStateStore.load(deckID: deckID, defaults: stateDefaults),
-            itemIDs: Set(try store.memoryItemIDs(anchoredOn: sourceID)),
-            now: now
-        )
-        let appended = current.appending(grounded, ignoring: lapsed)
+        let appended = current.appending(grounded)
         result.added = appended.added
         result.alreadyDrafted = appended.alreadyDrafted
         result.unreadable = appended.unreadable
@@ -241,22 +232,18 @@ extension StorageService {
 
     /// Generation 2's half of `saveCardDrafts`: the grounded drafts appended to the source's deck of
     /// Cards by the deck's rules (`FlashcardDeck.appending`: an id, seed or front the deck holds is drafted
-    /// already; a draft that lapsed unseen holds none of them), each new one saved as a draft Card. A
-    /// seeded draft takes its seed's Card id, `card:<deckSourceID>:<seedKey>`, so two Macs drafting one
-    /// seed make one Card; when a Card already has that id (a draft of the seed that lapsed), the draft
-    /// keeps the id it was minted with. A Card is never written over.
+    /// already), each new one saved as a draft Card. A seeded draft takes its seed's Card id,
+    /// `card:<deckSourceID>:<seedKey>`, so two Macs drafting one seed make one Card; when a Card already
+    /// has that id, the draft keeps the id it was minted with. A Card is never written over.
     private func saveCardDraftRecords(
         _ grounded: [Flashcard],
         sourceID: String,
         content: String,
         linkHashes: [String: String],
         into result: inout MemoryCardDraftsSaved,
-        store: KnowledgeStore,
-        now: Date
+        store: KnowledgeStore
     ) throws {
         let deck = try store.cardRecordDecks(sourceIDs: [sourceID]).first?.deck ?? FlashcardDeck(title: "")
-        let state = try store.cardRecordStates(deckSourceIDs: [sourceID])[result.deckID] ?? MemoryCardDeckState()
-        let lapsed = MemoryCardTriage.lapsedDraftIDs(deck, state: state, itemIDs: Set(try store.memoryItemIDs(anchoredOn: sourceID)), now: now)
         var givenIDs: [String: String] = [:]
         var named: [Flashcard] = []
         for card in grounded {
@@ -277,7 +264,7 @@ extension StorageService {
                 alsoFrom: card.alsoFrom
             ))
         }
-        let appended = FlashcardDeck(title: deck.title, cards: deck.cards.filter { !lapsed.contains($0.id) }).appending(named)
+        let appended = deck.appending(named)
         result.added = appended.added
         result.alreadyDrafted = appended.alreadyDrafted
         result.unreadable = appended.unreadable
@@ -397,7 +384,6 @@ extension StorageService {
     /// out. Reading writes nothing.
     func chatSavedCards(
         _ cards: ChatSavedCards,
-        now: Date = Date(),
         stateDefaults: UserDefaults = .standard
     ) throws -> [ChatSavedCard] {
         let store = try notebookFilesKnowledgeStore()
@@ -413,8 +399,7 @@ extension StorageService {
             deckStates: states,
             itemIDs: itemIDs,
             legacyItems: [],
-            attemptsByItemID: [:],
-            now: now
+            attemptsByItemID: [:]
         )
         let offeredByID: [String: MemoryCardToCheck] = Dictionary(
             offered.map { ($0.cardID, $0) },

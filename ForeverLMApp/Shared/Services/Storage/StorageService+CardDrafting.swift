@@ -78,12 +78,8 @@ extension StorageService {
         // the deck's drafts, kept, skipped or still to check, and every card
         // kept on the source — a walkthrough question missed, a course-quiz
         // answer, an item from before cards.
-        // A draft that lapsed unseen, never gone through, covers nothing.
         let anchoredItemIDs = try store.memoryItemIDs(anchoredOn: sourceID)
-        let lapsed = deck.map {
-            MemoryCardTriage.lapsedDraftIDs($0.deck, state: state, itemIDs: Set(anchoredItemIDs), now: Date())
-        } ?? []
-        let deckCards = deck?.deck.cards.filter { !lapsed.contains($0.id) } ?? []
+        let deckCards = deck?.deck.cards ?? []
         var coveredKeys = Set(deckCards.compactMap(\.seed))
         for row in state.cards.values {
             if let seed = row.seed { coveredKeys.insert(seed) }

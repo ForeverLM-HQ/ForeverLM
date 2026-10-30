@@ -32,8 +32,8 @@ import SwiftUI
 ///   before), and the source's own menu.
 ///
 /// Nothing is written until the learner decides; a decided card leaves at
-/// once and comes back only if storage refused it. A draft is offered for 14
-/// days after it was drafted, which is computed on reading, never written.
+/// once and comes back only if storage refused it. A draft waits until the
+/// learner keeps or skips it; it never expires.
 /// The pane claims keys only while it has focus: inside a notebook it sits
 /// beside the chat, whose typing is the composer's, so it takes focus when it
 /// opens only when a chat did not open it at one of its cards.

@@ -78,12 +78,6 @@ struct MemoryCardToCheck: Equatable, Identifiable, Sendable {
     /// Kept unless the learner says otherwise: a requested draft, and an item
     /// from before cards, which is kept already.
     var isKeptByDefault: Bool { kind == .legacy || isRequested }
-
-    /// When a draft stops being offered: 14 days after it was drafted,
-    /// computed on read and never written. Nil for a card that does not
-    /// expire — an item from before cards, which is kept already, and a draft
-    /// whose body names no date.
-    var expiresAt: Date? { draftedAt.map { $0.addingTimeInterval(MemoryCardTriage.draftLifetime) } }
 }
 
 /// What the learner decided about a card to check.
@@ -128,37 +122,14 @@ struct MemoryCardTriageResult: Equatable, Sendable {
 }
 
 enum MemoryCardTriage {
-    /// How long a draft is offered (decisions v2.1, "Going through drafts").
-    static let draftLifetime: TimeInterval = 14 * 86_400
-
-    /// The deck's drafts that lapsed unseen: offered for `draftLifetime` and
-    /// neither kept, skipped nor made an item on any device. A lapsed draft
-    /// is neither kept nor skipped, so it counts as never drafted: Make Cards
-    /// may draft its seed or front again, under a new id
-    /// (`FlashcardDeck.appending(_:ignoring:)`), and the new draft is the one
-    /// To Check offers.
-    static func lapsedDraftIDs(
-        _ deck: FlashcardDeck,
-        state: MemoryCardDeckState,
-        itemIDs: Set<String>,
-        now: Date
-    ) -> Set<String> {
-        Set(deck.cards.compactMap { card -> String? in
-            if let status = state.cards[card.id]?.status, status != .draft { return nil }
-            if itemIDs.contains(card.id) || itemIDs.contains(MemoryTutorIdentity.cardItemID(cardID: card.id)) { return nil }
-            guard let draftedAt = card.draftedAt, draftedAt.addingTimeInterval(draftLifetime) <= now else { return nil }
-            return card.id
-        })
-    }
-
     /// The cards to check, in the order To Check lists them: a source at a
     /// time — the source drafted for most recently first, the sources only
     /// items from before cards wait on after them, oldest first — and within
     /// a source its drafts in the deck's order, then its items from before.
     ///
-    /// A draft waits until it is kept or skipped in its deck's row, until its
-    /// item exists (kept on another device whose row has not arrived), or
-    /// until 14 days after it was drafted. A draft with no quote cannot be
+    /// A draft waits until it is kept or skipped in its deck's row, or until
+    /// its item exists (kept on another device whose row has not arrived);
+    /// it never lapses. A draft with no quote cannot be
     /// kept and is not offered, nor is one whose seed or front belongs to a
     /// card of its deck gone through, or offered before it. An item from
     /// before cards (`legacyItems`, the active items with no card in their
@@ -175,8 +146,7 @@ enum MemoryCardTriage {
         deckStates: [String: MemoryCardDeckState],
         itemIDs: Set<String>,
         legacyItems: [MemoryItem],
-        attemptsByItemID: [String: [MemoryAttempt]],
-        now: Date
+        attemptsByItemID: [String: [MemoryAttempt]]
     ) -> [MemoryCardToCheck] {
         struct Pile {
             var drafts: [MemoryCardToCheck] = []
@@ -206,7 +176,6 @@ enum MemoryCardTriage {
             for card in deck.deck.cards {
                 if isGoneThrough(card) { continue }
                 guard let quote = card.quote?.trimmingCharacters(in: .whitespacesAndNewlines), !quote.isEmpty else { continue }
-                if let draftedAt = card.draftedAt, draftedAt.addingTimeInterval(draftLifetime) <= now { continue }
                 let front = Flashcard.normalizedFront(card.front)
                 if let seed = card.seed, takenSeeds.contains(seed) { continue }
                 if takenFronts.contains(front) { continue }

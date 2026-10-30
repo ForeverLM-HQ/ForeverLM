@@ -6154,7 +6154,7 @@ struct MCPDataStoreTests {
         #expect(card["origin"] as? String == MemoryCardOrigin.assistant.rawValue)
         #expect(card["seed"] as? String == "guide:q1")
         #expect(card["source_title"] as? String == "Retrieval practice")
-        #expect(card["expires_at"] != nil)
+        #expect(card["expires_at"] == nil, "a draft never expires")
         let backImages = try #require(card["back_images"] as? [[String: Any]])
         #expect(backImages.compactMap { $0["alt"] as? String } == ["Retrieval curve", "Spacing comparison"])
         #expect(MemoryCardStateStore.load(deckID: MemoryCard.draftDeckID(sourceID: "source-cards"), defaults: defaults).cards.isEmpty, "saving writes no state row")

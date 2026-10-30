@@ -133,8 +133,7 @@ extension KnowledgeStore {
                 attemptsByItemID: attemptsByItemID,
                 scope: scope,
                 drafts: drafts,
-                deckState: deckState,
-                now: now
+                deckState: deckState
             )
         }
         let dealt = Set(today.entries.map(\.id)).union(practice.map(\.id))
@@ -176,8 +175,7 @@ extension KnowledgeStore {
             attemptsByItemID: attemptsByItemID,
             scope: scope,
             drafts: drafts,
-            deckState: deckState,
-            now: now
+            deckState: deckState
         )
         let dealt = Set(kept.all.map(\.id))
         return MemoryCardNotebookPractice(
@@ -237,8 +235,7 @@ extension KnowledgeStore {
         attemptsByItemID: [String: [MemoryAttempt]],
         scope: MemoryCardScope?,
         drafts: [MemoryCardDraftDeck],
-        deckState: (String) -> MemoryCardDeckState?,
-        now: Date
+        deckState: (String) -> MemoryCardDeckState?
     ) throws -> [MemoryCardToCheck] {
         let available = try memoryCardDraftSourcesAvailable(Set(drafts.map(\.sourceID)))
         let decks = (screenRecordScope()?.scopedCardDrafts(drafts) ?? drafts).filter { deck in
@@ -257,8 +254,7 @@ extension KnowledgeStore {
             deckStates: deckStates,
             itemIDs: Set(try loadAllMemoryItemIDs()),
             legacyItems: legacy,
-            attemptsByItemID: attemptsByItemID,
-            now: now
+            attemptsByItemID: attemptsByItemID
         )
     }
 

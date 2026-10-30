@@ -816,7 +816,7 @@
       "id": {"forms": ["<existing memory_items.id>", "card:<deckSourceID>:<seedKey>", "uuid"], "deterministic": "partly"},
       "cloudKitFields": ["payload"],
       "fields": {
-        "status": {"json": "string", "enum": "CardStatus", "kind": "scalar", "policy": "L", "required": true, "terminalValues": ["retired"], "doc": "The codec never writes a transition out of retired; a draft expires 14 days after draftedAt (computed on read)."},
+        "status": {"json": "string", "enum": "CardStatus", "kind": "scalar", "policy": "L", "required": true, "terminalValues": ["retired"], "doc": "The codec never writes a transition out of retired."},
         "deckSourceID": {"json": "id", "ref": "Source", "kind": "scalar", "policy": "S", "required": true, "doc": "The source the card is drafted from."},
         "origin": {"json": "string", "enum": "CardOrigin", "kind": "scalar", "policy": "S", "required": true, "doc": ""},
         "seedKey": {"json": "string", "kind": "scalar", "policy": "S", "required": false, "doc": "e.g. walk:<srcID>#q3, qz:<id>#<qid>, hl:<id>, idea:<ideaKey>.", "spill": false},
