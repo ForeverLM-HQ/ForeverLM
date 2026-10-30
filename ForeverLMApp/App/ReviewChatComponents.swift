@@ -2847,14 +2847,21 @@ struct ReviewChatWorkFold: View {
 
             if isExpanded {
                 VStack(alignment: .leading, spacing: 8) {
-                    ForEach(Array(work.steps.enumerated()), id: \.offset) { index, step in
-                        if step.kind == .thinking {
+                    ForEach(Self.segments(of: work.steps)) { segment in
+                        if segment.isThinking, let step = segment.steps.first?.step {
                             ReviewChatReasoningText(reasoning: step.reasoning, textInset: 10)
                         } else {
-                            ReviewChatToolRow(
-                                activity: step,
-                                showsBrowserPreview: index == latestBrowserPreviewIndex
-                            )
+                            // Claude Science's way: a run of tool calls is one
+                            // soft card, a line each.
+                            ReviewChatToolCard {
+                                ForEach(segment.steps, id: \.index) { entry in
+                                    ReviewChatToolRow(
+                                        activity: entry.step,
+                                        showsBrowserPreview: entry.index == latestBrowserPreviewIndex,
+                                        inCard: true
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -2885,6 +2892,29 @@ struct ReviewChatWorkFold: View {
         .onChange(of: work.answerHasBegun, initial: true) { _, begun in
             if begun { answerLanded = true }
         }
+    }
+
+    /// One stretch of the steps as the open fold draws it: a single thinking
+    /// step, or the run of tool calls between two of them.
+    struct Segment: Identifiable {
+        let id: Int
+        let isThinking: Bool
+        let steps: [(index: Int, step: ReviewSessionManager.Message.ToolActivity)]
+    }
+
+    static func segments(of steps: [ReviewSessionManager.Message.ToolActivity]) -> [Segment] {
+        var segments: [Segment] = []
+        for (index, step) in steps.enumerated() {
+            let isThinking = step.kind == .thinking
+            if !isThinking, let last = segments.last, !last.isThinking {
+                segments[segments.count - 1] = Segment(
+                    id: last.id, isThinking: false, steps: last.steps + [(index, step)]
+                )
+            } else {
+                segments.append(Segment(id: index, isThinking: isThinking, steps: [(index, step)]))
+            }
+        }
+        return segments
     }
 
     /// The settled line: "Worked for 2m 17s" when the reply used a tool,
@@ -3009,16 +3039,63 @@ private struct ReviewChatPageCard: View {
     }
 }
 
+/// The soft rounded card a run of tool calls sits in inside an open fold, as
+/// Claude Science draws them: a light fill, no border, a line per call.
+struct ReviewChatToolCard<Content: View>: View {
+    @Environment(\.colorScheme) private var colorScheme
+    @ViewBuilder let content: Content
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            content
+        }
+        .padding(.horizontal, 6)
+        .padding(.vertical, 6)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(
+            RoundedRectangle(cornerRadius: 14, style: .continuous)
+                .fill(Color.primary.opacity(colorScheme == .dark ? 0.06 : 0.04))
+        )
+    }
+}
+
 /// A single tool operation, one step inside an open "Worked for" fold
 /// (`ReviewChatWorkFold`): a grey glyph, what it did and on what, and, when it
-/// returned something worth reading, a disclosure onto it.
+/// returned something worth reading, a disclosure onto it. In a card
+/// (`ReviewChatToolCard`) the glyph is a check, and what the call returned is
+/// said in a few words at the right edge ("1 line of output").
 struct ReviewChatToolRow: View {
     let activity: ReviewSessionManager.Message.ToolActivity
     /// Whether this row draws the picture of the Browser tab behind it. Only
     /// the latest browser step in a group does, so a run of ten page turns
     /// shows one live picture rather than a column of them.
     var showsBrowserPreview = true
+    /// Drawn as a line of a `ReviewChatToolCard` rather than on its own.
+    var inCard = false
     @State private var isExpanded = false
+
+    /// What the call returned, in a few words. Counted from the preview the
+    /// row keeps, so a result cut at the preview's length says "+".
+    private var resultSummary: String? {
+        switch activity.state {
+        case .running: return nil
+        case .failed: return "failed"
+        case .succeeded: break
+        }
+        if presentsRetrievedPassages {
+            let count = activity.retrievedPassages.count
+            return count == 1 ? "1 passage" : "\(count) passages"
+        }
+        if presentsListedSources {
+            let count = activity.listedSources.count
+            return count == 1 ? "1 source" : "\(count) sources"
+        }
+        if presentsSourceCard { return "loaded" }
+        guard let preview = activity.resultPreview else { return "done" }
+        let lines = preview.split(whereSeparator: \.isNewline).count
+        let cut = preview.count >= 1_200 ? "+" : ""
+        return lines == 1 && cut.isEmpty ? "1 line of output" : "\(lines)\(cut) lines of output"
+    }
 
     private var presentsSourceCard: Bool {
         activity.toolName == "get_source_content"
@@ -3093,48 +3170,107 @@ struct ReviewChatToolRow: View {
         }
     }
 
+    /// A line of a card: a check (a spinner while it runs, a warning when it
+    /// failed), the step and what it was on, and the result at the right edge.
+    private var cardLabel: some View {
+        HStack(spacing: 10) {
+            ZStack {
+                switch activity.state {
+                case .running:
+                    ProgressView()
+                        .controlSize(.small)
+                        .scaleEffect(0.6)
+                case .succeeded:
+                    Image(systemName: "checkmark")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(Color.green.opacity(0.75))
+                case .failed:
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.system(size: 10))
+                        .foregroundStyle(.orange)
+                }
+            }
+            .frame(width: 14, height: 14)
+
+            Text(title)
+                .zoomedSystemFont(size: 13)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+
+            if let detail = activity.detail, !detail.isEmpty {
+                Text(detail)
+                    .zoomedSystemFont(size: 13)
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .truncationMode(activity.sourcePresentation == nil ? .middle : .tail)
+            }
+
+            Spacer(minLength: 12)
+
+            if let resultSummary {
+                Text(resultSummary)
+                    .zoomedSystemFont(size: 13)
+                    .foregroundStyle(activity.state == .failed ? AnyShapeStyle(Color.orange) : AnyShapeStyle(.tertiary))
+                    .lineLimit(1)
+            }
+
+            if canExpand {
+                Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                    .font(.system(size: 9, weight: .semibold))
+                    .foregroundStyle(.tertiary)
+            }
+        }
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .contentShape(Rectangle())
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             Button {
                 guard canExpand else { return }
                 isExpanded.toggle()
             } label: {
-                HStack(spacing: 6) {
-                    if activity.state == .running {
-                        ProgressView()
-                            .controlSize(.small)
-                            .scaleEffect(0.6)
-                            .frame(width: 12, height: 12)
-                    } else {
-                        Image(systemName: icon)
-                            .font(.system(size: 11))
-                            .foregroundStyle(tint)
-                    }
+                if inCard {
+                    cardLabel
+                } else {
+                    HStack(spacing: 6) {
+                        if activity.state == .running {
+                            ProgressView()
+                                .controlSize(.small)
+                                .scaleEffect(0.6)
+                                .frame(width: 12, height: 12)
+                        } else {
+                            Image(systemName: icon)
+                                .font(.system(size: 11))
+                                .foregroundStyle(tint)
+                        }
 
-                    Text(title)
-                        .font(.caption.weight(.medium))
-                        .foregroundStyle(.secondary)
+                        Text(title)
+                            .font(.caption.weight(.medium))
+                            .foregroundStyle(.secondary)
 
-                    if let detail = activity.detail, !detail.isEmpty {
-                        Text(detail)
-                            .font(.caption)
-                            .foregroundStyle(.tertiary)
-                            .lineLimit(1)
-                            .truncationMode(activity.sourcePresentation == nil ? .middle : .tail)
-                    }
+                        if let detail = activity.detail, !detail.isEmpty {
+                            Text(detail)
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                                .lineLimit(1)
+                                .truncationMode(activity.sourcePresentation == nil ? .middle : .tail)
+                        }
 
-                    if canExpand {
-                        Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                            .font(.system(size: 9, weight: .semibold))
-                            .foregroundStyle(.tertiary)
+                        if canExpand {
+                            Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
+                                .font(.system(size: 9, weight: .semibold))
+                                .foregroundStyle(.tertiary)
+                        }
                     }
+                    // No chip: a step is a line of the fold, lit only under the
+                    // pointer.
+                    .padding(.vertical, 2)
+                    .contentShape(Rectangle())
                 }
-                // No chip: a step is a line of the fold, lit only under the
-                // pointer.
-                .padding(.vertical, 2)
-                .contentShape(Rectangle())
             }
-            .buttonStyle(.hoverWash(cornerRadius: 6, inset: -3))
+            .buttonStyle(.hoverWash(cornerRadius: inCard ? 9 : 6, inset: inCard ? 0 : -3))
             .help(helpText)
 
             if showsBrowserPreview, activity.isBrowserStep, let preview = activity.previewImage {
@@ -3142,47 +3278,50 @@ struct ReviewChatToolRow: View {
             }
 
             if isExpanded {
-                if presentsSourceCard, let presentation = activity.sourcePresentation {
-                    HStack(spacing: 9) {
-                        SourceThumbnail(source: presentation.source, size: 34)
+                VStack(alignment: .leading, spacing: 6) {
+                    if presentsSourceCard, let presentation = activity.sourcePresentation {
+                        HStack(spacing: 9) {
+                            SourceThumbnail(source: presentation.source, size: 34)
 
-                        Text(presentation.title)
-                            .font(.caption.weight(.medium))
-                            .foregroundStyle(.secondary)
-                            .lineLimit(2)
+                            Text(presentation.title)
+                                .font(.caption.weight(.medium))
+                                .foregroundStyle(.secondary)
+                                .lineLimit(2)
 
-                        Spacer(minLength: 0)
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(9)
-                    .background(
-                        Color.primary.opacity(0.03),
-                        in: RoundedRectangle(cornerRadius: 7, style: .continuous)
-                    )
-                } else if presentsRetrievedPassages {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(activity.retrievedPassages) { passage in
-                            ReviewChatRetrievedPassageCard(passage: passage)
+                            Spacer(minLength: 0)
                         }
-                    }
-                } else if presentsListedSources {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(activity.listedSources, id: \.id) { presentation in
-                            ReviewChatSourceBanner(source: presentation.source)
-                        }
-                    }
-                } else if let preview = activity.resultPreview {
-                    Text(preview)
-                        .font(.system(size: 11, design: .monospaced))
-                        .foregroundStyle(.secondary)
-                        .textSelection(.enabled)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(9)
                         .background(
                             Color.primary.opacity(0.03),
                             in: RoundedRectangle(cornerRadius: 7, style: .continuous)
                         )
+                    } else if presentsRetrievedPassages {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(activity.retrievedPassages) { passage in
+                                ReviewChatRetrievedPassageCard(passage: passage)
+                            }
+                        }
+                    } else if presentsListedSources {
+                        VStack(alignment: .leading, spacing: 6) {
+                            ForEach(activity.listedSources, id: \.id) { presentation in
+                                ReviewChatSourceBanner(source: presentation.source)
+                            }
+                        }
+                    } else if let preview = activity.resultPreview {
+                        Text(preview)
+                            .font(.system(size: 11, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(9)
+                            .background(
+                                Color.primary.opacity(0.03),
+                                in: RoundedRectangle(cornerRadius: 7, style: .continuous)
+                            )
+                    }
                 }
+                .padding(.horizontal, inCard ? 8 : 0)
             }
         }
     }

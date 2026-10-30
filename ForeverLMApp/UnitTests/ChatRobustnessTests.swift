@@ -5909,6 +5909,19 @@ struct ReviewChatThinkingTests {
         #expect(ReviewChatWorkFold.durationText(7_200) == "2h")
     }
 
+    @Test @MainActor func anOpenFoldDrawsEachRunOfToolCallsAsOneCard() {
+        let search = ReviewSessionManager.Message.ToolActivity(
+            toolName: "search_sources_semantic", detail: "q", state: .succeeded, resultPreview: nil
+        )
+        let thinking = ReviewSessionManager.Message.ToolActivity(
+            kind: .thinking, toolName: ReviewSessionManager.thinkingActivityName, state: .succeeded,
+            resultPreview: nil, reasoning: "…", thinkingDuration: 8
+        )
+        let segments = ReviewChatWorkFold.segments(of: [search, search, thinking, search])
+        #expect(segments.map(\.isThinking) == [false, true, false])
+        #expect(segments.map { $0.steps.map(\.index) } == [[0, 1], [2], [3]])
+    }
+
     /// One reply, as a native-tools turn leaves it: the first step's message
     /// (empty: it only called tools), its thinking, two calls, the answer's
     /// thinking and the answer. Times are the rows' own clocks.
