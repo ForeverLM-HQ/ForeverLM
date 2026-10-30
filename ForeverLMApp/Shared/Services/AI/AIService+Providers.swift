@@ -819,7 +819,8 @@ extension AIService {
         // the tail is still the second system block.
         let reuseExpected = (payload["tools"] as? [Any])?.isEmpty == false
             || messages.filter { ($0["role"] as? String) != "system" }.count >= 2
-        messages = openRouterMessagesWithVolatileContextBeforeLatestTurn(messages)
+        let moved = openRouterMessagesWithVolatileContext(messages)
+        messages = moved.messages
         payload["messages"] = messages
 
         // Explicit breakpoints are required only for the families documented
@@ -836,10 +837,15 @@ extension AIService {
             // marked only when the request has a later turn or tool round to
             // read it back; a one-shot's document would be paid for twice.
             let markTrailing = reuseExpected || !AIModelDefaults.openAIBillsCacheWrites(model)
+            // A breakpoint ahead of the per-turn tail, where the provider
+            // takes several (Anthropic, the one family with a ttl): the next
+            // turn repeats everything up to it, so the history is read, not
+            // rewritten, each time the learner sends a message.
             messages = openAIStyleMessagesMarkingCacheBreakpoints(
                 messages,
                 systemTTL: openRouterModelSupportsCacheTTL(model) ? "1h" : nil,
-                markTrailingMessage: markTrailing
+                markTrailingMessage: markTrailing,
+                historyBreakpointBefore: openRouterModelSupportsCacheTTL(model) ? moved.tailIndex : nil
             )
             payload["messages"] = messages
         }
@@ -882,20 +888,34 @@ extension AIService {
     static func openRouterMessagesWithVolatileContextBeforeLatestTurn(
         _ messages: [[String: Any]]
     ) -> [[String: Any]] {
+        openRouterMessagesWithVolatileContext(messages).messages
+    }
+
+    /// `openRouterMessagesWithVolatileContextBeforeLatestTurn`, also saying
+    /// where the tail went, so the message just ahead of it can carry a cache
+    /// breakpoint: that message ends the part of the conversation the next
+    /// turn repeats byte for byte (nil when there was no tail to move).
+    static func openRouterMessagesWithVolatileContext(
+        _ messages: [[String: Any]]
+    ) -> (messages: [[String: Any]], tailIndex: Int?) {
         guard let systemIndex = messages.firstIndex(where: {
             let role = ($0["role"] as? String)?.lowercased()
             return role == "system" || role == "developer"
-        }), let blocks = messages[systemIndex]["content"] as? [[String: Any]], blocks.count > 1 else {
-            return messages
+        }), let blocks = messages[systemIndex]["content"] as? [[String: Any]] else {
+            return (messages, nil)
         }
+        // [head], or [head, source text] where the source text is a block of
+        // its own: both stay in the system message, only what follows moves.
+        let stableCount = blocks.count > 1 && isSourceTextBlock(blocks[1]) ? 2 : 1
+        guard blocks.count > stableCount else { return (messages, nil) }
 
         var prepared = messages
-        prepared[systemIndex]["content"] = [blocks[0]]
+        prepared[systemIndex]["content"] = Array(blocks.prefix(stableCount))
 
         // The tail was produced by ForeverLM as text blocks. Strip any marker
         // defensively so changing per-turn context can never become a second
         // cache breakpoint through a retried/already-normalized payload.
-        let volatileBlocks = blocks.dropFirst().map { block -> [String: Any] in
+        let volatileBlocks = blocks.dropFirst(stableCount).map { block -> [String: Any] in
             var clean = block
             clean.removeValue(forKey: "cache_control")
             return clean
@@ -904,8 +924,17 @@ extension AIService {
         let latestUser = prepared.indices.last(where: {
             $0 > systemIndex && (prepared[$0]["role"] as? String)?.lowercased() == "user"
         })
-        prepared.insert(tail, at: latestUser ?? prepared.endIndex)
-        return prepared
+        let tailIndex = latestUser ?? prepared.endIndex
+        prepared.insert(tail, at: tailIndex)
+        return (prepared, tailIndex)
+    }
+
+    /// Whether a system content block is the loaded source text kept as a
+    /// block of its own (`GenerationSystemPrompt.sourceTextHeader`).
+    static func isSourceTextBlock(_ block: [String: Any]) -> Bool {
+        (block["text"] as? String)?.hasPrefix(
+            ReviewSessionManager.GenerationSystemPrompt.sourceTextHeader
+        ) == true
     }
 
     /// Stable OpenRouter sticky-routing id for one conversation.

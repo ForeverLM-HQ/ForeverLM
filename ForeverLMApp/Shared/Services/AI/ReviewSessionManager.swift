@@ -5929,6 +5929,7 @@ final class ReviewSessionManager {
                     try await aiService.streamChatWithTools(
                         config: config,
                         system: currentSystem.stable,
+                        sourceSystem: currentSystem.sources,
                         volatileSystem: currentSystem.volatile,
                         turns: currentTurns,
                         tools: tools,
@@ -6034,7 +6035,7 @@ final class ReviewSessionManager {
                     // source text lives); the volatile tail is preserved.
                     currentSystem = GenerationSystemPrompt(
                         stable: compactedSystemPromptForOutputTokenRetry(
-                            from: system.stable,
+                            from: system.stableWithSources,
                             allowSourceRetrieval: false
                         ),
                         volatile: system.volatile
@@ -6078,7 +6079,8 @@ final class ReviewSessionManager {
                         resultPreview: error.localizedDescription,
                         before: messageID
                     )
-                    currentSystem.stable = compactedSystemPromptForContextOverflow(from: currentSystem.stable)
+                    currentSystem.stable = compactedSystemPromptForContextOverflow(from: currentSystem.stableWithSources)
+                    currentSystem.sources = ""
                     hardTrimNativeToolResultTurns(&currentTurns)
                     continue
                 }
@@ -9875,7 +9877,7 @@ final class ReviewSessionManager {
             do {
                 let stream = await withSingleSourceUsageAttribution {
                     await aiService.streamChat(
-                        system: currentSystem.stable,
+                        system: currentSystem.stableWithSources,
                         volatileSystem: currentSystem.volatile,
                         messages: currentMessages,
                         config: config,
@@ -10020,7 +10022,8 @@ final class ReviewSessionManager {
                         resultPreview: error.localizedDescription,
                         before: messageID
                     )
-                    currentSystem.stable = compactedSystemPromptForContextOverflow(from: currentSystem.stable)
+                    currentSystem.stable = compactedSystemPromptForContextOverflow(from: currentSystem.stableWithSources)
+                    currentSystem.sources = ""
                     let overflowNote = "\n\nNote: the request was automatically compacted because it exceeded the model's context window. Answer from the material that remains; use retrieve_sources if a specific omitted passage is required."
                     if !currentSystem.volatile.hasSuffix(overflowNote) {
                         currentSystem.volatile += overflowNote
@@ -10348,7 +10351,7 @@ final class ReviewSessionManager {
             providerName: providerName,
             modelID: config.model,
             contextWindowTokens: AIService.contextWindowTokens(provider: config.provider, model: config.model),
-            instructionCharacters: max(0, system.stable.count - sourceCharacters),
+            instructionCharacters: max(0, system.stableWithSources.count - sourceCharacters),
             sourceCharacters: sourceCharacters,
             toolCharacters: toolCharacters,
             conversationCharacters: conversationCharacters,
@@ -10498,8 +10501,23 @@ final class ReviewSessionManager {
     /// system string get `combined`.
     struct GenerationSystemPrompt {
         var stable: String
+        /// The loaded source text, kept apart from `stable` so a request can
+        /// cache the instructions and the text separately: Anthropic caches
+        /// whole blocks, and text appended to a block that was cached whole
+        /// is a different block, so every `retrieve_sources` was a full miss
+        /// of everything ahead of the new excerpt. Empty when there is no
+        /// source text, or when a retry has folded it back into `stable`.
+        var sources: String = ""
         var volatile: String
-        var combined: String { volatile.isEmpty ? stable : stable + volatile }
+        /// What providers that take one system string get.
+        var combined: String { stable + sources + volatile }
+        /// The instructions and the source text together: what `stable` held
+        /// before the two were kept apart, for code that reads or shrinks it.
+        var stableWithSources: String { stable + sources }
+
+        /// The text a request's source block begins with, which is how a
+        /// request's builders tell it from the head and the per-turn tail.
+        static let sourceTextHeader = "\nSource text loaded into this chat:\n\n"
     }
 
     private func systemPromptForGeneration(
@@ -10607,14 +10625,9 @@ final class ReviewSessionManager {
         // catalog and every fixed instruction. That ordering is what lets a
         // newly loaded source be appended without shifting a single cached
         // byte ahead of it.
+        var sources = ""
         if !sourceContext.isEmpty {
-            let promptSourceContext = sourceContextForPrompt()
-            stable += """
-
-            Source text loaded into this chat:
-
-            \(promptSourceContext)
-            """
+            sources = GenerationSystemPrompt.sourceTextHeader + sourceContextForPrompt()
         }
 
         // Everything below changes between requests — keep it out of the
@@ -10700,7 +10713,7 @@ final class ReviewSessionManager {
             """
         }
 
-        return GenerationSystemPrompt(stable: stable, volatile: volatile)
+        return GenerationSystemPrompt(stable: stable, sources: sources, volatile: volatile)
     }
 
     /// The learner's wall clock, spelled out so relative wording in a scheduling
@@ -16387,7 +16400,7 @@ extension ReviewSessionManager {
         manager.activeSourceIDs = ["source-1"]
         manager.sourceManifest = "- Test Paper (id: source-1, paper, readable text loaded)"
         let prompt = manager.systemPromptForGeneration(allowSourceRetrieval: true, nativeToolsActive: true)
-        return (manager.isTeachBackSession, manager.currentPromptMode, manager.offersFollowUpQuestions, prompt.stable)
+        return (manager.isTeachBackSession, manager.currentPromptMode, manager.offersFollowUpQuestions, prompt.stableWithSources)
     }
 
     /// The learner's message, on screen and saved as a send saves it before
@@ -16448,7 +16461,7 @@ extension ReviewSessionManager {
         manager.sessionID = sessionID
         manager.walkthroughPlayback = walkthrough
         let prompt = manager.systemPromptForGeneration(allowSourceRetrieval: true, nativeToolsActive: true)
-        return (manager.offersFollowUpQuestions, prompt.stable, prompt.volatile)
+        return (manager.offersFollowUpQuestions, prompt.stableWithSources, prompt.volatile)
     }
 
     /// Stop, or Send now on a queued message, before the running turn has
@@ -16742,7 +16755,7 @@ extension ReviewSessionManager {
             isFirst: false,
             systemPrompt: GenerationSystemPrompt(stable: systemPrompt, volatile: "")
         )
-        return (stable: payload.system.stable, volatile: payload.system.volatile)
+        return (stable: payload.system.stableWithSources, volatile: payload.system.volatile)
     }
 
     static func trimmedToolResultEntriesForTesting(_ context: String, budget: Int) -> String {
@@ -17042,7 +17055,7 @@ extension ReviewSessionManager {
             allowSourceRetrieval: true,
             nativeToolsActive: true
         )
-        return (prompt.stable, prompt.volatile, manager.nativeToolSpecs())
+        return (prompt.stableWithSources, prompt.volatile, manager.nativeToolSpecs())
     }
 
     static func restoredMemoryCompanionStateForTesting(
@@ -17356,8 +17369,8 @@ extension ReviewSessionManager {
         let second = manager.systemPromptForGeneration(allowSourceRetrieval: true, nativeToolsActive: true)
 
         return (
-            StablePrefixProbe(stable: first.stable, volatile: first.volatile),
-            StablePrefixProbe(stable: second.stable, volatile: second.volatile)
+            StablePrefixProbe(stable: first.stableWithSources, volatile: first.volatile),
+            StablePrefixProbe(stable: second.stableWithSources, volatile: second.volatile)
         )
     }
 

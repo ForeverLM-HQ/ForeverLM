@@ -476,13 +476,17 @@ extension AIService {
     /// Stream one assistant step of a tool-aware conversation. Text deltas are
     /// forwarded as they arrive on the service's executor; any native tool calls
     /// the model makes are accumulated and returned when the stream ends.
-    /// `system` is the stable prompt head (instructions + attached source
-    /// text) and `volatileSystem` the per-turn tail (history digest, retry
-    /// nudges, tool results). OpenRouter receives them as separate system
-    /// content blocks so the cached stable prefix survives tail churn.
+    /// `system` is the stable prompt head (instructions), `sourceSystem` the
+    /// attached source text and `volatileSystem` the per-turn tail (history
+    /// digest, retry nudges, tool results). OpenRouter receives them as
+    /// separate system content blocks so the cached stable prefix survives
+    /// tail churn; where the provider caches whole blocks (Anthropic) the
+    /// source text is its own block, so text appended to it by a retrieval
+    /// leaves the instructions' cache entry intact.
     func streamChatWithTools(
         config: AITaskConfig,
         system: String,
+        sourceSystem: String = "",
         volatileSystem: String = "",
         turns: [AIChatTurn],
         tools: [AIToolSpec],
@@ -509,16 +513,18 @@ extension AIService {
             requestedMaxTokens: maxTokens
         )
         var effectiveSystem = system
+        var effectiveSources = sourceSystem
         var effectiveVolatile = volatileSystem
         let turnsSize = Self.projectedCharacterCount(of: turns)
         // A model with no published window is sent the request as built.
-        if let inputBudget, system.count + volatileSystem.count + turnsSize > inputBudget {
+        if let inputBudget, system.count + sourceSystem.count + volatileSystem.count + turnsSize > inputBudget {
             let systemBudget = max(2_000, inputBudget - turnsSize)
-            let combined = volatileSystem.isEmpty ? system : system + volatileSystem
+            let combined = system + sourceSystem + volatileSystem
             if combined.count > systemBudget {
                 // Emergency truncation collapses the stable/volatile split —
                 // the request is over budget, so cache reuse is already lost.
                 effectiveSystem = String(combined.prefix(systemBudget)) + Self.budgetSourceTruncationNote
+                effectiveSources = ""
                 effectiveVolatile = ""
             }
         }
@@ -527,7 +533,7 @@ extension AIService {
             try await AIUsageAttribution.$task.withValue(config.taskLabel) {
                 try await streamOpenAIStyleToolChat(
                     provider: config.provider, apiKey: config.apiKey,
-                    system: effectiveSystem, volatileSystem: effectiveVolatile,
+                    system: effectiveSystem, sourceSystem: effectiveSources, volatileSystem: effectiveVolatile,
                     turns: turns, tools: tools, maxTokens: cappedMaxTokens, model: config.model,
                     effort: config.effort, speed: config.speed, webSearch: webSearch,
                     webSearchDepth: webSearchDepth,
@@ -561,6 +567,7 @@ extension AIService {
         provider: AIProvider,
         apiKey: String,
         system: String,
+        sourceSystem: String,
         volatileSystem: String,
         turns: [AIChatTurn],
         tools: [AIToolSpec],
@@ -576,6 +583,7 @@ extension AIService {
         let payload = makeOpenAIStyleToolPayload(
             provider: provider,
             system: system,
+            sourceSystem: sourceSystem,
             volatileSystem: volatileSystem,
             turns: turns,
             tools: tools,
@@ -612,6 +620,7 @@ extension AIService {
     func makeOpenAIStyleToolPayload(
         provider: AIProvider,
         system: String,
+        sourceSystem: String = "",
         volatileSystem: String,
         turns: [AIChatTurn],
         tools: [AIToolSpec],
@@ -623,14 +632,23 @@ extension AIService {
         webSearchDepth: AIWebSearchDepth = .standard
     ) -> [String: Any] {
         let slug = Self.openAICompatibleModelID(provider: provider, model: model)
-        let combinedSystem = volatileSystem.isEmpty ? system : system + volatileSystem
+        // Source text is a block of its own only where the provider caches
+        // whole blocks and honours several breakpoints (Anthropic); elsewhere
+        // it stays part of the one stable block, as it always was.
+        let sourcesOwnBlock = !sourceSystem.isEmpty && Self.openRouterModelSupportsCacheTTL(slug)
+        let headSystem = sourcesOwnBlock ? system : system + sourceSystem
+        let combinedSystem = (sourcesOwnBlock ? headSystem + sourceSystem : headSystem) + volatileSystem
         var messages = Self.openAIStyleToolMessages(system: combinedSystem, turns: turns)
-        if !volatileSystem.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-           !messages.isEmpty {
-            messages[0]["content"] = [
-                ["type": "text", "text": system] as [String: Any],
-                ["type": "text", "text": volatileSystem] as [String: Any],
-            ]
+        let hasVolatile = !volatileSystem.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if (hasVolatile || sourcesOwnBlock), !messages.isEmpty {
+            var blocks: [[String: Any]] = [["type": "text", "text": headSystem]]
+            if sourcesOwnBlock {
+                blocks.append(["type": "text", "text": sourceSystem])
+            }
+            if hasVolatile {
+                blocks.append(["type": "text", "text": volatileSystem])
+            }
+            messages[0]["content"] = blocks
         }
         var payload: [String: Any] = [
             "model": slug,
@@ -836,10 +854,20 @@ extension AIService {
     /// request that will not be sent again (a one-shot task whose only user turn
     /// is a document read once): where a write bills above the plain input rate,
     /// marking that turn would pay the premium for nothing.
+    ///
+    /// A system message whose second block is the source text
+    /// (`isSourceTextBlock`) gets a breakpoint on that block too, with the same
+    /// ttl: the instructions and the text then cache apart, and a retrieval
+    /// that appends to the text rewrites only the text. `historyBreakpointBefore`
+    /// is the index of the per-turn tail message; the last message ahead of it
+    /// that can carry a marker gets one (default ttl), because the next turn
+    /// repeats the conversation up to there and nothing after it. Anthropic
+    /// allows four breakpoints: head, source text, history, trailing message.
     static func openAIStyleMessagesMarkingCacheBreakpoints(
         _ messages: [[String: Any]],
         systemTTL: String? = nil,
-        markTrailingMessage: Bool = true
+        markTrailingMessage: Bool = true,
+        historyBreakpointBefore tailIndex: Int? = nil
     ) -> [[String: Any]] {
         var marked = messages
 
@@ -869,6 +897,28 @@ extension AIService {
         if let systemIndex = marked.firstIndex(where: { ($0["role"] as? String) == "system" }),
            let blocks = markedBlocks(marked[systemIndex]["content"], markFirst: true, ttl: systemTTL) {
             marked[systemIndex]["content"] = blocks
+        }
+        if let systemIndex = marked.firstIndex(where: { ($0["role"] as? String) == "system" }),
+           var blocks = marked[systemIndex]["content"] as? [[String: Any]],
+           blocks.count == 2, isSourceTextBlock(blocks[1]),
+           let sourceText = blocks[1]["text"] as? String,
+           !sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            var marker: [String: Any] = ["type": "ephemeral"]
+            if let systemTTL {
+                marker["ttl"] = systemTTL
+            }
+            blocks[1]["cache_control"] = marker
+            marked[systemIndex]["content"] = blocks
+        }
+        if let tailIndex, tailIndex > 0, tailIndex <= marked.count {
+            let systemIndex = marked.firstIndex(where: { ($0["role"] as? String) == "system" })
+            // Walk back past a message that cannot carry a marker (an assistant
+            // turn that is only tool calls has no text block).
+            for index in stride(from: tailIndex - 1, through: 0, by: -1) where index != systemIndex {
+                guard let blocks = markedBlocks(marked[index]["content"], markFirst: false, ttl: nil) else { continue }
+                marked[index]["content"] = blocks
+                break
+            }
         }
         if markTrailingMessage,
            let lastIndex = marked.indices.last,

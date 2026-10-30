@@ -3667,9 +3667,24 @@ struct ChatRobustnessTests {
             #expect(secondTail.first?["text"] as? String == "clock 10:01", "\(model)")
             // ... and the earlier conversation is byte-identical between turns,
             // so a cached prefix covers it.
+            //
+            // Compared by role and text: a cache breakpoint on the message ahead
+            // of the tail (Anthropic) wraps that message's string in a marked
+            // block, and the marker moves forward each turn like the trailing
+            // one does. Neither is part of what the provider's cache hashes.
+            func content(_ message: [String: Any]) -> [String: String] {
+                let text: String
+                if let string = message["content"] as? String {
+                    text = string
+                } else {
+                    text = (message["content"] as? [[String: Any]] ?? [])
+                        .compactMap { $0["text"] as? String }.joined(separator: "\u{1f}")
+                }
+                return ["role": message["role"] as? String ?? "", "text": text]
+            }
             let sharedCount = 3  // system, question one, answer one
-            let secondBytes = try AIService.stableJSONBody(["m": Array(second.prefix(sharedCount))])
-            let thirdBytes = try AIService.stableJSONBody(["m": Array(third.prefix(sharedCount))])
+            let secondBytes = try AIService.stableJSONBody(["m": second.prefix(sharedCount).map(content)])
+            let thirdBytes = try AIService.stableJSONBody(["m": third.prefix(sharedCount).map(content)])
             #expect(secondBytes == thirdBytes, "\(model) rewrites its history when the tail changes")
         }
     }
@@ -3845,6 +3860,131 @@ struct ChatRobustnessTests {
         let laterSystemBlocks = try #require(laterMessages[0]["content"] as? [[String: Any]])
         #expect(laterSystemBlocks[0]["text"] as? String == firstStable)
         #expect((laterPayload["session_id"] as? String) == (firstPayload["session_id"] as? String))
+    }
+
+    @Test("Anthropic caches the instructions and the source text apart, so a retrieval rewrites only the text")
+    @MainActor
+    func anthropicSourceTextIsItsOwnCachedBlock() async throws {
+        let header = ReviewSessionManager.GenerationSystemPrompt.sourceTextHeader
+        let head = "INSTRUCTIONS-HEAD"
+        let turns: [AIChatTurn] = [
+            .user("First question"),
+            .assistant(text: "First answer", toolCalls: []),
+            .user("Second question"),
+        ]
+        let service = AIService()
+        func payload(sources: String, volatile: String) async -> [String: Any] {
+            await service.makeOpenAIStyleToolPayload(
+                provider: .openRouter,
+                system: head,
+                sourceSystem: sources,
+                volatileSystem: volatile,
+                turns: turns,
+                tools: [],
+                maxTokens: 500,
+                model: "anthropic/claude-sonnet-5",
+                effort: nil
+            )
+        }
+        let before = await payload(sources: header + "EXCERPT-ONE", volatile: "\n\nVOLATILE-A")
+        // A retrieval appends to the source text; the tail changes every turn.
+        let after = await payload(
+            sources: header + "EXCERPT-ONE" + ReviewSessionManager.sourceBlockSeparator + "EXCERPT-TWO",
+            volatile: "\n\nVOLATILE-B"
+        )
+
+        let beforeMessages = try #require(before["messages"] as? [[String: Any]])
+        let afterMessages = try #require(after["messages"] as? [[String: Any]])
+        let beforeSystem = try #require(beforeMessages[0]["content"] as? [[String: Any]])
+        let afterSystem = try #require(afterMessages[0]["content"] as? [[String: Any]])
+
+        // Two cached system blocks, the instructions then the text, both on the
+        // long ttl, and the tail nowhere in the system message.
+        #expect(beforeSystem.count == 2)
+        #expect(beforeSystem[0]["text"] as? String == head)
+        #expect((beforeSystem[0]["cache_control"] as? [String: Any])?["ttl"] as? String == "1h")
+        #expect((beforeSystem[1]["text"] as? String)?.hasSuffix("EXCERPT-ONE") == true)
+        #expect((beforeSystem[1]["cache_control"] as? [String: Any])?["ttl"] as? String == "1h")
+
+        // What a retrieval must not change: the instructions block, byte for
+        // byte, and the session id sticky routing keys on.
+        #expect(afterSystem[0]["text"] as? String == beforeSystem[0]["text"] as? String)
+        #expect(afterSystem[1]["text"] as? String != beforeSystem[1]["text"] as? String)
+        #expect((after["session_id"] as? String) == (before["session_id"] as? String))
+
+        // system, question 1, answer 1, tail, question 2. The answer ends the
+        // history the next turn repeats, so it carries a breakpoint on the
+        // default ttl; the tail does not; the learner's newest message does.
+        #expect(afterMessages.count == 5)
+        let answer = try #require(afterMessages[2]["content"] as? [[String: Any]])
+        let answerMarker = try #require(answer.last?["cache_control"] as? [String: Any])
+        #expect(answerMarker["ttl"] == nil)
+        let tail = try #require(afterMessages[3]["content"] as? [[String: Any]])
+        #expect(tail[0]["text"] as? String == "\n\nVOLATILE-B")
+        #expect(tail[0]["cache_control"] == nil)
+        let newest = try #require(afterMessages[4]["content"] as? [[String: Any]])
+        #expect(newest.last?["cache_control"] != nil)
+    }
+
+    @Test("A provider that does not cache by block keeps the source text in the one system block")
+    @MainActor
+    func nonAnthropicSourceTextStaysInTheStableBlock() async throws {
+        let header = ReviewSessionManager.GenerationSystemPrompt.sourceTextHeader
+        let payload = await AIService().makeOpenAIStyleToolPayload(
+            provider: .openRouter,
+            system: "INSTRUCTIONS-HEAD",
+            sourceSystem: header + "THE-PAPER",
+            volatileSystem: "CHANGING",
+            turns: [.user("Opening learner question")],
+            tools: [],
+            maxTokens: 200,
+            model: "google/gemini-3.5-flash",
+            effort: nil
+        )
+        let messages = try #require(payload["messages"] as? [[String: Any]])
+        let blocks = try #require(messages[0]["content"] as? [[String: Any]])
+        #expect(blocks.count == 1)
+        #expect(blocks[0]["text"] as? String == "INSTRUCTIONS-HEAD" + header + "THE-PAPER")
+        // No history breakpoint off Anthropic: the one before the tail is for
+        // the family whose caching is documented to take several.
+        #expect(messages.count == 3)
+        #expect(messages[1]["content"] is [[String: Any]])
+    }
+
+    @Test("The per-turn tail leaves the instructions and the source text in the system message")
+    func volatileTailMoveKeepsTheSourceBlock() throws {
+        let header = ReviewSessionManager.GenerationSystemPrompt.sourceTextHeader
+        let messages: [[String: Any]] = [
+            [
+                "role": "system",
+                "content": [
+                    ["type": "text", "text": "HEAD"] as [String: Any],
+                    ["type": "text", "text": header + "SOURCES"] as [String: Any],
+                    ["type": "text", "text": "TAIL"] as [String: Any],
+                ],
+            ],
+            ["role": "user", "content": "one"],
+            ["role": "assistant", "content": "two"],
+            ["role": "user", "content": "three"],
+        ]
+        let moved = AIService.openRouterMessagesWithVolatileContext(messages)
+        let system = try #require(moved.messages[0]["content"] as? [[String: Any]])
+        #expect(system.map { $0["text"] as? String } == ["HEAD", header + "SOURCES"])
+        #expect(moved.tailIndex == 3)
+        let tail = try #require(moved.messages[3]["content"] as? [[String: Any]])
+        #expect(tail.map { $0["text"] as? String } == ["TAIL"])
+        #expect(moved.messages[4]["content"] as? String == "three")
+
+        // A system message with no tail is left alone, and reports none.
+        let alone = AIService.openRouterMessagesWithVolatileContext([
+            ["role": "system", "content": [
+                ["type": "text", "text": "HEAD"] as [String: Any],
+                ["type": "text", "text": header + "SOURCES"] as [String: Any],
+            ]],
+            ["role": "user", "content": "one"],
+        ])
+        #expect(alone.tailIndex == nil)
+        #expect(alone.messages.count == 2)
     }
 
     @Test("Gemini moves changing context after the immutable cached paper instruction")
