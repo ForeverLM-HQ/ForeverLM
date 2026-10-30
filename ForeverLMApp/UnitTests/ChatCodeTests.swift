@@ -274,3 +274,130 @@ struct ChatCodeTests {
         #expect(!hostile.path.contains(".."))
     }
 }
+
+/// The tool end to end: the real runner, a real Python environment and a real
+/// RDKit, the way a chat uses it. A chat asked what changes between guanine and
+/// 8-oxoguanine must come back with a drawing of both and the formulas computed,
+/// not recalled (product owner, 2026-10-30: the chat "can't run code?? it should!").
+///
+/// This installs packages, so the first run on a Mac takes about a minute and
+/// needs a network; the environment is kept in the temporary folder, so later
+/// runs take seconds. It is skipped where no Python can be found or PyPI cannot
+/// be reached and no environment is kept yet.
+@Suite("Chat code tool, end to end", .serialized, .enabled(if: ChatCodeEndToEnd.canRun))
+struct ChatCodeEndToEndTests {
+    private static let drawing = """
+    from rdkit import Chem
+    from rdkit.Chem import Draw, rdMolDescriptors
+
+    pairs = [
+        ("guanine", "Nc1nc2[nH]cnc2c(=O)[nH]1"),
+        ("8-oxoguanine", "Nc1nc2[nH]c(=O)[nH]c2c(=O)[nH]1"),
+    ]
+    mols = [Chem.MolFromSmiles(smiles) for _, smiles in pairs]
+    for (name, _), mol in zip(pairs, mols):
+        print(name, rdMolDescriptors.CalcMolFormula(mol), mol.GetNumHeavyAtoms())
+    Draw.MolsToGridImage(mols, molsPerRow=2, subImgSize=(300, 260), legends=[n for n, _ in pairs]).save("guanine_vs_8oxog.png")
+    """
+
+    private func runner() throws -> (StudioChatCodeRunner, URL) {
+        let support = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+            .appendingPathComponent("ChatCodeEndToEnd-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: support, withIntermediateDirectories: true)
+        return (StudioChatCodeRunner(supportRoot: support, cacheRoot: ChatCodeEndToEnd.environmentRoot), support)
+    }
+
+    @Test("A chat that is asked to draw guanine and 8-oxoguanine gets the formulas and a picture", .timeLimit(.minutes(10)))
+    func drawsMolecules() async throws {
+        let (runner, support) = try runner()
+        defer { try? FileManager.default.removeItem(at: support) }
+        let request = try ChatCode.parse(["code": Self.drawing, "packages": ["rdkit"], "timeout_seconds": 120])
+
+        let outcome = await runner.run(request, sessionKey: "guanine")
+
+        #expect(outcome.setupFailure == nil, Comment(rawValue: outcome.setupFailure ?? ""))
+        #expect(outcome.exitStatus == 0, Comment(rawValue: outcome.stderr))
+        // The numbers come from the computation: one more oxygen, one more heavy atom.
+        #expect(outcome.stdout.contains("guanine C5H5N5O 11"))
+        #expect(outcome.stdout.contains("8-oxoguanine C5H5N5O2 12"))
+
+        let picture = try #require(outcome.files.first { $0.name == "guanine_vs_8oxog.png" })
+        #expect(picture.isPicture)
+        #expect(picture.byteCount > 4_000, "a drawn grid, not an empty canvas")
+        let bytes = try Data(contentsOf: URL(fileURLWithPath: picture.path))
+        #expect(Array(bytes.prefix(8)) == [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A], "a PNG")
+
+        // What the model reads back tells it to place the picture in the answer.
+        let text = ChatCode.modelText(for: outcome, request: request, pictureLines: ["![guanine](foreverlm://image/generated/x)"])
+        #expect(!text.isError)
+        #expect(text.text.contains("![guanine](foreverlm://image/generated/x)"))
+        #expect(text.text.contains("C5H5N5O2"))
+    }
+
+    @Test("A later run in the same chat finds the files an earlier one left, and the sandbox still has no network", .timeLimit(.minutes(10)))
+    func foldersLastAndNetworkIsClosed() async throws {
+        let (runner, support) = try runner()
+        defer { try? FileManager.default.removeItem(at: support) }
+
+        let first = try ChatCode.parse(["code": "open('notes.txt', 'w').write('kept')\nprint('written')"])
+        let wrote = await runner.run(first, sessionKey: "chat-a")
+        #expect(wrote.exitStatus == 0, Comment(rawValue: wrote.stderr))
+
+        let second = try ChatCode.parse(["code": """
+        import socket
+        print(open('notes.txt').read())
+        try:
+            socket.create_connection(('example.org', 443), timeout=5)
+            print('NETWORK OPEN')
+        except OSError:
+            print('network closed')
+        """])
+        let read = await runner.run(second, sessionKey: "chat-a")
+        #expect(read.exitStatus == 0, Comment(rawValue: read.stderr))
+        #expect(read.stdout.contains("kept"))
+        #expect(read.stdout.contains("network closed"))
+        #expect(!read.createdEnvironment, "the environment from the first run is reused")
+
+        let elsewhere = try ChatCode.parse(["code": "print(open('notes.txt').read())"])
+        let other = await runner.run(elsewhere, sessionKey: "chat-b")
+        #expect(other.exitStatus != 0, "another chat has its own folder")
+    }
+}
+
+/// Whether the end-to-end suite can run here, and where its environment is kept.
+enum ChatCodeEndToEnd {
+    /// Kept across test runs, so only the first one installs anything.
+    static let environmentRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true)
+        .appendingPathComponent("ForeverLMChatCodeEndToEnd", isDirectory: true)
+
+    static let canRun: Bool = {
+        guard FileManager.default.isExecutableFile(atPath: StudioChatCodeRunner.sandboxExecPath) else { return false }
+        guard CodeEnvironment.locateUV() != nil || hasModernPython else { return false }
+        let kept = environmentRoot.appendingPathComponent("venv-\(ChatCode.pythonVersion)/bin/python").path
+        if FileManager.default.isExecutableFile(atPath: kept) { return true }
+        return pypiIsReachable()
+    }()
+
+    /// A Python 3.10 or later in the places the runner looks when there is no uv.
+    private static var hasModernPython: Bool {
+        ["/opt/homebrew/bin", "/usr/local/bin"].contains { folder in
+            ["python3.13", "python3.12", "python3.11", "python3.10"].contains {
+                FileManager.default.isExecutableFile(atPath: "\(folder)/\($0)")
+            }
+        }
+    }
+
+    private static func pypiIsReachable() -> Bool {
+        var request = URLRequest(url: URL(string: "https://pypi.org/simple/")!)
+        request.httpMethod = "HEAD"
+        request.timeoutInterval = 5
+        let done = DispatchSemaphore(value: 0)
+        nonisolated(unsafe) var reachable = false
+        URLSession.shared.dataTask(with: request) { _, response, _ in
+            reachable = (response as? HTTPURLResponse).map { (200..<400).contains($0.statusCode) } ?? false
+            done.signal()
+        }.resume()
+        _ = done.wait(timeout: .now() + 8)
+        return reachable
+    }
+}
