@@ -387,7 +387,16 @@ extension StorageService {
         stateDefaults: UserDefaults = .standard
     ) throws -> [ChatSavedCard] {
         let store = try notebookFilesKnowledgeStore()
-        let loadedDecks = try loadCardDrafts(forSourceIDs: Set(cards.sourceIDs))
+        // The link names the sources the call saved on, but a card is also found by its own id: a link whose
+        // source id no longer matches the deck (a source merged or re-keyed since) must not make a saved
+        // draft read as gone.
+        var deckSources = Set(cards.sourceIDs)
+        if try store.recordsMemoryForGeneration2() {
+            for id in cards.cardIDs {
+                if let source = try store.cardRecordRows(cardID: id).first?.deckSource { deckSources.insert(source) }
+            }
+        }
+        let loadedDecks = try loadCardDrafts(forSourceIDs: deckSources)
         let decks = store.screenRecordScope()?.scopedCardDrafts(loadedDecks) ?? loadedDecks
         let deckStates = try cardDeckStates(stateDefaults: stateDefaults)
         let available = try store.memoryCardDraftSourcesAvailable(Set(decks.map(\.sourceID)))

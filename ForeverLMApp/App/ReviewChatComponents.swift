@@ -4470,7 +4470,7 @@ struct ReviewChatSavedCardsView: View {
                     footer(cards, page: shown)
                 }
             } else if cards != nil || readFailed {
-                Text(readFailed ? "These cards could not be read." : "These cards are no longer in Memory.")
+                Text(readFailed ? "These cards could not be read." : "These cards are not on this Mac right now.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             } else {

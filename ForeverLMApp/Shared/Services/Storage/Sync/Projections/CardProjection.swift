@@ -359,9 +359,11 @@ struct CardProjection: RecordProjection {
 
     func applyDeletion(_ record: ProjectionRecordRef, connection: SQLiteConnection) throws {
         // A card is retired, not deleted: a deletion (a purge) takes only its state row; the Memory item and
-        // its attempts stay generation-1 history.
+        // its attempts stay generation-1 history. A draft is never taken by a deletion from another device:
+        // the learner's own Skip is the only way a draft leaves To Check (product owner, 2026-10-30: "i never
+        // want to lose draft flashcards unless I specifically say \"delete this one\"").
         guard !record.zone.isSpace else { return }
-        try connection.execute("DELETE FROM memory_card_states WHERE card_id = ?", [.text(record.localID)])
+        try connection.execute("DELETE FROM memory_card_states WHERE card_id = ? AND status <> 'draft'", [.text(record.localID)])
     }
 }
 
