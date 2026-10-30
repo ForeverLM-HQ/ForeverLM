@@ -6,6 +6,15 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.181.0 (build 261) — 2026-10-30
+
+**Highlights:**
+- **Chat can run code** (Mac): Python with numpy, pandas, matplotlib, scipy and any PyPI package, in a sandbox, with charts back in the reply.
+- **A Redraw button on pictures the chat drew.**
+- **A notebook's chats are one click away** in its Sources column.
+
+- **Build 260 as a full release.** Everything in the beta, now for every Mac: chat can run code (Python in a sandbox, with charts back in the reply), a Redraw button on pictures the chat drew, and a Sources | Chats switch in a notebook's column, plus the fixes listed under 0.180.0.
+
 ## 0.180.0 (build 260) — 2026-10-30
 
 **Highlights:**

@@ -124,7 +124,7 @@ You work in **notebooks**. A notebook holds the sources for one piece of work �
 
 ## Install
 
-[Download the app](https://releases.foreverlm.com/ForeverLM-0.138.1-build210-universal.dmg) — a notarized universal binary that runs on both Apple Silicon and Intel Macs. It checks for updates hourly and at launch, then offers each new version in the sidebar.
+[Download the app](https://releases.foreverlm.com/ForeverLM-0.181.0-build261-universal.dmg) — a notarized universal binary that runs on both Apple Silicon and Intel Macs. It checks for updates hourly and at launch, then offers each new version in the sidebar.
 
 Drag ForeverLM into Applications and open it. While the installer is still mounted, ForeverLM asks whether to move it to the Trash; it ejects the installer and moves the downloaded `.dmg` there. **Keep** leaves it alone, and ForeverLM does not ask about that installer again.
 
@@ -6505,6 +6505,15 @@ All notable changes to ForeverLM are documented here. Dates are in YYYY-MM-DD fo
 ForeverLM follows [semantic versioning](https://semver.org) against its public surface: the MCP tool contracts, the knowledge-base/sync format, and licensing compatibility. While the version is 0.x, minor releases may include breaking changes to that surface; patch releases never do.
 
 ## Unreleased
+
+## 0.181.0 (build 261) — 2026-10-30
+
+**Highlights:**
+- **Chat can run code** (Mac): Python with numpy, pandas, matplotlib, scipy and any PyPI package, in a sandbox, with charts back in the reply.
+- **A Redraw button on pictures the chat drew.**
+- **A notebook's chats are one click away** in its Sources column.
+
+- **Build 260 as a full release.** Everything in the beta, now for every Mac: chat can run code (Python in a sandbox, with charts back in the reply), a Redraw button on pictures the chat drew, and a Sources | Chats switch in a notebook's column, plus the fixes listed under 0.180.0.
 
 ## 0.180.0 (build 260) — 2026-10-30
 
