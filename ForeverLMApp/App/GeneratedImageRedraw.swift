@@ -94,6 +94,18 @@ enum GeneratedImageRedraw {
         }
     }
 
+    /// The model's name with what a picture costs on it, as the menus list
+    /// it: the price a promotion leaves when one runs, as Settings › Images
+    /// shows it. The name alone until the prices have been read.
+    @MainActor
+    static func menuTitle(for model: ImageGenerationModel) -> String {
+        guard var price = model.price else { return model.name }
+        if !price.isFree, let promotion = OpenRouterPromotions.current[model.id.lowercased()] {
+            price = price.mapped(promotion.effectiveRate(fromList:))
+        }
+        return "\(model.name) · \(price.label)"
+    }
+
     /// Whether `model` drew the picture: by its slug, or for a picture
     /// stored before slugs were kept, by the name it was stored under.
     static func drew(_ details: GeneratedImageStore.Details?, _ model: ImageGenerationModel) -> Bool {
@@ -240,7 +252,7 @@ enum GeneratedImageRedraw {
             for model in models {
                 let target = MenuActionTarget { redraw(model) }
                 keep(target)
-                let item = NSMenuItem(title: model.name, action: #selector(MenuActionTarget.fire), keyEquivalent: "")
+                let item = NSMenuItem(title: menuTitle(for: model), action: #selector(MenuActionTarget.fire), keyEquivalent: "")
                 item.target = target
                 item.state = drew(details, model) ? .on : .off
                 modelItems.append(item)
@@ -333,9 +345,9 @@ struct GeneratedImageRedrawMenuItems: View {
                         redraw(model)
                     } label: {
                         if GeneratedImageRedraw.drew(details, model) {
-                            Label(model.name, systemImage: "checkmark")
+                            Label(GeneratedImageRedraw.menuTitle(for: model), systemImage: "checkmark")
                         } else {
-                            Text(model.name)
+                            Text(GeneratedImageRedraw.menuTitle(for: model))
                         }
                     }
                 }

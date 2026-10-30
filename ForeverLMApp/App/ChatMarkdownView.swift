@@ -1737,8 +1737,21 @@ struct ChatMarkdownView: NSViewRepresentable {
         /// The Redraw button on a picture: a menu of image models under the
         /// pointer. The picture dims until its redraw lands in its place.
         func presentRedrawMenu(token: String) {
-            guard let redrawPicture, let listing = pictureListings[token],
-                  let window else { return }
+            guard redrawPicture != nil, pictureListings[token] != nil, let window else { return }
+            let location = convert(window.mouseLocationOutsideOfEventStream, from: nil)
+            Task { @MainActor [weak self] in
+                // The menu lists what each model charges, which the directory
+                // reads once an hour; a model it could not price shows its
+                // name alone.
+                if ImageGenerationCatalog.models.allSatisfy({ $0.price == nil }) {
+                    _ = try? await ImageGenerationDirectory.modelsWithPrices()
+                }
+                self?.popUpRedrawMenu(token: token, at: location)
+            }
+        }
+
+        private func popUpRedrawMenu(token: String, at location: NSPoint) {
+            guard let redrawPicture, let listing = pictureListings[token], window != nil else { return }
             let menu = NSMenu(title: "Redraw")
             menu.autoenablesItems = false
             menuTargets.removeAll()
@@ -1750,7 +1763,7 @@ struct ChatMarkdownView: NSViewRepresentable {
                 }
             }, keep: { menuTargets.append($0) })
             for item in items { menu.addItem(item) }
-            menu.popUp(positioning: nil, at: convert(window.mouseLocationOutsideOfEventStream, from: nil), in: self)
+            menu.popUp(positioning: nil, at: location, in: self)
         }
 
         private func dimPicture(_ token: String, _ dimmed: Bool) {
