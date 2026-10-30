@@ -98,6 +98,10 @@ export function createChatRenderer({
   // question stays readable while the figure is big. A host with no such place
   // leaves it null and the figure carries no button for it.
   openSourceImageBeside = null,
+  // Redraw: a picture the app drew can be drawn again with another image
+  // model, chosen from a menu the host raises. A host that cannot leaves it
+  // null, and the figure carries no button for it.
+  redrawSourceImage = null,
   addSlideCitedPaper = null,
   addSourceToNotebook = null,
   openSource = null,
@@ -312,6 +316,16 @@ export function createChatRenderer({
             openSourceImageBeside(token, img);
           });
           actions.append(beside);
+        }
+        if (redrawSourceImage && resolved.redrawable) {
+          const redraw = actionButton(document_, "Redraw", "Draw this picture again with another model");
+          redraw.classList.add("source-image-redraw");
+          redraw.addEventListener("click", (event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            redrawSourceImage(token, img);
+          });
+          actions.append(redraw);
         }
       }
       paintSlidePapers(figure, token, resolved.citedPapers);

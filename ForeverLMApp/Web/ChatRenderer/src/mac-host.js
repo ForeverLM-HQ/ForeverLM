@@ -70,6 +70,9 @@ const renderer = createChatRenderer({
   // Open beside: the app docks the same bytes in a pane next to the chat (a
   // notebook's document slot) or, with no such place, in a picture window.
   openSourceImageBeside: (token, img) => post("openSourceImageBeside", { token, alt: img.alt ?? "" }),
+  // Redraw: the app raises a menu of image models under the button and draws
+  // the picture again, from its kept prompt, with the one chosen.
+  redrawSourceImage: (token) => post("redrawSourceImage", { token }),
   // Add under a slide's papers: the app imports the paper and hands the
   // picture back, its list now linking to the new source.
   addSlideCitedPaper: (token, paperID) => post("addSlideCitedPaper", { token, paperID }),

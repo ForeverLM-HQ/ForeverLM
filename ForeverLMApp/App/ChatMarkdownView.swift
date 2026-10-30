@@ -712,7 +712,7 @@ struct ChatMarkdownView: NSViewRepresentable {
     /// rewired for its next row with exactly the handlers a fresh one gets.
     private static let scriptMessageNames = [
         "height", "sourceCards", "sourceImages", "copySourceImage", "zoomSourceImage", "openSourceImageBeside",
-        "addSlideCitedPaper",
+        "redrawSourceImage", "addSlideCitedPaper",
         "addSourceToNotebook",
         "openSource", "webLinks", "selectionAction", contextLinkMessageName, contextPictureMessageName,
     ]
@@ -1137,6 +1137,13 @@ struct ChatMarkdownView: NSViewRepresentable {
             }
             if message.name == "openSourceImageBeside" {
                 openSourceImageBeside(for: message)
+                return
+            }
+            if message.name == "redrawSourceImage" {
+                if let token = (message.body as? [String: Any])?["token"] as? String,
+                   let webView = message.webView as? ChatMarkdownWebView {
+                    webView.presentRedrawMenu(token: token)
+                }
                 return
             }
             if message.name == "addSlideCitedPaper" {
@@ -1725,6 +1732,25 @@ struct ChatMarkdownView: NSViewRepresentable {
             if hadItems {
                 menu.insertItem(.separator(), at: items.count)
             }
+        }
+
+        /// The Redraw button on a picture: a menu of image models under the
+        /// pointer. The picture dims until its redraw lands in its place.
+        func presentRedrawMenu(token: String) {
+            guard let redrawPicture, let listing = pictureListings[token],
+                  let window else { return }
+            let menu = NSMenu(title: "Redraw")
+            menu.autoenablesItems = false
+            menuTargets.removeAll()
+            let items = GeneratedImageRedraw.menuItems(for: listing, flat: true, redraw: { [weak self] model in
+                self?.dimPicture(token, true)
+                Task { @MainActor [weak self] in
+                    await redrawPicture(listing.id, model)
+                    self?.dimPicture(token, false)
+                }
+            }, keep: { menuTargets.append($0) })
+            for item in items { menu.addItem(item) }
+            menu.popUp(positioning: nil, at: convert(window.mouseLocationOutsideOfEventStream, from: nil), in: self)
         }
 
         private func dimPicture(_ token: String, _ dimmed: Bool) {

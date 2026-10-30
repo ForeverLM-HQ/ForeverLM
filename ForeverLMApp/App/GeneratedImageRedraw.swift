@@ -209,10 +209,13 @@ enum GeneratedImageRedraw {
     /// The picture's lines for a menu WebKit builds (a chat's), where SwiftUI
     /// cannot reach: what made it, then Redraw With and the models, or that
     /// it is being redrawn. `keep` holds each item's target, since
-    /// `NSMenuItem.target` is weak.
+    /// `NSMenuItem.target` is weak. `flat` lists the models directly, for the
+    /// Redraw button's own menu, where a "Redraw With" step would be one hover
+    /// too many.
     @MainActor
     static func menuItems(
         for listing: GeneratedImageStore.Listing,
+        flat: Bool = false,
         redraw: @escaping (ImageGenerationModel) -> Void,
         keep: (MenuActionTarget) -> Void
     ) -> [NSMenuItem] {
@@ -225,13 +228,14 @@ enum GeneratedImageRedraw {
             busy.isEnabled = false
             items.append(busy)
         } else if canRedraw(details) {
-            let submenu = NSMenu(title: "Redraw With")
+            let submenu = flat ? nil : NSMenu(title: "Redraw With")
+            var modelItems: [NSMenuItem] = []
             let models = offeredModels(settingsChoice: MacImageGenerationSettings.model.id, directory: ImageGenerationCatalog.models)
             if models.isEmpty {
                 ImageGenerationDirectory.warm()
                 let loading = NSMenuItem(title: "Loading image models…", action: nil, keyEquivalent: "")
                 loading.isEnabled = false
-                submenu.addItem(loading)
+                modelItems.append(loading)
             }
             for model in models {
                 let target = MenuActionTarget { redraw(model) }
@@ -239,11 +243,20 @@ enum GeneratedImageRedraw {
                 let item = NSMenuItem(title: model.name, action: #selector(MenuActionTarget.fire), keyEquivalent: "")
                 item.target = target
                 item.state = drew(details, model) ? .on : .off
-                submenu.addItem(item)
+                modelItems.append(item)
             }
-            let parent = NSMenuItem(title: "Redraw With", action: nil, keyEquivalent: "")
-            parent.submenu = submenu
-            items.append(parent)
+            if let submenu {
+                for item in modelItems { submenu.addItem(item) }
+                let parent = NSMenuItem(title: "Redraw With", action: nil, keyEquivalent: "")
+                parent.submenu = submenu
+                items.append(parent)
+            } else {
+                items.append(.separator())
+                let heading = NSMenuItem(title: "Redraw With", action: nil, keyEquivalent: "")
+                heading.isEnabled = false
+                items.append(heading)
+                items.append(contentsOf: modelItems)
+            }
         }
         return items
     }

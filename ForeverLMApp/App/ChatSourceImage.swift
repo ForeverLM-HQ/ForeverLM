@@ -78,6 +78,7 @@ struct ChatSourceImage: Encodable, Sendable {
         case dataURL
         case mediaType
         case citedPapers
+        case redrawable
     }
 
     func encode(to encoder: Encoder) throws {
@@ -86,6 +87,10 @@ struct ChatSourceImage: Encodable, Sendable {
         try container.encode(mediaType, forKey: .mediaType)
         if !citedPapers.isEmpty {
             try container.encode(citedPapers, forKey: .citedPapers)
+        }
+        // The picture carries a Redraw button only when it can be drawn again.
+        if let generatedListing, GeneratedImageRedraw.canRedraw(generatedListing.details) {
+            try container.encode(true, forKey: .redrawable)
         }
     }
 
