@@ -494,6 +494,8 @@ struct NotebookSourcePoolView: View {
 
     @SyncedStorage("metadataVisibility") private var metadataVisibility = MetadataVisibilitySettings()
     @State private var sourceSearchText = ""
+    /// How the sources are ordered (`NotebookSourceSort`), this Mac's choice.
+    @AppStorage(NotebookSourceSort.preferenceKey) private var sourceSort: NotebookSourceSort = NotebookSourceSort.standard
     /// Where the notebook column's field searches: the notebook and the
     /// library as you type, or the web or PubMed on Return.
     @State private var searchScope: NotebookSourcesSearchScope = .library
@@ -792,6 +794,7 @@ struct NotebookSourcePoolView: View {
                         .monospacedDigit()
                         .textSelection(.disabled)
                     Spacer(minLength: 0)
+                    sortMenu
                     NotebookTickBox(
                         state: state,
                         label: "Select all for chat",
@@ -806,6 +809,14 @@ struct NotebookSourcePoolView: View {
                         .zoomedSystemFont(size: 12)
                         .hidden()
                     Spacer(minLength: 0)
+                    // An order the learner chose stays in view, so a list
+                    // that is not in its usual order says how it is.
+                    if sourceSort == .type {
+                        Color.clear
+                            .frame(width: 24, height: 22)
+                    } else {
+                        sortMenu
+                    }
                     Color.clear
                         .frame(width: 18, height: 18)
                 }
@@ -827,8 +838,60 @@ struct NotebookSourcePoolView: View {
             .buttonStyle(.bordered)
             .help("Find library sources to add that aren't already in this notebook")
 
+            sortMenu
+
             Spacer(minLength: 0)
         }
+    }
+
+    /// What the sort reads off this notebook beyond the sources themselves.
+    private func sortInputs(items: [LearningGoalItem]) -> NotebookSourceSortInputs {
+        var statusBySource: [String: Int] = [:]
+        for item in plan.toRead { statusBySource[item.sourceID] = 0 }
+        for item in plan.reading { statusBySource[item.sourceID] = 1 }
+        for item in plan.understood { statusBySource[item.sourceID] = 2 }
+        return NotebookSourceSortInputs(
+            items: items,
+            bookTitle: { vm.bookDisplayName($0) },
+            statusRank: { statusBySource[$0] ?? 0 },
+            chatState: { chatState(of: $0) }
+        )
+    }
+
+    /// The order's menu, as the Space list's Sort By: a check on the
+    /// chosen one, grey while the list is in its own type order and the
+    /// accent once it is not, so a list that reads oddly says why.
+    private var sortMenu: some View {
+        Menu {
+            ForEach(NotebookSourceSort.menuGroups) { group in
+                Section(group.title) {
+                    ForEach(group.options) { option in
+                        Button {
+                            sourceSort = option
+                        } label: {
+                            if sourceSort == option {
+                                Label(option.title, systemImage: "checkmark")
+                            } else {
+                                Text(option.title)
+                            }
+                        }
+                    }
+                }
+            }
+        } label: {
+            Image(systemName: "arrow.up.arrow.down")
+                .zoomedSystemFont(size: 11, weight: .medium)
+                .foregroundStyle(sourceSort == .type ? Color.secondary : Color.accentColor)
+                .frame(width: 24, height: 22)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.button)
+        .menuIndicator(.hidden)
+        .buttonStyle(.hoverWash(cornerRadius: 6, inset: 0))
+        .fixedSize()
+        .help("Sort sources: \(sourceSort.title)")
+        .accessibilityLabel("Sort sources")
+        .accessibilityIdentifier("notebook.sources.sort")
     }
 
     @ViewBuilder
@@ -838,12 +901,16 @@ struct NotebookSourcePoolView: View {
         // by title within each type. Suggestions (which need approve/reject controls)
         // and paywalled sources keep their own sections.
         let approvedItems = plan.toRead + plan.reading + plan.understood
-        let typeSections = notebookTypeSections(
-            from: filteredArticles(for: approvedItems, includesPaywalled: false)
+        let approvedArticles = filteredArticles(for: approvedItems, includesPaywalled: false)
+        let typeSections = sourceSort == .type ? notebookTypeSections(from: approvedArticles) : []
+        let sortedGroups = sourceSort == .type ? [] : notebookSortedGroups(
+            from: approvedArticles,
+            sort: sourceSort,
+            inputs: sortInputs(items: approvedItems)
         )
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 14) {
-                if searchesLibrary, !typeSections.isEmpty {
+                if searchesLibrary, !(typeSections.isEmpty && sortedGroups.isEmpty) {
                     Text("In this notebook")
                         .zoomedSystemFont(size: 11, weight: .semibold)
                         .foregroundStyle(.secondary)
@@ -857,13 +924,19 @@ struct NotebookSourcePoolView: View {
                     // Gemini Notebook's one list: no type headings, the
                     // row's glyph says the kind, the type order kept.
                     LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(typeSections.flatMap(\.groups)) { group in
+                        ForEach(sourceSort == .type ? typeSections.flatMap(\.groups) : sortedGroups) { group in
                             poolGroupView(group, goalItems: approvedItems, showApproval: false)
                         }
                     }
-                } else {
+                } else if sourceSort == .type {
                     ForEach(typeSections) { section in
                         typeSection(section, goalItems: approvedItems)
+                    }
+                } else {
+                    LazyVStack(alignment: .leading, spacing: 6) {
+                        ForEach(sortedGroups) { group in
+                            poolGroupView(group, goalItems: approvedItems, showApproval: false)
+                        }
                     }
                 }
                 paywalledSection
@@ -2264,6 +2337,199 @@ func notebookContextGroups(from articles: [StudioArticle]) -> [NotebookContextSo
     }
 
     return groups
+}
+
+/// How a notebook's Sources list is ordered; this Mac's choice, as the Space
+/// list's is (`SpaceSort`). By Type is the list as it was: the kinds in the
+/// sidebar's order, A to Z within each. Every other order is one flat list,
+/// the row's glyph saying the kind. A source with nothing to order by (no
+/// year, no author, no length) goes last in either direction.
+enum NotebookSourceSort: String, CaseIterable, Identifiable {
+    case type
+    case titleAscending, titleDescending, author
+    case addedNewest, addedOldest
+    case publishedNewest, publishedOldest
+    case longest, shortest
+    case inChat, readingStatus, studyOrder
+
+    static let preferenceKey = "notebook.sources.sort"
+    static let standard: NotebookSourceSort = .type
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .type: return "Type"
+        case .titleAscending: return "Title A to Z"
+        case .titleDescending: return "Title Z to A"
+        case .author: return "Author"
+        case .addedNewest: return "Recently Added"
+        case .addedOldest: return "Oldest Added"
+        case .publishedNewest: return "Newest Published"
+        case .publishedOldest: return "Oldest Published"
+        case .longest: return "Longest First"
+        case .shortest: return "Shortest First"
+        case .inChat: return "In Chat First"
+        case .readingStatus: return "Reading Status"
+        case .studyOrder: return "Study Order"
+        }
+    }
+
+    /// The menu's groups, each a section of the menu under its heading.
+    struct MenuGroup: Identifiable {
+        let title: String
+        let options: [NotebookSourceSort]
+        var id: String { title }
+    }
+
+    static let menuGroups: [MenuGroup] = [
+        MenuGroup(title: "Group", options: [.type]),
+        MenuGroup(title: "Name", options: [.titleAscending, .titleDescending, .author]),
+        MenuGroup(title: "Date", options: [.addedNewest, .addedOldest, .publishedNewest, .publishedOldest]),
+        MenuGroup(title: "Length", options: [.longest, .shortest]),
+        MenuGroup(title: "Progress", options: [.inChat, .readingStatus, .studyOrder]),
+    ]
+}
+
+/// What `notebookSortedGroups` reads off the notebook that the sources
+/// themselves do not hold.
+struct NotebookSourceSortInputs {
+    /// The notebook's items, for when each source joined it and its study order.
+    var items: [LearningGoalItem]
+    /// A book's name as the list shows it.
+    var bookTitle: (String) -> String
+    /// 0 to read, 1 reading, 2 understood.
+    var statusRank: (String) -> Int
+    /// Whether the notebook's chats read these sources.
+    var chatState: ([String]) -> NotebookTickState
+}
+
+/// The Notebook's sources as one list in `sort`'s order, a book's chapters
+/// kept under its one row. By Type is `notebookContextGroups`: the stored
+/// study order within each kind. Ties fall to the title, then to that order.
+func notebookSortedGroups(
+    from articles: [StudioArticle],
+    sort: NotebookSourceSort,
+    inputs: NotebookSourceSortInputs
+) -> [NotebookContextSourceGroup] {
+    let groups = notebookContextGroups(from: articles)
+    guard sort != .type else { return groups }
+
+    let itemsBySource = Dictionary(
+        inputs.items.map { ($0.sourceID, $0) },
+        uniquingKeysWith: { first, _ in first }
+    )
+
+    struct Keyed {
+        let offset: Int
+        let group: NotebookContextSourceGroup
+        let title: String
+        let sources: [StudioArticle]
+    }
+    let keyed = groups.enumerated().map { offset, group -> Keyed in
+        switch group {
+        case .source(let article):
+            return Keyed(offset: offset, group: group, title: article.title, sources: [article])
+        case .book(let groupName, let sources):
+            return Keyed(offset: offset, group: group, title: inputs.bookTitle(groupName), sources: sources)
+        }
+    }
+
+    func added(_ entry: Keyed, newest: Bool) -> Date? {
+        let dates = entry.sources.compactMap { itemsBySource[$0.id]?.addedAt }
+        return newest ? dates.max() : dates.min()
+    }
+    func year(_ entry: Keyed) -> Int? {
+        entry.sources.lazy
+            .compactMap { Int(($0.publishedYear ?? "").trimmingCharacters(in: .whitespacesAndNewlines)) }
+            .first
+    }
+    func author(_ entry: Keyed) -> String? {
+        entry.sources.lazy
+            .compactMap { $0.author?.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .first { !$0.isEmpty }
+    }
+    func words(_ entry: Keyed) -> Int? {
+        let counts = entry.sources.compactMap(\.wordCount)
+        return counts.isEmpty ? nil : counts.reduce(0, +)
+    }
+    func order<T: Comparable>(_ lhs: T?, _ rhs: T?, descending: Bool) -> ComparisonResult {
+        switch (lhs, rhs) {
+        case (nil, nil): return .orderedSame
+        case (nil, _): return .orderedDescending
+        case (_, nil): return .orderedAscending
+        case (let l?, let r?):
+            if l == r { return .orderedSame }
+            return (l < r) != descending ? .orderedAscending : .orderedDescending
+        }
+    }
+    func orderText(_ lhs: String?, _ rhs: String?) -> ComparisonResult {
+        switch (lhs, rhs) {
+        case (nil, nil): return .orderedSame
+        case (nil, _): return .orderedDescending
+        case (_, nil): return .orderedAscending
+        case (let l?, let r?): return l.localizedStandardCompare(r)
+        }
+    }
+
+    func primary(_ lhs: Keyed, _ rhs: Keyed) -> ComparisonResult {
+        switch sort {
+        case .type:
+            return .orderedSame
+        case .titleAscending:
+            return lhs.title.localizedStandardCompare(rhs.title)
+        case .titleDescending:
+            return rhs.title.localizedStandardCompare(lhs.title)
+        case .author:
+            return orderText(author(lhs), author(rhs))
+        case .addedNewest:
+            return order(added(lhs, newest: true), added(rhs, newest: true), descending: true)
+        case .addedOldest:
+            return order(added(lhs, newest: false), added(rhs, newest: false), descending: false)
+        case .publishedNewest:
+            return order(year(lhs), year(rhs), descending: true)
+        case .publishedOldest:
+            return order(year(lhs), year(rhs), descending: false)
+        case .longest:
+            return order(words(lhs), words(rhs), descending: true)
+        case .shortest:
+            return order(words(lhs), words(rhs), descending: false)
+        case .inChat:
+            // Ticked, then some ticked, then unticked.
+            func rank(_ entry: Keyed) -> Int {
+                switch inputs.chatState(entry.sources.map(\.id)) {
+                case .checked: return 0
+                case .mixed: return 1
+                case .unchecked: return 2
+                }
+            }
+            return order(rank(lhs), rank(rhs), descending: false)
+        case .readingStatus:
+            // A book reads as its least-read chapter.
+            func rank(_ entry: Keyed) -> Int {
+                entry.sources.map { inputs.statusRank($0.id) }.min() ?? 0
+            }
+            return order(rank(lhs), rank(rhs), descending: false)
+        case .studyOrder:
+            func sequence(_ entry: Keyed) -> Double? {
+                entry.sources.compactMap { itemsBySource[$0.id]?.sequence }.min()
+            }
+            let byOrder = order(sequence(lhs), sequence(rhs), descending: false)
+            if byOrder != .orderedSame { return byOrder }
+            // Unsequenced sources trail in the order they joined.
+            return order(added(lhs, newest: false), added(rhs, newest: false), descending: false)
+        }
+    }
+
+    return keyed
+        .sorted { lhs, rhs in
+            let byKey = primary(lhs, rhs)
+            if byKey != .orderedSame { return byKey == .orderedAscending }
+            let byTitle = lhs.title.localizedStandardCompare(rhs.title)
+            if byTitle != .orderedSame { return byTitle == .orderedAscending }
+            return lhs.offset < rhs.offset
+        }
+        .map(\.group)
 }
 
 private func notebookSortedBookChapters(_ sources: [StudioArticle]) -> [StudioArticle] {
