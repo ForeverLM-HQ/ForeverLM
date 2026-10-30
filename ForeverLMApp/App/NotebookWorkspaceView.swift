@@ -342,6 +342,10 @@ struct NotebookWorkspaceView: View {
     /// The audio overview's options, asked for by the Studio's tile or the
     /// Notebook menu.
     @State private var audioOverviewTarget: AudioOverviewOptionsTarget?
+    /// Which list the leading column shows under the notebook's name: its
+    /// sources, or its chats. A view choice of this window, so it is not kept
+    /// across a relaunch, which opens on the sources.
+    @State private var columnList: NotebookColumnList = .sources
 
     private typealias Sizing = NotebookWorkspaceSizing
 
@@ -610,7 +614,13 @@ struct NotebookWorkspaceView: View {
             if let goal {
                 VStack(alignment: .leading, spacing: 10) {
                     notebookTitle(goal)
-                    NotebookSourcePoolView(goal: goal, column: columnActions)
+                    columnListSwitch
+                    switch columnList {
+                    case .sources:
+                        NotebookSourcePoolView(goal: goal, column: columnActions)
+                    case .chats:
+                        NotebookChatsColumn(notebookID: goal.id)
+                    }
                 }
                 .padding(.horizontal, 12)
                 .padding(.top, 6)
@@ -633,6 +643,32 @@ struct NotebookWorkspaceView: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Sources")
         .accessibilityIdentifier("notebook.sources")
+        // A search's widened results list is a Sources view: asked for while
+        // the chats show, it takes the column back.
+        .onChange(of: workspace.sourcesExpanded) { _, expanded in
+            if expanded, columnList != .sources { columnList = .sources }
+        }
+    }
+
+    /// Sources | Chats under the notebook's name, the Space's capsules
+    /// (`SpaceScopePill`), so the notebook's chats sit where the learner
+    /// looks first rather than behind the chat header's ⋯. Chats put away a
+    /// widened results list, which has no room beside them.
+    private var columnListSwitch: some View {
+        HStack(spacing: 2) {
+            ForEach(NotebookColumnList.allCases) { list in
+                SpaceScopePill(title: list.title, isSelected: columnList == list) {
+                    guard columnList != list else { return }
+                    columnList = list
+                    if list == .chats, windowState.notebook?.sourcesExpanded == true {
+                        windowState.notebook?.sourcesExpanded = false
+                    }
+                }
+                .accessibilityIdentifier("notebook.column.\(list.rawValue)")
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.leading, -4)
     }
 
     private var columnActions: NotebookSourcePoolColumnActions {
@@ -1091,5 +1127,22 @@ struct NotebookWorkspaceView: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Chat")
         .accessibilityIdentifier("notebook.chat")
+    }
+}
+
+/// The lists the notebook's leading column switches between under its name.
+/// The raw value names the switch's accessibility identifiers only; nothing
+/// stores it.
+enum NotebookColumnList: String, CaseIterable, Identifiable {
+    case sources
+    case chats
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .sources: "Sources"
+        case .chats: "Chats"
+        }
     }
 }

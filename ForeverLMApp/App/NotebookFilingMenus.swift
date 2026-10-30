@@ -142,6 +142,104 @@ struct NotebookChatsMenuItems: View {
     }
 }
 
+/// A notebook's chats as the Sources column's other list: New Chat first, as
+/// ChatGPT's sidebar leads with it, then every chat of the notebook in the
+/// rail's order, the one this window shows in the grey selection. A row opens
+/// its chat here, in the notebook (`requestResumeReviewSession`). The field
+/// filters by title. The chat header's ⋯ ▸ Chats in This Notebook
+/// (`NotebookChatsMenuItems`) lists the same chats and stays as the shortcut.
+struct NotebookChatsColumn: View {
+    @Environment(StudioViewModel.self) private var vm
+    @Environment(StudioWindowState.self) private var windowState
+    let notebookID: String
+    @State private var searchText = ""
+
+    private var chats: [ReviewSessionRecord] {
+        let all = vm.notebookChats(notebookID: notebookID)
+        let words = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !words.isEmpty else { return all }
+        return all.filter { $0.title.localizedCaseInsensitiveContains(words) }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SpaceSearchField(text: $searchText, prompt: "Search chats", identifier: "notebook.chats.search")
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 2) {
+                    NotebookChatRow(
+                        title: "New Chat",
+                        systemImage: "square.and.pencil",
+                        isSelected: false,
+                        identifier: "notebook.chats.new"
+                    ) {
+                        vm.inWindow(windowState) { vm.requestNewChat() }
+                    }
+                    ForEach(chats) { chat in
+                        let isOpen = chat.id == windowState.chatSessionID
+                        NotebookChatRow(
+                            title: chat.title.isEmpty ? "Untitled chat" : chat.title,
+                            systemImage: nil,
+                            isSelected: isOpen,
+                            identifier: "notebook.chat.\(chat.id)"
+                        ) {
+                            guard !isOpen else { return }
+                            vm.inWindow(windowState) { vm.requestResumeReviewSession(chat.id) }
+                        }
+                    }
+                }
+            }
+            .scrollIndicators(.automatic)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .accessibilityIdentifier("notebook.chats")
+    }
+}
+
+/// One row of `NotebookChatsColumn`: a title on one line, the open chat in
+/// the grey selection, the pointer's hover painted by the row itself.
+private struct NotebookChatRow: View {
+    let title: String
+    let systemImage: String?
+    let isSelected: Bool
+    let identifier: String
+    let action: () -> Void
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 8) {
+                if let systemImage {
+                    Image(systemName: systemImage)
+                        .zoomedSystemFont(size: 12, weight: .medium)
+                        .foregroundStyle(.secondary)
+                }
+                Text(title)
+                    .zoomedSystemFont(size: 13)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .textSelection(.disabled)
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 8)
+            .frame(height: 30)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isSelected
+                        ? StudioDesign.selectionFill(isSelected: true, isHovered: isHovering)
+                        : Color.primary.opacity(isHovering ? 0.04 : 0))
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .ownsRowHoverWash()
+        .onHover { isHovering = $0 }
+        .accessibilityLabel(title)
+        .accessibilityAddTraits(isSelected ? [.isSelected] : [])
+        .accessibilityIdentifier(identifier)
+    }
+}
+
 /// In Notebooks: every notebook of the open library that holds a source
 /// (`notebooksHolding(_:)`), by title, each opening that notebook. On a
 /// source's own menus only — the Library's row menu and the Reader's ⋯ —
