@@ -669,7 +669,7 @@ struct ChatMarkdownView: NSViewRepresentable {
     /// the version named (by its id) again with the model chosen, and
     /// returns once the redraw has landed or failed. Nil offers no menu lines
     /// for pictures.
-    var redrawPicture: (@MainActor (String, ImageGenerationModel) async -> Void)? = nil
+    var redrawPicture: (@MainActor (String, ImageGenerationModel, String?) async -> Void)? = nil
     /// Whether this row's measured height goes into `ChatMarkdownHeightMemory`.
     /// The memory holds one column width for the whole transcript and retires
     /// every height when a row reports at another, so a reply drawn at some
@@ -950,7 +950,7 @@ struct ChatMarkdownView: NSViewRepresentable {
         /// `ChatMarkdownView.citationScopeKey` as this row last drew it; nil
         /// before its first update.
         var lastCitationScopeKey: String?
-        var redrawPicture: (@MainActor (String, ImageGenerationModel) async -> Void)?
+        var redrawPicture: (@MainActor (String, ImageGenerationModel, String?) async -> Void)?
         /// `ChatMarkdownView.remembersHeight`, fixed for this row.
         let remembersHeight: Bool
         var lastMarkdown = ""
@@ -988,7 +988,7 @@ struct ChatMarkdownView: NSViewRepresentable {
             sourceImageForToken: @escaping @MainActor (String) async -> ChatSourceImage?,
             addSlideCitedPaper: (@MainActor (String) async -> Void)? = nil,
             openPictureBeside: (@MainActor (DockedChatPicture) -> Void)? = nil,
-            redrawPicture: (@MainActor (String, ImageGenerationModel) async -> Void)? = nil,
+            redrawPicture: (@MainActor (String, ImageGenerationModel, String?) async -> Void)? = nil,
             remembersHeight: Bool = true
         ) {
             self.identity = identity
@@ -1691,7 +1691,7 @@ struct ChatMarkdownView: NSViewRepresentable {
         /// Redraw With's action, set by the coordinator that drives this row;
         /// nil while the view is parked in the pool, and then no picture
         /// lines are offered.
-        var redrawPicture: (@MainActor (String, ImageGenerationModel) async -> Void)?
+        var redrawPicture: (@MainActor (String, ImageGenerationModel, String?) async -> Void)?
 
         func rememberPictures(_ images: [String: ChatSourceImage?]) {
             for (token, image) in images {
@@ -1720,7 +1720,7 @@ struct ChatMarkdownView: NSViewRepresentable {
             let items = GeneratedImageRedraw.menuItems(for: listing, redraw: { [weak self] model in
                 self?.dimPicture(token, true)
                 Task { @MainActor [weak self] in
-                    await redrawPicture(listing.id, model)
+                    await redrawPicture(listing.id, model, nil)
                     self?.dimPicture(token, false)
                 }
             }, keep: { menuTargets.append($0) })
@@ -1734,36 +1734,19 @@ struct ChatMarkdownView: NSViewRepresentable {
             }
         }
 
-        /// The Redraw button on a picture: a menu of image models under the
-        /// pointer. The picture dims until its redraw lands in its place.
+        /// The Redraw button on a picture: a dialog with the prompt it was
+        /// drawn from, to change, and the model to draw it with. The picture
+        /// dims until its redraw lands in its place.
         func presentRedrawMenu(token: String) {
-            guard redrawPicture != nil, pictureListings[token] != nil, let window else { return }
-            let location = convert(window.mouseLocationOutsideOfEventStream, from: nil)
-            Task { @MainActor [weak self] in
-                // The menu lists what each model charges, which the directory
-                // reads once an hour; a model it could not price shows its
-                // name alone.
-                if ImageGenerationCatalog.models.allSatisfy({ $0.price == nil }) {
-                    _ = try? await ImageGenerationDirectory.modelsWithPrices()
-                }
-                self?.popUpRedrawMenu(token: token, at: location)
-            }
-        }
-
-        private func popUpRedrawMenu(token: String, at location: NSPoint) {
-            guard let redrawPicture, let listing = pictureListings[token], window != nil else { return }
-            let menu = NSMenu(title: "Redraw")
-            menu.autoenablesItems = false
-            menuTargets.removeAll()
-            let items = GeneratedImageRedraw.menuItems(for: listing, flat: true, redraw: { [weak self] model in
+            guard let redrawPicture, let listing = pictureListings[token], let window else { return }
+            guard GeneratedImageRedrawCenter.shared.inFlight[listing.id] == nil else { return }
+            GeneratedImageRedraw.presentDialog(for: listing, over: window) { [weak self] model, prompt in
                 self?.dimPicture(token, true)
                 Task { @MainActor [weak self] in
-                    await redrawPicture(listing.id, model)
+                    await redrawPicture(listing.id, model, prompt)
                     self?.dimPicture(token, false)
                 }
-            }, keep: { menuTargets.append($0) })
-            for item in items { menu.addItem(item) }
-            menu.popUp(positioning: nil, at: location, in: self)
+            }
         }
 
         private func dimPicture(_ token: String, _ dimmed: Bool) {

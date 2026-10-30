@@ -289,7 +289,8 @@ enum GeneratedImageStore {
     /// version `id` names, as the image's next version, and marks that
     /// version replaced by it, so every line and card that showed it shows
     /// the redraw. The replaced version stays in the store as the version it
-    /// was. Throws when the store holds no such version or it recorded no
+    /// was. `prompt` replaces the one kept with it, when the learner changed it.
+    /// Throws when the store holds no such version or it recorded no
     /// prompt; a version whose file cannot carry the mark (WebP, stored
     /// before 2026-09-22) keeps showing where it is named, and the redraw is
     /// still the image's latest. Never called on the main actor.
@@ -297,14 +298,19 @@ enum GeneratedImageStore {
         _ image: GeneratedImage,
         replacing id: String,
         model: String,
-        modelID: String?
+        modelID: String?,
+        prompt edited: String? = nil
     ) throws -> Listing {
         let replaced = id.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard let old = listing(id: replaced) else { throw RevisionFailure.unknownImage(id) }
         guard let prompt = old.details?.text, !prompt.isEmpty, old.details?.origin != .screenshot else {
             throw RedrawFailure.noPrompt
         }
-        var details = try revisionDetails(origin: .drawn, text: prompt, model: model, revising: replaced)
+        // A redraw from a prompt the learner changed keeps the change, so the
+        // next redraw starts from it.
+        let trimmedEdit = edited?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let text = trimmedEdit.isEmpty ? prompt : trimmedEdit
+        var details = try revisionDetails(origin: .drawn, text: text, model: model, revising: replaced)
         details.modelID = modelID.flatMap { $0.isEmpty ? nil : $0 }
         details.replaces = replaced
         let newID = GeneratedImageReference.newID()

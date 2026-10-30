@@ -4289,9 +4289,9 @@ struct ReviewChatMessageContent: View {
                     },
                     // Right-click a picture a quiz or the chat drew: what drew
                     // it, and Redraw With another image model.
-                    redrawPicture: { versionID, model in
+                    redrawPicture: { versionID, model, prompt in
                         await GeneratedImageRedrawCenter.shared.redraw(
-                            id: versionID, with: model, usageTask: "chat_image", vm: vm
+                            id: versionID, with: model, prompt: prompt, usageTask: "chat_image", vm: vm
                         )
                     },
                     remembersHeight: remembersHeight

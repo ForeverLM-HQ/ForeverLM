@@ -159,6 +159,7 @@ enum GeneratedImageRedraw {
     static func redraw(
         id: String,
         with model: ImageGenerationModel,
+        prompt edited: String? = nil,
         usageTask: String,
         storage: StorageService
     ) async throws -> Outcome {
@@ -179,6 +180,9 @@ enum GeneratedImageRedraw {
             )
         }.value
 
+        // The prompt as the learner left it in the dialog, else the one kept.
+        let trimmedEdit = edited?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let prompt = trimmedEdit.isEmpty ? plan.prompt : trimmedEdit
         let showing = Set(plan.showing)
         let quizzes = try await storage.loadCourseQuizzes(mentioning: plan.showing).filter { quiz in
             quiz.questions.contains { question in question.picture?.storedImageID.map(showing.contains) == true }
@@ -186,7 +190,7 @@ enum GeneratedImageRedraw {
         let resolved = try await ImageGenerationDirectory.resolve(model)
         let quiz = quizzes.first
         let drawn = try await ManagedImageGeneration.generate(
-            prompt: plan.prompt,
+            prompt: prompt,
             model: resolved,
             shape: plan.shape,
             quality: .medium,
@@ -200,7 +204,7 @@ enum GeneratedImageRedraw {
         let modelID = resolved.id
         let shownID = plan.shownID
         let stored = try await Task.detached(priority: .userInitiated) {
-            try GeneratedImageStore.storeRedraw(kept, replacing: shownID, model: modelName, modelID: modelID)
+            try GeneratedImageStore.storeRedraw(kept, replacing: shownID, model: modelName, modelID: modelID, prompt: prompt)
         }.value
 
         let url = CourseQuizPicture.storedImageURL(id: stored.id)
@@ -214,6 +218,100 @@ enum GeneratedImageRedraw {
             repointed.append(quiz.id)
         }
         return Outcome(listing: stored, replacedIDs: plan.showing, quizIDs: repointed, modelName: modelName)
+    }
+
+    // MARK: The Redraw button's dialog
+
+    /// The Redraw button: the prompt that went into the picture, to change as
+    /// wanted, and the model to draw it with and what that costs. `redraw`
+    /// runs on Redraw with the prompt as it stands. The directory is read
+    /// first when this launch has not, and the prices fill in as they arrive.
+    @MainActor
+    static func presentDialog(
+        for listing: GeneratedImageStore.Listing,
+        over window: NSWindow,
+        redraw: @escaping (ImageGenerationModel, String) -> Void
+    ) {
+        Task { @MainActor in
+            if ImageGenerationCatalog.models.isEmpty {
+                _ = try? await ImageGenerationDirectory.models()
+            }
+            @MainActor func offered() -> [ImageGenerationModel] {
+                offeredModels(settingsChoice: MacImageGenerationSettings.model.id, directory: ImageGenerationCatalog.models)
+            }
+            let models = offered()
+            guard !models.isEmpty else {
+                let alert = NSAlert()
+                alert.messageText = "Couldn't read OpenRouter's image models"
+                alert.informativeText = "Check your connection and try Redraw again."
+                alert.beginSheetModal(for: window, completionHandler: nil)
+                return
+            }
+
+            let alert = NSAlert()
+            alert.messageText = "Redraw the picture"
+            alert.informativeText = "This is the prompt it was drawn from. Change it to say what to fix, then pick a model."
+            alert.addButton(withTitle: "Redraw")
+            alert.addButton(withTitle: "Cancel")
+
+            let width: CGFloat = 440
+            let promptLabel = NSTextField(labelWithString: "Prompt")
+            promptLabel.font = .systemFont(ofSize: NSFont.smallSystemFontSize, weight: .semibold)
+            let textView = NSTextView(frame: NSRect(x: 0, y: 0, width: width, height: 150))
+            textView.isRichText = false
+            textView.allowsUndo = true
+            textView.font = .systemFont(ofSize: NSFont.systemFontSize)
+            textView.textContainerInset = NSSize(width: 4, height: 6)
+            textView.isVerticallyResizable = true
+            textView.isHorizontallyResizable = false
+            textView.autoresizingMask = [.width]
+            textView.textContainer?.widthTracksTextView = true
+            textView.string = listing.details?.text ?? ""
+            let scroll = NSScrollView(frame: NSRect(x: 0, y: 0, width: width, height: 150))
+            scroll.documentView = textView
+            scroll.hasVerticalScroller = true
+            scroll.borderType = .bezelBorder
+            scroll.translatesAutoresizingMaskIntoConstraints = false
+            scroll.widthAnchor.constraint(equalToConstant: width).isActive = true
+            scroll.heightAnchor.constraint(equalToConstant: 150).isActive = true
+
+            let modelLabel = NSTextField(labelWithString: "Model")
+            modelLabel.font = promptLabel.font
+            let popup = NSPopUpButton(frame: .zero, pullsDown: false)
+            @MainActor func fill(_ models: [ImageGenerationModel]) {
+                let chosen = popup.indexOfSelectedItem
+                popup.removeAllItems()
+                for model in models {
+                    popup.addItem(withTitle: menuTitle(for: model))
+                }
+                popup.selectItem(at: chosen >= 0 && chosen < models.count ? chosen : 0)
+            }
+            fill(models)
+
+            let stack = NSStackView(views: [promptLabel, scroll, modelLabel, popup])
+            stack.orientation = .vertical
+            stack.alignment = .leading
+            stack.spacing = 6
+            stack.frame = NSRect(x: 0, y: 0, width: width, height: 230)
+            alert.accessoryView = stack
+            alert.window.initialFirstResponder = textView
+
+            // The prices cost a request each, so the dialog opens on the
+            // names and the figures join them when the directory has them.
+            let pricing = Task { @MainActor in
+                guard (try? await ImageGenerationDirectory.modelsWithPrices()) != nil else { return }
+                let current = offered()
+                if current.map(\.id) == models.map(\.id) { fill(current) }
+            }
+            alert.beginSheetModal(for: window) { response in
+                pricing.cancel()
+                guard response == .alertFirstButtonReturn else { return }
+                let index = popup.indexOfSelectedItem
+                let latest = offered()
+                guard let model = latest.first(where: { $0.id == models[safe: index]?.id }) ?? models[safe: index] else { return }
+                redraw(model, textView.string)
+            }
+        }
     }
 
     // MARK: The menu in a web view
@@ -286,7 +384,13 @@ final class GeneratedImageRedrawCenter {
     /// menu named.
     private(set) var inFlight: [String: String] = [:]
 
-    func redraw(id: String, with model: ImageGenerationModel, usageTask: String, vm: StudioViewModel?) async {
+    func redraw(
+        id: String,
+        with model: ImageGenerationModel,
+        prompt: String? = nil,
+        usageTask: String,
+        vm: StudioViewModel?
+    ) async {
         let key = id.lowercased()
         guard inFlight[key] == nil else { return }
         inFlight[key] = model.name
@@ -295,6 +399,7 @@ final class GeneratedImageRedrawCenter {
             let outcome = try await GeneratedImageRedraw.redraw(
                 id: key,
                 with: model,
+                prompt: prompt,
                 usageTask: usageTask,
                 storage: vm?.storage ?? StorageService()
             )
