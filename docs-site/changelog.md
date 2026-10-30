@@ -6,6 +6,21 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.180.0 (build 260) — 2026-10-30
+
+**Highlights:**
+- **Chat can run code** (Mac): Python with numpy, pandas, matplotlib, scipy and any PyPI package, in a sandbox, with charts back in the reply.
+- **A Redraw button on pictures the chat drew.**
+- **A notebook's chats are one click away** in its Sources column.
+
+- **Chat can run code.** A chat answered arithmetic, statistics and chemistry from memory, and drew no chart. On the Mac it now runs Python when an answer is a matter of computing: numpy, pandas, matplotlib, scipy and sympy are ready, and it installs any other PyPI package it needs (RDKit, Biopython, scikit-learn). Each run is a step you can open to read the code and its output, a picture the script saves appears in the reply, and files it writes stay in a folder that lasts the chat. A script runs in a macOS sandbox with no network, writing only to its own folder and unable to read your Documents, iCloud Drive, library or keys; it stops after 60 seconds unless the chat asks for longer, and Stop ends it at once. The first run sets up the environment (a minute, needs a network). Mac only.
+- **A picture the chat drew has a Redraw button.** Beside Copy and Open beside, a menu of image models draws it again with the one you pick, dimming the picture until the new one lands. Right-click Redraw With still works; the button shows only on pictures with a kept prompt.
+- **Scrolling down to a saved-cards row no longer snaps the chat back up.** The row was rebuilt as a small spinner and grew to its deck once its cards loaded, which moved the page under your scroll. It now comes back with the cards, page and height it last showed.
+- **A notebook's Sources column has a Sources | Chats switch.** The notebook's chats were reachable only from the chat header's menu. The switch under the notebook's name swaps the column to its chats: New Chat first, then the chats in the rail's order with the open one in grey, and a title filter.
+- **The iPhone card review's notebook menu lists only notebooks that hold a kept card.** It offered every notebook the phone holds, mostly empty ones; it now offers All notebooks and the notebooks with a kept card, and shows the title plain when none does.
+- **A picture call with no reported charge is priced.** A response that carried no cost (GPT Image 1 Mini in the chat) read "not priced" in AI activity. It now falls back to the model's price in OpenRouter's image directory, and older rows fill in on the next Usage open.
+- **A reference popup opens in Nature Communications papers.** Clicking a superscript in a Nature Communications, Signal Transduction or Cell Death paper did nothing, because Springer Nature's reference links land on a band as wide as the page. The popup now finds the reference whose number the link names, in the right column.
+
 ## 0.179.0 (build 259) — 2026-10-29
 
 **Highlights:**
