@@ -1905,6 +1905,7 @@ struct NotebookPoolSourceRow: View {
         .animation(.easeOut(duration: 0.12), value: isHovering)
         .contextMenu {
             Button("Open", action: open)
+            retryMenuItem
             OtherWindowSourceMenuItem(article)
             if isOwnSource {
                 Menu("Schedule for…") {
@@ -1960,6 +1961,14 @@ struct NotebookPoolSourceRow: View {
                 }
             }
             Spacer(minLength: 0)
+            if canRetryFailedSource {
+                Button("Retry", action: retryFailedSource)
+                    .buttonStyle(.hoverWash)
+                    .zoomedSystemFont(size: 11, weight: .medium)
+                    .foregroundStyle(Color.accentColor)
+                    .help("Try this source again")
+                    .accessibilityLabel("Retry \(article.title)")
+            }
             // The ⋯ is built only under the pointer, the hidden label
             // holding its width. A menu at opacity 0 is still a live
             // control: while an assistive app reads the screen, SwiftUI
@@ -2030,6 +2039,42 @@ struct NotebookPoolSourceRow: View {
         return article.paperIngestionFailureDetail ?? attentionNote
     }
 
+    /// Whether the row's warning is one a second try can clear: a paper whose
+    /// cleanup or ingestion stopped and whose fix is just to run it again. A
+    /// failure that needs the learner (a PDF to attach, a key to add) says so
+    /// in its own words instead.
+    private var canRetryFailedSource: Bool {
+        // The cheap tests first: this runs in every row's body, and only a
+        // failed paper pays for the rest.
+        guard article.sourceType == .paper,
+              article.state == .error,
+              isOwnSource,
+              vm.notebookRowActivityLabel(for: article) == nil,
+              canRemove else { return false }
+        let action = article.paperIngestionRecoveryAction(hasUsablePDF: vm.displayHasUsablePDF(article))
+        if article.isPaperContentCleanupFailure {
+            return action == nil || action == .retry
+        }
+        return action == .retry
+    }
+
+    /// The same retries the Library row's button runs, so the warning goes
+    /// away from here too: the row turns back to a spinner while it works.
+    private func retryFailedSource() {
+        if article.isPaperContentCleanupFailure {
+            vm.fixPaperContentCleanup(for: article.id)
+        } else {
+            Task { await vm.extractPaperMetadataWithAI(id: article.id) }
+        }
+    }
+
+    @ViewBuilder
+    private var retryMenuItem: some View {
+        if canRetryFailedSource {
+            Button("Retry", action: retryFailedSource)
+        }
+    }
+
     /// The source's thumbnail (its cover, first page or artwork, else its
     /// type's icon), a chapter's number instead for a book's chapters. A
     /// spinner while the source loads, or an orange warning when it needs a
@@ -2084,6 +2129,7 @@ struct NotebookPoolSourceRow: View {
     private var moreMenu: some View {
         Menu {
             Button("Open", action: open)
+            retryMenuItem
             OtherWindowSourceMenuItem(article)
             usePublishedVersionItem
             if isOwnSource {
