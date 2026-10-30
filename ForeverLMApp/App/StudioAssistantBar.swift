@@ -46,7 +46,9 @@ enum StudioAssistantSession {
                 }.value
             },
             // Each chat drives a Browser tab of its own (`ChatBrowsing`).
-            browserAgent: StudioChatBrowserAgent()
+            browserAgent: StudioChatBrowserAgent(),
+            // Each chat runs Python in a working folder of its own (`ChatCode`).
+            codeRunner: StudioChatCodeRunner()
         )
     }
 

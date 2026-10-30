@@ -3420,6 +3420,7 @@ private extension ReviewSessionManager.Message.ToolActivity {
         case "list_skills", "get_skill", "save_skill", "delete_skill": return "wand.and.stars"
         case "list_working_notes", "save_working_note", "update_working_note", "forget_working_note": return "note.text"
         case "extract_video_slides": return "rectangle.on.rectangle.angled"
+        case "run_code": return "terminal"
         case "list_sources", "filter_sources": return "list.bullet"
         case "list_shows": return "mic"
         case "get_app_context": return "info.circle"

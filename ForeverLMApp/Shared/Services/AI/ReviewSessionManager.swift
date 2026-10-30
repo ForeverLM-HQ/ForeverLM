@@ -248,7 +248,7 @@ final class ReviewSessionManager {
                 "Listed": "list", "Loaded": "load", "Made": "make", "Marked": "mark",
                 "Merged": "merge", "Opened": "open", "Pointed": "point", "Prepared": "prepare",
                 "Pressed": "press", "Published": "publish",
-                "Queried": "query", "Read": "read", "Redrew": "redraw", "Removed": "remove",
+                "Queried": "query", "Read": "read", "Ran": "run", "Redrew": "redraw", "Removed": "remove",
                 "Reordered": "reorder", "Restored": "restore", "Retrieved": "retrieve", "Saved": "save", "Scheduled": "schedule",
                 "Scrolled": "scroll", "Searched": "search", "Set": "set", "Shared": "share", "Split": "split",
                 "Started": "start", "Stopped": "stop", "Ticked": "tick", "Took": "take", "Typed": "type",
@@ -275,6 +275,7 @@ final class ReviewSessionManager {
                 case "search_review_sessions": return "Searched past reviews"
                 case "request_web_search": return "Prepared web search"
                 case "fetch_web_page": return "Read web page"
+                case ChatCode.toolName: return ChatCode.activityTitle
                 case _ where ChatBrowsing.isBrowserTool(toolName):
                     return ChatBrowsing.activityTitle(toolName: toolName) ?? toolName
                 case "web_search": return "Searched the web"
@@ -1251,6 +1252,14 @@ final class ReviewSessionManager {
     /// The app's Browser as this chat drives it (`ChatBrowsing`). Nil where
     /// there is no Browser pane; the browser tools are then not offered.
     @ObservationIgnored let browserAgent: ChatBrowserAgent?
+
+    /// Where this chat's `run_code` scripts run (`ChatCode`). Nil where a
+    /// process cannot start (the iPhone), in which case the chat offers no
+    /// code tool.
+    @ObservationIgnored let codeRunner: ChatCodeRunner?
+
+    /// Names the chat's working folder until the chat has a session id.
+    @ObservationIgnored private let codeFallbackKey = UUID().uuidString
     private var sessionID: String?
     private var activeSourceIDs: [String] = []
     private var activeArticles: [StudioArticle] = []
@@ -1708,12 +1717,14 @@ final class ReviewSessionManager {
         storage: StorageService = StorageService(),
         appToolDefinitions: @escaping () -> [AppToolDefinition] = { [] },
         appToolExecutor: ((String, [String: Any], String?) async -> AppToolResult)? = nil,
-        browserAgent: ChatBrowserAgent? = nil
+        browserAgent: ChatBrowserAgent? = nil,
+        codeRunner: ChatCodeRunner? = nil
     ) {
         self.storage = storage
         self.appToolDefinitions = appToolDefinitions
         self.appToolExecutor = appToolExecutor
         self.browserAgent = browserAgent
+        self.codeRunner = codeRunner
         // A "sign in" error shown while signed out (a chat or a review tried AI first) is
         // stale the moment a sign-in stores a session; it used to stay on the home until closed.
         sessionObserver = NotificationCenter.default.addObserver(
@@ -5766,6 +5777,19 @@ final class ReviewSessionManager {
                         isError: outcome.isError,
                         images: outcome.screenshot.map { [$0] } ?? []
                     ))
+                case ChatCode.toolName:
+                    let activityID = appendToolActivity(
+                        for: AppToolCall(name: call.name, arguments: call.arguments)
+                    )
+                    let ran = await runCodeTool(arguments: call.arguments)
+                    completeToolActivity(activityID, result: ran)
+                    showCodeOnActivity(activityID, arguments: call.arguments, result: ran)
+                    results.append(AIToolResultPayload(
+                        callID: call.id,
+                        toolName: call.name,
+                        text: ran.text,
+                        isError: ran.isError
+                    ))
                 case TeachBack.toolName:
                     let activityID = appendToolActivity(
                         for: AppToolCall(name: call.name, arguments: call.arguments)
@@ -7119,6 +7143,13 @@ final class ReviewSessionManager {
         // review stays on its sources.
         if browserAgent != nil, sessionPromptKind == .agent || sessionPromptKind == .deepResearch {
             specs.append(contentsOf: ChatBrowsing.toolSpecs())
+        }
+
+        // Code is the chat's calculator: where the Mac can run it, the
+        // command-the-app chat and Deep Research get it, and a graded review
+        // stays on its sources.
+        if codeRunner != nil, sessionPromptKind == .agent || sessionPromptKind == .deepResearch {
+            specs.append(ChatCode.toolSpec())
         }
 
         if appToolExecutor != nil {
@@ -13669,6 +13700,9 @@ final class ReviewSessionManager {
         if toolName == "fetch_web_page" {
             return webPageDetail(arguments["url"] as? String)
         }
+        if toolName == ChatCode.toolName {
+            return ChatCode.activityDetail(arguments: arguments)
+        }
         if ChatBrowsing.isBrowserTool(toolName) {
             let detail = ChatBrowsing.activityDetail(toolName: toolName, arguments: arguments)
             return toolName == "browser_open" ? webPageDetail(detail) : detail
@@ -14240,6 +14274,88 @@ final class ReviewSessionManager {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !withoutToolCalls.isEmpty else { return nil }
         return withoutToolCalls
+    }
+
+    /// Run the chat's `run_code` tool: the script on the Mac, then every
+    /// picture it saved stored in the image store, so the answer can show it
+    /// with the same Markdown line a drawn picture uses.
+    private func runCodeTool(arguments: [String: Any]) async -> AppToolResult {
+        guard let codeRunner else {
+            return AppToolResult(text: "Error: Code cannot be run in this chat.", isError: true)
+        }
+        let request: ChatCode.Request
+        do {
+            request = try ChatCode.parse(arguments)
+        } catch {
+            return AppToolResult(text: "Error: \(error.localizedDescription)", isError: true)
+        }
+        let outcome = await codeRunner.run(request, sessionKey: sessionID ?? codeFallbackKey)
+        let (lines, unstored) = await storeCodePictures(outcome.files, summary: request.summary)
+        let formatted = ChatCode.modelText(for: outcome, request: request, pictureLines: lines, unstored: unstored)
+        return AppToolResult(text: formatted.text, isError: formatted.isError)
+    }
+
+    /// Keeps the pictures a script saved, off the main actor. A script that
+    /// rewrites one file on every call stores a new image each time: the
+    /// answer shows the one from this run.
+    private func storeCodePictures(_ files: [ChatCode.OutputFile], summary: String?) async -> (lines: [String], unstored: [String]) {
+        let pictures = files.filter(\.isPicture)
+        guard !pictures.isEmpty else { return ([], []) }
+        let notebookID = madeThingNotebookID
+        let prompt = summary.map { "Made by a Python script: \($0)" } ?? "Made by a Python script run in a chat"
+        return await Task.detached(priority: .userInitiated) {
+            var lines: [String] = []
+            var unstored: [String] = []
+            for file in pictures.prefix(ChatCode.maxImagesPerRun) {
+                guard file.byteCount <= ChatCode.maxImageBytes else {
+                    unstored.append("\(file.name) is \(ChatCode.byteDescription(file.byteCount)), over the \(ChatCode.byteDescription(ChatCode.maxImageBytes)) a picture may be")
+                    continue
+                }
+                guard let data = try? Data(contentsOf: URL(fileURLWithPath: file.path)),
+                      let mediaType = GeneratedImageStore.mediaType(of: data) else {
+                    unstored.append("\(file.name) is not an image this Mac can read")
+                    continue
+                }
+                let base = ((file.name as NSString).lastPathComponent as NSString).deletingPathExtension
+                    .replacingOccurrences(of: "_", with: " ")
+                    .replacingOccurrences(of: "-", with: " ")
+                do {
+                    let stored = try GeneratedImageStore.store(
+                        GeneratedImage(data: data, mediaType: mediaType),
+                        origin: .saved,
+                        text: prompt,
+                        title: GeneratedImageStore.cleanTitle(base),
+                        model: "Python",
+                        revising: nil,
+                        notebookID: notebookID
+                    )
+                    guard let reference = stored.reference else {
+                        unstored.append("\(file.name) could not be recorded")
+                        continue
+                    }
+                    lines.append(reference.markdown(alt: base.isEmpty ? "Chart" : base))
+                } catch {
+                    unstored.append("\(file.name): \(error.localizedDescription)")
+                }
+            }
+            if pictures.count > ChatCode.maxImagesPerRun {
+                unstored.append("\(pictures.count - ChatCode.maxImagesPerRun) more pictures past the limit of \(ChatCode.maxImagesPerRun) a run")
+            }
+            return (lines, unstored)
+        }.value
+    }
+
+    /// Puts the script above its output on the row, so the learner can open
+    /// the step and read what ran, as in ChatGPT's code tool.
+    private func showCodeOnActivity(_ id: UUID, arguments: [String: Any], result: AppToolResult) {
+        guard let index = chatMessages.firstIndex(where: { $0.id == id }),
+              var activity = chatMessages[index].toolActivity,
+              let code = (arguments["code"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              !code.isEmpty else { return }
+        let shownCode = code.count > 1_500 ? String(code.prefix(1_500)) + "\n…" : code
+        let output = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        activity.resultPreview = "\(shownCode)\n\n— Output —\n\(output.prefix(1_500))"
+        chatMessages[index].toolActivity = activity
     }
 
     /// Put a picture of the Browser tab on a running or finished browser row.
@@ -16739,6 +16855,7 @@ extension ReviewSessionManager {
         notebookScopeID: String? = nil,
         webSearch: WebSearchAccess = .unavailable,
         browserAgent: ChatBrowserAgent? = nil,
+        codeRunner: ChatCodeRunner? = nil,
         openPanes: ChatOpenPanes? = nil,
         pointsReader: Bool = false,
         opensTeachBack: Bool = false
@@ -16747,7 +16864,8 @@ extension ReviewSessionManager {
             storage: StorageService(storeRoot: temporaryTestingRoot()),
             appToolDefinitions: { appTools },
             appToolExecutor: { _, _, _ in AppToolResult(text: "", isError: false) },
-            browserAgent: browserAgent
+            browserAgent: browserAgent,
+            codeRunner: codeRunner
         )
         manager.sessionPromptKind = mode.sessionPromptKindForAutomaticStart
         manager.notebookSourceScopeID = nonEmptyTrimmed(notebookScopeID)
