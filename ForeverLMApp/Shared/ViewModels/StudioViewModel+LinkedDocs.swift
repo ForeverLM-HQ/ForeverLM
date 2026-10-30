@@ -413,12 +413,14 @@ extension StudioViewModel {
         await adoptLinkedDocTitle(artifactID, title: title)
     }
 
-    /// Rename a linked doc from a title its web view reported, only while the
-    /// stored title is still the placeholder — a name the writer chose wins.
+    /// Rename a linked doc from a title its web view reported. A Google Doc
+    /// always follows Google's own name, so a rename made there shows here;
+    /// any other kind only while the stored title is still the placeholder —
+    /// a name the writer chose wins.
     func adoptLinkedDocTitle(_ artifactID: String, title: String) async {
         guard let artifact = artifacts.first(where: { $0.id == artifactID }),
               let kind = artifact.linkedKind,
-              artifact.title == kind.placeholderTitle,
+              artifact.namesItself || artifact.title == kind.placeholderTitle,
               title != artifact.title else { return }
         await updateArtifact(artifactID: artifactID, title: title)
     }

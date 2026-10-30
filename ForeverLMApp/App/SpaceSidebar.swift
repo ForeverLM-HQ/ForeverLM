@@ -1304,7 +1304,7 @@ struct SpacePageRowMenuItems: View {
 
     var body: some View {
         if isOwn {
-            if let onRename {
+            if let onRename, !artifact.namesItself {
                 Button("Rename…", systemImage: "pencil", action: onRename)
             }
             SpacePagePinItem(artifact: artifact)

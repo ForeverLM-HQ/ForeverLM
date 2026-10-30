@@ -908,7 +908,8 @@ struct ArtifactCanvas: View {
             if let selectedArtifact, showsPage {
                 if selectedArtifact.isLinked {
                     linkedDocMenu(for: selectedArtifact)
-                    if linkedDocFillsPane {
+                    // A Google Doc's own header already names it.
+                    if linkedDocFillsPane, !selectedArtifact.namesItself {
                         linkedPageTitle(for: selectedArtifact)
                     }
                 } else if selectedArtifact.isMnemonicReading {
@@ -1592,7 +1593,7 @@ struct ArtifactCanvas: View {
             }
             .keyboardShortcut("e", modifiers: [.command, .shift])
         }
-        if isOwn, DailyNote.dayKey(ofID: artifact.id) == nil {
+        if isOwn, DailyNote.dayKey(ofID: artifact.id) == nil, !artifact.namesItself {
             Button {
                 renamePage(artifact)
             } label: {
@@ -2139,9 +2140,11 @@ struct ArtifactCanvas: View {
             .accessibilityIdentifier("animations.walkThrough")
             Divider()
         }
-        Button("Rename…", systemImage: "pencil") {
-            artifactRenameDraft = artifact.title
-            artifactToRename = artifact
+        if !artifact.namesItself {
+            Button("Rename…", systemImage: "pencil") {
+                artifactRenameDraft = artifact.title
+                artifactToRename = artifact
+            }
         }
         // The name as the row shows it, for pasting into a chat or a message
         // (product owner, 2026-09-10: "give me a right click copy name of a site").

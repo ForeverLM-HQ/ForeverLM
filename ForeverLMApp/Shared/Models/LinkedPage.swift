@@ -507,6 +507,13 @@ extension ArtifactRecord {
         linkedURL.flatMap(LinkedPage.kind(ofURLString:))
     }
 
+    /// Whether the page's own title is the title: a linked Google Doc is named
+    /// in Google Docs, so ForeverLM keeps no title of its own for it, draws no
+    /// title beside it and offers no rename (product owner, 2026-10-30: "for
+    /// google docs; don't maintain a separate title etc"). The stored title
+    /// only mirrors Google's for the lists, search and chat.
+    var namesItself: Bool { linkedKind == .googleDoc }
+
     /// Docs, Sites or Animations. The record's own kind answers first: an
     /// animation is kept as a ForeverLM site and would otherwise read as
     /// one. Then the link alone: a Markdown doc — published or not — a linked

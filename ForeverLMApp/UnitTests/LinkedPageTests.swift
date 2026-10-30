@@ -278,6 +278,18 @@ struct LinkedPageTests {
         #expect(record("https://example.com/page").section == .docs)
     }
 
+    @Test("Only a Google Doc is named by its own page, so only it takes no title of ours")
+    func googleDocNamesItself() {
+        let now = Date()
+        func record(_ url: String?) -> ArtifactRecord {
+            ArtifactRecord(id: UUID().uuidString, title: "t", homeNotebookID: nil, linkedNotebookIDs: [], linkedURL: url, createdAt: now, updatedAt: now)
+        }
+        #expect(record("https://docs.google.com/document/d/1abcDEFghiJKLmnoPQRstuVWxyz0123456789/edit").namesItself)
+        #expect(!record(nil).namesItself)
+        #expect(!record("https://claude.ai/code/artifact/a1b2c3d4-1e2f-4a5b-8c6d-7e8f9a0b1c2d").namesItself)
+        #expect(!record("https://techbio.learner-1234.chatgpt.site/").namesItself)
+    }
+
     @Test("A section's link sheet refuses the other section's links with where they go")
     func sectionScopedLinks() throws {
         let site = "https://techbio.learner-1234.chatgpt.site/"

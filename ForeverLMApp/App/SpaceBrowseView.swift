@@ -1842,9 +1842,11 @@ struct SpaceBrowseView: View {
                 // Copy ▸ · Download │ Open in new window. ForeverLM's own
                 // follow under one divider (docs/codex-parity-audit.md, item 36).
                 if item.isOwnedHere {
-                    Button("Rename…", systemImage: "pencil") {
-                        renameDraft = item.title
-                        renaming = item
+                    if !artifact.namesItself {
+                        Button("Rename…", systemImage: "pencil") {
+                            renameDraft = item.title
+                            renaming = item
+                        }
                     }
                     SpacePagePinItem(artifact: artifact)
                     Button("Move to Trash", systemImage: "trash", role: .destructive) {
