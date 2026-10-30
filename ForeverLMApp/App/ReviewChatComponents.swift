@@ -4293,13 +4293,32 @@ struct ReviewChatSavedCardsView: View {
     /// The cards as storage read them, in the call's order; nil until read.
     @State private var cards: [ChatSavedCard]?
     @State private var readFailed = false
-    @State private var page = 0
+    @State private var page: Int
     @State private var isKeeping = false
     @State private var isHovered = false
 
     private static let maxWidth: CGFloat = 560
 
+    /// The transcript is a lazy stack, which drops this row when it scrolls
+    /// away and builds it again on the way back, with every `@State` reset.
+    /// A row that comes back as a 96pt spinner and then grows to its deck is
+    /// the transcript changing height under the learner's scroll, and a
+    /// scroll down to a card at the foot of a chat snapped back up
+    /// (`ChatSavedCardsMemory`). So the row is built with what it last showed.
+    init(saved: ChatSavedCards) {
+        self.saved = saved
+        _cards = State(initialValue: ChatSavedCardsMemory.cards["\(saved.destination)"])
+        _page = State(initialValue: ChatSavedCardsMemory.pages["\(saved.destination)"] ?? 0)
+    }
+
     private var reloadKey: String { "\(saved.destination)#\(vm.memoryCardRevision)" }
+
+    /// What the row measured the last time it stood at this exact state: the
+    /// card on top, and where the cards stand. Pictures resolve after the row
+    /// is drawn, so a rebuilt row holds this height while they come back.
+    private var heightKey: String {
+        "\(reloadKey)|\(min(page, max(0, (cards?.count ?? 1) - 1)))"
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -4331,7 +4350,14 @@ struct ReviewChatSavedCardsView: View {
                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
         )
         .textSelection(.disabled)
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { height in
+            ChatSavedCardsMemory.remember(height: height, for: heightKey)
+        }
+        .frame(minHeight: ChatSavedCardsMemory.heights[heightKey], alignment: .top)
         .task(id: reloadKey) { await load() }
+        .onChange(of: page) { _, page in
+            ChatSavedCardsMemory.pages["\(saved.destination)"] = page
+        }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("chat.savedCards")
     }
@@ -4608,7 +4634,29 @@ struct ReviewChatSavedCardsView: View {
         }
         readFailed = false
         cards = read
+        ChatSavedCardsMemory.cards["\(saved.destination)"] = read
         if page >= read.count { page = max(0, read.count - 1) }
+    }
+}
+
+/// What `ReviewChatSavedCardsView` last showed, per set of saved cards, for
+/// the moment its row is built again. Kept off the view because the view is
+/// the thing the lazy transcript throws away; none of it is stored or synced,
+/// and a read replaces it as soon as it lands.
+@MainActor
+enum ChatSavedCardsMemory {
+    static var cards: [String: [ChatSavedCard]] = [:]
+    static var pages: [String: Int] = [:]
+    /// Natural height of the row, per state of it. Only ever grows for one
+    /// state: a picture still on its way would otherwise shrink the figure.
+    static var heights: [String: CGFloat] = [:]
+
+    private static let limit = 200
+
+    static func remember(height: CGFloat, for key: String) {
+        guard height > (heights[key] ?? 0) else { return }
+        if heights.count >= limit { heights.removeAll() }
+        heights[key] = height
     }
 }
 
