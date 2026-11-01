@@ -1435,11 +1435,14 @@ struct ArticleSpeechContentTests {
             "```json\n{\"keepBlocks\":[]}\n```",
             runs: runs
         ).isEmpty)
-        #expect(throws: AIError.self) {
-            try AIService.validatedPaperContentDeletionAudit(
-                #"{"removeBlocks":["B000003"]}"#,
-                runs: runs
-            )
+        // The cleanup asks again on exactly this message, so it must not drift.
+        for reply in [#"{"removeBlocks":["B000003"]}"#, "", "I kept everything."] {
+            do {
+                _ = try AIService.validatedPaperContentDeletionAudit(reply, runs: runs)
+                Issue.record("A reply that is not a deletion check was accepted: \(reply)")
+            } catch AIError.apiError(let message) {
+                #expect(message == AIService.invalidPaperContentDeletionAuditMessage)
+            }
         }
 
         let plan = AIService.PaperContentDeletionPlan(

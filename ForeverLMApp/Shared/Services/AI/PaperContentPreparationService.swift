@@ -334,8 +334,8 @@ struct PaperContentPreparationService: Sendable {
         }
     }
 
-    /// Re-asks for a chunk whose reply was not a deletion plan, before the
-    /// cleanup fails the source.
+    /// Re-asks for a chunk whose reply was not a deletion plan (or, for the
+    /// deletion check, not a check), before the cleanup fails the source.
     private static let maximumInvalidPlanRetries = 2
 
     private func prepareAttributed(
@@ -505,17 +505,30 @@ struct PaperContentPreparationService: Sendable {
         )
         var restored = Set<String>()
         for (index, chunk) in chunks.enumerated() {
-            try Task.checkCancellation()
-            restored.formUnion(try await AIBackgroundRetry.run(config: config) { config in
-                try await aiService.paperContentDeletionAudit(
-                    source: source,
-                    sourceType: sourceType,
-                    runs: chunk,
-                    config: config,
-                    chunkIndex: index,
-                    chunkCount: chunks.count
-                )
-            })
+            var invalidCheckRetries = 0
+            while true {
+                try Task.checkCancellation()
+                do {
+                    restored.formUnion(try await AIBackgroundRetry.run(config: config) { config in
+                        try await aiService.paperContentDeletionAudit(
+                            source: source,
+                            sourceType: sourceType,
+                            runs: chunk,
+                            config: config,
+                            chunkIndex: index,
+                            chunkCount: chunks.count
+                        )
+                    })
+                    break
+                } catch AIError.apiError(let message)
+                    where message == AIService.invalidPaperContentDeletionAuditMessage
+                        && invalidCheckRetries < Self.maximumInvalidPlanRetries {
+                    invalidCheckRetries += 1
+                    logger.warning(
+                        "Source Content Cleanup check \(index + 1)/\(chunks.count) was not a deletion check; asking again (\(invalidCheckRetries)/\(Self.maximumInvalidPlanRetries))"
+                    )
+                }
+            }
         }
         guard !restored.isEmpty else { return plan }
         logger.notice(

@@ -2172,6 +2172,11 @@ extension AIService {
         return try Self.validatedPaperContentDeletionAudit(response, runs: runs)
     }
 
+    /// The model's reply was not a deletion check at all. Like the plan, the
+    /// reply is sampled, so the cleanup asks again before it fails.
+    nonisolated static let invalidPaperContentDeletionAuditMessage =
+        "Source Content Cleanup returned an invalid deletion check."
+
     /// Only IDs the audit was shown as deletions can be restored. A context
     /// block was never deleted, so naming one changes nothing.
     nonisolated static func validatedPaperContentDeletionAudit(
@@ -2189,7 +2194,7 @@ extension AIService {
         }
         guard let data = json.data(using: .utf8),
               let audit = try? JSONDecoder().decode(PaperContentDeletionAudit.self, from: data) else {
-            throw AIError.apiError("Source Content Cleanup returned an invalid deletion check.")
+            throw AIError.apiError(invalidPaperContentDeletionAuditMessage)
         }
         let proposedIDs = Set(runs.flatMap { $0.removed.map(\.id) })
         return Set(audit.keepBlocks).intersection(proposedIDs)
