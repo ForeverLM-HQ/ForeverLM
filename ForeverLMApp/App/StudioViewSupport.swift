@@ -3921,9 +3921,15 @@ private struct StudioCenterTabButton: View {
     /// ideal size inside the ZStack can collapse its hit area to zero even
     /// while the SwiftUI label beside it remains visible.
     private var tabWidth: CGFloat {
+        min(fullTextWidth, Self.maxTextWidth) + tabTextSize + 24 + Self.closeSize + 4
+    }
+
+    /// The most of a title a tab shows; a longer one runs off the edge.
+    private static let maxTextWidth: CGFloat = 150
+
+    private var fullTextWidth: CGFloat {
         let font = NSFont.systemFont(ofSize: tabTextSize, weight: isActive ? .semibold : .medium)
-        let textWidth = min(ceil((title as NSString).size(withAttributes: [.font: font]).width), 150)
-        return textWidth + tabTextSize + 24 + Self.closeSize + 4
+        return ceil((title as NSString).size(withAttributes: [.font: font]).width)
     }
 
     var body: some View {
@@ -3955,12 +3961,25 @@ private struct StudioCenterTabButton: View {
                     .font(.system(size: tabTextSize, weight: isActive ? .semibold : .medium))
                     .foregroundStyle(isActive ? Color.primary : Color.primary.opacity(0.75))
                     .lineLimit(1)
-                    .truncationMode(.tail)
-                    // fixedSize keeps the flexible frame from greedily
-                    // stretching every tab to 150pt: short titles hug their
-                    // text, long Reader/Goal titles still truncate at the cap.
-                    .frame(maxWidth: 150, alignment: .leading)
+                    // The title is laid out whole and cut at the cap, with a
+                    // soft fade instead of an ellipsis; short titles hug their text.
                     .fixedSize(horizontal: true, vertical: false)
+                    .frame(width: min(fullTextWidth, Self.maxTextWidth), alignment: .leading)
+                    .clipped()
+                    .mask(alignment: .leading) {
+                        if fullTextWidth > Self.maxTextWidth {
+                            LinearGradient(
+                                stops: [
+                                    .init(color: .black, location: 0.85),
+                                    .init(color: .clear, location: 1)
+                                ],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        } else {
+                            Color.black
+                        }
+                    }
             }
                 .padding(.leading, 9)
                 .padding(.trailing, 9 + Self.closeSize + 4)
