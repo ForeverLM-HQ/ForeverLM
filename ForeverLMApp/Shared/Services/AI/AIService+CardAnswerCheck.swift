@@ -11,6 +11,12 @@ import Foundation
 // readable verdict asks the next backup model; a failure is thrown for the
 // card to say, never replaced by a grade of the app's own (AGENTS.md, "AI
 // failures surface"). The call's usage lands in the ledger against the card.
+//
+// The verdict is a word and a line, so the call asks for no thinking
+// (`disablesReasoning`, as the card wording check does, 8507888). With thinking
+// on, a card about a toxic-sounding subject (CCCP, a mitochondrial uncoupler,
+// 2026-11-01) was stopped by the provider with `content_filter` ("Your answer
+// could not be checked"), as the wording check's cards were on 2026-10-30.
 
 extension AIService {
     func checkCardAnswer(
@@ -25,6 +31,7 @@ extension AIService {
             user: MemoryCardAnswerCheck.message(request),
             maxTokens: MemoryCardAnswerCheck.maxTokens,
             temperature: 0,
+            disablesReasoning: true,
             allowsResponseCache: false,
             jsonMode: true,
             validateResponse: { _ = try MemoryCardAnswerCheck.result(from: $0) },
