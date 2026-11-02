@@ -106,7 +106,7 @@ One package, versioned 1.0.6, serves every provider:
 - **Claude (claude.ai, Desktop, mobile):** the remote MCP server is in review in the
   Claude Connectors Directory (submitted 2026-08-30); until it is listed, use the
   custom connector setup.
-- **ChatGPT and Codex:** version 1.0.2 is in OpenAI's review.
+- **ChatGPT and Codex:** version 1.0.2 was rejected after reviewers could not complete sign-in; the corrected no-Apple reviewer flow passes, and the current package is awaiting resubmission through OpenAI's migrated portal.
 - **Grok Build:** installable from this marketplace today.
 
 For the full cross-provider submission record see
