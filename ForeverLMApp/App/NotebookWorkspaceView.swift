@@ -33,8 +33,14 @@ struct NotebookCenterLayout: Equatable {
     var leadingDocument: NotebookDocument?
     /// The document slot's width; nil when the slot is empty.
     var documentWidth: CGFloat?
+    /// The document left of the slot's while the chat shows beside it, the
+    /// third pane of video | notes | chat (`NotebookWorkspace.splitDocument`);
+    /// nil otherwise. Its width counts nothing of the chat's side.
+    var splitDocument: NotebookDocument?
+    var splitWidth: CGFloat?
 
     var showsDivider: Bool { leadingWidth != nil && documentWidth != nil }
+    var showsSplitDivider: Bool { splitWidth != nil }
     var showsOverview: Bool { leadingWidth == nil && documentWidth == nil }
 }
 
@@ -126,7 +132,8 @@ enum NotebookWorkspaceSizing {
         let leading = leadingMinimumWidth(for: workspace)
         let document = workspace.document.map(minimumWidth(of:)) ?? 0
         guard leading > 0 || document > 0 else { return StudioCenterTabGroupSizing.minimumChatContentWidth }
-        return leading + document + (leading > 0 && document > 0 ? dividerWidth : 0)
+        let split = workspace.splitDocument.map { minimumWidth(of: $0) + dividerWidth } ?? 0
+        return leading + document + (leading > 0 && document > 0 ? dividerWidth : 0) + split
     }
 
     /// What the Sources column takes at its narrowest, separator included.
@@ -232,12 +239,53 @@ enum NotebookWorkspaceSizing {
         return (leading, max(0, usable - leading))
     }
 
+    /// The widths of three panes — the split document, the slot's document and
+    /// the chat — in a center `centerWidth` wide. The chat takes two thirds of
+    /// `chatFraction` of what the dividers leave (so the default half is a
+    /// third), the documents share the rest equally, each kept to its minimum
+    /// while there is room for all three.
+    static func threePaneWidths(
+        centerWidth: CGFloat,
+        chatFraction: CGFloat,
+        chatMinimum: CGFloat,
+        splitMinimum: CGFloat,
+        documentMinimum: CGFloat
+    ) -> (split: CGFloat, document: CGFloat, chat: CGFloat) {
+        let usable = max(0, centerWidth - 2 * dividerWidth)
+        var chat = usable * min(max(chatFraction, 0), 1) * (2.0 / 3.0)
+        if usable >= chatMinimum + splitMinimum + documentMinimum {
+            chat = min(max(chat, chatMinimum), usable - splitMinimum - documentMinimum)
+        }
+        let rest = max(0, usable - chat)
+        var split = rest / 2
+        if rest >= splitMinimum + documentMinimum {
+            split = min(max(split, splitMinimum), rest - documentMinimum)
+        }
+        return (split, max(0, rest - split), chat)
+    }
+
     /// Where the center's panes go in a center `centerWidth` wide.
     static func centerLayout(
         for workspace: NotebookWorkspace,
         centerWidth: CGFloat,
         leadingFraction: CGFloat
     ) -> NotebookCenterLayout {
+        if let split = workspace.splitDocument, let document = workspace.document {
+            let widths = threePaneWidths(
+                centerWidth: centerWidth,
+                chatFraction: leadingFraction,
+                chatMinimum: StudioCenterTabGroupSizing.minimumChatContentWidth,
+                splitMinimum: minimumWidth(of: split),
+                documentMinimum: minimumWidth(of: document)
+            )
+            return NotebookCenterLayout(
+                leadingWidth: widths.chat,
+                leadingDocument: nil,
+                documentWidth: widths.document,
+                splitDocument: split,
+                splitWidth: widths.split
+            )
+        }
         let lead = workspace.showsChat ? nil : workspace.leadingDocument
         let hasLeading = workspace.showsChat || lead != nil
         switch (hasLeading, workspace.document) {
@@ -880,19 +928,46 @@ struct NotebookWorkspaceView: View {
         let layout = Sizing.centerLayout(for: workspace, centerWidth: width, leadingFraction: leadingFraction)
         let leadingWidth = layout.leadingWidth ?? 0
         let documentWidth = layout.documentWidth ?? 0
+        let splitWidth = layout.splitWidth ?? 0
         // The document stands left of the chat unless the learner swapped
         // them; `layout` always counts the chat's side as the leading one.
         let documentLeads = workspace.documentPrecedesChat
-        let chatStart = documentLeads ? start + documentWidth + Sizing.dividerWidth : start
-        let documentStart = documentLeads
-            ? start
-            : start + (layout.leadingWidth.map { $0 + Sizing.dividerWidth } ?? 0)
+        let order = centerPanes(layout: layout, documentLeads: documentLeads)
+        // Where each pane starts: the widths of what stands left of it.
+        let widths: [CenterPane: CGFloat] = [
+            .chat: leadingWidth, .leadingDocument: leadingWidth, .document: documentWidth,
+            .splitDocument: splitWidth, .divider: Sizing.dividerWidth, .splitDivider: Sizing.dividerWidth,
+        ]
+        func startOf(_ pane: CenterPane) -> CGFloat {
+            var x = start
+            for other in order {
+                if other == pane { return x }
+                x += widths[other] ?? 0
+            }
+            return start
+        }
         // Keyed by pane, so a swap moves the views and never rebuilds them.
         return HStack(spacing: 0) {
-            ForEach(centerPanes(layout: layout, documentLeads: documentLeads), id: \.self) { pane in
+            ForEach(order, id: \.self) { pane in
                 switch pane {
                 case .chat:
-                    chatSlot(width: leadingWidth, start: chatStart, totalWidth: totalWidth)
+                    chatSlot(width: leadingWidth, start: startOf(.chat), totalWidth: totalWidth)
+                case .splitDocument:
+                    if let split = layout.splitDocument {
+                        documentSlot(
+                            split,
+                            width: splitWidth,
+                            start: startOf(.splitDocument),
+                            totalWidth: totalWidth,
+                            identifier: "notebook.document.split"
+                        )
+                    }
+                case .splitDivider:
+                    Rectangle()
+                        .fill(Color.clear)
+                        .frame(width: Sizing.dividerWidth)
+                        .overlay(StudioColumnHairline())
+                        .accessibilityHidden(true)
                 case .leadingDocument:
                     if let lead = layout.leadingDocument {
                         documentSlot(
@@ -910,7 +985,7 @@ struct NotebookWorkspaceView: View {
                         documentSlot(
                             document,
                             width: documentWidth,
-                            start: documentStart,
+                            start: startOf(.document),
                             totalWidth: totalWidth,
                             identifier: "notebook.document"
                         )
@@ -965,7 +1040,7 @@ struct NotebookWorkspaceView: View {
     }
 
     private enum CenterPane: Hashable {
-        case chat, leadingDocument, divider, document, overview
+        case chat, leadingDocument, divider, document, splitDocument, splitDivider, overview
     }
 
     /// The center's panes left to right.
@@ -975,8 +1050,11 @@ struct NotebookWorkspaceView: View {
         let leadingDocument: [CenterPane] = layout.leadingDocument == nil ? [] : [.leadingDocument]
         let divider: [CenterPane] = layout.showsDivider ? [.divider] : []
         let document: [CenterPane] = workspace.document == nil ? [] : [.document]
+        let split: [CenterPane] = layout.splitDocument == nil ? [] : [.splitDocument, .splitDivider]
         if documentLeads {
-            panes = document + divider + chat
+            panes = split + document + divider + chat
+        } else if layout.splitDocument != nil {
+            panes = chat + divider + split + document
         } else {
             panes = chat + leadingDocument + divider + document
         }
@@ -1082,7 +1160,7 @@ struct NotebookWorkspaceView: View {
         // The slot beside the chat can become Pages, Browser or Memory from its
         // corner; the slot standing in the chat's place has no swap control.
         // A picture popped out of the chat is not a place to swap away from.
-        let swaps = identifier == "notebook.document.leading" || document == .picture
+        let swaps = identifier == "notebook.document.leading" || identifier == "notebook.document.split" || document == .picture
             ? [] : StudioPaneSwap.notebookDocumentDestinations
         // Two documents open in the slot draw a tab strip, as a pane of the
         // tab layout does (docs/ui-design.md rule 8); one draws none.
@@ -1140,7 +1218,7 @@ struct NotebookWorkspaceView: View {
                 }
             )
         }
-        .overlay { replaceDropOverlay(identifier == "notebook.document.leading" ? .leadingDocument : .document) }
+        .overlay { replaceDropOverlay(identifier == "notebook.document.leading" ? .leadingDocument : (identifier == "notebook.document.split" ? .splitDocument : .document)) }
         .accessibilityElement(children: .contain)
         .accessibilityLabel(document.centerTab?.title ?? (document == .picture ? "Picture" : "Cards"))
         .accessibilityIdentifier(identifier)
@@ -1159,12 +1237,16 @@ struct NotebookWorkspaceView: View {
             .gesture(
                 DragGesture(minimumDistance: 1, coordinateSpace: .named("notebookWorkspace"))
                     .onChanged { value in
-                        let usable = max(1, centerWidth - Sizing.dividerWidth)
+                        // Three panes leave two dividers' width, and the chat
+                        // takes two thirds of its fraction (`threePaneWidths`),
+                        // so the pointer moves it 1.5 fractions to the pane.
+                        let threePanes = workspace.splitDocument != nil
+                        let usable = max(1, centerWidth - (threePanes ? 2 : 1) * Sizing.dividerWidth)
                         let start = dragStartFraction ?? leadingFraction
                         if dragStartFraction == nil { dragStartFraction = start }
                         // `leadingFraction` is the chat's share, which a drag
                         // to the right takes from when the document leads.
-                        let moved = value.translation.width / usable
+                        let moved = value.translation.width / usable * (threePanes ? 1.5 : 1)
                         leadingFraction = min(max(documentLeads ? start - moved : start + moved, 0.15), 0.85)
                     }
                     .onEnded { _ in dragStartFraction = nil }

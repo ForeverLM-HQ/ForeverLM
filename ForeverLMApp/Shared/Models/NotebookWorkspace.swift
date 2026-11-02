@@ -31,9 +31,10 @@ struct NotebookWorkspace: Codable, Equatable {
     var slotTabs: [NotebookDocument] = []
     /// What stands in the chat's place while Chat is hidden: the Reader a
     /// link in the document opened beside it (docs/notebooks-design.md,
-    /// "Following a link never closes what you read it in"). Only ever set
-    /// while `showsChat` is false; Chat coming back moves it into the slot.
-    /// A moment, like `document`.
+    /// "Following a link never closes what you read it in"); Chat coming back
+    /// moves it into the slot. With the chat showing it is the split's
+    /// document, left of the slot's (`splitDocument`), set only by
+    /// `splittingSlot`. A moment, like `document`.
     var leadingDocument: NotebookDocument?
     /// What the document slot held before the Reader took it, for the
     /// Reader's "Back to …" in its band. Set only while the slot shows the
@@ -326,7 +327,15 @@ extension NotebookWorkspace {
     /// document in its place, and the slot's document. Zero means the
     /// notebook's overview.
     var centerPaneCount: Int {
-        (showsChat || leadingDocument != nil ? 1 : 0) + (document == nil ? 0 : 1)
+        (showsChat ? 1 : 0) + (leadingDocument == nil ? 0 : 1) + (document == nil ? 0 : 1)
+    }
+
+    /// The document standing left of the slot's while the chat shows too: the
+    /// third pane of video | notes | chat (`splittingSlot`). Nil with the chat
+    /// hidden, where `leadingDocument` stands in the chat's place instead, and
+    /// when the slot is empty.
+    var splitDocument: NotebookDocument? {
+        showsChat && document != nil ? leadingDocument : nil
     }
 
     /// The workspace once `route` is followed: Chat comes on screen, or the
@@ -337,10 +346,12 @@ extension NotebookWorkspace {
         var next = self
         switch route {
         case .chat:
+            let wasHidden = !next.showsChat
             next.showsChat = true
             // Chat takes its place back; what stood there moves into the
-            // slot, the latest thing the learner opened.
-            if let lead = next.leadingDocument {
+            // slot, the latest thing the learner opened. A chat that never
+            // left keeps the split beside it (`splitDocument`).
+            if wasHidden, let lead = next.leadingDocument {
                 next.leadingDocument = nil
                 next.placeInSlot(lead)
             }
@@ -408,25 +419,38 @@ extension NotebookWorkspace {
     /// The workspace once `tab` is dragged to a side of the slot (or sent
     /// there with Split Left / Split Right): the slot's documents stand side
     /// by side, `tab` on the trailing side for `toTrailing` and the leading
-    /// side otherwise, the document that was showing beside it. The pair is
-    /// the one place a notebook holds two documents at once, so Chat steps
-    /// aside (its × hides it the same way) and the document on the leading
-    /// side takes the chat's place (`leadingDocument`); Chat coming back
-    /// moves both into the slot as tabs again (`following`). Nil unless the
-    /// slot holds `tab` and another document.
+    /// side otherwise, the document that was showing beside it. The one on
+    /// the leading side stands in `leadingDocument`, so with the chat showing
+    /// the center holds three panes, the two documents and the chat
+    /// (`splitDocument`); with the chat hidden it holds the two. A split's
+    /// document that was already standing there goes back to the slot as a
+    /// tab. Chat coming back after it was hidden moves the leading document
+    /// into the slot (`following`). Nil unless the slot holds `tab` and
+    /// another document.
     func splittingSlot(moving tab: StudioCenterTab, toTrailing: Bool) -> NotebookWorkspace? {
-        let strip = slotTabStrip
+        var strip = slotTabStrip
+        if let standing = leadingDocument, standing.centerTab != nil, !strip.contains(standing) {
+            strip.append(standing)
+        }
         guard strip.count > 1, let moved = strip.first(where: { $0.centerTab == tab }) else { return nil }
         let others = strip.filter { $0 != moved }
         let partner = document.flatMap { others.contains($0) ? $0 : nil } ?? others[0]
         var next = self
-        next.showsChat = false
         let leading = toTrailing ? partner : moved
         next.leadingDocument = leading
         next.slotTabs = Self.kept(strip.filter { $0 != leading })
         next.document = toTrailing ? moved : partner
         next.returnDocument = nil
         return next
+    }
+
+    /// With the chat showing, a split needs the slot's document beside it: a
+    /// slot that closed leaves the split's document in the slot's place.
+    private mutating func promoteSplitIfSlotEmpty() {
+        guard showsChat, document == nil, let lead = leadingDocument else { return }
+        leadingDocument = nil
+        document = lead
+        slotTabs = []
     }
 
     /// The workspace once the slot's × is pressed with a tab strip showing:
@@ -436,6 +460,7 @@ extension NotebookWorkspace {
         next.document = nil
         next.slotTabs = []
         next.returnDocument = nil
+        next.promoteSplitIfSlotEmpty()
         return next
     }
 
@@ -452,6 +477,7 @@ extension NotebookWorkspace {
         } else if let closed = slotTabStrip.first(where: { $0.centerTab == tab }) {
             next.closeSlotTab(closed)
         }
+        next.promoteSplitIfSlotEmpty()
         return next
     }
 

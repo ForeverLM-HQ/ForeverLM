@@ -225,36 +225,83 @@ struct NotebookWorkspaceTests {
         #expect(NotebookWorkspaceSizing.centerMinimumWidth(for: ordinary, panesMinimum: 900) != 900)
     }
 
-    @Test("A slot tab dragged to a side stands beside the other document, Chat steps aside, and Chat coming back makes them tabs again")
+    @Test("A slot tab dragged to a side stands beside the other document with the chat kept, and Chat hiding then returning makes them tabs again")
     func splittingTheSlot() throws {
         var pair = NotebookWorkspace(notebookID: "bio")
         for document in [NotebookDocument.reader, .docs] {
             pair = try #require(pair.following(.document(document)))
         }
-        // Notes dragged to the right: the video leads, the notes take the slot.
+        // Notes dragged to the right: the video leads, the notes take the slot,
+        // and the chat stays as the third pane.
         let right = try #require(pair.splittingSlot(moving: .notepad, toTrailing: true))
-        #expect(!right.showsChat)
+        #expect(right.showsChat)
         #expect(right.leadingDocument == .reader)
+        #expect(right.splitDocument == .reader)
         #expect(right.document == .docs)
         #expect(right.slotTabStrip == [.docs] && !right.slotShowsTabStrip)
         #expect(right.visibleDocuments == [.reader, .docs])
+        #expect(right.centerPaneCount == 3)
         // Notes dragged to the left.
         let left = try #require(pair.splittingSlot(moving: .notepad, toTrailing: false))
-        #expect(left.leadingDocument == .docs)
+        #expect(left.splitDocument == .docs)
         #expect(left.document == .reader)
         // A third tab stays a tab of the slot's own strip.
         let three = try #require(pair.following(.document(.browser)))
         let withThird = try #require(three.splittingSlot(moving: .notepad, toTrailing: true))
         #expect(withThird.leadingDocument == .browser)
         #expect(withThird.slotTabStrip == [.reader, .docs])
-        // Chat coming back moves the leading document into the slot.
-        let chat = try #require(right.following(.chat))
-        #expect(chat.showsChat && chat.leadingDocument == nil)
-        #expect(Set(chat.slotTabStrip) == [.reader, .docs])
+        // Asking for the chat while it shows leaves the split alone.
+        let still = try #require(right.following(.chat))
+        #expect(still == right)
+        // A split again sends the document that stood there back to the slot.
+        let again = try #require(withThird.splittingSlot(moving: .reader, toTrailing: true))
+        #expect(Set(again.slotTabStrip + [again.leadingDocument].compactMap { $0 }) == [.reader, .docs, .browser])
+        // The chat hides: the split stands in its place, as a document asked
+        // from the slot with the chat hidden does. Chat coming back moves the
+        // leading document into the slot.
+        let hidden = right.closing(.chat)
+        #expect(!hidden.showsChat && hidden.splitDocument == nil && hidden.visibleDocuments == [.reader, .docs])
+        let back = try #require(hidden.following(.chat))
+        #expect(back.showsChat && back.leadingDocument == nil)
+        #expect(Set(back.slotTabStrip) == [.reader, .docs])
+        // The slot's document closing leaves the split's in its place.
+        let closedSlot = right.closing(.notepad)
+        #expect(closedSlot.document == .reader && closedSlot.leadingDocument == nil && closedSlot.showsChat)
+        #expect(right.closingSlot().document == .reader)
+        // Closing the split's document keeps the slot and the chat.
+        let closedSplit = right.closing(.reader)
+        #expect(closedSplit.leadingDocument == nil && closedSplit.document == .docs && closedSplit.showsChat)
         // Nothing to split with one document, or for a tab the slot lacks.
         let lone = NotebookWorkspace(notebookID: "bio", document: .reader)
         #expect(lone.splittingSlot(moving: .reader, toTrailing: true) == nil)
         #expect(pair.splittingSlot(moving: .browser, toTrailing: true) == nil)
+    }
+
+    @Test("Three panes — the split document, the slot's and the chat — share the center, each at its minimum or more")
+    func threePaneLayout() throws {
+        typealias Sizing = NotebookWorkspaceSizing
+        var pair = NotebookWorkspace(notebookID: "bio")
+        for document in [NotebookDocument.reader, .docs] {
+            pair = try #require(pair.following(.document(document)))
+        }
+        let split = try #require(pair.splittingSlot(moving: .notepad, toTrailing: true))
+        let chatMinimum = StudioCenterTabGroupSizing.minimumChatContentWidth
+        let needed = 2 * Sizing.documentMinimumWidth + chatMinimum + 2 * Sizing.dividerWidth
+        #expect(Sizing.centerMinimumWidth(for: split) == needed)
+
+        let wide = Sizing.centerLayout(for: split, centerWidth: 1_600, leadingFraction: 0.5)
+        #expect(wide.splitDocument == .reader && wide.showsSplitDivider && wide.showsDivider)
+        let chat = try #require(wide.leadingWidth)
+        let document = try #require(wide.documentWidth)
+        let splitWidth = try #require(wide.splitWidth)
+        #expect(abs(chat + document + splitWidth + 2 * Sizing.dividerWidth - 1_600) < 0.5)
+        #expect(splitWidth >= Sizing.documentMinimumWidth)
+        #expect(document >= Sizing.documentMinimumWidth)
+        #expect(chat >= chatMinimum)
+
+        // The chat hidden: the two documents, no split divider.
+        let hidden = Sizing.centerLayout(for: split.closing(.chat), centerWidth: 1_600, leadingFraction: 0.5)
+        #expect(hidden.splitDocument == nil && hidden.leadingDocument == .reader && !hidden.showsSplitDivider)
     }
 
     @Test("Closing a slot tab shows its right neighbour, else its left, and the last one empties the slot")

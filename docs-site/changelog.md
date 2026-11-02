@@ -6,6 +6,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **Video, notes and chat can all stand side by side in a notebook.** Splitting the document pane's tabs (drag a tab to a side, or Split Left / Split Right) now keeps the chat open as a third pane instead of hiding it: the video on the left, the notes beside it, the chat on the right. Hiding the chat with its × still gives the two documents the whole center.
 - **A notebook opens beside your panes.** From a window showing two panes or more, such as the Space beside a chat, a notebook no longer takes the whole window: its sources and Studio stand around your panes, and a source opens as a pane you can drag to a side, up to three side by side, so the video, your notes and the chat can all be on screen.
 - **Download a Google Drive recording for offline viewing**: the arrow on a meeting recording keeps a copy on the Mac until you remove it, so it plays on a plane.
 
