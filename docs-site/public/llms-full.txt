@@ -3578,7 +3578,7 @@ three from report to approved change. These need an active Mac:
 | `set_app_setting` | `setting`, `value` | Change one catalog setting exactly as the pane does. A choice outside the pane's options is refused with them. Returns the setting and `changed`. Model and voice pickers change what work is billed at; ask first. |
 | `run_settings_action` | `action`, `approved_spend_usd?` | One of the buttons that act once, whether or not a pane still shows it: `sync_icloud_now`, `prepare_memory_review_now`, `draw_missing_meeting_icons`, `sync_x_bookmarks`, `clear_usage_ledger_warning`, and the iCloud pane's `confirm_this_mac_holds_my_library`, `upload_library_to_icloud_again`, `apply_old_library_removals` and `keep_old_library_removals`, and `replace_icloud_library`, which only an assistant presses when you ask: it deletes iCloud's copy of your library and uploads this Mac's from the start. |
 | `open_settings` | `pane?` | Open the Settings window on the Mac at one pane, for a sign-in, a payment or the sharing sheet. `plugins` and a plugin's id (`x`, `youtube`, `google_drive`, `apple_calendar`, `slack`, `linear`, `github`, `notion`, `build_your_own_plugin`) open the Plugins place on the icon strip instead, at that plugin's page, where its consent page is opened. |
-| `open_in_app` | `kind`, `id?` | Show a notebook, doc, chat, source, quiz or idea in the Mac's window as a click would, `space` (the Space's All list), or `plugins` (the Plugins place, at a plugin's page when `id` names one). Listing or loading a notebook changes nothing on screen; this does. |
+| `open_in_app` | `kind`, `id?`, `side_by_side?` | Show a notebook, doc, chat, source, quiz or idea in the Mac's window as a click would, `space` (the Space's All list), or `plugins` (the Plugins place, at a plugin's page when `id` names one). Listing or loading a notebook changes nothing on screen; this does. |
 | `get_plugin_connections` | `include_slack_channels?` | Plugins: which of X, YouTube, Google Drive, Calendar (the Mac's), Slack, GitHub, Linear, Notion and the learner's own plugins are connected, their accounts (every X, YouTube and Google account listed on its own, a YouTube account with its import source), Slack channels, followed and hidden YouTube channels, and what connecting each takes. |
 | `disconnect_plugin` | `plugin`, `account_id?` | The pane's Disconnect, Turn Off or Remove Access for `x`, `youtube`, `google_drive`, `apple_calendar`, `slack`, `github`, `linear`, `notion` or `user_plugin`. `x` takes the account as `account_id` (its user id or @username) when more than one is connected, and disconnects that account only: its bookmark sync stops and the posts already imported stay. `youtube` takes the account as `account_id` (its channel id, or its channel title) when more than one is connected, and disconnects that account only: it stops importing, while followed channels and the videos already imported stay. `linear` and `notion` take the workspace as `account_id` (its id, or its name) when more than one is connected, and revoke that workspace only. `apple_calendar` turns the Mac's Calendar off for ForeverLM; every event stays in the calendar. Ask first. |
 | `set_slack_channel_enabled` | `channel_id`, `enabled`, `team_id?` | A Slack channel's switch in Plugins › Slack. |
@@ -6505,6 +6505,18 @@ All notable changes to ForeverLM are documented here. Dates are in YYYY-MM-DD fo
 ForeverLM follows [semantic versioning](https://semver.org) against its public surface: the MCP tool contracts, the knowledge-base/sync format, and licensing compatibility. While the version is 0.x, minor releases may include breaking changes to that surface; patch releases never do.
 
 ## Unreleased
+
+## 0.185.0 (build 265) — 2026-11-02
+
+**Highlights:**
+- **Video and notes side by side in a notebook**: drag a tab to a side, or ask the chat for notes next to the video.
+- **A card's answer check** is no longer stopped by the provider's content filter.
+
+- **A notebook's video and notes can stand side by side.** Drag a tab in the document pane's strip (Video, Pages) to the left or right side, or choose Split Left or Split Right in its menu, and the two documents sit next to each other, for watching on one side and taking notes on the other. The chat steps aside while they do and comes back, with both as tabs again, from its button. Before this the drag only lit the whole pane and did nothing.
+- **The chat can open a Page beside what you are watching.** Asked for "a notes panel next to this video", the chat now makes the Page and puts it on the right of the video or paper, instead of covering it with a tab.
+- **A card's answer check no longer stops on a toxic-sounding subject.** Checking your answer on a card about a chemical such as CCCP came back "could not be checked" because the provider's content filter refused it. The check now asks for no thinking, as the card wording check does.
+- **A long tab title fades out at the end of its tab** instead of ending in an ellipsis.
+- **A source's cleanup no longer fails the whole import on one malformed check reply.** The deletion check asks again, as the plan step does, before it gives up.
 
 ## 0.184.0 (build 264) — 2026-10-30
 

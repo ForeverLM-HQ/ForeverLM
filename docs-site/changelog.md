@@ -6,6 +6,12 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.185.0 (build 265) — 2026-11-02
+
+**Highlights:**
+- **Video and notes side by side in a notebook**: drag a tab to a side, or ask the chat for notes next to the video.
+- **A card's answer check** is no longer stopped by the provider's content filter.
+
 - **A notebook's video and notes can stand side by side.** Drag a tab in the document pane's strip (Video, Pages) to the left or right side, or choose Split Left or Split Right in its menu, and the two documents sit next to each other, for watching on one side and taking notes on the other. The chat steps aside while they do and comes back, with both as tabs again, from its button. Before this the drag only lit the whole pane and did nothing.
 - **The chat can open a Page beside what you are watching.** Asked for "a notes panel next to this video", the chat now makes the Page and puts it on the right of the video or paper, instead of covering it with a tab.
 - **A card's answer check no longer stops on a toxic-sounding subject.** Checking your answer on a card about a chemical such as CCCP came back "could not be checked" because the provider's content filter refused it. The check now asks for no thinking, as the card wording check does.
