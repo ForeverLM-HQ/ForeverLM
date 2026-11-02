@@ -603,6 +603,31 @@ private final class WindowDragBlockerView: NSView {
     override var mouseDownCanMoveWindow: Bool { false }
 }
 
+/// Keeps a window from being moved by the user while a press on a tab in the
+/// titlebar band lasts. AppKit turns a press in the band into a window move
+/// unless the view under it consumes the drags that follow, and for a tab drawn
+/// into the band by a SwiftUI offset it did so even when the press was routed
+/// to the tab and a drag session began (the window followed the pointer, build
+/// 252's TabPress log). `isMovable` is the one switch AppKit honours whatever
+/// view took the press, so the tab sets it for the press and gives it back
+/// when the press ends. Only windows this has locked are given back, and a
+/// tab leaving its window releases it.
+@MainActor
+enum WindowMoveLock {
+    private static var locked = Set<ObjectIdentifier>()
+
+    static func lock(_ window: NSWindow) {
+        guard window.isMovable else { return }
+        locked.insert(ObjectIdentifier(window))
+        window.isMovable = false
+    }
+
+    static func unlock(_ window: NSWindow?) {
+        guard let window, locked.remove(ObjectIdentifier(window)) != nil else { return }
+        window.isMovable = true
+    }
+}
+
 /// What a left press on a tab in the titlebar band came to.
 enum TitlebarBandTabPress {
     case click
@@ -1198,11 +1223,33 @@ final class StudioCenterTabDragHandleView: NSView, NSDraggingSource {
     /// to the click that also brings the window forward.
     override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
+    /// The strip hangs into the band by an offset, so AppKit never hit-tests a
+    /// press to this view; the band's mouse router hands it over instead.
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if window == nil {
+            TitlebarBandHitSurfaceView.unregisterFromBandRouter(self)
+        } else {
+            TitlebarBandHitSurfaceView.registerWithBandRouter(self)
+        }
+    }
+
+    override func viewWillMove(toWindow newWindow: NSWindow?) {
+        // A tab leaving its window mid-press (a closed pane) must not leave
+        // the window pinned.
+        WindowMoveLock.unlock(window)
+        super.viewWillMove(toWindow: newWindow)
+    }
+
     override func mouseDown(with event: NSEvent) {
         guard let window else {
             pendingMouseDown = event
             return
         }
+        // Whatever AppKit does with a press in the band, the window stays
+        // where it is until this press is over: a click, a cancelled press,
+        // or a drag session's end (`draggingSession(_:endedAt:operation:)`).
+        WindowMoveLock.lock(window)
         tabPressLogger.notice("center tab \(self.title, privacy: .public) mouseDown; \(tabPressOrigin(window), privacy: .public)")
         let result = trackTitlebarBandTabPress(event, in: window)
         switch result {
@@ -1211,9 +1258,13 @@ final class StudioCenterTabDragHandleView: NSView, NSDraggingSource {
         case .cancelled: tabPressLogger.notice("center tab press: cancelled; \(tabPressOrigin(window), privacy: .public)")
         }
         switch result {
-        case .click: onActivate()
-        case .drag(let dragged): beginTabDrag(with: dragged)
-        case .cancelled: break
+        case .click:
+            WindowMoveLock.unlock(window)
+            onActivate()
+        case .drag(let dragged):
+            beginTabDrag(with: dragged)
+        case .cancelled:
+            WindowMoveLock.unlock(window)
         }
     }
 
@@ -1290,6 +1341,7 @@ final class StudioCenterTabDragHandleView: NSView, NSDraggingSource {
 
     func draggingSession(_ session: NSDraggingSession, endedAt screenPoint: NSPoint, operation: NSDragOperation) {
         tabPressLogger.notice("center tab drag ended, operation \(operation.rawValue); \(tabPressOrigin(self.window), privacy: .public)")
+        WindowMoveLock.unlock(window)
         // Fires whether or not a drop target accepted, so a drag released over
         // nothing can't strand the strip in "dragging" state.
         onDragEnded()
@@ -2882,13 +2934,16 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
         // The pane's chrome — its minimum width, the band it rises into, the
         // traffic-light clearance for the leftmost group, what overlays its
         // corner, where the close goes — is `StudioPaneHost`'s, shared with
-        // the notebook workspace's slots. The tab strip is the pane's first
-        // row, never part of the titlebar band: a press in the band is the
-        // window's to drag, and a tab dragged there moved the whole window
-        // (product owner, 2026-10-24). While a strip is drawn the band is
-        // cleared so the pane renders its compact in-flow toolbar below it; a
-        // pane with one tab has no strip, and the band passes through to its
-        // header.
+        // the notebook workspace's slots. The tab strip rides in the titlebar
+        // band, as Claude's title does, so the tabs are the top bar (product
+        // owner, 2026-11-02: "tabs at the top of the screen, but when clicking
+        // and dragging them DONT drag the whole ForeverLM console"). A press on
+        // a tab or a drag of one must never move the window: the tab's press
+        // locks the window in place for as long as it lasts
+        // (`WindowMoveLock`), and only the strip's empty tail and the band
+        // beside it still drag it. While a strip is drawn the band is cleared
+        // so the pane renders its compact in-flow toolbar below it. Full
+        // screen has no band: the strip is then the pane's first row.
         let minWidth = StudioPaneHostMetrics.minimumContentWidth(for: group.activeTab)
         let stripOverflow = max(width, minWidth) - width
         let showsStrip = group.showsTabStrip
@@ -2901,7 +2956,7 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
             swapDestinationCount: StudioPaneSwap.centerDestinations.count
         ) {
             VStack(spacing: 0) {
-                if showsStrip {
+                if titlebarBandHeight == nil && showsStrip {
                     strip(for: group, at: index, trailingOverflow: stripOverflow)
                         .frame(height: StudioPanelChrome.headerHeight)
                 }
@@ -2922,6 +2977,13 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                     )
                 }
             )
+        } band: {
+            if let band = titlebarBandHeight, showsStrip {
+                StudioBandRow(band: band) {
+                    strip(for: group, at: index, trailingOverflow: stripOverflow)
+                        .frame(height: band)
+                }
+            }
         }
         // A destination dragged from the sidebar onto this pane shows here,
         // in place of what the pane showed. The edge zones above sit over the
@@ -2997,6 +3059,38 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                     perform: { vm.moveCenterTab($0, toGroup: groupIndex, at: tabIndex, in: windowState) }
                 ))
             }
+            // + adds a tab: what the pane shows now stays one of its tabs
+            // (`replaceCenterPane`), so the pane takes the new place in front.
+            TitlebarBandButton(
+                help: "New tab",
+                accessibilityLabel: "New tab",
+                accessibilityIdentifier: "studio.centerPane.\(groupIndex).newTab",
+                washInset: StudioPaneSwap.washInset,
+                cornerRadius: 6,
+                action: {},
+                menu: { [vm, windowState] in
+                    StudioPaneSwapMenu(
+                        destinations: StudioPaneSwap.newTabDestinations,
+                        current: group.activeTab,
+                        onSelect: { destination in
+                            vm.replaceCenterPane(
+                                at: groupIndex,
+                                with: destination.tab,
+                                startsBlankChat: destination.startsBlankChat,
+                                in: windowState
+                            )
+                        }
+                    )
+                }
+            ) {
+                Image(systemName: "plus")
+                    .zoomedSystemFont(size: 12, weight: .medium)
+                    .foregroundStyle(.secondary)
+                    .frame(
+                        width: StudioPanelChrome.centerTabCloseButtonSize,
+                        height: StudioPanelChrome.centerTabCloseButtonSize
+                    )
+            }
             if dropTarget == .stripEnd(group: groupIndex) {
                 dropIndicatorCapsule
             }
@@ -3043,11 +3137,11 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                 .offset(x: -trailingOverflow)
             }
         }
-        // In full screen there is no band: ‹ › and the sidebar toggle stand on
-        // this very row at the window's leading edge, so the leftmost pane's
-        // first tab starts after them rather than under them (product owner,
+        // The leftmost pane's first tab starts after what the leading edge
+        // holds: the traffic lights in the band, and in full screen ‹ › and
+        // the sidebar toggle, which stand on this very row (product owner,
         // 2026-10-25: the Chat tab sat on the toggle).
-        .padding(.leading, titlebarBandHeight == nil && groupIndex == 0
+        .padding(.leading, groupIndex == 0
             ? max(StudioTopBar.centerTabStripHorizontalPadding, headerLeadingInset)
             : StudioTopBar.centerTabStripHorizontalPadding)
         .padding(.trailing, StudioTopBar.centerTabStripHorizontalPadding)
@@ -3941,6 +4035,9 @@ struct NotebookSlotTabStrip: View {
     /// Split Left / Split Right in a tab's menu: the tab stands beside the
     /// slot's other document.
     var onSplit: (StudioCenterTab, Bool) -> Void = { _, _ in }
+    /// What the strip's + offers, and what it does with the pick.
+    var newTabDestinations: [StudioPaneSwap.Destination] = []
+    var onNewTab: (StudioPaneSwap.Destination) -> Void = { _ in }
 
     var body: some View {
         HStack(spacing: 2) {
@@ -3960,6 +4057,27 @@ struct NotebookSlotTabStrip: View {
                     onClose: { withAnimation(.easeInOut(duration: 0.16)) { onCloseTab(tab) } }
                 )
                 .accessibilityIdentifier("notebook.document.tab.\(tab.rawValue)")
+            }
+            if !newTabDestinations.isEmpty {
+                TitlebarBandButton(
+                    help: "New tab",
+                    accessibilityLabel: "New tab",
+                    accessibilityIdentifier: "notebook.document.newTab",
+                    washInset: StudioPaneSwap.washInset,
+                    cornerRadius: 6,
+                    action: {},
+                    menu: { [newTabDestinations, activeTab, onNewTab] in
+                        StudioPaneSwapMenu(destinations: newTabDestinations, current: activeTab, onSelect: onNewTab)
+                    }
+                ) {
+                    Image(systemName: "plus")
+                        .zoomedSystemFont(size: 12, weight: .medium)
+                        .foregroundStyle(.secondary)
+                        .frame(
+                            width: StudioPanelChrome.centerTabCloseButtonSize,
+                            height: StudioPanelChrome.centerTabCloseButtonSize
+                        )
+                }
             }
             Color.clear
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -3985,6 +4103,18 @@ struct NotebookSlotTabStrip: View {
         .padding(.leading, max(StudioTopBar.centerTabStripHorizontalPadding, leadingClearance))
         .padding(.trailing, StudioTopBar.centerTabStripHorizontalPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}
+
+/// `strip` hung in the titlebar band over a pane, on the band's chrome.
+struct NotebookSlotTabBand: View {
+    let band: CGFloat
+    let strip: NotebookSlotTabStrip
+
+    var body: some View {
+        StudioBandRow(band: band) {
+            strip.frame(height: band)
+        }
     }
 }
 

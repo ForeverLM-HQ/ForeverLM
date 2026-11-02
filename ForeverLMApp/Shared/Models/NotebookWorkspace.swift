@@ -395,11 +395,12 @@ extension NotebookWorkspace {
         return tabs
     }
 
-    /// Whether the slot draws a tab strip: two documents or more are open in
-    /// it and one of them is showing.
+    /// Whether the slot draws a tab strip: always while a document a center
+    /// tab reaches is showing, one document included, as every pane does
+    /// (docs/ui-design.md rule 8). A chat's picture, which has no tab, draws
+    /// none.
     var slotShowsTabStrip: Bool {
-        guard let document, document.centerTab != nil else { return false }
-        return slotTabStrip.count > 1
+        document?.centerTab != nil
     }
 
     /// Closes `tab` in the slot, an inactive tab included. The slot then

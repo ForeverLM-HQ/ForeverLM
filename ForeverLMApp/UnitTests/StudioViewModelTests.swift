@@ -5029,7 +5029,8 @@ struct ScheduleChatNavigationTests {
                 activeTab: .notepad
             ),
         ])
-        #expect(!vm.centerTabGroups.groups[0].showsTabStrip)
+        // Every pane draws its strip, a lone tab's included.
+        #expect(vm.centerTabGroups.groups[0].showsTabStrip)
 
         vm.activateCenterTab(.artifacts)
 

@@ -190,9 +190,12 @@ struct StudioCenterTabGroups: Equatable {
             }
         }
 
-        /// Whether the pane draws its strip: two tabs or more. A pane with one
-        /// tab shows it alone, with its own header in the titlebar band.
-        var showsTabStrip: Bool { openTabs.count > 1 }
+        /// Whether the pane draws its strip: always. Every pane is a tab, a
+        /// lone one included, so it can be dragged, closed and added to with
+        /// the strip's + (product owner, 2026-11-02: "every pane should
+        /// always be a tab ... and i should be able to add additional
+        /// tabs"). Until then a pane with one tab drew none.
+        var showsTabStrip: Bool { true }
 
         /// Takes `tab` out of the pane, its strip included. When it was the
         /// active tab the pane shows its neighbour in the strip — the tab to

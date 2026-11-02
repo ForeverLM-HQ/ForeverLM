@@ -76,6 +76,12 @@ enum StudioPaneSwap {
         offered([.init(tab: .chat), .init(tab: .library), .init(tab: .memory), .init(tab: .browser), .init(tab: .notepad)])
     }
 
+    /// What a pane's + offers as a new tab: the places a pane most often
+    /// becomes, and the Space.
+    static var newTabDestinations: [Destination] {
+        offered(centerDestinations + [.init(tab: .artifacts)])
+    }
+
     /// What a notebook's document slot can become. Chat is the notebook's own
     /// slot and the Library leaves the notebook, so neither is offered there.
     static var notebookDocumentDestinations: [Destination] {
@@ -315,7 +321,7 @@ struct StudioPaneSwapAffordance: ViewModifier {
 /// overlays its top-right corner, and where the close goes. A pane's band
 /// header, its × and its trailing reservations therefore work the same in
 /// either shell.
-struct StudioPaneHost<Content: View, Corner: View>: View {
+struct StudioPaneHost<Content: View, Corner: View, Band: View>: View {
     @Environment(\.studioTitlebarBandHeight) private var titlebarBandHeight
 
     /// What the pane shows, which sets its minimum width and its close's.
@@ -338,6 +344,8 @@ struct StudioPaneHost<Content: View, Corner: View>: View {
     @ViewBuilder let content: () -> Content
     /// Drawn over the pane's top-right corner, given where it goes.
     @ViewBuilder let corner: (StudioPaneHostCorner) -> Corner
+    /// Drawn over the pane's top edge in the band (a visible tab strip).
+    @ViewBuilder let band: () -> Band
     /// The pointer over the pane, for the quiet corner chrome.
     @State private var pointer = StudioHoverLinger()
 
@@ -349,7 +357,8 @@ struct StudioPaneHost<Content: View, Corner: View>: View {
         bandPassesThrough: Bool = true,
         swapDestinationCount: Int = 0,
         @ViewBuilder content: @escaping () -> Content,
-        @ViewBuilder corner: @escaping (StudioPaneHostCorner) -> Corner
+        @ViewBuilder corner: @escaping (StudioPaneHostCorner) -> Corner,
+        @ViewBuilder band: @escaping () -> Band
     ) {
         self.activeTab = activeTab
         self.width = width
@@ -359,6 +368,7 @@ struct StudioPaneHost<Content: View, Corner: View>: View {
         self.swapDestinationCount = swapDestinationCount
         self.content = content
         self.corner = corner
+        self.band = band
     }
 
     var body: some View {
@@ -438,6 +448,9 @@ struct StudioPaneHost<Content: View, Corner: View>: View {
                             self.corner(corner)
                         }
                     }
+                    .overlay(alignment: .top) {
+                        band()
+                    }
             }
             .clipShape(StudioPanelColumnClipShape())
             .allowsHitTesting(width > 1)
@@ -457,7 +470,7 @@ struct StudioPaneHost<Content: View, Corner: View>: View {
     }
 }
 
-extension StudioPaneHost where Corner == EmptyView {
+extension StudioPaneHost where Corner == EmptyView, Band == EmptyView {
     /// A pane with nothing of the host's own over its corner: a notebook
     /// slot, whose only corner control is the pane's own close.
     init(
@@ -473,7 +486,33 @@ extension StudioPaneHost where Corner == EmptyView {
             enclosingClip: enclosingClip,
             leadingReservation: leadingReservation,
             content: content,
-            corner: { _ in EmptyView() }
+            corner: { _ in EmptyView() },
+            band: { EmptyView() }
+        )
+    }
+}
+
+extension StudioPaneHost where Band == EmptyView {
+    /// A pane with a corner control of its own and no strip: a notebook's
+    /// document slot, which draws the swap control.
+    init(
+        activeTab: StudioCenterTab,
+        width: CGFloat,
+        enclosingClip: CGFloat = 0,
+        leadingReservation: CGFloat = 0,
+        swapDestinationCount: Int,
+        @ViewBuilder content: @escaping () -> Content,
+        @ViewBuilder corner: @escaping (StudioPaneHostCorner) -> Corner
+    ) {
+        self.init(
+            activeTab: activeTab,
+            width: width,
+            enclosingClip: enclosingClip,
+            leadingReservation: leadingReservation,
+            swapDestinationCount: swapDestinationCount,
+            content: content,
+            corner: corner,
+            band: { EmptyView() }
         )
     }
 }

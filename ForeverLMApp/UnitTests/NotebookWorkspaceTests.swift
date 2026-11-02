@@ -176,12 +176,12 @@ struct NotebookWorkspaceTests {
             == NotebookWorkspace(notebookID: "bio", document: .browser, slotTabs: [.docs, .reader, .browser]))
     }
 
-    @Test("Documents opened in the slot stay open as tabs, and a strip shows from two")
+    @Test("Documents opened in the slot stay open as tabs, and the strip shows for one too")
     func slotKeepsDocumentsAsTabs() throws {
         let bare = NotebookWorkspace(notebookID: "bio")
         let reader = try #require(bare.following(.document(.reader)))
         #expect(reader.slotTabStrip == [.reader])
-        #expect(!reader.slotShowsTabStrip, "one document is no strip")
+        #expect(reader.slotShowsTabStrip, "a lone document draws its tab, as every pane does")
 
         let withDocs = try #require(reader.following(.document(.docs)))
         #expect(withDocs.document == .docs)
@@ -238,7 +238,7 @@ struct NotebookWorkspaceTests {
         #expect(right.leadingDocument == .reader)
         #expect(right.splitDocument == .reader)
         #expect(right.document == .docs)
-        #expect(right.slotTabStrip == [.docs] && !right.slotShowsTabStrip)
+        #expect(right.slotTabStrip == [.docs] && right.slotShowsTabStrip)
         #expect(right.visibleDocuments == [.reader, .docs])
         #expect(right.centerPaneCount == 3)
         // Notes dragged to the left.
