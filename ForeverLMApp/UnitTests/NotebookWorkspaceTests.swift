@@ -196,6 +196,35 @@ struct NotebookWorkspaceTests {
         #expect(three.slotTabStrip == [.reader, .docs, .browser])
     }
 
+    @Test("A tabbed notebook is an arrangement: it survives a relaunch and an older snapshot reads as untabbed")
+    func tabbedNotebook() throws {
+        let fresh = NotebookWorkspace(notebookID: "bio")
+        #expect(!fresh.tabbed)
+        let tabbed = NotebookWorkspace(notebookID: "bio", document: .reader, tabbed: true)
+        // The arrangement stays, the moment (the document) goes.
+        #expect(tabbed.persisted.tabbed)
+        #expect(tabbed.persisted.document == nil)
+        let data = try JSONEncoder().encode(tabbed)
+        #expect(try JSONDecoder().decode(NotebookWorkspace.self, from: data).tabbed)
+        // A snapshot an earlier build wrote names no such key.
+        let older = Data(#"{"notebookID":"bio","showsChat":true}"#.utf8)
+        #expect(try JSONDecoder().decode(NotebookWorkspace.self, from: older).tabbed == false)
+    }
+
+    @Test("A tabbed notebook's center is the window's panes, so its minimum is theirs")
+    func tabbedCenterMinimum() {
+        let tabbed = NotebookWorkspace(notebookID: "bio", tabbed: true)
+        #expect(NotebookWorkspaceSizing.centerMinimumWidth(for: tabbed, panesMinimum: 900) == 900)
+        // Without the panes' minimum, one chat's width.
+        #expect(
+            NotebookWorkspaceSizing.centerMinimumWidth(for: tabbed)
+                == StudioCenterTabGroupSizing.minimumChatContentWidth
+        )
+        // The slot's rule is unchanged for an ordinary notebook.
+        let ordinary = NotebookWorkspace(notebookID: "bio")
+        #expect(NotebookWorkspaceSizing.centerMinimumWidth(for: ordinary, panesMinimum: 900) != 900)
+    }
+
     @Test("A slot tab dragged to a side stands beside the other document, Chat steps aside, and Chat coming back makes them tabs again")
     func splittingTheSlot() throws {
         var pair = NotebookWorkspace(notebookID: "bio")

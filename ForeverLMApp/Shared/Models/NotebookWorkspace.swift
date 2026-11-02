@@ -59,6 +59,17 @@ struct NotebookWorkspace: Codable, Equatable {
     /// default since 2026-10-04, and the divider's swap button flips it. An
     /// arrangement, so `persisted` keeps it.
     var documentLeads: Bool
+    /// Whether the center is the window's own tabbed panes instead of the
+    /// chat and one document slot: the notebook's Sources and Studio columns
+    /// stand around the panes the window already had (a chat, the Space, a
+    /// video, notes), which a learner splits, drags and closes as anywhere
+    /// else (docs/ui-design.md rule 8). Set when a notebook opens in a window
+    /// that was showing two panes or more, so opening a notebook from the
+    /// Space no longer takes the window from the chat beside it. While it
+    /// is set the slot and the notebook routing are not used
+    /// (`StudioWindowState.holdsNotebookSlot`). An arrangement, so `persisted`
+    /// keeps it.
+    var tabbed: Bool
 
     /// The defaults are a notebook as it first opens: its chat showing, both
     /// columns open, nothing in the document slot.
@@ -72,7 +83,8 @@ struct NotebookWorkspace: Codable, Equatable {
         sourcesCollapsed: Bool = false,
         sourcesExpanded: Bool = false,
         studioCollapsed: Bool = false,
-        documentLeads: Bool = true
+        documentLeads: Bool = true,
+        tabbed: Bool = false
     ) {
         self.notebookID = notebookID
         self.document = document
@@ -84,6 +96,7 @@ struct NotebookWorkspace: Codable, Equatable {
         self.sourcesExpanded = sourcesExpanded
         self.studioCollapsed = studioCollapsed
         self.documentLeads = documentLeads
+        self.tabbed = tabbed
     }
 
     /// Whether the document is drawn to the chat's left: only while both
@@ -122,7 +135,7 @@ struct NotebookWorkspace: Codable, Equatable {
     /// the Studio alone, and About is the notebook's settings sheet.
     private enum CodingKeys: String, CodingKey {
         case notebookID, document, leadingDocument, returnDocument
-        case showsChat, sourcesCollapsed, documentLeads
+        case showsChat, sourcesCollapsed, documentLeads, tabbed
         case studioCollapsed = "trailingCollapsed"
         /// The key a window's snapshot carried before a notebook stopped being
         /// called a project; read, never written.
@@ -151,6 +164,7 @@ struct NotebookWorkspace: Codable, Equatable {
         studioCollapsed = try container.decodeIfPresent(Bool.self, forKey: .studioCollapsed)
             ?? fresh.studioCollapsed
         documentLeads = try container.decodeIfPresent(Bool.self, forKey: .documentLeads) ?? fresh.documentLeads
+        tabbed = try container.decodeIfPresent(Bool.self, forKey: .tabbed) ?? fresh.tabbed
         // A chat on screen has the chat's place to itself.
         if showsChat { leadingDocument = nil }
     }
@@ -165,6 +179,7 @@ struct NotebookWorkspace: Codable, Equatable {
         try container.encode(sourcesCollapsed, forKey: .sourcesCollapsed)
         try container.encode(studioCollapsed, forKey: .studioCollapsed)
         try container.encode(documentLeads, forKey: .documentLeads)
+        try container.encode(tabbed, forKey: .tabbed)
     }
 }
 

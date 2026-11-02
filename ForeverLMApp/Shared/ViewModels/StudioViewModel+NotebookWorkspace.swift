@@ -31,7 +31,7 @@ extension StudioViewModel {
     /// The center tabs on screen in `windowState`: what its notebook's center
     /// shows while it holds one, otherwise each pane's active tab.
     func visibleCenterTabs(in windowState: StudioWindowState) -> Set<StudioCenterTab> {
-        if let notebook = windowState.notebook { return notebook.visibleTabs }
+        if let notebook = windowState.notebook, !notebook.tabbed { return notebook.visibleTabs }
         return Set(windowState.centerTabGroups.groups.map(\.activeTab))
     }
 
@@ -47,7 +47,9 @@ extension StudioViewModel {
     /// as `activateCenterTab` does for the panes.
     @discardableResult
     func routeIntoNotebook(_ tab: StudioCenterTab, in destination: StudioWindowState) -> Bool {
-        guard let notebook = destination.notebook else { return false }
+        // A tabbed notebook has no slot: its panes take the request as a
+        // window with no notebook does, and the notebook stays.
+        guard let notebook = destination.notebook, !notebook.tabbed else { return false }
         let route = NotebookWorkspace.route(tab, coursePageID: destination.coursePageID)
         guard let next = notebook.following(route) else {
             destination.notebook = nil
@@ -66,7 +68,7 @@ extension StudioViewModel {
     /// the chat's place or the slot goes, or Chat hides and the center shows
     /// the notebook's overview.
     func closeInNotebook(_ tab: StudioCenterTab, in destination: StudioWindowState) {
-        guard let notebook = destination.notebook else { return }
+        guard let notebook = destination.notebook, !notebook.tabbed else { return }
         let next = notebook.closing(tab)
         if next != notebook { destination.notebook = next }
     }
@@ -80,7 +82,7 @@ extension StudioViewModel {
         toTrailing: Bool,
         in destination: StudioWindowState
     ) {
-        guard let notebook = destination.notebook,
+        guard let notebook = destination.notebook, !notebook.tabbed,
               let next = notebook.splittingSlot(moving: tab, toTrailing: toTrailing) else { return }
         if destination.memoryReviewFocusYields(to: tab) { leaveMemoryReviewFocus(in: destination) }
         destination.notebook = next
@@ -97,7 +99,7 @@ extension StudioViewModel {
             return
         }
         let window = activeWindowState
-        if window.notebook != nil {
+        if window.holdsNotebookSlot {
             revealArtifact(artifactID, in: window)
             splitNotebookSlot(artifactSection(of: artifactID).centerTab, toTrailing: true, in: window)
         } else {
@@ -112,7 +114,7 @@ extension StudioViewModel {
     /// window of its own.
     @discardableResult
     func dockPicture(_ picture: DockedChatPicture, in destination: StudioWindowState) -> Bool {
-        guard let notebook = destination.notebook,
+        guard let notebook = destination.notebook, !notebook.tabbed,
               let next = notebook.following(.document(.picture)) else { return false }
         destination.dockedPicture = picture
         if next != notebook { destination.notebook = next }
@@ -121,7 +123,7 @@ extension StudioViewModel {
 
     /// The picture pane's ×: the document slot empties.
     func closePictureInNotebook(in destination: StudioWindowState) {
-        guard let notebook = destination.notebook else { return }
+        guard let notebook = destination.notebook, !notebook.tabbed else { return }
         let next = notebook.closingPicture()
         if next != notebook { destination.notebook = next }
     }
@@ -129,7 +131,7 @@ extension StudioViewModel {
     /// The Reader's "Back to …" in `destination`'s notebook: the document
     /// slot shows again what the Reader took it from.
     func returnInNotebook(in destination: StudioWindowState) {
-        guard let notebook = destination.notebook else { return }
+        guard let notebook = destination.notebook, !notebook.tabbed else { return }
         let next = notebook.returning()
         if next != notebook { destination.notebook = next }
     }
@@ -191,6 +193,14 @@ extension StudioViewModel {
     /// The window opens the notebook as it last left it, if it did
     /// (`StudioWindowState.notebookLeft`): its faces and folds.
     ///
+    /// A window showing two panes or more (the Space beside a chat) keeps
+    /// them: the notebook opens tabbed (`NotebookWorkspace.tabbed`), its
+    /// Sources and Studio columns around the panes, so a notebook is one more
+    /// thing beside the rest and not the whole window. A window already
+    /// holding a notebook keeps how it held it, and `keepsPanes` is false for
+    /// a window being opened (`openNotebookOrSpaceInNewWindow`), whose saved
+    /// layout is not the learner's to have just arranged.
+    ///
     /// `startsNotebookChat` is false when the caller opens a chat of its own
     /// (a resumed chat's home, the rail's per-notebook New chat), or when the
     /// open comes from work finishing in the background, which must not swap
@@ -198,7 +208,8 @@ extension StudioViewModel {
     func openNotebook(
         _ notebookID: String,
         in destinationWindowState: StudioWindowState? = nil,
-        startsNotebookChat: Bool = true
+        startsNotebookChat: Bool = true,
+        keepsPanes: Bool = true
     ) {
         let destination = destinationWindowState ?? activeWindowState
         if destination.isVoiceWorkspacePresented { destination.isVoiceWorkspacePresented = false }
@@ -206,7 +217,10 @@ extension StudioViewModel {
             leaveMemoryReviewFocus(in: destination)
         }
         let wasHolding = destination.NotebookID
+        let tabbed = destination.notebook?.tabbed
+            ?? (keepsPanes && destination.centerTabGroups.groups.count > 1)
         destination.NotebookID = notebookID
+        if destination.notebook?.tabbed != tabbed { destination.notebook?.tabbed = tabbed }
         if importableNotebook(notebookID) != nil, activeNotebookId != notebookID {
             activeNotebookId = notebookID
         }

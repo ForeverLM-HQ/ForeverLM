@@ -99,7 +99,7 @@ struct StudioView: View {
     private func goldenSideWidth(windowWidth: CGFloat) -> CGFloat {
         StudioPanelDefaultSizing.goldenSideWidth(
             windowWidth: windowWidth,
-            centerPaneCount: windowState.notebook.map { max(1, $0.centerPaneCount) }
+            centerPaneCount: windowState.notebook.flatMap { $0.tabbed ? nil : max(1, $0.centerPaneCount) }
                 ?? windowState.centerTabGroups.groups.count
         )
     }
@@ -162,7 +162,11 @@ struct StudioView: View {
         max(
             StudioOuterPanelSizing.minimumContentWidth,
             windowState.notebook.map {
-                NotebookWorkspaceSizing.minimumWidth(for: $0, studioShows: !windowState.isDockedReaderImmersive)
+                NotebookWorkspaceSizing.minimumWidth(
+                    for: $0,
+                    studioShows: !windowState.isDockedReaderImmersive,
+                    panesMinimum: windowState.notebookPanesMinimum
+                )
             } ?? StudioCenterTabGroupSizing.minimumWidth(for: windowState.centerTabGroups.groups)
         )
     }
@@ -190,7 +194,9 @@ struct StudioView: View {
         }
         // The notebook's center only: a column the learner unfolds is theirs,
         // and must not fold straight back in a narrow window.
-        .onChange(of: windowState.notebook.map(NotebookWorkspaceSizing.centerMinimumWidth(for:))) { _, _ in
+        .onChange(of: windowState.notebook.map {
+            NotebookWorkspaceSizing.centerMinimumWidth(for: $0, panesMinimum: windowState.notebookPanesMinimum)
+        }) { _, _ in
             makeRoomForCenterPanes(totalWidth: totalWidth, animated: true)
         }
         .onAppear {
@@ -227,7 +233,8 @@ struct StudioView: View {
         let folds = NotebookWorkspaceSizing.folds(
             for: notebook,
             totalWidth: totalWidth,
-            studioShows: !windowState.isDockedReaderImmersive
+            studioShows: !windowState.isDockedReaderImmersive,
+            panesMinimum: windowState.notebookPanesMinimum
         )
         guard folds.sources || folds.studio else { return }
         let changes = {
@@ -271,7 +278,18 @@ struct StudioView: View {
                 NotebookWorkspaceView(
                     workspace: notebook,
                     chat: { AnyView(dockedChatPanel) },
-                    document: { document in AnyView(notebookDocumentContent(document)) }
+                    document: { document in AnyView(notebookDocumentContent(document)) },
+                    panes: {
+                        AnyView(
+                            StudioCenterTabGroupsView(
+                                onSessionDropAtEdge: { transfer, leading in
+                                    openChatBeside(transfer.sessionID, atLeadingEdge: leading)
+                                }
+                            ) { tab in
+                                centerTabContent(tab)
+                            }
+                        )
+                    }
                 )
                 .transition(.opacity)
             } else {

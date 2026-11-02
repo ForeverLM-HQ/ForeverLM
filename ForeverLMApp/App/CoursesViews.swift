@@ -334,7 +334,7 @@ struct CoursePageView: View {
             VStack(alignment: .leading, spacing: StudioDesign.Spacing.large) {
                 // In a notebook the page is a document in its slot, and the
                 // course list has no place there: its × closes it.
-                if windowState.notebook == nil {
+                if !windowState.holdsNotebookSlot {
                     backButton
                 }
                 CoursePageHeader(courseID: courseID, path: path, gate: gate)

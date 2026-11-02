@@ -397,7 +397,7 @@ extension StudioViewModel {
     /// its × does. Outside one, the pane shows the list of courses in the
     /// page's place.
     func closeCoursePage(in windowState: StudioWindowState) {
-        if windowState.notebook != nil {
+        if windowState.holdsNotebookSlot {
             closeInNotebook(.courses, in: windowState)
             windowState.coursePageID = nil
             return

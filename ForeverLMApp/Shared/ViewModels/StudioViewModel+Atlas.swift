@@ -33,7 +33,7 @@ extension StudioViewModel {
         let window = activeWindowState
         let visible = visibleCenterTabs(in: window)
         guard !visible.contains(.atlas) else { return }
-        if window.notebook == nil,
+        if !window.holdsNotebookSlot,
            let companion = [StudioCenterTab.knowledgeMap, .chat].first(where: { visible.contains($0) }) {
             revealCenterTab(.atlas, beside: companion, in: window)
         } else {

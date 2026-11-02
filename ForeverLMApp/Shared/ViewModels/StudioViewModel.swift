@@ -2532,7 +2532,7 @@ class StudioViewModel {
         in destinationWindowState: StudioWindowState? = nil
     ) {
         let destination = destinationWindowState ?? activeWindowState
-        guard destination.notebook == nil else {
+        guard !destination.holdsNotebookSlot else {
             dismissCenterSurface(tab, in: destination)
             return
         }
@@ -2605,7 +2605,7 @@ class StudioViewModel {
         let destination = destinationWindowState ?? activeWindowState
         // In a notebook the document slot empties, or Chat hides; a tab the
         // notebook does not show is not on screen to hide.
-        if destination.notebook != nil {
+        if destination.holdsNotebookSlot {
             closeInNotebook(tab, in: destination)
             return
         }
@@ -2678,7 +2678,7 @@ class StudioViewModel {
             session.besideSourceID = nil
             return
         }
-        if destination.notebook != nil {
+        if destination.holdsNotebookSlot {
             // A lone notebook chat playing a walk ends the walk on New chat,
             // as a lone chat pane does; every other × closes its slot.
             if tab == .chat, destination.notebook?.document == nil,
@@ -2951,7 +2951,7 @@ class StudioViewModel {
 
     func dismissSecondaryChatPane(in destinationWindowState: StudioWindowState? = nil) {
         let destination = destinationWindowState ?? activeWindowState
-        if destination.notebook != nil {
+        if destination.holdsNotebookSlot {
             closeInNotebook(.secondaryChat, in: destination)
             return
         }
@@ -2991,7 +2991,7 @@ class StudioViewModel {
         let window = activeWindowState
         // A card review shows no chat: asking for one is the learner going.
         if window.memoryCardSession != nil { leaveMemoryReviewFocus(in: window) }
-        if let notebook = window.notebook {
+        if let notebook = window.notebook, !notebook.tabbed {
             if let next = notebook.revealing(.chat, beside: companion, coursePageID: window.coursePageID),
                next != notebook {
                 window.notebook = next
@@ -3077,7 +3077,7 @@ class StudioViewModel {
         // In a notebook the tab takes the chat or the document slot, the
         // companion kept beside it; a tab with no place in a notebook leaves
         // it, and the panes underneath take the request as before.
-        if let notebook = destination.notebook {
+        if let notebook = destination.notebook, !notebook.tabbed {
             if let next = notebook.revealing(tab, beside: companion, coursePageID: destination.coursePageID) {
                 if destination.memoryReviewFocusYields(to: tab) {
                     leaveMemoryReviewFocus(in: destination)

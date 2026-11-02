@@ -951,6 +951,17 @@ final class StudioWindowState: Identifiable {
             notebook = next
         }
     }
+    /// Whether the window holds a notebook whose center is the chat and one
+    /// document slot, which every center-tab request then routes into
+    /// (`StudioViewModel.routeIntoNotebook`). False for a window with no
+    /// notebook, and for a tabbed one (`NotebookWorkspace.tabbed`), whose
+    /// center is the window's own panes and takes requests as a window with
+    /// no notebook does.
+    var holdsNotebookSlot: Bool {
+        guard let notebook else { return false }
+        return !notebook.tabbed
+    }
+
     /// The chat this window last had open in each notebook it held, by
     /// Notebook id: reopening a notebook here reopens its chat rather than
     /// starting over (`StudioViewModel.openNotebook`). Kept on the window and

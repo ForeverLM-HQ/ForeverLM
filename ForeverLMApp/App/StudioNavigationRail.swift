@@ -510,7 +510,7 @@ struct StudioNavigationRail: View {
 
     /// Whether the primary chat is on screen in `windowState`, in either shell.
     static func isChatVisible(in windowState: StudioWindowState) -> Bool {
-        if let notebook = windowState.notebook {
+        if let notebook = windowState.notebook, !notebook.tabbed {
             return isChatVisible(notebook: notebook, chatPoppedOut: windowState.isChatPoppedOut)
         }
         return isChatVisible(layout: windowState.centerTabGroups, chatPoppedOut: windowState.isChatPoppedOut)
@@ -541,7 +541,7 @@ struct StudioNavigationRail: View {
         comparison: String?,
         in windowState: StudioWindowState
     ) -> Set<String> {
-        if let notebook = windowState.notebook {
+        if let notebook = windowState.notebook, !notebook.tabbed {
             return highlightedSessionIDs(
                 primary: primary,
                 comparison: comparison,
@@ -1576,7 +1576,7 @@ struct StudioNavigationRail: View {
     /// Whether this window shows the place: the Space on that place (its
     /// list, not a page opened from it), or the Courses pane.
     private func isShowing(_ shortcut: StudioRailShortcut) -> Bool {
-        guard windowState.notebook == nil, !windowState.isVoiceWorkspacePresented else { return false }
+        guard !windowState.holdsNotebookSlot, !windowState.isVoiceWorkspacePresented else { return false }
         let activeTabs = windowState.centerTabGroups.groups.map(\.activeTab)
         switch shortcut {
         case .place(let place):

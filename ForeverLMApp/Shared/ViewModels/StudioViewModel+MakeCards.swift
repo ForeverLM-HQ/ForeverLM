@@ -139,7 +139,7 @@ extension StudioViewModel {
     @discardableResult
     func placeCardDrafts(scope: MemoryReviewScope, in window: StudioWindowState) -> Bool {
         switch CardDraftsPlacement.place(
-            notebook: window.notebook,
+            notebook: window.holdsNotebookSlot ? window.notebook : nil,
             panes: window.centerTabGroups,
             isInMemoryFocus: window.memoryReviewFocus != nil
         ) {

@@ -596,7 +596,7 @@ struct StudioDockedAssistantPanel: View {
             headerLeadingChromeClearance: max(0, headerLeadingInset - Self.hostInset),
             // A sole chat takes the wider reading column: alone in the
             // center, or a notebook's chat with nothing in its document slot.
-            expandsChatContent: windowState.notebook.map { $0.document == nil }
+            expandsChatContent: windowState.notebook.flatMap { $0.tabbed ? nil : $0.document == nil }
                 ?? (windowState.centerTabGroups.groups.count == 1),
             acceptsGlobalNavigationRequests: acceptsGlobalNavigationRequests,
             ownerWindowID: windowState.id,

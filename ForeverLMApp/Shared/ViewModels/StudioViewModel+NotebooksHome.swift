@@ -54,7 +54,7 @@ extension StudioViewModel {
     func openNotebookOrSpaceInNewWindow(_ window: StudioWindowState) {
         guard window.notebook == nil, window.memoryReviewFocus == nil else { return }
         if let notebookID = notebookForNewWindow() {
-            openNotebook(notebookID, in: window)
+            openNotebook(notebookID, in: window, keepsPanes: false)
         } else {
             presentSpace(in: window)
         }
@@ -96,7 +96,7 @@ extension StudioViewModel {
         if tab == .courses {
             destination.coursePageID = nil
         }
-        if destination.notebook == nil, destination.memoryReviewFocus == nil,
+        if !destination.holdsNotebookSlot, destination.memoryReviewFocus == nil,
            let layout = destination.centerTabGroups.showingSpaceTab(tab, coursesShowsList: destination.coursePageID == nil) {
             if layout != destination.centerTabGroups { destination.centerTabGroups = layout }
             return

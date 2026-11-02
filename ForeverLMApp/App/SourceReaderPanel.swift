@@ -677,7 +677,7 @@ struct SourceReaderPanel: View {
     /// Reader has read nothing since it took the pane, or nothing at all.
     private var backReturnsToCoveredPane: Bool {
         guard !isSecondaryReader, overrideArticleId == nil, !vm.readerPoppedOut,
-              windowState.notebook == nil, windowState.memoryCardSession == nil,
+              !windowState.holdsNotebookSlot, windowState.memoryCardSession == nil,
               !articleReaderChrome.canGoBack, !isDisplayingExternalPage,
               windowState.readerCover != nil else { return false }
         return windowState.readerBackReturnsToCover || !canNavigateToPreviousSource

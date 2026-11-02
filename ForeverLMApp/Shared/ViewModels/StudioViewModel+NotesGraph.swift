@@ -125,7 +125,7 @@ extension StudioViewModel {
             return
         }
         let window = activeWindowState
-        if window.notebook != nil {
+        if window.holdsNotebookSlot {
             // A notebook has no place for Ideas: the window leaves it for
             // its panes, as every way to Ideas does.
             activateCenterTab(.ideas, in: window)

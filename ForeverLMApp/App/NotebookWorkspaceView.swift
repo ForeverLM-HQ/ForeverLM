@@ -119,7 +119,10 @@ enum NotebookWorkspaceSizing {
 
     /// The center's minimum: the left pane and the document side by side, or
     /// the one of them that shows, or the overview's chat-wide column.
-    static func centerMinimumWidth(for workspace: NotebookWorkspace) -> CGFloat {
+    /// A tabbed notebook's center is the window's own panes, whose minimum
+    /// (`panesMinimum`, `StudioWindowState.notebookPanesMinimum`) stands in.
+    static func centerMinimumWidth(for workspace: NotebookWorkspace, panesMinimum: CGFloat? = nil) -> CGFloat {
+        if workspace.tabbed { return panesMinimum ?? StudioCenterTabGroupSizing.minimumChatContentWidth }
         let leading = leadingMinimumWidth(for: workspace)
         let document = workspace.document.map(minimumWidth(of:)) ?? 0
         guard leading > 0 || document > 0 else { return StudioCenterTabGroupSizing.minimumChatContentWidth }
@@ -142,9 +145,13 @@ enum NotebookWorkspaceSizing {
 
     /// The whole workspace's minimum: both side columns as they are, open or
     /// folded, and the center's panes.
-    static func minimumWidth(for workspace: NotebookWorkspace, studioShows: Bool = true) -> CGFloat {
+    static func minimumWidth(
+        for workspace: NotebookWorkspace,
+        studioShows: Bool = true,
+        panesMinimum: CGFloat? = nil
+    ) -> CGFloat {
         sourcesFootprint(for: workspace)
-            + centerMinimumWidth(for: workspace)
+            + centerMinimumWidth(for: workspace, panesMinimum: panesMinimum)
             + studioFootprint(for: workspace, studioShows: studioShows)
     }
 
@@ -161,7 +168,8 @@ enum NotebookWorkspaceSizing {
         for workspace: NotebookWorkspace,
         totalWidth: CGFloat,
         studioShows: Bool = true,
-        sourcesPreferredWidth: CGFloat? = nil
+        sourcesPreferredWidth: CGFloat? = nil,
+        panesMinimum: CGFloat? = nil
     ) -> (sources: CGFloat, center: CGFloat, studio: CGFloat) {
         let share = sideWidth(totalWidth: totalWidth)
         let open = openSourcesWidth(totalWidth: totalWidth, preferredWidth: sourcesPreferredWidth)
@@ -170,7 +178,7 @@ enum NotebookWorkspaceSizing {
         let studioOpen = studioShows && !workspace.studioCollapsed
         var studio = studioOpen ? (expanded ? sideMinimumWidth : share) : 0
         let separators = (workspace.sourcesCollapsed ? 0 : separatorWidth) + (studioOpen ? separatorWidth : 0)
-        let centerMinimum = centerMinimumWidth(for: workspace)
+        let centerMinimum = centerMinimumWidth(for: workspace, panesMinimum: panesMinimum)
         var short = centerMinimum - (totalWidth - separators - sources - studio)
         if short > 0, studioOpen {
             let give = min(short, max(0, studio - sideMinimumWidth))
@@ -192,7 +200,8 @@ enum NotebookWorkspaceSizing {
         for workspace: NotebookWorkspace,
         totalWidth: CGFloat,
         studioShows: Bool = true,
-        draggedWidth: CGFloat
+        draggedWidth: CGFloat,
+        panesMinimum: CGFloat? = nil
     ) -> CGFloat {
         var settled = workspace
         settled.sourcesCollapsed = false
@@ -201,7 +210,8 @@ enum NotebookWorkspaceSizing {
             for: settled,
             totalWidth: totalWidth,
             studioShows: studioShows,
-            sourcesPreferredWidth: draggedWidth
+            sourcesPreferredWidth: draggedWidth,
+            panesMinimum: panesMinimum
         ).sources
     }
 
@@ -258,9 +268,10 @@ enum NotebookWorkspaceSizing {
     static func folds(
         for workspace: NotebookWorkspace,
         totalWidth: CGFloat,
-        studioShows: Bool = true
+        studioShows: Bool = true,
+        panesMinimum: CGFloat? = nil
     ) -> (sources: Bool, studio: Bool) {
-        let center = centerMinimumWidth(for: workspace)
+        let center = centerMinimumWidth(for: workspace, panesMinimum: panesMinimum)
         let studio = studioFootprint(for: workspace, studioShows: studioShows)
         let foldSources = !workspace.sourcesCollapsed
             && totalWidth < sourcesFootprint(for: workspace) + center + studio
@@ -300,15 +311,20 @@ struct NotebookWorkspaceView: View {
     let workspace: NotebookWorkspace
     let chat: () -> AnyView
     let document: (NotebookDocument) -> AnyView
+    /// The window's own tabbed panes, the center of a tabbed notebook
+    /// (`NotebookWorkspace.tabbed`), mounted instead of the chat and the slot.
+    let panes: () -> AnyView
 
     init(
         workspace: NotebookWorkspace,
         chat: @escaping () -> AnyView,
-        document: @escaping (NotebookDocument) -> AnyView
+        document: @escaping (NotebookDocument) -> AnyView,
+        panes: @escaping () -> AnyView
     ) {
         self.workspace = workspace
         self.chat = chat
         self.document = document
+        self.panes = panes
     }
 
     /// The left pane's share of the center beside a document. This window's,
@@ -399,7 +415,8 @@ struct NotebookWorkspaceView: View {
                 for: workspace,
                 totalWidth: visibleWidth,
                 studioShows: studioShows,
-                sourcesPreferredWidth: sourcesPreferredWidth
+                sourcesPreferredWidth: sourcesPreferredWidth,
+                panesMinimum: windowState.notebookPanesMinimum
             )
             let centerStart = widths.sources + (workspace.sourcesCollapsed ? 0 : Sizing.separatorWidth)
             HStack(spacing: 0) {
@@ -592,7 +609,8 @@ struct NotebookWorkspaceView: View {
                                 for: workspace,
                                 totalWidth: totalWidth,
                                 studioShows: studioShows,
-                                draggedWidth: dragged
+                                draggedWidth: dragged,
+                                panesMinimum: windowState.notebookPanesMinimum
                             ))
                         }
                         dragStartSourcesWidth = nil
@@ -840,7 +858,25 @@ struct NotebookWorkspaceView: View {
     /// identity while another comes or goes: a chat pane rebuilt on every
     /// citation stopped speech and dictation and lost its state and scroll,
     /// and a Reader rebuilt by ⇧⌘K reloaded its PDF or video.
+    /// The center: the window's tabbed panes for a tabbed notebook, else the
+    /// chat and the document slot.
+    @ViewBuilder
     private func center(width: CGFloat, start: CGFloat, totalWidth: CGFloat) -> some View {
+        if workspace.tabbed {
+            // The panes lay themselves out in the width they are given, so
+            // the window's outer overflow is already counted out
+            // (`visibleWidth`), and their first header clears the traffic
+            // lights only as far as this center still reaches under them.
+            panes()
+                .environment(\.studioPanelTrailingOverflow, 0)
+                .environment(\.studioCenterPaneHeaderLeadingInset, leadingReservation(start: start))
+                .accessibilityIdentifier("notebook.panes")
+        } else {
+            slotCenter(width: width, start: start, totalWidth: totalWidth)
+        }
+    }
+
+    private func slotCenter(width: CGFloat, start: CGFloat, totalWidth: CGFloat) -> some View {
         let layout = Sizing.centerLayout(for: workspace, centerWidth: width, leadingFraction: leadingFraction)
         let leadingWidth = layout.leadingWidth ?? 0
         let documentWidth = layout.documentWidth ?? 0
@@ -1201,5 +1237,14 @@ enum NotebookColumnList: String, CaseIterable, Identifiable {
         case .sources: "Sources"
         case .chats: "Chats"
         }
+    }
+}
+
+extension StudioWindowState {
+    /// What a tabbed notebook's center needs at the least: its panes' minima
+    /// (`StudioCenterTabGroupSizing.minimumWidth(for:)`). Nil for a window
+    /// whose notebook has the chat and the document slot, or none.
+    var notebookPanesMinimum: CGFloat? {
+        notebook?.tabbed == true ? StudioCenterTabGroupSizing.minimumWidth(for: centerTabGroups.groups) : nil
     }
 }
