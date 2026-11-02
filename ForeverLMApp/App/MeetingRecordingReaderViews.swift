@@ -229,6 +229,12 @@ struct MeetingRecordingReaderView: View {
     @State private var draggedVideoWidth: CGFloat?
     @State private var dragStartVideoWidth: CGFloat?
 
+    /// Layout choice: the transcript and its bar out of view, the recording
+    /// taking the whole pane (a notebook beside it holds the notes). Off by
+    /// default; the recording's corner button and the bar's button toggle it.
+    /// Kept on this Mac, not synced: it follows the window's room, not the account.
+    @AppStorage("reader.meetingTranscriptHidden") private var hidesTranscript = false
+
     private static let minVideoPaneWidth: CGFloat = 280
     private static let minTranscriptPaneWidth: CGFloat = 340
     private static let sideBySideHandleWidth: CGFloat = 8
@@ -258,22 +264,29 @@ struct MeetingRecordingReaderView: View {
                 }
 
                 layout {
+                    // The same view whether or not the transcript shows, so the
+                    // recording keeps playing when it is hidden or brought back.
                     videoPane
-                        .frame(width: sideBySide ? videoWidth(in: geo.size) : nil)
-                        .frame(height: sideBySide ? nil : videoHeight(in: geo.size))
-                        .frame(maxHeight: sideBySide ? .infinity : nil)
+                        .frame(width: sideBySide && !hidesTranscript ? videoWidth(in: geo.size) : nil)
+                        .frame(height: sideBySide || hidesTranscript ? nil : videoHeight(in: geo.size))
+                        .frame(maxHeight: sideBySide || hidesTranscript ? .infinity : nil)
                         // Not into the safe area: the reader toolbar hangs in the
                         // titlebar band above this pane, and a background that
                         // extends there paints over it (see YouTubeVideoReaderView).
                         .background(Color.black, ignoresSafeAreaEdges: [])
+                        .overlay(alignment: .topLeading) {
+                            if hidesTranscript { showTranscriptButton }
+                        }
 
-                    if sideBySide {
-                        videoWidthResizeHandle(in: geo.size)
-                    } else {
-                        videoResizeHandle(in: geo.size)
+                    if !hidesTranscript {
+                        if sideBySide {
+                            videoWidthResizeHandle(in: geo.size)
+                        } else {
+                            videoResizeHandle(in: geo.size)
+                        }
+
+                        transcriptSection
                     }
-
-                    transcriptSection
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
@@ -701,6 +714,21 @@ struct MeetingRecordingReaderView: View {
         }
     }
 
+    /// The way back while the transcript is hidden, in the recording's corner.
+    private var showTranscriptButton: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.2)) { hidesTranscript = false }
+        } label: {
+            Label("Show transcript", systemImage: "text.alignleft")
+                .font(.caption)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+        .padding(8)
+        .help("Show the transcript again")
+        .accessibilityLabel("Show Transcript")
+    }
+
     private var pendingCitedPaperCount: Int {
         citedPapers.filter { $0.status == .pending }.count
     }
@@ -728,6 +756,17 @@ struct MeetingRecordingReaderView: View {
             }
 
             Spacer()
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) { hidesTranscript = true }
+            } label: {
+                Image(systemName: "text.badge.minus")
+                    .font(.caption)
+            }
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .help("Hide the transcript")
+            .accessibilityLabel("Hide Transcript")
 
             Button {
                 transcriptBesideVideo.toggle()
