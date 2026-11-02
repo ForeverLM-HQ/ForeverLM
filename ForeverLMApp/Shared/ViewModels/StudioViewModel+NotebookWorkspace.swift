@@ -71,6 +71,40 @@ extension StudioViewModel {
         if next != notebook { destination.notebook = next }
     }
 
+    /// Puts `tab`, one of the document slot's tabs, beside the slot's other
+    /// document, to the right of it or the left (`NotebookWorkspace.splittingSlot`):
+    /// the video on one side and the notes on the other. A window with no
+    /// notebook, or a slot without that tab, is left as it is.
+    func splitNotebookSlot(
+        _ tab: StudioCenterTab,
+        toTrailing: Bool,
+        in destination: StudioWindowState
+    ) {
+        guard let notebook = destination.notebook,
+              let next = notebook.splittingSlot(moving: tab, toTrailing: toTrailing) else { return }
+        if destination.memoryReviewFocusYields(to: tab) { leaveMemoryReviewFocus(in: destination) }
+        destination.notebook = next
+    }
+
+    /// Opens a Page beside what the learner is reading or watching, so the two
+    /// are on screen together: in a notebook the Page and the slot's document
+    /// stand side by side with the Page on the right; elsewhere it opens in a
+    /// pane beside the Reader.
+    func openDocSideBySide(_ artifactID: String) async {
+        if !artifacts.contains(where: { $0.id == artifactID }) { await loadArtifacts() }
+        guard artifacts.contains(where: { $0.id == artifactID }) else {
+            showToast("That page is no longer in your library")
+            return
+        }
+        let window = activeWindowState
+        if window.notebook != nil {
+            revealArtifact(artifactID, in: window)
+            splitNotebookSlot(artifactSection(of: artifactID).centerTab, toTrailing: true, in: window)
+        } else {
+            revealArtifact(artifactID, in: window, beside: .reader)
+        }
+    }
+
     /// Pops a chat's picture out beside the conversation: the notebook's
     /// document slot shows it, replacing what it held, and a picture already
     /// there gives way to this one. False when `destination` holds no notebook,

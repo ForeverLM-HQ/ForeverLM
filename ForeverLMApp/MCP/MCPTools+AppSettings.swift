@@ -1171,7 +1171,7 @@ extension MCPDataStore {
     /// Reader's link path, and the Space's All list through the View menu's
     /// own entry. The Notebooks home this once showed (`notebooks_home`) is
     /// gone, and the Space lists every notebook.
-    func openInApp(kind rawKind: String?, id rawID: String?) async throws -> String {
+    func openInApp(kind rawKind: String?, id rawID: String?, sideBySide: Bool = false) async throws -> String {
         let kind = rawKind?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
         guard Self.openInAppKinds.contains(kind) else {
             throw MCPError.invalidInput("kind takes one of: \(Self.openInAppKinds.joined(separator: ", ")).")
@@ -1239,7 +1239,12 @@ extension MCPDataStore {
         case "source":
             await studio.openLinkedSourceInReader(id)
         case "notebook": await studio.open(.notebook(id))
-        case "doc": await studio.open(.doc(id))
+        case "doc":
+            if sideBySide {
+                await studio.openDocSideBySide(id)
+            } else {
+                await studio.open(.doc(id))
+            }
         case "chat": await studio.open(.chat(id))
         case "quiz": await studio.open(.quiz(id))
         default: await studio.open(.idea(id))
@@ -1342,6 +1347,7 @@ extension MCPToolRegistry {
                     "properties": [
                         "kind": ["type": "string", "enum": MCPDataStore.openInAppKinds, "description": "What to open."],
                         "id": ["type": "string", "description": "The notebook, doc, chat (review session), source, quiz or idea id, or a plugin's id for plugins. Omit for space, and for plugins to show every plugin."],
+                        "side_by_side": ["type": "boolean", "description": "Only with kind doc: true opens the Page beside what the learner is reading or watching, so the video or paper stays on screen on the left and the Page is on the right. Use it when they ask for notes next to the source they have open."],
                     ],
                     "required": ["kind"],
                 ]
@@ -1363,7 +1369,11 @@ extension MCPDataStore {
         case "open_settings":
             return try await openSettings(pane: arguments["pane"] as? String)
         case "open_in_app":
-            return try await openInApp(kind: arguments["kind"] as? String, id: arguments["id"] as? String)
+            return try await openInApp(
+                kind: arguments["kind"] as? String,
+                id: arguments["id"] as? String,
+                sideBySide: arguments["side_by_side"] as? Bool ?? false
+            )
         default:
             if let result = try await executeBackgroundAISpendTool(name: name, arguments: arguments) { return result }
             if let result = try await executePluginSettingsTool(name: name, arguments: arguments) { return result }

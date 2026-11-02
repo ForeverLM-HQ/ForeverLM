@@ -7125,6 +7125,10 @@
             "plugins"
           ],
           "type" : "string"
+        },
+        "side_by_side" : {
+          "description" : "Only with kind doc: true opens the Page beside what the learner is reading or watching, so the video or paper stays on screen on the left and the Page is on the right. Use it when they ask for notes next to the source they have open.",
+          "type" : "boolean"
         }
       },
       "required" : [

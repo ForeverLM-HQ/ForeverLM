@@ -390,6 +390,30 @@ extension NotebookWorkspace {
         }
     }
 
+    /// The workspace once `tab` is dragged to a side of the slot (or sent
+    /// there with Split Left / Split Right): the slot's documents stand side
+    /// by side, `tab` on the trailing side for `toTrailing` and the leading
+    /// side otherwise, the document that was showing beside it. The pair is
+    /// the one place a notebook holds two documents at once, so Chat steps
+    /// aside (its × hides it the same way) and the document on the leading
+    /// side takes the chat's place (`leadingDocument`); Chat coming back
+    /// moves both into the slot as tabs again (`following`). Nil unless the
+    /// slot holds `tab` and another document.
+    func splittingSlot(moving tab: StudioCenterTab, toTrailing: Bool) -> NotebookWorkspace? {
+        let strip = slotTabStrip
+        guard strip.count > 1, let moved = strip.first(where: { $0.centerTab == tab }) else { return nil }
+        let others = strip.filter { $0 != moved }
+        let partner = document.flatMap { others.contains($0) ? $0 : nil } ?? others[0]
+        var next = self
+        next.showsChat = false
+        let leading = toTrailing ? partner : moved
+        next.leadingDocument = leading
+        next.slotTabs = Self.kept(strip.filter { $0 != leading })
+        next.document = toTrailing ? moved : partner
+        next.returnDocument = nil
+        return next
+    }
+
     /// The workspace once the slot's × is pressed with a tab strip showing:
     /// the whole slot closes, every tab with it.
     func closingSlot() -> NotebookWorkspace {

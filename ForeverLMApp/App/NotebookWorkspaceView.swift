@@ -317,6 +317,11 @@ struct NotebookWorkspaceView: View {
     @State private var dragStartFraction: CGFloat?
     /// The slot a sidebar destination is being dragged over.
     @State private var replaceTarget: CenterPane?
+    /// Whether a slot tab is being dragged by its strip, and the side of the
+    /// center it is held over: the zones that split the slot's documents side
+    /// by side.
+    @State private var isDraggingSlotTab = false
+    @State private var splitTargetTrailing: Bool?
     @State private var isAddingSources = false
     @State private var isRenaming = false
     @State private var renameText = ""
@@ -879,6 +884,48 @@ struct NotebookWorkspaceView: View {
                 }
             }
         }
+        .overlay(alignment: .leading) { slotSplitZone(trailing: false, centerWidth: width) }
+        .overlay(alignment: .trailing) { slotSplitZone(trailing: true, centerWidth: width) }
+    }
+
+    /// One side of the center while a slot tab is dragged: dropping there
+    /// stands that tab beside the slot's other document, on that side. Always
+    /// registered, a gutter wide, so the AppKit session finds it when the drag
+    /// begins; half the center wide while a strip drag is in flight, so the
+    /// whole slot is two drop sides.
+    private func slotSplitZone(trailing: Bool, centerWidth: CGFloat) -> some View {
+        let dragging = isDraggingSlotTab
+        let targeted = splitTargetTrailing == trailing
+        return Rectangle()
+            .fill(Color.accentColor.opacity(dragging && targeted ? 0.14 : 0))
+            .overlay {
+                if dragging && targeted {
+                    Rectangle().strokeBorder(Color.accentColor.opacity(0.9), lineWidth: 2)
+                }
+            }
+            .frame(width: dragging ? max(22, centerWidth / 2) : 22)
+            .frame(maxHeight: .infinity)
+            .allowsHitTesting(false)
+            .overlay {
+                NotebookSlotSplitDropTarget(
+                    isStripDrag: { isDraggingSlotTab },
+                    onTargeted: { isTargeted in
+                        if isTargeted {
+                            splitTargetTrailing = trailing
+                        } else if splitTargetTrailing == trailing {
+                            splitTargetTrailing = nil
+                        }
+                    },
+                    onDrop: { tab in
+                        isDraggingSlotTab = false
+                        splitTargetTrailing = nil
+                        withAnimation(.easeInOut(duration: 0.22)) {
+                            vm.splitNotebookSlot(tab, toTrailing: trailing, in: windowState)
+                        }
+                    }
+                )
+            }
+            .accessibilityHidden(true)
     }
 
     private enum CenterPane: Hashable {
@@ -1015,7 +1062,17 @@ struct NotebookWorkspaceView: View {
             onCloseSlot: { windowState.notebook = windowState.notebook?.closingSlot() },
             memoryReviewFocused: windowState.memoryReviewFocusSessionID != nil,
             readerShowsVideo: vm.readerShowsVideo(in: windowState),
-            leadingClearance: titlebarBandHeight == nil ? leadingReservation(start: start) : 0
+            leadingClearance: titlebarBandHeight == nil ? leadingReservation(start: start) : 0,
+            onDragBegan: { isDraggingSlotTab = true },
+            onDragEnded: {
+                isDraggingSlotTab = false
+                splitTargetTrailing = nil
+            },
+            onSplit: { tab, trailing in
+                withAnimation(.easeInOut(duration: 0.22)) {
+                    vm.splitNotebookSlot(tab, toTrailing: trailing, in: windowState)
+                }
+            }
         )
         return StudioPaneHost(
             activeTab: activeTab,

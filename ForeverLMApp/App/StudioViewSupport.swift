@@ -3523,6 +3523,92 @@ private final class StudioCenterTabEdgeDropView: NSView {
     }
 }
 
+/// An always-registered AppKit destination over one side of a notebook's
+/// document slot, for a tab dragged out of the slot's strip: dropping it puts
+/// the tab beside the slot's other document on that side. It takes only a drag
+/// the strip started (`isStripDrag`), whatever else carries the same tab
+/// payload (a rail row), and registers before any drag begins for the reason
+/// the tab layout's edge zones do (`StudioCenterTabEdgeDropTarget`).
+struct NotebookSlotSplitDropTarget: NSViewRepresentable {
+    let isStripDrag: () -> Bool
+    let onTargeted: (Bool) -> Void
+    let onDrop: (StudioCenterTab) -> Void
+
+    func makeNSView(context: Context) -> NotebookSlotSplitDropView {
+        let view = NotebookSlotSplitDropView()
+        update(view)
+        return view
+    }
+
+    func updateNSView(_ nsView: NotebookSlotSplitDropView, context: Context) {
+        update(nsView)
+    }
+
+    private func update(_ view: NotebookSlotSplitDropView) {
+        view.isStripDrag = isStripDrag
+        view.onTargeted = onTargeted
+        view.onDrop = onDrop
+    }
+}
+
+final class NotebookSlotSplitDropView: NSView {
+    var isStripDrag: () -> Bool = { false }
+    var onTargeted: (Bool) -> Void = { _ in }
+    var onDrop: (StudioCenterTab) -> Void = { _ in }
+    private var isTargeted = false
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        registerForDraggedTypes([StudioCenterTabDragPayload.pasteboardType])
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        registerForDraggedTypes([StudioCenterTabDragPayload.pasteboardType])
+    }
+
+    /// Destinations are chosen from registered bounds, so every click and
+    /// scroll still reaches the pane underneath.
+    override func hitTest(_ point: NSPoint) -> NSView? { nil }
+
+    override func draggingEntered(_ sender: NSDraggingInfo) -> NSDragOperation { update(for: sender) }
+
+    override func draggingUpdated(_ sender: NSDraggingInfo) -> NSDragOperation { update(for: sender) }
+
+    override func draggingExited(_ sender: NSDraggingInfo?) { setTargeted(false) }
+
+    override func draggingEnded(_ sender: NSDraggingInfo) { setTargeted(false) }
+
+    override func performDragOperation(_ sender: NSDraggingInfo) -> Bool {
+        defer { setTargeted(false) }
+        guard isStripDrag(), let tab = Self.tab(on: sender.draggingPasteboard) else { return false }
+        onDrop(tab)
+        return true
+    }
+
+    private func update(for sender: NSDraggingInfo) -> NSDragOperation {
+        guard isStripDrag(), Self.tab(on: sender.draggingPasteboard) != nil else {
+            setTargeted(false)
+            return []
+        }
+        setTargeted(true)
+        return .move
+    }
+
+    private func setTargeted(_ targeted: Bool) {
+        guard targeted != isTargeted else { return }
+        isTargeted = targeted
+        onTargeted(targeted)
+    }
+
+    private static func tab(on pasteboard: NSPasteboard) -> StudioCenterTab? {
+        let type = StudioCenterTabDragPayload.pasteboardType
+        let raw = pasteboard.string(forType: type)
+            ?? pasteboard.data(forType: type).flatMap { String(data: $0, encoding: .utf8) }
+        return raw.flatMap(StudioCenterTabDragPayload.tab(from:))
+    }
+}
+
 // MARK: - AppKit drop catcher over a SwiftUI panel
 
 /// An AppKit dragging destination laid over a SwiftUI panel, registered for
@@ -3848,6 +3934,13 @@ struct NotebookSlotTabStrip: View {
     /// What the leading edge must clear: ‹ › and the sidebar toggle, which in
     /// full screen stand on this row when the slot is the window's leftmost.
     var leadingClearance: CGFloat = 0
+    /// A tab drag started or ended, so the workspace can lay its side zones
+    /// over the slot (`NotebookSlotSplitDropTarget`).
+    var onDragBegan: () -> Void = {}
+    var onDragEnded: () -> Void = {}
+    /// Split Left / Split Right in a tab's menu: the tab stands beside the
+    /// slot's other document.
+    var onSplit: (StudioCenterTab, Bool) -> Void = { _, _ in }
 
     var body: some View {
         HStack(spacing: 2) {
@@ -3858,12 +3951,12 @@ struct NotebookSlotTabStrip: View {
                     isActive: tab == activeTab,
                     action: { onSelect(tab) },
                     payload: StudioCenterTabDragPayload.string(for: tab),
-                    onDragBegan: {},
-                    onDragEnded: {},
-                    splitLeftEnabled: false,
-                    splitRightEnabled: false,
-                    onSplitLeft: {},
-                    onSplitRight: {},
+                    onDragBegan: onDragBegan,
+                    onDragEnded: onDragEnded,
+                    splitLeftEnabled: tabs.count > 1,
+                    splitRightEnabled: tabs.count > 1,
+                    onSplitLeft: { onSplit(tab, false) },
+                    onSplitRight: { onSplit(tab, true) },
                     onClose: { withAnimation(.easeInOut(duration: 0.16)) { onCloseTab(tab) } }
                 )
                 .accessibilityIdentifier("notebook.document.tab.\(tab.rawValue)")

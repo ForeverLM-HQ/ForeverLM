@@ -196,6 +196,38 @@ struct NotebookWorkspaceTests {
         #expect(three.slotTabStrip == [.reader, .docs, .browser])
     }
 
+    @Test("A slot tab dragged to a side stands beside the other document, Chat steps aside, and Chat coming back makes them tabs again")
+    func splittingTheSlot() throws {
+        var pair = NotebookWorkspace(notebookID: "bio")
+        for document in [NotebookDocument.reader, .docs] {
+            pair = try #require(pair.following(.document(document)))
+        }
+        // Notes dragged to the right: the video leads, the notes take the slot.
+        let right = try #require(pair.splittingSlot(moving: .notepad, toTrailing: true))
+        #expect(!right.showsChat)
+        #expect(right.leadingDocument == .reader)
+        #expect(right.document == .docs)
+        #expect(right.slotTabStrip == [.docs] && !right.slotShowsTabStrip)
+        #expect(right.visibleDocuments == [.reader, .docs])
+        // Notes dragged to the left.
+        let left = try #require(pair.splittingSlot(moving: .notepad, toTrailing: false))
+        #expect(left.leadingDocument == .docs)
+        #expect(left.document == .reader)
+        // A third tab stays a tab of the slot's own strip.
+        let three = try #require(pair.following(.document(.browser)))
+        let withThird = try #require(three.splittingSlot(moving: .notepad, toTrailing: true))
+        #expect(withThird.leadingDocument == .browser)
+        #expect(withThird.slotTabStrip == [.reader, .docs])
+        // Chat coming back moves the leading document into the slot.
+        let chat = try #require(right.following(.chat))
+        #expect(chat.showsChat && chat.leadingDocument == nil)
+        #expect(Set(chat.slotTabStrip) == [.reader, .docs])
+        // Nothing to split with one document, or for a tab the slot lacks.
+        let lone = NotebookWorkspace(notebookID: "bio", document: .reader)
+        #expect(lone.splittingSlot(moving: .reader, toTrailing: true) == nil)
+        #expect(pair.splittingSlot(moving: .browser, toTrailing: true) == nil)
+    }
+
     @Test("Closing a slot tab shows its right neighbour, else its left, and the last one empties the slot")
     func closingSlotTabs() {
         var three = NotebookWorkspace(notebookID: "bio")

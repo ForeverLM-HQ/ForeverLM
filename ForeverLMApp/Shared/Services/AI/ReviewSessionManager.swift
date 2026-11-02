@@ -11091,7 +11091,7 @@ final class ReviewSessionManager {
         // named outright because it is the action a model most readily mistakes
         // for words: a link or a get_notebook read feels like showing it.
         let opensThings = tools.contains(where: { $0.name == "open_in_app" })
-            ? " Putting something on the learner's screen is an action too: when they ask to open, show, go to or switch to a Notebook, a Page (kind doc), a chat, a source, a quiz or an idea, call open_in_app with its id (list_notebooks finds a Notebook by its title). Naming it, linking it or reading it with get_notebook puts nothing on their screen."
+            ? " Putting something on the learner's screen is an action too: when they ask to open, show, go to or switch to a Notebook, a Page (kind doc), a chat, a source, a quiz or an idea, call open_in_app with its id (list_notebooks finds a Notebook by its title). Asked for a Page next to, beside or alongside the video, paper or book they have open, make or find the Page first, then open it with kind doc and side_by_side true, so the source stays on the left and the Page is on the right. Naming it, linking it or reading it with get_notebook puts nothing on their screen."
             : ""
         // "Show me my flashcards on mitochondria" asks for the card review on
         // screen over some of the cards: the Memory pane has no notebook menu,
