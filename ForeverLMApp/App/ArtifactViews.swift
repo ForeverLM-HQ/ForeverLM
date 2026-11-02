@@ -1584,7 +1584,7 @@ struct ArtifactCanvas: View {
             pageCodexItems(for: artifact, toolPillShown: toolPillShown)
             Divider()
             Menu {
-                pageMoreItems(for: artifact)
+                pageMoreItems(for: artifact, toolPillShown: toolPillShown)
             } label: {
                 Label("More", systemImage: "ellipsis.circle")
             }
@@ -1692,7 +1692,7 @@ struct ArtifactCanvas: View {
     /// notebooks, canvases, spaces, teams), and taking it out of ForeverLM
     /// (publishing, Google Docs, Export, Finder).
     @ViewBuilder
-    private func pageMoreItems(for artifact: ArtifactRecord) -> some View {
+    private func pageMoreItems(for artifact: ArtifactRecord, toolPillShown: Bool) -> some View {
         let publishedStatus = publishedStatuses[artifact.id]
         let isOwn = artifact.teamID == nil
         let isOwnEditable = isOwn && !docChrome.showsPage
