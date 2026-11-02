@@ -207,6 +207,9 @@ struct ArtifactCanvas: View {
     /// The learner's name, for the initials on the page's top line.
     @SyncedStorage(wrappedValue: "", MacAccountUser.displayNamePreferenceKey) private var savedDisplayName: String
     @Environment(\.uiZoomScale) private var uiZoomScale
+    /// What the pane's swap control and close claim of the top line's trailing
+    /// end; the page's own controls stop short of it.
+    @Environment(\.studioChromeLineReservation) private var chromeReservation
     /// How far the chrome line's row starts past the pane's leading edge, so
     /// the Space sidebar's top line ends where the sidebar does.
     @Environment(\.studioCenterPaneHeaderLeadingInset) private var headerLeadingInset
@@ -374,7 +377,17 @@ struct ArtifactCanvas: View {
                     // The controls run the row's full width here, so there is no
                     // draggable remainder to protect — back the whole thing and
                     // AppKit's titlebar drag stops eating the toolbar's clicks.
-                    toolbar.background(WindowDragBlocker())
+                    // The first of the toolbar's tiers that fits the strip is
+                    // the one drawn: a row too wide for it was cut at both
+                    // edges, Share under the swap control and the person's
+                    // initials under the window's leading chrome.
+                    ViewThatFits(in: .horizontal) {
+                        toolbar(.full)
+                        toolbar(.compact)
+                        toolbar(.minimal)
+                    }
+                    .frame(maxWidth: .infinity)
+                    .background(WindowDragBlocker())
                 }
             }
             .onAppear { answerRequestsBeforeLoad() }
@@ -879,6 +892,19 @@ struct ArtifactCanvas: View {
         isArtifactListVisible && listFitsBesideDocument && !isShowingIndex
     }
 
+    /// How much of the page's trailing controls the top line draws, from all
+    /// of them down to what is needed (`ViewThatFits` takes the first that
+    /// fits the strip).
+    private enum ToolbarTier {
+        /// The tool pill, Codex's four, Edit and Share, labelled.
+        case full
+        /// The pill, the version history and the person go (the menu carries
+        /// the pill's tools); Share is its glyph.
+        case compact
+        /// Edit (or Update) and Share's glyph only.
+        case minimal
+    }
+
     /// The page's top line, as ChatGPT draws a page in its Space (product owner,
     /// 2026-10-06: "there are often way too many buttons at the top in
     /// foreverlm. please learn from chatgpt"; docs/ui-design.md, "Quiet
@@ -893,7 +919,7 @@ struct ArtifactCanvas: View {
     /// The product owner (2026-10-07) then sent Codex's own line and asked for a clone:
     /// after the menu a pill of four tools (`pageToolPill`), and before Share
     /// the version history, the comments and the person's initials.
-    private var toolbar: some View {
+    private func toolbar(_ tier: ToolbarTier) -> some View {
         let showsPage = !(isSpaceCanvas && showsSpaceList)
         return HStack(spacing: 8) {
             if let onBack {
@@ -915,11 +941,11 @@ struct ArtifactCanvas: View {
                 } else if selectedArtifact.isMnemonicReading {
                     readingMenu(for: selectedArtifact)
                 } else {
-                    pageMenu(for: selectedArtifact)
+                    pageMenu(for: selectedArtifact, toolPillShown: tier == .full && showsPageTools(for: selectedArtifact))
                     if vm.teamArtifactID(forDraft: selectedArtifact.id) != nil {
                         draftControls
                     }
-                    if showsPageTools(for: selectedArtifact) {
+                    if tier == .full, showsPageTools(for: selectedArtifact) {
                         pageToolPill
                     }
                 }
@@ -938,7 +964,7 @@ struct ArtifactCanvas: View {
             }
             Spacer(minLength: 8)
             if let selectedArtifact, showsPage, !selectedArtifact.isLinked, !selectedArtifact.isMnemonicReading {
-                docControls(for: selectedArtifact)
+                docControls(for: selectedArtifact, tier: tier)
             }
         }
         // Clearance for the traffic lights and for the chrome overlaying the
@@ -1197,7 +1223,7 @@ struct ArtifactCanvas: View {
     /// history, the comments (with the open count), the person and Share, the
     /// one primary action. Everything else is the page's menu.
     @ViewBuilder
-    private func docControls(for artifact: ArtifactRecord) -> some View {
+    private func docControls(for artifact: ArtifactRecord, tier: ToolbarTier) -> some View {
         if let errorMessage = docChrome.errorMessage {
             Button("Reload") { docChrome.reloadGeneration += 1 }
                 .buttonStyle(.hoverWash)
@@ -1228,31 +1254,35 @@ struct ArtifactCanvas: View {
         // Codex's top line, right to left: Share, the person, the comments and
         // the version history (product owner, 2026-10-07: "essentially an end to end
         // clone"; this overrules "Quiet chrome" for these four).
-        Button {
-            docChrome.isActivityVisible.toggle()
-        } label: {
-            chromeIconLabel("clock.arrow.circlepath", prominent: docChrome.isActivityVisible)
-        }
-        .buttonStyle(.hoverWash)
-        .help(docChrome.isActivityVisible ? "Close page activity" : "Page activity")
-        .accessibilityLabel("Page activity")
-        .accessibilityIdentifier("page.versionHistory")
-        Button {
-            docChrome.isCommentsVisible.toggle()
-        } label: {
-            if docChrome.openCommentCount > 0 {
-                chromeChipLabel("\(docChrome.openCommentCount)", systemImage: "text.bubble", prominent: docChrome.isCommentsVisible)
-            } else {
-                chromeIconLabel("text.bubble", prominent: docChrome.isCommentsVisible)
+        if tier == .full {
+            Button {
+                docChrome.isActivityVisible.toggle()
+            } label: {
+                chromeIconLabel("clock.arrow.circlepath", prominent: docChrome.isActivityVisible)
             }
+            .buttonStyle(.hoverWash)
+            .help(docChrome.isActivityVisible ? "Close page activity" : "Page activity")
+            .accessibilityLabel("Page activity")
+            .accessibilityIdentifier("page.versionHistory")
         }
-        .buttonStyle(.hoverWash)
-        .help(docChrome.isCommentsVisible ? "Hide comments" : "Show comments")
-        .accessibilityLabel("Comments")
-        .accessibilityValue("\(docChrome.openCommentCount) open")
-        .accessibilityIdentifier("page.comments")
-        accountAvatar
-        shareButton(for: artifact)
+        if tier != .minimal {
+            Button {
+                docChrome.isCommentsVisible.toggle()
+            } label: {
+                if docChrome.openCommentCount > 0 {
+                    chromeChipLabel("\(docChrome.openCommentCount)", systemImage: "text.bubble", prominent: docChrome.isCommentsVisible)
+                } else {
+                    chromeIconLabel("text.bubble", prominent: docChrome.isCommentsVisible)
+                }
+            }
+            .buttonStyle(.hoverWash)
+            .help(docChrome.isCommentsVisible ? "Hide comments" : "Show comments")
+            .accessibilityLabel("Comments")
+            .accessibilityValue("\(docChrome.openCommentCount) open")
+            .accessibilityIdentifier("page.comments")
+        }
+        if tier == .full { accountAvatar }
+        shareButton(for: artifact, labelled: tier == .full)
     }
 
     /// The signed-in person, as the initials in a small circle (the roster's
@@ -1278,7 +1308,7 @@ struct ArtifactCanvas: View {
     /// sidebar. Unknown before the pane is measured, which counts as wide.
     private var pageColumnWidth: CGFloat {
         guard workspaceWidth > 0 else { return .infinity }
-        return workspaceWidth - (showsSpaceSidebar ? SpaceSidebarMetrics.width : 0)
+        return workspaceWidth - (showsSpaceSidebar ? SpaceSidebarMetrics.width : 0) - chromeReservation.total
     }
 
     /// Whether the page's tool pill is on the top line: only while the page
@@ -1408,11 +1438,15 @@ struct ArtifactCanvas: View {
     /// **Share**: the one entry point to who can open the Doc — the page's
     /// link, the teams, the readers — in a popover under the button.
     /// Spec: docs/docs-design.md → Publishing → The Share popover.
-    private func shareButton(for artifact: ArtifactRecord) -> some View {
+    private func shareButton(for artifact: ArtifactRecord, labelled: Bool = true) -> some View {
         Button {
             isSharePopoverPresented = true
         } label: {
-            chromeChipLabel("Share", systemImage: "person.badge.plus")
+            if labelled {
+                chromeChipLabel("Share", systemImage: "person.badge.plus")
+            } else {
+                chromeIconLabel("person.badge.plus")
+            }
         }
         .buttonStyle(.hoverWash)
         .help(accessSummary(for: artifact))
@@ -1545,9 +1579,9 @@ struct ArtifactCanvas: View {
     /// as for bars). What it opens — the publish sheet, the confirmations, the
     /// Google Doc conversion, the comments drawer — is presented by the editor,
     /// which binds to the same bridge this menu writes.
-    private func pageMenu(for artifact: ArtifactRecord) -> some View {
+    private func pageMenu(for artifact: ArtifactRecord, toolPillShown: Bool) -> some View {
         Menu {
-            pageCodexItems(for: artifact)
+            pageCodexItems(for: artifact, toolPillShown: toolPillShown)
             Divider()
             Menu {
                 pageMoreItems(for: artifact)
@@ -1580,7 +1614,7 @@ struct ArtifactCanvas: View {
     /// after Codex's"). A team's page is read, shared and exported here, never
     /// renamed or pinned; a daily note is named by its day.
     @ViewBuilder
-    private func pageCodexItems(for artifact: ArtifactRecord) -> some View {
+    private func pageCodexItems(for artifact: ArtifactRecord, toolPillShown: Bool) -> some View {
         let isOwn = artifact.teamID == nil
         // The Space sidebar beside the page, out of the way and back. The key
         // is also held by an invisible button (`pagesShortcut`), since a
@@ -1699,7 +1733,7 @@ struct ArtifactCanvas: View {
             .help("Ask for a change to the selected passage, or to the section at the caret")
             // The tool pill's other three, while the line is too short to
             // hold the pill.
-            if !showsPageTools(for: artifact) {
+            if !toolPillShown {
                 Menu {
                     Button("Image…", systemImage: "photo") { formatting.run(.image) }
                     Button("Visualize…", systemImage: "square.on.circle") { formatting.run(.visualize) }
