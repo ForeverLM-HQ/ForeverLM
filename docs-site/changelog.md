@@ -6,6 +6,8 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **Download a Google Drive recording for offline viewing**: the arrow on a meeting recording keeps a copy on the Mac until you remove it, so it plays on a plane.
+
 ## 0.185.0 (build 265) — 2026-11-02
 
 **Highlights:**

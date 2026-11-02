@@ -919,9 +919,15 @@ actor GoogleDriveService {
             modifiedAt: modifiedAt,
             accountID: ownerAccountID
         )
+        let fileExtension = Self.recordingFileExtension(for: mimeType)
+        // A recording the learner kept for offline viewing answers first, so a
+        // plane without Wi-Fi never reaches for the network or the sweep.
+        if let offline = Self.existingOfflineRecordingURL(cacheKey: cacheKey, fileExtension: fileExtension) {
+            return offline
+        }
         let destination = try recordingCacheURL(
             cacheKey: cacheKey,
-            fileExtension: Self.recordingFileExtension(for: mimeType)
+            fileExtension: fileExtension
         )
         if Self.isUsableCachedFile(destination) { return destination }
         if let task = recordingDownloadTasks[cacheKey] {
@@ -1006,16 +1012,158 @@ actor GoogleDriveService {
     ) -> URL? {
         guard let fileID = Self.fileID(from: fileURLOrID) else { return nil }
         let ownerAccountID = accountID ?? Self.accountID(from: fileURLOrID)
-        let destination = try? recordingCacheURL(
-            cacheKey: Self.recordingCacheKey(
-                fileID: fileID,
-                modifiedAt: modifiedAt,
-                accountID: ownerAccountID
-            ),
-            fileExtension: Self.recordingFileExtension(for: mimeType)
+        let cacheKey = Self.recordingCacheKey(
+            fileID: fileID,
+            modifiedAt: modifiedAt,
+            accountID: ownerAccountID
         )
+        let fileExtension = Self.recordingFileExtension(for: mimeType)
+        if let offline = Self.existingOfflineRecordingURL(cacheKey: cacheKey, fileExtension: fileExtension) {
+            return offline
+        }
+        let destination = try? recordingCacheURL(cacheKey: cacheKey, fileExtension: fileExtension)
         guard let destination, Self.isUsableCachedFile(destination) else { return nil }
         return destination
+    }
+
+    // MARK: Offline recordings
+
+    /// Whether this Mac holds a copy of the recording that the sweep will leave
+    /// alone. Actor-isolated on purpose: it stats a file, and the reader asks
+    /// from the main actor.
+    func hasOfflineRecording(
+        fileURLOrID: String,
+        mimeType: String?,
+        modifiedAt: Date?,
+        accountID: String? = nil
+    ) -> Bool {
+        guard let key = Self.offlineRecordingKey(
+            fileURLOrID: fileURLOrID,
+            mimeType: mimeType,
+            modifiedAt: modifiedAt,
+            accountID: accountID
+        ) else { return false }
+        return Self.existingOfflineRecordingURL(cacheKey: key.cacheKey, fileExtension: key.fileExtension) != nil
+    }
+
+    /// Keep a recording on this Mac until the learner removes it. The download
+    /// is the same one playback makes (shared, so pressing this while the
+    /// player is still fetching adds no second transfer); the copy then lands
+    /// beside the library, outside the disposable cache and its two-week,
+    /// 2 GB sweep. On APFS the copy is a clone, so it costs no second pass of
+    /// disk space while the cache entry lives.
+    @discardableResult
+    func makeRecordingAvailableOffline(
+        fileURLOrID: String,
+        mimeType: String?,
+        modifiedAt: Date?,
+        accountID: String? = nil
+    ) async throws -> URL {
+        guard let key = Self.offlineRecordingKey(
+            fileURLOrID: fileURLOrID,
+            mimeType: mimeType,
+            modifiedAt: modifiedAt,
+            accountID: accountID
+        ) else {
+            throw GoogleDriveServiceError.downloadFailed("meeting recording")
+        }
+        if let existing = Self.existingOfflineRecordingURL(cacheKey: key.cacheKey, fileExtension: key.fileExtension) {
+            return existing
+        }
+        let cached = try await cachedRecordingURL(
+            fileURLOrID: fileURLOrID,
+            mimeType: mimeType,
+            modifiedAt: modifiedAt,
+            accountID: accountID
+        )
+        let directory = try Self.offlineRecordingDirectory()
+        let destination = directory.appendingPathComponent("\(key.cacheKey).\(key.fileExtension)")
+        let partial = directory.appendingPathComponent("\(key.cacheKey).\(key.fileExtension).partial")
+        try? FileManager.default.removeItem(at: partial)
+        try FileManager.default.copyItem(at: cached, to: partial)
+        try? FileManager.default.removeItem(at: destination)
+        try FileManager.default.moveItem(at: partial, to: destination)
+        guard Self.isUsableCachedFile(destination) else {
+            throw GoogleDriveServiceError.downloadFailed("meeting recording")
+        }
+        // Drive re-uploads change the modification date and so the key; the
+        // copy kept for the old key would otherwise sit here for good.
+        Self.removeOfflineRecordings(forFilePrefix: key.filePrefix, except: destination)
+        return destination
+    }
+
+    /// Drop the kept copy. The recording stays in Google Drive and plays again
+    /// (and downloads again) the next time it is opened.
+    func removeOfflineRecording(
+        fileURLOrID: String,
+        mimeType: String?,
+        modifiedAt: Date?,
+        accountID: String? = nil
+    ) {
+        guard let key = Self.offlineRecordingKey(
+            fileURLOrID: fileURLOrID,
+            mimeType: mimeType,
+            modifiedAt: modifiedAt,
+            accountID: accountID
+        ) else { return }
+        Self.removeOfflineRecordings(forFilePrefix: key.filePrefix, except: nil)
+    }
+
+    nonisolated static func offlineRecordingKey(
+        fileURLOrID: String,
+        mimeType: String?,
+        modifiedAt: Date?,
+        accountID: String?
+    ) -> (cacheKey: String, fileExtension: String, filePrefix: String)? {
+        guard let fileID = fileID(from: fileURLOrID) else { return nil }
+        let ownerAccountID = accountID ?? Self.accountID(from: fileURLOrID)
+        let cacheKey = recordingCacheKey(fileID: fileID, modifiedAt: modifiedAt, accountID: ownerAccountID)
+        let stamp = cacheKey.split(separator: "-", omittingEmptySubsequences: false).last.map(String.init) ?? ""
+        let filePrefix = String(cacheKey.dropLast(stamp.count))
+        return (cacheKey, recordingFileExtension(for: mimeType), filePrefix)
+    }
+
+    /// Beside the library, not in `~/Library/Caches`: macOS may empty a cache
+    /// whenever the disk runs short, and that is exactly the guarantee an
+    /// offline copy exists to break. Local to this Mac and out of backups, as
+    /// Drive still has the original, so nothing here syncs and nothing here
+    /// needs a schema.
+    private nonisolated static func offlineRecordingDirectory() throws -> URL {
+        var directory = offlineRecordingsFolderURL
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        var values = URLResourceValues()
+        values.isExcludedFromBackup = true
+        try? directory.setResourceValues(values)
+        return directory
+    }
+
+    nonisolated static var offlineRecordingsFolderURL: URL {
+        ForeverLMRuntimeIdentity.applicationSupportRootURL
+            .appendingPathComponent("OfflineRecordings", isDirectory: true)
+    }
+
+    private nonisolated static func existingOfflineRecordingURL(
+        cacheKey: String,
+        fileExtension: String
+    ) -> URL? {
+        let url = offlineRecordingsFolderURL.appendingPathComponent("\(cacheKey).\(fileExtension)")
+        return isUsableCachedFile(url) ? url : nil
+    }
+
+    private nonisolated static func removeOfflineRecordings(forFilePrefix prefix: String, except keep: URL?) {
+        let directory = offlineRecordingsFolderURL
+        guard let contents = try? FileManager.default.contentsOfDirectory(
+            at: directory,
+            includingPropertiesForKeys: nil
+        ) else { return }
+        for url in contents where url.lastPathComponent != keep?.lastPathComponent {
+            // What follows the prefix is one modification stamp and an
+            // extension, never another "-": a file whose id merely starts with
+            // this one's is somebody else's copy.
+            let name = url.lastPathComponent
+            guard name.hasPrefix(prefix), !name.dropFirst(prefix.count).contains("-") else { continue }
+            try? FileManager.default.removeItem(at: url)
+        }
     }
 
     nonisolated static func fileID(from value: String) -> String? {

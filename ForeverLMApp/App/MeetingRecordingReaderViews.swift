@@ -127,6 +127,13 @@ private final class MeetingWatchProgressTracker {
 /// time both ways — the transcript playhead follows the video and clicking a
 /// timestamped turn seeks — and persist the same `VideoWatchProgress` locator
 /// the YouTube reader uses, so resume and "% watched" behave identically.
+/// One press of the offline control. A fresh id each time, so pressing it again
+/// after a failure re-runs the task that watches it.
+private struct OfflineRecordingRequest: Equatable {
+    let id = UUID()
+    let removes: Bool
+}
+
 struct MeetingRecordingReaderView: View {
     let article: StudioArticle
     let media: MeetingRecordingMedia
@@ -159,6 +166,12 @@ struct MeetingRecordingReaderView: View {
     @State private var driveReconnectHealth: GoogleDriveHealth?
     @State private var isReconnectingDrive = false
     @State private var driveRecordingRetryID = UUID()
+    /// Whether this Mac keeps its own copy of the Drive recording; nil until the
+    /// check has run, so the control never claims either state early.
+    @State private var isAvailableOffline: Bool?
+    @State private var isDownloadingOffline = false
+    @State private var offlineError: String?
+    @State private var offlineRequest: OfflineRecordingRequest?
     @State private var isTranscribingMeeting = false
     @State private var transcriptError: String?
     @State private var transcriptAvailable = false
@@ -276,6 +289,10 @@ struct MeetingRecordingReaderView: View {
         }
         .task(id: driveRecordingTaskID) {
             await loadDriveRecording()
+            await refreshOfflineState()
+        }
+        .task(id: offlineRequest) {
+            await runOfflineRequest()
         }
         .onChange(of: article.id) { oldID, _ in
             flushWatchProgress(sourceID: oldID)
@@ -292,6 +309,10 @@ struct MeetingRecordingReaderView: View {
             driveRecordingError = nil
             driveReconnectHealth = nil
             driveRecordingRetryID = UUID()
+            offlineRequest = nil
+            isAvailableOffline = nil
+            isDownloadingOffline = false
+            offlineError = nil
             isTranscribingMeeting = false
             transcriptError = nil
             transcriptAvailable = false
@@ -343,7 +364,12 @@ struct MeetingRecordingReaderView: View {
                     initialResumeSeconds: storedWatchProgress?.resumeSeconds,
                     loadError: $playbackError
                 )
-                .overlay(alignment: .topTrailing) { openInDriveButton(original) }
+                .overlay(alignment: .topTrailing) {
+                    HStack(spacing: 0) {
+                        offlineButton
+                        openInDriveButton(original)
+                    }
+                }
             } else if let driveReconnectHealth {
                 driveReconnectCard(health: driveReconnectHealth, original: original)
             } else if let driveRecordingError {
@@ -430,6 +456,99 @@ struct MeetingRecordingReaderView: View {
         .buttonStyle(.hoverWash(inset: -3))
         .help("Open in Google Drive")
         .padding(8)
+    }
+
+    /// Keep this recording on the Mac so it plays with no connection. The pin
+    /// lives next to the recording, where it acts, and says what it does in its
+    /// help; the app's cache already holds a recording for a while, this one
+    /// stays until the learner removes it.
+    @ViewBuilder
+    private var offlineButton: some View {
+        if isDownloadingOffline {
+            ProgressView()
+                .controlSize(.small)
+                .padding(8)
+                .help("Downloading for offline viewing…")
+        } else if let offlineError {
+            Button {
+                offlineRequest = OfflineRecordingRequest(removes: false)
+            } label: {
+                Image(systemName: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
+            }
+            .buttonStyle(.hoverWash(inset: -3))
+            .help("Could not download: \(offlineError). Click to try again.")
+            .padding(8)
+        } else if isAvailableOffline == true {
+            Menu {
+                Button("Remove Download", role: .destructive) {
+                    offlineRequest = OfflineRecordingRequest(removes: true)
+                }
+            } label: {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundStyle(.secondary)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .hoverHighlight(inset: -3)
+            .help("Available offline")
+            .padding(8)
+        } else if isAvailableOffline == false {
+            Button {
+                offlineRequest = OfflineRecordingRequest(removes: false)
+            } label: {
+                Image(systemName: "arrow.down.circle")
+                    .foregroundStyle(.secondary)
+            }
+            .buttonStyle(.hoverWash(inset: -3))
+            .help("Download for offline viewing")
+            .padding(8)
+        }
+    }
+
+    private func refreshOfflineState() async {
+        guard case .googleDrive(let original, _, let mimeType, let modifiedAt) = media else { return }
+        let available = await GoogleDriveService.shared.hasOfflineRecording(
+            fileURLOrID: original.absoluteString,
+            mimeType: mimeType,
+            modifiedAt: modifiedAt
+        )
+        guard !Task.isCancelled else { return }
+        isAvailableOffline = available
+    }
+
+    /// Runs the download or the removal the learner asked for. Driven by
+    /// `.task(id:)` so that opening another session cancels the wait and the
+    /// result can never land on the wrong recording.
+    private func runOfflineRequest() async {
+        guard let request = offlineRequest,
+              case .googleDrive(let original, _, let mimeType, let modifiedAt) = media else { return }
+        if request.removes {
+            await GoogleDriveService.shared.removeOfflineRecording(
+                fileURLOrID: original.absoluteString,
+                mimeType: mimeType,
+                modifiedAt: modifiedAt
+            )
+            guard !Task.isCancelled else { return }
+            isAvailableOffline = false
+            return
+        }
+        isDownloadingOffline = true
+        offlineError = nil
+        do {
+            try await GoogleDriveService.shared.makeRecordingAvailableOffline(
+                fileURLOrID: original.absoluteString,
+                mimeType: mimeType,
+                modifiedAt: modifiedAt
+            )
+            guard !Task.isCancelled else { return }
+            isAvailableOffline = true
+        } catch {
+            guard !Task.isCancelled else { return }
+            offlineError = error.localizedDescription
+        }
+        isDownloadingOffline = false
     }
 
     private var driveRecordingTaskID: String {
