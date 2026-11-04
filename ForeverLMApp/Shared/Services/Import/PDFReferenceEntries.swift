@@ -59,7 +59,11 @@ actor PDFReferenceEntries {
     private var entryStarts: [Int: [Int]] = [:]
     /// What each landing previews, nil included, so hovering a figure link
     /// twice does not read the page twice.
-    private var cache: [Landing: String?] = [:]
+    private var cache: [Landing: CitedEntry?] = [:]
+    /// Entry starts found by number for a citation of a range ("5–7") whose
+    /// middle entries no link lands on, by page; they end the entry before
+    /// them as a link's landing does (`entries(for:)`).
+    private var derivedLandings: [Int: [CGPoint]] = [:]
 
     init(_ origin: Origin) {
         self.origin = origin
@@ -69,15 +73,79 @@ actor PDFReferenceEntries {
         guard let document = loadedDocument() else { return nil }
         let targets = loadedTargets(in: document)
         guard let landing = Self.landing(of: link, in: targets) else { return nil }
+        return record(at: landing, in: document, targets: targets)?.text
+    }
+
+    /// What a landing previews, read once: the entry's text and where on the
+    /// file's pages that text is.
+    private func record(at landing: Landing, in document: PDFDocument, targets: [Int: [Target]]) -> CitedEntry? {
         if let cached = cache[landing] { return cached }
-        let landings = Self.landingsByPage(targets)
+        var landings = Self.landingsByPage(targets)
+        for (pageIndex, points) in derivedLandings { landings[pageIndex, default: []] += points }
         for pageIndex in [landing.pageIndex, landing.pageIndex + 1] where entryStarts[pageIndex] == nil {
             guard let page = document.page(at: pageIndex) else { continue }
             entryStarts[pageIndex] = Self.entryStarts(on: page, landings: landings[pageIndex] ?? [])
         }
-        let text = Self.entryText(at: landing, in: document, entryStarts: entryStarts)
-        cache[landing] = .some(text)
-        return text
+        let entry = Self.citedEntry(at: landing, in: document, entryStarts: entryStarts)
+        cache[landing] = .some(entry)
+        return entry
+    }
+
+    /// Every entry the citation under the pointer names, in order. A
+    /// citation of a range ("5–7") or a list ("1,3–5") names each number in
+    /// it, though the PDF links only some of them (an endpoint, or a range's
+    /// first entry): the rest are found in the reference list by their
+    /// numbers (`ReferenceCitation`). Any other link names the one entry it
+    /// lands on.
+    func entries(for link: Link) -> [CitedEntry] {
+        guard let document = loadedDocument() else { return [] }
+        let targets = loadedTargets(in: document)
+        func single() -> [CitedEntry] {
+            guard let landing = Self.landing(of: link, in: targets),
+                  let entry = record(at: landing, in: document, targets: targets) else { return [] }
+            return [entry]
+        }
+        guard let page = document.page(at: link.pageIndex) else { return [] }
+        let boxes = Self.characterBoxes(on: page)
+        guard let group = Self.citationGroup(around: link.bounds, on: page, boxes: boxes), group.numbers.count > 1 else {
+            return single()
+        }
+        var anchors: [Int: Landing] = [:]
+        for target in targets[link.pageIndex] ?? [] where target.bounds.insetBy(dx: -1, dy: -1).intersects(group.bounds) {
+            if let own = Self.citationGroup(around: target.bounds, on: page, boxes: boxes), let first = own.numbers.first {
+                anchors[first] = anchors[first] ?? target.landing
+            }
+        }
+        guard !anchors.isEmpty else { return single() }
+        // Numbers are counted on from an entry that prints its own number: a
+        // list whose entries print none, or a link to a table's caption
+        // ("Table 2, 3"), has no "6." to find.
+        let numbered = anchors.filter { number, landing in
+            record(at: landing, in: document, targets: targets)?.text
+                .range(of: "^[\\[(]?\(number)[.\\])]", options: .regularExpression) != nil
+        }
+        var boxesByPage: [Int: [CGRect]] = [link.pageIndex: boxes]
+        var derived: [Int: Landing] = [:]
+        for number in group.numbers where anchors[number] == nil {
+            if let landing = Self.numberedLanding(for: number, anchors: numbered, in: document, boxesByPage: &boxesByPage) {
+                derived[number] = landing
+            }
+        }
+        // An entry found by its number ends the one before it, and what was
+        // read before it was known may have run on into it.
+        for landing in derived.values where !(derivedLandings[landing.pageIndex] ?? []).contains(landing.point) {
+            derivedLandings[landing.pageIndex, default: []].append(landing.point)
+            entryStarts[landing.pageIndex] = nil
+            cache = cache.filter { $0.key.pageIndex != landing.pageIndex && $0.key.pageIndex != landing.pageIndex - 1 }
+        }
+        var entries: [CitedEntry] = []
+        for number in group.numbers {
+            guard let landing = anchors[number] ?? derived[number],
+                  var entry = record(at: landing, in: document, targets: targets) else { continue }
+            entry.number = number
+            entries.append(entry)
+        }
+        return entries.isEmpty ? single() : entries
     }
 
     /// Where a link lands, read from the file. PDFKit reports a link to a
@@ -484,6 +552,12 @@ actor PDFReferenceEntries {
     /// much wider on the page than in the text, and the entry is read off the
     /// page instead — its column, from its line down to the next number.
     nonisolated static func entryText(at landing: Landing, in document: PDFDocument, entryStarts: [Int: [Int]]) -> String? {
+        citedEntry(at: landing, in: document, entryStarts: entryStarts)?.text
+    }
+
+    /// The entry `entryText` reads, with the page characters its words are
+    /// read from, so a highlight made on the entry can be anchored to them.
+    nonisolated static func citedEntry(at landing: Landing, in document: PDFDocument, entryStarts: [Int: [Int]]) -> CitedEntry? {
         guard let page = document.page(at: landing.pageIndex) else { return nil }
         let boxes = characterBoxes(on: page)
         guard let start = landingCharacter(at: landing.point, boxes: boxes) else { return nil }
@@ -507,7 +581,14 @@ actor PDFReferenceEntries {
         let text = joined(texts)
         // A figure link lands on a panel letter, not on anything worth showing.
         guard text.count >= minimumLength else { return nil }
-        return text.count > maximumLength ? String(text.prefix(maximumLength)) + "…" : text
+        let pieces = texts.flatMap { line in
+            line.characterRanges.map { CitedEntry.Piece(pageIndex: landing.pageIndex + (line.onNextPage ? 1 : 0), range: $0) }
+        }
+        return CitedEntry(
+            number: nil,
+            text: text.count > maximumLength ? String(text.prefix(maximumLength)) + "…" : text,
+            pieces: pieces
+        )
     }
 
     private nonisolated static func readingOrderEntry(
@@ -549,6 +630,10 @@ actor PDFReferenceEntries {
                 : []
             entryLines += tail.prefix { line in
                 !nextMargins.contains { abs(line.bounds.minX - $0) <= 1.5 }
+            }.map { line in
+                var onNext = line
+                onNext.onNextPage = true
+                return onNext
             }
         }
         return entryLines
@@ -683,6 +768,28 @@ actor PDFReferenceEntries {
         /// space or break between: the typesetter hyphenated a word there,
         /// and PDFKit's text has already closed it up.
         let continuesWord: Bool
+        /// The page characters the line is read from, as ranges of the
+        /// page's text: what a highlight made on the entry's words is
+        /// anchored to.
+        var characterRanges: [NSRange] = []
+        /// Whether the line sits on the page after the entry's first, where
+        /// a list that ran past the foot of a page goes on.
+        var onNextPage = false
+    }
+
+    /// A reference entry as a citation card shows it.
+    struct CitedEntry: Sendable, Equatable {
+        /// Its number in the reference list, for an entry named by number.
+        var number: Int?
+        let text: String
+        /// The page characters the text is read from, in reading order, by
+        /// page of the file (`Link.pageIndex`'s numbering).
+        let pieces: [Piece]
+
+        struct Piece: Sendable, Equatable {
+            let pageIndex: Int
+            let range: NSRange
+        }
     }
 
     /// A line of a selection as a `Line`, its own line breaks made spaces.
@@ -695,6 +802,7 @@ actor PDFReferenceEntries {
         else { return nil }
         let count = selection.numberOfTextRanges(on: page)
         var continuesWord = false
+        let ranges = (0..<count).map { selection.range(at: $0, on: page) }.filter { $0.location != NSNotFound && $0.length > 0 }
         if count > 0, let pageText = page.string as NSString? {
             let last = selection.range(at: count - 1, on: page)
             let end = NSMaxRange(last)
@@ -707,7 +815,8 @@ actor PDFReferenceEntries {
         return Line(
             text: raw.components(separatedBy: .newlines).joined(separator: " "),
             bounds: selection.bounds(for: page),
-            continuesWord: continuesWord
+            continuesWord: continuesWord,
+            characterRanges: ranges
         )
     }
 

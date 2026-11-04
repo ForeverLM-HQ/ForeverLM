@@ -98,7 +98,9 @@ extension StudioViewModel {
         anchor: ReaderTextAnchor,
         pdfAnchor: ReaderPDFAnchor?,
         imageAnchors: [ReaderImageAnchor] = [],
-        markOnScreen: CGRect? = nil
+        markOnScreen: CGRect? = nil,
+        color: SourceHighlightColor = .default,
+        opensCard: Bool = true
     ) async {
         let trimmedQuote = quote.trimmingCharacters(in: .whitespacesAndNewlines)
         let hasWords = !trimmedQuote.isEmpty && !anchor.isEmpty
@@ -112,7 +114,7 @@ extension StudioViewModel {
             sourceID: sourceID,
             quote: hasWords ? trimmedQuote : "",
             note: "",
-            color: .default,
+            color: color,
             anchor: anchor,
             pdfAnchor: pdfAnchor,
             imageAnchors: pdfAnchor == nil ? imageAnchors : [],
@@ -122,13 +124,17 @@ extension StudioViewModel {
         // Optimistic: the readers paint from `readerHighlights`, so the mark
         // has to land there before the round-trip rather than after it.
         applyLocally(highlight)
-        readerHighlightCard = ReaderHighlightCard(
-            sourceID: sourceID,
-            highlightID: highlight.id,
-            focusesComment: false,
-            retiresUntouched: true,
-            markOnScreen: markOnScreen
-        )
+        // A mark made where the colour was already chosen (the words of a
+        // citation card) needs no card to choose it again.
+        if opensCard {
+            readerHighlightCard = ReaderHighlightCard(
+                sourceID: sourceID,
+                highlightID: highlight.id,
+                focusesComment: false,
+                retiresUntouched: true,
+                markOnScreen: markOnScreen
+            )
+        }
 
         do {
             try await storage.saveSourceHighlight(highlight)

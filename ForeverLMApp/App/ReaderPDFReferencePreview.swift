@@ -7,10 +7,14 @@ import SwiftUI
 /// cited rather than jumping to the reference list (product owner, 2026-09-25: "those
 /// references can be shown inline as a popup; without scrolling all the way
 /// down"). A link with no entry to show — one PDFKit cannot place, a page
-/// link — still takes the reader to where it lands. Clicking the card opens
+/// link — still takes the reader to where it lands. The card's "Open" opens
 /// the cited paper: from the library when it is there, otherwise after adding
 /// it (product owner, 2026-09-23: "make clicking the popup open that paper in my
-/// library").
+/// library"); a click on the entry's words selects them instead, so they can
+/// be highlighted (product owner, 2026-11-04: "please give me the ability to
+/// highlight the text of a reference in a popup"). A citation of a range or a
+/// list ("5–7") shows every entry it names, one after another (product owner,
+/// 2026-11-04: "when i click 5-7, it should show 5 6 and 7; not just 5 and 7").
 @MainActor
 final class ReaderPDFReferencePreview {
     /// Long enough that sweeping the pointer across a paragraph opens nothing.
@@ -53,6 +57,19 @@ final class ReaderPDFReferencePreview {
     /// Opens a library source: the Reader's own navigation, or a window of its
     /// own when the PDF is in a Source Reader window.
     var openSource: ((String) -> Void)?
+    /// Saves the words selected on the card as a highlight of the same words
+    /// on the PDF's page: the reader that owns this view makes it exactly as
+    /// it makes a highlight of a selection (`configureHighlighting`). Nil
+    /// leaves the card's words selectable but not highlightable.
+    var saveHighlight: (@MainActor (PDFSelection, SourceHighlightColor) -> Void)?
+    /// The source a page of the document belongs to, for a link seam that
+    /// keeps its links by source. A book is one document of many sources.
+    var sourceIDOfPage: ((Int) -> String?)?
+    /// The seam through which a reference entry's own link reaches the card:
+    /// the address stored for the entry when its paper was added, if any. The
+    /// card shows what this returns first; with nothing, the DOI or address
+    /// the entry prints, then the paper Crossref matches it to.
+    var linkForEntry: (@MainActor (ReaderReferenceEntryRef) async -> URL?)?
     /// What Crossref said an entry without a DOI names — a DOI address, or
     /// nil for nothing it could vouch for — so hovering it again asks nobody.
     private var identified: [String: String?] = [:]
@@ -113,8 +130,9 @@ final class ReaderPDFReferencePreview {
         pendingShow = Task { [weak self] in
             try? await Task.sleep(for: Self.hoverDelay)
             guard !Task.isCancelled, let self else { return }
-            guard let text = await source.entries.entry(for: link), !Task.isCancelled, self.hovered === annotation else { return }
-            self.show(text, for: annotation)
+            let cited = await source.entries.entries(for: link)
+            guard !cited.isEmpty, !Task.isCancelled, self.hovered === annotation else { return }
+            self.show(cited, firstPage: source.firstPage, for: annotation)
         }
     }
 
@@ -139,11 +157,14 @@ final class ReaderPDFReferencePreview {
         let source = source(ofPage: pageIndex, in: document)
         let link = PDFReferenceEntries.Link(pageIndex: pageIndex - (source?.firstPage ?? 0), bounds: annotation.bounds)
         pendingShow = Task { [weak self] in
-            if let source, let text = await source.entries.entry(for: link) {
-                guard !Task.isCancelled, let self else { return }
-                self.show(text, for: annotation)
-                self.pin()
-                return
+            if let source {
+                let cited = await source.entries.entries(for: link)
+                if !cited.isEmpty {
+                    guard !Task.isCancelled, let self else { return }
+                    self.show(cited, firstPage: source.firstPage, for: annotation)
+                    self.pin()
+                    return
+                }
             }
             // Read in the file's own page numbering; the document's is further on
             // by the pages of the chapters before it.
@@ -269,15 +290,17 @@ final class ReaderPDFReferencePreview {
         return chapterFiles.first { $0.pageRange.contains(pageIndex) }
     }
 
-    private func show(_ text: String, for annotation: PDFAnnotation) {
-        guard let pdfView, let page = annotation.page, pdfView.window != nil else { return }
+
+    private func show(_ cited: [PDFReferenceEntries.CitedEntry], firstPage: Int, for annotation: PDFAnnotation) {
+        guard !cited.isEmpty, let pdfView, let page = annotation.page, pdfView.window != nil else { return }
         let anchor = pdfView.convert(annotation.bounds, from: page)
         guard pdfView.visibleRect.intersects(anchor) else { return }
-        let card = ReaderReferenceCard(text: text)
-        card.activate = { [weak self, weak card] in
-            guard let self, let card else { return }
-            self.activate(card)
-        }
+        let items = cited.map { makeItem($0, firstPage: firstPage, in: pdfView.document) }
+        let card = ReaderReferenceCard(items: items)
+        card.activate = { [weak self] item in self?.activate(item) }
+        card.highlight = { [weak self] item, range, color in self?.highlight(range, of: item, color: color) }
+        card.pressed = { [weak self] in self?.pin() }
+        card.openLink = { url in NSWorkspace.shared.open(url) }
         let content = NSHostingController(rootView: ReaderReferencePreviewCard(card: card) { [weak self] inside in
             self?.cardHover(inside)
         })
@@ -319,7 +342,93 @@ final class ReaderPDFReferencePreview {
                 }
             }
         }
-        Task { [weak self] in await self?.identify(card) }
+        for item in items {
+            Task { [weak self] in await self?.identify(item) }
+        }
+    }
+
+    // MARK: The entry's words
+
+    /// One entry of the card: its words, where on the file's pages they are
+    /// read from, and the highlights already on them.
+    private func makeItem(
+        _ cited: PDFReferenceEntries.CitedEntry,
+        firstPage: Int,
+        in document: PDFDocument?
+    ) -> ReaderReferenceEntryItem {
+        let sourceID = cited.pieces.first.flatMap { sourceIDOfPage?(firstPage + $0.pageIndex) }
+        let item = ReaderReferenceEntryItem(
+            number: cited.number,
+            text: cited.text,
+            firstPage: firstPage,
+            sourceID: sourceID
+        )
+        item.link = ReaderReferenceLink.printed(inReferenceEntry: cited.text)
+        guard let document, !cited.pieces.isEmpty else { return item }
+        // The words as the page's own text reads them, to line the card's up with.
+        let pieces = cited.pieces.compactMap { piece -> (pageIndex: Int, range: NSRange, text: String)? in
+            guard let text = document.page(at: firstPage + piece.pageIndex)?.string as NSString?,
+                  piece.range.location >= 0, NSMaxRange(piece.range) <= text.length else { return nil }
+            return (piece.pageIndex, piece.range, text.substring(with: piece.range))
+        }
+        let map = ReferenceTextMap(display: cited.text, pieces: pieces)
+        guard map.isPlaced else { return item }
+        item.map = map
+        item.canHighlight = saveHighlight != nil
+        item.marks = paintedMarks(on: item, map: map, pages: Set(pieces.map(\.pageIndex)), in: document)
+        return item
+    }
+
+    /// The highlights painted on the pages the entry is read from, as the card
+    /// shows them: a highlight made on the page's reference list shows on the
+    /// card, and one made on the card is the page's.
+    private func paintedMarks(
+        on item: ReaderReferenceEntryItem,
+        map: ReferenceTextMap,
+        pages: Set<Int>,
+        in document: PDFDocument
+    ) -> [ReaderReferenceMark] {
+        var painted: [(pageIndex: Int, range: NSRange, value: NSColor)] = []
+        for pageIndex in pages {
+            guard let page = document.page(at: item.firstPage + pageIndex) else { continue }
+            for annotation in page.annotations
+            where ReaderPDFHighlightSupport.isNoteAnnotation(annotation) && (annotation.type ?? "").lowercased().contains("highlight") {
+                // The middle of the line box: one drawn a little tall reaches
+                // into the lines above and below.
+                let rect = annotation.bounds
+                guard let selection = page.selection(for: rect.insetBy(dx: 0, dy: rect.height * 0.25)) else { continue }
+                for index in 0..<selection.numberOfTextRanges(on: page) {
+                    painted.append((pageIndex, selection.range(at: index, on: page), annotation.color))
+                }
+            }
+        }
+        return map.displayRanges(marking: painted, in: item.text).map {
+            ReaderReferenceMark(range: $0.range, color: $0.value.withAlphaComponent(Self.markOpacity))
+        }
+    }
+
+    /// How strongly a highlight tints the words, over the card's own ground.
+    private static let markOpacity: CGFloat = 0.55
+
+    /// Highlights the words selected on the card: the same words on the page,
+    /// saved as the reader saves a selection, in the colour pressed.
+    private func highlight(_ range: NSRange, of item: ReaderReferenceEntryItem, color: SourceHighlightColor) {
+        guard let map = item.map, let saveHighlight, let document = pdfView?.document else { return }
+        var selection: PDFSelection?
+        for run in map.pageRuns(forDisplayRange: range) {
+            guard let page = document.page(at: item.firstPage + run.pageIndex), let part = page.selection(for: run.range) else { continue }
+            if let selection { selection.add(part) } else { selection = part }
+        }
+        guard let selection, !(selection.string ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        saveHighlight(selection, color)
+        // Painted on the page once the highlight is stored; the card shows
+        // it now.
+        item.marks.append(ReaderReferenceMark(
+            range: range,
+            color: ReaderPDFHighlightSupport.color(for: color).withAlphaComponent(Self.markOpacity)
+        ))
+        item.selection = nil
+        item.textHandle.clearSelection()
     }
 
     // MARK: The cited paper
@@ -327,14 +436,18 @@ final class ReaderPDFReferencePreview {
     /// Which paper the card's entry is, and whether the library holds it. A
     /// DOI printed in the entry settles it; an entry without one is matched
     /// against the library's titles, and failing that, against Crossref.
-    private func identify(_ card: ReaderReferenceCard) async {
+    private func identify(_ item: ReaderReferenceEntryItem) async {
+        if let linkForEntry,
+           let url = await linkForEntry(ReaderReferenceEntryRef(sourceID: item.sourceID, number: item.number, text: item.text)) {
+            item.link = url
+        }
         guard let library else {
-            card.library = .notAPaper
+            item.library = .notAPaper
             return
         }
-        let text = card.text
+        let text = item.text
         if let doi = PDFReferenceEntries.doi(inReferenceEntry: text) {
-            card.library = await status(ofReference: "https://doi.org/\(doi)", in: library)
+            item.library = await status(ofReference: "https://doi.org/\(doi)", in: library)
             return
         }
         let titles = library.articles.map { (id: $0.id, title: $0.title) }
@@ -345,7 +458,7 @@ final class ReaderPDFReferencePreview {
                 .id
         }.value
         if let owned {
-            card.library = .inLibrary(sourceID: owned)
+            item.library = .inLibrary(sourceID: owned)
             return
         }
         let href: String?
@@ -356,39 +469,41 @@ final class ReaderPDFReferencePreview {
             identified[text] = href
         }
         guard let href else {
-            card.library = .notAPaper
+            item.library = .notAPaper
             return
         }
-        card.library = await status(ofReference: href, in: library)
+        // A paper Crossref matched is a link for an entry that prints none.
+        if item.link == nil { item.link = URL(string: href) }
+        item.library = await status(ofReference: href, in: library)
     }
 
-    private func status(ofReference href: String, in library: StudioViewModel) async -> ReaderReferenceCard.Library {
+    private func status(ofReference href: String, in library: StudioViewModel) async -> ReaderReferenceEntryItem.Library {
         if let id = await library.referenceLibraryStatuses(for: [href])[href]?.sourceID {
             return .inLibrary(sourceID: id)
         }
         return .absent(href: href)
     }
 
-    /// The click: open the paper, adding it first when the library lacks it.
-    /// The add carries on if the card closes meanwhile, and opens the paper
-    /// when it lands.
-    private func activate(_ card: ReaderReferenceCard) {
+    /// "Open": the paper, adding it first when the library lacks it. The add
+    /// carries on if the card closes meanwhile, and opens the paper when it
+    /// lands.
+    private func activate(_ item: ReaderReferenceEntryItem) {
         pin()
-        switch card.library {
+        switch item.library {
         case .inLibrary(let sourceID):
             close()
             openSource?(sourceID)
         case .absent(let href):
             guard let library else { return }
-            card.library = .adding
+            item.library = .adding
             Task { [weak self] in
                 let status = await library.addReferenceToLibrary(href)
                 if let sourceID = status.sourceID, status.state == .inLibrary {
-                    card.library = .inLibrary(sourceID: sourceID)
+                    item.library = .inLibrary(sourceID: sourceID)
                     self?.close()
                     self?.openSource?(sourceID)
                 } else {
-                    card.library = .failed(status.message ?? "The paper could not be added.")
+                    item.library = .failed(status.message ?? "The paper could not be added.")
                 }
             }
         case .checking, .notAPaper, .adding, .failed:
@@ -397,10 +512,34 @@ final class ReaderPDFReferencePreview {
     }
 }
 
-/// What a citation card shows and can do.
+/// A reference entry, as the link seam (`ReaderPDFReferencePreview.linkForEntry`)
+/// is asked about it: the source it was read from, when the reader knows it,
+/// its number in the reference list when it is numbered, and its text.
+struct ReaderReferenceEntryRef: Sendable, Equatable {
+    let sourceID: String?
+    let number: Int?
+    let text: String
+}
+
+/// What a citation card shows and can do: the entries a citation names.
+@MainActor
+final class ReaderReferenceCard {
+    let items: [ReaderReferenceEntryItem]
+    var activate: (ReaderReferenceEntryItem) -> Void = { _ in }
+    var highlight: (ReaderReferenceEntryItem, NSRange, SourceHighlightColor) -> Void = { _, _, _ in }
+    /// A press on an entry's words: the card is being used, so it stays.
+    var pressed: () -> Void = {}
+    var openLink: (URL) -> Void = { _ in }
+
+    init(items: [ReaderReferenceEntryItem]) {
+        self.items = items
+    }
+}
+
+/// One entry of a card.
 @MainActor
 @Observable
-final class ReaderReferenceCard {
+final class ReaderReferenceEntryItem: Identifiable {
     enum Library: Equatable {
         /// Still finding out which paper the entry is.
         case checking
@@ -414,19 +553,74 @@ final class ReaderReferenceCard {
         case failed(String)
     }
 
+    let id = UUID()
+    let number: Int?
     let text: String
+    /// The document page the file's first page is.
+    let firstPage: Int
+    let sourceID: String?
     var library: Library = .checking
-    @ObservationIgnored var activate: () -> Void = {}
+    /// The entry's own address: the DOI or link it prints, what the link seam
+    /// gave, or the paper Crossref matched it to.
+    var link: URL?
+    /// The highlights on its words.
+    var marks: [ReaderReferenceMark] = []
+    /// The words selected, with the box they fill.
+    var selection: (range: NSRange, rect: CGRect)?
+    /// Whether the words are placed on the page, so a highlight of them can be saved.
+    var canHighlight = false
+    @ObservationIgnored var map: ReferenceTextMap?
+    @ObservationIgnored let textHandle = ReaderReferenceTextHandle()
 
-    init(text: String) {
-        self.text = text
+    /// Whether there is anything under the words: an open or add, a state,
+    /// or a link.
+    var hasFooter: Bool {
+        if link != nil { return true }
+        switch library {
+        case .checking, .notAPaper: return false
+        default: return true
+        }
     }
 
-    var opens: Bool {
-        switch library {
-        case .inLibrary, .absent: true
-        default: false
+    init(number: Int?, text: String, firstPage: Int, sourceID: String?) {
+        self.number = number
+        self.text = text
+        self.firstPage = firstPage
+        self.sourceID = sourceID
+    }
+}
+
+/// Reading an address off a reference entry, and saying it in a few words.
+enum ReaderReferenceLink {
+    /// The address an entry prints: its DOI, else the first web address in it.
+    static func printed(inReferenceEntry text: String) -> URL? {
+        if let doi = PDFReferenceEntries.doi(inReferenceEntry: text) {
+            return URL(string: "https://doi.org/\(doi)")
         }
+        guard let range = text.range(of: #"https?://[^\s<>"]+"#, options: .regularExpression) else { return nil }
+        var address = String(text[range])
+        // The sentence's closing punctuation, and a parenthesis the address did
+        // not open, are not the address's.
+        while let last = address.last {
+            if ".,;:".contains(last) {
+                address.removeLast()
+            } else if last == ")", address.filter({ $0 == ")" }).count > address.filter({ $0 == "(" }).count {
+                address.removeLast()
+            } else {
+                break
+            }
+        }
+        return URL(string: address)
+    }
+
+    /// The address without its scheme: "doi.org/10.1016/j.cell.2020.01.001".
+    static func displayText(for url: URL) -> String {
+        var text = url.absoluteString
+        for prefix in ["https://", "http://"] where text.hasPrefix(prefix) {
+            text.removeFirst(prefix.count)
+        }
+        if text.hasPrefix("www.") { text.removeFirst(4) }
+        return text.hasSuffix("/") ? String(text.dropLast()) : text
     }
 }
 
@@ -434,49 +628,107 @@ private struct ReaderReferencePreviewCard: View {
     let card: ReaderReferenceCard
     let hoverChanged: (Bool) -> Void
 
+    /// Past this many entries (a long range) the card scrolls instead of
+    /// growing off the screen.
+    private static let tallest: CGFloat = 400
+
     var body: some View {
         Group {
-            if card.opens {
-                Button(action: card.activate) { content }
-                    .buttonStyle(.hoverWash(cornerRadius: 8, inset: -6))
+            if card.items.count > 3 {
+                ScrollView { entries }
+                    .frame(height: Self.tallest)
             } else {
-                content
+                entries
             }
         }
-        .textSelection(.disabled)
         .frame(width: 360)
         .padding(12)
         .onHover(perform: hoverChanged)
     }
 
-    private var content: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(card.text)
-                .font(.callout)
-                .multilineTextAlignment(.leading)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-            footer
-                .font(.caption)
-                .foregroundStyle(.secondary)
+    private var entries: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            ForEach(card.items) { item in
+                ReaderReferenceEntryView(item: item, card: card)
+            }
         }
-        .contentShape(Rectangle())
+    }
+}
+
+private struct ReaderReferenceEntryView: View {
+    let item: ReaderReferenceEntryItem
+    let card: ReaderReferenceCard
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            ZStack(alignment: .topLeading) {
+                ReaderReferenceText(
+                    text: item.text,
+                    marks: item.marks,
+                    selectionChanged: { item.selection = $0.map { (range: $0.0, rect: $0.1) } },
+                    pressed: card.pressed,
+                    handle: item.textHandle
+                )
+                .frame(maxWidth: .infinity, alignment: .leading)
+                if item.canHighlight, let selection = item.selection {
+                    ReaderReferenceHighlightBar { color in
+                        card.highlight(item, selection.range, color)
+                    }
+                    .offset(barOffset(over: selection.rect))
+                }
+            }
+            if item.hasFooter {
+                footer
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.disabled)
+            }
+        }
+    }
+
+    /// Over the selected words, or under them when they are the card's first
+    /// line and there is no room above; kept inside the card's width.
+    private func barOffset(over rect: CGRect) -> CGSize {
+        let x = min(max(rect.midX - ReaderReferenceHighlightBar.width / 2, 0), 360 - ReaderReferenceHighlightBar.width)
+        let above = rect.minY - ReaderReferenceHighlightBar.height - 4
+        return CGSize(width: x, height: above >= -8 ? above : rect.maxY + 4)
+    }
+
+    private var footer: some View {
+        HStack(spacing: 12) {
+            action
+            Spacer(minLength: 0)
+            if let link = item.link {
+                Button { card.openLink(link) } label: {
+                    Label(ReaderReferenceLink.displayText(for: link), systemImage: "link")
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4))
+                .help("Open \(link.absoluteString)")
+            }
+        }
     }
 
     @ViewBuilder
-    private var footer: some View {
-        switch card.library {
+    private var action: some View {
+        switch item.library {
         case .checking, .notAPaper:
             EmptyView()
         case .inLibrary:
-            Label("Open", systemImage: "arrow.up.right")
+            Button { card.activate(item) } label: { Label("Open", systemImage: "arrow.up.right") }
+                .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4))
+                .fixedSize()
         case .absent:
-            Label("Add to Library", systemImage: "plus")
+            Button { card.activate(item) } label: { Label("Add to Library", systemImage: "plus") }
+                .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4))
+                .fixedSize()
         case .adding:
             HStack(spacing: 6) {
                 ProgressView().controlSize(.mini)
                 Text("Adding…")
             }
+            .fixedSize()
         case .failed(let message):
             Text(message)
         }
