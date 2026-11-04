@@ -6,6 +6,14 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+
+## 0.186.0 (build 266) — 2026-11-04
+
+**Highlights:**
+- **A paper's references are read and linked** when it is added, and a citation of a range shows every paper in it.
+- **Highlight colors mean something**: Remember, Key idea, Follow up, Doubt, Connect.
+- **Every pane is a tab**, and a notebook opens beside your panes.
+
 - **A paper's references are read and linked when it is added.** Each paper's reference list is read from its PDF in the background, free and with no AI model, and every entry is given the link of the paper it names: the DOI or address it prints, or a Crossref or OpenAlex record whose title and year it prints. Papers already in the library are read once after the update. Find Cited Papers now lists the linked papers directly, with the link ready to add, and asks the AI model only about entries no link was found for. An assistant can read the list and save links it found (`get_paper_references`, `resolve_paper_references`, `save_paper_references`).
 - **A citation of a range shows every paper in it.** Clicking "5–7" (or "11,12", or "1,3–5") in a paper's text opens the reference card on entries 5, 6 and 7, one after another, not only the numbers the PDF happens to link.
 - **A citation still opens under a highlight.** A highlight over a sentence no longer swallows the click, the hover or the press on a citation inside it: the reference card opens, and the rest of the highlight still opens the highlight.
@@ -19,6 +27,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **Every pane is a tab, in the top bar, and tabs can be added.** A pane with one thing now draws its tab too, in the top bar beside the window's buttons, so it can be dragged, closed and added to: the + at the end of a pane's tabs opens Chat, Library, Memory, Browser, Pages or the Space as a new tab in it. Pressing or dragging a tab no longer moves the window; only the empty top bar beside the tabs does.
 - **A notebook opens beside your panes.** From a window showing two panes or more, such as the Space beside a chat, a notebook no longer takes the whole window: its sources and Studio stand around your panes, and a source opens as a pane you can drag to a side, up to three side by side, so the video, your notes and the chat can all be on screen.
 - **Download a Google Drive recording for offline viewing**: the arrow on a meeting recording keeps a copy on the Mac until you remove it, so it plays on a plane.
+- **Page clicks are checked quietly, to find where a click goes to the wrong spot.** Each plain click in a Page is compared with where it was pressed; one that lands elsewhere, moves the page or meets a replacement is written to the log (category PageClicks) with numbers only, never your words. Nothing about writing changes.
 
 ## 0.185.0 (build 265) — 2026-11-02
 
