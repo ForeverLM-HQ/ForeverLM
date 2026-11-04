@@ -259,6 +259,10 @@ struct ArtifactGroundingRequest: Identifiable, Equatable {
 struct ArtifactGroundingAttachment: Identifiable, Equatable {
     let id = UUID()
     let sourceIDs: [String]
+    /// The sources by id and title, for the footnote each newly attached one
+    /// leaves after the passage (`footnoteLinkedSources` in the editor); an id
+    /// with no citation is attached without one.
+    var citations: [ArtifactSourceCitation] = []
 }
 
 /// The editor must take the width of its SwiftUI pane, including when Docs is
@@ -1994,7 +1998,9 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             }
             let data = (try? JSONEncoder().encode(attachment.sourceIDs)) ?? Data("[]".utf8)
             let json = String(data: data, encoding: .utf8) ?? "[]"
-            webView.evaluateJavaScript("window.foreverLMArtifactEditor.attachSources(\(json));") {
+            let citationData = (try? JSONEncoder().encode(attachment.citations)) ?? Data("[]".utf8)
+            let citationsJSON = String(data: citationData, encoding: .utf8) ?? "[]"
+            webView.evaluateJavaScript("window.foreverLMArtifactEditor.attachSources(\(json), \(citationsJSON));") {
                 [weak self] _, error in
                 if let error {
                     self?.reportError("Could not attach the sources: \(error.localizedDescription)")

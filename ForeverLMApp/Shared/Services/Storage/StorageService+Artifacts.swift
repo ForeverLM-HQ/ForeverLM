@@ -679,6 +679,28 @@ extension StorageService {
         if let rawTitle {
             let title = rawTitle.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !title.isEmpty else { throw ArtifactError.invalidTitle }
+            if title != artifact.title, artifact.teamID == nil, ArtifactMarkdownTitle.canBeNamedByBody(artifact) {
+                // A page named by its opening heading is renamed in the
+                // heading too, whoever renames it (the editor's title, the
+                // page's Rename, `update_doc`): the title and the heading are
+                // one string (`ArtifactMarkdownTitle`), and the heading left as
+                // it was would win the next time the page opens. A body that is
+                // not on this Mac yet cannot be renamed in, so the rename waits
+                // rather than leave two names; a record with no body file at
+                // all has no heading to keep.
+                do {
+                    let body = try artifactMarkdown(of: artifact)
+                    if let renamed = ArtifactMarkdownTitle.retitling(body.markdown, to: title) {
+                        _ = try writeArtifactMarkdown(
+                            artifactID: artifactID,
+                            markdown: renamed,
+                            expectedRevision: body.revision
+                        )
+                    }
+                } catch ArtifactError.unavailable(_) {
+                    // No body file: nothing names the page but its title.
+                }
+            }
             artifact.title = title
         }
         if let linkedNotebookIDs {

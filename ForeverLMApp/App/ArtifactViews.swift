@@ -3426,7 +3426,10 @@ private struct ArtifactEditor: View {
         // showing the current answer and sends the whole edited set back at once.
         .sheet(item: $groundingRequest) { request in
             ArtifactSourcePicker(initial: request.sourceIDs, seed: request.selectedText) { sourceIDs in
-                groundingAttachment = ArtifactGroundingAttachment(sourceIDs: sourceIDs)
+                groundingAttachment = ArtifactGroundingAttachment(
+                    sourceIDs: sourceIDs,
+                    citations: groundingCitations(for: sourceIDs)
+                )
             }
         }
         // The draft is flushed first, so what Google receives is what the page
@@ -4505,6 +4508,11 @@ private struct ArtifactEditor: View {
                 setDraft(loaded.markdown)
                 titleFollowsHeading = ArtifactMarkdownTitle.names(artifact.title, in: loaded.markdown)
                 titleRowHeld = !titleFollowsHeading
+                // A page stored with a title that differs from its opening
+                // heading takes the heading's words, once, as it opens.
+                // Off the load, so the page is not held while the title is saved.
+                if titleDraft.isEmpty { titleDraft = artifact.title }
+                Task { await saveInferredTitleIfNeeded(from: loaded.markdown) }
                 // A page made a moment ago opens on its name, as ChatGPT's and
                 // Notion's do: type it, press Return, and the caret is in the
                 // page. Left empty, it keeps the placeholder and still takes its
@@ -4831,12 +4839,19 @@ private struct ArtifactEditor: View {
             return
         }
         titleDraft = title
-        // A name typed to match the heading folds the header into it.
+        // A page named by its heading is renamed in the heading too (storage
+        // writes it with the title, `StorageService.updateArtifact`), so the
+        // title and the heading stay one string and the header stays folded
+        // into the heading. A name typed to match the heading folds it too.
+        let heading = ArtifactMarkdownTitle.first(in: draft) != nil
         titleFollowsHeading = ArtifactMarkdownTitle.names(title, in: draft)
+            || (heading && ArtifactMarkdownTitle.canBeNamedByBody(artifact))
         isUpdatingTitle = true
         Task {
             await vm.updateArtifact(artifactID: artifact.id, title: title)
             isUpdatingTitle = false
+            // The heading was rewritten with the title: the editor takes it.
+            await refreshBodyAfterArtifactUpdate()
         }
     }
 
@@ -4933,58 +4948,30 @@ private struct ArtifactEditor: View {
         }
     }
 
-    /// A doc named by its first heading follows it. The placeholder title
-    /// takes the first `# ` heading as the doc's name; a title that is the
-    /// heading is renamed when the heading is; a heading deleted outright
-    /// leaves the title standing and brings the header back.
+    /// A page whose body opens with a `# ` heading is named by it
+    /// (`ArtifactMarkdownTitle`): the stored title takes the heading's words
+    /// whenever they differ, so a body an assistant wrote under another
+    /// wording, a heading typed over, and a title that drifted all end as one
+    /// string and the header never says the name twice. A heading deleted
+    /// outright leaves the title standing and brings the header back. Run
+    /// after a save and when the page opens, which repairs a page stored
+    /// with two names.
     private func saveInferredTitleIfNeeded(from markdown: String) async {
         guard titleDraft == artifact.title, !titleFocused else { return }
         guard let heading = ArtifactMarkdownTitle.first(in: markdown) else {
             titleFollowsHeading = false
             return
         }
-        if ArtifactMarkdownTitle.names(artifact.title, in: markdown) {
-            titleFollowsHeading = true
-            return
-        }
-        guard titleFollowsHeading || ArtifactPlaceholderTitle.isPlaceholder(artifact.title) else { return }
+        titleFollowsHeading = ArtifactMarkdownTitle.names(artifact.title, in: markdown)
+        guard ArtifactMarkdownTitle.canBeNamedByBody(artifact),
+              let adopted = ArtifactMarkdownTitle.adoptedTitle(replacing: artifact.title, in: markdown) else { return }
         titleFollowsHeading = true
-        titleDraft = heading
+        titleDraft = adopted
         isUpdatingTitle = true
         await vm.updateArtifact(artifactID: artifact.id, title: heading)
         isUpdatingTitle = false
     }
 
-}
-
-enum ArtifactMarkdownTitle {
-    /// The `# ` heading the body opens with, or nil when it opens with
-    /// anything else. Reads no further than the first non-blank line, so it
-    /// is cheap enough to ask of every draft.
-    static func first(in markdown: String) -> String? {
-        var start = markdown.startIndex
-        while start < markdown.endIndex {
-            let end = markdown[start...].firstIndex(of: "\n") ?? markdown.endIndex
-            let trimmed = markdown[start..<end].trimmingCharacters(in: .whitespaces)
-            if !trimmed.isEmpty {
-                guard trimmed.hasPrefix("# ") else { return nil }
-                let title = trimmed.dropFirst(2).trimmingCharacters(in: .whitespacesAndNewlines)
-                return title.isEmpty ? nil : String(title.prefix(500))
-            }
-            guard end < markdown.endIndex else { break }
-            start = markdown.index(after: end)
-        }
-        return nil
-    }
-
-    /// Whether the body's first heading is the doc's title — trimmed and
-    /// case-insensitive, the comparison the published page makes
-    /// (`splitLeadingTitle`) before it lifts that heading into its header —
-    /// so drawing both would say the name twice.
-    static func names(_ title: String, in markdown: String) -> Bool {
-        guard let heading = first(in: markdown) else { return false }
-        return heading.lowercased() == title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    }
 }
 
 private extension ArtifactEditor {
@@ -5038,6 +5025,27 @@ private extension ArtifactEditor {
             let title = vm.ideas.first { $0.id == id }?.title ?? transfer.title
             guard let title, !title.isEmpty else { return nil }
             return ArtifactPageLink(title: title, link: transfer.link)
+        }
+    }
+
+    /// The picker's answer as citations, for the footnotes the newly attached
+    /// sources leave. An id is a source, or `book:<id>` for a whole book, which
+    /// stands as its first chapter under the book's name, as a book row dropped
+    /// on the page does. An id the library does not hold has no citation, and
+    /// is attached without a note.
+    func groundingCitations(for tokens: [String]) -> [ArtifactSourceCitation] {
+        tokens.compactMap { token in
+            if token.hasPrefix("book:") {
+                let bookID = String(token.dropFirst("book:".count))
+                guard let representative = vm.bookChapterArticlesInOrder(for: bookID).first else { return nil }
+                return ArtifactSourceCitation(
+                    sourceID: representative.id,
+                    title: vm.bookDisplayName(bookID),
+                    bookID: bookID
+                )
+            }
+            guard let source = vm.articlesById[token] else { return nil }
+            return ArtifactSourceCitation(sourceID: token, title: source.title)
         }
     }
 
