@@ -3845,9 +3845,32 @@ function withQuietTab(ctx) {
 /// the caret, so each new line at the end of a page sat against the window's
 /// bottom edge, under the page's side chat card. Read on every scroll, so a
 /// resized window gets its own room.
+///
+/// Typing scrolls in a stride, not a line at a time. Scrolled just back to
+/// that room, every wrapped line moved the whole page up by one line, and the
+/// text crept upward under the writer's eyes. Once the caret enters the room
+/// while typing, the page moves until two fifths of the window lie below it,
+/// which then takes several lines to use up. Arrow keys, clicks and a page
+/// opening keep the short step, so reading down a page does not jump.
 const caretRoom = {
   top: 24,
   get bottom() { return Math.round(Math.min(200, Math.max(64, window.innerHeight * 0.2))) },
+  left: 0,
+  right: 0,
+}
+
+let writingNow = false
+const typingKeys = new Set(['Enter', 'Backspace', 'Delete'])
+document.addEventListener('keydown', (event) => {
+  writingNow = !event.metaKey && !event.ctrlKey && !event.altKey && (event.key.length === 1 || typingKeys.has(event.key))
+}, true)
+document.addEventListener('pointerdown', () => { writingNow = false }, true)
+
+const caretStride = {
+  top: caretRoom.top,
+  get bottom() {
+    return writingNow ? Math.max(caretRoom.bottom + 40, Math.round(Math.min(400, window.innerHeight * 0.4))) : caretRoom.bottom
+  },
   left: 0,
   right: 0,
 }
@@ -3856,7 +3879,7 @@ function withRoomAroundTheCaret(ctx) {
   ctx.update(editorViewOptionsCtx, (previous) => ({
     ...previous,
     scrollThreshold: caretRoom,
-    scrollMargin: caretRoom,
+    scrollMargin: caretStride,
   }))
 }
 
@@ -7454,6 +7477,7 @@ async function create(markdown, fontSize) {
 /// through it.
 function replaceDocument(markdown, { fresh = false } = {}) {
   if (!editor) return
+  lastReplacementAt = performance.now()
   if (fresh) {
     editor.editor.action(replaceAll(markdown, true))
     return
@@ -10705,6 +10729,98 @@ document.addEventListener('mouseup', () => {
   marginDrag = null
   requestAnimationFrame(publishSelection)
 }, true)
+
+// ─── Where a click went ─────────────────────────────────────────────────────
+// A writer reported that a click to write at a point sometimes puts the caret
+// somewhere else (product owner, 2026-11-02: "it goes to the wrong spot
+// sometimes"), and no test of the editor alone has reproduced it. So each
+// plain click is checked once the caret has settled: where the browser would
+// put it for the point pressed (`posAtCoords`), where it went, whether the page
+// scrolled or was replaced from outside in between, and how far the caret's
+// line is from the point. A click that went somewhere else, moved the page, or
+// met a replacement is sent to the host (`clickDiagnostic`), which writes it to
+// the log with the last few clicks. Numbers only: no words of the page leave it.
+
+let lastReplacementAt = -Infinity
+let pendingClick = null
+let clickDiagnosticsSent = 0
+const clickTrail = []
+
+document.addEventListener('mousedown', (event) => {
+  pendingClick = null
+  if (event.button !== 0 || event.detail !== 1 || event.shiftKey || event.metaKey || event.ctrlKey || event.altKey) return
+  const view = activeEditorView()
+  if (!view || !view.editable || !(event.target instanceof Element)) return
+  if (!view.dom.contains(event.target) && !isPageBackground(event.target, view)) return
+  const scroller = scrollContainer(view.dom)
+  const expected = view.posAtCoords({ left: event.clientX, top: event.clientY })
+  const { anchor, head } = view.state.selection
+  pendingClick = {
+    view,
+    scroller,
+    at: performance.now(),
+    x: Math.round(event.clientX),
+    y: Math.round(event.clientY),
+    target: event.target === view.dom ? 'editor' : view.dom.contains(event.target) ? event.target.tagName.toLowerCase() : 'margin',
+    expected: expected ? expected.pos : null,
+    before: { anchor, head },
+    scrollTop: scroller ? Math.round(scroller.scrollTop) : 0,
+    docSize: view.state.doc.content.size,
+    replacedBefore: performance.now() - lastReplacementAt,
+    moved: 0,
+  }
+}, true)
+
+document.addEventListener('mousemove', (event) => {
+  if (!pendingClick || !(event.buttons & 1)) return
+  pendingClick.moved = Math.max(pendingClick.moved, Math.hypot(event.clientX - pendingClick.x, event.clientY - pendingClick.y))
+}, true)
+
+document.addEventListener('mouseup', () => {
+  const click = pendingClick
+  pendingClick = null
+  if (!click || click.moved >= 4) return
+  // Long enough for the browser's selection change to reach the editor.
+  setTimeout(() => checkClick(click), 250)
+}, true)
+
+function checkClick(click) {
+  const { view } = click
+  if (!view.dom.isConnected) return
+  const { anchor, head } = view.state.selection
+  const scrollTop = click.scroller ? Math.round(click.scroller.scrollTop) : 0
+  let caret = null
+  try {
+    const rect = view.coordsAtPos(head)
+    caret = { dx: Math.round(rect.left - click.x), dy: Math.round((rect.top + rect.bottom) / 2 - click.y), height: Math.round(rect.bottom - rect.top) }
+  } catch {
+    // A position that cannot be drawn is reported without its distance.
+  }
+  const replaced = lastReplacementAt >= click.at - 50
+  const entry = {
+    x: click.x,
+    y: click.y,
+    target: click.target,
+    expected: click.expected,
+    before: click.before,
+    after: { anchor, head },
+    scroll: scrollTop - click.scrollTop,
+    docSize: click.docSize,
+    docSizeAfter: view.state.doc.content.size,
+    replaced: replaced ? Math.round(lastReplacementAt - click.at) : null,
+    replacedBefore: Number.isFinite(click.replacedBefore) ? Math.round(click.replacedBefore) : null,
+    caret,
+  }
+  clickTrail.push(entry)
+  while (clickTrail.length > 6) clickTrail.shift()
+  const elsewhere = click.expected != null && anchor === head && Math.abs(head - click.expected) > 1 && click.target !== 'editor'
+  const farLine = caret != null && Math.abs(caret.dy) > caret.height * 1.5
+  const moved = Math.abs(entry.scroll) > 1
+  const reason = replaced ? 'replaced' : moved ? 'scrolled' : elsewhere ? 'elsewhere' : farLine ? 'far-line' : null
+  if (!reason || clickDiagnosticsSent >= 40) return
+  clickDiagnosticsSent += 1
+  post('clickDiagnostic', { reason, click: entry, trail: clickTrail.slice(0, -1) })
+}
 
 const selectionPublishPlugin = $prose(() => new Plugin({
   view: () => ({

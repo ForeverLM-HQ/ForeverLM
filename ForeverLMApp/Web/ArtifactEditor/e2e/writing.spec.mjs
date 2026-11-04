@@ -306,3 +306,39 @@ test('a press in the margin beside the prose goes to that line, as on paper', as
   await settle(page)
   expect((await caret()).selected).toBe('A first line¶¶¶A heading')
 })
+
+test('a click is checked once the caret has settled: a plain one says nothing, one that meets a replacement is reported', async ({ page }) => {
+  await openEditor(page, 'The first line of the page\n\nThe second line, a little longer\n\nThe third line\n')
+  const middleOf = (prefix) => page.evaluate((start) => {
+    const view = window.__editorTest.view()
+    let found = null
+    view.state.doc.descendants((node, pos) => {
+      if (!found && node.isTextblock && node.textContent.startsWith(start)) {
+        const rect = view.nodeDOM(pos).getBoundingClientRect()
+        found = { x: rect.left + 40, y: (rect.top + rect.bottom) / 2 }
+      }
+    })
+    return found
+  }, prefix)
+  const diagnostics = () => messages(page, 'clickDiagnostic')
+  await clearMessages(page)
+  const second = await middleOf('The second')
+  await page.mouse.click(second.x, second.y)
+  await page.waitForTimeout(400)
+  expect(await diagnostics()).toEqual([])
+  // The page handed back a moment after the press, as a save can be.
+  const third = await middleOf('The third')
+  await page.mouse.move(third.x, third.y)
+  await page.mouse.down()
+  await page.evaluate(() => {
+    const live = window.foreverLMArtifactEditor.serializedMarkdown()
+    window.foreverLMArtifactEditor.setMarkdown(live.replace('The third line', 'The third line!'), { key: 'page-1', folds: '[]' })
+  })
+  await page.mouse.up()
+  await page.waitForTimeout(400)
+  const reported = await diagnostics()
+  expect(reported).toHaveLength(1)
+  expect(reported[0].reason).toBe('replaced')
+  expect(reported[0].click.x).toBeCloseTo(third.x, 0)
+  expect(JSON.stringify(reported[0])).not.toContain('third')
+})

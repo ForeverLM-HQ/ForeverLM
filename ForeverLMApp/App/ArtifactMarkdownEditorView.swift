@@ -1,4 +1,5 @@
 import AppKit
+import os
 import SwiftUI
 import WebKit
 import UniformTypeIdentifiers
@@ -1037,6 +1038,8 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
     }
 
     final class Coordinator: NSObject, WKScriptMessageHandler, WKNavigationDelegate, ArtifactNotesGraphPage {
+        private static let clickLog = Logger(subsystem: "com.foreverlm", category: "PageClicks")
+
         /// The notes graph's bridge to the pane; see `notesGraph` on the view.
         fileprivate(set) var notesGraph: ArtifactNotesGraphBridge?
         private var markdown: Binding<String>
@@ -1701,6 +1704,14 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
                       let y = (payload["y"] as? NSNumber)?.doubleValue else { return }
                 let transfers = sourceIDs.map { StudioArticleTransfer(articleId: $0, articleIds: [$0], title: "", sourceType: "") }
                 onSourceDrop(transfers, CGPoint(x: x, y: y))
+            case "clickDiagnostic":
+                // A click that went somewhere other than where it was pressed,
+                // moved the page or met a replacement: numbers only, written
+                // where `log show` finds it (category PageClicks).
+                if let data = try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys]),
+                   let line = String(data: data, encoding: .utf8) {
+                    Self.clickLog.notice("\(line, privacy: .public)")
+                }
             case "error":
                 reportError(payload["message"] as? String ?? "The artifact editor failed to load.")
             default:
