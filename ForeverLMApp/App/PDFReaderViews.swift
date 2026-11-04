@@ -1465,6 +1465,7 @@ struct PDFKitInlineView: NSViewRepresentable {
         preview.documentData = documentData
         preview.chapterFiles = chapterFiles
         preview.library = vm
+        preview.configureHighlighting(viewModel: vm, sourceID: sourceID, sections: sections)
         preview.openSource = opensCitedSource ?? { [weak vm] sourceID in
             Task { await vm?.revealSourceInReader(sourceID) }
         }

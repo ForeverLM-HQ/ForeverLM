@@ -489,6 +489,7 @@ targets:
       # A citation's reference card in the phone's PDF reader: the entry read
       # from the paper's own file, as on the Mac, and the source it names.
       - Shared/Services/Import/PDFReferenceEntries.swift
+      - Shared/Services/Import/ReferenceCitation.swift
       - iOS/MobileReaderReferenceCard.swift
       # Writing a walkthrough on the phone: the Mac's record and validator,
       # the shared writer turns and run, and the step turns and grading brief

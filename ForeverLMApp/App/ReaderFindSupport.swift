@@ -1859,12 +1859,17 @@ final class FindablePDFView: PDFView {
     }
 
     private func linkAnnotation(under event: NSEvent) -> PDFAnnotation? {
+        linkHit(under: event)?.annotation
+    }
+
+    /// The link under the pointer even when a highlight is painted over it:
+    /// a citation takes the hover, the click and the press that would start
+    /// a selection before the mark does (`ReaderPDFLinkHitTest`).
+    private func linkHit(under event: NSEvent) -> (annotation: PDFAnnotation, coveredByMark: Bool)? {
         guard linkHoverChanged != nil || linkClicked != nil else { return nil }
         let point = convert(event.locationInWindow, from: nil)
-        guard let page = page(for: point, nearest: false),
-              let annotation = page.annotation(at: convert(point, to: page)),
-              annotation.type == "Link" else { return nil }
-        return annotation
+        guard let page = page(for: point, nearest: false) else { return nil }
+        return ReaderPDFLinkHitTest.link(at: convert(point, to: page), on: page)
     }
 
     /// PDFKit performs cursor updates separately from mouse-move delivery. If
@@ -1876,7 +1881,7 @@ final class FindablePDFView: PDFView {
 
     private func updateCursor(for event: NSEvent) {
         let area = areaOfInterest(forMouse: event)
-        if area.contains(.linkArea) || isOverQuestionMarker(event) {
+        if area.contains(.linkArea) || isOverQuestionMarker(event) || linkHit(under: event) != nil {
             NSCursor.pointingHand.set()
         } else if let cursor = annotationCursor(under: event) {
             cursor.set()
@@ -1904,9 +1909,18 @@ final class FindablePDFView: PDFView {
     override func mouseDown(with event: NSEvent) {
         window?.makeFirstResponder(self)
         if event.clickCount == 1, event.modifierFlags.isDisjoint(with: [.command, .option, .control, .shift]),
-           let linkClicked, let link = linkAnnotation(under: event), linkClicked(link) {
-            swallowingLinkClick = true
-            return
+           let hit = linkHit(under: event) {
+            if let linkClicked, linkClicked(hit.annotation) {
+                swallowingLinkClick = true
+                return
+            }
+            // PDFKit follows a web link only where no highlight covers it, and
+            // would open the highlight instead.
+            if hit.coveredByMark, let url = ReaderPDFLinkHitTest.externalURL(of: hit.annotation) {
+                NSWorkspace.shared.open(url)
+                swallowingLinkClick = true
+                return
+            }
         }
         if event.clickCount == 1, event.modifierFlags.contains(.option),
            event.modifierFlags.isDisjoint(with: [.command, .control, .shift]),
