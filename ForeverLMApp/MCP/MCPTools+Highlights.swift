@@ -379,7 +379,7 @@ extension MCPDataStore {
     // MARK: - Shared
 
     static var highlightColorList: String {
-        SourceHighlightColor.allCases.map(\.rawValue).joined(separator: ", ")
+        SourceHighlightColor.meaningGuide
     }
 
     /// Resolves a caller-supplied source token and refuses the sources the
@@ -531,6 +531,7 @@ extension MCPDataStore {
             "quote": highlight.quote,
             "note": highlight.note,
             "color": highlight.color.rawValue,
+            "color_meaning": highlight.color.meaning,
             "created_at": ISO8601DateFormatter().string(from: highlight.createdAt),
             "updated_at": ISO8601DateFormatter().string(from: highlight.updatedAt),
         ]
@@ -579,6 +580,7 @@ extension MCPDataStore {
             "quote": row["text"] as? String ?? "",
             "note": row["note"] as? String ?? "",
             "color": SourceHighlightColor(storedValue: row["color"] as? String).rawValue,
+            "color_meaning": SourceHighlightColor(storedValue: row["color"] as? String).meaning,
             "created_at": ISO8601DateFormatter().string(from: highlightDate(row["created_at"])),
             "updated_at": ISO8601DateFormatter().string(from: highlightDate(row["updated_at"])),
         ]

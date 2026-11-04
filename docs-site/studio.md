@@ -1018,6 +1018,15 @@ its ×; the arrow in its corner moves the conversation into a full chat beside
 the Reader. **Highlight** (the marker) saves the passage as a note anchored to
 those words.
 
+The marker has five colors, and each says what the passage is for: yellow
+**Remember**, green **Key idea**, blue **Follow up**, pink **Doubt** and purple
+**Connect**. Point at a color on a highlight's card to see its meaning, or
+choose **Color** in the right-click menu of a note in the highlights list. Once
+a source's highlights use more than one color, the list's filter button (the
+three lines beside **Highlights**) narrows it to one meaning. An assistant picks
+a color by the same names over MCP, and a highlight it lists carries its
+meaning beside the color.
+
 To search a transcript, press ⌘F or choose **Find in Reader** from the Reader's
 **⋯**; Escape closes the search. A video's own commands are under **⋯ ›
 Video**: **Show Slides**, **Extract Papers** and **Papers**, where the

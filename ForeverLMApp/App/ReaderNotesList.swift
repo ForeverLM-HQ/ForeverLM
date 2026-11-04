@@ -26,37 +26,53 @@ struct ReaderNotesList: View {
 
     let sourceID: String
 
+    /// The color the list is narrowed to, by what it means (Remember, Follow
+    /// up, …). Kept while the learner reads this source; another source starts
+    /// with every mark.
+    @State private var colorFilter: SourceHighlightColor?
+
     /// The marks on the source. A talk's slide laid out on a canvas is a mark
     /// too (`ReaderClip.slideHighlight`), but the slides are already in the
     /// reader; one is listed only once the learner has written on it.
-    private var highlights: [SourceHighlight] {
+    private var allHighlights: [SourceHighlight] {
         vm.highlights(for: sourceID).filter { ReaderClip.slide(of: $0) == nil || $0.hasNote }
+    }
+
+    private var highlights: [SourceHighlight] {
+        guard let colorFilter else { return allHighlights }
+        return allHighlights.filter { $0.color == colorFilter }
     }
 
     var body: some View {
         VStack(spacing: 0) {
             header
             Divider()
-            if highlights.isEmpty {
+            if allHighlights.isEmpty {
                 empty
+            } else if highlights.isEmpty {
+                emptyFilter
             } else {
                 list
             }
         }
         .frame(width: 280 * uiZoomScale)
         .background(.background.secondary)
+        .onChange(of: sourceID) { _, _ in colorFilter = nil }
     }
 
     private var header: some View {
         HStack(spacing: 6) {
             Text("Highlights")
                 .font(.subheadline.weight(.semibold))
-            if !highlights.isEmpty {
-                Text("\(highlights.count)")
+            if !allHighlights.isEmpty {
+                Text(colorFilter == nil ? "\(allHighlights.count)" : "\(highlights.count) of \(allHighlights.count)")
                     .font(.caption.monospacedDigit())
                     .foregroundStyle(.secondary)
             }
             Spacer()
+            if offersColorFilter {
+                colorFilterMenu
+            }
             Button {
                 vm.readerNotesListVisible = false
             } label: {
@@ -70,6 +86,62 @@ struct ReaderNotesList: View {
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 9)
+    }
+
+    /// Worth offering once the marks are in more than one color, or while a
+    /// color is chosen, so it can be undone.
+    private var offersColorFilter: Bool {
+        colorFilter != nil || Set(allHighlights.map(\.color)).count > 1
+    }
+
+    private var colorFilterMenu: some View {
+        let counts = Dictionary(grouping: allHighlights, by: \.color).mapValues(\.count)
+        return Menu {
+            Button {
+                colorFilter = nil
+            } label: {
+                if colorFilter == nil {
+                    Label("All", systemImage: "checkmark")
+                } else {
+                    Text("All")
+                }
+            }
+            Divider()
+            ForEach(SourceHighlightColor.allCases.filter { counts[$0, default: 0] > 0 || $0 == colorFilter }, id: \.self) { option in
+                HighlightColorMenuRow(
+                    color: option,
+                    isSelected: colorFilter == option,
+                    count: counts[option, default: 0]
+                ) {
+                    colorFilter = option
+                }
+            }
+        } label: {
+            Image(systemName: "line.3.horizontal.decrease")
+                .foregroundStyle(colorFilter?.swatch ?? Color.secondary)
+                .frame(width: 22, height: 22)
+                .contentShape(Rectangle())
+        }
+        .menuStyle(.button)
+        .buttonStyle(.plain)
+        .hoverHighlight()
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .help(colorFilter.map { "Showing \($0.meaning)" } ?? "Filter by color")
+        .accessibilityLabel("Filter by color")
+    }
+
+    private var emptyFilter: some View {
+        VStack(spacing: 8) {
+            Spacer()
+            Text("Nothing marked \(colorFilter?.meaning ?? "")")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+            Button("Show All") { colorFilter = nil }
+                .buttonStyle(.hoverWash)
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
     }
 
     private var empty: some View {
@@ -132,7 +204,7 @@ private struct ReaderNoteRow: View {
         Button(action: reveal) {
             HStack(alignment: .top, spacing: 8) {
                 RoundedRectangle(cornerRadius: 1.5)
-                    .fill(swatchColor)
+                    .fill(highlight.color.swatch)
                     .frame(width: 3)
 
                 VStack(alignment: .leading, spacing: 4) {
@@ -217,6 +289,10 @@ private struct ReaderNoteRow: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+        // What the color says, under the pointer; the filter and the Color
+        // menu name the same words. A caption on the row would reflow its
+        // note every time the pointer crossed it.
+        .help(highlight.color.meaning)
         .onHover { isHovering = $0 }
         .background(isHovering ? Color.primary.opacity(0.05) : .clear)
         .onDrag { passageProvider() ?? NSItemProvider() }
@@ -236,7 +312,7 @@ private struct ReaderNoteRow: View {
             }
             Menu("Color") {
                 ForEach(SourceHighlightColor.allCases, id: \.self) { option in
-                    Button(option.displayName) {
+                    HighlightColorMenuRow(color: option, isSelected: option == highlight.color) {
                         Task {
                             await vm.setReaderNoteColor(
                                 option,
@@ -296,10 +372,5 @@ private struct ReaderNoteRow: View {
                 highlightID: highlight.id
             )
         )
-    }
-
-    private var swatchColor: Color {
-        let rgb = highlight.color.components
-        return Color(.sRGB, red: rgb.red, green: rgb.green, blue: rgb.blue, opacity: 1)
     }
 }

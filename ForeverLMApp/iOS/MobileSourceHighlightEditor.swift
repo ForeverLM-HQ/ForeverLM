@@ -52,7 +52,7 @@ struct MobileSourceHighlightEditor: View {
                     }
                 }
 
-                Section("Color") {
+                Section {
                     HStack(spacing: 18) {
                         ForEach(SourceHighlightColor.allCases, id: \.rawValue) { choice in
                             Button {
@@ -70,9 +70,14 @@ struct MobileSourceHighlightEditor: View {
                                     }
                             }
                             .buttonStyle(.plain)
-                            .accessibilityLabel(choice.displayName)
+                            .accessibilityLabel(choice.spokenName)
                         }
                     }
+                } header: {
+                    Text("Color")
+                } footer: {
+                    // What the chosen color says, as on the Mac's tooltips.
+                    Text(color.meaning)
                 }
 
                 Section("Note") {

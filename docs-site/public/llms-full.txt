@@ -1417,6 +1417,15 @@ its ×; the arrow in its corner moves the conversation into a full chat beside
 the Reader. **Highlight** (the marker) saves the passage as a note anchored to
 those words.
 
+The marker has five colors, and each says what the passage is for: yellow
+**Remember**, green **Key idea**, blue **Follow up**, pink **Doubt** and purple
+**Connect**. Point at a color on a highlight's card to see its meaning, or
+choose **Color** in the right-click menu of a note in the highlights list. Once
+a source's highlights use more than one color, the list's filter button (the
+three lines beside **Highlights**) narrows it to one meaning. An assistant picks
+a color by the same names over MCP, and a highlight it lists carries its
+meaning beside the color.
+
 To search a transcript, press ⌘F or choose **Find in Reader** from the Reader's
 **⋯**; Escape closes the search. A video's own commands are under **⋯ ›
 Video**: **Show Slides**, **Extract Papers** and **Papers**, where the
@@ -3651,6 +3660,8 @@ An explainer retells one source, or one concept, for someone new to it.
 
 ## Reader highlights and notes
 
+A highlight's `color` is one of five, each with a meaning the reader shows: `yellow` (Remember), `green` (Key idea), `blue` (Follow up), `pink` (Doubt) and `purple` (Connect). Every tool here that returns a highlight carries `color_meaning` beside `color`; pick a color by what the mark is for.
+
 The passages the learner marked while reading, and the notes they wrote on them.
 A mark is anchored to the source's own wording rather than to a character
 offset, so one created here paints in every ForeverLM reader and survives the
@@ -3658,7 +3669,7 @@ source being re-fetched.
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `list_source_highlights` | `source_id` | List one source's highlights with the note, color, and page on each, the `publication_update` (what has been learned since the source was written, apart from the learner's note) and when it was written, the `session_id` and `chat_title` of the chat a note came from, and the `references` the note cites, each with its library `source_id` when the library holds it. |
+| `list_source_highlights` | `source_id` | List one source's highlights with the note, color (and its meaning), and page on each, the `publication_update` (what has been learned since the source was written, apart from the learner's note) and when it was written, the `session_id` and `chat_title` of the chat a note came from, and the `references` the note cites, each with its library `source_id` when the library holds it. |
 | `search_source_highlights` | `query?`, `limit?` | Search every highlight, note and since-publication update in the library, newest first. Omit `query` for the most recent marks. |
 | `create_source_highlight` | `source_id`, `quote?`, `image_url?`, `image_alt?`, `note?`, `publication_update?`, `color?`, `session_id?`, `references?` | Mark a passage, quoted verbatim from `get_source_content`, or a picture of a web page by its `image_url` (with no quote), or both at once. A passage that is not found, or a passage or picture already marked, is refused. Highlights on pictures carry a `pictures` list and an empty quote. `session_id` links the chat the note came from, and the reader opens it from the mark: research into what has been published since a textbook was written is saved with `import_review_chat` (`mark_reviewed: false`) and linked to the passage it updates this way, with its short version as `publication_update` (a one-sentence headline line, then the detail), never as `note`, which is the learner's. `references` lists the papers the note cites (each a `citation` and a `doi` or `url`, `title` optional, at most 20); the reader shows them on the mark with Add to Library, or Open when the library holds one. |
 | `update_source_highlight` | `highlight_id`, `note?`, `publication_update?`, `color?`, `session_id?`, `references?` | Rewrite the note or the since-publication update (an empty one clears it), change the color, link the chat the note came from, or replace the papers it cites. An empty note leaves a bare highlight; an empty `session_id` unlinks the chat; an empty `references` list clears the papers. |
@@ -6506,6 +6517,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **Highlight colors mean something.** The five markers are now Remember (yellow), Key idea (green), Follow up (blue), Doubt (pink) and Connect (purple): point at a color on a highlight's card to see its meaning, and the highlights list gains a filter to show one meaning at a time. Assistants choose colors by the same names over MCP, and a highlight they list says its meaning.
 - **Video, notes and chat can all stand side by side in a notebook.** Splitting the document pane's tabs (drag a tab to a side, or Split Left / Split Right) now keeps the chat open as a third pane instead of hiding it: the video on the left, the notes beside it, the chat on the right. Hiding the chat with its × still gives the two documents the whole center.
 - **Every pane is a tab, in the top bar, and tabs can be added.** A pane with one thing now draws its tab too, in the top bar beside the window's buttons, so it can be dragged, closed and added to: the + at the end of a pane's tabs opens Chat, Library, Memory, Browser, Pages or the Space as a new tab in it. Pressing or dragging a tab no longer moves the window; only the empty top bar beside the tabs does.
 - **A notebook opens beside your panes.** From a window showing two panes or more, such as the Space beside a chat, a notebook no longer takes the whole window: its sources and Studio stand around your panes, and a source opens as a pane you can drag to a side, up to three side by side, so the video, your notes and the chat can all be on screen.

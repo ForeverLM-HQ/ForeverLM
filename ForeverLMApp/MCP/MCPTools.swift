@@ -377,7 +377,7 @@ final class MCPToolRegistry: @unchecked Sendable {
                         "image_alt": ["type": "string", "description": "The picture's alt text, if the page gives one; it names the mark in the notes list."],
                         "note": ["type": "string", "description": "Optional note about the passage or picture: the learner's own thinking, or what they ask you to note. Research goes in publication_update. Omit for a bare highlight."],
                         "publication_update": ["type": "string", "description": "Optional: what has been learned since the source was written. First line a one-sentence headline of what changed; then, on the next line, two to four plain-text sentences naming each paper as (Author et al., Journal Year), the way its references entry's citation reads. No markdown or links."],
-                        "color": ["type": "string", "description": "Marker color: yellow, green, blue, pink, or purple. Defaults to yellow."],
+                        "color": ["type": "string", "description": "Marker color, chosen by what the mark means to the learner: \(SourceHighlightColor.meaningGuide). Defaults to yellow."],
                         "session_id": ["type": "string", "description": "Optional: the chat this note came from, by the id import_review_chat or get_review_sessions gives (a foreverlm://chat/<id> link works too). The reader opens it from the mark. From a chat inside ForeverLM, leave it out: the mark links to that chat."],
                         "references": [
                             "type": "array",
@@ -406,7 +406,7 @@ final class MCPToolRegistry: @unchecked Sendable {
                         "highlight_id": ["type": "string", "description": "Highlight ID from list_source_highlights or search_source_highlights."],
                         "note": ["type": "string", "description": "New note text, in the learner's own words. An empty string clears the note and leaves a bare highlight."],
                         "publication_update": ["type": "string", "description": "What has been learned since the source was written, shaped as in create_source_highlight, replacing the update the mark has. An empty string clears it."],
-                        "color": ["type": "string", "description": "New marker color: yellow, green, blue, pink, or purple."],
+                        "color": ["type": "string", "description": "New marker color, by what the mark means: \(SourceHighlightColor.meaningGuide)."],
                         "session_id": ["type": "string", "description": "The chat the note came from, by its id from import_review_chat or get_review_sessions (or a foreverlm://chat/<id> link); the reader opens it from the mark. An empty string unlinks it."],
                         "references": [
                             "type": "array",

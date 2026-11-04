@@ -601,6 +601,32 @@ enum SourceHighlightColor: String, CaseIterable, Sendable, Codable {
         }
     }
 
+    /// What the marker says about the passage, in a word or two: the one place
+    /// the five colors get a meaning, so the swatches' tooltips, the lists, the
+    /// iPhone's editor and the MCP tools all read the same words. A learner
+    /// marks to remember, to settle a doubt, to come back to; a color is the
+    /// cheapest way to say which. The stored value stays the color's raw value,
+    /// so a meaning can be reworded without touching a record.
+    var meaning: String {
+        switch self {
+        case .yellow: return "Remember"
+        case .green: return "Key idea"
+        case .blue: return "Follow up"
+        case .pink: return "Doubt"
+        case .purple: return "Connect"
+        }
+    }
+
+    /// How a swatch is spoken: the meaning first, since that is what the
+    /// learner chooses by, then the color for someone who can see it.
+    var spokenName: String { "\(meaning), \(displayName.lowercased())" }
+
+    /// `yellow (Remember), green (Key idea), …` for a tool description or an
+    /// error, so an assistant picks a color by what the learner means.
+    static var meaningGuide: String {
+        allCases.map { "\($0.rawValue) (\($0.meaning))" }.joined(separator: ", ")
+    }
+
     /// `rgba(...)` for the web readers' highlight painting.
     func cssColor(alpha: Double) -> String {
         let rgb = components

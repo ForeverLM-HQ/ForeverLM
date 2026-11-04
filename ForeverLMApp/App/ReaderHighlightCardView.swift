@@ -351,7 +351,7 @@ struct ReaderHighlightCardView: View {
                     }
                 } label: {
                     Circle()
-                        .fill(swatchColor(option))
+                        .fill(option.swatch)
                         .frame(width: 15, height: 15)
                         .overlay(
                             Circle()
@@ -365,8 +365,8 @@ struct ReaderHighlightCardView: View {
                         .contentShape(Circle())
                 }
                 .buttonStyle(.hoverWash(in: Circle(), inset: -4))
-                .help(option.displayName)
-                .accessibilityLabel(option.displayName)
+                .help(option.meaning)
+                .accessibilityLabel(option.spokenName)
             }
         }
     }
@@ -422,11 +422,6 @@ struct ReaderHighlightCardView: View {
                   vm.readerHighlightCard?.id == card.id else { return }
             vm.dismissReaderHighlightCard()
         }
-    }
-
-    private func swatchColor(_ highlightColor: SourceHighlightColor) -> Color {
-        let rgb = highlightColor.components
-        return Color(.sRGB, red: rgb.red, green: rgb.green, blue: rgb.blue, opacity: 1)
     }
 }
 
