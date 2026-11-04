@@ -620,6 +620,9 @@ struct SourceReaderWindow: View {
                     Label("Contents…", systemImage: "list.bullet")
                 }
             }
+            if bookNavigationBridge.canTurnPage {
+                ReaderRotatePageMenuItems(bridge: bookNavigationBridge)
+            }
             // A video's and a podcast's own commands, which sat on a bar
             // above the transcript until Quiet chrome (docs/ui-design.md,
             // 2026-10-06). The player may have moved on to another saved

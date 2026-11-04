@@ -551,7 +551,10 @@ struct SourceReaderPanel: View {
                 title: vm.displayTitle(for: article),
                 // A book counted in pages says where you are in pages; the
                 // chapter count is what an EPUB has to offer instead.
-                positionLabel: pageNavigation?.label ?? bookNavigation?.positionLabel,
+                // A PDF's page lives in the pill at the foot of its pages
+                // (`ReaderPagePill`), not under the title: the title stays one
+                // line. An EPUB, which has no pages, still says its chapter.
+                positionLabel: pageNavigation == nil ? bookNavigation?.positionLabel : nil,
                 sourceSystemImage: article.sourceType == .book
                     ? nil
                     : iconForSourceType(article.sourceType),
@@ -925,6 +928,10 @@ struct SourceReaderPanel: View {
                 // Listed here for the hint; the toolbar's hidden button is
                 // what answers the keys.
                 .keyboardShortcut(ReaderGoToPage.shortcutKey, modifiers: ReaderGoToPage.shortcutModifiers)
+            }
+
+            if isSavedSource, bookNavigationBridge.canTurnPage {
+                ReaderRotatePageMenuItems(bridge: bookNavigationBridge)
             }
 
             Button {

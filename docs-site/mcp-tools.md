@@ -176,6 +176,8 @@ An explainer retells one source, or one concept, for someone new to it.
 
 ## Reader highlights and notes
 
+A highlight's `color` is one of five, each with a meaning the reader shows: `yellow` (Remember), `green` (Key idea), `blue` (Follow up), `pink` (Doubt) and `purple` (Connect). Every tool here that returns a highlight carries `color_meaning` beside `color`; pick a color by what the mark is for.
+
 The passages the learner marked while reading, and the notes they wrote on them.
 A mark is anchored to the source's own wording rather than to a character
 offset, so one created here paints in every ForeverLM reader and survives the
@@ -183,7 +185,7 @@ source being re-fetched.
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `list_source_highlights` | `source_id` | List one source's highlights with the note, color, and page on each, the `publication_update` (what has been learned since the source was written, apart from the learner's note) and when it was written, the `session_id` and `chat_title` of the chat a note came from, and the `references` the note cites, each with its library `source_id` when the library holds it. |
+| `list_source_highlights` | `source_id` | List one source's highlights with the note, color (and its meaning), and page on each, the `publication_update` (what has been learned since the source was written, apart from the learner's note) and when it was written, the `session_id` and `chat_title` of the chat a note came from, and the `references` the note cites, each with its library `source_id` when the library holds it. |
 | `search_source_highlights` | `query?`, `limit?` | Search every highlight, note and since-publication update in the library, newest first. Omit `query` for the most recent marks. |
 | `create_source_highlight` | `source_id`, `quote?`, `image_url?`, `image_alt?`, `note?`, `publication_update?`, `color?`, `session_id?`, `references?` | Mark a passage, quoted verbatim from `get_source_content`, or a picture of a web page by its `image_url` (with no quote), or both at once. A passage that is not found, or a passage or picture already marked, is refused. Highlights on pictures carry a `pictures` list and an empty quote. `session_id` links the chat the note came from, and the reader opens it from the mark: research into what has been published since a textbook was written is saved with `import_review_chat` (`mark_reviewed: false`) and linked to the passage it updates this way, with its short version as `publication_update` (a one-sentence headline line, then the detail), never as `note`, which is the learner's. `references` lists the papers the note cites (each a `citation` and a `doi` or `url`, `title` optional, at most 20); the reader shows them on the mark with Add to Library, or Open when the library holds one. |
 | `update_source_highlight` | `highlight_id`, `note?`, `publication_update?`, `color?`, `session_id?`, `references?` | Rewrite the note or the since-publication update (an empty one clears it), change the color, link the chat the note came from, or replace the papers it cites. An empty note leaves a bare highlight; an empty `session_id` unlinks the chat; an empty `references` list clears the papers. |

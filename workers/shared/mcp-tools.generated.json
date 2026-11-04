@@ -1866,7 +1866,7 @@
     "inputSchema" : {
       "properties" : {
         "color" : {
-          "description" : "Marker color: yellow, green, blue, pink, or purple. Defaults to yellow.",
+          "description" : "Marker color, chosen by what the mark means to the learner: yellow (Remember), green (Key idea), blue (Follow up), pink (Doubt), purple (Connect). Defaults to yellow.",
           "type" : "string"
         },
         "image_alt" : {
@@ -12753,7 +12753,7 @@
     "inputSchema" : {
       "properties" : {
         "color" : {
-          "description" : "New marker color: yellow, green, blue, pink, or purple.",
+          "description" : "New marker color, by what the mark means: yellow (Remember), green (Key idea), blue (Follow up), pink (Doubt), purple (Connect).",
           "type" : "string"
         },
         "highlight_id" : {

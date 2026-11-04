@@ -1018,6 +1018,15 @@ its ×; the arrow in its corner moves the conversation into a full chat beside
 the Reader. **Highlight** (the marker) saves the passage as a note anchored to
 those words.
 
+The marker has five colors, and each says what the passage is for: yellow
+**Remember**, green **Key idea**, blue **Follow up**, pink **Doubt** and purple
+**Connect**. Point at a color on a highlight's card to see its meaning, or
+choose **Color** in the right-click menu of a note in the highlights list. Once
+a source's highlights use more than one color, the list's filter button (the
+three lines beside **Highlights**) narrows it to one meaning. An assistant picks
+a color by the same names over MCP, and a highlight it lists carries its
+meaning beside the color.
+
 To search a transcript, press ⌘F or choose **Find in Reader** from the Reader's
 **⋯**; Escape closes the search. A video's own commands are under **⋯ ›
 Video**: **Show Slides**, **Extract Papers** and **Papers**, where the
@@ -1028,6 +1037,18 @@ Transcript** and **Theater View**. A podcast's are under **⋯ › Speakers**:
 
 The Reader's title drags its source into a chat, so its words do not select;
 right-click the title for **Copy Title**.
+
+A paper or PDF shows where you are as a small page pill at the foot of its
+pages ("2 / 33"). It appears when the page changes and while the pointer is at
+the foot of the reader, then fades; press it to type a page, as **Go to Page…**
+(⌥⌘G) in the Reader's **⋯** does. To straighten a page that is sideways or
+upside down, choose **Rotate Page Right** (⌘R) or **Rotate Page Left** (⌘L) in
+the **⋯**, or in the page's right-click menu. The turn is yours: it is
+remembered for that paper and follows your account to your other Macs, and the
+PDF file in your library is never changed. Highlights, search, citations and
+your reading position are unaffected; the Clip tool and a walkthrough's outline
+skip a turned page until you turn it back. The iPhone shows pages as the file
+has them.
 
 ## Text to Speech
 

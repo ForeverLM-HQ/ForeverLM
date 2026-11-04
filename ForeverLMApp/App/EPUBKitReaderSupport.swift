@@ -391,8 +391,12 @@ final class ReaderBookNavigationBridge: ObservableObject {
     /// Set by a reader whose document is one run of pages; an EPUB has
     /// chapters but no page count and leaves this `nil`.
     @Published private(set) var pageNavigation: ReaderPageNavigation?
+    /// Whether the reader can turn a page (a PDF the learner may rotate), for
+    /// the ⋯ menu's Rotate Page items.
+    @Published private(set) var canTurnPage = false
     private var navigateHandler: ((BookNavigationItem) -> Void)?
     private var goToPageHandler: ((Int) -> Void)?
+    private var turnPageHandler: ((Int) -> Void)?
 
     func update(
         navigation: BookNavigation?,
@@ -413,11 +417,22 @@ final class ReaderBookNavigationBridge: ObservableObject {
         self.goToPageHandler = goToPage
     }
 
+    /// `turnPage` receives a quarter turn in degrees (90 clockwise, -90 back)
+    /// for the page on screen; nil when the document has no pages to turn.
+    func update(turnPage: ((Int) -> Void)?) {
+        if canTurnPage != (turnPage != nil) {
+            canTurnPage = turnPage != nil
+        }
+        turnPageHandler = turnPage
+    }
+
     func clear() {
         navigation = nil
         navigateHandler = nil
         pageNavigation = nil
         goToPageHandler = nil
+        canTurnPage = false
+        turnPageHandler = nil
     }
 
     func navigate(to item: BookNavigationItem) {
@@ -426,6 +441,10 @@ final class ReaderBookNavigationBridge: ObservableObject {
 
     func goToPage(_ pageIndex: Int) {
         goToPageHandler?(pageIndex)
+    }
+
+    func turnPage(by degrees: Int) {
+        turnPageHandler?(degrees)
     }
 }
 
