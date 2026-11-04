@@ -585,6 +585,11 @@ struct PDFBookReaderView: View {
     @State private var initialBookPage: Int?
     @State private var currentBookPage: Int?
     @State private var pageJump: PDFPageJump?
+    /// The pages the learner turned, applied to the assembled document and
+    /// remembered per source (`PDFPageRotationController`).
+    @State private var pageTurns: PDFPageRotationController?
+    /// The page on screen, for the pill at the foot of the view.
+    @State private var pageIndicator = ReaderPageIndicator()
     /// Each chapter's sections, for the Contents menu; found after the book
     /// opens, since reading every page's fonts takes a few seconds.
     @State private var chapterSections: [String: [BookChapterSection]] = [:]
@@ -655,8 +660,18 @@ struct PDFBookReaderView: View {
                     resetZoomAction: resetZoomAction,
                     sections: assembly.map.sections,
                     pageJump: pageJump,
-                    chapterFiles: assembly.map.chapters
+                    chapterFiles: assembly.map.chapters,
+                    pageTurns: pageTurns,
+                    pageViewed: { page in pageIndicator.current = page },
+                    pointerNearFootChanged: { near in pageIndicator.pointerNearFoot = near }
                 )
+                .overlay(alignment: .bottom) {
+                    ReaderPagePill(
+                        indicator: pageIndicator,
+                        pageCount: assembly.map.pageCount,
+                        goToPage: goToPage(_:)
+                    )
+                }
             } else {
                 switch loadPhase {
                 case .loading:
@@ -707,6 +722,7 @@ struct PDFBookReaderView: View {
     @MainActor
     private func loadBook() async {
         assembly = nil
+        pageTurns = nil
         chapterSections = [:]
         loadPhase = .loading
         bookNavigationBridge?.clear()
@@ -810,6 +826,15 @@ struct PDFBookReaderView: View {
         let resume = assembled.map.page(forSourceID: opening.id, chapterPage: opening.readingPositionPage)
         initialBookPage = resume
         currentBookPage = resume ?? 0
+        pageIndicator.current = resume ?? 0
+        // The learner's turned pages go onto the document before the view
+        // first lays it out.
+        pageTurns = PDFPageRotationController(
+            document: assembled.document,
+            runs: assembled.map.chapters.map {
+                PDFPageRotationOwner.Run(sourceID: $0.sourceID, firstPage: $0.pageRange.lowerBound)
+            }
+        )
         assembly = assembled
         syncBookNavigationBridge()
         assembled.warmPageText()
@@ -914,6 +939,7 @@ struct PDFBookReaderView: View {
             ),
             goToPage: goToPage(_:)
         )
+        bookNavigationBridge?.update(turnPage: pageTurns.map { turner in { turner.turnCurrentPage(by: $0) } })
     }
 
     /// Go to Page: a page of the book by its own numbering. The chapter the
@@ -1361,6 +1387,14 @@ struct PDFKitInlineView: NSViewRepresentable {
     /// The chapter files a document assembled from them was copied from, which
     /// the citation preview reads a page's links from instead.
     var chapterFiles: [BookPDFChapterRange] = []
+    /// Turns single pages of the document and remembers which; nil where the
+    /// document is not one a source's pages are kept for.
+    var pageTurns: PDFPageRotationController? = nil
+    /// The page on screen changed, the moment PDFKit says so: the page pill
+    /// follows this, and the debounced `pageChanged` is what saves progress.
+    var pageViewed: ((Int) -> Void)? = nil
+    /// The pointer went to or left the foot of the view.
+    var pointerNearFootChanged: ((Bool) -> Void)? = nil
     /// A PDF has no stylesheet to restyle, so Dark Mode inverts it. Read from
     /// the environment so an open paper repaints when the Mac switches rather
     /// than waiting for the next reopen.
@@ -1385,6 +1419,9 @@ struct PDFKitInlineView: NSViewRepresentable {
         pdfView.zoomOutAction = zoomOutAction
         pdfView.resetZoomAction = resetZoomAction
         pdfView.cursorForAnnotation = Coordinator.cursorForAnnotation
+        pdfView.pageTurner = pageTurns
+        pdfView.pointerNearFootChanged = pointerNearFootChanged
+        pageTurns?.pdfView = pdfView
         // Before the document, so every page PDFKit lays out asks for one.
         pdfView.pageOverlayViewProvider = context.coordinator.questionLayer
         pdfView.document = document
@@ -1434,6 +1471,9 @@ struct PDFKitInlineView: NSViewRepresentable {
             pdfView.zoomInAction = zoomInAction
             pdfView.zoomOutAction = zoomOutAction
             pdfView.resetZoomAction = resetZoomAction
+            pdfView.pageTurner = pageTurns
+            pdfView.pointerNearFootChanged = pointerNearFootChanged
+            pageTurns?.pdfView = pdfView
         }
         if nsView.document !== document {
             nsView.document = document
@@ -1884,6 +1924,7 @@ struct PDFKitInlineView: NSViewRepresentable {
             lastPageIndex = index
             let pageCount = document.pageCount
             lastPageCount = pageCount
+            parent.pageViewed?(index)
             pageDebounceWork?.cancel()
             let work = DispatchWorkItem { [weak self] in
                 guard let self, self.lastPageIndex == index else { return }

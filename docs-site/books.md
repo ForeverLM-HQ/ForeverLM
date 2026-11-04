@@ -25,7 +25,8 @@ A scanned PDF, whose pages are only pictures, is read in the background before i
 
 A book opens at the chapter you pick, where you left it, and reads as one book: scroll past the end of a chapter and the next one follows; scroll up past its start and you are in the one before. On the Mac this holds for a book imported from a PDF and one imported from an EPUB, and a PDF book shows its front matter and index too; on iPhone and iPad it holds for an EPUB book, while a PDF book's chapters open one at a time.
 
-- The Reader's title and position ("6 of 31") follow the chapter you are in, and so does everything that belongs to a chapter: its reading position, how far you got, notes and highlights you make, and the chat you start about a passage.
+- The Reader's title follows the chapter you are in, and so does everything that belongs to a chapter: its reading position, how far you got, notes and highlights you make, and the chat you start about a passage.
+- A PDF book shows the page you are on ("130 / 1532") in a pill at the foot of its pages; press it to jump to a page. An EPUB's title says its chapter ("6 of 31").
 - **Contents** lists every chapter and jumps to the one you choose: on the Mac choose **Contents…** from the Reader's **⋯** menu, on iPhone and iPad tap the list button in the Reader's toolbar.
 - On the Mac, Find searches the whole book. A link inside the book — the contents page, an endnote and its way back — scrolls to what it names.
 - On iPhone and iPad the chapters come from iCloud as you reach them, so the next one may take a moment to appear the first time.

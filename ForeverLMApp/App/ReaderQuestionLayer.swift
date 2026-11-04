@@ -466,16 +466,27 @@ final class ReaderQuestionPageOverlay: NSView {
     /// its page rect scaled to the overlay.
     override func layout() {
         super.layout()
-        guard let box = page?.bounds(for: .cropBox), box.width > 0, box.height > 0 else { return }
-        let sx = bounds.width / box.width
-        let sy = bounds.height / box.height
+        guard let page, case let box = page.bounds(for: .cropBox), box.width > 0, box.height > 0 else { return }
+        // The marks are in the page as stored; the overlay covers the page as
+        // displayed, which is on its side or upside down when the page is
+        // turned (the file's own rotation, or the learner's).
+        let turn = page.rotation
+        let shown = PDFPageTurn.displayedSize(pageWidth: box.width, pageHeight: box.height, degrees: turn)
+        let sx = bounds.width / shown.width
+        let sy = bounds.height / shown.height
         for case let marker as ReaderQuestionMarkerView in subviews {
             let rect = marker.mark.rect
+            let placed = PDFPageTurn.displayedRect(
+                (x: rect.minX - box.minX, y: rect.minY - box.minY, width: rect.width, height: rect.height),
+                pageWidth: box.width,
+                pageHeight: box.height,
+                degrees: turn
+            )
             marker.frame = CGRect(
-                x: (rect.minX - box.minX) * sx,
-                y: (rect.minY - box.minY) * sy,
-                width: rect.width * sx,
-                height: rect.height * sy
+                x: placed.x * sx,
+                y: placed.y * sy,
+                width: placed.width * sx,
+                height: placed.height * sy
             )
         }
     }

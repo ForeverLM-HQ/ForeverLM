@@ -1823,6 +1823,13 @@ final class FindablePDFView: PDFView {
     /// The click `linkClicked` took, so its drag and release stay away from
     /// PDFKit too.
     private var swallowingLinkClick = false
+    /// Turns single pages (⌘R, ⌘L and the page's context menu); nil for a
+    /// document whose turns nobody remembers.
+    var pageTurner: PDFPageRotationController?
+    /// Whether the pointer is in the foot of the view, where the reader's page
+    /// pill shows itself; called only when the answer changes.
+    var pointerNearFootChanged: ((Bool) -> Void)?
+    private var pointerIsNearFoot = false
     /// ⌥-press on a page: the Reader's Clip tool takes it to draw a box
     /// (`ReaderClipTool`), and answers the view the rest of the drag goes to;
     /// nil leaves the press to PDFKit.
@@ -1851,11 +1858,52 @@ final class FindablePDFView: PDFView {
         super.mouseMoved(with: event)
         updateCursor(for: event)
         linkHoverChanged?(linkAnnotation(under: event))
+        setPointerNearFoot(isNearFoot(event))
     }
 
     override func mouseExited(with event: NSEvent) {
         super.mouseExited(with: event)
         linkHoverChanged?(nil)
+        setPointerNearFoot(false)
+    }
+
+    private func isNearFoot(_ event: NSEvent) -> Bool {
+        guard pointerNearFootChanged != nil else { return false }
+        let point = convert(event.locationInWindow, from: nil)
+        let footHeight: CGFloat = 64
+        return isFlipped ? point.y > bounds.maxY - footHeight : point.y < footHeight
+    }
+
+    private func setPointerNearFoot(_ near: Bool) {
+        guard near != pointerIsNearFoot else { return }
+        pointerIsNearFoot = near
+        pointerNearFootChanged?(near)
+    }
+
+    /// PDFKit's own menu, with Rotate Page Right and Left for the page under
+    /// the pointer.
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let menu = super.menu(for: event)
+        guard let pageTurner else { return menu }
+        let result = menu ?? NSMenu()
+        let point = convert(event.locationInWindow, from: nil)
+        pageTurner.addMenuItems(to: result, page: page(for: point, nearest: false))
+        return result
+    }
+
+    /// The keys are this view's only while it, or the document view PDFKit
+    /// keeps inside it, has the keyboard.
+    private var ownsFirstResponder: Bool {
+        guard let responder = window?.firstResponder as? NSView else { return false }
+        return responder === self || responder.isDescendant(of: self)
+    }
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        if let turn = event.readerPageTurnShortcut, let pageTurner, ownsFirstResponder {
+            pageTurner.turnCurrentPage(by: turn)
+            return true
+        }
+        return super.performKeyEquivalent(with: event)
     }
 
     private func linkAnnotation(under event: NSEvent) -> PDFAnnotation? {

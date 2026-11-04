@@ -203,7 +203,7 @@ test("the settings catalog gives every key a value type, a scope and the route a
   // Setting that only its own writers set, so the catalog leaves it out by name (§3.5.3).
   assert.deepEqual(catalog.records["notebook.collections."], { match: "prefix", record: "NotebookState", field: "collections" });
   assert.deepEqual(catalog.records["notebook.chatContextNotebooks."], { match: "prefix", record: "NotebookState", field: "contextNotebooks", origin: "spec" });
-  assert.deepEqual(Object.keys(catalog.leftOut).sort(), ["aiSeeded.task.", "chat.pinned.", "images.notebookCoverBackfill.", "map.layout.", "notebook.naming.", "notebook.questions.", "notebookCollection.", "page.parent.", "page.pinned.", "page.space.", "pageSpace.", "pageSpaceTrash.", "spaceList.", "spaceListItem.", "studio.workspaceView."]);
+  assert.deepEqual(Object.keys(catalog.leftOut).sort(), ["aiSeeded.task.", "chat.pinned.", "images.notebookCoverBackfill.", "map.layout.", "notebook.naming.", "notebook.questions.", "notebookCollection.", "page.parent.", "page.pinned.", "page.space.", "pageSpace.", "pageSpaceTrash.", "reader.pdfRotations.", "spaceList.", "spaceListItem.", "studio.workspaceView."]);
   assert.equal(catalog.leftOut["notebook.questions."].type, "string");
   assert.equal(catalog.leftOut["notebookCollection."].type, "string");
   // A space of pages' name and a page's one space (PageSpaces) are their writers' Settings too.
@@ -213,6 +213,8 @@ test("the settings catalog gives every key a value type, a scope and the route a
   assert.equal(catalog.leftOut["page.pinned."].type, "string");
   // A nested page's parent (PageParents) is another: one Setting per child, never a field of the Doc.
   assert.equal(catalog.leftOut["page.parent."].type, "string");
+  // A PDF's turned pages (PDFPageRotations): one Setting per source, never a field of the Source.
+  assert.equal(catalog.leftOut["reader.pdfRotations."].type, "string");
   // The notebook cover Setting is a key (D53); its backfill's marker is a dict that only the backfill writes, so it is left out.
   assert.equal(catalog.keys["images.drawNotebookCovers.automatic"].type, "bool");
   assert.equal(catalog.leftOut["images.notebookCoverBackfill."].type, "dict");

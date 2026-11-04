@@ -1038,6 +1038,18 @@ Transcript** and **Theater View**. A podcast's are under **⋯ › Speakers**:
 The Reader's title drags its source into a chat, so its words do not select;
 right-click the title for **Copy Title**.
 
+A paper or PDF shows where you are as a small page pill at the foot of its
+pages ("2 / 33"). It appears when the page changes and while the pointer is at
+the foot of the reader, then fades; press it to type a page, as **Go to Page…**
+(⌥⌘G) in the Reader's **⋯** does. To straighten a page that is sideways or
+upside down, choose **Rotate Page Right** (⌘R) or **Rotate Page Left** (⌘L) in
+the **⋯**, or in the page's right-click menu. The turn is yours: it is
+remembered for that paper and follows your account to your other Macs, and the
+PDF file in your library is never changed. Highlights, search, citations and
+your reading position are unaffected; the Clip tool and a walkthrough's outline
+skip a turned page until you turn it back. The iPhone shows pages as the file
+has them.
+
 ## Text to Speech
 
 Use [Text to Speech](/text-to-speech) from the Reader's ⋯ menu or source menu to listen to articles and text sources. The playback bar supports pause/resume, 15-second seeking, speed controls, and stop.

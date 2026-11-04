@@ -415,6 +415,13 @@ enum SyncedPreferenceKeys {
         // (the one list a goal or an idea is in), `SpaceLists`. Per member.
         SpaceLists.listPreferenceKeyPrefix,
         SpaceLists.itemPreferenceKeyPrefix,
+        // `reader.pdfRotations.<sourceID>` — the pages of one PDF source the
+        // learner turned, as JSON `{"<page>": <degrees>}`
+        // (`PDFPageRotations`). The file in the library is never rewritten for
+        // a reading preference, so a turn is the member's own state, keyed by
+        // the source's id and never on its record; one row per source, so two
+        // devices turning two papers both keep theirs.
+        PDFPageRotations.preferenceKeyPrefix,
     ]
 
     // MARK: - Excluded
