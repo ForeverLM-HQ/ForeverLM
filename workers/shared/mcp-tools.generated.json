@@ -4775,6 +4775,31 @@
     "readOnlyHint" : true
   },
   {
+    "description" : "Read a paper's stored reference list: each entry's number (the citation number in the paper's text; an author-year list is numbered in the order it prints), its label, the entry as the paper prints it, the paper it names (doi, url, and title, authors, journal and year when a catalog gave them), how the link was found (link_origin: printed_doi, printed_url, catalog, agent or none), and library_source_id when the learner's library already holds that paper (read fresh, so it stays right when sources come and go). The list is read from the paper's PDF and linked when the paper is added, with no model; counts tell how much is linked and unlinked_numbers lists the entries that name no paper yet. Pass include_reference_text to also get the reference list's raw text as the PDF prints it (up to 60,000 characters, from the last bibliography heading), which is the only way to read a paper's references through ForeverLM: get_source_content leaves bibliography entries out. Pass only_unlinked to list just the entries without a link. Use resolve_paper_references to read or link a paper that has not been, and save_paper_references to store entries you authored. Read-only.",
+    "inputSchema" : {
+      "properties" : {
+        "include_reference_text" : {
+          "description" : "Also return the PDF's reference-list text (reference_text), for a paper whose entries were not read or were read wrongly. Defaults to false.",
+          "type" : "boolean"
+        },
+        "only_unlinked" : {
+          "description" : "List only the entries that name no paper yet. Defaults to false.",
+          "type" : "boolean"
+        },
+        "source_id" : {
+          "description" : "Paper source ID from list_sources.",
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "source_id"
+      ],
+      "type" : "object"
+    },
+    "name" : "get_paper_references",
+    "readOnlyHint" : true
+  },
+  {
     "description" : "Read the Plugins place as the learner sees it: for each plugin whether it is connected, which account(s), and what connecting would take. X (each connected account with its user id, @username, whether it needs reconnecting, can post, last sync); YouTube (every connected account — channel title and id, whether its grant still works, which import source it follows — liked videos or the ForeverLM playlist — and its liked-import choice; automatic import on/off, the channels followed with their group_id, hidden channels); Google Drive (connected accounts with id and email, the meeting folders each reads); Calendar, the Mac's own (on/off, macOS permission) — the learner's day; Slack (workspaces with team_id, and each workspace's channels with id, name and whether ForeverLM may read it); GitHub (the account and the organisations the App is installed on); Linear and Notion (every connected workspace with its id); and the learner's own Build Your Own plugins (id, name, health, sources added). Every entry names its open_settings pane and the tool that disconnects it. Connecting any plugin needs the provider's consent page, so it cannot be done from a chat: offer open_settings with the pane named here. The Slack channel lists cost one Slack call per workspace; pass include_slack_channels false to skip them.",
     "inputSchema" : {
       "properties" : {
@@ -8127,6 +8152,27 @@
     "readOnlyHint" : false
   },
   {
+    "description" : "Read a paper's reference list from its PDF and find the link of each entry, free and with no model: an entry's printed DOI or address is its link, and one that prints none is matched against Crossref and OpenAlex and takes a record only when the entry prints that record's title (or its volume and first page beside the author) and the year agrees. This is what runs by itself when a paper is added; call it for a paper added before that existed, or to ask the catalogs again after they were down. A paper already read and answered is returned as it stands; pass force to read its PDF again (entries a catalog already answered keep their answer, and entries you saved with save_paper_references are never replaced). Makes web requests to Crossref and OpenAlex, so a long list takes a minute or more. Returns the counts and what was left unanswered; get_paper_references shows the entries. Needs the paper's PDF on the learner's Mac.",
+    "inputSchema" : {
+      "properties" : {
+        "force" : {
+          "description" : "Read the PDF's reference list again even when one is stored. Defaults to false.",
+          "type" : "boolean"
+        },
+        "source_id" : {
+          "description" : "Paper source ID from list_sources.",
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "source_id"
+      ],
+      "type" : "object"
+    },
+    "name" : "resolve_paper_references",
+    "readOnlyHint" : false
+  },
+  {
     "description" : "Confirm or reject a podcast match staged by find_podcast_match. Confirm converts the source to a podcast episode; reject reverts it to queued.",
     "inputSchema" : {
       "properties" : {
@@ -8922,6 +8968,77 @@
       "type" : "object"
     },
     "name" : "save_mnemonic_reading",
+    "readOnlyHint" : false
+  },
+  {
+    "description" : "Save reference entries you authored for a paper, so its citations open the papers they name: read the paper's reference list (get_paper_references with include_reference_text), find each entry's DOI or web address yourself (the entry's own text, Crossref, OpenAlex, Semantic Scholar or the publisher's page), and save them here. This spends none of the learner's AI budget: you do the lookups and the learner's account pays for nothing. Each reference has number (the citation number in the paper's text, from 1) and, for an entry not stored yet, its text as the paper prints it. Give doi (bare 10.… or a doi.org address) and/or url (an http or https address of the paper's page or PDF) only when you read it in the entry or opened the page yourself, never one recalled from memory: a wrong link is read as a fact. A doi without a url gets its doi.org address. title, authors, journal, year and label are optional. An entry already stored keeps whatever you leave out. With replace the paper's whole stored list is replaced by the references you pass (each then needs text), for a list the app read wrongly. Entries are saved in one step or not at all, and an invalid doi or address refuses the call and names it. Returns the counts as stored.",
+    "inputSchema" : {
+      "properties" : {
+        "references" : {
+          "description" : "The entries to save, at most 600 a call.",
+          "items" : {
+            "properties" : {
+              "authors" : {
+                "description" : "Its authors, as one line.",
+                "type" : "string"
+              },
+              "doi" : {
+                "description" : "The paper's DOI, bare or as a doi.org address.",
+                "type" : "string"
+              },
+              "journal" : {
+                "description" : "Where it was published.",
+                "type" : "string"
+              },
+              "label" : {
+                "description" : "What a citation calls the entry; defaults to the number (\"12\"), or \"Smith 2019\" for an author-year list.",
+                "type" : "string"
+              },
+              "number" : {
+                "description" : "The entry's citation number in the paper's text.",
+                "minimum" : 1,
+                "type" : "integer"
+              },
+              "text" : {
+                "description" : "The entry as the paper prints it. Required for an entry not stored yet.",
+                "type" : "string"
+              },
+              "title" : {
+                "description" : "The cited paper's title.",
+                "type" : "string"
+              },
+              "url" : {
+                "description" : "An http or https address of the paper's page or PDF, when it has no DOI.",
+                "type" : "string"
+              },
+              "year" : {
+                "description" : "Its year.",
+                "type" : "string"
+              }
+            },
+            "required" : [
+              "number"
+            ],
+            "type" : "object"
+          },
+          "type" : "array"
+        },
+        "replace" : {
+          "description" : "Replace the paper's whole stored list with these references. Defaults to false.",
+          "type" : "boolean"
+        },
+        "source_id" : {
+          "description" : "Paper source ID from list_sources.",
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "source_id",
+        "references"
+      ],
+      "type" : "object"
+    },
+    "name" : "save_paper_references",
     "readOnlyHint" : false
   },
   {

@@ -8016,7 +8016,7 @@ struct YouTubeTranscriptCheckMigrationTests {
         var version: Int32 = 0
         try migrated.query("PRAGMA user_version") { statement in version = sqlite3_column_int(statement, 0) }
         #expect(version == KnowledgeStore.schemaVersion)
-        #expect(KnowledgeStore.schemaVersion == 173)
+        #expect(KnowledgeStore.schemaVersion == 174)
         // The library is whole while the checks wait, the transcript untouched.
         #expect(Set(try migrated.loadSources().map(\.id)) == ["yt-lecture", "yt-queued", "vimeo", "yt-team", "article"])
         #expect(try migrated.loadSourceContent("yt-lecture")?.hasPrefix("[0:00] So hello again.") == true)

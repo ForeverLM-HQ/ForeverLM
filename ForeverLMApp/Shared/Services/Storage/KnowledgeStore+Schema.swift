@@ -721,7 +721,20 @@ extension KnowledgeStore {
     // it). DDL only: the table and its index are created empty and proved
     // before the stamp. Not held with 154: this build's Add Book writes it.
     // Never synced, so no CloudKit schema change.
-    static let schemaVersion: Int32 = 173
+    // 174: a paper's reference list is read and linked when the paper is added.
+    // Citations in a paper resolved to their entry only through the PDF's own
+    // link annotations, so a PDF without them (NEJM, most preprints) showed no
+    // popup and no link, and nothing was kept of what a paper cites. The
+    // local-only `paper_references` holds each entry of a paper's list with
+    // the DOI or address it resolved to, and `paper_reference_reads` is the
+    // durable queue of papers owed a read and the record of what each read
+    // found. Both are derived from the paper's PDF by rule and by the free
+    // Crossref and OpenAlex catalogs (`PaperReferenceLinkService`), so they do
+    // not sync: a Mac that holds the PDF makes them. DDL and one set-based
+    // INSERT of ids from `papers` into the queue; nothing is read, opened or
+    // asked in the migration, and the drain runs after launch at `.utility`.
+    // Not held with 154: this build's paper saves write the queue.
+    static let schemaVersion: Int32 = 174
     static let minimumMigratableSchemaVersion: Int32 = 1
 
     /// The day Goals shipped — schema 120, build 114, 2026-09-19 — as midnight
@@ -830,6 +843,19 @@ extension KnowledgeStore {
                 try exec("BEGIN IMMEDIATE")
                 do {
                     try createBookFileDigests()
+                    try exec("COMMIT")
+                } catch {
+                    try? exec("ROLLBACK")
+                    throw error
+                }
+            }
+            // Nor are schema 174's reference-list tables, which this build's paper
+            // saves write; the papers already held are queued once.
+            if try !holdsPaperReferenceTables() {
+                try exec("BEGIN IMMEDIATE")
+                do {
+                    try createPaperReferenceTables()
+                    try enqueuePaperReferenceReadsForExistingPapers()
                     try exec("COMMIT")
                 } catch {
                     try? exec("ROLLBACK")
@@ -1580,6 +1606,9 @@ extension KnowledgeStore {
 
         // The files books were added from on this Mac, by sha256 (schema 173).
         try createBookFileDigests()
+
+        // Each paper's reference list, and the queue of papers owed a read (schema 174).
+        try createPaperReferenceTables()
 
         // What the indexer has already done, and for which version of a source's text.
         //
@@ -4269,6 +4298,14 @@ extension KnowledgeStore {
                 // (2026-10-13): the record of the files books were added from,
                 // created above, empty, proved before the stamp.
                 try probeBookFileDigests()
+            }
+            if currentVersion < Self.paperReferencesSchemaVersion {
+                // A paper's references are read and linked when it is added
+                // (2026-11-04): the tables, created above, proved before the
+                // stamp, then every paper with a file staged once for the
+                // post-launch read. Ids only: no PDF is opened here.
+                try probePaperReferenceTables()
+                try enqueuePaperReferenceReadsForExistingPapers()
             }
             // Preparing the projection catches an older, structurally incompatible
             // table before the version stamp commits. The transaction then rolls

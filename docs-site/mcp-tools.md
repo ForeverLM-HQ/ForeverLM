@@ -698,6 +698,9 @@ it.
 | `list_video_cited_papers` | `source_id` | The candidates found for a source, each with its kind, address and status. |
 | `import_video_cited_paper` | `cited_paper_id`, `approved_spend_usd?` | Add one candidate to the library by the route its kind takes: a paper with its PDF, a video with its transcript, an article with its page. |
 | `update_video_cited_paper_status` | `cited_paper_id`, `status` | Dismiss a candidate, or put a dismissed one back (`pending`). |
+| `get_paper_references` | `source_id`, `include_reference_text?`, `only_unlinked?` | A paper's stored reference list: each entry's number, text, the DOI or address it names, how the link was found, and the library source that is that paper when you hold it. `include_reference_text` also returns the PDF's reference-list text, the one way to read a paper's references through ForeverLM. Read-only; Mac only. |
+| `resolve_paper_references` | `source_id`, `force?` | Read a paper's reference list from its PDF and find each entry's link, free and with no model: a printed DOI or address, or a Crossref or OpenAlex record the entry prints. Runs by itself when a paper is added; call it for an older paper or after a catalog was down. Mac only. |
+| `save_paper_references` | `source_id`, `references`, `replace?` | Save entries you authored for a paper: each with its citation `number`, its `text` when new, and the `doi` or `url` you read in it or found yourself (never one recalled), plus optional `title`, `authors`, `journal`, `year`, `label`. Costs none of your AI budget. Saved in one step or not at all. Mac only. |
 
 ## Plugins you build
 

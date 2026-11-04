@@ -3945,6 +3945,9 @@ class StudioViewModel {
     /// Schema 144's one pass over the library: each paper's title against the
     /// one its DOI is registered under.
     let registeredPaperTitleCheckService: RegisteredPaperTitleCheckService
+    /// Schema 174's read of each paper's reference list and the link of each entry
+    /// (`StudioViewModel+PaperReferenceLinks`): free catalogs, no model.
+    let paperReferenceLinkService: PaperReferenceLinkService
     let youTubeTranscriptCheckService: YouTubeTranscriptCheckService
     let sourceListenableContentPreparationService: SourceListenableContentPreparationService
     /// The learner's daily cap on background AI (`BackgroundAIDailyCap`).
@@ -4315,6 +4318,9 @@ class StudioViewModel {
         // So does schema 144's registered-title check: catalog requests and a
         // title write, no model and no text.
         Task(priority: .utility) { await self.runRegisteredPaperTitleCheck() }
+        // And schema 174's read of each paper's references: the PDF's text and free
+        // catalog requests, no model, so it needs no spend control and no opt-in.
+        Task(priority: .utility) { await self.runPaperReferenceLinking() }
         // And schema 148's transcript check: caption requests and a text
         // write, no model.
         Task(priority: .utility) { await self.runYouTubeTranscriptCheck() }
@@ -4574,6 +4580,7 @@ class StudioViewModel {
         )
         self.articleChromeRefilterService = ArticleChromeRefilterService(storage: storageService)
         self.registeredPaperTitleCheckService = RegisteredPaperTitleCheckService(storage: storageService)
+        self.paperReferenceLinkService = PaperReferenceLinkService(storage: storageService)
         self.youTubeTranscriptCheckService = YouTubeTranscriptCheckService(storage: storageService)
         self.sourceListenableContentPreparationService = SourceListenableContentPreparationService(
             storage: storageService,

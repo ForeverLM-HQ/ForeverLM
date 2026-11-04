@@ -60,7 +60,33 @@ extension StudioViewModel {
             report(.failed, "Cited papers can only be read from a paper's reference list.")
             return
         }
-        guard let config = KeychainService.resolveConfig(for: .paperReferenceExtraction) else {
+        // The free read comes first: the PDF's own reference list and a link for each entry
+        // (DOI, address or catalog record), no model. A candidate for every linked entry is
+        // made from it, so adding it is a click on a link that was found. The model is
+        // asked only about what no link was found for, and only when the learner has
+        // configured it (it spends their account, and was the whole read before this).
+        let config = KeychainService.resolveConfig(for: .paperReferenceExtraction)
+
+        report(.running, "Reading the references…", toast: "Reading the references in \(article.title)…")
+
+        let stored = await readCitedPapersFromStoredReferences(for: article)
+        // The text for the model pass: the entries no link was found for, or - when the list
+        // could not be read at all - the PDF's whole reference section, as before.
+        let modelText: String?
+        if stored.entryCount > 0 {
+            modelText = stored.unlinkedText
+        } else {
+            modelText = await referenceListText(for: article)
+        }
+        if stored.candidates.isEmpty, modelText == nil {
+            report(
+                .failed,
+                "This paper has no text to read yet, so there are no references to find.",
+                toast: "\(article.title) has no text to read yet, so there are no references to find."
+            )
+            return
+        }
+        if stored.candidates.isEmpty, config == nil {
             report(
                 .failed,
                 KeychainService.backgroundAIUnavailableMessage(for: .paperReferenceExtraction)
@@ -68,33 +94,23 @@ extension StudioViewModel {
             )
             return
         }
-
-        report(.running, "Reading the references…", toast: "Reading the references in \(article.title)…")
-
-        guard let text = await referenceListText(for: article) else {
-            report(
-                .failed,
-                "This paper has no text to read yet, so there are no references to find.",
-                toast: "\(article.title) has no text to read yet, so there are no references to find."
-            )
-            return
-        }
         // Cut to the reference list and chunk it off the main actor: a fifty-page paper is
         // a few hundred kilobytes of text, and the heading search walks every line.
-        let (section, chunks) = await Task.detached(priority: .userInitiated) {
-            let section = SlideCitationService.referenceSection(of: text)
-            return (section, SlideCitationService.materialChunks(
-                section, maxCharacters: 16_000, overlapCharacters: 800
-            ))
-        }.value
-        guard !chunks.isEmpty else {
-            report(
-                .failed,
-                "This paper has no text to read yet, so there are no references to find.",
-                toast: "\(article.title) has no text to read yet, so there are no references to find."
-            )
-            return
+        let readsEntryCount = stored.entryCount
+        let prepared: (section: String, chunks: [String])
+        if let modelText, config != nil {
+            prepared = await Task.detached(priority: .userInitiated) {
+                let section = readsEntryCount > 0 ? modelText : SlideCitationService.referenceSection(of: modelText)
+                return (section, SlideCitationService.materialChunks(
+                    section, maxCharacters: 16_000, overlapCharacters: 800
+                ))
+            }.value
+        } else {
+            prepared = ("", [])
         }
+        let section = prepared.section
+        let chunks = prepared.chunks
+        let linkedCandidates = stored.candidates
 
         let existing = (try? await storage.loadVideoCitedPapers(forSourceID: sourceID)) ?? []
         let existingKeys = Set(existing.map(\.dedupKey))
@@ -112,18 +128,20 @@ extension StudioViewModel {
                 AIUsageSource(source: article)
             ) {
                 var citations: [SlideCitationService.ExtractedCitation] = []
-                for chunk in chunks {
-                    citations += try await aiService.extractPaperReferences(
-                        paperTitle: article.title,
-                        content: chunk,
-                        config: config
-                    )
+                if let config {
+                    for chunk in chunks {
+                        citations += try await aiService.extractPaperReferences(
+                            paperTitle: article.title,
+                            content: chunk,
+                            config: config
+                        )
+                    }
                 }
                 // Uncapped on purpose, like the lecture and meeting workflows: this is one
                 // explicit request to find what one paper cites, and the catalog pass now
                 // places title-less entries too, so the web is asked only about the few no
                 // catalog holds.
-                return await SlideCitationService.shared.resolveExtractedCitations(
+                let modelRead: [VideoCitedPaper] = citations.isEmpty ? [] : await SlideCitationService.shared.resolveExtractedCitations(
                     citations,
                     sourceID: sourceID,
                     sourceText: section,
@@ -131,9 +149,12 @@ extension StudioViewModel {
                     aiService: aiService,
                     webLookupLimit: nil
                 )
+                // The links that were found come first: an entry the model also read stays
+                // the one with its found address.
+                return SlideCitationService.collapsingDuplicates(linkedCandidates + modelRead)
             }
             paperReferencesLogger.info(
-                "Read \(candidates.count) cited paper(s) from \(chunks.count) chunk(s) of \(sourceID, privacy: .public)"
+                "Read \(candidates.count) cited paper(s) of \(sourceID, privacy: .public): \(linkedCandidates.count) by link, \(chunks.count) chunk(s) to the model"
             )
 
             // Existing rows are decisions already made; a rescan must not put back what was
