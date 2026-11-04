@@ -113,6 +113,8 @@ const openWorld = new Set([
   "scan_article_for_linked_sources",
   "scan_meeting_for_mentioned_papers",
   "scan_video_for_cited_papers",
+  // Asks Crossref and OpenAlex about each entry of a paper's reference list.
+  "resolve_paper_references",
   // Searches the live web with the learner's chat model and opens each page
   // it lists to check that it is real.
   "discover_sources",
@@ -436,6 +438,14 @@ export const SPACE_LIST_TOOL_NAMES: readonly string[] = [
 ];
 
 export const DESKTOP_ONLY_TOOL_NAMES: ReadonlySet<string> = new Set([
+  // A paper's reference list is local derived data (schema 174), read from the
+  // PDF the Mac holds and linked through the Mac's own catalog requests; an
+  // assistant's saved entries are written there too. The hosted account holds
+  // none of it. get_paper_references is the one way to read a paper's reference
+  // text, since get_source_content leaves bibliography entries out.
+  "get_paper_references",
+  "resolve_paper_references",
+  "save_paper_references",
   // Images are files under the Mac's content root, each carrying its prompt
   // and image id in its own XMP; generate_image draws through the Mac's
   // signed-in image route. The hosted account holds no image files at all.

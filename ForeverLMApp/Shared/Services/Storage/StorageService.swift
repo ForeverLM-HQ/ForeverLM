@@ -1731,6 +1731,69 @@ actor StorageService {
         try knowledgeStore().republishArticleReaderDocument(sourceID: sourceID)
     }
 
+    // MARK: - Paper reference lists (schema 174)
+    //
+    // Local-only (nothing here syncs or marks a record changed): a list is derived from the
+    // paper's own PDF, so the Mac that holds the PDF makes it.
+
+    func paperReferenceReadCandidates(limit: Int) throws -> [PaperReferenceReadCandidate] {
+        try ensureStoreExists()
+        return try knowledgeStore().paperReferenceReadCandidates(limit: limit)
+    }
+
+    func paperReferenceReadQueueCount() throws -> Int {
+        try ensureStoreExists()
+        return try knowledgeStore().paperReferenceReadQueueCount()
+    }
+
+    func paperReferenceReadState(sourceID: String) throws -> PaperReferenceReadState? {
+        try ensureStoreExists()
+        return try knowledgeStore().paperReferenceReadState(sourceID: sourceID)
+    }
+
+    func loadPaperReferences(sourceID: String) throws -> [PaperReference] {
+        try ensureStoreExists()
+        return try knowledgeStore().loadPaperReferences(sourceID: sourceID)
+    }
+
+    /// A paper's stored list as the snapshot the citation popover reads a link through.
+    func paperReferenceIndex(sourceID: String) throws -> PaperReferenceIndex {
+        PaperReferenceIndex(sourceID: sourceID, references: try loadPaperReferences(sourceID: sourceID))
+    }
+
+    func replacePaperReferenceList(sourceID: String, entries: [PaperReference]) throws {
+        try ensureStoreExists()
+        try knowledgeStore().replacePaperReferenceList(sourceID: sourceID, entries: entries)
+    }
+
+    func savePaperReference(_ reference: PaperReference) throws {
+        try ensureStoreExists()
+        try knowledgeStore().savePaperReference(reference)
+    }
+
+    func savePaperReferencesAuthoredByAgent(
+        sourceID: String,
+        references: [PaperReference],
+        replacing: Bool
+    ) throws {
+        try ensureStoreExists()
+        try knowledgeStore().savePaperReferencesAuthoredByAgent(
+            sourceID: sourceID, references: references, replacing: replacing
+        )
+    }
+
+    func finishPaperReferenceRead(sourceID: String, pdfPath: String?, failure: String?, authoredBy: String) throws {
+        try ensureStoreExists()
+        try knowledgeStore().finishPaperReferenceRead(
+            sourceID: sourceID, pdfPath: pdfPath, failure: failure, authoredBy: authoredBy
+        )
+    }
+
+    func dropPaperReferences(sourceID: String) throws {
+        try ensureStoreExists()
+        try knowledgeStore().dropPaperReferences(sourceID: sourceID)
+    }
+
     // MARK: - Registered paper titles (schema 144)
 
     func registeredPaperTitleCandidates(limit: Int) throws -> [RegisteredPaperTitleCandidate] {

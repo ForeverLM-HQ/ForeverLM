@@ -612,7 +612,11 @@ extension KnowledgeStore {
                 // read again. Reindex even when it reused the same portable path.
                 force: article.paperContentPreparationForPersistence != nil
             )
+            // The paper's references are read from this file once it is saved: a queue row
+            // only (no PDF is opened here), left as it is when this file was already read.
+            try enqueuePaperReferenceRead(sourceID: article.id, pdfPath: persistLocalPath)
         } else if article.sourceType != .paper {
+            try dropPaperReferences(sourceID: article.id)
             try execBind("DELETE FROM paper_figure_index_queue WHERE source_id = ?") { stmt in
                 bind(stmt, 1, article.id)
             }

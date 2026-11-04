@@ -341,7 +341,7 @@ struct Schema150MigrationTests {
         #expect(F.scalar(at: root, "SELECT COUNT(*) FROM sync_metadata") == syncMetadataBefore)
         #expect(F.scalar(at: root, "SELECT COUNT(*) FROM sync_changes") == syncChangesBefore)
         #expect(F.scalar(at: root, "PRAGMA user_version") == "\(KnowledgeStore.schemaVersion)")
-        #expect(KnowledgeStore.schemaVersion == 173)
+        #expect(KnowledgeStore.schemaVersion == 174)
         #expect(F.scalar(at: root, Self.homeColumn) == "1")
         #expect(F.scalar(at: root, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'idx_courses_home_notebook'") == "1")
 

@@ -4821,6 +4821,7 @@ final class MCPToolRegistry: @unchecked Sendable {
             + Self.canvasMemoryToolDefs // Memory on the Canvas (WP-B2)
             + Self.atlasToolDefs
             + Self.notesGraphToolDefs // Notes as a graph (MCPTools+NotesGraph.swift)
+            + Self.paperReferenceToolDefs // A paper's reference list (MCPTools+PaperReferences.swift)
         return definitions.map(Self.addSpendApprovalArgument)
     }
 
@@ -5211,6 +5212,8 @@ final class MCPToolRegistry: @unchecked Sendable {
         "get_review_session_transcript", "search_review_sessions",
         "list_review_session_links",
         "list_video_cited_papers",
+        // A paper's stored reference list, and its PDF's reference text on request.
+        "get_paper_references",
         "list_scheduled_tasks", "get_scheduled_task",
         "read_site_file",
         // The animations kept in the library, and an article's reading view
@@ -5600,6 +5603,9 @@ final class MCPToolRegistry: @unchecked Sendable {
         "ingest_lecture_papers",
         // Downloads storyboards and streams the video to capture slide frames.
         "extract_video_slides",
+        // Asks Crossref and OpenAlex about every entry of a paper's list, a minute or
+        // more; it reaches the library only through the storage actor.
+        "resolve_paper_references",
     ]
 
     private static func isMutatingTool(_ name: String) -> Bool {
@@ -5637,6 +5643,9 @@ final class MCPToolRegistry: @unchecked Sendable {
                 return result
             }
             if let result = try await store.executeSpaceListTool(name: name, arguments: arguments) {
+                return result
+            }
+            if let result = try await store.executePaperReferenceTool(name: name, arguments: arguments) {
                 return result
             }
             if let result = try await store.executeCanvasAskTool(name: name, arguments: arguments) {
