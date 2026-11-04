@@ -282,6 +282,79 @@ enum ArtifactPlaceholderTitle {
     }
 }
 
+/// The one name a page has. A Markdown page whose body opens with a `# ` heading
+/// is named by that heading: the stored title is the heading's words, and the
+/// page draws its name once, not as a title row above a heading that says it
+/// again. The title and the heading are two stores of one string, so every
+/// writer that can change one keeps the other (the editor's header on a
+/// rename, the editor on a save and on open, the iPhone's page): a body an
+/// assistant wrote under a differently worded title, `Notes - day one` over
+/// `# Notes: day one`, drew both (product owner, 2026-09-13: "why often these
+/// double titles in docs?"; again 2026-11-04). Deleting the heading leaves the
+/// title standing, and the title row comes back with it. The iPhone repeats
+/// this rule in `MobilePageTitleRule`, whose target does not compile this file.
+enum ArtifactMarkdownTitle {
+    /// The `# ` heading the body opens with, or nil when it opens with
+    /// anything else. Reads no further than the first non-blank line, so it
+    /// is cheap enough to ask of every draft.
+    static func first(in markdown: String) -> String? {
+        firstLine(in: markdown)?.title
+    }
+
+    /// Whether the body's first heading is the doc's title, trimmed and
+    /// case-insensitive, the comparison the published page makes
+    /// (`splitLeadingTitle`) before it lifts that heading into its header, so
+    /// drawing both would say the name twice.
+    static func names(_ title: String, in markdown: String) -> Bool {
+        guard let heading = first(in: markdown) else { return false }
+        return heading.lowercased() == title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+    }
+
+    /// Whether this record's body can name it: an ordinary Markdown page.
+    /// A linked page's text is a read-only copy, a daily note is named by its
+    /// day, and every record with a kind has a name of its own.
+    static func canBeNamedByBody(_ artifact: ArtifactRecord) -> Bool {
+        artifact.kind == nil && !artifact.isLinked && !DailyNote.isDailyNoteID(artifact.id)
+    }
+
+    /// The title a page takes from its body: the opening heading's words when
+    /// they are not already the title, character for character; nil when the
+    /// page has no opening heading or already carries its words.
+    static func adoptedTitle(replacing title: String, in markdown: String) -> String? {
+        guard let heading = first(in: markdown) else { return nil }
+        return heading == title.trimmingCharacters(in: .whitespacesAndNewlines) ? nil : heading
+    }
+
+    /// The body with its opening heading's words replaced by `title`, which is
+    /// what a rename of a page named by its heading writes; nil when the body
+    /// has no opening heading, the title is empty, or the heading already says
+    /// it. A title that ran over several lines is one line in the heading.
+    static func retitling(_ markdown: String, to title: String) -> String? {
+        let words = title.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+        guard !words.isEmpty, let line = firstLine(in: markdown) else { return nil }
+        let renamed = markdown.replacingCharacters(in: line.range, with: "# \(words)")
+        return renamed == markdown ? nil : renamed
+    }
+
+    /// The first line with words on it, when it is a `# ` heading with words:
+    /// its range in the text (the whole line, up to its break) and its title.
+    private static func firstLine(in markdown: String) -> (range: Range<String.Index>, title: String)? {
+        var start = markdown.startIndex
+        while start < markdown.endIndex {
+            let end = markdown[start...].firstIndex(of: "\n") ?? markdown.endIndex
+            let trimmed = markdown[start..<end].trimmingCharacters(in: .whitespaces)
+            if !trimmed.isEmpty {
+                guard trimmed.hasPrefix("# ") else { return nil }
+                let title = trimmed.dropFirst(2).trimmingCharacters(in: .whitespacesAndNewlines)
+                return title.isEmpty ? nil : (start..<end, String(title.prefix(500)))
+            }
+            guard end < markdown.endIndex else { break }
+            start = markdown.index(after: end)
+        }
+        return nil
+    }
+}
+
 struct ArtifactMarkdownSnapshot: Equatable, Sendable {
     let artifact: ArtifactRecord
     let markdown: String

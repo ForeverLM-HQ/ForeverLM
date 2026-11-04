@@ -1036,6 +1036,41 @@ struct ArtifactPersistenceTests {
         #expect(try JSONDecoder().decode(ArtifactRecord.self, from: legacy).isLinked == false)
     }
 
+    @Test("Renaming a page named by its heading renames the heading too, and a page without one keeps its body")
+    func renameKeepsTitleAndHeadingOneString() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("ArtifactRenameHeadingTests_\(UUID().uuidString)", isDirectory: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let storage = StorageService(storeRoot: root)
+
+        let named = try await storage.createArtifact(
+            title: "Field session 2026-10-25: my notes", homeNotebookID: nil, linkedNotebookIDs: [],
+            markdown: "# Field session 2026-10-25: my notes\n\nWhat we covered."
+        )
+        let renamed = try await storage.updateArtifact(
+            artifactID: named.artifact.id, title: "Field session, day one", homeNotebookID: nil, linkedNotebookIDs: nil
+        )
+        #expect(renamed.title == "Field session, day one")
+        let afterRename = try await storage.artifactMarkdown(named.artifact.id)
+        #expect(afterRename.markdown == "# Field session, day one\n\nWhat we covered.")
+        #expect(ArtifactMarkdownTitle.names(afterRename.artifact.title, in: afterRename.markdown))
+
+        // A page whose body does not open with a heading is renamed alone.
+        let plain = try await storage.createArtifact(
+            title: "Reading list", homeNotebookID: nil, linkedNotebookIDs: [],
+            markdown: "Intro.\n\n# Later heading\n"
+        )
+        _ = try await storage.updateArtifact(artifactID: plain.artifact.id, title: "Books", homeNotebookID: nil, linkedNotebookIDs: nil)
+        let untouched = try await storage.artifactMarkdown(plain.artifact.id)
+        #expect(untouched.markdown == "Intro.\n\n# Later heading\n")
+        #expect(untouched.artifact.title == "Books")
+
+        // A change that is not a rename leaves the body (and its revision) alone.
+        let before = try await storage.artifactMarkdown(named.artifact.id).revision
+        _ = try await storage.updateArtifact(artifactID: named.artifact.id, title: nil, homeNotebookID: nil, linkedNotebookIDs: nil, isDraft: true)
+        #expect(try await storage.artifactMarkdown(named.artifact.id).revision == before)
+    }
+
     @Test("Converting a Markdown doc makes it a linked doc with its body kept; unlinking makes it editable again")
     func convertedDocLinksAndUnlinks() async throws {
         let root = FileManager.default.temporaryDirectory

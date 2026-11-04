@@ -115,3 +115,44 @@ export function citationFootnote({ words, href, address, title, ariaLabel }) {
   }
   return { label: number[1], note: [note] }
 }
+
+// ─── A source linked into a page, as a footnote ─────────────────────────────
+// A learner who links a library source to a passage (drops it on the words,
+// or picks it from the passage's sources) gets the passage's sources as ever
+// (`foreverlm://grounding/…`, which is what Chat reads) and, at the end of the
+// passage, a footnote: the number in the sentence, the note at the foot of the
+// page holding the source's title linked to the source. The footnote is the
+// page's ordinary one (`keptFootnotes` numbers it and writes `[^1]`), so the
+// citation reads on every client and on a published page, and resting on the
+// number shows the source's name.
+
+/// What a citation is grounded as: a book row stands for its book.
+export function sourceToken(citation) {
+  const book = String(citation?.bookID ?? '').trim()
+  return book ? `book:${book}` : String(citation?.sourceID ?? '').trim()
+}
+
+/// The citations whose source the attachment newly gave a passage (`added`
+/// are the tokens it added), once each, in the order they were dropped. A
+/// source the passage already stood on has its footnote, if the writer wanted
+/// one, and does not get a second.
+export function freshSources(citations, added) {
+  const wanted = new Set(added)
+  const seen = new Set()
+  const fresh = []
+  for (const citation of Array.isArray(citations) ? citations : []) {
+    const token = sourceToken(citation)
+    if (!token || !wanted.has(token) || seen.has(token)) continue
+    seen.add(token)
+    fresh.push(citation)
+  }
+  return fresh
+}
+
+/// The note a linked source leaves, as ProseMirror JSON for a footnote's
+/// `note`: the source's title, linked to `href`. A title the host did not
+/// have is the word Source rather than an address nobody can read.
+export function sourceFootnote({ title, href }) {
+  const text = String(title ?? '').replace(/\s+/g, ' ').trim() || 'Source'
+  return [{ type: 'paragraph', content: [{ type: 'text', text, marks: [{ type: 'link', attrs: { href } }] }] }]
+}

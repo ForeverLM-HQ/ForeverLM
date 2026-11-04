@@ -63,7 +63,7 @@ import { remarkMoneyIsNotMath } from './dollar-math.js'
 import { remarkJoinedGrounding } from './joined-grounding.js'
 import { blankLinesAsEmptyLines, emptyLinesAsBlankLines } from './empty-lines.js'
 import { textWithItsEscapes } from './markdown-text.js'
-import { citationFootnote, footnoteKey, freshNumericLabel, planFootnotes } from './footnotes.js'
+import { citationFootnote, footnoteKey, freshNumericLabel, freshSources, planFootnotes, sourceFootnote, sourceToken } from './footnotes.js'
 import { joinPastedLines, mayBePrintedLines, pastedLines, writtenSpan } from './pasted-lines.js'
 import { resolveAnchor, textIndex } from './comment-anchors.js'
 import { aliasedAddresses, isAddressStandIn, newAddressAliases, restoredAddresses, reviewWordMarks } from './ai-edit-proposal.js'
@@ -8426,7 +8426,12 @@ function groundableRanges(state, from, to) {
 /// Replacing rather than merging is deliberate: the attachment belongs to the
 /// passage as a whole, and two overlapping lists inside one sentence would make
 /// "what is this standing on" unanswerable. An empty list detaches.
-function groundSelection(sourceIDs) {
+///
+/// `citations` name the sources by id and title, as a drop does. The sources the
+/// passage did not stand on before become footnotes after it
+/// (`footnoteLinkedSources`); one the host gave no citation for is attached
+/// without a note, since a note needs the source's title.
+function groundSelection(sourceIDs, citations = []) {
   const view = activeEditorView()
   if (!view) return
   const { from, to, empty } = view.state.selection
@@ -8458,6 +8463,11 @@ function groundSelection(sourceIDs) {
       if (isHardBreak(node)) tr.addNodeMark(position, mark)
     })
     tr.addMark(range.from, range.to, mark)
+  }
+  if (href) {
+    const before = new Set(groundedSourceIDs(from, to))
+    const added = ordered.filter((token) => !before.has(token))
+    footnoteLinkedSources(tr, view.state, ranges[ranges.length - 1].to, freshSources(citations, added))
   }
   if (!tr.docChanged) return
   userHasInteracted = true
@@ -8564,14 +8574,18 @@ function groundingRuns(state, from, to, takeSourceChips = false) {
 }
 
 /// Add sources to what each run of prose in a range already stands on, leaving
-/// the rest of its list alone.
+/// the rest of its list alone. Answers the tokens it newly gave some run.
 function addGrounding(tr, state, from, to, tokens, takeSourceChips = false) {
+  const added = new Set()
   const link = state.schema.marks.link
-  if (!link || tokens.length === 0) return
+  if (!link || tokens.length === 0) return added
   for (const run of groundingRuns(state, from, to, takeSourceChips)) {
     const ordered = [...run.attached]
     for (const token of tokens) {
-      if (!ordered.includes(token)) ordered.push(token)
+      if (!ordered.includes(token)) {
+        ordered.push(token)
+        added.add(token)
+      }
     }
     if (ordered.length === run.attached.length) continue
     const mark = link.create({ href: groundingHref(ordered) })
@@ -8585,6 +8599,32 @@ function addGrounding(tr, state, from, to, tokens, takeSourceChips = false) {
     })
     tr.addMark(run.from, run.to, mark)
   }
+  return added
+}
+
+/// The footnotes a source linked to a passage leaves: one number per source,
+/// straight after the passage's last word, each carrying its note (the
+/// source's title linked to the source, `sourceFootnote`) for `keptFootnotes`
+/// to number and write at the foot, in the same undo step as the attachment.
+/// Where a number cannot stand (a code block, inside a note, a read-only page,
+/// a source this host gave no title for) the source is attached as before.
+function footnoteLinkedSources(tr, state, pos, citations) {
+  const referenceType = state.schema.nodes[footnoteReferenceName]
+  if (!isEditable || !referenceType || citations.length === 0) return
+  const $at = tr.doc.resolve(pos)
+  if (!$at.parent.isTextblock || $at.parent.type.spec.code || footnoteDefinitionAround($at)) return
+  const { references, definitions } = footnoteNodes(state.doc)
+  const taken = [...references, ...definitions].map(({ node }) => node.attrs.label)
+  const numbers = []
+  for (const citation of citations) {
+    const id = String(citation?.sourceID ?? '').trim()
+    if (!id) continue
+    const label = freshNumericLabel(taken)
+    taken.push(label)
+    const note = sourceFootnote({ title: citation.title, href: `${sourceEditorPrefix}${encodeURIComponent(id)}` })
+    numbers.push(referenceType.create({ label, note: JSON.stringify(note) }))
+  }
+  if (numbers.length) tr.insert(pos, numbers)
 }
 
 function isHardBreak(node) {
@@ -10125,7 +10165,9 @@ function attachSourcesToRange(citations, from, to) {
   const range = trimmedRange(view.state, from, to)
   if (!(range.to > range.from)) return
   const tr = view.state.tr
-  addGrounding(tr, view.state, range.from, range.to, tokens)
+  const added = addGrounding(tr, view.state, range.from, range.to, tokens)
+  // A source linked to the words is a footnote after them.
+  footnoteLinkedSources(tr, view.state, range.to, freshSources(citations, [...added]))
   if (!tr.docChanged) return
   userHasInteracted = true
   hasUserChanges = true
@@ -10152,8 +10194,7 @@ function attachSourcesToSelection(citations) {
 function groundingTokensForCitations(citations) {
   const tokens = []
   for (const citation of Array.isArray(citations) ? citations : []) {
-    const bookID = String(citation?.bookID ?? '').trim()
-    const token = bookID ? `book:${bookID}` : String(citation?.sourceID ?? '').trim()
+    const token = sourceToken(citation)
     if (token && !tokens.includes(token)) tokens.push(token)
   }
   return tokens

@@ -269,10 +269,55 @@ struct ArtifactMarkdownEditorViewTests {
         #expect(ArtifactMarkdownTitle.names(" The Landscape of Mitochondrial Therapeutics \n", in: body))
         // Case is not a difference, as on the published page.
         #expect(ArtifactMarkdownTitle.names("the landscape of mitochondrial therapeutics", in: body))
-        // A different name over the heading is a kicker, not a repeat.
+        // A different name is not the heading; the page takes the heading's words (`adoptedTitle`).
         #expect(!ArtifactMarkdownTitle.names("Research notes: mitochondria", in: body))
         #expect(!ArtifactMarkdownTitle.names("The Landscape of Mitochondrial Therapeutics", in: "Intro\n\n# The Landscape of Mitochondrial Therapeutics"))
         #expect(!ArtifactMarkdownTitle.names("Untitled Doc", in: ""))
+    }
+
+    @Test("A page stored under a different wording than its heading takes the heading's words")
+    func headingIsTheOnlyName() {
+        // The reported page: the title said "Field session 2026-10-25 - my notes",
+        // the body's heading "Field session 2026-10-25: my notes", and the page drew both.
+        let body = "# Field session 2026-10-25: my notes\n\nWhat we covered."
+        let stored = "Field session 2026-10-25 \u{2014} my notes"
+        #expect(!ArtifactMarkdownTitle.names(stored, in: body))
+        #expect(ArtifactMarkdownTitle.adoptedTitle(replacing: stored, in: body) == "Field session 2026-10-25: my notes")
+        // A title that is the heading, or differs only in the spaces around it, has nothing to adopt.
+        #expect(ArtifactMarkdownTitle.adoptedTitle(replacing: " Field session 2026-10-25: my notes ", in: body) == nil)
+        // Case is a difference: two strings are one only when they match.
+        #expect(ArtifactMarkdownTitle.adoptedTitle(replacing: "field session 2026-10-25: my notes", in: body) == "Field session 2026-10-25: my notes")
+        // A body with no opening heading names nothing; the title stands.
+        #expect(ArtifactMarkdownTitle.adoptedTitle(replacing: stored, in: "Intro\n\n# Later heading") == nil)
+        #expect(ArtifactMarkdownTitle.adoptedTitle(replacing: stored, in: "") == nil)
+    }
+
+    @Test("A rename writes the new words into the opening heading and nothing else")
+    func retitlingTheOpeningHeading() {
+        let body = "\n  # Old name  \n\nFirst paragraph.\n\n# A later heading\n"
+        #expect(ArtifactMarkdownTitle.retitling(body, to: "New name") == "\n# New name\n\nFirst paragraph.\n\n# A later heading\n")
+        // Several lines of title are one line of heading.
+        #expect(ArtifactMarkdownTitle.retitling("# Old", to: "New\n  name") == "# New name")
+        // Nothing to write: the heading already says it, there is none, or the title is empty.
+        #expect(ArtifactMarkdownTitle.retitling("# Same\n\nText", to: "Same") == nil)
+        #expect(ArtifactMarkdownTitle.retitling("Text\n\n# Later", to: "New") == nil)
+        #expect(ArtifactMarkdownTitle.retitling("## Section", to: "New") == nil)
+        #expect(ArtifactMarkdownTitle.retitling("# Old", to: "  \n") == nil)
+        // What a rename writes is read back as the title, so the two cannot differ afterwards.
+        let renamed = ArtifactMarkdownTitle.retitling("# Old\n\nText", to: "New name")
+        #expect(renamed.flatMap { ArtifactMarkdownTitle.first(in: $0) } == "New name")
+    }
+
+    @Test("Only an ordinary Markdown page is named by its body")
+    func onlyOrdinaryPagesTakeTheirHeading() {
+        let now = Date()
+        func record(id: String = "page-1", kind: ArtifactKind? = nil, linkedURL: String? = nil) -> ArtifactRecord {
+            ArtifactRecord(id: id, title: "Notes", homeNotebookID: nil, linkedNotebookIDs: [], linkedURL: linkedURL, kind: kind, createdAt: now, updatedAt: now)
+        }
+        #expect(ArtifactMarkdownTitle.canBeNamedByBody(record()))
+        #expect(!ArtifactMarkdownTitle.canBeNamedByBody(record(kind: .animation)))
+        #expect(!ArtifactMarkdownTitle.canBeNamedByBody(record(linkedURL: "https://docs.google.com/document/d/1AbC/edit")))
+        #expect(!ArtifactMarkdownTitle.canBeNamedByBody(record(id: DailyNote.id(forDayKey: "2026-10-25"))))
     }
 
     @Test("A new page is Untitled Page, and every earlier default still counts as unnamed")

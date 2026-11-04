@@ -1034,7 +1034,7 @@ A recurring meeting in your library can be given a schedule: **Schedule…** on 
 
 The Space lists the Pages and Sites you have made or linked, with a place for each kind in its sidebar: **Pages**, **Sites**, and **Google Drive** for the Google Docs you linked. Pictures, animations, audio overviews, videos, walkthroughs and narrations are listed in their notebook's Studio instead ([The Studio column](#the-studio-column)). **Open Pages Beside** (or **Open Sites Beside**) on a row's right-click menu, or dragging the row to an edge of the window, opens that kind in a pane of its own beside what you are viewing. **New ▸ Link a Google Doc…** takes a Google Docs link (its **Open Google Docs** finds one, and a link you copy there is filled in when you come back), and **Link a Site…** does the same for a Codex site or a Claude artifact. Each Page's and Site's card has a **⋯** with **Rename…** and **Move to Trash**; a linked Google Doc has no **Rename…**, because it is named in Google Docs, and its name here follows the one Google shows once you open it. In My Library the Space and the Pages and Sites panes also list what your teams hold (a Page a teammate wrote, a site saved into a team notebook), each with a small two-person mark naming the team on hover; opening one takes you into that team's library. An **animation** is a moving explanation of how something in a source works, drawn as code that plays, scrubs and toggles conditions, or a rendered video. Ask the chat to animate a mechanism from a paper, use `/animate`, or pick **Animate…** from a source's menu; Claude and Codex can save one into your library through the plugin with `save_animation`. An animation is kept exactly as a Site is, in your library and your own iCloud, and stays linked to the sources it explains, so the paper lists its animations and the animation opens its paper.
 
-Pages in a pane of its own shows your pages as cards, newest first, with **All**, **Published**, **Drafts**, **Archived** and **Hidden** filters, a search field and **New Page**. A new page opens on its title: type a name and press Return, and the caret is in the page (left untitled, the page takes its name from its first `#` heading). Click a card to open the page; the list beside an open page is unchanged. A Google Doc you link with **Link a Google Doc…** is listed under **Google Drive** and opens in Google's editor.
+Pages in a pane of its own shows your pages as cards, newest first, with **All**, **Published**, **Drafts**, **Archived** and **Hidden** filters, a search field and **New Page**. A new page opens on its title: type a name and press Return, and the caret is in the page (left untitled, the page takes its name from its first `#` heading). A page that opens with a `#` heading is named by it: the title and the heading are one line, so renaming the page rewrites the heading, editing the heading renames the page, and the name is never drawn twice. Click a card to open the page; the list beside an open page is unchanged. A Google Doc you link with **Link a Google Doc…** is listed under **Google Drive** and opens in Google's editor.
 
 Sites in a pane of its own shows the sites made in ForeverLM and the Codex sites and Claude artifacts you have linked, as cards with **All**, **ForeverLM**, **Claude**, **Codex**, **Archived** and **Hidden** filters, a search field and **Link a Site…**. A Page you publish on foreverlm.com stays in Pages, with its Published badge and address; Sites holds only sites. Paste a `….chatgpt.site` address or a `claude.ai/code/artifact/…` link and that page opens in ForeverLM as itself; ForeverLM keeps a read-only text copy that chat and review can read, and **Unlink** turns that copy into an ordinary page in Pages. Select text in an open Site and **Add to Chat** opens a chat beside it carrying the passage and the Site itself, so the tutor can fix the Site's files in your library; **Copy** puts a prompt for Claude or Codex on the clipboard. Every Page's and Site's ⋯ menu offers **Rename…** and **Open in Other Window**. A site made in ForeverLM lives only in your library: its files sync through your own iCloud, it opens in the Mac app, and a team gets it through the team library. It is never put on the web; for a public link, make the page as a Claude artifact or a Codex site and link it here. Over MCP, `write_doc` and `edit_doc` with `publish: true` update a published page in one call, and `link_page` with `text` refreshes a linked site's copy after you changed it in Codex or Claude.
 
@@ -1296,6 +1296,11 @@ cited, and adding, moving or deleting one renumbers the rest.
   gets a note of its own; cut and paste moves the footnote.
 - Footnotes pasted from a Substack post, a GitHub page or another published
   Page arrive as footnotes.
+- A source you link to a passage, by dropping it on the words or choosing it
+  under **Add sources**, becomes a footnote after the passage: the number in the
+  sentence and, at the foot, the source's title as a link that opens it. The
+  passage still stands on the source for Chat. A source it already stood on gets
+  no second note.
 - A passage pasted from a paper or an article keeps its citation numbers as
   footnotes: each note holds the reference the article gave that number (a
   Nature paper names the whole reference), or a link to where the number
@@ -1417,6 +1422,15 @@ its ×; the arrow in its corner moves the conversation into a full chat beside
 the Reader. **Highlight** (the marker) saves the passage as a note anchored to
 those words.
 
+The marker has five colors, and each says what the passage is for: yellow
+**Remember**, green **Key idea**, blue **Follow up**, pink **Doubt** and purple
+**Connect**. Point at a color on a highlight's card to see its meaning, or
+choose **Color** in the right-click menu of a note in the highlights list. Once
+a source's highlights use more than one color, the list's filter button (the
+three lines beside **Highlights**) narrows it to one meaning. An assistant picks
+a color by the same names over MCP, and a highlight it lists carries its
+meaning beside the color.
+
 To search a transcript, press ⌘F or choose **Find in Reader** from the Reader's
 **⋯**; Escape closes the search. A video's own commands are under **⋯ ›
 Video**: **Show Slides**, **Extract Papers** and **Papers**, where the
@@ -1427,6 +1441,18 @@ Transcript** and **Theater View**. A podcast's are under **⋯ › Speakers**:
 
 The Reader's title drags its source into a chat, so its words do not select;
 right-click the title for **Copy Title**.
+
+A paper or PDF shows where you are as a small page pill at the foot of its
+pages ("2 / 33"). It appears when the page changes and while the pointer is at
+the foot of the reader, then fades; press it to type a page, as **Go to Page…**
+(⌥⌘G) in the Reader's **⋯** does. To straighten a page that is sideways or
+upside down, choose **Rotate Page Right** (⌘R) or **Rotate Page Left** (⌘L) in
+the **⋯**, or in the page's right-click menu. The turn is yours: it is
+remembered for that paper and follows your account to your other Macs, and the
+PDF file in your library is never changed. Highlights, search, citations and
+your reading position are unaffected; the Clip tool and a walkthrough's outline
+skip a turned page until you turn it back. The iPhone shows pages as the file
+has them.
 
 ## Text to Speech
 
@@ -2487,7 +2513,8 @@ A scanned PDF, whose pages are only pictures, is read in the background before i
 
 A book opens at the chapter you pick, where you left it, and reads as one book: scroll past the end of a chapter and the next one follows; scroll up past its start and you are in the one before. On the Mac this holds for a book imported from a PDF and one imported from an EPUB, and a PDF book shows its front matter and index too; on iPhone and iPad it holds for an EPUB book, while a PDF book's chapters open one at a time.
 
-- The Reader's title and position ("6 of 31") follow the chapter you are in, and so does everything that belongs to a chapter: its reading position, how far you got, notes and highlights you make, and the chat you start about a passage.
+- The Reader's title follows the chapter you are in, and so does everything that belongs to a chapter: its reading position, how far you got, notes and highlights you make, and the chat you start about a passage.
+- A PDF book shows the page you are on ("130 / 1532") in a pill at the foot of its pages; press it to jump to a page. An EPUB's title says its chapter ("6 of 31").
 - **Contents** lists every chapter and jumps to the one you choose: on the Mac choose **Contents…** from the Reader's **⋯** menu, on iPhone and iPad tap the list button in the Reader's toolbar.
 - On the Mac, Find searches the whole book. A link inside the book — the contents page, an endnote and its way back — scrolls to what it names.
 - On iPhone and iPad the chapters come from iCloud as you reach them, so the next one may take a moment to appear the first time.
@@ -3653,6 +3680,8 @@ An explainer retells one source, or one concept, for someone new to it.
 
 ## Reader highlights and notes
 
+A highlight's `color` is one of five, each with a meaning the reader shows: `yellow` (Remember), `green` (Key idea), `blue` (Follow up), `pink` (Doubt) and `purple` (Connect). Every tool here that returns a highlight carries `color_meaning` beside `color`; pick a color by what the mark is for.
+
 The passages the learner marked while reading, and the notes they wrote on them.
 A mark is anchored to the source's own wording rather than to a character
 offset, so one created here paints in every ForeverLM reader and survives the
@@ -3660,7 +3689,7 @@ source being re-fetched.
 
 | Tool | Parameters | Description |
 |---|---|---|
-| `list_source_highlights` | `source_id` | List one source's highlights with the note, color, and page on each, the `publication_update` (what has been learned since the source was written, apart from the learner's note) and when it was written, the `session_id` and `chat_title` of the chat a note came from, and the `references` the note cites, each with its library `source_id` when the library holds it. |
+| `list_source_highlights` | `source_id` | List one source's highlights with the note, color (and its meaning), and page on each, the `publication_update` (what has been learned since the source was written, apart from the learner's note) and when it was written, the `session_id` and `chat_title` of the chat a note came from, and the `references` the note cites, each with its library `source_id` when the library holds it. |
 | `search_source_highlights` | `query?`, `limit?` | Search every highlight, note and since-publication update in the library, newest first. Omit `query` for the most recent marks. |
 | `create_source_highlight` | `source_id`, `quote?`, `image_url?`, `image_alt?`, `note?`, `publication_update?`, `color?`, `session_id?`, `references?` | Mark a passage, quoted verbatim from `get_source_content`, or a picture of a web page by its `image_url` (with no quote), or both at once. A passage that is not found, or a passage or picture already marked, is refused. Highlights on pictures carry a `pictures` list and an empty quote. `session_id` links the chat the note came from, and the reader opens it from the mark: research into what has been published since a textbook was written is saved with `import_review_chat` (`mark_reviewed: false`) and linked to the passage it updates this way, with its short version as `publication_update` (a one-sentence headline line, then the detail), never as `note`, which is the learner's. `references` lists the papers the note cites (each a `citation` and a `doi` or `url`, `title` optional, at most 20); the reader shows them on the mark with Add to Library, or Open when the library holds one. |
 | `update_source_highlight` | `highlight_id`, `note?`, `publication_update?`, `color?`, `session_id?`, `references?` | Rewrite the note or the since-publication update (an empty one clears it), change the color, link the chat the note came from, or replace the papers it cites. An empty note leaves a bare highlight; an empty `session_id` unlinks the chat; an empty `references` list clears the papers. |
@@ -6512,6 +6541,14 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 ## Unreleased
 
 - **A paper's references are read and linked when it is added.** Each paper's reference list is read from its PDF in the background, free and with no AI model, and every entry is given the link of the paper it names: the DOI or address it prints, or a Crossref or OpenAlex record whose title and year it prints. Papers already in the library are read once after the update. Find Cited Papers now lists the linked papers directly, with the link ready to add, and asks the AI model only about entries no link was found for. An assistant can read the list and save links it found (`get_paper_references`, `resolve_paper_references`, `save_paper_references`).
+- **A citation of a range shows every paper in it.** Clicking "5–7" (or "11,12", or "1,3–5") in a paper's text opens the reference card on entries 5, 6 and 7, one after another, not only the numbers the PDF happens to link.
+- **A citation still opens under a highlight.** A highlight over a sentence no longer swallows the click, the hover or the press on a citation inside it: the reference card opens, and the rest of the highlight still opens the highlight.
+- **Highlight the words of a reference in its card.** Select words in the card and pick a colour; the same words are highlighted in the paper's reference list, and show again the next time the card opens. Each entry in the card now has its own Open or Add to Library, and the DOI or link the entry carries, as a line under its words.
+- **Highlight colors mean something.** The five markers are now Remember (yellow), Key idea (green), Follow up (blue), Doubt (pink) and Connect (purple): point at a color on a highlight's card to see its meaning, and the highlights list gains a filter to show one meaning at a time. Assistants choose colors by the same names over MCP, and a highlight they list says its meaning.
+- **A paper's page number moved to the foot of its pages.** The Reader's title is one line again; a small "2 / 33" pill shows over the pages when the page changes and fades, and pressing it asks for a page.
+- **Rotate a page of a paper.** **Rotate Page Right** (⌘R) and **Rotate Page Left** (⌘L), in the Reader's **⋯** and a page's right-click menu, turn a single sideways or upside-down page. It is remembered for that paper and follows your account; the PDF in your library is not changed.
+- **A Page shows its name once.** A Page whose text opens with a `#` heading is named by it: a title an assistant wrote in other words ("Notes — day one" over "# Notes: day one") no longer draws as a small title line above the big heading. The title takes the heading's words when the Page opens or is saved, and renaming the Page rewrites the heading.
+- **A source you link to a passage is a footnote.** Dropping a source on the words, or choosing it under Add sources, puts a footnote number after the passage, with the source's title linked to it at the foot of the Page. The passage still stands on the source for Chat.
 - **Video, notes and chat can all stand side by side in a notebook.** Splitting the document pane's tabs (drag a tab to a side, or Split Left / Split Right) now keeps the chat open as a third pane instead of hiding it: the video on the left, the notes beside it, the chat on the right. Hiding the chat with its × still gives the two documents the whole center.
 - **Every pane is a tab, in the top bar, and tabs can be added.** A pane with one thing now draws its tab too, in the top bar beside the window's buttons, so it can be dragged, closed and added to: the + at the end of a pane's tabs opens Chat, Library, Memory, Browser, Pages or the Space as a new tab in it. Pressing or dragging a tab no longer moves the window; only the empty top bar beside the tabs does.
 - **A notebook opens beside your panes.** From a window showing two panes or more, such as the Space beside a chat, a notebook no longer takes the whole window: its sources and Studio stand around your panes, and a source opens as a pane you can drag to a side, up to three side by side, so the video, your notes and the chat can all be on screen.

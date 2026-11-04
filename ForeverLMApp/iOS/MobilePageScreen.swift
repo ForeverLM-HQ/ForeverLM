@@ -95,6 +95,13 @@ struct MobilePageScreen: View {
         .task(id: page.bodyRevision) {
             await model.open(with: store, revision: page.bodyRevision)
         }
+        // The heading a page opens with is its name: the title takes its words once typing
+        // pauses (and as the page opens), so the two never read as two names.
+        .task(id: model.firstHeading) {
+            try? await Task.sleep(for: .seconds(1.5))
+            guard !Task.isCancelled else { return }
+            adoptHeadingAsTitle(page)
+        }
         .onChange(of: page.title, initial: true) { _, title in
             if !titleFocused { titleDraft = MobileSpacePageTitle.isPlaceholder(title) ? "" : title }
         }
@@ -319,7 +326,18 @@ struct MobilePageScreen: View {
             titleDraft = MobileSpacePageTitle.isPlaceholder(page.title) ? "" : page.title
             return
         }
+        // A page named by its heading is renamed in the heading too, so the two stay one string.
+        if page.isEditableMarkdown, !page.isDailyNote { model.retitle(to: title) }
         actions.run("Couldn’t Rename the Page") { try await store.rename(page.id, to: title) }
+    }
+
+    /// The page's own words for its name: its opening heading, when the stored title is another string.
+    private func adoptHeadingAsTitle(_ page: MobileSpacePage) {
+        guard page.isEditableMarkdown, page.isOwn, !page.isTrashed, !page.isDailyNote,
+              !isEditingTitle, !titleFocused, model.phase == .ready,
+              let adopted = MobilePageTitleRule.adoptedTitle(replacing: page.title, heading: model.firstHeading)
+        else { return }
+        actions.run("Couldn’t Rename the Page") { try await store.rename(page.id, to: adopted) }
     }
 
     // MARK: The ⋯
@@ -501,6 +519,17 @@ final class MobilePageModel {
         schedule(after: UIApplication.shared.applicationState == .active ? Self.autosaveDelay : .zero)
     }
 
+    /// A rename of a page named by its opening heading, written into the heading: the editor is handed
+    /// the new text and it is saved at once, so the title and the heading are one string.
+    func retitle(to title: String) {
+        guard phase == .ready, let renamed = MobilePageTitleRule.retitling(draft ?? saved, to: title) else { return }
+        text = renamed
+        draft = renamed
+        firstHeading = MobilePageTitleRule.firstHeading(in: renamed)
+        textKey = UUID().uuidString
+        schedule(after: .zero)
+    }
+
     /// The page closing or the app leaving: what waits is saved now.
     func saveNow() {
         guard hasUnsavedText else { return }
@@ -588,5 +617,27 @@ enum MobilePageTitleRule {
             return title.isEmpty ? nil : String(title.prefix(500))
         }
         return nil
+    }
+
+    /// The title a page takes from its heading: the heading's words when they are not already the
+    /// title, character for character (the Mac's `ArtifactMarkdownTitle.adoptedTitle`).
+    static func adoptedTitle(replacing title: String, heading: String?) -> String? {
+        guard let heading else { return nil }
+        return heading == title.trimmingCharacters(in: .whitespacesAndNewlines) ? nil : heading
+    }
+
+    /// The text with its opening heading's words replaced by `title`; nil when it has no opening
+    /// heading, the title is empty or the heading already says it (the Mac's `retitling`).
+    static func retitling(_ markdown: String, to title: String) -> String? {
+        let words = title.split(whereSeparator: { $0.isWhitespace }).joined(separator: " ")
+        guard !words.isEmpty else { return nil }
+        var lines = markdown.components(separatedBy: "\n")
+        guard let index = lines.firstIndex(where: { !$0.trimmingCharacters(in: .whitespaces).isEmpty }) else { return nil }
+        let trimmed = lines[index].trimmingCharacters(in: .whitespaces)
+        guard trimmed.hasPrefix("# "), !trimmed.dropFirst(2).trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
+        let renamed = "# \(words)"
+        guard lines[index] != renamed else { return nil }
+        lines[index] = renamed
+        return lines.joined(separator: "\n")
     }
 }
