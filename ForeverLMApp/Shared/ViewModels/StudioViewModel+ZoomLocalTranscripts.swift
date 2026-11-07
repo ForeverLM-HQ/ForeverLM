@@ -818,7 +818,6 @@ extension StudioViewModel {
 
     struct ZoomLocalTranscriptSyncBase: Sendable {
         let storage: StorageService
-        let activeTeamID: String?
     }
 
     nonisolated func performZoomLocalTranscriptSyncIfChanged(force: Bool) async {
@@ -865,10 +864,7 @@ extension StudioViewModel {
                       || !self.zoomLocalRecordingRetryPending.isEmpty else {
                 return nil
             }
-            return ZoomLocalTranscriptSyncBase(
-                storage: self.storage,
-                activeTeamID: self.activeTeamID
-            )
+            return ZoomLocalTranscriptSyncBase(storage: self.storage)
         }
         guard let base else { return }
 
@@ -975,7 +971,7 @@ extension StudioViewModel {
         let reloaded: [StudioArticle]
         let metadata: [String: MeetingMetadata]
         do {
-            reloaded = try await base.storage.loadLibrarySources(teamID: base.activeTeamID).sources
+            reloaded = try await base.storage.loadLibrarySources().sources
             metadata = try await base.storage.loadMeetingMetadata()
         } catch {
             log.error("Failed to reload sources after filing Zoom transcripts: \(error.localizedDescription)")

@@ -621,7 +621,7 @@ extension StudioViewModel {
                         if !reloadedFromStorage {
                             reloadedFromStorage = true
                             working = preservingLoadedContent(
-                                in: (try? await storage.loadLibrarySources(teamID: activeTeamID).sources) ?? working,
+                                in: (try? await storage.loadLibrarySources().sources) ?? working,
                                 preservingFrom: working
                             )
                             identityIndex = await Self.detachedSourceIdentityIndex(from: working)

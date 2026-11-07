@@ -85,9 +85,6 @@ class StudioViewModel {
         let articles: [StudioArticle]
         let storage: StorageService
         let shouldStopSafariFolderAccess: Bool
-        /// The library the Studio was showing when the pass started, so the
-        /// reload it ends with fills the same list the learner is looking at.
-        let activeTeamID: String?
     }
 
     /// Main-actor snapshot for reading-list auto-sync. Excludes the resolved Safari
@@ -99,7 +96,6 @@ class StudioViewModel {
         let homeDir: String
         let articles: [StudioArticle]
         let storage: StorageService
-        let activeTeamID: String?
     }
 
     struct ReadingListAutoSyncPersistenceResult: @unchecked Sendable {
@@ -162,7 +158,6 @@ class StudioViewModel {
     struct PodcastAutoSyncBase: @unchecked Sendable {
         let storage: StorageService
         let previousArticles: [StudioArticle]
-        let activeTeamID: String?
     }
 
     struct PodcastTranscriptHydrationCandidate: Sendable {

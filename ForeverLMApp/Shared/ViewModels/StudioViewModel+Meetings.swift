@@ -500,7 +500,7 @@ extension StudioViewModel {
     /// new and must be read from the store again.
     func reloadAfterMeetingSessionMerge(survivorIDs: Set<String>) async {
         do {
-            let reloaded = try await storage.loadLibrarySources(teamID: activeTeamID).sources
+            let reloaded = try await storage.loadLibrarySources().sources
             let previous = articles.filter { !survivorIDs.contains($0.id) }
             articles = Self.preservingLoadedContent(in: reloaded, preservingFrom: previous)
             applyMeetingArtifacts(try await storage.loadMeetingArtifacts())

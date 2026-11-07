@@ -3711,7 +3711,7 @@ extension StudioViewModel {
         }
         if needsSources {
             do {
-                let reloaded = try await storage.loadLibrarySources(teamID: activeTeamID).sources
+                let reloaded = try await storage.loadLibrarySources().sources
                 // Merge and diff off the main actor: with a large library, the
                 // content-preserving merge plus the equality check are far too
                 // much work for the main thread. Publishing only on a real change

@@ -63,7 +63,7 @@ extension StudioViewModel {
             loadingStep = "Loading library…"
             do {
                 articles = preservingLoadedContent(
-                    in: try await storage.loadLibrarySources(teamID: activeTeamID).sources,
+                    in: try await storage.loadLibrarySources().sources,
                     preservingFrom: articlesSnapshot
                 )
                 autoFetchNewlyAddedPapers()
@@ -154,7 +154,7 @@ extension StudioViewModel {
         loadingStep = "Loading library…"
         do {
             articles = preservingLoadedContent(
-                in: try await storage.loadLibrarySources(teamID: activeTeamID).sources,
+                in: try await storage.loadLibrarySources().sources,
                 preservingFrom: articlesSnapshot
             )
             autoFetchNewlyAddedPapers()
@@ -603,7 +603,7 @@ extension StudioViewModel {
                   force || fileSnapshot != self.podcastLibraryModificationSnapshot else {
                 return nil
             }
-            return PodcastAutoSyncBase(storage: self.storage, previousArticles: self.articles, activeTeamID: self.activeTeamID)
+            return PodcastAutoSyncBase(storage: self.storage, previousArticles: self.articles)
         }
         guard let base else { return }
 
@@ -635,7 +635,7 @@ extension StudioViewModel {
 
         let reloaded: [StudioArticle]
         do {
-            reloaded = try await base.storage.loadLibrarySources(teamID: base.activeTeamID).sources
+            reloaded = try await base.storage.loadLibrarySources().sources
         } catch {
             log.error("Failed to reload sources after podcast auto-sync: \(error.localizedDescription)")
             return
@@ -805,8 +805,7 @@ extension StudioViewModel {
             ),
             articles: base.articles,
             storage: base.storage,
-            shouldStopSafariFolderAccess: safariFolderURL != nil,
-            activeTeamID: base.activeTeamID
+            shouldStopSafariFolderAccess: safariFolderURL != nil
         )
 
         let snapshot = Self.browserReadingListModificationSnapshot(
@@ -869,7 +868,7 @@ extension StudioViewModel {
         logger.info("Reading list auto-sync changed \(result.changedIDs.count) source(s)")
         let reloaded: [StudioArticle]
         do {
-            reloaded = try await input.storage.loadLibrarySources(teamID: input.activeTeamID).sources
+            reloaded = try await input.storage.loadLibrarySources().sources
         } catch {
             logger.error("Failed to reload articles after reading list auto-sync: \(error.localizedDescription)")
             return
@@ -896,8 +895,7 @@ extension StudioViewModel {
             braveEnabled: DefaultsEscapeHatch.bool(forKey: "readingListBrave", default: true),
             homeDir: realHomeDirectory,
             articles: articles,
-            storage: storage,
-            activeTeamID: activeTeamID
+            storage: storage
         )
     }
 
@@ -2284,7 +2282,7 @@ extension StudioViewModel {
 
         let reloaded: [StudioArticle]
         do {
-            reloaded = try await storage.loadLibrarySources(teamID: activeTeamID).sources
+            reloaded = try await storage.loadLibrarySources().sources
         } catch {
             logger.error("Failed to reload sources after importing \(showName): \(error.localizedDescription)")
             return persistence.insertedIDs.count

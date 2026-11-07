@@ -1293,7 +1293,7 @@ extension StudioViewModel {
     func refreshArticles() async {
         let articlesSnapshot = articles
         do {
-            let library = try await storage.loadLibrarySources(teamID: activeTeamID)
+            let library = try await storage.loadLibrarySources()
             articlesStore.teamCopyAliases = library.teamCopyAliases
             articles = preservingLoadedContent(in: library.sources, preservingFrom: articlesSnapshot)
             // Team notebooks' copies are marked on the rows the aliases name.

@@ -212,25 +212,33 @@ struct TeamsStoreTests {
     /// just want to still show all my personal sources there"): a team
     /// library lists the learner's own sources, the team's copy of one folded
     /// into it, and the team's rows the learner lacks.
-    @Test("A team library lists own sources, a team copy once, and the team's other rows")
-    func teamLibraryListsOwnSources() throws {
+    @Test("The library lists own sources, every team's rows, and a team copy once, whichever library is open")
+    func libraryListsEveryTeamsSources() throws {
         let store = try KnowledgeStore(inMemory: true)
         let team = try Self.makeTeam(store)
+        let other = try Self.makeTeam(store, id: "team-2", name: "Lab")
         try store.saveSource(Self.readySource(id: "src-own", url: "https://example.com/paper", title: "Own paper", content: "Text of the paper."))
         try store.saveSource(Self.readySource(id: "src-private", url: "https://example.com/private", title: "Kept private", content: "Text."))
         let copyID = try store.copySourceIntoTeam(sourceID: "src-own", teamID: team.id) { $0 }
         var teammates = Self.readySource(id: "src-teammate", url: "https://example.com/teammate", title: "Teammate's", content: "Text.")
         teammates.teamID = team.id
+        teammates.dateAdded = Date(timeIntervalSinceReferenceDate: 2_000)
         try store.saveSource(teammates)
+        // The same paper in a second team is one row in the library: the newest.
+        var twin = Self.readySource(id: "src-teammate-twin", url: "https://example.com/teammate", title: "Teammate's", content: "Text.")
+        twin.teamID = other.id
+        twin.dateAdded = Date(timeIntervalSinceReferenceDate: 1_000)
+        try store.saveSource(twin)
+        // A row of a team the learner is not in lists nothing.
+        var stranger = Self.readySource(id: "src-stranger", url: "https://example.com/stranger", title: "Elsewhere", content: "Text.")
+        stranger.teamID = "team-left"
+        try store.saveSource(stranger)
 
-        let library = try store.loadLibrarySources(teamID: team.id)
+        let library = try store.loadLibrarySources()
         #expect(Set(library.sources.map(\.id)) == ["src-own", "src-private", "src-teammate"])
-        #expect(library.teamCopyAliases == [copyID: "src-own"])
+        #expect(library.teamCopyAliases == [copyID: "src-own", "src-teammate-twin": "src-teammate"])
 
-        // My Library is unchanged, and the team's own rows are still the team's.
-        let mine = try store.loadLibrarySources(teamID: nil)
-        #expect(Set(mine.sources.map(\.id)) == ["src-own", "src-private"])
-        #expect(mine.teamCopyAliases.isEmpty)
+        // The team's own rows are still the team's.
         #expect(Set(try store.loadActiveSources(teamID: team.id).map(\.id)) == [copyID, "src-teammate"])
     }
 
@@ -257,7 +265,7 @@ struct TeamsStoreTests {
         #expect(try store.teamIDsHoldingSource(url: newURL) == [team.id])
         #expect(try store.copySourceIntoTeam(sourceID: "src-own", teamID: team.id) { $0 } == copyID)
         #expect(try store.loadActiveSources(teamID: team.id).map(\.id) == [copyID])
-        let library = try store.loadLibrarySources(teamID: team.id)
+        let library = try store.loadLibrarySources()
         #expect(library.sources.map(\.id) == ["src-own"])
         #expect(library.teamCopyAliases == [copyID: "src-own"])
     }

@@ -3632,11 +3632,10 @@ actor StorageService {
         try knowledgeStore().loadActiveSources(teamID: teamID)
     }
 
-    /// What the Studio lists while `teamID`'s library is open: the learner's
-    /// own sources and the team's that they lack (docs/teams-design.md,
-    /// decision 19). Nil is My Library.
-    func loadLibrarySources(teamID: String?) throws -> LibrarySourceList {
-        try knowledgeStore().loadLibrarySources(teamID: teamID)
+    /// What the Studio lists, whichever library is open: the learner's own
+    /// sources and every team's (`KnowledgeStore.loadLibrarySources`).
+    func loadLibrarySources() throws -> LibrarySourceList {
+        try knowledgeStore().loadLibrarySources()
     }
 
     /// Returns the latest review date for each source, including completed Schedule items.

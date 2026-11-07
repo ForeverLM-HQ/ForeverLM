@@ -31,40 +31,40 @@ struct SourceWordCountRepairBatch: Equatable, Sendable {
     var lastSourceID: String?
 }
 
-/// What the Studio's source list holds for one open library, and the team
-/// copies folded into the learner's own rows (`loadLibrarySources(teamID:)`).
+/// The one library the Studio lists, whichever team is open: the learner's own
+/// sources and every team's, a team copy folded into the row it copies
+/// (`loadLibrarySources()`). No source is a team's alone (product owner,
+/// 2026-11-07: "all the papers should just be in my library and findable").
 struct LibrarySourceList {
-    /// Own rows and team-only rows, newest first.
+    /// Every listed row, newest first.
     var sources: [StudioArticle]
-    /// Team copy id → the id of the learner's own row at the same address.
+    /// Team copy id → the id of the listed row at the same address.
     var teamCopyAliases: [String: String]
 
-    init(sources: [StudioArticle], teamCopyAliases: [String: String]) {
-        self.sources = sources
-        self.teamCopyAliases = teamCopyAliases
-    }
-
     /// Folds `team` into `own` by address: a team row at an address an own
-    /// row holds becomes an alias of it, every other team row is listed.
-    /// Both inputs are newest first, and so is the result.
+    /// row, or an earlier team row, holds becomes an alias of that row; every
+    /// other team row is listed. Both inputs are newest first, and so is the
+    /// result.
     init(own: [StudioArticle], team: [StudioArticle]) {
-        var ownIDsByAddress: [String: String] = [:]
+        var listedIDsByAddress: [String: String] = [:]
         for article in own {
             let key = Self.addressKey(article)
-            if ownIDsByAddress[key] == nil { ownIDsByAddress[key] = article.id }
+            if listedIDsByAddress[key] == nil { listedIDsByAddress[key] = article.id }
         }
         var aliases: [String: String] = [:]
-        var teamOnly: [StudioArticle] = []
+        var teamListed: [StudioArticle] = []
         for article in team {
-            if let ownID = ownIDsByAddress[Self.addressKey(article)] {
-                aliases[article.id] = ownID
+            let key = Self.addressKey(article)
+            if let listedID = listedIDsByAddress[key] {
+                aliases[article.id] = listedID
             } else {
-                teamOnly.append(article)
+                listedIDsByAddress[key] = article.id
+                teamListed.append(article)
             }
         }
-        self.sources = teamOnly.isEmpty
+        self.sources = teamListed.isEmpty
             ? own
-            : (own + teamOnly).sorted { $0.dateAdded > $1.dateAdded }
+            : (own + teamListed).sorted { $0.dateAdded > $1.dateAdded }
         self.teamCopyAliases = aliases
     }
 
@@ -103,23 +103,22 @@ extension KnowledgeStore {
         return articles
     }
 
-    /// The sources the Studio lists while `teamID`'s library is open
-    /// (docs/teams-design.md, decision 19): every one of the learner's own,
-    /// plus the team's rows the learner does not hold. A team copy of an own
-    /// source is that source seen once, so it is left out of the list and
-    /// named in `teamCopyAliases`, which resolves the copy's id — the one a
-    /// team Notebook, team Doc card or team chat snapshot names — to the own
-    /// row. Nil is My Library, exactly `loadActiveSources()`.
-    func loadLibrarySources(teamID: String?) throws -> LibrarySourceList {
-        guard let teamID else {
-            return LibrarySourceList(sources: try loadActiveSources(), teamCopyAliases: [:])
-        }
-        let sql = "SELECT \(Self.sourceColumns) \(Self.sourceJoins) WHERE sp.status = 'active' AND (sp.team_id IS NULL OR sp.team_id = ?) ORDER BY sp.date_added DESC"
+    /// The sources the Studio lists, the same whichever library is open: every
+    /// one of the learner's own and every row of each team they belong to. A
+    /// team copy of a listed source is that source seen once, so it is left out
+    /// of the list and named in `teamCopyAliases`, which resolves the copy's id
+    /// — the one a team Notebook, team Doc card or team chat snapshot names —
+    /// to the listed row. A team the learner left (no `teams` row) lists nothing.
+    func loadLibrarySources() throws -> LibrarySourceList {
+        let sql = """
+            SELECT \(Self.sourceColumns) \(Self.sourceJoins)
+            WHERE sp.status = 'active'
+              AND (sp.team_id IS NULL OR sp.team_id IN (SELECT id FROM teams))
+            ORDER BY sp.date_added DESC
+            """
         var own: [StudioArticle] = []
         var team: [StudioArticle] = []
-        try queryBind(sql, bind: { stmt in
-            bind(stmt, 1, teamID)
-        }) { stmt in
+        try queryBind(sql, bind: { _ in }) { stmt in
             guard let article = readSourceRow(stmt) else { return }
             if article.teamID == nil { own.append(article) } else { team.append(article) }
         }

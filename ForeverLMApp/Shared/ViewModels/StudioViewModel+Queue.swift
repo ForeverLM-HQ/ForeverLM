@@ -275,7 +275,7 @@ extension StudioViewModel {
         async let courseArtworkResult = storage.loadCourseArtworkURLs()
         async let meetingResult = storage.loadMeetingMetadata()
         async let meetingArtifactsResult = storage.loadMeetingArtifacts()
-        async let sourcesResult = storage.loadLibrarySources(teamID: activeTeamID)
+        async let sourcesResult = storage.loadLibrarySources()
         async let learningGoalsResult = storage.loadLearningGoals()
         async let sourceReviewDatesResult = storage.sourceReviewDates()
         async let hiddenPodcastShowsResult = storage.loadHiddenPodcastShows()
@@ -2972,7 +2972,7 @@ extension StudioViewModel {
     }
 
     private func reloadArticlesAfterVisibilityChange() async throws {
-        let reloaded = try await storage.loadLibrarySources(teamID: activeTeamID).sources
+        let reloaded = try await storage.loadLibrarySources().sources
         let current = articles
         articles = await Task.detached(priority: .userInitiated) {
             StudioViewModel.preservingLoadedContent(in: reloaded, preservingFrom: current)
