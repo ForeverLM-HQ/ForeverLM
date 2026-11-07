@@ -31,8 +31,6 @@ function element(tag, className, text) {
   return node
 }
 
-const chevronSVG = '<svg viewBox="0 0 12 12" aria-hidden="true"><path d="m3.75 4.75 2.25 2.5 2.25-2.5"/></svg>'
-
 // ─── Following a link drawn in a snippet ────────────────────────────────────
 // Snippets draw links as anchors with the address in a data attribute; one
 // handler follows them all, wherever the snippet stands.
@@ -389,16 +387,14 @@ function referenceGroupElement(group, { compact = false } = {}) {
 // not drawn; a host that sends nothing draws nothing. Roam's Unlinked
 // References are not drawn (product owner, 2026-10-19: "no unlinked
 // references should randomly show up"): a page titled with a common word
-// filled its foot with other Pages' prose.
+// filled its foot with other Pages' prose. Linked References are the pages
+// that link here, each once as a plain link, not the blocks that link
+// (product owner, 2026-11-07: "can just be a normal link"): a page quoted
+// its whole paragraph, once per block that linked.
 
 let footRoot = null
 let footReferences = null
 let footDaily = null
-// Which sections stand open. A page opens with Linked References open,
-// whatever the last page was left as: the editor's web view is pooled and
-// outlives the page it showed.
-const footOpenOnArrival = { linked: true }
-let footOpen = { ...footOpenOnArrival }
 let requestedMoreBefore = null
 /// How long a press waits for the host before it can be pressed again.
 const answerTimeout = 8000
@@ -425,13 +421,6 @@ function ensureFoot() {
 function onFootClick(event) {
   const target = event.target instanceof Element ? event.target : null
   if (!target) return
-  const toggle = target.closest('[data-foot-toggle]')
-  if (toggle) {
-    const name = toggle.dataset.footToggle
-    footOpen[name] = !footOpen[name]
-    renderFoot()
-    return
-  }
   const day = target.closest('[data-day-key]')
   if (day) {
     host.post('dailyNoteRequested', { dayKey: day.dataset.dayKey })
@@ -463,17 +452,6 @@ function onFootClick(event) {
     if (String(window.getSelection?.() ?? '').trim()) return
     host.post('openReferenceRequested', JSON.parse(reference.dataset.openReference))
   }
-}
-
-function sectionHeader(name, title, open) {
-  const button = element('button', 'artifact-foot-heading')
-  button.type = 'button'
-  button.dataset.footToggle = name
-  button.setAttribute('aria-expanded', String(open))
-  const chevron = element('span', 'artifact-foot-chevron')
-  chevron.innerHTML = chevronSVG
-  button.append(chevron, element('span', '', title))
-  return button
 }
 
 const activityWords = {
@@ -511,17 +489,33 @@ function dailySection(daily) {
   return section
 }
 
+/// The pages that link here, each once, as a link that opens it.
 function linkedSection(linked) {
-  const groups = Array.isArray(linked) ? linked : []
-  const count = countReferences(groups)
-  if (count === 0) return null
-  const section = element('section', 'artifact-foot-section artifact-foot-linked')
-  section.append(sectionHeader('linked', count === 1 ? '1 Linked Reference' : `${count} Linked References`, footOpen.linked))
-  if (footOpen.linked) {
-    const body = element('div', 'artifact-foot-body artifact-snippet')
-    for (const group of groups) body.append(referenceGroupElement(group))
-    section.append(body)
+  const pages = []
+  const seen = new Set()
+  for (const group of Array.isArray(linked) ? linked : []) {
+    if (countReferences([group]) === 0) continue
+    const kind = ['doc', 'dailyNote', 'idea'].includes(group?.kind) ? group.kind : 'doc'
+    const id = String(group?.id ?? '')
+    const key = `${kind}:${id}`
+    if (seen.has(key)) continue
+    seen.add(key)
+    pages.push({ kind, id, title: group?.title || (kind === 'idea' ? 'Idea' : 'Untitled') })
   }
+  if (pages.length === 0) return null
+  const section = element('section', 'artifact-foot-section artifact-foot-linked')
+  section.append(element('h2', 'artifact-foot-title', 'Linked References'))
+  const list = element('ul', 'artifact-foot-links')
+  for (const page of pages) {
+    const row = element('li', 'artifact-foot-link-row')
+    const link = element('button', 'artifact-foot-link', page.title)
+    link.type = 'button'
+    link.dataset.openReference = JSON.stringify({ kind: page.kind, id: page.id })
+    row.append(link)
+    if (page.kind === 'idea') row.append(element('span', 'artifact-graph-kind', 'Idea'))
+    list.append(row)
+  }
+  section.append(list)
   return section
 }
 
@@ -600,11 +594,6 @@ export function setFootDaily(daily) {
 /// Draw the foot again: the block texts and titles it resolves have changed.
 export function refreshFoot() {
   if (footReferences || footDaily) renderFoot()
-}
-
-/// Another page arrived in the editor: its foot opens as a fresh page's does.
-export function foldFootForNewPage() {
-  footOpen = { ...footOpenOnArrival }
 }
 
 export function clearFoot() {

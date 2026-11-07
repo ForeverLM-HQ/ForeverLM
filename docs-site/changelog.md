@@ -6,6 +6,8 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **Linked References at the foot of a Page are plain links.** Each page that links here is listed once, by its title, instead of quoting every paragraph that links. Click one to open it.
+
 ## 0.192.0 (build 272) — 2026-11-07
 
 **Highlights:**

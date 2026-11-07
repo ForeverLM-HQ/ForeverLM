@@ -72,7 +72,6 @@ import {
   closeNotesPanels,
   connectNotesGraph,
   fillBlockReferences,
-  foldFootForNewPage,
   followSnippetLink,
   refreshFoot,
   scheduleReferencePreview,
@@ -7149,7 +7148,6 @@ function setGraphContext(context) {
     missingBlockIDs = new Set()
     requestedBlockIDs = new Set()
     provisionalBlockIDs = new Set()
-    foldFootForNewPage()
   } else {
     // What the editor referenced from a search reads from the host from now
     // on; one the host does not name yet is asked about again.
