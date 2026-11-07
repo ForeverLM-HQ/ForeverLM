@@ -50,7 +50,7 @@ struct NotesGraphMCPTests {
 
     // MARK: The catalogue
 
-    @Test("The four tools are registered with object schemas, no top-level anyOf, and teach the grammar")
+    @Test("The notes graph's tools are registered with object schemas, no top-level anyOf, and teach the grammar")
     func toolsAreRegistered() throws {
         let tools = MCPToolRegistry(store: MCPDataStore()).tools
         let byName = Dictionary(tools.map { ($0.name, $0) }, uniquingKeysWith: { first, _ in first })
@@ -66,6 +66,11 @@ struct NotesGraphMCPTests {
         #expect(byName["append_to_daily_note"]?.inputSchema["required"] as? [String] == ["markdown"])
         #expect(byName["get_linked_references"]?.inputSchema["required"] as? [String] == [])
         #expect(byName["get_daily_note"]?.inputSchema["required"] as? [String] == [])
+        #expect(byName["get_plan"]?.inputSchema["required"] as? [String] == ["scale"])
+        let plan = try #require(byName["get_plan"]?.description)
+        for form in ["plan-2026-q4", "plan-2026-w45", "[[Q4 2026]]", "edit_doc", "create"] {
+            #expect(plan.contains(form), "get_plan does not say \(form)")
+        }
 
         // An assistant learns the grammar from the descriptions alone.
         let references = try #require(byName["get_linked_references"]?.description)
@@ -90,6 +95,8 @@ struct NotesGraphMCPTests {
         // get_daily_note makes the day's empty note when create is true.
         #expect(MCPToolRegistry.annotations(for: "get_daily_note")["readOnlyHint"] as? Bool == false)
         #expect(MCPToolRegistry.annotations(for: "append_to_daily_note")["readOnlyHint"] as? Bool == false)
+        // get_plan makes the plan from its template when create is true.
+        #expect(MCPToolRegistry.annotations(for: "get_plan")["readOnlyHint"] as? Bool == false)
         #expect(MCPToolRegistry.annotations(for: "append_to_daily_note")["destructiveHint"] as? Bool == false)
         #expect(MCPToolRegistry.storeGateExemptToolNames.isSuperset(of: MCPToolRegistry.notesGraphToolNames))
         #expect(MCPToolRegistry.notesGraphToolNames.isDisjoint(with: MCPToolRegistry.paidWorkToolNames))

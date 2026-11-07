@@ -53,6 +53,33 @@ extension StudioViewModel {
         }
     }
 
+    /// The plan Page for a quarter or a week (`PlanPeriod`), made from its
+    /// template when it does not exist yet: the Plan place's rows and a
+    /// plan's title in a link. A plan is My Library's, so a team library open
+    /// in the Studio gives way to My Library first, as for a daily note.
+    func openPlan(_ period: PlanPeriod, in window: StudioWindowState? = nil) async {
+        let destination = window ?? activeWindowState
+        let title = period.title()
+        if activeTeamID != nil {
+            await setActiveTeam(nil)
+            guard activeTeamID == nil else { return }
+        }
+        do {
+            let plan = try await storage.ensurePlan(period)
+            if !artifacts.contains(where: { $0.id == plan.id }) {
+                artifacts = try await loadScopedArtifacts()
+            }
+            guard artifacts.contains(where: { $0.id == plan.id }) else {
+                showToast("\(title) could not be opened.")
+                return
+            }
+            revealArtifact(plan.id, in: destination)
+        } catch {
+            logger.error("Opening the plan for \(period.key, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
+            showToast("Could not open \(title): \(error.localizedDescription)")
+        }
+    }
+
     /// A Doc brought forward in Docs with one of its blocks shown and
     /// flashed: the doc comes forward as `revealArtifact` brings it, and the
     /// block travels on the same request to the window's canvas, which hands
@@ -64,6 +91,11 @@ extension StudioViewModel {
             // library gives way to it.
             if activeTeamID != nil, let dayKey = DailyNote.dayKey(ofID: docID) {
                 await openDailyNote(dayKey: dayKey, in: destination)
+                if let reveal { attachBlockReveal(reveal, to: docID, in: destination) }
+                return
+            }
+            if activeTeamID != nil, let period = PlanPeriod(id: docID) {
+                await openPlan(period, in: destination)
                 if let reveal { attachBlockReveal(reveal, to: docID, in: destination) }
                 return
             }
@@ -97,6 +129,11 @@ extension StudioViewModel {
             // ordinary one.
             if teamID == nil, let dayKey = DailyNote.dayKey(fromTitle: name) {
                 await openDailyNote(dayKey: dayKey, in: destination)
+                return
+            }
+            // A quarter's or a week's title names its plan the same way.
+            if teamID == nil, let period = PlanPeriod(title: name) {
+                await openPlan(period, in: destination)
                 return
             }
             let snapshot = try await storage.createArtifact(

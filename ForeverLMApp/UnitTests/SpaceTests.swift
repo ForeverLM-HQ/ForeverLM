@@ -21,11 +21,11 @@ struct SpaceTests {
 
     @Test("The sidebar lists ChatGPT's places in its order, Canvases after Sites, and no Chats (Home's), and no Ideas")
     func placesAreChatGPTsOrder() {
-        #expect(SpaceDestination.places == [.all, .notebooks, .pages, .sites, .canvases, .images, .drive])
-        #expect(SpaceDestination.places(listsCanvases: false) == [.all, .notebooks, .pages, .sites, .images, .drive])
-        #expect(SpaceDestination.sidebarPlaces(listsCanvases: true) == [.notebooks, .pages, .sites, .canvases, .images, .drive],
+        #expect(SpaceDestination.places == [.all, .notebooks, .board, .plan, .pages, .sites, .canvases, .images, .drive])
+        #expect(SpaceDestination.places(listsCanvases: false) == [.all, .notebooks, .board, .plan, .pages, .sites, .images, .drive])
+        #expect(SpaceDestination.sidebarPlaces(listsCanvases: true) == [.notebooks, .board, .plan, .pages, .sites, .canvases, .images, .drive],
                 "All is the landing list, not a sidebar row")
-        #expect(SpaceDestination.sidebarPlaces(listsCanvases: false) == [.notebooks, .pages, .sites, .images, .drive])
+        #expect(SpaceDestination.sidebarPlaces(listsCanvases: false) == [.notebooks, .board, .plan, .pages, .sites, .images, .drive])
         #expect(SpaceDestination.chats.openableKind == nil, "Home's list is no pane of the Space")
         // A window that remembered the Chats place opens on All: chats are Home's.
         #expect(SpaceDestination(key: "chats") == .all)

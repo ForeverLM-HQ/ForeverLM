@@ -5310,10 +5310,10 @@ final class MCPToolRegistry: @unchecked Sendable {
         // from the Studio and saved through its storage actor, around page
         // reads, YouTube calls and the learner's model.
         "find_podcast_on_youtube", "import_podcast_youtube_transcript",
-        // The notes graph reads the Docs, their Markdown and the daily note,
-        // and writes the note, through the storage actor alone
-        // (MCPTools+NotesGraph.swift).
-        "get_linked_references", "get_block", "get_daily_note", "append_to_daily_note",
+        // The notes graph reads the Docs, their Markdown, the daily note and
+        // the plans, and writes the note and a plan's template, through the
+        // storage actor alone (MCPTools+NotesGraph.swift).
+        "get_linked_references", "get_block", "get_daily_note", "append_to_daily_note", "get_plan",
         // The card review is the Studio view model's: the chosen cards are
         // read through the storage actor and dealt on the main actor, as
         // open_in_app waits on the window (MCPTools+Cards.swift).

@@ -770,11 +770,13 @@ export const DESKTOP_ONLY_TOOL_NAMES: ReadonlySet<string> = new Set([
   "delete_atlas",
   "get_source_levels",
   // Notes as a graph (docs/notes-graph-design.md): the graph is read from the
-  // Docs' Markdown on the Mac, and a daily note is a Doc in its library.
+  // Docs' Markdown on the Mac, and a daily note is a Doc in its library, as
+  // is a quarter's or a week's plan.
   "get_linked_references",
   "get_block",
   "get_daily_note",
   "append_to_daily_note",
+  "get_plan",
   // A team is a CloudKit zone in its owner's iCloud, projected into the Mac's
   // own SQLite together with its roster and its task board. Creating a team
   // means creating that zone and its zone-wide share, and sharing into one

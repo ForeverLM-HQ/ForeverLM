@@ -211,11 +211,13 @@ struct ReviewSlashCommand: Identifiable, Equatable {
         ReviewSlashCommand(
             kind: .plan,
             name: "plan",
-            summary: "Plan a day into the calendar",
-            argHint: "[today | tomorrow | request]",
+            summary: "Plan a quarter, a week or a day",
+            argHint: "[today | tomorrow | week | quarter | request]",
             arguments: [
                 Argument(value: "today", display: "Plan today"),
                 Argument(value: "tomorrow", display: "Plan tomorrow"),
+                Argument(value: "week", display: "Plan this week"),
+                Argument(value: "quarter", display: "Plan this quarter"),
             ]
         ),
         ReviewSlashCommand(
@@ -962,8 +964,9 @@ enum ReviewSlashCommandParser {
         """
     }
 
-    /// What `/plan` shows in the chat: one line naming the day. The rules
-    /// travel hidden beside it (`planDaySkill`).
+    /// What `/plan` shows in the chat: one line naming the day, or the week
+    /// or quarter (`week`, `quarter`), to plan. The rules travel hidden beside
+    /// it (`planDaySkill`).
     ///
     /// Which day is the one thing the command decides for itself, because by
     /// the afternoon "plan my day" means the next one, and a day planned the
@@ -978,6 +981,10 @@ enum ReviewSlashCommandParser {
             opening = "Plan today on my clock."
         case "tomorrow":
             opening = "Plan tomorrow on my clock."
+        case "week", "this week":
+            opening = "Plan this week."
+        case "quarter", "this quarter":
+            opening = "Plan this quarter."
         case "":
             // Before the afternoon an unplanned today is still worth planning;
             // after it, the day is half spent and tomorrow is the useful one.
@@ -1004,10 +1011,11 @@ enum ReviewSlashCommandParser {
         return opening
     }
 
-    /// The day-planning rules `/plan` carries. They ride beside the short
-    /// opening line as a built-in skill (`ChatSkillRequest`), so the learner's
-    /// chat shows "Plan today on my clock." and the model reads the rest, on
-    /// this message and every later one.
+    /// The planning rules `/plan` carries, for a day, a week and a quarter.
+    /// They ride beside the short opening line as a built-in skill
+    /// (`ChatSkillRequest`), so the learner's chat shows "Plan today on my
+    /// clock." and the model reads the rest, on this message and every later
+    /// one.
     static let planDaySkill = ChatSkillRequest.Skill(name: "plan", instructions: planDayInstructions, builtIn: true)
 
     /// The skill's mark for a message, or nil when it cannot be encoded.
@@ -1016,13 +1024,21 @@ enum ReviewSlashCommandParser {
     }
 
     static let planDayInstructions = """
-        The learner's message names the day to plan: today, tomorrow or a date, or says it in their own words.
+        The learner's message names what to plan: this quarter, this week, or a day (today, tomorrow, a date, or their own words).
 
-        My day is my Mac's Calendar. Read before you plan: get_calendar_events for that day, so you have what is already on it — meetings with other people stay where they are; the working log ForeverLM keeps of my work (list_working_notes: its running summary and the notes), and get_day_activity for the last few days, so you see what I have actually been reading, making and writing and where my hours went; then get_schedule and list_goals, which come second — a Goal is something you suggest from that pattern, not the spine of the day.
+        I plan at three scales, as Cal Newport teaches it. A quarter's plan sets the few objectives that make the quarter a success and the strategy for each. A week's plan is written with the quarter's plan and the calendar in view. A day is planned in time blocks with the week's plan in view. A quarter's and a week's plan are Pages: get_plan with scale quarter or week (and date for another than the present one) gives the Page's doc_id, its Markdown and revision, and the plan above it. Write in a plan Page with edit_doc, keeping its headings.
+
+        Planning is a conversation, not a form: do not ask me a question first. Read, then propose a first draft of the whole plan, short, and say in one line what you assumed. I will answer in my own words — move this, drop that — and each time you reply with the whole revised draft, short, and nothing else. Keep going until I say it is right. Only then write it down.
+
+        To plan a quarter: read its Page (get_plan, scale quarter, create true), the previous quarter's for what carried over, list_goals, and the working log (list_working_notes). Plan the whole quarter even when part of it has passed, with the weeks that are left in mind. Propose three to five objectives at most, the strategy for each, and what is deliberately not this quarter. Once I agree, write it into the quarter's Page.
+
+        To plan a week: read its Page (get_plan, scale week, create true), which brings the quarter's plan, last week's Page for how it went, and get_calendar_events for the seven days. Propose the week's big rocks, each serving one of the quarter's objectives, the deep-work blocks and the days they go on, and what each day is mainly for, around the deadlines and meetings already there. Once I agree, write it into the week's Page.
+
+        To plan a day: my day is my Mac's Calendar. Read before you plan: the week's plan (get_plan, scale week), so the day serves it; get_calendar_events for that day, so you have what is already on it — meetings with other people stay where they are; the working log ForeverLM keeps of my work (list_working_notes: its running summary and the notes), and get_day_activity for the last few days, so you see what I have actually been reading, making and writing and where my hours went; then get_schedule and list_goals, which come second — a Goal is something you suggest from that pattern, not the spine of the day.
 
         Open with what you see in my log: the topics I keep returning to, a notebook I have been filling, a paper read without a review or any writing. Offer the next step for it — solidify it (a review or quiz), write about it, or turn it into a Goal. The log is kept up by the app from what I do; read it, do not edit it.
 
-        Then this is a conversation, not a form: do not ask me a question first. Propose a first draft of the whole day as a short list of blocks, taking what is fixed from the calendar and what the day is for from the log, and say in one line what you assumed. I will answer in my own words — move this, drop that, I have a call at three — and each time you reply with the whole revised list, short, and nothing else. Keep going until I say it is right. Only then, add each block to my calendar with create_calendar_event, into the free stretches the calendar leaves. Put what each block is for in its notes — the next step, and the foreverlm:// link of the source it reads. Leave room for calls, email and anything I have to reach out to someone about — those are blocks too. Keep work blocks 90–120 minutes, leave a break when more than two hours remain, and end before my day does.
+        Then propose the whole day as a short list of blocks, taking what is fixed from the calendar and what the day is for from the week's plan and the log, and say in one line what you assumed. I will answer in my own words — move this, drop that, I have a call at three — and each time you reply with the whole revised list. Keep going until I say it is right. Only then, add each block to my calendar with create_calendar_event, into the free stretches the calendar leaves. Put what each block is for in its notes — the next step, and the foreverlm:// link of the source it reads. Leave room for calls, email and anything I have to reach out to someone about — those are blocks too. Keep work blocks 90–120 minutes, leave a break when more than two hours remain, and end before my day does.
         """
 
     static func parseSettingsPane(_ token: String) -> SettingsPane? {

@@ -294,7 +294,7 @@ struct MCPAuthScopeTests {
             "get_notion_database", "query_notion_database",
             "generate_course_quizzes", "generate_walkthrough", "generate_explainer_video",
             "find_podcast_on_youtube", "import_podcast_youtube_transcript",
-            "get_linked_references", "get_block", "get_daily_note", "append_to_daily_note",
+            "get_linked_references", "get_block", "get_daily_note", "append_to_daily_note", "get_plan",
             "practice_cards",
         ])
 

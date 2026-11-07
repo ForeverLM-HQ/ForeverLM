@@ -4800,6 +4800,35 @@
     "readOnlyHint" : true
   },
   {
+    "description" : "Read the learner's plan for a quarter or a week, planned as Cal Newport teaches it: a quarter's few objectives and the strategy for each, a week's big rocks and deep work with the quarter's plan in view; the day is planned into the Mac's Calendar instead (get_calendar_events, create_calendar_event). A plan is an ordinary Markdown Doc in My Library whose id names its period (plan-2026-q4, plan-2026-w45: ISO weeks, Monday to Sunday) and whose title is \"Q4 2026\" or \"Week of November 2nd, 2026\", so [[Q4 2026]] in any Doc links it, and read_doc, edit_doc and get_linked_references take its doc_id. Answers with its doc_id, title, the days it spans, its Markdown and revision, or says the period has no plan yet; with the week's quarter (doc_id, title and Markdown) for a week, and the quarter's weeks and whether each is planned for a quarter. Writes nothing unless create is true, which makes the plan from its template (a quarter's Objectives, Strategies, Not this quarter and Looking back; a week's link to its quarter, Big rocks, Deep work, Days and Looking back) when there is none, as opening it in ForeverLM's Plan place does. Write in it with edit_doc, keeping its headings.",
+    "inputSchema" : {
+      "properties" : {
+        "create" : {
+          "description" : "Make the plan from its template when there is none. Defaults to false: the call only reads.",
+          "type" : "boolean"
+        },
+        "date" : {
+          "description" : "Which quarter or week: any day in it as YYYY-MM-DD, its key (\"2026-Q4\", \"2026-W45\") or its title (\"Q4 2026\"), or this, next or last. Defaults to the present one where the learner's Mac is.",
+          "type" : "string"
+        },
+        "scale" : {
+          "description" : "quarter or week.",
+          "enum" : [
+            "quarter",
+            "week"
+          ],
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "scale"
+      ],
+      "type" : "object"
+    },
+    "name" : "get_plan",
+    "readOnlyHint" : false
+  },
+  {
     "description" : "Read the Plugins place as the learner sees it: for each plugin whether it is connected, which account(s), and what connecting would take. X (each connected account with its user id, @username, whether it needs reconnecting, can post, last sync); YouTube (every connected account — channel title and id, whether its grant still works, which import source it follows — liked videos or the ForeverLM playlist — and its liked-import choice; automatic import on/off, the channels followed with their group_id, hidden channels); Google Drive (connected accounts with id and email, the meeting folders each reads); Calendar, the Mac's own (on/off, macOS permission) — the learner's day; Slack (workspaces with team_id, and each workspace's channels with id, name and whether ForeverLM may read it); GitHub (the account and the organisations the App is installed on); Linear and Notion (every connected workspace with its id); and the learner's own Build Your Own plugins (id, name, health, sources added). Every entry names its open_settings pane and the tool that disconnects it. Connecting any plugin needs the provider's consent page, so it cannot be done from a chat: offer open_settings with the pane named here. The Slack channel lists cost one Slack call per workspace; pass include_slack_channels false to skip them.",
     "inputSchema" : {
       "properties" : {

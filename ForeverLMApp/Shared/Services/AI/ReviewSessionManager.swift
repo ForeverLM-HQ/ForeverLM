@@ -383,6 +383,7 @@ final class ReviewSessionManager {
                 case "update_calendar_event": return "Changed a calendar event"
                 case "delete_calendar_event": return "Removed a calendar event"
                 case "get_day_activity": return "Read the day's log"
+                case "get_plan": return "Read the plan"
                 case "list_meeting_action_items": return "Read meeting action items"
                 case "set_meeting_action_item_done": return "Ticked an action item"
                 case "set_meeting_schedule": return "Set a meeting schedule"
@@ -6427,6 +6428,8 @@ final class ReviewSessionManager {
         "list_goals", "get_schedule", "get_today_sources",
         "get_calendar_events", "create_calendar_event", "update_calendar_event",
         "get_day_activity", "list_working_notes", "save_working_note",
+        // A quarter's and a week's plan, which /plan reads before a day.
+        "get_plan",
         "list_skills", "get_skill", "list_ideas", "list_open_questions",
     ]
 

@@ -649,6 +649,9 @@ struct ChatPluginSetupNeedTests {
         // Said outright, the clock does not get a vote.
         #expect(ReviewSlashCommandParser.planDayRequest("today", now: at(21)).hasPrefix("Plan today on my clock."))
         #expect(ReviewSlashCommandParser.planDayRequest("Tomorrow", now: at(9)).hasPrefix("Plan tomorrow on my clock."))
+        // The larger scales are named outright, whatever the hour.
+        #expect(ReviewSlashCommandParser.planDayRequest("week", now: at(21)) == "Plan this week.")
+        #expect(ReviewSlashCommandParser.planDayRequest("Quarter", now: at(9)) == "Plan this quarter.")
         // Anything else is the learner's own words, carried through.
         let free = ReviewSlashCommandParser.planDayRequest("monday, I'm out until 11", now: at(9))
         #expect(free.hasPrefix("Plan my clock. monday, I'm out until 11"))
@@ -686,6 +689,12 @@ struct ChatPluginSetupNeedTests {
         // It is not only learning.
         #expect(request.contains("calls"))
         #expect(!request.contains("revise_day_plan"))
+        // Three scales: a quarter's and a week's plan are Pages read with
+        // get_plan and written with edit_doc, and the day reads the week's.
+        #expect(request.contains("get_plan, scale quarter"))
+        #expect(request.contains("get_plan, scale week"))
+        #expect(request.contains("edit_doc"))
+        #expect(request.contains("the week's plan (get_plan, scale week), so the day serves it"))
     }
 }
 

@@ -5,8 +5,9 @@ import Foundation
 //
 // Roam Research's note taking inside Docs, for an assistant: what points at
 // a page, an Idea, a source or one block (`get_linked_references`), one block
-// by its id (`get_block`), and the learner's page a day (`get_daily_note`,
-// `append_to_daily_note`). `read_doc` takes `resolve_references` to read a
+// by its id (`get_block`), the learner's page a day (`get_daily_note`,
+// `append_to_daily_note`), and their plan for a quarter or a week
+// (`get_plan`, a Page the same way: `PlanPeriod`). `read_doc` takes `resolve_references` to read a
 // Doc with its references replaced by their words (MCPTools+Artifacts.swift).
 //
 // Everything is answered from the Docs' stored Markdown through the storage
@@ -80,6 +81,29 @@ extension MCPToolRegistry {
                 ]
             ),
             MCPToolDef(
+                name: "get_plan",
+                description: "Read the learner's plan for a quarter or a week, planned as Cal Newport teaches it: a quarter's few objectives and the strategy for each, a week's big rocks and deep work with the quarter's plan in view; the day is planned into the Mac's Calendar instead (get_calendar_events, create_calendar_event). A plan is an ordinary Markdown Doc in My Library whose id names its period (plan-2026-q4, plan-2026-w45: ISO weeks, Monday to Sunday) and whose title is \"Q4 2026\" or \"Week of November 2nd, 2026\", so [[Q4 2026]] in any Doc links it, and read_doc, edit_doc and get_linked_references take its doc_id. Answers with its doc_id, title, the days it spans, its Markdown and revision, or says the period has no plan yet; with the week's quarter (doc_id, title and Markdown) for a week, and the quarter's weeks and whether each is planned for a quarter. Writes nothing unless create is true, which makes the plan from its template (a quarter's Objectives, Strategies, Not this quarter and Looking back; a week's link to its quarter, Big rocks, Deep work, Days and Looking back) when there is none, as opening it in ForeverLM's Plan place does. Write in it with edit_doc, keeping its headings.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "scale": [
+                            "type": "string",
+                            "enum": PlanScale.allCases.map(\.rawValue),
+                            "description": "quarter or week.",
+                        ],
+                        "date": [
+                            "type": "string",
+                            "description": "Which quarter or week: any day in it as YYYY-MM-DD, its key (\"2026-Q4\", \"2026-W45\") or its title (\"Q4 2026\"), or this, next or last. Defaults to the present one where the learner's Mac is.",
+                        ],
+                        "create": [
+                            "type": "boolean",
+                            "description": "Make the plan from its template when there is none. Defaults to false: the call only reads.",
+                        ],
+                    ] as [String: Any],
+                    "required": ["scale"],
+                ]
+            ),
+            MCPToolDef(
                 name: "append_to_daily_note",
                 description: "Add Markdown to the end of the learner's daily note (today's unless date names another day), making the note when the day has none: the way to jot a thought, a finding or a task into the day, as in Roam Research's Daily Notes. The Markdown lands as its own block or blocks after everything already there (bullets that follow bullets join the list; anything else starts after a blank line). Nothing already in the note changes, and the write is checked against the note's revision, so a line the learner is typing at that moment is kept. Write in the notes grammar: [[Title]], #tag or #[[Two words]] name a page by its title, [Title](foreverlm://doc/<id>) links a Doc and [Title](foreverlm://idea/<id>) an Idea, a foreverlm://source/<id> link or a paper's web address cites a source, and ((id)) references a block, reading as its words, by the id get_block and get_linked_references give. Answers with the note's doc_id, title and new revision.",
                 inputSchema: [
@@ -98,7 +122,7 @@ extension MCPToolRegistry {
     }
 
     static let notesGraphToolNames: Set<String> = [
-        "get_linked_references", "get_block", "get_daily_note", "append_to_daily_note",
+        "get_linked_references", "get_block", "get_daily_note", "append_to_daily_note", "get_plan",
     ]
 }
 
@@ -113,6 +137,8 @@ extension MCPDataStore {
             return try jsonString(try await dailyNote(arguments: arguments))
         case "append_to_daily_note":
             return try jsonString(try await appendToDailyNote(arguments: arguments))
+        case "get_plan":
+            return try jsonString(try await plan(arguments: arguments))
         default:
             return nil
         }
@@ -424,6 +450,113 @@ extension MCPDataStore {
             }
         }
         throw MCPError.invalidInput("Nothing was added. The daily note kept changing while this was being saved — the learner may be writing in it right now. Try again in a moment.")
+    }
+
+    // MARK: Plans
+
+    /// The quarter or week `get_plan` asks for: a day in it (`YYYY-MM-DD`),
+    /// its key or its title, or this, next or last; the present one when
+    /// `value` is left out or blank.
+    static func planPeriod(scale: PlanScale, from value: Any?, now: Date = Date(), zone: TimeZone = .current) throws -> PlanPeriod {
+        let present = PlanPeriod.containing(now, scale: scale, zone: zone)
+        guard let value, !(value is NSNull) else { return present }
+        guard let raw = value as? String else {
+            throw MCPError.invalidInput("date must be text: a day as YYYY-MM-DD, or \(present.key).")
+        }
+        let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        let named: PlanPeriod?
+        switch text.lowercased() {
+        case "", "this", "now", "current", "today":
+            return present
+        case "next":
+            named = present.offset(by: 1, zone: zone)
+        case "last", "previous":
+            named = present.offset(by: -1, zone: zone)
+        default:
+            let calendar = PlanPeriod.gregorian(zone)
+            if let day = DailyNote.date(forDayKey: text, calendar: calendar) {
+                named = PlanPeriod.containing(day, scale: scale, zone: zone)
+            } else {
+                named = PlanPeriod(key: text) ?? PlanPeriod(title: text, zone: zone)
+            }
+        }
+        guard let period = named else {
+            throw MCPError.invalidInput("date must be a day in the \(scale.rawValue) as YYYY-MM-DD, its key such as \(present.key), its title such as \(present.title(zone: zone)), or this, next or last; \(text) is none of these.")
+        }
+        guard period.scale == scale else {
+            throw MCPError.invalidInput("\(text) names a \(period.scale.rawValue), and scale asks for a \(scale.rawValue). Pass scale \(period.scale.rawValue), or a day in the \(scale.rawValue) you mean.")
+        }
+        return period
+    }
+
+    func plan(arguments: [String: Any]) async throws -> [String: Any] {
+        guard let rawScale = (arguments["scale"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+              let scale = PlanScale(rawValue: rawScale) else {
+            throw MCPError.invalidInput("scale is required: quarter or week. A day is planned into the Mac's Calendar (get_calendar_events, create_calendar_event).")
+        }
+        let period = try Self.planPeriod(scale: scale, from: arguments["date"])
+        let create = arguments["create"] as? Bool ?? false
+        let storage = notebookFileStorage
+        let day = DateFormatter()
+        day.locale = Locale(identifier: "en_US_POSIX")
+        day.timeZone = .current
+        day.dateFormat = "yyyy-MM-dd"
+        var payload: [String: Any] = [
+            "scale": scale.rawValue,
+            "key": period.key,
+            "doc_id": period.id,
+            "title": period.title(),
+        ]
+        if let start = period.start(), let end = period.end(),
+           let last = PlanPeriod.gregorian().date(byAdding: .day, value: -1, to: end) {
+            payload["starts"] = day.string(from: start)
+            payload["ends"] = day.string(from: last)
+        }
+        var created = false
+        if try await storage.loadArtifact(period.id) == nil {
+            if create {
+                _ = try await storage.ensurePlan(period)
+                created = true
+            } else {
+                payload["exists"] = false
+                payload["message"] = "There is no plan for \(period.title()) yet. Pass create: true to make it from its template."
+            }
+        }
+        if created || payload["exists"] == nil {
+            let snapshot = try await storage.artifactMarkdown(period.id)
+            payload["exists"] = true
+            payload["created"] = created
+            payload["title"] = snapshot.artifact.title
+            payload["markdown"] = snapshot.markdown
+            payload["revision"] = snapshot.revision
+            payload["updated_at"] = ISO8601DateFormatter().string(from: snapshot.artifact.updatedAt)
+        }
+        switch period {
+        case .week:
+            if let quarter = period.quarter() {
+                var above: [String: Any] = ["key": quarter.key, "doc_id": quarter.id, "title": quarter.title()]
+                if try await storage.loadArtifact(quarter.id) != nil {
+                    above["exists"] = true
+                    above["markdown"] = try await storage.artifactMarkdown(quarter.id).markdown
+                } else {
+                    above["exists"] = false
+                }
+                payload["quarter"] = above
+            }
+        case .quarter:
+            var weeks: [[String: Any]] = []
+            for week in period.weeks() {
+                weeks.append([
+                    "key": week.key,
+                    "doc_id": week.id,
+                    "title": week.title(),
+                    "planned": try await storage.loadArtifact(week.id) != nil,
+                ])
+            }
+            payload["weeks"] = weeks
+        }
+        payload["guidance"] = "A plan is an ordinary Doc: edit_doc with its revision writes in it (keep its headings), and get_linked_references with its doc_id lists what links it. A week's plan reads its quarter's; a day is planned into the Calendar with the week's plan in view."
+        return payload
     }
 
     /// `existing` with `addition` after it as its own block or blocks: a

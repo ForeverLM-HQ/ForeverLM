@@ -66,6 +66,7 @@ export default defineConfig({
           { text: 'Teams', link: '/teams' },
           { text: 'Schedule', link: '/schedule' },
           { text: 'Board', link: '/board' },
+          { text: 'Plan', link: '/plan' },
           { text: 'In-App Chat', link: '/in-app-chat' },
           { text: 'Text to Speech', link: '/text-to-speech' },
           { text: 'AI Providers & Models', link: '/ai-providers' },

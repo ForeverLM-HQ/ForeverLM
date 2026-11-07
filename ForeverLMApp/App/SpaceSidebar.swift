@@ -55,6 +55,11 @@ enum SpaceDestination: Hashable, Sendable {
     /// cards, and a Today view of the day's plan (docs-site/board.md). Its
     /// cards are tasks of one Notebook (`TeamContentIdentity.personalBoardNotebookID`).
     case board
+    /// The learner's plans for a quarter and for a week, each a Page made
+    /// from its template on first open (`PlanPeriod`), as Cal Newport plans
+    /// at three scales; the day is the Calendar, which `/plan` fills
+    /// (docs-site/plan.md).
+    case plan
     /// Every chat, in a notebook or in none: Home's list (`HomePane`), which
     /// the Space draws with this view. It is no place of the Space: it was one
     /// from 2026-10-10 ("maybe we should still have a separate chats page?
@@ -80,7 +85,7 @@ enum SpaceDestination: Hashable, Sendable {
     case list(String)
 
     /// The places listed under New page, in the sidebar's order.
-    static let places: [SpaceDestination] = [.all, .notebooks, .board, .pages, .sites, .canvases, .images, .drive]
+    static let places: [SpaceDestination] = [.all, .notebooks, .board, .plan, .pages, .sites, .canvases, .images, .drive]
 
     /// The places this Mac lists: Canvases only where canvases are listed
     /// (`StudioViewModel.listsCanvases`).
@@ -100,6 +105,7 @@ enum SpaceDestination: Hashable, Sendable {
         switch key {
         case "notebooks": self = .notebooks
         case "board": self = .board
+        case "plan": self = .plan
         case "pages": self = .pages
         case "sites": self = .sites
         case "canvases": self = .canvases
@@ -125,6 +131,7 @@ enum SpaceDestination: Hashable, Sendable {
         case .all: return "all"
         case .notebooks: return "notebooks"
         case .board: return "board"
+        case .plan: return "plan"
         case .chats: return "chats"
         case .pages: return "pages"
         case .sites: return "sites"
@@ -161,6 +168,7 @@ enum SpaceDestination: Hashable, Sendable {
         case .all: return "All"
         case .notebooks: return "Notebooks"
         case .board: return "Board"
+        case .plan: return "Plan"
         case .chats: return "Home"
         case .pages: return "Pages"
         case .sites: return "Sites"
@@ -178,6 +186,7 @@ enum SpaceDestination: Hashable, Sendable {
         case .all: return "rectangle.stack"
         case .notebooks: return NotebookGlyph.systemImage
         case .board: return "rectangle.split.3x1"
+        case .plan: return "target"
         case .chats: return "house"
         case .pages: return "doc.text"
         case .sites: return "globe"
