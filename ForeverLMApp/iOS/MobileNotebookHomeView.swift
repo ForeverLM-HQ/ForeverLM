@@ -421,6 +421,10 @@ struct MobileNotebookHomeView: View {
                 MobileHomeLinkLabel(systemImage: "books.vertical", title: "Library")
             }
             .accessibilityIdentifier("home.sources")
+            NavigationLink(value: MobileShellRoute.toRead) {
+                MobileHomeLinkLabel(systemImage: "bookmark", title: "To Read")
+            }
+            .accessibilityIdentifier("home.toRead")
             if spaceStore.isAvailable {
                 spaceRow
             }

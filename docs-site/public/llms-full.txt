@@ -2468,6 +2468,15 @@ If your saved articles live in Readwise Reader, Instapaper, Raindrop, Pocket, Om
 
 ForeverLM reads any CSV with a link column, any bookmarks HTML file (the format browsers export), JSON exports whose records carry a link, and plain lists of links. Each link becomes an article with its title, the date you saved it, and whether you had archived it; the full text is then fetched in the background, one article at a time. Links already in your library are not added twice, and items a reader only showed you from a feed, which you never saved, are left out. It is a one-time copy: nothing keeps syncing with the other app afterwards, and it is never changed.
 
+## Going Back to What You Saved
+
+**To Read** is the one list of what you saved and have not finished, newest first, under **Today**, **Yesterday**, **This Week** and **Earlier**. It holds web pages, papers and X posts you saved one at a time, from every browser's reading list, the share sheet, a bookmark import or a link you added. Podcasts, YouTube, books, courses and meetings are not in it: they arrive by the dozen and have their own tabs.
+
+- **Mac:** open the **Library** and choose **To Read** beside **All**; the number is how many are waiting. A click opens the article in the Reader beside the list. Hover a row and click the check, or right-click it for **Mark as Read**, and it leaves the list.
+- **iPhone and iPad:** **To Read** is the row under **Library** on Home. Tap a row to read it, or swipe it right to mark it read.
+
+A source drops off the list when you finish it, mark it read, hide it or remove it. One you have only started stays on it.
+
 ## Using Articles with AI
 
 Once an article appears in Studio:

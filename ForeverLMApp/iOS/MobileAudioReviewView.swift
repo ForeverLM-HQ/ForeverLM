@@ -186,6 +186,8 @@ struct MobileAudioReviewView: View {
             MobileNotebooksScreen(filter: filter) { route in path.append(route) }
         case .library:
             MobileSourceBrowserView()
+        case .toRead:
+            MobileToReadScreen()
         case .settings:
             MobileSettingsView()
         }

@@ -697,6 +697,9 @@ enum MobileShellRoute: Hashable {
     /// Uncategorized's or one collection's, as Home's rail rows open it.
     case notebooks(NotebooksHomeFilter)
     case library
+    /// What was saved and is still waiting to be read, newest saved first
+    /// (`MobileToReadScreen`): the row under Home's Library.
+    case toRead
     case settings
 
     /// The stack after following `link` from `path` (the shell's `follow`).
@@ -750,7 +753,7 @@ enum MobileShellRoute: Hashable {
             case .cardReview(.notebook(let notebookID)), .cardPractice(.notebook(let notebookID)), .notebookPractice(let notebookID),
                  .cardsToCheck(let notebookID):
                 return notebookID
-            case .source, .savedChat, .memory, .cardReview, .cardPractice, .course, .notebooks, .library, .settings, .space, .page:
+            case .source, .savedChat, .memory, .cardReview, .cardPractice, .course, .notebooks, .library, .toRead, .settings, .space, .page:
                 continue
             }
         }

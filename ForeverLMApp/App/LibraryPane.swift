@@ -67,16 +67,30 @@ struct LibraryPane: View {
     /// Below this width the wide rows have no room for what they add.
     private static let wideLayoutMinimumWidth: CGFloat = 560
 
+    @Environment(StudioViewModel.self) private var vm
     @State private var isNarrow = false
+    /// All, or the To Read list. View state: the Library opens on All.
+    @State private var scope: LibraryScope = .all
 
     var body: some View {
-        NavigationStack {
-            StudioSidebar()
-                .equatable()
+        // The one list of what was saved and is still waiting is derived once
+        // per body, for the pill's count and for the list.
+        let toRead = vm.toReadArticles
+        VStack(spacing: 0) {
+            LibraryScopeRow(scope: $scope, toReadCount: toRead.count)
+            switch scope {
+            case .all:
+                NavigationStack {
+                    StudioSidebar()
+                        .equatable()
+                }
+                // The kind tabs draw in flow under the pane's chrome line.
+                .environment(\.studioTitlebarBandHeight, nil)
+                .environment(\.sourcesListLayout, isNarrow ? .sidebar : .wide)
+            case .toRead:
+                LibraryToReadList(articles: toRead)
+            }
         }
-        // The kind tabs draw in flow under the pane's chrome line.
-        .environment(\.studioTitlebarBandHeight, nil)
-        .environment(\.sourcesListLayout, isNarrow ? .sidebar : .wide)
         .onGeometryChange(for: Bool.self, of: { $0.size.width < Self.wideLayoutMinimumWidth }) { isNarrow = $0 }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
