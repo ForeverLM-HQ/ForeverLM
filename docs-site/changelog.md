@@ -7,8 +7,18 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 ## Unreleased
 
 - **Two Pages side by side.** The split button at the right end of a pane's tabs (or **View → Split Pane Right**, ⌘\\) opens a new pane beside it. Choose **Pages** to open a second Pages pane, on the list of your pages, so two different pages stand side by side. Choose another place and it moves into the new pane. A page you open from the sidebar goes to the Pages pane you clicked in last. Other places can't be open twice in one window yet.
+
+## 0.190.0 (build 270) — 2026-11-07
+
+**Highlights:**
+- **The Library is one list**, each row saying what is left: unread, passages to follow up, cards.
+- **Footnotes in Pages** that show their papers on hover.
+
 - **The Library is one list again.** The **To Read** and **Follow up** pills are gone. Each row says where its source stands instead: an unread title in black and a read one in grey, a flag with how many passages wait to be followed up (click it to list them and tick them off), and how many cards it has kept. The iPhone keeps its To Read and Follow up rows for now.
 - **No big × at the end of a pane's tabs.** Each tab has its own ×, so the pane's × after the **+** is gone. Closing a pane's only tab closes the pane, as that × did.
+- **A pane no longer repeats its tab's name.** The Library, Goals, Courses, Pages and the other places start with their search under their own tab.
+- **Pages: citations are footnotes.** Rest the pointer on a footnote number to see the papers it cites, each with a click to open it; no source cards beside the prose and no list of sources at the end. Tables stand in the column.
+- **The day's popover shows your plans.** Under today's events: this quarter's objectives, this week's big rocks and what the week says for today, each opening its Page, or Plan in Chat… when none is written yet.
 
 ## 0.189.0 (build 269) — 2026-11-07
 
