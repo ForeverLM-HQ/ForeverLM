@@ -6564,6 +6564,18 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 ## Unreleased
 
 
+## 0.187.0 (build 267) — 2026-11-07
+
+**Highlights:**
+- **A Follow up list across the library**, on the Mac and the iPhone: every mark you set aside to follow up or doubt.
+- **To Read**: one list of what you saved and have not finished.
+- **Highlight colors now steer the AI**, so Follow up marks are not lost.
+
+- **A Follow up list across the library.** On the Mac the Library gains **Follow up** beside **All** and **To Read**: every passage marked blue (Follow up) or pink (Doubt), newest first under Today, Yesterday, This Week and Earlier, with how many wait. A click opens the source in the Reader with the highlight's card; the hover check or **Followed Up** in the row menu returns the mark to Remember and takes it off the list, and **Color** picks any other. Marks on hidden or archived sources stay out. On the iPhone it is the **Follow up** row under To Read on Home, with a swipe for Followed Up. Neither Reader scrolls to the passage from the list yet; the Mac opens the highlight's card.
+- **Highlight colors now steer the AI, so Follow up marks are not lost.** Idea extraction, flashcard drafting and the review planner are told what each color means. Marks you set aside to follow up (blue) or doubt (pink) come first in what a review reads, so the cap on marks never drops them. A card is drafted from one only when the source answers it. Ask a chat what you need to follow up on, or what you doubt, and it looks across the whole library (`search_source_highlights` takes a `color`). Chats also say which of a source's marks are still open when they list them.
+- **To Read: one list of what you saved and have not finished.** On the Mac the Library gains a **To Read** scope beside **All**, and on the iPhone Home has a **To Read** row under Library: articles, papers and X posts you saved and have not read, newest saved first under Today, Yesterday, This Week and Earlier. A row opens the source; the hover check, the row menu or a swipe marks it read and it leaves the list. Podcasts, YouTube, books, courses and meetings stay out. The web library has no To Read yet.
+- **iPhone list rows lose the bulb, and an offline fetch reads as offline.** X posts keep their & < > characters instead of showing R&amp;D.
+
 ## 0.186.0 (build 266) — 2026-11-04
 
 **Highlights:**
