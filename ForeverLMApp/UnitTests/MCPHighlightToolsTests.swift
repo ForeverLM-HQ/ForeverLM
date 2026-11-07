@@ -402,6 +402,45 @@ struct MCPHighlightToolsTests {
         #expect(unmatched["highlight_count"] as? Int == 0)
     }
 
+    @Test("Search keeps one marker color across the library, so the follow-ups can be listed")
+    func searchFiltersByColor() throws {
+        let (store, path) = try makeStore()
+        defer { cleanup(path) }
+        let firstID = try seedArticle(in: store)
+        let secondID = try seedArticle(
+            in: store,
+            url: "https://example.com/spacing",
+            title: "Spacing Effects",
+            content: "Interleaving forces the learner to choose a strategy, not just execute one."
+        )
+        _ = try store.createSourceHighlight(sourceID: firstID, quote: "Spacing compounds that effect.", note: nil, color: "blue")
+        _ = try store.createSourceHighlight(sourceID: secondID, quote: "Interleaving forces the learner to choose a strategy", note: nil, color: "blue")
+        _ = try store.createSourceHighlight(sourceID: secondID, quote: "not just execute one", note: nil, color: "pink")
+        _ = try store.createSourceHighlight(sourceID: firstID, quote: "Retrieval practice beats rereading.", note: nil, color: nil)
+
+        let followUps = try json(try store.searchSourceHighlights(query: nil, limit: nil, color: "blue"))
+        #expect(followUps["highlight_count"] as? Int == 2)
+        #expect(followUps["color"] as? String == "blue")
+        let rows = try #require(followUps["highlights"] as? [[String: Any]])
+        #expect(rows.allSatisfy { $0["color"] as? String == "blue" && $0["color_meaning"] as? String == "Follow up" })
+
+        let doubts = try json(try store.searchSourceHighlights(query: nil, limit: nil, color: "Pink"))
+        #expect(doubts["highlight_count"] as? Int == 1)
+
+        // A color and a word narrow together.
+        let both = try json(try store.searchSourceHighlights(query: "interleaving", limit: nil, color: "blue"))
+        #expect(both["highlight_count"] as? Int == 1)
+
+        // The default color is the one a mark written without a choice carries.
+        let remembered = try json(try store.searchSourceHighlights(query: nil, limit: nil, color: "yellow"))
+        #expect(remembered["highlight_count"] as? Int == 1)
+
+        // No color, no narrowing; an unknown one is refused with the guide.
+        let all = try json(try store.searchSourceHighlights(query: nil, limit: nil))
+        #expect(all["highlight_count"] as? Int == 4)
+        #expect(throws: (any Error).self) { _ = try store.searchSourceHighlights(query: nil, limit: nil, color: "red") }
+    }
+
     @Test("A LIKE metacharacter in the query matches itself")
     func searchEscapesLikeMetacharacters() throws {
         let (store, path) = try makeStore()

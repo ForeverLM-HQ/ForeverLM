@@ -207,15 +207,24 @@ enum SourceIdeaDrafting {
     }
 
     /// A highlight as the extraction and the briefing show it: the quote, and
-    /// the learner's note when they wrote one.
+    /// the learner's note when they wrote one, behind a tag for what its color
+    /// means once the learner has used colors (`SourceHighlightColor`). The
+    /// marks they set aside to follow up or doubt come first, so the cap on how
+    /// many a prompt takes (`CohortSourceBrief.maxHighlights`) never drops the
+    /// ones they meant to come back to; then the noted ones, then the newest.
     static func highlightLines(_ highlights: [SourceHighlight]) -> [String] {
-        highlights
-            .filter { !$0.isBareSlideMark }
+        let marks = highlights.filter { !$0.isBareSlideMark }
+        let tagged = SourceHighlightColor.learnerChoseColors(in: marks)
+        return marks
             .sorted { lhs, rhs in
+                if lhs.color.isOpenItem != rhs.color.isOpenItem { return lhs.color.isOpenItem }
                 if lhs.hasNote != rhs.hasNote { return lhs.hasNote }
                 return lhs.createdAt > rhs.createdAt
             }
-            .map { $0.note.isEmpty ? $0.quote : "\($0.quote) — THEIR OWN NOTE: \($0.note)" }
+            .map { mark in
+                let line = mark.note.isEmpty ? mark.quote : "\(mark.quote) — THEIR OWN NOTE: \(mark.note)"
+                return tagged ? "\(mark.color.promptTag) \(line)" : line
+            }
     }
 
     /// Gives drafts their deterministic identity and weights them by attention:

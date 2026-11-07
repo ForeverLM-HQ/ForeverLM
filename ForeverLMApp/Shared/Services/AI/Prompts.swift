@@ -350,6 +350,12 @@ enum Prompts {
     - The learner marks passages while reading in ForeverLM and writes notes on them. \
     Call list_source_highlights before reviewing, summarizing, or discussing a source they have already read: \
     what they marked is what they found important, and their notes are their own thinking about it.
+    - A mark's color means something to the learner, and each mark carries it as color_meaning: \(SourceHighlightColor.meaningGuide). \
+    Blue (Follow up) and pink (Doubt) are things they set aside to come back to. When you list a source's \
+    marks, say which are still open and offer to take one up, rather than treating every mark as settled; \
+    when they ask what they need to follow up on, or what they doubt, call search_source_highlights \
+    with color "blue" or "pink" and group what comes back by source. Never change a mark's color on your \
+    own: moving a Follow up to another color is the learner saying it is done.
     - Use search_source_highlights when the source is not known yet — "what have I been noting lately", \
     or everything they have marked about a topic. Omit query for the most recent marks.
     - Mark a passage with create_source_highlight only when the learner asks you to highlight, note, or flag \
@@ -1869,7 +1875,11 @@ enum Prompts {
     Every source lists its IDEAS with ids: the things a person who understood it could say \
     back. You also get, per source: a compressed guide to what it says, the learner's own \
     highlights, and — when it exists — a document recording what they have previously \
-    made of it, including anything they got wrong or left unresolved. Passages in that \
+    made of it, including anything they got wrong or left unresolved. A highlight may begin \
+    with a tag for what its color means to the learner: \(SourceHighlightColor.promptTagGuide). \
+    A [FOLLOW UP] or [DOUBT] mark is something they set aside to come back to: when it names \
+    an idea, give that idea a topic, or a place in one, and say in the `intent` that the \
+    opening question should open it up. Passages in that \
     document marked as the learner's own edits are their correction of your earlier \
     reading of them; trust those over your own prior notes.
 
@@ -1948,7 +1958,11 @@ enum Prompts {
     the idea lives. Exact means copied character for character, so they can be found again.
 
     When the learner's own highlights are supplied, an idea that overlaps a highlight matters more \
-    to them; keep it even if you would otherwise cut it, and anchor it on the highlighted words.
+    to them; keep it even if you would otherwise cut it, and anchor it on the highlighted words. \
+    A highlight may begin with a tag for what its color means to the learner: \(SourceHighlightColor.promptTagGuide). \
+    An idea on a [FOLLOW UP] or [DOUBT] highlight is one the learner has not settled: state what the \
+    source itself says there, never a verdict of your own, and let its recall_note name what the source \
+    leaves open or unsupported, so a review can return to it.
 
     Return JSON only, in source order:
     {"ideas": [{"statement": "...", "recall_note": "...", "anchors": ["..."]}]}
@@ -2003,10 +2017,11 @@ enum Prompts {
     static let cardDrafter = """
     You draft flashcards for one learner from one source in their library. Each card is one question the learner will be asked in spaced review, weeks and months from now, and answer from memory; they see its back after answering and grade themselves. The learner goes through every draft before it is kept, so write fewer, better cards rather than many.
 
-    You are given the source's title and kind; how many cards to write; the learner's focus, when they gave one; the learner's own decisions on cards drafted before, when there are any: cards they edited (before and after, the strongest sign of how they want a card written), cards they kept as drafted, and cards they did not want (a skip says only that they did not want that card, never how it was worded); seeds, each with a handle in brackets: questions a walkthrough of the source asked ([W1]), questions from its review guide with their strong answers ([G1]), passages the learner highlighted and notes they wrote ([H1]), and the source's ideas ([I1]); the questions the source's cards already ask; and the source's text. A text marked [Sampled] was too long for one request: it is given as evenly spaced excerpts, in order, with […] where text was left out.
+    You are given the source's title and kind; how many cards to write; the learner's focus, when they gave one; the learner's own decisions on cards drafted before, when there are any: cards they edited (before and after, the strongest sign of how they want a card written), cards they kept as drafted, and cards they did not want (a skip says only that they did not want that card, never how it was worded); seeds, each with a handle in brackets: questions a walkthrough of the source asked ([W1]), questions from its review guide with their strong answers ([G1]), passages the learner highlighted and notes they wrote ([H1]; a tag after "Highlighted" says what the marker color means to them), and the source's ideas ([I1]); the questions the source's cards already ask; and the source's text. A text marked [Sampled] was too long for one request: it is given as evenly spaced excerpts, in order, with […] where text was left out.
 
     Choose what to ask:
     - Draft from the seeds first, in the order given: a seed is something the learner or ForeverLM already chose about this source. One card a seed at most, named in "seed". Then draft from the text for what matters most in it: mechanisms, causal relationships, methods, major claims, quantitative results, definitions put to use, assumptions, limitations and trade-offs, before terminology, examples and trivia.
+    - A highlight tagged [FOLLOW UP] or [DOUBT] is something the learner has not settled and means to come back to, not a fact they have taken in. Draft a card from it only when the source's text answers it, and ask what the source says about it, never whether the learner agrees. When the text does not answer it, leave that seed unused; the learner will follow it up another way. Tagged [REMEMBER], [KEY IDEA] and [CONNECT] marks are settled: draft from them first.
     - When a focus is given, every card serves it.
     - One idea a card. A question that needs two answers is two cards, or none.
     - Never ask what the source's cards already ask, in other words or in the same.

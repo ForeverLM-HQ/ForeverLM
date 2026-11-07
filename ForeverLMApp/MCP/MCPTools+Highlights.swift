@@ -55,12 +55,13 @@ extension MCPDataStore {
     }
 
     /// Every highlight in the library, newest first, optionally narrowed to
-    /// marks whose passage or note mentions `query`.
+    /// marks whose passage or note mentions `query` and to one marker color.
     ///
     /// This is the "what have I been noting lately" question, which no
     /// per-source tool can answer: the learner asking it does not yet know
-    /// which sources to look in.
-    func searchSourceHighlights(query queryText: String?, limit: Int?) throws -> String {
+    /// which sources to look in. With `color` it is also "what did I set aside
+    /// to follow up" (blue) or "what do I doubt" (pink), across the library.
+    func searchSourceHighlights(query queryText: String?, limit: Int?, color: String? = nil) throws -> String {
         // `query` names this type's SQL helper, so the caller-facing label keeps
         // its name while the body uses the renamed parameter.
         let trimmedQuery = (queryText ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -68,34 +69,45 @@ extension MCPDataStore {
             max(limit ?? Self.defaultHighlightSearchLimit, 1),
             Self.maxHighlightSearchLimit
         )
+        let colorFilter = try validatedHighlightColor(color)
         let excludedSourceIDs = try knowledgeStore().knowledgeSearchExcludedSourceIDs(includeArchived: true)
 
-        let rows: [[String: Any]] = try withDB { db in
-            guard !trimmedQuery.isEmpty else {
-                return try query(db, """
-                    SELECT h.highlight_id, h.source_id, h.text, h.note, h.color,
-                           h.created_at, h.updated_at, h.page_index, h.quads_json,
-                           h.chat_session_id, h.references_json, h.publication_update,
-                           h.publication_update_at, sp.title, sp.source_type
-                    FROM source_highlights h
-                    JOIN source_projection sp ON sp.id = h.source_id
-                    ORDER BY h.created_at DESC, h.highlight_id
-                    LIMIT ?
-                """, params: [resolvedLimit + excludedSourceIDs.count])
-            }
+        var conditions: [String] = []
+        var params: [Any] = []
+        if !trimmedQuery.isEmpty {
             let pattern = "%" + Self.escapedLikePattern(trimmedQuery) + "%"
-            return try query(db, """
+            conditions.append("""
+                (h.text LIKE ? ESCAPE '\\' OR h.note LIKE ? ESCAPE '\\'
+                   OR h.publication_update LIKE ? ESCAPE '\\')
+                """)
+            params += [pattern, pattern, pattern]
+        }
+        if let colorFilter {
+            // A color written by a build with more colors reads as the default
+            // here (`SourceHighlightColor(storedValue:)`), so it matches with it.
+            if colorFilter == .default {
+                let known = SourceHighlightColor.allCases.map { "'\($0.rawValue)'" }.joined(separator: ", ")
+                conditions.append("(h.color = ? OR h.color IS NULL OR h.color NOT IN (\(known)))")
+            } else {
+                conditions.append("h.color = ?")
+            }
+            params.append(colorFilter.rawValue)
+        }
+        let whereClause = conditions.isEmpty ? "" : "WHERE " + conditions.joined(separator: " AND ")
+        params.append(resolvedLimit + excludedSourceIDs.count)
+
+        let rows: [[String: Any]] = try withDB { db in
+            try query(db, """
                 SELECT h.highlight_id, h.source_id, h.text, h.note, h.color,
                        h.created_at, h.updated_at, h.page_index, h.quads_json,
                        h.chat_session_id, h.references_json, h.publication_update,
                        h.publication_update_at, sp.title, sp.source_type
                 FROM source_highlights h
                 JOIN source_projection sp ON sp.id = h.source_id
-                WHERE h.text LIKE ? ESCAPE '\\' OR h.note LIKE ? ESCAPE '\\'
-                   OR h.publication_update LIKE ? ESCAPE '\\'
+                \(whereClause)
                 ORDER BY h.created_at DESC, h.highlight_id
                 LIMIT ?
-            """, params: [pattern, pattern, pattern, resolvedLimit + excludedSourceIDs.count])
+            """, params: params)
         }
 
         // Sources the learner excluded from knowledge search and AI are excluded
@@ -110,6 +122,7 @@ extension MCPDataStore {
 
         return try jsonString([
             "query": trimmedQuery,
+            "color": colorFilter?.rawValue ?? "",
             "highlight_count": visible.count,
             "highlights": visible.map(searchHighlightPayload),
             "guidance": "Ordered newest first. Call get_source_content with a source_id to read the passage in context, or list_source_highlights to see everything the learner marked in that source.",

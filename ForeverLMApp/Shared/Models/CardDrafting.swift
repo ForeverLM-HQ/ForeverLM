@@ -268,11 +268,17 @@ struct CardDraftingSeed: Equatable, Sendable {
         }
     }
 
-    /// The learner's highlights, those with a note first.
+    /// The learner's highlights, those with a note first, and the ones they set
+    /// aside to follow up or doubt (`SourceHighlightColor.isOpenItem`) after the
+    /// ones they marked as settled: a card is for what the source has answered,
+    /// and a mark to come back to is a question the source may not. Once the
+    /// learner has used colors each seed names what its color means.
     static func highlights(_ highlights: [SourceHighlight]) -> [CardDraftingSeed] {
-        highlights
+        let tagged = SourceHighlightColor.learnerChoseColors(in: highlights)
+        return highlights
             .enumerated()
             .sorted { lhs, rhs in
+                if lhs.element.color.isOpenItem != rhs.element.color.isOpenItem { return !lhs.element.color.isOpenItem }
                 if lhs.element.hasNote != rhs.element.hasNote { return lhs.element.hasNote }
                 return lhs.offset < rhs.offset
             }
@@ -280,7 +286,8 @@ struct CardDraftingSeed: Equatable, Sendable {
                 let quote = FlashcardDeck.singleLine(highlight.quote)
                 let note = FlashcardDeck.singleLine(highlight.note)
                 guard !quote.isEmpty || !note.isEmpty else { return nil }
-                var text = quote.isEmpty ? "" : "Highlighted: \u{201C}\(quote)\u{201D}"
+                let label = tagged ? "Highlighted \(highlight.color.promptTag)" : "Highlighted"
+                var text = quote.isEmpty ? "" : "\(label): \u{201C}\(quote)\u{201D}"
                 if !note.isEmpty { text += (text.isEmpty ? "" : "\n") + "Their note: \(note)" }
                 return CardDraftingSeed(kind: .highlight, key: CardDraftingSeedKey.highlight(highlight.id), text: text)
             }

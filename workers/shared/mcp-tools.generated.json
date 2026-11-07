@@ -9788,9 +9788,13 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Search every highlight and reader note in the library, newest first. Use it to answer what the learner has been marking lately or what they noted about a topic, when the source is not known yet. Omit query to list the most recent marks.",
+    "description" : "Search every highlight and reader note in the library, newest first. Use it to answer what the learner has been marking lately or what they noted about a topic, when the source is not known yet. Omit query to list the most recent marks. Pass color to see one kind of mark across the whole library: blue marks are what the learner set aside to follow up, pink what they doubt.",
     "inputSchema" : {
       "properties" : {
+        "color" : {
+          "description" : "Optional marker color to keep: yellow (Remember), green (Key idea), blue (Follow up), pink (Doubt), purple (Connect).",
+          "type" : "string"
+        },
         "limit" : {
           "description" : "Maximum highlights to return. Defaults to 50, capped at 200.",
           "type" : "integer"

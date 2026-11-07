@@ -627,6 +627,43 @@ enum SourceHighlightColor: String, CaseIterable, Sendable, Codable {
         allCases.map { "\($0.rawValue) (\($0.meaning))" }.joined(separator: ", ")
     }
 
+    /// Whether the marker says the passage is not settled: blue (Follow up) and
+    /// pink (Doubt) are the learner's own reminders to come back. A review, a
+    /// card draft and an idea extraction treat these differently from a mark
+    /// that says "this is worth keeping".
+    var isOpenItem: Bool { self == .blue || self == .pink }
+
+    /// What the marker asks of an assistant reading it, one clause, for the
+    /// prompts that are handed the learner's marks. `meaning` stays the
+    /// learner's word for it; this is what it implies for the work.
+    var promptReading: String {
+        switch self {
+        case .yellow: return "worth remembering, close to word for word"
+        case .green: return "a main claim or idea of the source"
+        case .blue: return "to follow up later: not yet looked into, checked or understood"
+        case .pink: return "doubted or disagreed with: the evidence needs weighing"
+        case .purple: return "connects to something else the learner knows"
+        }
+    }
+
+    /// `[REMEMBER]`, `[KEY IDEA]`, `[FOLLOW UP]`, `[DOUBT]`, `[CONNECT]`: the tag
+    /// a mark carries in front of its quote in a prompt.
+    var promptTag: String { "[\(meaning.uppercased())]" }
+
+    /// The tag legend a prompt gives the model once, so each tag in the marks
+    /// it is handed reads the same way everywhere.
+    static var promptTagGuide: String {
+        allCases.map { "\($0.promptTag) \($0.promptReading)" }.joined(separator: "; ")
+    }
+
+    /// Whether the learner ever picked a color among these marks. Yellow is the
+    /// default, so while every mark is yellow the learner has said nothing with
+    /// color and no tag is shown; the first mark in another color gives every
+    /// mark, yellow included, its meaning.
+    static func learnerChoseColors(in highlights: some Sequence<SourceHighlight>) -> Bool {
+        highlights.contains { $0.color != .default }
+    }
+
     /// `rgba(...)` for the web readers' highlight painting.
     func cssColor(alpha: Double) -> String {
         let rgb = components

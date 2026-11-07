@@ -355,11 +355,12 @@ final class MCPToolRegistry: @unchecked Sendable {
             ),
             MCPToolDef(
                 name: "search_source_highlights",
-                description: "Search every highlight and reader note in the library, newest first. Use it to answer what the learner has been marking lately or what they noted about a topic, when the source is not known yet. Omit query to list the most recent marks.",
+                description: "Search every highlight and reader note in the library, newest first. Use it to answer what the learner has been marking lately or what they noted about a topic, when the source is not known yet. Omit query to list the most recent marks. Pass color to see one kind of mark across the whole library: blue marks are what the learner set aside to follow up, pink what they doubt.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
                         "query": ["type": "string", "description": "Optional text to match against the highlighted passage, the learner's note, or the mark's since-publication update."],
+                        "color": ["type": "string", "description": "Optional marker color to keep: \(SourceHighlightColor.meaningGuide)."],
                         "limit": ["type": "integer", "description": "Maximum highlights to return. Defaults to 50, capped at 200."],
                     ],
                     "required": [] as [String],
@@ -5725,7 +5726,8 @@ final class MCPToolRegistry: @unchecked Sendable {
             case "search_source_highlights":
                 return try store.searchSourceHighlights(
                     query: arguments["query"] as? String,
-                    limit: arguments["limit"] as? Int
+                    limit: arguments["limit"] as? Int,
+                    color: arguments["color"] as? String
                 )
             case "create_source_highlight":
                 return try store.createSourceHighlight(

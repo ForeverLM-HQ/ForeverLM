@@ -6,7 +6,8 @@ struct CohortSourceBrief: Equatable, Sendable {
     let source: CohortSource
     /// The compressed account of what the source says, from `source_review_guides`.
     let guide: String?
-    /// The learner's own highlights, most recent first.
+    /// The learner's own highlights (`SourceIdeaDrafting.highlightLines`): the
+    /// ones to follow up or doubt first, then the noted ones, then the newest.
     let highlights: [String]
     /// The current understanding document, verbatim, including hand edits.
     let understanding: String?
@@ -732,7 +733,14 @@ enum MemoryReviewTutoring {
             lines.append("What it says: \(String(guide.prefix(CohortSourceBrief.maxGuideCharacters)))")
         }
         if !brief.highlights.isEmpty {
-            lines.append("Their highlights:")
+            // A tagged line (`SourceHighlightColor.promptTag`) is a mark whose
+            // color the learner chose: say once what each tag asks of the tutor.
+            let carriesTags = brief.highlights.contains { line in
+                SourceHighlightColor.allCases.contains { line.hasPrefix($0.promptTag) }
+            }
+            lines.append(carriesTags
+                ? "Their highlights (the tag says what the color means to them: \(SourceHighlightColor.promptTagGuide). Open a [FOLLOW UP] or [DOUBT] mark when the question allows: they set it aside to come back to):"
+                : "Their highlights:")
             for highlight in brief.highlights.prefix(CohortSourceBrief.maxHighlights) {
                 lines.append("- \(highlight)")
             }

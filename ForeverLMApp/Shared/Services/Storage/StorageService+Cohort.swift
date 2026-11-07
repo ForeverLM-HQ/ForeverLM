@@ -332,16 +332,10 @@ extension StorageService {
             // they did the work of saying what it meant — so it outranks a bare
             // one however recent, and is labeled as theirs rather than blurred
             // into the same list.
-            let highlights = (highlightsBySource[source.sourceID] ?? [])
-                .sorted { lhs, rhs in
-                    if lhs.hasNote != rhs.hasNote { return lhs.hasNote }
-                    return lhs.createdAt > rhs.createdAt
-                }
-                .map { highlight -> String in
-                    highlight.note.isEmpty
-                        ? highlight.quote
-                        : "\(highlight.quote) — THEIR OWN NOTE: \(highlight.note)"
-                }
+            // The same lines the phone and the idea extraction use, so a mark's
+            // color meaning (Follow up, Doubt, …) reaches the tutor from every
+            // client and the marks to come back to are not cut by the cap.
+            let highlights = SourceIdeaDrafting.highlightLines(highlightsBySource[source.sourceID] ?? [])
             let document = understandingBySource[source.sourceID]
             let discussed = document?.discussedIdeaIDs ?? []
             let split = CohortSourceBrief.gradableIdeas(
