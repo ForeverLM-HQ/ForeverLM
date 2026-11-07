@@ -6,8 +6,16 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.192.0 (build 272) — 2026-11-07
+
+**Highlights:**
+- **Four panes side by side**, and a second Browser with tabs of its own.
+- **Plan a week on the calendar**; the quarter is the plan Page.
+
 - **Up to four panes side by side**, up from three. Split a pane or drag a tab to the edge for a fourth.
 - **Two browsers side by side.** In a pane showing the Browser, the split button's **Browser** (or ⌘\\) opens a second Browser beside it on the same page, with its own tabs. **Open in Browser** from a source or a chat still opens in the first Browser. Second Browsers close with their tab × and don't come back after a relaunch.
+- **A week is planned on the calendar.** Only the quarter is a plan Page now (Big picture, Objectives, Strategies and habits); planning a week puts blocks on the calendar for its seven days, with the quarter's objectives beside them. Space › Plan lists a year's quarters.
+- **Plan links open their Page** even before you have clicked it in Space › Plan.
 
 ## 0.191.0 (build 271) — 2026-11-07
 
