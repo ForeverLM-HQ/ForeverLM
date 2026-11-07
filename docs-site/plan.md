@@ -32,6 +32,8 @@ Click the calendar glyph at the foot of the window's left edge to see the plans 
 
 The chat reads first: for a quarter, the quarter's Page, the previous quarter's, your Goals and what you have been working on; for a week, the week's Page, its quarter's plan, last week's and your calendar. It then proposes a whole draft. Answer in your own words until it is right; only then does it write the plan into the Page (or, for a day, add the blocks to your calendar).
 
+You don't need `/plan` for the chat to use your plans. Whenever you ask any chat to plan a week or a day, or what to work on next, it first reads the quarter's and the week's plan with `get_plan`, which shows in the chat as **Read the plan**, and says which objective or big rock its proposal serves. Planning the day reads the week's plan, whose answer brings the quarter's objectives and the week's line for that day. Claude or ChatGPT with the ForeverLM plugin are told to do the same.
+
 ## Over MCP
 
 An assistant reads a plan with `get_plan` (`scale` quarter or week; `create: true` makes it from its template) and writes in it with `edit_doc`. See [MCP Tools](/mcp-tools). Plans are kept in the library on your Mac, so the Mac must be open and connected.

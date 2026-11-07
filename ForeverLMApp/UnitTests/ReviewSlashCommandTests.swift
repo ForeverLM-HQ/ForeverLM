@@ -695,6 +695,7 @@ struct ChatPluginSetupNeedTests {
         #expect(request.contains("get_plan, scale week"))
         #expect(request.contains("edit_doc"))
         #expect(request.contains("the week's plan (get_plan, scale week), so the day serves it"))
+        #expect(request.contains("carries the quarter's objectives too"))
     }
 }
 
