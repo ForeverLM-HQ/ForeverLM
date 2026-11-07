@@ -11,7 +11,10 @@ import AppKit
 /// (`AIModelDefaults.suggestedBackgroundModels`,
 /// `suggestedBackgroundImageModels`), the free models, the backups, and under
 /// them all of OpenRouter as a table (`OpenRouterModelTable`), with a search.
-/// It replaced the card grid.
+/// It replaced the card grid. Since 2026-11-07 Suggested and Free are one
+/// list the learner keeps, Your Models, as in Settings › Chat: one for text
+/// work and one for work that reads images (`ChatModelShortlist`), each
+/// task sharing its kind's.
 ///
 /// A slot runs on one model, so a row picks it (after a test run of this
 /// work) rather than turning it on and off; its context menu adds or removes
@@ -42,7 +45,11 @@ struct BackgroundModelsPane: View {
     /// "provider|model" of the row whose test run is under way.
     @State private var testingKey: String?
     @State private var pickRefusal: String?
+    /// This kind of work's Your Models as the learner left it; nil until
+    /// they first edit it.
+    @State private var yourModels: [String]?
 
+    private var shortlistKey: String { ChatModelShortlist.backgroundKey(readsImages: slot.requiresVision) }
     private var route: AITaskModelRoute? { snapshot?.route }
     private var backups: [AITaskModelRoute] { snapshot?.backups ?? [] }
     private var configuredProviders: Set<AIProvider> { snapshot?.configuredProviders ?? [] }
@@ -56,26 +63,11 @@ struct BackgroundModelsPane: View {
                     }
                     warnings
                     if let pinned = pinnedRow {
-                        SettingsModelListSection(title: "Your model") {
+                        SettingsModelListSection(title: "Current model") {
                             pinned
                         }
                     }
-                    let suggestions = lists.suggestions.filter(canDoThisWork)
-                    if !suggestions.isEmpty {
-                        SettingsModelListSection(title: "Suggested") {
-                            ForEach(suggestions) { suggestion in
-                                suggestionRow(suggestion)
-                            }
-                        }
-                    }
-                    let free = lists.free.filter(canDoThisWork)
-                    if !free.isEmpty {
-                        SettingsModelListSection(title: "Free", caption: snapshot?.freeBlocker) {
-                            ForEach(free) { suggestion in
-                                suggestionRow(suggestion)
-                            }
-                        }
-                    }
+                    yourModelsSection
                     if slot.ownTask == nil {
                         backupsSummary
                     }
@@ -123,6 +115,16 @@ struct BackgroundModelsPane: View {
         ) { _ in
             Task { await reload() }
         }
+        // Your Models edited on another Mac, or from chat.
+        .onReceive(
+            NotificationCenter.default.publisher(for: PreferenceStore.didChangeRemotely)
+                .merge(with: NotificationCenter.default.publisher(for: PreferenceStore.didChangeLocally).filter {
+                    ($0.userInfo?[PreferenceStore.changedKeysKey] as? Set<String>)?.contains(shortlistKey) == true
+                })
+                .receive(on: RunLoop.main)
+        ) { _ in
+            Task { await reload() }
+        }
         // A refused pick is said where the learner is looking: the row they
         // pressed may be far down the maker's list.
         .alert(
@@ -146,6 +148,7 @@ struct BackgroundModelsPane: View {
             ModelSlotStore.load(slot)
         }.value
         snapshot = loaded
+        yourModels = ChatModelShortlist.stored(key: shortlistKey)
         if openedOn == nil { openedOn = loaded.route }
         rebuild()
     }
@@ -183,6 +186,7 @@ struct BackgroundModelsPane: View {
         lists = ChatModelLists.build(
             suggested: needsVision ? AIModelDefaults.suggestedBackgroundImageModels : AIModelDefaults.suggestedBackgroundModels,
             free: freeSlugs,
+            pinned: yourModels,
             entries: snapshot?.makerGroups.flatMap(\.entries) ?? [],
             enabledIDs: [],
             directory: directory?.filter { !needsVision || $0.supportsVision == true },
@@ -212,6 +216,53 @@ struct BackgroundModelsPane: View {
 
     // MARK: Lists
 
+    /// Your Models for this kind of work: Settings › Chat's list, a row
+    /// picking the model rather than offering it.
+    private var yourModelsSection: some View {
+        let rows = shownRows
+        return YourModelsSection(
+            suggestions: rows,
+            isEdited: yourModels != nil,
+            caption: rows.contains(where: { lists.isFree($0.slug) }) ? snapshot?.freeBlocker : nil,
+            restore: {
+                ChatModelShortlist.restoreSuggested(key: shortlistKey)
+                yourModels = nil
+                rebuild()
+            },
+            move: { moved, target in
+                editYourModels { ChatModelShortlist.moving(moved, onto: target, in: $0) }
+            }
+        ) { suggestion, index in
+            suggestionRow(suggestion, listActions: listActions(for: suggestion.slug, at: index, count: rows.count))
+        }
+    }
+
+    /// The list's rows this work can use, in order.
+    private var shownRows: [ChatModelLists.Suggestion] {
+        (lists.suggestions + lists.free).filter(canDoThisWork)
+    }
+
+    /// Edits the stored list, or, the first time, the picks as the pane
+    /// shows them, so nothing the learner sees moves but what they moved.
+    private func editYourModels(_ edit: ([String]) -> [String]) {
+        let edited = ChatModelShortlist.normalized(edit(yourModels ?? shownRows.map(\.slug)))
+        ChatModelShortlist.save(edited, key: shortlistKey)
+        yourModels = edited
+        rebuild()
+    }
+
+    private func isOnYourModels(_ slug: String) -> Bool {
+        shownRows.contains { $0.slug == slug.lowercased() }
+    }
+
+    private func listActions(for slug: String, at index: Int, count: Int) -> ChatModelRow.ListActions {
+        ChatModelRow.ListActions(
+            remove: { editYourModels { ChatModelShortlist.removing(slug, from: $0) } },
+            moveUp: index == 0 ? nil : { editYourModels { ChatModelShortlist.moving(slug, by: -1, in: $0) } },
+            moveDown: index == count - 1 ? nil : { editYourModels { ChatModelShortlist.moving(slug, by: 1, in: $0) } }
+        )
+    }
+
     /// A suggestion the catalog carries is kept for work that reads images
     /// only when the model is known to; the directory's own rows were
     /// filtered already.
@@ -224,27 +275,28 @@ struct BackgroundModelsPane: View {
     private var pinnedRow: AnyView? {
         guard let openedOn else { return nil }
         let slug = OpenRouterModelID.slug(provider: openedOn.provider, model: openedOn.model).lowercased()
-        let listed = Set((lists.suggestions + lists.free).map(\.slug))
+        let listed = Set(shownRows.map(\.slug))
         guard !listed.contains(slug) else { return nil }
         if let entry = lists.entryBySlug[slug] {
-            return AnyView(catalogRow(entry))
+            return AnyView(catalogRow(entry, listActions: nil))
         }
         if let model = lists.directoryBySlug[slug] {
-            return AnyView(directoryRow(model))
+            return AnyView(directoryRow(model, listActions: nil))
         }
         let maker = lists.identity(ofSlug: slug)
         return AnyView(catalogRow(
-            AIModelCatalogEntry(maker: maker.logo ?? .other, provider: openedOn.provider, modelID: openedOn.model)
+            AIModelCatalogEntry(maker: maker.logo ?? .other, provider: openedOn.provider, modelID: openedOn.model),
+            listActions: nil
         ))
     }
 
     @ViewBuilder
-    private func suggestionRow(_ suggestion: ChatModelLists.Suggestion) -> some View {
+    private func suggestionRow(_ suggestion: ChatModelLists.Suggestion, listActions: ChatModelRow.ListActions?) -> some View {
         switch suggestion {
         case .catalog(let entry, _):
-            catalogRow(entry)
+            catalogRow(entry, listActions: listActions)
         case .directory(let model):
-            directoryRow(model)
+            directoryRow(model, listActions: listActions)
         case .pending(let slug):
             let maker = lists.identity(ofSlug: slug)
             ChatModelRow(
@@ -255,13 +307,14 @@ struct BackgroundModelsPane: View {
                 isConfigured: true,
                 isPending: true,
                 purpose: .background(slot),
+                listActions: listActions,
                 action: {}
             )
         }
     }
 
     /// A catalogued model: the row picks it for this work.
-    private func catalogRow(_ entry: AIModelCatalogEntry) -> some View {
+    private func catalogRow(_ entry: AIModelCatalogEntry, listActions: ChatModelRow.ListActions?) -> some View {
         let slug = ChatModelLists.slug(of: entry)
         let selected = isPicked(provider: entry.provider, model: entry.modelID)
         return ChatModelRow(
@@ -279,6 +332,7 @@ struct BackgroundModelsPane: View {
                 toggleBackup(provider: entry.provider, model: entry.modelID, name: entry.displayName)
             },
             purpose: .background(slot),
+            listActions: listActions,
             action: {
                 testThen(entry.provider, entry.modelID, name: entry.displayName) {
                     pick(provider: entry.provider, model: entry.modelID)
@@ -289,7 +343,7 @@ struct BackgroundModelsPane: View {
 
     /// A directory model the catalog does not carry yet: picking it
     /// catalogues it, without offering it in the chat, and picks it.
-    private func directoryRow(_ model: OpenRouterDirectoryModel) -> some View {
+    private func directoryRow(_ model: OpenRouterDirectoryModel, listActions: ChatModelRow.ListActions?) -> some View {
         let maker = lists.identity(ofSlug: model.id)
         let selected = isPicked(provider: .openRouter, model: model.id)
         return ChatModelRow(
@@ -311,6 +365,7 @@ struct BackgroundModelsPane: View {
                 toggleBackup(provider: .openRouter, model: model.id, name: model.name, directoryModel: model)
             },
             purpose: .background(slot),
+            listActions: listActions,
             action: {
                 testThen(.openRouter, model.id, name: model.name) {
                     FreeModelsSetup.catalog(model)
@@ -348,12 +403,28 @@ struct BackgroundModelsPane: View {
     /// The table's context menu for one row: what a Suggested row's menu
     /// holds, and the pick itself.
     private func tableActions(_ rows: [ModelTableRow]) -> [ModelTableMenuItem] {
-        guard rows.count == 1, let row = rows.first else { return [] }
+        guard rows.count == 1, let row = rows.first else {
+            let unlisted = rows.map { $0.model.id.lowercased() }.filter { !isOnYourModels($0) }
+            guard !unlisted.isEmpty else { return [] }
+            return [.button("Add \(ModelTableRow.count(unlisted.count)) to Your Models", systemImage: "text.badge.plus") {
+                editYourModels { ChatModelShortlist.adding(unlisted, to: $0) }
+            }]
+        }
         var items: [ModelTableMenuItem] = [
             .button("Use for \(slot.title)", systemImage: "checkmark.circle", isEnabled: !row.isOn) {
                 pick(row)
             },
         ]
+        let slug = row.model.id.lowercased()
+        if isOnYourModels(slug) {
+            items.append(.button("Remove from Your Models", systemImage: "text.badge.minus") {
+                editYourModels { ChatModelShortlist.removing(slug, from: $0) }
+            })
+        } else {
+            items.append(.button("Add to Your Models", systemImage: "text.badge.plus") {
+                editYourModels { ChatModelShortlist.adding([slug], to: $0) }
+            })
+        }
         // The model the work runs on is not its own backup.
         if !row.isOn, slot.ownTask == nil {
             items.append(.backup(rank: row.backupRank, isFull: backups.count >= AIBackupModels.limit) {

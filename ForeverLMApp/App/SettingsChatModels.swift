@@ -180,48 +180,20 @@ struct ChatModelsPane: View {
     /// still what the chat's picker offers.
     private var yourModelsSection: some View {
         let rows = lists.suggestions + lists.free
-        return VStack(alignment: .leading, spacing: 8) {
-            HStack(alignment: .firstTextBaseline) {
-                Text("Your Models")
-                    .font(.caption.weight(.semibold))
-                    .foregroundStyle(.secondary)
-                Spacer(minLength: 8)
-                if snapshot.yourModels != nil {
-                    Button("Restore Suggested") {
-                        ChatModelShortlist.restoreSuggested()
-                        snapshot.yourModels = nil
-                        rebuild()
-                    }
-                    .buttonStyle(.plain)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .help("Put back the suggested and free models this list started with, in their order")
-                }
+        return YourModelsSection(
+            suggestions: rows,
+            isEdited: snapshot.yourModels != nil,
+            caption: rows.contains(where: { lists.isFree($0.slug) }) ? snapshot.freeModelBlocker : nil,
+            restore: {
+                ChatModelShortlist.restoreSuggested()
+                snapshot.yourModels = nil
+                rebuild()
+            },
+            move: { moved, target in
+                editYourModels { ChatModelShortlist.moving(moved, onto: target, in: $0) }
             }
-            if let blocker = snapshot.freeModelBlocker, rows.contains(where: { isFree($0.slug) }) {
-                Text(blocker)
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-            }
-            if rows.isEmpty {
-                Text("Add a model from the table below: right-click it and choose Add to Your Models.")
-                    .font(.caption)
-                    .foregroundStyle(.tertiary)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                VStack(spacing: 6) {
-                    ForEach(Array(rows.enumerated()), id: \.element.id) { index, suggestion in
-                        suggestionRow(suggestion, listActions: listActions(for: suggestion.slug, at: index, count: rows.count))
-                            .draggable(suggestion.slug)
-                            .dropDestination(for: String.self) { dropped, _ in
-                                guard let moved = dropped.first, moved != suggestion.slug else { return false }
-                                editYourModels { ChatModelShortlist.moving(moved, onto: suggestion.slug, in: $0) }
-                                return true
-                            }
-                    }
-                }
-            }
+        ) { suggestion, index in
+            suggestionRow(suggestion, listActions: listActions(for: suggestion.slug, at: index, count: rows.count))
         }
     }
 
@@ -251,13 +223,6 @@ struct ChatModelsPane: View {
             moveUp: index == 0 ? nil : { editYourModels { ChatModelShortlist.moving(slug, by: -1, in: $0) } },
             moveDown: index == count - 1 ? nil : { editYourModels { ChatModelShortlist.moving(slug, by: 1, in: $0) } }
         )
-    }
-
-    /// A router or model OpenRouter serves at no charge, for the caption that
-    /// says why free models cannot be picked yet.
-    private func isFree(_ slug: String) -> Bool {
-        if let model = lists.directoryBySlug[slug] { return model.isZeroPriced }
-        return slug.hasSuffix(":free") || slug == "openrouter/free"
     }
 
     @ViewBuilder
@@ -784,6 +749,13 @@ enum ChatModelLists {
         func identity(ofSlug slug: String) -> MakerIdentity {
             ChatModelLists.identity(ofSlug: slug, makerNames: makerNames)
         }
+
+        /// A router or model OpenRouter serves at no charge, for the caption
+        /// that says why free models cannot be picked yet.
+        func isFree(_ slug: String) -> Bool {
+            if let model = directoryBySlug[slug] { return model.isZeroPriced }
+            return slug.hasSuffix(":free") || slug == "openrouter/free"
+        }
     }
 
     static func slug(of entry: AIModelCatalogEntry) -> String {
@@ -1007,17 +979,30 @@ enum ChatModelLists {
 
 // MARK: - Your Models
 
-/// Settings › Chat's Your Models: the OpenRouter slugs the learner keeps at
-/// the top of the pane, in their order. Nothing is stored until they first
-/// edit it, and until then the pane lists the suggested and free picks
-/// (`ChatModelLists.build`). An account setting, synced like the offered set
-/// beside it; `set_app_setting` `chat.your_models` writes it.
+/// Your Models: the OpenRouter slugs the learner keeps at the top of
+/// Settings › Chat, and of Settings › Background (one list for text work, one
+/// for work that reads images, each task sharing its kind's), in their order.
+/// Nothing is stored until a list is first edited, and until then the pane
+/// lists its suggested and free picks (`ChatModelLists.build`). Account
+/// settings, synced like the offered set beside them; `set_app_setting`
+/// `chat.your_models`, `background.your_models_text` and
+/// `background.your_models_images` write them.
 enum ChatModelShortlist {
     static let preferenceKey = "chatModels.shortlist"
+    static let backgroundTextKey = "backgroundModels.shortlist.text"
+    static let backgroundImagesKey = "backgroundModels.shortlist.images"
+
+    /// The Background list a slot shows: its kind's.
+    static func backgroundKey(readsImages: Bool) -> String {
+        readsImages ? backgroundImagesKey : backgroundTextKey
+    }
+
+    /// Settings › Chat's, nil until the learner first edits it.
+    static var stored: [String]? { stored(key: preferenceKey) }
 
     /// Nil until the learner first edits the list.
-    static var stored: [String]? {
-        UserDefaults.standard.stringArray(forKey: preferenceKey).map(normalized)
+    static func stored(key: String) -> [String]? {
+        UserDefaults.standard.stringArray(forKey: key).map(normalized)
     }
 
     /// The list as it stands, for a reader that has no directory to resolve
@@ -1030,13 +1015,21 @@ enum ChatModelShortlist {
         )
     }
 
-    static func save(_ slugs: [String]) {
-        PreferenceStore.set(normalized(slugs), forKey: preferenceKey)
+    /// A Background list as it stands, as `current` reads Chat's.
+    static func currentBackground(readsImages: Bool) -> [String] {
+        stored(key: backgroundKey(readsImages: readsImages)) ?? normalized(
+            (readsImages ? AIModelDefaults.suggestedBackgroundImageModels : AIModelDefaults.suggestedBackgroundModels)
+                + (readsImages ? FreeModelsSetup.preferredVision : FreeModelsSetup.preferredBackground).prefix(3)
+        )
+    }
+
+    static func save(_ slugs: [String], key: String = preferenceKey) {
+        PreferenceStore.set(normalized(slugs), forKey: key)
     }
 
     /// Forgets the learner's list, so the suggested picks show again.
-    static func restoreSuggested() {
-        PreferenceStore.remove(forKey: preferenceKey)
+    static func restoreSuggested(key: String = preferenceKey) {
+        PreferenceStore.remove(forKey: key)
     }
 
     /// Lowercased, trimmed, each slug once, in the order first given.
@@ -1080,6 +1073,64 @@ enum ChatModelShortlist {
         let movesDown = (original.firstIndex(of: slug) ?? .max) < (original.firstIndex(of: target) ?? 0)
         rest.insert(slug, at: movesDown ? targetIndex + 1 : targetIndex)
         return rest
+    }
+}
+
+/// The Your Models list as Settings › Chat and Settings › Background draw
+/// it: its title, Restore Suggested once it was edited, a caption, and the
+/// rows, each dragged onto another to take its place. The pane draws each
+/// row (`row`), since what a row's check means is the pane's.
+struct YourModelsSection<Row: View>: View {
+    let suggestions: [ChatModelLists.Suggestion]
+    /// Whether the learner has edited the list, so Restore Suggested shows.
+    let isEdited: Bool
+    /// Why some rows cannot be used yet, when they cannot.
+    var caption: String? = nil
+    let restore: () -> Void
+    /// The slug dragged, then the slug of the row it was dropped on.
+    let move: (String, String) -> Void
+    @ViewBuilder let row: (ChatModelLists.Suggestion, Int) -> Row
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Your Models")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                if isEdited {
+                    Button("Restore Suggested", action: restore)
+                        .buttonStyle(.plain)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .help("Put back the suggested and free models this list started with, in their order")
+                }
+            }
+            if let caption {
+                Text(caption)
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            if suggestions.isEmpty {
+                Text("Add a model from the table below: right-click it and choose Add to Your Models.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                VStack(spacing: 6) {
+                    ForEach(Array(suggestions.enumerated()), id: \.element.id) { index, suggestion in
+                        row(suggestion, index)
+                            .draggable(suggestion.slug)
+                            .dropDestination(for: String.self) { dropped, _ in
+                                guard let moved = dropped.first, moved != suggestion.slug else { return false }
+                                move(moved, suggestion.slug)
+                                return true
+                            }
+                    }
+                }
+            }
+        }
     }
 }
 

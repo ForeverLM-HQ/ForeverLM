@@ -388,4 +388,15 @@ struct ModelBrowserTests {
             entries: [], enabledIDs: [], directory: directory, isOffered: { _ in true })
         #expect(emptied.suggestions.isEmpty && emptied.free.isEmpty)
     }
+
+    @Test("Background keeps one Your Models for text work and one for work that reads images, apart from Chat's")
+    func backgroundYourModelsKeys() {
+        let keys = [
+            ChatModelShortlist.preferenceKey,
+            ChatModelShortlist.backgroundKey(readsImages: false),
+            ChatModelShortlist.backgroundKey(readsImages: true),
+        ]
+        #expect(Set(keys).count == 3)
+        #expect(keys.allSatisfy { SyncedPreferenceKeys.isSynced($0) })
+    }
 }
