@@ -34,11 +34,14 @@ struct PaperReferenceReadCandidate: Equatable, Sendable {
 ///
 /// Two local-only tables. `paper_references` holds each entry of a paper's list with the link
 /// the entry resolved to; `paper_reference_reads` is both the durable queue of papers owed a
-/// read and the record of what each read found. Neither syncs: a list is derived from the
-/// paper's own PDF by rule and by free catalogs, so a Mac that opens the paper makes it for
-/// itself, and an assistant's saved entries are the one thing a second Mac would lack until it
-/// reads the paper. The iPhone, which does no ingestion, shows no list until a synced record
-/// carries it (a follow-up that needs a CloudKit record type, not done here).
+/// read and the record of what each read found. The tables are per Mac, and the list they hold
+/// travels as one satellite of the paper's Source (`Source.derived.references`,
+/// `SourceSatelliteRoles.referencesBody`): published when a read finishes or an assistant saves
+/// entries, and merged on another Mac by the entries' words (`InboundSourceFiles.mergeReferences`).
+/// A Mac that has read no list keeps the published one whole; one that has read its own takes a
+/// link only for an entry it left without one. So a link an assistant found by hand, which no
+/// free read of the PDF can remake, reaches every Mac. The queue (`paper_reference_reads`) stays
+/// local. The iPhone, which does no ingestion, can read the satellite once it has a Reader for it.
 extension KnowledgeStore {
 
     static let paperReferencesSchemaVersion: Int32 = 174
@@ -245,6 +248,9 @@ extension KnowledgeStore {
             .text(authoredBy),
             .text(sourceID),
         ])
+        // A finished read, or entries an assistant saved, are what the other Macs lack: queue the paper to be
+        // published again (the plan is empty for a source that is not the learner's own).
+        if finished { try queueSourceFilesRefresh(sourceID: sourceID) }
     }
 
     // MARK: Entries

@@ -48,7 +48,7 @@ struct CutoverSatellites: Sendable {
 
     /// Roles in the order the seed uploads them (§13.4 step 2, P5).
     static let rolePriority: [String] = [
-        "text", "thumbnail", "cover", "icon", "reviewGuide", "walkthrough", "figures", "ideas", "citedPapers", "readerHTML", "epub",
+        "text", "thumbnail", "cover", "icon", "reviewGuide", "walkthrough", "figures", "ideas", "citedPapers", "references", "readerHTML", "epub",
         "pdf", "listenText", "timing", "slides", "raw",
     ]
 

@@ -84,6 +84,8 @@ extension KnowledgeStore {
                     return try InboundSourceFiles.receivedPDF(body, installedPath: installedPath, sourceID: wish.target, connection: self)
                 case InboundSourceFiles.figuresRole:
                     return try InboundSourceFiles.receivedFigures(body, sourceID: wish.target, connection: self)
+                case InboundSourceFiles.referencesRole:
+                    return try InboundSourceFiles.receivedReferences(body, sourceID: wish.target, connection: self)
                 default:
                     return false
                 }

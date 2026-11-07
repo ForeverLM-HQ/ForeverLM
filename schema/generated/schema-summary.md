@@ -853,7 +853,7 @@ Unknown values are kept and written back verbatim.
 | Owner field | Roles |
 |---|---|
 | Source.files | `pdf`, `epub`, `readerHTML`, `text`, `listenText`, `timing`, `thumbnail`, `cover`, `icon`, `slides`, `raw`, `audio.<voiceKey>`, `attachment.<key>`, `vectors.<modelKey>` |
-| Source.derived | `reviewGuide`, `walkthrough`, `walkthrough.course.<courseID>`, `figures`, `ideas`, `citedPapers`, `explainer` |
+| Source.derived | `reviewGuide`, `walkthrough`, `walkthrough.course.<courseID>`, `figures`, `ideas`, `citedPapers`, `references`, `explainer` |
 | Collection.files | `cover`, `icon` |
 | Notebook.files | `cover` |
 | Artifact.body | `body` |

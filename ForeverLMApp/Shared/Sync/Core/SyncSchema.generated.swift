@@ -105,7 +105,7 @@ enum SyncSchema {
     /// Satellite roles per owner field (§3.5.30); `<…>` marks a variable suffix.
     static let satelliteRoles: [String: [String]] = [
         "Source.files": ["pdf", "epub", "readerHTML", "text", "listenText", "timing", "thumbnail", "cover", "icon", "slides", "raw", "audio.<voiceKey>", "attachment.<key>", "vectors.<modelKey>"],
-        "Source.derived": ["reviewGuide", "walkthrough", "walkthrough.course.<courseID>", "figures", "ideas", "citedPapers", "explainer"],
+        "Source.derived": ["reviewGuide", "walkthrough", "walkthrough.course.<courseID>", "figures", "ideas", "citedPapers", "references", "explainer"],
         "Collection.files": ["cover", "icon"],
         "Notebook.files": ["cover"],
         "Artifact.body": ["body"],

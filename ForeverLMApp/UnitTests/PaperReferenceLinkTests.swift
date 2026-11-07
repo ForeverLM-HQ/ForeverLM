@@ -545,3 +545,153 @@ struct PaperReferenceStorageTests {
         #expect(try store.paperReferenceReadState(sourceID: "p") == nil)
     }
 }
+
+@Suite("Paper reference lists: sync")
+struct PaperReferenceSyncTests {
+
+    private func store(_ name: String) throws -> (KnowledgeStore, URL) {
+        let root = try Schema154Fixture.temporaryRoot(name)
+        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        return (store, root)
+    }
+
+    private func addPaper(_ store: KnowledgeStore, _ id: String) throws {
+        try store.execForTesting("""
+            INSERT INTO sources (id, date_added, state, source_type, status) VALUES ('\(id)', 0, 'ready', 'paper', 'active');
+            INSERT INTO papers (source_id, url, local_file_path) VALUES ('\(id)', 'https://doi.org/10.1/\(id)', 'Papers/x.pdf');
+        """)
+    }
+
+    private func entry(
+        _ sourceID: String, _ ordinal: Int, _ text: String, doi: String? = nil, origin: PaperReference.LinkOrigin = .none
+    ) -> PaperReference {
+        var reference = PaperReference(sourceID: sourceID, ordinal: ordinal, label: "\(ordinal)", text: text)
+        if let doi {
+            reference.doi = doi
+            reference.url = "https://doi.org/\(doi)"
+            reference.origin = origin
+        }
+        return reference
+    }
+
+    private func decoded(_ data: Data) throws -> [SyncedPaperReference] {
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try decoder.decode([SyncedPaperReference].self, from: data)
+    }
+
+    private func published(_ store: KnowledgeStore, _ sourceID: String) throws -> [SyncedPaperReference] {
+        try decoded(try #require(try SourceSatelliteRoles.referencesBody(sourceID: sourceID, connection: store)))
+    }
+
+    @Test("A paper's list is published as one body, in list order, with each link and how it was found, the same bytes each time")
+    func body() throws {
+        let (store, root) = try store("paper-references-sync-body")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try addPaper(store, "p")
+        try store.savePaperReferencesAuthoredByAgent(sourceID: "p", references: [
+            entry("p", 2, "Doe A. Second paper. J Bar 2002; 2: 3-4.", doi: "10.1000/two", origin: .agent),
+            entry("p", 1, "Smith J. First paper. J Foo 2001; 1: 1-2."),
+        ], replacing: false)
+
+        let data = try #require(try SourceSatelliteRoles.referencesBody(sourceID: "p", connection: store))
+        let entries = try decoded(data)
+        #expect(entries.map(\.ordinal) == [1, 2])
+        #expect(entries[0].url == nil)
+        #expect(entries[1].doi == "10.1000/two")
+        #expect(entries[1].origin == "agent")
+        #expect(try SourceSatelliteRoles.referencesBody(sourceID: "p", connection: store) == data)
+        #expect(try SourceSatelliteRoles.referencesBody(sourceID: "no-list", connection: store) == nil)
+        // It is one of the satellites the source is published with.
+        let satellites = try SourceSatelliteRoles.localSatellites(sourceID: "p", connection: store, resolve: { URL(fileURLWithPath: $0) })
+        #expect(satellites.contains { $0.map == .derived && $0.role == "references" && $0.body == data })
+    }
+
+    @Test("A Mac that has read no list keeps the published one whole and counts the paper as read")
+    func adoptsWholeList() throws {
+        let (store, root) = try store("paper-references-sync-adopt")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try addPaper(store, "p")
+        try addPaper(store, "q")
+        try store.savePaperReferencesAuthoredByAgent(sourceID: "q", references: [
+            entry("q", 1, "Smith J. First paper. J Foo 2001; 1: 1-2."),
+            entry("q", 2, "Doe A. Second paper. J Bar 2002; 2: 3-4.", doi: "10.1000/two", origin: .agent),
+        ], replacing: false)
+        let incoming = try published(store, "q")
+
+        try store.enqueuePaperReferenceRead(sourceID: "p", pdfPath: "Papers/x.pdf")
+        try InboundSourceFiles.mergeReferences(incoming, sourceID: "p", connection: store)
+
+        let held = try store.loadPaperReferences(sourceID: "p")
+        #expect(held.map(\.ordinal) == [1, 2])
+        #expect(held[1].url == "https://doi.org/10.1000/two")
+        #expect(held[1].origin == .agent)
+        let state = try #require(try store.paperReferenceReadState(sourceID: "p"))
+        #expect(state.state == .read)
+        #expect(state.entryCount == 2)
+        #expect(state.linkedCount == 1)
+        #expect(state.authoredBy == "agent")
+        #expect(try store.paperReferenceReadCandidates(limit: 5).isEmpty, "the catalogs are not asked again for it")
+    }
+
+    @Test("A Mac with its own list takes a link only for an entry with the same words and no link, whatever the numbers")
+    func mergesByWords() throws {
+        let (store, root) = try store("paper-references-sync-merge")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try addPaper(store, "p")
+        try store.replacePaperReferenceList(sourceID: "p", entries: [
+            entry("p", 1, "Smith J. First paper. J Foo 2001; 1: 1-2."),
+            entry("p", 2, "Doe A. Second paper. J Bar 2002; 2: 3-4.", doi: "10.1000/mine", origin: .catalog),
+            entry("p", 3, "Roe B. Third paper. J Baz 2003; 3: 5-6."),
+        ])
+        // The other Mac numbered the same list differently, and found links by hand.
+        let incoming = [
+            SyncedPaperReference(
+                ordinal: 5, label: "5", text: "Smith J. First paper. J Foo 2001; 1: 1-2.", title: "First paper", year: "2001",
+                doi: "10.1000/one", url: "https://doi.org/10.1000/one", origin: "agent"
+            ),
+            SyncedPaperReference(
+                ordinal: 1, label: "1", text: "Doe A. Second paper. J Bar 2002; 2: 3-4.", doi: "10.1000/theirs",
+                url: "https://doi.org/10.1000/theirs", origin: "agent"
+            ),
+            SyncedPaperReference(
+                ordinal: 9, label: "9", text: "Nobody N. An entry this Mac does not hold. J Qux 1999; 9: 9-9.", doi: "10.1000/none",
+                url: "https://doi.org/10.1000/none", origin: "agent"
+            ),
+        ]
+        try InboundSourceFiles.mergeReferences(incoming, sourceID: "p", connection: store)
+
+        let held = try store.loadPaperReferences(sourceID: "p")
+        #expect(held.map(\.ordinal) == [1, 2, 3], "no entry is added or renumbered")
+        #expect(held[0].url == "https://doi.org/10.1000/one")
+        #expect(held[0].origin == .agent)
+        #expect(held[0].title == "First paper")
+        #expect(held[1].url == "https://doi.org/10.1000/mine", "a link this Mac holds is not replaced")
+        #expect(held[1].origin == .catalog)
+        #expect(held[2].url == nil)
+    }
+
+    @Test("A published list is worth fetching only when this Mac has none, or has an entry without a link and other bytes")
+    func worthTaking() throws {
+        let (store, root) = try store("paper-references-sync-worth")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try addPaper(store, "p")
+        try addPaper(store, "q")
+        try store.savePaperReferencesAuthoredByAgent(sourceID: "q", references: [
+            entry("q", 1, "Smith J. First paper. J Foo 2001; 1: 1-2.", doi: "10.1000/one", origin: .agent),
+        ], replacing: false)
+        let body = try #require(try SourceSatelliteRoles.referencesBody(sourceID: "q", connection: store))
+        let satellite = SourceLocalSatellite(
+            map: .derived, role: "references", mime: "application/json", encoding: .gzip, body: body, localPath: nil, input: nil
+        )
+        let pointer = try SourceSatelliteLayout.layout(satellite, owner: "q").file
+
+        #expect(try InboundSourceFiles.referencesWorthTaking(pointer, sourceID: "p", connection: store), "no list here")
+        try store.replacePaperReferenceList(sourceID: "p", entries: [
+            entry("p", 1, "Smith J. First paper. J Foo 2001; 1: 1-2."),
+        ])
+        #expect(try InboundSourceFiles.referencesWorthTaking(pointer, sourceID: "p", connection: store), "an entry without a link")
+        try store.savePaperReference(entry("p", 1, "Smith J. First paper. J Foo 2001; 1: 1-2.", doi: "10.1000/one", origin: .catalog))
+        #expect(!(try InboundSourceFiles.referencesWorthTaking(pointer, sourceID: "p", connection: store)), "every entry linked")
+    }
+}

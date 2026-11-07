@@ -157,3 +157,22 @@ struct PaperReferenceIndex: Sendable {
         reference(matchingEntryText: text)?.linkURL
     }
 }
+
+/// One entry of a paper's reference list as the `references` satellite (`Source.derived.references`) carries it:
+/// a gzip JSON array in list order. What syncs is the entry's words and the link it resolved to, with how it came
+/// by it, so a link an assistant found by hand (`origin` "agent") reaches every Mac. Another Mac merges the entries
+/// by their words (`InboundSourceFiles.mergeReferences`), never by `ordinal`.
+struct SyncedPaperReference: Codable, Equatable, Sendable {
+    var ordinal: Int
+    var label: String
+    var text: String
+    var title: String?
+    var authors: String?
+    var journal: String?
+    var year: String?
+    var doi: String?
+    var url: String?
+    /// `PaperReference.LinkOrigin`'s raw value.
+    var origin: String
+    var catalogCheckedAt: Date?
+}

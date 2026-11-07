@@ -729,8 +729,10 @@ extension KnowledgeStore {
     // the DOI or address it resolved to, and `paper_reference_reads` is the
     // durable queue of papers owed a read and the record of what each read
     // found. Both are derived from the paper's PDF by rule and by the free
-    // Crossref and OpenAlex catalogs (`PaperReferenceLinkService`), so they do
-    // not sync: a Mac that holds the PDF makes them. DDL and one set-based
+    // Crossref and OpenAlex catalogs (`PaperReferenceLinkService`), so the
+    // tables themselves are not synced records; the list rides as the
+    // `references` satellite of the paper's Source (a Mac that holds the PDF
+    // still makes its own, and takes the links another found). DDL and one set-based
     // INSERT of ids from `papers` into the queue; nothing is read, opened or
     // asked in the migration, and the drain runs after launch at `.utility`.
     // Not held with 154: this build's paper saves write the queue.

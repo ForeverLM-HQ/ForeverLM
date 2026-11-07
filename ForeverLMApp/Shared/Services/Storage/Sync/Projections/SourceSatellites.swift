@@ -31,7 +31,7 @@ struct SourceLocalSatellite: Equatable, Sendable {
 
 /// Where each role comes from today, and which this package builds (§3.5.30). Built here: `pdf` and
 /// `epub` (the source's own file), `text`, `listenText` and `raw` (the canonical text, the Listen text
-/// and a podcast's TTML, gzip), `reviewGuide`, `walkthrough` and `figures` (gzip). Left to later packages,
+/// and a podcast's TTML, gzip), `reviewGuide`, `walkthrough`, `figures` and `references` (gzip). Left to later packages,
 /// which own their makers: `timing` (built from the TTML), `thumbnail`, `cover`, `icon`, `slides`,
 /// `readerHTML`, `audio.*` (narration, `NarrationSatellites`), `attachment.*` (meeting files), `vectors.*`
 /// (WP18), `ideas` (packed from `source_ideas`), `citedPapers` and `explainer`. A pointer the publisher
@@ -85,7 +85,36 @@ enum SourceSatelliteRoles {
                 map: .derived, role: "figures", mime: "application/json", encoding: .gzip, body: figures, localPath: nil, input: nil
             ))
         }
+        if let references = try referencesBody(sourceID: sourceID, connection: connection) {
+            satellites.append(SourceLocalSatellite(
+                map: .derived, role: "references", mime: "application/json", encoding: .gzip, body: references, localPath: nil, input: nil
+            ))
+        }
         return satellites
+    }
+
+    /// A paper's reference list as the `references` satellite: one `SyncedPaperReference` an entry (its words, the
+    /// link it resolved to and how it came by it), in list order and with dates to the second, so an unchanged list
+    /// is the same bytes and is uploaded once. Nil when the paper has none. This is what lets a link an assistant
+    /// found by hand reach every other Mac, which the free read of the PDF could not remake.
+    static func referencesBody(sourceID: String, connection: SQLiteConnection) throws -> Data? {
+        var entries: [SyncedPaperReference] = []
+        try connection.query("""
+            SELECT ordinal, label, entry_text, title, authors, journal, year, doi, url, link_origin, catalog_checked_at
+            FROM paper_references WHERE source_id = ? ORDER BY ordinal ASC
+        """, [.text(sourceID)]) { row in
+            guard let ordinal = row.integer(0), let label = row.text(1), let text = row.text(2) else { return }
+            entries.append(SyncedPaperReference(
+                ordinal: Int(ordinal), label: label, text: text, title: row.text(3), authors: row.text(4), journal: row.text(5),
+                year: row.text(6), doi: row.text(7), url: row.text(8), origin: row.text(9) ?? PaperReference.LinkOrigin.none.rawValue,
+                catalogCheckedAt: row.real(10).map(Date.init(timeIntervalSinceReferenceDate:))
+            ))
+        }
+        guard !entries.isEmpty else { return nil }
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        return try encoder.encode(entries)
     }
 
     /// A paper's figure index as the `figures` satellite: one `SyncedPaperFigure` a figure (label, page, caption and
@@ -267,11 +296,13 @@ enum InboundSourceFiles {
     static let pdfRole = "pdf"
     /// `Source.derived.figures`: a paper's figure index with the vision pass's analysis.
     static let figuresRole = "figures"
+    /// `Source.derived.references`: a paper's reference list with the link each entry resolved to.
+    static let referencesRole = "references"
     /// Entries of the queue payload that are not FileRefs: the zone a space source's bytes live in (absent for
     /// the learner's own `Content` zone) and the hash of the text this Mac holds and may replace.
     static let zoneField = "zone"
     static let replacesField = "replaces"
-    static let fileRoles = [textRole, pdfRole, figuresRole]
+    static let fileRoles = [textRole, pdfRole, figuresRole, referencesRole]
 
     // MARK: The queue
 
@@ -400,6 +431,15 @@ enum InboundSourceFiles {
             waiting[figuresRole] = nil
         }
 
+        // A paper's reference list, with the links another Mac found: taken whole when this Mac has read none,
+        // otherwise only to give a link to an entry this Mac's own read left without one.
+        if localType == "paper", let references = try derivedPointer(referencesRole, sourceID: sourceID, connection: connection),
+           references.heldBy == nil, try referencesWorthTaking(references, sourceID: sourceID, connection: connection) {
+            waiting[referencesRole] = references.value
+        } else {
+            waiting[referencesRole] = nil
+        }
+
         waiting[zoneField] = zone.isSpace && fileRoles.contains(where: { waiting[$0] != nil }) ? .string(zoneKey) : nil
         if waiting != before { try save(waiting, sourceID: sourceID, connection: connection) }
     }
@@ -488,6 +528,101 @@ enum InboundSourceFiles {
         waiting[figuresRole] = nil
         try save(waiting, sourceID: sourceID, connection: connection)
         return true
+    }
+
+    /// Whether the list a pointer names can add anything here: this Mac holds no list for the paper, or holds one
+    /// with an entry still without a link and not the very bytes the pointer names. A list this Mac already
+    /// links in full is left alone, so the common case costs two small reads and fetches nothing.
+    static func referencesWorthTaking(_ pointer: FileRef, sourceID: String, connection: SQLiteConnection) throws -> Bool {
+        let held = try connection.scalarInteger("SELECT COUNT(*) FROM paper_references WHERE source_id = ?", [.text(sourceID)]) ?? 0
+        if held == 0 { return true }
+        let open = try connection.scalarInteger(
+            "SELECT COUNT(*) FROM paper_references WHERE source_id = ? AND url IS NULL", [.text(sourceID)]
+        ) ?? 0
+        guard open > 0 else { return false }
+        let local = try SourceSatelliteRoles.referencesBody(sourceID: sourceID, connection: connection)
+        return local.map { SyncIdentity.sha256Hex($0) != pointer.hash } ?? true
+    }
+
+    /// The satellite reader's half for `references`: the list merged into this Mac's own (`mergeReferences`).
+    /// Not sent back out: what the pointer names is already on the server, and this Mac's own reads and saves
+    /// are what publish a list.
+    static func receivedReferences(_ body: Data, sourceID: String, connection: SQLiteConnection) throws -> Bool {
+        var waiting = try self.waiting(sourceID: sourceID, connection: connection)
+        guard let wanted = waiting[referencesRole].flatMap(FileRef.init(json:)), wanted.hash == SyncIdentity.sha256Hex(body) else { return false }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        if let entries = try? decoder.decode([SyncedPaperReference].self, from: body) {
+            try mergeReferences(entries, sourceID: sourceID, connection: connection)
+        }
+        waiting[referencesRole] = nil
+        try save(waiting, sourceID: sourceID, connection: connection)
+        return true
+    }
+
+    /// Merges a list another Mac published into the one this Mac holds. Entries are matched by what they say,
+    /// never by number: two Macs may split the same PDF's list differently, and a number that names another
+    /// entry would hang a link on the wrong paper.
+    /// - No list here: the published one is kept whole, and the paper counts as read, so this Mac does not ask
+    ///   the catalogs again for what is already answered.
+    /// - A list here: an entry with no link takes the link of the published entry that has the same words (only
+    ///   when exactly one entry here has them). A link this Mac already holds is never replaced.
+    static func mergeReferences(_ incoming: [SyncedPaperReference], sourceID: String, connection: SQLiteConnection) throws {
+        let now = Date().timeIntervalSinceReferenceDate
+        var held: [(ordinal: Int, text: String, url: String?)] = []
+        try connection.query(
+            "SELECT ordinal, entry_text, url FROM paper_references WHERE source_id = ? ORDER BY ordinal", [.text(sourceID)]
+        ) { row in
+            if let ordinal = row.integer(0), let text = row.text(1) { held.append((Int(ordinal), text, row.text(2))) }
+        }
+        let linked: (SyncedPaperReference) -> Bool = { entry in
+            guard let url = entry.url, let parsed = URL(string: url) else { return false }
+            return ["http", "https"].contains(parsed.scheme?.lowercased() ?? "")
+        }
+        if held.isEmpty {
+            for entry in incoming where entry.ordinal >= 1 {
+                try connection.execute("""
+                    INSERT INTO paper_references
+                        (source_id, ordinal, label, entry_text, title, authors, journal, year, doi, url, link_origin, catalog_checked_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(source_id, ordinal) DO NOTHING
+                """, [
+                    .text(sourceID), .integer(Int64(entry.ordinal)), .text(entry.label), .text(entry.text), .text(entry.title),
+                    .text(entry.authors), .text(entry.journal), .text(entry.year), .text(entry.doi), .text(entry.url),
+                    .text(entry.origin), .real(entry.catalogCheckedAt?.timeIntervalSinceReferenceDate), .real(now),
+                ])
+            }
+            guard !incoming.isEmpty else { return }
+            let authored = incoming.contains { $0.origin == PaperReference.LinkOrigin.agent.rawValue } ? "agent" : "app"
+            try connection.execute("""
+                INSERT INTO paper_reference_reads (source_id, state, enqueued_at, parser_version, read_at, authored_by)
+                VALUES (?, 'read', ?, ?, ?, ?)
+                ON CONFLICT(source_id) DO UPDATE SET state = 'read', attempt_count = 0, last_error = NULL,
+                    parser_version = excluded.parser_version, read_at = excluded.read_at, authored_by = excluded.authored_by
+            """, [.text(sourceID), .real(now), .integer(Int64(PaperReferenceParser.version)), .real(now), .text(authored)])
+        } else {
+            var byKey: [String: [Int]] = [:]
+            for entry in held { byKey[PaperReferenceIdentity.leadKey(of: entry.text), default: []].append(entry.ordinal) }
+            for entry in incoming where linked(entry) {
+                guard let ordinals = byKey[PaperReferenceIdentity.leadKey(of: entry.text)], ordinals.count == 1,
+                      let mine = held.first(where: { $0.ordinal == ordinals[0] }), mine.url == nil else { continue }
+                try connection.execute("""
+                    UPDATE paper_references SET title = COALESCE(?, title), authors = COALESCE(?, authors),
+                        journal = COALESCE(?, journal), year = COALESCE(?, year), doi = ?, url = ?, link_origin = ?,
+                        catalog_checked_at = COALESCE(?, catalog_checked_at), updated_at = ?
+                    WHERE source_id = ? AND ordinal = ? AND url IS NULL
+                """, [
+                    .text(entry.title), .text(entry.authors), .text(entry.journal), .text(entry.year), .text(entry.doi), .text(entry.url),
+                    .text(entry.origin), .real(entry.catalogCheckedAt?.timeIntervalSinceReferenceDate), .real(now),
+                    .text(sourceID), .integer(Int64(mine.ordinal)),
+                ])
+            }
+        }
+        try connection.execute("""
+            UPDATE paper_reference_reads SET
+                entry_count = (SELECT COUNT(*) FROM paper_references WHERE source_id = ?),
+                linked_count = (SELECT COUNT(*) FROM paper_references WHERE source_id = ? AND url IS NOT NULL)
+            WHERE source_id = ?
+        """, [.text(sourceID), .text(sourceID), .text(sourceID)])
     }
 
     /// A chapter whose record names its pages of its book's file (`book_sources.page_start`).
@@ -586,12 +721,13 @@ extension KnowledgeStore {
             handled += changedRowCount
 
             // The text and PDF a ready source's pointers name and this Mac lacks.
-            var wishes: [(id: String, text: String?, pdf: String?, figures: String?)] = []
+            var wishes: [(id: String, text: String?, pdf: String?, figures: String?, references: String?)] = []
             try query("""
                 SELECT s.id,
                        (SELECT f.file_ref FROM source_files f WHERE f.source_id = s.id AND f.role = 'text'),
                        (SELECT f.file_ref FROM source_files f WHERE f.source_id = s.id AND f.role = 'pdf'),
-                       (SELECT d.file_ref FROM source_derived d WHERE d.source_id = s.id AND d.kind = 'figures')
+                       (SELECT d.file_ref FROM source_derived d WHERE d.source_id = s.id AND d.kind = 'figures'),
+                       (SELECT d.file_ref FROM source_derived d WHERE d.source_id = s.id AND d.kind = 'references')
                 FROM sources s
                 WHERE s.team_id IS NULL AND s.status = 'active' AND s.state = 'ready'
                   AND NOT EXISTS (SELECT 1 FROM ck_backfill_queue q WHERE q.kind = ? AND q.target = s.id)
@@ -607,10 +743,14 @@ extension KnowledgeStore {
                        AND EXISTS (SELECT 1 FROM source_derived d WHERE d.source_id = s.id AND d.kind = 'figures'
                                    AND json_extract(d.file_ref, '$.heldBy') IS NULL)
                        AND NOT EXISTS (SELECT 1 FROM paper_figures g WHERE g.source_id = s.id))
+                   OR (s.source_type = 'paper'
+                       AND EXISTS (SELECT 1 FROM source_derived d WHERE d.source_id = s.id AND d.kind = 'references'
+                                   AND json_extract(d.file_ref, '$.heldBy') IS NULL)
+                       AND NOT EXISTS (SELECT 1 FROM paper_references r WHERE r.source_id = s.id))
                   )
                 LIMIT ?
             """, [.text(InboundSourceFiles.queueKind), .integer(Int64(limit))]) { row in
-                if let id = row.text(0) { wishes.append((id, row.text(1), row.text(2), row.text(3))) }
+                if let id = row.text(0) { wishes.append((id, row.text(1), row.text(2), row.text(3), row.text(4))) }
             }
             for wish in wishes {
                 var waiting: [String: SyncJSON] = [:]
@@ -625,6 +765,10 @@ extension KnowledgeStore {
                 if isPaper, let figures = ArtifactBody.fileRef(wish.figures), figures.heldBy == nil,
                    try scalarInteger("SELECT COUNT(*) FROM paper_figures WHERE source_id = ?", [.text(wish.id)]) == 0 {
                     waiting[InboundSourceFiles.figuresRole] = figures.value
+                }
+                if isPaper, let references = ArtifactBody.fileRef(wish.references), references.heldBy == nil,
+                   try scalarInteger("SELECT COUNT(*) FROM paper_references WHERE source_id = ?", [.text(wish.id)]) == 0 {
+                    waiting[InboundSourceFiles.referencesRole] = references.value
                 }
                 try InboundSourceFiles.save(waiting, sourceID: wish.id, connection: self)
                 handled += 1
@@ -708,6 +852,10 @@ extension KnowledgeStore {
                OR (s.source_type = 'paper'
                    AND LOWER(COALESCE((SELECT p.local_file_path FROM papers p WHERE p.source_id = s.id), '')) LIKE '%.pdf'
                    AND NOT EXISTS (SELECT 1 FROM source_files f WHERE f.source_id = s.id AND f.role = 'pdf'))
+                  -- A paper whose reference list this Mac read, or an assistant filled, and no pointer names yet.
+               OR (s.source_type = 'paper'
+                   AND EXISTS (SELECT 1 FROM paper_references r WHERE r.source_id = s.id)
+                   AND NOT EXISTS (SELECT 1 FROM source_derived d WHERE d.source_id = s.id AND d.kind = 'references'))
                   -- A chapter of a book kept as one file whose pointer does not yet name the book's file.
                OR (s.source_type = 'book'
                    AND EXISTS (SELECT 1 FROM book_sources bs WHERE bs.source_id = s.id AND bs.page_start IS NOT NULL
