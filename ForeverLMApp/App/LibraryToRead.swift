@@ -2,11 +2,14 @@ import SwiftUI
 
 // MARK: - The Library's To Read scope
 
-/// What the full-window Library lists: every source by kind (`all`), or the
-/// one list of what was saved and is still waiting (`toRead`, `ToReadList`).
+/// What the full-window Library lists: every source by kind (`all`), the
+/// one list of what was saved and is still waiting (`toRead`, `ToReadList`),
+/// or the one list of passages set aside to follow up or doubt (`followUp`,
+/// `FollowUpList`).
 enum LibraryScope: Equatable {
     case all
     case toRead
+    case followUp
 }
 
 extension StudioViewModel {
@@ -33,17 +36,19 @@ extension StudioViewModel {
     }
 }
 
-/// The two scopes, as the Space's scope pills draw a list's filters: All, and
-/// To Read with how many wait. In flow under the pane's chrome line; the
-/// titlebar band takes only icon buttons.
+/// The scopes, as the Space's scope pills draw a list's filters: All, To
+/// Read and Follow up, each with how many wait. In flow under the pane's
+/// chrome line; the titlebar band takes only icon buttons.
 struct LibraryScopeRow: View {
     @Binding var scope: LibraryScope
     let toReadCount: Int
+    let followUpCount: Int
 
     var body: some View {
         HStack(spacing: 4) {
             SpaceScopePill(title: "All", isSelected: scope == .all) { scope = .all }
             SpaceScopePill(title: "To Read", isSelected: scope == .toRead, count: toReadCount) { scope = .toRead }
+            SpaceScopePill(title: "Follow up", isSelected: scope == .followUp, count: followUpCount) { scope = .followUp }
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 12)

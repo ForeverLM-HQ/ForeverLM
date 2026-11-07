@@ -1099,6 +1099,12 @@ actor StorageService {
         return try knowledgeStore().sourceHighlights(sourceIDs: sourceIDs)
     }
 
+    /// The marks the learner set aside to follow up or doubt, across the library.
+    func openSourceHighlights() throws -> [FollowUpMark] {
+        try ensureStoreExists()
+        return try knowledgeStore().openSourceHighlights()
+    }
+
     func saveSourceHighlight(_ highlight: SourceHighlight) throws {
         try ensureStoreExists()
         try knowledgeStore().saveSourceHighlight(highlight)

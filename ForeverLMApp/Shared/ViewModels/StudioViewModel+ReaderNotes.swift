@@ -391,6 +391,7 @@ extension StudioViewModel {
     func removeReaderHighlight(highlightID: String, sourceID: String) async {
         let removed = readerHighlights[sourceID]?.first { $0.id == highlightID }
         readerHighlights[sourceID]?.removeAll { $0.id == highlightID }
+        followUpMarkStore = FollowUpList.removing(highlightID, from: followUpMarkStore)
         if readerHighlightCard?.highlightID == highlightID {
             readerHighlightCard = nil
         }
@@ -463,5 +464,8 @@ extension StudioViewModel {
             $0.createdAt == $1.createdAt ? $0.id < $1.id : $0.createdAt < $1.createdAt
         }
         readerHighlights[highlight.sourceID] = highlights
+        if followUpMarksLoaded {
+            followUpMarkStore = FollowUpList.applying(highlight, to: followUpMarkStore)
+        }
     }
 }

@@ -1433,6 +1433,16 @@ three lines beside **Highlights**) narrows it to one meaning. An assistant picks
 a color by the same names over MCP, and a highlight it lists carries its
 meaning beside the color.
 
+The colors steer the AI too. Passages you mark **Follow up** or **Doubt** are the
+ones you set aside to come back to: a review reads them first, and a flashcard
+is drafted from one only when the source answers it. **Follow up** in the
+**Library**, beside **All** and **To Read**, lists every such passage across the
+library, newest first, with the number waiting. A click opens the source in the
+Reader with that highlight's card. Hover a row and click the check, or
+right-click it for **Followed Up**, and the passage goes back to **Remember**
+and leaves the list; **Color** in the same menu picks any other. You can also ask
+a chat what you need to follow up on.
+
 To search a transcript, press ⌘F or choose **Find in Reader** from the Reader's
 **⋯**; Escape closes the search. A video's own commands are under **⋯ ›
 Video**: **Show Slides**, **Extract Papers** and **Papers**, where the

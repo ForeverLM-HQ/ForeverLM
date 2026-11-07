@@ -51,6 +51,38 @@ extension KnowledgeStore {
         return try sourceHighlightRows(sourceIDs: sourceIDs)
     }
 
+    /// Every mark in the library whose color says "come back to this" (blue,
+    /// pink: `SourceHighlightColor.isOpenItem`), newest first, each with the
+    /// id of the source it is on here. Under generation 2 a team copy's marks
+    /// are kept on the source's wire id; they are mapped to the local source,
+    /// and a mark whose source this Mac does not hold is left out.
+    func openSourceHighlights() throws -> [FollowUpMark] {
+        let open = SourceHighlightColor.allCases.filter(\.isOpenItem).map { "'\($0.rawValue)'" }.joined(separator: ", ")
+        var rows: [SourceHighlight] = []
+        try queryBind("""
+            SELECT highlight_id, source_id, page_index, quads_json, text, color,
+                   note, created_at, updated_at, anchor_prefix, anchor_suffix, anchor_offset,
+                   chat_session_id, references_json, publication_update, publication_update_at
+            FROM source_highlights
+            WHERE color IN (\(open))
+            ORDER BY created_at DESC, highlight_id
+        """, bind: { _ in }) { stmt in
+            if let highlight = self.decodeSourceHighlight(stmt) { rows.append(highlight) }
+        }
+        var localIDs: [String: String?] = [:]
+        var marks: [FollowUpMark] = []
+        for highlight in rows {
+            let key = highlight.sourceID
+            if !localIDs.keys.contains(key) {
+                localIDs[key] = .some(syncGeneration == .two ? try localSourceID(forWireKey: key) : key)
+            }
+            if let local = localIDs[key] ?? nil {
+                marks.append(FollowUpMark(highlight: highlight, sourceID: local))
+            }
+        }
+        return marks
+    }
+
     /// Highlights by the source id their rows hold.
     private func sourceHighlightRows(sourceIDs: [String]) throws -> [String: [SourceHighlight]] {
         var results: [String: [SourceHighlight]] = [:]

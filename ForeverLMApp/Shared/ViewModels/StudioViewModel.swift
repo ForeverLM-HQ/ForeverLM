@@ -1895,6 +1895,12 @@ class StudioViewModel {
     /// session, keyed by source ID. Loaded lazily when a source opens; readers
     /// observe their own entry to know what to paint.
     var readerHighlights: [String: [SourceHighlight]] = [:]
+    /// Every mark in the library set aside to follow up or doubt, as the
+    /// Library's Follow up list reads them (`FollowUpList`). Loaded when the
+    /// Library opens, then kept in step with color changes and removals made
+    /// in the Reader; `followUpMarksLoaded` is false until the first read.
+    var followUpMarkStore: [FollowUpMark] = []
+    var followUpMarksLoaded = false
     /// Whether the Reader's Clip tool is on in a PDF, so the ⋯ menu's item
     /// reads Stop Clipping (`ReaderClipTool`).
     var readerClipToolIsOn = false

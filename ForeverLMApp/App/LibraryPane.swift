@@ -76,8 +76,9 @@ struct LibraryPane: View {
         // The one list of what was saved and is still waiting is derived once
         // per body, for the pill's count and for the list.
         let toRead = vm.toReadArticles
+        let followUps = vm.followUpMarks
         VStack(spacing: 0) {
-            LibraryScopeRow(scope: $scope, toReadCount: toRead.count)
+            LibraryScopeRow(scope: $scope, toReadCount: toRead.count, followUpCount: followUps.count)
             switch scope {
             case .all:
                 NavigationStack {
@@ -89,7 +90,14 @@ struct LibraryPane: View {
                 .environment(\.sourcesListLayout, isNarrow ? .sidebar : .wide)
             case .toRead:
                 LibraryToReadList(articles: toRead)
+            case .followUp:
+                LibraryFollowUpList(marks: followUps)
             }
+        }
+        // The marks are read from storage when the Library opens, and again
+        // when its Follow up list is shown, for what arrived by sync since.
+        .task(id: scope) {
+            if scope == .followUp || !vm.followUpMarksLoaded { await vm.reloadFollowUpMarks() }
         }
         .onGeometryChange(for: Bool.self, of: { $0.size.width < Self.wideLayoutMinimumWidth }) { isNarrow = $0 }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
