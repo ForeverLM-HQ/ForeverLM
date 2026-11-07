@@ -29,6 +29,8 @@ it finds places (the Space, Pages, Sites, Courses, Google Drive, Plugins),
 chats, notebooks, Pages and Sites, and sources by title. ↑ and ↓ move, Return
 opens, Escape closes. Inside a Page, ⌘K still makes a link.
 
+In the Sources rail, **To Read** beside **All** lists what you saved and have not finished, newest first under Today, Yesterday, This Week and Earlier, as on the Mac and iPhone: web pages, papers and X posts, not podcasts, YouTube, books, courses or meetings. The number is how many wait, the row's check marks one read, and it leaves the list.
+
 The web app opens on your Space, as the Mac does: **All** lists every notebook
 and course beside your Pages, sites and Google Docs, and the Space's search finds
 a notebook by its name, summary or topic. **New ▾ › Notebook** asks for nothing:
