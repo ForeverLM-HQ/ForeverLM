@@ -79,6 +79,15 @@ final class MobileSpaceActions {
         }
     }
 
+    /// The plan of a quarter or a week (`PlanPeriod`), made from its template when the phone holds
+    /// none, and opened.
+    func openPlan(_ period: PlanPeriod, store: MobileSpaceStore, navigation: MobileSpaceNavigation) {
+        run("Couldn’t Open the Plan") {
+            let plan = try await store.ensurePlan(period)
+            navigation.openPage(plan.id)
+        }
+    }
+
     /// The daily note of `dayKey` (`YYYY-MM-DD`, in the learner's calendar as the Mac reads it), made
     /// when the phone holds none, and opened.
     func openDailyNote(_ dayKey: String, store: MobileSpaceStore, navigation: MobileSpaceNavigation) {
@@ -304,7 +313,7 @@ struct MobileSpacePageMenuItems: View {
             }
         } else {
             Section {
-                if page.isOwn, !page.isDailyNote {
+                if page.isOwn, !page.isDailyNote, !page.isPlan {
                     Button("Rename…", systemImage: "pencil") {
                         if let onRename { onRename() } else { actions.beginRename(page) }
                     }

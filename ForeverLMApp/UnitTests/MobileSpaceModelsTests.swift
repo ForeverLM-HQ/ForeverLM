@@ -124,6 +124,25 @@ struct MobileSpaceModelsTests {
         #expect(MobileSpaceListing.date(of: a, in: .all, sort: .created) == a.createdAt)
     }
 
+    @Test("Plan lists the learner's quarter and week plans, out of Trash, as the Mac's Plan place opens them")
+    func planPlace() {
+        let organization = MobileSpaceOrganization()
+        let quarter = Self.page("plan-2026-q4", title: "Q4 2026")
+        let week = Self.page("plan-2026-w45", title: "Week of November 2nd, 2026")
+        let teamCopy = Self.page("plan-2026-q3", teamID: "s1")
+        let trashed = Self.page("plan-2026-q2", trashed: true)
+        let other = Self.page("plan-day")
+        let all = [quarter, week, teamCopy, trashed, other]
+        #expect(quarter.isPlan && week.isPlan)
+        #expect(!teamCopy.isPlan, "a plan is My Library's")
+        #expect(!other.isPlan)
+        let listed = Set(all.filter { MobileSpaceListing.lists(.plan, $0, organization: organization) }.map(\.id))
+        #expect(listed == ["plan-2026-q4", "plan-2026-w45"])
+        #expect(!MobileSpaceListing.canNest(quarter), "a plan is reached by its period, never nested")
+        #expect(MobileSpacePlace.places.contains(.plan))
+        #expect(!MobileSpaceListing.nests(.plan, query: "", organization: organization))
+    }
+
     @Test("A place's key round-trips and is the key the Mac's window keeps for the same place")
     func placeKeys() {
         let places: [MobileSpacePlace] = MobileSpacePlace.places + [.trash, .team("team-1"), .space("psp-1")]

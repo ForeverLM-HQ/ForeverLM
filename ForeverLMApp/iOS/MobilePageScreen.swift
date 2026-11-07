@@ -115,7 +115,7 @@ struct MobilePageScreen: View {
     @ViewBuilder
     private func header(_ page: MobileSpacePage) -> some View {
         let ancestors = MobileSpaceListing.ancestors(of: page.id, in: store.pages, organization: store.organization)
-        let showsTitle = page.isDailyNote || isEditingTitle || titleFocused
+        let showsTitle = page.isDailyNote || page.isPlan || isEditingTitle || titleFocused
             || model.firstHeading?.lowercased() != page.title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if !ancestors.isEmpty || showsTitle {
             VStack(alignment: .leading, spacing: 2) {
@@ -327,13 +327,13 @@ struct MobilePageScreen: View {
             return
         }
         // A page named by its heading is renamed in the heading too, so the two stay one string.
-        if page.isEditableMarkdown, !page.isDailyNote { model.retitle(to: title) }
+        if page.isEditableMarkdown, !page.isDailyNote, !page.isPlan { model.retitle(to: title) }
         actions.run("Couldn’t Rename the Page") { try await store.rename(page.id, to: title) }
     }
 
     /// The page's own words for its name: its opening heading, when the stored title is another string.
     private func adoptHeadingAsTitle(_ page: MobileSpacePage) {
-        guard page.isEditableMarkdown, page.isOwn, !page.isTrashed, !page.isDailyNote,
+        guard page.isEditableMarkdown, page.isOwn, !page.isTrashed, !page.isDailyNote, !page.isPlan,
               !isEditingTitle, !titleFocused, model.phase == .ready,
               let adopted = MobilePageTitleRule.adoptedTitle(replacing: page.title, heading: model.firstHeading)
         else { return }

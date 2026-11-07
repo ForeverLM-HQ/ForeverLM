@@ -57,6 +57,8 @@ struct MobileSpacePage: Identifiable, Equatable, Sendable {
     }
 
     var isOwn: Bool { teamID == nil }
+    /// A quarter's or a week's plan (`PlanPeriod`), named by its period as a daily note is by its day.
+    var isPlan: Bool { teamID == nil && PlanPeriod.isPlanID(id) }
 
     /// Every notebook it is filed in, its home first (`NotebookMembership.filingNotebookIDs`).
     var notebookIDs: [String] {
@@ -185,6 +187,8 @@ enum MobileSpaceError: LocalizedError, Equatable {
 /// and `MobileSpaceRecents`.
 enum MobileSpacePlace: Hashable, Sendable {
     case all
+    /// The learner's plans for a quarter and a week (`PlanPeriod`), the Mac's Space › Plan.
+    case plan
     case pages
     case sites
     case drive
@@ -195,11 +199,12 @@ enum MobileSpacePlace: Hashable, Sendable {
     case space(String)
 
     /// The places listed under New page, in the sidebar's order.
-    static let places: [MobileSpacePlace] = [.all, .pages, .sites, .drive]
+    static let places: [MobileSpacePlace] = [.all, .plan, .pages, .sites, .drive]
 
     /// The place a key names, as the Mac's window remembers one; anything else is All.
     init(key: String) {
         switch key {
+        case "plan": self = .plan
         case "pages": self = .pages
         case "sites": self = .sites
         case "drive": self = .drive
@@ -218,6 +223,7 @@ enum MobileSpacePlace: Hashable, Sendable {
     var key: String {
         switch self {
         case .all: return "all"
+        case .plan: return "plan"
         case .pages: return "pages"
         case .sites: return "sites"
         case .drive: return "drive"
@@ -234,6 +240,7 @@ enum MobileSpacePlace: Hashable, Sendable {
     var title: String {
         switch self {
         case .all: return "All"
+        case .plan: return "Plan"
         case .pages: return "Pages"
         case .sites: return "Sites"
         case .drive: return "Google Drive"
@@ -245,6 +252,7 @@ enum MobileSpacePlace: Hashable, Sendable {
     var symbolName: String {
         switch self {
         case .all: return "rectangle.stack"
+        case .plan: return "target"
         case .pages: return "doc.text"
         case .sites: return "globe"
         case .drive: return "externaldrive"
@@ -333,6 +341,7 @@ enum MobileSpaceListing {
         guard !page.isTrashed else { return false }
         switch place {
         case .all: return true
+        case .plan: return page.isPlan
         case .pages: return page.spaceKind == .page || page.spaceKind == .reading
         case .sites: return page.spaceKind == .site
         case .drive: return page.spaceKind == .googleDoc
@@ -415,7 +424,7 @@ enum MobileSpaceListing {
     /// Whether a page can be a parent or a child (`canNestPage`): one of the learner's own Markdown pages,
     /// not a linked page, a reading or a daily note (a daily note is reached by its day).
     static func canNest(_ page: MobileSpacePage) -> Bool {
-        canFileInSpace(page) && page.spaceKind == .page && page.linkedURL == nil && !page.isDailyNote
+        canFileInSpace(page) && page.spaceKind == .page && page.linkedURL == nil && !page.isDailyNote && !page.isPlan
     }
 
     /// The pages that can be a parent now, nestable and out of Trash, in the order given (`nestablePages`).
@@ -471,7 +480,7 @@ enum MobileSpaceListing {
         guard query.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty, !organization.parentByPage.isEmpty else { return false }
         switch place {
         case .all, .pages, .space: return true
-        case .sites, .drive, .trash, .team: return false
+        case .plan, .sites, .drive, .trash, .team: return false
         }
     }
 

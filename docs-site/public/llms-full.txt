@@ -1957,7 +1957,15 @@ The chat reads first: for a quarter, the quarter's Page, the previous quarter's,
 
 ## Over MCP
 
-An assistant reads a plan with `get_plan` (`scale` quarter or week; `create: true` makes it from its template) and writes in it with `edit_doc`. See [MCP Tools](/mcp-tools). Plans are kept in the library on your Mac, so the Mac must be open and connected. The Plan place is on the Mac; on iPhone and on the web, plans are among your Pages.
+An assistant reads a plan with `get_plan` (`scale` quarter or week; `create: true` makes it from its template) and writes in it with `edit_doc`. See [MCP Tools](/mcp-tools). Plans are kept in the library on your Mac, so the Mac must be open and connected.
+
+## On iPhone and iPad
+
+**Plan** is in the Space's list, under All: **Quarter** or **Week** at the top, the arrows in the list's header to step through years or quarters, and a tap on a quarter or a week to open its plan, made from the same template the first time. A plan you write on the iPhone is the same Page as on your Mac. Planning with the chat and planning the day are on the Mac.
+
+## On the web
+
+The [Web Library](/web-library) has no Plan place: plans you have made are among your Pages, where you can read and edit them.
 
 ---
 
@@ -6599,6 +6607,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **No big × at the end of a pane's tabs.** Each tab has its own ×, so the pane's × after the **+** is gone. Closing a pane's only tab closes the pane, as that × did.
 - **The sidebar stays when you move between places.** Showing or hiding the sidebar is one choice now: the Space no longer opens without it when Home and the Library were showing it.
 - **Notebooks have their own icon**, a folder, instead of the grid Plugins uses.
 - **Places kept on the icon strip sit with its other icons**, above the ⋯, with no dividing line.

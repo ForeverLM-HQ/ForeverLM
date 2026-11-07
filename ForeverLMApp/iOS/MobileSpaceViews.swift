@@ -79,7 +79,11 @@ struct MobileSpaceScreen: View {
     let place: MobileSpacePlace?
 
     var body: some View {
-        if let place {
+        if place == .plan {
+            MobileSpaceAvailability {
+                MobilePlanList()
+            }
+        } else if let place {
             MobileSpaceAvailability {
                 MobileSpacePlaceList(place: place)
             }
@@ -371,7 +375,7 @@ struct MobileSpacePlaceList: View {
     private var offersNewPage: Bool {
         switch place {
         case .all, .pages, .space: return true
-        case .sites, .drive, .trash, .team: return false
+        case .plan, .sites, .drive, .trash, .team: return false
         }
     }
 
@@ -460,6 +464,8 @@ struct MobileSpacePlaceList: View {
                 ContentUnavailableView("No Google Docs linked", systemImage: "externaldrive")
             case .sites:
                 ContentUnavailableView("No sites yet", systemImage: "globe")
+            case .plan:
+                ContentUnavailableView("No plans yet", systemImage: "target")
             case .team(let id):
                 ContentUnavailableView("Nothing shared with \(store.teams.first { $0.id == id }?.name ?? "this space") yet",
                                        systemImage: "person.2")
@@ -767,7 +773,10 @@ struct MobileSpaceSplitView: View {
                 }
             }
         } content: {
-            if let place, store.isAvailable {
+            if place == .plan, store.isAvailable {
+                MobilePlanList(selection: $pageID)
+                    .id(MobileSpacePlace.plan)
+            } else if let place, store.isAvailable {
                 MobileSpacePlaceList(place: place, selection: $pageID)
                     .id(place)
             }

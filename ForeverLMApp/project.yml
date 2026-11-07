@@ -397,8 +397,13 @@ targets:
       - iOS/MobileSpaceMenus.swift
       - iOS/MobilePageScreen.swift
       - iOS/MobileSpaceHarness.swift
+      # Space › Plan: the quarters of a year or the weeks of a quarter, each opening its plan Page.
+      - iOS/MobilePlanList.swift
       - Shared/Models/PageSpaces.swift
       - Shared/Models/DocGraph.swift
+      # A quarter's and a week's plan (`PlanPeriod`): the Mac's ids, titles and templates, so a plan
+      # made on the phone is the same record as one made on a Mac.
+      - Shared/Models/PlanPeriod.swift
       # Add sources on the phone: up to ten pasted links, and pages from the
       # document camera or Photos filed as one PDF that carries the words
       # Vision read on them, so the Mac's paper ingestion and every chat can

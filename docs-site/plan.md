@@ -32,4 +32,12 @@ The chat reads first: for a quarter, the quarter's Page, the previous quarter's,
 
 ## Over MCP
 
-An assistant reads a plan with `get_plan` (`scale` quarter or week; `create: true` makes it from its template) and writes in it with `edit_doc`. See [MCP Tools](/mcp-tools). Plans are kept in the library on your Mac, so the Mac must be open and connected. The Plan place is on the Mac; on iPhone and on the web, plans are among your Pages.
+An assistant reads a plan with `get_plan` (`scale` quarter or week; `create: true` makes it from its template) and writes in it with `edit_doc`. See [MCP Tools](/mcp-tools). Plans are kept in the library on your Mac, so the Mac must be open and connected.
+
+## On iPhone and iPad
+
+**Plan** is in the Space's list, under All: **Quarter** or **Week** at the top, the arrows in the list's header to step through years or quarters, and a tap on a quarter or a week to open its plan, made from the same template the first time. A plan you write on the iPhone is the same Page as on your Mac. Planning with the chat and planning the day are on the Mac.
+
+## On the web
+
+The [Web Library](/web-library) has no Plan place: plans you have made are among your Pages, where you can read and edit them.

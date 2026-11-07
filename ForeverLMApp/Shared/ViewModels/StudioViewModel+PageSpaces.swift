@@ -150,7 +150,8 @@ extension StudioViewModel {
     /// Whether a record can be a parent or a child: one of the learner's own
     /// Markdown pages in My Library. Not a team's page, a member's draft of
     /// one, a linked Google Doc or site, a reading, an animation, an audio
-    /// overview or a daily note (a daily note is reached by its day).
+    /// overview, a daily note or a plan (each is reached by its day, quarter
+    /// or week).
     func canNestPage(_ artifact: ArtifactRecord) -> Bool {
         activeTeamID == nil
             && canFileInPageSpace(artifact)
@@ -158,6 +159,7 @@ extension StudioViewModel {
             && !artifact.isLinked
             && !artifact.isMnemonicReading
             && !DailyNote.isDailyNoteID(artifact.id)
+            && !PlanPeriod.isPlanID(artifact.id)
     }
 
     /// The pages that can be a parent now: nestable and not in Trash, in the

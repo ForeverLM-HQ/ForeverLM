@@ -192,7 +192,8 @@ final class MobileSpaceStore {
             }
         }
         let named = id?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let named, !MobileSpaceListing.isSpaceRecord(id: named, kind: "doc") || DailyNote.isDailyNoteID(named) {
+        if let named, !MobileSpaceListing.isSpaceRecord(id: named, kind: "doc") || DailyNote.isDailyNoteID(named)
+            || PlanPeriod.isPlanID(named) {
             throw MobileSpaceError.refused("“\(named)” can’t name a page.")
         }
         let space = spaceID ?? parentID.flatMap { organization.spaceID(ofPage: $0) }
@@ -254,6 +255,37 @@ final class MobileSpaceStore {
             let page = try await writer.transaction { write -> MobileSpacePage? in
                 // Made meanwhile, by sync bringing the same day from a Mac: that one stands.
                 if try write.heldPage(id) == nil { try write.createPage(id, title: title, body: file, markdown: "") }
+                return try MobileSpaceReadModel.pages(in: write.replica, ids: [id]).first
+            }
+            guard let page else { throw MobileSpaceError.notFound }
+            publish(page)
+            return page
+        }
+    }
+
+    /// The plan Page of a quarter or a week (`PlanPeriod`), made in My Library with its period's title
+    /// and its template when the phone holds none, as the Mac's `ensurePlan`. Its id is its period, so
+    /// the same quarter planned here and on a Mac is one record. An existing plan is returned as it is.
+    func ensurePlan(_ period: PlanPeriod) async throws -> MobileSpacePage {
+        let id = period.id
+        let title = period.title()
+        let markdown = period.template()
+        return try await act { backend in
+            let writer = backend.writer
+            let existing = try await writer.read { write -> MobileSpacePage? in
+                guard try write.heldPage(id) != nil else { return nil }
+                return try MobileSpaceReadModel.pages(in: write.replica, ids: [id]).first
+            }
+            if let existing {
+                publish(existing)
+                return existing
+            }
+            let encoded = try Self.encoded(markdown)
+            let file = try await writer.uploadPageBody(encoded.data, pageID: id, keeping: nil)
+            backend.satellites.hold(encoded.data, as: file)
+            let page = try await writer.transaction { write -> MobileSpacePage? in
+                // Made meanwhile, by sync bringing the same plan from a Mac: that one stands.
+                if try write.heldPage(id) == nil { try write.createPage(id, title: title, body: file, markdown: markdown) }
                 return try MobileSpaceReadModel.pages(in: write.replica, ids: [id]).first
             }
             guard let page else { throw MobileSpaceError.notFound }
