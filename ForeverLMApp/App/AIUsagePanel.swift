@@ -53,8 +53,8 @@ struct AIUsageAccountSections: View {
     /// The product owner (2026-09-25): ForeverLM's AI features are bring your own key.
     /// The key is the pane's first card: with one stored, during the free
     /// days or once ForeverLM is paid for, OpenRouter bills the learner at
-    /// cost for everything ForeverLM sends through it. OpenRouter is the only router since Ramp was removed on
-    /// 2026-09-23. Every line that names the scope reads it off
+    /// cost for everything ForeverLM sends through it. OpenRouter is the only
+    /// router. Every line that names the scope reads it off
     /// `ManagedAI.OwnKeyRouter`.
     private var ownKeySection: some View {
         SettingsSection(

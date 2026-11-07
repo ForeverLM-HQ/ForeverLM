@@ -175,13 +175,11 @@ enum ManagedAI {
 
     // MARK: - Your own router key
 
-    /// The router a learner's own key belongs to. The product owner (2026-09-12): "for
-    /// billing, just let people bring their own openrouter or ramp router key;
-    /// that is then how they can be billed." A request the key pays for goes
-    /// to the router on this key instead of ForeverLM's, the router bills the
-    /// learner's own account, and the ForeverLM balance is charged nothing.
-    /// OpenRouter is the only router since Ramp was removed on 2026-09-23 in
-    /// the `ramp-router` change; the enum stays so a second router is one case away.
+    /// The router a learner's own key belongs to. A request the key pays for
+    /// goes to the router on this key instead of ForeverLM's, the router bills
+    /// the learner's own account, and the ForeverLM balance is charged nothing.
+    /// OpenRouter is the only router; the enum stays so a second router is one
+    /// case away.
     enum OwnKeyRouter: String, CaseIterable, Sendable, Identifiable {
         case openRouter = "openrouter"
 

@@ -59,8 +59,6 @@ struct RetiredDefaultsCleanupTests {
 
     /// Keys from the same copy that nothing reads. All go.
     static let retiredKeys = [
-        "aiPricing.rampRouterCatalogPrices",
-        "aiPricing.rampRouterCatalogPricesFetchedAt",
         "enrichedChapterTitles",
         "readai.importedMeetingIDs",
         "bookNameOverrides",

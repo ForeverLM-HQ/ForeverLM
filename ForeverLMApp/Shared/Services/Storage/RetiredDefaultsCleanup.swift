@@ -68,11 +68,6 @@ enum RetiredDefaultsCleanup {
 
     /// Exact keys nothing reads or writes any more.
     static let retiredKeys: Set<String> = [
-        // Ramp Router's catalog prices. Ramp Router went on 2026-09-23 (#98);
-        // its one-time purge (`KeychainService.purgeRetiredRampRouterData`)
-        // removed its key, models and context windows, not these.
-        "aiPricing.rampRouterCatalogPrices",
-        "aiPricing.rampRouterCatalogPricesFetchedAt",
         // Chapter titles cached by local PDF path; the code that read and
         // wrote them went with the semantic heuristics on 2026-08-05.
         "enrichedChapterTitles",

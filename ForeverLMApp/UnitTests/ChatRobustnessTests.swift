@@ -1304,12 +1304,11 @@ struct ChatRobustnessTests {
 
         // The wire token is a transport name, not this enum's case name.
         #expect(AITextRoutingMode(serverToken: " OpenRouter ") == .openRouter)
-        // Ramp Router was removed on 2026-09-23; its token names nothing now.
-        #expect(AITextRoutingMode(serverToken: "ramp") == nil)
+        // A router this build does not know names nothing.
+        #expect(AITextRoutingMode(serverToken: "otherrouter") == nil)
         // No first-party text transport exists to name.
         #expect(AITextRoutingMode(serverToken: "direct") == nil)
         #expect(AITextRoutingMode(serverToken: "first_party") == nil)
-        #expect(AITextRoutingMode(serverToken: "rampRouter") == nil)
         #expect(AITextRoutingMode(serverToken: "") == nil)
 
         // The test pins "no own key" rather than reading the developer's
@@ -1326,10 +1325,10 @@ struct ChatRobustnessTests {
 
         // The account-wide field is the policy, and it reaches a paying account
         // too — not just a comped one. It is stored as named; a router this
-        // build does not know (Ramp, from an older Worker) resolves to the
-        // shipped default.
-        ManagedAI.applyTextRouterPolicy("ramp", comp: nil)
-        #expect(ManagedAI.requiredTextRouterToken == "ramp")
+        // build does not know (from an older or newer Worker) resolves to
+        // the shipped default.
+        ManagedAI.applyTextRouterPolicy("otherrouter", comp: nil)
+        #expect(ManagedAI.requiredTextRouterToken == "otherrouter")
         #expect(ManagedAI.requiredTextRoutingMode == nil)
         #expect(KeychainService.textRoutingMode == .openRouter)
         #expect(

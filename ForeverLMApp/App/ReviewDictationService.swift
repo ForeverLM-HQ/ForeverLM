@@ -264,7 +264,8 @@ final class ReviewDictationService: NSObject, ObservableObject, AVAudioRecorderD
                     operation: "speech_to_text",
                     report: result.report,
                     task: usageTask,
-                    activityID: activityID
+                    activityID: activityID,
+                    generationID: result.generationID
                 )
             } catch {
                 dictationLogger.error(

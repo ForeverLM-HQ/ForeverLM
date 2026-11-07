@@ -540,8 +540,7 @@ extension AIService {
     // the proxy has no route to their own hosts (its first-party media routes
     // answer 410 since 2026-10-02), and `KeychainService.routedTextConfig`
     // hands every text call the OpenRouter provider before it reaches this
-    // file. (Ramp Router was the second text router until 2026-09-23, removed in
-    // the `ramp-router` change.)
+    // file.
 
     /// Chat endpoint for providers that speak the OpenAI-compatible protocol.
     /// A first-party lab has none, so a text call that somehow skipped routing

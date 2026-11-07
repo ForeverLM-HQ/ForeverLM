@@ -121,8 +121,8 @@ enum AIProvider: String, CaseIterable, Codable {
     /// Whether a selection already stored on this device naming this provider
     /// can still be carried out. A retired host — Groq, Cerebras, Together,
     /// Fireworks, NVIDIA — has no transport, and a selection naming one stays
-    /// invalid. A stored "Ramp Router" selection no longer decodes to a
-    /// provider at all, so it reads as invalid the same way.
+    /// invalid. A stored selection naming a provider this build does not know
+    /// does not decode at all, so it reads as invalid the same way.
     var canServeStoredSelection: Bool {
         Self.activeChatProviders.contains(self)
     }
@@ -191,7 +191,7 @@ enum AIProvider: String, CaseIterable, Codable {
     /// The provider a usage-ledger row names: the short name the recorder
     /// stamps ("OpenRouter"), the slash token the managed proxy's rows carry
     /// ("openrouter") or a stored raw value. Nil for a host the app no longer
-    /// knows, such as "Ramp Router".
+    /// knows.
     init?(ledgerName: String) {
         let needle = ledgerName.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         guard let provider = Self.allCases.first(where: {

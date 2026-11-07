@@ -967,6 +967,32 @@ struct AIUsageTrackingTests {
         #expect(abs((totals.cost ?? 0) - 0.0137) < 1e-9)
     }
 
+    @Test("An unpriced call keeps its generation id beside its usage, so OpenRouter's charge can be read")
+    func unpricedCallKeepsItsGenerationID() throws {
+        // The transcription answer's own usage stays readable for repricing.
+        let raw = #"{"cost":0,"input_tokens":6000,"output_tokens":832}"#
+        let merged = try #require(AIUsageTracker.addingGenerationID("gen-123", to: raw))
+        #expect(CloudArticleTTS.generationID(inRawUsageJSON: merged) == "gen-123")
+        let object = try #require(
+            try JSONSerialization.jsonObject(with: Data(merged.utf8)) as? [String: Any]
+        )
+        #expect(object["input_tokens"] as? Int == 6_000)
+        #expect(object["output_tokens"] as? Int == 832)
+        // A row with no usage JSON gets the bare marker.
+        let bare = try #require(AIUsageTracker.addingGenerationID("gen-9", to: nil))
+        #expect(CloudArticleTTS.generationID(inRawUsageJSON: bare) == "gen-9")
+
+        // The id comes from the header first, else a `gen-` id in the body.
+        let url = URL(string: "https://openrouter.ai/api/v1/audio/transcriptions")!
+        let withHeader = try #require(HTTPURLResponse(
+            url: url, statusCode: 200, httpVersion: nil, headerFields: ["X-Generation-Id": " gen-h "]
+        ))
+        let withoutHeader = try #require(HTTPURLResponse(url: url, statusCode: 200, httpVersion: nil, headerFields: [:]))
+        #expect(ManagedTranscriptionClient.openRouterGenerationID(response: withHeader, body: ["id": "gen-b"]) == "gen-h")
+        #expect(ManagedTranscriptionClient.openRouterGenerationID(response: withoutHeader, body: ["id": "gen-b"]) == "gen-b")
+        #expect(ManagedTranscriptionClient.openRouterGenerationID(response: withoutHeader, body: ["id": "req_1"]) == nil)
+    }
+
     @Test("A server row without an exact cost stays unpriced for the pane to show")
     func serverRowIsNeverRepriced() throws {
         let store = try KnowledgeStore(inMemory: true)

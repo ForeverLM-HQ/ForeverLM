@@ -221,7 +221,11 @@ enum ManagedImageGeneration {
         }
         // Recorded before the picture is checked: a response that billed and
         // carried no picture still cost what it says.
-        await recordUsage(from: json, model: model)
+        await recordUsage(
+            from: json,
+            model: model,
+            generationID: ManagedTranscriptionClient.openRouterGenerationID(response: http, body: json)
+        )
         guard let first = (json["data"] as? [[String: Any]])?.first,
               let encoded = first["b64_json"] as? String,
               let bytes = Data(base64Encoded: encoded),
@@ -241,7 +245,11 @@ enum ManagedImageGeneration {
     /// own-key rail no proxy debit stands behind the picture, so that figure
     /// is the only exact record of it; on the managed rail it matches the
     /// debit the proxy took from the same field.
-    private static func recordUsage(from json: [String: Any], model: ImageGenerationModel) async {
+    private static func recordUsage(
+        from json: [String: Any],
+        model: ImageGenerationModel,
+        generationID: String?
+    ) async {
         guard let usage = json["usage"] as? [String: Any] else {
             logger.warning("OpenRouter image response carried no usage block; nothing recorded locally.")
             return
@@ -268,7 +276,8 @@ enum ManagedImageGeneration {
             model: model.id,
             operation: "image_generation",
             report: report,
-            task: AIUsageAttribution.task ?? "image_generation"
+            task: AIUsageAttribution.task ?? "image_generation",
+            generationID: generationID
         )
     }
 }

@@ -31,10 +31,6 @@ enum KeychainService {
         /// The learner's own router key (`ManagedAI.OwnKey`), the same iCloud
         /// Keychain items the Mac writes, so both devices bill one router account.
         case ownOpenRouterKey = "own_openrouter_key"
-        /// A learner's own Ramp Router key, from before Ramp was removed on
-        /// 2026-09-23. Kept only so the purge can delete the iCloud Keychain
-        /// item; nothing reads or writes it.
-        case retiredOwnRampRouterKey = "own_ramp_router_key"
     }
 
     static var openAITranscriptionModel: String {
@@ -95,13 +91,6 @@ enum KeychainService {
     /// now live only in the managed proxy; keeping old synchronized copies on a
     /// phone would serve no feature and needlessly retain secrets.
     static func purgeRetiredProviderData() {
-        // Ramp Router was removed on 2026-09-23; a stored Ramp key is a live
-        // credential with nothing left to show or remove it.
-        let rampCompletionKey = "retiredRampRouterDataPurged.v1"
-        if !UserDefaults.standard.bool(forKey: rampCompletionKey) {
-            delete(.retiredOwnRampRouterKey)
-            UserDefaults.standard.set(true, forKey: rampCompletionKey)
-        }
         let completionKey = "retiredProviderDataPurged.v1"
         guard !UserDefaults.standard.bool(forKey: completionKey) else { return }
         delete(.openAIAPIKey)
@@ -149,7 +138,7 @@ enum KeychainService {
 
     private static func syncsAcrossDevices(_ key: Key) -> Bool {
         key == .openAIAPIKey || key == .anthropicAPIKey
-            || key == .ownOpenRouterKey || key == .retiredOwnRampRouterKey
+            || key == .ownOpenRouterKey
     }
 
     private static func baseQuery(for key: Key) -> [String: Any] {

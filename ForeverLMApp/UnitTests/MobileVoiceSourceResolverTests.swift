@@ -689,8 +689,8 @@ struct MobileVoiceSourceResolverTests {
     func mobileFirstPartyTextRoutesAreRefused() {
         // The labs' own hosts carry media, never text. A route naming one is a
         // resolver bug, and it fails here instead of reaching the lab's API.
-        // Ramp Router, removed on 2026-09-23, is refused the same way.
-        for provider in [AIProvider.anthropic, .openai, .gemini, .meta, .xai].map(\.rawValue) + ["Ramp Router"] {
+        // A router this build does not know is refused the same way.
+        for provider in [AIProvider.anthropic, .openai, .gemini, .meta, .xai].map(\.rawValue) + ["Other Router"] {
             #expect(throws: (any Error).self) {
                 try MobileOpenRouterChat.request(
                     route: ResolvedAITextRoute(

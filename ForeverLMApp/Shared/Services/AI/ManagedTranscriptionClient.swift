@@ -20,6 +20,10 @@ enum ManagedTranscriptionClient {
         /// Request sent to response received, in milliseconds. Also carried
         /// on `report.latencyMilliseconds`, so the ledger keeps it.
         let roundTripMilliseconds: Int
+        /// OpenRouter's id for this generation, from the `X-Generation-Id`
+        /// header or the body's `id`: what `AIUsageTracker.record` reads the
+        /// charge by when no price table prices the call.
+        var generationID: String? = nil
     }
 
     enum TranscriptionError: LocalizedError {
@@ -225,8 +229,20 @@ enum ManagedTranscriptionClient {
             providerName: route.providerName,
             model: route.model,
             encodeMilliseconds: encodeMilliseconds,
-            roundTripMilliseconds: roundTripMilliseconds
+            roundTripMilliseconds: roundTripMilliseconds,
+            generationID: openRouterGenerationID(response: http, body: json)
         )
+    }
+
+    /// OpenRouter's generation id for a response: its `X-Generation-Id`
+    /// header, else a `gen-` id in the body.
+    static func openRouterGenerationID(response: HTTPURLResponse, body: [String: Any]) -> String? {
+        let header = response.value(forHTTPHeaderField: "X-Generation-Id")?
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let header, !header.isEmpty { return header }
+        guard let id = (body["id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
+              id.hasPrefix("gen-") else { return nil }
+        return id
     }
 
     private static func milliseconds(since start: Date) -> Int {

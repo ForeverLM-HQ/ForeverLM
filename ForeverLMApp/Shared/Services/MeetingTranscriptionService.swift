@@ -183,7 +183,8 @@ actor MeetingTranscriptionService {
                 operation: "speech_to_text",
                 report: result.report,
                 task: task,
-                activityID: activityID
+                activityID: activityID,
+                generationID: result.generationID
             )
             let text = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
             if !text.isEmpty { transcriptParts.append(text) }

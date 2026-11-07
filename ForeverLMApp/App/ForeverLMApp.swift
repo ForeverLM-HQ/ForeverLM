@@ -614,9 +614,9 @@ struct ForeverLMApp: App {
                     }.value
                 }
                 .task {
-                    // Remove credentials from retired client-side AI routes,
-                    // former direct-Meta trial flags and the retired Ramp
-                    // Router key. Keychain I/O stays off-main.
+                    // Remove credentials from retired client-side AI routes
+                    // and former direct-Meta trial flags. Keychain I/O stays
+                    // off-main.
                     await Task.detached(priority: .utility) {
                         KeychainService.purgeRetiredProviderData()
                         // And the retired Google Calendar plugin's grants.

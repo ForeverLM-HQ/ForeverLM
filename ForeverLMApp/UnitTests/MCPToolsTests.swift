@@ -13689,11 +13689,10 @@ struct MCPDataStoreTests {
         #expect(stored["key_pays_for"] as? String == "text, voices, speech-to-text, images and video")
         #expect(stored["balance_still_pays_for"] as? String == "nothing while the key is stored")
 
-        // Refused before anything is written: an unknown router (Ramp Router
-        // included, since its removal on 2026-09-23), key beside clear, a store
-        // with no key, and a paste that is not a key.
+        // Refused before anything is written: an unknown router, key beside
+        // clear, a store with no key, and a paste that is not a key.
         #expect(throws: MCPError.self) { _ = try store.setOwnRouterKey(router: "anthropic", key: "sk-something-long", clear: false) }
-        #expect(throws: MCPError.self) { _ = try store.setOwnRouterKey(router: "ramp", key: "sk-something-long", clear: false) }
+        #expect(throws: MCPError.self) { _ = try store.setOwnRouterKey(router: "otherrouter", key: "sk-something-long", clear: false) }
         #expect(throws: MCPError.self) { _ = try store.setOwnRouterKey(router: "openrouter", key: "sk-something-long", clear: true) }
         #expect(throws: MCPError.self) { _ = try store.setOwnRouterKey(router: "openrouter", key: "   ", clear: false) }
         #expect(throws: MCPError.self) { _ = try store.setOwnRouterKey(router: "openrouter", key: "short", clear: false) }

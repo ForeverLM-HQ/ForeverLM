@@ -73,7 +73,8 @@ actor AIUsageTracker {
         subjectID: String? = AIUsageAttribution.subjectID,
         subjectType: String? = AIUsageAttribution.subjectType,
         subjectTitle: String? = AIUsageAttribution.sourceTitle,
-        ownKey: Bool? = nil
+        ownKey: Bool? = nil,
+        generationID: String? = nil
     ) async throws {
         let cleanProvider = provider.trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanModel = model.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -95,7 +96,24 @@ actor AIUsageTracker {
             throw error
         }
 
-        let usage = report ?? .empty
+        var usage = report ?? .empty
+        let estimatedCost = AIProviderPricing.estimatedCostUSD(
+            provider: cleanProvider,
+            model: cleanModel,
+            report: usage,
+            at: createdAt
+        )
+        // A call no price table can price and whose response named no charge
+        // keeps OpenRouter's generation id, so `resolveGenerationCost` reads
+        // what OpenRouter actually charged (product owner, 2026-11-07: an
+        // unpriced call "should not be an option").
+        let generationID = generationID
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .flatMap { $0.isEmpty ? nil : $0 }
+        let pricedAtRecord = estimatedCost != nil || (usage.providerReportedCost ?? 0) > 0
+        if !pricedAtRecord, let generationID {
+            usage.rawUsageJSON = Self.addingGenerationID(generationID, to: usage.rawUsageJSON)
+        }
         // Every call must belong to an activity. A chat/review session is the
         // stable activity when one exists; genuinely one-off calls use their
         // immutable event id. Keeping this invariant at the ledger boundary
@@ -130,12 +148,7 @@ actor AIUsageTracker {
             characterCount: usage.characterCount,
             durationSeconds: usage.durationSeconds,
             providerReportedCost: usage.providerReportedCost,
-            estimatedCost: AIProviderPricing.estimatedCostUSD(
-                provider: cleanProvider,
-                model: cleanModel,
-                report: usage,
-                at: createdAt
-            ),
+            estimatedCost: estimatedCost,
             currency: usage.currency,
             rawUsageJSON: usage.rawUsageJSON,
             clientPlatform: ManagedAI.clientPlatform,
@@ -172,6 +185,33 @@ actor AIUsageTracker {
         }
         #endif
         await Self.publishRecordedEvent(event)
+        if event.accountedCostUSD == nil, event.ledgerEstimatedCost == nil {
+            if let generationID {
+                Task { await Self.resolveGenerationCost(eventID: eventID, generationID: generationID) }
+            } else if event.paidByOwnKey {
+                // No server row will stand in for an own-key call, so a row
+                // with no price and nothing to read its charge by is a gap in
+                // the learner's spend: a model the price tables do not know.
+                usageLedgerLogger.fault("Usage row has no price: \(cleanProvider, privacy: .public)/\(cleanModel, privacy: .public) \(cleanOperation, privacy: .public)")
+            }
+        }
+    }
+
+    /// The row's usage JSON with OpenRouter's generation id added beside what
+    /// the response reported, so the repricing sweep can still read the
+    /// quantities and `CloudArticleTTS.generationID(inRawUsageJSON:)` finds
+    /// the id.
+    static func addingGenerationID(_ id: String, to raw: String?) -> String? {
+        var object: [String: Any] = [:]
+        if let data = raw?.data(using: .utf8),
+           let parsed = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] {
+            object = parsed
+        }
+        object["generation_id"] = id
+        guard let data = try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys]) else {
+            return raw
+        }
+        return String(data: data, encoding: .utf8)
     }
 
     /// Zeroes estimates OpenRouter says it never billed

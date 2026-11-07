@@ -99,10 +99,6 @@ enum KeychainService {
         /// from the retired `openRouterAPIKey` slot, which the upgrade purge
         /// deletes; this one is never purged.
         case ownOpenRouterKey = "own_openrouter_key"
-        /// A learner's own Ramp Router key, from before Ramp was removed on
-        /// 2026-09-23. Kept only so the upgrade purge can delete the iCloud
-        /// Keychain item; nothing reads or writes it.
-        case retiredOwnRampRouterKey = "own_ramp_router_key"
         /// This account's X25519 private key for family plans, raw and base64
         /// (docs/family-design.md). A parent seals a child's OpenRouter key to
         /// its public half; only this Keychain can open it. Synced, so a
@@ -286,8 +282,6 @@ enum KeychainService {
         // The learner's own router key follows them to their other devices, so
         // the iPhone is billed to the same router account the Mac is.
         .ownOpenRouterKey,
-        // Synced so the purge's delete reaches the iCloud copy.
-        .retiredOwnRampRouterKey,
         // A child's other Macs open the same sealed family key, and know it
         // was the family's key that they hold (docs/family-design.md).
         .familyDeviceKey,
@@ -2889,7 +2883,6 @@ enum KeychainService {
     /// This fixed-size upgrade cleanup runs once per installation; no request
     /// path can read these values after the update.
     static func purgeRetiredProviderData() {
-        purgeRetiredRampRouterData()
         let completionKey = "retiredProviderDataPurged.v1"
         guard !UserDefaults.standard.bool(forKey: completionKey) else { return }
 
@@ -2910,24 +2903,6 @@ enum KeychainService {
         ] {
             PreferenceStore.remove(forKey: key)
         }
-        UserDefaults.standard.set(true, forKey: completionKey)
-    }
-
-    /// Ramp Router was removed on 2026-09-23 in
-    /// the `ramp-router` change. A learner's own Ramp key is a live credential with nothing
-    /// left in the app to show or remove it, so it goes, and so do Ramp's
-    /// model slot, its user-added models and its context-window cache. Runs
-    /// once per installation. A stored route that still names "Ramp Router"
-    /// is left alone: it no longer decodes to a provider, so Settings reports
-    /// it as a selection to re-pick rather than silently running another model.
-    private static func purgeRetiredRampRouterData() {
-        let completionKey = "retiredRampRouterDataPurged.v1"
-        guard !UserDefaults.standard.bool(forKey: completionKey) else { return }
-        delete(.retiredOwnRampRouterKey)
-        for key in ["ramp_router_model", "chatModels.rampRouterCustom"] {
-            PreferenceStore.remove(forKey: key)
-        }
-        UserDefaults.standard.removeObject(forKey: "aiCapabilities.rampRouterContextLength")
         UserDefaults.standard.set(true, forKey: completionKey)
     }
 

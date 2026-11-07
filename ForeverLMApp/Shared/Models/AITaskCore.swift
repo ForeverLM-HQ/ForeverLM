@@ -250,10 +250,8 @@ struct ResolvedAITextRoute: Equatable, Sendable {
 /// Model preferences keep the canonical provider/model identity selected in
 /// Settings; the mode picks only the transport. OpenRouter is the one text
 /// transport. There is no first-party mode — the labs' own APIs carry media,
-/// never text — and Ramp Router was removed on 2026-09-23 (the product owner: "you can
-/// do only openrouter for now; ramp can be purged"). The enum stays so the
-/// server-named policy has a type, and so a second router is one case away.
-/// Reverting the `ramp-router` change (tag `ramp-router-last`) brings Ramp back.
+/// never text. The enum stays so the server-named policy has a type, and so a
+/// second router is one case away.
 enum AITextRoutingMode: String, Codable, CaseIterable, Sendable {
     case openRouter
 
