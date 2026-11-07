@@ -2533,8 +2533,12 @@ class StudioViewModel {
     /// open in its pane, the pane shows the neighbouring one and `tab` stays
     /// parked there; as the pane's only tab it closes the way the pane's ×
     /// does (`dismissCenterSurface`).
+    ///
+    /// `groupID` names the pane whose strip was clicked, which matters for a
+    /// place with a copy in several panes (`StudioCenterTab.copyablePlaces`).
     func closeCenterTab(
         _ tab: StudioCenterTab,
+        fromGroup groupID: UUID? = nil,
         in destinationWindowState: StudioWindowState? = nil
     ) {
         let destination = destinationWindowState ?? activeWindowState
@@ -2543,9 +2547,9 @@ class StudioViewModel {
             return
         }
         var layout = destination.centerTabGroups
-        guard let index = layout.groups.firstIndex(where: { $0.openTabs.contains(tab) }) else { return }
+        guard let index = layout.index(holding: tab, preferring: groupID, openOnly: true) else { return }
         guard layout.groups[index].closeTab(tab) else {
-            dismissCenterSurface(tab, in: destination)
+            dismissCenterSurface(tab, fromGroup: layout.groups[index].id, in: destination)
             return
         }
         // Assigned even when only the strip changed: `==` compares what the
@@ -2606,6 +2610,7 @@ class StudioViewModel {
     /// nowhere to park and the request is ignored.
     func deactivateCenterTab(
         _ tab: StudioCenterTab,
+        fromGroup groupID: UUID? = nil,
         in destinationWindowState: StudioWindowState? = nil
     ) {
         let destination = destinationWindowState ?? activeWindowState
@@ -2616,7 +2621,7 @@ class StudioViewModel {
             return
         }
         var layout = destination.centerTabGroups
-        guard let index = layout.groups.firstIndex(where: { $0.tabs.contains(tab) }),
+        guard let index = layout.index(holding: tab, preferring: groupID),
               layout.groups[index].activeTab == tab else { return }
         if layout.groups[index].closeTab(tab) {
             destination.centerTabGroups = layout
@@ -2651,12 +2656,13 @@ class StudioViewModel {
     /// destination for its permanent tabs.
     func closeCenterPane(
         containing tab: StudioCenterTab,
+        fromGroup groupID: UUID? = nil,
         in destinationWindowState: StudioWindowState? = nil
     ) {
         let windowState = destinationWindowState ?? activeWindowState
         var layout = windowState.centerTabGroups
         guard layout.groups.count > 1,
-              let source = layout.groups.firstIndex(where: { $0.tabs.contains(tab) }) else { return }
+              let source = layout.index(holding: tab, preferring: groupID) else { return }
 
         let closingTabs = layout.groups.remove(at: source).tabs
         let destination = min(source, layout.groups.count - 1)
@@ -2675,6 +2681,7 @@ class StudioViewModel {
     /// walk and opens New chat there (`leaveWalkthroughForNewChat`).
     func dismissCenterSurface(
         _ tab: StudioCenterTab,
+        fromGroup groupID: UUID? = nil,
         in destinationWindowState: StudioWindowState? = nil
     ) {
         let destination = destinationWindowState ?? activeWindowState
@@ -2693,11 +2700,11 @@ class StudioViewModel {
             }
             closeInNotebook(tab, in: destination)
         } else if destination.centerTabGroups.groups.count > 1 {
-            closeCenterPane(containing: tab, in: destination)
+            closeCenterPane(containing: tab, fromGroup: groupID, in: destination)
         } else if tab == .chat, leaveWalkthroughForNewChat(in: destination) {
             // The walk was the chat's content; the pane stays on Chat.
         } else {
-            deactivateCenterTab(tab, in: destination)
+            deactivateCenterTab(tab, fromGroup: groupID, in: destination)
         }
     }
 
@@ -2706,13 +2713,14 @@ class StudioViewModel {
     /// dropped on a strip. A pane left with no tab dissolves, VS Code style.
     func moveCenterTab(
         _ tab: StudioCenterTab,
+        fromGroup groupID: UUID? = nil,
         toGroup groupIndex: Int,
         at position: Int,
         in destinationWindowState: StudioWindowState? = nil
     ) {
         let window = destinationWindowState ?? activeWindowState
         var layout = window.centerTabGroups
-        guard let source = layout.groups.firstIndex(where: { $0.tabs.contains(tab) }) else { return }
+        guard let source = layout.index(holding: tab, preferring: groupID) else { return }
         var destination = max(0, min(groupIndex, layout.groups.count - 1))
         var insertAt = position
         if source == destination {
@@ -2743,12 +2751,13 @@ class StudioViewModel {
     /// A request past either end is ignored.
     func moveCenterGroup(
         containing tab: StudioCenterTab,
+        fromGroup groupID: UUID? = nil,
         by offset: Int,
         in destinationWindowState: StudioWindowState? = nil
     ) {
         let window = destinationWindowState ?? activeWindowState
         var layout = window.centerTabGroups
-        guard let source = layout.groups.firstIndex(where: { $0.tabs.contains(tab) }) else { return }
+        guard let source = layout.index(holding: tab, preferring: groupID) else { return }
         let destination = source + offset
         guard layout.groups.indices.contains(destination) else { return }
         layout.groups.swapAt(source, destination)
@@ -2779,16 +2788,66 @@ class StudioViewModel {
     /// adjacent-index no-op.
     func splitCenterTab(
         _ tab: StudioCenterTab,
+        fromGroup groupID: UUID? = nil,
         towardRight: Bool,
         in destinationWindowState: StudioWindowState? = nil
     ) {
         let window = destinationWindowState ?? activeWindowState
-        guard let source = window.centerTabGroups.groups.firstIndex(where: { $0.tabs.contains(tab) }) else { return }
+        guard let source = window.centerTabGroups.index(holding: tab, preferring: groupID) else { return }
+        let sourceID = window.centerTabGroups.groups[source].id
         if window.centerTabGroups.groups[source].openTabs == [tab] {
-            moveCenterGroup(containing: tab, by: towardRight ? 1 : -1, in: window)
+            moveCenterGroup(containing: tab, fromGroup: sourceID, by: towardRight ? 1 : -1, in: window)
         } else {
-            moveCenterTabToNewGroup(tab, at: source + (towardRight ? 1 : 0), in: window)
+            moveCenterTabToNewGroup(tab, fromGroup: sourceID, at: source + (towardRight ? 1 : 0), in: window)
         }
+    }
+
+    /// The split button at the end of a pane's strip, and ⌘\: a new pane
+    /// beside the pane at `groupIndex` showing `tab` — a fresh copy of it when
+    /// the place can stand in several panes (Pages: its list, to pick another
+    /// page), else the place itself moved out of the pane that has it, as
+    /// Split Right on its tab does. Nothing happens at the pane limit.
+    func splitPane(
+        at groupIndex: Int,
+        showing tab: StudioCenterTab,
+        towardRight: Bool = true,
+        in window: StudioWindowState
+    ) {
+        guard !BetaFeatures.unofferedCenterTabs.contains(tab),
+              !window.holdsNotebookSlot,
+              window.centerTabGroups.groups.indices.contains(groupIndex),
+              window.centerTabGroups.canCreateDraggedGroup else { return }
+        if window.isVoiceWorkspacePresented { window.isVoiceWorkspacePresented = false }
+        if window.memoryReviewFocusYields(to: tab) { leaveMemoryReviewFocus(in: window) }
+        if let layout = window.centerTabGroups.splitting(tab, besidePaneAt: groupIndex, towardRight: towardRight) {
+            let newIndex = towardRight ? groupIndex + 1 : groupIndex
+            let newID = layout.groups[newIndex].id
+            window.centerTabGroups = layout
+            window.focusedGroupID = newID
+            // The copy opens on the list of pages, not on the page beside it.
+            if tab == .notepad {
+                artifactIndexRequest = ArtifactIndexRequest(section: .docs, windowID: window.id, groupID: newID)
+            }
+            return
+        }
+        guard let source = window.centerTabGroups.index(holding: tab, preferring: nil) else { return }
+        let sourceID = window.centerTabGroups.groups[source].id
+        if source == groupIndex {
+            // The pane's own tab: it peels off beside, or a lone one moves.
+            splitCenterTab(tab, fromGroup: sourceID, towardRight: towardRight, in: window)
+        } else {
+            moveCenterTabToNewGroup(tab, fromGroup: sourceID, at: towardRight ? groupIndex + 1 : groupIndex, in: window)
+        }
+    }
+
+    /// ⌘\: a copy of what the pane last clicked in shows, beside it, when
+    /// that place can stand in several panes.
+    func splitFocusedPane(in window: StudioWindowState? = nil) {
+        let window = window ?? activeWindowState
+        let groups = window.centerTabGroups.groups
+        let index = groups.firstIndex(where: { $0.id == window.focusedGroupID }) ?? 0
+        guard groups.indices.contains(index), groups[index].activeTab.canStandInSeveralPanes else { return }
+        splitPane(at: index, showing: groups[index].activeTab, in: window)
     }
 
     /// Opens a hidden destination without replacing the surface currently
@@ -2850,9 +2909,21 @@ class StudioViewModel {
             if startsBlankChat { inWindow(destination) { requestNewChat() } }
             return
         }
+        let hadTab = destination.centerTabGroups.groups.indices.contains(groupIndex)
+            && destination.centerTabGroups.groups[groupIndex].tabs.contains(tab)
         guard let layout = destination.centerTabGroups.replacingPane(at: groupIndex, with: tab) else { return }
         if layout != destination.centerTabGroups { destination.centerTabGroups = layout }
         if startsBlankChat { inWindow(destination) { requestNewChat() } }
+        // A Pages copy made here opens on the list of pages, as a split's does.
+        // (`paneShowing` is non-nil only while two panes show Pages.)
+        if tab == .notepad, !hadTab, paneShowing(.notepad, in: destination) != nil,
+           destination.centerTabGroups.groups.indices.contains(groupIndex) {
+            artifactIndexRequest = ArtifactIndexRequest(
+                section: .docs,
+                windowID: destination.id,
+                groupID: destination.centerTabGroups.groups[groupIndex].id
+            )
+        }
     }
 
     /// Places a workspace destination at the requested outer edge: a tab
@@ -2863,6 +2934,7 @@ class StudioViewModel {
     /// panes the tab joins the edge pane as a tab of its own.
     func placeCenterTabAtEdge(
         _ tab: StudioCenterTab,
+        fromGroup groupID: UUID? = nil,
         leading: Bool,
         in destinationWindowState: StudioWindowState? = nil
     ) {
@@ -2880,7 +2952,7 @@ class StudioViewModel {
         // notebook never rearranges, and whose layout is the synced template.
         if routeIntoNotebook(tab, in: destination) { return }
         var layout = destination.centerTabGroups
-        guard let source = layout.groups.firstIndex(where: { $0.tabs.contains(tab) }) else { return }
+        guard let source = layout.index(holding: tab, preferring: groupID) else { return }
         let edge = leading ? 0 : layout.groups.count
         let isPaneOfItsOwn = layout.groups[source].openTabs == [tab]
 
@@ -3138,12 +3210,13 @@ class StudioViewModel {
     /// At the three-pane limit the split request is ignored.
     func moveCenterTabToNewGroup(
         _ tab: StudioCenterTab,
+        fromGroup groupID: UUID? = nil,
         at groupIndex: Int,
         in destinationWindowState: StudioWindowState? = nil
     ) {
         let window = destinationWindowState ?? activeWindowState
         var layout = window.centerTabGroups
-        guard let source = layout.groups.firstIndex(where: { $0.tabs.contains(tab) }) else { return }
+        guard let source = layout.index(holding: tab, preferring: groupID) else { return }
         if layout.groups[source].tabs == [tab] {
             let group = layout.groups.remove(at: source)
             let destination = max(0, min(source < groupIndex ? groupIndex - 1 : groupIndex, layout.groups.count))
@@ -3240,7 +3313,11 @@ class StudioViewModel {
         let destination = destinationWindowState ?? activeWindowState
         destination.artifactCanvasNotebookID = nil
         activateCenterTab(.notepad, in: destination)
-        artifactIndexRequest = ArtifactIndexRequest(section: .docs, windowID: destination.id)
+        artifactIndexRequest = ArtifactIndexRequest(
+            section: .docs,
+            windowID: destination.id,
+            groupID: paneShowing(.notepad, in: destination)
+        )
     }
 
     /// The rail's Sites row: the same place-not-a-page rule as Docs, for the
@@ -3323,7 +3400,22 @@ class StudioViewModel {
         } else {
             activateCenterTab(section.centerTab, in: destination)
         }
-        artifactRevealRequest = ArtifactRevealRequest(artifactID: artifactID, section: section, windowID: destination.id)
+        artifactRevealRequest = ArtifactRevealRequest(
+            artifactID: artifactID,
+            section: section,
+            windowID: destination.id,
+            groupID: paneShowing(section.centerTab, in: destination)
+        )
+    }
+
+    /// The pane a request for `tab`'s content goes to when the window shows
+    /// `tab` in more than one pane (`StudioCenterTab.copyablePlaces`): the
+    /// one last clicked in, else the first showing it. Nil when only one pane
+    /// can answer, so every canvas of the window may.
+    func paneShowing(_ tab: StudioCenterTab, in window: StudioWindowState) -> UUID? {
+        let showing = window.centerTabGroups.groups.filter { $0.activeTab == tab }
+        guard showing.count > 1 else { return nil }
+        return (showing.first { $0.id == window.focusedGroupID } ?? showing[0]).id
     }
 
     /// The Notebook a doc opens scoped to in `windowState`: the notebook the

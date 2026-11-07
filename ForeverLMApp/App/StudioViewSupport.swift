@@ -2346,6 +2346,12 @@ private struct StudioPanelTrailingOverflowKey: EnvironmentKey {
     static let defaultValue: CGFloat = 0
 }
 
+/// The pane (`StudioCenterTabGroups.Group.id`) a surface is drawn in; nil
+/// outside the tab layout, a notebook's slots included.
+private struct StudioPaneGroupIDKey: EnvironmentKey {
+    static let defaultValue: UUID? = nil
+}
+
 extension EnvironmentValues {
     var studioTitlebarBandHeight: CGFloat? {
         get { self[StudioTitlebarBandHeightKey.self] }
@@ -2355,6 +2361,13 @@ extension EnvironmentValues {
     var studioPanelTrailingOverflow: CGFloat {
         get { self[StudioPanelTrailingOverflowKey.self] }
         set { self[StudioPanelTrailingOverflowKey.self] = newValue }
+    }
+
+    /// Which pane a request aimed at one copy of a place reaches
+    /// (`ArtifactRevealRequest.groupID`).
+    var studioPaneGroupID: UUID? {
+        get { self[StudioPaneGroupIDKey.self] }
+        set { self[StudioPaneGroupIDKey.self] = newValue }
     }
 
     var studioCenterPaneHeaderLeadingInset: CGFloat {
@@ -2989,6 +3002,9 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
     @State private var groupFractions: [CGFloat] = []
     @State private var dragStartFractions: [CGFloat] = []
     @State private var draggingTab: StudioCenterTab?
+    /// The pane the dragged tab left: with Pages in two panes the tab alone
+    /// does not say which copy moves.
+    @State private var draggingFromGroupID: UUID?
     @State private var dropTarget: StudioCenterTabDropTarget?
     /// The pane a sidebar destination is being dragged over, by slot.
     @State private var replaceTarget: Int?
@@ -3128,6 +3144,7 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                         .frame(height: StudioPanelChrome.headerHeight)
                 }
                 tabContent(group.activeTab)
+                    .environment(\.studioPaneGroupID, group.id)
             }
         } corner: { corner in
             StudioPaneSwapControl(
@@ -3198,23 +3215,29 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                     title: tab.stripTitle(readerShowsVideo: readerShowsVideo),
                     systemImage: tab.stripSystemImage(readerShowsVideo: readerShowsVideo),
                     isActive: group.activeTab == tab,
-                    action: { vm.activateCenterTab(tab, in: windowState) },
+                    action: {
+                        // This pane's copy, when the place stands in several.
+                        windowState.focusedGroupID = group.id
+                        vm.activateCenterTab(tab, in: windowState)
+                    },
                     payload: StudioCenterTabDragPayload.string(for: tab),
                     onDragBegan: {
                         draggingTab = tab
+                        draggingFromGroupID = group.id
                         dropTarget = nil
                     },
                     onDragEnded: {
                         draggingTab = nil
+                        draggingFromGroupID = nil
                         dropTarget = nil
                     },
                     splitLeftEnabled: isAlone ? groupIndex > 0 : !atCapacity,
                     splitRightEnabled: isAlone ? groupIndex < windowState.centerTabGroups.groups.count - 1 : !atCapacity,
-                    onSplitLeft: { vm.splitCenterTab(tab, towardRight: false, in: windowState) },
-                    onSplitRight: { vm.splitCenterTab(tab, towardRight: true, in: windowState) },
+                    onSplitLeft: { vm.splitCenterTab(tab, fromGroup: group.id, towardRight: false, in: windowState) },
+                    onSplitRight: { vm.splitCenterTab(tab, fromGroup: group.id, towardRight: true, in: windowState) },
                     onClose: {
                         withAnimation(.easeInOut(duration: 0.16)) {
-                            vm.closeCenterTab(tab, in: windowState)
+                            vm.closeCenterTab(tab, fromGroup: group.id, in: windowState)
                         }
                     }
                 )
@@ -3222,7 +3245,7 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                     target: .tab(group: groupIndex, index: tabIndex),
                     draggingTab: $draggingTab,
                     dropTarget: $dropTarget,
-                    perform: { vm.moveCenterTab($0, toGroup: groupIndex, at: tabIndex, in: windowState) }
+                    perform: { vm.moveCenterTab($0, fromGroup: draggingFromGroupID, toGroup: groupIndex, at: tabIndex, in: windowState) }
                 ))
             }
             // + adds a tab: what the pane shows now stays one of its tabs
@@ -3268,13 +3291,17 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                     target: .stripEnd(group: groupIndex),
                     draggingTab: $draggingTab,
                     dropTarget: $dropTarget,
-                    perform: { vm.moveCenterTab($0, toGroup: groupIndex, at: .max, in: windowState) }
+                    perform: { vm.moveCenterTab($0, fromGroup: draggingFromGroupID, toGroup: groupIndex, at: .max, in: windowState) }
                 ))
 
             // No pane × at the end: every tab carries its own, and a lone
             // tab's × dismisses the pane the way the pane × did (product
             // owner, 2026-11-07: "if each of those individual tabs will have a
             // small X mark, then we don't need that big X mark anymore").
+            // In its place, the split a terminal has: a new pane beside this
+            // one (product owner, 2026-11-07: "have like two things side by
+            // side whenever we want ... to click like a plus").
+            splitButton(for: group, at: groupIndex)
         }
         // The leftmost pane's first tab starts after what the leading edge
         // holds: the traffic lights in the band, and in full screen ‹ › and
@@ -3285,6 +3312,47 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
             : StudioTopBar.centerTabStripHorizontalPadding)
         .padding(.trailing, StudioTopBar.centerTabStripHorizontalPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// The split button: a menu of places, the pick opening in a new pane to
+    /// the right (`StudioViewModel.splitPane`). A place that can stand in
+    /// several panes opens as a fresh copy; any other moves out of the pane
+    /// that has it. What this pane shows is offered only when it can be
+    /// copied, since moving it would only move this pane. Disabled at the
+    /// pane limit.
+    private func splitButton(for group: StudioCenterTabGroups.Group, at groupIndex: Int) -> some View {
+        let destinations = StudioPaneSwap.newTabDestinations.filter {
+            $0.tab != group.activeTab || $0.tab.canStandInSeveralPanes
+        }
+        return TitlebarBandButton(
+            help: "Split Right (⌘\\)",
+            accessibilityLabel: "Split Right",
+            accessibilityIdentifier: "studio.centerPane.\(groupIndex).split",
+            washInset: StudioPaneSwap.washInset,
+            cornerRadius: 6,
+            isEnabled: windowState.centerTabGroups.canCreateDraggedGroup,
+            action: {},
+            menu: { [vm, windowState] in
+                StudioPaneSwapMenu(
+                    destinations: destinations,
+                    current: group.activeTab,
+                    onSelect: { destination in
+                        withAnimation(.easeInOut(duration: 0.22)) {
+                            vm.splitPane(at: groupIndex, showing: destination.tab, in: windowState)
+                        }
+                        if destination.startsBlankChat { vm.inWindow(windowState) { vm.requestNewChat() } }
+                    }
+                )
+            }
+        ) {
+            Image(systemName: "square.split.2x1")
+                .zoomedSystemFont(size: 12, weight: .medium)
+                .foregroundStyle(.secondary)
+                .frame(
+                    width: StudioPanelChrome.centerTabCloseButtonSize,
+                    height: StudioPanelChrome.centerTabCloseButtonSize
+                )
+        }
     }
 
     private var dropIndicatorCapsule: some View {
@@ -3348,6 +3416,7 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                         // scene state, not by the key-window registry.
                         vm.placeCenterTabAtEdge(
                             payload.tab,
+                            fromGroup: draggingFromGroupID,
                             leading: leading,
                             in: windowState
                         )

@@ -1131,6 +1131,10 @@ struct ArtifactRevealRequest: Equatable {
     /// linked reference followed (`openDoc(_:revealing:in:)`); nil opens the
     /// doc where it opens.
     var block: DocBlockReveal? = nil
+    /// The pane whose canvas answers, when the place stands in more than one
+    /// pane of the window (`StudioCenterTab.copyablePlaces`); nil lets any
+    /// canvas of the window and section answer.
+    var groupID: UUID? = nil
     let token = UUID()
 }
 
@@ -1156,6 +1160,8 @@ struct ArtifactIndexRequest: Equatable {
     /// window shouldn't change at all". The canvas of any other window leaves
     /// the request alone.
     let windowID: UUID
+    /// The pane whose canvas shows the index, as for `ArtifactRevealRequest`.
+    var groupID: UUID? = nil
     let token = UUID()
 }
 

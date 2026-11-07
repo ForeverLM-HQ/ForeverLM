@@ -99,6 +99,18 @@ enum StudioCenterTab: String, Codable, CaseIterable, Identifiable {
     /// Ideas, which a Doc's idea link opens beside it (`openIdea`).
     static let artifactKinds: Set<StudioCenterTab> = [.notepad, .sites, .ideas]
 
+    /// The places that may stand in more than one pane of a window at once, a
+    /// copy in each, as a terminal splits a pane (product owner, 2026-11-07:
+    /// "just like in a terminal window, we need to be able to have like two
+    /// things side by side whenever we want"). Pages came first because each
+    /// Pages view already keeps the page it shows (`ArtifactCanvas`); a place
+    /// joins once what it shows is its pane's and not the window's. Every
+    /// other place stays once per window.
+    static let copyablePlaces: Set<StudioCenterTab> = [.notepad]
+
+    /// Whether a copy of this place may open in a second pane.
+    var canStandInSeveralPanes: Bool { Self.copyablePlaces.contains(self) }
+
     /// What the place registry calls it (`ShellPlaces`).
     var title: String { ShellPlaces.descriptor(for: self).title }
 }
@@ -263,6 +275,29 @@ struct StudioCenterTabGroups: Equatable {
     /// True when a tab dragged to an edge may open another pane there.
     var canCreateDraggedGroup: Bool { groups.count < Self.draggedGroupCount }
 
+    /// The pane holding `tab`, preferring `groupID`'s when it does: a copyable
+    /// place (`StudioCenterTab.copyablePlaces`) can stand in several panes, so
+    /// a request from one pane's strip names that pane. With `openOnly`, only a
+    /// pane whose strip shows the tab counts.
+    func index(holding tab: StudioCenterTab, preferring groupID: UUID?, openOnly: Bool = false) -> Int? {
+        let holds: (Group) -> Bool = { openOnly ? $0.openTabs.contains(tab) : $0.tabs.contains(tab) }
+        if let groupID, let preferred = groups.firstIndex(where: { $0.id == groupID }), holds(groups[preferred]) {
+            return preferred
+        }
+        return groups.firstIndex(where: holds)
+    }
+
+    /// The arrangement with a fresh copy of `tab` in a new pane beside the
+    /// pane at `index` — the split a terminal makes. Nil when `tab` cannot
+    /// stand in a second pane, `index` is not a pane, or the window already
+    /// has `draggedGroupCount` panes.
+    func splitting(_ tab: StudioCenterTab, besidePaneAt index: Int, towardRight: Bool) -> StudioCenterTabGroups? {
+        guard tab.canStandInSeveralPanes, groups.indices.contains(index), canCreateDraggedGroup else { return nil }
+        var layout = self
+        layout.groups.insert(Group(tabs: [tab], activeTab: tab), at: towardRight ? index + 1 : index)
+        return layout
+    }
+
     /// Whether every pane has the same strip as in `other`, which `==` leaves
     /// out (`Group.openTabs`).
     func hasSameOpenTabs(as other: StudioCenterTabGroups) -> Bool {
@@ -278,7 +313,12 @@ struct StudioCenterTabGroups: Equatable {
     /// itself (`StudioWindowState.activateCenterTabForThisWindowOnly`) share.
     func activating(_ tab: StudioCenterTab, focusedGroupID: UUID? = nil) -> StudioCenterTabGroups? {
         var layout = self
-        if let open = layout.groups.firstIndex(where: { $0.openTabs.contains(tab) }) {
+        // With a copy in several panes: the pane last clicked in, else one
+        // showing it, else the first that has it open.
+        let openIn = layout.groups.indices.filter { layout.groups[$0].openTabs.contains(tab) }
+        if let open = openIn.first(where: { layout.groups[$0].id == focusedGroupID })
+            ?? openIn.first(where: { layout.groups[$0].activeTab == tab })
+            ?? openIn.first {
             layout.groups[open].activeTab = tab
             return layout
         }
@@ -304,13 +344,19 @@ struct StudioCenterTabGroups: Equatable {
     ///
     /// Nil when `index` is not a pane or no pane holds `tab`.
     func replacingPane(at index: Int, with tab: StudioCenterTab) -> StudioCenterTabGroups? {
-        guard groups.indices.contains(index),
-              let source = groups.firstIndex(where: { $0.tabs.contains(tab) }) else { return nil }
+        guard groups.indices.contains(index) else { return nil }
         var layout = self
-        if source == index {
+        if groups[index].tabs.contains(tab) {
             layout.groups[index].activeTab = tab
             return layout
         }
+        // A copyable place shown elsewhere gets a copy of its own here.
+        if tab.canStandInSeveralPanes, groups.contains(where: { $0.openTabs.contains(tab) }) {
+            layout.groups[index].tabs.append(tab)
+            layout.groups[index].activeTab = tab
+            return layout
+        }
+        guard let source = groups.firstIndex(where: { $0.tabs.contains(tab) }) else { return nil }
         if layout.groups[source].tabs == [tab] {
             layout.groups.swapAt(source, index)
             return layout
@@ -347,21 +393,29 @@ struct StudioCenterTabGroups: Equatable {
 
     /// Restores the invariants no persisted, synced, or mutated value may
     /// break: every permanent tab appears exactly once (first appearance wins,
-    /// missing tabs join the last group), no group is empty, every group's
+    /// missing tabs join the last group) — a copyable place once in each pane
+    /// that has it (`StudioCenterTab.copyablePlaces`) — no group is empty, every group's
     /// active tab is one of its members, and there are at most
     /// `draggedGroupCount` groups (extras merge into the last, parked). Like the panel
     /// orders, this must run at every assignment, not just at load, or a partial
     /// synced value would permanently drop tabs.
     static func reconciled(_ raw: StudioCenterTabGroups) -> StudioCenterTabGroups {
-        var seen = Set<StudioCenterTab>()
         // Copied and mutated rather than rebuilt, so a group that survives
         // reconciliation keeps its `id`. Constructing a replacement here would
         // hand every pane a new identity on each assignment, which is exactly
         // the remount this identity exists to avoid.
-        var groups: [Group] = raw.groups.map { group in
+        var groups = raw.groups.filter { !$0.tabs.isEmpty }
+        while groups.count > draggedGroupCount {
+            let extra = groups.removeLast()
+            groups[draggedGroupCount - 1].tabs.append(contentsOf: extra.tabs)
+        }
+        var seen = Set<StudioCenterTab>()
+        groups = groups.map { group in
             var group = group
+            var inPane = Set<StudioCenterTab>()
             group.tabs = group.tabs.filter { tab in
-                return seen.insert(tab).inserted
+                guard inPane.insert(tab).inserted else { return false }
+                return seen.insert(tab).inserted || tab.canStandInSeveralPanes
             }
             return group
         }
@@ -369,10 +423,6 @@ struct StudioCenterTabGroups: Equatable {
         if groups.isEmpty { groups = [Group(tabs: [], activeTab: .reader)] }
         for tab in StudioCenterTab.permanentTabs where !seen.contains(tab) {
             groups[groups.count - 1].tabs.append(tab)
-        }
-        while groups.count > draggedGroupCount {
-            let extra = groups.removeLast()
-            groups[draggedGroupCount - 1].tabs.append(contentsOf: extra.tabs)
         }
         return StudioCenterTabGroups(groups: groups.map { group in
             var group = group

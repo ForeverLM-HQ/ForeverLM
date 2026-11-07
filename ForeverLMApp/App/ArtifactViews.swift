@@ -156,9 +156,17 @@ struct ArtifactCanvas: View {
     @Environment(StudioWindowState.self) private var windowState
     @Environment(\.openWindow) private var openWindow
     @Environment(\.pageSideChatHosting) private var sideChatHosting
+    /// The pane this canvas is drawn in: with Pages in two panes, a request
+    /// naming a pane is this canvas's only when it names this one.
+    @Environment(\.studioPaneGroupID) private var paneGroupID
     let section: ArtifactSection
     let notebookID: String?
     let onBack: (() -> Void)?
+
+    /// Whether a request aimed at `groupID`'s pane is this canvas's.
+    private func answers(paneOf groupID: UUID?) -> Bool {
+        groupID == nil || paneGroupID == nil || groupID == paneGroupID
+    }
 
     @State private var selectedArtifactID: String?
     /// The canvas is showing its index: every doc listed across the pane and
@@ -423,7 +431,8 @@ struct ArtifactCanvas: View {
                 // Only the window and the section the request names answer;
                 // another window's canvas, and the other section's, leave it
                 // for the one that lists the record.
-                guard let request, request.windowID == windowState.id, request.section == section else { return }
+                guard let request, request.windowID == windowState.id, request.section == section,
+                      answers(paneOf: request.groupID) else { return }
                 // Consumed even when the doc is not in this canvas's list: a
                 // Notebook-scoped canvas and the global one both observe this,
                 // and leaving the request standing would make the next reveal
@@ -2744,6 +2753,7 @@ struct ArtifactCanvas: View {
         guard let request = vm.artifactRevealRequest,
               request.windowID == windowState.id,
               request.section == section,
+              answers(paneOf: request.groupID),
               artifacts.contains(where: { $0.id == request.artifactID }) else { return }
         vm.artifactRevealRequest = nil
         searchText = ""
@@ -2756,6 +2766,7 @@ struct ArtifactCanvas: View {
     private var isAwaitingRevealedArtifact: Bool {
         guard let request = vm.artifactRevealRequest else { return false }
         return request.windowID == windowState.id && request.section == section
+            && answers(paneOf: request.groupID)
     }
 
     /// The canvas's first answer, given before its first frame rather than
@@ -2816,7 +2827,8 @@ struct ArtifactCanvas: View {
         guard notebookID == nil,
               let request = vm.artifactIndexRequest,
               request.windowID == windowState.id,
-              request.section == section else { return }
+              request.section == section,
+              answers(paneOf: request.groupID) else { return }
         vm.artifactIndexRequest = nil
         searchText = ""
         // The Space shows the section's own place: Pages, or Sites.

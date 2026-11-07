@@ -5091,6 +5091,98 @@ struct ScheduleChatNavigationTests {
         #expect(vm.centerTabGroups.groups[0].openTabs == [.artifacts])
     }
 
+    @Test("Pages can stand in two panes, once in each, and round-trips")
+    func pagesStandInTwoPanes() {
+        let raw = StudioCenterTabGroups(groups: [
+            .init(tabs: [.notepad, .chat, .notepad], activeTab: .notepad),
+            .init(tabs: [.notepad, .library, .chat], activeTab: .notepad),
+        ])
+        let value = StudioCenterTabGroups.reconciled(raw)
+        #expect(value.groups.count == 2)
+        // Once per pane; a place that cannot be copied stays once per window.
+        #expect(value.groups[0].tabs.filter { $0 == .notepad }.count == 1)
+        #expect(value.groups[1].tabs.prefix(2) == [.notepad, .library])
+        #expect(!value.groups[1].tabs.contains(.chat))
+        #expect(value.groups.map(\.activeTab) == [.notepad, .notepad])
+
+        let decoded = StudioCenterTabGroups.fromPersisted(value.persistedRepresentation)
+        #expect(decoded == value)
+    }
+
+    @Test("a split copies Pages beside its pane and nothing that cannot be copied")
+    func splittingCopiesOnlyCopyablePlaces() {
+        let layout = StudioCenterTabGroups.reconciled(.init(groups: [
+            .init(tabs: [.notepad, .chat], activeTab: .notepad),
+        ]))
+        let split = layout.splitting(.notepad, besidePaneAt: 0, towardRight: true)
+        #expect(split?.groups.map(\.activeTab) == [.notepad, .notepad])
+        #expect(split?.groups[1].tabs == [.notepad])
+        #expect(layout.splitting(.library, besidePaneAt: 0, towardRight: true) == nil)
+
+        // No pane past the limit.
+        let full = StudioCenterTabGroups.reconciled(.init(groups: [
+            .init(tabs: [.notepad], activeTab: .notepad),
+            .init(tabs: [.notepad], activeTab: .notepad),
+            .init(tabs: [.notepad, .chat], activeTab: .notepad),
+        ]))
+        #expect(full.groups.count == StudioCenterTabGroups.draggedGroupCount)
+        #expect(full.splitting(.notepad, besidePaneAt: 0, towardRight: true) == nil)
+    }
+
+    @Test("the split button opens a Pages copy on the list, and its tab closes only that copy")
+    func splitPaneOpensPagesCopy() {
+        let restoreLayout = capturedCenterTabLayout()
+        defer { restoreLayout() }
+        let vm = makeViewModel()
+        let window = vm.activeWindowState
+        vm.centerTabGroups = StudioCenterTabGroups(groups: [
+            .init(tabs: [.artifacts, .chat, .notepad], activeTab: .notepad, openTabs: [.chat, .notepad]),
+        ])
+        let originalID = vm.centerTabGroups.groups[0].id
+
+        vm.splitPane(at: 0, showing: .notepad, in: window)
+
+        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.notepad, .notepad])
+        let copyID = vm.centerTabGroups.groups[1].id
+        #expect(window.focusedGroupID == copyID)
+        // The copy shows the list of pages, and only the copy answers.
+        #expect(vm.artifactIndexRequest?.groupID == copyID)
+        // A page opened now goes to the pane last clicked in.
+        #expect(vm.paneShowing(.notepad, in: window) == copyID)
+        window.focusedGroupID = originalID
+        #expect(vm.paneShowing(.notepad, in: window) == originalID)
+
+        // A strip click in the copy shows the copy's tab, not the first one.
+        vm.replaceCenterPane(at: 1, with: .memory, in: window)
+        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.notepad, .memory])
+        window.focusedGroupID = copyID
+        vm.activateCenterTab(.notepad)
+        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.notepad, .notepad])
+
+        // The copy's × closes the copy; the first Pages stays as it was.
+        vm.closeCenterTab(.memory, fromGroup: copyID)
+        vm.closeCenterTab(.notepad, fromGroup: copyID)
+        #expect(vm.centerTabGroups.groups.count == 1)
+        #expect(vm.centerTabGroups.groups[0].id == originalID)
+        #expect(vm.centerTabGroups.groups[0].activeTab == .notepad)
+        #expect(vm.centerTabGroups.groups[0].tabs.filter { $0 == .notepad }.count == 1)
+    }
+
+    @Test("the split button moves a place that cannot be copied into a new pane")
+    func splitPaneMovesOtherPlaces() {
+        let restoreLayout = capturedCenterTabLayout()
+        defer { restoreLayout() }
+        let vm = makeViewModel()
+        vm.centerTabGroups = StudioCenterTabGroups(groups: [
+            .init(tabs: [.artifacts, .chat, .library], activeTab: .chat, openTabs: [.chat]),
+        ])
+
+        vm.splitPane(at: 0, showing: .library, in: vm.activeWindowState)
+
+        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.chat, .library])
+        #expect(!vm.centerTabGroups.groups[0].tabs.contains(.library))
+    }
+
     @Test("a tab dragged to an edge opens beside the rest")
     func tabDraggedToEdgeSplits() {
         let restoreLayout = capturedCenterTabLayout()

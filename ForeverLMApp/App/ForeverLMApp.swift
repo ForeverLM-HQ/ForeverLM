@@ -880,6 +880,18 @@ struct ForeverLMApp: App {
                     studioViewModel.openPluginsPlace(nil, in: state)
                 }
 
+                // A copy of the place the pane last clicked in shows, in a new
+                // pane to its right, as a terminal splits (the split button at
+                // the end of a pane's strip offers every place). Pages only
+                // for now (`StudioCenterTab.copyablePlaces`).
+                Button("Split Pane Right") {
+                    guard let state = activeWindowState else { return }
+                    withAnimation(.easeInOut(duration: 0.22)) {
+                        studioViewModel.splitFocusedPane(in: state)
+                    }
+                }
+                .keyboardShortcut("\\", modifiers: .command)
+
                 // The Atlas (docs/atlas-design.md): a topic laid out as
                 // concepts at levels of abstraction, in the key window. A beta
                 // feature with the Canvas (`BetaFeatures`).
