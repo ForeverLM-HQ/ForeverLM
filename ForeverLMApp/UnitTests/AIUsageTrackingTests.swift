@@ -544,6 +544,28 @@ struct AIUsageTrackingTests {
         #expect(AIActivitySettingsSection.byokRoute(chat.models)?.label == "BYOK 1 of 2")
     }
 
+    @Test("Each model in a row carries its own BYOK capsule")
+    func eachModelCarriesItsOwnBYOKCapsule() {
+        let models = [
+            AIUsageModelUse(provider: "OpenRouter", model: "openai/gpt-6.1-terra", callCount: 3, byokCallCount: 3),
+            AIUsageModelUse(provider: "OpenRouter", model: "anthropic/claude-opus-5.5", callCount: 2, byokCallCount: 1, creditCallCount: 1),
+            AIUsageModelUse(provider: "OpenRouter", model: "deepseek/deepseek-v4.1-flash", callCount: 1),
+        ]
+        let named = AIActivitySettingsSection.namedModels(models)
+        #expect(named.map(\.calls) == [3, 2, 1])
+        #expect(named.map { AIActivitySettingsSection.byokRoute($0.uses)?.label } == ["BYOK", "BYOK 1 of 2", nil])
+        #expect(AIActivitySettingsSection.modelHelpLine(named[0]).hasSuffix("3 calls, BYOK"))
+        #expect(AIActivitySettingsSection.modelHelpLine(named[2]).hasSuffix("1 call"))
+
+        // Two ledger ids under one picker name keep their BYOK counts together.
+        let split = AIActivitySettingsSection.namedModels([
+            AIUsageModelUse(provider: "OpenRouter", model: "anthropic/claude-opus-5.5", callCount: 1, byokCallCount: 1),
+            AIUsageModelUse(provider: "OpenRouter", model: "anthropic/claude-opus-5.5", callCount: 1, byokCallCount: 1),
+        ])
+        #expect(split.count == 1)
+        #expect(AIActivitySettingsSection.byokRoute(split[0].uses)?.label == "BYOK")
+    }
+
     @Test("The BYOK capsule names credits only for models a lab key pays for")
     func byokCapsuleCallsOutCreditsOnlyForLabKeys() {
         let allByok = [AIUsageModelUse(provider: "OpenRouter", model: "anthropic/claude-opus-5.5", callCount: 4, byokCallCount: 4)]

@@ -7,6 +7,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 ## Unreleased
 
 - **GPT models run on your own OpenAI key.** With an OpenAI key added to OpenRouter (Settings › Integrations), a GPT model OpenAI serves itself now always runs on OpenAI, not Azure or Amazon Bedrock, so the call uses your key instead of OpenRouter credits, as Claude already did with an Anthropic key. AI Usage flags GPT calls billed to credits the same way.
+- **Every model in AI Usage shows its own key.** A row that used two models (say GPT 6.1 Terra and Opus 5.5) now puts a **BYOK** capsule beside each, so you can see which key paid for which; hover the models for each one's calls.
 - **Linked References at the foot of a Page are plain links.** Each page that links here is listed once, by its title, instead of quoting every paragraph that links. Click one to open it.
 
 ## 0.192.0 (build 272) — 2026-11-07

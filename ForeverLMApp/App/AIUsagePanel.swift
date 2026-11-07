@@ -801,27 +801,32 @@ struct AIActivitySettingsSection: View {
         let named = Self.namedModels(models)
         if !named.isEmpty {
             HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Text(Self.modelsText(named))
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .help(
-                        named.map { "\($0.name) — \(Self.exactCountText($0.calls)) call\($0.calls == 1 ? "" : "s")" }
-                            .joined(separator: "\n")
-                    )
-                if let route = Self.byokRoute(models) {
-                    Text(route.label)
-                        .font(.caption2.weight(.medium))
-                        .foregroundStyle(route.isBYOK ? Color.green : Color.orange)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 1)
-                        .background(
-                            Capsule().fill((route.isBYOK ? Color.green : Color.orange).opacity(0.14))
-                        )
-                        .fixedSize()
-                        .help(route.help)
+                // Each model carries its own BYOK capsule, so a row that mixes
+                // a GPT and a Claude model says which key paid for which.
+                HStack(alignment: .firstTextBaseline, spacing: 6) {
+                    ForEach(Array(named.prefix(Self.shownModelCount).enumerated()), id: \.element.name) { index, model in
+                        if index > 0 {
+                            Text("·")
+                                .font(.caption)
+                                .foregroundStyle(.tertiary)
+                        }
+                        Text(model.name)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                        if let route = Self.byokRoute(model.uses) {
+                            byokCapsule(route)
+                        }
+                    }
+                    if named.count > Self.shownModelCount {
+                        Text("and \(Self.exactCountText(named.count - Self.shownModelCount)) more")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .fixedSize()
+                    }
                 }
+                .help(named.map(Self.modelHelpLine).joined(separator: "\n"))
                 if let change {
                     Button("Change Model…") { openModelSetting(change) }
                         .buttonStyle(.link)
@@ -833,7 +838,7 @@ struct AIActivitySettingsSection: View {
         }
     }
 
-    /// Whether a row's calls ran on the learner's own upstream key (OpenRouter
+    /// Whether one model's calls in a row ran on the learner's own upstream key (OpenRouter
     /// BYOK) or were billed to OpenRouter credits, from the `is_byok` flag
     /// OpenRouter returned with each call. Credits are called out only for
     /// the models a learner brings a lab key for (Claude, and GPT models
@@ -869,17 +874,48 @@ struct AIActivitySettingsSection: View {
         )
     }
 
+    private func byokCapsule(_ route: (label: String, isBYOK: Bool, help: String)) -> some View {
+        Text(route.label)
+            .font(.caption2.weight(.medium))
+            .foregroundStyle(route.isBYOK ? Color.green : Color.orange)
+            .padding(.horizontal, 7)
+            .padding(.vertical, 1)
+            .background(
+                Capsule().fill((route.isBYOK ? Color.green : Color.orange).opacity(0.14))
+            )
+            .fixedSize()
+            .help(route.help)
+    }
+
+    /// How many models a row names before "and N more"; the rest are in its
+    /// tooltip, each with its calls and the key that paid for them.
+    static let shownModelCount = 2
+
+    /// One model's calls in a row, under the name the model picker gives it.
+    struct NamedModelUse: Equatable {
+        let name: String
+        let uses: [AIUsageModelUse]
+        var calls: Int { uses.reduce(0) { $0 + $1.callCount } }
+    }
+
     /// Models by the name the model picker gives them, most calls first. Two
     /// ledger ids can share a name ("openai/gpt-5.6-sol" and "gpt-5.6-sol"),
-    /// so their calls are added together under it.
-    private static func namedModels(_ models: [AIUsageModelUse]) -> [(name: String, calls: Int)] {
-        var calls: [String: Int] = [:]
+    /// so their calls (and their BYOK counts) are kept together under it.
+    static func namedModels(_ models: [AIUsageModelUse]) -> [NamedModelUse] {
+        var uses: [String: [AIUsageModelUse]] = [:]
         for use in models {
-            calls[modelName(use), default: 0] += use.callCount
+            uses[modelName(use), default: []].append(use)
         }
-        return calls
-            .map { (name: $0.key, calls: $0.value) }
+        return uses
+            .map { NamedModelUse(name: $0.key, uses: $0.value) }
             .sorted { $0.calls != $1.calls ? $0.calls > $1.calls : $0.name < $1.name }
+    }
+
+    /// A model's line in the row's tooltip: "GPT 6.1 Terra — 3 calls, BYOK".
+    static func modelHelpLine(_ model: NamedModelUse) -> String {
+        let calls = "\(exactCountText(model.calls)) call\(model.calls == 1 ? "" : "s")"
+        guard let route = byokRoute(model.uses) else { return "\(model.name) — \(calls)" }
+        return "\(model.name) — \(calls), \(route.label)"
     }
 
     /// A ledger row's model as the model picker names it. A host the app no
@@ -887,12 +923,6 @@ struct AIActivitySettingsSection: View {
     private static func modelName(_ use: AIUsageModelUse) -> String {
         guard let provider = AIProvider(ledgerName: use.provider) else { return use.model }
         return AIModelCatalog.pickerName(provider: provider, modelID: use.model)
-    }
-
-    private static func modelsText(_ named: [(name: String, calls: Int)]) -> String {
-        let shown = named.prefix(2).map(\.name).joined(separator: ", ")
-        let rest = named.count - 2
-        return rest > 0 ? "\(shown) and \(exactCountText(rest)) more" : shown
     }
 
     private static func countText(_ value: Int) -> String {
