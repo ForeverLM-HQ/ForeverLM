@@ -500,6 +500,18 @@ extension StudioSidebar {
         .contextMenu {
             tabContextMenu(tab: tab)
         }
+        // What is hidden in this type, hanging from its tab: the list the
+        // footer at the bottom of the sources opens, without scrolling a long
+        // list to its end to reach it.
+        .popover(
+            isPresented: Binding(
+                get: { hiddenItemsPopoverTab == tab },
+                set: { if !$0, hiddenItemsPopoverTab == tab { hiddenItemsPopoverTab = nil } }
+            ),
+            arrowEdge: .bottom
+        ) {
+            HiddenItemsPage(model: HiddenItemsModel.build(for: tab, vm: vm, in: windowState))
+        }
         .overlay {
             let isVisible = dragVisibility.isDragging
                 && !dragVisibility.draggedArticleIds.isEmpty
@@ -631,6 +643,17 @@ extension StudioSidebar {
                 Task { await vm.fetchMissingPodcastTranscripts() }
             } label: {
                 Label("Fetch Missing Transcripts", systemImage: "captions.bubble")
+            }
+            Divider()
+        }
+        let hiddenCounts = HiddenItemsModel.footerCounts(for: tab, vm: vm)
+        if hiddenCounts.groups + hiddenCounts.items > 0 {
+            Button {
+                // Chosen from a menu, so the popover waits one turn for the
+                // menu to finish closing, as Customize does.
+                Task { @MainActor in hiddenItemsPopoverTab = tab }
+            } label: {
+                Label("Show Hidden \(tab.rawValue)…", systemImage: "eye.slash")
             }
             Divider()
         }

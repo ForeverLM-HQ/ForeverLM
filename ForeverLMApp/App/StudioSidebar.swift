@@ -91,6 +91,9 @@ struct StudioSidebar: View, Equatable {
     /// The Customize popover: every source type with a pin checkmark, its icon
     /// and a reorder handle, opened from the tab bar's ⋯ menu.
     @State var isSourceTabCustomizePresented = false
+    /// The source type whose hidden shows, groups and sources hang in a
+    /// popover from its tab, opened by the tab's Show Hidden menu item.
+    @State var hiddenItemsPopoverTab: StudioSidebarTab?
     /// Coalesces the native List selection callback and the row's explicit tap
     /// action. AppKit normally delivers both for one click, but controls, row
     /// whitespace, and newly inserted rows can occasionally deliver only the tap.
