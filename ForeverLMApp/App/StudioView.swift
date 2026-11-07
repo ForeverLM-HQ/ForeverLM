@@ -149,7 +149,14 @@ struct StudioView: View {
                 .studioInsetCard()
             }
             .animation(.easeInOut(duration: 0.22), value: windowState.drawsNavigationRail)
-            .animation(.easeInOut(duration: 0.22), value: windowState.homeSidebarBesidePlace)
+            // The Space's sidebar follows the one sidebar choice: a value
+            // left over from before it was one (a Space folded while Home's
+            // sidebar showed) or set by another path that brings Home's back
+            // is put in step, so the Space never opens without a sidebar the
+            // Library and Home were showing (product owner, 2026-11-07).
+            .onChange(of: windowState.navigationRailVisible, initial: true) { _, visible in
+                if spaceSidebarHiddenByLearner == visible { spaceSidebarHiddenByLearner = !visible }
+            }
             .animation(.easeInOut(duration: 0.22), value: isMemoryReviewFocused)
         }
     }

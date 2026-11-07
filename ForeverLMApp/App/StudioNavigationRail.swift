@@ -158,12 +158,12 @@ struct StudioRailHiddenItems: Equatable {
     }
 }
 
-/// A place the learner keeps on the icon strip, under its line, as Codex
-/// keeps the rows pinned to its strip (product owner, 2026-10-12: "the left
-/// sidebar never gets collapsed basically so there can be some shortcuts
-/// there similar to codex app"). The strip's own rows — Spaces, Memory,
-/// Library — stay above the ⋯, which offers every other place and keeps one
-/// here; a shortcut is one of those places, one click away from anywhere.
+/// A place the learner keeps on the icon strip, after the strip's own rows
+/// and before the ⋯, as Codex keeps the rows pinned to its strip (product
+/// owner, 2026-10-12: "the left sidebar never gets collapsed basically so
+/// there can be some shortcuts there similar to codex app"). The ⋯ offers
+/// every other place and keeps one here; a shortcut is one of those places,
+/// one click away from anywhere.
 enum StudioRailShortcut: Hashable, Identifiable, Sendable {
     /// One of the Space sidebar's places: Notebooks, Board, Pages, Sites, Canvases,
     /// Images or Google Drive.
@@ -679,9 +679,9 @@ struct StudioNavigationRail: View {
     }
 
     /// The window's rail, Codex's: a + for a new chat, Spaces, Memory,
-    /// Library and Plugins as icons, the ⋯ with every other place, and under a short
-    /// line the places the learner kept there (`StudioRailShortcuts`), from
-    /// the ⋯ or by dragging a Space sidebar row onto the strip; then
+    /// Library and Plugins as icons, then the places the learner kept there
+    /// (`StudioRailShortcuts`), from the ⋯ or by dragging a Space sidebar row
+    /// onto the strip, then the ⋯ with every other place; then
     /// the day's calendar glyph, whose popover is the schedule, and the
     /// account. The notebooks and the chats are Home's sidebar (`fullRail`),
     /// which shows beside a chat or the Reader; "Plan your day?" and "Cards
@@ -709,32 +709,29 @@ struct StudioNavigationRail: View {
                 case .newChat, .browser: EmptyView()
                 }
             }
-            // Always drawn: it is also the way back for a hidden row, its
-            // menu ending with Show in Sidebar.
+            // The kept places stand with the strip's own rows, above the ⋯,
+            // with no line between: under a line they read as a second,
+            // stray group (product owner, 2026-11-07: "those new icons
+            // shouldn't show up under that like dividing bar").
+            ForEach(shortcuts) { shortcut in
+                shortcutButton(shortcut, isSelected: shortcut == litShortcut)
+                    // A kept one dragged to the end shows there instead.
+                    .opacity(shortcut == landing ? 0.35 : 1)
+            }
+            if let landing {
+                RailGlyph(systemImage: landing.systemImage, assetImage: landing.assetImage)
+                    .background(StudioSelectionBackground(isSelected: true, isHovered: false))
+                    .opacity(0.6)
+                    .accessibilityHidden(true)
+                    .transition(.opacity)
+            }
+            // Always drawn, last: it is also the way back for a hidden row,
+            // its menu ending with Show in Sidebar.
             RailMoreButton(
                 places: StudioRailShortcut.offered(listsCanvases: vm.listsCanvases)
                     .filter { !shortcuts.contains($0) },
                 open: openShortcut
             )
-            if !shortcuts.isEmpty || landing != nil {
-                Rectangle()
-                    .fill(Color(nsColor: .separatorColor))
-                    .frame(width: 24, height: 1)
-                    .padding(.vertical, 6)
-                    .accessibilityHidden(true)
-                ForEach(shortcuts) { shortcut in
-                    shortcutButton(shortcut, isSelected: shortcut == litShortcut)
-                        // A kept one dragged to the end shows there instead.
-                        .opacity(shortcut == landing ? 0.35 : 1)
-                }
-                if let landing {
-                    RailGlyph(systemImage: landing.systemImage, assetImage: landing.assetImage)
-                        .background(StudioSelectionBackground(isSelected: true, isHovered: false))
-                        .opacity(0.6)
-                        .accessibilityHidden(true)
-                        .transition(.opacity)
-                }
-            }
             Spacer(minLength: 0)
             if account.creditsAreEmpty, !vm.isScreenRecordModeActive {
                 Button { onOpenSettings(.aiUsage) } label: {

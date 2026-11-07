@@ -601,18 +601,10 @@ final class StudioWindowState: Identifiable {
         if navigationRailVisible != shown { navigationRailVisible = shown }
     }
 
-    /// Whether Home's sidebar shows beside a place that has the window's card
-    /// to itself (the Library, Memory, the Canvas, the Atlas, Plugins). It
-    /// starts shown and stays until the learner folds it with the sidebar
-    /// toggle, so opening Memory never makes the sidebar vanish (product owner,
-    /// 2026-10-26: "when I click memory, the left sidebar disappears randomly
-    /// ... get rid of that"). Before then those places opened without it and
-    /// the toggle brought it in. Presentation, not layout: absent from
-    /// `Snapshot`.
-    var homeSidebarBesidePlace = true
-
-    /// Whether the window is on such a place: no notebook, no Space, and a
-    /// pane on a place with no sidebar of its own (`ShellPlace.sidebar` nil).
+    /// Whether the window is on a place that has the window's card to itself
+    /// (the Library, Memory, the Canvas, the Atlas, Plugins): no notebook, no
+    /// Space, and a pane on a place with no sidebar of its own
+    /// (`ShellPlace.sidebar` nil).
     var isOnPlaceOfItsOwn: Bool {
         guard notebook == nil, !showsSpace else { return false }
         return centerTabGroups.groups.contains { ShellPlaces.descriptor(for: $0.activeTab).sidebar == nil }
@@ -625,17 +617,20 @@ final class StudioWindowState: Identifiable {
     /// `spaceSidebarHidden` is this Mac's `space.sidebarHidden`.
     func sidebarToggleReadsShown(spaceSidebarHidden: Bool) -> Bool {
         if let notebook { return !notebook.sourcesCollapsed }
-        if isOnPlaceOfItsOwn { return drawsNavigationRail && homeSidebarBesidePlace }
+        if isOnPlaceOfItsOwn { return drawsNavigationRail }
         return drawsNavigationRail && !spaceSidebarHidden
     }
 
     /// The sidebar toggle pressed, from its button, ⌃⌘S or the View menu.
-    /// In a notebook it folds or shows the Sources column.
-    /// On a place of its own it brings Home's sidebar in beside it, or folds
-    /// it, and leaves the learner's choice for Home and the Space alone.
-    /// Elsewhere it folds Home's sidebar and the Space's together, never the
-    /// icon strip. Returns the Space sidebar's hidden state to store in
-    /// `space.sidebarHidden`, or nil when that choice stays as it is.
+    /// In a notebook it folds or shows the Sources column. Everywhere else it
+    /// is one choice: Home's sidebar and the Space's fold and come back
+    /// together, wherever it was pressed, so moving between Home, the Space
+    /// and a place of its own never makes the sidebar appear or vanish
+    /// (product owner, 2026-10-26: "when I click memory, the left sidebar
+    /// disappears randomly ... get rid of that"; 2026-11-07, of the Space:
+    /// "randomly that like left chats bar disappears, which kind of looks
+    /// weird"). Never the icon strip. Returns the Space sidebar's hidden
+    /// state to store in `space.sidebarHidden`, or nil in a notebook.
     func setSidebarShownFromToggle(_ shown: Bool) -> Bool? {
         // A notebook's one sidebar beside the icon strip is its Sources
         // column; folded, it leaves the window rather than leaving a second
@@ -643,11 +638,6 @@ final class StudioWindowState: Identifiable {
         if notebook != nil {
             notebook?.sourcesCollapsed = !shown
             if !shown { notebook?.sourcesExpanded = false }
-            return nil
-        }
-        if isOnPlaceOfItsOwn {
-            if shown { setNavigationRailShown(true) }
-            if homeSidebarBesidePlace != shown { homeSidebarBesidePlace = shown }
             return nil
         }
         setNavigationRailShown(shown)
@@ -681,8 +671,7 @@ final class StudioWindowState: Identifiable {
     /// card to themselves (`ShellPlace.sidebar` nil) — the Library, the
     /// Canvas, the Atlas and Memory. Chats, the Reader and the rest of what
     /// the learner opens from the Space are Home's. There is no Notebooks home
-    /// page since 2026-10-09; this is only the window that shows Home's
-    /// sidebar unasked (`homeSidebarBesidePlace`).
+    /// page since 2026-10-09.
     var isOnHome: Bool {
         guard notebook == nil, !showsSpace else { return false }
         return !centerTabGroups.groups.contains { ShellPlaces.descriptor(for: $0.activeTab).sidebar == nil }
@@ -694,10 +683,9 @@ final class StudioWindowState: Identifiable {
     /// moved into home ... that is where all the notebooks are"). The rail
     /// is the 52-point icon strip everywhere; this second sidebar is Home's,
     /// as the Space's is the Space's.
-    /// Beside a place of its own it shows only while the learner asked for it
-    /// there (`homeSidebarBesidePlace`).
+    /// It shows beside a place of its own too, as the one sidebar choice says.
     var showsHomeSidebar: Bool {
-        showsNavigationRail && (isOnHome || (homeSidebarBesidePlace && isOnPlaceOfItsOwn))
+        showsNavigationRail && (isOnHome || isOnPlaceOfItsOwn)
     }
 
     /// Transient presentation belongs to the window too. It is deliberately not

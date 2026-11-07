@@ -11,9 +11,12 @@ import SwiftUI
 // each of its jobs went.
 
 /// The glyph a notebook is drawn by where it has no cover or emoji of its
-/// own: the grid of notebooks the app has always used for the word.
+/// own: a folder, as Add to Notebook and Move to Notebook draw it. Not the
+/// grid it was, which is Plugins' on the icon strip, where the two stood
+/// side by side and read as one (product owner, 2026-11-07: "the notebooks
+/// has the wrong icon").
 enum NotebookGlyph {
-    static let systemImage = "square.grid.2x2"
+    static let systemImage = "folder"
 }
 
 /// A question a notebook's menu asks, answered by the dialog on the row or

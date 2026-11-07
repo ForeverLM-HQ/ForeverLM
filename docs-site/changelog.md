@@ -6,6 +6,10 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **The sidebar stays when you move between places.** Showing or hiding the sidebar is one choice now: the Space no longer opens without it when Home and the Library were showing it.
+- **Notebooks have their own icon**, a folder, instead of the grid Plugins uses.
+- **Places kept on the icon strip sit with its other icons**, above the ⋯, with no dividing line.
+
 ## 0.188.0 (build 268) — 2026-11-07
 
 **Highlights:**

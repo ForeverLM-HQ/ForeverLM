@@ -247,7 +247,7 @@ struct HomeSidebarTests {
         #expect(!window.showsHomeSidebar)
     }
 
-    @Test("Beside the Library Home's sidebar shows until the toggle folds it, and the toggle brings it back, leaving Home and the Space as they were")
+    @Test("The sidebar toggle is one choice: folded or shown beside the Library, it is the same on Home, Memory and the Space")
     func toggleOnPlaceOfItsOwn() {
         let restore = capturingWindowDefaults()
         defer { restore() }
@@ -257,23 +257,23 @@ struct HomeSidebarTests {
         #expect(window.isOnPlaceOfItsOwn)
         #expect(window.showsHomeSidebar, "the sidebar is beside the Library from the start")
         #expect(window.sidebarToggleReadsShown(spaceSidebarHidden: false))
-        #expect(window.setSidebarShownFromToggle(false) == nil, "the Space's sidebar keeps the learner's choice")
+        #expect(window.setSidebarShownFromToggle(false) == true, "the Space's sidebar folds with it")
         #expect(!window.showsHomeSidebar)
-        #expect(window.setSidebarShownFromToggle(true) == nil)
-        #expect(window.showsHomeSidebar)
+        #expect(!window.navigationRailVisible)
         window.centerTabGroups = layout(.chat)
-        #expect(window.showsHomeSidebar, "Home keeps its sidebar")
+        #expect(!window.showsHomeSidebar, "folded beside the Library, it stays folded on Home")
+        #expect(window.setSidebarShownFromToggle(true) == false, "shown on Home, the Space's comes back too")
+        #expect(window.showsHomeSidebar)
         window.centerTabGroups = layout(.memory)
         #expect(window.showsHomeSidebar, "it stays beside the places of their own")
-        #expect(window.setSidebarShownFromToggle(false) == nil)
-        #expect(!window.showsHomeSidebar)
-        #expect(window.navigationRailVisible, "folding it there leaves Home's sidebar on Home")
-        window.centerTabGroups = layout(.chat)
+        #expect(window.sidebarToggleReadsShown(spaceSidebarHidden: false))
+        window.centerTabGroups = layout(.library)
         #expect(window.showsHomeSidebar)
 
         window.navigationRailVisible = false
         window.centerTabGroups = layout(.library)
-        #expect(window.setSidebarShownFromToggle(true) == nil)
+        #expect(!window.sidebarToggleReadsShown(spaceSidebarHidden: true))
+        #expect(window.setSidebarShownFromToggle(true) == false)
         #expect(window.navigationRailVisible, "a hidden sidebar comes back when asked for beside the Library")
         #expect(window.showsHomeSidebar)
 
