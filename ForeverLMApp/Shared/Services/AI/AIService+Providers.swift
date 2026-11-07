@@ -693,9 +693,20 @@ extension AIService {
     /// is built: the builder is synchronous and takes them from the cache. A
     /// failed read is left to `requireOpenRouterRegion`, which then refuses
     /// the body and says why.
+    ///
+    /// On the learner's own key it also reads the endpoints of an OpenAI
+    /// model before the send, so `pinLabModelToItsOwnEndpoint` knows whether
+    /// OpenAI serves it; a cold first send would otherwise go out unpinned
+    /// and land on Azure or Bedrock, billed to OpenRouter credits.
     static func primeOpenRouterRegion(provider: AIProvider, model: String) async {
         guard routesThroughOpenRouter(provider) else { return }
         let slug = openAICompatibleModelID(provider: provider, model: model)
+        if slug.hasPrefix("openai/"),
+           ManagedAI.sendsOwnKeyDirect(toHost: ManagedAI.OwnKeyRouter.openRouter.host) {
+            _ = try? await CancellableWait.run {
+                try await OpenRouterEndpointTierCatalog.shared.tiers(for: slug)
+            }
+        }
         guard let region = openRouterRegion(forModelSlug: slug) else { return }
         _ = try? await CancellableWait.run {
             try await OpenRouterRegionalEndpoints.shared.endpoints(for: slug, region: region)
@@ -713,21 +724,38 @@ extension AIService {
         try OpenRouterRegionalEndpoints.requireConfined(payload, region: region)
     }
 
-    /// Claude on the learner's own OpenRouter key runs on Anthropic's endpoint.
-    /// The throughput sort below otherwise lands on Bedrock or Vertex, where an
-    /// Anthropic key does not apply, so the call is billed to OpenRouter
-    /// credits (Opus 5.5, 2026-10-24: Bedrock, `is_byok: false`, on every call
-    /// since the key was added). Fallbacks stay off: when the key cannot serve
-    /// the call, it fails instead of quietly spending credits. A pinned host,
-    /// a Speed tier and a region all name their own endpoints and win.
-    static func pinAnthropicModelToItsOwnEndpoint(_ payload: inout [String: Any]) {
-        guard let model = payload["model"] as? String, model.hasPrefix("anthropic/"),
+    /// The lab whose own endpoint serves a model, when the learner's provider
+    /// key for that lab (OpenRouter → Settings → Integrations) can pay for it:
+    /// Anthropic for every Claude model, and OpenAI for a model OpenAI itself
+    /// hosts. OpenAI's open-weight models (gpt-oss) are served by other hosts
+    /// only, so an OpenAI model is named only once its endpoint list, read
+    /// from the cache, shows an OpenAI endpoint. Nil for every other model.
+    static func ownKeyLab(forModelSlug slug: String) -> String? {
+        if slug.hasPrefix("anthropic/") { return "anthropic" }
+        guard slug.hasPrefix("openai/"),
+              let tiers = OpenRouterEndpointTierCatalog.cachedTiers(slug: slug),
+              tiers.contains(where: { $0.tag == "openai" || $0.tag.hasPrefix("openai/") })
+        else { return nil }
+        return "openai"
+    }
+
+    /// A Claude or GPT model on the learner's own OpenRouter key runs on its
+    /// lab's own endpoint. The throughput sort below otherwise lands on
+    /// Bedrock or Vertex (Claude) or Azure or Bedrock (GPT), where the lab's
+    /// key does not apply, so the call is billed to OpenRouter credits (Opus
+    /// 5.5, 2026-10-24: Bedrock, `is_byok: false`, on every call since the key
+    /// was added). Fallbacks stay off: when the key cannot serve the call, it
+    /// fails instead of quietly spending credits. A pinned host, a Speed tier
+    /// and a region all name their own endpoints and win.
+    static func pinLabModelToItsOwnEndpoint(_ payload: inout [String: Any]) {
+        guard let model = payload["model"] as? String,
+              let lab = ownKeyLab(forModelSlug: model),
               ManagedAI.sendsOwnKeyDirect(toHost: ManagedAI.OwnKeyRouter.openRouter.host),
               openRouterRegion(forModelSlug: model) == nil
         else { return }
         var routing = payload["provider"] as? [String: Any] ?? [:]
         guard routing["order"] == nil, routing["only"] == nil else { return }
-        routing["order"] = ["anthropic"]
+        routing["order"] = [lab]
         routing["allow_fallbacks"] = false
         payload["provider"] = routing
     }
@@ -782,7 +810,7 @@ extension AIService {
             }
         }
         if hostPreference?.mode != .cheapest {
-            pinAnthropicModelToItsOwnEndpoint(&payload)
+            pinLabModelToItsOwnEndpoint(&payload)
         }
         if let model = payload["model"] as? String {
             let cachingTags = OpenRouterEndpointTierCatalog.cachedTiers(slug: model).flatMap {

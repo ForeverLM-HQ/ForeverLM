@@ -836,8 +836,9 @@ struct AIActivitySettingsSection: View {
     /// Whether a row's calls ran on the learner's own upstream key (OpenRouter
     /// BYOK) or were billed to OpenRouter credits, from the `is_byok` flag
     /// OpenRouter returned with each call. Credits are called out only for
-    /// Anthropic models, the ones a learner brings a key for; a row with no
-    /// flag recorded says nothing.
+    /// the models a learner brings a lab key for (Claude, and GPT models
+    /// OpenAI serves itself: `AIService.ownKeyLab`); a row with no flag
+    /// recorded says nothing.
     static func byokRoute(_ models: [AIUsageModelUse]) -> (label: String, isBYOK: Bool, help: String)? {
         let byok = models.reduce(0) { $0 + $1.byokCallCount }
         let credits = models.reduce(0) { $0 + $1.creditCallCount }
@@ -849,16 +850,22 @@ struct AIActivitySettingsSection: View {
                 : "\(byok) of \(total) calls used your own provider key; \(credits) were billed to OpenRouter credits."
             return (label, true, help)
         }
-        let anthropicCredits = models
-            .filter { $0.model.hasPrefix("anthropic/") }
-            .reduce(0) { $0 + $1.creditCallCount }
-        guard anthropicCredits > 0 else { return nil }
+        var creditsByLab: [String: Int] = [:]
+        for use in models where use.creditCallCount > 0 {
+            if let lab = AIService.ownKeyLab(forModelSlug: use.model) {
+                creditsByLab[lab, default: 0] += use.creditCallCount
+            }
+        }
+        guard let lab = creditsByLab.max(by: { $0.value < $1.value })?.key else { return nil }
+        let (name, otherHosts) = lab == "openai"
+            ? ("OpenAI", "Azure or Bedrock")
+            : ("Anthropic", "Bedrock or Vertex")
         return (
             "OpenRouter credits",
             false,
-            "OpenRouter billed these Anthropic calls to its own credits, not your Anthropic key. "
-                + "Its Logs page names the host that served them; Bedrock or Vertex cannot use an Anthropic key. "
-                + "Check Settings → Integrations → Anthropic on openrouter.ai, and that \"Always use this key\" is on."
+            "OpenRouter billed these \(name) calls to its own credits, not your \(name) key. "
+                + "Its Logs page names the host that served them; \(otherHosts) cannot use an \(name) key. "
+                + "Check Settings → Integrations → \(name) on openrouter.ai, and that \"Always use this key\" is on."
         )
     }
 

@@ -544,8 +544,8 @@ struct AIUsageTrackingTests {
         #expect(AIActivitySettingsSection.byokRoute(chat.models)?.label == "BYOK 1 of 2")
     }
 
-    @Test("The BYOK capsule names credits only for Anthropic models")
-    func byokCapsuleCallsOutCreditsOnlyForAnthropic() {
+    @Test("The BYOK capsule names credits only for models a lab key pays for")
+    func byokCapsuleCallsOutCreditsOnlyForLabKeys() {
         let allByok = [AIUsageModelUse(provider: "OpenRouter", model: "anthropic/claude-opus-5.5", callCount: 4, byokCallCount: 4)]
         #expect(AIActivitySettingsSection.byokRoute(allByok)?.label == "BYOK")
         #expect(AIActivitySettingsSection.byokRoute(allByok)?.isBYOK == true)
@@ -553,6 +553,13 @@ struct AIUsageTrackingTests {
         let anthropicCredits = [AIUsageModelUse(provider: "OpenRouter", model: "anthropic/claude-opus-5.5", callCount: 4, creditCallCount: 4)]
         #expect(AIActivitySettingsSection.byokRoute(anthropicCredits)?.label == "OpenRouter credits")
         #expect(AIActivitySettingsSection.byokRoute(anthropicCredits)?.isBYOK == false)
+
+        OpenRouterEndpointTierCatalog.cache([
+            OpenRouterEndpointTier(tag: "openai", providerName: "OpenAI", inputUSDPerMTokens: 1, outputUSDPerMTokens: 4, cachedInputUSDPerMTokens: nil, discount: nil),
+        ], for: "openai/byok-capsule-test")
+        let openAICredits = [AIUsageModelUse(provider: "OpenRouter", model: "openai/byok-capsule-test", callCount: 3, creditCallCount: 3)]
+        #expect(AIActivitySettingsSection.byokRoute(openAICredits)?.label == "OpenRouter credits")
+        #expect(AIActivitySettingsSection.byokRoute(openAICredits)?.help.contains("OpenAI key") == true)
 
         let otherCredits = [AIUsageModelUse(provider: "OpenRouter", model: "deepseek/deepseek-v4.1-flash", callCount: 4, creditCallCount: 4)]
         #expect(AIActivitySettingsSection.byokRoute(otherCredits) == nil)

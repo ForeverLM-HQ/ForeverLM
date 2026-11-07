@@ -2206,8 +2206,8 @@ struct ChatRobustnessTests {
         #expect((direct["usage"] as? [String: Bool])?["include"] == true)
     }
 
-    @Test("Claude on the learner's own OpenRouter key is pinned to Anthropic's endpoint, so BYOK applies")
-    func ownKeyClaudeRunsOnAnthropicEndpoint() throws {
+    @Test("Claude and GPT on the learner's own OpenRouter key are pinned to their lab's endpoint, so BYOK applies")
+    func ownKeyLabModelsRunOnTheirLabEndpoint() throws {
         defer { ManagedAI.ownKeyOverrideForTesting = nil }
         func body(_ model: String) -> [String: Any] {
             ["model": model, "messages": [["role": "user", "content": "Hello"]] as [[String: Any]]]
@@ -2221,15 +2221,45 @@ struct ChatRobustnessTests {
         #expect(routing["allow_fallbacks"] as? Bool == false)
         #expect(routing["only"] == nil)
 
+        // A GPT model OpenAI serves itself runs on OpenAI's endpoint, not
+        // Azure or Bedrock, so an OpenAI key added to OpenRouter applies.
+        // Slugs of this test's own: other suites clear the shared cache.
+        func tier(_ tag: String, _ host: String) -> OpenRouterEndpointTier {
+            OpenRouterEndpointTier(
+                tag: tag, providerName: host, inputUSDPerMTokens: 1, outputUSDPerMTokens: 4,
+                cachedInputUSDPerMTokens: nil, discount: nil
+            )
+        }
+        OpenRouterEndpointTierCatalog.cache(
+            [tier("azure", "Azure"), tier("openai", "OpenAI"), tier("amazon-bedrock/global", "Amazon Bedrock")],
+            for: "openai/byok-test-gpt"
+        )
+        var gpt = body("openai/byok-test-gpt")
+        AIService.applyOpenRouterPayloadExtras(&gpt, provider: .openRouter)
+        let gptRouting = try #require(gpt["provider"] as? [String: Any])
+        #expect(gptRouting["order"] as? [String] == ["openai"])
+        #expect(gptRouting["allow_fallbacks"] as? Bool == false)
+
+        // OpenAI's open weights run only on other hosts: the throughput route stays.
+        OpenRouterEndpointTierCatalog.cache([tier("groq", "Groq"), tier("deepinfra/bf16", "DeepInfra")], for: "openai/byok-test-oss")
+        var openWeights = body("openai/byok-test-oss")
+        AIService.applyOpenRouterPayloadExtras(&openWeights, provider: .openRouter)
+        #expect((openWeights["provider"] as? [String: Any])?["order"] == nil)
+
+        // An OpenAI model whose endpoints were never read is not guessed at.
+        var unread = body("openai/byok-test-unread")
+        AIService.applyOpenRouterPayloadExtras(&unread, provider: .openRouter)
+        #expect((unread["provider"] as? [String: Any])?["order"] == nil)
+
         // Another lab's model keeps the throughput route.
-        var other = body("openai/gpt-oss-120b")
+        var other = body("deepseek/deepseek-v4.1-flash")
         AIService.applyOpenRouterPayloadExtras(&other, provider: .openRouter)
         #expect((other["provider"] as? [String: Any])?["order"] == nil)
 
         // A Speed tier names its own endpoint and is left alone.
         var pinned = body("anthropic/claude-opus-5.5")
         pinned["provider"] = ["order": ["anthropic/fast"], "allow_fallbacks": false] as [String: Any]
-        AIService.pinAnthropicModelToItsOwnEndpoint(&pinned)
+        AIService.pinLabModelToItsOwnEndpoint(&pinned)
         #expect((pinned["provider"] as? [String: Any])?["order"] as? [String] == ["anthropic/fast"])
 
         // No own key: the proxy's rail keeps OpenRouter's routing.
