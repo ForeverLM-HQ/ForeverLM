@@ -6,6 +6,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **The Library is one list again.** The **To Read** and **Follow up** pills are gone. Each row says where its source stands instead: an unread title in black and a read one in grey, a flag with how many passages wait to be followed up (click it to list them and tick them off), and how many cards it has kept. The iPhone keeps its To Read and Follow up rows for now.
 - **No big × at the end of a pane's tabs.** Each tab has its own ×, so the pane's × after the **+** is gone. Closing a pane's only tab closes the pane, as that × did.
 
 ## 0.189.0 (build 269) — 2026-11-07

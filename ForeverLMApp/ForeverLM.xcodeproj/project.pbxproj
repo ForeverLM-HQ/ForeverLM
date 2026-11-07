@@ -1396,7 +1396,6 @@
 		B023D0FACC911BFF58723CE9 /* ReviewSpeechService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0E9ADC4E91701B72A03B505E /* ReviewSpeechService.swift */; };
 		B04906065C477FBDDB86356E /* CourseQuizPlanningTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8C5ED9146346140A94FE1F79 /* CourseQuizPlanningTests.swift */; };
 		B08605FBBCD80911889D548C /* MCPTools+TextbookReadings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 274C3B286F83F777CCD286F7 /* MCPTools+TextbookReadings.swift */; };
-		B0BB760DDD5522D1219B62AB /* LibraryToRead.swift in Sources */ = {isa = PBXBuildFile; fileRef = 998263F719F789F56CEEF4E1 /* LibraryToRead.swift */; };
 		B0DD8AA21DC612A56AB110B0 /* OpeningIsAReadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03B3F9F5FD25F244AEF257C6 /* OpeningIsAReadTests.swift */; };
 		B0FB951801E091FAD8737E9D /* NotebookWorkspaceView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E216ABE01DFFD0103A942CA /* NotebookWorkspaceView.swift */; };
 		B111C8623B810E4072DF4B66 /* StorageService+NotebookFiles.swift in Sources */ = {isa = PBXBuildFile; fileRef = 81333BBF7CAD14F5DF1380B1 /* StorageService+NotebookFiles.swift */; };
@@ -3176,7 +3175,6 @@
 		992E8211E6A503F06A51002E /* MigrationOldChangesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationOldChangesTests.swift; sourceTree = "<group>"; };
 		9961D8F5B6E4548202F216B7 /* MemoryReviewEngagementTracker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryReviewEngagementTracker.swift; sourceTree = "<group>"; };
 		9969F44EA0066F4FA137DF1A /* NotificationPermission.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotificationPermission.swift; sourceTree = "<group>"; };
-		998263F719F789F56CEEF4E1 /* LibraryToRead.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LibraryToRead.swift; sourceTree = "<group>"; };
 		99BBC0CB00BC6BCCB75F0A55 /* AudioOverview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioOverview.swift; sourceTree = "<group>"; };
 		99DAE97A867C9ADBD8E495FB /* MobileMemoryReviewStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileMemoryReviewStore.swift; sourceTree = "<group>"; };
 		99E2B609F52C326DB4231AD9 /* KnowledgeStore+TaglessSaveRepair.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "KnowledgeStore+TaglessSaveRepair.swift"; sourceTree = "<group>"; };
@@ -5306,7 +5304,6 @@
 				9B30F47D08D13B4DCEF0ED43 /* LibraryFollowUp.swift */,
 				31106AE2DC916D341742047C /* LibraryPane.swift */,
 				DA5B87C81770E3BB5CBD079A /* LibrarySourcePresence.swift */,
-				998263F719F789F56CEEF4E1 /* LibraryToRead.swift */,
 				57B20E82F6FE0F6F420E516C /* LinkedDocViews.swift */,
 				5A874E6EA09743E569D70219 /* MacArticleSpeechSettings.swift */,
 				E5DAE941E4DD24EEDAA2E055 /* MacArticleSpeechVoicePreview.swift */,
@@ -7813,7 +7810,6 @@
 				7CB809DE4760CFCD0B46B660 /* LibraryFollowUp.swift in Sources */,
 				E59C5091F6893D0BA0DF42C2 /* LibraryPane.swift in Sources */,
 				96C40A327902E70DAFA022A1 /* LibrarySourcePresence.swift in Sources */,
-				B0BB760DDD5522D1219B62AB /* LibraryToRead.swift in Sources */,
 				5B768D5BFCF52C1E0CEA69A1 /* LinkedDocViews.swift in Sources */,
 				24D10580F2D16089040280AB /* LinkedGoogleDoc.swift in Sources */,
 				DB0B0EAFFBE328F0A81862A0 /* LinkedPage.swift in Sources */,

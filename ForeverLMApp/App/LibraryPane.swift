@@ -63,42 +63,33 @@ extension EnvironmentValues {
 /// the home does; the notebook's rail row brings it back. It has no ‹ of its
 /// own (product owner, 2026-10-12: "i don't want this back button for the
 /// library anymore").
+///
+/// One list, with no To Read or Follow up scopes beside it (product owner,
+/// 2026-11-07: "Ideally just one, and somehow differentiate otherwise, like
+/// how many cards there are"). Each row says where its source stands: an
+/// unread title in the primary colour and a read one in grey with its mark,
+/// a flag with how many passages wait to be followed up or doubted
+/// (`SourceFollowUpFlag`), and how many cards it has kept. A source with
+/// nothing of these left is done, and reads quietest.
 struct LibraryPane: View {
     /// Below this width the wide rows have no room for what they add.
     private static let wideLayoutMinimumWidth: CGFloat = 560
 
     @Environment(StudioViewModel.self) private var vm
     @State private var isNarrow = false
-    /// All, or the To Read list. View state: the Library opens on All.
-    @State private var scope: LibraryScope = .all
 
     var body: some View {
-        // The one list of what was saved and is still waiting is derived once
-        // per body, for the pill's count and for the list.
-        let toRead = vm.toReadArticles
-        let followUps = vm.followUpMarks
-        VStack(spacing: 0) {
-            LibraryScopeRow(scope: $scope, toReadCount: toRead.count, followUpCount: followUps.count)
-            switch scope {
-            case .all:
-                NavigationStack {
-                    StudioSidebar()
-                        .equatable()
-                }
-                // The kind tabs draw in flow under the pane's chrome line.
-                .environment(\.studioTitlebarBandHeight, nil)
-                .environment(\.sourcesListLayout, isNarrow ? .sidebar : .wide)
-            case .toRead:
-                LibraryToReadList(articles: toRead)
-            case .followUp:
-                LibraryFollowUpList(marks: followUps)
-            }
+        NavigationStack {
+            StudioSidebar()
+                .equatable()
         }
-        // The marks are read from storage when the Library opens, and again
-        // when its Follow up list is shown, for what arrived by sync since.
-        .task(id: scope) {
-            if scope == .followUp || !vm.followUpMarksLoaded { await vm.reloadFollowUpMarks() }
-        }
+        // The kind tabs draw in flow under the pane's chrome line.
+        .environment(\.studioTitlebarBandHeight, nil)
+        .environment(\.sourcesListLayout, isNarrow ? .sidebar : .wide)
+        // The rows' flags read the open marks, read from storage each time
+        // the Library opens for what arrived by sync since; the Reader keeps
+        // them in step while it is open (`applyLocally`).
+        .task { await vm.reloadFollowUpMarks() }
         .onGeometryChange(for: Bool.self, of: { $0.size.width < Self.wideLayoutMinimumWidth }) { isNarrow = $0 }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
@@ -257,7 +248,7 @@ struct LibraryBulkBar: View {
 /// to read past), and the source's two card verdicts (docs/memory-design.md,
 /// "Cards for every source") — **Not Worth Keeping**, which removes it with
 /// Undo, and **Make Cards** (**Make More Cards** once it has some), which
-/// opens the Make Cards sheet for it. Quiet words at the row's end, hover-only,
+/// opens a chat that makes them. Quiet words at the row's end, hover-only,
 /// as the row's other controls are; the row's menu offers them too. The line
 /// keeps its height either way, so a row does not grow under the pointer. A
 /// podcast episode or a meeting already says its date; a source that cannot

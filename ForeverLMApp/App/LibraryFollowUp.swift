@@ -1,21 +1,19 @@
 import OSLog
 import SwiftUI
 
-// MARK: - The Library's Follow up scope
+// MARK: - Passages set aside to follow up, on the Library's rows
 
 private let followUpLogger = Logger(subsystem: "com.foreverlm.app", category: "FollowUp")
 
 extension StudioViewModel {
-    /// The marks to list: set aside to follow up (blue) or doubt (pink), on
-    /// sources the learner has not put away, newest first. The rule is
-    /// `FollowUpList`'s. A mark on a source this window does not list stays
-    /// out, so every row can open its source.
-    var followUpMarks: [FollowUpMark] {
-        let byID = articlesById
-        return FollowUpList.open(followUpMarkStore) { sourceID in
-            guard let article = byID[sourceID] else { return true }
-            return article.isHidden || article.archivedAt != nil || !isVisibleInRecordingMode(article)
-        }
+    /// One source's open marks: set aside to follow up (blue) or doubt
+    /// (pink), newest first, by `FollowUpList`'s rule. What its Library row's
+    /// flag counts and lists. The row is the source's, so whether the source
+    /// is put away is the list's business, not this.
+    func followUpMarks(forSource sourceID: String) -> [FollowUpMark] {
+        let marks = followUpMarkStore.filter { $0.sourceID == sourceID }
+        guard !marks.isEmpty else { return [] }
+        return FollowUpList.open(marks) { _ in false }
     }
 
     /// Reads every open mark from storage. The list is kept in step with
@@ -52,46 +50,90 @@ extension StudioViewModel {
     }
 }
 
-/// The Follow up list: every passage set aside to follow up (blue) or doubt
-/// (pink), across the library, under Today, Yesterday, This Week and Earlier.
-/// A row opens its source in the Reader with the mark's card; its check (on
-/// hover) and the row menu mark it followed up, which takes it off the list.
-struct LibraryFollowUpList: View {
-    let marks: [FollowUpMark]
+/// A Library row's flag: how many passages of this source wait to be followed
+/// up or doubted, beside its card count, in the row's grey ("Lists are
+/// monochrome", docs/ui-design.md). Nothing while none waits. A click lists
+/// them in a popover, each opening the Reader at its card, with its check to
+/// mark it followed up (product owner, 2026-11-07: "each source I have to at
+/// least like follow up on and at least write some kind of takeaway"). It
+/// replaces the Library's Follow up scope, a second list of the same marks.
+struct SourceFollowUpFlag: View {
+    @Environment(StudioViewModel.self) private var vm
+    let sourceID: String
+    @State private var isListing = false
 
     var body: some View {
-        if marks.isEmpty {
-            VStack(spacing: 6) {
-                SpaceEmptyLine(systemImage: "checkmark.circle", text: "Nothing to follow up")
-                Text("Mark a passage blue (Follow up) or pink (Doubt) while you read.")
-                    .zoomedSystemFont(size: 12, weight: .regular)
-                    .foregroundStyle(.tertiary)
-                    .multilineTextAlignment(.center)
-                    .padding(.horizontal, 24)
+        let marks = vm.followUpMarks(forSource: sourceID)
+        if !marks.isEmpty {
+            let label = marks.count == 1 ? "1 passage to follow up" : "\(marks.count) passages to follow up"
+            Button {
+                isListing = true
+            } label: {
+                HStack(spacing: 2) {
+                    Image(systemName: "flag")
+                        .zoomedSystemFont(size: 10, weight: .medium)
+                    Text("\(marks.count)")
+                        .zoomedSystemFont(size: 11)
+                        .monospacedDigit()
+                }
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 4)
+                .frame(height: 16)
+                .contentShape(Capsule())
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-        } else {
-            let sections = ToReadList.sections(marks, dateAdded: { $0.highlight.createdAt }, now: Date())
+            // The press is the flag's, so the row does not also open its
+            // source under it (`SidebarRowControlPress`).
+            .buttonStyle(RowControlButtonStyle(
+                sourceIDs: [sourceID],
+                wash: .hoverWash(in: Capsule(), inset: 0, opacity: 0.08)
+            ))
+            .fixedSize()
+            .help(label)
+            .accessibilityLabel(label)
+            .accessibilityIdentifier("library.followUp.flag.\(sourceID)")
+            .popover(isPresented: $isListing, arrowEdge: .bottom) {
+                SourceFollowUpPopover(sourceID: sourceID)
+                    .environment(vm)
+            }
+        }
+    }
+}
+
+/// The flag's popover: the source's open marks, newest first. It reads them
+/// live, so a mark checked here leaves at once, and the popover closes on
+/// its own once none is left.
+private struct SourceFollowUpPopover: View {
+    @Environment(StudioViewModel.self) private var vm
+    @Environment(\.dismiss) private var dismiss
+    let sourceID: String
+
+    var body: some View {
+        let marks = vm.followUpMarks(forSource: sourceID)
+        VStack(alignment: .leading, spacing: 0) {
+            Text("To follow up")
+                .zoomedSystemFont(size: 12, weight: .semibold)
+                .foregroundStyle(.secondary)
+                .textSelection(.disabled)
+                .padding(.horizontal, 14)
+                .padding(.top, 10)
+                .padding(.bottom, 4)
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0, pinnedViews: []) {
-                    ForEach(Array(sections.enumerated()), id: \.offset) { _, group in
-                        Text(group.section.title)
-                            .zoomedSystemFont(size: 12, weight: .semibold)
-                            .foregroundStyle(.secondary)
-                            .textSelection(.disabled)
-                            .padding(.horizontal, 14)
-                            .padding(.top, 14)
-                            .padding(.bottom, 4)
-                        ForEach(group.items) { mark in
-                            LibraryFollowUpRow(mark: mark)
-                        }
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(marks) { mark in
+                        LibraryFollowUpRow(mark: mark)
                     }
                 }
                 .padding(.horizontal, 6)
-                .padding(.bottom, 12)
+                .padding(.bottom, 8)
             }
-            .accessibilityIdentifier("library.followUp.list")
+            .frame(maxHeight: 420)
         }
+        .frame(width: 380)
+        .fixedSize(horizontal: false, vertical: true)
+        .onChange(of: marks.isEmpty) { _, isEmpty in
+            if isEmpty { dismiss() }
+        }
+        .accessibilityIdentifier("library.followUp.popover")
     }
 }
 
@@ -173,11 +215,10 @@ private struct LibraryFollowUpRow: View {
         }
     }
 
-    /// What the color says, where it came from, and when it was marked.
+    /// What the color says and when it was marked. The source is the
+    /// popover's, named by the row the flag is on.
     private var detail: String {
-        var parts = [highlight.color.meaning]
-        if let title = vm.articlesById[mark.sourceID]?.title, !title.isEmpty { parts.append(title) }
-        parts.append(highlight.createdAt.formatted(date: .abbreviated, time: .omitted))
-        return parts.joined(separator: " · ")
+        [highlight.color.meaning, highlight.createdAt.formatted(date: .abbreviated, time: .omitted)]
+            .joined(separator: " · ")
     }
 }

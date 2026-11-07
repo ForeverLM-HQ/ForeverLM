@@ -1435,10 +1435,10 @@ meaning beside the color.
 
 The colors steer the AI too. Passages you mark **Follow up** or **Doubt** are the
 ones you set aside to come back to: a review reads them first, and a flashcard
-is drafted from one only when the source answers it. **Follow up** in the
-**Library**, beside **All** and **To Read**, lists every such passage across the
-library, newest first, with the number waiting. A click opens the source in the
-Reader with that highlight's card. Hover a row and click the check, or
+is drafted from one only when the source answers it. In the
+**Library**, a source with such passages shows a flag and how many wait. Click
+the flag to list them, newest first; a click on one opens the source in the
+Reader with that highlight's card. Hover one and click the check, or
 right-click it for **Followed Up**, and the passage goes back to **Remember**
 and leaves the list; **Color** in the same menu picks any other. On the iPhone and
 iPad, **Follow up** is the row under **To Read** on Home: tap a row to open its
@@ -2531,7 +2531,7 @@ ForeverLM reads any CSV with a link column, any bookmarks HTML file (the format 
 
 **To Read** is the one list of what you saved and have not finished, newest first, under **Today**, **Yesterday**, **This Week** and **Earlier**. It holds web pages, papers and X posts you saved one at a time, from every browser's reading list, the share sheet, a bookmark import or a link you added. Podcasts, YouTube, books, courses and meetings are not in it: they arrive by the dozen and have their own tabs.
 
-- **Mac:** open the **Library** and choose **To Read** beside **All**; the number is how many are waiting. A click opens the article in the Reader beside the list. Hover a row and click the check, or right-click it for **Mark as Read**, and it leaves the list.
+- **Mac:** the **Library** is one list. An unread source has its title in black (white in dark mode), and a read one is grey with a closed book at its end; click the mark to switch it. Each row also shows how many passages wait to be followed up (a flag) and how many cards it has kept, so a source with neither left to do reads quietest.
 - **iPhone and iPad:** **To Read** is the row under **Library** on Home. Tap a row to read it, or swipe it right to mark it read.
 
 A source drops off the list when you finish it, mark it read, hide it or remove it. One you have only started stays on it.
@@ -6609,6 +6609,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **The Library is one list again.** The **To Read** and **Follow up** pills are gone. Each row says where its source stands instead: an unread title in black and a read one in grey, a flag with how many passages wait to be followed up (click it to list them and tick them off), and how many cards it has kept. The iPhone keeps its To Read and Follow up rows for now.
 - **No big × at the end of a pane's tabs.** Each tab has its own ×, so the pane's × after the **+** is gone. Closing a pane's only tab closes the pane, as that × did.
 
 ## 0.189.0 (build 269) — 2026-11-07

@@ -1034,10 +1034,10 @@ meaning beside the color.
 
 The colors steer the AI too. Passages you mark **Follow up** or **Doubt** are the
 ones you set aside to come back to: a review reads them first, and a flashcard
-is drafted from one only when the source answers it. **Follow up** in the
-**Library**, beside **All** and **To Read**, lists every such passage across the
-library, newest first, with the number waiting. A click opens the source in the
-Reader with that highlight's card. Hover a row and click the check, or
+is drafted from one only when the source answers it. In the
+**Library**, a source with such passages shows a flag and how many wait. Click
+the flag to list them, newest first; a click on one opens the source in the
+Reader with that highlight's card. Hover one and click the check, or
 right-click it for **Followed Up**, and the passage goes back to **Remember**
 and leaves the list; **Color** in the same menu picks any other. On the iPhone and
 iPad, **Follow up** is the row under **To Read** on Home: tap a row to open its

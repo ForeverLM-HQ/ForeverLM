@@ -409,6 +409,7 @@ struct ArticleRow: View {
                     .help(attention)
                     .accessibilityLabel(attention)
             }
+            SourceFollowUpFlag(sourceID: article.id)
             cardCountTrailer
             if let notebook {
                 NotebookMembershipMark(
@@ -619,7 +620,9 @@ struct ArticleRow: View {
 
                         Spacer()
 
-                        // The card count, a quiet right column down the list.
+                        // Passages waiting to be followed up, then the card
+                        // count: a quiet right column down the list.
+                        SourceFollowUpFlag(sourceID: article.id)
                         cardCountTrailer
 
                         if let paperAttentionReason {
