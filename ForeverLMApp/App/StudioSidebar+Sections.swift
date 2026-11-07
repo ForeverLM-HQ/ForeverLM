@@ -3088,6 +3088,13 @@ extension StudioSidebar {
     /// `showsSeries` is the by-date list, where no series header stands above the
     /// row to say which meeting it belongs to: the row says it itself, and a
     /// session has no place among its series' sessions to be dropped into.
+    ///
+    /// The files are a row of their own *beside* the session row, opened by the
+    /// session row's own chevron, never a `DisclosureGroup` nested inside the
+    /// series' `DisclosureGroup`. With one session open, folding its series
+    /// made the List's outline drop the wrong rows: the session stayed, and
+    /// the next two series below it vanished instead. One outline level is
+    /// all the List gets here.
     @ViewBuilder
     private func meetingSessionRow(
         _ article: StudioArticle,
@@ -3097,35 +3104,45 @@ extension StudioSidebar {
         let artifacts = (vm.meetingArtifactsBySourceId[article.id] ?? [])
             .sorted { ($0.kind.sortRank, $0.sortIndex) < ($1.kind.sortRank, $1.sortIndex) }
         let sessionKey = "meeting-session:\(article.id)"
-        let label = Group {
+        let isExpanded = !artifacts.isEmpty && sidebar.expandedGroups.contains(sessionKey)
+
+        Group {
             if showsSeries {
                 articleRow(article, showsMeetingSeries: true)
             } else if let groupName {
                 groupedCollectionArticleRow(article, groupName: groupName)
             }
         }
-
-        if artifacts.isEmpty {
-            label
-        } else {
-            DisclosureGroup(isExpanded: Binding(
-                get: { sidebar.expandedGroups.contains(sessionKey) },
-                set: { isExpanded in
-                    if isExpanded {
-                        sidebar.expandedGroups.insert(sessionKey)
-                    } else {
-                        sidebar.expandedGroups.remove(sessionKey)
+        // Padding and an overlay rather than an HStack, so the row's selection
+        // tag stays on the List row itself. Every session keeps the chevron's
+        // room, so sessions with files and without line up.
+        .padding(.leading, MeetingSessionChevron.width)
+        .overlay(alignment: .leading) {
+            if !artifacts.isEmpty {
+                MeetingSessionChevron(
+                    isExpanded: isExpanded,
+                    title: vm.displayTitle(for: article)
+                ) {
+                    withAnimation(.easeOut(duration: 0.18)) {
+                        if isExpanded {
+                            sidebar.expandedGroups.remove(sessionKey)
+                        } else {
+                            sidebar.expandedGroups.insert(sessionKey)
+                        }
                     }
                 }
-            )) {
-                MeetingArtifactStack {
-                    ForEach(artifacts) { artifact in
-                        MeetingArtifactRow(artifact: artifact)
-                    }
-                }
-            } label: {
-                label
             }
+        }
+
+        if isExpanded {
+            MeetingArtifactStack {
+                ForEach(artifacts) { artifact in
+                    MeetingArtifactRow(artifact: artifact)
+                }
+            }
+            // Under the session's icon, where the outline's own indent used
+            // to put it.
+            .padding(.leading, MeetingSessionChevron.width)
         }
     }
 
@@ -3677,6 +3694,31 @@ private struct SourceGroupRowHover<Content: View>: View {
 
 /// Indents a session's artifacts under it and hangs a hairline rail down the
 /// left, so the files read as parts of the meeting above rather than siblings.
+/// The chevron that shows or hides a meeting session's files. The session row
+/// draws it itself (see `meetingSessionRow`) instead of nesting a
+/// `DisclosureGroup`, so it looks like the List's own outline triangle.
+private struct MeetingSessionChevron: View {
+    static let width: CGFloat = 16
+
+    let isExpanded: Bool
+    let title: String
+    let toggle: () -> Void
+
+    var body: some View {
+        Button(action: toggle) {
+            Image(systemName: "chevron.right")
+                .zoomedSystemFont(size: 10, weight: .semibold)
+                .rotationEffect(.degrees(isExpanded ? 90 : 0))
+                .foregroundStyle(.secondary)
+                .frame(width: Self.width, height: Self.width)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.hoverWash(cornerRadius: 4, inset: 0, opacity: 0.10))
+        .help(isExpanded ? "Hide this meeting's files" : "Show this meeting's files")
+        .accessibilityLabel(isExpanded ? "Hide the files of \(title)" : "Show the files of \(title)")
+    }
+}
+
 private struct MeetingArtifactStack<Content: View>: View {
     @ViewBuilder let content: Content
 
