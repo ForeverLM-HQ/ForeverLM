@@ -1994,6 +1994,17 @@ extension View {
         modifier(StudioChromeLineHeader(isOpaque: opaque, header: header()))
     }
 
+    /// A pane whose chrome line holds only its name: the name, where no tab
+    /// names the pane. Under a strip whose tab already says it the row is
+    /// not drawn at all, and the pane's content starts at its top.
+    func studioPaneNameHeader(_ name: String) -> some View {
+        modifier(StudioChromeLineHeader(
+            isOpaque: false,
+            yieldsToTab: true,
+            header: StudioPaneNameRow(name: name)
+        ))
+    }
+
     /// Keeps a close affordance on center surfaces when the shared tab strip is
     /// hidden. With the strip visible, it owns the close button for every pane.
     /// Both affordances close the whole pane, preserving the adjacent pane's
@@ -2124,10 +2135,14 @@ private struct StudioChromeLineHeader<Header: View>: ViewModifier {
     @Environment(\.studioTitlebarBandHeight) private var titlebarBandHeight
     @Environment(\.studioCenterPaneHeaderLeadingInset) private var headerLeadingInset
     @Environment(\.studioChromeLineReservation) private var chromeReservation
+    @Environment(\.studioCenterTabStripVisible) private var tabStripVisible
     let isOpaque: Bool
+    /// The row is the pane's name alone, which a visible tab already shows.
+    var yieldsToTab = false
     let header: Header
 
     func body(content: Content) -> some View {
+        let drawsRow = !(yieldsToTab && tabStripVisible)
         // Contained before the insets are added, so the clip is the strip
         // between the window's leading chrome and the reserved trailing
         // controls — never the chrome itself.
@@ -2137,7 +2152,7 @@ private struct StudioChromeLineHeader<Header: View>: ViewModifier {
             .padding(.trailing, chromeReservation.total)
             .frame(height: titlebarBandHeight ?? StudioPanelChrome.headerHeight)
         return VStack(spacing: 0) {
-            if titlebarBandHeight == nil {
+            if titlebarBandHeight == nil && drawsRow {
                 backing(row)
             }
             content
@@ -2145,7 +2160,7 @@ private struct StudioChromeLineHeader<Header: View>: ViewModifier {
         .overlay(alignment: .top) {
             // In the band every row is backed by the band's chrome
             // (`StudioBandRow`), so the pane under it never shows there.
-            if let band = titlebarBandHeight {
+            if let band = titlebarBandHeight, drawsRow {
                 StudioBandRow(band: band) { row }
             }
         }
@@ -2164,6 +2179,22 @@ private struct StudioChromeLineHeader<Header: View>: ViewModifier {
         } else {
             row
         }
+    }
+}
+
+/// A pane's name on its chrome line (`studioPaneNameHeader`).
+private struct StudioPaneNameRow: View {
+    let name: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Text(name)
+                .zoomedSystemFont(size: 13, weight: .semibold)
+                .lineLimit(1)
+                .textSelection(.disabled)
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 14)
     }
 }
 
@@ -2268,6 +2299,15 @@ private struct StudioCenterTabStripVisibleKey: EnvironmentKey {
     static let defaultValue = false
 }
 
+/// The tab whose name the strip over this pane shows, nil where no strip is
+/// drawn. A pane never repeats that name under it: `SpacePlaceTitle` and
+/// `studioPaneNameHeader` give way to it (product owner, 2026-11-07: "There
+/// is already text like library in that tab… not sure we also need like
+/// library underneath there as a title").
+private struct StudioPaneTabKey: EnvironmentKey {
+    static let defaultValue: StudioCenterTab? = nil
+}
+
 /// True inside a row that hangs in the window's titlebar band. Shared toolbar
 /// controls read it to render as a `TitlebarBandButton` rather than a SwiftUI
 /// `Button`: in the band a `Button` neither lights up under the pointer nor
@@ -2325,6 +2365,11 @@ extension EnvironmentValues {
     var studioCenterTabStripVisible: Bool {
         get { self[StudioCenterTabStripVisibleKey.self] }
         set { self[StudioCenterTabStripVisibleKey.self] = newValue }
+    }
+
+    var studioPaneTab: StudioCenterTab? {
+        get { self[StudioPaneTabKey.self] }
+        set { self[StudioPaneTabKey.self] = newValue }
     }
 
     var studioTitlebarBandControls: Bool {

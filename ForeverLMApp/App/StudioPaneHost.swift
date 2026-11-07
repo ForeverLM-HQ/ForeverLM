@@ -428,6 +428,7 @@ struct StudioPaneHost<Content: View, Corner: View, Band: View>: View {
                     .environment(\.studioTitlebarBandHeight, bandPassesThrough ? titlebarBandHeight : nil)
                     .environment(\.studioCenterPaneHeaderLeadingInset, bandPassesThrough ? leadingReservation : 0)
                     .environment(\.studioCenterTabStripVisible, !bandPassesThrough)
+                    .environment(\.studioPaneTab, bandPassesThrough ? nil : activeTab)
                     .environment(\.studioChromeLineReservation, chromeLineReservation(swapReservation: swapReservation))
                     .environment(\.studioPaneChromePlacement, placement)
                     .frame(maxWidth: .infinity, maxHeight: .infinity)

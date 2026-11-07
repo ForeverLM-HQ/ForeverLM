@@ -45,7 +45,7 @@ struct AtlasPane: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
-        .studioChromeLineHeader { chromeTitle }
+        .studioPaneNameHeader("Atlas")
         .studioCenterTabCloseChrome(for: .atlas)
         .task {
             await vm.refreshAtlasListings()
@@ -74,17 +74,6 @@ struct AtlasPane: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Atlas")
         .accessibilityIdentifier("atlas.pane")
-    }
-
-    private var chromeTitle: some View {
-        HStack(spacing: 6) {
-            Text("Atlas")
-                .zoomedSystemFont(size: 13, weight: .semibold)
-                .lineLimit(1)
-                .textSelection(.disabled)
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 14)
     }
 
     // MARK: Header

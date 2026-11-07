@@ -102,23 +102,11 @@ struct LibraryPane: View {
         .onGeometryChange(for: Bool.self, of: { $0.size.width < Self.wideLayoutMinimumWidth }) { isNarrow = $0 }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(nsColor: .windowBackgroundColor))
-        .studioChromeLineHeader { header }
+        .studioPaneNameHeader("Library")
         .studioCenterTabCloseChrome(for: .library)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Library")
         .accessibilityIdentifier("library.pane")
-    }
-
-    /// The pane's name.
-    private var header: some View {
-        HStack(spacing: 6) {
-            Text("Library")
-                .zoomedSystemFont(size: 13, weight: .semibold)
-                .lineLimit(1)
-                .textSelection(.disabled)
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 14)
     }
 }
 

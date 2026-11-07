@@ -2561,16 +2561,22 @@ struct SpacePlaceHeader<Title: View, Actions: View>: View {
     }
 }
 
-/// A list's name, plain, at its head.
+/// A list's name, plain, at its head — unless the tab over the pane already
+/// says it (Goals under a Goals tab, Pages under a Pages tab): then the head
+/// is the search and the action alone. Under the Space's tab a place keeps
+/// its name, which the tab does not show.
 struct SpacePlaceTitle: View {
+    @Environment(\.studioPaneTab) private var paneTab
     let title: String
 
     var body: some View {
-        Text(title)
-            .font(SpacePlaceMetrics.titleFont)
-            .lineLimit(1)
-            .textSelection(.disabled)
-            .accessibilityAddTraits(.isHeader)
+        if paneTab?.title != title {
+            Text(title)
+                .font(SpacePlaceMetrics.titleFont)
+                .lineLimit(1)
+                .textSelection(.disabled)
+                .accessibilityAddTraits(.isHeader)
+        }
     }
 }
 
