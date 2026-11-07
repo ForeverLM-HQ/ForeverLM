@@ -64,10 +64,10 @@ struct NotebookWorkspace: Codable, Equatable {
     /// chat and one document slot: the notebook's Sources and Studio columns
     /// stand around the panes the window already had (a chat, the Space, a
     /// video, notes), which a learner splits, drags and closes as anywhere
-    /// else (docs/ui-design.md rule 8). Set when a notebook opens in a window
-    /// that was showing two panes or more, so opening a notebook from the
-    /// Space no longer takes the window from the chat beside it. While it
-    /// is set the slot and the notebook routing are not used
+    /// else (docs/ui-design.md rule 8). Set whenever a notebook opens
+    /// (`StudioViewModel.openNotebook`, since 2026-11-07); a window restored
+    /// from an older snapshot keeps the chat and slot until it opens a
+    /// notebook again. While it is set the slot and the notebook routing are not used
     /// (`StudioWindowState.holdsNotebookSlot`). An arrangement, so `persisted`
     /// keeps it.
     var tabbed: Bool

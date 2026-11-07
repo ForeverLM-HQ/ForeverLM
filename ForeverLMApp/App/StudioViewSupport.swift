@@ -4052,6 +4052,53 @@ final class StudioDropCatcherView: NSView {
 enum StudioPaneDropDestination: Equatable {
     case tab(StudioCenterTabDragPayload.Payload)
     case place(StudioRailShortcut)
+    /// A row of the notebook's Studio column: the output opens in the pane.
+    case output(NotebookOutput)
+}
+
+/// The drag a row of a notebook's Studio column starts: a token naming the
+/// output, so a pane it is dropped on opens that output there, as a click on
+/// the row opens it in the pane last clicked in. The output itself stays in
+/// this process (`register`), since only this app's panes take the drag.
+@MainActor
+enum NotebookOutputDragPayload {
+    static let pasteboardType = NSPasteboard.PasteboardType(UTType.notebookOutput.identifier)
+    /// The rows dragged so far, by token. One drag at a time, so the last few
+    /// are plenty; older ones are dropped as new ones come.
+    private static var registered: [(token: String, output: NotebookOutput)] = []
+    private static let kept = 8
+
+    static func register(_ output: NotebookOutput) -> String {
+        let token = UUID().uuidString
+        registered.append((token, output))
+        if registered.count > kept { registered.removeFirst(registered.count - kept) }
+        return token
+    }
+
+    static func output(for token: String) -> NotebookOutput? {
+        registered.last { $0.token == token }?.output
+    }
+
+    static func provider(for output: NotebookOutput) -> NSItemProvider {
+        let provider = NSItemProvider()
+        let data = Data(register(output).utf8)
+        provider.registerDataRepresentation(
+            forTypeIdentifier: UTType.notebookOutput.identifier,
+            visibility: .ownProcess
+        ) { completion in
+            completion(data, nil)
+            return nil
+        }
+        provider.suggestedName = output.title
+        return provider
+    }
+
+    /// The output a drag carries; nil for any other drag.
+    static func output(on pasteboard: NSPasteboard) -> NotebookOutput? {
+        guard let raw = pasteboard.string(forType: pasteboardType)
+            ?? pasteboard.data(forType: pasteboardType).flatMap({ String(data: $0, encoding: .utf8) }) else { return nil }
+        return output(for: raw)
+    }
 }
 
 extension StudioViewModel {
@@ -4077,6 +4124,8 @@ extension StudioViewModel {
             case .place(let place): showSpace(place, in: windowState)
             case .courses: openCoursesListInReader(in: windowState)
             }
+        case .output(let output):
+            Task { await openNotebookOutput(output, inPaneAt: groupIndex, in: windowState) }
         }
     }
 }
@@ -4125,12 +4174,12 @@ final class StudioPaneReplaceDropView: NSView {
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
-        registerForDraggedTypes([StudioCenterTabDragPayload.pasteboardType, Self.shortcutType])
+        registerForDraggedTypes([StudioCenterTabDragPayload.pasteboardType, Self.shortcutType, NotebookOutputDragPayload.pasteboardType])
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
-        registerForDraggedTypes([StudioCenterTabDragPayload.pasteboardType, Self.shortcutType])
+        registerForDraggedTypes([StudioCenterTabDragPayload.pasteboardType, Self.shortcutType, NotebookOutputDragPayload.pasteboardType])
     }
 
     /// Destinations are chosen from registered bounds, not mouse hit testing,
@@ -4179,6 +4228,9 @@ final class StudioPaneReplaceDropView: NSView {
     /// content, or anything else. A pane wins over a place, since Pages, Sites
     /// and Courses carry both.
     static func destination(on pasteboard: NSPasteboard) -> StudioPaneDropDestination? {
+        if let output = NotebookOutputDragPayload.output(on: pasteboard) {
+            return .output(output)
+        }
         guard pasteboard.availableType(from: contentTypes) == nil else { return nil }
         let tabType = StudioCenterTabDragPayload.pasteboardType
         if let raw = pasteboard.string(forType: tabType)

@@ -1023,18 +1023,36 @@ struct NotebookRoutingTests {
         #expect(vm.notebookReturnTitle(in: window) == nil)
     }
 
-    @Test("A second click on the open notebook's folder closes it, and its panes come back as they were")
+    @Test("A notebook opens on its chat in the window's own tabs, and a second click on its folder closes it")
     func toggleClosesTheNotebook() {
         let restore = capturingTemplate()
         defer { restore() }
         let vm = makeViewModel()
         let window = StudioWindowState()
         window.centerTabGroups = .defaultLayout
-        let panes = window.centerTabGroups
+        let tabs = window.centerTabGroups.groups.map(\.tabs)
         vm.inWindow(window) { vm.toggleNotebookInReader("bio") }
         #expect(window.NotebookID == "bio")
+        #expect(window.notebook?.tabbed == true, "the window's tabs, as outside a notebook")
+        #expect(window.centerTabGroups.groups.map(\.activeTab) == [.chat], "the Space stays one of the pane's tabs")
         vm.inWindow(window) { vm.toggleNotebookInReader("bio") }
         #expect(window.notebook == nil)
+        #expect(window.centerTabGroups.groups.map(\.tabs) == tabs)
+    }
+
+    @Test("A notebook opened in a window of two panes keeps them as arranged")
+    func notebookKeepsTwoPanes() {
+        let restore = capturingTemplate()
+        defer { restore() }
+        let vm = makeViewModel()
+        let window = StudioWindowState()
+        window.centerTabGroups = StudioCenterTabGroups(groups: [
+            .init(tabs: [.artifacts], activeTab: .artifacts),
+            .init(tabs: [.reader], activeTab: .reader),
+        ])
+        let panes = window.centerTabGroups
+        vm.openNotebook("bio", in: window, startsNotebookChat: false)
+        #expect(window.notebook?.tabbed == true)
         #expect(window.centerTabGroups == panes)
     }
 }

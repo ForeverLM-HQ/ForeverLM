@@ -910,8 +910,8 @@ struct StudioNavigationRail: View {
                 // permanent beachball. Keep only the viewport's rows alive.
                 LazyVStack(alignment: .leading, spacing: 2) {
                     // The header opens the Space's All list, where every
-                    // notebook is listed: the notebook the window holds
-                    // leaves, and its row below brings it back. Home's sidebar
+                    // notebook is listed: in a window holding a notebook it
+                    // opens as one more tab of the notebook's panes. Home's sidebar
                     // shows only while the window is not on the Space, so the
                     // header is never the lit row.
                     RailSectionHeaderButton(

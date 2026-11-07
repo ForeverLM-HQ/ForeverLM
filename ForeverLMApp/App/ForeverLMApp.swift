@@ -1105,9 +1105,12 @@ struct ForeverLMApp: App {
                     }
                     .disabled(studioViewModel.notebook(id: notebook.notebookID).map(studioViewModel.isNotebookReadOnly) ?? true)
 
+                    // The notebook closes and the Space shows: in a tabbed
+                    // notebook the Space is only one more tab, so showing it
+                    // would leave the notebook open.
                     Button("Close Notebook") {
                         withAnimation(.easeInOut(duration: 0.22)) {
-                            studioViewModel.showSpaceAll(in: state)
+                            studioViewModel.leaveNotebookForSpace(in: state)
                         }
                     }
                 }

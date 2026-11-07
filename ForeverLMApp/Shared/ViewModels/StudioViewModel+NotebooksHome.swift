@@ -54,7 +54,7 @@ extension StudioViewModel {
     func openNotebookOrSpaceInNewWindow(_ window: StudioWindowState) {
         guard window.notebook == nil, window.memoryReviewFocus == nil else { return }
         if let notebookID = notebookForNewWindow() {
-            openNotebook(notebookID, in: window, keepsPanes: false)
+            openNotebook(notebookID, in: window)
         } else {
             presentSpace(in: window)
         }

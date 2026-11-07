@@ -141,6 +141,18 @@
 		</dict>
 		<dict>
 			<key>UTTypeIdentifier</key>
+			<string>com.foreverlm.notebook-output</string>
+			<key>UTTypeDescription</key>
+			<string>Notebook Output Transfer</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+			<key>UTTypeTagSpecification</key>
+			<dict/>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
 			<string>com.foreverlm.studio-center-tab</string>
 			<key>UTTypeDescription</key>
 			<string>Studio Center Tab Transfer</string>

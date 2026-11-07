@@ -632,9 +632,11 @@ struct NotebooksHomeRoutingTests {
         target.notebook?.sourcesCollapsed = true
         target.notebook?.document = .reader
 
-        // A window that was looking at Trash lands on All, where the notebook is.
+        // A window that was looking at Trash lands on All, where the notebook
+        // is. Close Notebook and ‹ both leave this way: in the notebook's
+        // tabs the Space is one more tab and leaves nothing.
         target.spaceDestinationKey = SpaceDestination.trash.key
-        vm.showSpaceAll(in: target)
+        vm.leaveNotebookForSpace(in: target)
         #expect(target.notebook == nil)
         #expect(vm.visibleCenterTabs(in: target).contains(.artifacts))
         #expect(target.spaceDestinationKey == SpaceDestination.all.key)
@@ -685,8 +687,8 @@ struct NotebooksHomeRoutingTests {
         #expect(target.centerTabGroups.groups[0].activeTab == .chat, "the Space cannot close onto itself")
     }
 
-    @Test("The Library leaves a notebook the way the Space does, and the notebook comes back as it was")
-    func libraryLeavesAndReturns() {
+    @Test("The Library and the Space open as tabs of a notebook's panes, and the notebook stays")
+    func libraryOpensInTheNotebooksTabs() {
         let restore = capturingSharedDefaults()
         defer { restore() }
         let vm = makeViewModel()
@@ -695,24 +697,21 @@ struct NotebooksHomeRoutingTests {
         vm.openNotebook("bio", in: target, startsNotebookChat: false)
         target.notebook?.sourcesCollapsed = true
         target.notebook?.studioCollapsed = true
-        // What the window draws (`StudioView.centerTabArea`): a notebook the
-        // window holds takes its body, and the center groups, which keep the
-        // Library tab they had, are not mounted meanwhile. This is what
-        // `libraryViewIsOnScreen` answered before e332279 removed it.
-        func libraryIsOnScreen() -> Bool {
-            target.notebook == nil && target.centerTabGroups.groups.contains { $0.activeTab == .library }
-        }
 
         vm.openLibraryView(in: target)
-        #expect(target.notebook == nil)
-        #expect(libraryIsOnScreen())
+        #expect(target.NotebookID == "bio")
+        #expect(target.centerTabGroups.groups.contains { $0.activeTab == .library })
+        vm.showSpaceAll(in: target)
+        #expect(target.NotebookID == "bio")
+        #expect(target.centerTabGroups.groups.contains { $0.activeTab == .artifacts })
 
-        // Its rail row opens it again as the window left it.
+        // Left and opened again, it comes back as the window left it.
+        vm.leaveNotebookForSpace(in: target)
+        #expect(target.notebook == nil)
         vm.openNotebook("bio", in: target)
         #expect(target.NotebookID == "bio")
         #expect(target.notebook?.sourcesCollapsed == true)
         #expect(target.notebook?.studioCollapsed == true)
-        #expect(!libraryIsOnScreen(), "a notebook's window shows the notebook")
     }
 
     @Test("A source clicked in the Library opens in the Reader beside it, and the Library stays")

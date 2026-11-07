@@ -137,6 +137,40 @@ extension StudioViewModel {
         }
     }
 
+    /// Opens an output dropped on the pane at `groupIndex` there: the pane
+    /// takes the place the output opens in (`paneTab(for:)`), what it showed
+    /// staying one of its tabs, and becomes the pane last clicked in, so the
+    /// output lands in it and not in another pane showing the same place.
+    func openNotebookOutput(_ output: NotebookOutput, inPaneAt groupIndex: Int, in windowState: StudioWindowState) async {
+        if let tab = paneTab(for: output) {
+            replaceCenterPane(at: groupIndex, with: tab, in: windowState)
+        }
+        let groups = windowState.centerTabGroups.groups
+        if groups.indices.contains(groupIndex) { windowState.focusedGroupID = groups[groupIndex].id }
+        await openNotebookOutput(output, in: windowState)
+    }
+
+    /// The place an output opens in, for a drop to put in its pane first;
+    /// nil for a picture, which opens in a sheet, a team's record from
+    /// another library, which opens once that library is, and a run still
+    /// being written, which opens nothing.
+    func paneTab(for output: NotebookOutput) -> StudioCenterTab? {
+        guard !output.isPending else { return nil }
+        switch output.kind {
+        case .doc, .site, .animation, .mnemonicReading:
+            if let teamID = output.teamID, teamID != activeTeamID { return nil }
+            return artifactSection(of: output.targetID).centerTab
+        case .audioOverview, .walkthrough, .narration, .videoOverview, .explainer:
+            return .reader
+        case .course:
+            return .courses
+        case .cards:
+            return .memory
+        case .picture:
+            return nil
+        }
+    }
+
     /// Opens an output where its kind opens, in `windowState` — the window
     /// its row was clicked in, named because opening can await. In a window
     /// holding a notebook every kind lands in the document slot: a Doc, Site

@@ -899,6 +899,12 @@ private struct NotebookCardsRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.hoverWash(cornerRadius: 8, inset: 0))
+            // Dropped on a pane, the notebook's cards open there in Memory.
+            .onDrag {
+                NotebookOutputDragPayload.provider(for: NotebookOutput(
+                    kind: .cards, targetID: notebookID, title: "Cards", sourceIDs: [], date: nil
+                ))
+            }
             .help(opensToCheck ? "Go through the cards drafted for this notebook's sources" : "Open this notebook's cards in Memory")
             .accessibilityLabel("Cards, \(counts.line ?? "none")")
             .accessibilityIdentifier("notebook.studio.cards")
@@ -1097,7 +1103,7 @@ private struct NotebookOutputRow: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(.hoverWash(cornerRadius: 8, inset: 0))
-            .modifier(NotebookPictureDrag(group: pictureGroup))
+            .modifier(NotebookOutputDrag(output: output, group: pictureGroup))
             .accessibilityLabel("\(output.kindLabel): \(output.title)")
             .accessibilityValue([seen.isNew(output) ? "New" : nil, sourcesLabel].compactMap { $0 }.joined(separator: ", "))
             .help("Open")
@@ -1285,15 +1291,20 @@ private struct NotebookOutputRow: View {
 }
 
 /// A picture's row drags out as the picture's latest file, prompt and all,
-/// into Finder, a Doc or another app; any other row keeps its own drags.
-private struct NotebookPictureDrag: ViewModifier {
+/// into Finder, a Doc or another app. Any other row drags onto a pane of the
+/// window, which opens it there (`NotebookOutputDragPayload`); a run still
+/// being written opens nothing, so it does not drag.
+private struct NotebookOutputDrag: ViewModifier {
+    let output: NotebookOutput
     let group: GeneratedImageStore.ImageGroup?
 
     func body(content: Content) -> some View {
         if let group {
             content.onDrag { GeneratedImageActions.dragProvider(group.latest) }
-        } else {
+        } else if output.isPending || output.kind == .picture {
             content
+        } else {
+            content.onDrag { NotebookOutputDragPayload.provider(for: output) }
         }
     }
 }

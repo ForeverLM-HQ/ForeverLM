@@ -193,13 +193,14 @@ extension StudioViewModel {
     /// The window opens the notebook as it last left it, if it did
     /// (`StudioWindowState.notebookLeft`): its faces and folds.
     ///
-    /// A window showing two panes or more (the Space beside a chat) keeps
-    /// them: the notebook opens tabbed (`NotebookWorkspace.tabbed`), its
-    /// Sources and Studio columns around the panes, so a notebook is one more
-    /// thing beside the rest and not the whole window. A window already
-    /// holding a notebook keeps how it held it, and `keepsPanes` is false for
-    /// a window being opened (`openNotebookOrSpaceInNewWindow`), whose saved
-    /// layout is not the learner's to have just arranged.
+    /// Every notebook opens tabbed (`NotebookWorkspace.tabbed`): its Sources
+    /// and Studio columns stand around the window's own panes, whose tabs —
+    /// the Space, Pages, the Library, Chat — are dragged, split and closed as
+    /// anywhere else (product owner, 2026-11-07: "the notebook should
+    /// actually borrow the way we now have the tab set up in the main view").
+    /// A window showing one pane that is not the chat shows the chat in it,
+    /// what it showed staying one of its tabs, so the notebook opens on its
+    /// conversation; a window of two panes or more is left as arranged.
     ///
     /// `startsNotebookChat` is false when the caller opens a chat of its own
     /// (a resumed chat's home, the rail's per-notebook New chat), or when the
@@ -208,8 +209,7 @@ extension StudioViewModel {
     func openNotebook(
         _ notebookID: String,
         in destinationWindowState: StudioWindowState? = nil,
-        startsNotebookChat: Bool = true,
-        keepsPanes: Bool = true
+        startsNotebookChat: Bool = true
     ) {
         let destination = destinationWindowState ?? activeWindowState
         if destination.isVoiceWorkspacePresented { destination.isVoiceWorkspacePresented = false }
@@ -217,10 +217,12 @@ extension StudioViewModel {
             leaveMemoryReviewFocus(in: destination)
         }
         let wasHolding = destination.NotebookID
-        let tabbed = destination.notebook?.tabbed
-            ?? (keepsPanes && destination.centerTabGroups.groups.count > 1)
         destination.NotebookID = notebookID
-        if destination.notebook?.tabbed != tabbed { destination.notebook?.tabbed = tabbed }
+        if destination.notebook?.tabbed == false { destination.notebook?.tabbed = true }
+        let groups = destination.centerTabGroups.groups
+        if groups.count == 1, groups[0].activeTab != .chat {
+            activateCenterTab(.chat, in: destination)
+        }
         if importableNotebook(notebookID) != nil, activeNotebookId != notebookID {
             activeNotebookId = notebookID
         }

@@ -180,6 +180,26 @@ struct NotebookStudioTests {
         #expect(vm.docsCanvasScope(for: "doc-bio", in: plain) == nil)
     }
 
+    @Test("A Studio row dropped on a pane of a tabbed notebook opens in that pane")
+    func droppedOutputOpensInItsPane() async {
+        let restore = capturingSharedDefaults()
+        defer { restore() }
+        let (vm, window, _, _) = studio()
+        window.notebook?.tabbed = true
+        window.centerTabGroups = StudioCenterTabGroups(groups: [
+            .init(tabs: [.chat], activeTab: .chat),
+            .init(tabs: [.reader], activeTab: .reader),
+        ])
+
+        await vm.openNotebookOutput(output(.doc, "doc-bio"), inPaneAt: 1, in: window)
+        #expect(window.centerTabGroups.groups.map(\.activeTab) == [.chat, .notepad])
+        #expect(window.centerTabGroups.groups[1].tabs.contains(.reader), "what the pane showed stays a tab")
+        #expect(window.focusedGroupID == window.centerTabGroups.groups[1].id)
+        #expect(vm.artifactRevealRequest?.artifactID == "doc-bio")
+        #expect(vm.paneTab(for: output(.walkthrough, "s")) == .reader)
+        #expect(vm.paneTab(for: output(.picture, "p")) == nil)
+    }
+
     @Test("The notebook's Docs scope goes with the notebook: closed, left or replaced in the window")
     func docsScopeLeavesWithTheNotebook() async {
         let restore = capturingSharedDefaults()
@@ -203,8 +223,8 @@ struct NotebookStudioTests {
         #expect(window.notebook?.notebookID == "shelved")
         #expect(window.artifactCanvasNotebookID == nil)
 
-        // Nor does a surface that leaves the notebook.
-        vm.openNotebook("bio", in: window, startsNotebookChat: false)
+        // Nor does a surface that leaves a notebook drawn as chat and slot.
+        window.notebook = NotebookWorkspace(notebookID: "bio")
         await vm.openNotebookOutput(output(.doc, "doc-bio"), in: window)
         vm.revealCenterTab(.goals, beside: .chat, in: window)
         #expect(window.notebook == nil)
