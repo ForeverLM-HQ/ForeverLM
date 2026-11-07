@@ -170,6 +170,35 @@ struct SpeechToTextPricingTests {
         }
     }
 
+    @Test("A token-billed audio call is priced at the catalog's token rates, never left unpriced")
+    func tokenBilledAudioIsPriced() throws {
+        try OpenRouterAudioPrices.$pinnedTable.withValue(AudioPriceFixture.table) {
+            // A meeting chunk as the ledger recorded it on 2026-11-07:
+            // OpenRouter's transcription answer said `cost: 0`, ten minutes of
+            // audio, 6,000 tokens in and 832 out.
+            let transcription = try #require(AIProviderPricing.estimatedCostUSD(
+                provider: "OpenRouter",
+                model: "openai/gpt-4o-mini-transcribe",
+                report: AIUsageReport(
+                    inputTokens: 6_000,
+                    outputTokens: 832,
+                    totalTokens: 6_832,
+                    durationSeconds: 600,
+                    rawUsageJSON: #"{"cost":0,"input_tokens":6000,"output_tokens":832,"total_tokens":6832}"#
+                )
+            ))
+            #expect(abs(transcription - (6_000 * 0.00000125 + 832 * 0.000005)) < 0.000_000_1)
+
+            // A speech model billed by tokens: text in, audio tokens out.
+            let speech = try #require(AIProviderPricing.estimatedCostUSD(
+                provider: "OpenRouter",
+                model: "google/gemini-3.1-flash-tts-preview",
+                report: AIUsageReport(inputTokens: 1_000, audioOutputTokens: 20_000)
+            ))
+            #expect(abs(speech - (1_000 * 0.000001 + 20_000 * 0.00002)) < 0.000_000_1)
+        }
+    }
+
     @Test("A pick left by an older picker routes under the id its rail knows")
     func retiredModelIDsAreRepaired() throws {
         // Settings once offered these bare — `whisper-1` and

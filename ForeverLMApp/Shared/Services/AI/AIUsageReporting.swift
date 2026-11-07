@@ -1048,7 +1048,16 @@ enum AIProviderPricing {
             add(seconds / 60 * perMinute)
         }
 
-        if let rates = tokenRates(provider: provider, model: model, at: date) {
+        // A speech or transcription model OpenRouter bills by its tokens
+        // (gpt-4o-mini-transcribe, Gemini's voices) has no duration or
+        // character rate above, and its response carries no cost: OpenRouter's
+        // transcription endpoint answers `cost: 0`. Its price is the token rate
+        // OpenRouter's audio catalog lists for that exact model, which outranks
+        // a text row a name fragment might match (product owner, 2026-11-07:
+        // calls left "not priced yet" "should not be an option").
+        if let price = audioTokenPrice(provider: provider, model: model) {
+            add(audioTokenCostUSD(price: price, report: report))
+        } else if let rates = tokenRates(provider: provider, model: model, at: date) {
             add(tokenCostUSD(rates: rates, report: report))
         }
 
@@ -1117,7 +1126,7 @@ enum AIProviderPricing {
 
     /// OpenRouter's catalog, in the unit it bills the model by: per second,
     /// minute or hour of audio for most, and no duration rate for a
-    /// token-billed model, whose cost the response itself reports.
+    /// token-billed model, which `audioTokenPrice` prices by its tokens.
     /// `canonicalModel` names the slug the rail sends today, so a row an
     /// earlier build recorded on Groq or OpenAI under a bare id
     /// (`whisper-large-v3`) is priced at OpenRouter's row for that model.
@@ -1125,6 +1134,34 @@ enum AIProviderPricing {
         OpenRouterAudioPrices.transcriptionUSDPerHour(
             slug: ManagedTranscriptionClient.canonicalModel(model)
         ).map { $0 / 60 }
+    }
+
+    /// OpenRouter's catalog price for a transcription or speech model it
+    /// bills by input and output tokens; nil for one billed by duration or
+    /// character, or not in the catalog. Only a row the catalog lists counts:
+    /// `OpenRouterAudioPrices.price(for:kind:)` reads any `:free` slug as a
+    /// free audio model, which would take a free text model off its own rule
+    /// in `tokenRates`.
+    private static func audioTokenPrice(provider: String, model: String) -> OpenRouterAudioPrices.Price? {
+        let table = OpenRouterAudioPrices.current
+        func listed(_ slug: String?, _ kind: OpenRouterAudioDirectory.Kind) -> OpenRouterAudioPrices.Price? {
+            guard let key = slug?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
+                  let price = table[key], price.kind == kind, price.unit == .token
+            else { return nil }
+            return price
+        }
+        return listed(ManagedTranscriptionClient.canonicalModel(model), .transcription)
+            ?? listed(speechPriceSlug(provider: provider, model: model), .speech)
+    }
+
+    /// A token-billed audio call at the catalog's rates: the tokens heard or
+    /// read in at the input rate, the text or audio tokens produced at the
+    /// output rate. Nil when the row recorded no tokens to price.
+    private static func audioTokenCostUSD(price: OpenRouterAudioPrices.Price, report: AIUsageReport) -> Double? {
+        let input = report.inputTokens ?? report.audioInputTokens ?? 0
+        let output = report.outputTokens ?? report.audioOutputTokens ?? 0
+        guard input > 0 || output > 0 else { return price.isFree ? 0 : nil }
+        return Double(input) * price.rate + Double(output) * (price.outputRate ?? 0)
     }
 
     // MARK: - Remote list prices (OpenRouter model directory)
