@@ -1170,11 +1170,8 @@ struct NotebookWorkspaceView: View {
         let strip = NotebookSlotTabStrip(
             tabs: workspace.slotTabStrip.compactMap(\.centerTab),
             activeTab: activeTab,
-            trailingOverflow: max(width, StudioPaneHostMetrics.minimumContentWidth(for: activeTab)) - width,
             onSelect: { vm.activateCenterTab($0, in: windowState) },
             onCloseTab: { vm.closeCenterTab($0, in: windowState) },
-            onCloseSlot: { windowState.notebook = windowState.notebook?.closingSlot() },
-            memoryReviewFocused: windowState.memoryReviewFocusSessionID != nil,
             readerShowsVideo: vm.readerShowsVideo(in: windowState),
             leadingClearance: titlebarBandHeight == nil ? leadingReservation(start: start) : 0,
             onDragBegan: { isDraggingSlotTab = true },

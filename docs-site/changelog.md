@@ -6,6 +6,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **No big × at the end of a pane's tabs.** Each tab has its own ×, so the pane's × after the **+** is gone. Closing a pane's only tab closes the pane, as that × did.
 - **The sidebar stays when you move between places.** Showing or hiding the sidebar is one choice now: the Space no longer opens without it when Home and the Library were showing it.
 - **Notebooks have their own icon**, a folder, instead of the grid Plugins uses.
 - **Places kept on the icon strip sit with its other icons**, above the ⋯, with no dividing line.

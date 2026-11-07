@@ -3068,8 +3068,6 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
         // beside it still drag it. While a strip is drawn the band is cleared
         // so the pane renders its compact in-flow toolbar below it. Full
         // screen has no band: the strip is then the pane's first row.
-        let minWidth = StudioPaneHostMetrics.minimumContentWidth(for: group.activeTab)
-        let stripOverflow = max(width, minWidth) - width
         let showsStrip = group.showsTabStrip
         return StudioPaneHost(
             activeTab: group.activeTab,
@@ -3081,7 +3079,7 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
         ) {
             VStack(spacing: 0) {
                 if titlebarBandHeight == nil && showsStrip {
-                    strip(for: group, at: index, trailingOverflow: stripOverflow)
+                    strip(for: group, at: index)
                         .frame(height: StudioPanelChrome.headerHeight)
                 }
                 tabContent(group.activeTab)
@@ -3104,7 +3102,7 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
         } band: {
             if let band = titlebarBandHeight, showsStrip {
                 StudioBandRow(band: band) {
-                    strip(for: group, at: index, trailingOverflow: stripOverflow)
+                    strip(for: group, at: index)
                         .frame(height: band)
                 }
             }
@@ -3141,8 +3139,7 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
 
     private func strip(
         for group: StudioCenterTabGroups.Group,
-        at groupIndex: Int,
-        trailingOverflow: CGFloat
+        at groupIndex: Int
     ) -> some View {
         let readerShowsVideo = vm.readerShowsVideo(in: windowState)
         return HStack(spacing: 2) {
@@ -3229,37 +3226,10 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                     perform: { vm.moveCenterTab($0, toGroup: groupIndex, at: .max, in: windowState) }
                 ))
 
-            // Drawn on every strip, a lone pane's included; see
-            // `StudioTopBar.paneDrawsCloseControl`. Beside a neighbour the ×
-            // parks this pane's tabs there; alone it dismisses the active tab
-            // onto its home surface in the same pane.
-            if StudioTopBar.paneDrawsCloseControl(
-                memoryReviewFocused: windowState.memoryReviewFocusSessionID != nil
-            ) {
-                let closeActivePane = {
-                    withAnimation(.easeInOut(duration: 0.22)) {
-                        vm.dismissCenterSurface(group.activeTab, in: windowState)
-                    }
-                }
-                // The strip rides in the titlebar band when the window has one,
-                // where a SwiftUI Button loses its physical clicks to AppKit's
-                // drag handling; see `TitlebarBandHitSurfaceView`.
-                TitlebarBandButton(
-                    help: "Close pane",
-                    accessibilityLabel: "Close pane",
-                    accessibilityIdentifier: "studio.centerPane.\(groupIndex).close",
-                    action: closeActivePane
-                ) {
-                    Image(systemName: "xmark")
-                        .zoomedSystemFont(size: 11, weight: .medium)
-                        .foregroundStyle(.secondary)
-                        .frame(
-                            width: StudioPanelChrome.centerTabCloseButtonSize,
-                            height: StudioPanelChrome.centerTabCloseButtonSize
-                        )
-                }
-                .offset(x: -trailingOverflow)
-            }
+            // No pane × at the end: every tab carries its own, and a lone
+            // tab's × dismisses the pane the way the pane × did (product
+            // owner, 2026-11-07: "if each of those individual tabs will have a
+            // small X mark, then we don't need that big X mark anymore").
         }
         // The leftmost pane's first tab starts after what the leading edge
         // holds: the traffic lights in the band, and in full screen ‹ › and
@@ -4134,19 +4104,13 @@ func studioDropItemProviders(from pasteboard: NSPasteboard, types: [UTType]) -> 
 
 /// The tab strip over a notebook's document slot: the documents open in it,
 /// drawn as a pane's strip is outside a notebook (docs/ui-design.md rule 8),
-/// each tab with its own ×, and the pane's × at the end, which closes the
-/// whole slot. Lives in this file because it borrows the group strip's tab
-/// button and band row.
+/// each tab with its own ×; closing the last tab closes the slot. Lives in
+/// this file because it borrows the group strip's tab button and band row.
 struct NotebookSlotTabStrip: View {
     let tabs: [StudioCenterTab]
     let activeTab: StudioCenterTab
-    /// How far the slot's laid-out content runs past its visible width, which
-    /// the × rides in by (the group strip's `trailingOverflow`).
-    let trailingOverflow: CGFloat
     let onSelect: (StudioCenterTab) -> Void
     let onCloseTab: (StudioCenterTab) -> Void
-    let onCloseSlot: () -> Void
-    var memoryReviewFocused = false
     /// Whether the Reader holds a video, which its tab is then named for.
     var readerShowsVideo = false
     /// What the leading edge must clear: ‹ › and the sidebar toggle, which in
@@ -4206,23 +4170,6 @@ struct NotebookSlotTabStrip: View {
             Color.clear
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
                 .contentShape(Rectangle())
-            if StudioTopBar.paneDrawsCloseControl(memoryReviewFocused: memoryReviewFocused) {
-                TitlebarBandButton(
-                    help: "Close pane",
-                    accessibilityLabel: "Close pane",
-                    accessibilityIdentifier: "notebook.document.close",
-                    action: { withAnimation(.easeInOut(duration: 0.22)) { onCloseSlot() } }
-                ) {
-                    Image(systemName: "xmark")
-                        .zoomedSystemFont(size: 11, weight: .medium)
-                        .foregroundStyle(.secondary)
-                        .frame(
-                            width: StudioPanelChrome.centerTabCloseButtonSize,
-                            height: StudioPanelChrome.centerTabCloseButtonSize
-                        )
-                }
-                .offset(x: -trailingOverflow)
-            }
         }
         .padding(.leading, max(StudioTopBar.centerTabStripHorizontalPadding, leadingClearance))
         .padding(.trailing, StudioTopBar.centerTabStripHorizontalPadding)
