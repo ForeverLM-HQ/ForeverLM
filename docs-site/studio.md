@@ -916,8 +916,9 @@ moving or deleting one renumbers the rest.
   pointed when the article named none.
 - The Page stores them as ordinary Markdown footnotes, `[^1]` in the text and
   `[^1]: The note.` at the end, so Chat, assistants over MCP and Download as
-  Markdown read them as they are. A published Page draws the notes at the end of
-  the article, and a reader on a computer sees a note by resting on its number.
+  Markdown read them as they are. A published Page does not print the notes
+  either: a reader sees a note by resting the pointer on its number, or by
+  clicking or tapping it. A printed copy lists the notes at the end.
 
 ### Pasting from a PDF
 

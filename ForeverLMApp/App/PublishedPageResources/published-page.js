@@ -34,7 +34,7 @@ ${d}`:d}let u=this.sourceOffset===null?"":` data-src="${this.sourceOffset+i.star
 `).split(`
 `),n=0;for(;n<t.length&&t[n].trim()==="";)n+=1;let i=/^\s{0,3}#\s+(.*?)\s*#*\s*$/.exec(t[n]??"");if(i&&i[1].trim().toLowerCase()===r.trim().toLowerCase()){let a=n+1;for(;a<t.length&&t[a]==="";)a+=1;return{markdown:t.slice(a).join(`
 `),offset:a}}return{markdown:t.join(`
-`),offset:0}}var e0=5,r0='-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Arial,sans-serif',t0='"Iowan Old Style","Palatino Linotype",Palatino,Georgia,ui-serif,serif',n0=`
+`),offset:0}}var e0=6,r0='-apple-system,BlinkMacSystemFont,"Helvetica Neue",Helvetica,Arial,sans-serif',t0='"Iowan Old Style","Palatino Linotype",Palatino,Georgia,ui-serif,serif',n0=`
 :root{color-scheme:light dark;--page:#f7f7f4;--surface:#fff;--ink:#1f211f;--muted:#555a55;--faint:#7b817b;--line:#dcded8;--accent:#395b52;--accent-soft:#e7eeea;--code:#ecece8;--sans:${r0};--serif:${t0}}
 @media (prefers-color-scheme:dark){:root{--page:#131314;--surface:#1b1b1d;--ink:#f3f3f4;--muted:#b2b3b7;--faint:#8a8b90;--line:#2a2a2d;--accent:#8fbfae;--accent-soft:#1d2925;--code:#202023}}
 *{box-sizing:border-box}
@@ -185,6 +185,7 @@ section.footnotes li li{margin:.15em 0}
 section.footnotes li > :last-child{margin-bottom:0}
 a.fn-back{font:600 .85em/1 var(--sans);color:var(--faint);text-decoration:none}
 a.fn-back:hover{color:var(--accent);text-decoration:none}
+@media screen{html.fn-cards section.footnotes{display:none}}
 .fn-card{position:absolute;z-index:6;max-width:min(360px,calc(100vw - 16px));padding:12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);box-shadow:0 6px 20px rgba(0,0,0,.14);font:15px/1.5 var(--serif);color:var(--ink);text-align:left}
 .fn-card p,.fn-card ul,.fn-card ol,.fn-card blockquote,.fn-card pre{margin:0 0 .6em}
 .fn-card > :last-child{margin-bottom:0}
@@ -329,17 +330,23 @@ if(links.length&&"IntersectionObserver" in window){
   },{rootMargin:"-10% 0px -60% 0px",threshold:[0,1]});
   Object.keys(byID).forEach(function(id){var el=document.getElementById(id);if(el)io.observe(el);});
 }
-// Notes. Where the pointer can hover, resting on a note's number shows the
-// note in a card under it, as Substack does; the card stays while the pointer
-// moves into it, so a link in the note can be followed. On touch the number
-// is the plain link it is, to the note at the end of the article.
+// Notes. The notes are not printed at the end of the page on screen (product
+// owner, 2026-11-07: "those footnotes shouldn't actually be at the bottom;
+// only just when i click the superscript then something should show up"):
+// where the pointer can hover, resting on a note's number shows the note in a
+// card under it, as Substack does, and the card stays while the pointer moves
+// into it, so a link in the note can be followed; a click or a tap on the
+// number opens the card and keeps it until a click elsewhere or Escape.
+// Without this script, and in print, the notes stand at the end as before.
+document.documentElement.classList.add("fn-cards");
 var canHover=window.matchMedia?window.matchMedia("(hover: hover) and (pointer: fine)"):null;
-var note={card:null,link:null,showing:null,hiding:null};
+var note={card:null,link:null,showing:null,hiding:null,pinned:false};
 function noteRefOf(node){var el=node&&node.nodeType===1?node:(node?node.parentElement:null);return el&&el.closest?el.closest("sup.fn-ref a"):null;}
 function inNoteCard(node){return !!(note.card&&node&&note.card.contains(node));}
 function hideNote(){
   clearTimeout(note.showing);clearTimeout(note.hiding);note.showing=null;note.hiding=null;
   if(note.link){note.link.removeAttribute("aria-describedby");note.link=null;}
+  note.pinned=false;
   if(note.card)note.card.hidden=true;
 }
 // Under the number, kept 8px inside the window's sides, above it when the
@@ -386,10 +393,21 @@ document.addEventListener("mouseout",function(e){
   var to=e.relatedTarget;
   if(to&&(from.contains(to)||inNoteCard(to)||(note.link&&noteRefOf(to)===note.link)))return;
   clearTimeout(note.showing);note.showing=null;
+  if(note.pinned)return;
   if(note.card&&!note.card.hidden){clearTimeout(note.hiding);note.hiding=setTimeout(hideNote,150);}
 });
 document.addEventListener("keydown",function(e){if(e.key==="Escape"&&note.card&&!note.card.hidden)hideNote();});
-document.addEventListener("click",function(e){if(noteRefOf(e.target))hideNote();});
+document.addEventListener("click",function(e){
+  var link=noteRefOf(e.target);
+  if(link){
+    e.preventDefault();
+    if(note.pinned&&note.link===link){hideNote();return;}
+    clearTimeout(note.showing);clearTimeout(note.hiding);note.showing=null;note.hiding=null;
+    showNote(link);note.pinned=true;
+    return;
+  }
+  if(note.card&&!note.card.hidden&&!inNoteCard(e.target))hideNote();
+});
 // Edit mode. A host that shows the page (the Mac app's Page view, Web Studio's
 // frame) turns it on (ForeverLMPage.enableEditing, or a "foreverlm-host"
 // message). The page then answers a selection with a bubble, Edit with AI and
