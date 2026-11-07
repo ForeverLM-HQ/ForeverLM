@@ -740,6 +740,12 @@ extension AIService {
     ) {
         guard routesThroughOpenRouter(provider) else { return }
 
+        // Before the volatile tail moves and the cache breakpoints land, so
+        // they are placed on the request as it is sent.
+        if let messages = payload["messages"] as? [[String: Any]] {
+            payload["messages"] = ChatRequestTurnOrder.endingOnAnswerableTurn(messages)
+        }
+
         // On the direct rail the Worker is not there to price the call against
         // OpenRouter's generation record, so ask OpenRouter itself for what it
         // charged: `AIUsageParser` already reads `usage.cost` into

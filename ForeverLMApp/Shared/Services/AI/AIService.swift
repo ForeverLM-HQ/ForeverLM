@@ -383,8 +383,12 @@ struct AICompletionStopValidator {
             return "AI provider stopped before finishing because it hit the output token limit (\(normalized))."
         case "max_tokens_exceeded":
             return "AI provider stopped before finishing because it exceeded the output token limit (\(normalized))."
-        case "content_filter", "safety", "prohibited_content", "blocklist", "recitation", "spii":
-            return "AI provider stopped the response before completing normally (\(normalized))."
+        // A maker's safety check declining the request (Claude's `refusal`,
+        // which OpenRouter reports as `content_filter`). Nothing it wrote is
+        // an answer. A chat never moves to another model on its own (the
+        // learner chose this one); background work tries its listed backups.
+        case "refusal", "content_filter", "safety", "prohibited_content", "blocklist", "recitation", "spii":
+            return "The model declined this request (its maker's safety check, \(normalized)). Ask in other words, or pick another model for it."
         default:
             return "AI provider stopped the response before completing normally (\(normalized))."
         }

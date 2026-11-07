@@ -15636,6 +15636,12 @@ final class ReviewSessionManager {
         var previousSideQuestion: ChatSideQuestion.Parsed?
 
         for message in messages {
+            // What a failed or refused turn left on screen is the learner's
+            // record of what went wrong, not something the model said: sent
+            // back, Retry ended the request on the cut-off reply, which every
+            // Claude since 4.6 refuses as a prefill (400), and any other model
+            // carried on from the words it was stopped in.
+            if message.isFromFailedAttempt { continue }
             var content: String
             if message.role == .tool {
                 // Tool rows are display-only. The model already gets the real tool output via
@@ -17108,6 +17114,11 @@ extension ReviewSessionManager {
         manager.currentMemoryTargetIndex = currentTargetIndex
         manager.loadedSourceIDs = loadedSourceIDs
         return manager.currentFirstReviewSourceIDNeedingLoad()
+    }
+
+    static func providerMessagesForTesting(from messages: [Message]) -> [(role: String, content: String)] {
+        let manager = ReviewSessionManager(storage: StorageService(storeRoot: temporaryTestingRoot()))
+        return manager.providerMessages(from: messages)
     }
 
     static func flattenedProviderMessagesForTesting(from turns: [AIChatTurn]) -> [(role: String, content: String)] {

@@ -130,6 +130,41 @@ extension AIModelDefaults {
     }
 }
 
+/// Every request ends on a turn the model answers, never on its own words.
+///
+/// Claude since 4.6 (Opus 5.5, Sonnet 5.5, Haiku 5.5, Fable) refuses a
+/// request whose last message is the assistant's: "This model does not
+/// support assistant message prefill" (400), and the chat dies. Older Claudes
+/// and most other makers took the same body as a prefill, so a path that
+/// asks the model to speak again after it last spoke (a tutor's next question
+/// after its own grade, a reply re-asked on another model) worked until the
+/// learner picked a current Claude. A request may also be served by a model
+/// other than the one it was built for (OpenRouter moving it between hosts,
+/// a maker's own fallback), so the body has to be valid on every model, not
+/// only the one named: a closing assistant message is answered with a user
+/// turn asking the model to go on, which means the same thing everywhere.
+enum ChatRequestTurnOrder {
+    /// The user turn that follows a closing assistant message.
+    static let continueInstruction = "Continue."
+
+    /// `messages` (OpenAI-format role dictionaries) ending on a turn the model
+    /// answers. System and developer messages are folded into the system
+    /// prompt by makers that have no such role mid-conversation, so they do
+    /// not count as the last turn. An assistant message carrying tool calls is
+    /// left alone: its tool results follow, and none is ever missing on
+    /// purpose.
+    static func endingOnAnswerableTurn(_ messages: [[String: Any]]) -> [[String: Any]] {
+        guard let last = messages.last(where: {
+            let role = ($0["role"] as? String)?.lowercased()
+            return role != "system" && role != "developer"
+        }),
+              (last["role"] as? String)?.lowercased() == "assistant",
+              (last["tool_calls"] as? [Any])?.isEmpty != false
+        else { return messages }
+        return messages + [["role": "user", "content": continueInstruction]]
+    }
+}
+
 /// How a model reaches OpenRouter's prompt cache.
 ///
 /// Ground truth per model is `GET /api/v1/models/{slug}/endpoints`, whose

@@ -44,6 +44,7 @@ enum MobileOpenRouterChat {
         payloadMessages.append(contentsOf: messages.map {
             ["role": $0.role, "content": $0.content] as [String: Any]
         })
+        payloadMessages = ChatRequestTurnOrder.endingOnAnswerableTurn(payloadMessages)
         if explicit {
             var systemMarker: [String: Any] = ["type": "ephemeral"]
             if let explicitTTL { systemMarker["ttl"] = explicitTTL }

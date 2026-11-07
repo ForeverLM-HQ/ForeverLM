@@ -7442,3 +7442,110 @@ struct ChatStopEndsTheWaitTests {
         #expect(error is CancellationError)
     }
 }
+
+/// Every Claude since 4.6 refuses a request that ends on the assistant's own
+/// words ("does not support assistant message prefill", 400), and a request may
+/// be served by another model than the one it names, so no request ends there.
+@Suite("Requests end on a turn the model answers")
+struct ChatRequestTurnOrderTests {
+    @Test("A closing assistant message is answered with a user turn")
+    func closingAssistantMessageGetsAUserTurn() {
+        let messages: [[String: Any]] = [
+            ["role": "system", "content": "You tutor."],
+            ["role": "user", "content": "What do cristae do?"],
+            ["role": "assistant", "content": "They fold the inner membrane"],
+        ]
+        let sent = ChatRequestTurnOrder.endingOnAnswerableTurn(messages)
+        #expect(sent.count == 4)
+        #expect(sent.last?["role"] as? String == "user")
+        #expect(sent.last?["content"] as? String == ChatRequestTurnOrder.continueInstruction)
+    }
+
+    @Test("A trailing system message does not hide a closing assistant message")
+    func trailingSystemMessageIsSkipped() {
+        let messages: [[String: Any]] = [
+            ["role": "user", "content": "Grade me."],
+            ["role": "assistant", "content": "Graded."],
+            ["role": "system", "content": "Ask the next question."],
+        ]
+        let sent = ChatRequestTurnOrder.endingOnAnswerableTurn(messages)
+        #expect(sent.last?["role"] as? String == "user")
+    }
+
+    @Test("A request that already ends on the learner or a tool is sent as it is")
+    func answerableEndingsAreUntouched() {
+        let user: [[String: Any]] = [["role": "user", "content": "Hello"]]
+        #expect(ChatRequestTurnOrder.endingOnAnswerableTurn(user).count == 1)
+        let toolRound: [[String: Any]] = [
+            ["role": "user", "content": "Find it."],
+            ["role": "assistant", "content": "", "tool_calls": [["id": "c1", "type": "function"]]],
+            ["role": "tool", "tool_call_id": "c1", "content": "found"],
+        ]
+        #expect(ChatRequestTurnOrder.endingOnAnswerableTurn(toolRound).count == 3)
+        let pendingCalls: [[String: Any]] = [
+            ["role": "user", "content": "Find it."],
+            ["role": "assistant", "content": "", "tool_calls": [["id": "c1", "type": "function"]]],
+        ]
+        #expect(ChatRequestTurnOrder.endingOnAnswerableTurn(pendingCalls).count == 2)
+    }
+
+    @Test("Every Mac OpenRouter body ends on a user turn")
+    func macOpenRouterBodyEndsOnAUserTurn() {
+        var payload: [String: Any] = [
+            "model": "anthropic/claude-opus-5.5",
+            "messages": [
+                ["role": "system", "content": "You tutor."],
+                ["role": "user", "content": "Quiz me."],
+                ["role": "assistant", "content": "Here is your next question"],
+            ] as [[String: Any]],
+        ]
+        AIService.applyOpenRouterPayloadExtras(&payload, provider: .openRouter)
+        let messages = payload["messages"] as? [[String: Any]] ?? []
+        #expect(messages.last?["role"] as? String == "user")
+    }
+
+    @Test("The phone's OpenRouter body ends on a user turn")
+    func phoneOpenRouterBodyEndsOnAUserTurn() throws {
+        let route = ResolvedAITextRoute(task: .chat, provider: "OpenRouter", model: "anthropic/claude-opus-5.5")
+        let request = try MobileOpenRouterChat.request(
+            route: route,
+            system: "You tutor.",
+            messages: [
+                (role: "assistant", content: "What do cristae do?"),
+                (role: "user", content: "They fold the membrane."),
+                (role: "assistant", content: "Right."),
+            ],
+            maxTokens: 256
+        )
+        let data = try #require(request.httpBody)
+        let body = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+        let messages = body["messages"] as? [[String: Any]] ?? []
+        #expect(messages.last?["role"] as? String == "user")
+    }
+
+    @Test("Retry leaves the failed attempt's words out of the request")
+    @MainActor func retryLeavesTheFailedAttemptOut() {
+        typealias Message = ReviewSessionManager.Message
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        var cutOff = Message(role: .assistant, content: "Mitochondrial uncouplers work by", createdAt: start.addingTimeInterval(4))
+        cutOff.isFromFailedAttempt = true
+        let history = [
+            Message(role: .user, content: "Explain uncouplers.", createdAt: start),
+            cutOff,
+        ]
+        let sent = ReviewSessionManager.providerMessagesForTesting(from: history)
+        #expect(sent.map(\.role) == ["user"])
+    }
+
+    @Test("A safety decline says the model declined, not that the provider stopped")
+    func safetyDeclineIsNamed() {
+        for reason in ["refusal", "content_filter"] {
+            do {
+                try AICompletionStopValidator.throwIfStoppedAbnormally(["finish_reason": reason])
+                Issue.record("\(reason) passed as a normal stop")
+            } catch {
+                #expect(error.localizedDescription.contains("declined"))
+            }
+        }
+    }
+}
