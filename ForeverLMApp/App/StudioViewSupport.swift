@@ -603,28 +603,148 @@ private final class WindowDragBlockerView: NSView {
     override var mouseDownCanMoveWindow: Bool { false }
 }
 
-/// Keeps a window from being moved by the user while a press on a tab in the
-/// titlebar band lasts. AppKit turns a press in the band into a window move
-/// unless the view under it consumes the drags that follow, and for a tab drawn
-/// into the band by a SwiftUI offset it did so even when the press was routed
-/// to the tab and a drag session began (the window followed the pointer, build
-/// 252's TabPress log). `isMovable` is the one switch AppKit honours whatever
-/// view took the press, so the tab sets it for the press and gives it back
-/// when the press ends. Only windows this has locked are given back, and a
-/// tab leaving its window releases it.
+/// Keeps a window from being moved by the user while the pointer is on a
+/// control in the titlebar band, and while a press on one lasts.
+///
+/// A titlebar drag is the window server's, not the app's: it decides at the
+/// mouse-down, from the window's `isMovable` as it stands then, before AppKit
+/// hands the press to any view (that is why a hung app's window still drags by
+/// its titlebar). Setting `isMovable` false inside the tab's `mouseDown`, as
+/// build 266 did, came too late: the server had already taken the press as a
+/// window move, so dragging a tab to the other pane slid the whole window
+/// (product owner, 2026-11-06: "the whole window, like the entire app window,
+/// will move to the right because I'm like dragging in the top toolbar").
+///
+/// So the carve-out is set before the press: `BandHoverTracker` holds the
+/// window still while the pointer is over a registered band control, and the
+/// press holds it until the click or the drag session ends. The empty band
+/// around the controls stays movable. Only windows this made unmovable are
+/// given back, and only once nothing holds them.
 @MainActor
 enum WindowMoveLock {
-    private static var locked = Set<ObjectIdentifier>()
+    enum Hold: Hashable {
+        /// The pointer is over a band control.
+        case hover
+        /// A press on a band control, until its click or drag session ends.
+        case press
+    }
 
-    static func lock(_ window: NSWindow) {
-        guard window.isMovable else { return }
-        locked.insert(ObjectIdentifier(window))
+    private static var holds: [ObjectIdentifier: Set<Hold>] = [:]
+    /// Windows this made unmovable, to be given back; a window someone else
+    /// made unmovable stays as it was.
+    private static var madeUnmovable = Set<ObjectIdentifier>()
+
+    static func lock(_ window: NSWindow, for hold: Hold = .press) {
+        let id = ObjectIdentifier(window)
+        let wasHeld = !(holds[id]?.isEmpty ?? true)
+        holds[id, default: []].insert(hold)
+        guard !wasHeld, window.isMovable else { return }
+        madeUnmovable.insert(id)
         window.isMovable = false
     }
 
-    static func unlock(_ window: NSWindow?) {
-        guard let window, locked.remove(ObjectIdentifier(window)) != nil else { return }
-        window.isMovable = true
+    static func unlock(_ window: NSWindow?, for hold: Hold = .press) {
+        guard let window else { return }
+        let id = ObjectIdentifier(window)
+        guard holds[id]?.remove(hold) != nil else { return }
+        if hold == .press {
+            // The pointer has moved while the press lasted (a drag session sends
+            // no mouse-moved events), so the hover hold is re-read from where it
+            // is now rather than left as it was at the press.
+            BandHoverTracker.refresh(window)
+        }
+        guard holds[id]?.isEmpty ?? true else { return }
+        holds[id] = nil
+        if madeUnmovable.remove(id) != nil {
+            window.isMovable = true
+        }
+    }
+
+    static func isHeld(_ window: NSWindow, for hold: Hold) -> Bool {
+        holds[ObjectIdentifier(window)]?.contains(hold) ?? false
+    }
+}
+
+/// Watches the pointer over a window that has controls in its titlebar band and
+/// holds the window still (`WindowMoveLock`, `.hover`) while the pointer is on
+/// one of them, so a press there reaches the control instead of moving the
+/// window. One per window, installed when the first band control registers.
+///
+/// It reads mouse-moved events from its own always-active tracking area over the
+/// whole window, so it works in a window that is not key and in an app that is
+/// not frontmost, the first press included.
+@MainActor
+final class BandHoverTracker: NSResponder {
+    private static let trackers = NSMapTable<NSWindow, BandHoverTracker>.weakToStrongObjects()
+
+    private weak var window: NSWindow?
+    private weak var trackedView: NSView?
+    private var trackingArea: NSTrackingArea?
+
+    static func install(on window: NSWindow) {
+        if let tracker = trackers.object(forKey: window) {
+            tracker.attachIfNeeded()
+            return
+        }
+        let tracker = BandHoverTracker(window: window)
+        trackers.setObject(tracker, forKey: window)
+        tracker.attachIfNeeded()
+    }
+
+    /// Re-reads whether the pointer is over a band control right now.
+    static func refresh(_ window: NSWindow) {
+        let point = window.convertPoint(fromScreen: NSEvent.mouseLocation)
+        update(window, at: point)
+    }
+
+    static func update(_ window: NSWindow, at pointInWindow: NSPoint) {
+        if TitlebarBandHitSurfaceView.registeredSurface(at: pointInWindow, in: window) != nil {
+            WindowMoveLock.lock(window, for: .hover)
+        } else if WindowMoveLock.isHeld(window, for: .hover) {
+            WindowMoveLock.unlock(window, for: .hover)
+        }
+    }
+
+    private init(window: NSWindow) {
+        self.window = window
+        super.init()
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) is not used")
+    }
+
+    /// The tracking area sits on the window's frame view, which outlives any
+    /// content view SwiftUI swaps in and covers the titlebar band too.
+    private func attachIfNeeded() {
+        guard let window, let host = window.contentView?.superview ?? window.contentView else { return }
+        if trackedView === host, trackingArea != nil { return }
+        if let trackingArea, let trackedView {
+            trackedView.removeTrackingArea(trackingArea)
+        }
+        let area = NSTrackingArea(
+            rect: .zero,
+            options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        host.addTrackingArea(area)
+        trackedView = host
+        trackingArea = area
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        guard let window else { return }
+        Self.update(window, at: event.locationInWindow)
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        mouseMoved(with: event)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        guard let window else { return }
+        WindowMoveLock.unlock(window, for: .hover)
     }
 }
 
@@ -783,6 +903,9 @@ final class TitlebarBandHitSurfaceView: NSView, NSDraggingSource {
     static func registerWithBandRouter(_ view: NSView) {
         registeredSurfaces.add(view)
         installMouseDownMonitorIfNeeded()
+        if let window = view.window {
+            BandHoverTracker.install(on: window)
+        }
     }
 
     static func unregisterFromBandRouter(_ view: NSView) {
@@ -1246,9 +1369,10 @@ final class StudioCenterTabDragHandleView: NSView, NSDraggingSource {
             pendingMouseDown = event
             return
         }
-        // Whatever AppKit does with a press in the band, the window stays
-        // where it is until this press is over: a click, a cancelled press,
-        // or a drag session's end (`draggingSession(_:endedAt:operation:)`).
+        // The pointer resting on the tab already held the window still
+        // (`BandHoverTracker`); the press keeps it held until it is over: a
+        // click, a cancelled press, or a drag session's end
+        // (`draggingSession(_:endedAt:operation:)`), wherever the pointer goes.
         WindowMoveLock.lock(window)
         tabPressLogger.notice("center tab \(self.title, privacy: .public) mouseDown; \(tabPressOrigin(window), privacy: .public)")
         let result = trackTitlebarBandTabPress(event, in: window)
@@ -2938,9 +3062,9 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
         // band, as Claude's title does, so the tabs are the top bar (product
         // owner, 2026-11-02: "tabs at the top of the screen, but when clicking
         // and dragging them DONT drag the whole ForeverLM console"). A press on
-        // a tab or a drag of one must never move the window: the tab's press
-        // locks the window in place for as long as it lasts
-        // (`WindowMoveLock`), and only the strip's empty tail and the band
+        // a tab or a drag of one must never move the window: the pointer on a
+        // tab holds the window in place before the press, and the press for as
+        // long as it lasts (`WindowMoveLock`), and only the strip's empty tail and the band
         // beside it still drag it. While a strip is drawn the band is cleared
         // so the pane renders its compact in-flow toolbar below it. Full
         // screen has no band: the strip is then the pane's first row.
