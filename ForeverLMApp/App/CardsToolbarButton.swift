@@ -59,7 +59,7 @@ struct CardsMenuItems: View {
                 }
             } else {
                 Button {
-                    vm.presentReaderMakeCards(sourceID: article.id, in: windowState)
+                    vm.requestReaderMakeCardsChat(sourceID: article.id, in: windowState)
                 } label: {
                     Label("Make Cards…", systemImage: MemoryReviewSession.sidebarIcon)
                 }

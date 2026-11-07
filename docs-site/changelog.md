@@ -6,6 +6,8 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **Dragging a tab in the top bar no longer moves the window.** Dragging a pane's tab, such as Library, from the top bar to the other pane moved the whole window instead; it now drags the tab. The empty top bar around the tabs still moves the window.
+- **Make Cards opens a chat.** The Make Cards sheet (Auto · 10 · 20 · 40, Focus, a price line) is gone: Make Cards, in the Reader, a notebook's Studio and the Library, opens a new chat on those sources with "Make cards from …" typed for you, and you say how many and what for there.
 
 ## 0.187.0 (build 267) — 2026-11-07
 

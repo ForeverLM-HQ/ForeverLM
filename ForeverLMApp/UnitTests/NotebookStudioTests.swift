@@ -369,21 +369,16 @@ struct NotebookStudioTests {
         #expect(other.memoryReviewFocusSessionID == nil)
     }
 
-    @Test("The Cards tile's Make Cards… opens its sheet for the notebook's ticked sources in the window it was pressed in, and Practice starts nothing in a notebook without cards")
+    @Test("The Cards tile's Make Cards… opens a chat on the notebook's ticked sources with the request unsent, and Practice starts nothing in a notebook without cards")
     func cardsTileMakesAndPractises() async {
         let restore = capturingSharedDefaults()
         defer { restore() }
         let (vm, window, paperID, _) = studio()
-        vm.inWindow(window) { vm.presentNotebookMakeCards(notebookID: "bio") }
-        let target = CardDraftingCoordinator.shared.target(in: window.id)
-        #expect(target?.notebookID == "bio", "the notebook's decided cards guide the drafting")
-        #expect(target?.sourceIDs == [paperID], "the ticked sources the library holds")
-        #expect(target?.windowID == window.id)
-        CardDraftingCoordinator.shared.dismiss(in: window.id)
-        #expect(StudioViewModel.makeCardsSourcesLine(sourceCount: 15, notOpened: 11) == "15 sources · 11 not opened here")
-        // The price says what Auto comes to over the sources.
-        #expect(MakeCardsSheet.priceLine(cardCount: 24, isFree: false, cost: "$0.04") == "24 cards · $0.04")
-        #expect(MakeCardsSheet.priceLine(cardCount: 1, isFree: true, cost: "$0.00") == "1 card · free")
+        vm.inWindow(window) { vm.requestNotebookMakeCardsChat(notebookID: "bio") }
+        #expect(vm.pendingReviewChatNotebookID == "bio", "the chat is filed in the notebook")
+        #expect(vm.contextSourceIds == [paperID], "the ticked sources the library holds")
+        #expect(vm.pendingReviewChatDraft?.hasPrefix("Make cards from") == true, "typed, not sent")
+        #expect(vm.reviewChatResetRequestID != nil, "a fresh chat")
 
         // Practice reads the notebook's cards first: with none it says so and
         // the window stays the notebook's.

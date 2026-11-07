@@ -795,7 +795,7 @@ extension StudioSidebar {
 
         // The source's card verdicts (docs/memory-design.md, "Cards for
         // every source"), the same two the wide row shows under the pointer:
-        // Make Cards for the row or the whole selection — the sheet drafts
+        // Make Cards for the row or the whole selection — one chat drafts
         // them together, so the cards can link the ideas they share — and Not
         // Worth Keeping for the row, which removes it with Undo. Only for
         // sources that can have cards.
@@ -804,7 +804,7 @@ extension StudioSidebar {
             Button {
                 let ids = selectedIds
                 let notebookID = sidebarNotebook?.notebookID
-                windowVM.inWindow { $0.presentMakeCards(notebookID: notebookID, sourceIDs: ids) }
+                windowVM.inWindow { $0.requestMakeCardsChat(notebookID: notebookID, sourceIDs: ids) }
             } label: {
                 Label(
                     cardStates.allSatisfy(\.hasCards) ? "Make More Cards" : "Make Cards",

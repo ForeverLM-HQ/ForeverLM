@@ -17,12 +17,12 @@ import Foundation
 // day, there should also be a suggestion to make cards for all the content i
 // added to the library that day; even at the highest level perhaps"): a
 // source added today or yesterday that no card covers is named, and the click
-// opens the Make Cards sheet for all of them at once.
+// opens a Make Cards chat on all of them at once.
 
 extension Notification.Name {
     /// Asks Studio to take up the cards banner's click in its active window.
     /// `object` is the `[String]` of finished sources with no cards, whose
-    /// Make Cards sheet opens; empty, To Check opens over every notebook.
+    /// Make Cards chat opens; empty, To Check opens over every notebook.
     static let requestCardsFromFinished = Notification.Name("requestCardsFromFinished")
 }
 

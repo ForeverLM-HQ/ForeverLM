@@ -726,7 +726,7 @@ extension StudioSidebar {
             if sourcesListLayout == .wide, sidebar.sourceCardFilter == .withoutCards,
                let batch = StudioViewModel.sourceCardBatch(windowVM.filteredActiveItems) {
                 SpaceDarkPillButton(title: "Make Cards for \(batch.count)", systemImage: nil, image: nil) {
-                    windowVM.inWindow { $0.presentMakeCards(notebookID: sidebarNotebook?.notebookID, sourceIDs: batch) }
+                    windowVM.inWindow { $0.requestMakeCardsChat(notebookID: sidebarNotebook?.notebookID, sourceIDs: batch) }
                 }
                 .help("Make cards for the first \(batch.count) sources without cards together, so the cards can link their ideas")
                 .accessibilityIdentifier("library.cards.makeBatch")

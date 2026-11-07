@@ -467,9 +467,9 @@ struct NotebookStudioTileControl: View {
         case .cards:
             // The notebook's cards ("42 kept · 6 due · 9 to check"), then
             // Practice — its kept cards and its cards to check, in the
-            // window-filling review — and Make Cards…, which drafts cards
-            // from the ticked sources for To Check (its sheet asks how many
-            // and prices it); Open in Memory opens the Memory pane narrowed
+            // window-filling review — and Make Cards…, a chat on the ticked
+            // sources that drafts their cards for To Check (the learner says
+            // how many there); Open in Memory opens the Memory pane narrowed
             // to the notebook, with its Start Review.
             Menu {
                 if let line = cardCounts?.line {
@@ -480,7 +480,7 @@ struct NotebookStudioTileControl: View {
                 }
                 .disabled(cardCounts?.isEmpty == true)
                 Button("Make Cards…", systemImage: "plus.rectangle.on.rectangle") {
-                    vm.inWindow(windowState) { vm.presentNotebookMakeCards(notebookID: goal.id) }
+                    vm.inWindow(windowState) { vm.requestNotebookMakeCardsChat(notebookID: goal.id) }
                 }
                 .disabled(vm.notebookStudioSourceIDs(goal.id).isEmpty)
                 Divider()
@@ -962,7 +962,7 @@ private struct NotebookCardsRow: View {
     }
 
     private func make() {
-        vm.inWindow(windowState) { vm.presentNotebookMakeCards(notebookID: notebookID) }
+        vm.inWindow(windowState) { vm.requestNotebookMakeCardsChat(notebookID: notebookID) }
     }
 }
 
@@ -1313,7 +1313,7 @@ struct NotebookMakeMenuItems: View {
         }
         .disabled(!takes || vm.audioOverviewOptionsTarget(notebookID: notebookID) == nil)
         Button("Make Cards…") {
-            vm.inWindow(windowState) { vm.presentNotebookMakeCards(notebookID: notebookID) }
+            vm.inWindow(windowState) { vm.requestNotebookMakeCardsChat(notebookID: notebookID) }
         }
         .disabled(vm.notebookStudioSourceIDs(notebookID).isEmpty)
         // The tile's Practice: the notebook's kept cards and its cards to

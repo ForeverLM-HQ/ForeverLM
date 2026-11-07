@@ -323,7 +323,7 @@ extension StudioViewModel {
 
     /// Make Cards as `make_cards_from_canvas` runs it: the same anchors and
     /// drafting, awaited. A selection of sources alone goes to the source
-    /// Make Cards (the sheet, in the app; `draft_cards`, for an assistant).
+    /// Make Cards (a chat, in the app; `draft_cards`, for an assistant).
     func makeKnowledgeMapCards(refs: [String], edgeIDs: [String], presentingSourceSheet: Bool) async throws -> KnowledgeMapCardsResult {
         let plan = knowledgeMapCardAnchors(refs: refs, edgeIDs: edgeIDs)
         var result = KnowledgeMapCardsResult(
@@ -344,10 +344,10 @@ extension StudioViewModel {
 
     /// A selection with no Idea or arrow to draft from: its sources go to
     /// the source Make Cards the Reader's button opens; with none, a toast
-    /// says what is missing. True when the sheet was asked for.
+    /// says what is missing. True when the chat was asked for.
     private func knowledgeMapHandOff(_ plan: KnowledgeMapCardAnchors) -> Bool {
         if !plan.sourceIDs.isEmpty {
-            presentMakeCards(notebookID: nil, sourceIDs: plan.sourceIDs)
+            requestMakeCardsChat(notebookID: nil, sourceIDs: plan.sourceIDs)
             return true
         }
         if plan.ideasWithoutEvidence > 0 || plan.arrowsWithoutSources > 0 {

@@ -160,13 +160,22 @@ struct MakeMnemonicReadingSheet: View {
     static func detail(_ plan: MnemonicReadingPlan) -> String? {
         var parts: [String] = []
         if !plan.skipped.isEmpty {
-            parts.append("Left out: " + plan.skipped.map { "\($0.title) (\(MakeCardsSheet.clause($0.reason)))" }
+            parts.append("Left out: " + plan.skipped.map { "\($0.title) (\(Self.clause($0.reason)))" }
                 .joined(separator: "; ") + ".")
         }
         if !plan.splitTitles.isEmpty {
             parts.append("Read in parts: \(plan.splitTitles.joined(separator: "; ")).")
         }
         return parts.isEmpty ? nil : parts.joined(separator: " ")
+    }
+
+    /// A reason as a clause inside parentheses: its first letter lower case
+    /// (names such as AI and ForeverLM keep theirs), without its full stop.
+    static func clause(_ reason: String) -> String {
+        var text = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+        while text.hasSuffix(".") { text.removeLast() }
+        guard let first = text.first else { return text }
+        return first.lowercased() + text.dropFirst()
     }
 
     @ViewBuilder

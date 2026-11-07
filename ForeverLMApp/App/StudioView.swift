@@ -603,7 +603,6 @@ struct StudioView: View {
             .sharingRightsPrompt()
             .reportOptionsSheet()
             .directionTakeSheet()
-            .makeCardsSheet()
             .mnemonicReadingSheet()
             .alert("PDF Download Debug Log", isPresented: Bindable(vm).showDebugAlert) {
                 Button("Copy to Clipboard") {
@@ -1070,7 +1069,7 @@ struct StudioView: View {
                 vm.inWindow(windowState) { vm.requestCardReview(scope: .allNotebooks) }
             }
             // The morning-after cards banner: the drafts that wait in To Check
-            // over every notebook, or the Make Cards sheet for the finished
+            // over every notebook, or a Make Cards chat for the finished
             // sources that have none.
             .onReceive(NotificationCenter.default.publisher(for: .requestCardsFromFinished)) { note in
                 guard StudioWindowRegistry.shared.activeState === windowState else { return }
@@ -1079,7 +1078,7 @@ struct StudioView: View {
                     if undrafted.isEmpty {
                         vm.openCardsToCheck(scope: .allNotebooks)
                     } else {
-                        vm.presentMakeCards(notebookID: nil, sourceIDs: undrafted)
+                        vm.requestMakeCardsChat(notebookID: nil, sourceIDs: undrafted)
                     }
                 }
             }

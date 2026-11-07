@@ -994,42 +994,24 @@ struct MakeCardsViewModelTests {
         #expect(!vm.placeCardDrafts(scope: .allNotebooks, in: panes))
         #expect(panes.centerTabGroups == before)
         #expect(panes.memoryPaneSection == .review, "nothing changes when there is no place")
-
-        #expect(StudioViewModel.makeCardsSourcesLine(sourceCount: 15, notOpened: 11) == "15 sources · 11 not opened here")
-        #expect(StudioViewModel.makeCardsSourcesLine(sourceCount: 1, notOpened: 0) == "1 source")
     }
 
-    @Test("The sheet names the sources it leaves out, and why, and those it reads as excerpts")
-    func sheetDetail() {
-        #expect(MakeCardsSheet.clause("It is kept from AI or archived.") == "it is kept from AI or archived")
-        #expect(MakeCardsSheet.clause("It is a spoken script ForeverLM wrote.") == "it is a spoken script ForeverLM wrote")
-        #expect(MakeCardsSheet.detail(nil, skipped: []) == nil)
-        #expect(MakeCardsSheet.detail(nil, skipped: [
-            CardDraftingSkip(sourceID: "a", title: "Alpha", reason: "It has no text yet."),
-            CardDraftingSkip(sourceID: "b", title: "Beta", reason: "It is not in the library."),
-        ]) == "Left out: Alpha (it has no text yet); Beta (it is not in the library).")
-        let long = (0..<400).map { "Paragraph \($0) says protons move across the inner membrane in a measured way." }.joined(separator: "\n")
-        let plan = CardDraftingPlanner.plan(
-            request: request(count: .cards(4)), sources: [source(text: long)], skipped: [], notebookExemplars: [],
-            route: cardRoute(budget: system.count + 9_000), system: system
-        )
-        #expect(MakeCardsSheet.detail(plan, skipped: []) == "Too long for the model's window, so read as excerpts: Mitochondria.")
-    }
-
-    @Test("The Studio's Cards tile is a menu, and Make Cards opens its sheet in the window it was asked from")
-    func studioTile() {
+    @Test("Make Cards opens a fresh chat on its sources, the request typed but unsent")
+    func makeCardsChat() {
         let (vm, root) = makeViewModel()
         defer { try? FileManager.default.removeItem(at: root) }
         #expect(NotebookStudioTile.cards.isMenu)
         #expect(!NotebookStudioTile.cards.makesIntoNotebook)
-        let windowID = vm.activeWindowState.id
-        vm.presentMakeCards(notebookID: "nb", sourceIDs: ["a", " a ", "b", ""])
-        let target = CardDraftingCoordinator.shared.target(in: windowID)
-        #expect(target?.sourceIDs == ["a", "b"])
-        #expect(target?.notebookID == "nb")
-        #expect(target?.windowID == windowID)
-        CardDraftingCoordinator.shared.dismiss(in: windowID)
-        #expect(CardDraftingCoordinator.shared.target(in: windowID) == nil)
+        vm.requestMakeCardsChat(notebookID: nil, sourceIDs: ["a", " a ", "b", ""])
+        #expect(vm.pendingReviewChatNotebookID == nil, "no notebook named, none the store holds")
+        #expect(vm.pendingReviewChatDraft == "Make cards from these 2 sources. ")
+        #expect(vm.reviewChatResetRequestID != nil)
+
+        #expect(StudioViewModel.makeCardsChatDraft(titles: ["Mitochondria"], sourceCount: 1) == "Make cards from \u{201C}Mitochondria\u{201D}. ")
+        #expect(StudioViewModel.makeCardsChatDraft(titles: [], sourceCount: 1) == "Make cards from this source. ")
+        #expect(StudioViewModel.makeCardsChatDraft(titles: ["A", "B", "C"], sourceCount: 3) == "Make cards from these 3 sources. ")
+        #expect(MakeMnemonicReadingSheet.clause("It is kept from AI or archived.") == "it is kept from AI or archived")
+        #expect(MakeMnemonicReadingSheet.clause("It is a spoken script ForeverLM wrote.") == "it is a spoken script ForeverLM wrote")
     }
 }
 

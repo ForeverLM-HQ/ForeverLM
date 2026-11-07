@@ -2,26 +2,28 @@
 import Foundation
 
 // MARK: - Memory as cards: Make Cards
-//
+
 // docs/memory-design.md, "Drafting" and notebooks-design.md, "Studio". Make
-// Cards asks first and makes on the second press, as every Studio tile does:
-// the Reader's Make Cards (its source) and the notebook's Studio Cards tile
-// (its ticked sources) open a one-line sheet — Cards: Auto · 10 · 20 · 40;
-// Focus; "15 sources · 11 not opened here"; the price — whose Make drafts
-// the cards (`makeCards`). They arrive kept by default in Memory's To Check,
-// which opens beside the Reader once they are ready and never over a chat or
-// the source (`CardDraftsPlacement`); the Reader's toolbar says "Cards · N to
-// check" for its source until they are gone through.
+// Cards is said in the chat (product owner, 2026-11-06: "I think that should
+// always be in the chat"): the Reader's Make Cards (its source), the
+// notebook's Studio Cards tile (its ticked sources), the Library's rows and
+// its Make Cards for N open a fresh chat with those sources and "Make cards
+// from …" typed but unsent, so the learner adds how many or what for in their
+// own words. The chat drafts the cards itself (`save_card_drafts`) or has
+// ForeverLM draft them, priced first (`draft_cards`). They wait in Memory's
+// To Check, which the chat's reply opens; the Reader's toolbar says "Cards ·
+// N to check" for its source until they are gone through.
 
 extension StudioViewModel {
 
-    // MARK: The sheet
+    // MARK: The chat
 
-    /// Make Cards' first press: the sheet for `sourceIDs`, in the active
-    /// window (`MakeCardsSheet`). `notebookID` is the notebook the cards are
-    /// made in — its decided cards are the drafter's exemplars, and To Check
-    /// opens narrowed to it — and nil from a Reader outside a notebook.
-    func presentMakeCards(notebookID: String?, sourceIDs: [String]) {
+    /// Make Cards: a fresh chat on `sourceIDs`, in the active window, with
+    /// the request typed but unsent (`makeCardsChatDraft`). `notebookID` is
+    /// the notebook the chat is filed in — its decided cards are the
+    /// drafter's exemplars — and nil from a Reader outside a notebook, which
+    /// files it where the window files new chats.
+    func requestMakeCardsChat(notebookID: String?, sourceIDs: [String]) {
         var seen = Set<String>()
         let ids = sourceIDs
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
@@ -30,27 +32,40 @@ extension StudioViewModel {
             showToast("Tick a source to make cards from")
             return
         }
-        CardDraftingCoordinator.shared.present(MakeCardsTarget(
-            notebookID: notebookID,
-            sourceIDs: ids,
-            windowID: activeWindowState.id
-        ))
+        let titles = ids.compactMap { id in articlesById[id].map { displayTitle(for: $0) } }
+        pendingReviewChatNotebookID = notebookID.flatMap { notebook(id: $0)?.id }
+        setContextSources(ids)
+        pendingReviewChatDraft = Self.makeCardsChatDraft(titles: titles, sourceCount: ids.count)
+        reviewChatPanelMode = .chat
+        showAssistantOverlay = true
+        reviewChatResetRequestID = UUID()
+        reviewChatFocusRequestID = UUID()
     }
 
     /// The notebook's Studio Cards tile's Make Cards…, and the Notebook
     /// menu's Make ▸ Make Cards…: the notebook's ticked sources.
-    func presentNotebookMakeCards(notebookID: String) {
-        presentMakeCards(notebookID: notebookID, sourceIDs: notebookStudioSourceIDs(notebookID))
+    func requestNotebookMakeCardsChat(notebookID: String) {
+        requestMakeCardsChat(notebookID: notebookID, sourceIDs: notebookStudioSourceIDs(notebookID))
     }
 
     /// The Reader's Make Cards…: its source, in the notebook `windowState`
     /// holds when the source is one of the notebook's.
-    func presentReaderMakeCards(sourceID: String, in windowState: StudioWindowState) {
+    func requestReaderMakeCardsChat(sourceID: String, in windowState: StudioWindowState) {
         let notebookID = windowState.notebook?.notebookID
         let inNotebook = notebookID.map { notebookHolds($0, sourceID: sourceID) } ?? false
         inWindow(windowState) {
-            presentMakeCards(notebookID: inNotebook ? notebookID : nil, sourceIDs: [sourceID])
+            requestMakeCardsChat(notebookID: inNotebook ? notebookID : nil, sourceIDs: [sourceID])
         }
+    }
+
+    /// The unsent opening of a Make Cards chat: the source by name when there
+    /// is one, else how many. It ends on a space, so what the learner types
+    /// next — "about ten, on the methods" — reads on from it.
+    static func makeCardsChatDraft(titles: [String], sourceCount: Int) -> String {
+        if sourceCount == 1, let title = titles.first?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
+            return "Make cards from \u{201C}\(title)\u{201D}. "
+        }
+        return sourceCount == 1 ? "Make cards from this source. " : "Make cards from these \(sourceCount) sources. "
     }
 
     /// Whether `notebookID`'s sources include `sourceID`, a team's copy of it
@@ -61,68 +76,7 @@ extension StudioViewModel {
         return members.contains(canonicalSourceID(sourceID))
     }
 
-    /// The sheet's sources line: "15 sources · 11 not opened here".
-    static func makeCardsSourcesLine(sourceCount: Int, notOpened: Int) -> String {
-        var line = sourceCount == 1 ? "1 source" : "\(sourceCount) sources"
-        if notOpened > 0 { line += " · \(notOpened) not opened here" }
-        return line
-    }
-
-    // MARK: Pricing and making
-
-    /// What `makeCards` would draft and what it would cost, read and planned
-    /// off the main actor, on the learner's Card Drafting route as it stands.
-    /// Throws when no model is configured or the sources cannot be read.
-    func makeCardsPlan(
-        notebookID: String?,
-        sourceIDs: [String],
-        count: MemoryCardRequestCount,
-        focus: String?
-    ) async throws -> CardDraftingPlan {
-        let request = CardDraftingRequest(
-            notebookID: notebookID,
-            sourceIDs: sourceIDs,
-            count: count,
-            focus: focus,
-            trigger: .requested
-        )
-        let materials = try await CardDraftingCoordinator.load(request, storage: storage)
-        return try await CardDraftingCoordinator.plan(materials, count: request.count, focus: request.focus)
-    }
-
-    /// Make Cards: drafts cards from `sourceIDs` — each source's whole text,
-    /// its free walkthrough questions first — into Memory's To Check, where
-    /// the learner keeps, edits or skips them, and opens To Check
-    /// in the active window when the cards are ready, where it covers neither
-    /// a chat nor the source (or a toast offers it). The caller has shown the
-    /// learner the price: the Make Cards sheet does (`makeCardsPlan`).
-    /// Learner-started, so the background cap never pauses it, though the
-    /// ledger counts it. Nil when nothing could be planned, it was stopped,
-    /// or it failed (said in a toast).
-    @discardableResult
-    func makeCards(
-        notebookID: String?,
-        sourceIDs: [String],
-        count: MemoryCardRequestCount,
-        focus: String?
-    ) async -> CardDraftingResult? {
-        let windowID = activeWindowState.id
-        let plan: CardDraftingPlan
-        do {
-            plan = try await makeCardsPlan(notebookID: notebookID, sourceIDs: sourceIDs, count: count, focus: focus)
-        } catch {
-            showToast(error.localizedDescription)
-            return nil
-        }
-        return await CardDraftingCoordinator.shared.make(plan, windowID: windowID, in: self)
-    }
-
-    /// The sheet's Make: the plan it priced, drafted, its cards opened in
-    /// the window it was asked from.
-    @discardableResult
-    func makeCards(_ plan: CardDraftingPlan, windowID: UUID?) async -> CardDraftingResult? {
-        await CardDraftingCoordinator.shared.make(plan, windowID: windowID, in: self)
-    }
+    // MARK: Runs
 
     /// Stops cards being made; the sources already drafted keep theirs.
     func cancelMakingCards(_ runID: String) {
