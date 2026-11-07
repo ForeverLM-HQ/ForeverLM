@@ -883,7 +883,7 @@ actor XBookmarkService {
         let bookmarks: [XBookmark] = (decoded.data ?? []).map { tweet in
             let author = authorMap[tweet.authorId ?? ""]
             // Prefer note_tweet for long tweets (>280 chars)
-            let fullText = tweet.noteTweet?.text ?? tweet.text
+            let fullText = XPostThreadService.decodedPostText(tweet.noteTweet?.text ?? tweet.text)
             let tweetURLs = tweet.entities?.urls?.compactMap { $0.expandedURL } ?? []
             return XBookmark(
                 tweetId: tweet.id,

@@ -49,6 +49,10 @@ enum MobileCloudKitRetry {
     private static let logger = Logger(subsystem: "com.foreverlm.mobile", category: "CloudKitRetry")
 
     static func isTransient(_ error: Error) -> Bool {
+        // A satellite fetch wraps the CloudKit failure in `BlobStoreError.failed`; it is the same
+        // failure, and bare it reads "ForeverLM.BlobStoreError error 4" (the numbering puts the
+        // cases that carry a value first, which makes `.failed` 4).
+        if case .failed(let cloudError) = error as? BlobStoreError { return transientCodes.contains(cloudError.code) }
         guard let ckError = error as? CKError else { return false }
         if transientCodes.contains(ckError.code) { return true }
         // A batch that failed item by item is transient only when every item
@@ -107,7 +111,8 @@ enum MobileCloudKitRetry {
     /// A permanent failure keeps its own description.
     static func describe(_ error: Error) -> String {
         guard isTransient(error) else { return error.localizedDescription }
-        let code = (error as? CKError)?.code
+        var code = (error as? CKError)?.code
+        if case .failed(let cloudError) = error as? BlobStoreError { code = cloudError.code }
         switch code {
         case .serviceUnavailable, .requestRateLimited, .zoneBusy:
             return "iCloud is busy right now. Try again in a moment."

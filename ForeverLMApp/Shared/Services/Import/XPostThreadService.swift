@@ -189,7 +189,9 @@ actor XPostThreadService {
             let full = try await XBookmarkService.shared.fetchPostTexts(forPostIDs: truncatedIDs)
             guard !full.isEmpty else { return posts }
             return posts.map { post in
-                guard let text = full[post.id], text.count > post.text.count else { return post }
+                guard let raw = full[post.id] else { return post }
+                let text = Self.decodedPostText(raw)
+                guard text.count > post.text.count else { return post }
                 var filled = post
                 filled.text = text
                 filled.isTruncated = false
@@ -417,7 +419,14 @@ actor XPostThreadService {
                   let full = entity.expandedURL, !full.isEmpty else { continue }
             expanded = expanded.replacingOccurrences(of: short, with: full)
         }
-        return expanded.trimmingCharacters(in: .whitespacesAndNewlines)
+        return decodedPostText(expanded)
+    }
+
+    /// X sends a post's text with `&`, `<` and `>` as HTML entities (both the public
+    /// endpoint and the API), and the archive escapes text again when it writes
+    /// HTML, so an undecoded "R&amp;D" read as that on the phone.
+    nonisolated static func decodedPostText(_ text: String) -> String {
+        LocalSite.decodeEntities(text).trimmingCharacters(in: .whitespacesAndNewlines)
     }
 }
 

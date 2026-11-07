@@ -89,6 +89,17 @@ struct XPostThreadTests {
         #expect(post.permalink == "https://x.com/owl_posting/status/222")
     }
 
+    @Test("Reads the entities X puts in a post's text as the characters they stand for")
+    func decodesEntitiesInPostText() throws {
+        let data = try syndicationJSON(id: "5", text: "Pharma spends $400B/yr on R&amp;D &lt;5 years &gt; 2")
+        let post = try XPostThreadService.decodePost(id: "5", from: data)
+        #expect(post.text == "Pharma spends $400B/yr on R&D <5 years > 2")
+        // Escaped once, when the archive writes HTML, and not twice.
+        let thread = XPostThread(subjectID: "5", posts: [post], earlierPostsIncomplete: false)
+        #expect(thread.archiveHTML.contains("R&amp;D &lt;5"))
+        #expect(!thread.archiveHTML.contains("&amp;amp;"))
+    }
+
     @Test("Flags a long post the public endpoint cut short")
     func flagsTruncatedPost() throws {
         let data = try syndicationJSON(id: "1", text: "opening of a long essay", truncated: true)

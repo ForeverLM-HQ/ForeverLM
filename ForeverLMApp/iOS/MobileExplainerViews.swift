@@ -122,52 +122,6 @@ struct MobileExplainerDestination: Hashable {
     }
 }
 
-/// The icon beside a paper or article in a list. Dim when there is no
-/// explainer yet, filled once the script exists, in the accent colour once it
-/// can be listened to; a tap does whatever comes next.
-struct MobileExplainerRowBadge: View {
-    let source: MobileCloudSource
-
-    @EnvironmentObject private var audio: MobileAudioReviewViewModel
-    @ObservedObject private var generator = MobileExplainerGenerator.shared
-
-    var body: some View {
-        if MobileExplainerStatus.isExplainable(source) {
-            let status = MobileExplainerStatus.current(for: source, audio: audio, generator: generator)
-            let action = status.action(for: source, audio: audio, generator: generator)
-            Button {
-                guard let action else { return }
-                Task { await action() }
-            } label: {
-                Group {
-                    if status.isBusy {
-                        ProgressView()
-                            .controlSize(.small)
-                    } else {
-                        Image(systemName: status.icon)
-                            .font(status.phase == .none || status.phase == .scriptOnly ? .caption : .body)
-                            .foregroundStyle(foreground(for: status.phase))
-                    }
-                }
-                .frame(width: 28, height: 28)
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.borderless)
-            .disabled(action == nil)
-            .accessibilityLabel(status.title)
-            .accessibilityIdentifier("source.explainer")
-        }
-    }
-
-    private func foreground(for phase: MobileExplainerStatus.Phase) -> AnyShapeStyle {
-        switch phase {
-        case .none: return AnyShapeStyle(.tertiary)
-        case .scriptOnly: return AnyShapeStyle(.secondary)
-        case .writing, .generatingAudio, .ready, .playing, .paused: return AnyShapeStyle(Color.accentColor)
-        }
-    }
-}
-
 /// The row menu's item. Deliberately always one `Button` (see
 /// `MobileOfflineSaveButton`): while the explainer is being written it is the
 /// cancel, otherwise it is whatever a tap on the badge would do.

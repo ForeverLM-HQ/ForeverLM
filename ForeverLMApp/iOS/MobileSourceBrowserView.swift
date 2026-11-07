@@ -1855,10 +1855,6 @@ struct MobileBrowserSourceRow: View {
 
             Spacer(minLength: 0)
 
-            // The explainer beside a paper or article: dim until one is
-            // written, filled once it is, accent-coloured once it can be heard.
-            MobileExplainerRowBadge(source: source)
-
             if source.isPaywalled {
                 Image(systemName: "lock.fill")
                     .font(.caption)

@@ -98,6 +98,13 @@ final class MobileCloudKitRetryTests: XCTestCase {
             "iCloud is busy right now. Try again in a moment."
         )
         XCTAssertFalse(MobileCloudKitRetry.describe(CKError(.networkFailure)).contains("CKErrorDomain"))
+        // A satellite fetch that fails offline arrives wrapped, and reads the same.
+        let wrapped = BlobStoreError.failed(CloudError(.networkUnavailable))
+        XCTAssertTrue(MobileCloudKitRetry.isTransient(wrapped))
+        XCTAssertEqual(
+            MobileCloudKitRetry.describe(wrapped),
+            "iCloud could not be reached. Check the connection and try again in a moment."
+        )
         // A permanent failure keeps the description that names it.
         let permanent = CKError(.permissionFailure)
         XCTAssertEqual(MobileCloudKitRetry.describe(permanent), permanent.localizedDescription)
