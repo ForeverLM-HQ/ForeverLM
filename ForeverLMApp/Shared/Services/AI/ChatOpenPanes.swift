@@ -97,12 +97,15 @@ struct ChatOpenPanes: Equatable {
     /// else comes to fill the pane the Memory pane was in.
     var pinnedCard: ChatContextAdditions.CardOnScreen? = nil
 
-    /// "Left", "Right"; "Middle" in a third pane; nil for a lone pane.
+    /// "Left", "Right"; "Middle" in a third pane, and with four "Middle
+    /// left" and "Middle right", so no two panes share a name; nil for a lone
+    /// pane.
     static func positionName(index: Int, count: Int) -> String? {
         guard count > 1 else { return nil }
         if index == 0 { return "Left" }
         if index == count - 1 { return "Right" }
-        return "Middle"
+        guard count > 3 else { return "Middle" }
+        return index == 1 ? "Middle left" : "Middle right"
     }
 
     private var windowsChatsFirst: [Window] {

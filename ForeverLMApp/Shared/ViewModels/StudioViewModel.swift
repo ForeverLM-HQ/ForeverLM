@@ -3231,7 +3231,7 @@ class StudioViewModel {
     /// its own position, while adjacent menu actions go through
     /// `splitCenterTab(_:towardRight:)` so they do not land back where they
     /// started.
-    /// At the three-pane limit the split request is ignored.
+    /// At the pane limit (`draggedGroupCount`) the split request is ignored.
     func moveCenterTabToNewGroup(
         _ tab: StudioCenterTab,
         fromGroup groupID: UUID? = nil,

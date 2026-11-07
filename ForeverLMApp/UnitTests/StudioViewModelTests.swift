@@ -4892,13 +4892,14 @@ struct ScheduleChatNavigationTests {
             .init(tabs: [.reader, .tasks], activeTab: .reader),
             .init(tabs: [.artifacts], activeTab: .artifacts),
             .init(tabs: [.notepad], activeTab: .notepad),
+            .init(tabs: [.library], activeTab: .library),
         ]).persistedRepresentation
         UserDefaults.standard.set(stored, forKey: "studio.centerTabGroups.v1")
 
         vm.reloadSyncedPreferences()
 
         #expect(vm.centerTabGroups.groups.count == StudioCenterTabGroups.draggedGroupCount)
-        #expect(vm.activeCenterTabs == [.chat, .reader, .artifacts])
+        #expect(vm.activeCenterTabs == [.chat, .reader, .artifacts, .notepad])
         #expect(Set(vm.centerTabGroups.groups.flatMap(\.tabs)) == Set(StudioCenterTab.permanentTabs))
         #expect(UserDefaults.standard.stringArray(forKey: "studio.centerTabGroups.v1") == stored)
     }
@@ -5123,6 +5124,7 @@ struct ScheduleChatNavigationTests {
         let full = StudioCenterTabGroups.reconciled(.init(groups: [
             .init(tabs: [.notepad], activeTab: .notepad),
             .init(tabs: [.notepad], activeTab: .notepad),
+            .init(tabs: [.notepad], activeTab: .notepad),
             .init(tabs: [.notepad, .chat], activeTab: .notepad),
         ]))
         #expect(full.groups.count == StudioCenterTabGroups.draggedGroupCount)
@@ -5200,14 +5202,20 @@ struct ScheduleChatNavigationTests {
         vm.placeCenterTabAtEdge(.artifacts, leading: true)
         #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.artifacts, .reader, .chat])
 
-        // At three panes a tab sharing a pane joins the edge pane as a tab.
+        // A fourth pane too (product owner, 2026-11-07: "Yes, allow four").
+        vm.activateCenterTab(.memory)
+        vm.placeCenterTabAtEdge(.memory, leading: false)
+        #expect(vm.centerTabGroups.groups.count == 4)
+        #expect(vm.centerTabGroups.groups[3].activeTab == .memory)
+
+        // At four panes a tab sharing a pane joins the edge pane as a tab.
         vm.activateCenterTab(.library)
         let library = vm.centerTabGroups.groups.firstIndex { $0.activeTab == .library }
         #expect(library != nil)
         vm.placeCenterTabAtEdge(.library, leading: false)
-        #expect(vm.centerTabGroups.groups.count == 3)
-        #expect(vm.centerTabGroups.groups[2].activeTab == .library)
-        #expect(vm.centerTabGroups.groups[2].openTabs == [.chat, .library])
+        #expect(vm.centerTabGroups.groups.count == 4)
+        #expect(vm.centerTabGroups.groups[3].activeTab == .library)
+        #expect(vm.centerTabGroups.groups[3].openTabs == [.memory, .library])
     }
 
     @Test("a tab dropped on another pane's strip moves there")
@@ -5504,7 +5512,7 @@ struct ScheduleChatNavigationTests {
         #expect(recaptured.allSatisfy { $0.placement != nil })
     }
 
-    @Test("center tabs move and dissolve without exceeding three panes")
+    @Test("center tabs move and dissolve without exceeding four panes")
     func centerTabMoves() {
         let restoreLayout = capturedCenterTabLayout()
         defer { restoreLayout() }
@@ -5515,13 +5523,17 @@ struct ScheduleChatNavigationTests {
             .init(tabs: [.reader, .tasks, .notepad, .sites, .browser, .artifacts], activeTab: .reader),
         ])
 
-        // Split Right from a strip may make a third pane, as a drag may.
+        // Split Right from a strip may make a third and a fourth pane, as a
+        // drag may, and no fifth.
         vm.moveCenterTabToNewGroup(.artifacts, at: 2)
         #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.chat, .reader, .artifacts])
+        vm.moveCenterTabToNewGroup(.sites, at: 3)
+        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.chat, .reader, .artifacts, .sites])
         let atCapacity = vm.centerTabGroups
-        vm.moveCenterTabToNewGroup(.tasks, at: 3)
+        vm.moveCenterTabToNewGroup(.tasks, at: 4)
         #expect(vm.centerTabGroups == atCapacity)
 
+        vm.moveCenterTab(.sites, toGroup: 1, at: 1)
         vm.moveCenterTab(.artifacts, toGroup: 0, at: 1)
         #expect(vm.centerTabGroups.groups.count == 2)
         #expect(vm.centerTabGroups.groups[0].tabs == [.chat, .artifacts])

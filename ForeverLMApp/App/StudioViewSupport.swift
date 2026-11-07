@@ -3566,8 +3566,8 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
 
         // The same three outcomes as `StudioViewModel.placeCenterTabAtEdge`:
         // a pane of the tab's own moves to the edge, a tab sharing its pane
-        // (or parked) opens a new pane there, and at three panes it joins the
-        // edge pane.
+        // (or parked) opens a new pane there, and at the pane limit it joins
+        // the edge pane.
         let isPaneOfItsOwn = groups[sourceIndex].openTabs == [tab]
         let movesItsPane = isPaneOfItsOwn && (groups.count > 1 || groups[sourceIndex].tabs == [tab])
         if !movesItsPane, StudioCenterTabGroups(groups: groups).canCreateDraggedGroup {

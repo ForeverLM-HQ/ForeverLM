@@ -884,7 +884,7 @@ struct StudioSideChatSplitTests {
         #expect(StudioCenterTab.reader.splitCopy == nil)
     }
 
-    @Test("the split button beside a chat opens side chats up to the pane limit, and each × closes its own")
+    @Test("the split button beside a chat opens side chats up to four panes, and each × closes its own")
     func chatSplitsIntoSideChats() {
         let restore = Self.capturedLayout()
         defer { restore() }
@@ -904,14 +904,17 @@ struct StudioSideChatSplitTests {
         #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.chat, .secondaryChat, .secondaryChat])
         let second = vm.centerTabGroups.groups[2].id
 
-        // No fourth pane.
+        // A fourth, and no fifth.
+        vm.splitFocusedPane(in: window)
+        #expect(vm.centerTabGroups.groups.count == 4)
+        let third = vm.centerTabGroups.groups[3].id
         vm.splitFocusedPane(in: window)
         #expect(vm.centerTabGroups.groups.count == StudioCenterTabGroups.draggedGroupCount)
 
         // A side chat's × closes its own pane.
         vm.dismissSecondaryChatPane(fromGroup: second, in: window)
-        #expect(vm.centerTabGroups.groups.map(\.id) == [vm.centerTabGroups.groups[0].id, first])
-        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.chat, .secondaryChat])
+        #expect(vm.centerTabGroups.groups.map(\.id) == [vm.centerTabGroups.groups[0].id, first, third])
+        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.chat, .secondaryChat, .secondaryChat])
     }
 
     @Test("Chat open nowhere moves beside rather than making a side chat")
@@ -976,6 +979,14 @@ struct StudioSideChatSplitTests {
         #expect(window.splitFromPane[vm.centerTabGroups.groups[1].id] == browserPane)
         #expect(StudioCenterTab.browser.splitCopy == .secondaryBrowser)
         #expect(!vm.centerTabGroups.persistedRepresentation.joined().contains("secondaryBrowser"))
+    }
+
+    @Test("four panes have four names for the chat, no two alike")
+    func fourPaneNames() {
+        #expect((0..<4).map { ChatOpenPanes.positionName(index: $0, count: 4) }
+            == ["Left", "Middle left", "Middle right", "Right"])
+        #expect((0..<3).map { ChatOpenPanes.positionName(index: $0, count: 3) } == ["Left", "Middle", "Right"])
+        #expect(ChatOpenPanes.positionName(index: 0, count: 1) == nil)
     }
 
     @Test("each side-chat pane keeps its own store, and a gone pane's store goes unless it is answering")

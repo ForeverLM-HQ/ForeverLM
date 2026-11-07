@@ -171,7 +171,7 @@ extension ArtifactSection {
 }
 
 /// The user's arrangement of the center tabs: an ordered partition into one,
-/// two or three panes, each showing one active tab and a strip of the tabs
+/// two, three or four panes, each showing one active tab and a strip of the tabs
 /// the learner has open there. Every destination is parked in some pane;
 /// the ones the learner opened are that pane's tabs (`Group.openTabs`), and a
 /// pane with two or more draws them as a strip above it. Tabs replaced pane
@@ -308,9 +308,11 @@ struct StudioCenterTabGroups: Equatable {
     /// workspace.
     static let maximumGroupCount = 2
 
-    /// Hard cap. A third pane appears only when the learner drags a tab to an
-    /// edge of a two-pane window; four panes are never restored.
-    static let draggedGroupCount = 3
+    /// Hard cap on the panes the learner makes: a third or a fourth appears
+    /// only when they drag a tab to an edge or split a pane (product owner,
+    /// 2026-11-07, after the split button: "Yes, allow four"; three until
+    /// then). Five are never restored: extras fold into the fourth.
+    static let draggedGroupCount = 4
 
     /// True when the app may open another pane on its own (`maximumGroupCount`).
     var canCreateGroup: Bool { groups.count < Self.maximumGroupCount }

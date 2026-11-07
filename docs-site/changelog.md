@@ -6,6 +6,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **Up to four panes side by side**, up from three. Split a pane or drag a tab to the edge for a fourth.
 - **Two browsers side by side.** In a pane showing the Browser, the split button's **Browser** (or ⌘\\) opens a second Browser beside it on the same page, with its own tabs. **Open in Browser** from a source or a chat still opens in the first Browser. Second Browsers close with their tab × and don't come back after a relaunch.
 
 ## 0.191.0 (build 271) — 2026-11-07
