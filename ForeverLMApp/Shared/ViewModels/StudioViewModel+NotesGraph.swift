@@ -124,7 +124,10 @@ extension StudioViewModel {
                 if let reveal { attachBlockReveal(reveal, to: docID, in: destination) }
                 return
             }
-            if activeTeamID != nil, let period = PlanPeriod(id: docID) {
+            // A plan's id names its quarter or week before its Page exists
+            // (a foreverlm://doc/plan-… link, open_in_app): opening it makes
+            // the Page, as the Plan place's row does, in My Library.
+            if let period = PlanPeriod(id: docID) {
                 await openPlan(period, in: destination)
                 if let reveal { attachBlockReveal(reveal, to: docID, in: destination) }
                 return
