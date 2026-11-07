@@ -5409,6 +5409,9 @@ let footnoteCard = null
 let footnoteCardTimer = null
 /// The number the card stands under, and the view it belongs to.
 let footnoteCardAnchor = null
+/// A card opened by a press on its number stays until a press elsewhere or a
+/// key; one opened by resting the pointer goes when the pointer leaves.
+let footnoteCardPinned = false
 
 function ensureFootnoteCard() {
   if (footnoteCard) return footnoteCard
@@ -5421,13 +5424,20 @@ function ensureFootnoteCard() {
   // caret.
   footnoteCard.addEventListener('mouseenter', () => clearTimeout(footnoteCardTimer))
   footnoteCard.addEventListener('mouseleave', (event) => {
-    if (footnoteCardAnchor?.element.contains(event.relatedTarget)) return
+    if (footnoteCardPinned || footnoteCardAnchor?.element.contains(event.relatedTarget)) return
     scheduleHideFootnoteCard()
   })
   footnoteCard.addEventListener('mousedown', (event) => event.preventDefault())
   footnoteCard.addEventListener('click', (event) => {
     if (event.target instanceof Element && event.target.closest('a[href]')) event.preventDefault()
   })
+  // A press anywhere but the card or a number closes a pinned card.
+  document.addEventListener('mousedown', (event) => {
+    if (!footnoteCard || footnoteCard.hidden) return
+    const target = event.target instanceof Element ? event.target : null
+    if (target && (footnoteCard.contains(target) || target.closest('sup.artifact-footnote-ref'))) return
+    hideFootnoteCard()
+  }, true)
   document.body.append(footnoteCard)
   return footnoteCard
 }
@@ -5501,6 +5511,20 @@ function showFootnoteCard(view, element) {
     empty.textContent = 'Empty note'
     children.push(empty)
   }
+  // The notes are not drawn at the foot of the page, so the card is the way
+  // into one: Edit Note opens the notes with the caret at the end of this one.
+  if (definition && view.editable) {
+    const edit = document.createElement('button')
+    edit.type = 'button'
+    edit.className = 'artifact-footnote-card-edit'
+    edit.textContent = 'Edit Note'
+    edit.addEventListener('click', (event) => {
+      event.preventDefault()
+      hideFootnoteCard()
+      goToFootnote(view, key)
+    })
+    children.push(edit)
+  }
   card.replaceChildren(...children)
   card.classList.toggle('is-empty', !definition || (!cited.length && !definition.node.textContent.trim()))
   card.classList.toggle('has-sources', cited.length > 0)
@@ -5531,6 +5555,7 @@ function hideFootnoteCard() {
   clearTimeout(footnoteCardTimer)
   footnoteCardTimer = null
   footnoteCardAnchor = null
+  footnoteCardPinned = false
   if (footnoteCard) footnoteCard.hidden = true
 }
 
@@ -5615,11 +5640,22 @@ const footnotePlugin = $prose(() => new Plugin({
       }
     })(),
     handleKeyDown: (view, event) => handleFootnoteKey(view, event),
+    // The notes are not part of the page as it reads (product owner,
+    // 2026-11-07: "those footnotes shouldn't actually be at the bottom; only
+    // just when i click the superscript then something should show up"). They
+    // are drawn only while the caret is in one: a new footnote, or Edit Note.
+    attributes: (state) => (footnoteDefinitionAround(state.selection.$from) ? { class: 'is-editing-note' } : {}),
     handleClickOn(view, _pos, node, _nodePos, event, direct) {
       if (!direct || event.button !== 0 || event.shiftKey || event.metaKey || event.ctrlKey) return false
       if (!isFootnoteReference(node)) return false
-      hideFootnoteCard()
-      return goToFootnote(view, footnoteKey(node.attrs.label))
+      // A press opens the number's card and keeps it open; the note itself
+      // is not drawn on the page.
+      const element = view.nodeDOM(_nodePos)
+      if (!(element instanceof Element)) return false
+      clearTimeout(footnoteCardTimer)
+      showFootnoteCard(view, element)
+      footnoteCardPinned = true
+      return true
     },
     transformCopied(slice, view) {
       const notes = notesForFragment(view.state.doc, slice.content)
@@ -5640,14 +5676,14 @@ const footnotePlugin = $prose(() => new Plugin({
       },
       mouseover(view, event) {
         const element = event.target instanceof Element ? event.target.closest('sup.artifact-footnote-ref') : null
-        if (!element) return false
+        if (!element || (footnoteCardPinned && footnoteCardAnchor?.element === element)) return false
         clearTimeout(footnoteCardTimer)
         footnoteCardTimer = setTimeout(() => showFootnoteCard(view, element), 160)
         return false
       },
       mouseout(_view, event) {
         const element = event.target instanceof Element ? event.target.closest('sup.artifact-footnote-ref') : null
-        if (!element || element.contains(event.relatedTarget)) return false
+        if (!element || element.contains(event.relatedTarget) || footnoteCardPinned) return false
         if (footnoteCard && !footnoteCard.hidden && footnoteCard.contains(event.relatedTarget)) return false
         // A beat's grace, so the pointer can cross the gap into the card.
         scheduleHideFootnoteCard()

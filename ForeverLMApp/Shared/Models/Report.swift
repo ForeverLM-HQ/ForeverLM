@@ -186,12 +186,12 @@ struct ReportOptions: Equatable, Sendable {
 
 // MARK: - The recipe
 
-/// What a report was made from, kept with it: the Doc's Sources section
-/// opens with this one line, "Made from 6 sources · Briefing · why complex I
+/// What a report was made from, kept with it: the Doc closes with this one
+/// line under a rule, "Made from 6 sources · Briefing · why complex I
 /// matters", which every client shows as it shows any Doc, which a published
 /// page keeps, and which the outputs row's menu and `read_doc` read back.
-/// The sources themselves follow it as cards, and the record names them
-/// (`ArtifactRecord.sourceIDs`).
+/// The sources it cites are its footnotes' notes, and the record names every
+/// source it was made from (`ArtifactRecord.sourceIDs`).
 struct ReportRecipe: Equatable, Sendable {
     var format: ReportFormat
     /// How many of the notebook's sources it was written from.
@@ -304,7 +304,7 @@ struct ReportRecipe: Equatable, Sendable {
     }
 
     /// The recipe a report's body carries: its last line that reads as one,
-    /// written by the app at the head of the Sources section. Nil for a Doc
+    /// written by the app under the closing rule. Nil for a Doc
     /// that is not a report, or one whose recipe line the learner removed.
     static func parse(fromMarkdown markdown: String) -> ReportRecipe? {
         for line in markdown.split(separator: "\n", omittingEmptySubsequences: true).reversed() {
@@ -443,7 +443,7 @@ enum ReportTake {
 
     /// What the writer is told, in its turn, after the focus.
     static func writerInstruction(_ take: String) -> String {
-        "The learner wrote their own take before asking for this report, in their words: \u{201C}\(take)\u{201D}. ForeverLM puts it at the top of the report under \"\(heading)\"; do not repeat it there or rewrite it. Write the report as you would have anyway, then end it with a section headed \"\(differenceHeading)\", before any list of sources, that says plainly and briefly what their take saw that your report does not, and what your report found that their take left out. Do not grade or praise the take."
+        "The learner wrote their own take before asking for this report, in their words: \u{201C}\(take)\u{201D}. ForeverLM puts it at the top of the report under \"\(heading)\"; do not repeat it there or rewrite it. Write the report as you would have anyway, then end it with a section headed \"\(differenceHeading)\", that says plainly and briefly what their take saw that your report does not, and what your report found that their take left out. Do not grade or praise the take."
     }
 
     /// The report's Markdown with the take's section at its top, or as it
@@ -565,9 +565,11 @@ enum ReportMarkdown {
 
 // MARK: - Citations
 
-/// The writer's `[S<n>]` markers turned into the Doc's own citations, and the
-/// Sources section a report closes with. Deterministic: the model names a
-/// number it was given, and the app writes the address.
+/// The writer's `[S<n>]` markers turned into the Doc's own citations: each
+/// cited passage stands on its sources (grounding, for Chat) and carries a
+/// footnote whose note links them, the way every Page cites (product owner,
+/// 2026-11-07: a report needs no Sources list at the end). Deterministic: the
+/// model names a number it was given, and the app writes the address.
 enum ReportCitations {
     /// One source of the report, in marker order: `[S1]` is the first.
     struct Source: Equatable, Sendable {
@@ -582,6 +584,9 @@ enum ReportCitations {
         var citedSourceIDs: [String]
         /// Markers naming a number no source has, as written; dropped.
         var unresolvedMarkers: [String]
+        /// The notes the footnotes point at, in label order:
+        /// `[^1]: [Title](foreverlm://source/<id>)`, one line each.
+        var notes: [String] = []
     }
 
     /// A marker: `[S3]`, `[S1, S4]`, `[S2-S5]`, `[S2][S3]`, never a link's
@@ -589,40 +594,33 @@ enum ReportCitations {
     /// followed by another is two markers, not a reference link.
     static let markerPattern = #"\[\s*[Ss]\d{1,3}(?:\s*(?:[,;]|[-\x{2013}\x{2014}])\s*[Ss]?\d{1,3})*\s*\](?!\()"#
 
-    /// The heading the Sources section opens with.
-    static let sourcesHeading = "## Sources"
-
     /// The report's Doc body: the written Markdown with every marker turned
-    /// into grounding on the passage it follows, then the Sources section.
+    /// into a footnote on the passage it follows, a rule and the recipe line,
+    /// then the notes.
     static func compose(written: String, recipe: ReportRecipe, sources: [Source]) -> Result {
         let normalized = written
             .replacingOccurrences(of: "\r\n", with: "\n")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         var result = ground(normalized, sources: sources)
         let body = result.markdown.trimmingCharacters(in: .whitespacesAndNewlines)
-        let section = sourcesSection(recipe: recipe, sources: sources)
-        result.markdown = (body.isEmpty ? section : body + "\n\n" + section) + "\n"
+        var parts = body.isEmpty ? [] : [body]
+        parts.append("---")
+        parts.append(ReportMarkdown.escaped(recipe.line))
+        parts.append(contentsOf: result.notes)
+        result.markdown = parts.joined(separator: "\n\n") + "\n"
         return result
     }
 
-    /// What a report closes with: its recipe line, then a card for each
-    /// source it was written from, one paragraph each, a source not read
-    /// whole saying how it was read. With no source (feedback on a Doc and
-    /// nothing else), a rule and the recipe line alone.
-    static func sourcesSection(recipe: ReportRecipe, sources: [Source]) -> String {
-        let recipeLine = ReportMarkdown.escaped(recipe.line)
-        guard !sources.isEmpty else { return "---\n\n" + recipeLine }
-        var paragraphs = [sourcesHeading, recipeLine]
-        for source in sources {
-            var card = "[\(ReportMarkdown.linkText(source.title))](foreverlm://source/\(ReportMarkdown.pathComponent(source.id)))"
-            switch source.readAs {
-            case .whole: break
-            case .ideas: card += " \u{2014} read from its ideas"
-            case .condensed: card += " \u{2014} condensed"
-            }
-            paragraphs.append(card)
+    /// One source as a note names it: its title linked to it, and how it was
+    /// read when it was not read whole.
+    static func noteText(_ source: Source) -> String {
+        var text = "[\(ReportMarkdown.linkText(source.title))](foreverlm://source/\(ReportMarkdown.pathComponent(source.id)))"
+        switch source.readAs {
+        case .whole: break
+        case .ideas: text += " \u{2014} read from its ideas"
+        case .condensed: text += " \u{2014} condensed"
         }
-        return paragraphs.joined(separator: "\n\n")
+        return text
     }
 
     /// The address a passage standing on these sources carries.
@@ -636,11 +634,12 @@ enum ReportCitations {
     /// it — the text since the previous marker on its line — and removed. A
     /// heading's markers are only removed (a heading is a title, not a claim);
     /// a table cell's passages are grounded within the cell; fenced code is
-    /// left alone. A passage that cannot safely become a link's text (it
-    /// holds a link, raw HTML or emphasis begun elsewhere) stays plain prose,
-    /// and a marker inside a link's own text is taken out, the link kept
-    /// whole; both still count as cited, and the Sources section lists them
-    /// either way.
+    /// left alone. Every cited passage is followed by a footnote, `[^n]`,
+    /// whose note (in `Result.notes`) links its sources; passages citing the
+    /// same sources share one note. A passage that cannot safely become a
+    /// link's text (it holds a link, raw HTML or emphasis begun elsewhere)
+    /// stays plain prose with its footnote, and a marker inside a link's own
+    /// text is taken out, the link kept whole and the footnote after it.
     static func ground(_ markdown: String, sources: [Source]) -> Result {
         var resolver = Resolver(sources: sources)
         var lines: [String] = []
@@ -662,7 +661,8 @@ enum ReportCitations {
         return Result(
             markdown: lines.joined(separator: "\n"),
             citedSourceIDs: resolver.cited,
-            unresolvedMarkers: resolver.unresolved
+            unresolvedMarkers: resolver.unresolved,
+            notes: resolver.notes
         )
     }
 
@@ -671,6 +671,22 @@ enum ReportCitations {
         var cited: [String] = []
         var citedSet: Set<String> = []
         var unresolved: [String] = []
+        /// The footnote label of each set of sources cited together.
+        var labels: [[String]: Int] = [:]
+        var notes: [String] = []
+
+        /// The footnote for a passage standing on `ids`: the same note for the
+        /// same sources, a new one numbered on otherwise.
+        mutating func footnote(for ids: [String]) -> String {
+            guard !ids.isEmpty else { return "" }
+            if let label = labels[ids] { return "[^\(label)]" }
+            let label = notes.count + 1
+            labels[ids] = label
+            let byID = Dictionary(sources.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+            let text = ids.compactMap { byID[$0].map(ReportCitations.noteText) }.joined(separator: "; ")
+            notes.append("[^\(label)]: \(text)")
+            return "[^\(label)]"
+        }
 
         init(sources: [Source]) {
             self.sources = sources
@@ -710,6 +726,9 @@ enum ReportCitations {
     private enum Segment {
         case plain(String)
         case grounded(String, [String])
+        /// Prose that cites but cannot be a link's text: kept as written,
+        /// its footnote after it.
+        case cited(String, [String])
     }
 
     private static let markerExpression = try? NSRegularExpression(pattern: markerPattern)
@@ -855,7 +874,9 @@ enum ReportCitations {
             case .plain(let text):
                 return text
             case .grounded(let text, let ids):
-                return "[\(escapingBrackets(text))](\(groundingDestination(ids)))"
+                return "[\(escapingBrackets(text))](\(groundingDestination(ids)))" + resolver.footnote(for: ids)
+            case .cited(let text, let ids):
+                return text + resolver.footnote(for: ids)
             }
         }.joined()
     }
@@ -874,14 +895,22 @@ enum ReportCitations {
         guard !inside.isEmpty else { return content }
         var text = ""
         var cursor = content.startIndex
-        for marker in inside {
-            _ = resolver.ids(forMarker: String(content[marker]))
-            var end = marker.lowerBound
-            if end > cursor, content[content.index(before: end)] == " " {
-                end = content.index(before: end)
+        for link in links {
+            let markers = inside.filter { link.lowerBound < $0.lowerBound && $0.upperBound < link.upperBound }
+            guard !markers.isEmpty else { continue }
+            var ids: [String] = []
+            for marker in markers {
+                for id in resolver.ids(forMarker: String(content[marker])) where !ids.contains(id) { ids.append(id) }
+                var end = marker.lowerBound
+                if end > cursor, content[content.index(before: end)] == " " {
+                    end = content.index(before: end)
+                }
+                text += content[cursor..<end]
+                cursor = marker.upperBound
             }
-            text += content[cursor..<end]
-            cursor = marker.upperBound
+            text += content[cursor..<link.upperBound]
+            text += resolver.footnote(for: ids)
+            cursor = link.upperBound
         }
         text += content[cursor...]
         return text
@@ -914,8 +943,10 @@ enum ReportCitations {
             // join the passage the first grounded. Only space or punctuation
             // stands between them, and the space goes with the markers.
             let groundedIndex = segments.lastIndex { segment in
-                if case .grounded = segment { return true }
-                return false
+                switch segment {
+                case .grounded, .cited: return true
+                case .plain: return false
+                }
             }
             let onlyPunctuationSince = groundedIndex.map { index in
                 segments[(index + 1)...].allSatisfy { segment in
@@ -923,8 +954,14 @@ enum ReportCitations {
                     return text.allSatisfy { $0.isWhitespace || closingPunctuation.contains($0) }
                 }
             } ?? false
-            guard let index = groundedIndex, onlyPunctuationSince,
-                  case .grounded(let text, let existing) = segments[index] else {
+            let previous = groundedIndex.flatMap { index -> (String, [String], Bool)? in
+                switch segments[index] {
+                case .grounded(let text, let ids): return (text, ids, true)
+                case .cited(let text, let ids): return (text, ids, false)
+                case .plain: return nil
+                }
+            }
+            guard let index = groundedIndex, onlyPunctuationSince, let (text, existing, isGrounded) = previous else {
                 // A marker before any claim on its line: it grounds the next.
                 if !lead.isEmpty { segments.append(.plain(String(lead))) }
                 pending = all
@@ -932,7 +969,7 @@ enum ReportCitations {
             }
             var merged = existing
             for id in all where !merged.contains(id) { merged.append(id) }
-            segments[index] = .grounded(text, merged)
+            segments[index] = isGrounded ? .grounded(text, merged) : .cited(text, merged)
             if lead.contains(where: { !$0.isWhitespace }) {
                 segments.append(.plain(String(lead)))
             }
@@ -942,10 +979,12 @@ enum ReportCitations {
         if !lead.isEmpty, !(segments.isEmpty && lead.allSatisfy(\.isWhitespace)) {
             segments.append(.plain(String(lead)))
         }
-        if !all.isEmpty, isSafeLinkText(core) {
+        if all.isEmpty {
+            segments.append(.plain(core))
+        } else if isSafeLinkText(core) {
             segments.append(.grounded(core, all))
         } else {
-            segments.append(.plain(core))
+            segments.append(.cited(core, all))
         }
         if keepsTrailingSpace, trailingSpace > 0 {
             segments.append(.plain(String(body.suffix(trailingSpace))))

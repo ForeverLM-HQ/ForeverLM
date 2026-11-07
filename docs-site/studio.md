@@ -883,15 +883,23 @@ team's Page lists and copies its versions but does not restore them.
 
 ### Footnotes
 
-A Page takes footnotes the way a Substack post does. Choose **Footnote** in the
-slash menu, or press **⌥⌘F**, and the next number goes in at the caret while the
-caret moves to its note at the foot of the Page, under a thin line. Write the
-note, then press **Escape** (or Return on an empty line) to go back to the
-sentence. You never number anything: notes are numbered in the order they are
-cited, and adding, moving or deleting one renumbers the rest.
+A footnote is a small number in the sentence, and its note is not printed on
+the Page: rest the pointer on the number, or click it, and a card shows the
+note. When the note cites papers or other sources, the card shows each one the
+way the Library does (its picture, title, authors, venue and year) with a check
+when it is already in your library and a plus to add it when it is not; click a
+source you have to open it in the Reader. A clicked card stays open until you
+click elsewhere.
 
-- Rest the pointer on a number to read its note without leaving the sentence;
-  click it to go to the note, and click the note's number to come back.
+To write one, choose **Footnote** in the slash menu, or press **⌥⌘F**: the next
+number goes in at the caret, and the notes appear at the foot of the Page with
+the caret in the new one. Write the note, then press **Escape** (or Return on an
+empty line) to go back to the sentence, and the notes are put away again. To
+change a note later, click its number and choose **Edit Note**. You never
+number anything: notes are numbered in the order they are cited, and adding,
+moving or deleting one renumbers the rest.
+
+- Click a note's number at the foot to go back to its sentence.
 - Deleting a number deletes its note, and Backspace in an empty note deletes
   its number; Undo brings both back. Copy a sentence with a number and the copy
   gets a note of its own; cut and paste moves the footnote.
@@ -899,7 +907,7 @@ cited, and adding, moving or deleting one renumbers the rest.
   Page arrive as footnotes.
 - A source you link to a passage, by dropping it on the words or choosing it
   under **Add sources**, becomes a footnote after the passage: the number in the
-  sentence and, at the foot, the source's title as a link that opens it. The
+  sentence, whose card shows the source. The
   passage still stands on the source for Chat. A source it already stood on gets
   no second note.
 - A passage pasted from a paper or an article keeps its citation numbers as

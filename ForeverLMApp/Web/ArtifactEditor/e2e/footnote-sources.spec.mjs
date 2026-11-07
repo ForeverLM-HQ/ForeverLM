@@ -2,7 +2,7 @@
 // note names; nothing stands beside the prose. A table stands in the column of
 // the writing, as Confluence draws one.
 import { expect, test } from '@playwright/test'
-import { messages, openEditor, settle } from './editor-page.mjs'
+import { caretIn, messages, openEditor, settle } from './editor-page.mjs'
 
 const paperURL = 'https://doi.org/10.1371/journal.pgen.1003794'
 const page = [
@@ -79,5 +79,33 @@ test('a wide table stands in the column of the writing', async ({ page: browser 
   const cell = await browser.locator('.milkdown .editor td').first().boundingBox()
   expect(cell.height).toBeLessThan(44)
   await browser.screenshot({ path: test.info().outputPath('page.png'), fullPage: true })
+  expect(errors).toEqual([])
+})
+
+test('the notes are not drawn on the page; a press on a number opens its card, and Edit Note opens the note', async ({ page: browser }) => {
+  const errors = await openEditor(browser, page)
+  const note = browser.locator('.milkdown .editor .artifact-footnote').first()
+  await expect(note).toBeHidden()
+
+  // A press keeps the card open after the pointer leaves the number.
+  await browser.locator('sup.artifact-footnote-ref').first().click()
+  const card = browser.locator('.artifact-footnote-card')
+  await expect(card).toBeVisible()
+  await browser.mouse.move(5, 5)
+  await browser.waitForTimeout(400)
+  await expect(card).toBeVisible()
+
+  // Edit Note draws the notes with the caret in this one; leaving it hides them again.
+  await card.locator('.artifact-footnote-card-edit').click()
+  await expect(card).toBeHidden()
+  await expect(note).toBeVisible()
+  await caretIn(browser, 'A sentence that links')
+  await expect(note).toBeHidden()
+
+  // A press elsewhere closes a pinned card.
+  await browser.locator('sup.artifact-footnote-ref').nth(1).click()
+  await expect(card).toBeVisible()
+  await browser.locator('.milkdown .editor h1').click()
+  await expect(card).toBeHidden()
   expect(errors).toEqual([])
 })

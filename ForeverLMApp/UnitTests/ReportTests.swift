@@ -264,43 +264,55 @@ struct ReportTests {
 
     // MARK: - Citations
 
-    @Test("Each marker grounds the passage before it, in the Doc's own citation form, and leaves the prose as written")
+    @Test("Each marker grounds the passage before it and leaves a footnote after it whose note links its sources")
     func citationsGroundClaims() {
         var result = ReportCitations.ground("Complex I pumps protons. [S1] It also leaks electrons [S2].", sources: citationSources)
-        #expect(result.markdown == "[Complex I pumps protons.](foreverlm://grounding/src_a) [It also leaks electrons](foreverlm://grounding/src_b).")
+        #expect(result.markdown == "[Complex I pumps protons.](foreverlm://grounding/src_a)[^1] [It also leaks electrons](foreverlm://grounding/src_b)[^2].")
         #expect(result.citedSourceIDs == ["src_a", "src_b"])
         #expect(result.unresolvedMarkers.isEmpty)
+        #expect(result.notes == [
+            "[^1]: [Paper A](foreverlm://source/src_a)",
+            "[^2]: [Book \\[B\\]](foreverlm://source/src_b) \u{2014} condensed",
+        ])
+
+        // Passages citing the same sources share one note; several sources are one note.
+        result = ReportCitations.ground("One. [S1] Two. [S1] Three. [S1, S3]", sources: citationSources)
+        #expect(result.markdown == "[One.](foreverlm://grounding/src_a)[^1] [Two.](foreverlm://grounding/src_a)[^1] [Three.](foreverlm://grounding/src_a,src%20c)[^2]")
+        #expect(result.notes == [
+            "[^1]: [Paper A](foreverlm://source/src_a)",
+            "[^2]: [Paper A](foreverlm://source/src_a); [Talk C](foreverlm://source/src%20c) \u{2014} read from its ideas",
+        ])
 
         // Markers in a row join the passage the first grounds; an id is
         // percent-encoded in the address.
         result = ReportCitations.ground("Claim. [S1] [S3]", sources: citationSources)
-        #expect(result.markdown == "[Claim.](foreverlm://grounding/src_a,src%20c)")
+        #expect(result.markdown == "[Claim.](foreverlm://grounding/src_a,src%20c)[^1]")
         result = ReportCitations.ground("2. Second [S2][S3]", sources: citationSources)
-        #expect(result.markdown == "2. [Second](foreverlm://grounding/src_b,src%20c)")
+        #expect(result.markdown == "2. [Second](foreverlm://grounding/src_b,src%20c)[^1]")
         result = ReportCitations.ground("Claim [S1]. [S2]", sources: citationSources)
-        #expect(result.markdown == "[Claim](foreverlm://grounding/src_a,src_b).")
+        #expect(result.markdown == "[Claim](foreverlm://grounding/src_a,src_b)[^1].")
 
         // A list item keeps its bullet and its bold term inside the passage.
         result = ReportCitations.ground("- **Term**: a definition [S2]", sources: citationSources)
-        #expect(result.markdown == "- [**Term**: a definition](foreverlm://grounding/src_b)")
+        #expect(result.markdown == "- [**Term**: a definition](foreverlm://grounding/src_b)[^1]")
         // A heading is a title: its marker goes, nothing is grounded.
         result = ReportCitations.ground("## Key findings [S1]", sources: citationSources)
         #expect(result.markdown == "## Key findings")
         // A table cell's passage stays in its cell; the delimiter row is left alone.
         result = ReportCitations.ground("| Term | Definition [S1] |\n|---|---|", sources: citationSources)
-        #expect(result.markdown == "| Term | [Definition](foreverlm://grounding/src_a) |\n|---|---|")
+        #expect(result.markdown == "| Term | [Definition](foreverlm://grounding/src_a)[^1] |\n|---|---|")
         // A marker before any claim grounds the next one.
         result = ReportCitations.ground("[S1] A claim at the start.", sources: citationSources)
-        #expect(result.markdown == "[A claim at the start.](foreverlm://grounding/src_a)")
+        #expect(result.markdown == "[A claim at the start.](foreverlm://grounding/src_a)[^1]")
         // A bracket in the prose cannot end the link.
         result = ReportCitations.ground("Brackets [sic] here [S2].", sources: citationSources)
-        #expect(result.markdown == "[Brackets \\[sic\\] here](foreverlm://grounding/src_b).")
+        #expect(result.markdown == "[Brackets \\[sic\\] here](foreverlm://grounding/src_b)[^1].")
         // A range names each source in it once.
         result = ReportCitations.ground("All three agree [S1-S3].", sources: citationSources)
-        #expect(result.markdown == "[All three agree](foreverlm://grounding/src_a,src_b,src%20c).")
+        #expect(result.markdown == "[All three agree](foreverlm://grounding/src_a,src_b,src%20c)[^1].")
     }
 
-    @Test("A number no source has is dropped and reported, and what cannot be a link's text stays plain prose")
+    @Test("A number no source has is dropped and reported, and what cannot be a link's text stays plain prose with its footnote")
     func citationsLeaveWhatCannotBeALink() {
         var result = ReportCitations.ground("A claim [S9] stands.", sources: citationSources)
         #expect(result.markdown == "A claim stands.")
@@ -309,11 +321,11 @@ struct ReportTests {
 
         // Emphasis begun before the marker would break: the prose is kept, the marker goes.
         result = ReportCitations.ground("**Bold [S1] continues** here.", sources: citationSources)
-        #expect(result.markdown == "**Bold continues** here.")
+        #expect(result.markdown == "**Bold[^1] continues** here.")
         #expect(result.citedSourceIDs == ["src_a"])
         // Links never nest.
         result = ReportCitations.ground("See [the site](https://x.org) for more [S1].", sources: citationSources)
-        #expect(result.markdown == "See [the site](https://x.org) for more.")
+        #expect(result.markdown == "See [the site](https://x.org) for more[^1].")
         // A link's text is not a marker, and fenced code is never touched.
         result = ReportCitations.ground("A [S1](https://x) link-like", sources: citationSources)
         #expect(result.markdown == "A [S1](https://x) link-like")
@@ -321,17 +333,17 @@ struct ReportTests {
         #expect(result.markdown == "```\ncode [S1]\n```")
         // A marker inside a code span is code.
         result = ReportCitations.ground("Written `x [S2]` here [S1].", sources: citationSources)
-        #expect(result.markdown == "[Written `x [S2]` here](foreverlm://grounding/src_a).")
+        #expect(result.markdown == "[Written `x [S2]` here](foreverlm://grounding/src_a)[^1].")
         // A marker inside a link's own text is taken out and the link kept
-        // whole, never split around a grounding link.
+        // whole, never split around a grounding link; its footnote follows the link.
         result = ReportCitations.ground("See [the review [S1]](https://x.org) for more.", sources: citationSources)
-        #expect(result.markdown == "See [the review](https://x.org) for more.")
+        #expect(result.markdown == "See [the review](https://x.org)[^1] for more.")
         #expect(result.citedSourceIDs == ["src_a"])
         result = ReportCitations.ground("Two [one [S1]](u) and [two [S3]](v) links, then a claim [S2].", sources: citationSources)
-        #expect(result.markdown == "Two [one](u) and [two](v) links, then a claim.")
+        #expect(result.markdown == "Two [one](u)[^1] and [two](v)[^2] links, then a claim[^3].")
         #expect(result.citedSourceIDs == ["src_a", "src c", "src_b"])
         result = ReportCitations.ground("| [cell link [S1]](u) | x [S2] |", sources: citationSources)
-        #expect(result.markdown == "| [cell link](u) | [x](foreverlm://grounding/src_b) |")
+        #expect(result.markdown == "| [cell link](u)[^1] | [x](foreverlm://grounding/src_b)[^2] |")
 
         #expect(ReportCitations.isSafeLinkText("It costs $20 million"))
         #expect(!ReportCitations.isSafeLinkText("**open"))
@@ -340,22 +352,18 @@ struct ReportTests {
         #expect(ReportCitations.isSafeLinkText("snake_case words and *both* sides"))
     }
 
-    @Test("The Doc closes with its Sources: the recipe line, then a card per source saying how it was read")
-    func sourcesSection() {
+    @Test("The Doc closes with a rule and its recipe line, then its notes; no Sources list")
+    func closingAndNotes() {
         let recipe = ReportRecipe(format: .briefing, sourceCount: 3, note: "why complex I matters")
         let composed = ReportCitations.compose(written: "  Intro [S1].\r\n", recipe: recipe, sources: citationSources)
         #expect(composed.markdown == """
-        [Intro](foreverlm://grounding/src_a).
+        [Intro](foreverlm://grounding/src_a)[^1].
 
-        ## Sources
+        ---
 
         Made from 3 sources · Briefing · why complex I matters
 
-        [Paper A](foreverlm://source/src_a)
-
-        [Book \\[B\\]](foreverlm://source/src_b) \u{2014} condensed
-
-        [Talk C](foreverlm://source/src%20c) \u{2014} read from its ideas
+        [^1]: [Paper A](foreverlm://source/src_a)
 
         """)
         #expect(composed.citedSourceIDs == ["src_a"])
@@ -363,8 +371,8 @@ struct ReportTests {
 
         // Feedback on a Doc and nothing else: a rule and the recipe alone.
         let alone = ReportRecipe(format: .documentFeedback, sourceCount: 0, subjectTitle: "Draft", subjectIsDocument: true)
-        let section = ReportCitations.sourcesSection(recipe: alone, sources: [])
-        #expect(section == "---\n\nMade from the document · Feedback on \u{201C}Draft\u{201D}")
+        let closing = ReportCitations.compose(written: "", recipe: alone, sources: []).markdown
+        #expect(closing == "---\n\nMade from the document · Feedback on \u{201C}Draft\u{201D}\n")
     }
 
     // MARK: - The recipe
@@ -568,12 +576,13 @@ struct ReportTests {
         #expect(user.contains("The whole text of B."))
         #expect(recorder.writes.first?.system == Prompts.reportWriter)
 
-        // The body carries the Doc's own citations, never a marker, and its Sources.
+        // The body carries footnotes, never a marker, and no Sources list.
         let body = try await storage.artifactMarkdown("report-1").markdown
         let first = try #require(plan.sources.first?.candidate.source.id)
-        #expect(body.contains("[Complex I pumps protons.](foreverlm://grounding/\(first))"))
+        #expect(body.contains("[Complex I pumps protons.](foreverlm://grounding/\(first))[^1]"))
         #expect(!body.contains("[S1]"))
-        #expect(body.contains("## Sources\n\nMade from 2 sources · Briefing · energy"))
+        #expect(!body.contains("## Sources"))
+        #expect(body.contains("---\n\nMade from 2 sources · Briefing · energy"))
         #expect(body.contains("[Paper A](foreverlm://source/\(a.id))"))
         #expect(body.contains("[Article B](foreverlm://source/\(b.id))"))
         #expect(ReportRecipe.parse(fromMarkdown: body) == result.recipe)

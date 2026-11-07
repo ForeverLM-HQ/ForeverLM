@@ -2822,8 +2822,9 @@ body.artifact-block-dragging * {
 /* Footnotes (docs/docs-design.md, "Footnotes"), drawn the way Substack draws
    them. The number in the sentence is the note's place (`data-n`, from the
    footnote plugin), not the label the Markdown keeps, which stays hidden
-   inside it for a copy to carry; a press goes to the note and a rest shows it
-   (`.artifact-footnote-card`). */
+   inside it for a copy to carry; a rest or a press shows the note's card
+   (`.artifact-footnote-card`), and the notes themselves are drawn only while
+   the caret is in one. */
 .milkdown .editor sup.artifact-footnote-ref {
   margin: 0 0.02em;
   padding: 0 0.08em;
@@ -2855,9 +2856,15 @@ body.artifact-block-dragging * {
   color: GrayText;
 }
 
-/* The notes: under a hairline at the foot of the page, smaller and quieter
-   than the prose, each with its number in the margin; a press on the number
-   goes back to the sentence. */
+/* The notes: not drawn at all while the page is read, only while the caret is
+   in one (`is-editing-note`, a new footnote or Edit Note in its card). Then
+   under a hairline at the foot of the page, smaller and quieter than the
+   prose, each with its number in the margin; a press on the number goes back
+   to the sentence. */
+.milkdown .editor:not(.is-editing-note) .artifact-footnote {
+  display: none;
+}
+
 .milkdown .editor .artifact-footnote {
   position: relative;
   margin: 0.2em 0 0;
@@ -2955,6 +2962,24 @@ body.artifact-block-dragging * {
 
 .artifact-footnote-card-words > * {
   margin: 0;
+}
+
+.artifact-footnote-card > .artifact-footnote-card-edit {
+  display: block;
+  margin: 4px 0 0 auto;
+  padding: 2px 6px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: color-mix(in srgb, CanvasText 55%, transparent);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+}
+
+.artifact-footnote-card > .artifact-footnote-card-edit:hover {
+  background: color-mix(in srgb, CanvasText 7%, transparent);
+  color: CanvasText;
 }
 
 .artifact-footnote-card-sources {

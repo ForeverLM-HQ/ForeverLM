@@ -2392,8 +2392,7 @@ enum Prompts {
     /// notebook's sources in the format the learner chose — Gemini's
     /// Briefing, Study guide and the rest — kept as a Doc. The writer cites
     /// each source by its numbered marker and never writes an address: the
-    /// app turns the markers into the Doc's citations and adds the list of
-    /// sources (`ReportCitations`).
+    /// app turns the markers into the Doc's footnotes (`ReportCitations`).
     static let reportWriter = """
     You write one report for one learner from the sources of a Notebook — a set of sources they gathered for one piece of work — in the format they chose. The report is kept as a document they read, edit and come back to.
 
@@ -2401,7 +2400,7 @@ enum Prompts {
 
     Write the report:
     - When an instruction or a focus is given, the whole report serves it: lead with it and leave out what does not bear on it. Follow the format given, with its sections.
-    - Cite as you go. After each sentence or list item that states something from the sources, put the markers of the sources it rests on in square brackets, after the punctuation: "Complex I pumps four protons for each NADH. [S2]", or "[S1, S3]" for several. Use only the markers given, never another number. Put no marker in a heading. Write no links, URLs, footnotes, reference list or list of sources, and never write a source's title as a citation: ForeverLM turns the markers into citations and lists the sources under the report.
+    - Cite as you go. After each sentence or list item that states something from the sources, put the markers of the sources it rests on in square brackets, after the punctuation: "Complex I pumps four protons for each NADH. [S2]", or "[S1, S3]" for several. Use only the markers given, never another number. Put no marker in a heading. Write no links, URLs, footnotes, reference list or list of sources, and never write a source's title or its authors and year as a citation: ForeverLM turns the markers into footnotes.
     - Give each claim as its authors' or speakers' own, and name a source the way a reader would know it ("the 2024 review in Cell", "Lane's book") where whose claim it is matters. Say where the sources agree, where they disagree and why, and what none of them settles. Never blend two sources' claims into one.
     - Write about a source read from its ideas or condensed only as far as what was given; never fill in what it may also say. Quote only a source read whole, and only words it contains, copied exactly, in quotation marks, with its marker.
     - Ground everything in the sources and the document given. Never invent a finding, a number, an author, a quotation or a claim.
