@@ -133,4 +133,38 @@ struct PlanPeriodTests {
         #expect(throws: MCPError.self) { try period(.quarter, "2026-W45") }
         #expect(throws: MCPError.self) { try period(.week, "sometime") }
     }
+
+    @Test("The popover reads a section's written bullets, the template's empty ones left out")
+    func outlineItems() {
+        let markdown = """
+        ## Objectives
+
+        - Finish the **mtDNA** thesis for [[Norn Nexus]] ^abc123def
+        - [ ] Ship the Plan place
+          - a sub-point stays out
+        1. Numbered counts too
+        - 
+
+        ## Strategies
+
+        - Not an objective
+        """
+        #expect(PlanOutline.items(under: "Objectives", in: markdown)
+            == ["Finish the mtDNA thesis for Norn Nexus", "Ship the Plan place", "Numbered counts too"])
+        #expect(PlanOutline.items(under: "objectives", in: markdown, limit: 1) == ["Finish the mtDNA thesis for Norn Nexus"])
+        #expect(PlanOutline.items(under: "Strategies", in: markdown) == ["Not an objective"])
+        #expect(PlanOutline.items(under: "Looking back", in: markdown).isEmpty)
+        // A fresh template says nothing.
+        #expect(PlanOutline.items(under: "Objectives", in: PlanPeriod.quarter(year: 2026, quarter: 4).template(zone: zone)).isEmpty)
+    }
+
+    @Test("Today's line is read from the week's Days by its weekday")
+    func outlineDayLine() {
+        var week = PlanPeriod.week(year: 2026, week: 45).template(zone: zone)
+        #expect(PlanOutline.dayLine("Saturday", in: week) == nil, "an empty line says nothing")
+        week = week.replacingOccurrences(of: "- Saturday: ", with: "- Saturday: Write the Q4 review")
+        #expect(PlanOutline.dayLine("Saturday", in: week) == "Write the Q4 review")
+        #expect(PlanOutline.dayLine("Sunday", in: week) == nil)
+        #expect(PlanOutline.weekdayName(of: day(2026, 11, 7), zone: zone) == "Saturday")
+    }
 }

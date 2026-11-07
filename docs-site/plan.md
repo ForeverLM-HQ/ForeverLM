@@ -24,6 +24,8 @@ A plan is an ordinary Page in your own library, so it syncs and you can write an
 
 A day is planned on your Mac's Calendar, as time blocks (see [Studio](/studio)). Planning the day reads the week's plan first, so the day serves the week.
 
+Click the calendar glyph at the foot of the window's left edge to see the plans the day serves, under today's events: this quarter's objectives, this week's big rocks, and what the week's **Days** say for today. Click the quarter or the week to open its plan; one not planned yet says **Plan in Chat…** and starts the chat that plans it.
+
 ## Planning with the chat
 
 **Plan** at the top of the place opens a chat that plans with you: **Plan This Quarter**, **Plan This Week**, or **Plan Today** (**Plan Tomorrow** from the afternoon). In any chat, `/plan quarter`, `/plan week`, `/plan today` and `/plan tomorrow` do the same.

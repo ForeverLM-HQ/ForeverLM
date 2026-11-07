@@ -80,6 +80,36 @@ extension StudioViewModel {
         }
     }
 
+    /// The plans above the day at a glance, for the calendar glyph's popover:
+    /// this quarter's objectives, this week's big rocks and the week's line
+    /// for today, read from the plans' Markdown through the storage actor.
+    /// A plan that does not exist yet reads as not planned; nothing is made,
+    /// and a failed read throws rather than passing for an empty plan.
+    func loadPlanGlance(now: Date = Date()) async throws -> PlanGlance? {
+        guard activeTeamID == nil else { return nil }
+        let quarter = PlanPeriod.containing(now, scale: .quarter)
+        let week = PlanPeriod.containing(now, scale: .week)
+        func markdown(_ period: PlanPeriod) async throws -> String? {
+            guard try await storage.loadArtifact(period.id) != nil else { return nil }
+            return try await storage.artifactMarkdown(period.id).markdown
+        }
+        let quarterText = try await markdown(quarter)
+        let weekText = try await markdown(week)
+        return PlanGlance(
+            quarter: PlanGlance.Part(
+                period: quarter,
+                exists: quarterText != nil,
+                lines: quarterText.map { PlanOutline.items(under: "Objectives", in: $0) } ?? []
+            ),
+            week: PlanGlance.Part(
+                period: week,
+                exists: weekText != nil,
+                lines: weekText.map { PlanOutline.items(under: "Big rocks", in: $0) } ?? []
+            ),
+            today: weekText.flatMap { PlanOutline.dayLine(PlanOutline.weekdayName(of: now), in: $0) }
+        )
+    }
+
     /// A Doc brought forward in Docs with one of its blocks shown and
     /// flashed: the doc comes forward as `revealArtifact` brings it, and the
     /// block travels on the same request to the window's canvas, which hands

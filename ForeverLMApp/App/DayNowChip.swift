@@ -206,7 +206,8 @@ struct DayNowDot: View {
 // MARK: - The popover
 
 /// The day, opened from the chip: the bout on the clock, the event the hour is
-/// in, today's schedule, and the ways on — plan the day in a chat, start a
+/// in, today's schedule, the plans the day serves (this quarter's and this
+/// week's, `PlanGlance`), and the ways on — plan the day in a chat, start a
 /// bout, open the Calendar app.
 private struct DayNowPopover: View {
     let model: DayModel
@@ -219,6 +220,9 @@ private struct DayNowPopover: View {
     @Environment(StudioViewModel.self) private var vm
     @Environment(\.uiZoomScale) private var uiZoomScale
     @State private var errorMessage: String?
+    /// This quarter's and this week's plans, read each time the popover
+    /// opens; nil until read, and in a team's library, which keeps none.
+    @State private var plans: PlanGlance?
 
     var body: some View {
         VStack(alignment: .leading, spacing: StudioDesign.Spacing.medium) {
@@ -248,10 +252,18 @@ private struct DayNowPopover: View {
                 allDaySection
                 scheduleSection
             }
+            plansSection
             VStack(alignment: .leading, spacing: 0) {
                 menuRows
             }
             .padding(.horizontal, -menuRowInset)
+        }
+        .task {
+            do {
+                plans = try await vm.loadPlanGlance()
+            } catch {
+                errorMessage = "Could not read your plans: \(error.localizedDescription)"
+            }
         }
         .padding(StudioDesign.Spacing.large)
         .frame(width: 320)
@@ -500,6 +512,88 @@ private struct DayNowPopover: View {
         .accessibilityLabel("Now, \(DayPlan.clockString(minute: model.nowMinute))")
         .accessibilityIdentifier("studio.now.schedule.now")
         .id(DayNowScheduleRow.now.id)
+    }
+
+    // MARK: The plans above the day
+
+    /// The quarter's objectives and the week's big rocks, with the week's
+    /// line for today: what the day is for, as Newport plans it (product
+    /// owner, 2026-11-07, at this popover: "i need to see the quarterly plan
+    /// etc also here"). A plan's heading opens its Page; one not yet planned
+    /// starts the chat that plans it.
+    @ViewBuilder
+    private var plansSection: some View {
+        if let plans {
+            VStack(alignment: .leading, spacing: 4) {
+                planPart(plans.quarter, systemImage: "target", emptyText: "No objectives written yet")
+                planPart(plans.week, systemImage: "calendar", emptyText: "No big rocks written yet")
+                if let today = plans.today {
+                    planLine("Today: \(today)", emphasized: true)
+                        .accessibilityIdentifier("studio.now.plan.today")
+                }
+            }
+            .padding(.horizontal, -menuRowInset)
+            .accessibilityElement(children: .contain)
+            .accessibilityIdentifier("studio.now.plans")
+            Divider()
+        }
+    }
+
+    @ViewBuilder
+    private func planPart(_ part: PlanGlance.Part, systemImage: String, emptyText: String) -> some View {
+        let isQuarter = part.period.scale == .quarter
+        Button {
+            if part.exists {
+                let period = part.period
+                let window = windowState
+                Task { await vm.openPlan(period, in: window) }
+            } else {
+                vm.requestPlanDayChat(request: ReviewSlashCommandParser.planDayRequest(isQuarter ? "quarter" : "week"))
+            }
+            dismiss()
+        } label: {
+            HStack(spacing: 8) {
+                Image(systemName: systemImage)
+                    .zoomedSystemFont(size: 12, weight: .medium)
+                    .foregroundStyle(Color.accentColor)
+                    .frame(width: 16)
+                Text(part.period.title())
+                    .zoomedSystemFont(size: 12.5, weight: .semibold)
+                    .lineLimit(1)
+                Spacer(minLength: 8)
+                if !part.exists {
+                    Text("Plan in Chat…")
+                        .zoomedSystemFont(size: 11)
+                        .foregroundStyle(.secondary)
+                }
+            }
+            .padding(.horizontal, menuRowInset)
+            .padding(.vertical, 4)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.hoverWash(cornerRadius: StudioDesign.Radius.control, inset: 0, opacity: 0.1))
+        .help(part.exists ? "Open \(part.period.title())" : "Plan \(isQuarter ? "this quarter" : "this week") in a chat")
+        .accessibilityIdentifier(isQuarter ? "studio.now.plan.quarter" : "studio.now.plan.week")
+        if part.exists {
+            if part.lines.isEmpty {
+                planLine(emptyText, emphasized: false)
+            } else {
+                ForEach(Array(part.lines.enumerated()), id: \.offset) { _, line in
+                    planLine("• \(line)", emphasized: false)
+                }
+            }
+        }
+    }
+
+    /// A line under a plan's heading, in the heading's text column.
+    private func planLine(_ text: String, emphasized: Bool) -> some View {
+        Text(text)
+            .zoomedSystemFont(size: 11.5, weight: emphasized ? .medium : .regular)
+            .foregroundStyle(emphasized ? Color.primary : Color.secondary)
+            .lineLimit(2)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.leading, menuRowInset + 24)
+            .padding(.trailing, menuRowInset)
     }
 
     // MARK: What can be done

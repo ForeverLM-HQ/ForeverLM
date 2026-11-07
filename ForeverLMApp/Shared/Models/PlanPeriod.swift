@@ -299,3 +299,100 @@ enum PlanPeriod: Hashable, Sendable, Identifiable {
         }
     }
 }
+
+// MARK: - A plan at a glance
+
+/// What the calendar glyph's popover shows of the plans above the day: the
+/// quarter's objectives, the week's big rocks and what the week's Days give
+/// today (`DayNowPopover`). Read from the plans' Markdown off the main actor.
+struct PlanGlance: Equatable, Sendable {
+    struct Part: Equatable, Sendable {
+        let period: PlanPeriod
+        /// Whether the plan's Page exists.
+        let exists: Bool
+        /// The written bullets of its leading section, in order.
+        let lines: [String]
+    }
+
+    let quarter: Part
+    let week: Part
+    /// The week's line for today under Days, nil while it says nothing.
+    let today: String?
+
+    /// How many bullets of a section the glance shows.
+    static let lineLimit = 5
+}
+
+/// Reading a plan Page's outline: the bullets under one of its headings, and
+/// a day's line under Days. Pure, so the popover's reading is tested apart.
+enum PlanOutline {
+    /// The written top-level bullets under the `## heading` (any level, its
+    /// words matched without case), up to the next heading: each bullet's
+    /// text with its marker, a task box and `[[` `]]` and `**` taken off.
+    /// Empty bullets, the template's, are left out.
+    static func items(under heading: String, in markdown: String, limit: Int = PlanGlance.lineLimit) -> [String] {
+        var items: [String] = []
+        var inSection = false
+        for raw in markdown.components(separatedBy: "\n") {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            if let title = headingText(line) {
+                if inSection { break }
+                inSection = title.caseInsensitiveCompare(heading) == .orderedSame
+                continue
+            }
+            guard inSection, raw.first.map({ !$0.isWhitespace }) ?? false,
+                  let text = bulletText(line), !text.isEmpty else { continue }
+            items.append(text)
+            if items.count == limit { break }
+        }
+        return items
+    }
+
+    /// What the week's Days say for `weekday` ("Monday"), nil while the line
+    /// is empty or missing.
+    static func dayLine(_ weekday: String, in markdown: String) -> String? {
+        let prefix = weekday.lowercased() + ":"
+        for text in items(under: "Days", in: markdown, limit: 7) where text.lowercased().hasPrefix(prefix) {
+            let rest = text.dropFirst(prefix.count).trimmingCharacters(in: .whitespaces)
+            return rest.isEmpty ? nil : rest
+        }
+        return nil
+    }
+
+    /// The weekday a week's Days name a date by, as the template writes it.
+    static func weekdayName(of date: Date, zone: TimeZone = .current) -> String {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = zone
+        formatter.dateFormat = "EEEE"
+        return formatter.string(from: date)
+    }
+
+    private static func headingText(_ line: String) -> String? {
+        guard line.hasPrefix("#") else { return nil }
+        let words = line.drop(while: { $0 == "#" })
+        guard words.first == " " else { return nil }
+        return words.trimmingCharacters(in: .whitespaces)
+    }
+
+    private static func bulletText(_ line: String) -> String? {
+        var text: Substring
+        if line.hasPrefix("- ") || line.hasPrefix("* ") || line.hasPrefix("+ ") {
+            text = line.dropFirst(2)
+        } else if line == "-" || line == "*" || line == "+" {
+            return ""
+        } else if let dot = line.firstIndex(where: { $0 == "." || $0 == ")" }),
+                  !line[..<dot].isEmpty, line[..<dot].allSatisfy(\.isNumber),
+                  line[line.index(after: dot)...].first == " " {
+            text = line[line.index(dot, offsetBy: 2)...]
+        } else {
+            return nil
+        }
+        for box in ["[ ] ", "[x] ", "[X] "] where text.hasPrefix(box) { text = text.dropFirst(box.count) }
+        var clean = String(text)
+        for mark in ["[[", "]]", "**"] { clean = clean.replacingOccurrences(of: mark, with: "") }
+        // A block id the editor keeps at a line's end (` ^abc123def`).
+        if let caret = clean.range(of: #" \^[a-z0-9]{9}$"#, options: .regularExpression) { clean.removeSubrange(caret) }
+        return clean.trimmingCharacters(in: .whitespaces)
+    }
+}
