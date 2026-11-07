@@ -68,6 +68,38 @@ test('pointing at a number shows a row for each source its note names, and a row
   expect(errors).toEqual([])
 })
 
+test('pointing at an inline link already in the library shows the source instead of the raw URL', async ({ page: browser }) => {
+  const errors = await openEditor(browser, page)
+  await browser.evaluate((url) => window.foreverLMArtifactEditor.setReferenceStatuses({
+    [url]: { state: 'inLibrary', sourceID: 'src_kennedy', title: 'Ultra-Sensitive Sequencing Reveals an Age-Related Increase', detail: 'Scott R. Kennedy et al. · PLoS Genet · 2013' },
+  }), paperURL)
+  await caretIn(browser, 'A sentence that links')
+  await browser.locator('.ProseMirror a', { hasText: 'a paper' }).hover()
+
+  const tooltip = browser.locator('.artifact-library-link-tooltip')
+  await expect(tooltip).toBeVisible()
+  await expect(tooltip.locator('.artifact-cited-source-title')).toHaveText('Ultra-Sensitive Sequencing Reveals an Age-Related Increase')
+  await expect(tooltip).not.toContainText(paperURL)
+  await expect(browser.locator('.milkdown-link-preview')).toHaveAttribute('data-show', 'false')
+
+  await tooltip.locator('.artifact-cited-source').click()
+  expect((await messages(browser, 'openSourceRequested')).at(-1).sourceID).toBe('src_kennedy')
+  expect(errors).toEqual([])
+})
+
+test('pointing at an inline link absent from the library keeps the ordinary URL preview', async ({ page: browser }) => {
+  const errors = await openEditor(browser, page)
+  await browser.evaluate((url) => window.foreverLMArtifactEditor.setReferenceStatuses({
+    [url]: { state: 'absent' },
+  }), paperURL)
+  await caretIn(browser, 'A sentence that links')
+  await browser.locator('.ProseMirror a', { hasText: 'a paper' }).hover()
+
+  await expect(browser.locator('.artifact-library-link-tooltip')).toBeHidden()
+  await expect(browser.locator('.milkdown-link-preview')).toHaveAttribute('data-show', 'true')
+  expect(errors).toEqual([])
+})
+
 test('a wide table stands in the column of the writing', async ({ page: browser }) => {
   await browser.setViewportSize({ width: 1600, height: 900 })
   const errors = await openEditor(browser, page)

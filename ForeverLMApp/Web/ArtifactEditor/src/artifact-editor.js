@@ -149,6 +149,8 @@ let attachmentDataURLs = new Map()
 let attachmentStorageURLs = new Map()
 let inAppLinkTooltip = null
 let inAppLinkTooltipHovered = false
+let libraryLinkTooltip = null
+let libraryLinkTooltipHovered = false
 
 /// Rewrite every Markdown link and image target through `rewrite`, and nothing
 /// else in the document.
@@ -1191,6 +1193,11 @@ function applyFolds(key, json) {
 /// stand-in URL and copy it, so it is hidden for these too, and a small tooltip
 /// of this editor's own takes its place with an Open button. The host opens
 /// the target — the doc in Docs, the Notebook in Notebooks.
+///
+/// An ordinary web link that resolves to a source already in this library is a
+/// third case. Its useful identity is the source, not a DOI or publisher URL:
+/// show the library row, which opens in Reader, and keep Crepe's raw-address
+/// preview for links the library does not hold.
 function withPrivateAddressPreviews(ctx) {
   const spec = ctx.get(linkPreviewTooltip.key)
   const createView = spec?.view
@@ -1204,6 +1211,15 @@ function withPrivateAddressPreviews(ctx) {
       const hide = tooltip.hide
       tooltip.show = (mark, from, to, rect, ...rest) => {
         const href = mark?.attrs?.href ?? ''
+        const reference = referenceHref(href)
+        const status = reference ? referenceStatus(reference) : null
+        if (reference && status?.state === 'inLibrary') {
+          hide.call(tooltip)
+          hideInAppLinkTooltip(true)
+          showLibraryLinkTooltip(reference, view.state.doc.textBetween(from, to), status, rect)
+          return
+        }
+        hideLibraryLinkTooltip(true)
         const link = inAppLink(href)
         if (link) {
           hide.call(tooltip)
@@ -1225,11 +1241,48 @@ function withPrivateAddressPreviews(ctx) {
       }
       tooltip.hide = (...rest) => {
         hideInAppLinkTooltip()
+        hideLibraryLinkTooltip()
         hide.call(tooltip, ...rest)
       }
       return tooltip
     },
   })
+}
+
+/// The source row for a hovered web link the library already holds. It is the
+/// same row a citation number shows, so a DOI in prose and the same DOI in a
+/// footnote have one answer: title and metadata from the library, and a press
+/// opens the saved source. The web address remains in Markdown, but is not
+/// repeated in the hover card.
+function ensureLibraryLinkTooltip() {
+  if (libraryLinkTooltip) return libraryLinkTooltip
+  libraryLinkTooltip = document.createElement('div')
+  libraryLinkTooltip.className = 'artifact-library-link-tooltip'
+  libraryLinkTooltip.hidden = true
+  libraryLinkTooltip.addEventListener('mouseenter', () => { libraryLinkTooltipHovered = true })
+  libraryLinkTooltip.addEventListener('mouseleave', () => {
+    libraryLinkTooltipHovered = false
+    hideLibraryLinkTooltip()
+  })
+  document.body.append(libraryLinkTooltip)
+  return libraryLinkTooltip
+}
+
+function showLibraryLinkTooltip(href, text, status, rect) {
+  const tooltip = ensureLibraryLinkTooltip()
+  tooltip.replaceChildren(citedSourceRow({ href, text: String(text ?? '').trim() }, status))
+  tooltip.hidden = false
+  const width = tooltip.offsetWidth
+  const left = Math.max(8, Math.min((rect?.left ?? 0), window.innerWidth - width - 8))
+  tooltip.style.left = `${left}px`
+  tooltip.style.top = `${(rect?.bottom ?? 0) + 6}px`
+}
+
+function hideLibraryLinkTooltip(force = false) {
+  if (!libraryLinkTooltip || libraryLinkTooltip.hidden) return
+  if (libraryLinkTooltipHovered && !force) return
+  libraryLinkTooltip.hidden = true
+  libraryLinkTooltipHovered = false
 }
 
 /// A picture keeps its description.

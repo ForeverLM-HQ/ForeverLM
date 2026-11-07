@@ -887,6 +887,23 @@ body.read-only .artifact-selection-assistant button[data-role="ai"] {
   background: color-mix(in srgb, CanvasText 8%, Canvas);
 }
 
+/* A hovered web link which already resolves to a library source shows that
+   source, not the raw DOI/publisher address and its editing chrome. */
+.artifact-library-link-tooltip {
+  position: fixed;
+  z-index: 31;
+  box-sizing: border-box;
+  width: min(340px, calc(100vw - 16px));
+  padding: 6px;
+  border: 1px solid color-mix(in srgb, CanvasText 12%, transparent);
+  border-radius: 10px;
+  background: Canvas;
+  box-shadow: 0 8px 24px color-mix(in srgb, CanvasText 14%, transparent);
+  color: CanvasText;
+}
+
+.artifact-library-link-tooltip[hidden] { display: none; }
+
 /* Typing `[[` in the prose, or a title into the Link field, offers the docs
    and Notebooks a link can point at: a short list under the caret or the field,
    on the same surface as the hover pill, with the title and, quieter, where
