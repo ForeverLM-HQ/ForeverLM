@@ -6,6 +6,13 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.189.0 (build 269) — 2026-11-07
+
+**Highlights:**
+- **Quarterly, weekly and daily planning** in Space › Plan and with /plan.
+- **The sidebar stays** when you move between Home, the Space and the Library.
+
+- **Plan a quarter, a week and a day.** Space › Plan lists your quarters and weeks; each is a Page in My Library that starts from headings for objectives, big rocks and a look back, and the Plan pill starts a planning chat for this quarter, this week or the day. **/plan quarter** and **/plan week** join /plan today and tomorrow, and the day's plan reads the week's.
 - **The sidebar stays when you move between places.** Showing or hiding the sidebar is one choice now: the Space no longer opens without it when Home and the Library were showing it.
 - **Notebooks have their own icon**, a folder, instead of the grid Plugins uses.
 - **Places kept on the icon strip sit with its other icons**, above the ⋯, with no dividing line.
