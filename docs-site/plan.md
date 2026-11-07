@@ -15,8 +15,10 @@ Find **Plan** in the Space's sidebar, under Board, or keep it on the icon strip 
 
 Click a quarter or a week to open its plan. The first time, it opens as a new Page laid out for the exercise:
 
-- A quarter has **Objectives** (the few things that make the quarter a success), **Strategies** (how each gets done), **Not this quarter** (what you are deliberately leaving aside) and **Looking back**.
-- A week links its quarter and has **Big rocks**, **Deep work**, **Days** (a line for what each day is mainly for) and **Looking back**.
+- A quarter has **Big picture** (what the season is for, and the longer direction it serves), **Objectives** (the few things that make the quarter a success) and **Strategies and habits** (how you will get there: projects, routines, rules of thumb).
+- A week links its quarter and has **This week** (what the week makes progress on, each from one of the quarter's objectives) and **Days** (a line for what each day is mainly for).
+
+These follow how Newport describes the two plans, a quarterly plan of goals and the strategies you run, and a weekly plan written with that plan and your calendar in view. He keeps them as free text, so treat the headings as a start: write what helps. The calendar popover reads **Objectives**, **This week** and **Days**, so keep those names if you want to see them there.
 
 A plan is an ordinary Page in your own library, so it syncs and you can write anything in it. Its title names its period, "Q4 2026" or "Week of November 2nd, 2026", so `[[Q4 2026]]` in any Page links it, and the quarter's Linked References list its weeks. Weeks run Monday to Sunday and belong to the quarter that holds their Thursday. You can plan any quarter, including one already under way.
 
@@ -24,7 +26,7 @@ A plan is an ordinary Page in your own library, so it syncs and you can write an
 
 A day is planned on your Mac's Calendar, as time blocks (see [Studio](/studio)). Planning the day reads the week's plan first, so the day serves the week.
 
-Click the calendar glyph at the foot of the window's left edge to see the plans the day serves, under today's events: this quarter's objectives, this week's big rocks, and what the week's **Days** say for today. Click the quarter or the week to open its plan; one not planned yet says **Plan in Chat…** and starts the chat that plans it.
+Click the calendar glyph at the foot of the window's left edge to see the plans the day serves, under today's events: this quarter's objectives, what this week makes progress on, and what the week's **Days** say for today. Click the quarter or the week to open its plan; one not planned yet says **Plan in Chat…** and starts the chat that plans it.
 
 ## Planning with the chat
 
@@ -32,7 +34,7 @@ Click the calendar glyph at the foot of the window's left edge to see the plans 
 
 The chat reads first: for a quarter, the quarter's Page, the previous quarter's, your Goals and what you have been working on; for a week, the week's Page, its quarter's plan, last week's and your calendar. It then proposes a whole draft. Answer in your own words until it is right; only then does it write the plan into the Page (or, for a day, add the blocks to your calendar).
 
-You don't need `/plan` for the chat to use your plans. Whenever you ask any chat to plan a week or a day, or what to work on next, it first reads the quarter's and the week's plan with `get_plan`, which shows in the chat as **Read the plan**, and says which objective or big rock its proposal serves. Planning the day reads the week's plan, whose answer brings the quarter's objectives and the week's line for that day. Claude or ChatGPT with the ForeverLM plugin are told to do the same.
+You don't need `/plan` for the chat to use your plans. Whenever you ask any chat to plan a week or a day, or what to work on next, it first reads the quarter's and the week's plan with `get_plan`, which shows in the chat as **Read the plan**, and says which objective or item of the week its proposal serves. Planning the day reads the week's plan, whose answer brings the quarter's objectives and the week's line for that day. Claude or ChatGPT with the ForeverLM plugin are told to do the same.
 
 ## Over MCP
 

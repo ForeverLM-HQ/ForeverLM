@@ -516,7 +516,7 @@ private struct DayNowPopover: View {
 
     // MARK: The plans above the day
 
-    /// The quarter's objectives and the week's big rocks, with the week's
+    /// The quarter's objectives and what the week makes progress on, with its
     /// line for today: what the day is for, as Newport plans it (product
     /// owner, 2026-11-07, at this popover: "i need to see the quarterly plan
     /// etc also here"). A plan's heading opens its Page; one not yet planned
@@ -526,7 +526,7 @@ private struct DayNowPopover: View {
         if let plans {
             VStack(alignment: .leading, spacing: 4) {
                 planPart(plans.quarter, systemImage: "target", emptyText: "No objectives written yet")
-                planPart(plans.week, systemImage: "calendar", emptyText: "No big rocks written yet")
+                planPart(plans.week, systemImage: "calendar", emptyText: "Nothing written for this week yet")
                 if let today = plans.today {
                     planLine("Today: \(today)", emphasized: true)
                         .accessibilityIdentifier("studio.now.plan.today")

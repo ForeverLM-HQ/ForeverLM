@@ -101,18 +101,18 @@ struct PlanPeriodTests {
         #expect(PlanPeriod.week(year: 2026, week: 45).days(zone: zone).count == 7)
     }
 
-    @Test("A new plan starts from Newport's headings; a week links its quarter and lists its days")
+    @Test("A new plan starts from Newport's shape; a week links its quarter and lists its days")
     func templates() {
         let quarter = PlanPeriod.quarter(year: 2026, quarter: 4).template(zone: zone)
-        for heading in ["## Objectives", "## Strategies", "## Not this quarter", "## Looking back"] {
-            #expect(quarter.contains(heading))
-        }
+        #expect(quarter.components(separatedBy: "\n").filter { $0.hasPrefix("## ") }
+            == ["## Big picture", "## Objectives", "## Strategies and habits"])
         #expect(!quarter.hasPrefix("# "), "a plan is named by its period, not its body")
         let week = PlanPeriod.week(year: 2026, week: 45).template(zone: zone)
         #expect(week.hasPrefix("Quarter: [[Q4 2026]]"))
-        for heading in ["## Big rocks", "## Deep work", "## Days", "## Looking back"] {
-            #expect(week.contains(heading))
-        }
+        #expect(week.components(separatedBy: "\n").filter { $0.hasPrefix("## ") } == ["## This week", "## Days"])
+        // The popover reads the plans by these headings.
+        #expect(quarter.contains("## \(PlanPeriod.quarterObjectivesHeading)"))
+        #expect(week.contains("## \(PlanPeriod.weekProgressHeading)"))
         #expect(week.contains("- Monday: "))
         #expect(week.contains("- Sunday: "))
     }

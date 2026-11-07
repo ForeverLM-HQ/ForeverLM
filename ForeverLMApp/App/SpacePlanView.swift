@@ -4,7 +4,7 @@ import SwiftUI
 // MARK: - The Plan in the Space
 //
 // Planning at three scales, as Cal Newport teaches it (docs-site/plan.md): a
-// quarter's objectives and strategies, a week's big rocks and deep work with
+// quarter's big picture, objectives and strategies, a week's progress with
 // the quarter's plan in view, and the day in time blocks with the week's plan
 // in view. A quarter's and a week's plan are Pages (`PlanPeriod`); the day is
 // the Mac's Calendar, which the `/plan` chat fills. This place lists the

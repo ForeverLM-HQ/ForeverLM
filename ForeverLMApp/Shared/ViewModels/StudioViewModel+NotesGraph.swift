@@ -81,7 +81,7 @@ extension StudioViewModel {
     }
 
     /// The plans above the day at a glance, for the calendar glyph's popover:
-    /// this quarter's objectives, this week's big rocks and the week's line
+    /// this quarter's objectives, what this week makes progress on and its line
     /// for today, read from the plans' Markdown through the storage actor.
     /// A plan that does not exist yet reads as not planned; nothing is made,
     /// and a failed read throws rather than passing for an empty plan.
@@ -99,12 +99,12 @@ extension StudioViewModel {
             quarter: PlanGlance.Part(
                 period: quarter,
                 exists: quarterText != nil,
-                lines: quarterText.map { PlanOutline.items(under: "Objectives", in: $0) } ?? []
+                lines: quarterText.map { PlanOutline.items(under: PlanPeriod.quarterObjectivesHeading, in: $0) } ?? []
             ),
             week: PlanGlance.Part(
                 period: week,
                 exists: weekText != nil,
-                lines: weekText.map { PlanOutline.items(under: "Big rocks", in: $0) } ?? []
+                lines: weekText.map { PlanOutline.items(under: PlanPeriod.weekProgressHeading, in: $0) } ?? []
             ),
             today: weekText.flatMap { PlanOutline.dayLine(PlanOutline.weekdayName(of: now), in: $0) }
         )

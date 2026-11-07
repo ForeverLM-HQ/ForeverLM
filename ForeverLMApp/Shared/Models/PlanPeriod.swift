@@ -223,6 +223,10 @@ enum PlanPeriod: Hashable, Sendable, Identifiable {
 
     static let weekTitlePrefix = "Week of "
 
+    /// The headings the popover reads a plan by (`PlanGlance`).
+    static let quarterObjectivesHeading = "Objectives"
+    static let weekProgressHeading = "This week"
+
     /// The period a title names: "Q4 2026", or "Week of " and a Monday as a
     /// daily note writes a day. How `[[Q4 2026]]` finds its plan before the
     /// Page exists. Nil for any other title.
@@ -266,19 +270,24 @@ enum PlanPeriod: Hashable, Sendable, Identifiable {
 
     // MARK: The Page it starts as
 
-    /// The Markdown a new plan Page starts with: its headings, as Newport's
-    /// plans are laid out, each with a bullet to write on. A week links its
-    /// quarter and lists its days.
+    /// The Markdown a new plan Page starts with, as Newport describes the two
+    /// plans (product owner, 2026-11-07, of the first template: "is that how
+    /// Cal Newport suggested?" — it was not, then "yes, rework them"). His
+    /// plans are free text with no set form; the headings only seed it.
+    /// A quarter: the bigger picture at its top, the season's objectives,
+    /// and the strategies, habits and rules of thumb it runs. A week: written
+    /// with the quarter's plan and the calendar in view, so it links its
+    /// quarter, says what the week makes progress on, and sketches each day.
+    /// The popover reads Objectives, This week and Days (`loadPlanGlance`).
     func template(zone: TimeZone = .current) -> String {
         // Built from lines, since an empty bullet is "- " and a trailing space
         // in a multi-line literal does not survive every editor.
         switch self {
         case .quarter:
             return [
+                "## Big picture", "", "- ", "",
                 "## Objectives", "", "- ", "",
-                "## Strategies", "", "- ", "",
-                "## Not this quarter", "", "- ", "",
-                "## Looking back", "", "- ", "",
+                "## Strategies and habits", "", "- ", "",
             ].joined(separator: "\n")
         case .week:
             var lines: [String] = []
@@ -286,7 +295,7 @@ enum PlanPeriod: Hashable, Sendable, Identifiable {
                 lines.append("Quarter: [[\(quarter.title(zone: zone))]]")
                 lines.append("")
             }
-            lines.append(contentsOf: ["## Big rocks", "", "- ", "", "## Deep work", "", "- ", "", "## Days", ""])
+            lines.append(contentsOf: ["## \(Self.weekProgressHeading)", "", "- ", "", "## Days", ""])
             let weekday = DateFormatter()
             weekday.locale = Locale(identifier: "en_US_POSIX")
             weekday.timeZone = zone
@@ -294,7 +303,7 @@ enum PlanPeriod: Hashable, Sendable, Identifiable {
             for day in days(zone: zone) {
                 lines.append("- \(weekday.string(from: day)): ")
             }
-            lines.append(contentsOf: ["", "## Looking back", "", "- ", ""])
+            lines.append("")
             return lines.joined(separator: "\n")
         }
     }
@@ -303,7 +312,7 @@ enum PlanPeriod: Hashable, Sendable, Identifiable {
 // MARK: - A plan at a glance
 
 /// What the calendar glyph's popover shows of the plans above the day: the
-/// quarter's objectives, the week's big rocks and what the week's Days give
+/// quarter's objectives, what the week makes progress on, and what its Days give
 /// today (`DayNowPopover`). Read from the plans' Markdown off the main actor.
 struct PlanGlance: Equatable, Sendable {
     struct Part: Equatable, Sendable {
