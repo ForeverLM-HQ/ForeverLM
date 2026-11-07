@@ -447,8 +447,10 @@ struct SpaceBrowseView: View {
         // list of items.
         if destination == .board {
             SpaceBoardPage(searchText: $searchText, searchFocusRequest: searchFocusRequest)
+                .environment(\.spacePlaceNamedBySidebar, !showsPlaceMenu)
         } else if destination == .plan {
             SpacePlanPage()
+                .environment(\.spacePlaceNamedBySidebar, !showsPlaceMenu)
         } else {
             placeList
         }
@@ -1076,26 +1078,48 @@ struct SpaceBrowseView: View {
             && vm.activeTeamID == nil && !vm.isActiveLibraryReadOnly && query.isEmpty
     }
 
+    /// Whether the head names the place. Beside the sidebar its lit row
+    /// already does, and the tab over the pane says Space or Pages, so All,
+    /// Notebooks, Pages and the rest start with their scopes (product owner,
+    /// 2026-11-07, of "All" over an All pill under the Space tab). Without the
+    /// sidebar the name is the place menu, the way to the other places. A
+    /// list, a space and a team keep their names, and Chats, which has no row.
+    private var namesPlace: Bool {
+        if showsPlaceMenu || openList != nil { return true }
+        switch destination {
+        case .space, .team, .chats: return true
+        default: return false
+        }
+    }
+
+    private var searchPrompt: String {
+        searchesPageText ? "Search names and text" : "Search by name"
+    }
+
     private func header(inPlace: [SpaceItem], shown: [SpaceItem]) -> some View {
         let scopes = scopes(inPlace: inPlace)
         return VStack(alignment: .leading, spacing: 14) {
-            SpacePlaceHeader(
-                searchText: $searchText,
-                searchFocusRequest: searchFocusRequest,
-                searchPrompt: searchesPageText ? "Search names and text" : "Search by name"
-            ) {
-                titleView
-            } actions: {
-                primaryActions(shown: shown)
-            }
-            // The same row on every place, empty or not: the scopes, then
-            // sort and filter. A list's page has its own.
-            if openList == nil {
-                HStack(spacing: 8) {
-                    scopePills(scopes)
-                    Spacer(minLength: 8)
-                    viewControls
+            if namesPlace {
+                SpacePlaceHeader(
+                    searchText: $searchText,
+                    searchFocusRequest: searchFocusRequest,
+                    searchPrompt: searchPrompt
+                ) {
+                    titleView
+                } actions: {
+                    primaryActions(shown: shown)
                 }
+                // The same row on every place, empty or not: the scopes, then
+                // sort and filter. A list's page has its own.
+                if openList == nil {
+                    HStack(spacing: 8) {
+                        scopePills(scopes)
+                        Spacer(minLength: 8)
+                        viewControls
+                    }
+                }
+            } else {
+                unnamedHead(scopes: scopes, shown: shown)
             }
             // How long Trash keeps things: until it is emptied, since Trash
             // is the archive (docs/docs-design.md, "The Space as Codex's").
@@ -1107,6 +1131,38 @@ struct SpaceBrowseView: View {
                     .accessibilityIdentifier("space.trash.retention")
             }
         }
+    }
+
+    /// A head with no name: one row of the scopes, then the search, sort and
+    /// filter, and the one action; in a column too narrow for it, the search
+    /// and the action over the scopes and the view controls.
+    private func unnamedHead(scopes: [SpaceScope], shown: [SpaceItem]) -> some View {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 8) {
+                scopePills(scopes)
+                    .fixedSize(horizontal: true, vertical: true)
+                Spacer(minLength: 12)
+                placeSearch
+                    .frame(width: SpacePlaceMetrics.searchWidth)
+                viewControls
+                primaryActions(shown: shown)
+            }
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(spacing: 10) {
+                    placeSearch
+                    primaryActions(shown: shown)
+                }
+                HStack(spacing: 8) {
+                    scopePills(scopes)
+                    Spacer(minLength: 8)
+                    viewControls
+                }
+            }
+        }
+    }
+
+    private var placeSearch: some View {
+        SpaceSearchField(text: $searchText, prompt: searchPrompt, focusRequest: searchFocusRequest)
     }
 
     @ViewBuilder
@@ -2501,6 +2557,19 @@ enum SpaceDateText {
 /// `spacePlaceColumn()` and a dark pill; it never reaches for
 /// `.borderedProminent` or a search field of its own (docs/ui-design.md,
 /// "One head for every list").
+/// True where the Space sidebar beside the list lights the place's row, so
+/// the list's head need not name it (`SpacePlaceTitle`).
+private struct SpacePlaceNamedBySidebarKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    var spacePlaceNamedBySidebar: Bool {
+        get { self[SpacePlaceNamedBySidebarKey.self] }
+        set { self[SpacePlaceNamedBySidebarKey.self] = newValue }
+    }
+}
+
 enum SpacePlaceMetrics {
     static let titleFont = Font.system(size: 22, weight: .semibold)
     static let searchWidth: CGFloat = 220
@@ -2562,15 +2631,16 @@ struct SpacePlaceHeader<Title: View, Actions: View>: View {
 }
 
 /// A list's name, plain, at its head — unless the tab over the pane already
-/// says it (Goals under a Goals tab, Pages under a Pages tab): then the head
-/// is the search and the action alone. Under the Space's tab a place keeps
-/// its name, which the tab does not show.
+/// says it (Goals under a Goals tab, Pages under a Pages tab), or the Space
+/// sidebar's lit row does (the Board and the Plan beside it): then the head
+/// is the search and the action alone.
 struct SpacePlaceTitle: View {
     @Environment(\.studioPaneTab) private var paneTab
+    @Environment(\.spacePlaceNamedBySidebar) private var namedBySidebar
     let title: String
 
     var body: some View {
-        if paneTab?.title != title {
+        if paneTab?.title != title && !namedBySidebar {
             Text(title)
                 .font(SpacePlaceMetrics.titleFont)
                 .lineLimit(1)
