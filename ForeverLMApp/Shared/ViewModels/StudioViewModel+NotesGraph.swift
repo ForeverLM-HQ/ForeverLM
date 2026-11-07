@@ -100,6 +100,46 @@ extension StudioViewModel {
         )
     }
 
+    /// A quarter as the Plan place draws it: its plan's objectives, and its
+    /// weeks and days read off the calendars ForeverLM shows, each block
+    /// tied to the objective it serves (`PlanQuarterWeeks`). A read: a plan
+    /// that does not exist yet is not made. With the calendar off the weeks
+    /// still list, empty, and `calendarOn` says why.
+    func loadPlanOverview(_ quarter: PlanQuarter) async throws -> PlanOverview {
+        var objectives: [String] = []
+        let exists = try await storage.loadArtifact(quarter.id) != nil
+        if exists {
+            let markdown = try await storage.artifactMarkdown(quarter.id).markdown
+            objectives = PlanOutline.items(under: PlanQuarter.objectivesHeading, in: markdown, limit: PlanOverview.objectiveLimit)
+        }
+        let weekCalendar = PlanQuarterWeeks.weekCalendar()
+        let service = AppleCalendarService.shared
+        let calendarOn = service.isConnected
+        var items: [PlanCalendarItem] = []
+        if calendarOn, let span = PlanQuarterWeeks.span(of: quarter, calendar: weekCalendar) {
+            let scope = screenRecordScope
+            items = try await service.shownEvents(from: span.start, to: span.end)
+                .filter { $0.holdsTime && (scope?.allowsCalendarEvent($0) ?? true) }
+                .map { event in
+                    PlanCalendarItem(
+                        key: event.occurrenceKey,
+                        title: event.title,
+                        start: event.start,
+                        end: event.end,
+                        notes: event.notes ?? "",
+                        isMeeting: event.hasOtherPeople
+                    )
+                }
+        }
+        return PlanOverview(
+            quarter: quarter,
+            exists: exists,
+            objectives: objectives,
+            weeks: PlanQuarterWeeks.weeks(of: quarter, items: items, objectives: objectives, calendar: weekCalendar),
+            calendarOn: calendarOn
+        )
+    }
+
     /// A Doc brought forward in Docs with one of its blocks shown and
     /// flashed: the doc comes forward as `revealArtifact` brings it, and the
     /// block travels on the same request to the window's canvas, which hands

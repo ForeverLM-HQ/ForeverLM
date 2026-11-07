@@ -1945,7 +1945,7 @@ Plan at three scales, the way Cal Newport teaches it: a plan for the **quarter**
 
 Find **Plan** in the Space's sidebar, under Board, or keep it on the icon strip like any other place. It lists the four quarters of a year (Q1 is January to March); the arrows step through years, **This Year** brings you back, and the present quarter is marked. You can plan any quarter, including one already under way.
 
-Click a quarter to open its plan. The first time, it opens as a new Page with three headings:
+Click a quarter to open it in place: its objectives, each in a colour, and its weeks under them. Click **Objectives** (or right-click the quarter) to open its plan. The first time, it opens as a new Page with three headings:
 
 - **Big picture**: what the season is for, and the longer direction it serves.
 - **Objectives**: the few things that would make the quarter a success.
@@ -1956,6 +1956,8 @@ Newport keeps these plans as free text, so the headings are only a start: write 
 ## The week and the day
 
 A week's plan is the week on your Mac's Calendar: the blocks of focused work, on the days they belong to, around what is already there. Move them around as the week goes; nothing else records the week. A day works the same way, as time blocks (see [Studio](/studio)).
+
+In **Plan**, an open quarter lists its weeks, Monday to Sunday. Each week shows its seven days as small bars, filled by the hours of its blocks in the colours of the objectives they serve, and how many blocks and hours it gives the quarter. Click a week to see its days and their blocks, and click a day to open it in **Day**. A block counts toward the quarter when its notes name one of the quarter's objectives or link its plan, as the blocks the chat plans with you do; meetings and everything else on the calendar show in grey. Each objective also shows the hours its weeks have given it so far.
 
 Click the calendar glyph at the foot of the window's left edge to see today's events and, under them, this quarter's objectives. Click the quarter to open its plan; one not planned yet says **Plan in Chat…** and starts the chat that plans it.
 

@@ -106,4 +106,86 @@ struct PlanQuarterTests {
         #expect(throws: MCPError.self) { try quarter("2026-W45") }
         #expect(throws: MCPError.self) { try quarter("sometime") }
     }
+
+    // MARK: The quarter's weeks, read off the calendar
+
+    private func at(_ year: Int, _ month: Int, _ day: Int, _ hour: Int, _ minute: Int = 0) -> Date {
+        var components = DateComponents()
+        components.year = year
+        components.month = month
+        components.day = day
+        components.hour = hour
+        components.minute = minute
+        return PlanQuarter.gregorian(zone).date(from: components)!
+    }
+
+    @Test("A quarter's weeks run Monday to Sunday, each in the quarter its Thursday is in")
+    func weekStarts() {
+        let calendar = PlanQuarterWeeks.weekCalendar(zone)
+        let q4 = PlanQuarterWeeks.weekStarts(of: PlanQuarter(year: 2026, quarter: 4), calendar: calendar)
+        #expect(q4.count == 14)
+        #expect(q4.first == at(2026, 9, 28, 0), "Thursday Oct 1 makes Sep 28's week Q4's")
+        #expect(q4.last == at(2026, 12, 28, 0), "Thursday Dec 31 keeps the last week in Q4")
+        let q1 = PlanQuarterWeeks.weekStarts(of: PlanQuarter(year: 2027, quarter: 1), calendar: calendar)
+        #expect(q1.first == at(2027, 1, 4, 0), "no week is in two quarters")
+        let q3 = PlanQuarterWeeks.weekStarts(of: PlanQuarter(year: 2026, quarter: 3), calendar: calendar)
+        #expect(q3.last.map { calendar.date(byAdding: .day, value: 7, to: $0) } == q4.first)
+    }
+
+    @Test("An objective is named by its words before a parenthesis, colon or dash")
+    func objectiveNames() {
+        #expect(PlanQuarterWeeks.objectiveName("Etcelera (the predictions handed over)") == "Etcelera")
+        #expect(PlanQuarterWeeks.objectiveName("Talent Bridge: a biomarker of aging") == "Talent Bridge")
+        #expect(PlanQuarterWeeks.objectiveName("Thesis — written by December") == "Thesis")
+        #expect(PlanQuarterWeeks.objectiveName("Oxphos datasets") == "Oxphos datasets")
+        let names = ["Lab", "Lab Bridge", "Thesis"]
+        #expect(PlanQuarterWeeks.objectiveIndex(notes: "Serves Q4 objective: Lab Bridge.", names: names) == 1, "the longest name wins")
+        #expect(PlanQuarterWeeks.objectiveIndex(notes: "serves the thesis", names: names) == 2)
+        #expect(PlanQuarterWeeks.objectiveIndex(notes: "", names: names) == nil)
+        #expect(PlanQuarterWeeks.objectiveIndex(notes: "an AB test", names: ["AB"]) == nil, "names under three letters never match")
+    }
+
+    @Test("Blocks fall on their days, and serve the quarter when they link its plan or name an objective")
+    func weeksFromTheCalendar() throws {
+        let calendar = PlanQuarterWeeks.weekCalendar(zone)
+        let quarter = PlanQuarter(year: 2026, quarter: 4)
+        let objectives = ["Lab (the predictions handed over)", "Thesis", "Bridge: candidate ideas"]
+        let items = [
+            PlanCalendarItem(key: "a", title: "Predictions", start: at(2026, 11, 9, 9), end: at(2026, 11, 9, 12),
+                             notes: "Serves Q4 objective: Lab. Q4 plan: foreverlm://doc/plan-2026-q4", isMeeting: false),
+            PlanCalendarItem(key: "b", title: "Sync", start: at(2026, 11, 9, 13), end: at(2026, 11, 9, 14),
+                             notes: "Weekly Lab sync", isMeeting: true),
+            PlanCalendarItem(key: "c", title: "Ideas", start: at(2026, 11, 10, 14, 30), end: at(2026, 11, 10, 17),
+                             notes: "Q4 plan: foreverlm://doc/plan-2026-q4", isMeeting: false),
+            PlanCalendarItem(key: "d", title: "Draft", start: at(2026, 11, 11, 9), end: at(2026, 11, 11, 10),
+                             notes: "For the thesis", isMeeting: false),
+            PlanCalendarItem(key: "e", title: "Dentist", start: at(2026, 11, 12, 9), end: at(2026, 11, 12, 10),
+                             notes: "", isMeeting: false),
+        ]
+        let weeks = PlanQuarterWeeks.weeks(of: quarter, items: items, objectives: objectives, calendar: calendar)
+        #expect(weeks.count == 14)
+        let week = try #require(weeks.first { $0.start == at(2026, 11, 9, 0) })
+        #expect(week.days.map(\.date) == ["2026-11-09", "2026-11-10", "2026-11-11", "2026-11-12", "2026-11-13", "2026-11-14", "2026-11-15"])
+        #expect(week.days[0].blocks.map(\.id) == ["a", "b"])
+
+        let monday = week.days[0].blocks
+        #expect(monday[0].servesQuarter && monday[0].objective == 0)
+        #expect(!monday[1].servesQuarter && monday[1].objective == nil, "a meeting is the week's ground, whatever its notes say")
+        #expect(week.days[1].blocks[0].servesQuarter && week.days[1].blocks[0].objective == nil, "linking the plan is enough")
+        #expect(week.days[2].blocks[0].objective == 1, "naming an objective is enough")
+        #expect(!week.days[3].blocks[0].servesQuarter)
+
+        #expect(week.plannedBlocks.map(\.id) == ["a", "c", "d"])
+        #expect(week.plannedMinutes == 180 + 150 + 60)
+        #expect(week.minutesByObjective == [0: 180, 1: 60])
+        #expect(weeks.filter { $0.start != week.start }.allSatisfy { $0.plannedBlocks.isEmpty })
+    }
+
+    @Test("Hours read short")
+    func hoursText() {
+        #expect(PlanQuarterWeeks.hoursText(45) == "45 min")
+        #expect(PlanQuarterWeeks.hoursText(180) == "3 h")
+        #expect(PlanQuarterWeeks.hoursText(150) == "2.5 h")
+        #expect(PlanQuarterWeeks.hoursText(170) == "3 h")
+    }
 }

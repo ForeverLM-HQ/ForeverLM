@@ -212,3 +212,206 @@ enum PlanOutline {
         return clean.trimmingCharacters(in: .whitespaces)
     }
 }
+
+// MARK: - The quarter's weeks, read off the calendar
+
+/// One timed event as the Plan place reads it: the calendar's, cut down to
+/// what ties it to a quarter, so the reading stays pure and compiles on the
+/// phone (which has no `AppleCalendarEvent`).
+struct PlanCalendarItem: Equatable, Sendable {
+    /// The occurrence's key, unique on the calendar.
+    let key: String
+    let title: String
+    let start: Date
+    let end: Date
+    let notes: String
+    /// Someone else's time: a meeting that stays where it is.
+    let isMeeting: Bool
+}
+
+/// One block of a week as the Plan place draws it.
+struct PlanBlock: Equatable, Sendable, Identifiable {
+    let id: String
+    let title: String
+    let start: Date
+    let end: Date
+    let isMeeting: Bool
+    /// Planned toward the quarter: its notes link the quarter's plan or name
+    /// one of its objectives. Meetings never are; they are the week's ground.
+    let servesQuarter: Bool
+    /// The objective, by its place in the plan's Objectives, its notes name.
+    let objective: Int?
+
+    var minutes: Int { max(0, Int(end.timeIntervalSince(start) / 60)) }
+}
+
+/// One day of a week: its blocks by start.
+struct PlanDay: Equatable, Sendable, Identifiable {
+    /// `2026-11-09`, the name the Day pane takes.
+    let date: String
+    let start: Date
+    let blocks: [PlanBlock]
+
+    var id: String { date }
+    /// The minutes planned toward the quarter that day.
+    var plannedMinutes: Int { blocks.filter(\.servesQuarter).reduce(0) { $0 + $1.minutes } }
+}
+
+/// One week of a quarter, Monday to Sunday.
+struct PlanWeek: Equatable, Sendable, Identifiable {
+    let start: Date
+    /// Seven days, Monday first.
+    let days: [PlanDay]
+
+    var id: Date { start }
+    var plannedBlocks: [PlanBlock] { days.flatMap(\.blocks).filter(\.servesQuarter) }
+    var plannedMinutes: Int { plannedBlocks.reduce(0) { $0 + $1.minutes } }
+    /// Planned minutes per objective, by the objective's place.
+    var minutesByObjective: [Int: Int] {
+        plannedBlocks.reduce(into: [:]) { sums, block in
+            if let objective = block.objective { sums[objective, default: 0] += block.minutes }
+        }
+    }
+
+    func contains(_ date: Date, calendar: Calendar) -> Bool {
+        guard let end = calendar.date(byAdding: .day, value: 7, to: start) else { return false }
+        return date >= start && date < end
+    }
+}
+
+/// How a quarter's weeks and days are read off the calendar: the quarter is
+/// a Page and the week and the day are the calendar (product owner,
+/// 2026-11-07), so the plan's three scales are tied together here, by
+/// reading, never by a week record. A block serves the quarter when the
+/// chat that planned it linked the quarter's plan in its notes, as `/plan
+/// week` does, or named one of its objectives there.
+enum PlanQuarterWeeks {
+    /// The calendar weeks are read in: Gregorian, Monday first, as ISO weeks.
+    static func weekCalendar(_ zone: TimeZone = .current) -> Calendar {
+        var calendar = PlanQuarter.gregorian(zone)
+        calendar.firstWeekday = 2
+        calendar.minimumDaysInFirstWeek = 4
+        return calendar
+    }
+
+    /// The Mondays of the quarter's weeks. A week straddling two quarters
+    /// belongs to the one its Thursday is in, as an ISO week belongs to a
+    /// year, so every week is in exactly one quarter.
+    static func weekStarts(of quarter: PlanQuarter, calendar: Calendar) -> [Date] {
+        guard let start = quarter.start(zone: calendar.timeZone),
+              let end = quarter.end(zone: calendar.timeZone),
+              let firstMonday = calendar.dateInterval(of: .weekOfYear, for: start)?.start else { return [] }
+        var mondays: [Date] = []
+        var monday = firstMonday
+        while monday < end {
+            if let thursday = calendar.date(byAdding: .day, value: 3, to: monday),
+               PlanQuarter.containing(thursday, zone: calendar.timeZone) == quarter {
+                mondays.append(monday)
+            }
+            guard let next = calendar.date(byAdding: .day, value: 7, to: monday) else { break }
+            monday = next
+        }
+        return mondays
+    }
+
+    /// The span the quarter's weeks cover, for reading its calendar once.
+    static func span(of quarter: PlanQuarter, calendar: Calendar) -> DateInterval? {
+        let mondays = weekStarts(of: quarter, calendar: calendar)
+        guard let first = mondays.first, let last = mondays.last,
+              let end = calendar.date(byAdding: .day, value: 7, to: last) else { return nil }
+        return DateInterval(start: first, end: end)
+    }
+
+    /// The quarter's weeks with their days and blocks. `items` are the timed
+    /// events of the span; `objectives` the plan's written Objectives.
+    static func weeks(
+        of quarter: PlanQuarter,
+        items: [PlanCalendarItem],
+        objectives: [String],
+        calendar: Calendar
+    ) -> [PlanWeek] {
+        let names = objectives.map(objectiveName)
+        let blocks = items.map { block($0, quarter: quarter, objectiveNames: names) }
+            .sorted { ($0.start, $0.title) < ($1.start, $1.title) }
+        return weekStarts(of: quarter, calendar: calendar).map { monday in
+            let days: [PlanDay] = (0..<7).compactMap { offset in
+                guard let dayStart = calendar.date(byAdding: .day, value: offset, to: monday),
+                      let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) else { return nil }
+                return PlanDay(
+                    date: PlanDate.string(for: dayStart, calendar: calendar),
+                    start: dayStart,
+                    blocks: blocks.filter { $0.start >= dayStart && $0.start < dayEnd }
+                )
+            }
+            return PlanWeek(start: monday, days: days)
+        }
+    }
+
+    static func block(_ item: PlanCalendarItem, quarter: PlanQuarter, objectiveNames: [String]) -> PlanBlock {
+        let objective = item.isMeeting ? nil : objectiveIndex(notes: item.notes, names: objectiveNames)
+        let linksPlan = item.notes.range(of: quarter.id, options: .caseInsensitive) != nil
+        return PlanBlock(
+            id: item.key,
+            title: item.title,
+            start: item.start,
+            end: item.end,
+            isMeeting: item.isMeeting,
+            servesQuarter: !item.isMeeting && (linksPlan || objective != nil),
+            objective: objective
+        )
+    }
+
+    /// An objective's name: its words before a parenthesis, a colon or a
+    /// dash, the way objectives are written ("Etcelera (the DPG-16
+    /// predictions handed over)" is "Etcelera").
+    static func objectiveName(_ objective: String) -> String {
+        var name = Substring(objective)
+        for stop in [" (", ":", " — ", " – ", " - "] {
+            if let range = name.range(of: stop) { name = name[..<range.lowerBound] }
+        }
+        return name.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// The objective whose name the notes say, the longest name winning when
+    /// one holds another; names under three letters never match.
+    static func objectiveIndex(notes: String, names: [String]) -> Int? {
+        guard !notes.isEmpty else { return nil }
+        var best: (index: Int, length: Int)?
+        for (index, name) in names.enumerated() where name.count >= 3 {
+            guard notes.range(of: name, options: [.caseInsensitive, .diacriticInsensitive]) != nil else { continue }
+            if best.map({ name.count > $0.length }) ?? true { best = (index, name.count) }
+        }
+        return best?.index
+    }
+
+    /// Minutes said short: "45 min", "3 h", "2.5 h".
+    static func hoursText(_ minutes: Int) -> String {
+        if minutes < 60 { return "\(minutes) min" }
+        let hours = Double(minutes) / 60
+        let rounded = (hours * 2).rounded() / 2
+        return rounded == rounded.rounded() ? "\(Int(rounded)) h" : String(format: "%.1f h", rounded)
+    }
+}
+
+/// A quarter as the Plan place draws it: the plan's objectives above, its
+/// weeks and days below.
+struct PlanOverview: Equatable, Sendable {
+    let quarter: PlanQuarter
+    /// Whether the quarter's plan Page exists.
+    let exists: Bool
+    /// The plan's written Objectives, in order.
+    let objectives: [String]
+    let weeks: [PlanWeek]
+    /// Whether the Mac's Calendar is on for ForeverLM; off, the weeks are empty.
+    let calendarOn: Bool
+
+    /// How many objectives the Plan place lists and colours.
+    static let objectiveLimit = 8
+
+    /// Planned minutes per objective across the quarter.
+    var minutesByObjective: [Int: Int] {
+        weeks.reduce(into: [:]) { sums, week in
+            for (objective, minutes) in week.minutesByObjective { sums[objective, default: 0] += minutes }
+        }
+    }
+}
