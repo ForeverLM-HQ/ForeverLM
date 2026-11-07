@@ -294,7 +294,7 @@ extension NotebookWorkspace {
         // the notebook the library is its Sources column's search. Plugins
         // are the app's, as the Library is.
         case .library, .knowledgeMap, .atlas, .plugins: return .leave
-        case .activity, .tasks, .goals, .ideas, .videos, .artifacts: return .leave
+        case .activity, .activityLog, .tasks, .goals, .ideas, .videos, .artifacts: return .leave
         }
     }
 

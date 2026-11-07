@@ -569,7 +569,7 @@ extension MCPDataStore {
 
     // MARK: - Activity
 
-    /// The Day pane's Calendar / Activity / History choice. It sits in the
+    /// The Activity pane's By Source / History choice. It sits in the
     /// pane's ⋯, not the Settings window, but it is a remembered preference
     /// all the same (product owner, 2026-09-23: "yes add it to MCP too").
     @MainActor
@@ -577,9 +577,9 @@ extension MCPDataStore {
         [
             AppSettingEntry(
                 id: "activity.layout",
-                pane: "Day (the pane's ⋯ › View)",
+                pane: "Activity (the pane's ⋯ › View)",
                 title: "View",
-                detail: "Which view the Day pane shows. calendar: the Mac Calendar's day on a clock, events only; the log is not drawn on it. activity: the day's log, one row per source, chat or Doc, its sittings as bars along the hours the log covers, glances counted in the totals line only. history: every day's time spent, newest first, a month at a time.",
+                detail: "How the Activity pane draws the log; the Day pane is the calendar alone and has no views. by_source: the day's log, one row per source, chat or Doc, its sittings as bars along the hours the log covers, glances counted in the totals line only. history: every day's time spent, newest first, a month at a time.",
                 reach: .thisMac,
                 kind: .choice,
                 preferenceKeys: [DayActivityLayout.storageKey],

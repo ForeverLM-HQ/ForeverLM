@@ -12,7 +12,7 @@ struct ShellPlacesTests {
     /// The titles `StudioCenterTab.title` returned from its own switch, and
     /// Plugins, the place added after it (Track 2).
     private static let titles: [StudioCenterTab: String] = [
-        .chat: "Chat", .secondaryChat: "Chat", .reader: "Reader", .tasks: "Tasks", .activity: "Day",
+        .chat: "Chat", .secondaryChat: "Chat", .reader: "Reader", .tasks: "Tasks", .activity: "Day", .activityLog: "Activity",
         .goals: "Goals", .courses: "Courses", .ideas: "Ideas", .notepad: "Pages", .sites: "Sites",
         .browser: "Browser", .videos: "Videos", .animations: "Animations", .artifacts: "Space",
         .memory: "Memory", .library: "Library", .knowledgeMap: "Canvas", .atlas: "Atlas",
@@ -24,7 +24,7 @@ struct ShellPlacesTests {
     /// Spaces glyph since, so one glyph names one place.
     private static let glyphs: [StudioCenterTab: String] = [
         .chat: "bubble.left.and.bubble.right", .secondaryChat: "bubble.left.and.bubble.right",
-        .reader: "doc.text", .tasks: "clock.arrow.circlepath", .activity: "chart.bar.doc.horizontal",
+        .reader: "doc.text", .tasks: "clock.arrow.circlepath", .activity: "calendar", .activityLog: "chart.bar.doc.horizontal",
         .goals: "target", .courses: "graduationcap", .ideas: "lightbulb", .notepad: "note.text",
         .sites: "globe", .browser: "safari", .videos: "film", .animations: "sparkles.tv",
         .artifacts: "square.on.square", .memory: "brain", .library: "books.vertical",

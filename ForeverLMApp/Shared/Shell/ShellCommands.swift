@@ -450,7 +450,7 @@ enum ShellCommands {
     /// "scheduled is not so important btw; skip that for now").
     static let placeTabs: [StudioCenterTab] = [
         .artifacts, .notepad, .sites, .courses, .goals, .ideas,
-        .memory, .library, .plugins, .reader, .activity, .browser, .videos, .animations,
+        .memory, .library, .plugins, .reader, .activity, .activityLog, .browser, .videos, .animations,
         .knowledgeMap, .atlas,
     ]
 
@@ -472,7 +472,8 @@ enum ShellCommands {
         case .library: return ["sources", "papers", "books", "articles", "podcasts"]
         case .plugins: return ["connectors", "integrations", "skills"]
         case .reader: return ["read", "source"]
-        case .activity: return ["day", "today", "activity", "log"]
+        case .activity: return ["day", "today", "calendar", "meetings"]
+        case .activityLog: return ["activity", "log", "history", "time spent", "tracked"]
         case .browser: return ["web", "tabs", "internet"]
         case .videos: return ["films", "explainers"]
         case .animations: return ["moving explanations"]

@@ -161,7 +161,7 @@ struct MCPAppSettingsToolsTests {
         #expect(!SyncedPreferenceKeys.isSynced(key), "each Mac has its own keyboard and its own apps")
     }
 
-    @Test("activity.layout switches the Day pane between the calendar, the activity log and history, and refuses anything else")
+    @Test("activity.layout switches the Activity pane between by source and history, and refuses anything else")
     func activityLayout() async throws {
         let defaults = UserDefaults.standard
         let saved = defaults.object(forKey: DayActivityLayout.storageKey)
@@ -173,19 +173,19 @@ struct MCPAppSettingsToolsTests {
 
         let read = try payload(try await store.getAppSettings(pane: nil, settingID: "activity.layout"))
         let rows = try #require(read["settings"] as? [[String: Any]])
-        #expect(rows.first?["value"] as? String == "calendar")
-        #expect((rows.first?["options"] as? [[String: Any]])?.compactMap { $0["value"] as? String } == ["calendar", "activity", "history"])
+        #expect(rows.first?["value"] as? String == "by_source")
+        #expect((rows.first?["options"] as? [[String: Any]])?.compactMap { $0["value"] as? String } == ["by_source", "history"])
 
-        let row = try payload(try await store.setAppSetting(settingID: "activity.layout", value: "activity"))
-        #expect(row["value"] as? String == "activity")
+        let row = try payload(try await store.setAppSetting(settingID: "activity.layout", value: "history"))
+        #expect(row["value"] as? String == "history")
         #expect(row["changed"] as? Bool == true)
-        #expect(defaults.string(forKey: DayActivityLayout.storageKey) == DayActivityLayout.activity.rawValue)
-        #expect(DayActivityLayout.stored == .activity)
+        #expect(defaults.string(forKey: DayActivityLayout.storageKey) == DayActivityLayout.history.rawValue)
+        #expect(DayActivityLayout.stored == .history)
 
         await #expect(throws: MCPError.self) {
             _ = try await store.setAppSetting(settingID: "activity.layout", value: "timeline")
         }
-        #expect(DayActivityLayout.stored == .activity, "a refused call writes nothing")
+        #expect(DayActivityLayout.stored == .history, "a refused call writes nothing")
     }
 
     @Test("Your name lists the name and the crown switch, and a blank or overlong name is refused without a write")

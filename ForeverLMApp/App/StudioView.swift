@@ -330,6 +330,8 @@ struct StudioView: View {
             ScheduledTasksReaderPane()
         case .activity:
             DayActivityReaderPane()
+        case .activityLog:
+            ActivityLogPane()
         case .notepad:
             // This window's scope: a notebook's own Docs, or every doc.
             ArtifactCanvas(section: .docs, notebookID: windowState.artifactCanvasNotebookID, onBack: nil)

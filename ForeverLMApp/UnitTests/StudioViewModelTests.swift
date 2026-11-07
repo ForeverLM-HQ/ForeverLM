@@ -2657,7 +2657,7 @@ struct CrossWindowStudioDropTests {
         let vm = makeViewModel()
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
             .init(
-                tabs: [.chat, .reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts],
+                tabs: [.chat, .reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts],
                 activeTab: .chat
             ),
         ])
@@ -2712,11 +2712,11 @@ struct CrossWindowStudioDropTests {
     @Test("The Docs index and a doc reveal name the window they were asked in, so another window's Doc stays open")
     func docsIndexAndRevealStayInTheirWindow() {
         let leftDisplay = StudioWindowState(snapshot: .init(
-            centerTabGroups: ["chat|reader|tasks|activity|notepad*|sites|browser|videos|notebooks"],
+            centerTabGroups: ["chat|reader|tasks|activity|activityLog|notepad*|sites|browser|videos|notebooks"],
             navigationRailVisible: true
         ))
         let rightDisplay = StudioWindowState(snapshot: .init(
-            centerTabGroups: ["chat*|reader|tasks|activity|notepad|sites|browser|videos|notebooks"],
+            centerTabGroups: ["chat*|reader|tasks|activity|activityLog|notepad|sites|browser|videos|notebooks"],
             navigationRailVisible: true
         ))
         let vm = makeViewModel()
@@ -2822,7 +2822,7 @@ struct CrossWindowStudioDropTests {
         defer { restoreTemplate() }
         let vm = makeViewModel()
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
-            .init(tabs: [.chat, .reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .chat),
+            .init(tabs: [.chat, .reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .chat),
         ])
         let sourceLayout = vm.centerTabGroups
         let destination = StudioWindowState(snapshot: .init(
@@ -2896,7 +2896,7 @@ struct CrossWindowStudioDropTests {
         acting.centerTabGroups = StudioCenterTabGroups(groups: [
             .init(tabs: [.chat], activeTab: .chat),
             .init(
-                tabs: [.reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts],
+                tabs: [.reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts],
                 activeTab: .reader
             ),
         ])
@@ -2926,7 +2926,7 @@ struct CrossWindowStudioDropTests {
         let layout = StudioCenterTabGroups(groups: [
             .init(tabs: [.chat], activeTab: .chat),
             .init(
-                tabs: [.reader, .tasks, .activity, .goals, .ideas, .notepad, .sites, .browser, .videos, .animations, .artifacts, .courses, .memory, .knowledgeMap, .atlas, .library, .plugins],
+                tabs: [.reader, .tasks, .activity, .activityLog, .goals, .ideas, .notepad, .sites, .browser, .videos, .animations, .artifacts, .courses, .memory, .knowledgeMap, .atlas, .library, .plugins],
                 activeTab: .notepad
             ),
         ])
@@ -3005,7 +3005,7 @@ struct CrossWindowStudioDropTests {
             ),
         ]
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
-            .init(tabs: [.chat, .reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .chat),
+            .init(tabs: [.chat, .reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .chat),
         ])
 
         // The rail's Sites row lands on the Sites index and leaves Docs alone.
@@ -3240,22 +3240,22 @@ struct DocsFreshChatNavigationTests {
         // learner put them. Handing a passage over must not swap them.
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
             .init(tabs: [.chat, .tasks], activeTab: .tasks),
-            .init(tabs: [.notepad, .sites, .reader, .activity, .goals, .ideas, .browser, .videos, .animations, .artifacts], activeTab: .notepad),
+            .init(tabs: [.notepad, .sites, .reader, .activity, .activityLog, .goals, .ideas, .browser, .videos, .animations, .artifacts], activeTab: .notepad),
         ])
         handOffPassage(in: vm)
         #expect(vm.centerTabGroups.groups == [
             .init(tabs: [.chat, .tasks], activeTab: .chat),
-            .init(tabs: [.notepad, .sites, .reader, .activity, .goals, .ideas, .browser, .videos, .animations, .artifacts, .courses, .memory, .knowledgeMap, .atlas, .library, .plugins], activeTab: .notepad),
+            .init(tabs: [.notepad, .sites, .reader, .activity, .activityLog, .goals, .ideas, .browser, .videos, .animations, .artifacts, .courses, .memory, .knowledgeMap, .atlas, .library, .plugins], activeTab: .notepad),
         ])
 
         // Docs as the sole pane: Chat peels out into a new pane on its right
         // and asks the window for room, the way the Reader's handoff does.
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
-            .init(tabs: [.chat, .reader, .tasks, .activity, .goals, .ideas, .notepad, .sites, .browser, .videos, .animations, .artifacts], activeTab: .notepad),
+            .init(tabs: [.chat, .reader, .tasks, .activity, .activityLog, .goals, .ideas, .notepad, .sites, .browser, .videos, .animations, .artifacts], activeTab: .notepad),
         ])
         handOffPassage(in: vm)
         #expect(vm.centerTabGroups.groups == [
-            .init(tabs: [.reader, .tasks, .activity, .goals, .ideas, .notepad, .sites, .browser, .videos, .animations, .artifacts, .courses, .memory, .knowledgeMap, .atlas, .library, .plugins], activeTab: .notepad),
+            .init(tabs: [.reader, .tasks, .activity, .activityLog, .goals, .ideas, .notepad, .sites, .browser, .videos, .animations, .artifacts, .courses, .memory, .knowledgeMap, .atlas, .library, .plugins], activeTab: .notepad),
             .init(tabs: [.chat], activeTab: .chat),
         ])
         #expect(vm.reviewChatPanelMode == .chat)
@@ -3276,14 +3276,14 @@ struct DocsFreshChatNavigationTests {
 
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
             .init(tabs: [.chat], activeTab: .chat),
-            .init(tabs: [.reader, .tasks, .activity, .goals, .ideas, .notepad, .sites, .browser, .videos, .animations, .artifacts], activeTab: .notepad),
+            .init(tabs: [.reader, .tasks, .activity, .activityLog, .goals, .ideas, .notepad, .sites, .browser, .videos, .animations, .artifacts], activeTab: .notepad),
         ])
         await vm.attachDocToChat(snapshot.artifact.id)
 
         // Both panes were already open, so neither moves.
         #expect(vm.centerTabGroups.groups == [
             .init(tabs: [.chat], activeTab: .chat),
-            .init(tabs: [.reader, .tasks, .activity, .goals, .ideas, .notepad, .sites, .browser, .videos, .animations, .artifacts, .courses, .memory, .knowledgeMap, .atlas, .library, .plugins], activeTab: .notepad),
+            .init(tabs: [.reader, .tasks, .activity, .activityLog, .goals, .ideas, .notepad, .sites, .browser, .videos, .animations, .artifacts, .courses, .memory, .knowledgeMap, .atlas, .library, .plugins], activeTab: .notepad),
         ])
         #expect(vm.pendingChatDocAttachment?.id == snapshot.artifact.id)
         #expect(vm.reviewChatPanelMode == .chat)
@@ -4764,11 +4764,11 @@ struct ScheduleChatNavigationTests {
         let value = StudioCenterTabGroups.reconciled(raw)
         #expect(value.groups.count == 2)
         #expect(value.groups[0].tabs == [.chat])
-        #expect(value.groups[1].tabs == [.reader, .tasks, .activity, .goals, .courses, .ideas, .notepad, .sites, .browser, .videos, .animations, .artifacts, .memory, .knowledgeMap, .atlas, .library, .plugins])
+        #expect(value.groups[1].tabs == [.reader, .tasks, .activity, .activityLog, .goals, .courses, .ideas, .notepad, .sites, .browser, .videos, .animations, .artifacts, .memory, .knowledgeMap, .atlas, .library, .plugins])
         #expect(value.groups[1].activeTab == .reader)
 
         let persisted = value.persistedRepresentation
-        #expect(persisted == ["chat*", "reader*|tasks|activity|goals|courses|ideas|notepad|sites|browser|videos|animations|artifacts|memory|knowledgeMap|atlas|library|plugins"])
+        #expect(persisted == ["chat*", "reader*|tasks|activity|activityLog|goals|courses|ideas|notepad|sites|browser|videos|animations|artifacts|memory|knowledgeMap|atlas|library|plugins"])
         let decoded = StudioCenterTabGroups.fromPersisted(persisted)
         #expect(decoded?.groups.count == 2)
         #expect(decoded?.groups[1].activeTab == .reader)
@@ -4780,7 +4780,7 @@ struct ScheduleChatNavigationTests {
             "goal*|reader|notebooks",
         ])
         #expect(legacy?.groups[0].tabs == [.chat])
-        #expect(legacy?.groups[1].tabs == [.reader, .artifacts, .tasks, .activity, .goals, .courses, .ideas, .notepad, .sites, .browser, .videos, .animations, .memory, .knowledgeMap, .atlas, .library, .plugins])
+        #expect(legacy?.groups[1].tabs == [.reader, .artifacts, .tasks, .activity, .activityLog, .goals, .courses, .ideas, .notepad, .sites, .browser, .videos, .animations, .memory, .knowledgeMap, .atlas, .library, .plugins])
         #expect(legacy?.groups[1].activeTab == .reader)
 
         // Older builds allowed four panes. Loading that arrangement folds the
@@ -4869,7 +4869,7 @@ struct ScheduleChatNavigationTests {
         defer { restoreLayout() }
         let stored = StudioCenterTabGroups(groups: [
             .init(tabs: [.chat], activeTab: .chat),
-            .init(tabs: [.reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .notepad),
+            .init(tabs: [.reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .notepad),
         ]).persistedRepresentation
         UserDefaults.standard.set(stored, forKey: "studio.centerTabGroups.v1")
 
@@ -4975,7 +4975,7 @@ struct ScheduleChatNavigationTests {
 
         vm.clearReaderSurfaces()
         #expect(vm.centerTabGroups.groups == [
-            .init(tabs: [.chat, .tasks, .activity, .goals, .courses, .ideas, .notepad, .sites, .browser, .videos, .animations, .artifacts, .memory, .knowledgeMap, .atlas, .library, .plugins], activeTab: .chat),
+            .init(tabs: [.chat, .tasks, .activity, .activityLog, .goals, .courses, .ideas, .notepad, .sites, .browser, .videos, .animations, .artifacts, .memory, .knowledgeMap, .atlas, .library, .plugins], activeTab: .chat),
             .init(tabs: [.reader], activeTab: .reader),
         ])
 
@@ -4988,7 +4988,7 @@ struct ScheduleChatNavigationTests {
         // And in a single pane showing a list surface, the source replaces
         // it rather than splitting the window.
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
-            .init(tabs: [.chat, .reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .artifacts),
+            .init(tabs: [.chat, .reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .artifacts),
         ])
         vm.clearReaderSurfaces()
         #expect(vm.centerTabGroups.groups.count == 1)
@@ -5003,7 +5003,7 @@ struct ScheduleChatNavigationTests {
 
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
             .init(
-                tabs: [.chat, .reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts],
+                tabs: [.chat, .reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts],
                 activeTab: .reader
             ),
         ])
@@ -5025,7 +5025,7 @@ struct ScheduleChatNavigationTests {
         let vm = makeViewModel()
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
             .init(
-                tabs: [.chat, .reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts],
+                tabs: [.chat, .reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts],
                 activeTab: .notepad
             ),
         ])
@@ -5242,7 +5242,7 @@ struct ScheduleChatNavigationTests {
         // One pane holding every tab, the Activity pane showing.
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
             .init(
-                tabs: [.chat, .reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts],
+                tabs: [.chat, .reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts],
                 activeTab: .activity
             ),
         ])
@@ -5268,7 +5268,7 @@ struct ScheduleChatNavigationTests {
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
             .init(tabs: [.chat], activeTab: .chat),
             .init(
-                tabs: [.reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts],
+                tabs: [.reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts],
                 activeTab: .notepad
             ),
         ])
@@ -5276,7 +5276,7 @@ struct ScheduleChatNavigationTests {
         await vm.selectArticle(source.id)
         #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.chat, .reader])
 
-        vm.openActivityInReader()
+        vm.openDayPane()
 
         #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.chat, .activity])
         #expect(vm.centerTabGroups.groups[1].openTabs.contains(.reader))
@@ -5287,7 +5287,7 @@ struct ScheduleChatNavigationTests {
         let layout = StudioCenterTabGroups(groups: [
             .init(tabs: [.chat], activeTab: .chat),
             .init(
-                tabs: [.reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .animations, .artifacts, .goals, .ideas, .courses, .memory, .knowledgeMap, .atlas, .library, .plugins],
+                tabs: [.reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .animations, .artifacts, .goals, .ideas, .courses, .memory, .knowledgeMap, .atlas, .library, .plugins],
                 activeTab: .notepad,
                 openTabs: [.reader, .notepad]
             ),
@@ -5295,7 +5295,7 @@ struct ScheduleChatNavigationTests {
 
         #expect(layout.persistedRepresentation == [
             "chat*",
-            "reader+|tasks|activity|notepad*|sites|browser|videos|animations|artifacts|goals|ideas|courses|memory|knowledgeMap|atlas|library|plugins",
+            "reader+|tasks|activity|activityLog|notepad*|sites|browser|videos|animations|artifacts|goals|ideas|courses|memory|knowledgeMap|atlas|library|plugins",
         ])
         let decoded = StudioCenterTabGroups.fromPersisted(layout.persistedRepresentation)
         #expect(decoded == layout)
@@ -5548,26 +5548,26 @@ struct ScheduleChatNavigationTests {
         let vm = makeViewModel()
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
             .init(tabs: [.chat], activeTab: .chat),
-            .init(tabs: [.reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .artifacts),
+            .init(tabs: [.reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .artifacts),
         ])
 
         // Closing the left pane (including from its hidden-tab-bar close
         // affordance) leaves the right pane and its active surface intact.
         vm.closeCenterPane(containing: .chat)
         #expect(vm.centerTabGroups.groups == [
-            .init(tabs: [.chat, .reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts, .goals, .courses, .ideas, .animations, .memory, .knowledgeMap, .atlas, .library, .plugins], activeTab: .artifacts),
+            .init(tabs: [.chat, .reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts, .goals, .courses, .ideas, .animations, .memory, .knowledgeMap, .atlas, .library, .plugins], activeTab: .artifacts),
         ])
 
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
             .init(tabs: [.chat], activeTab: .chat),
-            .init(tabs: [.reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .artifacts),
+            .init(tabs: [.reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .artifacts),
         ])
 
         // Closing the final pane moves its tabs left, preserving the
         // destination pane's active surface.
         vm.closeCenterPane(containing: .artifacts)
         #expect(vm.centerTabGroups.groups == [
-            .init(tabs: [.chat, .reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts, .goals, .courses, .ideas, .animations, .memory, .knowledgeMap, .atlas, .library, .plugins], activeTab: .chat),
+            .init(tabs: [.chat, .reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts, .goals, .courses, .ideas, .animations, .memory, .knowledgeMap, .atlas, .library, .plugins], activeTab: .chat),
         ])
 
         // The last remaining pane has nowhere to move its tabs.
@@ -5583,7 +5583,7 @@ struct ScheduleChatNavigationTests {
         let vm = makeViewModel()
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
             .init(
-                tabs: [.chat, .reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts],
+                tabs: [.chat, .reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts],
                 activeTab: .reader
             ),
         ])
@@ -5608,7 +5608,7 @@ struct ScheduleChatNavigationTests {
         for tab in [StudioCenterTab.notepad, .tasks, .chat, .library] {
             vm.centerTabGroups = StudioCenterTabGroups(groups: [
                 .init(
-                    tabs: [.chat, .reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts],
+                    tabs: [.chat, .reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts],
                     activeTab: tab
                 ),
             ])
@@ -5624,7 +5624,7 @@ struct ScheduleChatNavigationTests {
         // The home is the one surface that cannot close onto itself; it
         // reveals Chat instead.
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
-            .init(tabs: [.chat, .reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .artifacts),
+            .init(tabs: [.chat, .reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .artifacts),
         ])
         vm.dismissCenterSurface(.artifacts)
         #expect(vm.centerTabGroups.groups[0].activeTab == .chat)
@@ -5637,7 +5637,7 @@ struct ScheduleChatNavigationTests {
         let vm = makeViewModel()
         let activeLayout = StudioCenterTabGroups(groups: [
             .init(
-                tabs: [.chat, .reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .animations, .artifacts, .goals, .ideas, .courses, .memory, .knowledgeMap, .atlas, .library, .plugins],
+                tabs: [.chat, .reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .animations, .artifacts, .goals, .ideas, .courses, .memory, .knowledgeMap, .atlas, .library, .plugins],
                 activeTab: .tasks
             ),
         ])
@@ -5647,7 +5647,7 @@ struct ScheduleChatNavigationTests {
         clickedWindow.centerTabGroups = StudioCenterTabGroups(groups: [
             .init(tabs: [.chat], activeTab: .chat),
             .init(
-                tabs: [.reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts],
+                tabs: [.reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts],
                 activeTab: .reader
             ),
         ])
@@ -5659,7 +5659,7 @@ struct ScheduleChatNavigationTests {
         #expect(vm.centerTabGroups == activeLayout)
         #expect(clickedWindow.centerTabGroups.groups == [
             .init(
-                tabs: [.chat, .reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts, .goals, .courses, .ideas, .animations, .memory, .knowledgeMap, .atlas, .library, .plugins],
+                tabs: [.chat, .reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts, .goals, .courses, .ideas, .animations, .memory, .knowledgeMap, .atlas, .library, .plugins],
                 activeTab: .chat
             ),
         ])
@@ -5953,13 +5953,13 @@ struct ScheduleChatNavigationTests {
         let vm = makeViewModel()
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
             .init(tabs: [.chat], activeTab: .chat),
-            .init(tabs: [.reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .reader),
+            .init(tabs: [.reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .reader),
         ])
         // [chat] | [reader, tasks, notepad, notebooks]
         #expect(vm.centerTabGroups.groups[0].tabs == [.chat])
 
         vm.moveCenterGroup(containing: .chat, by: 1)
-        #expect(vm.centerTabGroups.groups[0].tabs == [.reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts, .goals, .courses, .ideas, .animations, .memory, .knowledgeMap, .atlas, .library, .plugins])
+        #expect(vm.centerTabGroups.groups[0].tabs == [.reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts, .goals, .courses, .ideas, .animations, .memory, .knowledgeMap, .atlas, .library, .plugins])
         #expect(vm.centerTabGroups.groups[1].tabs == [.chat])
 
         vm.moveCenterGroup(containing: .chat, by: -1)
@@ -6049,11 +6049,11 @@ struct ScheduleChatNavigationTests {
     func centerPaneIdentityIsOutsideEquality() {
         let layout = StudioCenterTabGroups(groups: [
             .init(tabs: [.chat], activeTab: .chat),
-            .init(tabs: [.reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .animations, .artifacts, .goals, .ideas, .courses, .memory, .knowledgeMap, .atlas, .library, .plugins], activeTab: .reader),
+            .init(tabs: [.reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .animations, .artifacts, .goals, .ideas, .courses, .memory, .knowledgeMap, .atlas, .library, .plugins], activeTab: .reader),
         ])
         let sameArrangement = StudioCenterTabGroups(groups: [
             .init(tabs: [.chat], activeTab: .chat),
-            .init(tabs: [.reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .animations, .artifacts, .goals, .ideas, .courses, .memory, .knowledgeMap, .atlas, .library, .plugins], activeTab: .reader),
+            .init(tabs: [.reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .animations, .artifacts, .goals, .ideas, .courses, .memory, .knowledgeMap, .atlas, .library, .plugins], activeTab: .reader),
         ])
 
         #expect(layout == sameArrangement)
@@ -6068,11 +6068,11 @@ struct ScheduleChatNavigationTests {
         let vm = makeViewModel()
 
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
-            .init(tabs: [.chat, .reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .reader),
+            .init(tabs: [.chat, .reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .reader),
         ])
         vm.revealChatBesideReader()
         #expect(vm.centerTabGroups.groups.count == 2)
-        #expect(vm.centerTabGroups.groups[0].tabs == [.reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts, .goals, .courses, .ideas, .animations, .memory, .knowledgeMap, .atlas, .library, .plugins])
+        #expect(vm.centerTabGroups.groups[0].tabs == [.reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts, .goals, .courses, .ideas, .animations, .memory, .knowledgeMap, .atlas, .library, .plugins])
         #expect(vm.centerTabGroups.groups[0].activeTab == .reader)
         #expect(vm.centerTabGroups.groups[1] == .init(tabs: [.chat], activeTab: .chat))
         #expect(vm.reviewChatPanelMode == .chat)
@@ -6088,7 +6088,7 @@ struct ScheduleChatNavigationTests {
         ])
         vm.revealChatBesideReader()
         #expect(vm.centerTabGroups.groups[0] == .init(tabs: [.chat, .tasks], activeTab: .chat))
-        #expect(vm.centerTabGroups.groups[1] == .init(tabs: [.reader, .notepad, .sites, .browser, .videos, .artifacts, .activity, .goals, .courses, .ideas, .animations, .memory, .knowledgeMap, .atlas, .library, .plugins], activeTab: .reader))
+        #expect(vm.centerTabGroups.groups[1] == .init(tabs: [.reader, .notepad, .sites, .browser, .videos, .artifacts, .activity, .activityLog, .goals, .courses, .ideas, .animations, .memory, .knowledgeMap, .atlas, .library, .plugins], activeTab: .reader))
 
         // Chat already open to the Reader's right stays there too.
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
@@ -6097,7 +6097,7 @@ struct ScheduleChatNavigationTests {
         ])
         vm.revealChatBesideReader()
         #expect(vm.centerTabGroups.groups[0] == .init(tabs: [.reader, .notepad, .sites], activeTab: .reader))
-        #expect(vm.centerTabGroups.groups[1] == .init(tabs: [.chat, .tasks, .artifacts, .activity, .goals, .courses, .ideas, .browser, .videos, .animations, .memory, .knowledgeMap, .atlas, .library, .plugins], activeTab: .chat))
+        #expect(vm.centerTabGroups.groups[1] == .init(tabs: [.chat, .tasks, .artifacts, .activity, .activityLog, .goals, .courses, .ideas, .browser, .videos, .animations, .memory, .knowledgeMap, .atlas, .library, .plugins], activeTab: .chat))
     }
 
     @Test("Navigation destinations can open beside the visible pane")
@@ -6107,11 +6107,11 @@ struct ScheduleChatNavigationTests {
         let vm = makeViewModel()
 
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
-            .init(tabs: [.chat, .reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .chat),
+            .init(tabs: [.chat, .reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .chat),
         ])
         vm.openCenterTabBeside(.notepad)
         #expect(vm.centerTabGroups.groups == [
-            .init(tabs: [.chat, .reader, .tasks, .activity, .sites, .browser, .videos, .artifacts, .goals, .courses, .ideas, .animations, .memory, .knowledgeMap, .atlas, .library, .plugins], activeTab: .chat),
+            .init(tabs: [.chat, .reader, .tasks, .activity, .activityLog, .sites, .browser, .videos, .artifacts, .goals, .courses, .ideas, .animations, .memory, .knowledgeMap, .atlas, .library, .plugins], activeTab: .chat),
             .init(tabs: [.notepad], activeTab: .notepad),
         ])
 
@@ -6206,7 +6206,7 @@ struct ScheduleChatNavigationTests {
         let vm = makeViewModel()
 
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
-            .init(tabs: [.chat, .reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .chat),
+            .init(tabs: [.chat, .reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .chat),
         ])
         vm.openCenterTabBeside(.notepad)
         vm.openCenterTabBeside(.artifacts)
@@ -6234,7 +6234,7 @@ struct ScheduleChatNavigationTests {
         let vm = makeViewModel()
 
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
-            .init(tabs: [.chat, .reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .chat),
+            .init(tabs: [.chat, .reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .chat),
         ])
         vm.openSecondaryChatPane(atLeadingEdge: false)
         #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.chat, .secondaryChat])
@@ -6253,7 +6253,7 @@ struct ScheduleChatNavigationTests {
 
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
             .init(tabs: [.chat], activeTab: .chat),
-            .init(tabs: [.reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .notepad),
+            .init(tabs: [.reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .notepad),
         ])
         vm.openSecondaryChatPane(atLeadingEdge: false)
         #expect(vm.centerTabGroups.groups.count == StudioCenterTabGroups.maximumGroupCount)
@@ -6268,14 +6268,14 @@ struct ScheduleChatNavigationTests {
         let vm = makeViewModel()
 
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
-            .init(tabs: [.chat, .reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .artifacts),
+            .init(tabs: [.chat, .reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .artifacts),
         ])
         vm.openArtifactsBeside(notebookID: "notebook-1")
 
         #expect(vm.artifactCanvasNotebookID == "notebook-1")
         #expect(vm.activeWindowState.artifactCanvasNotebookID == "notebook-1", "the scope is the window's")
         #expect(vm.centerTabGroups.groups == [
-            .init(tabs: [.chat, .reader, .tasks, .activity, .sites, .browser, .videos, .artifacts, .goals, .courses, .ideas, .animations, .memory, .knowledgeMap, .atlas, .library, .plugins], activeTab: .artifacts),
+            .init(tabs: [.chat, .reader, .tasks, .activity, .activityLog, .sites, .browser, .videos, .artifacts, .goals, .courses, .ideas, .animations, .memory, .knowledgeMap, .atlas, .library, .plugins], activeTab: .artifacts),
             .init(tabs: [.notepad], activeTab: .notepad),
         ])
 
@@ -6310,7 +6310,7 @@ struct ScheduleChatNavigationTests {
         // row's Open Beside does.
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
             .init(tabs: [.chat], activeTab: .chat),
-            .init(tabs: [.reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .artifacts),
+            .init(tabs: [.reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .artifacts),
         ])
         vm.openArtifactsBeside(notebookID: "notebook-3")
         #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.chat, .notepad])
@@ -6323,7 +6323,7 @@ struct ScheduleChatNavigationTests {
         let vm = makeViewModel()
 
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
-            .init(tabs: [.chat, .reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .reader),
+            .init(tabs: [.chat, .reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .reader),
         ])
         vm.requestReaderSelectionExplanation(sourceID: "selected-source", selectedText: "  selected passage  ")
 
@@ -6378,11 +6378,11 @@ struct ScheduleChatNavigationTests {
         let vm = makeViewModel()
 
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
-            .init(tabs: [.chat, .reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .chat),
+            .init(tabs: [.chat, .reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .chat),
         ])
         vm.revealReaderBesideChat()
         #expect(vm.centerTabGroups.groups.count == 2)
-        #expect(vm.centerTabGroups.groups[0].tabs == [.chat, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts, .goals, .courses, .ideas, .animations, .memory, .knowledgeMap, .atlas, .library, .plugins])
+        #expect(vm.centerTabGroups.groups[0].tabs == [.chat, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts, .goals, .courses, .ideas, .animations, .memory, .knowledgeMap, .atlas, .library, .plugins])
         #expect(vm.centerTabGroups.groups[0].activeTab == .chat)
         #expect(vm.centerTabGroups.groups[1] == .init(tabs: [.reader], activeTab: .reader))
 
@@ -6473,7 +6473,7 @@ struct ScheduleChatNavigationTests {
         // The workspace a learner writing in Docs is looking at after closing
         // the chat pane: every tab merged into one group, Docs showing.
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
-            .init(tabs: [.chat, .reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .notepad),
+            .init(tabs: [.chat, .reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .notepad),
         ])
 
         await vm.openLinkedSourceInReader(source.id, beside: .notepad)
@@ -6500,7 +6500,7 @@ struct ScheduleChatNavigationTests {
         vm.articles = [source]
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
             .init(
-                tabs: [.chat, .reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts],
+                tabs: [.chat, .reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts],
                 activeTab: .sites
             ),
         ])
@@ -11689,7 +11689,7 @@ struct CrossWindowReaderNavigationTests {
         // still belongs to this window: the Reader is wedged
         // in beside Chat here, and the other window is left alone.
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
-            .init(tabs: [.chat, .reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .chat),
+            .init(tabs: [.chat, .reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .chat),
         ])
         let layoutThere = there.centerTabGroups
 
@@ -11722,7 +11722,7 @@ struct CrossWindowReaderNavigationTests {
             StudioWindowRegistry.shared.unregister(here)
         }
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
-            .init(tabs: [.chat, .reader, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .chat),
+            .init(tabs: [.chat, .reader, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .chat),
         ])
         let url = URL(string: "https://example.com/a-web-citation")!
 
@@ -11760,7 +11760,7 @@ struct CrossWindowReaderNavigationTests {
         source.content = "Already loaded."
         vm.articles = [source]
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
-            .init(tabs: [.chat, .tasks, .activity, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .chat),
+            .init(tabs: [.chat, .tasks, .activity, .activityLog, .notepad, .sites, .browser, .videos, .artifacts], activeTab: .chat),
             .init(tabs: [.reader], activeTab: .reader),
         ])
 

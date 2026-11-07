@@ -262,8 +262,10 @@ enum StudioWindowDestination: Equatable {
     case newChat
     /// The Docs pane itself, showing the whole list.
     case docs
-    /// The Activity tab, on today.
+    /// The Day tab: the calendar's day.
     case activity
+    /// The Activity tab: the day's log and History.
+    case activityLog
     /// The Goals tab, showing every Goal in deadline order.
     case goals
     /// The Courses tab, on whichever page the window last showed.
@@ -313,6 +315,7 @@ enum StudioWindowDestination: Equatable {
         case .chat, .newChat: return "chat"
         case .docs: return "Pages"
         case .activity: return "Day"
+        case .activityLog: return "Activity"
         case .goals: return "Goals"
         case .courses: return "Courses"
         case .course: return "course"
@@ -353,7 +356,8 @@ enum StudioWindowDestination: Equatable {
             case .chat(let id): vm.requestResumeReviewSession(id)
             case .newChat: vm.requestNewChat()
             case .docs: vm.openNotepadInReader()
-            case .activity: vm.openActivityInReader()
+            case .activity: vm.openDayPane()
+            case .activityLog: vm.openActivityLog()
             case .sites: vm.openSitesInReader()
             case .browser: vm.openBrowserInReader()
             case .video(let sourceID):

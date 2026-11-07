@@ -120,7 +120,7 @@ extension ChatOpenPanes {
                    let url = page.url ?? page.requestedURL {
                     contents = [.webPage(title: page.title, url: url.absoluteString)]
                 }
-            case .activity:
+            case .activity, .activityLog:
                 guard isOnScreen else { break }
                 contents = [.day(DayModel.shared.selectedDate)]
             case .memory:

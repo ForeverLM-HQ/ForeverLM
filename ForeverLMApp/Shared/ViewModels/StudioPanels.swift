@@ -16,11 +16,16 @@ enum StudioCenterTab: String, Codable, CaseIterable, Identifiable {
     case reader
     /// Recurring instructions the app runs by itself: an instruction on a clock.
     case tasks
-    /// What the app saw the learner do on one day, drawn on a clock: split
-    /// out of the Planner on 2026-09-22, and kept when the Planner went on
-    /// 2026-09-30 (the day's plan is the Mac's Calendar). A saved layout that
-    /// still names "planner" drops that tab on load (`fromPersisted`).
+    /// The Day: the Mac Calendar's day on a clock. The raw value is what the
+    /// log's pane was called until 2026-10-09, kept for stored layouts; the
+    /// log left it for its own tab on 2026-11-07 (`activityLog`).
     case activity
+    /// Activity: what the app saw the learner do on one day — the papers
+    /// read, the episodes heard, the chats had — and every day's time spent.
+    /// Split out of the Planner on 2026-09-22, drawn beside the calendar in
+    /// the Day from 2026-10-09, and its own tab since 2026-11-07 (product owner:
+    /// "There should be a separate view for that").
+    case activityLog
     /// The Goals tab: everything the learner wants to be true by a date, in
     /// deadline order. Added 2026-09-18; a Goal stands on its own and a
     /// Notebook is only a tag on it (goals-design.md).
@@ -92,7 +97,7 @@ enum StudioCenterTab: String, Codable, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    static let permanentTabs: [StudioCenterTab] = [.chat, .reader, .tasks, .activity, .goals, .courses, .ideas, .notepad, .sites, .browser, .videos, .animations, .artifacts, .memory, .knowledgeMap, .atlas, .library, .plugins]
+    static let permanentTabs: [StudioCenterTab] = [.chat, .reader, .tasks, .activity, .activityLog, .goals, .courses, .ideas, .notepad, .sites, .browser, .videos, .animations, .artifacts, .memory, .knowledgeMap, .atlas, .library, .plugins]
 
     /// The panes of the Space's kinds, which open beside one another: the
     /// Pages and Sites the sidebar's rows open (`ArtifactsHomeKind`), and

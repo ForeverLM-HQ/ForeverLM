@@ -1140,14 +1140,14 @@ struct ForeverLMApp: App {
 
                 // The day's calendar on a clock, in the key window, as the
                 // Now chip's popover opens it; what the learner read and
-                // heard is the same pane's Activity view, its own item.
+                // heard is the Activity tab, its own item.
                 Button("Day") {
                     guard let state = activeWindowState else { return }
-                    studioViewModel.inWindow(state) { studioViewModel.openActivityInReader(showing: .calendar) }
+                    studioViewModel.inWindow(state) { studioViewModel.openDayPane() }
                 }
                 Button("Activity") {
                     guard let state = activeWindowState else { return }
-                    studioViewModel.inWindow(state) { studioViewModel.openActivityInReader(showing: .activity) }
+                    studioViewModel.inWindow(state) { studioViewModel.openActivityLog() }
                 }
 
                 Divider()

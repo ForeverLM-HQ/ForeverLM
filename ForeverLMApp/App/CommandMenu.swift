@@ -234,6 +234,7 @@ struct ShellCommandHost: ViewModifier {
         case .library: destination = .library
         case .plugins: destination = .plugins(.directory)
         case .activity: destination = .activity
+        case .activityLog: destination = .activityLog
         case .browser: destination = .browser
         case .knowledgeMap: destination = .knowledgeMap
         case .atlas: destination = .atlas

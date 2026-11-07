@@ -27,6 +27,7 @@ struct NotebookWorkspaceTests {
             .knowledgeMap: .leave,
             .atlas: .leave,
             .activity: .leave,
+            .activityLog: .leave,
             .tasks: .leave,
             .goals: .leave,
             .ideas: .leave,

@@ -115,7 +115,9 @@ enum ShellPlaces {
         case .tasks:
             return ShellPlace(tab: tab, title: "Tasks", glyph: "clock.arrow.circlepath", module: .scheduled, sidebar: .home, role: .list)
         case .activity:
-            return ShellPlace(tab: tab, title: "Day", glyph: "chart.bar.doc.horizontal", module: .day, sidebar: .home, role: .viewer)
+            return ShellPlace(tab: tab, title: "Day", glyph: "calendar", module: .day, sidebar: .home, role: .viewer)
+        case .activityLog:
+            return ShellPlace(tab: tab, title: "Activity", glyph: "chart.bar.doc.horizontal", module: .day, sidebar: .home, role: .viewer)
         case .goals:
             return ShellPlace(tab: tab, title: "Goals", glyph: "target", module: .space, sidebar: .home, role: .list)
         case .courses:
