@@ -79,9 +79,9 @@ final class MobileSpaceActions {
         }
     }
 
-    /// The plan of a quarter or a week (`PlanPeriod`), made from its template when the phone holds
-    /// none, and opened.
-    func openPlan(_ period: PlanPeriod, store: MobileSpaceStore, navigation: MobileSpaceNavigation) {
+    /// The plan of a quarter (`PlanQuarter`), made from its template when the phone holds none, and
+    /// opened.
+    func openPlan(_ period: PlanQuarter, store: MobileSpaceStore, navigation: MobileSpaceNavigation) {
         run("Couldn’t Open the Plan") {
             let plan = try await store.ensurePlan(period)
             navigation.openPage(plan.id)

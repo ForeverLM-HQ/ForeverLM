@@ -327,7 +327,7 @@ refused with an explanation rather than answered.
 | `delete_doc_comment` | `comment_id`, `whole_thread?` | Delete a comment, its replies kept (the first reply opens the thread when the first comment goes), or with `whole_thread` the thread and every message in it. Not undoable. Refused for a team's page. |
 | `get_daily_note` | `date?`, `create?` | The learner's daily note, a Page a day as in Roam Research: its id is `daily-YYYY-MM-DD` and its title the day written out ("October 6th, 2026"), so `[[October 6th, 2026]]` in any Page links it. Writes nothing unless `create`, which makes the day's empty note. |
 | `append_to_daily_note` | `markdown`, `date?` | Add Markdown to the end of a day's note (today's by default), making the note when the day has none. Nothing already in it changes. |
-| `get_plan` | `scale`, `date?`, `create?` | Your plan for a quarter or a week (`scale` is `quarter` or `week`), the Pages of the [Plan](/plan) place: its `doc_id` (`plan-2026-q4`, `plan-2026-w45`), title ("Q4 2026", "Week of November 2nd, 2026"), the days it spans, its Markdown and revision. A week's answer carries its quarter's plan; a quarter's lists its weeks and which are planned. `date` is any day in the period, its key or title, or `this`, `next` or `last`. Writes nothing unless `create`, which makes the plan from its template; write in it with `edit_doc`. |
+| `get_plan` | `date?`, `create?` | Your plan for a quarter, the Pages of the [Plan](/plan) place: its `doc_id` (`plan-2026-q4`), title ("Q4 2026"), the days it spans, its Markdown and revision. `date` is any day in the quarter, its key or title, or `this`, `next` or `last`. Writes nothing unless `create`, which makes the plan from its template; write in it with `edit_doc`. Weeks and days are planned onto the calendar. |
 | `get_block` | `block_id`, `team_id?` | Read one block of a Page by its id (the ` ^id` it ends with, which `((id))` references): the Page that holds it, its Markdown and kind, its breadcrumbs, what is nested under it, and how often it is referenced or embedded. |
 | `get_linked_references` | `doc_id?`, `idea_id?`, `source_id?`, `block_id?`, `include_unlinked?`, `limit?`, `team_id?` | The Linked References of a Page, an Idea, a source or one block, as Roam lists them: the blocks that point at it, newest edit first, each with its breadcrumbs. `include_unlinked` (Pages only) adds blocks that write the title without linking it. |
 | `list_spaces` | none | The learner's spaces of pages, the **Spaces** in the Space sidebar, as ChatGPT's spaces group pages around a topic or a project: each space's `id`, `name` (a leading emoji is its icon) and the Pages, linked Google Docs, sites and readings in it, by title; pages in the Trash are left out, and the spaces in the Space's Trash are listed under `in_trash`. A page is in one space at most. The teams, the shared spaces, are `list_teams`'. Needs the Mac open and connected. |
@@ -870,9 +870,9 @@ shows the exact text and waits for the learner's yes.
 
 ## The day (the Mac's Calendar)
 
-The learner's day is their Mac's Calendar; the week and the quarter it serves
-are plan Pages (`get_plan`, see [Plan](/plan)). An assistant reads the week's
-plan, then the day's events and plans it by adding each block — a stretch
+The learner's day and week are their Mac's Calendar; the quarter they serve is
+a plan Page (`get_plan`, see [Plan](/plan)). An assistant reads the quarter's
+plan, then the day's or the week's events and plans them by adding each block — a stretch
 of work, a reading, a review, email and admin, a break — as an event. It lands
 on the calendar new events go to (Plugins › Calendar), and shows at
 once in the Calendar app, in the bottom-left **Now** chip, and on the learner's

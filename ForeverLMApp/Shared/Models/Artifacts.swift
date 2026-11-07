@@ -312,11 +312,11 @@ enum ArtifactMarkdownTitle {
 
     /// Whether this record's body can name it: an ordinary Markdown page.
     /// A linked page's text is a read-only copy, a daily note is named by its
-    /// day, a plan by its quarter or week (`PlanPeriod`), and every record
+    /// day, a plan by its quarter (`PlanQuarter`), and every record
     /// with a kind has a name of its own.
     static func canBeNamedByBody(_ artifact: ArtifactRecord) -> Bool {
         artifact.kind == nil && !artifact.isLinked
-            && !DailyNote.isDailyNoteID(artifact.id) && !PlanPeriod.isPlanID(artifact.id)
+            && !DailyNote.isDailyNoteID(artifact.id) && !PlanQuarter.isPlanID(artifact.id)
     }
 
     /// The title a page takes from its body: the opening heading's words when

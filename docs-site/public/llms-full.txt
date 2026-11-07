@@ -1020,9 +1020,9 @@ window and a banner in the window you clicked in reads **Opened in the other
 ForeverLM window** (or "another" when more than one other is open). A
 selection's confirmation says the same in one line.
 
-Your day is the Mac's Calendar. At the foot of the navigation rail, over your account, a calendar glyph is always there, with a dot on its corner while something is happening: the event the clock is in, an event starting within 15 minutes, or the bout you are in. In the toolbar of a pop-out Reader the **Now** chip says the same in words, with how long the event has left and a hairline along its foot showing how far through it the clock is; in a quiet hour the chip is not there. The **Today** menu in the menu bar has the day's commands at any hour. Click the glyph (or the chip) for today's events: the one you are in highlighted, a line at the time between events, what is behind in grey, and the day's all-day events on one line. Under them are this quarter's objectives, what this week makes progress on, and the week's line for today, from your [plans](/plan); click one to open its plan. A row opens its event in the Calendar app. The event you are in offers its call link when it has one (**Join Zoom**, **Join Teams**, **Join Google Meet**, …), **Start Pomodoro Timer…**, which asks what the session is for and how many minutes it runs (what is left of the event to begin with, or 15, 25, 45, 60 or 90 in a click) before the clock starts, and **Open in Calendar**; a block an assistant planned for a notebook adds **Open Notebook**, and a block that names only sources adds **Make Notebook from This Block**, a notebook titled as the block with those sources. It reads the calendars you choose in **Plugins → Calendar**, which turns the Mac's Calendar on and picks which calendar new events go to. A Google, Exchange or subscribed calendar is part of your day once the Mac's Calendar holds it; see [Plugins](/external-plugins#calendar).
+Your day is the Mac's Calendar. At the foot of the navigation rail, over your account, a calendar glyph is always there, with a dot on its corner while something is happening: the event the clock is in, an event starting within 15 minutes, or the bout you are in. In the toolbar of a pop-out Reader the **Now** chip says the same in words, with how long the event has left and a hairline along its foot showing how far through it the clock is; in a quiet hour the chip is not there. The **Today** menu in the menu bar has the day's commands at any hour. Click the glyph (or the chip) for today's events: the one you are in highlighted, a line at the time between events, what is behind in grey, and the day's all-day events on one line. Under them are this quarter's objectives, from its [plan](/plan); click the quarter to open its plan. A row opens its event in the Calendar app. The event you are in offers its call link when it has one (**Join Zoom**, **Join Teams**, **Join Google Meet**, …), **Start Pomodoro Timer…**, which asks what the session is for and how many minutes it runs (what is left of the event to begin with, or 15, 25, 45, 60 or 90 in a click) before the clock starts, and **Open in Calendar**; a block an assistant planned for a notebook adds **Open Notebook**, and a block that names only sources adds **Make Notebook from This Block**, a notebook titled as the block with those sources. It reads the calendars you choose in **Plugins → Calendar**, which turns the Mac's Calendar on and picks which calendar new events go to. A Google, Exchange or subscribed calendar is part of your day once the Mac's Calendar holds it; see [Plugins](/external-plugins#calendar).
 
-An assistant plans the day by adding events to your calendar, with the week's plan in view (see [Plan](/plan), where `/plan week` and `/plan quarter` plan the larger scales). Type `/plan` in a chat (`/plan tomorrow` for the next day; from 2 PM on, `/plan` plans tomorrow), choose **Plan the Day in Chat** from the **Today** menu (⌘D) or the calendar glyph, or ask Claude or ChatGPT with the ForeverLM plugin. The assistant reads the day and how your last few days went, asks one question — what is fixed, and what the day is for — and proposes the blocks. When you agree, it adds each one as an event in the free time the calendar leaves, with what the hour is for in its notes. Meetings with other people stay where they are: ForeverLM never changes an event with other people on it. `/today` says what is on the calendar right now. Each morning whose calendar holds nothing you planned (meetings with other people and recurring events do not count), a **Plan your day?** card waits at the bottom left of the window, with a notification once if ForeverLM is not in front. Switch it off in **Settings → General → Day**, where **Day starts at** and **and ends at** set the hours of your day. Turn on **Make me plan** there to be made to: on such a morning the planning chat opens by itself the first time you are at your Mac, and the card has no close button and cannot be hidden, until your calendar holds a plan of your own or you switch **Make me plan** off.
+An assistant plans the day by adding events to your calendar, with the quarter's plan in view (see [Plan](/plan): `/plan week` puts a whole week on the calendar the same way, and `/plan quarter` writes the quarter's plan). Type `/plan` in a chat (`/plan tomorrow` for the next day; from 2 PM on, `/plan` plans tomorrow), choose **Plan the Day in Chat** from the **Today** menu (⌘D) or the calendar glyph, or ask Claude or ChatGPT with the ForeverLM plugin. The assistant reads the day and how your last few days went, asks one question — what is fixed, and what the day is for — and proposes the blocks. When you agree, it adds each one as an event in the free time the calendar leaves, with what the hour is for in its notes. Meetings with other people stay where they are: ForeverLM never changes an event with other people on it. `/today` says what is on the calendar right now. Each morning whose calendar holds nothing you planned (meetings with other people and recurring events do not count), a **Plan your day?** card waits at the bottom left of the window, with a notification once if ForeverLM is not in front. Switch it off in **Settings → General → Day**, where **Day starts at** and **and ends at** set the hours of your day. Turn on **Make me plan** there to be made to: on such a morning the planning chat opens by itself the first time you are at your Mac, and the card has no close button and cannot be hidden, until your calendar holds a plan of your own or you switch **Make me plan** off.
 
 **Day**, in the **Today** menu and the last item of the calendar glyph's popover, shows your calendar beside the record the calendar cannot hold: what ForeverLM saw you do on a day, on one clock: a paper read in the Reader, an episode heard, a chat had, a Page written. Delete a sitting there if it did not happen. An assistant reads the same log with `get_day_activity` beside the calendar, to see where a planned day went.
 
@@ -1939,48 +1939,45 @@ The Board is one notebook named **Board**, and its cards are that notebook's tas
 
 # Plan
 
-Plan at three scales, the way Cal Newport teaches it: a plan for the **quarter**, a plan for each **week** written with the quarter's plan in view, and each **day** planned in time blocks with the week's plan in view.
+Plan at three scales, the way Cal Newport teaches it: a plan for the **quarter**, and each **week** and **day** put on your calendar with the quarter's plan in view.
 
-Find **Plan** in the Space's sidebar, under Board, or keep it on the icon strip like any other place.
+## The quarter
 
-## Quarters and weeks
+Find **Plan** in the Space's sidebar, under Board, or keep it on the icon strip like any other place. It lists the four quarters of a year (Q1 is January to March); the arrows step through years, **This Year** brings you back, and the present quarter is marked. You can plan any quarter, including one already under way.
 
-**Quarter** lists the four quarters of a year (Q1 is January to March); **Week** lists the weeks of a quarter, with the quarter's own plan above them. The arrows step through years or quarters, and **This Year** or **This Quarter** brings you back. The present quarter and week are marked.
+Click a quarter to open its plan. The first time, it opens as a new Page with three headings:
 
-Click a quarter or a week to open its plan. The first time, it opens as a new Page laid out for the exercise:
+- **Big picture**: what the season is for, and the longer direction it serves.
+- **Objectives**: the few things that would make the quarter a success.
+- **Strategies and habits**: how you will get there, from projects and routines to rules of thumb.
 
-- A quarter has **Big picture** (what the season is for, and the longer direction it serves), **Objectives** (the few things that make the quarter a success) and **Strategies and habits** (how you will get there: projects, routines, rules of thumb).
-- A week links its quarter and has **This week** (what the week makes progress on, each from one of the quarter's objectives) and **Days** (a line for what each day is mainly for).
+Newport keeps these plans as free text, so the headings are only a start: write what helps. The plan is an ordinary Page in your own library, so it syncs, and its title, "Q4 2026", links it from any Page as `[[Q4 2026]]`.
 
-These follow how Newport describes the two plans, a quarterly plan of goals and the strategies you run, and a weekly plan written with that plan and your calendar in view. He keeps them as free text, so treat the headings as a start: write what helps. The calendar popover reads **Objectives**, **This week** and **Days**, so keep those names if you want to see them there.
+## The week and the day
 
-A plan is an ordinary Page in your own library, so it syncs and you can write anything in it. Its title names its period, "Q4 2026" or "Week of November 2nd, 2026", so `[[Q4 2026]]` in any Page links it, and the quarter's Linked References list its weeks. Weeks run Monday to Sunday and belong to the quarter that holds their Thursday. You can plan any quarter, including one already under way.
+A week's plan is the week on your Mac's Calendar: the blocks of focused work, on the days they belong to, around what is already there. Move them around as the week goes; nothing else records the week. A day works the same way, as time blocks (see [Studio](/studio)).
 
-## Days
-
-A day is planned on your Mac's Calendar, as time blocks (see [Studio](/studio)). Planning the day reads the week's plan first, so the day serves the week.
-
-Click the calendar glyph at the foot of the window's left edge to see the plans the day serves, under today's events: this quarter's objectives, what this week makes progress on, and what the week's **Days** say for today. Click the quarter or the week to open its plan; one not planned yet says **Plan in Chat…** and starts the chat that plans it.
+Click the calendar glyph at the foot of the window's left edge to see today's events and, under them, this quarter's objectives. Click the quarter to open its plan; one not planned yet says **Plan in Chat…** and starts the chat that plans it.
 
 ## Planning with the chat
 
 **Plan** at the top of the place opens a chat that plans with you: **Plan This Quarter**, **Plan This Week**, or **Plan Today** (**Plan Tomorrow** from the afternoon). In any chat, `/plan quarter`, `/plan week`, `/plan today` and `/plan tomorrow` do the same.
 
-The chat reads first: for a quarter, the quarter's Page, the previous quarter's, your Goals and what you have been working on; for a week, the week's Page, its quarter's plan, last week's and your calendar. It then proposes a whole draft. Answer in your own words until it is right; only then does it write the plan into the Page (or, for a day, add the blocks to your calendar).
+The chat reads first: for a quarter, its plan, the previous quarter's, your Goals and what you have been working on; for a week or a day, the quarter's plan and your calendar. It then proposes a whole draft and says which objective each piece serves. Answer in your own words until it is right; only then does it write the quarter into its Page, or put the week's or the day's blocks on your calendar.
 
-You don't need `/plan` for the chat to use your plans. Whenever you ask any chat to plan a week or a day, or what to work on next, it first reads the quarter's and the week's plan with `get_plan`, which shows in the chat as **Read the plan**, and says which objective or item of the week its proposal serves. Planning the day reads the week's plan, whose answer brings the quarter's objectives and the week's line for that day. Claude or ChatGPT with the ForeverLM plugin are told to do the same.
+You don't need `/plan` for this. Whenever you ask any chat to plan a week or a day, or what to work on next, it first reads the quarter's plan with `get_plan`, which shows in the chat as **Read the plan**. Claude or ChatGPT with the ForeverLM plugin are told to do the same.
 
 ## Over MCP
 
-An assistant reads a plan with `get_plan` (`scale` quarter or week; `create: true` makes it from its template) and writes in it with `edit_doc`. See [MCP Tools](/mcp-tools). Plans are kept in the library on your Mac, so the Mac must be open and connected.
+An assistant reads the quarter's plan with `get_plan` (`create: true` makes it from its template) and writes in it with `edit_doc`; it plans a week or a day with `get_calendar_events` and `create_calendar_event`. See [MCP Tools](/mcp-tools). Plans are kept in the library on your Mac, so the Mac must be open and connected.
 
 ## On iPhone and iPad
 
-**Plan** is in the Space's list, under All: **Quarter** or **Week** at the top, the arrows in the list's header to step through years or quarters, and a tap on a quarter or a week to open its plan, made from the same template the first time. A plan you write on the iPhone is the same Page as on your Mac. Planning with the chat and planning the day are on the Mac.
+**Plan** is in the Space's list, under All: the year's quarters, with arrows in the list's header to step through years, and a tap on a quarter to open its plan, made from the same template the first time. A plan you write on the iPhone is the same Page as on your Mac. Planning with the chat is on the Mac.
 
 ## On the web
 
-The [Web Library](/web-library) has no Plan place: plans you have made are among your Pages, where you can read and edit them.
+The [Web Library](/web-library) has no Plan place: quarter plans you have made are among your Pages, where you can read and edit them.
 
 ---
 
@@ -3912,7 +3909,7 @@ refused with an explanation rather than answered.
 | `delete_doc_comment` | `comment_id`, `whole_thread?` | Delete a comment, its replies kept (the first reply opens the thread when the first comment goes), or with `whole_thread` the thread and every message in it. Not undoable. Refused for a team's page. |
 | `get_daily_note` | `date?`, `create?` | The learner's daily note, a Page a day as in Roam Research: its id is `daily-YYYY-MM-DD` and its title the day written out ("October 6th, 2026"), so `[[October 6th, 2026]]` in any Page links it. Writes nothing unless `create`, which makes the day's empty note. |
 | `append_to_daily_note` | `markdown`, `date?` | Add Markdown to the end of a day's note (today's by default), making the note when the day has none. Nothing already in it changes. |
-| `get_plan` | `scale`, `date?`, `create?` | Your plan for a quarter or a week (`scale` is `quarter` or `week`), the Pages of the [Plan](/plan) place: its `doc_id` (`plan-2026-q4`, `plan-2026-w45`), title ("Q4 2026", "Week of November 2nd, 2026"), the days it spans, its Markdown and revision. A week's answer carries its quarter's plan; a quarter's lists its weeks and which are planned. `date` is any day in the period, its key or title, or `this`, `next` or `last`. Writes nothing unless `create`, which makes the plan from its template; write in it with `edit_doc`. |
+| `get_plan` | `date?`, `create?` | Your plan for a quarter, the Pages of the [Plan](/plan) place: its `doc_id` (`plan-2026-q4`), title ("Q4 2026"), the days it spans, its Markdown and revision. `date` is any day in the quarter, its key or title, or `this`, `next` or `last`. Writes nothing unless `create`, which makes the plan from its template; write in it with `edit_doc`. Weeks and days are planned onto the calendar. |
 | `get_block` | `block_id`, `team_id?` | Read one block of a Page by its id (the ` ^id` it ends with, which `((id))` references): the Page that holds it, its Markdown and kind, its breadcrumbs, what is nested under it, and how often it is referenced or embedded. |
 | `get_linked_references` | `doc_id?`, `idea_id?`, `source_id?`, `block_id?`, `include_unlinked?`, `limit?`, `team_id?` | The Linked References of a Page, an Idea, a source or one block, as Roam lists them: the blocks that point at it, newest edit first, each with its breadcrumbs. `include_unlinked` (Pages only) adds blocks that write the title without linking it. |
 | `list_spaces` | none | The learner's spaces of pages, the **Spaces** in the Space sidebar, as ChatGPT's spaces group pages around a topic or a project: each space's `id`, `name` (a leading emoji is its icon) and the Pages, linked Google Docs, sites and readings in it, by title; pages in the Trash are left out, and the spaces in the Space's Trash are listed under `in_trash`. A page is in one space at most. The teams, the shared spaces, are `list_teams`'. Needs the Mac open and connected. |
@@ -4455,9 +4452,9 @@ shows the exact text and waits for the learner's yes.
 
 ## The day (the Mac's Calendar)
 
-The learner's day is their Mac's Calendar; the week and the quarter it serves
-are plan Pages (`get_plan`, see [Plan](/plan)). An assistant reads the week's
-plan, then the day's events and plans it by adding each block — a stretch
+The learner's day and week are their Mac's Calendar; the quarter they serve is
+a plan Page (`get_plan`, see [Plan](/plan)). An assistant reads the quarter's
+plan, then the day's or the week's events and plans them by adding each block — a stretch
 of work, a reading, a review, email and admin, a break — as an event. It lands
 on the calendar new events go to (Plugins › Calendar), and shows at
 once in the Calendar app, in the bottom-left **Now** chip, and on the learner's
@@ -6622,6 +6619,9 @@ All notable changes to ForeverLM are documented here. Dates are in YYYY-MM-DD fo
 ForeverLM follows [semantic versioning](https://semver.org) against its public surface: the MCP tool contracts, the knowledge-base/sync format, and licensing compatibility. While the version is 0.x, minor releases may include breaking changes to that surface; patch releases never do.
 
 ## Unreleased
+
+- **Up to four panes side by side**, up from three. Split a pane or drag a tab to the edge for a fourth.
+- **Two browsers side by side.** In a pane showing the Browser, the split button's **Browser** (or ⌘\\) opens a second Browser beside it on the same page, with its own tabs. **Open in Browser** from a source or a chat still opens in the first Browser. Second Browsers close with their tab × and don't come back after a relaunch.
 
 ## 0.191.0 (build 271) — 2026-11-07
 

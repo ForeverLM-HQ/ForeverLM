@@ -55,10 +55,9 @@ enum SpaceDestination: Hashable, Sendable {
     /// cards, and a Today view of the day's plan (docs-site/board.md). Its
     /// cards are tasks of one Notebook (`TeamContentIdentity.personalBoardNotebookID`).
     case board
-    /// The learner's plans for a quarter and for a week, each a Page made
-    /// from its template on first open (`PlanPeriod`), as Cal Newport plans
-    /// at three scales; the day is the Calendar, which `/plan` fills
-    /// (docs-site/plan.md).
+    /// The learner's quarter plans, each a Page made from its template on
+    /// first open (`PlanQuarter`), as Cal Newport plans a season; the week
+    /// and the day are the Calendar, which `/plan` fills (docs-site/plan.md).
     case plan
     /// Every chat, in a notebook or in none: Home's list (`HomePane`), which
     /// the Space draws with this view. It is no place of the Space: it was one

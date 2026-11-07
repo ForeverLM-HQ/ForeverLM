@@ -66,9 +66,9 @@ struct NotesGraphMCPTests {
         #expect(byName["append_to_daily_note"]?.inputSchema["required"] as? [String] == ["markdown"])
         #expect(byName["get_linked_references"]?.inputSchema["required"] as? [String] == [])
         #expect(byName["get_daily_note"]?.inputSchema["required"] as? [String] == [])
-        #expect(byName["get_plan"]?.inputSchema["required"] as? [String] == ["scale"])
+        #expect(byName["get_plan"]?.inputSchema["required"] as? [String] == [])
         let plan = try #require(byName["get_plan"]?.description)
-        for form in ["plan-2026-q4", "plan-2026-w45", "[[Q4 2026]]", "edit_doc", "create"] {
+        for form in ["plan-2026-q4", "[[Q4 2026]]", "edit_doc", "create", "create_calendar_event"] {
             #expect(plan.contains(form), "get_plan does not say \(form)")
         }
 
@@ -95,7 +95,7 @@ struct NotesGraphMCPTests {
         // get_daily_note makes the day's empty note when create is true.
         #expect(MCPToolRegistry.annotations(for: "get_daily_note")["readOnlyHint"] as? Bool == false)
         #expect(MCPToolRegistry.annotations(for: "append_to_daily_note")["readOnlyHint"] as? Bool == false)
-        // get_plan makes the plan from its template when create is true.
+        // get_plan makes the quarter's plan from its template when create is true.
         #expect(MCPToolRegistry.annotations(for: "get_plan")["readOnlyHint"] as? Bool == false)
         #expect(MCPToolRegistry.annotations(for: "append_to_daily_note")["destructiveHint"] as? Bool == false)
         #expect(MCPToolRegistry.storeGateExemptToolNames.isSuperset(of: MCPToolRegistry.notesGraphToolNames))

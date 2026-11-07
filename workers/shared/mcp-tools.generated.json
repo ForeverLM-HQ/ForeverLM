@@ -4159,7 +4159,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Read the learner's day from the Mac's Calendar — the day is the calendar; the week and the quarter it serves are plan Pages that get_plan reads: every event on the calendars ForeverLM shows (Plugins › Calendar; get_calendar_settings), for one day or up to 14 from date. Each event has event_id (with occurrence_date for one occurrence of a recurring event — pass both to change it), title, calendar and calendar_id, start and end on the learner's clock (HH:MM) and start_at and end_at in ISO 8601 with the offset, all_day, when (ended, now with minutes_left, or ahead), location, join_link (the Teams, Zoom or Meet link, when there is one), notes, attendees, has_other_people (a meeting: it stays at its time and only the Calendar app may change it), and editable (whether update_calendar_event and delete_calendar_event may touch it). Each day also says its weekday, where it sits against today (relative_day), the hours the learner's day runs (day_starts, day_ends; get_day_settings), and the free stretches inside those hours — free_from_now on today, free on a day ahead — which is where a plan goes. new_events_calendar is where create_calendar_event puts an event unless told otherwise. Needs the Mac's Calendar on; the error says how to turn it on. To plan a day: read it, the week's plan with get_plan (scale week; it carries the quarter's objectives too) and get_day_activity for how recent days actually went, propose a first draft of the whole day with one line on what you assumed, revise it with the learner as often as they like (replying with the whole revised list each time), and once they agree add each block of the day as an event with create_calendar_event.",
+    "description" : "Read the learner's day from the Mac's Calendar — the day and the week are the calendar, planned onto it and moved around as they go; the quarter they serve is a plan Page that get_plan reads: every event on the calendars ForeverLM shows (Plugins › Calendar; get_calendar_settings), for one day or up to 14 from date. Each event has event_id (with occurrence_date for one occurrence of a recurring event — pass both to change it), title, calendar and calendar_id, start and end on the learner's clock (HH:MM) and start_at and end_at in ISO 8601 with the offset, all_day, when (ended, now with minutes_left, or ahead), location, join_link (the Teams, Zoom or Meet link, when there is one), notes, attendees, has_other_people (a meeting: it stays at its time and only the Calendar app may change it), and editable (whether update_calendar_event and delete_calendar_event may touch it). Each day also says its weekday, where it sits against today (relative_day), the hours the learner's day runs (day_starts, day_ends; get_day_settings), and the free stretches inside those hours — free_from_now on today, free on a day ahead — which is where a plan goes. new_events_calendar is where create_calendar_event puts an event unless told otherwise. Needs the Mac's Calendar on; the error says how to turn it on. To plan a day or a week: read it (days 7 for a week), the quarter's plan with get_plan, and get_day_activity for how recent days actually went, propose a first draft of the whole day or week with one line on what you assumed, revise it with the learner as often as they like (replying with the whole revised list each time), and once they agree add each block as an event with create_calendar_event.",
     "inputSchema" : {
       "properties" : {
         "date" : {
@@ -4800,7 +4800,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Read the learner's plan for a quarter or a week, planned as Cal Newport teaches it: a quarter's bigger picture, its few objectives and the strategies and habits that serve them, and a week's progress and a line per day, written with the quarter's plan and the calendar in view; the day is planned into the Mac's Calendar instead (get_calendar_events, create_calendar_event). A plan is an ordinary Markdown Doc in My Library whose id names its period (plan-2026-q4, plan-2026-w45: ISO weeks, Monday to Sunday) and whose title is \"Q4 2026\" or \"Week of November 2nd, 2026\", so [[Q4 2026]] in any Doc links it, and read_doc, edit_doc and get_linked_references take its doc_id. Answers with its doc_id, title, the days it spans, its Markdown and revision, or says the period has no plan yet; with the week's quarter (doc_id, title and Markdown) for a week, and the quarter's weeks and whether each is planned for a quarter. Writes nothing unless create is true, which makes the plan from its template (a quarter's Big picture, Objectives, and Strategies and habits; a week's link to its quarter, This week and Days) when there is none, as opening it in ForeverLM's Plan place does. Write in it with edit_doc, keeping its headings.",
+    "description" : "Read the learner's plan for a quarter, planned as Cal Newport teaches it: the bigger picture, the season's few objectives, and the strategies and habits that serve them. The week and the day are not Pages: they are planned onto the Mac's Calendar with this plan in view (get_calendar_events, create_calendar_event) and moved around as the week goes. The plan is an ordinary Markdown Doc in My Library whose id names its quarter (plan-2026-q4) and whose title is \"Q4 2026\", so [[Q4 2026]] in any Doc links it, and read_doc, edit_doc and get_linked_references take its doc_id. Answers with its doc_id, title, the days it spans, its Markdown and revision, or says the quarter has no plan yet. Writes nothing unless create is true, which makes the plan from its template (Big picture, Objectives, and Strategies and habits) when there is none, as opening the quarter in ForeverLM's Plan place does. Write in it with edit_doc, keeping its headings.",
     "inputSchema" : {
       "properties" : {
         "create" : {
@@ -4808,20 +4808,12 @@
           "type" : "boolean"
         },
         "date" : {
-          "description" : "Which quarter or week: any day in it as YYYY-MM-DD, its key (\"2026-Q4\", \"2026-W45\") or its title (\"Q4 2026\"), or this, next or last. Defaults to the present one where the learner's Mac is.",
-          "type" : "string"
-        },
-        "scale" : {
-          "description" : "quarter or week.",
-          "enum" : [
-            "quarter",
-            "week"
-          ],
+          "description" : "Which quarter: any day in it as YYYY-MM-DD, its key (\"2026-Q4\") or its title (\"Q4 2026\"), or this, next or last. Defaults to the present quarter where the learner's Mac is.",
           "type" : "string"
         }
       },
       "required" : [
-        "scale"
+
       ],
       "type" : "object"
     },

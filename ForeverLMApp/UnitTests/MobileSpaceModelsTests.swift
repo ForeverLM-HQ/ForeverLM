@@ -124,20 +124,22 @@ struct MobileSpaceModelsTests {
         #expect(MobileSpaceListing.date(of: a, in: .all, sort: .created) == a.createdAt)
     }
 
-    @Test("Plan lists the learner's quarter and week plans, out of Trash, as the Mac's Plan place opens them")
+    @Test("Plan lists the learner's quarter plans, out of Trash, as the Mac's Plan place opens them")
     func planPlace() {
         let organization = MobileSpaceOrganization()
         let quarter = Self.page("plan-2026-q4", title: "Q4 2026")
-        let week = Self.page("plan-2026-w45", title: "Week of November 2nd, 2026")
+        let next = Self.page("plan-2027-q1", title: "Q1 2027")
         let teamCopy = Self.page("plan-2026-q3", teamID: "s1")
         let trashed = Self.page("plan-2026-q2", trashed: true)
         let other = Self.page("plan-day")
-        let all = [quarter, week, teamCopy, trashed, other]
-        #expect(quarter.isPlan && week.isPlan)
+        let week = Self.page("plan-2026-w45", title: "Week of November 2nd, 2026")
+        let all = [quarter, next, teamCopy, trashed, other, week]
+        #expect(quarter.isPlan && next.isPlan)
+        #expect(!week.isPlan, "a week is the calendar's, never a plan Page")
         #expect(!teamCopy.isPlan, "a plan is My Library's")
         #expect(!other.isPlan)
         let listed = Set(all.filter { MobileSpaceListing.lists(.plan, $0, organization: organization) }.map(\.id))
-        #expect(listed == ["plan-2026-q4", "plan-2026-w45"])
+        #expect(listed == ["plan-2026-q4", "plan-2027-q1"])
         #expect(!MobileSpaceListing.canNest(quarter), "a plan is reached by its period, never nested")
         #expect(MobileSpacePlace.places.contains(.plan))
         #expect(!MobileSpaceListing.nests(.plan, query: "", organization: organization))

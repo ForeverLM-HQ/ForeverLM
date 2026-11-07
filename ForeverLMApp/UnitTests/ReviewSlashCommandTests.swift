@@ -689,13 +689,14 @@ struct ChatPluginSetupNeedTests {
         // It is not only learning.
         #expect(request.contains("calls"))
         #expect(!request.contains("revise_day_plan"))
-        // Three scales: a quarter's and a week's plan are Pages read with
-        // get_plan and written with edit_doc, and the day reads the week's.
-        #expect(request.contains("get_plan, scale quarter"))
-        #expect(request.contains("get_plan, scale week"))
+        // Three scales: the quarter is a Page read with get_plan and written
+        // with edit_doc; the week and the day go on the calendar.
+        #expect(request.contains("get_plan, create true"))
         #expect(request.contains("edit_doc"))
-        #expect(request.contains("the week's plan (get_plan, scale week), so the day serves it"))
-        #expect(request.contains("carries the quarter's objectives too"))
+        #expect(request.contains("get_calendar_events for the seven days (days 7)"))
+        #expect(request.contains("the calendar is the week's only record"))
+        #expect(request.contains("the quarter's plan (get_plan), and say which of its objectives each block serves"))
+        #expect(!request.contains("scale week"))
     }
 }
 

@@ -5,45 +5,42 @@ title: Plan
 
 # Plan
 
-Plan at three scales, the way Cal Newport teaches it: a plan for the **quarter**, a plan for each **week** written with the quarter's plan in view, and each **day** planned in time blocks with the week's plan in view.
+Plan at three scales, the way Cal Newport teaches it: a plan for the **quarter**, and each **week** and **day** put on your calendar with the quarter's plan in view.
 
-Find **Plan** in the Space's sidebar, under Board, or keep it on the icon strip like any other place.
+## The quarter
 
-## Quarters and weeks
+Find **Plan** in the Space's sidebar, under Board, or keep it on the icon strip like any other place. It lists the four quarters of a year (Q1 is January to March); the arrows step through years, **This Year** brings you back, and the present quarter is marked. You can plan any quarter, including one already under way.
 
-**Quarter** lists the four quarters of a year (Q1 is January to March); **Week** lists the weeks of a quarter, with the quarter's own plan above them. The arrows step through years or quarters, and **This Year** or **This Quarter** brings you back. The present quarter and week are marked.
+Click a quarter to open its plan. The first time, it opens as a new Page with three headings:
 
-Click a quarter or a week to open its plan. The first time, it opens as a new Page laid out for the exercise:
+- **Big picture**: what the season is for, and the longer direction it serves.
+- **Objectives**: the few things that would make the quarter a success.
+- **Strategies and habits**: how you will get there, from projects and routines to rules of thumb.
 
-- A quarter has **Big picture** (what the season is for, and the longer direction it serves), **Objectives** (the few things that make the quarter a success) and **Strategies and habits** (how you will get there: projects, routines, rules of thumb).
-- A week links its quarter and has **This week** (what the week makes progress on, each from one of the quarter's objectives) and **Days** (a line for what each day is mainly for).
+Newport keeps these plans as free text, so the headings are only a start: write what helps. The plan is an ordinary Page in your own library, so it syncs, and its title, "Q4 2026", links it from any Page as `[[Q4 2026]]`.
 
-These follow how Newport describes the two plans, a quarterly plan of goals and the strategies you run, and a weekly plan written with that plan and your calendar in view. He keeps them as free text, so treat the headings as a start: write what helps. The calendar popover reads **Objectives**, **This week** and **Days**, so keep those names if you want to see them there.
+## The week and the day
 
-A plan is an ordinary Page in your own library, so it syncs and you can write anything in it. Its title names its period, "Q4 2026" or "Week of November 2nd, 2026", so `[[Q4 2026]]` in any Page links it, and the quarter's Linked References list its weeks. Weeks run Monday to Sunday and belong to the quarter that holds their Thursday. You can plan any quarter, including one already under way.
+A week's plan is the week on your Mac's Calendar: the blocks of focused work, on the days they belong to, around what is already there. Move them around as the week goes; nothing else records the week. A day works the same way, as time blocks (see [Studio](/studio)).
 
-## Days
-
-A day is planned on your Mac's Calendar, as time blocks (see [Studio](/studio)). Planning the day reads the week's plan first, so the day serves the week.
-
-Click the calendar glyph at the foot of the window's left edge to see the plans the day serves, under today's events: this quarter's objectives, what this week makes progress on, and what the week's **Days** say for today. Click the quarter or the week to open its plan; one not planned yet says **Plan in Chat…** and starts the chat that plans it.
+Click the calendar glyph at the foot of the window's left edge to see today's events and, under them, this quarter's objectives. Click the quarter to open its plan; one not planned yet says **Plan in Chat…** and starts the chat that plans it.
 
 ## Planning with the chat
 
 **Plan** at the top of the place opens a chat that plans with you: **Plan This Quarter**, **Plan This Week**, or **Plan Today** (**Plan Tomorrow** from the afternoon). In any chat, `/plan quarter`, `/plan week`, `/plan today` and `/plan tomorrow` do the same.
 
-The chat reads first: for a quarter, the quarter's Page, the previous quarter's, your Goals and what you have been working on; for a week, the week's Page, its quarter's plan, last week's and your calendar. It then proposes a whole draft. Answer in your own words until it is right; only then does it write the plan into the Page (or, for a day, add the blocks to your calendar).
+The chat reads first: for a quarter, its plan, the previous quarter's, your Goals and what you have been working on; for a week or a day, the quarter's plan and your calendar. It then proposes a whole draft and says which objective each piece serves. Answer in your own words until it is right; only then does it write the quarter into its Page, or put the week's or the day's blocks on your calendar.
 
-You don't need `/plan` for the chat to use your plans. Whenever you ask any chat to plan a week or a day, or what to work on next, it first reads the quarter's and the week's plan with `get_plan`, which shows in the chat as **Read the plan**, and says which objective or item of the week its proposal serves. Planning the day reads the week's plan, whose answer brings the quarter's objectives and the week's line for that day. Claude or ChatGPT with the ForeverLM plugin are told to do the same.
+You don't need `/plan` for this. Whenever you ask any chat to plan a week or a day, or what to work on next, it first reads the quarter's plan with `get_plan`, which shows in the chat as **Read the plan**. Claude or ChatGPT with the ForeverLM plugin are told to do the same.
 
 ## Over MCP
 
-An assistant reads a plan with `get_plan` (`scale` quarter or week; `create: true` makes it from its template) and writes in it with `edit_doc`. See [MCP Tools](/mcp-tools). Plans are kept in the library on your Mac, so the Mac must be open and connected.
+An assistant reads the quarter's plan with `get_plan` (`create: true` makes it from its template) and writes in it with `edit_doc`; it plans a week or a day with `get_calendar_events` and `create_calendar_event`. See [MCP Tools](/mcp-tools). Plans are kept in the library on your Mac, so the Mac must be open and connected.
 
 ## On iPhone and iPad
 
-**Plan** is in the Space's list, under All: **Quarter** or **Week** at the top, the arrows in the list's header to step through years or quarters, and a tap on a quarter or a week to open its plan, made from the same template the first time. A plan you write on the iPhone is the same Page as on your Mac. Planning with the chat and planning the day are on the Mac.
+**Plan** is in the Space's list, under All: the year's quarters, with arrows in the list's header to step through years, and a tap on a quarter to open its plan, made from the same template the first time. A plan you write on the iPhone is the same Page as on your Mac. Planning with the chat is on the Mac.
 
 ## On the web
 
-The [Web Library](/web-library) has no Plan place: plans you have made are among your Pages, where you can read and edit them.
+The [Web Library](/web-library) has no Plan place: quarter plans you have made are among your Pages, where you can read and edit them.

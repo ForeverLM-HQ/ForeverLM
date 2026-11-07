@@ -57,8 +57,8 @@ struct MobileSpacePage: Identifiable, Equatable, Sendable {
     }
 
     var isOwn: Bool { teamID == nil }
-    /// A quarter's or a week's plan (`PlanPeriod`), named by its period as a daily note is by its day.
-    var isPlan: Bool { teamID == nil && PlanPeriod.isPlanID(id) }
+    /// A quarter's plan (`PlanQuarter`), named by its quarter as a daily note is by its day.
+    var isPlan: Bool { teamID == nil && PlanQuarter.isPlanID(id) }
 
     /// Every notebook it is filed in, its home first (`NotebookMembership.filingNotebookIDs`).
     var notebookIDs: [String] {
@@ -187,7 +187,7 @@ enum MobileSpaceError: LocalizedError, Equatable {
 /// and `MobileSpaceRecents`.
 enum MobileSpacePlace: Hashable, Sendable {
     case all
-    /// The learner's plans for a quarter and a week (`PlanPeriod`), the Mac's Space › Plan.
+    /// The learner's quarter plans (`PlanQuarter`), the Mac's Space › Plan.
     case plan
     case pages
     case sites

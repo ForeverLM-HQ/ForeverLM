@@ -193,7 +193,7 @@ final class MobileSpaceStore {
         }
         let named = id?.trimmingCharacters(in: .whitespacesAndNewlines)
         if let named, !MobileSpaceListing.isSpaceRecord(id: named, kind: "doc") || DailyNote.isDailyNoteID(named)
-            || PlanPeriod.isPlanID(named) {
+            || PlanQuarter.isPlanID(named) {
             throw MobileSpaceError.refused("“\(named)” can’t name a page.")
         }
         let space = spaceID ?? parentID.flatMap { organization.spaceID(ofPage: $0) }
@@ -263,13 +263,13 @@ final class MobileSpaceStore {
         }
     }
 
-    /// The plan Page of a quarter or a week (`PlanPeriod`), made in My Library with its period's title
-    /// and its template when the phone holds none, as the Mac's `ensurePlan`. Its id is its period, so
-    /// the same quarter planned here and on a Mac is one record. An existing plan is returned as it is.
-    func ensurePlan(_ period: PlanPeriod) async throws -> MobileSpacePage {
+    /// The plan Page of a quarter (`PlanQuarter`), made in My Library with its quarter's title and its
+    /// template when the phone holds none, as the Mac's `ensurePlan`. Its id is its quarter, so the same
+    /// quarter planned here and on a Mac is one record. An existing plan is returned as it is.
+    func ensurePlan(_ period: PlanQuarter) async throws -> MobileSpacePage {
         let id = period.id
-        let title = period.title()
-        let markdown = period.template()
+        let title = period.title
+        let markdown = period.template
         return try await act { backend in
             let writer = backend.writer
             let existing = try await writer.read { write -> MobileSpacePage? in

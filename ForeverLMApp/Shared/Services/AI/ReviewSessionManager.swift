@@ -6428,7 +6428,7 @@ final class ReviewSessionManager {
         "list_goals", "get_schedule", "get_today_sources",
         "get_calendar_events", "create_calendar_event", "update_calendar_event",
         "get_day_activity", "list_working_notes", "save_working_note",
-        // A quarter's and a week's plan, which /plan reads before a day.
+        // The quarter's plan, which /plan reads before a week or a day.
         "get_plan",
         "list_skills", "get_skill", "list_ideas", "list_open_questions",
     ]
@@ -10929,7 +10929,7 @@ final class ReviewSessionManager {
         // carry: read the day before writing, keep what is fixed with other
         // people, write the whole day once it is agreed rather than an event
         // at a time, and never delete what the learner did not ask to lose.
-        // The plans above the day (`PlanPeriod`): a quarter's and a week's
+        // The plan above the day and the week (`PlanQuarter`): the quarter's
         // Page, read with get_plan in the chat's own calls (shown as "Read
         // the plan"), never folded into this prompt, so the learner sees
         // what the chat read (product owner, 2026-11-07: "it should take
@@ -10938,17 +10938,18 @@ final class ReviewSessionManager {
         let planGuidance = tools.contains(where: { $0.name == "get_plan" })
             ? """
 
-            The quarter and the week (plan Pages):
-            - The learner plans at three scales, as Cal Newport teaches it: a quarter's bigger picture, objectives, and strategies and habits; a week's progress, written from the quarter's plan and the calendar, with a line per day; and the day on the calendar. A quarter's and a week's plan are Pages that get_plan reads (scale quarter or week; date for another than the present one).
-            - Before planning or reprioritising anything — a quarter, a week, a day, what to work on next, whether to take something on — call get_plan: scale quarter for the quarter's objectives, and scale week for the week, whose answer also carries the quarter's plan. Say in one line which of the quarter's objectives or the week's items the plan you propose serves. A plan not written yet is no reason to stop: say so, and offer to plan it.
-            - Planning a quarter: read its plan (get_plan, scale quarter, create true), the previous quarter's (date last), list_goals and the working log; plan the whole quarter even when part of it has passed. Planning a week: get_plan scale week with create true (its quarter comes with it), last week's (date last), and get_calendar_events for its seven days. Propose a whole draft without asking first, revise it in the learner's words, and only once they agree write it into the plan's Page with edit_doc, keeping its headings.
+            The quarter (a plan Page) and the week (the calendar):
+            - The learner plans at three scales, as Cal Newport teaches it: the quarter's bigger picture, objectives, and strategies and habits are a plan Page that get_plan reads (date for another quarter than the present one); the week and the day are the calendar, planned onto it and moved around as they go.
+            - Before planning or reprioritising anything — a quarter, a week, a day, what to work on next, whether to take something on — call get_plan for the quarter's objectives and say in one line which objective the plan you propose serves. A quarter not planned yet is no reason to stop: say so, and offer to plan it.
+            - Planning a quarter: read its plan (get_plan with create true), the previous quarter's (date last), list_goals and the working log; plan the whole quarter even when part of it has passed. Propose a whole draft without asking first, revise it in the learner's words, and only once they agree write it into the plan's Page with edit_doc, keeping its headings.
+            - Planning a week is putting it on the calendar: get_plan for the quarter, get_calendar_events with days 7 for the week, and get_day_activity for how last week went. Propose the week as blocks on its days, the focused work toward the quarter's objectives around what is already there; once agreed, add each with create_calendar_event. Nothing else records the week.
             """
             : ""
         let calendarGuidance = tools.contains(where: { $0.name == "create_calendar_event" })
             ? """
 
             The day (the Mac's Calendar):
-            - The learner's day is their Mac's Calendar: what is on the calendar is the day. When they want to plan a day, block their time, or ask what to focus on, read it first with get_calendar_events (today unless they name a day, and tomorrow once today is underway — by the afternoon, planning means planning the next day), then call get_plan with scale week: the week's plan, whose answer carries the quarter's, is what the day serves, and its Days line for that day says what the day is mainly for. Start from the week's plan when it has one, then the working log (in this prompt, and in full from list_working_notes) and get_day_activity: what the learner has actually been reading and making is what the day should follow. get_schedule and list_goals are secondary: Goals are suggested from that pattern, not the spine of the day.
+            - The learner's day is their Mac's Calendar: what is on the calendar is the day. When they want to plan a day, block their time, or ask what to focus on, read it first with get_calendar_events (today unless they name a day, and tomorrow once today is underway — by the afternoon, planning means planning the next day); what is already on it for the day and the rest of the week is the week's plan, and get_plan gives the quarter's objectives it serves. Start from those, then the working log (in this prompt, and in full from list_working_notes) and get_day_activity: what the learner has actually been reading and making is what the day should follow. get_schedule and list_goals are secondary: Goals are suggested from that pattern, not the spine of the day.
             - Plan from the clock. The local time in this prompt is the time of this step; get_calendar_events says the rest: each event's when (ended, now or ahead) and today's free_from_now. Add today's new events only into time still ahead of now. Name a day by the relative_day and weekday the tool gives it, never by counting from its date.
             - Planning is an iterative chat, not a form: do not open with a question. Propose a first draft of the whole day as a short list (what is fixed from the calendar, what the day is for from the working log, one line on what you assumed). The learner answers in their own words, and each time you reply with the whole revised list and nothing more, until they say it is right. Once the learner agrees (or asked you to just do it), write every block with create_calendar_event, one call per block, and say in one line what is now on the calendar. Do not write a half-agreed day.
             - An event with has_other_people is a meeting: it stays where it is, and you never move or delete it — the Calendar app is where the learner changes it, so the other people are told. Plan around it. editable says what you may change.

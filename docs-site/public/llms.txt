@@ -33,7 +33,7 @@
 
 - [Schedule](https://docs.foreverlm.com/schedule): Assign sources to days, move work across the week, and track progress. Completion requires a linked review session.
 - [Board](https://docs.foreverlm.com/board): Your own to-do board: cards in To do, In progress and Done, and a Today view for planning the day.
-- [Plan](https://docs.foreverlm.com/plan): Plans for the quarter and the week as Pages, and the chat that plans a quarter, a week or a day, as Cal Newport teaches it.
+- [Plan](https://docs.foreverlm.com/plan): The quarter's plan as a Page, and the chat that plans a quarter, or puts a week or a day on the calendar, as Cal Newport teaches it.
 - [In-App Chat](https://docs.foreverlm.com/in-app-chat): Review sources inside ForeverLM with the configured API provider. Completed sessions link back to sources.
 - [Text to Speech](https://docs.foreverlm.com/text-to-speech): Listen to articles and text sources with on-device macOS speech or configured cloud TTS providers.
 - [AI Providers & Models](https://docs.foreverlm.com/ai-providers): Managed provider and model selection for chat, text-to-speech, speech-to-text, and on-device semantic search.

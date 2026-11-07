@@ -53,13 +53,13 @@ extension StudioViewModel {
         }
     }
 
-    /// The plan Page for a quarter or a week (`PlanPeriod`), made from its
-    /// template when it does not exist yet: the Plan place's rows and a
-    /// plan's title in a link. A plan is My Library's, so a team library open
+    /// The plan Page for a quarter (`PlanQuarter`), made from its template
+    /// when it does not exist yet: the Plan place's rows, a plan's title in a
+    /// link and a plan's id. A plan is My Library's, so a team library open
     /// in the Studio gives way to My Library first, as for a daily note.
-    func openPlan(_ period: PlanPeriod, in window: StudioWindowState? = nil) async {
+    func openPlan(_ period: PlanQuarter, in window: StudioWindowState? = nil) async {
         let destination = window ?? activeWindowState
-        let title = period.title()
+        let title = period.title
         if activeTeamID != nil {
             await setActiveTeam(nil)
             guard activeTeamID == nil else { return }
@@ -80,33 +80,23 @@ extension StudioViewModel {
         }
     }
 
-    /// The plans above the day at a glance, for the calendar glyph's popover:
-    /// this quarter's objectives, what this week makes progress on and its line
-    /// for today, read from the plans' Markdown through the storage actor.
-    /// A plan that does not exist yet reads as not planned; nothing is made,
-    /// and a failed read throws rather than passing for an empty plan.
+    /// The quarter the day serves at a glance, for the calendar glyph's
+    /// popover: its title and written objectives, read from the plan's
+    /// Markdown through the storage actor. The week and the day are the
+    /// calendar the popover already shows. A plan that does not exist yet
+    /// reads as not planned; nothing is made, and a failed read throws rather
+    /// than passing for an empty plan.
     func loadPlanGlance(now: Date = Date()) async throws -> PlanGlance? {
         guard activeTeamID == nil else { return nil }
-        let quarter = PlanPeriod.containing(now, scale: .quarter)
-        let week = PlanPeriod.containing(now, scale: .week)
-        func markdown(_ period: PlanPeriod) async throws -> String? {
-            guard try await storage.loadArtifact(period.id) != nil else { return nil }
-            return try await storage.artifactMarkdown(period.id).markdown
+        let quarter = PlanQuarter.containing(now)
+        guard try await storage.loadArtifact(quarter.id) != nil else {
+            return PlanGlance(quarter: quarter, exists: false, objectives: [])
         }
-        let quarterText = try await markdown(quarter)
-        let weekText = try await markdown(week)
+        let markdown = try await storage.artifactMarkdown(quarter.id).markdown
         return PlanGlance(
-            quarter: PlanGlance.Part(
-                period: quarter,
-                exists: quarterText != nil,
-                lines: quarterText.map { PlanOutline.items(under: PlanPeriod.quarterObjectivesHeading, in: $0) } ?? []
-            ),
-            week: PlanGlance.Part(
-                period: week,
-                exists: weekText != nil,
-                lines: weekText.map { PlanOutline.items(under: PlanPeriod.weekProgressHeading, in: $0) } ?? []
-            ),
-            today: weekText.flatMap { PlanOutline.dayLine(PlanOutline.weekdayName(of: now), in: $0) }
+            quarter: quarter,
+            exists: true,
+            objectives: PlanOutline.items(under: PlanQuarter.objectivesHeading, in: markdown)
         )
     }
 
@@ -124,10 +114,10 @@ extension StudioViewModel {
                 if let reveal { attachBlockReveal(reveal, to: docID, in: destination) }
                 return
             }
-            // A plan's id names its quarter or week before its Page exists
+            // A plan's id names its quarter before its Page exists
             // (a foreverlm://doc/plan-… link, open_in_app): opening it makes
             // the Page, as the Plan place's row does, in My Library.
-            if let period = PlanPeriod(id: docID) {
+            if let period = PlanQuarter(id: docID) {
                 await openPlan(period, in: destination)
                 if let reveal { attachBlockReveal(reveal, to: docID, in: destination) }
                 return
@@ -164,8 +154,8 @@ extension StudioViewModel {
                 await openDailyNote(dayKey: dayKey, in: destination)
                 return
             }
-            // A quarter's or a week's title names its plan the same way.
-            if teamID == nil, let period = PlanPeriod(title: name) {
+            // A quarter's title names its plan the same way.
+            if teamID == nil, let period = PlanQuarter(title: name) {
                 await openPlan(period, in: destination)
                 return
             }

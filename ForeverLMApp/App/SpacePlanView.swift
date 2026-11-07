@@ -3,41 +3,27 @@ import SwiftUI
 
 // MARK: - The Plan in the Space
 //
-// Planning at three scales, as Cal Newport teaches it (docs-site/plan.md): a
-// quarter's big picture, objectives and strategies, a week's progress with
-// the quarter's plan in view, and the day in time blocks with the week's plan
-// in view. A quarter's and a week's plan are Pages (`PlanPeriod`); the day is
-// the Mac's Calendar, which the `/plan` chat fills. This place lists the
-// quarters of a year or the weeks of a quarter, each opening its Page (made
-// from its template the first time), and its pill starts the planning chat
-// for any of the three.
+// Planning at three scales, as Cal Newport teaches it (docs-site/plan.md):
+// the quarter's bigger picture, objectives and strategies are a Page
+// (`PlanQuarter`); the week and the day are the Mac's Calendar, planned
+// onto it with the quarter's plan in view and moved around as they go
+// (product owner, 2026-11-07: "weekly planning is just putting stuff on the
+// calendar for the week; we can always move it around"). This place lists a
+// year's quarters, each opening its Page (made from its template the first
+// time), and its pill starts the chat that plans a quarter, a week or a day.
 
-/// The Space's Plan place: the place head (title and the Plan pill), the
-/// Quarter and Week scopes with a stepper through years or quarters, and the
-/// periods as rows.
+/// The Space's Plan place: the place head (title and the Plan pill), a
+/// stepper through years, and the year's quarters as rows.
 struct SpacePlanPage: View {
     @Environment(StudioViewModel.self) private var vm
     @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
 
-    /// This Mac's last scope, as the Board remembers its lens.
-    @AppStorage("space.planScale") private var scaleRaw = PlanScale.quarter.rawValue
     /// The year whose quarters are listed; nil for this year.
     @State private var shownYear: Int?
-    /// The quarter whose weeks are listed; nil for this quarter.
-    @State private var shownQuarter: PlanPeriod?
 
-    private var scale: PlanScale { PlanScale(rawValue: scaleRaw) ?? .quarter }
     private var isOwnLibrary: Bool { vm.activeTeamID == nil }
-
-    private var thisQuarter: PlanPeriod { PlanPeriod.containing(Date(), scale: .quarter) }
-    private var thisWeek: PlanPeriod { PlanPeriod.containing(Date(), scale: .week) }
-    private var thisYear: Int {
-        if case .quarter(let year, _) = thisQuarter { return year }
-        return Calendar.current.component(.year, from: Date())
-    }
-
-    private var year: Int { shownYear ?? thisYear }
-    private var quarter: PlanPeriod { shownQuarter ?? thisQuarter }
+    private var thisQuarter: PlanQuarter { PlanQuarter.containing(Date()) }
+    private var year: Int { shownYear ?? thisQuarter.year }
 
     var body: some View {
         ScrollView {
@@ -50,23 +36,21 @@ struct SpacePlanPage: View {
                             .accessibilityIdentifier("space.plan.start")
                     }
                 }
-                HStack(spacing: 8) {
-                    ForEach(PlanScale.allCases) { option in
-                        SpaceScopePill(title: option.title, isSelected: scale == option) {
-                            scaleRaw = option.rawValue
+                if isOwnLibrary {
+                    HStack(spacing: 8) {
+                        Spacer(minLength: 8)
+                        stepper
+                    }
+                    VStack(alignment: .leading, spacing: 2) {
+                        ForEach(1...4, id: \.self) { number in
+                            row(PlanQuarter(year: year, quarter: number))
                         }
                     }
-                    Spacer(minLength: 8)
-                    if isOwnLibrary { stepper }
-                }
-
-                if !isOwnLibrary {
+                    .padding(.top, 4)
+                } else {
                     SpaceEmptyLine(systemImage: SpaceDestination.plan.symbolName, text: "Plans are in your own library")
                         .frame(maxWidth: .infinity)
                         .padding(.top, SpacePlaceMetrics.emptyTopPadding)
-                } else {
-                    rows
-                        .padding(.top, 4)
                 }
             }
             .spacePlaceColumn()
@@ -78,44 +62,24 @@ struct SpacePlanPage: View {
 
     // MARK: The list
 
-    @ViewBuilder
-    private var rows: some View {
-        VStack(alignment: .leading, spacing: 2) {
-            switch scale {
-            case .quarter:
-                ForEach(1...4, id: \.self) { number in
-                    row(.quarter(year: year, quarter: number), isNow: PlanPeriod.quarter(year: year, quarter: number) == thisQuarter)
-                }
-            case .week:
-                // The week is planned with its quarter's plan in view, so the
-                // quarter leads its weeks.
-                row(quarter, isNow: quarter == thisQuarter, subtitle: "The quarter's plan")
-                Divider()
-                    .padding(.vertical, 6)
-                ForEach(quarter.weeks()) { week in
-                    row(week, isNow: week == thisWeek)
-                }
-            }
-        }
-    }
-
-    private func row(_ period: PlanPeriod, isNow: Bool, subtitle: String? = nil) -> some View {
-        let page = vm.artifacts.first { $0.id == period.id }
+    private func row(_ quarter: PlanQuarter) -> some View {
+        let page = vm.artifacts.first { $0.id == quarter.id }
+        let isNow = quarter == thisQuarter
         return Button {
-            Task { await vm.openPlan(period, in: windowState) }
+            Task { await vm.openPlan(quarter, in: windowState) }
         } label: {
             HStack(spacing: 12) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(period.title())
+                    Text(quarter.title)
                         .zoomedSystemFont(size: 13.5, weight: isNow ? .semibold : .medium)
                         .foregroundStyle(.primary)
-                    Text(subtitle ?? period.rangeText())
+                    Text(quarter.rangeText())
                         .zoomedSystemFont(size: 11.5)
                         .foregroundStyle(.secondary)
                 }
                 Spacer(minLength: 12)
                 if isNow {
-                    Text(period.scale == .quarter ? "This quarter" : "This week")
+                    Text("This quarter")
                         .zoomedSystemFont(size: 11, weight: .medium)
                         .foregroundStyle(Color.accentColor)
                         .padding(.horizontal, 8)
@@ -133,27 +97,22 @@ struct SpacePlanPage: View {
             .contentShape(Rectangle())
         }
         .buttonStyle(.hoverWash(cornerRadius: 8, inset: 0))
-        // A period with no Page yet makes one, which a read-only library cannot.
+        // A quarter with no Page yet makes one, which a read-only library cannot.
         .disabled(page == nil && vm.isActiveLibraryReadOnly)
-        .accessibilityIdentifier("space.plan.\(period.key)")
+        .accessibilityIdentifier("space.plan.\(quarter.key)")
     }
 
-    // MARK: Moving through time
+    // MARK: Moving through years
 
-    /// ‹ 2026 › over the quarters, ‹ Q4 2026 › over the weeks, and a way back
-    /// to the present when away from it.
+    /// ‹ 2026 ›, and a way back to this year when away from it.
     private var stepper: some View {
         HStack(spacing: 4) {
-            let isAway = scale == .quarter ? year != thisYear : quarter != thisQuarter
-            if isAway {
-                Button(scale == .quarter ? "This Year" : "This Quarter") {
-                    shownYear = nil
-                    shownQuarter = nil
-                }
-                .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4))
-                .zoomedSystemFont(size: 12, weight: .medium)
-                .foregroundStyle(.secondary)
-                .padding(.trailing, 6)
+            if year != thisQuarter.year {
+                Button("This Year") { shownYear = nil }
+                    .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4))
+                    .zoomedSystemFont(size: 12, weight: .medium)
+                    .foregroundStyle(.secondary)
+                    .padding(.trailing, 6)
             }
             Button {
                 step(-1)
@@ -163,12 +122,12 @@ struct SpacePlanPage: View {
                     .frame(width: 22, height: 22)
             }
             .buttonStyle(.hoverWash(cornerRadius: 6, inset: 0))
-            .help(scale == .quarter ? "Previous year" : "Previous quarter")
-            Text(scale == .quarter ? String(year) : quarter.title())
+            .help("Previous year")
+            Text(String(year))
                 .zoomedSystemFont(size: 12.5, weight: .medium)
                 .monospacedDigit()
                 .textSelection(.disabled)
-                .frame(minWidth: 64)
+                .frame(minWidth: 44)
             Button {
                 step(1)
             } label: {
@@ -177,25 +136,19 @@ struct SpacePlanPage: View {
                     .frame(width: 22, height: 22)
             }
             .buttonStyle(.hoverWash(cornerRadius: 6, inset: 0))
-            .help(scale == .quarter ? "Next year" : "Next quarter")
+            .help("Next year")
         }
     }
 
     private func step(_ count: Int) {
-        switch scale {
-        case .quarter:
-            let next = year + count
-            shownYear = next == thisYear ? nil : next
-        case .week:
-            guard let next = quarter.offset(by: count) else { return }
-            shownQuarter = next == thisQuarter ? nil : next
-        }
+        let next = year + count
+        shownYear = next == thisQuarter.year ? nil : next
     }
 
     // MARK: Planning with the chat
 
-    /// The Plan pill's card: the chat that plans a quarter, a week or a day,
-    /// each the `/plan` command with its argument.
+    /// The Plan pill's card: the chat that plans the quarter (its Page), the
+    /// week or the day (the calendar), each the `/plan` command.
     private var planMenuSections: [[SpaceMenuItem]] {
         let plansTomorrow = Calendar.current.component(.hour, from: Date()) >= DayPlan.planTomorrowFromHour
         return [

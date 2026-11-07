@@ -354,20 +354,20 @@ extension StorageService {
         }
     }
 
-    /// The plan Page for a quarter or a week (`PlanPeriod`), made in My
-    /// Library with its period's title and its template when it does not
-    /// exist yet. Making it twice, here or on another Mac, makes one record;
-    /// an existing plan is returned as it is.
-    func ensurePlan(_ period: PlanPeriod) async throws -> ArtifactRecord {
+    /// The plan Page for a quarter (`PlanQuarter`), made in My Library with
+    /// its quarter's title and its template when it does not exist yet.
+    /// Making it twice, here or on another Mac, makes one record; an existing
+    /// plan is returned as it is.
+    func ensurePlan(_ period: PlanQuarter) async throws -> ArtifactRecord {
         let planID = period.id
         let store = try notebookFilesKnowledgeStore()
         if let existing = try store.loadArtifact(planID) { return existing }
         do {
             return try createArtifact(
-                title: period.title(),
+                title: period.title,
                 homeNotebookID: nil,
                 linkedNotebookIDs: [],
-                markdown: period.template(),
+                markdown: period.template,
                 teamID: nil,
                 artifactID: planID
             ).artifact
