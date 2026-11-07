@@ -431,6 +431,17 @@ extension MCPDataStore {
     @MainActor
     private static func aiChoiceSettingEntries() -> [AppSettingEntry] {
         [
+            AppSettingEntry(
+                id: "chat.your_models",
+                pane: "Chat › Your Models",
+                title: "Your Models",
+                detail: "The models listed at the top of Settings › Chat, as OpenRouter slugs (e.g. anthropic/claude-opus-5.5, openrouter/free), in the order shown. Until the learner first edits it, it is the suggested and free picks. Being on the list is not being offered in the chat picker: set_chat_model_offered does that. A slug OpenRouter does not list, or whose model cannot call tools, is kept but not shown. Pass the whole list; [] empties it.",
+                reach: .account,
+                kind: .stringList,
+                preferenceKeys: [ChatModelShortlist.preferenceKey],
+                read: { ChatModelShortlist.current },
+                write: { ChatModelShortlist.save(try AppSettingEntry.strings($0, "chat.your_models")) }
+            ),
             preferenceEntry(
                 id: "chat.default_effort", pane: "Chat › effort control (no pane)", title: "Default chat effort",
                 detail: "The effort last chosen from a chat's effort control; a chat with no effort of its own starts on it. none is no reasoning at all. A model that does not offer the effort uses its nearest one.",

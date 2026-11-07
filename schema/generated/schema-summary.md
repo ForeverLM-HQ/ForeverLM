@@ -929,6 +929,7 @@ The Setting record keys (§3.5.3): one record per key, account scope in Library 
 | `openai_model_explicitly_picked` | bool | account | `set_app_setting` ai.openai_model_picked | Whether the learner picked the provider's model by hand rather than taking the default. |
 | `chatModels.enabledIDs` | array | account | `set_chat_model_offered` offered (derived) | The models the chat's picker offers (strings). |
 | `chatModels.openRouterCustom` | data | account | `set_chat_model_offered` remove_from_catalog (derived) | The OpenRouter models the learner added to the catalog (JSON). |
+| `chatModels.shortlist` | array | account | `set_app_setting` chat.your_models | Settings › Chat's Your Models: the OpenRouter slugs the learner keeps at the top of the pane, in their order (strings); absent until first edited. |
 | `aiRoute.defaultChat` | data | account | `set_ai_task_settings` target default_model model (derived) | The Default Model: a JSON route {provider, model} (AIModelRoutePreference). |
 | `aiRoute.defaultChat.effort` | string | account | `set_app_setting` chat.default_effort | The effort last chosen from a chat's effort control; a chat with no effort of its own starts on it. |
 | `aiRoute.background` | data | account | `set_ai_task_settings` target background_text model (derived) | Background's text model, a JSON route. |

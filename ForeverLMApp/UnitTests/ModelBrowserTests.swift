@@ -340,4 +340,52 @@ struct ModelBrowserTests {
                 == "Recommended · 50% off · Backup 2"
         )
     }
+
+    // MARK: Your Models (product owner, 2026-11-07)
+
+    @Test("Your Models: adding appends once, removing and moving keep the rest in order")
+    func yourModelsEdits() {
+        let list = ["a/one", "b/two", "c/three"]
+        #expect(ChatModelShortlist.normalized([" A/One ", "a/one", "", "b/two"]) == ["a/one", "b/two"])
+        #expect(ChatModelShortlist.adding(["d/four", "B/Two"], to: list) == ["a/one", "b/two", "c/three", "d/four"])
+        #expect(ChatModelShortlist.removing("B/TWO", from: list) == ["a/one", "c/three"])
+        #expect(ChatModelShortlist.moving("c/three", by: -1, in: list) == ["a/one", "c/three", "b/two"])
+        #expect(ChatModelShortlist.moving("a/one", by: -1, in: list) == list)
+        #expect(ChatModelShortlist.moving("c/three", by: 5, in: list) == list)
+        #expect(ChatModelShortlist.moving("x/absent", by: 1, in: list) == list)
+    }
+
+    @Test("Your Models: a dragged row takes the place of the row it is dropped on, from either side")
+    func yourModelsDrag() {
+        let list = ["a/one", "b/two", "c/three", "d/four"]
+        #expect(ChatModelShortlist.moving("a/one", onto: "c/three", in: list) == ["b/two", "c/three", "a/one", "d/four"])
+        #expect(ChatModelShortlist.moving("d/four", onto: "b/two", in: list) == ["a/one", "d/four", "b/two", "c/three"])
+        #expect(ChatModelShortlist.moving("x/new", onto: "b/two", in: list) == ["a/one", "x/new", "b/two", "c/three", "d/four"])
+        #expect(ChatModelShortlist.moving("a/one", onto: "x/absent", in: list) == ["b/two", "c/three", "d/four", "a/one"])
+    }
+
+    @Test("A kept list replaces Suggested and Free as it stands: its order, no newer release swapped in")
+    func pinnedListReplacesSuggestions() {
+        let directory = [
+            Self.directoryModel("x/old", listed: Date(timeIntervalSince1970: 1)),
+            Self.directoryModel("x/new", listed: Date(timeIntervalSince1970: 2)),
+            Self.directoryModel("y/free:free", input: 0, output: 0),
+            Self.directoryModel("z/other"),
+        ]
+        let pinned = ChatModelLists.build(
+            suggested: ["x/old"], free: ["y/free:free"], pinned: ["Z/Other", "x/old", "z/other", "w/unlisted"],
+            entries: [], enabledIDs: [], directory: directory, isOffered: { _ in true })
+        #expect(pinned.suggestions.map(\.slug) == ["z/other", "x/old"])
+        #expect(pinned.free.isEmpty)
+
+        let fresh = ChatModelLists.build(
+            suggested: ["x/old"], free: ["y/free:free"],
+            entries: [], enabledIDs: [], directory: directory, isOffered: { _ in true })
+        #expect(fresh.free.map(\.slug) == ["y/free:free"])
+
+        let emptied = ChatModelLists.build(
+            suggested: ["x/old"], free: ["y/free:free"], pinned: [],
+            entries: [], enabledIDs: [], directory: directory, isOffered: { _ in true })
+        #expect(emptied.suggestions.isEmpty && emptied.free.isEmpty)
+    }
 }

@@ -15,6 +15,9 @@ import AppKit
 /// Default Model and the backups a scheduled task's run moves to, and its
 /// provider button chooses who runs it. It replaced the maker-by-maker card
 /// grid; Settings › Background draws the same list (`BackgroundModelsPane`).
+/// Since 2026-11-07 Suggested and Free are one list the learner keeps, Your
+/// Models (`ChatModelShortlist`): they start as its rows, and a model is
+/// taken off it, added to it from the table, or moved up and down it.
 struct ChatModelsPane: View {
     /// Walks the learner to the key or sign-in when a model's host has no
     /// credentials yet; nil where that pane is hidden.
@@ -44,20 +47,7 @@ struct ChatModelsPane: View {
         VStack(alignment: .leading, spacing: 16) {
             SettingsCard {
                 VStack(alignment: .leading, spacing: 18) {
-                    if !lists.suggestions.isEmpty {
-                        listSection("Suggested") {
-                            ForEach(lists.suggestions) { suggestion in
-                                suggestionRow(suggestion)
-                            }
-                        }
-                    }
-                    if !lists.free.isEmpty {
-                        listSection("Free", caption: snapshot.freeModelBlocker) {
-                            ForEach(lists.free) { suggestion in
-                                suggestionRow(suggestion)
-                            }
-                        }
-                    }
+                    yourModelsSection
                     if !snapshot.backups.isEmpty {
                         backupsSummary
                     }
@@ -89,6 +79,16 @@ struct ChatModelsPane: View {
         }
         .onReceive(
             NotificationCenter.default.publisher(for: .managedAIOwnKeyDidChange)
+                .receive(on: RunLoop.main)
+        ) { _ in
+            Task { await reload() }
+        }
+        // Your Models edited on another Mac, or from chat (`chat.your_models`).
+        .onReceive(
+            NotificationCenter.default.publisher(for: PreferenceStore.didChangeRemotely)
+                .merge(with: NotificationCenter.default.publisher(for: PreferenceStore.didChangeLocally).filter {
+                    ($0.userInfo?[PreferenceStore.changedKeysKey] as? Set<String>)?.contains(ChatModelShortlist.preferenceKey) == true
+                })
                 .receive(on: RunLoop.main)
         ) { _ in
             Task { await reload() }
@@ -145,6 +145,7 @@ struct ChatModelsPane: View {
         lists = ChatModelLists.build(
             suggested: AIModelDefaults.suggestedChatModels,
             free: Self.freeSlugs(in: directory),
+            pinned: snapshot.yourModels,
             entries: snapshot.entries,
             enabledIDs: snapshot.enabledIDs,
             directory: directory,
@@ -167,35 +168,105 @@ struct ChatModelsPane: View {
             .map(\.id)
     }
 
-    /// `caption` says why the rows cannot be used yet, when they cannot.
-    private func listSection<Rows: View>(
-        _ title: String,
-        caption: String? = nil,
-        @ViewBuilder rows: () -> Rows
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 8) {
-            Text(title)
-                .font(.caption.weight(.semibold))
-                .foregroundStyle(.secondary)
-            if let caption {
-                Text(caption)
+    // MARK: Your Models
+
+    /// Your Models (product owner, 2026-11-07: "I should be able to pop models
+    /// up higher and the ones that are recommended higher up should also be
+    /// able to be deleted"): one list the learner keeps, in their order, in
+    /// place of the fixed Suggested and Free lists. Until it is first edited it
+    /// is those picks; a × or the menu takes a model off, the table's menu
+    /// adds one (Add to Your Models), and a drag or Move Up / Move Down sets
+    /// the order. Being on the list is not being offered: the row's check is
+    /// still what the chat's picker offers.
+    private var yourModelsSection: some View {
+        let rows = lists.suggestions + lists.free
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Your Models")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                if snapshot.yourModels != nil {
+                    Button("Restore Suggested") {
+                        ChatModelShortlist.restoreSuggested()
+                        snapshot.yourModels = nil
+                        rebuild()
+                    }
+                    .buttonStyle(.plain)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .help("Put back the suggested and free models this list started with, in their order")
+                }
+            }
+            if let blocker = snapshot.freeModelBlocker, rows.contains(where: { isFree($0.slug) }) {
+                Text(blocker)
                     .font(.caption)
                     .foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            VStack(spacing: 6) {
-                rows()
+            if rows.isEmpty {
+                Text("Add a model from the table below: right-click it and choose Add to Your Models.")
+                    .font(.caption)
+                    .foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            } else {
+                VStack(spacing: 6) {
+                    ForEach(Array(rows.enumerated()), id: \.element.id) { index, suggestion in
+                        suggestionRow(suggestion, listActions: listActions(for: suggestion.slug, at: index, count: rows.count))
+                            .draggable(suggestion.slug)
+                            .dropDestination(for: String.self) { dropped, _ in
+                                guard let moved = dropped.first, moved != suggestion.slug else { return false }
+                                editYourModels { ChatModelShortlist.moving(moved, onto: suggestion.slug, in: $0) }
+                                return true
+                            }
+                    }
+                }
             }
         }
     }
 
+    /// The slugs the list shows now, in order: what an edit starts from
+    /// while the learner has not edited it yet.
+    private var shownSlugs: [String] {
+        (lists.suggestions + lists.free).map(\.slug)
+    }
+
+    /// Edits the stored list, or, the first time, the suggested picks as the
+    /// pane shows them, so nothing the learner sees moves but what they moved.
+    private func editYourModels(_ edit: ([String]) -> [String]) {
+        let edited = ChatModelShortlist.normalized(edit(snapshot.yourModels ?? shownSlugs))
+        ChatModelShortlist.save(edited)
+        snapshot.yourModels = edited
+        rebuild()
+    }
+
+    private func isOnYourModels(_ slug: String) -> Bool {
+        let slug = slug.lowercased()
+        return shownSlugs.contains(slug)
+    }
+
+    private func listActions(for slug: String, at index: Int, count: Int) -> ChatModelRow.ListActions {
+        ChatModelRow.ListActions(
+            remove: { editYourModels { ChatModelShortlist.removing(slug, from: $0) } },
+            moveUp: index == 0 ? nil : { editYourModels { ChatModelShortlist.moving(slug, by: -1, in: $0) } },
+            moveDown: index == count - 1 ? nil : { editYourModels { ChatModelShortlist.moving(slug, by: 1, in: $0) } }
+        )
+    }
+
+    /// A router or model OpenRouter serves at no charge, for the caption that
+    /// says why free models cannot be picked yet.
+    private func isFree(_ slug: String) -> Bool {
+        if let model = lists.directoryBySlug[slug] { return model.isZeroPriced }
+        return slug.hasSuffix(":free") || slug == "openrouter/free"
+    }
+
     @ViewBuilder
-    private func suggestionRow(_ suggestion: ChatModelLists.Suggestion) -> some View {
+    private func suggestionRow(_ suggestion: ChatModelLists.Suggestion, listActions: ChatModelRow.ListActions?) -> some View {
         switch suggestion {
         case .catalog(let entry, _):
-            catalogRow(entry)
+            catalogRow(entry, listActions: listActions)
         case .directory(let model):
-            directoryRow(model)
+            directoryRow(model, listActions: listActions)
         case .pending(let slug):
             let maker = lists.identity(ofSlug: slug)
             ChatModelRow(
@@ -205,13 +276,14 @@ struct ChatModelsPane: View {
                 isDefault: false,
                 isConfigured: true,
                 isPending: true,
+                listActions: listActions,
                 action: {}
             )
         }
     }
 
     /// A catalogued model: the row turns it on or off in the chat's picker.
-    private func catalogRow(_ entry: AIModelCatalogEntry) -> some View {
+    private func catalogRow(_ entry: AIModelCatalogEntry, listActions: ChatModelRow.ListActions?) -> some View {
         let slug = ChatModelLists.slug(of: entry)
         let offered = snapshot.enabledIDs.contains(entry.id)
         let isDefault = snapshot.defaultID == entry.id
@@ -231,6 +303,7 @@ struct ChatModelsPane: View {
             setAsDefault: {
                 testThen(entry.provider, entry.modelID, name: entry.displayName) { setAsDefault(entry) }
             },
+            listActions: listActions,
             action: {
                 // Turning a model off needs no test.
                 if offered {
@@ -244,7 +317,7 @@ struct ChatModelsPane: View {
 
     /// A directory model the catalog does not carry yet: turning it on adds
     /// it, after which it is a catalogued row like any other.
-    private func directoryRow(_ model: OpenRouterDirectoryModel) -> some View {
+    private func directoryRow(_ model: OpenRouterDirectoryModel, listActions: ChatModelRow.ListActions?) -> some View {
         let maker = lists.identity(ofSlug: model.id)
         return ChatModelRow(
             entry: AIModelCatalogEntry(
@@ -264,6 +337,7 @@ struct ChatModelsPane: View {
             toggleBackup: {
                 toggleBackup(provider: .openRouter, model: model.id, name: model.name, directoryModel: model)
             },
+            listActions: listActions,
             action: {
                 testThen(.openRouter, model.id, name: model.name) { add(model) }
             }
@@ -385,6 +459,12 @@ struct ChatModelsPane: View {
                     for row in on { setOffered(false, row.entry) }
                 })
             }
+            let unlisted = rows.map { $0.model.id.lowercased() }.filter { !isOnYourModels($0) }
+            if !unlisted.isEmpty {
+                items.append(.button("Add \(ModelTableRow.count(unlisted.count)) to Your Models", systemImage: "text.badge.plus") {
+                    editYourModels { ChatModelShortlist.adding(unlisted, to: $0) }
+                })
+            }
             return items
         }
         // The Default Model cannot be turned off.
@@ -397,6 +477,16 @@ struct ChatModelsPane: View {
                 toggle([row])
             },
         ]
+        let slug = row.model.id.lowercased()
+        if isOnYourModels(slug) {
+            items.append(.button("Remove from Your Models", systemImage: "text.badge.minus") {
+                editYourModels { ChatModelShortlist.removing(slug, from: $0) }
+            })
+        } else {
+            items.append(.button("Add to Your Models", systemImage: "text.badge.plus") {
+                editYourModels { ChatModelShortlist.adding([slug], to: $0) }
+            })
+        }
         if row.isCatalogued {
             items.append(.button(
                 row.isDefault ? "Default Model" : "Set as Default",
@@ -602,9 +692,12 @@ private struct ChatModelsSnapshot: Sendable {
     /// Why no free model can be picked yet (no OpenRouter key of the
     /// learner's own, or the Data & Privacy switch); nil when one can.
     var freeModelBlocker: String?
+    /// Your Models as the learner left it; nil until they first edit it.
+    var yourModels: [String]?
 
     static let empty = ChatModelsSnapshot(
-        entries: [], enabledIDs: [], defaultID: nil, configuredProviders: [], backups: [], freeModelBlocker: nil
+        entries: [], enabledIDs: [], defaultID: nil, configuredProviders: [], backups: [], freeModelBlocker: nil,
+        yourModels: nil
     )
 
     static func load() -> ChatModelsSnapshot {
@@ -616,7 +709,8 @@ private struct ChatModelsSnapshot: Sendable {
                 KeychainService.hasUsableTextProviderCredentials(for: $0)
             }),
             backups: AIBackupModels.stored(slot: AIBackupModels.chatSlot),
-            freeModelBlocker: FreeModelsSetup.pickBlocker()
+            freeModelBlocker: FreeModelsSetup.pickBlocker(),
+            yourModels: ChatModelShortlist.stored
         )
     }
 }
@@ -726,6 +820,9 @@ enum ChatModelLists {
     ///     (`newestReleases`).
     ///   - free: the Free list's slugs, in order; one Suggested already
     ///     lists is not listed twice.
+    ///   - pinned: the list the learner keeps (Settings › Chat's Your
+    ///     Models), in their order; when set, it replaces `suggested` and
+    ///     `free` as they stand, newer releases not swapped in.
     ///   - entries: the offered catalog entries, in catalog order.
     ///   - directory: nil while it is still loading.
     ///   - filters: what the browser is narrowed to; empty for everything.
@@ -736,6 +833,7 @@ enum ChatModelLists {
     static func build(
         suggested: [String],
         free: [String] = [],
+        pinned: [String]? = nil,
         entries: [AIModelCatalogEntry],
         enabledIDs: Set<String>,
         directory: [OpenRouterDirectoryModel]?,
@@ -770,12 +868,13 @@ enum ChatModelLists {
             model.supportsTools && (entryBySlug[model.id.lowercased()] != nil || isOffered(model.id))
         }
         let suggestions = Self.suggestions(
-            Self.newestReleases(of: suggested, in: usable, allows: allowsNewerRelease),
+            pinned.map(ChatModelShortlist.normalized)
+                ?? Self.newestReleases(of: suggested, in: usable, allows: allowsNewerRelease),
             entryBySlug: entryBySlug, directoryBySlug: directoryBySlug,
             directoryLoaded: directory != nil, isOffered: isOffered
         )
         let suggestedSlugs = Set(suggestions.map(\.slug))
-        let freeRows = Self.suggestions(
+        let freeRows = pinned != nil ? [] : Self.suggestions(
             free.filter { !suggestedSlugs.contains($0.lowercased()) },
             entryBySlug: entryBySlug, directoryBySlug: directoryBySlug,
             directoryLoaded: directory != nil, isOffered: isOffered
@@ -906,6 +1005,84 @@ enum ChatModelLists {
     }
 }
 
+// MARK: - Your Models
+
+/// Settings › Chat's Your Models: the OpenRouter slugs the learner keeps at
+/// the top of the pane, in their order. Nothing is stored until they first
+/// edit it, and until then the pane lists the suggested and free picks
+/// (`ChatModelLists.build`). An account setting, synced like the offered set
+/// beside it; `set_app_setting` `chat.your_models` writes it.
+enum ChatModelShortlist {
+    static let preferenceKey = "chatModels.shortlist"
+
+    /// Nil until the learner first edits the list.
+    static var stored: [String]? {
+        UserDefaults.standard.stringArray(forKey: preferenceKey).map(normalized)
+    }
+
+    /// The list as it stands, for a reader that has no directory to resolve
+    /// the suggestions' newest releases: the stored list, else the
+    /// suggested picks and the preferred free ones as written.
+    static var current: [String] {
+        stored ?? normalized(
+            AIModelDefaults.suggestedChatModels
+                + FreeModelsSetup.preferredChat.prefix(FreeModelsSetup.chatAlternatives + 1)
+        )
+    }
+
+    static func save(_ slugs: [String]) {
+        PreferenceStore.set(normalized(slugs), forKey: preferenceKey)
+    }
+
+    /// Forgets the learner's list, so the suggested picks show again.
+    static func restoreSuggested() {
+        PreferenceStore.remove(forKey: preferenceKey)
+    }
+
+    /// Lowercased, trimmed, each slug once, in the order first given.
+    static func normalized(_ slugs: [String]) -> [String] {
+        var seen: Set<String> = []
+        return slugs.compactMap { raw in
+            let slug = raw.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            guard !slug.isEmpty, seen.insert(slug).inserted else { return nil }
+            return slug
+        }
+    }
+
+    /// Appends the slugs the list does not hold yet, at its end.
+    static func adding(_ slugs: [String], to list: [String]) -> [String] {
+        normalized(list + slugs)
+    }
+
+    static func removing(_ slug: String, from list: [String]) -> [String] {
+        let slug = slug.lowercased()
+        return normalized(list).filter { $0 != slug }
+    }
+
+    /// Moves `slug` by `offset` places, kept within the list; unchanged when
+    /// the list does not hold it.
+    static func moving(_ slug: String, by offset: Int, in list: [String]) -> [String] {
+        var list = normalized(list)
+        guard let from = list.firstIndex(of: slug.lowercased()) else { return list }
+        let to = min(max(from + offset, 0), list.count - 1)
+        list.insert(list.remove(at: from), at: to)
+        return list
+    }
+
+    /// A dragged slug dropped on another row takes that row's place: the
+    /// rows between move one towards where it came from. A slug the list
+    /// lacks goes in before the row; onto a row the list lacks, at the end.
+    static func moving(_ slug: String, onto target: String, in list: [String]) -> [String] {
+        let (slug, target) = (slug.lowercased(), target.lowercased())
+        let original = normalized(list)
+        var rest = original.filter { $0 != slug }
+        guard let targetIndex = rest.firstIndex(of: target) else { return rest + [slug] }
+        let movesDown = (original.firstIndex(of: slug) ?? .max) < (original.firstIndex(of: target) ?? 0)
+        rest.insert(slug, at: movesDown ? targetIndex + 1 : targetIndex)
+        return rest
+    }
+}
+
 extension ModelBrowserFilter {
     /// Free is the price the directory lists today, `:free` or not (a stealth
     /// model is free without the suffix); discounted is a promotion OpenRouter
@@ -965,10 +1142,23 @@ struct ChatModelRow: View {
     var toggleBackup: (() -> Void)? = nil
     var setAsDefault: (() -> Void)? = nil
     var purpose: Purpose = .chat
+    /// Taking the model off Settings › Chat's Your Models and moving it
+    /// there; nil for a row on no such list.
+    var listActions: ListActions? = nil
     let action: () -> Void
+
+    /// What a row on Your Models can do to its place there.
+    struct ListActions {
+        let remove: () -> Void
+        /// Nil for the first row.
+        let moveUp: (() -> Void)?
+        /// Nil for the last row.
+        let moveDown: (() -> Void)?
+    }
 
     @State private var tokensPerSecond: Double?
     @State private var showsHost = false
+    @State private var isHovered = false
     /// Room kept at the trailing edge for the controls laid over the row, as
     /// wide as they last measured.
     @State private var trailingIconsWidth: CGFloat = 0
@@ -1051,6 +1241,7 @@ struct ChatModelRow: View {
                 .padding(.trailing, 14 + 16 + 12)
         }
         .opacity(isConfigured && !isPending ? 1 : 0.55)
+        .onHover { isHovered = $0 }
         // A suggestion that waited for the directory loads its speed once
         // it resolves.
         .task(id: isPending ? "" : slug) {
@@ -1137,6 +1328,22 @@ struct ChatModelRow: View {
                 .help("Read about \(name) on OpenRouter")
                 .accessibilityLabel("\(name) on OpenRouter")
             }
+            if let listActions {
+                // Under the pointer only (quiet chrome); always laid out, so
+                // the row's text does not shift when it shows.
+                Button(action: listActions.remove) {
+                    Image(systemName: "xmark")
+                        .zoomedSystemFont(size: 10, weight: .semibold)
+                        .foregroundStyle(.secondary)
+                        .frame(width: 18, height: 18)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.hoverWash(cornerRadius: 4, inset: -1))
+                .opacity(isHovered ? 1 : 0)
+                .allowsHitTesting(isHovered)
+                .help("Take \(name) off Your Models")
+                .accessibilityLabel("Remove \(name) from Your Models")
+            }
         }
     }
 
@@ -1170,6 +1377,26 @@ struct ChatModelRow: View {
                 AIModelCatalog.removeCustomOpenRouterModel(id: entry.modelID)
             }
             .disabled(isDefault)
+        }
+        if let listActions {
+            Divider()
+            Button {
+                listActions.moveUp?()
+            } label: {
+                Label("Move Up", systemImage: "arrow.up")
+            }
+            .disabled(listActions.moveUp == nil)
+            Button {
+                listActions.moveDown?()
+            } label: {
+                Label("Move Down", systemImage: "arrow.down")
+            }
+            .disabled(listActions.moveDown == nil)
+            Button {
+                listActions.remove()
+            } label: {
+                Label("Remove from Your Models", systemImage: "text.badge.minus")
+            }
         }
     }
 
