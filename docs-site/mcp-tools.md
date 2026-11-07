@@ -870,8 +870,9 @@ shows the exact text and waits for the learner's yes.
 
 ## The day (the Mac's Calendar)
 
-The learner's day is their Mac's Calendar; there is no separate plan. An
-assistant reads the day's events and plans it by adding each block — a stretch
+The learner's day is their Mac's Calendar; the week and the quarter it serves
+are plan Pages (`get_plan`, see [Plan](/plan)). An assistant reads the week's
+plan, then the day's events and plans it by adding each block — a stretch
 of work, a reading, a review, email and admin, a break — as an event. It lands
 on the calendar new events go to (Plugins › Calendar), and shows at
 once in the Calendar app, in the bottom-left **Now** chip, and on the learner's
