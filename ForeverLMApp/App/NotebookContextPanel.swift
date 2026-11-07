@@ -472,9 +472,10 @@ struct NotebookSourcePoolColumnActions {
 ///
 /// In the notebook workspace (`column` set) it is the notebook's Sources
 /// column, drawn as Gemini Notebook's: one list, each row the source's thumbnail,
-/// its title on one line and a box for whether the notebook's chats read it;
-/// "N of M in chat" while not every source is ticked, and Select all sources
-/// under the pointer while every one is;
+/// its title on one line and a ＋ that adds it to the notebook's chats, a tick
+/// once it is in (`NotebookChatToggle`); "N of M in chat" (or "None in chat")
+/// while not every source is in, and "All N in chat" under the pointer while
+/// every one is;
 /// under the pointer a row shows its ⋯ with Open, Open in
 /// Other Window and Remove from Notebook; a row click opens the Reader in the
 /// document slot, the notebook's ⋯ opens the Add sources sheet, and an empty
@@ -768,9 +769,9 @@ struct NotebookSourcePoolView: View {
         .frame(maxWidth: 380)
     }
 
-    /// Gemini Notebook's "Select all sources" and the box that ticks or
-    /// clears them all; "8 of 12 in chat" in its place while not every
-    /// source is ticked. The count is the notebook's whole chat pool
+    /// What the chats read, behind a chat bubble, and the ＋ that adds every
+    /// source or takes them all out: "All 12 in chat", "8 of 12 in chat",
+    /// "None in chat". The count is the notebook's whole chat pool
     /// (`notebookChatTally`), as the chat and the guide count it.
     ///
     /// While every source is ticked, which is how a notebook starts, the row
@@ -788,24 +789,28 @@ struct NotebookSourcePoolView: View {
         if tally.total > 0, !(vm.isScreenRecordModeActive && state == .checked) {
             HStack(spacing: 6) {
                 if state != .checked || isPointerOverColumn {
-                    Text(state == .checked ? "Select all sources" : "\(tally.inChat) of \(tally.total) in chat")
-                        .zoomedSystemFont(size: 12)
-                        .foregroundStyle(.secondary)
-                        .monospacedDigit()
-                        .textSelection(.disabled)
+                    Label {
+                        Text(Self.chatTallyLine(inChat: tally.inChat, total: tally.total))
+                            .monospacedDigit()
+                    } icon: {
+                        Image(systemName: "bubble.left")
+                    }
+                    .labelStyle(.titleAndIcon)
+                    .zoomedSystemFont(size: 12)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.disabled)
                     Spacer(minLength: 0)
                     sortMenu
-                    NotebookTickBox(
+                    NotebookChatToggle(
                         state: state,
-                        label: "Select all for chat",
-                        help: state == .checked ? "Leave every source out of chat" : "Include every source in chat",
+                        subject: "every source",
                         action: { vm.setAllNotebookSourcesInChat(state != .checked, notebookID: goal.id) }
                     )
                     .accessibilityIdentifier("notebook.sources.selectAll")
                 } else {
                     // The box built only under the pointer, as a row's ⋯
                     // is; a hidden face keeps the row's height.
-                    Text("Select all sources")
+                    Text(Self.chatTallyLine(inChat: tally.inChat, total: tally.total))
                         .zoomedSystemFont(size: 12)
                         .hidden()
                     Spacer(minLength: 0)
@@ -823,6 +828,14 @@ struct NotebookSourcePoolView: View {
             }
             .padding(.horizontal, 6)
         }
+    }
+
+    /// The head of the Sources column's chat ticks, saying what the chats
+    /// read: "None in chat", "8 of 12 in chat", "All 12 in chat".
+    static func chatTallyLine(inChat: Int, total: Int) -> String {
+        if inChat <= 0 { return "None in chat" }
+        if inChat >= total { return "All \(total) in chat" }
+        return "\(inChat) of \(total) in chat"
     }
 
     private var toolbar: some View {
@@ -1442,10 +1455,9 @@ private struct NotebookContextNotebookGroup: View {
                     RowRemoveGlyph()
                         .hidden()
                 }
-                NotebookTickBox(
+                NotebookChatToggle(
                     state: state,
-                    label: "Include \(title) in chat",
-                    help: state == .checked ? "Leave \(title) out of chat" : "Include \(title) in chat",
+                    subject: title,
                     action: { vm.setNotebookContextNotebooks([notebook.id], inChat: state != .checked, notebookID: goal.id) }
                 )
                 .accessibilityIdentifier("notebook.sources.contextNotebook")
@@ -1776,10 +1788,9 @@ private struct NotebookPoolBookGroupLabel: View {
             .help(isExpanded.wrappedValue ? "Hide chapters" : "Show \(BookChapterTitle.countLabel(for: sources))")
             .accessibilityLabel(isExpanded.wrappedValue ? "Hide chapters of \(name)" : "Show chapters of \(name)")
             if let chatState {
-                NotebookTickBox(
+                NotebookChatToggle(
                     state: chatState,
-                    label: "Include \(name) in chat",
-                    help: chatState == .checked ? "Leave out of chat" : "Include in chat",
+                    subject: name,
                     action: onToggleChat
                 )
             }
@@ -2062,10 +2073,9 @@ struct NotebookPoolSourceRow: View {
                     // learner left the source out (screen record mode).
                     Color.clear.frame(width: 18, height: 18)
                 } else {
-                    NotebookTickBox(
+                    NotebookChatToggle(
                         state: isInChat ? .checked : .unchecked,
-                        label: "Include \(article.title) in chat",
-                        help: isInChat ? "Leave out of chat" : "Include in chat",
+                        subject: article.title,
                         action: onToggleChat
                     )
                 }

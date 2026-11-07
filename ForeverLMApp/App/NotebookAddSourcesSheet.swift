@@ -51,6 +51,52 @@ struct NotebookTickBox: View {
     }
 }
 
+/// Whether a notebook's chats read a source, a book or a group, drawn as an
+/// add control rather than a bare square (product owner, 2026-11-07: "it's
+/// unclear that these selected things actually go into the context of the
+/// chat … maybe you can do a plus"): a ＋ in a circle while it is out, a
+/// filled tick while it is in, a filled minus while only some of a group is.
+/// The Sources column's chat ticks use it; the Add sources sheet's
+/// selection keeps `NotebookTickBox`.
+struct NotebookChatToggle: View {
+    let state: NotebookTickState
+    /// What the control puts into the chat, for its help and VoiceOver:
+    /// a source's title, "every source".
+    let subject: String
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Image(systemName: Self.symbolName(for: state))
+                .zoomedSystemFont(size: 14, weight: state == .unchecked ? .regular : .medium)
+                .foregroundStyle(state == .unchecked ? Color.secondary : Color.accentColor)
+                .frame(width: 18, height: 18)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.hoverWash)
+        .help(Self.help(for: state))
+        .accessibilityLabel("Add \(subject) to chat")
+        .accessibilityValue(state == .checked ? "In chat" : state == .mixed ? "Partly in chat" : "Not in chat")
+        .accessibilityAddTraits(state == .checked ? .isSelected : [])
+    }
+
+    static func symbolName(for state: NotebookTickState) -> String {
+        switch state {
+        case .checked: return "checkmark.circle.fill"
+        case .mixed: return "minus.circle.fill"
+        case .unchecked: return "plus.circle"
+        }
+    }
+
+    static func help(for state: NotebookTickState) -> String {
+        switch state {
+        case .checked: return "In chat. Click to leave out"
+        case .mixed: return "Partly in chat. Click to add all"
+        case .unchecked: return "Add to chat"
+        }
+    }
+}
+
 // MARK: - The sheet's pure part
 
 /// What the Add sources sheet's one field holds and which results are ticked.

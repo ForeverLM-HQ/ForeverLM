@@ -142,17 +142,23 @@ struct NotebookChatsMenuItems: View {
     }
 }
 
-/// A notebook's chats as the Sources column's other list: New Chat first, as
-/// ChatGPT's sidebar leads with it, then every chat of the notebook in the
-/// rail's order, the one this window shows in the grey selection. A row opens
-/// its chat here, in the notebook (`requestResumeReviewSession`). The field
-/// filters by title. The chat header's ⋯ ▸ Chats in This Notebook
-/// (`NotebookChatsMenuItems`) lists the same chats and stays as the shortcut.
+/// A notebook's chats as the Sources column's other list, drawn like
+/// ChatGPT's list of a project's chats: New Chat first, then every chat of the
+/// notebook in the rail's order, each a title with its short date at the
+/// trailing edge and a hairline between rows, the one this window shows in the
+/// grey selection. A row opens its chat here, in the notebook
+/// (`requestResumeReviewSession`). The field filters by title. The chat
+/// header's ⋯ ▸ Chats in This Notebook (`NotebookChatsMenuItems`) lists the
+/// same chats and stays as the shortcut.
 struct NotebookChatsColumn: View {
     @Environment(StudioViewModel.self) private var vm
     @Environment(StudioWindowState.self) private var windowState
     let notebookID: String
     @State private var searchText = ""
+
+    private var isSearching: Bool {
+        !searchText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
 
     private var chats: [ReviewSessionRecord] {
         let all = vm.notebookChats(notebookID: notebookID)
@@ -162,29 +168,41 @@ struct NotebookChatsColumn: View {
     }
 
     var body: some View {
+        let chats = chats
+        let openID = windowState.chatSessionID
         VStack(alignment: .leading, spacing: 10) {
             SpaceSearchField(text: $searchText, prompt: "Search chats", identifier: "notebook.chats.search")
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 2) {
-                    NotebookChatRow(
-                        title: "New Chat",
-                        systemImage: "square.and.pencil",
-                        isSelected: false,
-                        identifier: "notebook.chats.new"
-                    ) {
-                        vm.inWindow(windowState) { vm.requestNewChat() }
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    if !isSearching {
+                        NotebookNewChatRow {
+                            vm.inWindow(windowState) { vm.requestNewChat() }
+                        }
+                        .padding(.bottom, 6)
                     }
-                    ForEach(chats) { chat in
-                        let isOpen = chat.id == windowState.chatSessionID
+                    if chats.isEmpty, isSearching {
+                        Text("No chat matches")
+                            .zoomedSystemFont(size: 12.5)
+                            .foregroundStyle(.secondary)
+                            .padding(.horizontal, 10)
+                            .padding(.vertical, 12)
+                    }
+                    ForEach(Array(chats.enumerated()), id: \.element.id) { index, chat in
+                        let isOpen = chat.id == openID
+                        let next = index + 1 < chats.count ? chats[index + 1] : nil
                         NotebookChatRow(
                             title: chat.title.isEmpty ? "Untitled chat" : chat.title,
-                            systemImage: nil,
+                            date: chat.createdAt,
                             isSelected: isOpen,
+                            // No hairline at the foot of the list, nor where it
+                            // would cut into the selection's rounded fill.
+                            showsDivider: next != nil && !isOpen && next?.id != openID,
                             identifier: "notebook.chat.\(chat.id)"
                         ) {
                             guard !isOpen else { return }
                             vm.inWindow(windowState) { vm.requestResumeReviewSession(chat.id) }
                         }
+                        .contextMenu { OtherWindowMenuItem(.chat(chat.id)) }
                     }
                 }
             }
@@ -195,48 +213,115 @@ struct NotebookChatsColumn: View {
     }
 }
 
-/// One row of `NotebookChatsColumn`: a title on one line, the open chat in
-/// the grey selection, the pointer's hover painted by the row itself.
-private struct NotebookChatRow: View {
-    let title: String
-    let systemImage: String?
-    let isSelected: Bool
-    let identifier: String
+/// New Chat at the head of `NotebookChatsColumn`: the list's one action, a
+/// pencil and a label in the secondary colour, so it reads as a button and
+/// not as one more chat.
+private struct NotebookNewChatRow: View {
     let action: () -> Void
     @State private var isHovering = false
 
     var body: some View {
         Button(action: action) {
             HStack(spacing: 8) {
-                if let systemImage {
-                    Image(systemName: systemImage)
-                        .zoomedSystemFont(size: 12, weight: .medium)
-                        .foregroundStyle(.secondary)
-                }
-                Text(title)
-                    .zoomedSystemFont(size: 13)
-                    .foregroundStyle(.primary)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                Image(systemName: "square.and.pencil")
+                    .zoomedSystemFont(size: 12.5, weight: .medium)
+                    .frame(width: 16)
+                Text("New Chat")
+                    .zoomedSystemFont(size: 13, weight: .medium)
                     .textSelection(.disabled)
                 Spacer(minLength: 0)
             }
-            .padding(.horizontal, 8)
-            .frame(height: 30)
+            .foregroundStyle(isHovering ? .primary : .secondary)
+            .padding(.horizontal, 10)
+            .frame(height: 34)
             .background(
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
-                    .fill(isSelected
-                        ? StudioDesign.selectionFill(isSelected: true, isHovered: isHovering)
-                        : Color.primary.opacity(isHovering ? 0.04 : 0))
+                    .fill(Color.primary.opacity(isHovering ? 0.04 : 0))
             )
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
         .ownsRowHoverWash()
         .onHover { isHovering = $0 }
+        .accessibilityLabel("New Chat")
+        .accessibilityIdentifier("notebook.chats.new")
+    }
+}
+
+/// One chat of `NotebookChatsColumn`: its title on one line and its short
+/// date at the trailing edge, a hairline under it, the open chat in the grey
+/// selection, the pointer's hover painted by the row itself.
+private struct NotebookChatRow: View {
+    let title: String
+    let date: Date
+    let isSelected: Bool
+    let showsDivider: Bool
+    let identifier: String
+    let action: () -> Void
+    @State private var isHovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 10) {
+                Text(title)
+                    .zoomedSystemFont(size: 13, weight: isSelected ? .medium : .regular)
+                    .foregroundStyle(.primary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .textSelection(.disabled)
+                Spacer(minLength: 0)
+                if ScreenRecordMode.showsDateStamp(date) {
+                    Text(Self.shortDate(date))
+                        .zoomedSystemFont(size: 11.5)
+                        .monospacedDigit()
+                        .foregroundStyle(.tertiary)
+                        .lineLimit(1)
+                        .fixedSize()
+                }
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 38)
+            .background(
+                RoundedRectangle(cornerRadius: 8, style: .continuous)
+                    .fill(isSelected
+                        ? StudioDesign.selectionFill(isSelected: true, isHovered: isHovering)
+                        : Color.primary.opacity(isHovering ? 0.04 : 0))
+            )
+            .overlay(alignment: .bottom) {
+                if showsDivider, !isHovering {
+                    Rectangle()
+                        .fill(Color.primary.opacity(0.07))
+                        .frame(height: 1)
+                        .padding(.horizontal, 10)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .ownsRowHoverWash()
+        .onHover { isHovering = $0 }
+        .help(title)
         .accessibilityLabel(title)
+        .accessibilityValue(Text(date, format: .relative(presentation: .named)))
         .accessibilityAddTraits(isSelected ? [.isSelected] : [])
         .accessibilityIdentifier(identifier)
+    }
+
+    /// The date as a chat list writes it: the time for today, the weekday
+    /// within the last week, the month and day this year, and the year too
+    /// before that.
+    static func shortDate(_ date: Date, now: Date = .now, calendar: Calendar = .current) -> String {
+        if calendar.isDate(date, inSameDayAs: now) {
+            return date.formatted(date: .omitted, time: .shortened)
+        }
+        let startOfToday = calendar.startOfDay(for: now)
+        if let weekAgo = calendar.date(byAdding: .day, value: -6, to: startOfToday), date >= weekAgo, date < now {
+            return date.formatted(.dateTime.weekday(.abbreviated))
+        }
+        if calendar.isDate(date, equalTo: now, toGranularity: .year) {
+            return date.formatted(.dateTime.month(.abbreviated).day())
+        }
+        return date.formatted(.dateTime.month(.abbreviated).day().year())
     }
 }
 
