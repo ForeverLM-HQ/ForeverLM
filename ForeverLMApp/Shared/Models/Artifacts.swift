@@ -826,11 +826,11 @@ struct ChatWrittenPage: Equatable, Hashable, Sendable {
 }
 
 /// What the library says about one web reference in a doc — a line that is
-/// nothing but a link, drawn by the editor as a card, or a link cited inside a
-/// sentence, drawn as a card in the margin beside its paragraph. The editor
+/// nothing but a link, drawn by the editor as a card, or a link a footnote
+/// cites, shown in the card that opens on the footnote's number. The editor
 /// asks with the addresses it holds and is answered with one of these per
 /// address; the JSON shape (`state`, `sourceID`, `message`, the picture's
-/// `kind`, `thumbnailURL`, `iconURL`, and the margin card's `title` and
+/// `kind`, `thumbnailURL`, `iconURL`, and the footnote card's `title` and
 /// `detail`) is the editor's contract.
 ///
 /// `adding` and `failed` are the host's own states around Add to Sources: the
@@ -865,11 +865,11 @@ struct ArtifactReferenceStatus: Equatable, Codable, Sendable {
     var thumbnailURL: String?
     /// The site's mark, drawn small in the tile when there is no picture.
     var iconURL: String?
-    /// What a margin card calls the source: the library's title for a saved
+    /// What a footnote's card calls the source: the library's title for a saved
     /// source, the page's own title for one the library does not hold. Nil
     /// leaves the card standing on the words that cite it.
     var title: String?
-    /// The margin card's second line, the way the sidebar row writes it —
+    /// The footnote card's second line, the way the sidebar row writes it —
     /// author · venue · year for a paper, the site for a page. Nil leaves the
     /// card standing on the address's domain.
     var detail: String?

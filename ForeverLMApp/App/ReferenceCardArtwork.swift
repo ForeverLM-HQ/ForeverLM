@@ -37,7 +37,7 @@ enum ReferenceCardArtwork {
         return SourceArtwork.remoteURL(for: article)?.absoluteString
     }
 
-    /// The margin card's second line for a saved source, written the way the
+    /// A footnote card's second line for a saved source, written the way the
     /// sidebar row writes it: author · venue · year for a paper, without the
     /// "Unknown …" placeholders the row has room for; the author and the site
     /// for anything else. Nil when there is nothing to say, and the card falls
@@ -71,10 +71,10 @@ struct ReferenceLinkPreview: Equatable, Sendable {
     /// the tile falls back to its glyph when even that does not load.
     var iconURL: String?
     /// The page's own title — a paper's `citation_title`, else `og:title`, else
-    /// the `<title>` without its site suffix — for the margin card. Nil leaves
+    /// the `<title>` without its site suffix — for a footnote's card. Nil leaves
     /// the card on the words that cite it.
     var title: String?
-    /// The margin card's second line: author · venue · year from a scholarly
+    /// The footnote card's second line: author · venue · year from a scholarly
     /// page's citation tags, else the author, the site's name and the year the
     /// page declares. Nil leaves the card on the address's domain.
     var detail: String?
@@ -195,7 +195,7 @@ actor ReferenceLinkPreviews {
         )
     }
 
-    /// What a page's head says the page is, for a margin card: the title, and a
+    /// What a page's head says the page is, for a footnote's card: the title, and a
     /// second line in the sidebar row's shape. A scholarly landing page carries
     /// citation tags — `citation_title`, `citation_author`, `citation_journal_title`,
     /// `citation_publication_date` — and reads as a paper: author · venue · year,

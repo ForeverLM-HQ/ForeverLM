@@ -1297,49 +1297,10 @@ body.read-only .artifact-selection-assistant button[data-role="ai"] {
   }
 }
 
-/* Margin cards: a paragraph that cites the web in its sentences carries a
-   stack of cards in the right margin, one per address, each drawn the way the
-   Sources sidebar draws a row — picture, title, a quieter line of what it is,
-   and the library's answer at the trailing edge. The stack is written at the
-   head of the paragraph and taken out of the text flow; `layoutMarginCards`
-   moves it into one column past the page's edge and down past the stack above
-   it, so the prose is never pushed and two paragraphs' cards never overlap.
-
-   The column needs room. The page is `--artifact-page-width` in a pane that
-   has it and centred there; with a margin column it moves over so page and
-   column are centred together, and in a pane that cannot hold both at full
-   width the page yields first — the prose column narrows before the cards go —
-   and only a pane that cannot hold the two at all draws no cards. The tier is
-   written on the body as `data-margin-tier` by `layoutMarginCards`, because it
-   depends on the page width the host chose and a media query cannot read a
-   custom property. The host mirrors these tiers for the title above the page
-   (`pageInset` in ArtifactViews.swift), so the title keeps the prose's left
-   edge whichever tier the pane is in. */
-.milkdown .editor {
-  --artifact-margin-card-width: 240px;
-  --artifact-margin-gutter: 20px;
-  --artifact-margin-gap: 10px;
-}
-
-.milkdown .editor p.artifact-cited {
-  position: relative;
-}
-
-.artifact-margin-cards {
-  position: absolute;
-  top: 0;
-  left: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: var(--artifact-margin-gap);
-  width: var(--artifact-margin-card-width);
-  margin: 0;
-  padding: 0;
-  user-select: none;
-  -webkit-user-select: none;
-}
-
-.artifact-margin-card {
+/* A cited source, as the footnote hover card draws it (`citedSourceRow`):
+   one row the way the Sources sidebar draws one — picture, title, a quieter
+   line of what it is, and the library's answer at the trailing edge. */
+.artifact-cited-source {
   display: flex;
   box-sizing: border-box;
   align-items: center;
@@ -1352,20 +1313,20 @@ body.read-only .artifact-selection-assistant button[data-role="ai"] {
   text-align: left;
 }
 
-.artifact-margin-card.is-openable {
+.artifact-cited-source.is-openable {
   cursor: pointer;
 }
 
 /* Every row lights up under the pointer, like the sidebar's. */
-.artifact-margin-card:hover,
-.artifact-margin-card:focus-visible {
+.artifact-cited-source:hover,
+.artifact-cited-source:focus-visible {
   background: color-mix(in srgb, CanvasText 6%, transparent);
   outline: none;
 }
 
 /* The same tile as a reference card's, at the sidebar row's portrait size and
    in the flow of the row rather than pinned to a corner. */
-.artifact-margin-card .artifact-reference-thumbnail {
+.artifact-cited-source .artifact-reference-thumbnail {
   position: static;
   top: auto;
   left: auto;
@@ -1376,7 +1337,7 @@ body.read-only .artifact-selection-assistant button[data-role="ai"] {
   transform: none;
 }
 
-.artifact-margin-card-body {
+.artifact-cited-source-body {
   display: flex;
   min-width: 0;
   flex: 1 1 auto;
@@ -1384,7 +1345,7 @@ body.read-only .artifact-selection-assistant button[data-role="ai"] {
   gap: 2px;
 }
 
-.artifact-margin-card-title {
+.artifact-cited-source-title {
   display: -webkit-box;
   overflow: hidden;
   -webkit-box-orient: vertical;
@@ -1393,7 +1354,7 @@ body.read-only .artifact-selection-assistant button[data-role="ai"] {
   overflow-wrap: anywhere;
 }
 
-.artifact-margin-card-detail {
+.artifact-cited-source-detail {
   overflow: hidden;
   color: color-mix(in srgb, CanvasText 55%, transparent);
   font-size: 11px;
@@ -1401,13 +1362,13 @@ body.read-only .artifact-selection-assistant button[data-role="ai"] {
   white-space: nowrap;
 }
 
-.artifact-margin-card-action {
+.artifact-cited-source-action {
   display: inline-flex;
   flex: 0 0 auto;
   align-items: center;
 }
 
-.artifact-margin-card-action button {
+.artifact-cited-source-action button {
   display: inline-flex;
   align-items: center;
   height: 24px;
@@ -1420,11 +1381,11 @@ body.read-only .artifact-selection-assistant button[data-role="ai"] {
   cursor: pointer;
 }
 
-.artifact-margin-card-action button:hover {
+.artifact-cited-source-action button:hover {
   background: color-mix(in srgb, CanvasText 8%, transparent);
 }
 
-.artifact-margin-card-action .artifact-reference-pending {
+.artifact-cited-source-action .artifact-reference-pending {
   padding: 0 6px;
 }
 
@@ -1442,72 +1403,6 @@ body.read-only .artifact-selection-assistant button[data-role="ai"] {
 
 .artifact-reference-plus svg {
   display: block;
-}
-
-/* In a paragraph whose sources stand in cards, the citations inside the
-   sentences go quiet: a report cites as it goes — "C03-S01 · Paper; C03-S02 ·
-   Company" after every claim — and in link blue those runs cut every sentence
-   in three. The words stay, in the prose's own colour with a dotted hairline
-   under them so they still read as something to follow; the card beside the
-   paragraph (or its reference line below) is what says which source it is.
-   The editor's private addresses — grounding, doc and Notebook links — keep
-   their own rules. */
-.milkdown .editor p.artifact-cited a[href^="http"]:not([href^="https://foreverlm.invalid/"]) {
-  color: color-mix(in srgb, CanvasText 62%, transparent);
-  text-decoration: underline dotted;
-  text-decoration-color: color-mix(in srgb, CanvasText 28%, transparent);
-  text-decoration-thickness: 1px;
-  text-underline-offset: 3px;
-}
-
-.milkdown .editor p.artifact-cited a[href^="http"]:not([href^="https://foreverlm.invalid/"]):hover {
-  color: LinkText;
-  text-decoration: underline;
-}
-
-/* Hovering a card underlines the words in the paragraph that cite it. */
-.milkdown .editor a.artifact-cited-active {
-  color: CanvasText;
-  text-decoration: underline;
-  text-decoration-color: AccentColor;
-  text-underline-offset: 3px;
-}
-
-/* Wide: the page keeps its full width and moves over so that page and column
-   are centred together. */
-body.has-margin-cards[data-margin-tier="wide"] .milkdown .editor {
-  margin-right: auto;
-  margin-left: max(0px, calc((100% - var(--artifact-page-width) - 260px) / 2));
-}
-
-/* Medium: the page yields to the column. */
-body.has-margin-cards[data-margin-tier="medium"] .milkdown .editor {
-  width: calc(100% - 260px);
-  margin-right: auto;
-  margin-left: 0;
-}
-
-/* Narrow: no column. The stack is written after the paragraph's last word
-   instead and flows below the text, one full-width row per source — the same
-   rows, the same controls, just under the claim rather than beside it. */
-.artifact-margin-cards[data-tier="inline"] {
-  position: static;
-  width: auto;
-  margin: 8px 0 2px;
-}
-
-.artifact-margin-cards[data-tier="inline"] .artifact-margin-card {
-  padding: 4px 6px;
-}
-
-.artifact-margin-cards[data-tier="inline"] .artifact-margin-card-title {
-  -webkit-line-clamp: 1;
-}
-
-/* Two paragraphs in a row with stacks below them need a little more air
-   between the last row and the next paragraph. */
-.milkdown .editor p.artifact-cited:has(> .artifact-margin-cards[data-tier="inline"]) {
-  margin-bottom: 1em;
 }
 
 .artifact-heading-fold-controls {
@@ -1816,33 +1711,48 @@ body.has-margin-cards[data-margin-tier="medium"] .milkdown .editor {
   width: 100%;
 }
 
-/* A table of four or more columns is wider than a line of prose wants to be:
-   five columns in the 760px column wrap their headings letter by letter. Such
-   a table spreads past the prose column to the pane's own inset on both sides
-   — the column stays where it is for the text, the table takes the room the
-   pane has — and stops at the pane's edge, so on a pane no wider than the
-   page (or a page set to Full Width) it is exactly the width it was. The product owner
-   (2026-09-12), on a five-column table of trials: "i need to be able to have a
-   table like that full screen". `50%` is half the prose column, `50vw` half
-   the pane, and the editor is centred in the pane, so the difference is the
-   column's inset. A page whose margin cards flow inline is centred the same
-   way. */
-body:not(.has-margin-cards) .milkdown .editor .milkdown-table-block:not([data-table-width]):has(tr > :nth-child(4)),
-body.has-margin-cards[data-margin-tier="inline"] .milkdown .editor .milkdown-table-block:not([data-table-width]):has(tr > :nth-child(4)),
-body:not(.has-margin-cards) .milkdown .editor .milkdown-table-block[data-table-width="full"],
-body.has-margin-cards[data-margin-tier="inline"] .milkdown .editor .milkdown-table-block[data-table-width="full"] {
+/* Tables read the way Confluence draws them: a table stands in the column
+   of the writing, as wide as the prose and no wider, so the page keeps one
+   left edge; a table whose columns need more room than that scrolls inside the
+   column rather than spilling past it (product owner, 2026-11-07, on a table
+   that reached far left of the prose: "you need to make this a lot more like
+   confluence"). Full width (Block properties) is the deliberate way out: the
+   table then takes the pane's room, centred on the page, as Confluence's own
+   full-width tables do. `50%` is half the prose column, `50vw` half the pane,
+   and the editor is centred in the pane, so the difference is the column's
+   inset. */
+.milkdown .editor .milkdown-table-block > div > .table-wrapper {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.milkdown .editor .milkdown-table-block[data-table-width="full"] {
   width: calc(100vw - 2 * var(--artifact-page-padding));
   margin-left: calc(50% - 50vw + var(--artifact-page-padding));
 }
 
-/* With a margin column beside the page the table must not cover the cards, so
-   it grows only towards the pane's leading edge: the page's own offset (the
-   `wide` tier's margin-left above) is the room it takes. In the `medium` tier
-   the page already spans everything the column leaves, and the table stays. */
-body.has-margin-cards[data-margin-tier="wide"] .milkdown .editor .milkdown-table-block:not([data-table-width]):has(tr > :nth-child(4)),
-body.has-margin-cards[data-margin-tier="wide"] .milkdown .editor .milkdown-table-block[data-table-width="full"] {
-  width: calc(100% + max(0px, (100vw - var(--artifact-page-width) - 260px) / 2));
-  margin-left: calc(-1 * max(0px, (100vw - var(--artifact-page-width) - 260px) / 2));
+/* Confluence's cell: a hairline grid, a shaded header row, and cells as tall as
+   one line of their words plus a little air. A cell's paragraph carries no
+   block margin of its own, which was what made every row two lines tall. */
+.milkdown .editor .milkdown-table-block table {
+  border-collapse: collapse;
+  font-size: 0.94em;
+  line-height: 1.45;
+}
+
+.milkdown .editor .milkdown-table-block :is(th, td) {
+  padding: 7px 10px;
+  vertical-align: top;
+}
+
+.milkdown .editor .milkdown-table-block :is(th, td) p {
+  margin: 0;
+}
+
+.milkdown .editor .milkdown-table-block th {
+  background: color-mix(in srgb, CanvasText 4.5%, Canvas);
+  font-weight: 600;
+  text-align: left;
 }
 
 /* A table's properties (Block properties; the editor puts them on the table
@@ -2429,19 +2339,6 @@ body.ready .artifact-page-foot {
 
 .artifact-page-foot[hidden] {
   display: none;
-}
-
-/* The foot moves with the page beside a margin column, so the two keep one
-   left edge (the same tiers as `.milkdown .editor` above). */
-body.has-margin-cards[data-margin-tier="wide"] .artifact-page-foot {
-  margin-right: auto;
-  margin-left: max(0px, calc((100% - var(--artifact-page-width) - 260px) / 2));
-}
-
-body.has-margin-cards[data-margin-tier="medium"] .artifact-page-foot {
-  width: calc(100% - 260px);
-  margin-right: auto;
-  margin-left: 0;
 }
 
 .artifact-foot-section {
@@ -3043,7 +2940,27 @@ body.artifact-block-dragging * {
   box-shadow: 0 8px 24px color-mix(in srgb, CanvasText 14%, transparent);
   color: CanvasText;
   font: 13px/1.5 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
-  pointer-events: none;
+}
+
+/* A note that names sources is mostly its rows: the card is as wide as a
+   sidebar row wants and the rows sit flush with its edge. */
+.artifact-footnote-card.has-sources {
+  width: min(340px, calc(100vw - 16px));
+  padding: 6px;
+}
+
+.artifact-footnote-card.has-sources > .artifact-footnote-card-words {
+  padding: 4px 6px 6px;
+}
+
+.artifact-footnote-card-words > * {
+  margin: 0;
+}
+
+.artifact-footnote-card-sources {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }
 
 .artifact-footnote-card[hidden] {

@@ -421,10 +421,9 @@ function publicationHTML(title = 'Untitled Article') {
     mark.replaceWith(...mark.childNodes)
   }
   for (const removed of article.querySelectorAll('.artifact-ai-removed')) removed.remove()
-  // A reference card's control and a paragraph's margin cards are the
-  // library's answer to this Mac, not part of the writing; the titles and
-  // their links stay.
-  for (const control of article.querySelectorAll('.artifact-reference-control, .artifact-reference-thumbnail, .artifact-reference-meta, .artifact-margin-cards')) {
+  // A reference card's control is the library's answer to this Mac, not part
+  // of the writing; the titles and their links stay.
+  for (const control of article.querySelectorAll('.artifact-reference-control, .artifact-reference-thumbnail, .artifact-reference-meta')) {
     control.remove()
   }
   // A Prompt's button and a visualization's frame are what this editor draws
@@ -536,7 +535,7 @@ const publishedFootnoteStyles = 'sup.fn-ref{font:600 .7em/0 ui-sans-serif,-apple
 function publishedBlockPropertyStyles() {
   const colors = Object.entries(highlightHex).filter(([name]) => name !== 'yellow')
     .map(([name, hex]) => `blockquote[data-callout="highlight"][data-callout-color="${name}"]{--hl:${hex}}`).join('')
-  return `.table-block{margin:1.4em 0}.table-block.table-flexible{overflow-x:auto}.table-flexible table{width:max-content}.table-block.table-full{box-sizing:border-box;width:100vw;margin-left:calc(50% - 50vw);padding:0 28px}.table-even table{table-layout:fixed;width:100%}blockquote[data-callout="highlight"]{--hl:${highlightHex.yellow};padding:.55em 1em;border-left-color:var(--hl);border-radius:8px;background:color-mix(in srgb,var(--hl) 13%,transparent);color:inherit}${colors}`
+  return `.table-block{margin:1.4em 0;overflow-x:auto}.table-block.table-flexible{overflow-x:auto}.table-flexible table{width:max-content}.table-block.table-full{box-sizing:border-box;width:100vw;margin-left:calc(50% - 50vw);padding:0 28px}.table-even table{table-layout:fixed;width:100%}blockquote[data-callout="highlight"]{--hl:${highlightHex.yellow};padding:.55em 1em;border-left-color:var(--hl);border-radius:8px;background:color-mix(in srgb,var(--hl) 13%,transparent);color:inherit}${colors}`
 }
 
 /// The published copy carries the notes graph's words, not its grammar: a
@@ -841,8 +840,6 @@ function refreshSectionFolds() {
   }
   ensureFoldStyle().textContent = rules.join('\n')
   renderFoldControls(headings)
-  // Folding hides paragraphs, and the stacks below them move up with the prose.
-  scheduleMarginCardLayout()
   postFoldsIfChanged()
 }
 
@@ -943,7 +940,6 @@ const outlineFoldPlugin = $prose(() => new Plugin({
       const foldsMoved = outlineFoldPositions(view.state) !== outlineFoldPositions(previous)
       if (!foldsMoved && view.state.doc === previous.doc) return
       scheduleFoldControlsRefresh()
-      if (foldsMoved) scheduleMarginCardLayout()
       scheduleFoldPost()
     },
   }),
@@ -2793,287 +2789,124 @@ function referenceAction(href, status, compact = false) {
   return null
 }
 
-// ─── Margin cards ──────────────────────────────────────────────────────────
-// A link inside a sentence — the paper a claim rests on, the company page a
-// profile draws from — is a source the writer is standing on just as much as a
-// reference line is, and the reader deciding whether to add it wants to see it
-// where it is cited, not two hundred lines down in a reference list. So every
-// paragraph holding web links gets a stack of cards in the right margin,
-// beside the paragraph, each drawn the way the Sources sidebar draws a row: the
-// picture, the title, a quieter line of what it is (author · venue · year for a
-// paper, the site for a page) and, at the trailing edge, the library's answer —
-// a check that opens the source, or a plus that adds it. The cards are
-// presentation: the Markdown keeps its inline links, and nothing is stored.
+// ─── Cited sources ─────────────────────────────────────────────────────────
+// A page cites with footnotes: a small number in the sentence, and the note at
+// the foot names the paper. Pointing at the number shows the note and, for
+// each source its links name, a row drawn the way the Sources sidebar draws
+// one: the picture, the title, a quieter line of what it is (author · venue ·
+// year for a paper, the site for a page) and, at the trailing edge, the
+// library's answer, a check that opens the source or a plus that adds it.
+// Nothing stands beside the prose (product owner, 2026-11-07: "Let's definitely
+// not show them on the side as these pop-ups"), so the text reads as text.
 //
-// The margin is a column of its own, not the paragraph's box, so a card is
-// positioned by a layout pass rather than by the paragraph alone: every card
-// sits at the top of its paragraph unless the stack above runs into it, in
-// which case it takes the first free row below. Below a pane width that cannot
-// hold the prose and the column together the cards are not drawn; the links are
-// still in the prose, where they always were.
+// The host is still told every web address the page links to, in a sentence
+// or a note, so its answer is ready by the time a number is pointed at.
 
-/// The distinct web pages a paragraph cites in sentences, in reading order,
-/// each with the first address it is cited by and that link's words:
-/// `[{ href, page, text }]`. A card is a source, so two links into one page
-/// (`#Fig3` and `#Fig4` of one article) are one card. A reference line is not
-/// a citation — it has its own card — and a table cell has no margin to carry
-/// one, so both answer with nothing.
-function citedLinksInBlock(state, block) {
+/// The distinct sources a paragraph links to, in reading order, each with
+/// the first address it is linked by and that link's words:
+/// `[{ href, page, text }]`. Two links into one page (`#Fig3` and `#Fig4` of
+/// one article) are one source. With `grounding`, a grounded run (what two
+/// library sources side by side in a note are joined into) stands for each
+/// source it carries, as that source's own address.
+function citedLinksInBlock(state, block, { grounding = false } = {}) {
   if (block.node.type.name !== 'paragraph') return []
-  const $position = state.doc.resolve(block.position)
-  for (let depth = $position.depth; depth > 0; depth -= 1) {
-    if (/table/i.test($position.node(depth).type.name)) return []
-  }
   const byPage = new Map()
   let previousHref = null
   block.node.forEach((child) => {
     if (!child.isText) { previousHref = null; return }
     const mark = child.marks.find((candidate) => candidate.type.name === 'link')
-    const href = mark ? webReferenceHref(mark.attrs?.href) : null
+    const grounded = grounding && mark ? groundingSourceIDs(mark.attrs?.href) : []
+    if (grounded.length) {
+      for (const id of grounded) {
+        const href = `${sourceMarkdownPrefix}${encodeURIComponent(id)}`
+        if (!byPage.has(href)) byPage.set(href, { href, page: href, text: grounded.length === 1 ? child.text : '' })
+      }
+      previousHref = null
+      return
+    }
+    const href = mark ? referenceHref(mark.attrs?.href) : null
     if (!href) { previousHref = null; return }
     const page = referencePage(href)
     const cited = byPage.get(page)
     if (!cited) byPage.set(page, { href, page, text: child.text })
-    // One link split into two text nodes by a second mark — a bold word inside
-    // the title — is one run of words; the same page cited again later in the
-    // paragraph is a repeat, and its words are not appended.
+    // One link split into two text nodes by a second mark (a bold word inside
+    // the title) is one run of words; the same page linked again later is a
+    // repeat, and its words are not appended.
     else if (previousHref === href && cited.href === href) cited.text += child.text
     previousHref = href
   })
   return [...byPage.values()].map((cited) => ({ href: cited.href, page: cited.page, text: cited.text.trim() }))
 }
 
-/// Which web pages each section already lists as reference cards, keyed by
-/// the index of the heading that opens the section (0 before the first
-/// heading). A source that has its own card a few lines under the paragraph
-/// that cites it — the shape a report's per-company reference list takes — is
-/// not repeated in the margin; a References list at the end of the doc is
-/// another section, and leaves every margin card standing.
-function referencePagesBySection(state, blocks) {
-  const bySection = new Map()
-  let section = 0
-  for (const block of blocks) {
-    if (block.node.type.name === 'heading') { section += 1; continue }
-    const reference = referenceInBlock(state, block)
-    if (!reference) continue
-    if (!bySection.has(section)) bySection.set(section, new Set())
-    bySection.get(section).add(referencePage(reference.href))
-  }
-  return bySection
-}
-
-/// One margin card, drawn like a Sources sidebar row. A card in the library
-/// opens the source when pressed anywhere; a card the host has not answered, or
+/// One cited source, drawn like a Sources sidebar row. A row in the library
+/// opens the source when pressed anywhere; a row the host has not answered, or
 /// whose source the library does not hold, is inert except for its control.
-/// Hovering a card underlines the words in the paragraph that cite it, so the
-/// reader can tell which of a paragraph's three cards belongs to which claim.
-function marginCard(cited, status) {
-  const card = document.createElement('div')
-  card.className = 'artifact-margin-card'
+function citedSourceRow(cited, status) {
+  const row = document.createElement('div')
+  row.className = 'artifact-cited-source'
   const state = status?.state ?? 'unknown'
-  card.dataset.referenceState = state
-  card.dataset.href = cited.href
+  row.dataset.referenceState = state
+  row.dataset.href = cited.href
 
   const tile = referenceThumbnail(cited.href, status)
   const body = document.createElement('span')
-  body.className = 'artifact-margin-card-body'
+  body.className = 'artifact-cited-source-body'
   const title = document.createElement('span')
-  title.className = 'artifact-margin-card-title'
-  title.textContent = status?.title || cited.text || referenceDomain(cited.href)
+  title.className = 'artifact-cited-source-title'
+  title.textContent = status?.title || cited.text || referenceDomain(cited.href) || 'Source'
   const detail = document.createElement('span')
-  detail.className = 'artifact-margin-card-detail'
+  detail.className = 'artifact-cited-source-detail'
   detail.textContent = status?.detail || referenceDomain(cited.href)
-  body.append(title, detail)
-  card.append(tile, body)
+  body.append(title)
+  if (detail.textContent) body.append(detail)
+  row.append(tile, body)
 
   const action = referenceAction(cited.href, status, true)
   if (action) {
     const control = document.createElement('span')
-    control.className = 'artifact-margin-card-action'
+    control.className = 'artifact-cited-source-action'
     control.append(action)
-    card.append(control)
+    row.append(control)
   }
 
   if (state === 'inLibrary') {
-    card.classList.add('is-openable')
-    card.setAttribute('role', 'button')
-    card.tabIndex = 0
-    card.title = 'Open in Reader'
+    row.classList.add('is-openable')
+    row.setAttribute('role', 'button')
+    row.tabIndex = 0
+    row.title = 'Open in Reader'
     const open = () => post('openSourceRequested', { href: cited.href, sourceID: status?.sourceID ?? '' })
-    card.addEventListener('click', open)
-    card.addEventListener('keydown', (event) => {
+    row.addEventListener('click', open)
+    row.addEventListener('keydown', (event) => {
       if (event.key === 'Enter' || event.key === ' ') {
         event.preventDefault()
         open()
       }
     })
   } else {
-    card.title = cited.href
+    row.title = isSourceReference(cited.href) ? '' : cited.href
   }
-
-  const citedAnchors = () => {
-    const paragraph = card.closest('.artifact-cited')
-    if (!paragraph) return []
-    return [...paragraph.querySelectorAll('a[href]')].filter((anchor) => referencePage(anchor.getAttribute('href')) === cited.page)
-  }
-  card.addEventListener('mouseenter', () => {
-    for (const anchor of citedAnchors()) anchor.classList.add('artifact-cited-active')
-  })
-  card.addEventListener('mouseleave', () => {
-    for (const anchor of citedAnchors()) anchor.classList.remove('artifact-cited-active')
-  })
-  return card
+  return row
 }
-
-// The pane width below which there is no room for a margin column beside a
-// readable prose column: the same number as the stylesheet's narrow tier and
-// `marginColumnBreakpoint` in ArtifactViews.swift. Below it the cards flow
-// under their paragraph instead — a Docs pane beside Chat and Sources on a
-// 2560-point display is about 620 points, and that is the layout the reports
-// are read in, so "no cards" was never an acceptable narrow tier.
-const marginColumnBreakpoint = 790
-
-// The margin column's own width: a 240px card and a 20px gutter, the same
-// numbers as the stylesheet's `--artifact-margin-card-width` and
-// `--artifact-margin-gutter` and `marginColumnWidth` in ArtifactViews.swift.
-const marginColumnWidth = 260
 
 // The prose column's cap in CSS pixels, `Infinity` when the page fills the
 // pane. The host sets it through `setPageWidth`; until it does, the stylesheet's
 // default stands.
-let pageMaxWidth = 760
-
 function setPageWidth(width) {
   const cap = typeof width === 'number' && Number.isFinite(width) && width > 0 ? width : Infinity
-  pageMaxWidth = cap
   document.documentElement.style.setProperty(
     '--artifact-page-width',
     Number.isFinite(cap) ? `${cap}px` : '100%'
   )
-  applyMarginTier()
-  scheduleMarginCardLayout()
   scheduleContentsLayout()
 }
 
-// Whether margin cards are drawn at all. A reader who wants the prose alone
-// turns them off (the host's `setMarginCardsShown`): no stack beside or below
-// any paragraph, no column for the page to make room for, and the cited words
-// stay quiet in the prose, where the links always were. A reference line is
-// the doc's own paragraph, not a card beside one, and keeps its card.
-let marginCardsShown = true
-
-function setMarginCardsShown(shown) {
-  const next = shown !== false
-  if (next === marginCardsShown) return
-  marginCardsShown = next
-  refreshReferenceDecorations()
-  scheduleMarginCardLayout()
-}
-
-function marginCardTier() {
-  return window.innerWidth >= marginColumnBreakpoint ? 'margin' : 'inline'
-}
-
-/// Where the page sits when it has a margin column: `wide` when the pane holds
-/// the full page and the column side by side, `medium` when the page has to
-/// yield the column's width, `inline` when there is no column at all. The
-/// stylesheet reads the answer from the body, because the wide threshold moves
-/// with the page width the host chose and a media query cannot follow it.
-function marginTier() {
-  const width = window.innerWidth
-  if (width < marginColumnBreakpoint) return 'inline'
-  return width >= pageMaxWidth + marginColumnWidth ? 'wide' : 'medium'
-}
-
-function applyMarginTier() {
-  const tier = marginTier()
-  if (document.body.dataset.marginTier !== tier) document.body.dataset.marginTier = tier
-}
-
-let lastMarginCardTier = marginCardTier()
-
-/// The stack of cards for one paragraph: beside it in the margin, or below it
-/// (`inline`) when the pane cannot hold a margin column.
-function marginCards(citedLinks, inline = false) {
-  const aside = document.createElement('aside')
-  aside.className = 'artifact-margin-cards'
-  aside.dataset.tier = inline ? 'inline' : 'margin'
-  aside.contentEditable = 'false'
-  aside.setAttribute('aria-label', 'Sources cited in this paragraph')
-  // A press in the margin must not move the caret or take focus from the
-  // prose; cancelling mousedown does that and still lets the click through.
-  aside.addEventListener('mousedown', (event) => event.preventDefault())
-  for (const cited of citedLinks) aside.append(marginCard(cited, referenceStatus(cited.href)))
-  return aside
-}
-
-let marginLayoutFrame = null
-
-/// Place every margin stack: at the top of its paragraph, or at the first row
-/// below the stack above it when the two would overlap, and all in one column
-/// past the page's right edge whatever the paragraph's own indentation. The
-/// pass reads every rect first and writes every position after, so it forces
-/// one layout, not one per card. A stack whose paragraph is folded away, or
-/// whose column the pane is too narrow to show, is left where CSS put it.
-function layoutMarginCards() {
-  marginLayoutFrame = null
-  const root = document.querySelector('.milkdown .editor')
-  if (!root) return
-  const asides = [...root.querySelectorAll('.artifact-margin-cards')]
-  document.body.classList.toggle('has-margin-cards', asides.length > 0)
-  applyMarginTier()
-  // The page contents give the titles' room to source cards beside the page.
-  const cardsKey = `${asides.length > 0} ${document.body.dataset.marginTier ?? ''}`
-  if (cardsKey !== contentsCardsKey) {
-    contentsCardsKey = cardsKey
-    scheduleContentsLayout()
+/// Whether the block at `position` is part of a footnote's note.
+function inFootnoteDefinition(state, position) {
+  const $position = state.doc.resolve(position)
+  for (let depth = $position.depth; depth > 0; depth -= 1) {
+    if (isFootnoteDefinition($position.node(depth))) return true
   }
-  if (asides.length === 0) return
-  // The pane crossed the breakpoint since the stacks were written: they belong
-  // at the other end of their paragraphs now, which is a decoration change.
-  const tier = marginCardTier()
-  if (tier !== lastMarginCardTier) {
-    lastMarginCardTier = tier
-    refreshReferenceDecorations()
-    return
-  }
-  if (tier === 'inline') {
-    for (const aside of asides) {
-      aside.style.left = ''
-      aside.style.top = ''
-    }
-    return
-  }
-  const rootStyle = getComputedStyle(root)
-  if (getComputedStyle(asides[0]).position !== 'absolute') return
-  const gutter = parseFloat(rootStyle.getPropertyValue('--artifact-margin-gutter')) || 20
-  const gap = parseFloat(rootStyle.getPropertyValue('--artifact-margin-gap')) || 10
-  const rootRect = root.getBoundingClientRect()
-  const columnLeft = rootRect.right - (parseFloat(rootStyle.paddingRight) || 0) + gutter
-  const measured = asides.map((aside) => {
-    const block = aside.parentElement
-    const blockRect = block?.getBoundingClientRect()
-    return { aside, blockRect, height: aside.offsetHeight }
-  })
-  let nextFreeTop = -Infinity
-  for (const { aside, blockRect, height } of measured) {
-    if (!blockRect || blockRect.height === 0) continue
-    const offset = Math.max(0, nextFreeTop - blockRect.top)
-    aside.style.left = `${columnLeft - blockRect.left}px`
-    aside.style.top = `${offset}px`
-    nextFreeTop = blockRect.top + offset + height + gap
-  }
-}
-
-function scheduleMarginCardLayout() {
-  if (marginLayoutFrame != null) return
-  // A hidden document — a Docs pane in an occluded window — gets no animation
-  // frames, and would otherwise come back into view with its stacks wherever
-  // the last frame left them; a timer runs there and the page is right when
-  // it is next shown.
-  marginLayoutFrame = document.hidden
-    ? setTimeout(layoutMarginCards, 0)
-    : requestAnimationFrame(layoutMarginCards)
+  return false
 }
 
 /// Every card in the document, as decorations: the paragraph takes the card
@@ -3084,57 +2917,13 @@ function scheduleMarginCardLayout() {
 function referenceDecorations(state) {
   const decorations = []
   const hrefs = []
-  let citedBlocks = 0
-  const blocks = textBlocks(state)
-  const listedBySection = referencePagesBySection(state, blocks)
-  let section = 0
-  for (const block of blocks) {
-    if (block.node.type.name === 'heading') { section += 1; continue }
+  for (const block of textBlocks(state)) {
     const reference = referenceInBlock(state, block)
     if (!reference) {
-      // Not a reference line: a paragraph citing the web in its sentences gets
-      // its stack of margin cards, keyed on every address and answer it holds
-      // so a stack whose answers have not changed keeps its DOM. The paragraph
-      // takes the cited class either way, so its links read quietly; a source
-      // the section already lists as a card is not repeated in the margin.
-      const citedAll = citedLinksInBlock(state, block)
-      if (citedAll.length === 0) continue
-      // Cards turned off: the links still read quietly, and their addresses
-      // are not reported, so the host fetches no preview for a card nobody
-      // sees; turning the cards back on reports them and the host answers.
-      if (!marginCardsShown) {
-        decorations.push(Decoration.node(block.position, block.position + block.node.nodeSize, {
-          class: 'artifact-cited',
-        }))
-        continue
-      }
-      const listed = listedBySection.get(section)
-      const cited = listed ? citedAll.filter(({ page }) => !listed.has(page)) : citedAll
-      for (const { href } of citedAll) hrefs.push(href)
-      if (cited.length === 0) {
-        decorations.push(Decoration.node(block.position, block.position + block.node.nodeSize, {
-          class: 'artifact-cited',
-        }))
-        continue
-      }
-      const key = cited.map(({ href, text }) => {
-        const status = referenceStatus(href)
-        return `${href}\x00${text}\x00${status?.state ?? ''}\x00${status?.sourceID ?? ''}\x00${status?.kind ?? ''}\x00${(status?.thumbnailURL ?? '').length}:${(status?.thumbnailURL ?? '').slice(0, 96)}\x00${status?.iconURL ?? ''}\x00${status?.title ?? ''}\x00${status?.detail ?? ''}`
-      }).join('\x01')
-      citedBlocks += 1
-      decorations.push(Decoration.node(block.position, block.position + block.node.nodeSize, {
-        class: 'artifact-cited',
-      }))
-      // In the margin the stack is written at the head of the paragraph and
-      // positioned beside it; in a pane too narrow for a margin column it is
-      // written after the paragraph's last word and flows below the text.
-      const inline = marginCardTier() === 'inline'
-      decorations.push(Decoration.widget(inline ? block.to : block.from, () => marginCards(cited, inline), {
-        side: inline ? 1 : -3,
-        key: `margin-cards:${inline ? 'inline' : 'margin'}:${key}`,
-        ignoreSelection: true,
-        stopEvent: () => true,
-      }))
+      // A link inside a sentence or a note draws nothing here; its address is
+      // reported so a footnote's hover card has the library's answer at hand.
+      const grounding = inFootnoteDefinition(state, block.position)
+      for (const { href } of citedLinksInBlock(state, block, { grounding })) hrefs.push(href)
       continue
     }
     hrefs.push(reference.href)
@@ -3181,25 +2970,23 @@ function referenceDecorations(state) {
       stopEvent: () => true,
     }))
   }
-  scheduleReferencesChanged(hrefs, citedBlocks > 0)
+  scheduleReferencesChanged(hrefs)
   return DecorationSet.create(state.doc, decorations)
 }
 
-/// Tell the host which addresses the doc holds, and whether any of them stand
-/// in the margin — the host lays the page's title on the same column as the
-/// prose, and the prose moves over when there is a margin column beside it —
-/// once per distinct answer and a beat after the last change, so typing inside
-/// a title does not send a message per keystroke.
-function scheduleReferencesChanged(hrefs, marginColumn) {
+/// Tell the host which addresses the doc holds, once per distinct answer and
+/// a beat after the last change, so typing inside a title does not send a
+/// message per keystroke.
+function scheduleReferencesChanged(hrefs) {
   const distinct = [...new Set(hrefs)]
-  const serialized = JSON.stringify({ hrefs: distinct, marginColumn })
+  const serialized = JSON.stringify(distinct)
   if (serialized === lastPostedReferenceHrefs) return
   if (referencePostTimer != null) clearTimeout(referencePostTimer)
   referencePostTimer = setTimeout(() => {
     referencePostTimer = null
     if (serialized === lastPostedReferenceHrefs) return
     lastPostedReferenceHrefs = serialized
-    post('referencesChanged', { hrefs: distinct, marginColumn })
+    post('referencesChanged', { hrefs: distinct })
   }, 150)
 }
 
@@ -3239,6 +3026,7 @@ function setReferenceStatuses(statuses) {
     ])
   )
   refreshReferenceDecorations()
+  refreshFootnoteCard()
 }
 
 const referenceCardsPlugin = $prose(() => new Plugin({
@@ -3252,10 +3040,6 @@ const referenceCardsPlugin = $prose(() => new Plugin({
   props: {
     decorations: (state) => referencePluginKey.getState(state),
   },
-  // Every update can move a paragraph — a keystroke above it, a card's answer
-  // landing — so the margin is re-laid on the next frame; the pass is a rect
-  // read per stack, cheap even for a report with a hundred and fifty.
-  view: () => ({ update: scheduleMarginCardLayout, destroy: () => {} }),
 }))
 
 // ─── The notes graph ───────────────────────────────────────────────────────
@@ -5623,6 +5407,8 @@ function handleFootnoteKey(view, event) {
 
 let footnoteCard = null
 let footnoteCardTimer = null
+/// The number the card stands under, and the view it belongs to.
+let footnoteCardAnchor = null
 
 function ensureFootnoteCard() {
   if (footnoteCard) return footnoteCard
@@ -5630,35 +5416,121 @@ function ensureFootnoteCard() {
   footnoteCard.className = 'artifact-footnote-card'
   footnoteCard.setAttribute('role', 'tooltip')
   footnoteCard.hidden = true
+  // The pointer may cross from the number into the card to press a source;
+  // the card stays while it is over either, and a press in it never moves the
+  // caret.
+  footnoteCard.addEventListener('mouseenter', () => clearTimeout(footnoteCardTimer))
+  footnoteCard.addEventListener('mouseleave', (event) => {
+    if (footnoteCardAnchor?.element.contains(event.relatedTarget)) return
+    scheduleHideFootnoteCard()
+  })
+  footnoteCard.addEventListener('mousedown', (event) => event.preventDefault())
+  footnoteCard.addEventListener('click', (event) => {
+    if (event.target instanceof Element && event.target.closest('a[href]')) event.preventDefault()
+  })
   document.body.append(footnoteCard)
   return footnoteCard
 }
 
-/// The note behind a number, shown under it while the pointer rests there, as
-/// a published page shows it: its words, without going down to the foot.
+/// The words a note says besides naming its sources: what is left of the note
+/// once the words of its links and the punctuation between them are taken
+/// out. "[Title](url) — Gupta et al., Nature, 2026" leaves the byline, which
+/// the source's own row already carries, so a note that is only citations
+/// shows only its rows.
+const footnoteRemarkPunctuation = new RegExp(`[\\s.,;:()\\[\\]${emDash}–-]+`, 'g')
+
+function footnoteRemark(definitionNode, cited) {
+  let words = definitionNode.textContent
+  for (const { text } of cited) if (text) words = words.split(text).join(' ')
+  const remark = words.replace(/\s+/g, ' ').trim()
+  const residue = remark.replace(footnoteRemarkPunctuation, ' ').trim()
+  if (!residue) return ''
+  // A byline after each title ("Gupta et al., Nature, 2026") is that row's
+  // detail line; anything longer is the writer's own words.
+  return residue.split(' ').length > 8 * cited.length ? remark : ''
+}
+
+/// The note behind a number, shown under it while the pointer rests there:
+/// the writer's words, if the note says more than which sources it rests on,
+/// and a row for each source the note links to.
 function showFootnoteCard(view, element) {
   const key = footnoteKey(element.dataset.label)
   const definition = footnoteNodes(view.state.doc).definitions.find((entry) => entry.key === key)
-  const body = definition ? view.nodeDOM(definition.pos)?.querySelector?.('.artifact-footnote-body') : null
-  if (!body) return
   const card = ensureFootnoteCard()
-  const copy = body.cloneNode(true)
-  for (const node of copy.querySelectorAll('[contenteditable]')) node.removeAttribute('contenteditable')
-  card.replaceChildren(...copy.childNodes)
-  if (!card.textContent.trim()) card.textContent = 'Empty note'
-  card.classList.toggle('is-empty', !body.textContent.trim())
+  const children = []
+  let cited = []
+  if (definition) {
+    const blocks = []
+    definition.node.descendants((node, position) => {
+      if (!node.isTextblock) return true
+      blocks.push({ node, position: definition.pos + 1 + position })
+      return false
+    })
+    const byPage = new Map()
+    for (const block of blocks) {
+      for (const entry of citedLinksInBlock(view.state, block, { grounding: true })) if (!byPage.has(entry.page)) byPage.set(entry.page, entry)
+    }
+    cited = [...byPage.values()]
+    const remark = cited.length ? footnoteRemark(definition.node, cited) : null
+    if (remark == null) {
+      const body = view.nodeDOM(definition.pos)?.querySelector?.('.artifact-footnote-body')
+      if (body?.textContent.trim()) {
+        const copy = body.cloneNode(true)
+        for (const node of copy.querySelectorAll('[contenteditable]')) node.removeAttribute('contenteditable')
+        const words = document.createElement('div')
+        words.className = 'artifact-footnote-card-words'
+        words.append(...copy.childNodes)
+        children.push(words)
+      }
+    } else if (remark) {
+      const words = document.createElement('p')
+      words.className = 'artifact-footnote-card-words'
+      words.textContent = remark
+      children.push(words)
+    }
+    if (cited.length) {
+      const rows = document.createElement('div')
+      rows.className = 'artifact-footnote-card-sources'
+      for (const entry of cited) rows.append(citedSourceRow(entry, referenceStatus(entry.href)))
+      children.push(rows)
+    }
+  }
+  if (!children.length) {
+    const empty = document.createElement('p')
+    empty.className = 'artifact-footnote-card-words'
+    empty.textContent = 'Empty note'
+    children.push(empty)
+  }
+  card.replaceChildren(...children)
+  card.classList.toggle('is-empty', !definition || (!cited.length && !definition.node.textContent.trim()))
+  card.classList.toggle('has-sources', cited.length > 0)
+  footnoteCardAnchor = { view, element }
   card.hidden = false
   const rect = element.getBoundingClientRect()
   const width = card.offsetWidth
   const height = card.offsetHeight
   card.style.left = `${Math.max(8, Math.min(rect.left + rect.width / 2 - width / 2, window.innerWidth - width - 8))}px`
-  const below = rect.bottom + 8
-  card.style.top = `${below + height > window.innerHeight - 8 && rect.top - height - 8 > 8 ? rect.top - height - 8 : below}px`
+  const below = rect.bottom + 6
+  card.style.top = `${below + height > window.innerHeight - 8 && rect.top - height - 6 > 8 ? rect.top - height - 6 : below}px`
+}
+
+/// The library's answer landed, or changed, while a card is open: draw it again.
+function refreshFootnoteCard() {
+  if (!footnoteCard || footnoteCard.hidden || !footnoteCardAnchor) return
+  const { view, element } = footnoteCardAnchor
+  if (element.isConnected) showFootnoteCard(view, element)
+  else hideFootnoteCard()
+}
+
+function scheduleHideFootnoteCard() {
+  clearTimeout(footnoteCardTimer)
+  footnoteCardTimer = setTimeout(hideFootnoteCard, 220)
 }
 
 function hideFootnoteCard() {
   clearTimeout(footnoteCardTimer)
   footnoteCardTimer = null
+  footnoteCardAnchor = null
   if (footnoteCard) footnoteCard.hidden = true
 }
 
@@ -5775,7 +5647,10 @@ const footnotePlugin = $prose(() => new Plugin({
       },
       mouseout(_view, event) {
         const element = event.target instanceof Element ? event.target.closest('sup.artifact-footnote-ref') : null
-        if (element && !element.contains(event.relatedTarget)) hideFootnoteCard()
+        if (!element || element.contains(event.relatedTarget)) return false
+        if (footnoteCard && !footnoteCard.hidden && footnoteCard.contains(event.relatedTarget)) return false
+        // A beat's grace, so the pointer can cross the gap into the card.
+        scheduleHideFootnoteCard()
         return false
       },
       keydown() {
@@ -6709,8 +6584,6 @@ let contentsLayoutFrame = 0
 /// The headings listed: `[{ level, title }]`, in page order.
 let contentsHeadings = []
 let contentsKey = ''
-/// What the source cards beside the page were the last time it was laid out.
-let contentsCardsKey = ''
 
 function scheduleContentsRefresh() {
   clearTimeout(contentsTimer)
@@ -6788,7 +6661,7 @@ function refreshContents() {
 }
 
 /// Ticks at the right edge, or the titles beside the writing where the window
-/// has room for them and no source cards stand there.
+/// has room for them.
 function layoutContents() {
   contentsLayoutFrame = 0
   const nav = contentsNav
@@ -6797,9 +6670,7 @@ function layoutContents() {
   const rect = root.getBoundingClientRect()
   const textRight = rect.right - (parseFloat(getComputedStyle(root).paddingRight) || 0)
   const room = window.innerWidth - textRight
-  const cardsBeside = document.body.classList.contains('has-margin-cards')
-    && ['wide', 'medium'].includes(document.body.dataset.marginTier ?? '')
-  const titles = !cardsBeside && room >= 280
+  const titles = room >= 280
   nav.dataset.mode = titles ? 'titles' : 'ticks'
   nav.style.left = titles ? `${Math.round(textRight + 48)}px` : ''
   nav.style.width = titles ? `${Math.round(Math.min(220, room - 72))}px` : ''
@@ -10846,7 +10717,6 @@ window.addEventListener('resize', () => {
   positionLinkPicker()
   scheduleSectionFoldRefresh()
   scheduleSelectionButtonReposition()
-  scheduleMarginCardLayout()
   scheduleAIEditPanelReposition()
 })
 
@@ -11190,10 +11060,8 @@ window.foreverLMArtifactEditor = {
   },
   setFontSize(fontSize) {
     document.documentElement.style.setProperty('--artifact-font-size', `${fontSize}px`)
-    scheduleMarginCardLayout()
   },
   setPageWidth,
-  setMarginCardsShown,
   focus() {
     document.querySelector('.ProseMirror')?.focus()
   },

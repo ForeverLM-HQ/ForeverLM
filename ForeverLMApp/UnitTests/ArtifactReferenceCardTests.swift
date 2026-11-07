@@ -346,11 +346,12 @@ struct ReferenceLinkPreviewParsingTests {
     }
 }
 
-/// A link cited inside a sentence gets a card in the margin beside its
-/// paragraph, drawn like a Sources sidebar row: title and a metadata line. For
-/// a source the library does not hold, both come from the page's own head.
-@Suite("Doc margin cards: what a card says")
-struct ArtifactMarginCardSummaryTests {
+/// A link a footnote cites gets a card when the pointer rests on the
+/// footnote's number, drawn like a Sources sidebar row: title and a metadata
+/// line. For a source the library does not hold, both come from the page's own
+/// head.
+@Suite("Doc footnote cards: what a card says")
+struct ArtifactFootnoteCardSummaryTests {
 
     private let page = URL(string: "https://www.journal.example.org/articles/s41586")!
 

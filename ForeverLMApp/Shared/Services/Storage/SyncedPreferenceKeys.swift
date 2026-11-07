@@ -179,9 +179,6 @@ enum SyncedPreferenceKeys {
         // How wide a Doc's page is drawn. A reading preference like the zoom step
         // above, so it follows the account. See `ArtifactPageWidth`.
         "notepad.pageWidth",
-        // Whether a Doc draws its margin cards; a reading preference like the
-        // page width. See `ArtifactMarginCards`.
-        "notepad.showsMarginCards",
         // How a video source is laid out beside its transcript, and how much of
         // the pane the video takes. The mode is a reading preference like the
         // two above; the sizes are *fractions* of the pane (0 means auto), not

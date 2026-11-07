@@ -1019,7 +1019,6 @@ The Setting record keys (§3.5.3): one record per key, account scope in Library 
 | `meetingListOrder` | string | account | `set_app_setting` sources.meeting_list_order | How the Meetings tab lists sessions: by series, or every session by date (MeetingListOrder). |
 | `readerOriginalPageColors` | bool | account | `set_app_setting` appearance.reader_original_page_colors | Read sources as published rather than darkened in Dark Mode (ReaderDarkMode). |
 | `notepad.pageWidth` | string | account | `set_app_setting` docs.page_width | How wide a Doc's page is drawn (ArtifactPageWidth). |
-| `notepad.showsMarginCards` | bool | account | `set_app_setting` docs.shows_margin_cards | Whether a Doc draws its margin cards; true when absent. |
 | `reader.youtubeTranscriptBesideVideo` | bool | account | `set_app_setting` reader.youtube_transcript_beside_video | Whether a video's transcript sits beside it. |
 | `reader.youtubeVideoPaneFraction` | double | account | `set_app_setting` reader.youtube_video_pane_fraction | The video's share of the pane, 0 meaning automatic. 0 to 1. |
 | `reader.youtubeVideoPaneWidthFraction` | double | account | `set_app_setting` reader.youtube_video_pane_width_fraction | The video's share of the pane's width beside its transcript, 0 meaning automatic. 0 to 1. |

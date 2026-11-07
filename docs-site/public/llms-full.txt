@@ -1141,14 +1141,9 @@ Each card carries the source's picture: the same cover the library shows for a
 source you have, and for one you don't, the page's own preview image or the
 site's icon.
 
-A link cited inside a sentence gets the same treatment in the margin. Every
-paragraph that links to the web carries a stack of small cards beside it, one
-per source, drawn like a row in the Library: the picture, the title, a
-quieter line — author · venue · year for a paper, the site for a page — and a
-check that opens the source or a plus that adds it. Two links into one page (an
-article's Fig. 3 and Fig. 4) are one card. Hover a card to see which words cite
-it. The prose is untouched; in a pane too narrow to hold the page
-and a margin column together, the same rows sit below the paragraph instead.
+A link cited inside a sentence stays in the prose, with nothing drawn beside
+the paragraph. A citation is a footnote (see [Footnotes](#footnotes)): rest the
+pointer on its number and a card shows the papers it cites.
 
 The page is a readable column by default, centred in the pane. On a wide pane
 that leaves a lot of blank space either side; **Page Width** in the formatting
@@ -1221,13 +1216,18 @@ right, and puts the caret in its first cell. The handles on a row and a column
 move them, and the + on the line between two inserts one there. An empty cell is
 stored empty (`| |`).
 
+A table stands in the column of the writing, as Confluence draws one: as wide
+as the prose, with a shaded header row and a hairline grid, and a table whose
+columns need more room scrolls sideways inside the column. To give a wide table
+the whole pane, choose **Full width** from its block menu.
+
 ### Page contents
 
 A Page with two or more headings lists them at its right edge, as Codex's
 **Page contents** does. At rest it is a column of short grey ticks, one for
 each heading, the one you are reading darker; rest the pointer on it and the
 headings' titles open beside it. When the window has room to the right of the
-writing (and no source cards stand there), the titles themselves are listed
+writing, the titles themselves are listed
 there instead, small and grey. Click a title to jump to that heading; a folded
 section opens to show it, and the caret stays where it was. The list catches up
 with your headings a moment after you stop typing.

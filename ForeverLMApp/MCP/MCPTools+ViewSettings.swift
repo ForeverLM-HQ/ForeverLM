@@ -360,11 +360,6 @@ extension MCPDataStore {
                 key: ArtifactPageWidth.key, kind: .choice, absent: ArtifactPageWidth.standard.rawValue,
                 options: ArtifactPageWidth.allCases.map { ($0.rawValue, $0.title) }
             ),
-            preferenceEntry(
-                id: "docs.shows_margin_cards", pane: "Doc editor (no pane)", title: "Doc margin cards",
-                detail: "Whether a Doc draws its margin cards. On by default.",
-                key: "notepad.showsMarginCards", kind: .boolean, absent: true
-            ),
         ]
     }
 

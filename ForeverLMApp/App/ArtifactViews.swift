@@ -203,7 +203,6 @@ struct ArtifactCanvas: View {
     @State private var pendingBlockReveal: ArtifactBlockRevealRequest?
     @SyncedStorage private var isArtifactListVisible: Bool
     @SyncedStorage(ArtifactPageWidth.key) private var pageWidth = ArtifactPageWidth.standard
-    @SyncedStorage(ArtifactMarginCards.key) private var showsMarginCards = true
     /// The learner's name, for the initials on the page's top line.
     @SyncedStorage(wrappedValue: "", MacAccountUser.displayNamePreferenceKey) private var savedDisplayName: String
     @Environment(\.uiZoomScale) private var uiZoomScale
@@ -1766,13 +1765,6 @@ struct ArtifactCanvas: View {
             }
             .pickerStyle(.inline)
             .labelsHidden()
-            Divider()
-            // The cards beside a paragraph for the sources it cites. A reader
-            // who wants the prose alone turns them off for every page; the
-            // links stay in the prose.
-            Toggle(isOn: $showsMarginCards) {
-                Label("Show Source Cards", systemImage: "sidebar.right")
-            }
         } label: {
             Label("Page Width", systemImage: "arrow.left.and.right")
         }
@@ -3030,14 +3022,8 @@ private struct ArtifactEditor: View {
     /// Resolves the cards' pictures after the answers, a few at a time; a new
     /// answer or a closed doc cancels the one in flight.
     @State private var referenceArtworkTask: Task<Void, Never>?
-    /// Whether the editor is drawing a margin column — cards beside paragraphs
-    /// that cite the web — which moves the page over; the title follows it.
-    @State private var hasMarginColumn = false
     /// How wide the page is drawn; the title's inset follows it.
     @SyncedStorage(ArtifactPageWidth.key) private var pageWidthPreference = ArtifactPageWidth.standard
-    /// Whether the margin cards are drawn. Off, the page takes back their
-    /// column at once, without waiting for the editor to report it.
-    @SyncedStorage(ArtifactMarginCards.key) private var showsMarginCardsPreference = true
     @State private var attachmentInsertion: ArtifactAttachmentInsertion?
     @State private var isImportingImage = false
     @State private var publicationRequestID = 0
@@ -3070,21 +3056,13 @@ private struct ArtifactEditor: View {
     /// The title is the first field in the page, not a band above one, so it
     /// has to move with the page instead of keeping an inset of its own.
     ///
-    /// With a margin column — cards beside the paragraphs that cite the web —
-    /// the page moves over, in the same three tiers the stylesheet uses: wide
-    /// enough for both, page and column are centred together; narrower, the
-    /// page yields the column's width and sits at the left; narrower still, there
-    /// is no column — the editor flows the cards below their paragraphs — and the
-    /// page is where it always was.
-    ///
     /// `width` is the document column's own — the pane's, less the comments
     /// drawer — read by the column's `GeometryReader`, so that while it animates
     /// the rows move with the prose rather than ahead of it (`ArtifactPageInset`).
     private func pageInset(for width: CGFloat) -> ArtifactPageInset {
         ArtifactPageInset(
             paneWidth: width,
-            pageMaxWidth: pageWidthPreference.maxWidth,
-            hasMarginColumn: hasMarginColumn && showsMarginCardsPreference
+            pageMaxWidth: pageWidthPreference.maxWidth
         )
     }
 
@@ -4026,7 +4004,6 @@ private struct ArtifactEditor: View {
                     referenceHrefs = hrefs
                     Task { await refreshReferenceStatuses() }
                 },
-                onMarginColumnChange: { hasMarginColumn = $0 },
                 // Add to Sources on a card. The card waits while the import
                 // runs; only a card still waiting hears the answer, so a doc
                 // that moved on in the meantime is not written over.
@@ -4076,7 +4053,6 @@ private struct ArtifactEditor: View {
                 groundingAttachment: $groundingAttachment,
                 formatRequest: $formatting.request,
                 pageMaxWidth: pageWidthPreference.maxWidth,
-                showsMarginCards: showsMarginCardsPreference,
                 isEditable: !isReadOnly,
                 foldDocumentID: artifact.id,
                 notesGraph: notesGraph.bridge,

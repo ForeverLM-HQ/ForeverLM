@@ -1783,7 +1783,7 @@ struct WebArticleBylineTests {
         #expect(PaperService.extractWebArticleMetadata(from: Self.quantumHead)?.author == "Andy Matuschak & Michael Nielsen")
         #expect(PaperService.extractWebArticleMetadata(from: Self.scientistHead)?.author == "Danielle Gerhard, PhD")
         #expect(PaperService.extractWebArticleMetadata(from: Self.scientistHead)?.title == "Rebranding Mitochondria: Beyond the Powerhouse of the Cell | The Scientist")
-        // The margin card reads the same heads.
+        // A footnote's card reads the same heads.
         #expect(ReferenceLinkPreviews.metaContent(inHead: Self.scientistHead, key: "og:site_name") == "The Scientist")
     }
 

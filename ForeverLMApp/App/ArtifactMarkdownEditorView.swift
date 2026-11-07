@@ -513,42 +513,16 @@ enum ArtifactPageWidth: String, CaseIterable, Identifiable {
     }
 }
 
-/// Whether the Docs pane draws margin cards: the sources a paragraph cites in
-/// its sentences, stacked beside it (or below it in a narrow pane). Off, the
-/// page reads as prose alone and takes back the column; the links stay in the
-/// prose, and a reference line keeps its card, since that line is the doc's
-/// own paragraph. A reading preference like the page width, so one setting for
-/// every doc that follows the account.
-enum ArtifactMarginCards {
-    static let key = "notepad.showsMarginCards"
-}
-
 /// The page's place in the pane, as `artifact-editor.css` and `artifact-editor.js`
 /// lay it out, so the native title above the page can share the prose's left edge.
 enum ArtifactPageGeometry {
-    /// The margin column: 240pt of card and a 20pt gutter.
-    static let marginColumnWidth: CGFloat = 260
-    /// The pane width below which no margin column is drawn and the cards flow
-    /// below their paragraphs instead.
-    static let marginColumnBreakpoint: CGFloat = 790
-
     /// The left edge of the prose in a pane `paneWidth` wide, for a page capped
     /// at `pageMaxWidth` (`nil`: the page fills the pane): the centring margin
-    /// plus the page's own side padding, which yields as the pane narrows. With
-    /// a margin column the page keeps its full width beside the column only when
-    /// the pane holds both — the same threshold `marginTier` uses in the editor —
-    /// and otherwise sits at the left, yielding the column's width.
-    static func inset(paneWidth: CGFloat, pageMaxWidth: CGFloat?, hasMarginColumn: Bool) -> CGFloat {
+    /// plus the page's own side padding, which yields as the pane narrows.
+    static func inset(paneWidth: CGFloat, pageMaxWidth: CGFloat?) -> CGFloat {
         guard paneWidth > 0 else { return 28 }
         let padding = min(48, max(20, paneWidth * 0.06))
-        let cap = pageMaxWidth ?? .infinity
-        if hasMarginColumn, paneWidth >= marginColumnBreakpoint {
-            if paneWidth >= cap + marginColumnWidth {
-                return (paneWidth - cap - marginColumnWidth) / 2 + padding
-            }
-            return padding
-        }
-        let column = min(paneWidth, cap)
+        let column = min(paneWidth, pageMaxWidth ?? .infinity)
         return (paneWidth - column) / 2 + padding
     }
 }
@@ -568,7 +542,6 @@ enum ArtifactPageGeometry {
 struct ArtifactPageInset: ViewModifier, Animatable {
     var paneWidth: CGFloat
     var pageMaxWidth: CGFloat?
-    var hasMarginColumn: Bool
 
     var animatableData: CGFloat {
         get { paneWidth }
@@ -580,8 +553,7 @@ struct ArtifactPageInset: ViewModifier, Animatable {
             .horizontal,
             ArtifactPageGeometry.inset(
                 paneWidth: paneWidth,
-                pageMaxWidth: pageMaxWidth,
-                hasMarginColumn: hasMarginColumn
+                pageMaxWidth: pageMaxWidth
             )
         )
     }
@@ -759,10 +731,6 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
     /// The doc's set of web references changed — a reference line appeared, or
     /// its address was edited. The host answers through `referenceStatuses`.
     let onReferencesChange: ([String]) -> Void
-    /// Whether the doc has a margin column — a paragraph citing the web in its
-    /// sentences carries its cards beside it, and the page moves over to make
-    /// room. The host lays the title on the same column as the prose.
-    let onMarginColumnChange: (Bool) -> Void
     /// Add to Sources was pressed on a reference card.
     let onAddReference: (String) -> Void
     /// Request from team was pressed on a team Doc's card: ask the team for
@@ -779,9 +747,6 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
     @Binding var formatRequest: ArtifactFormatRequest?
     /// The prose column's cap in points; `nil` lets the page fill the pane.
     let pageMaxWidth: CGFloat?
-    /// Off, no margin cards are drawn and the page takes back their column
-    /// (`ArtifactMarginCards`).
-    var showsMarginCards = true
     /// Off, the page reads without a caret: a team Doc, whose changes go
     /// through a member's private draft rather than the shared copy.
     var isEditable = true
@@ -870,7 +835,6 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             linkTargets: linkTargets,
             referenceStatuses: referenceStatuses,
             onReferencesChange: onReferencesChange,
-            onMarginColumnChange: onMarginColumnChange,
             onAddReference: onAddReference,
             onRequestReference: onRequestReference,
             onFulfilReference: onFulfilReference,
@@ -881,7 +845,6 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             formatRequest: $formatRequest,
             fontSize: fontSize,
             pageMaxWidth: pageMaxWidth,
-            showsMarginCards: showsMarginCards,
             isEditable: isEditable,
             onSave: onSave,
             onPublication: onPublication,
@@ -966,7 +929,6 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             linkTargets: linkTargets,
             referenceStatuses: referenceStatuses,
             onReferencesChange: onReferencesChange,
-            onMarginColumnChange: onMarginColumnChange,
             onAddReference: onAddReference,
             onRequestReference: onRequestReference,
             onFulfilReference: onFulfilReference,
@@ -977,7 +939,6 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             formatRequest: $formatRequest,
             fontSize: fontSize,
             pageMaxWidth: pageMaxWidth,
-            showsMarginCards: showsMarginCards,
             isEditable: isEditable,
             onSave: onSave,
             onPublication: onPublication,
@@ -1062,7 +1023,6 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
         private var linkTargets: [ArtifactPageLinkTarget]
         private var referenceStatuses: [String: ArtifactReferenceStatus]
         private var onReferencesChange: ([String]) -> Void
-        private var onMarginColumnChange: (Bool) -> Void
         private var onAddReference: (String) -> Void
         private var onRequestReference: (String) -> Void
         private var onFulfilReference: (String, String) -> Void
@@ -1083,7 +1043,6 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
         private var pendingFormatRequest: ArtifactFormatRequest?
         private var fontSize: CGFloat
         private var pageMaxWidth: CGFloat?
-        private var showsMarginCards: Bool
         private var lastFindRevision = 0
         private var isReady = false
         private var initializationStarted = false
@@ -1136,7 +1095,6 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             linkTargets: [ArtifactPageLinkTarget] = [],
             referenceStatuses: [String: ArtifactReferenceStatus],
             onReferencesChange: @escaping ([String]) -> Void,
-            onMarginColumnChange: @escaping (Bool) -> Void,
             onAddReference: @escaping (String) -> Void,
             onRequestReference: @escaping (String) -> Void,
             onFulfilReference: @escaping (String, String) -> Void,
@@ -1147,7 +1105,6 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             formatRequest: Binding<ArtifactFormatRequest?>,
             fontSize: CGFloat,
             pageMaxWidth: CGFloat?,
-            showsMarginCards: Bool,
             isEditable: Bool,
             onSave: @escaping (String) -> Void,
             onPublication: @escaping (String) -> Void,
@@ -1184,7 +1141,6 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             self.linkTargets = linkTargets
             self.referenceStatuses = referenceStatuses
             self.onReferencesChange = onReferencesChange
-            self.onMarginColumnChange = onMarginColumnChange
             self.onAddReference = onAddReference
             self.onRequestReference = onRequestReference
             self.onFulfilReference = onFulfilReference
@@ -1201,7 +1157,6 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             pendingFormatRequest = formatRequest.wrappedValue
             self.fontSize = fontSize
             self.pageMaxWidth = pageMaxWidth
-            self.showsMarginCards = showsMarginCards
             self.onSave = onSave
             self.onPublication = onPublication
             self.onRequestChat = onRequestChat
@@ -1343,7 +1298,6 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             linkTargets: [ArtifactPageLinkTarget] = [],
             referenceStatuses: [String: ArtifactReferenceStatus],
             onReferencesChange: @escaping ([String]) -> Void,
-            onMarginColumnChange: @escaping (Bool) -> Void,
             onAddReference: @escaping (String) -> Void,
             onRequestReference: @escaping (String) -> Void,
             onFulfilReference: @escaping (String, String) -> Void,
@@ -1354,7 +1308,6 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             formatRequest: Binding<ArtifactFormatRequest?>,
             fontSize: CGFloat,
             pageMaxWidth: CGFloat?,
-            showsMarginCards: Bool,
             isEditable: Bool,
             onSave: @escaping (String) -> Void,
             onPublication: @escaping (String) -> Void,
@@ -1382,7 +1335,6 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             self.linkInsertion = linkInsertion
             self.onOpenLink = onOpenLink
             self.onReferencesChange = onReferencesChange
-            self.onMarginColumnChange = onMarginColumnChange
             self.onAddReference = onAddReference
             self.onRequestReference = onRequestReference
             self.onFulfilReference = onFulfilReference
@@ -1442,13 +1394,6 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
                 self.pageMaxWidth = pageMaxWidth
                 if isReady {
                     webView.evaluateJavaScript(Self.pageWidthScript(pageMaxWidth))
-                }
-            }
-
-            if self.showsMarginCards != showsMarginCards {
-                self.showsMarginCards = showsMarginCards
-                if isReady {
-                    webView.evaluateJavaScript(Self.marginCardsScript(showsMarginCards))
                 }
             }
 
@@ -1670,7 +1615,6 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
                 }
             case "referencesChanged":
                 onReferencesChange((payload["hrefs"] as? [String]) ?? [])
-                onMarginColumnChange((payload["marginColumn"] as? Bool) ?? false)
             case "addReferenceRequested":
                 guard let href = payload["href"] as? String, !href.isEmpty else { return }
                 onAddReference(href)
@@ -1729,8 +1673,7 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             let script = Self.startupScript(
                 markdown: latestSwiftMarkdown,
                 fontSize: fontSize,
-                pageMaxWidth: pageMaxWidth,
-                showsMarginCards: showsMarginCards
+                pageMaxWidth: pageMaxWidth
             )
             webView.evaluateJavaScript(script) { [weak self] _, error in
                 if let error {
@@ -1822,7 +1765,6 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             webView.evaluateJavaScript(
                 "window.foreverLMArtifactEditor.setFontSize(\(Double(fontSize)));")
             webView.evaluateJavaScript(Self.pageWidthScript(pageMaxWidth))
-            webView.evaluateJavaScript(Self.marginCardsScript(showsMarginCards))
             webView.evaluateJavaScript("window.foreverLMArtifactEditor.setEditable(\(isEditable));")
             webView.evaluateJavaScript(Self.slashFeaturesScript)
             webView.evaluateJavaScript(Self.joinsPastedLinesScript)
@@ -2262,22 +2204,15 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             return String(data: data, encoding: .utf8) ?? "\"\""
         }
 
-        /// The page width and the margin cards go in before `create`, so the
-        /// first paint is already at the reader's width, with or without the
-        /// cards, rather than the stylesheet's default.
+        /// The page width goes in before `create`, so the first paint is
+        /// already at the reader's width rather than the stylesheet's default.
         static func startupScript(
             markdown: String,
             fontSize: CGFloat,
-            pageMaxWidth: CGFloat?,
-            showsMarginCards: Bool = true
+            pageMaxWidth: CGFloat?
         ) -> String {
             pageWidthScript(pageMaxWidth)
-                + " " + marginCardsScript(showsMarginCards)
                 + " window.foreverLMArtifactEditor.create(\(jsonString(markdown)), \(Double(fontSize))); true;"
-        }
-
-        static func marginCardsScript(_ shown: Bool) -> String {
-            "window.foreverLMArtifactEditor.setMarginCardsShown(\(shown));"
         }
 
         /// Whether the host holds a picture the page cannot draw yet. Only

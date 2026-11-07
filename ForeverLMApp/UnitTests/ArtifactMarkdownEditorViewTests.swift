@@ -81,23 +81,6 @@ struct ArtifactMarkdownEditorViewTests {
         )
     }
 
-    @Test("Hidden margin cards reach the editor before it is created, so the first paint has none")
-    func startupScriptHidesMarginCardsFirst() {
-        let hidden = ArtifactMarkdownEditorView.Coordinator.startupScript(
-            markdown: "", fontSize: 15, pageMaxWidth: 760, showsMarginCards: false
-        )
-        #expect(hidden.hasPrefix("window.foreverLMArtifactEditor.setPageWidth(760.0);"))
-        let setIndex = hidden.range(of: "setMarginCardsShown(false);")!.lowerBound
-        let createIndex = hidden.range(of: "create(")!.lowerBound
-        #expect(setIndex < createIndex)
-        #expect(hidden.hasSuffix("; true;"))
-
-        #expect(
-            ArtifactMarkdownEditorView.Coordinator.marginCardsScript(true)
-                == "window.foreverLMArtifactEditor.setMarginCardsShown(true);"
-        )
-    }
-
     @Test("The host tells the slash menu which rows it can answer, once the page is ready")
     func slashFeaturesReachTheEditor() {
         #expect(
@@ -217,37 +200,18 @@ struct ArtifactMarkdownEditorViewTests {
     func pageInsetFollowsPageWidth() {
         // A standard page in a 2000pt pane is centred: (2000 - 760) / 2 plus the
         // 48pt side padding the stylesheet clamps to.
-        #expect(ArtifactPageGeometry.inset(paneWidth: 2000, pageMaxWidth: 760, hasMarginColumn: false) == 668)
+        #expect(ArtifactPageGeometry.inset(paneWidth: 2000, pageMaxWidth: 760) == 668)
         // Wider page, less blank pane either side.
-        #expect(ArtifactPageGeometry.inset(paneWidth: 2000, pageMaxWidth: 1040, hasMarginColumn: false) == 528)
+        #expect(ArtifactPageGeometry.inset(paneWidth: 2000, pageMaxWidth: 1040) == 528)
         // A full page has only its side padding.
-        #expect(ArtifactPageGeometry.inset(paneWidth: 2000, pageMaxWidth: nil, hasMarginColumn: false) == 48)
+        #expect(ArtifactPageGeometry.inset(paneWidth: 2000, pageMaxWidth: nil) == 48)
         // A pane narrower than the cap: every width is the same page.
         for cap in [CGFloat(760), 1040] {
-            #expect(ArtifactPageGeometry.inset(paneWidth: 600, pageMaxWidth: cap, hasMarginColumn: false) == 36)
+            #expect(ArtifactPageGeometry.inset(paneWidth: 600, pageMaxWidth: cap) == 36)
         }
-        #expect(ArtifactPageGeometry.inset(paneWidth: 600, pageMaxWidth: nil, hasMarginColumn: false) == 36)
+        #expect(ArtifactPageGeometry.inset(paneWidth: 600, pageMaxWidth: nil) == 36)
         // Nothing measured yet: the resting inset.
-        #expect(ArtifactPageGeometry.inset(paneWidth: 0, pageMaxWidth: 760, hasMarginColumn: true) == 28)
-    }
-
-    @Test("With a margin column the page keeps its width only when the pane holds both")
-    func pageInsetWithMarginColumn() {
-        // Wide tier: page and a 260pt column centred together.
-        #expect(ArtifactPageGeometry.inset(paneWidth: 1220, pageMaxWidth: 760, hasMarginColumn: true) == 148)
-        // At exactly the threshold the page is still centred with the column.
-        #expect(ArtifactPageGeometry.inset(paneWidth: 1020, pageMaxWidth: 760, hasMarginColumn: true) == 48)
-        // Medium tier: the page yields the column's width and sits at the left.
-        #expect(ArtifactPageGeometry.inset(paneWidth: 1000, pageMaxWidth: 760, hasMarginColumn: true) == 48)
-        // The wide threshold moves with the page: 1220 holds a standard page
-        // beside the column but not a wide one, which yields instead.
-        #expect(ArtifactPageGeometry.inset(paneWidth: 1220, pageMaxWidth: 1040, hasMarginColumn: true) == 48)
-        #expect(ArtifactPageGeometry.inset(paneWidth: 1400, pageMaxWidth: 1040, hasMarginColumn: true) == 98)
-        // A full page never has room to spare beside the column.
-        #expect(ArtifactPageGeometry.inset(paneWidth: 3000, pageMaxWidth: nil, hasMarginColumn: true) == 48)
-        // Too narrow for a column at all: the cards flow inline and the page is
-        // where it always was.
-        #expect(ArtifactPageGeometry.inset(paneWidth: 700, pageMaxWidth: 760, hasMarginColumn: true) == 42)
+        #expect(ArtifactPageGeometry.inset(paneWidth: 0, pageMaxWidth: 760) == 28)
     }
 
     @Test("First top-level heading becomes the placeholder note title")
