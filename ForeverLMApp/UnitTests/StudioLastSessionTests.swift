@@ -533,12 +533,13 @@ struct StudioLastSessionTests {
         #expect(newer.snapshot == StudioWindowState(snapshot: newerSnapshot).snapshot)
 
         // The scene snapshot carries the notebook and its arrangement, never
-        // the document beside its chat; restoring it reopens the notebook.
+        // a moment such as a search's widened list; restoring it reopens the
+        // notebook.
         let source = StudioWindowState()
         source.notebook = NotebookWorkspace(
             notebookID: "bio",
-            document: .reader,
             sourcesCollapsed: true,
+            sourcesExpanded: true,
             studioCollapsed: true
         )
         let encoded = source.encodedSnapshot()

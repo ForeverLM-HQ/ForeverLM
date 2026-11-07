@@ -101,8 +101,7 @@ struct StudioView: View {
     private func goldenSideWidth(windowWidth: CGFloat) -> CGFloat {
         StudioPanelDefaultSizing.goldenSideWidth(
             windowWidth: windowWidth,
-            centerPaneCount: windowState.notebook.flatMap { $0.tabbed ? nil : max(1, $0.centerPaneCount) }
-                ?? windowState.centerTabGroups.groups.count
+            centerPaneCount: windowState.centerTabGroups.groups.count
         )
     }
 
@@ -280,14 +279,12 @@ struct StudioView: View {
                 dockedChatPanel
                     .transition(.opacity)
             } else if let notebook = windowState.notebook {
-                // The notebook workspace takes the window body while the
-                // window holds a notebook. The groups below are not mounted
-                // meanwhile (the memory-focus precedent), so the chat, the
-                // Reader and each canvas stay one mount per window.
+                // The notebook workspace draws its columns around the window's
+                // own panes while the window holds a notebook. The groups
+                // below are not mounted meanwhile, so the chat, the Reader
+                // and each canvas stay one mount per window.
                 NotebookWorkspaceView(
                     workspace: notebook,
-                    chat: { AnyView(dockedChatPanel) },
-                    document: { document in AnyView(notebookDocumentContent(document)) },
                     panes: {
                         AnyView(
                             StudioCenterTabGroupsView(
@@ -316,9 +313,7 @@ struct StudioView: View {
         .animation(.easeInOut(duration: 0.18), value: windowState.NotebookID)
     }
 
-    /// One center tab's surface, for the tab groups and, through
-    /// `notebookDocumentContent`, for the notebook's document slot: the same
-    /// view either way, so a pane behaves alike in both shells.
+    /// One center tab's surface, for the tab groups.
     @ViewBuilder
     private func centerTabContent(_ tab: StudioCenterTab) -> some View {
         switch tab {
@@ -376,23 +371,6 @@ struct StudioView: View {
             AtlasPane()
         case .plugins:
             PluginsPane()
-        }
-    }
-
-    /// What the notebook's document slot shows. Card practice
-    /// (`NotebookDocument.flashcards`) has no pane and no route leads to it,
-    /// so it shows nothing: the notebook's cards are reviewed in the Memory
-    /// pane (`.memory`, the slot's like any pane) and the window-filling
-    /// memory focus its Start Review opens. A picture the chat popped out
-    /// (`.picture`) has no tab either and draws its own pane.
-    @ViewBuilder
-    private func notebookDocumentContent(_ document: NotebookDocument) -> some View {
-        if let tab = document.centerTab {
-            centerTabContent(tab)
-        } else if document == .picture {
-            ChatPicturePane()
-        } else {
-            Color(nsColor: .windowBackgroundColor)
         }
     }
 
@@ -498,10 +476,9 @@ struct StudioView: View {
     }
 
     /// The side chat a chat opened beside lands in, once
-    /// `openSecondaryChatPane` has placed it: the notebook slot's, or the
-    /// second-chat pane last clicked in, else the first showing one.
+    /// `openSecondaryChatPane` has placed it: the second-chat pane last
+    /// clicked in, else the first showing one.
     private var sideChatStoreForOpening: StudioAssistantSessionStore {
-        guard !windowState.holdsNotebookSlot else { return comparisonChats.store(forPane: nil) }
         let groups = windowState.centerTabGroups.groups
         let pane = groups.first { $0.id == windowState.focusedGroupID && $0.activeTab == .secondaryChat }
             ?? groups.first { $0.activeTab == .secondaryChat }

@@ -85,7 +85,7 @@ enum StudioCenterTab: String, Codable, CaseIterable, Identifiable {
     /// (Start Review), the cards to check, and every kept card. The rail's
     /// Memory row opens it; added 2026-10-01 with the card review
     /// (docs/memory-design.md, "The card review"). In a notebook window it
-    /// opens in the notebook's document slot.
+    /// opens in a pane of the notebook's window.
     case memory
     /// The full-window Library: the whole library's Sources list laid out
     /// wide for managing it — every kind, search, imports, multi-select with
@@ -643,7 +643,7 @@ final class StudioWindowState: Identifiable {
     /// Whether the Reader's ‹ goes back to the surface it covered: it still
     /// shows in that pane and has read nothing since it took it.
     var readerBackReturnsToCover: Bool {
-        guard notebook == nil, let readerCover else { return false }
+        guard let readerCover else { return false }
         return readerBackStack.count <= readerCover.backDepth
     }
 
@@ -1013,12 +1013,6 @@ final class StudioWindowState: Identifiable {
         }
     }
 
-    /// The picture the chat popped out beside itself, which the notebook's
-    /// document slot shows while it holds `.picture`
-    /// (`StudioViewModel.dockPicture`). A moment: never in `Snapshot`, so a
-    /// relaunch does not keep megabytes of figure.
-    var dockedPicture: DockedChatPicture?
-
     /// The notebook this window last left, and how it had it arranged (its
     /// faces and folds, not its moments): opening it here again — its rail
     /// row, its card — brings its columns back as they were (decisions v5, 2: "the
@@ -1043,16 +1037,6 @@ final class StudioWindowState: Identifiable {
             guard next != notebook else { return }
             notebook = next
         }
-    }
-    /// Whether the window holds a notebook whose center is the chat and one
-    /// document slot, which every center-tab request then routes into
-    /// (`StudioViewModel.routeIntoNotebook`). False for a window with no
-    /// notebook, and for a tabbed one (`NotebookWorkspace.tabbed`), whose
-    /// center is the window's own panes and takes requests as a window with
-    /// no notebook does.
-    var holdsNotebookSlot: Bool {
-        guard let notebook else { return false }
-        return !notebook.tabbed
     }
 
     /// The chat this window last had open in each notebook it held, by
@@ -1435,9 +1419,6 @@ struct StudioWindowPlace: Equatable {
     struct Identity: Equatable {
         var activeTabs: [StudioCenterTab]
         var notebookID: String?
-        var notebookDocument: NotebookDocument?
-        var notebookLeadingDocument: NotebookDocument?
-        var notebookShowsChat = false
         var spaceDestinationKey: String?
         var coursePageID: String?
         var readerArticleID: String?
@@ -1447,20 +1428,16 @@ struct StudioWindowPlace: Equatable {
     }
 
     var identity: Identity {
-        let activeTabs = notebook == nil ? centerTabGroups.groups.map(\.activeTab) : []
-        let documents = [notebook?.document, notebook?.leadingDocument].compactMap { $0 }
+        let activeTabs = centerTabGroups.groups.map(\.activeTab)
         let shows: (StudioCenterTab) -> Bool = { activeTabs.contains($0) }
         return Identity(
             activeTabs: activeTabs,
             notebookID: notebook?.notebookID,
-            notebookDocument: notebook?.document,
-            notebookLeadingDocument: notebook?.leadingDocument,
-            notebookShowsChat: notebook?.showsChat ?? false,
             spaceDestinationKey: shows(.artifacts) ? spaceDestinationKey : nil,
             coursePageID: shows(.courses) ? coursePageID : nil,
-            readerArticleID: shows(.reader) || documents.contains(.reader) ? readerArticleID : nil,
-            chatSessionID: shows(.chat) || notebook?.showsChat == true ? chatSessionID : nil,
-            openArtifactID: shows(.notepad) || documents.contains(.docs) ? openArtifactID : nil,
+            readerArticleID: shows(.reader) ? readerArticleID : nil,
+            chatSessionID: shows(.chat) ? chatSessionID : nil,
+            openArtifactID: shows(.notepad) ? openArtifactID : nil,
             pluginsLocation: shows(.plugins) ? pluginsLocation : nil
         )
     }

@@ -82,12 +82,6 @@ enum StudioPaneSwap {
         offered(centerDestinations + [.init(tab: .artifacts)])
     }
 
-    /// What a notebook's document slot can become. Chat is the notebook's own
-    /// slot and the Library leaves the notebook, so neither is offered there.
-    static var notebookDocumentDestinations: [Destination] {
-        offered([.init(tab: .notepad), .init(tab: .browser), .init(tab: .memory)])
-    }
-
     private static func offered(_ destinations: [Destination]) -> [Destination] {
         destinations.filter { !BetaFeatures.unofferedCenterTabs.contains($0.tab) }
     }
@@ -495,7 +489,7 @@ extension StudioPaneHost where Corner == EmptyView, Band == EmptyView {
 
 extension StudioPaneHost where Band == EmptyView {
     /// A pane with a corner control of its own and no strip: a notebook's
-    /// document slot, which draws the swap control.
+    /// pane, which draws the swap control.
     init(
         activeTab: StudioCenterTab,
         width: CGFloat,

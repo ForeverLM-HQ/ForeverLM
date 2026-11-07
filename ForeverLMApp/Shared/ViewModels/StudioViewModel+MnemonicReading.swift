@@ -7,7 +7,7 @@ import Foundation
 // and makes on the second press, as every Studio tile does: the Reader's ⋯
 // (its source, a book's chapter, or the whole book) opens the sheet — what it
 // reads, Fewer · Auto · More, the price — whose Make writes the questions in the background (`MnemonicReadingCoordinator`).
-// The reading opens in the document slot once its first source is written. It is
+// The reading opens in a pane once its first source is written. It is
 // made from one source at a time, never from a notebook's ticked sources (product
 // owner, 2026-10-17: it "does apply to individual sources").
 

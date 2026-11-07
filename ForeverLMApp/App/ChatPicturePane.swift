@@ -5,10 +5,9 @@ import SwiftUI
 ///
 /// A figure squeezed into the transcript's column is unreadable, and the
 /// full-window lightbox hides the question it was shown for. The figure's
-/// Open beside puts the same bytes in a pane of their own: the notebook's
-/// document slot, so the question stays on the left and the picture is big on
-/// the right (`ChatPicturePane`), and in a window with no notebook, a small
-/// window the learner can put where they like (`ChatPictureWindow`).
+/// Open beside puts the same bytes in a small window the learner can put
+/// where they like (`ChatPictureWindow`), so the question stays in view and
+/// the picture is big beside it.
 ///
 /// The picture is the lightbox's magnifying view: fit on entry, a click zooms
 /// in around the point and a second click fits it again, a pinch or ⌘-scroll
@@ -77,32 +76,8 @@ struct ChatPictureView: View {
     }
 }
 
-/// The notebook's document slot while it holds `.picture`: the picture the
-/// window's chat popped out, and the × that gives the slot back.
-struct ChatPicturePane: View {
-    @Environment(StudioViewModel.self) private var vm
-    @Environment(StudioWindowState.self) private var windowState
-
-    var body: some View {
-        Group {
-            if let picture = windowState.dockedPicture {
-                ChatPictureView(picture: picture)
-            } else {
-                // A place restored by ‹ › after the window dropped the bytes.
-                Color(nsColor: .windowBackgroundColor)
-            }
-        }
-        .studioPaneCloseChrome {
-            vm.closePictureInNotebook(in: windowState)
-        }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Picture")
-        .accessibilityIdentifier("notebook.picture")
-    }
-}
-
-/// A picture popped out where there is no notebook to dock it in: one small
-/// window, reused for the next picture sent beside, closed like any window.
+/// A picture popped out beside its chat: one small window, reused for the
+/// next picture sent beside, closed like any window.
 @MainActor
 enum ChatPictureWindow {
     private static var current: NSWindow?

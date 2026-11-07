@@ -2,7 +2,7 @@
 import SwiftUI
 
 /// A mnemonic reading, open where a notebook's output opens — the Docs
-/// canvas, its document slot inside a notebook (docs/memory-design.md,
+/// canvas, its pane inside a notebook (docs/memory-design.md,
 /// "Mnemonic reading"): each source in order under its title, its own stored
 /// text set as the Reader's prose form sets it — the serif face, its measure
 /// and its spacing — and after the paragraph that holds a question's quote,

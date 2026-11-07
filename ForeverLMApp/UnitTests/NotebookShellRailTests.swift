@@ -556,7 +556,7 @@ struct CourseRoutingTests {
         #expect(home.centerTabGroups.groups.map(\.activeTab) == [.courses])
     }
 
-    @Test("A window holding a notebook keeps it, and shows the course's page in its document slot")
+    @Test("A window holding a notebook keeps it, and shows the course's page in one of its panes")
     func staysInTheNotebook() {
         let restore = capturingWindowDefaults()
         defer { restore() }
@@ -567,7 +567,8 @@ struct CourseRoutingTests {
         following.NotebookID = "follower"
         vm.openCourse("aging", in: following)
         #expect(following.NotebookID == "follower", "the notebook the learner works in keeps the page")
-        #expect(following.notebook?.visibleDocuments.contains(.coursePage) == true)
+        #expect(following.coursePageID == "aging")
+        #expect(following.centerTabGroups.groups.contains { $0.activeTab == .courses })
     }
 
     @Test("A course page's ‹ Courses gives its pane to the Courses list, in place")

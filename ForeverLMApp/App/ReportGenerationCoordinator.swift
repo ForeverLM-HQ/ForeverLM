@@ -142,7 +142,7 @@ final class ReportGenerationCoordinator: ObservableObject {
     // MARK: Make
 
     /// The sheet's Make: write the report the plan describes, then open it
-    /// in the notebook's document slot of the window Make was pressed in,
+    /// in a pane of the window Make was pressed in,
     /// when that window still holds the notebook. Returns the saved report,
     /// or nil when it was stopped or failed (said in a toast).
     @discardableResult
@@ -249,7 +249,7 @@ final class ReportGenerationCoordinator: ObservableObject {
     }
 
     /// Opens the report in the window Make was pressed in — in its notebook's
-    /// document slot, which is where a Doc lands in a notebook window — when
+    /// pane, which is where a Doc lands in a notebook window — when
     /// that window still holds the report's notebook. A window that has moved
     /// on is left as it is, and a toast says the report is written.
     func open(_ report: ReportResult, windowID: UUID?, in vm: StudioViewModel) {

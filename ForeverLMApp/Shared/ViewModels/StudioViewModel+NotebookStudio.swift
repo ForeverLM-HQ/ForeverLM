@@ -151,7 +151,7 @@ extension StudioViewModel {
         startCoursePlanningChat(inNotebook: notebook.id)
     }
 
-    /// Note: a new Doc homed in the notebook, opened in its document slot in
+    /// Note: a new Doc homed in the notebook, opened in its pane in
     /// `windowState` — the window the tile was pressed in, named because the
     /// write awaits and an `inWindow` scope would not outlast it.
     func makeNotebookNote(notebookID: String, in windowState: StudioWindowState) async {
@@ -184,7 +184,7 @@ extension StudioViewModel {
     }
 
     /// Explainer, for a source whose explainer exists: it opens in the
-    /// Reader — the document slot — in `windowState`, with the source's row
+    /// Reader — a pane — in `windowState`, with the source's row
     /// selected as its list's account of what the Reader shows, as the
     /// source's own Open Explainer does. False when there is none to open,
     /// and the caller writes one (`ExplainerGenerationCoordinator`).

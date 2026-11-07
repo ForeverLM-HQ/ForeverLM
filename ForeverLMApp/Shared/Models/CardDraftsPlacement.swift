@@ -11,10 +11,6 @@ import Foundation
 enum CardDraftsPlacement: Equatable {
     /// The Memory pane is on screen already: it turns to To Check.
     case memoryOnScreen
-    /// The notebook's workspace with Memory placed: in its empty document
-    /// slot, in a slot that showed neither the Reader nor a second chat, or
-    /// — with its chat hidden — in the chat's place beside the slot.
-    case notebook(NotebookWorkspace)
     /// The window's panes with Memory in a pane of its own beside the others,
     /// or in a pane that showed neither a chat nor the Reader.
     case panes(StudioCenterTabGroups)
@@ -23,34 +19,14 @@ enum CardDraftsPlacement: Equatable {
 
     /// What a placement may never cover.
     static let protectedTabs: Set<StudioCenterTab> = [.chat, .secondaryChat, .reader]
-    static let protectedDocuments: Set<NotebookDocument> = [.reader, .secondChat]
 
     static func place(
-        notebook: NotebookWorkspace?,
         panes: StudioCenterTabGroups,
         isInMemoryFocus: Bool
     ) -> CardDraftsPlacement {
         // A memory review owns its window: the drafts wait.
         guard !isInMemoryFocus else { return .none }
-        if let notebook {
-            return place(in: notebook)
-        }
         return place(in: panes)
-    }
-
-    private static func place(in notebook: NotebookWorkspace) -> CardDraftsPlacement {
-        if notebook.document == .memory || notebook.leadingDocument == .memory { return .memoryOnScreen }
-        if notebook.document.map({ !protectedDocuments.contains($0) }) ?? true,
-           let next = notebook.following(.document(.memory)) {
-            return .notebook(next)
-        }
-        // The slot shows the source or a second chat: beside it, in the
-        // chat's place, only while the chat is hidden.
-        guard !notebook.showsChat,
-              notebook.leadingDocument.map({ !protectedDocuments.contains($0) }) ?? true else { return .none }
-        var next = notebook
-        next.leadingDocument = .memory
-        return .notebook(next)
     }
 
     private static func place(in panes: StudioCenterTabGroups) -> CardDraftsPlacement {

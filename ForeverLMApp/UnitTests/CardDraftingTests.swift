@@ -612,51 +612,13 @@ struct CardDraftingTests {
 
     // MARK: Where the drafts open
 
-    @Test("In a notebook the drafts open in an empty or ordinary document slot, or the chat's place while the chat is hidden, never over the Reader or a chat")
-    func placementInANotebook() {
-        let empty = NotebookWorkspace(notebookID: "nb")
-        guard case .notebook(let inSlot) = CardDraftsPlacement.place(notebook: empty, panes: .defaultLayout, isInMemoryFocus: false) else {
-            Issue.record("an empty slot takes the drafts")
-            return
-        }
-        #expect(inSlot.document == .memory)
-        #expect(inSlot.showsChat)
-
-        let overDoc = NotebookWorkspace(notebookID: "nb", document: .docs)
-        guard case .notebook(let replacing) = CardDraftsPlacement.place(notebook: overDoc, panes: .defaultLayout, isInMemoryFocus: false) else {
-            Issue.record("a Doc in the slot gives way; the chat beside it stays")
-            return
-        }
-        #expect(replacing.document == .memory)
-        #expect(replacing.showsChat)
-
-        let readerBesideChat = NotebookWorkspace(notebookID: "nb", document: .reader)
-        #expect(CardDraftsPlacement.place(notebook: readerBesideChat, panes: .defaultLayout, isInMemoryFocus: false) == CardDraftsPlacement.none,
-                "the chat and the source are both on screen: neither gives way")
-        let secondChat = NotebookWorkspace(notebookID: "nb", document: .secondChat)
-        #expect(CardDraftsPlacement.place(notebook: secondChat, panes: .defaultLayout, isInMemoryFocus: false) == CardDraftsPlacement.none)
-
-        let readerAlone = NotebookWorkspace(notebookID: "nb", document: .reader, showsChat: false)
-        guard case .notebook(let beside) = CardDraftsPlacement.place(notebook: readerAlone, panes: .defaultLayout, isInMemoryFocus: false) else {
-            Issue.record("with the chat hidden the chat's place takes the drafts, beside the Reader")
-            return
-        }
-        #expect(beside.leadingDocument == .memory)
-        #expect(beside.document == .reader)
-
-        let showing = NotebookWorkspace(notebookID: "nb", document: .memory)
-        #expect(CardDraftsPlacement.place(notebook: showing, panes: .defaultLayout, isInMemoryFocus: false) == .memoryOnScreen)
-        #expect(CardDraftsPlacement.place(notebook: empty, panes: .defaultLayout, isInMemoryFocus: true) == CardDraftsPlacement.none,
-                "a memory review owns its window")
-    }
-
     @Test("In panes the drafts open in a pane of their own beside the Reader, or one showing neither a chat nor the Reader")
     func placementInPanes() {
         typealias Group = StudioCenterTabGroups.Group
         let readerAlone = StudioCenterTabGroups(groups: [
             Group(tabs: [.reader, .chat, .memory, .artifacts], activeTab: .reader),
         ])
-        guard case .panes(let split) = CardDraftsPlacement.place(notebook: nil, panes: readerAlone, isInMemoryFocus: false) else {
+        guard case .panes(let split) = CardDraftsPlacement.place(panes: readerAlone, isInMemoryFocus: false) else {
             Issue.record("room for a second pane: the drafts take it")
             return
         }
@@ -667,14 +629,14 @@ struct CardDraftingTests {
             Group(tabs: [.reader, .memory], activeTab: .reader),
             Group(tabs: [.chat, .artifacts], activeTab: .chat),
         ])
-        #expect(CardDraftsPlacement.place(notebook: nil, panes: readerAndChat, isInMemoryFocus: false) == CardDraftsPlacement.none,
+        #expect(CardDraftsPlacement.place(panes: readerAndChat, isInMemoryFocus: false) == CardDraftsPlacement.none,
                 "never over the chat or the source")
 
         let readerAndDocs = StudioCenterTabGroups(groups: [
             Group(tabs: [.reader, .memory], activeTab: .reader),
             Group(tabs: [.notepad, .chat], activeTab: .notepad),
         ])
-        guard case .panes(let overDocs) = CardDraftsPlacement.place(notebook: nil, panes: readerAndDocs, isInMemoryFocus: false) else {
+        guard case .panes(let overDocs) = CardDraftsPlacement.place(panes: readerAndDocs, isInMemoryFocus: false) else {
             Issue.record("a pane showing a Doc gives way")
             return
         }
@@ -682,7 +644,7 @@ struct CardDraftingTests {
         #expect(!overDocs.groups[0].tabs.contains(.memory))
 
         let showing = StudioCenterTabGroups(groups: [Group(tabs: [.memory, .reader], activeTab: .memory)])
-        #expect(CardDraftsPlacement.place(notebook: nil, panes: showing, isInMemoryFocus: false) == .memoryOnScreen)
+        #expect(CardDraftsPlacement.place(panes: showing, isInMemoryFocus: false) == .memoryOnScreen)
     }
 
     // MARK: The tasks
@@ -964,18 +926,14 @@ struct MakeCardsViewModelTests {
         let (vm, root) = makeViewModel()
         defer { try? FileManager.default.removeItem(at: root) }
 
-        // A notebook: the chat and the source fill the window.
+        // A notebook's window places them in its panes, as any window does.
         let window = StudioWindowState()
-        window.notebook = NotebookWorkspace(notebookID: "nb", document: .reader)
-        #expect(!vm.placeCardDrafts(scope: .notebook("nb"), in: window), "never over the chat or the source")
-        #expect(window.notebook?.document == .reader)
-        #expect(window.notebook?.showsChat == true)
-
-        // Its slot empty: To Check takes it, beside the chat.
         window.notebook = NotebookWorkspace(notebookID: "nb")
+        window.centerTabGroups = StudioCenterTabGroups(groups: [
+            StudioCenterTabGroups.Group(tabs: [.chat, .memory], activeTab: .chat),
+        ])
         #expect(vm.placeCardDrafts(scope: .notebook("nb"), in: window))
-        #expect(window.notebook?.document == .memory)
-        #expect(window.notebook?.showsChat == true)
+        #expect(window.centerTabGroups.groups.map(\.activeTab) == [.chat, .memory], "a pane of its own beside the chat")
         #expect(window.memoryPaneSection == .toCheck)
         #expect(window.memoryPaneScope == .notebook("nb"))
 

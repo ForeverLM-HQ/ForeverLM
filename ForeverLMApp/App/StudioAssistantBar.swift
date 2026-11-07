@@ -571,8 +571,7 @@ final class StudioAssistantSessionStore {
 /// have like two things side by side whenever we want"). The window's own
 /// chat is not here: it is `StudioView`'s primary store, the one that takes
 /// the app-wide requests (a sidebar click, New chat, an assistant's open). A
-/// notebook's second chat, drawn in its document slot with no pane id, keeps
-/// a store of its own (`unpaned`).
+/// side chat drawn with no pane id keeps a store of its own (`unpaned`).
 ///
 /// Not observed: a pane's store is made the first time its pane draws, and
 /// the views that read a store observe the store itself.
@@ -606,13 +605,8 @@ final class StudioComparisonChatStores {
     }
 
     /// The side chats on screen in `windowState`, for the rail's highlight:
-    /// the notebook slot's while it shows its second chat, else each pane's
-    /// whose pane shows its side chat.
+    /// each pane's whose pane shows its side chat.
     func shownSessionIDs(in windowState: StudioWindowState) -> Set<String> {
-        if let notebook = windowState.notebook, !notebook.tabbed {
-            guard notebook.showsSecondChat, let id = unpaned.activeSessionID else { return [] }
-            return [id]
-        }
         return Set(windowState.centerTabGroups.groups.compactMap { group in
             group.activeTab == .secondaryChat ? byPane[group.id]?.activeSessionID : nil
         })
@@ -658,10 +652,8 @@ struct StudioDockedAssistantPanel: View {
             usesDockedHeaderChrome: true,
             headerTrailingChromeClearance: headerTrailingChromeClearance,
             headerLeadingChromeClearance: max(0, headerLeadingInset - Self.hostInset),
-            // A sole chat takes the wider reading column: alone in the
-            // center, or a notebook's chat with nothing in its document slot.
-            expandsChatContent: windowState.notebook.flatMap { $0.tabbed ? nil : $0.document == nil }
-                ?? (windowState.centerTabGroups.groups.count == 1),
+            // A sole chat takes the wider reading column: alone in the center.
+            expandsChatContent: windowState.centerTabGroups.groups.count == 1,
             acceptsGlobalNavigationRequests: acceptsGlobalNavigationRequests,
             ownerWindowID: windowState.id,
             onOpenNewChatBeside: onOpenNewChatBeside

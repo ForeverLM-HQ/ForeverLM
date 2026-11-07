@@ -450,11 +450,8 @@ extension StudioViewModel {
     @discardableResult
     func leaveWalkthroughForNewChat(in windowState: StudioWindowState) -> Bool {
         let groups = windowState.centerTabGroups.groups
-        // A notebook's chat is on screen while it shows, and a second chat
-        // there sits in the document slot.
-        let chatShowsAlone = windowState.notebook.flatMap { $0.tabbed ? nil : $0.showsChat && !$0.showsSecondChat }
-            ?? (groups.first(where: { $0.tabs.contains(.chat) })?.activeTab == .chat
-                && !groups.contains(where: { $0.tabs.contains(.secondaryChat) }))
+        let chatShowsAlone = groups.first(where: { $0.tabs.contains(.chat) })?.activeTab == .chat
+            && !groups.contains(where: { $0.tabs.contains(.secondaryChat) })
         guard !windowState.isChatPoppedOut,
               chatShowsAlone,
               let manager = windowState.walkthroughDeckManager,

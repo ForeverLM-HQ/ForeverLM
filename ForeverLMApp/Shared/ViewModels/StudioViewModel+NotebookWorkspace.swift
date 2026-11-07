@@ -1,14 +1,12 @@
 import Foundation
 
-// MARK: - The notebook workspace's routing
+// MARK: - Opening and closing a window's notebook
 //
 // While a window holds a notebook (`StudioWindowState.notebook`), the notebook
-// workspace draws its body: the notebook's Sources column, its chat and one
-// document slot, and its Studio column (docs/notebooks-design.md, "The
-// notebook workspace"). Every center-tab entry point asks
-// `NotebookWorkspace.route` first, so a request lands in the notebook's chat
-// or its document slot, or leaves the notebook — and the panes underneath,
-// which the notebook never rearranges, take it as they always did.
+// workspace draws its Sources and Studio columns around the window's own
+// tabbed panes (docs/notebooks-design.md, "The notebook workspace"). Every
+// center-tab request goes to those panes as it does in a window with no
+// notebook.
 
 /// Where a chat belongs: its own notebook's workspace, or the library.
 enum NotebookChatHome: Equatable {
@@ -28,150 +26,25 @@ extension StudioViewModel {
         return reviewSessionGroups(for: [notebook]).byNotebookID[notebookID] ?? []
     }
 
-    /// The center tabs on screen in `windowState`: what its notebook's center
-    /// shows while it holds one, otherwise each pane's active tab.
+    /// The center tabs on screen in `windowState`: each pane's active tab.
     func visibleCenterTabs(in windowState: StudioWindowState) -> Set<StudioCenterTab> {
-        if let notebook = windowState.notebook, !notebook.tabbed { return notebook.visibleTabs }
-        return Set(windowState.centerTabGroups.groups.map(\.activeTab))
-    }
-
-    /// Follows a request for `tab` in `destination`'s notebook. True when the
-    /// notebook took it (its chat or its document slot shows the tab); false
-    /// when the window holds no notebook, or when the tab has no place in one
-    /// — the window then leaves the notebook, and the caller goes on to the
-    /// panes underneath, which come back exactly as they were.
-    ///
-    /// A request the notebook takes is a surface the learner asked for, so
-    /// Voice gives way, and so does a memory review's focus — a chat review's
-    /// for anything but the chat it runs in, a card review's for anything —
-    /// as `activateCenterTab` does for the panes.
-    @discardableResult
-    func routeIntoNotebook(_ tab: StudioCenterTab, in destination: StudioWindowState) -> Bool {
-        // A tabbed notebook has no slot: its panes take the request as a
-        // window with no notebook does, and the notebook stays.
-        guard let notebook = destination.notebook, !notebook.tabbed else { return false }
-        let route = NotebookWorkspace.route(tab, coursePageID: destination.coursePageID)
-        guard let next = notebook.following(route) else {
-            destination.notebook = nil
-            return false
-        }
-        if destination.isVoiceWorkspacePresented { destination.isVoiceWorkspacePresented = false }
-        if destination.memoryReviewFocusYields(to: tab) {
-            leaveMemoryReviewFocus(in: destination)
-        }
-        // Guarded: an @Observable write notifies even when nothing changed.
-        if next != notebook { destination.notebook = next }
-        return true
-    }
-
-    /// Closes `tab`'s surface in `destination`'s notebook: the document in
-    /// the chat's place or the slot goes, or Chat hides and the center shows
-    /// the notebook's overview.
-    func closeInNotebook(_ tab: StudioCenterTab, in destination: StudioWindowState) {
-        guard let notebook = destination.notebook, !notebook.tabbed else { return }
-        let next = notebook.closing(tab)
-        if next != notebook { destination.notebook = next }
-    }
-
-    /// Puts `tab`, one of the document slot's tabs, beside the slot's other
-    /// document, to the right of it or the left (`NotebookWorkspace.splittingSlot`):
-    /// the video on one side and the notes on the other. A window with no
-    /// notebook, or a slot without that tab, is left as it is.
-    func splitNotebookSlot(
-        _ tab: StudioCenterTab,
-        toTrailing: Bool,
-        in destination: StudioWindowState
-    ) {
-        guard let notebook = destination.notebook, !notebook.tabbed,
-              let next = notebook.splittingSlot(moving: tab, toTrailing: toTrailing) else { return }
-        if destination.memoryReviewFocusYields(to: tab) { leaveMemoryReviewFocus(in: destination) }
-        destination.notebook = next
+        Set(windowState.centerTabGroups.groups.map(\.activeTab))
     }
 
     /// Opens a Page beside what the learner is reading or watching, so the two
-    /// are on screen together: in a notebook the Page and the slot's document
-    /// stand side by side with the Page on the right; elsewhere it opens in a
-    /// pane beside the Reader.
+    /// are on screen together: in a pane beside the Reader.
     func openDocSideBySide(_ artifactID: String) async {
         if !artifacts.contains(where: { $0.id == artifactID }) { await loadArtifacts() }
         guard artifacts.contains(where: { $0.id == artifactID }) else {
             showToast("That page is no longer in your library")
             return
         }
-        let window = activeWindowState
-        if window.holdsNotebookSlot {
-            revealArtifact(artifactID, in: window)
-            splitNotebookSlot(artifactSection(of: artifactID).centerTab, toTrailing: true, in: window)
-        } else {
-            revealArtifact(artifactID, in: window, beside: .reader)
-        }
-    }
-
-    /// Pops a chat's picture out beside the conversation: the notebook's
-    /// document slot shows it, replacing what it held, and a picture already
-    /// there gives way to this one. False when `destination` holds no notebook,
-    /// which has no slot to give it; the caller then opens the picture in a
-    /// window of its own.
-    @discardableResult
-    func dockPicture(_ picture: DockedChatPicture, in destination: StudioWindowState) -> Bool {
-        guard let notebook = destination.notebook, !notebook.tabbed,
-              let next = notebook.following(.document(.picture)) else { return false }
-        destination.dockedPicture = picture
-        if next != notebook { destination.notebook = next }
-        return true
-    }
-
-    /// The picture pane's ×: the document slot empties.
-    func closePictureInNotebook(in destination: StudioWindowState) {
-        guard let notebook = destination.notebook, !notebook.tabbed else { return }
-        let next = notebook.closingPicture()
-        if next != notebook { destination.notebook = next }
-    }
-
-    /// The Reader's "Back to …" in `destination`'s notebook: the document
-    /// slot shows again what the Reader took it from.
-    func returnInNotebook(in destination: StudioWindowState) {
-        guard let notebook = destination.notebook, !notebook.tabbed else { return }
-        let next = notebook.returning()
-        if next != notebook { destination.notebook = next }
-    }
-
-    /// What the Reader's "Back to …" in `windowState`'s notebook names: the
-    /// Doc, Site or animation the slot showed (the window's open artifact,
-    /// `openArtifactID`), the course, the Browser or the chat the Reader took
-    /// the slot from. Nil when the slot's Reader has nothing to go back to.
-    func notebookReturnTitle(in windowState: StudioWindowState) -> String? {
-        guard let notebook = windowState.notebook, notebook.document == .reader,
-              let previous = notebook.returnDocument else { return nil }
-        switch previous {
-        case .docs, .sites, .animations:
-            if let id = windowState.openArtifactID,
-               let title = artifacts.first(where: { $0.id == id })?.title
-                .trimmingCharacters(in: .whitespacesAndNewlines),
-               !title.isEmpty {
-                return title
-            }
-            return previous.centerTab?.title
-        case .coursePage:
-            return windowState.coursePageID.map(courseDisplayName) ?? "Course"
-        case .browser:
-            return "Browser"
-        case .secondChat:
-            return "Chat"
-        case .flashcards:
-            return "Cards"
-        case .memory:
-            return "Memory"
-        case .picture:
-            return "Picture"
-        case .reader:
-            return nil
-        }
+        revealArtifact(artifactID, in: activeWindowState, beside: .reader)
     }
 
     /// Opens `notebookID` as the notebook of `destinationWindowState` (the
-    /// window in scope when nil). The notebook workspace then draws that
-    /// window, and the window's panes wait underneath, untouched.
+    /// window in scope when nil). The notebook workspace then draws its
+    /// columns around that window's panes.
     ///
     /// A window that was not holding this notebook shows a chat in it: a
     /// saved chat of this notebook stays; otherwise the chat this window last
@@ -193,7 +66,7 @@ extension StudioViewModel {
     /// The window opens the notebook as it last left it, if it did
     /// (`StudioWindowState.notebookLeft`): its faces and folds.
     ///
-    /// Every notebook opens tabbed (`NotebookWorkspace.tabbed`): its Sources
+    /// Every notebook opens in the window's own tabs: its Sources
     /// and Studio columns stand around the window's own panes, whose tabs —
     /// the Space, Pages, the Library, Chat — are dragged, split and closed as
     /// anywhere else (product owner, 2026-11-07: "the notebook should
@@ -218,7 +91,6 @@ extension StudioViewModel {
         }
         let wasHolding = destination.NotebookID
         destination.NotebookID = notebookID
-        if destination.notebook?.tabbed == false { destination.notebook?.tabbed = true }
         let groups = destination.centerTabGroups.groups
         if groups.count == 1, groups[0].activeTab != .chat {
             activateCenterTab(.chat, in: destination)

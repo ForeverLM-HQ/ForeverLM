@@ -4282,12 +4282,8 @@ struct ReviewChatMessageContent: View {
                     },
                     citationScopeKey: notebookCitations?.revision ?? "",
                     addSourceToNotebook: notebookCitations?.add,
-                    // Open beside on a figure: in a notebook window the
-                    // document slot beside this chat; anywhere else a picture
-                    // window. Decided on the click, so a row never watches the
-                    // window's notebook.
-                    openPictureBeside: { [weak windowState] picture in
-                        if let windowState, vm.dockPicture(picture, in: windowState) { return }
+                    // Open beside on a figure: a picture window.
+                    openPictureBeside: { picture in
                         ChatPictureWindow.present(picture)
                     },
                     // Right-click a picture a quiz or the chat drew: what drew

@@ -15,7 +15,7 @@ import Foundation
 // None of them gives the window over: a window that empties itself on one
 // click is startling (the product owner asked for the review to ask first on
 // 2026-09-08). Each opens the Memory pane — inside a notebook window, the
-// notebook's document slot, which leaves the notebook as it was — and only
+// notebook's panes, which leaves the notebook as it was — and only
 // the pane's Start Review or Practice gives the window to the review, as only
 // the Review mode sheet's Start Review did before cards; since C7 also a
 // notebook's own Practice, which the learner picks from its Studio's Cards
@@ -55,7 +55,7 @@ extension StudioViewModel {
     /// The way into the card review over `scope`, in the window in scope:
     /// the Memory pane's Review section on that scope, whose Start Review
     /// gives the window to the review. Inside a window holding a notebook
-    /// the pane opens in the notebook's document slot and the notebook stays
+    /// the pane opens among the notebook's panes and the notebook stays
     /// as it was, under the review too. The notebook's Studio Cards row and
     /// its Cards tile's Open in Memory ask for their notebook; every entry
     /// outside a notebook's own controls asks for every notebook. (A
@@ -66,9 +66,8 @@ extension StudioViewModel {
     }
 
     /// The Memory pane over `scope`, in the window in scope (or
-    /// `destinationWindowState`): a pane of the window, or the notebook's
-    /// document slot in a window holding a notebook
-    /// (`NotebookWorkspace.route`), on `section` (nil keeps the one it shows).
+    /// `destinationWindowState`): a pane of the window, a notebook's window
+    /// included, on `section` (nil keeps the one it shows).
     /// The rail's Memory row and Open in Other Window ask for every notebook:
     /// Memory spans them all by default (decisions v5, 3), and a notebook is
     /// one click away in the pane.
@@ -85,7 +84,7 @@ extension StudioViewModel {
     }
 
     /// The rail row's Open Beside: the Memory pane over every notebook,
-    /// beside the visible pane (or in a notebook's document slot).
+    /// beside the visible pane (or in a notebook's panes).
     func openMemoryPaneBeside() {
         let destination = activeWindowState
         if destination.memoryPaneScope != .allNotebooks { destination.memoryPaneScope = .allNotebooks }

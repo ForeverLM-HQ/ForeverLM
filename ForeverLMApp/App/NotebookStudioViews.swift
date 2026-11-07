@@ -92,7 +92,7 @@ struct NotebookStudioPanel: View {
 ///
 /// A tile asks first and makes on the second press, the way its feature does
 /// elsewhere (`NotebookStudioTile`). An output opens where its kind opens — in
-/// a notebook window, the document slot beside the chat
+/// a notebook window, a pane beside the chat
 /// (`StudioViewModel.openNotebookOutput`).
 struct NotebookStudioColumn: View {
     @Environment(StudioViewModel.self) private var vm
@@ -178,16 +178,21 @@ struct NotebookStudioColumn: View {
         .onChange(of: openRecordKey, initial: true) { _, _ in markOpenRecordSeen() }
     }
 
-    /// The Doc, Site or animation the window's document slot shows, with
-    /// the records it was read against, so a record that arrives after it
-    /// opened (a report saving) is marked too.
+    /// The Doc, Site or animation a pane of the window shows, with the
+    /// records it was read against, so a record that arrives after it opened
+    /// (a report saving) is marked too.
     private var openRecordKey: String {
-        let showsRecord = windowState.notebook?.visibleDocuments.contains { [.docs, .sites, .animations].contains($0) } ?? false
+        let showsRecord = showsRecordPane
         return "\(showsRecord ? windowState.openArtifactID ?? "" : "")#\(vm.artifacts.count)"
     }
 
+    /// Whether a pane of the window shows Pages, Sites or animations.
+    private var showsRecordPane: Bool {
+        windowState.centerTabGroups.groups.contains { [.notepad, .sites, .animations].contains($0.activeTab) }
+    }
+
     private func markOpenRecordSeen() {
-        guard windowState.notebook?.visibleDocuments.contains(where: { [.docs, .sites, .animations].contains($0) }) == true,
+        guard showsRecordPane,
               let openID = windowState.openArtifactID else { return }
         let outputs = vm.notebookOutputs(
             notebookID: goal.id,
@@ -823,7 +828,7 @@ struct NotebookStudioBadge: View {
 /// and **Make Cards…** for the ticked sources, shown while the pointer is
 /// over the row (2026-10-06; they were always drawn, repeating the Cards
 /// tile's menu above). A click opens the Memory pane narrowed to the
-/// notebook in the window's document slot: its To Check while cards wait
+/// notebook in a pane of the window: its To Check while cards wait
 /// there, else its Review (`openNotebookCards`); the right-click opens it in
 /// the other window too and carries Practice and Make Cards…, as the Cards
 /// tile's menu does.
@@ -1007,7 +1012,7 @@ final class NotebookOutputSeenTracker {
 
 /// One output of the notebook, as Gemini Notebook lists one: its kind's
 /// badge, its title, "Briefing · 6 sources · 1d ago", and a dot while it is
-/// new on this Mac. A click opens it in the window's document slot; its menu
+/// new on this Mac. A click opens it in a pane of the window; its menu
 /// — on the row's ⋯ while the pointer is over it, and on a right-click —
 /// opens it, opens it in the other window, renames a record, shows what it
 /// was made from (Prompt and Sources: a report's recipe, its sources), and

@@ -145,24 +145,16 @@ extension ChatOpenPanes {
             return Tab(name: tab.title, contents: contents)
         }
 
-        // A window holding a notebook draws the notebook's chat and its
-        // document slot, left to right; the panes underneath are not on
-        // screen and hold nothing the learner is looking at.
-        let panes: [Pane]
-        if let notebook = state.notebook {
-            var tabs: [StudioCenterTab] = notebook.showsChat ? [.chat] : []
-            tabs += notebook.visibleDocuments.compactMap(\.centerTab)
-            panes = tabs.map { Pane(onScreen: describedTab($0, isOnScreen: true)) }
-        } else {
-            panes = state.centerTabGroups.groups.map { group in
-                Pane(
-                    onScreen: describedTab(group.activeTab, isOnScreen: true),
-                    behind: group.tabs
-                        .filter { $0 != group.activeTab }
-                        .map { describedTab($0, isOnScreen: false) }
-                        .filter { !$0.contents.isEmpty }
-                )
-            }
+        // A window holding a notebook draws its panes between the notebook's
+        // columns, as a window with none draws them.
+        let panes = state.centerTabGroups.groups.map { group in
+            Pane(
+                onScreen: describedTab(group.activeTab, isOnScreen: true),
+                behind: group.tabs
+                    .filter { $0 != group.activeTab }
+                    .map { describedTab($0, isOnScreen: false) }
+                    .filter { !$0.contents.isEmpty }
+            )
         }
         // Readers and linked pages the panes above did not account for — a
         // second Reader, a Site shown inside Artifacts — are on screen too.

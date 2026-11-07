@@ -662,8 +662,7 @@ struct ChatMarkdownView: NSViewRepresentable {
     /// the source the token names to the chat's notebook. Nil offers none.
     var addSourceToNotebook: (@MainActor (String) async -> Void)? = nil
     /// Open beside on a picture: where the picture goes next to its chat. Nil
-    /// opens it in a picture window of its own; the notebook's chat docks it
-    /// in the document slot (`StudioViewModel.dockPicture`).
+    /// opens it in a picture window of its own.
     var openPictureBeside: (@MainActor (DockedChatPicture) -> Void)? = nil
     /// Redraw With on a right-clicked picture from the image store: draws
     /// the version named (by its id) again with the model chosen, and
@@ -1290,7 +1289,7 @@ struct ChatMarkdownView: NSViewRepresentable {
         }
 
         /// Open beside on a picture: the same cached bytes the figure shows go
-        /// where the chat says (the notebook's document slot) or, with no such
+        /// where the chat says (a pane of the notebook's window) or, with no such
         /// place, into a picture window, with the alt text as the caption.
         private func openSourceImageBeside(for message: WKScriptMessage) {
             guard let body = message.body as? [String: Any],

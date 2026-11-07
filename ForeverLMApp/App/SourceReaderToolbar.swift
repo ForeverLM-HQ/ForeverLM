@@ -294,9 +294,6 @@ extension StudioWindowState {
     /// out into a window of its own.
     var showsChatToDropInto: Bool {
         if isChatPoppedOut { return true }
-        if let notebook {
-            return notebook.showsChat || notebook.showsSecondChat
-        }
         return centerTabGroups.groups.contains { group in
             group.activeTab == .chat || group.activeTab == .secondaryChat
         }
@@ -609,8 +606,8 @@ struct SourceReaderStableNavigation: View {
     let showsBrowserNavigation: Bool
     let canGoBack: Bool
     let canGoForward: Bool
-    /// What ‹ says it does: "Go back", or "Back to <Doc>" when it returns a
-    /// notebook's document slot to what the Reader took it from.
+    /// What ‹ says it does: "Go back", or "Back to <place>" when it shows
+    /// again what the Reader covered in its pane.
     var backHelp = "Go back"
     /// The reader's page position, when its document is counted in pages.
     /// Presenting the Go to Page popover from here, the one toolbar view that

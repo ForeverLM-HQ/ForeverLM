@@ -13598,8 +13598,7 @@ extension ScheduleChatNavigationTests {
             Self.notebook("shelved", teamID: vm.activeTeamID, archived: true),
         ]
         let notebookWindow = StudioWindowState()
-        notebookWindow.notebook = NotebookWorkspace(notebookID: "bio", showsChat: false)
-        let panes = notebookWindow.centerTabGroups
+        notebookWindow.notebook = NotebookWorkspace(notebookID: "bio")
         let libraryWindow = StudioWindowState()
 
         // New chat — the rail, /new, a walk's leave — names the window's notebook.
@@ -13607,9 +13606,6 @@ extension ScheduleChatNavigationTests {
         #expect(vm.pendingReviewChatNotebookID == "bio")
         #expect(vm.reviewChatResetRequestID != nil)
         #expect(vm.pendingNotebookChatRequestID == nil, "an explicit New chat seeds its context at once")
-        // The chat comes on screen in the notebook; the panes underneath stay.
-        #expect(notebookWindow.notebook?.showsChat == true)
-        #expect(notebookWindow.centerTabGroups == panes)
         #expect(vm.newChatNotebookID(in: notebookWindow) == "bio")
 
         vm.inWindow(libraryWindow) { vm.requestNewChat() }
@@ -13622,7 +13618,6 @@ extension ScheduleChatNavigationTests {
         vm.inWindow(notebookWindow) { vm.requestBlankReviewChat() }
         #expect(vm.pendingReviewChatNotebookID == nil)
         #expect(notebookWindow.notebook == nil)
-        #expect(notebookWindow.centerTabGroups == panes)
 
         // In an archived notebook New chat is unfiled, and the window stays.
         notebookWindow.notebook = NotebookWorkspace(notebookID: "shelved")
@@ -13659,7 +13654,6 @@ extension ScheduleChatNavigationTests {
             Self.chat(MemoryReviewSession.sessionID(for: Self.notebookNow), filedUnder: "bio"),
         ]
         let window = StudioWindowState()
-        let panes = window.centerTabGroups
 
         // From the library: the chat's notebook opens here, with this chat in
         // it rather than a fresh one.
@@ -13667,8 +13661,6 @@ extension ScheduleChatNavigationTests {
         #expect(window.NotebookID == "bio")
         #expect(vm.reviewChatResumeSessionID == "bio-chat")
         #expect(vm.pendingNotebookChatRequestID == nil)
-        #expect(window.notebook?.showsChat == true)
-        #expect(window.centerTabGroups == panes)
 
         // A chat on a Goal belongs to the notebook the Goal draws on.
         window.notebook = NotebookWorkspace(notebookID: "neuro")

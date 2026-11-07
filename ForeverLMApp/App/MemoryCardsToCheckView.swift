@@ -4,7 +4,7 @@ import SwiftUI
 /// the cards drafted from sources and not yet gone through, and the items from
 /// before cards, offered once, in the scope the pane's (every notebook, or
 /// one: a notebook's Studio Cards row opens it narrowed to the notebook, in
-/// the notebook's document slot).
+/// a pane of the notebook's window).
 ///
 /// A card at a time, as Review deals them (since 2026-10-12; product owner,
 /// at the list of every card with its buttons: "more intuitive if the review

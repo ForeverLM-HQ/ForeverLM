@@ -13,7 +13,7 @@ import UniformTypeIdentifiers
 /// the notebooks and the pages rather than inside a notebook
 /// (product owner, 2026-10-03: "courses should not be a part of notebooks; they
 /// are kind of separate entities"). A window holding a notebook can still
-/// show a course's page in its document slot, as any pane
+/// show a course's page in its pane, as any pane
 /// (`StudioViewModel.openCourse`).
 struct CoursesPane: View {
     @Environment(StudioViewModel.self) private var vm
@@ -332,11 +332,7 @@ struct CoursePageView: View {
         let gate = vm.courseGate(for: path)
         ScrollView {
             VStack(alignment: .leading, spacing: StudioDesign.Spacing.large) {
-                // In a notebook the page is a document in its slot, and the
-                // course list has no place there: its × closes it.
-                if !windowState.holdsNotebookSlot {
-                    backButton
-                }
+                backButton
                 CoursePageHeader(courseID: courseID, path: path, gate: gate)
                 if let progress = vm.courseQuizWritingProgress[courseID] {
                     CourseActivityRow(text: progress.stage == .fetchingTranscripts

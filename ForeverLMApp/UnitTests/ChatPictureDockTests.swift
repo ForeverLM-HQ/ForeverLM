@@ -3,65 +3,15 @@ import Testing
 import WebKit
 @testable import ForeverLM
 
-/// A chat's picture popped out beside the conversation: the notebook slot's
-/// `.picture` document and the figure's Open beside button.
+/// A chat's picture popped out beside the conversation: the picture and the
+/// figure's Open beside button.
 @Suite("Chat picture beside the chat")
 struct ChatPictureDockTests {
     private static let token = "foreverlm://image/ch3/page/9"
     private static let pngBase64 =
         "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg=="
 
-    // MARK: - The slot
-
-    @Test("A picture takes the document slot and leaves the chat showing")
-    func pictureTakesTheSlot() throws {
-        let workspace = NotebookWorkspace(notebookID: "n1")
-        let next = try #require(workspace.following(.document(.picture)))
-        #expect(next.document == .picture)
-        #expect(next.showsChat)
-        #expect(next.visibleDocuments == [.picture])
-        // No center tab names it, so nothing counts it among the tabs on screen.
-        #expect(next.visibleTabs == [.chat])
-        #expect(NotebookDocument.picture.centerTab == nil)
-    }
-
-    @Test("A second picture replaces the first, and the Reader taking the slot remembers the picture")
-    func readerRemembersThePicture() throws {
-        var workspace = NotebookWorkspace(notebookID: "n1", document: .picture)
-        workspace = try #require(workspace.following(.document(.picture)))
-        #expect(workspace.document == .picture)
-
-        let reading = try #require(workspace.following(.document(.reader)))
-        #expect(reading.document == .reader)
-        #expect(reading.returnDocument == .picture)
-        #expect(reading.returning().document == .picture)
-    }
-
-    @Test("Closing the picture empties the slot; any other document is left alone")
-    func closingThePicture() {
-        let showing = NotebookWorkspace(notebookID: "n1", document: .picture, returnDocument: .docs)
-        let closed = showing.closingPicture()
-        #expect(closed.document == nil)
-        #expect(closed.returnDocument == nil)
-
-        let reading = NotebookWorkspace(notebookID: "n1", document: .reader)
-        #expect(reading.closingPicture() == reading)
-    }
-
-    @Test("A relaunch reopens the notebook, not the picture beside its chat")
-    func pictureIsAMoment() throws {
-        let workspace = NotebookWorkspace(notebookID: "n1", document: .picture)
-        #expect(workspace.persisted.document == nil)
-        // A snapshot from a build that knew the picture reads back as one that
-        // did not, and one from a build that did not know it still decodes.
-        let decoded = try JSONDecoder().decode(
-            NotebookWorkspace.self,
-            from: JSONEncoder().encode(workspace)
-        )
-        #expect(decoded.document == .picture)
-        let future = Data(#"{"notebookID":"n1","document":"holograph","showsChat":true}"#.utf8)
-        #expect(try JSONDecoder().decode(NotebookWorkspace.self, from: future).document == nil)
-    }
+    // MARK: - The picture
 
     @Test("Two openings of one picture are two pictures; the bytes are never compared")
     func openingsAreIdentified() {

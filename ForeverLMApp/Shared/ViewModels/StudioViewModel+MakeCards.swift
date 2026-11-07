@@ -86,14 +86,12 @@ extension StudioViewModel {
     // MARK: Where the drafts open
 
     /// Opens To Check over `scope` in `window` where it covers neither a chat
-    /// nor the source (`CardDraftsPlacement`): its empty document slot or the
-    /// chat's place while the chat is hidden, in a notebook; a pane of its
-    /// own, or one showing neither a chat nor the Reader, otherwise. False,
-    /// with nothing changed, when no place does.
+    /// nor the source (`CardDraftsPlacement`): a pane of its own, or one
+    /// showing neither a chat nor the Reader. False, with nothing changed,
+    /// when no place does.
     @discardableResult
     func placeCardDrafts(scope: MemoryReviewScope, in window: StudioWindowState) -> Bool {
         switch CardDraftsPlacement.place(
-            notebook: window.holdsNotebookSlot ? window.notebook : nil,
             panes: window.centerTabGroups,
             isInMemoryFocus: window.memoryReviewFocus != nil
         ) {
@@ -101,8 +99,6 @@ extension StudioViewModel {
             return false
         case .memoryOnScreen:
             break
-        case .notebook(let next):
-            if window.notebook != next { window.notebook = next }
         case .panes(let layout):
             if window.centerTabGroups != layout { window.centerTabGroups = layout }
         }

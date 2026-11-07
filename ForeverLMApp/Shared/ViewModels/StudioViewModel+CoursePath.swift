@@ -379,12 +379,9 @@ extension StudioViewModel {
     }
 
     /// Opens one course's page. A course lives in no notebook, so it opens
-    /// where the learner is: in the window's Courses pane, or — in a window
-    /// holding a notebook — in that notebook's document slot
-    /// (`NotebookWorkspace.route`: Courses with a page is a document), where
-    /// a lecture opened from the page takes the slot in the Reader and its
-    /// "Back to" brings the page back, so a course the notebook follows opens
-    /// there and the learner stays where they work. It never moves the
+    /// where the learner is: in the window's Courses pane, a notebook's
+    /// window included, so a course the notebook follows opens there and the
+    /// learner stays where they work. It never moves the
     /// window into a notebook.
     func openCourse(_ courseID: String, in destinationWindowState: StudioWindowState? = nil) {
         let destination = destinationWindowState ?? activeWindowState
@@ -392,16 +389,9 @@ extension StudioViewModel {
         activateCenterTab(.courses, in: destination)
     }
 
-    /// Back from a course's page. In a notebook the page is a document and
-    /// the course list has no place there, so the page's slot empties, as
-    /// its × does. Outside one, the pane shows the list of courses in the
+    /// Back from a course's page: the pane shows the list of courses in the
     /// page's place.
     func closeCoursePage(in windowState: StudioWindowState) {
-        if windowState.holdsNotebookSlot {
-            closeInNotebook(.courses, in: windowState)
-            windowState.coursePageID = nil
-            return
-        }
         windowState.coursePageID = nil
     }
 

@@ -630,7 +630,7 @@ struct NotebooksHomeRoutingTests {
         vm.openNotebook("bio", in: target, startsNotebookChat: false)
         target.notebook?.studioCollapsed = true
         target.notebook?.sourcesCollapsed = true
-        target.notebook?.document = .reader
+        target.notebook?.sourcesExpanded = true
 
         // A window that was looking at Trash lands on All, where the notebook
         // is. Close Notebook and ‹ both leave this way: in the notebook's
@@ -644,7 +644,7 @@ struct NotebooksHomeRoutingTests {
         vm.inWindow(target) { vm.openNotebookInReader("bio") }
         #expect(target.notebook?.studioCollapsed == true)
         #expect(target.notebook?.sourcesCollapsed == true)
-        #expect(target.notebook?.document == nil, "its arrangement, not its moments")
+        #expect(target.notebook?.sourcesExpanded == false, "its arrangement, not its moments")
     }
 
     @Test("A notebook archived or deleted under a window lands it on the Space, recorded in that window alone")

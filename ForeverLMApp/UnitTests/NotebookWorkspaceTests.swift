@@ -2,360 +2,10 @@ import Foundation
 import Testing
 @testable import ForeverLM
 
-/// The notebook a Studio window holds: the pure model (`NotebookWorkspace`),
-/// its routing table and its decoding across builds.
+/// The notebook a Studio window holds: the pure model (`NotebookWorkspace`)
+/// and its decoding across builds.
 @Suite("Notebook workspace")
 struct NotebookWorkspaceTests {
-
-    // MARK: - Routing
-
-    @Test("Chat is the chat, readable surfaces take the document slot, the rest leave the notebook")
-    func routeTable() {
-        let expected: [StudioCenterTab: NotebookRoute] = [
-            .chat: .chat,
-            .secondaryChat: .document(.secondChat),
-            .reader: .document(.reader),
-            // A notebook has one Reader: a side reader asked for there is it.
-            .secondaryReader: .document(.reader),
-            .secondaryBrowser: .document(.browser),
-            .notepad: .document(.docs),
-            .sites: .document(.sites),
-            .animations: .document(.animations),
-            .browser: .document(.browser),
-            // Memory spans every notebook and is narrowed to one inside it.
-            .memory: .document(.memory),
-            // The Space, the full-window Library, the Canvas (the whole
-            // library's plane) and the Atlas (a place like it) leave it.
-            .library: .leave,
-            .knowledgeMap: .leave,
-            .atlas: .leave,
-            .activity: .leave,
-            .activityLog: .leave,
-            .tasks: .leave,
-            .goals: .leave,
-            .ideas: .leave,
-            .videos: .leave,
-            .artifacts: .leave,
-            .courses: .leave,
-            // Plugins are the app's, as the Library is.
-            .plugins: .leave,
-        ]
-        // Every tab has an answer here, so a new tab cannot slip past the table.
-        #expect(Set(expected.keys) == Set(StudioCenterTab.allCases))
-        for tab in StudioCenterTab.allCases {
-            #expect(NotebookWorkspace.route(tab, coursePageID: nil) == expected[tab], "\(tab)")
-        }
-    }
-
-    @Test("Courses opens in the notebook only with a course page")
-    func coursesRouteFollowsThePage() {
-        #expect(NotebookWorkspace.route(.courses, coursePageID: "course-1") == .document(.coursePage))
-        #expect(NotebookWorkspace.route(.courses, coursePageID: nil) == .leave)
-        // The page matters to Courses alone.
-        #expect(NotebookWorkspace.route(.reader, coursePageID: "course-1") == .document(.reader))
-        #expect(NotebookWorkspace.route(.artifacts, coursePageID: "course-1") == .leave)
-    }
-
-    @Test("Each document's tab routes back to it, so a window reports what its slot shows")
-    func documentsAndTheirTabsAgree() {
-        for document in NotebookDocument.allCases {
-            guard let tab = document.centerTab else {
-                // Card practice and a picture from the chat: no center tab
-                // routes to either.
-                #expect(document == .flashcards || document == .picture, "\(document) has no tab")
-                continue
-            }
-            #expect(NotebookWorkspace.route(tab, coursePageID: "course-1") == .document(document), "\(document)")
-        }
-        #expect(NotebookDocument.secondChat.isChat)
-        #expect(!NotebookDocument.reader.isChat)
-    }
-
-    @Test("Following each tab's route: Chat comes on screen, a document takes the slot, the rest leave")
-    func followingEveryTab() {
-        let start = NotebookWorkspace(notebookID: "bio", document: .docs, showsChat: false, sourcesCollapsed: true)
-        for tab in StudioCenterTab.allCases {
-            for page in [nil, "course-1"] as [String?] {
-                let route = NotebookWorkspace.route(tab, coursePageID: page)
-                let next = start.following(route)
-                switch route {
-                case .chat:
-                    #expect(next?.showsChat == true)
-                    #expect(next?.document == .docs, "the slot keeps its document")
-                case .document(let document):
-                    #expect(next?.document == document, "\(tab)")
-                    #expect(next?.showsChat == false, "a document never hides or shows the chat")
-                    // A side reader or browser asked for in a notebook is its own.
-                    let shown: StudioCenterTab = tab == .secondaryReader ? .reader : tab == .secondaryBrowser ? .browser : tab
-                    #expect(next?.visibleTabs.contains(shown) == true, "\(tab)")
-                case .leave:
-                    #expect(next == nil, "\(tab)")
-                }
-                // Following a route is never a change to the arrangement.
-                #expect(next.map(\.sourcesCollapsed) ?? true)
-            }
-        }
-    }
-
-    @Test("Closing a tab empties the slot that shows it, or hides Chat, and nothing else")
-    func closingEveryTab() {
-        let start = NotebookWorkspace(notebookID: "bio", document: .reader)
-        for tab in StudioCenterTab.allCases {
-            let next = start.closing(tab)
-            switch tab {
-            case .chat:
-                #expect(next == NotebookWorkspace(notebookID: "bio", document: .reader, showsChat: false))
-            case .reader:
-                #expect(next == NotebookWorkspace(notebookID: "bio"))
-            default:
-                #expect(next == start, "\(tab) is not on screen here")
-            }
-        }
-        #expect(NotebookWorkspace(notebookID: "bio", document: .secondChat).closing(.secondaryChat).document == nil)
-        #expect(NotebookWorkspace(notebookID: "bio", document: .coursePage).closing(.courses).document == nil)
-    }
-
-    @Test("Revealing beside a companion keeps the chat, and the requested tab wins the one slot")
-    func revealingBesideACompanion() {
-        let bare = NotebookWorkspace(notebookID: "bio", showsChat: false)
-        // A Reader beside the chat: both on screen.
-        #expect(bare.revealing(.reader, beside: .chat, coursePageID: nil)
-            == NotebookWorkspace(notebookID: "bio", document: .reader))
-        // Chat beside a Doc: the Doc takes the slot, the chat shows.
-        #expect(bare.revealing(.chat, beside: .notepad, coursePageID: nil)
-            == NotebookWorkspace(notebookID: "bio", document: .docs))
-        // A Doc's source chip with Chat showing: the Reader takes the one
-        // slot, and remembers the Doc for its Back to.
-        let docOpen = NotebookWorkspace(notebookID: "bio", document: .docs)
-        #expect(docOpen.revealing(.reader, beside: .notepad, coursePageID: nil)
-            == NotebookWorkspace(notebookID: "bio", document: .reader, slotTabs: [.docs, .reader], returnDocument: .docs))
-        // A companion with no place here is passed over.
-        #expect(bare.revealing(.chat, beside: .goals, coursePageID: nil)
-            == NotebookWorkspace(notebookID: "bio"))
-        // A tab with no place here leaves the notebook.
-        #expect(docOpen.revealing(.activity, beside: .chat, coursePageID: nil) == nil)
-    }
-
-    @Test("A link never closes what it was read in: with Chat hidden the Reader opens in the chat's place")
-    func linkOpensBesideTheDocumentItCameFrom() {
-        // A Doc alone, Chat hidden: its source chip puts the Reader beside it.
-        let docAlone = NotebookWorkspace(notebookID: "bio", document: .docs, showsChat: false)
-        let readerBesideDoc = NotebookWorkspace(notebookID: "bio", document: .docs, leadingDocument: .reader, showsChat: false)
-        #expect(docAlone.revealing(.reader, beside: .notepad, coursePageID: nil) == readerBesideDoc)
-        // The same from a second chat in the slot.
-        let secondChatAlone = NotebookWorkspace(notebookID: "bio", document: .secondChat, showsChat: false)
-        #expect(secondChatAlone.revealing(.reader, beside: .secondaryChat, coursePageID: nil)
-            == NotebookWorkspace(notebookID: "bio", document: .secondChat, leadingDocument: .reader, showsChat: false))
-        // A second link from the Doc navigates the Reader where it stands.
-        #expect(readerBesideDoc.revealing(.reader, beside: .notepad, coursePageID: nil) == readerBesideDoc)
-        #expect(readerBesideDoc.following(.document(.reader)) == readerBesideDoc)
-        // From the Reader in the chat's place, a Doc takes the slot.
-        let readerBesideSite = NotebookWorkspace(notebookID: "bio", document: .sites, leadingDocument: .reader, showsChat: false)
-        // The Site stays open behind the Doc as a tab.
-        #expect(readerBesideSite.revealing(.notepad, beside: .reader, coursePageID: nil)
-            == NotebookWorkspace(
-                notebookID: "bio", document: .docs, slotTabs: [.sites, .docs],
-                leadingDocument: .reader, showsChat: false
-            ))
-        #expect(readerBesideDoc.visibleTabs == [.reader, .notepad])
-        #expect(readerBesideDoc.centerPaneCount == 2)
-        #expect(readerBesideDoc.visibleDocuments == [.reader, .docs])
-
-        // Chat coming back takes its place; the Reader moves into the slot,
-        // with the Doc behind its Back to.
-        let chatBack = NotebookWorkspace(notebookID: "bio", document: .reader, slotTabs: [.docs, .reader], returnDocument: .docs)
-        #expect(readerBesideDoc.following(.chat) == chatBack)
-        #expect(readerBesideDoc.revealing(.chat, beside: .reader, coursePageID: nil) == chatBack)
-        // Back to restores the Doc and forgets it.
-        #expect(chatBack.returning() == NotebookWorkspace(notebookID: "bio", document: .docs))
-        #expect(NotebookWorkspace(notebookID: "bio", document: .reader).returning()
-            == NotebookWorkspace(notebookID: "bio", document: .reader), "nothing to go back to")
-
-        // The Reader's × in the chat's place leaves the Doc; the slot's ×
-        // shows the Doc, its neighbour, and forgets what it would have gone
-        // back to.
-        #expect(readerBesideDoc.closing(.reader) == docAlone)
-        #expect(chatBack.closing(.reader) == NotebookWorkspace(notebookID: "bio", document: .docs))
-        // Anything but the Reader taking the slot forgets the Back to; the
-        // Doc and the Reader stay open behind it as tabs.
-        #expect(chatBack.following(.document(.browser))
-            == NotebookWorkspace(notebookID: "bio", document: .browser, slotTabs: [.docs, .reader, .browser]))
-    }
-
-    @Test("Documents opened in the slot stay open as tabs, and the strip shows for one too")
-    func slotKeepsDocumentsAsTabs() throws {
-        let bare = NotebookWorkspace(notebookID: "bio")
-        let reader = try #require(bare.following(.document(.reader)))
-        #expect(reader.slotTabStrip == [.reader])
-        #expect(reader.slotShowsTabStrip, "a lone document draws its tab, as every pane does")
-
-        let withDocs = try #require(reader.following(.document(.docs)))
-        #expect(withDocs.document == .docs)
-        #expect(withDocs.slotTabStrip == [.reader, .docs])
-        #expect(withDocs.slotShowsTabStrip)
-        // A click on an open tab brings it forward where it is.
-        let backToReader = try #require(withDocs.following(.document(.reader)))
-        #expect(backToReader.document == .reader)
-        #expect(backToReader.slotTabStrip == [.reader, .docs], "tab order does not move")
-        // Opening a third adds it at the end.
-        let three = try #require(backToReader.following(.document(.browser)))
-        #expect(three.slotTabStrip == [.reader, .docs, .browser])
-    }
-
-    @Test("A tabbed notebook is an arrangement: it survives a relaunch and an older snapshot reads as untabbed")
-    func tabbedNotebook() throws {
-        let fresh = NotebookWorkspace(notebookID: "bio")
-        #expect(!fresh.tabbed)
-        let tabbed = NotebookWorkspace(notebookID: "bio", document: .reader, tabbed: true)
-        // The arrangement stays, the moment (the document) goes.
-        #expect(tabbed.persisted.tabbed)
-        #expect(tabbed.persisted.document == nil)
-        let data = try JSONEncoder().encode(tabbed)
-        #expect(try JSONDecoder().decode(NotebookWorkspace.self, from: data).tabbed)
-        // A snapshot an earlier build wrote names no such key.
-        let older = Data(#"{"notebookID":"bio","showsChat":true}"#.utf8)
-        #expect(try JSONDecoder().decode(NotebookWorkspace.self, from: older).tabbed == false)
-    }
-
-    @Test("A tabbed notebook's center is the window's panes, so its minimum is theirs")
-    func tabbedCenterMinimum() {
-        let tabbed = NotebookWorkspace(notebookID: "bio", tabbed: true)
-        #expect(NotebookWorkspaceSizing.centerMinimumWidth(for: tabbed, panesMinimum: 900) == 900)
-        // Without the panes' minimum, one chat's width.
-        #expect(
-            NotebookWorkspaceSizing.centerMinimumWidth(for: tabbed)
-                == StudioCenterTabGroupSizing.minimumChatContentWidth
-        )
-        // The slot's rule is unchanged for an ordinary notebook.
-        let ordinary = NotebookWorkspace(notebookID: "bio")
-        #expect(NotebookWorkspaceSizing.centerMinimumWidth(for: ordinary, panesMinimum: 900) != 900)
-    }
-
-    @Test("A slot tab dragged to a side stands beside the other document with the chat kept, and Chat hiding then returning makes them tabs again")
-    func splittingTheSlot() throws {
-        var pair = NotebookWorkspace(notebookID: "bio")
-        for document in [NotebookDocument.reader, .docs] {
-            pair = try #require(pair.following(.document(document)))
-        }
-        // Notes dragged to the right: the video leads, the notes take the slot,
-        // and the chat stays as the third pane.
-        let right = try #require(pair.splittingSlot(moving: .notepad, toTrailing: true))
-        #expect(right.showsChat)
-        #expect(right.leadingDocument == .reader)
-        #expect(right.splitDocument == .reader)
-        #expect(right.document == .docs)
-        #expect(right.slotTabStrip == [.docs] && right.slotShowsTabStrip)
-        #expect(right.visibleDocuments == [.reader, .docs])
-        #expect(right.centerPaneCount == 3)
-        // Notes dragged to the left.
-        let left = try #require(pair.splittingSlot(moving: .notepad, toTrailing: false))
-        #expect(left.splitDocument == .docs)
-        #expect(left.document == .reader)
-        // A third tab stays a tab of the slot's own strip.
-        let three = try #require(pair.following(.document(.browser)))
-        let withThird = try #require(three.splittingSlot(moving: .notepad, toTrailing: true))
-        #expect(withThird.leadingDocument == .browser)
-        #expect(withThird.slotTabStrip == [.reader, .docs])
-        // Asking for the chat while it shows leaves the split alone.
-        let still = try #require(right.following(.chat))
-        #expect(still == right)
-        // A split again sends the document that stood there back to the slot.
-        let again = try #require(withThird.splittingSlot(moving: .reader, toTrailing: true))
-        #expect(Set(again.slotTabStrip + [again.leadingDocument].compactMap { $0 }) == [.reader, .docs, .browser])
-        // The chat hides: the split stands in its place, as a document asked
-        // from the slot with the chat hidden does. Chat coming back moves the
-        // leading document into the slot.
-        let hidden = right.closing(.chat)
-        #expect(!hidden.showsChat && hidden.splitDocument == nil && hidden.visibleDocuments == [.reader, .docs])
-        let back = try #require(hidden.following(.chat))
-        #expect(back.showsChat && back.leadingDocument == nil)
-        #expect(Set(back.slotTabStrip) == [.reader, .docs])
-        // The slot's document closing leaves the split's in its place.
-        let closedSlot = right.closing(.notepad)
-        #expect(closedSlot.document == .reader && closedSlot.leadingDocument == nil && closedSlot.showsChat)
-        #expect(right.closingSlot().document == .reader)
-        // Closing the split's document keeps the slot and the chat.
-        let closedSplit = right.closing(.reader)
-        #expect(closedSplit.leadingDocument == nil && closedSplit.document == .docs && closedSplit.showsChat)
-        // Nothing to split with one document, or for a tab the slot lacks.
-        let lone = NotebookWorkspace(notebookID: "bio", document: .reader)
-        #expect(lone.splittingSlot(moving: .reader, toTrailing: true) == nil)
-        #expect(pair.splittingSlot(moving: .browser, toTrailing: true) == nil)
-    }
-
-    @Test("Three panes — the split document, the slot's and the chat — share the center, each at its minimum or more")
-    func threePaneLayout() throws {
-        typealias Sizing = NotebookWorkspaceSizing
-        var pair = NotebookWorkspace(notebookID: "bio")
-        for document in [NotebookDocument.reader, .docs] {
-            pair = try #require(pair.following(.document(document)))
-        }
-        let split = try #require(pair.splittingSlot(moving: .notepad, toTrailing: true))
-        let chatMinimum = StudioCenterTabGroupSizing.minimumChatContentWidth
-        let needed = 2 * Sizing.documentMinimumWidth + chatMinimum + 2 * Sizing.dividerWidth
-        #expect(Sizing.centerMinimumWidth(for: split) == needed)
-
-        let wide = Sizing.centerLayout(for: split, centerWidth: 1_600, leadingFraction: 0.5)
-        #expect(wide.splitDocument == .reader && wide.showsSplitDivider && wide.showsDivider)
-        let chat = try #require(wide.leadingWidth)
-        let document = try #require(wide.documentWidth)
-        let splitWidth = try #require(wide.splitWidth)
-        #expect(abs(chat + document + splitWidth + 2 * Sizing.dividerWidth - 1_600) < 0.5)
-        #expect(splitWidth >= Sizing.documentMinimumWidth)
-        #expect(document >= Sizing.documentMinimumWidth)
-        #expect(chat >= chatMinimum)
-
-        // The chat hidden: the two documents, no split divider.
-        let hidden = Sizing.centerLayout(for: split.closing(.chat), centerWidth: 1_600, leadingFraction: 0.5)
-        #expect(hidden.splitDocument == nil && hidden.leadingDocument == .reader && !hidden.showsSplitDivider)
-    }
-
-    @Test("Closing a slot tab shows its right neighbour, else its left, and the last one empties the slot")
-    func closingSlotTabs() {
-        var three = NotebookWorkspace(notebookID: "bio")
-        for document in [NotebookDocument.reader, .docs, .browser] {
-            three = three.following(.document(document))!
-        }
-        // The active tab last in the strip: its left neighbour shows.
-        let closedBrowser = three.closing(.browser)
-        #expect(closedBrowser.document == .docs)
-        #expect(closedBrowser.slotTabStrip == [.reader, .docs])
-        // A middle tab closing shows the one to its right.
-        let docsActive = three.following(.document(.docs))!
-        let closedDocs = docsActive.closing(.notepad)
-        #expect(closedDocs.document == .browser)
-        #expect(closedDocs.slotTabStrip == [.reader, .browser])
-        // An inactive tab closes without moving the active one.
-        let closedReader = docsActive.closing(.reader)
-        #expect(closedReader.document == .docs)
-        #expect(closedReader.slotTabStrip == [.docs, .browser])
-        // Down to one tab the strip goes, and the slot is the plain
-        // workspace again; closing it empties the slot.
-        let lone = closedReader.closing(.browser)
-        #expect(lone == NotebookWorkspace(notebookID: "bio", document: .docs))
-        #expect(lone.closing(.notepad) == NotebookWorkspace(notebookID: "bio"))
-        // The slot's own × closes every tab.
-        #expect(three.closingSlot() == NotebookWorkspace(notebookID: "bio"))
-    }
-
-    @Test("Slot tabs are a moment: a relaunch reopens the notebook with an empty slot")
-    func slotTabsAreNotPersisted() {
-        var workspace = NotebookWorkspace(notebookID: "bio")
-        for document in [NotebookDocument.reader, .docs] {
-            workspace = workspace.following(.document(document))!
-        }
-        #expect(workspace.persisted == NotebookWorkspace(notebookID: "bio"))
-    }
-
-    @Test("What the center shows, as tabs and panes")
-    func visibleTabsAndPanes() {
-        #expect(NotebookWorkspace(notebookID: "bio").visibleTabs == [.chat])
-        #expect(NotebookWorkspace(notebookID: "bio").centerPaneCount == 1)
-        #expect(NotebookWorkspace(notebookID: "bio", document: .browser).visibleTabs == [.chat, .browser])
-        #expect(NotebookWorkspace(notebookID: "bio", document: .browser).centerPaneCount == 2)
-        #expect(NotebookWorkspace(notebookID: "bio", document: .flashcards, showsChat: false).visibleTabs.isEmpty)
-        #expect(NotebookWorkspace(notebookID: "bio", showsChat: false).centerPaneCount == 0)
-    }
 
     @Test("A chat's home is its notebook, or the notebook its Goal draws on, or the library")
     func chatHome() {
@@ -373,26 +23,17 @@ struct NotebookWorkspaceTests {
 
     @Test("Reopening the open notebook keeps its arrangement; another notebook starts fresh")
     func openingKeepsOnlyTheSameNotebook() {
-        let arranged = NotebookWorkspace(
-            notebookID: "bio",
-            document: .docs,
-            showsChat: false,
-            sourcesCollapsed: true,
-            studioCollapsed: true
-        )
+        let arranged = NotebookWorkspace(notebookID: "bio", sourcesCollapsed: true, studioCollapsed: true)
         #expect(NotebookWorkspace.opening("bio", over: arranged) == arranged)
         #expect(NotebookWorkspace.opening("neuro", over: arranged) == NotebookWorkspace(notebookID: "neuro"))
         #expect(NotebookWorkspace.opening("bio", over: nil) == NotebookWorkspace(notebookID: "bio"))
     }
 
-    @Test("A fresh notebook shows its chat with both columns open, its Studio beside it")
+    @Test("A fresh notebook opens with both columns open")
     func freshWorkspace() {
         let fresh = NotebookWorkspace(notebookID: "bio")
-        #expect(fresh.document == nil)
-        #expect(fresh.leadingDocument == nil)
-        #expect(fresh.returnDocument == nil)
-        #expect(fresh.showsChat)
         #expect(!fresh.sourcesCollapsed)
+        #expect(!fresh.sourcesExpanded)
         #expect(!fresh.studioCollapsed)
     }
 
@@ -414,64 +55,23 @@ struct NotebookWorkspaceTests {
         #expect(object["studioCollapsed"] == nil)
     }
 
-    @Test("What is kept leaves out the moments — the documents and the Back to — and nothing else")
+    @Test("What is kept leaves out a search's widened list, and nothing else")
     func persistedDropsOnlyTheMoments() {
-        let arranged = NotebookWorkspace(
-            notebookID: "bio",
-            document: .docs,
-            leadingDocument: .reader,
-            returnDocument: .sites,
-            showsChat: false,
-            sourcesCollapsed: true,
-            studioCollapsed: true
-        )
+        var arranged = NotebookWorkspace(notebookID: "bio", studioCollapsed: true)
+        arranged.sourcesExpanded = true
         var expected = arranged
-        expected.document = nil
-        expected.leadingDocument = nil
-        expected.returnDocument = nil
+        expected.sourcesExpanded = false
         #expect(arranged.persisted == expected)
         #expect(arranged.persisted.persisted == expected)
-    }
-
-    @Test("The document stands left of the chat by default, until the learner swaps them, and a lone pane has no side")
-    func documentLeadsTheChat() throws {
-        let beside = NotebookWorkspace(notebookID: "bio", document: .reader)
-        #expect(beside.documentLeads, "Reader left of the chat is the default")
-        #expect(beside.documentPrecedesChat)
-
-        var swapped = beside
-        swapped.documentLeads.toggle()
-        #expect(!swapped.documentPrecedesChat)
-
-        #expect(!NotebookWorkspace(notebookID: "bio").documentPrecedesChat, "no document, no side")
-        #expect(!NotebookWorkspace(notebookID: "bio", document: .reader, showsChat: false).documentPrecedesChat)
-
-        // The order is an arrangement: it survives `persisted` and a round
-        // trip, and a snapshot an older build wrote reads as the default.
-        #expect(!swapped.persisted.documentLeads)
-        let data = try JSONEncoder().encode(swapped)
-        #expect(try JSONDecoder().decode(NotebookWorkspace.self, from: data).documentLeads == false)
-        let older = Data(#"{"notebookID":"bio","showsChat":true,"sourcesCollapsed":false,"trailingCollapsed":false}"#.utf8)
-        #expect(try JSONDecoder().decode(NotebookWorkspace.self, from: older).documentLeads)
     }
 
     // MARK: - Decoding across builds
 
     @Test("A workspace round-trips through JSON")
     func roundTrip() throws {
-        let arranged = NotebookWorkspace(
-            notebookID: "bio",
-            document: .coursePage,
-            showsChat: false,
-            sourcesCollapsed: true,
-            studioCollapsed: true
-        )
+        let arranged = NotebookWorkspace(notebookID: "bio", sourcesCollapsed: true, studioCollapsed: true)
         let data = try JSONEncoder().encode(arranged)
         #expect(try JSONDecoder().decode(NotebookWorkspace.self, from: data) == arranged)
-
-        let bare = try JSONEncoder().encode(NotebookWorkspace(notebookID: "bio"))
-        let object = try #require(JSONSerialization.jsonObject(with: bare) as? [String: Any])
-        #expect(object["document"] == nil, "no document, no key")
     }
 
     @Test("Keys an older build did not write take a fresh workspace's values")
@@ -489,22 +89,16 @@ struct NotebookWorkspaceTests {
         #expect(partial == NotebookWorkspace(notebookID: "bio", sourcesCollapsed: true))
     }
 
-    @Test("A document this build does not know still reopens the notebook")
-    func unknownValuesDecodeLeniently() throws {
-        let decoded = try JSONDecoder().decode(
-            NotebookWorkspace.self,
-            from: Data(#"{"notebookID":"bio","document":"mindMap","trailingCollapsed":true}"#.utf8)
-        )
-        #expect(decoded.notebookID == "bio")
-        #expect(decoded.document == nil)
-        #expect(decoded.studioCollapsed)
-
-        // A chat on screen has the chat's place to itself, whatever was written.
-        let crossed = try JSONDecoder().decode(
-            NotebookWorkspace.self,
-            from: Data(#"{"notebookID":"bio","showsChat":true,"leadingDocument":"reader"}"#.utf8)
-        )
-        #expect(crossed.leadingDocument == nil)
+    @Test("A snapshot from the chat-and-slot layout reopens the notebook with its folds, and writes none of it back")
+    func slotLayoutSnapshotDecodes() throws {
+        let older = Data(#"""
+        {"notebookID":"bio","document":"reader","leadingDocument":"docs","showsChat":false,
+         "documentLeads":false,"tabbed":false,"sourcesCollapsed":true,"trailingCollapsed":true}
+        """#.utf8)
+        let decoded = try JSONDecoder().decode(NotebookWorkspace.self, from: older)
+        #expect(decoded == NotebookWorkspace(notebookID: "bio", sourcesCollapsed: true, studioCollapsed: true))
+        let object = try #require(JSONSerialization.jsonObject(with: JSONEncoder().encode(decoded)) as? [String: Any])
+        #expect(Set(object.keys) == ["notebookID", "sourcesCollapsed", "trailingCollapsed"])
     }
 
     @Test("A workspace that names no notebook is not a workspace")
@@ -660,10 +254,10 @@ struct WindowNotebookTests {
         #expect(window.persistenceRevision == revision + 1)
         #expect(templateValues() == template)
 
-        // Reopening it is no change; neither is a document, which is a
-        // moment the snapshot does not keep.
+        // Reopening it is no change; neither is a search's widened list,
+        // which is a moment the snapshot does not keep.
         window.NotebookID = "bio"
-        window.notebook?.document = .reader
+        window.notebook?.sourcesExpanded = true
         #expect(window.persistenceRevision == revision + 1)
         #expect(window.snapshot.notebook == NotebookWorkspace(notebookID: "bio"))
 
@@ -768,10 +362,9 @@ struct WindowNotebookTests {
     }
 }
 
-/// The router: every center-tab entry point, asked of a window that holds a
-/// notebook, lands in the notebook's chat or document slot, or leaves the
-/// notebook for panes left exactly as they were.
-@Suite("Notebook routing")
+/// A window holding a notebook: its center is the window's own tabs, which
+/// take every center-tab request as a window with no notebook does.
+@Suite("Notebook in the window's tabs")
 @MainActor
 struct NotebookRoutingTests {
 
@@ -802,227 +395,6 @@ struct NotebookRoutingTests {
         }
     }
 
-    /// A window holding `workspace` over the default panes, so what the
-    /// developer's own template holds (pins, a third pane) cannot change
-    /// what a request does underneath.
-    private func notebookWindow(_ workspace: NotebookWorkspace = NotebookWorkspace(notebookID: "bio")) -> StudioWindowState {
-        let window = StudioWindowState()
-        window.centerTabGroups = .defaultLayout
-        window.notebook = workspace
-        return window
-    }
-
-    @Test("Activating each tab lands it in the chat or the document slot, or leaves the notebook")
-    func activateRoutesEveryTab() {
-        let restore = capturingTemplate()
-        defer { restore() }
-        let vm = makeViewModel()
-        for tab in StudioCenterTab.allCases {
-            for page in [nil, "course-1"] as [String?] {
-                let window = notebookWindow(NotebookWorkspace(notebookID: "bio", showsChat: false))
-                window.coursePageID = page
-                let panes = window.centerTabGroups
-                vm.activateCenterTab(tab, in: window)
-                switch NotebookWorkspace.route(tab, coursePageID: page) {
-                case .chat:
-                    #expect(window.notebook?.showsChat == true)
-                    #expect(window.centerTabGroups == panes, "the panes underneath stay as they were")
-                case .document(let document):
-                    #expect(window.notebook?.document == document, "\(tab)")
-                    #expect(window.centerTabGroups == panes, "\(tab)")
-                case .leave:
-                    #expect(window.notebook == nil, "\(tab) leaves the notebook")
-                    #expect(vm.visibleCenterTabs(in: window).contains(tab), "\(tab) opens in the panes")
-                }
-            }
-        }
-    }
-
-    @Test("A window holding a notebook reports what its center shows")
-    func visibleTabsComeFromTheNotebook() {
-        let vm = makeViewModel()
-        let window = notebookWindow(NotebookWorkspace(notebookID: "bio", document: .reader))
-        #expect(vm.visibleCenterTabs(in: window) == [.chat, .reader])
-        #expect(vm.inWindow(window) { vm.activeCenterTabs } == [.chat, .reader])
-        #expect(vm.inWindow(window) { vm.showAssistantOverlay })
-        window.notebook?.showsChat = false
-        #expect(!vm.inWindow(window) { vm.showAssistantOverlay })
-    }
-
-    @Test("× closes the slot it is on, and a lone chat hides")
-    func closeSlots() {
-        let restore = capturingTemplate()
-        defer { restore() }
-        let vm = makeViewModel()
-        let window = notebookWindow(NotebookWorkspace(notebookID: "bio", document: .reader))
-        let panes = window.centerTabGroups
-
-        // A tab's × in a notebook closes its slot; the panes underneath stay.
-        vm.closeCenterTab(.reader, in: window)
-        #expect(window.notebook == NotebookWorkspace(notebookID: "bio"))
-        #expect(window.centerTabGroups == panes, "the panes underneath stay as they were")
-        window.notebook = NotebookWorkspace(notebookID: "bio", document: .reader)
-
-        vm.dismissCenterSurface(.reader, in: window)
-        #expect(window.notebook == NotebookWorkspace(notebookID: "bio"))
-
-        vm.dismissCenterSurface(.chat, in: window)
-        #expect(window.notebook?.showsChat == false, "the center shows the notebook's overview")
-
-        // A tab the notebook does not show is not on screen to hide.
-        vm.deactivateCenterTab(.activity, in: window)
-        #expect(window.notebook?.notebookID == "bio")
-        #expect(window.centerTabGroups == panes)
-    }
-
-    @Test("A second chat takes the document slot and its × gives it back")
-    func secondChatTakesTheSlot() {
-        let restore = capturingTemplate()
-        defer { restore() }
-        let vm = makeViewModel()
-        let window = notebookWindow()
-        let panes = window.centerTabGroups
-        vm.inWindow(window) { vm.openSecondaryChatPane(atLeadingEdge: false) }
-        #expect(window.notebook?.document == .secondChat)
-        #expect(window.notebook?.showsChat == true)
-        vm.dismissSecondaryChatPane(in: window)
-        #expect(window.notebook?.document == nil)
-        #expect(window.centerTabGroups == panes)
-    }
-
-    @Test("Reveals keep Chat and the document side by side")
-    func revealsKeepThePair() {
-        let restore = capturingTemplate()
-        defer { restore() }
-        let vm = makeViewModel()
-        let window = notebookWindow(NotebookWorkspace(notebookID: "bio", showsChat: false))
-        let panes = window.centerTabGroups
-
-        // A passage handed to Chat from the Reader: both on screen.
-        vm.inWindow(window) { vm.revealChat(beside: .reader) }
-        #expect(window.notebook == NotebookWorkspace(notebookID: "bio", document: .reader))
-
-        // A Doc's source chip: the Reader replaces the Doc.
-        window.notebook?.document = .docs
-        vm.revealCenterTab(.reader, beside: .notepad, in: window)
-        #expect(window.notebook?.document == .reader)
-
-        // A Sources row: the Reader opens in the slot, and a hidden chat
-        // stays hidden.
-        window.notebook = NotebookWorkspace(notebookID: "bio", showsChat: false)
-        vm.clearReaderSurfaces(in: window)
-        #expect(window.notebook == NotebookWorkspace(notebookID: "bio", document: .reader, showsChat: false))
-
-        // Open beside, from the rail or a menu.
-        vm.inWindow(window) { vm.openCenterTabBeside(.browser) }
-        #expect(window.notebook?.document == .browser)
-        #expect(window.centerTabGroups == panes)
-
-        // A tab with no place here, asked beside the chat, leaves the notebook.
-        vm.revealCenterTab(.goals, beside: .chat, in: window)
-        #expect(window.notebook == nil)
-    }
-
-    @Test("A notebook's Docs open in its document slot, never in the panes underneath")
-    func notebookDocsOpenInTheSlot() {
-        let restore = capturingTemplate()
-        defer { restore() }
-        let vm = makeViewModel()
-        let window = notebookWindow()
-        // A Notebooks pane underneath at the cap is what the Notebook page's
-        // placement rearranges; a notebook must not reach it.
-        window.centerTabGroups = StudioCenterTabGroups.fromPersisted(["chat*", "reader|notebooks*"]) ?? .defaultLayout
-        let panes = window.centerTabGroups
-        vm.inWindow(window) { vm.openArtifactsBeside(notebookID: "bio") }
-        #expect(window.notebook?.document == .docs)
-        #expect(window.artifactCanvasNotebookID == "bio", "the window's own Docs are the notebook's")
-        #expect(vm.artifactCanvasNotebookID == nil, "another window's Docs keep every doc")
-        #expect(window.centerTabGroups == panes)
-    }
-
-    @Test("The course list leaves the notebook for the Artifacts index's Courses; one course's page opens in its slot")
-    func coursesRouteByPage() {
-        let restore = capturingTemplate()
-        defer { restore() }
-        let vm = makeViewModel()
-        let window = notebookWindow()
-        vm.openCourse("course-1", in: window)
-        #expect(window.notebook?.document == .coursePage)
-        // The list of every course is the home's Courses tab: the library's,
-        // so it leaves the notebook.
-        vm.openCoursesInReader(in: window)
-        #expect(window.notebook == nil)
-        #expect(vm.visibleCenterTabs(in: window).contains(.courses))
-        #expect(window.coursePageID == nil)
-    }
-
-    @Test("Placing a tab at an edge lands it in the notebook, never in the panes or the template")
-    func placeAtEdgeRoutesIntoTheNotebook() {
-        let restore = capturingTemplate()
-        defer { restore() }
-        let vm = makeViewModel()
-        let window = notebookWindow()
-        let panes = window.centerTabGroups
-        let template = UserDefaults.standard.object(forKey: "studio.centerTabGroups.v1").map { String(describing: $0) }
-
-        vm.placeCenterTabAtEdge(.notepad, leading: false, in: window)
-        #expect(window.notebook?.document == .docs)
-        #expect(window.centerTabGroups == panes)
-        #expect(UserDefaults.standard.object(forKey: "studio.centerTabGroups.v1").map { String(describing: $0) } == template)
-
-        // A tab with no place here leaves the notebook first.
-        vm.placeCenterTabAtEdge(.activity, leading: true, in: window)
-        #expect(window.notebook == nil)
-    }
-
-    @Test("A request the notebook takes leaves Voice; the chat keeps a memory review's focus")
-    func notebookRequestsLeaveVoice() {
-        let restore = capturingTemplate()
-        defer { restore() }
-        let vm = makeViewModel()
-        let window = notebookWindow()
-
-        window.isVoiceWorkspacePresented = true
-        vm.clearReaderSurfaces(in: window)
-        #expect(window.notebook?.document == .reader)
-        #expect(!window.isVoiceWorkspacePresented)
-
-        window.isVoiceWorkspacePresented = true
-        vm.inWindow(window) { vm.openArtifactsBeside(notebookID: "bio") }
-        #expect(window.notebook?.document == .docs)
-        #expect(!window.isVoiceWorkspacePresented)
-
-        // The chat a memory review runs in is the one request that keeps it.
-        window.memoryReviewFocusSessionID = "memory-2026-10-01"
-        #expect(vm.routeIntoNotebook(.chat, in: window))
-        #expect(window.memoryReviewFocusSessionID == "memory-2026-10-01")
-        window.memoryReviewFocusSessionID = nil
-    }
-
-    @Test("A Doc's link opens the Reader beside it with Chat hidden; with Chat showing it offers Back to the Doc")
-    func linksFromADocKeepTheDoc() {
-        let restore = capturingTemplate()
-        defer { restore() }
-        let vm = makeViewModel()
-        let window = notebookWindow(NotebookWorkspace(notebookID: "bio", document: .docs, showsChat: false))
-
-        // The source chip's route: reveal beside the Doc, then show the Reader.
-        vm.revealCenterTab(.reader, beside: .notepad, in: window)
-        vm.clearReaderSurfaces(keeping: .notepad, in: window)
-        #expect(window.notebook == NotebookWorkspace(notebookID: "bio", document: .docs, leadingDocument: .reader, showsChat: false))
-        #expect(vm.visibleCenterTabs(in: window) == [.reader, .notepad])
-
-        // With Chat showing, the Reader takes the slot and Back to restores it.
-        window.notebook = NotebookWorkspace(notebookID: "bio", document: .docs)
-        vm.revealCenterTab(.reader, beside: .notepad, in: window)
-        #expect(window.notebook?.document == .reader)
-        #expect(window.notebook?.returnDocument == .docs)
-        #expect(vm.notebookReturnTitle(in: window) == StudioCenterTab.notepad.title)
-        vm.returnInNotebook(in: window)
-        #expect(window.notebook == NotebookWorkspace(notebookID: "bio", document: .docs))
-        #expect(vm.notebookReturnTitle(in: window) == nil)
-    }
-
     @Test("A notebook opens on its chat in the window's own tabs, and a second click on its folder closes it")
     func toggleClosesTheNotebook() {
         let restore = capturingTemplate()
@@ -1033,7 +405,6 @@ struct NotebookRoutingTests {
         let tabs = window.centerTabGroups.groups.map(\.tabs)
         vm.inWindow(window) { vm.toggleNotebookInReader("bio") }
         #expect(window.NotebookID == "bio")
-        #expect(window.notebook?.tabbed == true, "the window's tabs, as outside a notebook")
         #expect(window.centerTabGroups.groups.map(\.activeTab) == [.chat], "the Space stays one of the pane's tabs")
         vm.inWindow(window) { vm.toggleNotebookInReader("bio") }
         #expect(window.notebook == nil)
@@ -1052,7 +423,7 @@ struct NotebookRoutingTests {
         ])
         let panes = window.centerTabGroups
         vm.openNotebook("bio", in: window, startsNotebookChat: false)
-        #expect(window.notebook?.tabbed == true)
+        #expect(window.NotebookID == "bio")
         #expect(window.centerTabGroups == panes)
     }
 }
@@ -1206,29 +577,22 @@ struct NotebookAddSourcesTests {
         #expect(!PaperFileDrop.isPDFFile(nil))
     }
 
-    @Test("A notebook window's rail highlights its chat while it shows, and the second chat in the slot")
-    func railHighlightsFollowTheNotebook() {
-        let showing = NotebookWorkspace(notebookID: "bio", document: .secondChat)
-        #expect(StudioNavigationRail.highlightedSessionIDs(primary: "one", comparison: "two", notebook: showing) == ["one", "two"])
-        let hidden = NotebookWorkspace(notebookID: "bio", document: .reader, showsChat: false)
-        #expect(StudioNavigationRail.highlightedSessionIDs(primary: "one", comparison: "two", notebook: hidden).isEmpty)
-        #expect(StudioNavigationRail.highlightedSessionIDs(
-            primary: "one", comparison: nil, notebook: hidden, chatPoppedOut: true
-        ) == ["one"])
-    }
+    /// The panes of a chat beside a paper: what the center needs in the
+    /// sizing tests below, as `StudioWindowState.notebookPanesMinimum` reads it.
+    private static let pairMinimum = StudioCenterTabGroupSizing.minimumChatContentWidth + 1 + 420
 
     @Test("The workspace's minimum width is its two side columns and its center's panes")
     func sizing() {
         typealias Sizing = NotebookWorkspaceSizing
         let chatOnly = NotebookWorkspace(notebookID: "bio")
-        let pair = NotebookWorkspace(notebookID: "bio", document: .reader)
-        let folded = NotebookWorkspace(notebookID: "bio", document: .reader, sourcesCollapsed: true)
+        let folded = NotebookWorkspace(notebookID: "bio", sourcesCollapsed: true)
+        let panes = Self.pairMinimum
         let chatWidth = StudioCenterTabGroupSizing.minimumChatContentWidth
         let side = Sizing.sideMinimumWidth + Sizing.separatorWidth
         #expect(Sizing.minimumWidth(for: chatOnly) == side + chatWidth + side)
         #expect(Sizing.minimumWidth(for: chatOnly, studioShows: false) == side + chatWidth, "an immersive video has Studio step aside")
-        #expect(Sizing.centerMinimumWidth(for: pair) == chatWidth + Sizing.dividerWidth + Sizing.documentMinimumWidth)
-        #expect(Sizing.minimumWidth(for: folded) == Sizing.centerMinimumWidth(for: pair) + side,
+        #expect(Sizing.centerMinimumWidth(for: chatOnly, panesMinimum: panes) == panes, "the center needs what its panes need")
+        #expect(Sizing.minimumWidth(for: folded, panesMinimum: panes) == panes + side,
                 "a folded Sources column takes no strip and no separator")
         let foldedWidths = Sizing.columnWidths(for: folded, totalWidth: 1_250)
         #expect(foldedWidths.sources == 0)
@@ -1238,26 +602,12 @@ struct NotebookAddSourcesTests {
         bothFolded.studioCollapsed = true
         let bare = Sizing.columnWidths(for: bothFolded, totalWidth: 1_250)
         #expect(bare.sources == 0 && bare.studio == 0 && bare.center == 1_250)
-        #expect(Sizing.minimumWidth(for: bothFolded) == Sizing.centerMinimumWidth(for: pair))
+        #expect(Sizing.minimumWidth(for: bothFolded, panesMinimum: panes) == panes)
         #expect(foldedWidths.center + foldedWidths.studio + Sizing.separatorWidth == 1_250)
-        #expect(Sizing.centerMinimumWidth(for: NotebookWorkspace(notebookID: "bio", showsChat: false)) == chatWidth)
 
-        let widths = Sizing.paneWidths(
-            centerWidth: 1_000,
-            leadingFraction: 0.1,
-            leadingMinimum: chatWidth,
-            documentMinimum: Sizing.documentMinimumWidth
-        )
-        #expect(widths.leading == chatWidth, "the chat keeps its minimum while there is room")
-        #expect(widths.leading + widths.document + Sizing.dividerWidth == 1_000)
         #expect(Sizing.sideWidth(totalWidth: 400) == Sizing.sideMinimumWidth)
         #expect(Sizing.sideWidth(totalWidth: 4_000) == Sizing.sideMaximumWidth)
         #expect(Sizing.sideWidth(totalWidth: 1_250) == 300, "a quarter, less a little, at the product owner's window beside the rail's strip")
-
-        // The Reader standing in the chat's place needs a document's width.
-        let readerBesideDoc = NotebookWorkspace(notebookID: "bio", document: .docs, leadingDocument: .reader, showsChat: false)
-        #expect(Sizing.centerMinimumWidth(for: readerBesideDoc)
-            == Sizing.documentMinimumWidth * 2 + Sizing.dividerWidth)
     }
 
     @Test("Sources and Studio take their shares, a folded one nothing, and the center the rest")
@@ -1270,19 +620,20 @@ struct NotebookAddSourcesTests {
         #expect(chatOnly.sources == 300 && chatOnly.studio == 300)
         #expect(chatOnly.sources + chatOnly.center + chatOnly.studio + separators == 1_250)
 
-        // A paper open with Sources folded: no column, Studio stays, and the
-        // center holds the chat and the Reader side by side.
-        let reading = NotebookWorkspace(notebookID: "bio", document: .reader, sourcesCollapsed: true)
-        let readingWidths = Sizing.columnWidths(for: reading, totalWidth: 1_250)
+        // A paper open beside the chat with Sources folded: no column,
+        // Studio stays, and the center holds both panes.
+        let reading = NotebookWorkspace(notebookID: "bio", sourcesCollapsed: true)
+        let panes = Self.pairMinimum
+        let readingWidths = Sizing.columnWidths(for: reading, totalWidth: 1_250, panesMinimum: panes)
         #expect(readingWidths.sources == 0)
         #expect(readingWidths.studio == 300)
-        #expect(readingWidths.center >= Sizing.centerMinimumWidth(for: reading))
+        #expect(readingWidths.center >= panes)
 
         // Where the shares would leave the center short, the open columns
         // give it back down to their minimum, Studio first.
-        let tight = Sizing.minimumWidth(for: reading) + 4
-        let tightWidths = Sizing.columnWidths(for: reading, totalWidth: tight)
-        #expect(tightWidths.center >= Sizing.centerMinimumWidth(for: reading), "never clipped at the shares' widths")
+        let tight = Sizing.minimumWidth(for: reading, panesMinimum: panes) + 4
+        let tightWidths = Sizing.columnWidths(for: reading, totalWidth: tight, panesMinimum: panes)
+        #expect(tightWidths.center >= panes, "never clipped at the shares' widths")
         #expect(tightWidths.studio >= Sizing.sideMinimumWidth)
         // Folded Sources leaves with its separator: only Studio's remains.
         #expect(abs(tightWidths.sources + tightWidths.center + tightWidths.studio + Sizing.separatorWidth - tight) < 0.001)
@@ -1350,73 +701,26 @@ struct NotebookAddSourcesTests {
         #expect(SyncedPreferenceKeys.excluded[Sizing.sourcesWidthPreferenceKey] != nil)
     }
 
-    @Test("The center gives each pane its own place: the chat or the document in its place, the divider, the slot, the overview")
-    func centerLayout() {
-        typealias Sizing = NotebookWorkspaceSizing
-
-        let pair = Sizing.centerLayout(
-            for: NotebookWorkspace(notebookID: "bio", document: .reader),
-            centerWidth: 1_000,
-            leadingFraction: 0.5
-        )
-        #expect(pair.leadingDocument == nil, "the chat leads")
-        #expect(pair.showsDivider)
-        #expect(!pair.showsOverview)
-        #expect((pair.leadingWidth ?? 0) + (pair.documentWidth ?? 0) + Sizing.dividerWidth == 1_000)
-
-        // Chat alone, and the Reader alone, take the whole center in their
-        // own places: the chat's never moves when the slot fills or empties.
-        #expect(Sizing.centerLayout(for: NotebookWorkspace(notebookID: "bio"), centerWidth: 800, leadingFraction: 0.5)
-            == NotebookCenterLayout(leadingWidth: 800, leadingDocument: nil, documentWidth: nil))
-        #expect(Sizing.centerLayout(
-            for: NotebookWorkspace(notebookID: "bio", document: .reader, showsChat: false),
-            centerWidth: 800,
-            leadingFraction: 0.5
-        ) == NotebookCenterLayout(leadingWidth: nil, leadingDocument: nil, documentWidth: 800))
-        let overview = Sizing.centerLayout(
-            for: NotebookWorkspace(notebookID: "bio", showsChat: false),
-            centerWidth: 800,
-            leadingFraction: 0.5
-        )
-        #expect(overview.showsOverview)
-        #expect(!overview.showsDivider)
-
-        // The Reader in the chat's place beside a Doc.
-        let besideDoc = Sizing.centerLayout(
-            for: NotebookWorkspace(notebookID: "bio", document: .docs, leadingDocument: .reader, showsChat: false),
-            centerWidth: 1_000,
-            leadingFraction: 0.1
-        )
-        #expect(besideDoc.leadingDocument == .reader)
-        #expect(besideDoc.leadingWidth == Sizing.documentMinimumWidth, "the Reader keeps a document's minimum")
-        #expect(besideDoc.showsDivider)
-        // A chat on screen leads even if a stale document names the place.
-        #expect(Sizing.centerLayout(
-            for: NotebookWorkspace(notebookID: "bio", leadingDocument: .reader),
-            centerWidth: 800,
-            leadingFraction: 0.5
-        ).leadingDocument == nil)
-    }
-
     @Test("A narrow window folds Sources away, then Studio to its strip, for the center's sake alone, and never the rail")
     func roomMaking() {
         typealias Sizing = NotebookWorkspaceSizing
-        let pair = NotebookWorkspace(notebookID: "bio", document: .reader)
-        let needed = Sizing.minimumWidth(for: pair)
+        let pair = NotebookWorkspace(notebookID: "bio")
+        let panes = Self.pairMinimum
+        let needed = Sizing.minimumWidth(for: pair, panesMinimum: panes)
         let sourcesSaving = Sizing.sideMinimumWidth + Sizing.separatorWidth
 
-        let roomy = Sizing.folds(for: pair, totalWidth: needed + 50)
+        let roomy = Sizing.folds(for: pair, totalWidth: needed + 50, panesMinimum: panes)
         #expect(!roomy.sources && !roomy.studio)
 
-        let tight = Sizing.folds(for: pair, totalWidth: needed - 10)
+        let tight = Sizing.folds(for: pair, totalWidth: needed - 10, panesMinimum: panes)
         #expect(tight.sources && !tight.studio, "Sources goes first; Studio stays on screen")
 
-        let narrow = Sizing.folds(for: pair, totalWidth: needed - sourcesSaving - 10)
+        let narrow = Sizing.folds(for: pair, totalWidth: needed - sourcesSaving - 10, panesMinimum: panes)
         #expect(narrow.sources && narrow.studio)
 
         // The product owner's 1,302-point window with the rail as its 52-point strip:
         // a paper beside the chat folds Sources and keeps Studio.
-        let wide = Sizing.folds(for: pair, totalWidth: 1_302 - 52)
+        let wide = Sizing.folds(for: pair, totalWidth: 1_302 - 52, panesMinimum: panes)
         #expect(wide.sources && !wide.studio)
 
         // Folded already, nothing more to fold: the pass never reaches for
@@ -1424,11 +728,11 @@ struct NotebookAddSourcesTests {
         var folded = pair
         folded.sourcesCollapsed = true
         folded.studioCollapsed = true
-        let none = Sizing.folds(for: folded, totalWidth: 300)
+        let none = Sizing.folds(for: folded, totalWidth: 300, panesMinimum: panes)
         #expect(!none.sources && !none.studio)
 
         // Studio stepping aside for an immersive video is not folded.
-        let immersive = Sizing.folds(for: pair, totalWidth: 300, studioShows: false)
+        let immersive = Sizing.folds(for: pair, totalWidth: 300, studioShows: false, panesMinimum: panes)
         #expect(immersive.sources && !immersive.studio)
     }
 }

@@ -457,7 +457,7 @@ private struct NotebookPoolDropDelegate: DropDelegate {
 /// What the notebook workspace hands its Sources column: where a row opens,
 /// and how the Add sources sheet opens.
 struct NotebookSourcePoolColumnActions {
-    /// Opens a source in the notebook's document slot, in this window.
+    /// Opens a source in a pane of the notebook's window, in this window.
     let openSource: (StudioArticle) -> Void
     /// Opens the notebook's Add sources sheet.
     let addSources: () -> Void
@@ -478,7 +478,7 @@ struct NotebookSourcePoolColumnActions {
 /// every one is;
 /// under the pointer a row shows its ⋯ with Open, Open in
 /// Other Window and Remove from Notebook; a row click opens the Reader in the
-/// document slot, the notebook's ⋯ opens the Add sources sheet, and an empty
+/// pane, the notebook's ⋯ opens the Add sources sheet, and an empty
 /// notebook, or one whose field is in use with no words, shows the Library
 /// itself in the column (`NotebookLibraryBrowser`). Under the notebook's
 /// own sources, each context notebook is a group of its own with a box that
@@ -1910,7 +1910,7 @@ struct NotebookPoolSourceRow: View {
     /// in the notebook.
     var isInChat: Bool? = nil
     var onToggleChat: () -> Void = {}
-    /// Where a click opens the source — the notebook's document slot, in the
+    /// Where a click opens the source — a pane of the notebook's window, in the
     /// row's own window. Nil opens it the Notebook page's way. Set, the row's
     /// hover control is a ⋯ menu rather than a one-click ×, which sat beside
     /// the box and invited a mis-click.

@@ -503,53 +503,17 @@ struct StudioNavigationRail: View {
     /// their chat after its surface is hidden so bringing it back is cheap,
     /// and without this gate a hidden chat's row stayed highlighted with
     /// nothing showing it.
-    /// `isChatVisible` for a window holding a notebook: its chat shows while
-    /// the notebook shows it (or it is popped out).
-    static func isChatVisible(notebook: NotebookWorkspace, chatPoppedOut: Bool) -> Bool {
-        chatPoppedOut || notebook.showsChat
-    }
-
-    /// Whether the primary chat is on screen in `windowState`, in either shell.
+    /// Whether the primary chat is on screen in `windowState`.
     static func isChatVisible(in windowState: StudioWindowState) -> Bool {
-        if let notebook = windowState.notebook, !notebook.tabbed {
-            return isChatVisible(notebook: notebook, chatPoppedOut: windowState.isChatPoppedOut)
-        }
         return isChatVisible(layout: windowState.centerTabGroups, chatPoppedOut: windowState.isChatPoppedOut)
     }
 
-    /// `highlightedSessionIDs` for a window holding a notebook: the primary
-    /// chat's row while the notebook shows its chat, the comparison chat's
-    /// while it sits in the document slot.
-    static func highlightedSessionIDs(
-        primary: String?,
-        comparison: String?,
-        notebook: NotebookWorkspace,
-        chatPoppedOut: Bool = false
-    ) -> Set<String> {
-        var ids = Set<String>()
-        if let primary, isChatVisible(notebook: notebook, chatPoppedOut: chatPoppedOut) {
-            ids.insert(primary)
-        }
-        if let comparison, notebook.showsSecondChat {
-            ids.insert(comparison)
-        }
-        return ids
-    }
-
-    /// The highlighted chats of `windowState`, in either shell.
+    /// The highlighted chats of `windowState`.
     static func highlightedSessionIDs(
         primary: String?,
         comparison: String?,
         in windowState: StudioWindowState
     ) -> Set<String> {
-        if let notebook = windowState.notebook, !notebook.tabbed {
-            return highlightedSessionIDs(
-                primary: primary,
-                comparison: comparison,
-                notebook: notebook,
-                chatPoppedOut: windowState.isChatPoppedOut
-            )
-        }
         return highlightedSessionIDs(
             primary: primary,
             comparison: comparison,
@@ -1373,7 +1337,7 @@ struct StudioNavigationRail: View {
     /// Browser, under Memory: the web itself, in tabs, with profiles that keep
     /// separate logins. A place, so every click lands on the pane with the
     /// tabs it had; a fresh window opens on a blank tab. In a window holding a
-    /// notebook it opens in the notebook's document slot.
+    /// notebook it opens in a pane of the notebook's window.
     private func browserButton(compact: Bool = false) -> some View {
         RailButtonRow(
             title: "Browser",
@@ -1402,7 +1366,7 @@ struct StudioNavigationRail: View {
     /// today's cards across every notebook (a notebook one click away in the
     /// pane), Start Review, what is waiting to be checked, and every kept
     /// card. In a window holding a notebook it opens in the notebook's
-    /// document slot, still over every notebook. Only the pane's Start Review
+    /// pane, still over every notebook. Only the pane's Start Review
     /// gives the window over, as only the Review mode sheet's did before.
     /// Nothing trails the label: a countdown there read as a stuck clock
     /// whenever the review was not being worked; the counts are in the help.
@@ -1574,7 +1538,7 @@ struct StudioNavigationRail: View {
     /// Whether this window shows the place: the Space on that place (its
     /// list, not a page opened from it), or the Courses pane.
     private func isShowing(_ shortcut: StudioRailShortcut) -> Bool {
-        guard !windowState.holdsNotebookSlot, !windowState.isVoiceWorkspacePresented else { return false }
+        guard !windowState.isVoiceWorkspacePresented else { return false }
         let activeTabs = windowState.centerTabGroups.groups.map(\.activeTab)
         switch shortcut {
         case .place(let place):

@@ -168,7 +168,7 @@ struct MemoryCardReviewEntryTests {
         #expect(MemoryReviewPreparationRunner.Attempt(day: "d", at: Date(), succeeded: true, dueCards: 0, newCards: 0).cardsLine == "No cards due")
     }
 
-    @Test("Inside a notebook the Memory pane opens in its document slot: over every notebook from the rail, narrowed to it from its Studio")
+    @Test("Inside a notebook the Memory pane opens among its panes: over every notebook from the rail, narrowed to it from its Studio")
     func memoryPaneInANotebook() {
         let restore = capturingSharedDefaults()
         defer { restore() }
@@ -179,25 +179,22 @@ struct MemoryCardReviewEntryTests {
         #expect(vm.memoryPaneScope(in: window) == .allNotebooks)
 
         window.NotebookID = "finbow"
-        let panes = window.centerTabGroups
+        let showsMemory = { window.centerTabGroups.groups.contains { $0.activeTab == .memory } }
         // The rail's Memory row: recall spans every notebook by default.
         vm.openMemoryPane()
         #expect(window.notebook?.notebookID == "finbow", "the notebook stays open")
-        #expect(window.notebook?.document == .memory)
-        #expect(window.centerTabGroups == panes, "the panes underneath stay as they were")
+        #expect(showsMemory())
         #expect(vm.memoryPaneScope(in: window) == .allNotebooks)
-        #expect(vm.notebookReturnTitle(in: window) == nil)
 
-        // The notebook's Studio Cards tile: the same slot, on its Review,
+        // The notebook's Studio Cards tile: the same pane, on its Review,
         // narrowed to the notebook, and nothing given over yet.
         window.memoryPaneSection = .allCards
         vm.requestCardReview(scope: .notebook("finbow"))
         #expect(window.notebook?.notebookID == "finbow")
-        #expect(window.notebook?.document == .memory)
+        #expect(showsMemory())
         #expect(window.memoryPaneSection == .review)
         #expect(vm.memoryPaneScope(in: window) == .notebook("finbow"))
         #expect(window.memoryReviewFocusSessionID == nil, "the pane asks before the window is given over")
-        #expect(window.centerTabGroups == panes)
 
         // A notebook the library no longer holds is no scope.
         vm.learningGoals = []

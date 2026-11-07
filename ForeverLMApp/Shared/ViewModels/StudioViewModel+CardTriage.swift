@@ -7,12 +7,12 @@ import Foundation
 // until the learner keeps, edits or skips them; the items from before cards
 // are offered there once. A notebook's Studio says its cards on its Cards
 // row ("42 kept · 6 due · 9 to check"), which opens To Check narrowed to the
-// notebook in the document slot while any wait, else its Review.
+// notebook in a pane while any wait, else its Review.
 
 extension StudioViewModel {
     /// To Check over `scope`, in the window in scope (or
     /// `destinationWindowState`): the Memory pane on its To Check section —
-    /// inside a window holding a notebook, the notebook's document slot, the
+    /// inside a window holding a notebook, a pane of the notebook's window, the
     /// notebook left as it was. The Studio's Cards row asks for its notebook;
     /// ForeverLM's own drafting opens it when the cards it was asked for are
     /// ready.

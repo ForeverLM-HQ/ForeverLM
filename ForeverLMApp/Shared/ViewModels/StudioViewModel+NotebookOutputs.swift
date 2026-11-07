@@ -173,7 +173,7 @@ extension StudioViewModel {
 
     /// Opens an output where its kind opens, in `windowState` — the window
     /// its row was clicked in, named because opening can await. In a window
-    /// holding a notebook every kind lands in the document slot: a Doc, Site
+    /// holding a notebook every kind lands in a pane: a Doc, Site
     /// or animation in its canvas (`revealArtifact`; a Doc filed in the
     /// notebook in the notebook's own Docs), a course in its page, and a
     /// walkthrough, an explainer or an audio overview's script in the Reader

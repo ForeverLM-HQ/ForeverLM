@@ -57,10 +57,6 @@ struct SourceReaderPanel: View {
     /// A video's and a podcast's own commands, published by their readers for
     /// the overflow menu's Video and Speakers submenus.
     @State private var readerMenuCommands = ReaderMenuCommands()
-    /// The source this Reader showed when it took a notebook's document slot
-    /// from a Doc, a chat or another document: on it, ‹ shows that again
-    /// (`backReturnsInNotebook`).
-    @State private var notebookSlotEntrySourceID: String?
 
     /// When set, this reader shows a specific article instead of the sidebar selection.
     var overrideArticleId: String? = nil
@@ -413,11 +409,6 @@ struct SourceReaderPanel: View {
             guard !isDragging else { return }
             isArticleDropTargeted = false
         }
-        .onChange(of: vm.notebookReturnTitle(in: windowState) != nil, initial: true) { _, offersReturn in
-            // The source the Reader opened in the slot with: from it, ‹ is
-            // the way back to what the slot showed before.
-            notebookSlotEntrySourceID = offersReturn ? trackedId : nil
-        }
         .onChange(of: readerSourceIDOnScreen, initial: true) { previous, current in
             if let previous { windowState.readerSourceIDsOnScreen.remove(previous) }
             if let current { windowState.readerSourceIDsOnScreen.insert(current) }
@@ -506,7 +497,7 @@ struct SourceReaderPanel: View {
                 ReaderNavigationButton(
                     systemImage: "chevron.left",
                     help: backHelp,
-                    isEnabled: canNavigateToPreviousSource || backReturnsInNotebook || backReturnsToCoveredPane,
+                    isEnabled: canNavigateToPreviousSource || backReturnsToCoveredPane,
                     action: goBackInReader
                 )
                 .fixedSize(horizontal: true, vertical: false)
@@ -538,7 +529,7 @@ struct SourceReaderPanel: View {
             SourceReaderStableNavigation(
                 showsBrowserNavigation: showsBrowserNavigation(article),
                 canGoBack: articleReaderChrome.canGoBack || canNavigateToPreviousSource
-                    || backReturnsInNotebook || backReturnsToCoveredPane,
+                    || backReturnsToCoveredPane,
                 canGoForward: articleReaderChrome.canGoForward,
                 backHelp: backHelp,
                 pageNavigation: pageNavigation,
@@ -660,40 +651,20 @@ struct SourceReaderPanel: View {
         }
     }
 
-    /// Whether ‹ gives a notebook's document slot back to what this Reader
-    /// took it from — a Doc, Site or animation, a course, the Browser, Memory
-    /// or the second chat (`StudioViewModel.notebookReturnTitle`) — rather
-    /// than going to an earlier source: the Reader is still on the source it
-    /// opened in the slot with (or on nothing), so the slot's previous
-    /// document is the page before. The window's reader history runs back past
-    /// the slot to whatever was read before the notebook, which is not the
-    /// way back from here. Until 2026-10-06 a labelled "↩ <Doc>" beside ‹ did
-    /// this, a second way back on one line (Quiet chrome, docs/ui-design.md).
-    private var backReturnsInNotebook: Bool {
-        guard !isSecondaryReader, overrideArticleId == nil,
-              !articleReaderChrome.canGoBack, !isDisplayingExternalPage,
-              vm.notebookReturnTitle(in: windowState) != nil else { return false }
-        return trackedId == notebookSlotEntrySourceID || !canNavigateToPreviousSource
-    }
-
     /// Whether ‹ shows again what this Reader covered when it took its pane —
     /// the Library a row was clicked in, the Space, Pages
     /// (`StudioWindowState.readerCover`) — rather than an earlier source: the
     /// Reader has read nothing since it took the pane, or nothing at all.
     private var backReturnsToCoveredPane: Bool {
         guard !isSecondaryReader, overrideArticleId == nil, !vm.readerPoppedOut,
-              !windowState.holdsNotebookSlot, windowState.memoryCardSession == nil,
+              windowState.memoryCardSession == nil,
               !articleReaderChrome.canGoBack, !isDisplayingExternalPage,
               windowState.readerCover != nil else { return false }
         return windowState.readerBackReturnsToCover || !canNavigateToPreviousSource
     }
 
-    /// ‹'s tooltip: "Back to <Doc>" when it returns the notebook's slot,
-    /// "Back to Library" when it uncovers the Library.
+    /// ‹'s tooltip: "Back to Library" when it uncovers the Library.
     private var backHelp: String {
-        if backReturnsInNotebook, let title = vm.notebookReturnTitle(in: windowState) {
-            return "Back to \(title)"
-        }
         if backReturnsToCoveredPane, let cover = windowState.readerCover {
             return "Back to \(cover.tab.title)"
         }
@@ -703,9 +674,7 @@ struct SourceReaderPanel: View {
     /// Reader Back is one continuous history. In-page web navigation is the
     /// most recent step when it exists; otherwise it returns to the source that
     /// previously occupied this pane, regardless of whether that source was an
-    /// article, paper, transcript, or book chapter — or, in a notebook's
-    /// document slot, to what the Reader took the slot from
-    /// (`backReturnsInNotebook`).
+    /// article, paper, transcript, or book chapter.
     private func goBackInReader() {
         if articleReaderChrome.canGoBack {
             articleReaderChrome.goBack()
@@ -713,12 +682,6 @@ struct SourceReaderPanel: View {
         }
         if isDisplayingExternalPage {
             windowState.externalReaderPage = nil
-            return
-        }
-        if backReturnsInNotebook {
-            withAnimation(.easeInOut(duration: 0.22)) {
-                vm.returnInNotebook(in: windowState)
-            }
             return
         }
         if backReturnsToCoveredPane, let cover = windowState.readerCover {

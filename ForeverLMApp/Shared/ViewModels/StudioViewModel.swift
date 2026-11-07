@@ -2542,10 +2542,6 @@ class StudioViewModel {
         in destinationWindowState: StudioWindowState? = nil
     ) {
         let destination = destinationWindowState ?? activeWindowState
-        guard !destination.holdsNotebookSlot else {
-            dismissCenterSurface(tab, in: destination)
-            return
-        }
         var layout = destination.centerTabGroups
         guard let index = layout.index(holding: tab, preferring: groupID, openOnly: true) else { return }
         guard layout.groups[index].closeTab(tab) else {
@@ -2582,9 +2578,6 @@ class StudioViewModel {
         if destination.memoryReviewFocusYields(to: tab) {
             leaveMemoryReviewFocus(in: destination)
         }
-        // A window holding a notebook shows the tab in the notebook's chat
-        // or document slot, or leaves the notebook for the panes underneath.
-        if routeIntoNotebook(tab, in: destination) { return }
         // A tab already open comes to the front where it is; anything else
         // opens as a new tab in the pane the learner last clicked in, and
         // what that pane showed stays one of its tabs.
@@ -2614,12 +2607,6 @@ class StudioViewModel {
         in destinationWindowState: StudioWindowState? = nil
     ) {
         let destination = destinationWindowState ?? activeWindowState
-        // In a notebook the document slot empties, or Chat hides; a tab the
-        // notebook does not show is not on screen to hide.
-        if destination.holdsNotebookSlot {
-            closeInNotebook(tab, in: destination)
-            return
-        }
         var layout = destination.centerTabGroups
         guard let index = layout.index(holding: tab, preferring: groupID),
               layout.groups[index].activeTab == tab else { return }
@@ -2691,15 +2678,7 @@ class StudioViewModel {
             session.besideSourceID = nil
             return
         }
-        if destination.holdsNotebookSlot {
-            // A lone notebook chat playing a walk ends the walk on New chat,
-            // as a lone chat pane does; every other × closes its slot.
-            if tab == .chat, destination.notebook?.document == nil,
-               leaveWalkthroughForNewChat(in: destination) {
-                return
-            }
-            closeInNotebook(tab, in: destination)
-        } else if destination.centerTabGroups.groups.count > 1 {
+        if destination.centerTabGroups.groups.count > 1 {
             closeCenterPane(containing: tab, fromGroup: groupID, in: destination)
         } else if tab == .chat, leaveWalkthroughForNewChat(in: destination) {
             // The walk was the chat's content; the pane stays on Chat.
@@ -2814,7 +2793,6 @@ class StudioViewModel {
         in window: StudioWindowState
     ) {
         guard !BetaFeatures.unofferedCenterTabs.contains(tab),
-              !window.holdsNotebookSlot,
               window.centerTabGroups.groups.indices.contains(groupIndex),
               window.centerTabGroups.canCreateDraggedGroup else { return }
         if window.isVoiceWorkspacePresented { window.isVoiceWorkspacePresented = false }
@@ -2879,8 +2857,6 @@ class StudioViewModel {
         guard !BetaFeatures.unofferedCenterTabs.contains(tab) else { return }
         if isVoiceWorkspacePresented { isVoiceWorkspacePresented = false }
         if activeWindowState.memoryCardSession != nil { leaveMemoryReviewFocus(in: activeWindowState) }
-        // A notebook's chat and document slot are already side by side.
-        if routeIntoNotebook(tab, in: activeWindowState) { return }
         guard let source = centerTabGroups.groups.firstIndex(where: { $0.tabs.contains(tab) }) else { return }
 
         if centerTabGroups.groups[source].activeTab == tab {
@@ -2910,7 +2886,7 @@ class StudioViewModel {
     /// Shows `tab` in the pane at `groupIndex` of `destination`, in place of
     /// what that pane showed: a destination from the sidebar dropped on a
     /// pane. A window holding a notebook has no panes to pick from, so there
-    /// the tab opens in the notebook's chat or document slot.
+    /// the tab opens in a pane of the window.
     ///
     /// `startsBlankChat` is the rail's "New chat" row, which means a fresh
     /// conversation in the pane it lands on. `destination` is explicit for the
@@ -2924,10 +2900,6 @@ class StudioViewModel {
         guard !BetaFeatures.unofferedCenterTabs.contains(tab) else { return }
         if destination.isVoiceWorkspacePresented { destination.isVoiceWorkspacePresented = false }
         if destination.memoryReviewFocusYields(to: tab) { leaveMemoryReviewFocus(in: destination) }
-        if routeIntoNotebook(tab, in: destination) {
-            if startsBlankChat { inWindow(destination) { requestNewChat() } }
-            return
-        }
         let hadTab = destination.centerTabGroups.groups.indices.contains(groupIndex)
             && destination.centerTabGroups.groups[groupIndex].tabs.contains(tab)
         guard let layout = destination.centerTabGroups.replacingPane(at: groupIndex, with: tab) else { return }
@@ -2966,10 +2938,6 @@ class StudioViewModel {
             destination.isVoiceWorkspacePresented = false
         }
         if destination.memoryCardSession != nil { leaveMemoryReviewFocus(in: destination) }
-        // A notebook has no edges to place at: the tab takes its chat or its
-        // document slot, or leaves it for the panes underneath — which the
-        // notebook never rearranges, and whose layout is the synced template.
-        if routeIntoNotebook(tab, in: destination) { return }
         var layout = destination.centerTabGroups
         guard let source = layout.index(holding: tab, preferring: groupID) else { return }
         let edge = leading ? 0 : layout.groups.count
@@ -3012,9 +2980,6 @@ class StudioViewModel {
         // A card review shows no chat: a second one opened under it would
         // land where the learner cannot see it.
         if activeWindowState.memoryCardSession != nil { leaveMemoryReviewFocus(in: activeWindowState) }
-        // In a notebook the second chat takes the document slot, beside the
-        // notebook's own chat.
-        if routeIntoNotebook(.secondaryChat, in: activeWindowState) { return }
         var layout = centerTabGroups
 
         if let source = layout.groups.firstIndex(where: { $0.tabs.contains(.secondaryChat) }) {
@@ -3053,10 +3018,6 @@ class StudioViewModel {
         in destinationWindowState: StudioWindowState? = nil
     ) {
         let destination = destinationWindowState ?? activeWindowState
-        if destination.holdsNotebookSlot {
-            closeInNotebook(.secondaryChat, in: destination)
-            return
-        }
         var layout = destination.centerTabGroups
         guard let groupIndex = layout.index(holding: .secondaryChat, preferring: groupID) else { return }
         layout.groups[groupIndex].remove(.secondaryChat)
@@ -3088,21 +3049,9 @@ class StudioViewModel {
     /// arriving.
     func revealChat(beside companion: StudioCenterTab) {
         if isVoiceWorkspacePresented { isVoiceWorkspacePresented = false }
-        // In a notebook Chat and the document slot never cover each other:
-        // the chat comes on screen, beside the companion's document.
         let window = activeWindowState
         // A card review shows no chat: asking for one is the learner going.
         if window.memoryCardSession != nil { leaveMemoryReviewFocus(in: window) }
-        if let notebook = window.notebook, !notebook.tabbed {
-            if let next = notebook.revealing(.chat, beside: companion, coursePageID: window.coursePageID),
-               next != notebook {
-                window.notebook = next
-            }
-            reviewChatPanelMode = .chat
-            reviewChatFocusRequestID = UUID()
-            readerChatSpaceRequestID = UUID()
-            return
-        }
         var layout = centerTabGroups
         guard companion != .chat,
               let chatGroup = layout.groups.firstIndex(where: { $0.tabs.contains(.chat) }),
@@ -3175,19 +3124,6 @@ class StudioViewModel {
         // Reader beside it stays in that Reader (`memoryReviewFocusYields`).
         if destination.memoryCardSession != nil, destination.memoryReviewFocusYields(to: tab) {
             leaveMemoryReviewFocus(in: destination)
-        }
-        // In a notebook the tab takes the chat or the document slot, the
-        // companion kept beside it; a tab with no place in a notebook leaves
-        // it, and the panes underneath take the request as before.
-        if let notebook = destination.notebook, !notebook.tabbed {
-            if let next = notebook.revealing(tab, beside: companion, coursePageID: destination.coursePageID) {
-                if destination.memoryReviewFocusYields(to: tab) {
-                    leaveMemoryReviewFocus(in: destination)
-                }
-                if next != notebook { destination.notebook = next }
-                return
-            }
-            destination.notebook = nil
         }
         guard companion != tab else {
             var layout = destination.centerTabGroups
@@ -3300,9 +3236,6 @@ class StudioViewModel {
         in destinationWindowState: StudioWindowState? = nil
     ) {
         let destination = destinationWindowState ?? activeWindowState
-        // A notebook's Reader is its document slot, beside whatever the
-        // center shows; the chat is neither brought back nor hidden.
-        if routeIntoNotebook(.reader, in: destination) { return }
         if let readerPane = destination.centerTabGroups.groups.first(where: { $0.tabs.contains(.reader) }),
            readerPane.activeTab == companion || readerPane.activeTab == .library {
             revealReader(beside: readerPane.activeTab, in: destination)
@@ -3405,8 +3338,7 @@ class StudioViewModel {
     /// one scoped to a Notebook it is not filed under, which would silently
     /// show nothing. A Claude artifact or a Codex site comes forward in
     /// Sites, a Markdown doc or a Google Doc in Docs; a record this window
-    /// has not loaded is taken for a Doc. In a window holding a notebook the
-    /// pane is the notebook's document slot (`NotebookWorkspace.route`).
+    /// has not loaded is taken for a Doc.
     /// The doc comes forward in the window the request was made in (or the
     /// one named), and in no other: a second Studio window keeps what it shows.
     ///
@@ -3469,15 +3401,13 @@ class StudioViewModel {
     }
 
     /// Opens Docs scoped to a Notebook — its list and its New Doc are the
-    /// Notebook's — or, with nil, every doc. In a window holding a notebook
-    /// the canvas takes the document slot beside the chat; elsewhere it opens
-    /// beside what is on screen, as a rail row's Open Beside does. (The
+    /// Notebook's — or, with nil, every doc. It opens beside what is on
+    /// screen, as a rail row's Open Beside does. (The
     /// Notebook page that placed it right of itself went with the notebook's
     /// Studio, which lists the notebook's Docs among its outputs.)
     func openArtifactsBeside(notebookID: String? = nil) {
         let destination = activeWindowState
         if destination.artifactCanvasNotebookID != notebookID { destination.artifactCanvasNotebookID = notebookID }
-        if routeIntoNotebook(.notepad, in: destination) { return }
         openCenterTabBeside(.notepad)
     }
 

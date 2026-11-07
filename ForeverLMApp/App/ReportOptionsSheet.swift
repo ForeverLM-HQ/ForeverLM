@@ -8,7 +8,7 @@ import SwiftUI
 /// condensed, named here rather than cut silently — and the price of the
 /// writing. Make closes the sheet; the run shows as a pending row among the
 /// Studio's outputs (`ReportRunsList`), and the made Doc opens in the
-/// notebook's document slot of this window.
+/// notebook's panes of this window.
 ///
 /// Presented by `reportOptionsSheet()` on the Studio window, for the target
 /// `StudioViewModel.presentReportOptions(notebookID:format:)` set.

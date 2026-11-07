@@ -216,8 +216,7 @@ enum StudioOtherWindowTargets {
             // behind Docs in some pane is not what the learner is looking at,
             // and closing that pane would take Docs with it.
             let readerPane = current.centerTabGroups.groups.first { $0.tabs.contains(.reader) }
-            let readerShows = current.notebook.map { $0.visibleDocuments.contains(.reader) }
-                ?? (readerPane?.activeTab == .reader)
+            let readerShows = readerPane?.activeTab == .reader
             if readerShows {
                 vm.dismissCenterSurface(.reader, in: current)
             }

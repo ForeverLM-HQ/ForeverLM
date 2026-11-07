@@ -129,6 +129,12 @@ struct NotebookStudioTests {
         NotebookOutput(kind: kind, targetID: targetID, title: targetID, sourceIDs: sources, date: Self.now)
     }
 
+    /// Whether a pane of `window` shows `tab`: a notebook's window shows what
+    /// it opens in its own panes.
+    private func shows(_ tab: StudioCenterTab, in window: StudioWindowState) -> Bool {
+        window.centerTabGroups.groups.contains { $0.activeTab == tab }
+    }
+
     // MARK: - The Studio column
 
     @Test("A notebook opens with its Studio showing, and another notebook in the window starts that way too")
@@ -151,25 +157,23 @@ struct NotebookStudioTests {
 
     // MARK: - Opening outputs
 
-    @Test("A Doc filed in the notebook opens in its document slot, in the notebook's own Docs")
-    func docOpensScopedInTheSlot() async {
+    @Test("A Doc filed in the notebook opens in a pane, in the notebook's own Docs")
+    func docOpensScopedInAPane() async {
         let restore = capturingSharedDefaults()
         defer { restore() }
         let (vm, window, _, _) = studio()
-        let panes = window.centerTabGroups
 
         await vm.openNotebookOutput(output(.doc, "doc-bio"), in: window)
-        #expect(window.notebook?.document == .docs)
+        #expect(shows(.notepad, in: window))
         #expect(window.artifactCanvasNotebookID == "bio")
         #expect(vm.artifactRevealRequest?.artifactID == "doc-bio")
         #expect(vm.artifactRevealRequest?.section == .docs)
         #expect(vm.artifactRevealRequest?.windowID == window.id, "only this window's canvas answers")
-        #expect(window.centerTabGroups == panes, "the panes underneath stay as they were")
 
         // A doc filed elsewhere — a chat's link — opens in every doc's list,
         // never one that would leave it out.
         vm.revealArtifact("doc-elsewhere", in: window)
-        #expect(window.notebook?.document == .docs)
+        #expect(shows(.notepad, in: window))
         #expect(window.artifactCanvasNotebookID == nil)
         #expect(vm.docsCanvasScope(for: "doc-bio", in: window) == "bio")
         #expect(vm.docsCanvasScope(for: "doc-elsewhere", in: window) == nil)
@@ -180,12 +184,11 @@ struct NotebookStudioTests {
         #expect(vm.docsCanvasScope(for: "doc-bio", in: plain) == nil)
     }
 
-    @Test("A Studio row dropped on a pane of a tabbed notebook opens in that pane")
+    @Test("A Studio row dropped on a pane of a notebook's window opens in that pane")
     func droppedOutputOpensInItsPane() async {
         let restore = capturingSharedDefaults()
         defer { restore() }
         let (vm, window, _, _) = studio()
-        window.notebook?.tabbed = true
         window.centerTabGroups = StudioCenterTabGroups(groups: [
             .init(tabs: [.chat], activeTab: .chat),
             .init(tabs: [.reader], activeTab: .reader),
@@ -200,7 +203,7 @@ struct NotebookStudioTests {
         #expect(vm.paneTab(for: output(.picture, "p")) == nil)
     }
 
-    @Test("The notebook's Docs scope goes with the notebook: closed, left or replaced in the window")
+    @Test("The notebook's Docs scope goes with the notebook: closed or replaced in the window")
     func docsScopeLeavesWithTheNotebook() async {
         let restore = capturingSharedDefaults()
         defer { restore() }
@@ -209,7 +212,7 @@ struct NotebookStudioTests {
         await vm.openNotebookOutput(output(.doc, "doc-bio"), in: window)
         #expect(window.artifactCanvasNotebookID == "bio")
         // Its own arrangement changing keeps it.
-        window.notebook?.showsChat = false
+        window.notebook?.studioCollapsed = true
         #expect(window.artifactCanvasNotebookID == "bio")
         // The panes underneath come back on every doc, as they were.
         vm.closeNotebook(in: window)
@@ -221,13 +224,6 @@ struct NotebookStudioTests {
         #expect(window.artifactCanvasNotebookID == "bio")
         vm.openNotebook("shelved", in: window, startsNotebookChat: false)
         #expect(window.notebook?.notebookID == "shelved")
-        #expect(window.artifactCanvasNotebookID == nil)
-
-        // Nor does a surface that leaves a notebook drawn as chat and slot.
-        window.notebook = NotebookWorkspace(notebookID: "bio")
-        await vm.openNotebookOutput(output(.doc, "doc-bio"), in: window)
-        vm.revealCenterTab(.goals, beside: .chat, in: window)
-        #expect(window.notebook == nil)
         #expect(window.artifactCanvasNotebookID == nil)
     }
 
@@ -251,24 +247,23 @@ struct NotebookStudioTests {
         #expect(AudioOverviewOutput.byID([saved, run])["overview-1"]?.isWriting == false)
     }
 
-    @Test("A Site and an animation open in the slot in their own canvases")
-    func siteAndAnimationOpenInTheSlot() async {
+    @Test("A Site and an animation open in their own canvases")
+    func siteAndAnimationOpenInTheirCanvases() async {
         let restore = capturingSharedDefaults()
         defer { restore() }
         let (vm, window, _, _) = studio()
 
         await vm.openNotebookOutput(output(.site, "site-bio"), in: window)
-        #expect(window.notebook?.document == .sites)
+        #expect(shows(.sites, in: window))
         #expect(vm.artifactRevealRequest?.section == .sites)
 
         await vm.openNotebookOutput(output(.animation, "animation-bio"), in: window)
-        #expect(window.notebook?.document == .animations)
+        #expect(shows(.animations, in: window))
         #expect(vm.artifactRevealRequest?.section == .animations)
-        #expect(window.notebook?.showsChat == true, "the chat stays beside it")
     }
 
-    @Test("A course opens its page in the slot; closing the page empties the slot and keeps the notebook")
-    func courseOpensItsPageInTheSlot() async {
+    @Test("A course opens its page in a pane; closing the page keeps the notebook")
+    func courseOpensItsPage() async {
         let restore = capturingSharedDefaults()
         defer { restore() }
         let (vm, window, _, _) = studio()
@@ -276,55 +271,45 @@ struct NotebookStudioTests {
 
         await vm.openNotebookOutput(output(.course, "Systems Aging"), in: window)
         #expect(window.coursePageID == "Systems Aging")
-        #expect(window.notebook?.document == .coursePage)
+        #expect(shows(.courses, in: window))
 
-        // A lecture takes the slot in the Reader, with the page behind its Back to.
-        vm.revealCenterTab(.reader, beside: .courses, in: window)
-        #expect(window.notebook?.document == .reader)
-        #expect(window.notebook?.returnDocument == .coursePage)
-        vm.returnInNotebook(in: window)
-        #expect(window.notebook?.document == .coursePage)
-
-        // The page's own way back has no course list to go to in a notebook.
+        // The page's way back is the course list, and the notebook stays.
         vm.closeCoursePage(in: window)
         #expect(window.notebook?.notebookID == "bio")
-        #expect(window.notebook?.document == nil)
         #expect(window.coursePageID == nil)
     }
 
-    @Test("A walkthrough opens its source in the slot and plays the walk in the chat beside it")
+    @Test("A walkthrough opens its source in the Reader and plays the walk")
     func walkthroughOpensInTheReader() async {
         let restore = capturingSharedDefaults()
         defer { restore() }
         let (vm, window, paperID, _) = studio()
-        window.notebook?.showsChat = false
 
         await vm.openNotebookOutput(output(.walkthrough, paperID, sources: [paperID]), in: window)
-        #expect(window.notebook?.document == .reader)
+        #expect(shows(.reader, in: window))
         #expect(window.readerArticleID == paperID)
-        #expect(window.notebook?.showsChat == true, "the walk plays in the notebook's chat")
         #expect(vm.readerWalkthroughPlayRequest?.sourceID == paperID)
     }
 
-    @Test("An explainer opens in the Reader in the slot, with the source it explains selected")
+    @Test("An explainer opens in the Reader, with the source it explains selected")
     func explainerOpensInTheReader() async {
         let restore = capturingSharedDefaults()
         defer { restore() }
         let (vm, window, paperID, explainerID) = studio()
 
         await vm.openNotebookOutput(output(.explainer, explainerID, sources: [paperID]), in: window)
-        #expect(window.notebook?.document == .reader)
+        #expect(shows(.reader, in: window))
         #expect(window.readerArticleID == explainerID)
         #expect(window.sidebarSelectedSourceIDs == [paperID])
 
         // The Explainer tile, for a source that has one, opens it the same way.
-        window.notebook?.document = nil
+        vm.activateCenterTab(.artifacts, in: window)
         #expect(await vm.openNotebookExplainer(of: paperID, in: window))
-        #expect(window.notebook?.document == .reader)
+        #expect(shows(.reader, in: window))
         #expect(await vm.openNotebookExplainer(of: "no-explainer", in: window) == false)
     }
 
-    @Test("An audio overview's script opens in the slot; one still being written, or not here yet, opens nothing")
+    @Test("An audio overview's script opens in the Reader; one still being written, or not here yet, opens nothing")
     func audioOverviewOpensItsScript() async {
         let restore = capturingSharedDefaults()
         defer { restore() }
@@ -333,15 +318,15 @@ struct NotebookStudioTests {
         var pending = output(.audioOverview, "run-1")
         pending.isPending = true
         await vm.openNotebookOutput(pending, in: window)
-        #expect(window.notebook?.document == nil)
+        #expect(!shows(.reader, in: window))
 
         await vm.openNotebookOutput(output(.audioOverview, "overview-elsewhere"), in: window)
-        #expect(window.notebook?.document == nil, "its script has not reached this Mac")
+        #expect(!shows(.reader, in: window), "its script has not reached this Mac")
 
         let carrier = GeneratedAudioOverview.carrierSource(artifactID: "overview-1", title: "Bioenergetics", script: "A script.")
         vm.articles.append(carrier)
         await vm.openNotebookOutput(output(.audioOverview, "overview-1"), in: window)
-        #expect(window.notebook?.document == .reader)
+        #expect(shows(.reader, in: window))
         #expect(window.readerArticleID == carrier.id)
     }
 
@@ -368,7 +353,7 @@ struct NotebookStudioTests {
 
     // MARK: - The tiles' seams
 
-    @Test("Cards opens the notebook's Memory pane in its document slot, narrowed to it; nothing takes the window before Start Review")
+    @Test("Cards opens the Memory pane in the notebook's window, narrowed to it; nothing takes the window before Start Review")
     func cardsTileOpensTheCardReview() {
         let restore = capturingSharedDefaults()
         defer { restore() }
@@ -376,7 +361,7 @@ struct NotebookStudioTests {
         window.memoryPaneSection = .allCards
         vm.inWindow(window) { vm.requestCardReview(scope: .notebook("bio")) }
         #expect(window.notebook?.notebookID == "bio", "the notebook stays as it was")
-        #expect(window.notebook?.document == .memory)
+        #expect(shows(.memory, in: window))
         #expect(window.memoryPaneSection == .review)
         #expect(vm.memoryPaneScope(in: window) == .notebook("bio"))
         #expect(window.memoryReviewFocusSessionID == nil, "the Memory pane asks before the window is given over")
@@ -558,13 +543,14 @@ struct NotebookStudioTests {
         #expect(ReportGenerationCoordinator.shared.optionsTarget(in: window.id) == nil, "no report's options open")
         #expect(vm.toastMessage == "A report can\u{2019}t be made in \u{2018}shelved\u{2019}: it is archived.")
         let records = vm.artifacts
+        let panes = window.centerTabGroups
         await vm.makeNotebookNote(notebookID: "shelved", in: window)
         #expect(vm.artifacts == records)
-        #expect(window.notebook?.document == nil)
+        #expect(window.centerTabGroups == panes, "nothing opened")
 
         #expect(!NotebookStudioTile.cards.makesIntoNotebook)
         vm.inWindow(window) { vm.requestCardReview(scope: .notebook("shelved")) }
-        #expect(window.notebook?.document == .memory)
+        #expect(shows(.memory, in: window))
         #expect(vm.memoryPaneScope(in: window) == .notebook("shelved"), "an archived notebook's cards are still asked")
     }
 

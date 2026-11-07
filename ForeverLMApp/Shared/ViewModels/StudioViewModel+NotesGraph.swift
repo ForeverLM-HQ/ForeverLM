@@ -225,15 +225,9 @@ extension StudioViewModel {
             return
         }
         let window = activeWindowState
-        if window.holdsNotebookSlot {
-            // A notebook has no place for Ideas: the window leaves it for
-            // its panes, as every way to Ideas does.
-            activateCenterTab(.ideas, in: window)
-        } else {
-            // Beside what is on screen, so the Doc, the chat or the source
-            // the link was followed from stays where it is.
-            openArtifactKindBeside(.ideas)
-        }
+        // Beside what is on screen, so the Doc, the chat or the source the
+        // link was followed from stays where it is.
+        openArtifactKindBeside(.ideas)
         // The pane opens the editor (`IdeasPane`), or answers on appearing.
         ideaRevealRequest = IdeaRevealRequest(ideaID: id, windowID: window.id)
     }

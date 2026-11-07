@@ -18,32 +18,6 @@ extension Notification.Name {
     /// the object: the Notebook menu's Notebook Settings….
 }
 
-/// Where the notebook's center puts its panes: the chat (or the document a
-/// link opened in its place) on the left, the document slot on the right,
-/// the divider between them when both show, and the overview when neither
-/// does. Pure, so the arrangement can be tested without a view; the view
-/// draws each of these in its own place in one stack, so one coming or going
-/// never rebuilds another.
-struct NotebookCenterLayout: Equatable {
-    /// The left pane's width: the chat, or `leadingDocument` in its place.
-    /// Nil when neither shows.
-    var leadingWidth: CGFloat?
-    /// The document standing in the chat's place; nil when the chat leads,
-    /// or nothing does.
-    var leadingDocument: NotebookDocument?
-    /// The document slot's width; nil when the slot is empty.
-    var documentWidth: CGFloat?
-    /// The document left of the slot's while the chat shows beside it, the
-    /// third pane of video | notes | chat (`NotebookWorkspace.splitDocument`);
-    /// nil otherwise. Its width counts nothing of the chat's side.
-    var splitDocument: NotebookDocument?
-    var splitWidth: CGFloat?
-
-    var showsDivider: Bool { leadingWidth != nil && documentWidth != nil }
-    var showsSplitDivider: Bool { splitWidth != nil }
-    var showsOverview: Bool { leadingWidth == nil && documentWidth == nil }
-}
-
 /// The widths the notebook workspace lays out by. The outer panel layout and
 /// the window's make-room pass read the same numbers, so neither decides the
 /// notebook fits while the other is clipping it.
@@ -67,10 +41,6 @@ enum NotebookWorkspaceSizing {
     /// 540 px for it, and the Studio drops to its minimum meanwhile.
     static let expandedSourcesWidth: CGFloat = 480
     static let separatorWidth: CGFloat = 1
-    /// A document needs more room than a pane of the tab layout: a PDF at
-    /// 200 points is unreadable.
-    static let documentMinimumWidth: CGFloat = 420
-    static let dividerWidth: CGFloat = StudioCenterTabGroupSizing.dividerWidth
 
     /// The widest the learner may drag the Sources column: past its share's
     /// 360, as the rail and the library's Sources panel go past theirs, but
@@ -110,30 +80,10 @@ enum NotebookWorkspaceSizing {
         clampedSourcesWidth(startWidth + translation)
     }
 
-    /// A second chat needs a chat's width; anything else in the slot a
-    /// document's.
-    static func minimumWidth(of document: NotebookDocument) -> CGFloat {
-        document.isChat ? StudioCenterTabGroupSizing.minimumChatContentWidth : documentMinimumWidth
-    }
-
-    /// The left pane's minimum: the chat's, or the document's standing in its
-    /// place; zero when neither shows.
-    static func leadingMinimumWidth(for workspace: NotebookWorkspace) -> CGFloat {
-        if workspace.showsChat { return StudioCenterTabGroupSizing.minimumChatContentWidth }
-        return workspace.leadingDocument.map(minimumWidth(of:)) ?? 0
-    }
-
-    /// The center's minimum: the left pane and the document side by side, or
-    /// the one of them that shows, or the overview's chat-wide column.
-    /// A tabbed notebook's center is the window's own panes, whose minimum
-    /// (`panesMinimum`, `StudioWindowState.notebookPanesMinimum`) stands in.
+    /// The center's minimum: the window's panes' minima (`panesMinimum`,
+    /// `StudioWindowState.notebookPanesMinimum`), else a chat's width.
     static func centerMinimumWidth(for workspace: NotebookWorkspace, panesMinimum: CGFloat? = nil) -> CGFloat {
-        if workspace.tabbed { return panesMinimum ?? StudioCenterTabGroupSizing.minimumChatContentWidth }
-        let leading = leadingMinimumWidth(for: workspace)
-        let document = workspace.document.map(minimumWidth(of:)) ?? 0
-        guard leading > 0 || document > 0 else { return StudioCenterTabGroupSizing.minimumChatContentWidth }
-        let split = workspace.splitDocument.map { minimumWidth(of: $0) + dividerWidth } ?? 0
-        return leading + document + (leading > 0 && document > 0 ? dividerWidth : 0) + split
+        panesMinimum ?? StudioCenterTabGroupSizing.minimumChatContentWidth
     }
 
     /// What the Sources column takes at its narrowest, separator included.
@@ -222,90 +172,6 @@ enum NotebookWorkspaceSizing {
         ).sources
     }
 
-    /// The left pane's and the document's widths in a center `centerWidth`
-    /// wide, the left taking `leadingFraction` of what the divider leaves —
-    /// kept to each side's minimum while there is room for both.
-    static func paneWidths(
-        centerWidth: CGFloat,
-        leadingFraction: CGFloat,
-        leadingMinimum: CGFloat,
-        documentMinimum: CGFloat
-    ) -> (leading: CGFloat, document: CGFloat) {
-        let usable = max(0, centerWidth - dividerWidth)
-        var leading = usable * min(max(leadingFraction, 0), 1)
-        if usable >= leadingMinimum + documentMinimum {
-            leading = min(max(leading, leadingMinimum), usable - documentMinimum)
-        }
-        return (leading, max(0, usable - leading))
-    }
-
-    /// The widths of three panes — the split document, the slot's document and
-    /// the chat — in a center `centerWidth` wide. The chat takes two thirds of
-    /// `chatFraction` of what the dividers leave (so the default half is a
-    /// third), the documents share the rest equally, each kept to its minimum
-    /// while there is room for all three.
-    static func threePaneWidths(
-        centerWidth: CGFloat,
-        chatFraction: CGFloat,
-        chatMinimum: CGFloat,
-        splitMinimum: CGFloat,
-        documentMinimum: CGFloat
-    ) -> (split: CGFloat, document: CGFloat, chat: CGFloat) {
-        let usable = max(0, centerWidth - 2 * dividerWidth)
-        var chat = usable * min(max(chatFraction, 0), 1) * (2.0 / 3.0)
-        if usable >= chatMinimum + splitMinimum + documentMinimum {
-            chat = min(max(chat, chatMinimum), usable - splitMinimum - documentMinimum)
-        }
-        let rest = max(0, usable - chat)
-        var split = rest / 2
-        if rest >= splitMinimum + documentMinimum {
-            split = min(max(split, splitMinimum), rest - documentMinimum)
-        }
-        return (split, max(0, rest - split), chat)
-    }
-
-    /// Where the center's panes go in a center `centerWidth` wide.
-    static func centerLayout(
-        for workspace: NotebookWorkspace,
-        centerWidth: CGFloat,
-        leadingFraction: CGFloat
-    ) -> NotebookCenterLayout {
-        if let split = workspace.splitDocument, let document = workspace.document {
-            let widths = threePaneWidths(
-                centerWidth: centerWidth,
-                chatFraction: leadingFraction,
-                chatMinimum: StudioCenterTabGroupSizing.minimumChatContentWidth,
-                splitMinimum: minimumWidth(of: split),
-                documentMinimum: minimumWidth(of: document)
-            )
-            return NotebookCenterLayout(
-                leadingWidth: widths.chat,
-                leadingDocument: nil,
-                documentWidth: widths.document,
-                splitDocument: split,
-                splitWidth: widths.split
-            )
-        }
-        let lead = workspace.showsChat ? nil : workspace.leadingDocument
-        let hasLeading = workspace.showsChat || lead != nil
-        switch (hasLeading, workspace.document) {
-        case (true, let document?):
-            let widths = paneWidths(
-                centerWidth: centerWidth,
-                leadingFraction: leadingFraction,
-                leadingMinimum: leadingMinimumWidth(for: workspace),
-                documentMinimum: minimumWidth(of: document)
-            )
-            return NotebookCenterLayout(leadingWidth: widths.leading, leadingDocument: lead, documentWidth: widths.document)
-        case (true, nil):
-            return NotebookCenterLayout(leadingWidth: centerWidth, leadingDocument: lead, documentWidth: nil)
-        case (false, _?):
-            return NotebookCenterLayout(leadingWidth: nil, leadingDocument: nil, documentWidth: centerWidth)
-        case (false, nil):
-            return NotebookCenterLayout(leadingWidth: nil, leadingDocument: nil, documentWidth: nil)
-        }
-    }
-
     /// What a workspace `totalWidth` wide folds so the notebook's center
     /// fits: Sources first — opening a source is what usually asks for the
     /// room, and the window's sidebar toggle brings it back — then Studio, which
@@ -330,20 +196,15 @@ enum NotebookWorkspaceSizing {
 }
 
 /// The notebook workspace: while a window holds a notebook, the window body is
-/// this — Gemini Notebook's three parts: the notebook's **Sources** column,
-/// its **Chat** with one document slot beside it (the Reader, a Doc, a second
-/// chat), and its **Studio** column (docs/notebooks-design.md, "The notebook
-/// workspace"). The Reader stays ForeverLM's — the PDF with its figures, the
-/// video with its transcript — beside the chat, never a text column inside
-/// Sources. The window's panes wait underneath, untouched, and come back when
-/// the notebook closes — the precedent the memory review's focus set.
+/// this — the notebook's **Sources** column, the window's own tabbed panes
+/// (a chat, the Space, Pages, the Reader, the Library…), which the learner
+/// splits, drags and closes as anywhere else, and the notebook's **Studio**
+/// column (docs/notebooks-design.md, "The notebook workspace").
 ///
-/// Its own struct with explicit parameters, and the chat and document handed
-/// in type-erased: `StudioView` erases its root because its generic type once
+/// Its own struct with explicit parameters, and the panes handed in
+/// type-erased: `StudioView` erases its root because its generic type once
 /// grew deep enough to crash a debug build, and this keeps the notebook's
-/// branch from adding to it. The chat is the window's one primary chat panel
-/// (`StudioView.dockedChatPanel`), mounted here instead of in the tab groups,
-/// never beside them.
+/// branch from adding to it.
 struct NotebookWorkspaceView: View {
     @Environment(StudioViewModel.self) private var vm
     @Environment(StudioWindowState.self) private var windowState
@@ -357,35 +218,14 @@ struct NotebookWorkspaceView: View {
     @SyncedStorage(wrappedValue: false, BetaReleases.preferenceKey) private var signedUpForBetas: Bool
 
     let workspace: NotebookWorkspace
-    let chat: () -> AnyView
-    let document: (NotebookDocument) -> AnyView
-    /// The window's own tabbed panes, the center of a tabbed notebook
-    /// (`NotebookWorkspace.tabbed`), mounted instead of the chat and the slot.
+    /// The window's own tabbed panes, the notebook's center.
     let panes: () -> AnyView
 
-    init(
-        workspace: NotebookWorkspace,
-        chat: @escaping () -> AnyView,
-        document: @escaping (NotebookDocument) -> AnyView,
-        panes: @escaping () -> AnyView
-    ) {
+    init(workspace: NotebookWorkspace, panes: @escaping () -> AnyView) {
         self.workspace = workspace
-        self.chat = chat
-        self.document = document
         self.panes = panes
     }
 
-    /// The left pane's share of the center beside a document. This window's,
-    /// for as long as the notebook shows; a divider drag moves it.
-    @State private var leadingFraction: CGFloat = 0.5
-    @State private var dragStartFraction: CGFloat?
-    /// The slot a sidebar destination is being dragged over.
-    @State private var replaceTarget: CenterPane?
-    /// Whether a slot tab is being dragged by its strip, and the side of the
-    /// center it is held over: the zones that split the slot's documents side
-    /// by side.
-    @State private var isDraggingSlotTab = false
-    @State private var splitTargetTrailing: Bool?
     @State private var isAddingSources = false
     @State private var isRenaming = false
     @State private var renameText = ""
@@ -901,192 +741,22 @@ struct NotebookWorkspaceView: View {
 
     // MARK: - Center
 
-    /// The chat, the document in its place, the divider, the document slot
-    /// and the overview, each in its own place in one stack. A pane keeps its
-    /// identity while another comes or goes: a chat pane rebuilt on every
-    /// citation stopped speech and dictation and lost its state and scroll,
-    /// and a Reader rebuilt by ⇧⌘K reloaded its PDF or video.
-    /// The center: the window's tabbed panes for a tabbed notebook, else the
-    /// chat and the document slot.
-    @ViewBuilder
+    /// The center: the window's tabbed panes. They lay themselves out in the
+    /// width they are given, so the window's outer overflow is already
+    /// counted out (`visibleWidth`), and their first header clears the
+    /// traffic lights only as far as this center still reaches under them.
     private func center(width: CGFloat, start: CGFloat, totalWidth: CGFloat) -> some View {
-        if workspace.tabbed {
-            // The panes lay themselves out in the width they are given, so
-            // the window's outer overflow is already counted out
-            // (`visibleWidth`), and their first header clears the traffic
-            // lights only as far as this center still reaches under them.
-            panes()
-                .environment(\.studioPanelTrailingOverflow, 0)
-                .environment(\.studioCenterPaneHeaderLeadingInset, leadingReservation(start: start))
-                .accessibilityIdentifier("notebook.panes")
-        } else {
-            slotCenter(width: width, start: start, totalWidth: totalWidth)
-        }
+        panes()
+            .environment(\.studioPanelTrailingOverflow, 0)
+            .environment(\.studioCenterPaneHeaderLeadingInset, leadingReservation(start: start))
+            .accessibilityIdentifier("notebook.panes")
     }
 
-    private func slotCenter(width: CGFloat, start: CGFloat, totalWidth: CGFloat) -> some View {
-        let layout = Sizing.centerLayout(for: workspace, centerWidth: width, leadingFraction: leadingFraction)
-        let leadingWidth = layout.leadingWidth ?? 0
-        let documentWidth = layout.documentWidth ?? 0
-        let splitWidth = layout.splitWidth ?? 0
-        // The document stands left of the chat unless the learner swapped
-        // them; `layout` always counts the chat's side as the leading one.
-        let documentLeads = workspace.documentPrecedesChat
-        let order = centerPanes(layout: layout, documentLeads: documentLeads)
-        // Where each pane starts: the widths of what stands left of it.
-        let widths: [CenterPane: CGFloat] = [
-            .chat: leadingWidth, .leadingDocument: leadingWidth, .document: documentWidth,
-            .splitDocument: splitWidth, .divider: Sizing.dividerWidth, .splitDivider: Sizing.dividerWidth,
-        ]
-        func startOf(_ pane: CenterPane) -> CGFloat {
-            var x = start
-            for other in order {
-                if other == pane { return x }
-                x += widths[other] ?? 0
-            }
-            return start
-        }
-        // Keyed by pane, so a swap moves the views and never rebuilds them.
-        return HStack(spacing: 0) {
-            ForEach(order, id: \.self) { pane in
-                switch pane {
-                case .chat:
-                    chatSlot(width: leadingWidth, start: startOf(.chat), totalWidth: totalWidth)
-                case .splitDocument:
-                    if let split = layout.splitDocument {
-                        documentSlot(
-                            split,
-                            width: splitWidth,
-                            start: startOf(.splitDocument),
-                            totalWidth: totalWidth,
-                            identifier: "notebook.document.split"
-                        )
-                    }
-                case .splitDivider:
-                    Rectangle()
-                        .fill(Color.clear)
-                        .frame(width: Sizing.dividerWidth)
-                        .overlay(StudioColumnHairline())
-                        .accessibilityHidden(true)
-                case .leadingDocument:
-                    if let lead = layout.leadingDocument {
-                        documentSlot(
-                            lead,
-                            width: leadingWidth,
-                            start: start,
-                            totalWidth: totalWidth,
-                            identifier: "notebook.document.leading"
-                        )
-                    }
-                case .divider:
-                    centerDivider(centerWidth: width, documentLeads: documentLeads)
-                case .document:
-                    if let document = workspace.document {
-                        documentSlot(
-                            document,
-                            width: documentWidth,
-                            start: startOf(.document),
-                            totalWidth: totalWidth,
-                            identifier: "notebook.document"
-                        )
-                    }
-                case .overview:
-                    overview
-                }
-            }
-        }
-        .overlay(alignment: .leading) { slotSplitZone(trailing: false, centerWidth: width) }
-        .overlay(alignment: .trailing) { slotSplitZone(trailing: true, centerWidth: width) }
-    }
-
-    /// One side of the center while a slot tab is dragged: dropping there
-    /// stands that tab beside the slot's other document, on that side. Always
-    /// registered, a gutter wide, so the AppKit session finds it when the drag
-    /// begins; half the center wide while a strip drag is in flight, so the
-    /// whole slot is two drop sides.
-    private func slotSplitZone(trailing: Bool, centerWidth: CGFloat) -> some View {
-        let dragging = isDraggingSlotTab
-        let targeted = splitTargetTrailing == trailing
-        return Rectangle()
-            .fill(Color.accentColor.opacity(dragging && targeted ? 0.14 : 0))
-            .overlay {
-                if dragging && targeted {
-                    Rectangle().strokeBorder(Color.accentColor.opacity(0.9), lineWidth: 2)
-                }
-            }
-            .frame(width: dragging ? max(22, centerWidth / 2) : 22)
-            .frame(maxHeight: .infinity)
-            .allowsHitTesting(false)
-            .overlay {
-                NotebookSlotSplitDropTarget(
-                    isStripDrag: { isDraggingSlotTab },
-                    onTargeted: { isTargeted in
-                        if isTargeted {
-                            splitTargetTrailing = trailing
-                        } else if splitTargetTrailing == trailing {
-                            splitTargetTrailing = nil
-                        }
-                    },
-                    onDrop: { tab in
-                        isDraggingSlotTab = false
-                        splitTargetTrailing = nil
-                        withAnimation(.easeInOut(duration: 0.22)) {
-                            vm.splitNotebookSlot(tab, toTrailing: trailing, in: windowState)
-                        }
-                    }
-                )
-            }
-            .accessibilityHidden(true)
-    }
-
-    private enum CenterPane: Hashable {
-        case chat, leadingDocument, divider, document, splitDocument, splitDivider, overview
-    }
-
-    /// The center's panes left to right.
-    private func centerPanes(layout: NotebookCenterLayout, documentLeads: Bool) -> [CenterPane] {
-        var panes: [CenterPane] = []
-        let chat: [CenterPane] = workspace.showsChat ? [.chat] : []
-        let leadingDocument: [CenterPane] = layout.leadingDocument == nil ? [] : [.leadingDocument]
-        let divider: [CenterPane] = layout.showsDivider ? [.divider] : []
-        let document: [CenterPane] = workspace.document == nil ? [] : [.document]
-        let split: [CenterPane] = layout.splitDocument == nil ? [] : [.splitDocument, .splitDivider]
-        if documentLeads {
-            panes = split + document + divider + chat
-        } else if layout.splitDocument != nil {
-            panes = chat + divider + split + document
-        } else {
-            panes = chat + leadingDocument + divider + document
-        }
-        if layout.showsOverview { panes.append(.overview) }
-        return panes
-    }
-
-    /// The leading chrome a slot starting `start` points in must clear: the
+    /// The leading chrome a pane starting `start` points in must clear: the
     /// traffic lights reach into it only while the Sources column is folded
     /// and the rail is hidden.
     private func leadingReservation(start: CGFloat) -> CGFloat {
         max(0, headerLeadingInset - start)
-    }
-
-    private func clip(start: CGFloat, width: CGFloat, totalWidth: CGFloat) -> CGFloat {
-        StudioCenterTabGroupSizing.clippedTrailingWidth(
-            groupStart: start,
-            groupWidth: width,
-            totalWidth: totalWidth - studioRestoreClearance,
-            // `totalWidth` is the visible width already: the overflow is
-            // counted out where the columns are laid out.
-            enclosingOverflow: 0
-        )
-    }
-
-    /// The room at the window's top right the way back to a folded Studio
-    /// takes: the pane that reaches the edge draws its × this much
-    /// further in, as a pane clipped by that much does.
-    private var studioRestoreClearance: CGFloat {
-        studioShows && workspace.studioCollapsed
-            ? StudioPanelChrome.centerTabCloseButtonSize + 18
-            : 0
     }
 
     /// The Studio's toggle while it is folded, on the chrome line at the
@@ -1113,206 +783,6 @@ struct NotebookWorkspaceView: View {
             .offset(y: -band)
         }
     }
-
-    private func chatSlot(width: CGFloat, start: CGFloat, totalWidth: CGFloat) -> some View {
-        StudioPaneHost(
-            activeTab: .chat,
-            width: width,
-            enclosingClip: clip(start: start, width: width, totalWidth: totalWidth),
-            leadingReservation: leadingReservation(start: start)
-        ) {
-            chat()
-        }
-        .overlay { replaceDropOverlay(.chat) }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Chat")
-        .accessibilityIdentifier("notebook.chat")
-    }
-
-    /// A destination dragged from the sidebar onto a slot opens in the
-    /// notebook's chat or document slot, as it does anywhere in this window.
-    private func replaceDropOverlay(_ pane: CenterPane) -> some View {
-        ZStack {
-            StudioPaneReplaceDropTarget(
-                onTargeted: { targeted in
-                    if targeted {
-                        replaceTarget = pane
-                    } else if replaceTarget == pane {
-                        replaceTarget = nil
-                    }
-                },
-                onDrop: {
-                    replaceTarget = nil
-                    vm.showDropped($0, inPaneAt: 0, in: windowState)
-                }
-            )
-            StudioDropZoneOverlay(isActive: replaceTarget == pane, cornerRadius: 10, inset: 6)
-        }
-    }
-
-    private func documentSlot(
-        _ document: NotebookDocument,
-        width: CGFloat,
-        start: CGFloat,
-        totalWidth: CGFloat,
-        identifier: String
-    ) -> some View {
-        // The slot beside the chat can become Pages, Browser or Memory from its
-        // corner; the slot standing in the chat's place has no swap control.
-        // A picture popped out of the chat is not a place to swap away from.
-        let swaps = identifier == "notebook.document.leading" || identifier == "notebook.document.split" || document == .picture
-            ? [] : StudioPaneSwap.notebookDocumentDestinations
-        // The slot draws a tab strip, one document's included, as a pane of
-        // the tab layout does (docs/ui-design.md rule 8).
-        let showsStrip = identifier == "notebook.document" && document == workspace.document
-            && workspace.slotShowsTabStrip
-        let activeTab = document.centerTab ?? .reader
-        let strip = NotebookSlotTabStrip(
-            tabs: workspace.slotTabStrip.compactMap(\.centerTab),
-            activeTab: activeTab,
-            onSelect: { vm.activateCenterTab($0, in: windowState) },
-            onCloseTab: { vm.closeCenterTab($0, in: windowState) },
-            readerShowsVideo: vm.readerShowsVideo(in: windowState),
-            leadingClearance: titlebarBandHeight == nil ? leadingReservation(start: start) : 0,
-            onDragBegan: { isDraggingSlotTab = true },
-            onDragEnded: {
-                isDraggingSlotTab = false
-                splitTargetTrailing = nil
-            },
-            onSplit: { tab, trailing in
-                withAnimation(.easeInOut(duration: 0.22)) {
-                    vm.splitNotebookSlot(tab, toTrailing: trailing, in: windowState)
-                }
-            },
-            newTabDestinations: StudioPaneSwap.notebookDocumentDestinations,
-            onNewTab: { destination in
-                vm.replaceCenterPane(
-                    at: 0,
-                    with: destination.tab,
-                    startsBlankChat: destination.startsBlankChat,
-                    in: windowState
-                )
-            }
-        )
-        return StudioPaneHost(
-            activeTab: activeTab,
-            width: width,
-            enclosingClip: clip(start: start, width: width, totalWidth: totalWidth),
-            leadingReservation: leadingReservation(start: start),
-            bandPassesThrough: !showsStrip,
-            swapDestinationCount: swaps.count
-        ) {
-            VStack(spacing: 0) {
-                if titlebarBandHeight == nil && showsStrip {
-                    strip.frame(height: StudioPanelChrome.headerHeight)
-                }
-                self.document(document)
-            }
-        } corner: { corner in
-            StudioPaneSwapControl(
-                corner: corner,
-                destinations: swaps,
-                current: document.centerTab ?? .reader,
-                identifierPrefix: identifier,
-                onSelect: { destination in
-                    vm.replaceCenterPane(
-                        at: 0,
-                        with: destination.tab,
-                        startsBlankChat: destination.startsBlankChat,
-                        in: windowState
-                    )
-                }
-            )
-        } band: {
-            if let band = titlebarBandHeight, showsStrip {
-                NotebookSlotTabBand(band: band, strip: strip)
-            }
-        }
-        .overlay { replaceDropOverlay(identifier == "notebook.document.leading" ? .leadingDocument : (identifier == "notebook.document.split" ? .splitDocument : .document)) }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(document.centerTab?.title ?? (document == .picture ? "Picture" : "Cards"))
-        .accessibilityIdentifier(identifier)
-    }
-
-    /// The divider between the chat and the document; a drag moves it, and
-    /// its swap button, in the titlebar band as the tab layout's divider
-    /// carries it, puts the one where the other stood.
-    private func centerDivider(centerWidth: CGFloat, documentLeads: Bool) -> some View {
-        Rectangle()
-            .fill(Color.clear)
-            .frame(width: Sizing.dividerWidth)
-            .overlay(StudioColumnHairline())
-            .contentShape(Rectangle())
-            .cursor(.resizeLeftRight)
-            .gesture(
-                DragGesture(minimumDistance: 1, coordinateSpace: .named("notebookWorkspace"))
-                    .onChanged { value in
-                        // Three panes leave two dividers' width, and the chat
-                        // takes two thirds of its fraction (`threePaneWidths`),
-                        // so the pointer moves it 1.5 fractions to the pane.
-                        let threePanes = workspace.splitDocument != nil
-                        let usable = max(1, centerWidth - (threePanes ? 2 : 1) * Sizing.dividerWidth)
-                        let start = dragStartFraction ?? leadingFraction
-                        if dragStartFraction == nil { dragStartFraction = start }
-                        // `leadingFraction` is the chat's share, which a drag
-                        // to the right takes from when the document leads.
-                        let moved = value.translation.width / usable * (threePanes ? 1.5 : 1)
-                        leadingFraction = min(max(documentLeads ? start - moved : start + moved, 0.15), 0.85)
-                    }
-                    .onEnded { _ in dragStartFraction = nil }
-            )
-            .accessibilityHidden(true)
-            // Above the drag surface, so the click is a swap and not a drag;
-            // shown while the pointer is over the divider (Quiet chrome).
-            .modifier(StudioPaneSwapAffordance(
-                titlebarBandHeight: titlebarBandHeight,
-                accessibilityIdentifier: "notebook.centerPanes.swap",
-                action: {
-                    withAnimation(.easeInOut(duration: 0.22)) {
-                        windowState.notebook?.documentLeads.toggle()
-                    }
-                }
-            ))
-            // Wider than the divider, so it stays above both panes while
-            // they animate into their new order.
-            .zIndex(1)
-    }
-
-    /// The center with neither the chat nor a document: the notebook, and the
-    /// way back to its chat.
-    private var overview: some View {
-        VStack(spacing: StudioDesign.Spacing.medium) {
-            Text(goal?.title ?? "")
-                .font(.system(size: 24, weight: .medium, design: .serif))
-                .multilineTextAlignment(.center)
-                .lineLimit(2)
-            if let summary = goal?.displaySummary {
-                Text(summary)
-                    .font(.system(size: 13))
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-            Button {
-                withAnimation(.easeInOut(duration: 0.22)) {
-                    vm.inWindow(windowState) {
-                        vm.showAssistantOverlay = true
-                        vm.reviewChatFocusRequestID = UUID()
-                    }
-                }
-            } label: {
-                Label("Chat", systemImage: "bubble.left.and.bubble.right")
-            }
-            .buttonStyle(.bordered)
-            .accessibilityIdentifier("notebook.overview.chat")
-        }
-        .frame(maxWidth: 420)
-        .padding(24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(Color(nsColor: .windowBackgroundColor))
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Chat")
-        .accessibilityIdentifier("notebook.chat")
-    }
 }
 
 /// The lists the notebook's leading column switches between under its name.
@@ -1333,10 +803,10 @@ enum NotebookColumnList: String, CaseIterable, Identifiable {
 }
 
 extension StudioWindowState {
-    /// What a tabbed notebook's center needs at the least: its panes' minima
+    /// What a notebook's center needs at the least: its panes' minima
     /// (`StudioCenterTabGroupSizing.minimumWidth(for:)`). Nil for a window
-    /// whose notebook has the chat and the document slot, or none.
+    /// holding no notebook.
     var notebookPanesMinimum: CGFloat? {
-        notebook?.tabbed == true ? StudioCenterTabGroupSizing.minimumWidth(for: centerTabGroups.groups) : nil
+        notebook == nil ? nil : StudioCenterTabGroupSizing.minimumWidth(for: centerTabGroups.groups)
     }
 }

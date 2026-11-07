@@ -47,7 +47,7 @@ extension StudioViewModel {
     /// Space when there is none (decisions v5, 1). The window
     /// coordinator calls this as the window registers, before anything asked
     /// of the new window runs in it, so a source sent there opens in the
-    /// notebook's document slot. A window restored with its own snapshot, or
+    /// notebook's panes. A window restored with its own snapshot, or
     /// rebuilt from a saved workspace, never comes here: it comes back as it
     /// was. Writes nothing synced: the window's scene snapshot, and the
     /// notebook's stamp.
@@ -96,7 +96,7 @@ extension StudioViewModel {
         if tab == .courses {
             destination.coursePageID = nil
         }
-        if !destination.holdsNotebookSlot, destination.memoryReviewFocus == nil,
+        if destination.memoryReviewFocus == nil,
            let layout = destination.centerTabGroups.showingSpaceTab(tab, coursesShowsList: destination.coursePageID == nil) {
             if layout != destination.centerTabGroups { destination.centerTabGroups = layout }
             return
