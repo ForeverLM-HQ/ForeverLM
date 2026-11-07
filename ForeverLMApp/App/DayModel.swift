@@ -153,19 +153,11 @@ final class DayModel {
     }
 
     /// The hours the Day pane's clock draws: the learner's day window
-    /// (Settings › General › Day), widened to hold every span of the log and
-    /// every event of the calendar.
+    /// (Settings › General › Day), widened to hold every event of the
+    /// calendar. The log is not on the clock (its own view, Activity), so it
+    /// widens nothing.
     func hourRange(dayStart: Int, dayEnd: Int) -> ClosedRange<Int> {
-        let logged = DayPlanDetail.clockHourRange(dayStart: dayStart, dayEnd: dayEnd, activities: detail?.activities ?? [])
-        return DayNow.hourRange(logged, holding: selectedEvents, on: selectedDateValue)
-    }
-
-    /// The hours the clock opens on: the working day, widened to hold
-    /// everything the log holds.
-    var focusHourRange: ClosedRange<Int> {
-        guard var detail else { return 7...19 }
-        detail.blocks = []
-        return detail.focusHourRange()
+        DayNow.hourRange(DayPlanDetail.clockHourRange(dayStart: dayStart, dayEnd: dayEnd), holding: selectedEvents, on: selectedDateValue)
     }
 
     // MARK: - Lifecycle

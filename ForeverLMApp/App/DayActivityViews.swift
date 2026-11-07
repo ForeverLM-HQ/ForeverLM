@@ -14,25 +14,32 @@ extension StudioViewModel {
         }
     }
 
-    /// The Space sidebar's Day row and the Today menu: the day on a clock,
-    /// the calendar beside the log, on today.
-    func openActivityInReader() {
+    /// Opens the Day pane, on `view` when one is named (Today ▸ Day the
+    /// calendar, Today ▸ Activity the log), else on the view it last showed.
+    func openActivityInReader(showing view: DayActivityLayout? = nil) {
+        if let view {
+            UserDefaults.standard.set(view.rawValue, forKey: DayActivityLayout.storageKey)
+        }
         activateCenterTab(.activity)
     }
 }
 
 // MARK: - Pane
 
-/// The Activity center pane: what the app saw the learner do on one day —
-/// the papers read, the episodes heard, the chats had, the Docs written —
-/// drawn on a clock and nothing else.
+/// The Day center pane (`.activity`, the id kept), three views from its ⋯:
+/// **Calendar**, the Mac Calendar's day on a clock and nothing else;
+/// **Activity**, what the app saw the learner do that day — the papers read,
+/// the episodes heard, the chats had, the Docs written — one row per thing;
+/// and **History**, every day's time spent.
 ///
-/// Split out of the Planner on 2026-09-22 (the product owner: "the planner and the
-/// tracker of what I've actually read … are now kind of intertwined … These
-/// should just be two separate views"), and kept when the Planner went on
-/// 2026-09-30: the day's plan is the Mac's Calendar now, and this pane is the
-/// record the calendar cannot hold. It reads `DayModel.shared`.
-/// See docs/planner-design.md, "The log is its own view".
+/// The log was split out of the Planner on 2026-09-22 (the product owner: "the
+/// planner and the tracker of what I've actually read … are now kind of
+/// intertwined … These should just be two separate views"), shared the clock
+/// with the calendar from 2026-10-09, and left it again on 2026-11-07 (the
+/// product owner, at a Day of meetings with reading glances between them: "in the
+/// day view we see the tracking of all the sources we looked at … It's not
+/// clean. There should be a separate view for that."). It reads
+/// `DayModel.shared`. See docs/planner-design.md, "The log is its own view".
 struct DayActivityReaderPane: View {
     /// The pane's mark on the rail and its tab.
     static let systemImage = "chart.bar.doc.horizontal"
@@ -42,7 +49,7 @@ struct DayActivityReaderPane: View {
     private let model = DayModel.shared
     @AppStorage(PlannerDayHours.startKey) private var dayStartHour: Int = PlannerDayHours.defaultStart
     @AppStorage(PlannerDayHours.endKey) private var dayEndHour: Int = PlannerDayHours.defaultEnd
-    @AppStorage(DayActivityLayout.storageKey) private var layout: DayActivityLayout = .clock
+    @AppStorage(DayActivityLayout.storageKey) private var layout: DayActivityLayout = .calendar
     @State private var actionErrorMessage: String?
 
     var body: some View {
@@ -94,7 +101,7 @@ struct DayActivityReaderPane: View {
         }
     }
 
-    /// Everything else the pane does, from one ⋯: **View** Clock, By Source
+    /// Everything else the pane does, from one ⋯: **View** Calendar, Activity
     /// or History, remembered per Mac (`activity.layout` over MCP).
     @ViewBuilder
     private var moreMenu: some View {
@@ -192,36 +199,31 @@ struct DayActivityReaderPane: View {
             } description: {
                 Text(message)
             }
+        } else if layout == .activity {
+            VStack(alignment: .leading, spacing: 0) {
+                dayTotals
+                DayActivityBySourceView(
+                    activityGroups: activityGroups,
+                    nowMinute: model.isToday ? model.nowMinute : nil,
+                    onOpen: { group in open(group) },
+                    onDelete: { sitting in
+                        Task { await perform { try await model.deleteSitting(sitting) } }
+                    }
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
         } else {
             VStack(alignment: .leading, spacing: 0) {
                 calendarNote
                 allDayLine
-                dayTotals
-                if layout == .bySource {
-                    DayActivityBySourceView(
-                        activityGroups: activityGroups,
-                        nowMinute: model.isToday ? model.nowMinute : nil,
-                        onOpen: { group in open(group) },
-                        onDelete: { sitting in
-                            Task { await perform { try await model.deleteSitting(sitting) } }
-                        }
-                    )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                } else {
-                    DayActivityTimelineView(
-                        activityGroups: activityGroups,
-                        events: model.selectedEvents,
-                        day: model.selectedDateValue,
-                        hourRange: model.hourRange(dayStart: dayStartHour, dayEnd: dayEndHour),
-                        focusHour: max(model.hourRange(dayStart: dayStartHour, dayEnd: dayEndHour).lowerBound, model.focusHourRange.lowerBound),
-                        nowMinute: model.isToday ? model.nowMinute : nil,
-                        onOpen: { group in open(group) },
-                        onDelete: { sitting in
-                            Task { await perform { try await model.deleteSitting(sitting) } }
-                        }
-                    )
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                }
+                DayCalendarClockView(
+                    events: model.selectedEvents,
+                    day: model.selectedDateValue,
+                    hourRange: model.hourRange(dayStart: dayStartHour, dayEnd: dayEndHour),
+                    fallbackHour: dayStartHour,
+                    nowMinute: model.isToday ? model.nowMinute : nil
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
     }
@@ -230,7 +232,7 @@ struct DayActivityReaderPane: View {
     /// with the one action, only while it is off or refused.
     @ViewBuilder
     private var calendarNote: some View {
-        if !model.isCalendarOn && layout == .clock {
+        if !model.isCalendarOn {
             HStack(spacing: 6) {
                 Text(model.isCalendarBlocked ? "Calendar access is off in macOS." : "Your calendar is not shown here.")
                     .foregroundStyle(.secondary)
@@ -256,7 +258,7 @@ struct DayActivityReaderPane: View {
     @ViewBuilder
     private var allDayLine: some View {
         let events = DayNow.allDayEvents(model.selectedEvents)
-        if !events.isEmpty && layout == .clock {
+        if !events.isEmpty {
             HStack(spacing: 10) {
                 ForEach(events, id: \.occurrenceKey) { event in
                     Button { AppleCalendarService.openInCalendarApp(event) } label: {
@@ -280,12 +282,12 @@ struct DayActivityReaderPane: View {
         }
     }
 
-    /// The day's totals, the content's first line: on the chrome line until
-    /// 2026-10-06. An empty clock says "Nothing logged."; By Source says it
-    /// in its own empty state.
+    /// The day's totals, Activity's first line: on the chrome line until
+    /// 2026-10-06, and above the calendar's clock until 2026-11-07. A day
+    /// with nothing logged says so in the rows' own empty state.
     @ViewBuilder
     private var dayTotals: some View {
-        if let line = totalsLine ?? (layout == .clock ? "Nothing logged." : nil) {
+        if let line = totalsLine {
             Text(line)
                 .zoomedSystemFont(size: 11)
                 .foregroundStyle(.secondary)
@@ -333,23 +335,19 @@ struct DayActivityReaderPane: View {
     }
 }
 
-// MARK: - Timeline
+// MARK: - Calendar clock
 
-/// The log on a clock: hour rules and a now line, and one card per sitting
-/// at its clock time, the full width of the clock. Sittings that overlap in
-/// time share the width, one column each (`DayActivityClock`).
-struct DayActivityTimelineView: View {
-    let activityGroups: [DayActivityGroup]
-    /// The Mac's Calendar on this day: the timed ones are a lane of their own
-    /// beside the log, drawn on the same hours.
-    var events: [AppleCalendarEvent] = []
-    var day: Date = Date()
+/// The Day's clock: hour rules, a now line, and the Mac Calendar's timed
+/// events at their hours, the full width of the clock. Events that overlap
+/// share the width, one column each (`DayActivityClock`). The log is not on
+/// it: what the learner read or heard is the pane's Activity view.
+struct DayCalendarClockView: View {
+    let events: [AppleCalendarEvent]
+    let day: Date
     let hourRange: ClosedRange<Int>
-    /// Where the clock opens when nothing is logged yet.
-    let focusHour: Int
+    /// Where the clock opens on a day with no timed event.
+    let fallbackHour: Int
     let nowMinute: Int?
-    let onOpen: (DayActivityGroup) -> Void
-    let onDelete: (DayActivitySitting) -> Void
 
     @State private var didScrollToFocus = false
 
@@ -358,15 +356,7 @@ struct DayActivityTimelineView: View {
     private var pointsPerMinute: CGFloat { Self.hourHeight / 60 }
     private var rangeStartMinute: Int { hourRange.lowerBound * 60 }
     private var totalHeight: CGFloat { CGFloat(hourRange.count - 1) * Self.hourHeight }
-    private var sittings: [DayActivitySitting] { DayPlanDetail.activitySittings(activityGroups) }
     private var timedEvents: [AppleCalendarEvent] { DayNow.timedEvents(events, on: day) }
-
-    /// The calendar lane's share of the clock: nothing on a day with no timed
-    /// event, else two fifths, never narrower than a title can be read in.
-    private func calendarLaneWidth(_ width: CGFloat) -> CGFloat {
-        guard !timedEvents.isEmpty else { return 0 }
-        return min(max(120, (width - Self.gutterWidth) * 0.4), max(0, width - Self.gutterWidth - 120))
-    }
 
     var body: some View {
         ScrollViewReader { scrollProxy in
@@ -376,8 +366,7 @@ struct DayActivityTimelineView: View {
                     ZStack(alignment: .topLeading) {
                         scrollAnchors
                         hourRules(width: width)
-                        calendarCards(width: width)
-                        sittingCards(width: width)
+                        eventCards(width: width)
                         if let nowMinute, nowMinute >= rangeStartMinute, nowMinute <= hourRange.upperBound * 60 {
                             nowLine(width: width, minute: nowMinute)
                         }
@@ -392,9 +381,9 @@ struct DayActivityTimelineView: View {
                 didScrollToFocus = true
                 withAnimation(nil) { scrollProxy.scrollTo(Self.anchorID(hour: openingHour), anchor: .top) }
             }
-            // The log arrives after the pane, and the day can change under
-            // it: open on the new day's first card rather than where the
-            // last one left off.
+            // The calendar is read after the pane appears, and the day can
+            // change under it: open on the new day's first event rather than
+            // where the last one left off.
             .onChange(of: openingHour) { _, hour in
                 withAnimation(nil) { scrollProxy.scrollTo(Self.anchorID(hour: hour), anchor: .top) }
             }
@@ -402,24 +391,23 @@ struct DayActivityTimelineView: View {
     }
 
     private var openingHour: Int {
-        let first = Self.openingHour(sittings: sittings, hourRange: hourRange, fallback: focusHour)
-        guard let firstEvent = timedEvents.first else { return first }
-        // Opens on whichever begins first, the day's first card or its first
-        // meeting; the fallback hour only stands in for an empty day.
-        let eventHour = min(max(hourRange.lowerBound, DayNow.minuteSpan(of: firstEvent, on: day).start / 60), max(hourRange.lowerBound, hourRange.upperBound - 1))
-        return sittings.isEmpty ? eventHour : min(first, eventHour)
+        Self.openingHour(
+            startMinutes: timedEvents.map { DayNow.minuteSpan(of: $0, on: day).start },
+            hourRange: hourRange,
+            fallback: fallbackHour
+        )
     }
 
-    /// The hour the clock opens on: the hour of the day's first card. The
-    /// clock's range is the learner's whole day, so opening on its first hour
-    /// put eight empty hours of log above the first card (product owner, 2026-09-23:
-    /// "any way to show this better?"). With nothing logged, `fallback`. Pure.
-    static func openingHour(sittings: [DayActivitySitting], hourRange: ClosedRange<Int>, fallback: Int) -> Int {
-        let hour = sittings.map(\.startMinute).min().map { $0 / 60 } ?? fallback
+    /// The hour the clock opens on: the hour of the day's first event, so a
+    /// day whose first meeting is at two does not open on six empty hours
+    /// (product owner, 2026-09-23: "any way to show this better?"). With no
+    /// event, `fallback`. Pure.
+    static func openingHour(startMinutes: [Int], hourRange: ClosedRange<Int>, fallback: Int) -> Int {
+        let hour = startMinutes.min().map { $0 / 60 } ?? fallback
         return min(max(hourRange.lowerBound, hour), max(hourRange.lowerBound, hourRange.upperBound - 1))
     }
 
-    static func anchorID(hour: Int) -> String { "activity-hour-\(hour)" }
+    static func anchorID(hour: Int) -> String { "day-hour-\(hour)" }
 
     private var scrollAnchors: some View {
         VStack(spacing: 0) {
@@ -455,38 +443,12 @@ struct DayActivityTimelineView: View {
         }
     }
 
-    private func sittingCards(width: CGFloat) -> some View {
-        let sittings = self.sittings
-        let minimumMinutes = Int((DayActivityClock.sittingCardMinimumHeight / pointsPerMinute).rounded(.up))
-        let layout = DayPlanDetail.activityLayout(sittings, minimumMinutes: minimumMinutes)
-        let laneWidth = calendarLaneWidth(width)
-        let hostWidth = max(40, width - Self.gutterWidth - 10 - laneWidth)
-        let groupsByID = Dictionary(activityGroups.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        return ForEach(sittings) { sitting in
-            let column = DayActivityClock.sittingColumnFrame(placed: layout[sitting.id], hostWidth: hostWidth)
-            let height = max(DayActivityClock.sittingCardMinimumHeight, CGFloat(sitting.durationMinutes) * pointsPerMinute - 2)
-            DaySittingCard(
-                sitting: sitting,
-                width: column.width,
-                height: height,
-                drawnStartMinute: sitting.startMinute,
-                pointsPerMinute: pointsPerMinute,
-                onOpen: {
-                    if let group = groupsByID[sitting.groupID] { onOpen(group) }
-                },
-                onDelete: { onDelete(sitting) },
-                group: groupsByID[sitting.groupID]
-            )
-            .offset(x: Self.gutterWidth + 4 + laneWidth + column.x, y: y(for: sitting.startMinute))
-        }
-    }
-
-    /// The calendar's timed events, in the lane left of the log. Overlapping
-    /// ones share the lane, one column each, as the log's sittings do.
-    private func calendarCards(width: CGFloat) -> some View {
+    /// The calendar's timed events, the width of the clock. Overlapping ones
+    /// share it, one column each.
+    private func eventCards(width: CGFloat) -> some View {
         let events = timedEvents
-        let laneWidth = calendarLaneWidth(width)
-        let spans = Dictionary(uniqueKeysWithValues: events.map { ($0.occurrenceKey, DayNow.minuteSpan(of: $0, on: day)) })
+        let hostWidth = max(40, width - Self.gutterWidth - 10)
+        let spans = Dictionary(events.map { ($0.occurrenceKey, DayNow.minuteSpan(of: $0, on: day)) }, uniquingKeysWith: { first, _ in first })
         let minimumMinutes = Int((DayActivityClock.sittingCardMinimumHeight / pointsPerMinute).rounded(.up))
         let layout = DayPlanDetail.activityLayout(
             placing: events.map { ($0.occurrenceKey, spans[$0.occurrenceKey]?.start ?? 0, spans[$0.occurrenceKey]?.end ?? 0) },
@@ -494,7 +456,7 @@ struct DayActivityTimelineView: View {
         )
         return ForEach(events, id: \.occurrenceKey) { event in
             let span = spans[event.occurrenceKey] ?? (start: 0, end: 0)
-            let column = DayActivityClock.sittingColumnFrame(placed: layout[event.occurrenceKey], hostWidth: max(40, laneWidth - 8))
+            let column = DayActivityClock.sittingColumnFrame(placed: layout[event.occurrenceKey], hostWidth: hostWidth)
             DayCalendarEventCard(
                 event: event,
                 width: column.width,
@@ -575,123 +537,14 @@ struct DayCalendarEventCard: View {
     }
 }
 
-// MARK: - Sitting card
+// MARK: - Activity
 
-/// One sitting of the day's log: a thing, the kind that took most of it,
-/// and when. The minutes actually logged are banded darker inside the card,
-/// so a sitting joined across a gap shows the gap. Clicking it opens the
-/// thing — the paper in the Reader, the chat in the chat panel, the Doc in
-/// Docs. The card says what happened and nothing about any plan.
-struct DaySittingCard: View {
-    let sitting: DayActivitySitting
-    let width: CGFloat
-    let height: CGFloat
-    /// The minute the card's top stands for, so the bands fall on the clock.
-    let drawnStartMinute: Int
-    let pointsPerMinute: CGFloat
-    let onOpen: () -> Void
-    /// Every sitting can be taken off the log (product owner, 2026-09-20: "please
-    /// let me delete things here too").
-    let onDelete: () -> Void
-    /// What a click opens, for the menu's Open in Other Window.
-    var group: DayActivityGroup? = nil
-
-    private var summary: String { DayActivityText.sittingSummary(sitting) }
-
-    private var clockRange: String {
-        "\(DayPlan.clockString(minute: sitting.startMinute)) to \(DayPlan.clockString(minute: sitting.endMinute))"
-    }
-    private var isWide: Bool { width >= 180 }
-    /// A card under the text height is one centred line — icon, title and,
-    /// when wide, its clock — at a size a fourteen-point bar holds.
-    private var showsText: Bool { DayActivityClock.sittingCardShowsText(height: height) }
-
-    var body: some View {
-        Button(action: onOpen) {
-            HStack(alignment: showsText ? .top : .center, spacing: 4) {
-                Rectangle()
-                    .fill(sitting.kind.tint)
-                    .frame(width: 2)
-                    .padding(.vertical, showsText ? 2 : 3)
-                VStack(alignment: .leading, spacing: 0) {
-                    HStack(spacing: 3) {
-                        Image(systemName: sitting.kind.systemImage)
-                            .zoomedSystemFont(size: showsText ? (isWide ? 9 : 8) : 8)
-                            .foregroundStyle(sitting.kind.tint)
-                        Text(sitting.title)
-                            .zoomedSystemFont(size: showsText ? (isWide ? 11 : 10) : 9, weight: .medium)
-                            .lineLimit(height > 30 ? 2 : 1)
-                        if !showsText && isWide {
-                            Text(clockRange)
-                                .zoomedSystemFont(size: 9)
-                                .foregroundStyle(.secondary)
-                                .monospacedDigit()
-                                .lineLimit(1)
-                                .layoutPriority(-1)
-                        }
-                    }
-                    if height > 26 {
-                        Text(summary)
-                            .zoomedSystemFont(size: isWide ? 10 : 9)
-                            .foregroundStyle(.secondary)
-                            .monospacedDigit()
-                            .lineLimit(1)
-                    }
-                }
-                Spacer(minLength: 0)
-            }
-            .padding(.horizontal, 3)
-            .padding(.vertical, showsText ? 2 : 0)
-            .frame(width: width, height: height, alignment: showsText ? .topLeading : .leading)
-            .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-            .background(
-                ZStack(alignment: .topLeading) {
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(sitting.kind.tint.opacity(0.08))
-                    ForEach(sitting.spans) { span in
-                        Rectangle()
-                            .fill(span.kind.tint.opacity(0.18))
-                            .frame(width: width, height: max(2, CGFloat(span.durationMinutes) * pointsPerMinute))
-                            .offset(y: CGFloat(span.startMinute - drawnStartMinute) * pointsPerMinute)
-                    }
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 5, style: .continuous))
-            )
-            .textSelection(.disabled)
-        }
-        .buttonStyle(.hoverWash(cornerRadius: 5, inset: 0, opacity: 0.12))
-        .contextMenu {
-            if let group {
-                switch group.kind {
-                case .reading, .listening, .watching:
-                    OtherWindowSourceMenuItem(sourceID: group.targetID)
-                case .chat:
-                    OtherWindowMenuItem(.chat(group.targetID))
-                case .doc:
-                    OtherWindowMenuItem(.doc(group.targetID))
-                }
-                Divider()
-            }
-            // No confirmation (product owner, 2026-09-21): the log is this Mac's
-            // observation of the day, not the plan or the library.
-            Button("Delete", role: .destructive, action: onDelete)
-                .help("Take this sitting off the day's log. What you read stays.")
-                .accessibilityIdentifier("studio.activity.log.delete")
-        }
-        .help("\(sitting.title)\n\(summary)")
-        .accessibilityLabel("\(sitting.kind.displayName), \(sitting.title), \(clockRange)")
-        .accessibilityIdentifier("studio.activity.log")
-    }
-}
-
-// MARK: - By source
-
-/// How the Activity pane draws the day. Remembered per Mac.
+/// Which of the Day pane's views it shows. Remembered per Mac.
 enum DayActivityLayout: String, CaseIterable, Identifiable {
-    /// A clock, a card per sitting.
-    case clock
-    /// One row per thing, its sittings along the day.
-    case bySource
+    /// The Mac Calendar's day on a clock, and nothing of the log.
+    case calendar
+    /// The day's log, one row per thing, its sittings along the day.
+    case activity
     /// Every day's time spent, newest first, a month at a time. Settings ›
     /// History until 2026-09-24.
     case history
@@ -702,30 +555,24 @@ enum DayActivityLayout: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .clock: "Clock"
-        case .bySource: "By Source"
+        case .calendar: "Calendar"
+        case .activity: "Activity"
         case .history: "History"
         }
     }
 
     /// The value `get_app_settings` / `set_app_setting` use for
-    /// `activity.layout`: snake case, as the MCP catalog spells its values.
-    var mcpValue: String {
-        switch self {
-        case .clock: "clock"
-        case .bySource: "by_source"
-        case .history: "history"
-        }
-    }
+    /// `activity.layout`.
+    var mcpValue: String { rawValue }
 
-    /// What the pane will draw: the stored choice, the clock when none.
+    /// What the pane will draw: the stored choice, the calendar when none.
     static var stored: DayActivityLayout {
-        UserDefaults.standard.string(forKey: storageKey).flatMap(DayActivityLayout.init(rawValue:)) ?? .clock
+        UserDefaults.standard.string(forKey: storageKey).flatMap(DayActivityLayout.init(rawValue:)) ?? .calendar
     }
 }
 
-/// The day's log by thing: one row per source, chat or Doc — the groups the
-/// clock's cards come from — titled once on the left with its minutes, and
+/// The Day pane's Activity view, the day's log by thing: one row per
+/// source, chat or Doc, titled once on the left with its minutes, and
 /// its sittings drawn as bars along a time axis to the right, the logged
 /// minutes banded darker inside each. Longest first, as the groups come.
 ///
@@ -735,7 +582,9 @@ enum DayActivityLayout: String, CaseIterable, Identifiable {
 /// short sittings split the clock four ways until every title was cut. Here
 /// a return is another bar on the same row, and a day of a dozen things fits
 /// without scrolling. The axis spans the hours the log covers, not the
-/// learner's whole day. Glances stay off it, as they stay off the clock.
+/// learner's whole day. Glances stay off it; the totals line above counts
+/// them. Since 2026-11-07 it is the log's one drawing: the sitting cards
+/// left the calendar's clock.
 struct DayActivityBySourceView: View {
     let activityGroups: [DayActivityGroup]
     let nowMinute: Int?

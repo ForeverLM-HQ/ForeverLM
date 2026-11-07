@@ -649,13 +649,13 @@ private struct DayNowPopover: View {
             // another, as every opener's does.
             menuRow("Day", systemImage: DayActivityReaderPane.systemImage, identifier: "studio.now.activity") {
                 if let windowState {
-                    vm.inWindow(windowState) { vm.openActivityInReader() }
+                    vm.inWindow(windowState) { vm.openActivityInReader(showing: .calendar) }
                 } else {
-                    vm.openActivityInReader()
+                    vm.openActivityInReader(showing: .calendar)
                 }
                 dismiss()
             }
-            .help("Your calendar and what you did, on a clock")
+            .help("Your calendar on a clock; what you read and heard is its Activity view")
             .opensInOtherWindow(StudioWindowDestination.activity)
         }
     }

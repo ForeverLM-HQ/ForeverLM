@@ -166,19 +166,14 @@ struct DayPlanTests {
         #expect(fourth.x == 228 && fourth.width == 74)
     }
 
-    @Test("The Activity clock opens on the hour of the day's first card, inside the clock")
-    func activityClockOpeningHour() {
-        let groups = DayPlanDetail.activityGroups([
-            DayActivity(id: "a", dayPlanID: "d", startMinute: 8 * 60 + 23, endMinute: 8 * 60 + 30, kind: .reading, targetID: "s", title: "S"),
-            DayActivity(id: "b", dayPlanID: "d", startMinute: 13 * 60 + 38, endMinute: 14 * 60 + 14, kind: .reading, targetID: "t", title: "T"),
-        ])
-        let sittings = DayPlanDetail.activitySittings(groups)
-        // A plan with a block at 00:15 draws the clock from midnight; the
-        // log still opens at 08:00.
-        #expect(DayActivityTimelineView.openingHour(sittings: sittings, hourRange: 0...24, fallback: 0) == 8)
-        #expect(DayActivityTimelineView.openingHour(sittings: [], hourRange: 0...24, fallback: 7) == 7)
-        #expect(DayActivityTimelineView.openingHour(sittings: sittings, hourRange: 10...20, fallback: 7) == 10)
-        #expect(DayActivityTimelineView.openingHour(sittings: [], hourRange: 6...9, fallback: 12) == 8)
+    @Test("The Day's calendar clock opens on the hour of the day's first event, inside the clock")
+    func calendarClockOpeningHour() {
+        let starts = [13 * 60 + 38, 8 * 60 + 23]
+        // A day window from midnight still opens at the first event.
+        #expect(DayCalendarClockView.openingHour(startMinutes: starts, hourRange: 0...24, fallback: 0) == 8)
+        #expect(DayCalendarClockView.openingHour(startMinutes: [], hourRange: 0...24, fallback: 7) == 7)
+        #expect(DayCalendarClockView.openingHour(startMinutes: starts, hourRange: 10...20, fallback: 7) == 10)
+        #expect(DayCalendarClockView.openingHour(startMinutes: [], hourRange: 6...9, fallback: 12) == 8)
     }
 
     @Test("By source spans the hours the log covers and keeps its hour labels apart")

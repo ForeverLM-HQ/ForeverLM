@@ -569,17 +569,17 @@ extension MCPDataStore {
 
     // MARK: - Activity
 
-    /// The Activity pane's Clock / By source control. It sits in the pane's
-    /// header, not the Settings window, but it is a remembered preference
+    /// The Day pane's Calendar / Activity / History choice. It sits in the
+    /// pane's ⋯, not the Settings window, but it is a remembered preference
     /// all the same (product owner, 2026-09-23: "yes add it to MCP too").
     @MainActor
     private static func activitySettingEntries() -> [AppSettingEntry] {
         [
             AppSettingEntry(
                 id: "activity.layout",
-                pane: "Activity (the pane's ⋯ › View)",
-                title: "Layout",
-                detail: "How the Activity pane draws the day's log. clock: a card per sitting on the day's clock. by_source: one row per source, chat or Doc, its sittings as bars along the hours the log covers. history: every day's time spent, newest first, a month at a time. Glances are left off the first two.",
+                pane: "Day (the pane's ⋯ › View)",
+                title: "View",
+                detail: "Which view the Day pane shows. calendar: the Mac Calendar's day on a clock, events only; the log is not drawn on it. activity: the day's log, one row per source, chat or Doc, its sittings as bars along the hours the log covers, glances counted in the totals line only. history: every day's time spent, newest first, a month at a time.",
                 reach: .thisMac,
                 kind: .choice,
                 preferenceKeys: [DayActivityLayout.storageKey],
