@@ -357,6 +357,7 @@
 		2B864B4F9F680BC4CE0ADF7C /* MigrationImportLists.swift in Sources */ = {isa = PBXBuildFile; fileRef = 16C1B522D58A0C700952CD36 /* MigrationImportLists.swift */; };
 		2BD38A6244C21124F29BF6F7 /* LegacyV2Mapping+Ideas.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5DB15DA204B3F5A374521D35 /* LegacyV2Mapping+Ideas.swift */; };
 		2BD912CB73CB5E0AF6445BC4 /* BackgroundAISpendTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1CFD8F90E636CE0487DAAF3D /* BackgroundAISpendTests.swift */; };
+		2BDE98216B07A69B9D658668 /* MobileFollowUpScreen.swift in Sources */ = {isa = PBXBuildFile; fileRef = CD7B8C2BCD88F6CBC7261E58 /* MobileFollowUpScreen.swift */; };
 		2BEB5CE06D53F732806F601E /* MobileExplainerRecords.swift in Sources */ = {isa = PBXBuildFile; fileRef = 804C89376C84A6A3BD216506 /* MobileExplainerRecords.swift */; };
 		2BFC95E1409D18219348B317 /* KnowledgeStore+Understanding.swift in Sources */ = {isa = PBXBuildFile; fileRef = A856407E81BC227E91DB26F0 /* KnowledgeStore+Understanding.swift */; };
 		2C5DBE88C1E51E11667212C7 /* SyncValuesCodingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A6780C1C9D92448E57395D4 /* SyncValuesCodingTests.swift */; };
@@ -1819,6 +1820,7 @@
 		E6D5849DA2D39DA1A8A8212C /* MigrationCatchUpTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DA299D65DD9A3B316B67565 /* MigrationCatchUpTests.swift */; };
 		E6F229A0C523DAA5A6DCA03F /* SidebarDerivedStateCacheTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C53F1D41F0CA04E078B00254 /* SidebarDerivedStateCacheTests.swift */; };
 		E70F0783FC1C48B19A0C1691 /* MacArticleSpeechVoicePreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = E5DAE941E4DD24EEDAA2E055 /* MacArticleSpeechVoicePreview.swift */; };
+		E77222411F4914E18870E4CF /* FollowUpList.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D0355643D80DAEE2ED10F61 /* FollowUpList.swift */; };
 		E77641C3F0777683CB950AF1 /* MemoryPane.swift in Sources */ = {isa = PBXBuildFile; fileRef = BE4E76CD1FE51A7A218E5B15 /* MemoryPane.swift */; };
 		E7C88D6FC20152EBDD77845D /* MemoryUnderstandingProbe.swift in Sources */ = {isa = PBXBuildFile; fileRef = E04B11009F4F07ACA60BE71C /* MemoryUnderstandingProbe.swift */; };
 		E813529EA28ED5BDE3D24B57 /* CloudKitMigrationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E2A0A9C5375C929ABBC82441 /* CloudKitMigrationTests.swift */; };
@@ -3572,6 +3574,7 @@
 		CCD9E9EFB31E6A23AE6DBF68 /* KnowledgeStore+Artifacts.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "KnowledgeStore+Artifacts.swift"; sourceTree = "<group>"; };
 		CD0B1855326015D54115EC06 /* CardWordingCheck.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardWordingCheck.swift; sourceTree = "<group>"; };
 		CD46ABF871AFFE7BDA819C66 /* SSEByteLines.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSEByteLines.swift; sourceTree = "<group>"; };
+		CD7B8C2BCD88F6CBC7261E58 /* MobileFollowUpScreen.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileFollowUpScreen.swift; sourceTree = "<group>"; };
 		CDB505E0F5623D4DB92700C5 /* ReviewSessionHistoryDigestTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewSessionHistoryDigestTests.swift; sourceTree = "<group>"; };
 		CE5F282FA59B7E733F97CE6A /* CardDrafting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardDrafting.swift; sourceTree = "<group>"; };
 		CE83657692B391E58A9A65EE /* JournalFeedFetcher.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = JournalFeedFetcher.swift; sourceTree = "<group>"; };
@@ -4835,6 +4838,7 @@
 				4B8B2440339CA6EDA10139B5 /* MobileDrivingBenchmarks.swift */,
 				49F097D752A85C1627206ECA /* MobileExplainerGenerator.swift */,
 				206B9702D644F4B7BD083517 /* MobileExplainerViews.swift */,
+				CD7B8C2BCD88F6CBC7261E58 /* MobileFollowUpScreen.swift */,
 				962B9124682ACB98D424477F /* MobileKeychainService.swift */,
 				1409F53EEF7BE67B2DCF61D3 /* MobileLearningBoutStore.swift */,
 				F89DF476E2718567879F9FE0 /* MobileLearningBoutTimer.swift */,
@@ -7060,6 +7064,7 @@
 				3C78F71180A9D661438E4B04 /* ExplainerScript.swift in Sources */,
 				F5DD5B4A56F1BC4AED9B29FB /* FieldMerge.swift in Sources */,
 				03C0C0E4214AC91CD6BF2F55 /* FlashcardDeck.swift in Sources */,
+				E77222411F4914E18870E4CF /* FollowUpList.swift in Sources */,
 				A297261A8C5CD784A6931584 /* ForeverLMCore.swift in Sources */,
 				4A9F78A3F43A026C3CA427E4 /* ForeverLMLoadingIndicator.swift in Sources */,
 				1DE56D4004F2256881C39149 /* ForeverLMMark.swift in Sources */,
@@ -7121,6 +7126,7 @@
 				C513620F76569B7ADCC26EF0 /* MobileExplainerGenerator.swift in Sources */,
 				2BEB5CE06D53F732806F601E /* MobileExplainerRecords.swift in Sources */,
 				3B224DAD19E94F115358C2F0 /* MobileExplainerViews.swift in Sources */,
+				2BDE98216B07A69B9D658668 /* MobileFollowUpScreen.swift in Sources */,
 				5294E0CE992D62C7E9D648FA /* MobileHighlightRecords.swift in Sources */,
 				B407A7AE935A689160F76F0D /* MobileKeychainService.swift in Sources */,
 				1F9A3184F8409F119C01E30C /* MobileLearningBoutStore.swift in Sources */,

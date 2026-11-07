@@ -593,6 +593,20 @@ actor MobileCloudSourceCatalog {
         return replicaSnapshot?.highlights.filter { $0.sourceID == sourceID } ?? []
     }
 
+    /// Every mark the learner set aside to follow up or doubt (blue, pink),
+    /// across the library, as the Follow up screen reads them: the replica's
+    /// highlights are already keyed by the source's id on this phone.
+    func loadOpenSourceHighlights(forceRefresh: Bool = false) async throws -> [FollowUpMark] {
+        _ = try await loadSources(forceRefresh: forceRefresh)
+        return currentOpenSourceHighlights()
+    }
+
+    func currentOpenSourceHighlights() -> [FollowUpMark] {
+        (replicaSnapshot?.highlights ?? [])
+            .filter { $0.color.isOpenItem }
+            .map { FollowUpMark(highlight: $0, sourceID: $0.sourceID) }
+    }
+
     /// The load (§13.6, WP19b): the replica's index, read through `MobileReadModels` into the rows the
     /// screens already take; the session's rounds keep the replica current.
     private func performReplicaLoad() async throws -> [MobileCloudSource] {

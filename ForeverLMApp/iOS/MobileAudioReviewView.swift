@@ -188,6 +188,8 @@ struct MobileAudioReviewView: View {
             MobileSourceBrowserView()
         case .toRead:
             MobileToReadScreen()
+        case .followUp:
+            MobileFollowUpScreen()
         case .settings:
             MobileSettingsView()
         }

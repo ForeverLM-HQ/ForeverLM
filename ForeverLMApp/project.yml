@@ -357,6 +357,10 @@ targets:
       # first, by the rule the Mac's Library scope shares (`ToReadList`).
       - Shared/Models/ToReadList.swift
       - iOS/MobileToReadScreen.swift
+      # Home's Follow up: the passages set aside to follow up or doubt,
+      # newest first, by the rule the Mac's Library scope shares (`FollowUpList`).
+      - Shared/Models/FollowUpList.swift
+      - iOS/MobileFollowUpScreen.swift
       # The Mac's rail and Notebooks home rules (`NotebookRail`,
       # `NotebookPins`, `NotebooksHomeSort`, the filter, Grid | List), which
       # Home's Pinned, Recent and Collections and the Notebooks screen read.

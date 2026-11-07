@@ -1039,8 +1039,10 @@ is drafted from one only when the source answers it. **Follow up** in the
 library, newest first, with the number waiting. A click opens the source in the
 Reader with that highlight's card. Hover a row and click the check, or
 right-click it for **Followed Up**, and the passage goes back to **Remember**
-and leaves the list; **Color** in the same menu picks any other. You can also ask
-a chat what you need to follow up on.
+and leaves the list; **Color** in the same menu picks any other. On the iPhone and
+iPad, **Follow up** is the row under **To Read** on Home: tap a row to open its
+source, or swipe it right for **Followed Up**. You can also ask a chat what you
+need to follow up on.
 
 To search a transcript, press ⌘F or choose **Find in Reader** from the Reader's
 **⋯**; Escape closes the search. A video's own commands are under **⋯ ›
