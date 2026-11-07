@@ -284,7 +284,8 @@ extension NotebookWorkspace {
         case .notepad: return .document(.docs)
         case .sites: return .document(.sites)
         case .animations: return .document(.animations)
-        case .browser: return .document(.browser)
+        // A notebook has one Browser, as it has one Reader.
+        case .browser, .secondaryBrowser: return .document(.browser)
         case .courses: return coursePageID == nil ? .leave : .document(.coursePage)
         // Memory spans every notebook and is narrowed to one from inside
         // it, so it opens in the slot rather than leaving the notebook.

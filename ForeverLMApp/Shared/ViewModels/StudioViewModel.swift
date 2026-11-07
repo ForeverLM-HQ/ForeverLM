@@ -2823,7 +2823,7 @@ class StudioViewModel {
         // beside a Reader a side reader; open nowhere, the window's own chat
         // or Reader moves beside.
         var tab = tab
-        if tab == .chat || tab == .reader,
+        if StudioCenterTab.windowPlaces.contains(tab),
            window.centerTabGroups.groups.contains(where: { $0.openTabs.contains(tab) }),
            let copy = tab.splitCopy {
             tab = copy
@@ -2839,6 +2839,7 @@ class StudioViewModel {
             let newID = layout.groups[newIndex].id
             window.centerTabGroups = layout
             window.focusedGroupID = newID
+            window.splitFromPane[newID] = splitFrom.id
             if tab == .secondaryReader, let sideReaderSource {
                 window.sideReaderSources[newID] = sideReaderSource
             }

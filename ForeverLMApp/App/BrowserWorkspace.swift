@@ -273,6 +273,31 @@ final class BrowserWorkspace {
 
     private static var byWindow: [UUID: BrowserWorkspace] = [:]
     private static var sessionOwnerWindow: UUID?
+    /// Side browsers (`StudioCenterTab.secondaryBrowser`): one workspace per
+    /// pane, with the window that pane is in, so pruning one window's panes
+    /// never closes another's. They neither restore nor save the session.
+    private static var bySidePane: [UUID: (window: UUID, workspace: BrowserWorkspace)] = [:]
+
+    /// The workspace of the side browser in `paneID`'s pane, made the first
+    /// time with one tab on `url` (blank when nil).
+    static func forSidePane(_ paneID: UUID, inWindow windowID: UUID, startingAt url: URL?) -> BrowserWorkspace {
+        if let existing = bySidePane[paneID] { return existing.workspace }
+        let workspace = BrowserWorkspace(profiles: BrowserProfileStore.shared)
+        workspace.openTab(url: url)
+        bySidePane[paneID] = (windowID, workspace)
+        return workspace
+    }
+
+    /// A side browser's workspace if its pane has drawn, without making one.
+    static func existing(forSidePane paneID: UUID) -> BrowserWorkspace? {
+        bySidePane[paneID]?.workspace
+    }
+
+    /// Lets go of `windowID`'s side browsers whose panes are gone, and with
+    /// them their web views.
+    static func releaseSidePanes(inWindow windowID: UUID, keeping live: Set<UUID>) {
+        bySidePane = bySidePane.filter { $0.value.window != windowID || live.contains($0.key) }
+    }
 
     /// The workspace a chat's tab joins: the front Studio window's, so the
     /// tab is where the learner looks when the chat's preview is clicked;

@@ -328,6 +328,8 @@ struct StudioView: View {
             comparisonChatPanel
         case .secondaryReader:
             StudioSideReaderPane()
+        case .secondaryBrowser:
+            StudioSideBrowserPane()
         case .reader:
             readerTabContent
         case .tasks:
@@ -1011,6 +1013,11 @@ struct StudioView: View {
         let readers = Set(layout.groups.filter { $0.tabs.contains(.secondaryReader) }.map(\.id))
         let kept = windowState.sideReaderSources.filter { readers.contains($0.key) }
         if kept.count != windowState.sideReaderSources.count { windowState.sideReaderSources = kept }
+        let browsers = Set(layout.groups.filter { $0.tabs.contains(.secondaryBrowser) }.map(\.id))
+        BrowserWorkspace.releaseSidePanes(inWindow: windowState.id, keeping: browsers)
+        let livePanes = Set(layout.groups.map(\.id))
+        let splits = windowState.splitFromPane.filter { livePanes.contains($0.key) }
+        if splits.count != windowState.splitFromPane.count { windowState.splitFromPane = splits }
     }
 
     private var studioWindowContent: some View {
@@ -2173,5 +2180,30 @@ private struct StudioSideReaderPane: View {
             overrideArticleId: paneGroupID.flatMap { windowState.sideReaderSources[$0] },
             isSecondaryReader: true
         )
+    }
+}
+
+/// A side browser (`StudioCenterTab.secondaryBrowser`): the Browser pane with
+/// tabs of its own, opening on the page of the browser its pane was split
+/// from — a side browser's, else the window's.
+private struct StudioSideBrowserPane: View {
+    @Environment(StudioWindowState.self) private var windowState
+    @Environment(\.studioPaneGroupID) private var paneGroupID
+
+    var body: some View {
+        if let paneGroupID {
+            let _ = BrowserWorkspace.forSidePane(paneGroupID, inWindow: windowState.id, startingAt: firstPage(for: paneGroupID))
+            BrowserPane(sidePaneID: paneGroupID)
+        } else {
+            BrowserPane()
+        }
+    }
+
+    private func firstPage(for paneID: UUID) -> URL? {
+        let from = windowState.splitFromPane[paneID]
+        let browser = from.flatMap { BrowserWorkspace.existing(forSidePane: $0) }
+            ?? BrowserWorkspace.existing(forWindow: windowState.id)
+        guard let tab = browser?.activeTab else { return nil }
+        return tab.url ?? tab.requestedURL
     }
 }

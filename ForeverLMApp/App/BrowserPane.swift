@@ -14,6 +14,9 @@ import WebKit
 struct BrowserPane: View {
     @Environment(StudioViewModel.self) private var vm
     @Environment(StudioWindowState.self) private var windowState
+    /// The pane of a side browser (`StudioCenterTab.secondaryBrowser`), whose
+    /// tabs are its own; nil for the window's Browser.
+    var sidePaneID: UUID? = nil
 
     @State private var addressText = ""
     @FocusState private var addressFocused: Bool
@@ -29,7 +32,8 @@ struct BrowserPane: View {
     @State private var findState = ReaderFindState()
 
     private var workspace: BrowserWorkspace {
-        BrowserWorkspace.forWindow(windowState.id)
+        if let sidePaneID, let side = BrowserWorkspace.existing(forSidePane: sidePaneID) { return side }
+        return BrowserWorkspace.forWindow(windowState.id)
     }
 
     var body: some View {
@@ -425,7 +429,9 @@ struct BrowserPane: View {
     /// A page the view model asked the browser to show, from a source's
     /// "Open in Browser" or a chat link. The request is consumed once.
     private func consumeOpenRequest() {
-        guard let request = vm.browserOpenRequest else { return }
+        // "Open in Browser" is the window's Browser's; a side browser keeps
+        // what it shows.
+        guard sidePaneID == nil, let request = vm.browserOpenRequest else { return }
         vm.browserOpenRequest = nil
         workspace.openTab(url: request.url, profileID: request.profileID ?? BrowserWorkspace.newTabProfileID)
         addressFocused = false

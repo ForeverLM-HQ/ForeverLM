@@ -22,6 +22,12 @@ enum StudioCenterTab: String, Codable, CaseIterable, Identifiable {
     /// source opens it in the window's Reader. Transient, as the second chat
     /// is: not permanent, and not stored with the layout.
     case secondaryReader
+    /// A second Browser beside the window's own, made by the split button
+    /// (2026-11-07), with tabs of its own (`BrowserWorkspace.forSidePane`):
+    /// it opens on the page the browser it was split from showed. An "Open in
+    /// Browser" from anywhere still opens in the window's Browser. Transient,
+    /// as the side chat and side reader are.
+    case secondaryBrowser
     case reader
     /// Recurring instructions the app runs by itself: an instruction on a clock.
     case tasks
@@ -124,7 +130,7 @@ enum StudioCenterTab: String, Codable, CaseIterable, Identifiable {
     /// (`StudioComparisonChatStores`), while Chat itself stays the window's
     /// one chat, the one that takes the app-wide requests; a split asking for
     /// Chat beside a Chat makes a side chat.
-    static let copyablePlaces: Set<StudioCenterTab> = [.notepad, .secondaryChat, .secondaryReader]
+    static let copyablePlaces: Set<StudioCenterTab> = [.notepad, .secondaryChat, .secondaryReader, .secondaryBrowser]
 
     /// What a split asking for this place beside it opens when this place is
     /// already open: Chat opens a side chat, the Reader a side reader, a
@@ -133,12 +139,17 @@ enum StudioCenterTab: String, Codable, CaseIterable, Identifiable {
     var splitCopy: StudioCenterTab? {
         if self == .chat || self == .secondaryChat { return .secondaryChat }
         if self == .reader || self == .secondaryReader { return .secondaryReader }
+        if self == .browser || self == .secondaryBrowser { return .secondaryBrowser }
         return canStandInSeveralPanes ? self : nil
     }
 
+    /// The window's one Chat, Reader and Browser: asked for beside themselves,
+    /// they open as a side pane (`splitCopy`).
+    static let windowPlaces: Set<StudioCenterTab> = [.chat, .reader, .browser]
+
     /// The side panes a split makes, which are never stored with a layout:
     /// what they show lives only in this window's run.
-    static let transientTabs: Set<StudioCenterTab> = [.secondaryChat, .secondaryReader]
+    static let transientTabs: Set<StudioCenterTab> = [.secondaryChat, .secondaryReader, .secondaryBrowser]
 
     /// Whether a copy of this place may open in a second pane.
     var canStandInSeveralPanes: Bool { Self.copyablePlaces.contains(self) }
@@ -927,6 +938,9 @@ final class StudioWindowState: Identifiable {
     /// by its pane (`StudioCenterTabGroups.Group.id`). Presentation only: not
     /// in the snapshot, as the side panes are not in the stored layout.
     var sideReaderSources: [UUID: String] = [:]
+    /// The pane each split made was split from, by the new pane: where a side
+    /// browser takes its first page.
+    var splitFromPane: [UUID: UUID] = [:]
     /// The Notebook this window's Docs canvas is scoped to — its list, and
     /// where a doc made there is filed — or nil for every doc. A notebook's
     /// own Docs scope it to the notebook (`openArtifactsBeside(notebookID:)`,

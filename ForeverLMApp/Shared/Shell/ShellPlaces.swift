@@ -132,6 +132,8 @@ enum ShellPlaces {
             return ShellPlace(tab: tab, title: "Sites", glyph: "globe", module: .space, sidebar: .space, role: .viewer)
         case .browser:
             return ShellPlace(tab: tab, title: "Browser", glyph: "safari", module: .browser, sidebar: .home, role: .viewer)
+        case .secondaryBrowser:
+            return ShellPlace(tab: tab, title: "Browser", glyph: "safari", module: .browser, sidebar: .home, role: .viewer)
         case .videos:
             return ShellPlace(tab: tab, title: "Videos", glyph: "film", module: .media, sidebar: .home, role: .list)
         case .animations:

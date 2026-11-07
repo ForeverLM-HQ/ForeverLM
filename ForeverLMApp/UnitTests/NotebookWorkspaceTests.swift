@@ -17,6 +17,7 @@ struct NotebookWorkspaceTests {
             .reader: .document(.reader),
             // A notebook has one Reader: a side reader asked for there is it.
             .secondaryReader: .document(.reader),
+            .secondaryBrowser: .document(.browser),
             .notepad: .document(.docs),
             .sites: .document(.sites),
             .animations: .document(.animations),
@@ -84,8 +85,9 @@ struct NotebookWorkspaceTests {
                 case .document(let document):
                     #expect(next?.document == document, "\(tab)")
                     #expect(next?.showsChat == false, "a document never hides or shows the chat")
-                    // A side reader asked for in a notebook is its Reader.
-                    #expect(next?.visibleTabs.contains(tab == .secondaryReader ? .reader : tab) == true, "\(tab)")
+                    // A side reader or browser asked for in a notebook is its own.
+                    let shown: StudioCenterTab = tab == .secondaryReader ? .reader : tab == .secondaryBrowser ? .browser : tab
+                    #expect(next?.visibleTabs.contains(shown) == true, "\(tab)")
                 case .leave:
                     #expect(next == nil, "\(tab)")
                 }

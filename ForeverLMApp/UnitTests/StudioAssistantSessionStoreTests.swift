@@ -960,6 +960,24 @@ struct StudioSideChatSplitTests {
         #expect(StudioCenterTabGroups.fromPersisted(["reader*", "secondaryReader*"])?.groups.count == 1)
     }
 
+    @Test("the Browser splits into a side browser that knows the pane it came from")
+    func browserSplitsIntoSideBrowser() {
+        let restore = Self.capturedLayout()
+        defer { restore() }
+        let vm = Self.makeViewModel()
+        let window = vm.activeWindowState
+        vm.centerTabGroups = StudioCenterTabGroups(groups: [
+            .init(tabs: [.artifacts, .browser, .chat], activeTab: .browser, openTabs: [.browser]),
+        ])
+        let browserPane = vm.centerTabGroups.groups[0].id
+
+        vm.splitPane(at: 0, showing: .browser, in: window)
+        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.browser, .secondaryBrowser])
+        #expect(window.splitFromPane[vm.centerTabGroups.groups[1].id] == browserPane)
+        #expect(StudioCenterTab.browser.splitCopy == .secondaryBrowser)
+        #expect(!vm.centerTabGroups.persistedRepresentation.joined().contains("secondaryBrowser"))
+    }
+
     @Test("each side-chat pane keeps its own store, and a gone pane's store goes unless it is answering")
     func storesPerPane() {
         let chats = StudioComparisonChatStores(makeStore: {
