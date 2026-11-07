@@ -11,7 +11,7 @@
       "source": "ForeverLMApp/Screenshots/macOS/01_studio.png",
       "view": "macOS Studio Notebooks home",
       "pages": ["/index", "/macos-app", "/studio"],
-      "captured_at_version": "0.190.0",
+      "captured_at_version": "0.191.0",
       "theme": "dark",
       "pixels": "2880x1800"
     }
