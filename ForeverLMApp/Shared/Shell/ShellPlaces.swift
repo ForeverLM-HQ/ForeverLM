@@ -110,6 +110,8 @@ enum ShellPlaces {
             return ShellPlace(tab: tab, title: "Chat", glyph: "bubble.left.and.bubble.right", module: .chat, sidebar: .home, role: .thread)
         case .secondaryChat:
             return ShellPlace(tab: tab, title: "Chat", glyph: "bubble.left.and.bubble.right", module: .chat, sidebar: .home, role: .thread)
+        case .secondaryReader:
+            return ShellPlace(tab: tab, title: "Reader", glyph: "doc.text", module: .reader, sidebar: .home, role: .viewer)
         case .reader:
             return ShellPlace(tab: tab, title: "Reader", glyph: "doc.text", module: .reader, sidebar: .home, role: .viewer)
         case .tasks:

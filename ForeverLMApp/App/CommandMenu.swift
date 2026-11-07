@@ -247,7 +247,7 @@ struct ShellCommandHost: ViewModifier {
         case .animations:
             destination = nil
             vm.inWindow(windowState) { vm.activateCenterTab(.animations, in: windowState) }
-        case .chat, .secondaryChat, .tasks:
+        case .chat, .secondaryChat, .secondaryReader, .tasks:
             destination = nil
         }
         destination?.open(in: windowState, vm: vm)

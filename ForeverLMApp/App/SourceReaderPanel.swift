@@ -16,6 +16,8 @@ struct SourceReaderPanel: View {
     @Environment(\.studioCenterTabStripVisible) private var centerTabStripVisible
     @Environment(\.studioChromeLineReservation) private var chromeReservation
     @Environment(\.studioPanelTrailingOverflow) private var panelTrailingOverflow
+    /// The pane a side reader stands in, whose source a drop replaces.
+    @Environment(\.studioPaneGroupID) private var paneGroupID
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.uiZoomScale) private var uiZoomScale
     /// Written here and read by every reader that would otherwise invert a page.
@@ -1345,7 +1347,12 @@ struct SourceReaderPanel: View {
     @MainActor
     private func openDroppedArticle(_ articleID: String) async {
         if isSecondaryReader {
-            vm.secondaryReaderArticleId = articleID
+            // A side reader shows what is dropped on it, in its own pane.
+            if let paneGroupID {
+                windowState.sideReaderSources[paneGroupID] = articleID
+            } else {
+                vm.secondaryReaderArticleId = articleID
+            }
         } else {
             await vm.selectArticle(articleID, in: windowState)
         }

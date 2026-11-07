@@ -279,7 +279,8 @@ extension NotebookWorkspace {
         switch tab {
         case .chat: return .chat
         case .secondaryChat: return .document(.secondChat)
-        case .reader: return .document(.reader)
+        // A notebook has one Reader: a side reader asked for there is it.
+        case .reader, .secondaryReader: return .document(.reader)
         case .notepad: return .document(.docs)
         case .sites: return .document(.sites)
         case .animations: return .document(.animations)

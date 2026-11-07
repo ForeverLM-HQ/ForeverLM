@@ -13,6 +13,15 @@ enum StudioCenterTab: String, Codable, CaseIterable, Identifiable {
     /// workspace edge. Unlike the destination tabs it is not permanent: it
     /// exists only while the learner is comparing two conversations.
     case secondaryChat
+    /// A second Reader beside the window's own, which the split button makes
+    /// (product owner, 2026-11-07: "just like in a terminal window, we need
+    /// to be able to have like two things side by side whenever we want"). It
+    /// shows a source of its own — first the one the Reader it was split from
+    /// showed — and takes another when one is dragged onto it
+    /// (`StudioWindowState.sideReaderSources`); every other way of opening a
+    /// source opens it in the window's Reader. Transient, as the second chat
+    /// is: not permanent, and not stored with the layout.
+    case secondaryReader
     case reader
     /// Recurring instructions the app runs by itself: an instruction on a clock.
     case tasks
@@ -115,15 +124,21 @@ enum StudioCenterTab: String, Codable, CaseIterable, Identifiable {
     /// (`StudioComparisonChatStores`), while Chat itself stays the window's
     /// one chat, the one that takes the app-wide requests; a split asking for
     /// Chat beside a Chat makes a side chat.
-    static let copyablePlaces: Set<StudioCenterTab> = [.notepad, .secondaryChat]
+    static let copyablePlaces: Set<StudioCenterTab> = [.notepad, .secondaryChat, .secondaryReader]
 
     /// What a split asking for this place beside it opens when this place is
-    /// already open: Chat opens a side chat, a copyable place a copy of
-    /// itself; nil when it cannot stand twice in a window.
+    /// already open: Chat opens a side chat, the Reader a side reader, a
+    /// copyable place a copy of itself; nil when it cannot stand twice in a
+    /// window.
     var splitCopy: StudioCenterTab? {
         if self == .chat || self == .secondaryChat { return .secondaryChat }
+        if self == .reader || self == .secondaryReader { return .secondaryReader }
         return canStandInSeveralPanes ? self : nil
     }
+
+    /// The side panes a split makes, which are never stored with a layout:
+    /// what they show lives only in this window's run.
+    static let transientTabs: Set<StudioCenterTab> = [.secondaryChat, .secondaryReader]
 
     /// Whether a copy of this place may open in a second pane.
     var canStandInSeveralPanes: Bool { Self.copyablePlaces.contains(self) }
@@ -456,7 +471,7 @@ struct StudioCenterTabGroups: Equatable {
             // A dragged comparison chat is transient. Persisting its slot
             // without its live manager/session would reopen an empty mystery
             // pane on the next launch or another Mac.
-            let tabs = group.tabs.filter { $0 != .secondaryChat }
+            let tabs = group.tabs.filter { !StudioCenterTab.transientTabs.contains($0) }
             guard !tabs.isEmpty else { return nil }
             let active = tabs.contains(group.activeTab) ? group.activeTab : tabs[0]
             let open = Set(group.openTabs)
@@ -490,7 +505,7 @@ struct StudioCenterTabGroups: Equatable {
                 if Self.retiredHomeTabNames.contains(name) {
                     name = StudioCenterTab.artifacts.rawValue
                 }
-                guard let tab = StudioCenterTab(rawValue: name), tab != .secondaryChat else { continue }
+                guard let tab = StudioCenterTab(rawValue: name), !StudioCenterTab.transientTabs.contains(tab) else { continue }
                 tabs.append(tab)
                 if isActive { active = tab }
                 if isActive || isOpen { open.append(tab) }
@@ -908,6 +923,10 @@ final class StudioWindowState: Identifiable {
     /// while it is mounted and kept after it unmounts, so a window quit with
     /// Docs behind another tab still records the doc it would come back to.
     var openArtifactID: String?
+    /// The source each side reader (`StudioCenterTab.secondaryReader`) shows,
+    /// by its pane (`StudioCenterTabGroups.Group.id`). Presentation only: not
+    /// in the snapshot, as the side panes are not in the stored layout.
+    var sideReaderSources: [UUID: String] = [:]
     /// The Notebook this window's Docs canvas is scoped to — its list, and
     /// where a doc made there is filed — or nil for every doc. A notebook's
     /// own Docs scope it to the notebook (`openArtifactsBeside(notebookID:)`,

@@ -929,6 +929,37 @@ struct StudioSideChatSplitTests {
         #expect(!vm.centerTabGroups.groups.contains { $0.tabs.contains(.secondaryChat) })
     }
 
+    @Test("the Reader splits into a side reader on the same source, and the stored layout leaves it out")
+    func readerSplitsIntoSideReader() {
+        let restore = Self.capturedLayout()
+        defer { restore() }
+        let vm = Self.makeViewModel()
+        let window = vm.activeWindowState
+        vm.centerTabGroups = StudioCenterTabGroups(groups: [
+            .init(tabs: [.artifacts, .reader, .chat], activeTab: .reader, openTabs: [.reader]),
+        ])
+        window.readerArticleID = "paper-zeta"
+
+        vm.splitPane(at: 0, showing: .reader, in: window)
+        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.reader, .secondaryReader])
+        let side = vm.centerTabGroups.groups[1].id
+        #expect(window.sideReaderSources[side] == "paper-zeta")
+        // The window's Reader still reads its own source.
+        #expect(window.readerArticleID == "paper-zeta")
+
+        // ⌘\ from the side reader starts the next one on the side reader's source.
+        window.sideReaderSources[side] = "paper-eta"
+        vm.splitFocusedPane(in: window)
+        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.reader, .secondaryReader, .secondaryReader])
+        #expect(window.sideReaderSources[vm.centerTabGroups.groups[2].id] == "paper-eta")
+
+        // Side panes are this run's alone.
+        let stored = vm.centerTabGroups.persistedRepresentation
+        #expect(stored.count == 1)
+        #expect(!stored.joined().contains("secondaryReader"))
+        #expect(StudioCenterTabGroups.fromPersisted(["reader*", "secondaryReader*"])?.groups.count == 1)
+    }
+
     @Test("each side-chat pane keeps its own store, and a gone pane's store goes unless it is answering")
     func storesPerPane() {
         let chats = StudioComparisonChatStores(makeStore: {

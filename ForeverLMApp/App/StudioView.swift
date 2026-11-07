@@ -326,6 +326,8 @@ struct StudioView: View {
             dockedChatPanel
         case .secondaryChat:
             comparisonChatPanel
+        case .secondaryReader:
+            StudioSideReaderPane()
         case .reader:
             readerTabContent
         case .tasks:
@@ -1001,10 +1003,14 @@ struct StudioView: View {
         )
     }
 
-    /// Lets go of the side-chat stores of panes that are gone.
+    /// Lets go of the side chats' stores and the side readers' sources of
+    /// panes that are gone.
     private func pruneSideChats(_ layout: StudioCenterTabGroups) {
         let panes = layout.groups.filter { $0.tabs.contains(.secondaryChat) }.map(\.id)
         comparisonChats.prune(keepingPanes: Set(panes))
+        let readers = Set(layout.groups.filter { $0.tabs.contains(.secondaryReader) }.map(\.id))
+        let kept = windowState.sideReaderSources.filter { readers.contains($0.key) }
+        if kept.count != windowState.sideReaderSources.count { windowState.sideReaderSources = kept }
     }
 
     private var studioWindowContent: some View {
@@ -2151,5 +2157,21 @@ private struct StudioSideChatPane: View {
         .onChange(of: store.activeSessionID) { _, sessionID in
             if let sessionID { pageSideChat.releaseChat(sessionID) }
         }
+    }
+}
+
+/// A side reader (`StudioCenterTab.secondaryReader`): the Reader's second
+/// mode, showing the source its pane holds (`StudioWindowState.sideReaderSources`),
+/// empty until one is dragged onto it, and never following the window's
+/// selection.
+private struct StudioSideReaderPane: View {
+    @Environment(StudioWindowState.self) private var windowState
+    @Environment(\.studioPaneGroupID) private var paneGroupID
+
+    var body: some View {
+        SourceReaderPanel(
+            overrideArticleId: paneGroupID.flatMap { windowState.sideReaderSources[$0] },
+            isSecondaryReader: true
+        )
     }
 }

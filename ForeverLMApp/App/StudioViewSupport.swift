@@ -3321,7 +3321,11 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
     /// copied, since moving it would only move this pane. Disabled at the
     /// pane limit.
     private func splitButton(for group: StudioCenterTabGroups.Group, at groupIndex: Int) -> some View {
-        let destinations = StudioPaneSwap.newTabDestinations.filter {
+        // The Reader too, which the + does not offer: beside a Reader it is
+        // a second one.
+        var places = StudioPaneSwap.newTabDestinations
+        places.insert(.init(tab: .reader), at: min(1, places.count))
+        let destinations = places.filter {
             $0.tab != group.activeTab || $0.tab.splitCopy != nil
         }
         return TitlebarBandButton(

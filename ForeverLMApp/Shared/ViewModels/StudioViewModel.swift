@@ -2819,17 +2819,29 @@ class StudioViewModel {
               window.centerTabGroups.canCreateDraggedGroup else { return }
         if window.isVoiceWorkspacePresented { window.isVoiceWorkspacePresented = false }
         if window.memoryReviewFocusYields(to: tab) { leaveMemoryReviewFocus(in: window) }
-        // Chat beside a Chat already open is a new side chat; Chat open
-        // nowhere is the window's own chat, which moves beside.
+        // Chat beside a Chat already open is a new side chat, and the Reader
+        // beside a Reader a side reader; open nowhere, the window's own chat
+        // or Reader moves beside.
         var tab = tab
-        if tab == .chat, window.centerTabGroups.groups.contains(where: { $0.openTabs.contains(.chat) }) {
-            tab = .secondaryChat
+        if tab == .chat || tab == .reader,
+           window.centerTabGroups.groups.contains(where: { $0.openTabs.contains(tab) }),
+           let copy = tab.splitCopy {
+            tab = copy
         }
+        // A side reader starts on what the pane it was split from reads, or
+        // else on the window's Reader's source.
+        let splitFrom = window.centerTabGroups.groups[groupIndex]
+        let sideReaderSource = splitFrom.activeTab == .secondaryReader
+            ? window.sideReaderSources[splitFrom.id]
+            : window.readerSourceID(fallingBackTo: selectedArticleId)
         if let layout = window.centerTabGroups.splitting(tab, besidePaneAt: groupIndex, towardRight: towardRight) {
             let newIndex = towardRight ? groupIndex + 1 : groupIndex
             let newID = layout.groups[newIndex].id
             window.centerTabGroups = layout
             window.focusedGroupID = newID
+            if tab == .secondaryReader, let sideReaderSource {
+                window.sideReaderSources[newID] = sideReaderSource
+            }
             // The copy opens on the list of pages, not on the page beside it.
             if tab == .notepad {
                 artifactIndexRequest = ArtifactIndexRequest(section: .docs, windowID: window.id, groupID: newID)
