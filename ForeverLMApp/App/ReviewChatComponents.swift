@@ -1870,7 +1870,10 @@ private struct ChatSuggestedQuestionCard: View {
                     .font(.system(size: fontSize * 0.94))
                     .foregroundStyle(.primary)
                     .multilineTextAlignment(.leading)
-                    .lineLimit(3)
+                    // The whole question, however many lines it takes: a
+                    // cut-off question has no other place to be read in full
+                    // (product owner, 2026-11-07: "don't cut these off").
+                    // The row's cards grow together to the tallest.
                     .fixedSize(horizontal: false, vertical: true)
                     // The card is the control; its words are its label.
                     .textSelection(.disabled)
