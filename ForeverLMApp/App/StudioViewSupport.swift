@@ -3316,13 +3316,13 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
 
     /// The split button: a menu of places, the pick opening in a new pane to
     /// the right (`StudioViewModel.splitPane`). A place that can stand in
-    /// several panes opens as a fresh copy; any other moves out of the pane
-    /// that has it. What this pane shows is offered only when it can be
+    /// several panes opens as a fresh copy, and Chat as a new side chat; any
+    /// other moves out of the pane that has it. What this pane shows is offered only when it can be
     /// copied, since moving it would only move this pane. Disabled at the
     /// pane limit.
     private func splitButton(for group: StudioCenterTabGroups.Group, at groupIndex: Int) -> some View {
         let destinations = StudioPaneSwap.newTabDestinations.filter {
-            $0.tab != group.activeTab || $0.tab.canStandInSeveralPanes
+            $0.tab != group.activeTab || $0.tab.splitCopy != nil
         }
         return TitlebarBandButton(
             help: "Split Right (⌘\\)",

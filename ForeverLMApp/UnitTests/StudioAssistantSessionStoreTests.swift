@@ -853,3 +853,96 @@ struct ChatQueuedMessagesTests {
         #expect(manager.queuedFollowUps.map(\.id) == [second!.id])
     }
 }
+
+/// Side chats a split makes: Chat beside a Chat opens a second-chat pane, one
+/// store per pane (product owner, 2026-11-07: "just like in a terminal window,
+/// we need to be able to have like two things side by side whenever we want").
+@Suite("Side chats side by side")
+@MainActor
+struct StudioSideChatSplitTests {
+    private static func makeViewModel() -> StudioViewModel {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("SideChatSplit_\(UUID().uuidString)")
+        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        return StudioViewModel(storageService: StorageService(storeRoot: root))
+    }
+
+    /// Keeps the developer's synced layout out of the test's rearranging.
+    private static func capturedLayout() -> () -> Void {
+        let key = "studio.centerTabGroups.v1"
+        let prior = UserDefaults.standard.stringArray(forKey: key)
+        return {
+            if let prior { UserDefaults.standard.set(prior, forKey: key) } else { UserDefaults.standard.removeObject(forKey: key) }
+        }
+    }
+
+    @Test("Chat splits into a side chat, Pages into a copy, and nothing else copies")
+    func splitCopies() {
+        #expect(StudioCenterTab.chat.splitCopy == .secondaryChat)
+        #expect(StudioCenterTab.secondaryChat.splitCopy == .secondaryChat)
+        #expect(StudioCenterTab.notepad.splitCopy == .notepad)
+        #expect(StudioCenterTab.library.splitCopy == nil)
+        #expect(StudioCenterTab.reader.splitCopy == nil)
+    }
+
+    @Test("the split button beside a chat opens side chats up to the pane limit, and each × closes its own")
+    func chatSplitsIntoSideChats() {
+        let restore = Self.capturedLayout()
+        defer { restore() }
+        let vm = Self.makeViewModel()
+        let window = vm.activeWindowState
+        vm.centerTabGroups = StudioCenterTabGroups(groups: [
+            .init(tabs: [.artifacts, .chat, .reader], activeTab: .chat, openTabs: [.chat]),
+        ])
+
+        vm.splitPane(at: 0, showing: .chat, in: window)
+        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.chat, .secondaryChat])
+        let first = vm.centerTabGroups.groups[1].id
+        #expect(window.focusedGroupID == first)
+
+        // ⌘\ from the side chat makes another beside it.
+        vm.splitFocusedPane(in: window)
+        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.chat, .secondaryChat, .secondaryChat])
+        let second = vm.centerTabGroups.groups[2].id
+
+        // No fourth pane.
+        vm.splitFocusedPane(in: window)
+        #expect(vm.centerTabGroups.groups.count == StudioCenterTabGroups.draggedGroupCount)
+
+        // A side chat's × closes its own pane.
+        vm.dismissSecondaryChatPane(fromGroup: second, in: window)
+        #expect(vm.centerTabGroups.groups.map(\.id) == [vm.centerTabGroups.groups[0].id, first])
+        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.chat, .secondaryChat])
+    }
+
+    @Test("Chat open nowhere moves beside rather than making a side chat")
+    func parkedChatMovesBeside() {
+        let restore = Self.capturedLayout()
+        defer { restore() }
+        let vm = Self.makeViewModel()
+        vm.centerTabGroups = StudioCenterTabGroups(groups: [
+            .init(tabs: [.artifacts, .chat, .reader], activeTab: .artifacts, openTabs: [.artifacts]),
+        ])
+
+        vm.splitPane(at: 0, showing: .chat, in: vm.activeWindowState)
+
+        #expect(vm.centerTabGroups.groups.map(\.activeTab) == [.artifacts, .chat])
+        #expect(!vm.centerTabGroups.groups.contains { $0.tabs.contains(.secondaryChat) })
+    }
+
+    @Test("each side-chat pane keeps its own store, and a gone pane's store goes unless it is answering")
+    func storesPerPane() {
+        let chats = StudioComparisonChatStores(makeStore: {
+            StudioAssistantSessionStore(managerFactory: { ReviewSessionManager() })
+        })
+        let left = UUID()
+        let right = UUID()
+        #expect(chats.store(forPane: left) === chats.store(forPane: left))
+        #expect(chats.store(forPane: left) !== chats.store(forPane: right))
+        #expect(chats.store(forPane: nil) === chats.unpaned)
+        #expect(chats.paneCountForTesting == 2)
+
+        chats.prune(keepingPanes: [left])
+        #expect(chats.paneCountForTesting == 1)
+        #expect(chats.all.count == 2)
+    }
+}

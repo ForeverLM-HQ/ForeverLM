@@ -2819,6 +2819,12 @@ class StudioViewModel {
               window.centerTabGroups.canCreateDraggedGroup else { return }
         if window.isVoiceWorkspacePresented { window.isVoiceWorkspacePresented = false }
         if window.memoryReviewFocusYields(to: tab) { leaveMemoryReviewFocus(in: window) }
+        // Chat beside a Chat already open is a new side chat; Chat open
+        // nowhere is the window's own chat, which moves beside.
+        var tab = tab
+        if tab == .chat, window.centerTabGroups.groups.contains(where: { $0.openTabs.contains(.chat) }) {
+            tab = .secondaryChat
+        }
         if let layout = window.centerTabGroups.splitting(tab, besidePaneAt: groupIndex, towardRight: towardRight) {
             let newIndex = towardRight ? groupIndex + 1 : groupIndex
             let newID = layout.groups[newIndex].id
@@ -2841,13 +2847,13 @@ class StudioViewModel {
     }
 
     /// ⌘\: a copy of what the pane last clicked in shows, beside it, when
-    /// that place can stand in several panes.
+    /// that place can stand in several panes — a new side chat for a chat.
     func splitFocusedPane(in window: StudioWindowState? = nil) {
         let window = window ?? activeWindowState
         let groups = window.centerTabGroups.groups
         let index = groups.firstIndex(where: { $0.id == window.focusedGroupID }) ?? 0
-        guard groups.indices.contains(index), groups[index].activeTab.canStandInSeveralPanes else { return }
-        splitPane(at: index, showing: groups[index].activeTab, in: window)
+        guard groups.indices.contains(index), let copy = groups[index].activeTab.splitCopy else { return }
+        splitPane(at: index, showing: copy, in: window)
     }
 
     /// Opens a hidden destination without replacing the surface currently
@@ -3027,14 +3033,19 @@ class StudioViewModel {
         centerTabGroups = layout
     }
 
-    func dismissSecondaryChatPane(in destinationWindowState: StudioWindowState? = nil) {
+    /// Closes a side chat's pane: `groupID`'s, the pane whose × was pressed,
+    /// when several panes hold one.
+    func dismissSecondaryChatPane(
+        fromGroup groupID: UUID? = nil,
+        in destinationWindowState: StudioWindowState? = nil
+    ) {
         let destination = destinationWindowState ?? activeWindowState
         if destination.holdsNotebookSlot {
             closeInNotebook(.secondaryChat, in: destination)
             return
         }
         var layout = destination.centerTabGroups
-        guard let groupIndex = layout.groups.firstIndex(where: { $0.tabs.contains(.secondaryChat) }) else { return }
+        guard let groupIndex = layout.index(holding: .secondaryChat, preferring: groupID) else { return }
         layout.groups[groupIndex].remove(.secondaryChat)
         if layout.groups[groupIndex].tabs.isEmpty {
             layout.groups.remove(at: groupIndex)

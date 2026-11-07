@@ -6,6 +6,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **Two or three chats side by side.** In a pane showing Chat, the split button's **Chat** (or ⌘\\) opens a new chat in a pane beside it, and you can do it again for a third. Each side chat keeps its own conversation. The first Chat is still the window's: chats you open from the sidebar, **New chat** and an assistant's requests go there. A side chat's tab × closes only that chat's pane.
 - **Two Pages side by side.** The split button at the right end of a pane's tabs (or **View → Split Pane Right**, ⌘\\) opens a new pane beside it. Choose **Pages** to open a second Pages pane, on the list of your pages, so two different pages stand side by side. Choose another place and it moves into the new pane. A page you open from the sidebar goes to the Pages pane you clicked in last. Other places can't be open twice in one window yet.
 
 ## 0.190.0 (build 270) — 2026-11-07

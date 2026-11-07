@@ -366,7 +366,8 @@ struct StudioNavigationRail: View {
     @EnvironmentObject private var appUpdates: AppUpdateController
     /// Owns the selected manager and any chats still generating off screen.
     let sessionStore: StudioAssistantSessionStore
-    let comparisonSessionStore: StudioAssistantSessionStore
+    /// The window's side chats (`StudioComparisonChatStores`).
+    let comparisonChats: StudioComparisonChatStores
     let edge: HorizontalEdge
     /// The icon rail, or Home's sidebar beside it: the same view twice, so the
     /// notebooks' and chats' state and menus stay in one place.
@@ -480,9 +481,9 @@ struct StudioNavigationRail: View {
     private var activeSessionIDs: Set<String> {
         Self.highlightedSessionIDs(
             primary: sessionStore.activeSessionID,
-            comparison: comparisonSessionStore.activeSessionID,
+            comparison: nil,
             in: windowState
-        )
+        ).union(comparisonChats.shownSessionIDs(in: windowState))
     }
 
     /// Whether the primary chat surface is on screen in this window: the Chat
@@ -777,7 +778,7 @@ struct StudioNavigationRail: View {
         // The strip is in every window, always: it reports the window's chats
         // to the unread marks.
         .background {
-            ChatActivityReporter(sessionStore: sessionStore, comparisonSessionStore: comparisonSessionStore)
+            ChatActivityReporter(sessionStore: sessionStore, comparisonChats: comparisonChats)
         }
         .padding(.top, titlebarBandHeight == nil && edge == .leading ? 48 : StudioDesign.Spacing.medium)
         .frame(maxWidth: .infinity)
@@ -900,7 +901,7 @@ struct StudioNavigationRail: View {
                 // generation flags and re-scanned the managers rows × flips
                 // times per turn.
                 let runningSessionIDs = sessionStore.runningSessionIDs
-                    .union(comparisonSessionStore.runningSessionIDs)
+                    .union(comparisonChats.runningSessionIDs)
 
                 // Chat rows carry menus, drag support, and hover state. Building the
                 // entire history eagerly made SwiftUI materialize every row and its
@@ -3323,20 +3324,20 @@ struct RailUnreadDot: View {
 /// flipping redraw this and not the strip.
 private struct ChatActivityReporter: View {
     let sessionStore: StudioAssistantSessionStore
-    let comparisonSessionStore: StudioAssistantSessionStore
+    let comparisonChats: StudioComparisonChatStores
 
     @Environment(StudioWindowState.self) private var windowState
 
     private var shown: Set<String> {
         StudioNavigationRail.highlightedSessionIDs(
             primary: sessionStore.activeSessionID,
-            comparison: comparisonSessionStore.activeSessionID,
+            comparison: nil,
             in: windowState
-        )
+        ).union(comparisonChats.shownSessionIDs(in: windowState))
     }
 
     private var running: Set<String> {
-        sessionStore.runningSessionIDs.union(comparisonSessionStore.runningSessionIDs)
+        sessionStore.runningSessionIDs.union(comparisonChats.runningSessionIDs)
     }
 
     var body: some View {

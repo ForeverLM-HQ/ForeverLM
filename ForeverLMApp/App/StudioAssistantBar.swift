@@ -565,6 +565,70 @@ final class StudioAssistantSessionStore {
 #endif
 }
 
+/// One window's side chats: the second-chat panes (`StudioCenterTab.secondaryChat`),
+/// a store for each pane, so two or three chats stand side by side (product
+/// owner, 2026-11-07: "just like in a terminal window, we need to be able to
+/// have like two things side by side whenever we want"). The window's own
+/// chat is not here: it is `StudioView`'s primary store, the one that takes
+/// the app-wide requests (a sidebar click, New chat, an assistant's open). A
+/// notebook's second chat, drawn in its document slot with no pane id, keeps
+/// a store of its own (`unpaned`).
+///
+/// Not observed: a pane's store is made the first time its pane draws, and
+/// the views that read a store observe the store itself.
+@MainActor
+final class StudioComparisonChatStores {
+    let unpaned: StudioAssistantSessionStore
+    private var byPane: [UUID: StudioAssistantSessionStore] = [:]
+    private let makeStore: @MainActor () -> StudioAssistantSessionStore
+
+    init(makeStore: @escaping @MainActor () -> StudioAssistantSessionStore = { StudioAssistantSessionStore() }) {
+        self.makeStore = makeStore
+        unpaned = makeStore()
+    }
+
+    /// The store of the side chat in `paneID`'s pane, made the first time;
+    /// nil is the notebook slot's.
+    func store(forPane paneID: UUID?) -> StudioAssistantSessionStore {
+        guard let paneID else { return unpaned }
+        if let store = byPane[paneID] { return store }
+        let store = makeStore()
+        byPane[paneID] = store
+        return store
+    }
+
+    /// Every side chat's store, the notebook slot's first.
+    var all: [StudioAssistantSessionStore] { [unpaned] + Array(byPane.values) }
+
+    /// Every chat still answering in a side chat, on screen or not.
+    var runningSessionIDs: Set<String> {
+        all.reduce(into: Set<String>()) { $0.formUnion($1.runningSessionIDs) }
+    }
+
+    /// The side chats on screen in `windowState`, for the rail's highlight:
+    /// the notebook slot's while it shows its second chat, else each pane's
+    /// whose pane shows its side chat.
+    func shownSessionIDs(in windowState: StudioWindowState) -> Set<String> {
+        if let notebook = windowState.notebook, !notebook.tabbed {
+            guard notebook.showsSecondChat, let id = unpaned.activeSessionID else { return [] }
+            return [id]
+        }
+        return Set(windowState.centerTabGroups.groups.compactMap { group in
+            group.activeTab == .secondaryChat ? byPane[group.id]?.activeSessionID : nil
+        })
+    }
+
+    /// Lets go of the stores of panes that are gone, but not of one still
+    /// answering: moving a pane away is never Stop.
+    func prune(keepingPanes live: Set<UUID>) {
+        byPane = byPane.filter { live.contains($0.key) || !$0.value.runningSessionIDs.isEmpty }
+    }
+
+#if DEBUG
+    var paneCountForTesting: Int { byPane.count }
+#endif
+}
+
 /// Persistent Chat surface hosted in Studio's right-hand panel.
 struct StudioDockedAssistantPanel: View {
     let sessionStore: StudioAssistantSessionStore

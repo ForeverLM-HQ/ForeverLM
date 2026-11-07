@@ -110,8 +110,20 @@ enum StudioCenterTab: String, Codable, CaseIterable, Identifiable {
     /// things side by side whenever we want"). Pages came first because each
     /// Pages view already keeps the page it shows (`ArtifactCanvas`); a place
     /// joins once what it shows is its pane's and not the window's. Every
-    /// other place stays once per window.
-    static let copyablePlaces: Set<StudioCenterTab> = [.notepad]
+    /// other place stays once per window. The side chat (`.secondaryChat`)
+    /// came second: each of its panes has a store of its own
+    /// (`StudioComparisonChatStores`), while Chat itself stays the window's
+    /// one chat, the one that takes the app-wide requests; a split asking for
+    /// Chat beside a Chat makes a side chat.
+    static let copyablePlaces: Set<StudioCenterTab> = [.notepad, .secondaryChat]
+
+    /// What a split asking for this place beside it opens when this place is
+    /// already open: Chat opens a side chat, a copyable place a copy of
+    /// itself; nil when it cannot stand twice in a window.
+    var splitCopy: StudioCenterTab? {
+        if self == .chat || self == .secondaryChat { return .secondaryChat }
+        return canStandInSeveralPanes ? self : nil
+    }
 
     /// Whether a copy of this place may open in a second pane.
     var canStandInSeveralPanes: Bool { Self.copyablePlaces.contains(self) }

@@ -48,7 +48,9 @@ struct StudioView: View {
     @State private var showGettingStarted = false
     @State private var whatsNew = WhatsNewCenter.shared
     @State private var studioAssistantSessions = StudioAssistantSessionStore()
-    @State private var comparisonAssistantSessions = StudioAssistantSessionStore()
+    /// The side chats beside the window's own: one store per second-chat
+    /// pane, and the notebook slot's.
+    @State private var comparisonChats = StudioComparisonChatStores()
     /// The chat drawn by the card floating over this window's open page
     /// (docs/pages-side-chat-design.md). Its own store, as the comparison
     /// pane's is: the page's passing question is not the window's chat.
@@ -117,7 +119,7 @@ struct StudioView: View {
                 // folds its project list and leaves the strip.
                 StudioNavigationRail(
                     sessionStore: studioAssistantSessions,
-                    comparisonSessionStore: comparisonAssistantSessions,
+                    comparisonChats: comparisonChats,
                     edge: .leading,
                     style: .strip,
                     onOpenChatBeside: { openChatBeside($0, atLeadingEdge: false) },
@@ -134,7 +136,7 @@ struct StudioView: View {
                     if windowState.drawsNavigationRail, windowState.showsHomeSidebar {
                         StudioNavigationRail(
                             sessionStore: studioAssistantSessions,
-                            comparisonSessionStore: comparisonAssistantSessions,
+                            comparisonChats: comparisonChats,
                             edge: .leading,
                             style: .homeSidebar,
                             onOpenChatBeside: { openChatBeside($0, atLeadingEdge: false) },
@@ -472,27 +474,35 @@ struct StudioView: View {
     /// stays in its pane with its transcript and chips, and the new chat
     /// opens beside it rather than over it.
     private func openNewChatBeside(_ request: ReaderSelectionExplanationRequest) {
-        comparisonAssistantSessions.requestNewChat(handingOff: request)
         withAnimation(.easeInOut(duration: 0.22)) {
             vm.leaveMemoryReviewFocus(in: windowState)
             vm.openSecondaryChatPane(atLeadingEdge: false)
         }
+        sideChatStoreForOpening.requestNewChat(handingOff: request)
     }
 
+    /// A second-chat pane, with the store of the pane it is drawn in.
     private var comparisonChatPanel: some View {
-        StudioDockedAssistantPanel(
-            sessionStore: comparisonAssistantSessions,
-            onDismiss: { vm.dismissSecondaryChatPane(in: windowState) },
-            onPopOut: nil,
-            acceptsGlobalNavigationRequests: false
-        )
+        StudioSideChatPane(chats: comparisonChats, pageSideChat: pageSideChatSessions)
     }
 
     private func openChatBeside(_ sessionID: String, atLeadingEdge: Bool) {
-        comparisonAssistantSessions.requestOpen(sessionID: sessionID)
         withAnimation(.easeInOut(duration: 0.22)) {
             vm.openSecondaryChatPane(atLeadingEdge: atLeadingEdge)
         }
+        sideChatStoreForOpening.requestOpen(sessionID: sessionID)
+    }
+
+    /// The side chat a chat opened beside lands in, once
+    /// `openSecondaryChatPane` has placed it: the notebook slot's, or the
+    /// second-chat pane last clicked in, else the first showing one.
+    private var sideChatStoreForOpening: StudioAssistantSessionStore {
+        guard !windowState.holdsNotebookSlot else { return comparisonChats.store(forPane: nil) }
+        let groups = windowState.centerTabGroups.groups
+        let pane = groups.first { $0.id == windowState.focusedGroupID && $0.activeTab == .secondaryChat }
+            ?? groups.first { $0.activeTab == .secondaryChat }
+            ?? groups.first { $0.tabs.contains(.secondaryChat) }
+        return comparisonChats.store(forPane: pane?.id)
     }
 
     /// The morning's "Plan your day?" (`PlanTheDay`) in the window's
@@ -981,13 +991,20 @@ struct StudioView: View {
     /// a chat, so one chat is never drawn by the card and a pane at once.
     private var pageSideChatHosting: PageSideChatHosting {
         let dock = studioAssistantSessions
-        let comparison = comparisonAssistantSessions
+        let comparison = comparisonChats
         return PageSideChatHosting(
             store: pageSideChatSessions,
             isShownElsewhere: { sessionID in
-                dock.activeSessionID == sessionID || comparison.activeSessionID == sessionID
+                dock.activeSessionID == sessionID
+                    || comparison.all.contains { $0.activeSessionID == sessionID }
             }
         )
+    }
+
+    /// Lets go of the side-chat stores of panes that are gone.
+    private func pruneSideChats(_ layout: StudioCenterTabGroups) {
+        let panes = layout.groups.filter { $0.tabs.contains(.secondaryChat) }.map(\.id)
+        comparisonChats.prune(keepingPanes: Set(panes))
     }
 
     private var studioWindowContent: some View {
@@ -1012,9 +1029,9 @@ struct StudioView: View {
                 // The docked pane took a chat the page's card may hold.
                 if let sessionID { pageSideChatSessions.releaseChat(sessionID) }
             }
-            .onChange(of: comparisonAssistantSessions.activeSessionID) { _, sessionID in
-                if let sessionID { pageSideChatSessions.releaseChat(sessionID) }
-            }
+            // Each side chat releases its own (`StudioSideChatPane`); a pane
+            // that is gone lets its store go unless it is still answering.
+            .onChange(of: windowState.centerTabGroups) { _, layout in pruneSideChats(layout) }
             // `initial` because the coordinator may have set this before this
             // view existed, or may set it later: registration and appearance
             // are not ordered against each other.
@@ -2108,5 +2125,31 @@ extension View {
     /// Draws the content area as the window's inset card.
     func studioInsetCard() -> some View {
         modifier(StudioInsetCardModifier())
+    }
+}
+
+/// A second-chat pane (`StudioCenterTab.secondaryChat`): a chat beside the
+/// window's own, with the store of the pane it is drawn in, so each side chat
+/// a split makes keeps its own conversation. It takes no app-wide request;
+/// its × closes its own pane.
+private struct StudioSideChatPane: View {
+    @Environment(StudioViewModel.self) private var vm
+    @Environment(StudioWindowState.self) private var windowState
+    @Environment(\.studioPaneGroupID) private var paneGroupID
+    let chats: StudioComparisonChatStores
+    let pageSideChat: StudioAssistantSessionStore
+
+    var body: some View {
+        let store = chats.store(forPane: paneGroupID)
+        StudioDockedAssistantPanel(
+            sessionStore: store,
+            onDismiss: { vm.dismissSecondaryChatPane(fromGroup: paneGroupID, in: windowState) },
+            onPopOut: nil,
+            acceptsGlobalNavigationRequests: false
+        )
+        // The pane took a chat the page's card may hold.
+        .onChange(of: store.activeSessionID) { _, sessionID in
+            if let sessionID { pageSideChat.releaseChat(sessionID) }
+        }
     }
 }
