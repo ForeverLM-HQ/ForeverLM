@@ -223,6 +223,10 @@ const destructive = new Set([
   // OpenAI's tool scan (2026-11-08): each of these deletes, replaces or
   // overwrites something the learner made or set, or ends work, a team
   // membership or a connection, in a way calling it again does not undo.
+  // Writing levels for changed text replaces the stale ones; recording a quiz
+  // answer again overwrites its grade.
+  "get_source_levels",
+  "record_course_quiz_result",
   "cancel_source_audio_generation",
   "decide_background_ai_job",
   "update_space_list",
