@@ -6,6 +6,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **Several chats in one pane, each its own tab.** In a pane with Chat, the + at the end of its tabs now offers **New Chat**: a new chat opens as another tab, and the chat you were in keeps its own tab (a reply still coming carries on). Each chat tab is named after its chat; double-click it, or right-click › **Rename…**, to rename the chat. A tab's × closes only that chat, which stays in your Chats. Split the pane to see chats side by side.
 - **Gym Mode on the iPhone.** In the Reader, hold the waveform and choose **Gym Mode**: ForeverLM walks you through the paper out loud, a minute at a time, like a podcast, with the microphone off. Type a follow-up question at the bottom of the screen and it answers once the part it is saying ends, then carries on. See [Voice Mode](/voice-mode#gym-mode).
 - **MCP is free.** Connecting Claude, ChatGPT, Codex or another assistant costs nothing now: no free days, no Early user deal, nothing to buy. AI in the app still runs on your own OpenRouter key at OpenRouter's cost.
 

@@ -166,7 +166,7 @@ struct StudioAssistantSessionStoreTests {
 
     @Test("An unsent draft survives a trip to another chat")
     func unsentDraftIsKeptPerScope() {
-        let store = StudioAssistantSessionStore(managerFactory: { ReviewSessionManager() }, drafts: Self.isolatedDrafts())
+        let store = StudioAssistantSessionStore(managerFactory: { ReviewSessionManager() }, drafts: StudioAssistantSessionStoreTests.isolatedDrafts())
 
         store.setDraft("what was the session 7 weeks ago about?", for: .newChat(notebookID: "acme-nexus"))
         store.setDraft("half a question", for: .session("chat-one"))
@@ -183,7 +183,7 @@ struct StudioAssistantSessionStoreTests {
 
     @Test("Unlinking a Notebook carries the draft to the unlinked composer")
     func draftFollowsNotebookUnlink() {
-        let store = StudioAssistantSessionStore(managerFactory: { ReviewSessionManager() }, drafts: Self.isolatedDrafts())
+        let store = StudioAssistantSessionStore(managerFactory: { ReviewSessionManager() }, drafts: StudioAssistantSessionStoreTests.isolatedDrafts())
         store.setDraft("typed before unlinking", for: .newChat(notebookID: "acme-nexus"))
 
         store.moveDraft(from: .newChat(notebookID: "acme-nexus"), to: .newChat(notebookID: nil))
@@ -194,7 +194,7 @@ struct StudioAssistantSessionStoreTests {
 
     @Test("Deleting a chat drops the draft it was holding")
     func deletingChatDropsItsDraft() {
-        let store = StudioAssistantSessionStore(managerFactory: { ReviewSessionManager() }, drafts: Self.isolatedDrafts())
+        let store = StudioAssistantSessionStore(managerFactory: { ReviewSessionManager() }, drafts: StudioAssistantSessionStoreTests.isolatedDrafts())
         store.activeManager.configureNavigationStateForTesting(sessionID: "chat-one", generationInFlight: false)
         store.setDraft("never sent", for: .session("chat-one"))
         store.setDraft("still mine", for: .newChat(notebookID: nil))
@@ -1007,5 +1007,55 @@ struct StudioSideChatSplitTests {
         chats.prune(keepingPanes: [left])
         #expect(chats.paneCountForTesting == 1)
         #expect(chats.all.count == 2)
+    }
+
+    @Test("+ adds a chat tab; the chat a pane shows fills its tab, and one another tab holds brings that tab forward")
+    func chatTabs() {
+        let store = StudioAssistantSessionStore(managerFactory: { ReviewSessionManager() }, drafts: StudioAssistantSessionStoreTests.isolatedDrafts())
+        // One chat: one tab, following the chat, with nothing stored.
+        store.noteShownSession("chat-a")
+        #expect(store.chatTabs.isEmpty)
+        #expect(store.shownChatTabs.count == 1)
+        #expect(store.isActiveChatTab(store.shownChatTabs[0]))
+
+        store.addChatTab()
+        #expect(store.chatTabs.count == 2)
+        let first = store.chatTabs[0]
+        let second = store.chatTabs[1]
+        #expect(store.activeChatTabID == second.id)
+        #expect(second.sessionID == nil)
+
+        // The new chat's first message gives the tab its chat.
+        store.noteShownSession("chat-b")
+        #expect(store.chatTabs[1].sessionID == "chat-b")
+
+        store.selectChatTab(first.id)
+        #expect(store.activeChatTabID == first.id)
+        store.noteShownSession("chat-a")
+        #expect(store.chatTabs[0].sessionID == "chat-a")
+
+        // A sidebar click on a chat the other tab holds shows that tab.
+        store.noteShownSession("chat-b")
+        #expect(store.activeChatTabID == second.id)
+        #expect(store.chatTabs[0].sessionID == "chat-a")
+
+        // Closing the front tab opens its neighbour's chat, and one tab left
+        // is the pane's sole tab again.
+        #expect(store.closeChatTab(second.id))
+        #expect(store.requestedSessionID == "chat-a")
+        #expect(store.chatTabs.isEmpty)
+        #expect(!store.closeChatTab(first.id))
+    }
+
+    @Test("a deleted chat's tab goes")
+    func deletedChatTabGoes() {
+        let store = StudioAssistantSessionStore(managerFactory: { ReviewSessionManager() }, drafts: StudioAssistantSessionStoreTests.isolatedDrafts())
+        store.addChatTab()
+        store.addChatTab()
+        store.noteShownSession("chat-c")
+        #expect(store.chatTabs.count == 3)
+        store.deleteSession("chat-c")
+        #expect(store.chatTabs.count == 2)
+        #expect(!store.chatTabs.contains { $0.sessionID == "chat-c" })
     }
 }

@@ -190,9 +190,14 @@ final class StudioPaneSwapMenu: NSMenu {
     private let destinations: [StudioPaneSwap.Destination]
     private let onSelect: (StudioPaneSwap.Destination) -> Void
 
+    /// - Parameters:
+    ///   - current: The place the pane shows, ticked; nil ticks none, as the
+    ///     strip's + does, which adds rather than swaps.
+    ///   - title: A name in place of a destination's own.
     init(
         destinations: [StudioPaneSwap.Destination],
-        current: StudioCenterTab,
+        current: StudioCenterTab?,
+        title: (StudioPaneSwap.Destination) -> String? = { _ in nil },
         onSelect: @escaping (StudioPaneSwap.Destination) -> Void
     ) {
         self.destinations = destinations
@@ -200,11 +205,11 @@ final class StudioPaneSwapMenu: NSMenu {
         super.init(title: "")
         autoenablesItems = false
         for (index, destination) in destinations.enumerated() {
-            let item = NSMenuItem(title: destination.title, action: #selector(pick(_:)), keyEquivalent: "")
+            let item = NSMenuItem(title: title(destination) ?? destination.title, action: #selector(pick(_:)), keyEquivalent: "")
             item.target = self
             item.tag = index
             item.image = NSImage(systemSymbolName: destination.systemImage, accessibilityDescription: nil)
-            item.state = destination.isShown(by: current) ? .on : .off
+            item.state = current.map(destination.isShown(by:)) == true ? .on : .off
             addItem(item)
         }
     }

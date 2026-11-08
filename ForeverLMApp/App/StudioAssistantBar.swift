@@ -517,7 +517,108 @@ final class StudioAssistantSessionStore {
         setDraft(text, for: new)
     }
 
+    // MARK: Chat tabs
+
+    /// One chat this pane keeps as a tab of its strip, as a terminal keeps
+    /// several shells in one panel (product owner, 2026-11-08: "i need to be
+    /// able to add more chats", "and i need to be able to rename them too in
+    /// the tab bar"). Nil is a new chat not yet sent.
+    struct ChatTab: Identifiable, Equatable {
+        let id: UUID
+        var sessionID: String?
+    }
+
+    /// The pane's chat tabs once + has made a second; empty while the pane
+    /// holds its one chat, which `shownChatTabs` draws as a single tab.
+    private(set) var chatTabs: [ChatTab] = []
+    private(set) var activeChatTabID: UUID?
+
+    /// The id of the single tab a pane with one chat draws.
+    private static let soleChatTabID = UUID()
+
+    /// The chat tabs the strip draws: never empty.
+    var shownChatTabs: [ChatTab] {
+        chatTabs.isEmpty ? [ChatTab(id: Self.soleChatTabID, sessionID: activeSessionID)] : chatTabs
+    }
+
+    /// Whether `tab` is the one the pane shows.
+    func isActiveChatTab(_ tab: ChatTab) -> Bool {
+        chatTabs.isEmpty || tab.id == activeChatTabID
+    }
+
+    /// Opens a new chat tab beside the active one and makes it active. The
+    /// caller then asks the pane for a blank chat; the chat that was showing
+    /// stays in its own tab, and a turn still running in it carries on.
+    func addChatTab() {
+        if chatTabs.isEmpty {
+            let first = ChatTab(id: UUID(), sessionID: activeSessionID)
+            chatTabs = [first]
+            activeChatTabID = first.id
+        }
+        let tab = ChatTab(id: UUID(), sessionID: nil)
+        let after = chatTabs.firstIndex { $0.id == activeChatTabID } ?? chatTabs.count - 1
+        chatTabs.insert(tab, at: after + 1)
+        activeChatTabID = tab.id
+    }
+
+    /// Shows the chat in `id`'s tab: a saved chat opens through the ordinary
+    /// open request, and a tab not yet sent shows a blank chat.
+    func selectChatTab(_ id: UUID) {
+        guard let tab = chatTabs.first(where: { $0.id == id }), id != activeChatTabID else { return }
+        activeChatTabID = id
+        if let sessionID = tab.sessionID {
+            if sessionID != activeSessionID { requestOpen(sessionID: sessionID) }
+        } else {
+            closeActiveChat()
+        }
+    }
+
+    /// Closes `id`'s tab, the chat staying saved, and shows its neighbour
+    /// when it was in front. False for the pane's last tab, whose × closes
+    /// the place as before.
+    @discardableResult
+    func closeChatTab(_ id: UUID) -> Bool {
+        guard chatTabs.count > 1, let index = chatTabs.firstIndex(where: { $0.id == id }) else { return false }
+        let wasActive = id == activeChatTabID
+        chatTabs.remove(at: index)
+        if wasActive {
+            let next = chatTabs[min(index, chatTabs.count - 1)]
+            // Selecting compares against the active tab, gone now.
+            activeChatTabID = nil
+            selectChatTab(next.id)
+        }
+        if chatTabs.count == 1 {
+            // One chat again: the pane's sole tab follows what it shows.
+            chatTabs = []
+            activeChatTabID = nil
+        }
+        return true
+    }
+
+    /// Keeps the active tab on the chat the pane shows, however it got
+    /// there: a sidebar click, New chat, or a first message giving a new chat
+    /// its id replaces what the tab holds, and a chat another tab already
+    /// holds brings that tab forward instead. The blank a chat passes through
+    /// while it opens is not a chat.
+    func noteShownSession(_ sessionID: String?) {
+        guard !chatTabs.isEmpty else { return }
+        if sessionID == nil, isOpeningChat { return }
+        if let sessionID,
+           let other = chatTabs.first(where: { $0.sessionID == sessionID && $0.id != activeChatTabID }) {
+            activeChatTabID = other.id
+            return
+        }
+        guard let index = chatTabs.firstIndex(where: { $0.id == activeChatTabID }) else { return }
+        if chatTabs[index].sessionID != sessionID { chatTabs[index].sessionID = sessionID }
+    }
+
     func deleteSession(_ sessionID: String) {
+        // A deleted chat's tab goes with it, unless it is the pane's last.
+        for tab in chatTabs where tab.sessionID == sessionID {
+            if !closeChatTab(tab.id), let index = chatTabs.firstIndex(where: { $0.id == tab.id }) {
+                chatTabs[index].sessionID = nil
+            }
+        }
         // Ending its running turn below is no reply that finished: the chat
         // is going, and its unread mark with it.
         ChatReadMarks.shared.forget(sessionID)
@@ -658,6 +759,10 @@ struct StudioDockedAssistantPanel: View {
             ownerWindowID: windowState.id,
             onOpenNewChatBeside: onOpenNewChatBeside
         )
+        // The strip's chat tabs follow the chat this pane shows.
+        .onChange(of: sessionStore.activeSessionID) { _, sessionID in
+            sessionStore.noteShownSession(sessionID)
+        }
         // No top padding: the chat title header owns the top row, sized and
         // lifted to sit level with the reader's docked toolbar next door.
         .padding([.horizontal, .bottom], Self.hostInset)

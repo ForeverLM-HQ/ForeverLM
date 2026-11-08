@@ -1292,6 +1292,8 @@ struct StudioCenterTabDragHandle: NSViewRepresentable {
     var onSplitLeft: () -> Void
     var onSplitRight: () -> Void
     var onClose: () -> Void
+    /// Double-click and the menu's Rename…; nil for a tab with no name of its own.
+    var onRename: (() -> Void)? = nil
 
     func makeNSView(context: Context) -> StudioCenterTabDragHandleView {
         let view = StudioCenterTabDragHandleView()
@@ -1317,6 +1319,7 @@ struct StudioCenterTabDragHandle: NSViewRepresentable {
         view.onSplitLeft = onSplitLeft
         view.onSplitRight = onSplitRight
         view.onClose = onClose
+        view.onRename = onRename
         view.toolTip = "\(title); drag to the side to view side by side"
         view.setAccessibilityLabel(title)
         view.setAccessibilityValue(isActive ? "Selected" : "Not selected")
@@ -1336,6 +1339,7 @@ final class StudioCenterTabDragHandleView: NSView, NSDraggingSource {
     var onSplitLeft: () -> Void = {}
     var onSplitRight: () -> Void = {}
     var onClose: () -> Void = {}
+    var onRename: (() -> Void)?
 
     private var pendingMouseDown: NSEvent?
 
@@ -1384,7 +1388,12 @@ final class StudioCenterTabDragHandleView: NSView, NSDraggingSource {
         switch result {
         case .click:
             WindowMoveLock.unlock(window)
-            onActivate()
+            // A double-click names the tab, as a terminal's does.
+            if event.clickCount >= 2, let onRename {
+                onRename()
+            } else {
+                onActivate()
+            }
         case .drag(let dragged):
             beginTabDrag(with: dragged)
         case .cancelled:
@@ -1432,6 +1441,10 @@ final class StudioCenterTabDragHandleView: NSView, NSDraggingSource {
         menu.autoenablesItems = false
         menu.addItem(menuItem(title: "Split Left", action: #selector(splitLeft), enabled: splitLeftEnabled))
         menu.addItem(menuItem(title: "Split Right", action: #selector(splitRight), enabled: splitRightEnabled))
+        if onRename != nil {
+            menu.addItem(.separator())
+            menu.addItem(menuItem(title: "Rename…", action: #selector(renameTab), enabled: true))
+        }
         menu.addItem(.separator())
         menu.addItem(menuItem(title: "Close Tab", action: #selector(closeTab), enabled: true))
         NSMenu.popUpContextMenu(menu, with: event, for: self)
@@ -1488,6 +1501,10 @@ final class StudioCenterTabDragHandleView: NSView, NSDraggingSource {
 
     @objc private func closeTab() {
         onClose()
+    }
+
+    @objc private func renameTab() {
+        onRename?()
     }
 
     /// A simple pill ghost with the tab title — this view is transparent, so
@@ -3018,15 +3035,24 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
     @Environment(\.studioPanelTrailingOverflow) private var outerTrailingOverflow
 
     let onSessionDropAtEdge: (ReviewSessionTransfer, Bool) -> Void
+    /// The chat store of a chat place in a pane, whose chats the strip draws
+    /// as tabs; nil for every other place.
+    let chatStore: (StudioCenterTab, UUID) -> StudioAssistantSessionStore?
     @ViewBuilder let tabContent: (StudioCenterTab) -> TabContent
 
     init(
         onSessionDropAtEdge: @escaping (ReviewSessionTransfer, Bool) -> Void = { _, _ in },
+        chatStore: @escaping (StudioCenterTab, UUID) -> StudioAssistantSessionStore? = { _, _ in nil },
         @ViewBuilder tabContent: @escaping (StudioCenterTab) -> TabContent
     ) {
         self.onSessionDropAtEdge = onSessionDropAtEdge
+        self.chatStore = chatStore
         self.tabContent = tabContent
     }
+
+    /// The chat a tab's Rename… is naming, and the name typed so far.
+    @State private var renamingChatID: String?
+    @State private var renameText = ""
 
     /// Divider positions between groups as fractions of the center width
     /// (N-1 for N groups). Device-local display state, like the outer panel
@@ -3131,6 +3157,22 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                 if groupFractions.count != max(groups.count - 1, 0) {
                     groupFractions = Self.equalFractions(count: groups.count)
                 }
+            }
+        }
+        // A chat tab's double-click or Rename… renames its chat, as the
+        // sidebar's Rename Chat does.
+        .alert("Rename Chat", isPresented: Binding(
+            get: { renamingChatID != nil },
+            set: { if !$0 { renamingChatID = nil } }
+        )) {
+            TextField("Title", text: $renameText)
+            Button("Cancel", role: .cancel) { renamingChatID = nil }
+            Button("Rename") {
+                let title = renameText.trimmingCharacters(in: .whitespacesAndNewlines)
+                if let id = renamingChatID, !title.isEmpty {
+                    Task { await vm.renameReviewSession(id, title: title) }
+                }
+                renamingChatID = nil
             }
         }
     }
@@ -3242,44 +3284,55 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                 if dropTarget == .tab(group: groupIndex, index: tabIndex) {
                     dropIndicatorCapsule
                 }
-                let isAlone = group.openTabs == [tab]
-                let atCapacity = !windowState.centerTabGroups.canCreateDraggedGroup
-                StudioCenterTabButton(
-                    title: tab.stripTitle(readerShowsVideo: readerShowsVideo, spaceTitle: spaceTitle),
-                    systemImage: tab.stripSystemImage(readerShowsVideo: readerShowsVideo),
-                    isActive: group.activeTab == tab,
-                    action: {
-                        // This pane's copy, when the place stands in several.
-                        windowState.focusedGroupID = group.id
-                        vm.activateCenterTab(tab, in: windowState)
-                    },
-                    payload: StudioCenterTabDragPayload.string(for: tab),
-                    onDragBegan: {
-                        draggingTab = tab
-                        draggingFromGroupID = group.id
-                        dropTarget = nil
-                    },
-                    onDragEnded: {
-                        draggingTab = nil
-                        draggingFromGroupID = nil
-                        dropTarget = nil
-                    },
-                    splitLeftEnabled: isAlone ? groupIndex > 0 : !atCapacity,
-                    splitRightEnabled: isAlone ? groupIndex < windowState.centerTabGroups.groups.count - 1 : !atCapacity,
-                    onSplitLeft: { vm.splitCenterTab(tab, fromGroup: group.id, towardRight: false, in: windowState) },
-                    onSplitRight: { vm.splitCenterTab(tab, fromGroup: group.id, towardRight: true, in: windowState) },
-                    onClose: {
-                        withAnimation(.easeInOut(duration: 0.16)) {
-                            vm.closeCenterTab(tab, fromGroup: group.id, in: windowState)
-                        }
+                let title = tab.stripTitle(readerShowsVideo: readerShowsVideo, spaceTitle: spaceTitle)
+                let systemImage = tab.stripSystemImage(readerShowsVideo: readerShowsVideo)
+                if let store = chatStore(tab, group.id) {
+                    // A chat place is a tab per chat it keeps (`ChatTab`),
+                    // each named after its chat and renamed in place.
+                    ForEach(store.shownChatTabs) { chatTab in
+                        tabButton(
+                            tab, in: group, at: groupIndex, tabIndex: tabIndex,
+                            title: chatTabTitle(chatTab),
+                            systemImage: systemImage,
+                            isActive: group.activeTab == tab && store.isActiveChatTab(chatTab),
+                            action: {
+                                windowState.focusedGroupID = group.id
+                                vm.activateCenterTab(tab, in: windowState)
+                                store.selectChatTab(chatTab.id)
+                            },
+                            onClose: {
+                                if !store.closeChatTab(chatTab.id) {
+                                    withAnimation(.easeInOut(duration: 0.16)) {
+                                        vm.closeCenterTab(tab, fromGroup: group.id, in: windowState)
+                                    }
+                                }
+                            },
+                            onRename: chatTab.sessionID.map { sessionID -> () -> Void in
+                                {
+                                    renameText = vm.reviewSessionLinks.first { $0.id == sessionID }?.title ?? ""
+                                    renamingChatID = sessionID
+                                }
+                            }
+                        )
                     }
-                )
-                .onDrop(of: StudioCenterTabDragPayload.dropTypes, delegate: StudioCenterTabDropDelegate(
-                    target: .tab(group: groupIndex, index: tabIndex),
-                    draggingTab: $draggingTab,
-                    dropTarget: $dropTarget,
-                    perform: { vm.moveCenterTab($0, fromGroup: draggingFromGroupID, toGroup: groupIndex, at: tabIndex, in: windowState) }
-                ))
+                } else {
+                    tabButton(
+                        tab, in: group, at: groupIndex, tabIndex: tabIndex,
+                        title: title,
+                        systemImage: systemImage,
+                        isActive: group.activeTab == tab,
+                        action: {
+                            // This pane's copy, when the place stands in several.
+                            windowState.focusedGroupID = group.id
+                            vm.activateCenterTab(tab, in: windowState)
+                        },
+                        onClose: {
+                            withAnimation(.easeInOut(duration: 0.16)) {
+                                vm.closeCenterTab(tab, fromGroup: group.id, in: windowState)
+                            }
+                        }
+                    )
+                }
             }
             // + adds a tab: what the pane shows now stays one of its tabs
             // (`replaceCenterPane`), so the pane takes the new place in front.
@@ -3293,8 +3346,17 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                 menu: { [vm, windowState] in
                     StudioPaneSwapMenu(
                         destinations: StudioPaneSwap.newTabDestinations,
-                        current: group.activeTab,
+                        // + adds a tab: nothing is ticked, and with a chat
+                        // already here Chat is another one (`addChatTab`).
+                        current: nil,
+                        title: { destination in
+                            destination.tab == .chat && paneChatStore(in: group) != nil ? "New Chat" : nil
+                        },
                         onSelect: { destination in
+                            if destination.tab == .chat, let store = paneChatStore(in: group) {
+                                addChatTab(to: store, in: group)
+                                return
+                            }
                             vm.replaceCenterPane(
                                 at: groupIndex,
                                 with: destination.tab,
@@ -3345,6 +3407,83 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
             : StudioTopBar.centerTabStripHorizontalPadding)
         .padding(.trailing, StudioTopBar.centerTabStripHorizontalPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    /// One tab of a pane's strip: the chip, its drag, its menu and its drop.
+    private func tabButton(
+        _ tab: StudioCenterTab,
+        in group: StudioCenterTabGroups.Group,
+        at groupIndex: Int,
+        tabIndex: Int,
+        title: String,
+        systemImage: String,
+        isActive: Bool,
+        action: @escaping () -> Void,
+        onClose: @escaping () -> Void,
+        onRename: (() -> Void)? = nil
+    ) -> some View {
+        let isAlone = group.openTabs == [tab]
+        let atCapacity = !windowState.centerTabGroups.canCreateDraggedGroup
+        return StudioCenterTabButton(
+            title: title,
+            systemImage: systemImage,
+            isActive: isActive,
+            action: action,
+            payload: StudioCenterTabDragPayload.string(for: tab),
+            onDragBegan: {
+                draggingTab = tab
+                draggingFromGroupID = group.id
+                dropTarget = nil
+            },
+            onDragEnded: {
+                draggingTab = nil
+                draggingFromGroupID = nil
+                dropTarget = nil
+            },
+            splitLeftEnabled: isAlone ? groupIndex > 0 : !atCapacity,
+            splitRightEnabled: isAlone ? groupIndex < windowState.centerTabGroups.groups.count - 1 : !atCapacity,
+            onSplitLeft: { vm.splitCenterTab(tab, fromGroup: group.id, towardRight: false, in: windowState) },
+            onSplitRight: { vm.splitCenterTab(tab, fromGroup: group.id, towardRight: true, in: windowState) },
+            onClose: onClose,
+            onRename: onRename
+        )
+        .onDrop(of: StudioCenterTabDragPayload.dropTypes, delegate: StudioCenterTabDropDelegate(
+            target: .tab(group: groupIndex, index: tabIndex),
+            draggingTab: $draggingTab,
+            dropTarget: $dropTarget,
+            perform: { vm.moveCenterTab($0, fromGroup: draggingFromGroupID, toGroup: groupIndex, at: tabIndex, in: windowState) }
+        ))
+    }
+
+    /// A chat tab's name: its chat's title, "New Chat" before the first
+    /// message, and "Chat" for one whose title has not come yet.
+    private func chatTabTitle(_ chatTab: StudioAssistantSessionStore.ChatTab) -> String {
+        guard let sessionID = chatTab.sessionID else { return "New Chat" }
+        let title = vm.reviewSessionLinks.first { $0.id == sessionID }?.title
+            .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return title.isEmpty ? "Chat" : title
+    }
+
+    /// The pane's chat store when `tab` is a chat place in it, for + to add
+    /// a chat tab to.
+    private func paneChatStore(in group: StudioCenterTabGroups.Group) -> StudioAssistantSessionStore? {
+        group.openTabs.lazy.compactMap { chatStore($0, group.id) }.first
+    }
+
+    /// + › Chat in a pane that already has a chat: another chat tab there,
+    /// blank, the chat it showed kept in its own tab (product owner,
+    /// 2026-11-08: "i need to be able to add more chats").
+    private func addChatTab(to store: StudioAssistantSessionStore, in group: StudioCenterTabGroups.Group) {
+        guard let place = group.openTabs.first(where: { chatStore($0, group.id) != nil }) else { return }
+        windowState.focusedGroupID = group.id
+        vm.activateCenterTab(place, in: windowState)
+        store.addChatTab()
+        if place == .chat {
+            // The window's chat starts a new chat the ordinary way.
+            vm.inWindow(windowState) { vm.requestNewChat() }
+        } else {
+            store.closeActiveChat()
+        }
     }
 
     /// The split button: a menu of places, the pick opening in a new pane to
@@ -4232,6 +4371,7 @@ private struct StudioCenterTabButton: View {
     let onSplitLeft: () -> Void
     let onSplitRight: () -> Void
     let onClose: () -> Void
+    var onRename: (() -> Void)? = nil
 
     @State private var hovering = false
     @ScaledMetric(relativeTo: .caption) private var tabTextSize: CGFloat = 12
@@ -4272,7 +4412,8 @@ private struct StudioCenterTabButton: View {
                 splitRightEnabled: splitRightEnabled,
                 onSplitLeft: onSplitLeft,
                 onSplitRight: onSplitRight,
-                onClose: onClose
+                onClose: onClose,
+                onRename: onRename
             )
             .frame(width: tabWidth, height: 26)
 

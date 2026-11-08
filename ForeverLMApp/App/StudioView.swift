@@ -290,7 +290,8 @@ struct StudioView: View {
                             StudioCenterTabGroupsView(
                                 onSessionDropAtEdge: { transfer, leading in
                                     openChatBeside(transfer.sessionID, atLeadingEdge: leading)
-                                }
+                                },
+                                chatStore: chatStore(for:inPane:)
                             ) { tab in
                                 centerTabContent(tab)
                             }
@@ -302,7 +303,8 @@ struct StudioView: View {
                 StudioCenterTabGroupsView(
                     onSessionDropAtEdge: { transfer, leading in
                         openChatBeside(transfer.sessionID, atLeadingEdge: leading)
-                    }
+                    },
+                    chatStore: chatStore(for:inPane:)
                 ) { tab in
                     centerTabContent(tab)
                 }
@@ -463,6 +465,16 @@ struct StudioView: View {
             vm.openSecondaryChatPane(atLeadingEdge: false)
         }
         sideChatStoreForOpening.requestNewChat(handingOff: request)
+    }
+
+    /// The store whose chats a pane's strip draws as tabs: the window's chat,
+    /// or the side chat of that pane.
+    private func chatStore(for tab: StudioCenterTab, inPane paneID: UUID) -> StudioAssistantSessionStore? {
+        switch tab {
+        case .chat: return studioAssistantSessions
+        case .secondaryChat: return comparisonChats.store(forPane: paneID)
+        default: return nil
+        }
     }
 
     /// A second-chat pane, with the store of the pane it is drawn in.
