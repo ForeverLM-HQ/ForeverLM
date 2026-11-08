@@ -185,10 +185,10 @@ extension MCPDataStore {
     /// usual card, a whole number of one or more is that page of a source's PDF.
     static func cardPageChange(_ value: Any?) throws -> KnowledgeMapFieldChange<Int> {
         guard value != nil, !(value is NSNull) else { return .keep }
-        guard let number = canvasNumber(value), number.isFinite, number >= 0, number.rounded() == number else {
+        guard let number = canvasNumber(value), number >= 0, let page = Int(exactly: number) else {
             throw MCPError.invalidInput("page is a page number from 1, or 0 to show the usual card again.")
         }
-        return number == 0 ? .clear : .set(Int(number))
+        return page == 0 ? .clear : .set(page)
     }
 
     /// The words a call gives a card: nothing leaves them as they are, an empty

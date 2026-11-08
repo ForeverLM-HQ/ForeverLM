@@ -156,7 +156,9 @@ struct SourceImageReference: Hashable, Sendable {
     static func timestampSeconds(_ value: Any?) -> Int? {
         if let seconds = value as? Int { return seconds >= 0 ? seconds : nil }
         if let seconds = value as? Double {
-            return seconds.isFinite && seconds >= 0 ? Int(seconds.rounded(.down)) : nil
+            // `Int(exactly:)`, never `Int(_:)`: a huge or infinite number from a
+            // tool call would trap and take the app down with it.
+            return seconds >= 0 ? Int(exactly: seconds.rounded(.down)) : nil
         }
         guard let raw = (value as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
               !raw.isEmpty else { return nil }
@@ -165,7 +167,7 @@ struct SourceImageReference: Hashable, Sendable {
             let parts = raw.split(separator: ":", omittingEmptySubsequences: false).map { Double($0) }
             guard (2...3).contains(parts.count), parts.allSatisfy({ ($0 ?? -1) >= 0 }) else { return nil }
             let total = parts.compactMap { $0 }.reduce(0) { $0 * 60 + $1 }
-            return Int(total.rounded(.down))
+            return Int(exactly: total.rounded(.down))
         }
         // 1h2m3s, 4m25s, 90s
         var total = 0.0
@@ -187,7 +189,7 @@ struct SourceImageReference: Hashable, Sendable {
             sawUnit = true
         }
         guard sawUnit, digits.isEmpty else { return nil }
-        return Int(total.rounded(.down))
+        return Int(exactly: total.rounded(.down))
     }
 
     private static func parseCrop(_ value: String?) -> PaperFigureRect? {

@@ -408,7 +408,7 @@ extension MCPDataStore {
                 LEFT JOIN source_content sc ON sp.id = sc.source_id
                 WHERE sp.id = ?
             """, params: [resolvedSourceID])
-            guard let r = rows.first else { return "Source not found. Search the library again and use the returned source." }
+            guard let r = rows.first else { throw MCPError.notFound("Source not found. Search the library again and use the returned source.") }
             let title = r["title"] as? String ?? "Untitled"
             let type = r["source_type"] as? String ?? ""
             let words = r["word_count"] as? Int ?? 0
@@ -1842,7 +1842,7 @@ extension MCPDataStore {
     /// which reads the session again before it merges the text in.
     func transcribeMeetingRecording(sourceID: String) async throws -> String {
         guard let article = try await notebookFileStorage.loadSourceWithoutContent(sourceID) else {
-            return "Source not found: \(sourceID)"
+            throw MCPError.notFound("Source not found: \(sourceID)")
         }
         guard article.sourceType == .meeting else {
             throw MCPError.invalidInput("transcribe_meeting_recording requires a meeting session source. Use get_meeting_group to find session source ids.")
@@ -1891,7 +1891,7 @@ extension MCPDataStore {
 
         let store = try knowledgeStore()
         guard var article = try store.loadSourceForSync(sourceID) else {
-            return "Source not found: \(sourceID)"
+            throw MCPError.notFound("Source not found: \(sourceID)")
         }
         guard article.sourceType == .meeting else {
             throw MCPError.invalidInput("attach_meeting_artifact requires a meeting session source. Use get_meeting_group to find session source ids.")

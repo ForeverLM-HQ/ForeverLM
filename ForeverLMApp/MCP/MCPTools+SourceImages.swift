@@ -72,13 +72,6 @@ extension MCPDataStore {
         return value?.isEmpty == false ? value : nil
     }
 
-    private static func integer(_ name: String, in arguments: [String: Any]) -> Int? {
-        if let value = arguments[name] as? Int { return value }
-        if let value = arguments[name] as? Double { return Int(value) }
-        if let value = arguments[name] as? String { return Int(value.trimmingCharacters(in: .whitespaces)) }
-        return nil
-    }
-
     /// What every picture result says about the Markdown line it carries. The
     /// line is how a picture is placed in text that ForeverLM renders — a
     /// review transcript saved with `end_review_session`, a Doc — and it is
@@ -333,8 +326,14 @@ extension MCPDataStore {
             return .failure(error.localizedDescription)
         }
         let query = (arguments["query"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let page = Self.integer("page", in: arguments)
-        let slide = Self.integer("slide", in: arguments)
+        let page: Int?
+        let slide: Int?
+        do {
+            page = try Self.intArgument(arguments, "page")
+            slide = try Self.intArgument(arguments, "slide")
+        } catch {
+            return .failure(error.localizedDescription)
+        }
         let crop = SourceImageReference.cropArgument(arguments["crop"])
         if arguments["crop"] != nil, crop == nil {
             return .failure("crop must be {x, y, width, height}, each a fraction between 0 and 1 of the picture from its top-left corner, staying inside it.")

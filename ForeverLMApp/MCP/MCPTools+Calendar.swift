@@ -452,7 +452,7 @@ extension MCPDataStore {
     fileprivate static func dayInt(_ value: Any?, _ name: String) throws -> Int? {
         guard let value, !(value is NSNull) else { return nil }
         if let int = value as? Int { return int }
-        if let double = value as? Double, double.rounded() == double { return Int(double) }
+        if let double = value as? Double, double.rounded() == double, let int = Int(exactly: double) { return int }
         if let text = value as? String, let int = Int(text.trimmingCharacters(in: .whitespaces)) { return int }
         throw MCPError.invalidInput("\(name) must be a whole number.")
     }

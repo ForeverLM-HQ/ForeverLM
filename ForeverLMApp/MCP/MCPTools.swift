@@ -7686,7 +7686,15 @@ final class MCPDataStore {
     /// hold is refused: until 2026-09-19 `Int(1e30)` trapped in the handler and
     /// one authenticated request took the app, and its tunnel, down.
     static func intArgument(_ arguments: [String: Any], _ key: String) throws -> Int? {
-        guard let value = arguments[key] else { return nil }
+        try intValue(arguments[key], key)
+    }
+
+    /// The one way an MCP argument value becomes an `Int`. JSON numbers arrive
+    /// as `Double`, and `Int(double)` traps on NaN, infinity or a value `Int`
+    /// cannot hold: `1e30` once took the app and its tunnel down (2026-09-19).
+    /// Every tool's integer read, nested values included, comes through here.
+    static func intValue(_ value: Any?, _ key: String) throws -> Int? {
+        guard let value else { return nil }
         if value is NSNull { return nil }
         if let int = value as? Int { return int }
         if let double = value as? Double {

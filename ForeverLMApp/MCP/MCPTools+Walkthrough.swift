@@ -446,7 +446,7 @@ extension MCPDataStore {
                         question: question,
                         answer: PaperWalkthroughQuiz.legacyReferenceAnswer(
                             options: (rawQuiz["options"] as? [String]) ?? [],
-                            correctIndex: Self.walkthroughInteger(rawQuiz["correct_index"]),
+                            correctIndex: try Self.intValue(rawQuiz["correct_index"], "quiz.correct_index"),
                             explanation: (rawQuiz["explanation"] as? String) ?? ""
                         )
                     )
@@ -459,7 +459,7 @@ extension MCPDataStore {
                 figureLabel: raw["figure_label"] as? String,
                 panelLabel: raw["panel_label"] as? String,
                 passage: raw["passage"] as? String,
-                pageNumber: Self.walkthroughInteger(raw["page_number"]),
+                pageNumber: try Self.intValue(raw["page_number"], "page_number"),
                 seconds: SourceImageReference.timestampSeconds(raw["at"])
             )
             if let at = raw["at"], !(at is NSNull), anchor.seconds == nil {
@@ -495,7 +495,7 @@ extension MCPDataStore {
             // step, `animation_conditions` the conditions.
             var reference: WalkthroughAnimationReference?
             let stepHandle = Self.trimmedOrNil(raw["animation"] as? String)
-            let stepNumber = Self.walkthroughInteger(raw["animation_step"])
+            let stepNumber = try Self.intValue(raw["animation_step"], "animation_step")
             let rawConditions = raw["animation_conditions"] as? [String: Any]
             if stepHandle != nil || stepNumber != nil || rawConditions != nil {
                 let artifact: ArtifactRecord
@@ -906,11 +906,5 @@ extension MCPDataStore {
         return held
     }
 
-    private static func walkthroughInteger(_ value: Any?) -> Int? {
-        if let value = value as? Int { return value }
-        if let value = value as? Double { return Int(value) }
-        if let value = value as? String { return Int(value.trimmingCharacters(in: .whitespaces)) }
-        return nil
-    }
 }
 #endif

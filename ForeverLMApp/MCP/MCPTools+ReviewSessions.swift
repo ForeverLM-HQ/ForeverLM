@@ -3380,7 +3380,7 @@ extension MCPDataStore {
             return "Error: provide source_id or url of an existing source."
         }
         guard var article = try store.loadSourceForSync(id) else {
-            return "Source not found: \(id)"
+            throw MCPError.notFound("Source not found: \(id)")
         }
 
         if let restrictToPluginLabel {
@@ -3477,7 +3477,7 @@ extension MCPDataStore {
     func deleteSource(_ sourceID: String) throws -> String {
         let store = try knowledgeStore()
         guard let article = try store.loadSourceForSync(sourceID) else {
-            return "Source not found: \(sourceID)"
+            throw MCPError.notFound("Source not found: \(sourceID)")
         }
         try store.deleteSource(sourceID)
         return "Deleted source '\(article.title)'"
@@ -3486,7 +3486,7 @@ extension MCPDataStore {
     func removeSource(_ sourceID: String) throws -> String {
         let store = try knowledgeStore()
         guard let article = try store.loadSourceForSync(sourceID) else {
-            return "Source not found: \(sourceID)"
+            throw MCPError.notFound("Source not found: \(sourceID)")
         }
 
         try store.dismissSource(url: article.url, title: article.title)
@@ -3506,7 +3506,7 @@ extension MCPDataStore {
     func archiveSource(_ sourceID: String) throws -> String {
         let store = try knowledgeStore()
         guard let article = try store.loadSourceForSync(sourceID) else {
-            return "Source not found: \(sourceID)"
+            throw MCPError.notFound("Source not found: \(sourceID)")
         }
         try store.archiveSource(sourceID)
         return "Archived source '\(article.title)'"
@@ -3523,7 +3523,7 @@ extension MCPDataStore {
         // The work is the store's, shared with the app's own Unarchive action
         // on a planner block's source row; only the sentence is composed here.
         guard let outcome = try store.unarchiveSourceRestoringContent(sourceID) else {
-            return "Source not found: \(sourceID)"
+            throw MCPError.notFound("Source not found: \(sourceID)")
         }
         let note = outcome.rebuiltContent
             ? " and rebuilt its content from the local file"
@@ -3615,7 +3615,7 @@ extension MCPDataStore {
     func setSourceHidden(sourceID: String, hidden: Bool) throws -> String {
         let store = try knowledgeStore()
         guard let article = try store.loadSourceForSync(sourceID) else {
-            return "Source not found: \(sourceID)"
+            throw MCPError.notFound("Source not found: \(sourceID)")
         }
         try store.setSourceHidden(sourceID, hidden: hidden)
         return "\(hidden ? "Hid" : "Unhid") source '\(article.title)'"
@@ -3624,7 +3624,7 @@ extension MCPDataStore {
     func setSourcePaywallStatus(sourceID: String, isPaywalled: Bool) throws -> String {
         let store = try knowledgeStore()
         guard var article = try store.loadSourceForSync(sourceID) else {
-            return "Source not found: \(sourceID)"
+            throw MCPError.notFound("Source not found: \(sourceID)")
         }
         guard [.article, .paper, .unclassified].contains(article.sourceType) else {
             throw MCPError.invalidInput("Paywall status is only available for article, paper, or unclassified sources.")
@@ -3653,7 +3653,7 @@ extension MCPDataStore {
     func setPodcastEpisodeHidden(sourceID: String, hidden: Bool) throws -> String {
         let store = try knowledgeStore()
         guard let article = try store.loadSourceForSync(sourceID) else {
-            return "Source not found: \(sourceID)"
+            throw MCPError.notFound("Source not found: \(sourceID)")
         }
         guard article.sourceType == .podcast else {
             throw MCPError.invalidInput("set_podcast_episode_hidden requires a podcast source.")
@@ -3692,7 +3692,7 @@ extension MCPDataStore {
     func setPodcastEpisodeVisibleOverride(sourceID: String, visible: Bool) throws -> String {
         let store = try knowledgeStore()
         guard let article = try store.loadSourceForSync(sourceID) else {
-            return "Source not found: \(sourceID)"
+            throw MCPError.notFound("Source not found: \(sourceID)")
         }
         guard article.sourceType == .podcast else {
             throw MCPError.invalidInput("set_podcast_episode_visible_override requires a podcast source.")
@@ -3713,7 +3713,7 @@ extension MCPDataStore {
     func setYouTubeVideoVisibleOverride(sourceID: String, visible: Bool) throws -> String {
         let store = try knowledgeStore()
         guard let article = try store.loadSourceForSync(sourceID) else {
-            return "Source not found: \(sourceID)"
+            throw MCPError.notFound("Source not found: \(sourceID)")
         }
         guard article.sourceType == .video, article.isYouTubeURL else {
             throw MCPError.invalidInput("set_youtube_video_visible_override requires a YouTube video source.")
@@ -3726,7 +3726,7 @@ extension MCPDataStore {
         let sourceURL = try validateClientProvidedPath(filePath)
         let store = try knowledgeStore()
         guard var article = try store.loadSourceForSync(sourceID) else {
-            return "Source not found: \(sourceID)"
+            throw MCPError.notFound("Source not found: \(sourceID)")
         }
         guard [.article, .manual, .unclassified].contains(article.sourceType) else {
             throw MCPError.invalidInput("attach_text_file_to_source is available for article, manual, and unclassified sources.")
@@ -3768,7 +3768,7 @@ extension MCPDataStore {
     func attachPDFToPaper(sourceID: String, filePath: String?, pdfURL: String?) async throws -> String {
         let store = try knowledgeStore()
         guard var article = try store.loadSourceForSync(sourceID) else {
-            return "Source not found: \(sourceID)"
+            throw MCPError.notFound("Source not found: \(sourceID)")
         }
         guard article.sourceType == .paper else {
             throw MCPError.invalidInput("attach_pdf_to_paper requires a paper source.")
@@ -4275,15 +4275,15 @@ extension MCPDataStore {
 
         switch groupType {
         case "course":
-            guard var meta = try store.loadCourseGroups()[key] else { return "Course group not found: \(key)" }
+            guard var meta = try store.loadCourseGroups()[key] else { throw MCPError.notFound("Course group not found: \(key)") }
             meta.title = title
             try store.saveCourseGroup(name: key, metadata: meta)
         case "video_playlist":
-            guard var meta = try store.loadVideoPlaylistGroups()[key] else { return "Video playlist not found: \(key)" }
+            guard var meta = try store.loadVideoPlaylistGroups()[key] else { throw MCPError.notFound("Video playlist not found: \(key)") }
             meta.title = title
             try store.saveVideoPlaylistGroup(id: key, metadata: meta)
         case "meeting":
-            guard var meta = try store.loadMeetingGroups()[key] else { return "Meeting group not found: \(key)" }
+            guard var meta = try store.loadMeetingGroups()[key] else { throw MCPError.notFound("Meeting group not found: \(key)") }
             meta.title = title
             try store.saveMeetingGroup(name: key, metadata: meta)
         default:
@@ -4300,15 +4300,15 @@ extension MCPDataStore {
 
         switch groupType {
         case "course":
-            guard var meta = try store.loadCourseGroups()[key] else { return "Course group not found: \(key)" }
+            guard var meta = try store.loadCourseGroups()[key] else { throw MCPError.notFound("Course group not found: \(key)") }
             meta.isHidden = hidden
             try store.saveCourseGroup(name: key, metadata: meta)
         case "video_playlist":
-            guard var meta = try store.loadVideoPlaylistGroups()[key] else { return "Video playlist not found: \(key)" }
+            guard var meta = try store.loadVideoPlaylistGroups()[key] else { throw MCPError.notFound("Video playlist not found: \(key)") }
             meta.isHidden = hidden
             try store.saveVideoPlaylistGroup(id: key, metadata: meta)
         case "meeting":
-            guard var meta = try store.loadMeetingGroups()[key] else { return "Meeting group not found: \(key)" }
+            guard var meta = try store.loadMeetingGroups()[key] else { throw MCPError.notFound("Meeting group not found: \(key)") }
             meta.isHidden = hidden
             try store.saveMeetingGroup(name: key, metadata: meta)
         default:
@@ -4487,7 +4487,7 @@ extension MCPDataStore {
         guard !id.isEmpty else { throw MCPError.invalidInput("lecture_id is required.") }
         guard !newTitle.isEmpty else { throw MCPError.invalidInput("title is required.") }
         guard var lecture = try store.loadCourseLectures().first(where: { $0.id == id }) else {
-            return "Lecture not found: \(id)"
+            throw MCPError.notFound("Lecture not found: \(id)")
         }
         lecture.title = newTitle
         try store.saveCourseLecture(lecture)
@@ -4502,7 +4502,7 @@ extension MCPDataStore {
         guard !lecture.isEmpty else { throw MCPError.invalidInput("lecture_id is required.") }
         guard !source.isEmpty else { throw MCPError.invalidInput("source_id is required.") }
         guard let lectureRecord = try store.loadCourseLectures().first(where: { $0.id == lecture }) else {
-            return "Lecture not found: \(lecture)"
+            throw MCPError.notFound("Lecture not found: \(lecture)")
         }
 
         let existingItems = try store.loadCourseLectureItems().filter { $0.lectureId == lecture }
@@ -4566,7 +4566,7 @@ extension MCPDataStore {
         let store = try knowledgeStore()
         let id = sourceID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !id.isEmpty else { throw MCPError.invalidInput("source_id is required.") }
-        guard var article = try store.loadSourceForSync(id) else { return "Source not found: \(id)" }
+        guard var article = try store.loadSourceForSync(id) else { throw MCPError.notFound("Source not found: \(id)") }
         guard article.sourceType == .paper else {
             throw MCPError.invalidInput("extract_paper_metadata requires a paper source.")
         }
@@ -4598,7 +4598,7 @@ extension MCPDataStore {
         let store = try knowledgeStore()
         let id = sourceID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !id.isEmpty else { throw MCPError.invalidInput("source_id is required.") }
-        guard var article = try store.loadSourceForSync(id) else { return "Source not found: \(id)" }
+        guard var article = try store.loadSourceForSync(id) else { throw MCPError.notFound("Source not found: \(id)") }
         guard let config = KeychainService.resolveConfig(for: .articleMetadata) else {
             return "AI metadata extraction skipped: sign in with Apple in ForeverLM."
         }
@@ -4662,7 +4662,7 @@ extension MCPDataStore {
         let store = try knowledgeStore()
         let id = sourceID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !id.isEmpty else { throw MCPError.invalidInput("source_id is required.") }
-        guard let article = try store.loadSourceForSync(id) else { return "Source not found: \(id)" }
+        guard let article = try store.loadSourceForSync(id) else { throw MCPError.notFound("Source not found: \(id)") }
 
         let lowerURL = article.url.lowercased()
         let isYouTube = lowerURL.contains("youtube.com") || lowerURL.contains("youtu.be")
@@ -4685,7 +4685,7 @@ extension MCPDataStore {
         case .alreadyInLibrary(let title):
             return "Found \(found), but the library already holds it as \"\(title)\"; '\(article.title)' was marked as that duplicate."
         case .sourceGone:
-            return "Source not found in the open library: \(id)"
+            throw MCPError.notFound("Source not found in the open library: \(id)")
         }
     }
 
@@ -4711,7 +4711,7 @@ extension MCPDataStore {
     @MainActor
     private static func resolvePodcastMatchInTheApp(sourceID id: String, confirm: Bool) async throws -> String {
         let studio = try AppModelBridge.requireStudio()
-        guard let article = studio.articles.first(where: { $0.id == id }) else { return "Source not found: \(id)" }
+        guard let article = studio.articles.first(where: { $0.id == id }) else { throw MCPError.notFound("Source not found: \(id)") }
         // A row left asking to confirm a match nobody holds — a relaunch drops
         // a staged match — can still be rejected back to the queue.
         guard let match = studio.heldPodcastMatch(for: id)?.info else {
@@ -4914,7 +4914,7 @@ extension MCPDataStore {
         let store = try knowledgeStore()
         let id = sourceID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !id.isEmpty else { throw MCPError.invalidInput("source_id is required.") }
-        guard var article = try store.loadSourceForSync(id) else { return "Source not found: \(id)" }
+        guard var article = try store.loadSourceForSync(id) else { throw MCPError.notFound("Source not found: \(id)") }
         let route = Self.refetchRoute(for: article)
         // A podcast's address is an Apple episode, which is not fetched over
         // http(s), or the episode's page, whose text is never its transcript.
@@ -5847,7 +5847,7 @@ extension MCPDataStore {
         let article: StudioArticle
         switch start {
         case .notFound:
-            return "Source not found: \(sourceID)"
+            throw MCPError.notFound("Source not found: \(sourceID)")
         case .cached(let cached):
             return "Transcript already cached for '\(cached.title)' (\(cached.wordCount ?? 0) words)"
         case .download(let found):
@@ -5948,7 +5948,7 @@ extension MCPDataStore {
     func fetchSourceFromArchive(sourceID: String) async throws -> String {
         let store = try knowledgeStore()
         guard var article = try store.loadSourceForSync(sourceID) else {
-            return "Source not found: \(sourceID)"
+            throw MCPError.notFound("Source not found: \(sourceID)")
         }
         guard [.article, .manual, .unclassified].contains(article.sourceType) else {
             throw MCPError.invalidInput("fetch_source_from_archive is available for article, manual, and unclassified sources.")
@@ -5970,7 +5970,7 @@ extension MCPDataStore {
     func clearSourceDerivedData(_ sourceID: String) throws -> String {
         let store = try knowledgeStore()
         guard let article = try store.loadSourceForSync(sourceID) else {
-            return "Source not found: \(sourceID)"
+            throw MCPError.notFound("Source not found: \(sourceID)")
         }
         try store.clearSourceDerivedData(sourceID)
         return "Cleared cached text and embeddings for '\(article.title)'"
@@ -5979,7 +5979,7 @@ extension MCPDataStore {
     func listSourceActions(_ sourceID: String) throws -> String {
         let store = try knowledgeStore()
         guard let article = try store.loadSourceForSync(sourceID) else {
-            return "Source not found: \(sourceID)"
+            throw MCPError.notFound("Source not found: \(sourceID)")
         }
 
         var lines = [
@@ -6077,7 +6077,7 @@ extension MCPDataStore {
         try Self.requirePlausibleSourceAuthor(author)
         let store = try knowledgeStore()
         guard var article = try store.loadSourceForSync(sourceID) else {
-            return "Source not found: \(sourceID)"
+            throw MCPError.notFound("Source not found: \(sourceID)")
         }
         var changedFields: [String] = []
 

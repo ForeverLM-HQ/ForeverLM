@@ -36,13 +36,13 @@ extension MCPDataStore {
             var scopedGoal: [String: Any]?
             if let filterGoalID {
                 if screenRecordHiddenGoalIDs.contains(filterGoalID) {
-                    return "Goal or Notebook not found: \(filterGoalID)"
+                    throw MCPError.notFound("Goal or Notebook not found: \(filterGoalID)")
                 }
                 scopedGoal = try query(db, """
                     SELECT id, title, status FROM learning_goals WHERE id = ? AND kind = 'companion' LIMIT 1
                 """, params: [filterGoalID]).first
                 if scopedGoal == nil {
-                    return "Goal or Notebook not found: \(filterGoalID)"
+                    throw MCPError.notFound("Goal or Notebook not found: \(filterGoalID)")
                 }
             }
 

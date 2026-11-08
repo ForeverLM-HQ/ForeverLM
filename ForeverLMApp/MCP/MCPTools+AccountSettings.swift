@@ -652,13 +652,13 @@ extension MCPDataStore {
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             if ["no_limit", "no limit", "none", "off"].contains(trimmed) { return nil }
             let digits = trimmed.hasPrefix("$") ? String(trimmed.dropFirst()) : trimmed
-            guard let number = Double(digits), number == number.rounded(), options.contains(Int(number)) else { throw refusal }
-            return Int(number)
+            guard let number = Double(digits), let amount = Int(exactly: number), options.contains(amount) else { throw refusal }
+            return amount
         }
         if let number = value as? NSNumber, !(value is Bool) {
             let double = number.doubleValue
-            guard double == double.rounded(), options.contains(Int(double)) else { throw refusal }
-            return Int(double)
+            guard let amount = Int(exactly: double), options.contains(amount) else { throw refusal }
+            return amount
         }
         throw refusal
     }

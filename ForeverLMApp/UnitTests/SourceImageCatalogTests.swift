@@ -82,6 +82,12 @@ struct SourceImageReferenceTests {
         #expect(SourceImageReference.timestampSeconds("soon") == nil)
         #expect(SourceImageReference.timestampSeconds("25") == 25)
         #expect(SourceImageReference.timestampSeconds(nil) == nil)
+        // Numbers `Int` cannot hold are refused, never trapped on.
+        #expect(SourceImageReference.timestampSeconds(1e30) == nil)
+        #expect(SourceImageReference.timestampSeconds(Double.infinity) == nil)
+        #expect(SourceImageReference.timestampSeconds(Double.nan) == nil)
+        #expect(SourceImageReference.timestampSeconds("1e30") == nil)
+        #expect(SourceImageReference.timestampSeconds("1e30:00") == nil)
     }
 
     @Test("A tool call's crop reads as an object or the reference's string, and one off the picture is refused")

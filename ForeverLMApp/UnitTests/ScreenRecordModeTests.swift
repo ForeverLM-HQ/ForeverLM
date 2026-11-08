@@ -1232,7 +1232,12 @@ struct ScreenRecordNarrowedAnswerTests {
             #expect(!text.contains("kept-reading"), "a hidden placement is not listed")
             let progress = try payload(text)["progress"] as? [String: Any]
             #expect(progress?["total_count"] as? Int == 1, "hidden placements are not counted either")
-            #expect(try store.getSchedule(goalID: privateNotebook.id) == "Goal or Notebook not found: \(privateNotebook.id)")
+            // A hidden Notebook answers exactly as one that does not exist.
+            #expect {
+                try store.getSchedule(goalID: privateNotebook.id)
+            } throws: { error in
+                error.localizedDescription == "Goal or Notebook not found: \(privateNotebook.id)"
+            }
             #expect(try items(try store.getSchedule(goalID: filmed.id)).count == 1)
             #expect(MCPToolRegistry.screenRecordNarrowedToolNames.contains("get_schedule"))
         }

@@ -109,6 +109,27 @@ private actor MCPTestSignal {
     var hasSignaled: Bool { isSet }
 }
 
+@Suite("MCP integer arguments")
+struct MCPIntegerArgumentTests {
+    @Test("Whole numbers read as Int from a number, a whole decimal or a string")
+    func readsWholeNumbers() throws {
+        #expect(try MCPDataStore.intValue(7, "page") == 7)
+        #expect(try MCPDataStore.intValue(7.0, "page") == 7)
+        #expect(try MCPDataStore.intValue(" 7 ", "page") == 7)
+        #expect(try MCPDataStore.intValue(nil, "page") == nil)
+        #expect(try MCPDataStore.intValue(NSNull(), "page") == nil)
+        #expect(try MCPDataStore.intArgument(["page": 12.0], "page") == 12)
+    }
+
+    /// `Int(1e30)` traps; one such call once took the app and its tunnel down.
+    @Test("A number Int cannot hold is refused, not trapped on", arguments: [1e30, -1e30, Double.infinity, Double.nan, 9.3e18])
+    func refusesUnrepresentableNumbers(_ value: Double) {
+        #expect(throws: MCPError.self) { try MCPDataStore.intValue(value, "page") }
+        #expect(throws: MCPError.self) { try MCPDataStore.intArgument(["page": value], "page") }
+        #expect(throws: MCPError.self) { try MCPDataStore.cardPageChange(value) }
+    }
+}
+
 @Suite("MCP OAuth consent labels")
 struct MCPOAuthConsentLabelTests {
     @Test("Claude dynamic clients use a friendly name")
@@ -3105,13 +3126,19 @@ struct MCPDataStoreTests {
         #expect(!list.contains("Delete Me"))
     }
 
-    @Test("deleteSource returns message for unknown ID")
-    func deleteSourceNotFound() throws {
+    @Test("deleteSource of an unknown ID is an error, so the call reports isError")
+    func deleteSourceNotFound() async throws {
         let (store, tmpPath) = try makeStore()
         defer { cleanup(tmpPath) }
 
-        let result = try store.deleteSource("nonexistent-id")
-        #expect(result.contains("Source not found"))
+        #expect(throws: MCPError.self) { try store.deleteSource("nonexistent-id") }
+        // Before, the not-found text came back as a success and posted a data reload.
+        let outcome = await MCPToolRegistry(store: store).callToolDetailed(
+            name: "delete_source",
+            arguments: ["source_id": "nonexistent-id"]
+        )
+        #expect(outcome.isError)
+        #expect(outcome.text == "Error: Source not found: nonexistent-id")
     }
 
     // MARK: - update_source
@@ -3263,19 +3290,20 @@ struct MCPDataStoreTests {
         #expect(try store.knowledgeStore().loadSourceReviewGuide("stale-review-guide-source") == nil)
     }
 
-    @Test("updateSource returns message for unknown ID")
+    @Test("updateSource of an unknown ID is an error")
     func updateSourceNotFound() throws {
         let (store, tmpPath) = try makeStore()
         defer { cleanup(tmpPath) }
 
-        let result = try store.updateSource(
-            sourceID: "nonexistent",
-            title: "X",
-            author: nil,
-            parentGroup: nil,
-            content: nil
-        )
-        #expect(result.contains("Source not found"))
+        #expect(throws: MCPError.self) {
+            try store.updateSource(
+                sourceID: "nonexistent",
+                title: "X",
+                author: nil,
+                parentGroup: nil,
+                content: nil
+            )
+        }
     }
 
     @Test("updateSource with no fields returns no-op message")
@@ -9494,7 +9522,7 @@ struct MCPDataStoreTests {
 
         #expect(payload["schedules"] == nil)
         #expect(tags?.compactMap { $0["id"] as? String } == ["goal-now"])
-        #expect(try store.getSchedule(goalID: "goal-plain") == "Goal or Notebook not found: goal-plain")
+        #expect(throws: MCPError.self) { try store.getSchedule(goalID: "goal-plain") }
     }
 
     @Test("Google Docs interface placeholders are not exposed as source content")

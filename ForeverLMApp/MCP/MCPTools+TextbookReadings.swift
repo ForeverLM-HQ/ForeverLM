@@ -168,14 +168,12 @@ extension MCPDataStore {
         guard !(raw is Bool), let number = raw as? NSNumber else {
             throw MCPError.invalidInput("Reading \(reading)'s \(field) must be a positive integer.")
         }
-        let value = number.doubleValue
-        guard value.isFinite,
-              value >= 1,
-              value <= Double(Int.max),
-              value.rounded(.towardZero) == value else {
+        // `Int(exactly:)` refuses NaN, infinity, fractions and 2^63, which
+        // `Double(Int.max)` rounds up to and `Int(_:)` would trap on.
+        guard let value = Int(exactly: number.doubleValue), value >= 1 else {
             throw MCPError.invalidInput("Reading \(reading)'s \(field) must be a positive integer.")
         }
-        return Int(value)
+        return value
     }
 
     // MARK: add_textbook_to_course
