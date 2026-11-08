@@ -28,6 +28,15 @@ enum AIModelDefaults {
     /// recommended free pick (product owner, 2026-09-27).
     static let openRouterFreeRouter = "openrouter/free"
 
+    /// Voice mode (`RealtimeVoiceController`): OpenAI Realtime, the one model
+    /// not reached through OpenRouter, on ForeverLM's own OpenAI credits
+    /// (product owner, 2026-11-07). The proxy accepts this and the -mini model.
+    static let realtimeVoiceModel = "gpt-realtime-2.1"
+    /// Streams the learner's words while they speak; the second is tried once
+    /// if OpenAI refuses the first, so a renamed model never stops a talk.
+    static let realtimeVoiceTranscription = "gpt-realtime-whisper"
+    static let realtimeVoiceTranscriptionFallback = "gpt-4o-mini-transcribe"
+
     /// Stable fixture used only by the opt-in live API test. Production read-
     /// aloud preparation resolves its `AITask` route from synced Settings.
     static let paperTextToSpeechPreparation = "openai/gpt-5.6-luna"

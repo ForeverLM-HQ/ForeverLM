@@ -17,14 +17,14 @@ import Foundation
 /// What voice mode runs on. One model, one voice: nothing for the learner to
 /// pick, and nothing on the learner's bill.
 enum RealtimeVoiceDefaults {
-    static let model = "gpt-realtime-2.1"
+    static let model = AIModelDefaults.realtimeVoiceModel
     /// OpenAI's recommended voice for the realtime models.
     static let voice = "marin"
     /// Streams the learner's words while they speak, for the caption and the
     /// saved transcript. `fallbackTranscriptionModel` is tried once if OpenAI
     /// refuses this one, so a renamed model never stops a conversation.
-    static let transcriptionModel = "gpt-realtime-whisper"
-    static let fallbackTranscriptionModel = "gpt-4o-mini-transcribe"
+    static let transcriptionModel = AIModelDefaults.realtimeVoiceTranscription
+    static let fallbackTranscriptionModel = AIModelDefaults.realtimeVoiceTranscriptionFallback
     /// Both directions are 24 kHz mono PCM16 on the wire.
     static let sampleRate = 24_000.0
 
