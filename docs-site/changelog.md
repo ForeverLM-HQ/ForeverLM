@@ -7,6 +7,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 ## Unreleased
 
 - **An article a publisher's check blocked takes its PDF.** Get past the check in the Reader and download the PDF there (the site's own button, or **Download PDF** in the **⋯** menu), or use **Attach PDF File…** on the article's right-click menu: the PDF becomes the article's text and the Reader shows it. The article stays an article.
+- **Voice mode finds meetings and reaches the rest of ForeverLM.** Ask for a meeting by its series and day ("the October 25th journal club session") and the assistant finds it, even when it hears the name slightly wrong. On the Mac it can also read your meeting series, notebooks, Pages, cards, courses, highlights, ideas and past chats. See [Voice Mode](/voice-mode#talk-to-foreverlm).
 - **Chat can act on the page open in the Reader.** Ask it to click, type or read on "this page" and it works in the Reader you are looking at, with the sign-ins and checks you already passed there: for example, clicking a publisher's download button so the PDF attaches.
 
 ## 0.200.0 (build 280) — 2026-11-08

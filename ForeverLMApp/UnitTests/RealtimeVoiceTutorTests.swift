@@ -286,6 +286,95 @@ struct RealtimeVoiceTutorTests {
         #expect(RealtimeVoiceLibrarySearch.toolOutput([]).contains("Nothing in the library matches"))
     }
 
+    @Test("A meeting is found by its series and a spoken day, even with the name misheard")
+    func meetingBySeriesAndDay() {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        func day(_ y: Int, _ m: Int, _ d: Int) -> Date {
+            calendar.date(from: DateComponents(year: y, month: m, day: d))!
+        }
+        let now = day(2026, 11, 8)
+        let items = [
+            RealtimeVoiceLibraryItem(id: "n25", title: "2026/10/25", sourceType: "meeting", byline: nil,
+                                     addedAt: day(2026, 10, 25), lastAttentionAt: nil, group: "Riverbend Group Nexus"),
+            RealtimeVoiceLibraryItem(id: "n18", title: "2026/10/18", sourceType: "meeting", byline: nil,
+                                     addedAt: day(2026, 10, 18), lastAttentionAt: nil, group: "Riverbend Group Nexus"),
+            RealtimeVoiceLibraryItem(id: "s25", title: "Weekly sync", sourceType: "meeting", byline: nil,
+                                     addedAt: day(2026, 10, 25), lastAttentionAt: nil, group: "Example Standup"),
+            RealtimeVoiceLibraryItem(id: "p", title: "Nexus of Signalling", sourceType: "paper", byline: nil,
+                                     addedAt: day(2026, 10, 25), lastAttentionAt: nil),
+        ]
+        let ranked = RealtimeVoiceLibrarySearch.rank(
+            "the Riverbend group session on October 25th", in: items, now: now, calendar: calendar
+        )
+        #expect(ranked.first?.id == "n25")
+        #expect(ranked.contains { $0.id == "n18" })
+        // Heard one letter off ("riverbent"), the series still lands.
+        let misheard = RealtimeVoiceLibrarySearch.rank("riverbent session 25 october", in: items, now: now, calendar: calendar)
+        #expect(misheard.first?.id == "n25")
+        // A paper added that day has no day of its own to match.
+        #expect(!RealtimeVoiceLibrarySearch.rank("October 25", in: items, now: now, calendar: calendar).contains { $0.id == "p" })
+        let output = RealtimeVoiceLibrarySearch.toolOutput([items[0]], now: now, calendar: calendar)
+        #expect(output.contains(#""series":"Riverbend Group Nexus""#))
+        #expect(output.contains("Sunday 25 October 2026"))
+    }
+
+    @Test("A spoken day is read from the words that name it")
+    func spokenDates() {
+        let date = RealtimeVoiceLibrarySearch.spokenDate(in: "quiz me on the October 25th session")
+        #expect(date?.month == 10)
+        #expect(date?.day == 25)
+        #expect(date?.year == nil)
+        #expect(date?.words == ["october", "25th"])
+        #expect(RealtimeVoiceLibrarySearch.spokenDate(in: "3 Nov 2026")?.year == 2026)
+        #expect(RealtimeVoiceLibrarySearch.spokenDate(in: "the March talk")?.day == nil)
+        #expect(RealtimeVoiceLibrarySearch.spokenDate(in: "may I ask about mitochondria") == nil)
+        #expect(RealtimeVoiceLibrarySearch.spokenDate(in: "may 4") != nil)
+        #expect(RealtimeVoiceLibrarySearch.oneEditApart("norm", "norn"))
+        #expect(RealtimeVoiceLibrarySearch.oneEditApart("nexus", "nexs"))
+        #expect(!RealtimeVoiceLibrarySearch.oneEditApart("norm", "norm"))
+        #expect(!RealtimeVoiceLibrarySearch.oneEditApart("norm", "nexus"))
+    }
+
+    #if os(macOS)
+    @Test("A meeting series is told by day and talk, and named through a merge")
+    func meetingSeriesRows() {
+        #expect(MacRealtimeAssistant.Toolbox.talkTitle("2026-10-25 - [Notes] - JC: The Rise of X - A. Speaker")
+            == "JC: The Rise of X - A. Speaker")
+        #expect(MacRealtimeAssistant.Toolbox.talkTitle("Plain title") == "Plain title")
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
+        let date = calendar.date(from: DateComponents(year: 2026, month: 10, day: 25))!
+        let row = MacRealtimeAssistant.Toolbox.meetingSessionRow([
+            "source_id": "src_1",
+            "title": "2026/10/25",
+            "date_added": date.timeIntervalSinceReferenceDate,
+            "state": "ready",
+            "artifacts": [["kind": "notes", "title": "2026-10-25 - [Notes] - Talk Title - A. Speaker"]],
+        ], calendar: calendar)
+        #expect(row["source_id"] as? String == "src_1")
+        #expect(row["title"] as? String == "Talk Title - A. Speaker")
+        #expect(row["date"] as? String == "Sunday 25 October 2026")
+        #expect(row["state"] == nil)
+        let groups = [
+            "old": MeetingMetadata(title: "Old name", mergedIntoGroupID: "new"),
+            "new": MeetingMetadata(title: "Riverbend Group Nexus"),
+        ]
+        #expect(MacRealtimeAssistant.Toolbox.meetingSeriesTitle("old", in: groups) == "Riverbend Group Nexus")
+        #expect(MacRealtimeAssistant.Toolbox.meetingSeriesTitle(nil, in: groups) == nil)
+    }
+
+    @Test("Voice finds the app's other tools, and only ones that read")
+    func appToolCatalog() {
+        let catalog = MacRealtimeAssistant.Toolbox.appToolCatalog()
+        #expect(!catalog.isEmpty)
+        #expect(catalog.allSatisfy { MCPToolRegistry.isReadOnlyTool($0.name) })
+        #expect(!catalog.contains { $0.name == "delete_source" })
+        #expect(catalog.contains { $0.name == "list_notebook_sources" })
+        #expect(MacRealtimeAssistant.Toolbox.findAppTools("notebook sources", catalog: catalog).contains("list_notebook_sources"))
+    }
+    #endif
+
     @Test("An opened source is handed over whole, or its opening with a note, and searched")
     func openedSources() {
         let opened = RealtimeVoiceOpenedSources()

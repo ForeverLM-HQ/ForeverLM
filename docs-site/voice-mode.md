@@ -30,6 +30,10 @@ The assistant is the same conversation about you instead of one source. When it 
 
 Ask it what to work on next, to go over your day, or about a paper you read last week. It can find any source in your library, open it, and talk about it or quiz you on it, and it looks things up again when the picture it started with is not enough. It never changes your library, plan or calendar.
 
+Name a source the way you would say it: its title, its author, or, for a meeting, its series and the day it happened ("quiz me on the October 25th journal club session"). A name it hears slightly wrong still finds the right one.
+
+On the Mac it can read everything else in ForeverLM too: your recurring meetings and each session's talk, a notebook's sources and notes, your Pages, cards, courses, highlights, ideas, open questions and past chats. It only reads; to change something, ask in a typed chat.
+
 - **iPhone:** the **waveform** at the top of Home.
 - **Mac:** the **waveform** at the bottom of the icon strip on the left of every window, or **Chat › Talk to ForeverLM**.
 - **CarPlay:** open ForeverLM and start talking. The assistant greets you with one useful thing, such as what is next in your plan or the paper you were last into, and keeps every answer short enough to follow while driving.
