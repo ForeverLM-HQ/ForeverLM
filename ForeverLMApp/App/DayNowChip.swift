@@ -223,6 +223,9 @@ private struct DayNowPopover: View {
     /// This quarter's plan, read each time the popover opens; nil until
     /// read, and in a team's library, which keeps none.
     @State private var plans: PlanGlance?
+    /// Ticks clicked and not yet read back from the quarter's Page, by
+    /// deliverable, so a click shows at once.
+    @State private var pendingTicks: [String: Bool] = [:]
 
     var body: some View {
         VStack(alignment: .leading, spacing: StudioDesign.Spacing.medium) {
@@ -337,7 +340,7 @@ private struct DayNowPopover: View {
                 }
             }
             if model.liveBout == nil {
-                action("Start Pomodoro Timer…", identifier: "studio.now.startBout", prominent: event.joinLink == nil) {
+                action("Start Timer…", identifier: "studio.now.startBout", prominent: event.joinLink == nil) {
                     // The block's notebook — the one it names, or the one made
                     // from it this session, never a title match — and its
                     // sources as the library holds them.
@@ -346,6 +349,7 @@ private struct DayNowPopover: View {
                     dismiss()
                     model.requestStart(model.startRequest(forEvent: event, notebookID: notebookID, sourceIDs: sourceIDs))
                 }
+                .help("Start a Pomodoro timer for this block")
             }
             action("Open in Calendar", identifier: "studio.now.openEvent") {
                 AppleCalendarService.openInCalendarApp(event)
@@ -431,7 +435,14 @@ private struct DayNowPopover: View {
             let list = VStack(alignment: .leading, spacing: 0) {
                 ForEach(rows) { row in
                     switch row {
-                    case .event(let event): scheduleEventRow(event, isNow: state.currentEvent?.occurrenceKey == event.occurrenceKey)
+                    case .event(let event):
+                        // The heading above is this event; the clock's line
+                        // stands in its place rather than a second copy.
+                        if state.currentEvent?.occurrenceKey == event.occurrenceKey {
+                            scheduleNowRow
+                        } else {
+                            scheduleEventRow(event, isNow: false)
+                        }
                     case .now: scheduleNowRow
                     }
                 }
@@ -442,8 +453,7 @@ private struct DayNowPopover: View {
                         ScrollView(.vertical) { list }
                             .frame(height: CGFloat(scheduleVisibleRows) * scheduleRowHeight * uiZoomScale)
                             .onAppear {
-                                let anchor = state.currentEvent?.occurrenceKey ?? DayNowScheduleRow.now.id
-                                proxy.scrollTo(anchor, anchor: .center)
+                                proxy.scrollTo(DayNowScheduleRow.now.id, anchor: .center)
                             }
                     }
                 } else {
@@ -514,65 +524,219 @@ private struct DayNowPopover: View {
         .id(DayNowScheduleRow.now.id)
     }
 
-    // MARK: The quarter the day serves
+    // MARK: The plan the day serves
 
-    /// The quarter's objectives, under the day's events: what the week's and
-    /// the day's blocks are for, as Newport plans it (product owner,
+    /// The week's deliverables, then the quarter's objectives with the hours
+    /// the week's calendar gives each, under the day's events (product owner,
     /// 2026-11-07, at this popover: "i need to see the quarterly plan etc
-    /// also here"). The week and the day are the calendar drawn above. The
-    /// quarter's heading opens its Page; a quarter not planned yet starts the
-    /// chat that plans it.
+    /// also here"; 2026-11-08: "ultimately, I don't just want Q4 goals. Maybe
+    /// there should be weekly goals that show up in there. With clear
+    /// deliverables"). The deliverables are task lines in the quarter's Page
+    /// (`PlanWeekDeliverables`); a box ticks the line there. An objective with
+    /// no hours this week shows it, so a neglected one is seen on Monday, not
+    /// at the quarter's end. The quarter's heading opens its Page; a quarter
+    /// or a week not planned yet starts the chat that plans it.
     @ViewBuilder
     private var plansSection: some View {
         if let plans {
-            VStack(alignment: .leading, spacing: 4) {
-                Button {
-                    if plans.exists {
-                        let quarter = plans.quarter
-                        let window = windowState
-                        Task { await vm.openPlan(quarter, in: window) }
-                    } else {
-                        vm.requestPlanDayChat(request: ReviewSlashCommandParser.planDayRequest("quarter"))
-                    }
-                    dismiss()
-                } label: {
-                    HStack(spacing: 8) {
-                        Image(systemName: "target")
-                            .zoomedSystemFont(size: 12, weight: .medium)
-                            .foregroundStyle(Color.accentColor)
-                            .frame(width: 16)
-                        Text(plans.quarter.title)
-                            .zoomedSystemFont(size: 12.5, weight: .semibold)
-                            .lineLimit(1)
-                        Spacer(minLength: 8)
-                        if !plans.exists {
-                            Text("Plan in Chat…")
-                                .zoomedSystemFont(size: 11)
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                    .padding(.horizontal, menuRowInset)
-                    .padding(.vertical, 4)
-                    .contentShape(Rectangle())
+            VStack(alignment: .leading, spacing: StudioDesign.Spacing.medium) {
+                if plans.exists, let week = plans.week {
+                    weekSection(week, plans: plans)
                 }
-                .buttonStyle(.hoverWash(cornerRadius: StudioDesign.Radius.control, inset: 0, opacity: 0.1))
-                .help(plans.exists ? "Open \(plans.quarter.title)" : "Plan this quarter in a chat")
-                .accessibilityIdentifier("studio.now.plan.quarter")
-                if plans.exists {
-                    if plans.objectives.isEmpty {
-                        planLine("No objectives written yet")
-                    } else {
-                        ForEach(Array(plans.objectives.enumerated()), id: \.offset) { _, line in
-                            planLine("• \(line)")
-                        }
-                    }
-                }
+                quarterSection(plans)
             }
             .padding(.horizontal, -menuRowInset)
             .accessibilityElement(children: .contain)
             .accessibilityIdentifier("studio.now.plans")
             Divider()
         }
+    }
+
+    private func weekSection(_ week: PlanWeekGlance, plans: PlanGlance) -> some View {
+        let calendar = PlanQuarterWeeks.weekCalendar()
+        let range = SpacePlanPage.weekRangeText(PlanWeek(start: week.start, days: []), calendar: calendar)
+        let done = week.deliverables.filter { tickShown($0) }.count
+        return VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Text(week.isNext ? "Next Week" : "This Week")
+                    .zoomedSystemFont(size: 12.5, weight: .semibold)
+                Spacer(minLength: 8)
+                Text(week.deliverables.isEmpty ? range : "\(range) · \(done) of \(week.deliverables.count) done")
+                    .zoomedSystemFont(size: 11)
+                    .monospacedDigit()
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+            }
+            .padding(.horizontal, menuRowInset)
+            if week.deliverables.isEmpty {
+                menuRow(
+                    week.isNext ? "Plan Next Week in Chat…" : "Plan the Week in Chat…",
+                    systemImage: "calendar.badge.plus",
+                    identifier: "studio.now.plan.planWeek"
+                ) {
+                    vm.requestPlanDayChat(request: ReviewSlashCommandParser.planDayRequest(week.isNext ? "next week" : "week"))
+                    dismiss()
+                }
+                .help("Agree the week's deliverables in a chat; they are written into \(plans.quarter.title)")
+            } else {
+                ForEach(week.deliverables) { deliverable in
+                    deliverableRow(deliverable, week: week, plans: plans)
+                }
+            }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("studio.now.plan.week")
+    }
+
+    /// The tick a deliverable shows: the one just clicked until the Page has
+    /// been read back, else the Page's.
+    private func tickShown(_ deliverable: PlanDeliverable) -> Bool {
+        pendingTicks[deliverable.id] ?? deliverable.isDone
+    }
+
+    private func deliverableRow(_ deliverable: PlanDeliverable, week: PlanWeekGlance, plans: PlanGlance) -> some View {
+        let isDone = tickShown(deliverable)
+        return HStack(alignment: .firstTextBaseline, spacing: 8) {
+            Button {
+                toggle(deliverable, to: !isDone, week: week, quarter: plans.quarter)
+            } label: {
+                Image(systemName: isDone ? "checkmark.square.fill" : "square")
+                    .zoomedSystemFont(size: 13)
+                    .foregroundStyle(isDone ? Color.accentColor : Color.secondary)
+                    .frame(width: 16)
+            }
+            .buttonStyle(.plain)
+            .help(isDone ? "Mark as not delivered" : "Mark as delivered")
+            .accessibilityLabel(isDone ? "Delivered" : "Not delivered")
+            .accessibilityIdentifier("studio.now.plan.deliverable.tick")
+            VStack(alignment: .leading, spacing: 1) {
+                Text(deliverable.text)
+                    .zoomedSystemFont(size: 12)
+                    .strikethrough(isDone)
+                    .foregroundStyle(isDone ? Color.secondary : Color.primary)
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let objective = deliverable.objective, objective < plans.objectiveNames.count {
+                    objectiveTag(objective, name: plans.objectiveNames[objective])
+                }
+            }
+            Spacer(minLength: 6)
+            if let due = deliverable.due {
+                Text(due)
+                    .zoomedSystemFont(size: 11)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(.horizontal, menuRowInset)
+        .padding(.vertical, 2)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("studio.now.plan.deliverable")
+    }
+
+    private func objectiveTag(_ index: Int, name: String) -> some View {
+        HStack(spacing: 4) {
+            Circle()
+                .fill(SpacePlanPage.objectiveColor(index))
+                .frame(width: 6, height: 6)
+            Text(name)
+                .zoomedSystemFont(size: 10.5)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+        }
+    }
+
+    private func toggle(_ deliverable: PlanDeliverable, to done: Bool, week: PlanWeekGlance, quarter: PlanQuarter) {
+        pendingTicks[deliverable.id] = done
+        Task {
+            do {
+                try await vm.setPlanDeliverable(deliverable, done: done, weekOf: week.start, quarter: quarter)
+                plans = try await vm.loadPlanGlance()
+                errorMessage = nil
+            } catch {
+                errorMessage = "Could not save the tick in \(quarter.title): \(error.localizedDescription)"
+            }
+            pendingTicks[deliverable.id] = nil
+        }
+    }
+
+    /// The quarter's heading, opening its Page, and its objectives by name,
+    /// each with the hours this week's calendar gives it.
+    private func quarterSection(_ plans: PlanGlance) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Button {
+                if plans.exists {
+                    let quarter = plans.quarter
+                    let window = windowState
+                    Task { await vm.openPlan(quarter, in: window) }
+                } else {
+                    vm.requestPlanDayChat(request: ReviewSlashCommandParser.planDayRequest("quarter"))
+                }
+                dismiss()
+            } label: {
+                HStack(spacing: 8) {
+                    Image(systemName: "target")
+                        .zoomedSystemFont(size: 12, weight: .medium)
+                        .foregroundStyle(Color.accentColor)
+                        .frame(width: 16)
+                    Text(plans.quarter.title)
+                        .zoomedSystemFont(size: 12.5, weight: .semibold)
+                        .lineLimit(1)
+                    Spacer(minLength: 8)
+                    if !plans.exists {
+                        Text("Plan in Chat…")
+                            .zoomedSystemFont(size: 11)
+                            .foregroundStyle(.secondary)
+                    } else if let week = plans.week {
+                        Text(week.weeksLeft == 1 ? "1 more week" : "\(week.weeksLeft) more weeks")
+                            .zoomedSystemFont(size: 11)
+                            .monospacedDigit()
+                            .foregroundStyle(.secondary)
+                    }
+                }
+                .padding(.horizontal, menuRowInset)
+                .padding(.vertical, 4)
+                .contentShape(Rectangle())
+            }
+            .buttonStyle(.hoverWash(cornerRadius: StudioDesign.Radius.control, inset: 0, opacity: 0.1))
+            .help(plans.exists ? "Open \(plans.quarter.title)" : "Plan this quarter in a chat")
+            .accessibilityIdentifier("studio.now.plan.quarter")
+            if plans.exists {
+                if plans.objectives.isEmpty {
+                    planLine("No objectives written yet")
+                } else {
+                    ForEach(Array(plans.objectiveNames.enumerated()), id: \.offset) { index, name in
+                        objectiveRow(index, name: name, plans: plans)
+                    }
+                }
+            }
+        }
+    }
+
+    /// An objective by its short name, its full words on hover, and the hours
+    /// the week's calendar gives it; none is said in orange.
+    private func objectiveRow(_ index: Int, name: String, plans: PlanGlance) -> some View {
+        HStack(spacing: 8) {
+            Circle()
+                .fill(SpacePlanPage.objectiveColor(index))
+                .frame(width: 7, height: 7)
+                .frame(width: 16)
+            Text(name)
+                .zoomedSystemFont(size: 12)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Spacer(minLength: 8)
+            if let week = plans.week, week.calendarOn {
+                let minutes = week.minutesByObjective[index] ?? 0
+                Text(minutes == 0 ? "No time" : PlanQuarterWeeks.hoursText(minutes))
+                    .zoomedSystemFont(size: 11)
+                    .monospacedDigit()
+                    .foregroundStyle(minutes == 0 ? Color.orange : Color.secondary)
+            }
+        }
+        .padding(.horizontal, menuRowInset)
+        .help(plans.objectives[index])
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("studio.now.plan.objective")
     }
 
     /// A line under the quarter's heading, in the heading's text column.

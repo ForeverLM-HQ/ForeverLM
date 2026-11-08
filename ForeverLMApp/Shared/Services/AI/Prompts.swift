@@ -265,9 +265,11 @@ enum Prompts {
     Only a deliberate placement is a plan, and only an explicit completion or a graded review finishes one — \
     opening or playing a source is activity history and never means the learner finished it.
     - The learner plans the quarter (big picture, objectives, strategies and habits) in a plan Page, as Cal Newport \
-    teaches it; the week and the day are the calendar, planned onto it and moved around as they go. Before planning a \
-    quarter, a week or a day, or deciding what to work on next, call get_plan and say which objective the plan \
-    serves. Write an agreed quarter with edit_doc; put an agreed week or day on the calendar with create_calendar_event.
+    teaches it; the week and the day are the calendar, planned onto it and moved around as they go, and what a week is \
+    to deliver is written as task lines under the plan Page's Weeks section. Before planning a quarter, a week or a \
+    day, or deciding what to work on next, call get_plan and say which objective the plan serves. Write an agreed \
+    quarter, and an agreed week's deliverables, with edit_doc; put an agreed week or day on the calendar with \
+    create_calendar_event.
     - When the user wants to study or be quizzed on today's material, call get_today_sources to load the full \
     content of every source assigned to today in one call, then run the review with start_review_session \
     using the returned source IDs. For what they watched, read or listened to today rather than what was planned, \

@@ -651,6 +651,7 @@ struct ChatPluginSetupNeedTests {
         #expect(ReviewSlashCommandParser.planDayRequest("Tomorrow", now: at(9)).hasPrefix("Plan tomorrow on my clock."))
         // The larger scales are named outright, whatever the hour.
         #expect(ReviewSlashCommandParser.planDayRequest("week", now: at(21)) == "Plan this week.")
+        #expect(ReviewSlashCommandParser.planDayRequest("next week", now: at(9)) == "Plan next week.")
         #expect(ReviewSlashCommandParser.planDayRequest("Quarter", now: at(9)) == "Plan this quarter.")
         // Anything else is the learner's own words, carried through.
         let free = ReviewSlashCommandParser.planDayRequest("monday, I'm out until 11", now: at(9))

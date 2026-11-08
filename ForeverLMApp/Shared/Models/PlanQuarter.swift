@@ -132,31 +132,262 @@ struct PlanQuarter: Hashable, Sendable, Identifiable {
     /// the strategies, habits and rules of thumb it runs. His plans are free
     /// text with no set form; the headings only seed it. Built from lines,
     /// since an empty bullet is "- " and a trailing space in a multi-line
-    /// literal does not survive every editor.
+    /// literal does not survive every editor. Weeks, last, holds each week's
+    /// deliverables under a heading of its own (`PlanWeekDeliverables`).
     var template: String {
         [
             "## Big picture", "", "- ", "",
             "## \(Self.objectivesHeading)", "", "- ", "",
             "## Strategies and habits", "", "- ", "",
+            "## \(PlanWeekDeliverables.weeksHeading)", "",
         ].joined(separator: "\n")
     }
 }
 
 // MARK: - The quarter at a glance
 
-/// What the calendar glyph's popover shows of the quarter the day serves:
-/// its title and its written objectives (`DayNowPopover`). The week and the
-/// day are on the calendar the popover already shows. Read from the plan's
-/// Markdown off the main actor.
+/// What the calendar glyph's popover shows of the plan the day serves
+/// (`DayNowPopover`): the week's deliverables, written in the quarter's Page,
+/// above the quarter's objectives with the hours the week's calendar gives
+/// each. Read from the plan's Markdown and the calendar off the main actor.
 struct PlanGlance: Equatable, Sendable {
     let quarter: PlanQuarter
     /// Whether the quarter's plan Page exists.
     let exists: Bool
     /// The written bullets under Objectives, in order.
     let objectives: [String]
+    /// The week the popover shows; nil when the plan does not exist.
+    var week: PlanWeekGlance? = nil
 
     /// How many objectives the glance shows.
     static let lineLimit = 5
+
+    /// The objectives' short names (`PlanQuarterWeeks.objectiveName`).
+    var objectiveNames: [String] { objectives.map(PlanQuarterWeeks.objectiveName) }
+}
+
+/// One week as the popover shows it: what it is to deliver, and the hours its
+/// calendar gives each of the quarter's objectives.
+struct PlanWeekGlance: Equatable, Sendable {
+    /// The week's Monday.
+    let start: Date
+    /// Next week rather than this one: at the weekend, once next week's
+    /// deliverables are written, they are the ones worth seeing.
+    let isNext: Bool
+    let deliverables: [PlanDeliverable]
+    /// Minutes the week's calendar gives each objective, by its place.
+    let minutesByObjective: [Int: Int]
+    /// Whether the Mac's Calendar was read; off, there are no hours to show.
+    let calendarOn: Bool
+    /// The quarter's weeks still to come after this one.
+    let weeksLeft: Int
+
+    var doneCount: Int { deliverables.filter(\.isDone).count }
+}
+
+// MARK: - The week's deliverables, written in the quarter's Page
+
+/// One thing a week is to deliver: a task line under the week's heading in
+/// the quarter's Page, such as
+/// `- [ ] Grant: budget section shared with the team (Thu)`.
+struct PlanDeliverable: Equatable, Sendable, Identifiable {
+    /// The line's own text after its task box, as written (block id and
+    /// all), which is how a tick finds the line again.
+    let source: String
+    /// What is delivered: the objective's name and the day taken off.
+    let text: String
+    /// The objective, by its place in Objectives: the one the line opens
+    /// with ("Thesis: …"), else the one it names.
+    let objective: Int?
+    /// The day it is due, short ("Thu"), when the line ends with one.
+    let due: String?
+    let isDone: Bool
+
+    var id: String { source }
+}
+
+/// The week's deliverables, kept in the quarter's Page rather than in a Page
+/// of the week's own (product owner, 2026-11-08, asked where a week's
+/// deliverables live: "In the quarter Page"; on 2026-11-07 week Pages were
+/// retired: "weekly planning is just putting stuff on the calendar"). The
+/// calendar holds the week's hours; this holds what the hours are for:
+///
+///     ## Weeks
+///
+///     ### Week of November 9
+///     - [ ] Thesis: chapter two drafted and sent for comments (Fri)
+///     - [x] Grant: budget section shared with the team (Thu)
+///
+/// Pure, so the popover's reading and ticking are tested apart.
+enum PlanWeekDeliverables {
+    static let weeksHeading = "Weeks"
+
+    /// The week's heading, from its Monday: "Week of November 9".
+    static func heading(for monday: Date, calendar: Calendar) -> String {
+        "Week of " + formatter("MMMM d", calendar: calendar).string(from: monday)
+    }
+
+    /// The Monday a week heading names, read in the quarter's year: "Week of
+    /// November 9", "Week of Nov 9th, 2026" or "Week of 2026-11-09". A day
+    /// other than Monday names its week. A heading in December read for a
+    /// first quarter is the year before (the week Thursday puts in Q1), and
+    /// one in January for a fourth quarter the year after.
+    static func monday(ofHeading heading: String, quarter: PlanQuarter, calendar: Calendar) -> Date? {
+        var words = heading.trimmingCharacters(in: .whitespaces)
+        guard let prefix = words.range(of: "week of ", options: [.caseInsensitive, .anchored]) else { return nil }
+        words = String(words[prefix.upperBound...]).trimmingCharacters(in: .whitespaces)
+        words = words.replacingOccurrences(of: #"(\d)(st|nd|rd|th)\b"#, with: "$1", options: .regularExpression)
+        var date: Date?
+        for format in ["yyyy-MM-dd", "MMMM d, yyyy", "MMM d, yyyy"] {
+            if let read = formatter(format, calendar: calendar).date(from: words) { date = read; break }
+        }
+        if date == nil {
+            for format in ["MMMM d", "MMM d"] {
+                guard let read = formatter(format, calendar: calendar).date(from: words) else { continue }
+                let month = calendar.component(.month, from: read)
+                var parts = calendar.dateComponents([.month, .day], from: read)
+                parts.year = quarter.year + (quarter.quarter == 1 && month == 12 ? -1 : 0)
+                    + (quarter.quarter == 4 && month == 1 ? 1 : 0)
+                parts.hour = 12
+                date = calendar.date(from: parts)
+                break
+            }
+        }
+        guard let date else { return nil }
+        return calendar.dateInterval(of: .weekOfYear, for: date)?.start
+    }
+
+    /// The deliverables written under the week of `monday`: its task and
+    /// plain bullets at the top level, the empty ones left out.
+    static func deliverables(
+        for monday: Date,
+        in markdown: String,
+        quarter: PlanQuarter,
+        objectiveNames: [String],
+        calendar: Calendar
+    ) -> [PlanDeliverable] {
+        let all = markdown.components(separatedBy: "\n")
+        return lines(of: monday, in: markdown, quarter: quarter, calendar: calendar).compactMap { index in
+            deliverable(all[index], objectiveNames: objectiveNames)
+        }
+    }
+
+    /// The Markdown with the deliverable's task box set to `done`, a plain
+    /// bullet becoming a task; nil when the week no longer holds its line.
+    static func setting(
+        _ deliverable: PlanDeliverable,
+        done: Bool,
+        weekOf monday: Date,
+        in markdown: String,
+        quarter: PlanQuarter,
+        calendar: Calendar
+    ) -> String? {
+        var all = markdown.components(separatedBy: "\n")
+        for index in lines(of: monday, in: markdown, quarter: quarter, calendar: calendar) {
+            guard let parts = split(all[index]), parts.body == deliverable.source else { continue }
+            all[index] = parts.marker + (done ? "[x] " : "[ ] ") + parts.body
+            return all.joined(separator: "\n")
+        }
+        return nil
+    }
+
+    // MARK: Reading the lines
+
+    /// The indexes of the top-level bullets under the week's heading, inside
+    /// the Weeks section.
+    private static func lines(of monday: Date, in markdown: String, quarter: PlanQuarter, calendar: Calendar) -> [Int] {
+        var indexes: [Int] = []
+        var inWeeks = false
+        var inWeek = false
+        for (index, raw) in markdown.components(separatedBy: "\n").enumerated() {
+            let line = raw.trimmingCharacters(in: .whitespaces)
+            if let (level, title) = heading(line) {
+                if level <= 2 {
+                    inWeeks = title.caseInsensitiveCompare(weeksHeading) == .orderedSame
+                    inWeek = false
+                } else if inWeeks {
+                    inWeek = self.monday(ofHeading: title, quarter: quarter, calendar: calendar) == monday
+                }
+                continue
+            }
+            guard inWeek, raw.first.map({ !$0.isWhitespace }) ?? false, split(raw) != nil else { continue }
+            indexes.append(index)
+        }
+        return indexes
+    }
+
+    private static func heading(_ line: String) -> (Int, String)? {
+        guard line.hasPrefix("#") else { return nil }
+        let level = line.prefix(while: { $0 == "#" }).count
+        let rest = line.dropFirst(level)
+        guard rest.first == " " else { return nil }
+        return (level, rest.trimmingCharacters(in: .whitespaces))
+    }
+
+    /// A bullet split into its marker ("- "), whether its box is ticked (nil
+    /// for a plain bullet) and its text after the box; nil for anything else
+    /// or an empty bullet.
+    private static func split(_ line: String) -> (marker: String, done: Bool?, body: String)? {
+        guard let first = line.first, "-*+".contains(first), line.dropFirst().first == " " else { return nil }
+        let marker = String(line.prefix(2))
+        var rest = line.dropFirst(2)
+        // A box with nothing after it is an empty task, the template's kind.
+        if ["[ ]", "[x]", "[X]"].contains(rest.trimmingCharacters(in: .whitespaces)) { return nil }
+        var done: Bool?
+        if rest.hasPrefix("[ ] ") { done = false } else if rest.hasPrefix("[x] ") || rest.hasPrefix("[X] ") { done = true }
+        if done != nil { rest = rest.dropFirst(4) }
+        let body = String(rest)
+        guard !body.trimmingCharacters(in: .whitespaces).isEmpty else { return nil }
+        return (marker, done, body)
+    }
+
+    private static let weekdays: [String: String] = [
+        "mon": "Mon", "monday": "Mon", "tue": "Tue", "tues": "Tue", "tuesday": "Tue",
+        "wed": "Wed", "wednesday": "Wed", "thu": "Thu", "thur": "Thu", "thurs": "Thu", "thursday": "Thu",
+        "fri": "Fri", "friday": "Fri", "sat": "Sat", "saturday": "Sat", "sun": "Sun", "sunday": "Sun",
+    ]
+
+    private static func deliverable(_ raw: String, objectiveNames: [String]) -> PlanDeliverable? {
+        guard let parts = split(raw) else { return nil }
+        var text = parts.body
+        // A block id the editor keeps at a line's end (` ^abc123def`).
+        if let caret = text.range(of: #" \^[a-z0-9]{9}$"#, options: .regularExpression) { text.removeSubrange(caret) }
+        for mark in ["[[", "]]", "**"] { text = text.replacingOccurrences(of: mark, with: "") }
+        text = text.trimmingCharacters(in: .whitespaces)
+        // The day it is due: "(Thu)", "(by Friday)" or "— Thu" at the end.
+        var due: String?
+        if let match = text.range(of: #"\s*(\((by |due )?[A-Za-z]+\)|[—–-]\s*(by |due )?[A-Za-z]+)$"#, options: .regularExpression) {
+            let word = text[match].lowercased()
+                .trimmingCharacters(in: CharacterSet(charactersIn: " ()—–-"))
+                .replacingOccurrences(of: "by ", with: "").replacingOccurrences(of: "due ", with: "")
+            if let day = weekdays[word] {
+                due = day
+                text.removeSubrange(match)
+            }
+        }
+        // The objective it serves: the one whose name opens the line, else
+        // the one it names.
+        var objective: Int?
+        if let colon = text.range(of: ":") {
+            let lead = text[..<colon.lowerBound].trimmingCharacters(in: .whitespaces)
+            if let index = objectiveNames.firstIndex(where: { $0.caseInsensitiveCompare(lead) == .orderedSame }) {
+                objective = index
+                text = text[colon.upperBound...].trimmingCharacters(in: .whitespaces)
+            }
+        }
+        if objective == nil { objective = PlanQuarterWeeks.objectiveIndex(notes: text, names: objectiveNames) }
+        guard !text.isEmpty else { return nil }
+        return PlanDeliverable(source: parts.body, text: text, objective: objective, due: due, isDone: parts.done ?? false)
+    }
+
+    private static func formatter(_ format: String, calendar: Calendar) -> DateFormatter {
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.calendar = calendar
+        formatter.timeZone = calendar.timeZone
+        formatter.dateFormat = format
+        return formatter
+    }
 }
 
 /// Reading a plan Page's outline: the bullets under one of its headings.

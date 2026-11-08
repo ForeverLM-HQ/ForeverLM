@@ -62,7 +62,7 @@ struct PlanQuarterTests {
     func template() {
         let template = PlanQuarter(year: 2026, quarter: 4).template
         #expect(template.components(separatedBy: "\n").filter { $0.hasPrefix("## ") }
-            == ["## Big picture", "## Objectives", "## Strategies and habits"])
+            == ["## Big picture", "## Objectives", "## Strategies and habits", "## Weeks"])
         #expect(template.contains("## \(PlanQuarter.objectivesHeading)"), "the popover reads the objectives by this heading")
         #expect(!template.hasPrefix("# "), "a plan is named by its quarter, not its body")
     }
@@ -179,6 +179,86 @@ struct PlanQuarterTests {
         #expect(week.plannedMinutes == 180 + 150 + 60)
         #expect(week.minutesByObjective == [0: 180, 1: 60])
         #expect(weeks.filter { $0.start != week.start }.allSatisfy { $0.plannedBlocks.isEmpty })
+    }
+
+    // MARK: The week's deliverables, in the quarter's Page
+
+    private let deliverablesPlan = """
+        ## Objectives
+
+        - Lab: the predictions handed over
+        - Thesis (written by December)
+        - Lab Bridge: a project agreed
+
+        ## Weeks
+
+        ### Week of November 2
+        - [x] Lab: last week's thing (Fri)
+
+        ### Week of November 9
+        - [ ] Lab: predictions handed over (Tue)
+        - [x] Lab Bridge: one-page proposal sent — Thursday ^a1b2c3d4e
+          - [ ] a sub-step, not a deliverable
+        - a draft chapter for the thesis
+        - [ ]
+        - [ ] Something with no objective (by Friday)
+
+        ## Notes
+
+        - [ ] Lab: not in Weeks
+        """
+
+    @Test("A week's heading names its Monday, in the quarter's year, written several ways")
+    func weekHeadings() {
+        let calendar = PlanQuarterWeeks.weekCalendar(zone)
+        let q4 = PlanQuarter(year: 2026, quarter: 4)
+        let monday = at(2026, 11, 9, 0)
+        #expect(PlanWeekDeliverables.heading(for: monday, calendar: calendar) == "Week of November 9")
+        for heading in ["Week of November 9", "week of Nov 9th", "Week of November 9, 2026", "Week of 2026-11-09", "Week of November 11"] {
+            #expect(PlanWeekDeliverables.monday(ofHeading: heading, quarter: q4, calendar: calendar) == monday, "\(heading)")
+        }
+        #expect(PlanWeekDeliverables.monday(ofHeading: "Week of December 29", quarter: PlanQuarter(year: 2026, quarter: 1), calendar: calendar)
+            == at(2025, 12, 29, 0), "a December week read for Q1 is the year before")
+        #expect(PlanWeekDeliverables.monday(ofHeading: "Notes", quarter: q4, calendar: calendar) == nil)
+        #expect(PlanWeekDeliverables.monday(ofHeading: "Week of someday", quarter: q4, calendar: calendar) == nil)
+    }
+
+    @Test("The popover reads the week's top-level task lines, with their objective, day and tick")
+    func weekDeliverables() {
+        let calendar = PlanQuarterWeeks.weekCalendar(zone)
+        let q4 = PlanQuarter(year: 2026, quarter: 4)
+        let names = ["Lab", "Thesis", "Lab Bridge"]
+        let items = PlanWeekDeliverables.deliverables(for: at(2026, 11, 9, 0), in: deliverablesPlan, quarter: q4, objectiveNames: names, calendar: calendar)
+        #expect(items.map(\.text) == ["predictions handed over", "one-page proposal sent", "a draft chapter for the thesis", "Something with no objective"])
+        #expect(items.map(\.objective) == [0, 2, 1, nil], "the opening name wins, longest first; else the name the line says")
+        #expect(items.map(\.due) == ["Tue", "Thu", nil, "Fri"])
+        #expect(items.map(\.isDone) == [false, true, false, false])
+        #expect(PlanWeekDeliverables.deliverables(for: at(2026, 11, 16, 0), in: deliverablesPlan, quarter: q4, objectiveNames: names, calendar: calendar).isEmpty)
+        #expect(PlanWeekDeliverables.deliverables(for: at(2026, 11, 2, 0), in: deliverablesPlan, quarter: q4, objectiveNames: names, calendar: calendar).map(\.text)
+            == ["last week's thing"])
+    }
+
+    @Test("A tick changes only its own line's box, keeps the block id, and a plain bullet becomes a task")
+    func tickingADeliverable() throws {
+        let calendar = PlanQuarterWeeks.weekCalendar(zone)
+        let q4 = PlanQuarter(year: 2026, quarter: 4)
+        let monday = at(2026, 11, 9, 0)
+        let names = ["Lab", "Thesis", "Lab Bridge"]
+        let items = PlanWeekDeliverables.deliverables(for: monday, in: deliverablesPlan, quarter: q4, objectiveNames: names, calendar: calendar)
+
+        let ticked = try #require(PlanWeekDeliverables.setting(items[0], done: true, weekOf: monday, in: deliverablesPlan, quarter: q4, calendar: calendar))
+        #expect(ticked == deliverablesPlan.replacingOccurrences(of: "- [ ] Lab: predictions handed over (Tue)", with: "- [x] Lab: predictions handed over (Tue)"))
+        #expect(ticked.contains("- [ ] Lab: not in Weeks"), "a line outside the week is never touched")
+
+        let unticked = try #require(PlanWeekDeliverables.setting(items[1], done: false, weekOf: monday, in: deliverablesPlan, quarter: q4, calendar: calendar))
+        #expect(unticked.contains("- [ ] Lab Bridge: one-page proposal sent — Thursday ^a1b2c3d4e"))
+
+        let plain = try #require(PlanWeekDeliverables.setting(items[2], done: true, weekOf: monday, in: deliverablesPlan, quarter: q4, calendar: calendar))
+        #expect(plain.contains("- [x] a draft chapter for the thesis"))
+
+        let gone = deliverablesPlan.replacingOccurrences(of: "predictions handed over (Tue)", with: "predictions handed over (Wed)")
+        #expect(PlanWeekDeliverables.setting(items[0], done: true, weekOf: monday, in: gone, quarter: q4, calendar: calendar) == nil,
+                "a line rewritten meanwhile is not guessed at")
     }
 
     @Test("Hours read short")

@@ -983,6 +983,8 @@ enum ReviewSlashCommandParser {
             opening = "Plan tomorrow on my clock."
         case "week", "this week":
             opening = "Plan this week."
+        case "next week":
+            opening = "Plan next week."
         case "quarter", "this quarter":
             opening = "Plan this quarter."
         case "":
@@ -1024,15 +1026,23 @@ enum ReviewSlashCommandParser {
     }
 
     static let planDayInstructions = """
-        The learner's message names what to plan: this quarter, this week, or a day (today, tomorrow, a date, or their own words).
+        The learner's message names what to plan: this quarter, this week or next, or a day (today, tomorrow, a date, or their own words).
 
-        I plan at three scales, as Cal Newport teaches it. The quarter's plan is a Page that get_plan reads (date for another quarter than this one): the bigger picture at its top, the season's few objectives, and the strategies, habits and rules of thumb I run to reach them. The week and the day are my Mac's Calendar: planning them is putting blocks on it, and we move them around as the week goes.
+        I plan at three scales, as Cal Newport teaches it. The quarter's plan is a Page that get_plan reads (date for another quarter than this one): the bigger picture at its top, the season's few objectives, and the strategies, habits and rules of thumb I run to reach them. The week and the day are my Mac's Calendar: planning them is putting blocks on it, and we move them around as the week goes. What a week is to deliver is written in the quarter's Page, under its Weeks section.
 
         Planning is a conversation, not a form: do not ask me a question first. Read, then propose a first draft of the whole plan, short, and say in one line what you assumed. I will answer in my own words — move this, drop that — and each time you reply with the whole revised draft, short, and nothing else. Keep going until I say it is right. Only then write it down.
 
         To plan a quarter: read its Page (get_plan, create true), the previous quarter's (get_plan, date last) for what carried over, list_goals, and the working log (list_working_notes). Plan the whole quarter even when part of it has passed, with the weeks that are left in mind. Propose the big picture in a line or two, three to five objectives at most, and the strategies and habits that serve them. Once I agree, write it into the quarter's Page with edit_doc, keeping its headings.
 
-        To plan a week: read the quarter's plan (get_plan), get_calendar_events for the seven days (days 7), and get_day_activity for how last week went. Propose the week as blocks on its days: the focused work toward the quarter's objectives, each block saying which objective it serves, around the meetings and deadlines already there, and room for calls, email and travel. Once I agree, add each block with create_calendar_event, into the free stretches the calendar leaves, its notes naming the objective it serves in the plan's own words and linking the quarter's plan (foreverlm://doc/plan-2026-q4 for Q4 2026), which is how Space › Plan ties the week to the quarter; the calendar is the week's only record.
+        To plan a week: read the quarter's plan (get_plan) — its Weeks section says what earlier weeks set out to deliver and which are ticked —, get_calendar_events for the seven days (days 7), and get_day_activity for how last week went. Start from what the week delivers: three to five deliverables, each a thing that exists by the week's end and that I could show someone (a draft shared, predictions handed over, a proposal sent), never an activity (work on, read about, think through). Each opens with the name of the objective it serves as Objectives writes it, then a colon, and ends with the day it is due; carry over what last week left unticked, or say it is dropped, and name any objective the week gives nothing. Then propose the blocks that deliver them on the week's days, around the meetings and deadlines already there, with room for calls, email and travel. Once I agree, write the deliverables into the quarter's Page with edit_doc as task lines under the week's own heading inside Weeks, adding `## Weeks` at the Page's end when it has none:
+
+            ## Weeks
+
+            ### Week of November 9
+            - [ ] Thesis: chapter two drafted and sent for comments (Fri)
+            - [ ] Grant: budget section shared with the team (Thu)
+
+        The heading names the week's Monday, and a week already written there is revised in place, never written twice. Ticks are mine: never tick or untick a line I did not ask you to. Then add each block with create_calendar_event, into the free stretches the calendar leaves, its notes naming the objective and the deliverable it serves in the plan's own words and linking the quarter's plan (foreverlm://doc/plan-2026-q4 for Q4 2026), which is how Space › Plan ties the week to the quarter.
 
         To plan a day: my day is my Mac's Calendar. Read before you plan: get_calendar_events for that day, so you have what is already on it — what the week put there is the day's plan, and meetings with other people stay where they are; the quarter's plan (get_plan), and say which of its objectives each block serves; the working log ForeverLM keeps of my work (list_working_notes: its running summary and the notes), and get_day_activity for the last few days, so you see what I have actually been reading, making and writing and where my hours went; then get_schedule and list_goals, which come second — a Goal is something you suggest from that pattern, not the spine of the day.
 
