@@ -1296,6 +1296,13 @@ struct NotebookSourcePoolView: View {
         hidesBookContext: Bool = false,
         showsChapterNumber: Bool = false
     ) -> some View {
+        // An approved source marked paywalled only ever lists under "Marked
+        // paywalled" (the other sections leave it out), and that header says
+        // it all: its row is the glyph and the title, no warning, no "paywall"
+        // line, no box, since it holds no text a chat could read (product
+        // owner, 2026-11-08, of the shelf with a ! and a + on every row:
+        // "this looks bad").
+        let isOnPaywallShelf = !showApproval && isPaywalled(item)
         HStack(spacing: 6) {
             NotebookPoolSourceRow(
                 article: article,
@@ -1306,11 +1313,12 @@ struct NotebookSourcePoolView: View {
                 scheduleDays: vm.scheduleAssignableDays(goalID: goal.id),
                 // A waiting suggestion is not in the notebook yet, so it has
                 // no box; it gets its ✓ and × instead.
-                isInChat: showApproval || column == nil
+                isInChat: showApproval || column == nil || isOnPaywallShelf
                     ? nil
                     : vm.isNotebookSourceInChat(article.id, notebookID: goal.id),
                 onToggleChat: { toggleChat([article.id]) },
-                onOpen: column.map { column in { column.openSource(article) } }
+                onOpen: column.map { column in { column.openSource(article) } },
+                isOnPaywallShelf: isOnPaywallShelf
             )
             if showApproval {
                 Button {
@@ -1919,6 +1927,9 @@ struct NotebookPoolSourceRow: View {
     /// opens it and ticks it, and nothing removes, schedules or reviews it
     /// as the notebook's own.
     var isOwnSource = true
+    /// True under the notebook's "Marked paywalled" header, which already
+    /// says why the source can't be read: the row draws no warning of its own.
+    var isOnPaywallShelf = false
 
     @State private var isHovering = false
 
@@ -2099,11 +2110,20 @@ struct NotebookPoolSourceRow: View {
     /// Why the source needs a look, said on its glyph: the paper's attention
     /// reason the library row shows, or a fetch that failed.
     private var attentionNote: String? {
+        if isOnPaywallShelf { return nil }
         if vm.paperProcessingStepLabel(for: article) == nil,
            let reason = article.paperAttentionReason(hasUsablePDF: vm.displayHasUsablePDF(article)) {
             return reason.rawValue
         }
         guard article.state == .error else { return nil }
+        // A stored status flag is a code word, not a sentence: a paywalled
+        // suggestion said "paywall" under its title.
+        switch article.statusFlag {
+        case .paywall: return "Paywalled"
+        case .confirmPodcast: return "Podcast match to confirm"
+        case .needsTranscript: return "Needs a transcript"
+        case nil: break
+        }
         let message = article.errorMessage?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         return message.isEmpty ? "Couldn\u{2019}t load this source" : message
     }
