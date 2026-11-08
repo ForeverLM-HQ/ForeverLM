@@ -12,6 +12,7 @@ struct MobileSettingsView: View {
     @AppStorage(LoadingIndicatorSpeed.key)
     private var thinkingMarkSpeed: Double = LoadingIndicatorSpeed.defaultValue
     @State private var showsDeleteConfirmation = false
+    @State private var showsSignOutConfirmation = false
     @State private var showsDeleteAuthorization = false
     // Synced through the account's preference rows; the phone reads it once
     // here and writes through on change. See `DailyReviewPreparation`.
@@ -209,6 +210,12 @@ struct MobileSettingsView: View {
             }
 
             Section {
+                Button {
+                    showsSignOutConfirmation = true
+                } label: {
+                    Text("Sign Out")
+                }
+                .accessibilityIdentifier("settings.signOut")
                 Button(role: .destructive) {
                     showsDeleteConfirmation = true
                 } label: {
@@ -234,6 +241,18 @@ struct MobileSettingsView: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("Your AI account, any leftover balance, usage history and saved billing profile are deleted; your iCloud library is kept. Apple confirms it, and it cannot be undone.")
+        }
+        .confirmationDialog(
+            "Sign out of ForeverLM?",
+            isPresented: $showsSignOutConfirmation,
+            titleVisibility: .visible
+        ) {
+            Button("Sign Out") {
+                Task { await account.signOut() }
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("Your library stays in iCloud and your account is kept. Sign in with Apple to come back to it.")
         }
         .sheet(isPresented: $showsDeleteAuthorization) {
             MobileAccountDeletionAuthorizationView {

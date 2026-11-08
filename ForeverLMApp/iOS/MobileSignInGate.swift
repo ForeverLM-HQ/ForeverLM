@@ -184,6 +184,18 @@ final class MobileAccountGateModel {
         hasAccountAccess = false
         lastValidationAt = Date()
     }
+
+    /// Settings › Account › Sign Out: the session leaves this phone and the
+    /// wall comes back; the account, its usage and the iCloud library stay, and
+    /// Sign in with Apple returns to the same account. Voice ends first, since
+    /// it runs on the session.
+    func signOut() async {
+        await MobileRealtimeVoice.controller.end()
+        await MobileVoiceConversationController.shared.end()
+        await Task.detached(priority: .userInitiated) { ManagedAI.clearSession() }.value
+        hasAccountAccess = false
+        lastValidationAt = Date()
+    }
 }
 
 /// Full-screen account wall shown before anything else, like the Mac's
