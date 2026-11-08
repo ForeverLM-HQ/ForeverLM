@@ -472,6 +472,8 @@ struct MobileSourceReaderView: View {
             .disabled(sharing.preparingSourceIDs.contains(readingSource.id))
             .accessibilityIdentifier("reader.share")
 
+            voiceToolbarControl
+
             Button {
                 presentChat(selection: nil, chapterID: nil)
             } label: {
@@ -479,6 +481,36 @@ struct MobileSourceReaderView: View {
             }
             .disabled(!viewModel.isReady)
         }
+    }
+
+    /// Voice mode, as ChatGPT has it: tap to talk about the source out loud;
+    /// hold for being quizzed on it (`MobileRealtimeVoice`).
+    private var voiceToolbarControl: some View {
+        Menu {
+            Button {
+                startVoice(.talk)
+            } label: {
+                Label("Talk About It", systemImage: "waveform")
+            }
+            Button {
+                startVoice(.quiz)
+            } label: {
+                Label("Quiz Me", systemImage: "questionmark.bubble")
+            }
+        } label: {
+            Label("Voice", systemImage: "waveform")
+        } primaryAction: {
+            startVoice(.talk)
+        }
+        .accessibilityLabel("Talk about this source")
+        .accessibilityHint("Hold for Quiz Me.")
+        .accessibilityIdentifier("reader.voice")
+    }
+
+    private func startVoice(_ opening: RealtimeVoiceOpening) {
+        let spoken = readingSource
+        let notebook = notebook
+        Task { await MobileRealtimeVoice.start(source: spoken, notebook: notebook, opening: opening) }
     }
 
     /// The book's own title for Contents, from the synced Book record.

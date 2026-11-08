@@ -437,6 +437,8 @@ struct MobileChatCitation: Hashable {
 /// second persistence path.
 struct MobileVoiceChatTranscript {
     let messages: [MobileChatMessage]
+    /// What the transcript sheet is titled; nil lets the cover name it.
+    var title: String? = nil
 
     init(turns: [MobileVoiceConversationController.VoiceTurn]) {
         messages = turns.compactMap { turn in

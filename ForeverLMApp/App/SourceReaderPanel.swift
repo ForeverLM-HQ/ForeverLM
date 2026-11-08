@@ -871,6 +871,7 @@ struct SourceReaderPanel: View {
             // waiting to be checked.
             if isSavedSource {
                 ArticleSpeechListenMenuItem(speech: speech, article: article)
+                RealtimeVoiceMenuItems(article: article, notebookID: windowState.notebook?.notebookID)
                 WalkthroughMenuItems(article: article, knownHasWalkthrough: readerHasWalkthrough)
                 CardsMenuItems(article: article, windowState: windowState)
                 ReaderLevelsMenuItem(article: article)

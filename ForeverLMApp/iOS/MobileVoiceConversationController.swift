@@ -166,6 +166,9 @@ final class MobileVoiceConversationController: ObservableObject {
 
     private func begin(_ request: Request) async {
         guard phase == .idle else { return }
+        // Voice mode on a source and this conversation never run at once.
+        let realtime = MobileRealtimeVoice.controller
+        if realtime.isActive { await realtime.end() }
         let id = UUID()
         lifecycle = id
         self.request = request

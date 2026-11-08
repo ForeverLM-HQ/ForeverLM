@@ -5,11 +5,12 @@ import UIKit
 #endif
 
 // The voice conversation's screen: the ForeverLM mark moving with the session,
-// what the conversation reads, and the controls to mute or end it. Drawn by the
-// iPhone's turn-by-turn conversation (`MobileVoiceConversationController`); the
-// mark itself (`VoiceOrb`) is also the loading indicator on both platforms.
-// The realtime speech-to-speech session it was first built for went on
-// 2026-10-01, when every model moved to OpenRouter.
+// what the conversation reads, and the controls to mute or end it. Drawn by
+// voice mode on the Mac and the iPhone (`RealtimeVoiceController`, OpenAI
+// Realtime, back since 2026-11-07) and by the iPhone's turn-by-turn
+// conversation (`MobileVoiceConversationController`, CarPlay and spoken memory
+// review); the mark itself (`VoiceOrb`) is also the loading indicator on both
+// platforms.
 
 enum VoiceSessionPhase: Equatable {
     case idle

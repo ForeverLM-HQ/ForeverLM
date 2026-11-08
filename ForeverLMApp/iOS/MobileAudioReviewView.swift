@@ -7,11 +7,13 @@ import SwiftUI
 // (`foreverlm://notebook/…`, `…/source/…`, `…/doc/…`) and the cold launch's
 // return to the last notebook can push them too. On a screen with the room,
 // the Space is a split view over the stack instead (`MobileSpaceSplitView`). Voice
-// (CarPlay, Review by Voice) is a full-screen cover over whatever is on screen,
-// so it comes back to what was open. Playback rides outside the stack.
+// (voice mode on a source, CarPlay, Review by Voice) is a full-screen cover over
+// whatever is on screen, so it comes back to what was open. Playback rides
+// outside the stack.
 struct MobileAudioReviewView: View {
     @EnvironmentObject private var vm: MobileAudioReviewViewModel
     @ObservedObject private var live = MobileVoiceConversationController.shared
+    @ObservedObject private var realtime = MobileRealtimeVoice.controller
     @State private var path: [MobileShellRoute] = []
     /// The voice conversation that just ended, shown in the cover until Done.
     @State private var completedVoiceChat: MobileVoiceChatTranscript?
@@ -227,6 +229,7 @@ struct MobileAudioReviewView: View {
 
     private var isVoiceCoverPresented: Bool {
         live.isActive || isEndingVoiceSession || completedVoiceChat != nil || live.needsSignIn
+            || realtime.isActive || realtime.needsSignIn
     }
 
     private var voiceCoverBinding: Binding<Bool> {
@@ -237,6 +240,7 @@ struct MobileAudioReviewView: View {
                 guard !presented else { return }
                 completedVoiceChat = nil
                 if live.needsSignIn { live.cancelSignIn() }
+                if realtime.needsSignIn { realtime.cancelSignIn() }
             }
         )
     }
@@ -515,11 +519,19 @@ struct MobileVoiceSessionCover: View {
 
     @EnvironmentObject private var vm: MobileAudioReviewViewModel
     @ObservedObject private var live = MobileVoiceConversationController.shared
+    /// Voice mode on a source (`MobileRealtimeVoice`). It and the turn-by-turn
+    /// conversation never run at once; whichever is running is shown.
+    @ObservedObject private var realtime = MobileRealtimeVoice.controller
+    @State private var isEndingRealtime = false
 
     var body: some View {
         Group {
-            if live.isActive || isEnding {
+            if realtime.isActive || isEndingRealtime {
+                realtimeSession
+            } else if live.isActive || isEnding {
                 session
+            } else if realtime.needsSignIn {
+                realtimeSignIn
             } else if live.needsSignIn {
                 signIn
             } else if let completedTranscript {
@@ -550,7 +562,47 @@ struct MobileVoiceSessionCover: View {
     }
 
     private var transcriptTitle: String {
-        live.activeNotebook?.title ?? live.activeSourceTitle ?? "Voice Chat"
+        completedTranscript?.title ?? live.activeNotebook?.title ?? live.activeSourceTitle ?? "Voice Chat"
+    }
+
+    private var realtimeSession: some View {
+        VoiceSessionSurface(
+            state: realtime.presentationState(context: MobileRealtimeVoice.contextItem),
+            identifierPrefix: "voice",
+            recoveryActionTitle: "Resume",
+            onRecovery: { Task { await realtime.resume() } },
+            onToggleMute: realtime.toggleMicrophoneMuted,
+            onEnd: endRealtime,
+            onDismissError: { realtime.errorMessage = nil }
+        )
+    }
+
+    private var realtimeSignIn: some View {
+        NavigationStack {
+            MobileSignInPrompt {
+                Task { await realtime.resumeAfterSignIn() }
+            }
+            .navigationTitle("Voice")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button("Cancel") { realtime.cancelSignIn() }
+                }
+            }
+        }
+    }
+
+    private func endRealtime() {
+        guard !isEnding else { return }
+        isEnding = true
+        isEndingRealtime = true
+        Task {
+            await realtime.end()
+            // Ended before anyone spoke: the cover closes on what was under it.
+            completedTranscript = MobileRealtimeVoice.completedTranscript()
+            isEndingRealtime = false
+            isEnding = false
+        }
     }
 
     private var session: some View {

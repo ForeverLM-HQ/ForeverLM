@@ -445,6 +445,18 @@ targets:
       # its model-free rules, which the Mac unit tests compile too.
       - iOS/MobileVoiceConversationController.swift
       - iOS/MobileVoiceConversationRules.swift
+      # Voice mode on a source: OpenAI Realtime speech to speech, on ForeverLM's
+      # own OpenAI credits (back 2026-11-07). The socket, the conversation and
+      # its tutor prompt are shared with the Mac; the phone brings its audio
+      # graph and its entry points.
+      - Shared/Services/AI/RealtimeVoiceProtocol.swift
+      - Shared/Services/AI/RealtimeVoiceSession.swift
+      - Shared/Services/AI/RealtimeVoiceTutor.swift
+      - Shared/Services/AI/RealtimeVoiceController.swift
+      - Shared/Services/AI/ManagedAI+RealtimeVoice.swift
+      - Shared/Views/RealtimeVoicePresentation.swift
+      - iOS/MobileRealtimeAudio.swift
+      - iOS/MobileRealtimeVoice.swift
       # Speech loudness: shared gain+limiter stages, and the AVPlayer tap that
       # applies them to text-to-speech narration.
       - iOS/MobileSpeechLoudness.swift

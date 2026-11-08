@@ -611,6 +611,7 @@ struct SourceReaderWindow: View {
             // Listen and Contents were toolbar buttons until Quiet chrome
             // (docs/ui-design.md, 2026-10-06).
             ArticleSpeechListenMenuItem(speech: speech, article: article)
+            RealtimeVoiceMenuItems(article: article, notebookID: nil)
             ExplainerMenuItems(article: article)
             ReaderLevelsMenuItem(article: article)
             if bookNavigationBridge.navigation != nil {

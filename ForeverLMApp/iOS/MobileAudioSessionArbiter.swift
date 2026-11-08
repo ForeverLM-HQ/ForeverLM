@@ -31,6 +31,10 @@ actor MobileAudioSessionArbiter {
         // its listening and its spoken replies take turns under one lease, so
         // the reply never plays into an open microphone.
         case voiceConversation
+        // Voice mode on OpenAI Realtime (`MobileRealtimeVoiceAudio`): the one
+        // full-duplex holder. It owns both directions at once, so the
+        // half-duplex invariant applies between holders, not within this one.
+        case realtimeVoice
     }
 
     // Playback is exclusive so starting ForeverLM narration pauses any podcast
@@ -39,6 +43,10 @@ actor MobileAudioSessionArbiter {
     enum Intent: Sendable {
         case playback
         case record
+        // Voice mode's shape: on supported phones the echo-cancelled built-in
+        // mic and speaker; `MobileRealtimeAudioIO` falls back to half-duplex on
+        // routes where the system gives no cancellation.
+        case conversation
     }
 
     private var holder: Holder?
@@ -106,6 +114,22 @@ actor MobileAudioSessionArbiter {
                     mode: .spokenAudio,
                     options: [.allowBluetoothHFP, .allowBluetoothA2DP, .defaultToSpeaker, .mixWithOthers]
                 )
+            case .conversation:
+                // The echo-cancelled input API needs .default mode and leaves
+                // AVAudioEngine's I/O graph alone (unlike
+                // setVoiceProcessingEnabled, which can swap RemoteIO for
+                // Voice-Processing I/O while the graph is being built). No
+                // .mixWithOthers: a conversation needs the un-ducked route.
+                try session.setCategory(
+                    .playAndRecord,
+                    mode: .default,
+                    options: [.allowBluetoothHFP, .allowBluetoothA2DP, .defaultToSpeaker]
+                )
+                if #available(iOS 18.2, *), session.isEchoCancelledInputAvailable {
+                    // Failure is safe: the audio layer reads the enabled state
+                    // after activation and goes half-duplex if it was refused.
+                    try? session.setPrefersEchoCancelledInput(true)
+                }
             }
             try session.setActive(true, options: .notifyOthersOnDeactivation)
         }.value
