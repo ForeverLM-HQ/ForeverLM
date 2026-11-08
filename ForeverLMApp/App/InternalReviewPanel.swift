@@ -2875,7 +2875,7 @@ private struct InternalReviewPanelContent: View {
                         }
                     )
                 }
-                transcriptScrollView
+                transcriptView
                     // A card's exchange is set larger than the chat
                     // (`MemoryReviewCardSurface.textScale`); its head and
                     // foot keep the chat's size.
@@ -3292,6 +3292,242 @@ private struct InternalReviewPanelContent: View {
         // Proportional on a short panel, so the band never eats a bottom-sheet
         // popover's few visible rows.
         return min(96, transcriptViewportHeight * 0.25)
+    }
+
+    /// The one-page transcript for a chat it draws whole, the native one for
+    /// every other (`ChatTranscriptPage`).
+    private var transcriptView: some View {
+        ReviewChatTranscriptChooser(
+            manager: manager,
+            allowsPage: ChatTranscriptPage.isEnabled && !showsMemoryReviewCards
+        ) {
+            transcriptScrollView
+        } page: {
+            transcriptPage
+        }
+    }
+
+    private var transcriptPage: some View {
+        ReviewChatTranscriptPageHost(
+            manager: manager,
+            isTurnInFlight: isTurnInFlight,
+            walkthroughPreparation: manager.walkthroughPreparationDetail,
+            turnStartedAt: turnStartedAt,
+            errorMessage: manager.errorMessage ?? dictation.errorMessage ?? speech.errorMessage,
+            bottomReserve: transcriptBottomReserve,
+            layout: ChatTranscriptPage.Layout(
+                fontSize: chatBodyFontSize,
+                columnMaxWidth: chatColumnMaxWidth,
+                messageMaxWidth: chatMessageMaxWidth
+            ),
+            findMatchID: chatFind.isVisible ? chatFind.currentMatchID : nil,
+            findScrollRevision: chatFind.scrollRevision,
+            armedSideQuestionBlockID: isSideQuestionMode ? sideQuestionTarget?.blockID : nil,
+            editableMessageID: manager.chatMessages.last(where: { $0.role == .user }).flatMap { message in
+                editAction(for: message) == nil ? nil : message.id
+            },
+            citationContexts: $citationContexts,
+            suggestedQuestions: { block, context in
+                suggestedQuestions(under: block, context: context)
+            },
+            resolvers: transcriptPageResolvers,
+            onAction: { action in
+                handleTranscriptPageAction(action)
+            }
+        )
+        .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { height in
+            transcriptViewportHeight = height
+        }
+        .overlay(alignment: .top) {
+            if chatFind.isVisible {
+                ChatFindBar(find: chatFind, blocks: {
+                    ReviewChatTranscriptBlock.grouping(manager.chatMessages)
+                })
+                .padding(.horizontal, 12)
+                .padding(.top, 6)
+                .transition(.opacity)
+            }
+        }
+        .onChange(of: showsWorkingLine, initial: true) { _, working in
+            turnStartedAt = working ? (turnStartedAt ?? Date()) : nil
+        }
+        .contentShape(Rectangle())
+        .onDrop(
+            of: reviewChatDropTypes,
+            isTargeted: dropTargetBinding,
+            perform: handleDrop
+        )
+        .overlay {
+            if dragVisibility.isDragging {
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onDrop(
+                        of: reviewChatDropTypes,
+                        isTargeted: dropTargetBinding,
+                        perform: handleDrop
+                    )
+            }
+        }
+    }
+
+    /// What the page's replies need from the app: the lookups and routes a
+    /// reply row is given (`ReviewChatMessageContent`).
+    private var transcriptPageResolvers: ChatTranscriptPage.Resolvers {
+        let vm = vm
+        let notebookCitations = notebookCitations
+        return ChatTranscriptPage.Resolvers(
+            sourceCard: { sourceToken in
+                guard let article = await vm.persistedArticle(forLinkToken: sourceToken) else { return nil }
+                let card = await ChatSourceCard.resolved(
+                    article: article,
+                    collectionTitle: vm.sourceGroupTitle(for: article)
+                )
+                guard let notebookCitations else { return card }
+                return card.inNotebook(notebookCitations.holds(article.id))
+            },
+            sourceImage: { imageToken in
+                await ChatSourceImage.resolved(
+                    token: imageToken,
+                    articleForSourceID: { sourceID in await vm.persistedArticle(forLinkToken: sourceID) },
+                    contentForSourceID: { sourceID in await vm.storage.loadSourceContent(sourceID) },
+                    citedPapersForSource: { sourceID in await vm.loadCitedPapers(forSourceID: sourceID) }
+                )
+            },
+            openSource: { link in
+                Task {
+                    await vm.openLinkedSourceInReader(link.sourceID, at: link.seconds, passage: link.passage, page: link.page)
+                }
+            },
+            openWebURL: { url, title in
+                vm.openWebCitationInReader(url, title: title)
+            },
+            selection: { action, passage, messageID, anchor in
+                handleReplySelection(action, passage: passage, messageID: messageID, anchor: anchor)
+            }
+        )
+    }
+
+    /// What the learner did on the page, done the way the native rows do it.
+    @MainActor
+    private func handleTranscriptPageAction(_ action: ChatTranscriptPage.Action) {
+        let blocks = ReviewChatTranscriptBlock.grouping(manager.chatMessages)
+        func block(_ id: UUID) -> ReviewChatTranscriptBlock? { blocks.first { $0.id == id } }
+        switch action {
+        case .copyAnswer(let blockID):
+            guard let block = block(blockID) else { return }
+            let text = ReviewSessionManager.copiedAnswerText(from: block.answerMessages)
+            guard !text.isEmpty else { return }
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+        case .copyMessage(let blockID):
+            guard let message = block(blockID)?.userMessage,
+                  let text = ReviewSessionManager.displayableMessageContent(role: .user, content: message.content),
+                  !text.isEmpty else { return }
+            NSPasteboard.general.clearContents()
+            NSPasteboard.general.setString(text, forType: .string)
+        case .editMessage(let blockID):
+            guard let message = block(blockID)?.userMessage else { return }
+            editAction(for: message)?()
+        case .sideQuestion(let blockID):
+            guard let block = block(blockID) else { return }
+            toggleSideQuestionMode(
+                about: ReviewChatReplyReference(blockID: block.id, line: ReviewChatTranscriptSection.replyLine(of: block))
+            )
+        case .moreMenu(let blockID, let rect, let view):
+            guard let block = block(blockID) else { return }
+            showReplyMenu(for: block, isLatest: block.id == blocks.last?.id, at: rect, in: view)
+        case .openPassage(let blockID):
+            guard let message = block(blockID)?.userMessage,
+                  let passage = ChatPassageOrigin.parse(contextContent: message.contextualContent) else { return }
+            openPassageInReader(passage)
+        case .openContextSource(let sourceID):
+            Task { await vm.openLinkedSourceInReader(sourceID) }
+        case .suggestedQuestion(let question):
+            askSuggestedQuestion(question)
+        }
+    }
+
+    /// A reply's ⋯ on the page: the same lines as the native footer's menu
+    /// (`ReviewChatReplyMenu`), doing the same things.
+    @MainActor
+    private func showReplyMenu(for block: ReviewChatTranscriptBlock, isLatest: Bool, at rect: CGRect, in view: NSView) {
+        let replyLine = ReviewChatTranscriptSection.replyLine(of: block)
+        let saveToNote: ReviewChatSaveToNoteControl? = replyLine == nil ? nil : ReviewChatSaveToNoteControl(
+            savedDocID: answerNoteDocIDs[block.id],
+            save: { Task { await saveAnswerToNote(block) } },
+            open: { docID in vm.revealArtifact(docID, in: windowState) }
+        )
+        let addToCanvas: (() -> Void)? = replyLine == nil || !vm.listsCanvases
+            ? nil
+            : { Task { await vm.addAnswerToCanvas(markdown: ReviewChatSaveToNote.markdown(of: block.answerMessages)) } }
+        let canFork = !manager.isGenerating && !manager.isSearching
+            && block.answerMessages.contains { $0.exchangeID != nil && $0.exchangeField != nil }
+        let discussInNewChat = discussInNewChatAction(for: block.answerMessages)
+        let moreDetails: (() -> Void)? = replyLine == nil ? nil : {
+            requestMoreDetails(about: ReviewChatReplyReference(blockID: block.id, line: replyLine), existingLaneID: nil)
+        }
+        let offersTryAgain = isLatest && editingMessage == nil && manager.canTakeBackNewestTurn
+        let timeLine = block.answerMessages.last(where: { $0.role == .assistant }).map {
+            ReviewChatReplyMenu.timeLine($0.createdAt)
+        }
+        let items = ReviewChatReplyMenu.items(
+            timeLine: timeLine,
+            savedDocID: saveToNote.map(\.savedDocID),
+            offersAddToCanvas: addToCanvas != nil,
+            offersDiscussInNewChat: discussInNewChat != nil,
+            offersMoreDetails: moreDetails != nil,
+            asideActionsOnly: false,
+            offersTryAgain: offersTryAgain,
+            offersSideChat: isLatest
+        )
+        let menu = NSMenu()
+        menu.autoenablesItems = false
+        for item in items {
+            switch item {
+            case .time(let line):
+                let entry = NSMenuItem(title: line, action: nil, keyEquivalent: "")
+                entry.isEnabled = false
+                menu.addItem(entry)
+                menu.addItem(.separator())
+            case .saveToNote:
+                menu.addItem(ActionMenuItem(title: item.title, isOn: false) { saveToNote?.save() })
+            case .openNote(let docID):
+                menu.addItem(ActionMenuItem(title: item.title, isOn: false) { saveToNote?.open(docID) })
+            case .addToCanvas:
+                menu.addItem(ActionMenuItem(title: item.title, isOn: false) { addToCanvas?() })
+            case .branch:
+                let entry = ActionMenuItem(title: item.title, isOn: false) { forkConversation(through: block.answerMessages) }
+                entry.isEnabled = canFork
+                menu.addItem(entry)
+            case .discussInNewChat:
+                let entry = ActionMenuItem(title: item.title, isOn: false) { discussInNewChat?() }
+                entry.isEnabled = canFork
+                menu.addItem(entry)
+            case .moreDetails:
+                menu.addItem(ActionMenuItem(title: item.title, isOn: false) { moreDetails?() })
+            case .sideChat:
+                menu.addItem(ActionMenuItem(title: item.title, isOn: false) { openThreadSideChat() })
+            case .tryAgain:
+                menu.addItem(ActionMenuItem(title: item.title, isOn: false) { Task { await manager.tryAgain() } })
+            case .tryAgainWith:
+                let entry = NSMenuItem(title: item.title, action: nil, keyEquivalent: "")
+                let models = NSMenu()
+                models.autoenablesItems = false
+                for model in ChatTryAgainModels.entries {
+                    models.addItem(ActionMenuItem(
+                        title: AIModelCatalog.pickerName(provider: model.provider, modelID: model.modelID),
+                        isOn: false
+                    ) { tryAgain(with: model) })
+                }
+                if !ChatTryAgainModels.entries.isEmpty { models.addItem(.separator()) }
+                models.addItem(ActionMenuItem(title: "Choose Models…", isOn: false) { ModelPickerSheetRequest.open(.chat) })
+                entry.submenu = models
+                menu.addItem(entry)
+            }
+        }
+        ChatTryAgainModels.refresh()
+        let point = NSPoint(x: rect.minX, y: view.isFlipped ? rect.maxY + 4 : view.bounds.height - rect.maxY - 4)
+        menu.popUp(positioning: nil, at: point, in: view)
     }
 
     private var transcriptScrollView: some View {
@@ -8135,22 +8371,7 @@ private struct ReviewChatTranscriptStack<Row: View, ErrorView: View>: View {
         // The manager appends the reply and names it as streaming in one
         // step, so the id change always sees the streaming id already set.
         .onChange(of: manager.chatMessages.map(\.id), initial: true) { _, _ in
-            citationContexts = ChatCitationLedger.contexts(
-                for: manager.chatMessages.compactMap { message in
-                    // Only an assistant reply renders markdown, so only an
-                    // assistant reply can cite: a source link a learner typed is
-                    // their own text and never becomes a numbered citation.
-                    guard message.role == .assistant,
-                          message.toolActivity == nil,
-                          let markdown = ReviewSessionManager.displayableMessageContent(
-                              role: message.role,
-                              content: message.content
-                          )
-                    else { return nil }
-                    return ChatCitationLedger.Entry(id: message.id, markdown: markdown)
-                },
-                open: manager.streamingMessageID
-            )
+            citationContexts = ReviewChatCitationContexts.contexts(for: manager)
         }
         .onChange(of: premeasureKey, initial: true) { _, _ in
             ChatMarkdownView.Premeasurer.setEntries(premeasured.compactMap { message in
@@ -8222,19 +8443,7 @@ private struct ReviewChatTranscriptStack<Row: View, ErrorView: View>: View {
 
     /// What the running turn is doing, named for the learner.
     private var workingPhase: ReviewChatWorkingIndicator.Phase {
-        // A walk getting a step ready is preparing, whatever else is idle: its
-        // detail names the step, and no model has been asked anything.
-        if walkthroughPreparation != nil, !manager.isGenerating { return .preparing }
-        if manager.isPlanningMemoryReview { return .planning }
-        if manager.isSearching { return .searching }
-        guard manager.isGenerating else { return .preparing }
-        guard let streamingID = manager.streamingMessageID,
-              let streamed = manager.chatMessages.last(where: { $0.id == streamingID }) else {
-            return .thinking
-        }
-        return streamed.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-            ? .thinking
-            : .writing
+        .current(manager: manager, walkthroughPreparation: walkthroughPreparation)
     }
 
     /// What the newest topic card's foot carries: the answer field, the wait
@@ -8251,6 +8460,7 @@ private struct ReviewChatTranscriptStack<Row: View, ErrorView: View>: View {
             isBusy: isTurnInFlight
         )
     }
+
 
     @ViewBuilder
     private func activityStatus(topicFoot: MemoryReviewTopicCardFoot) -> some View {
@@ -8926,3 +9136,275 @@ private struct ComposerChip<Content: View>: View {
 }
 
 /// A walkthrough step's animation, opened large from its row.
+
+// MARK: - One-page transcript
+
+/// Which replies cite which sources, by number, for the whole transcript
+/// (`ChatCitationLedger`): written by whichever transcript is on screen.
+@MainActor
+enum ReviewChatCitationContexts {
+    static func contexts(for manager: ReviewSessionManager) -> [UUID: ChatCitationLedger.MessageContext] {
+        ChatCitationLedger.contexts(
+            for: manager.chatMessages.compactMap { message in
+                // Only an assistant reply renders markdown, so only an
+                // assistant reply can cite: a source link a learner typed is
+                // their own text and never becomes a numbered citation.
+                guard message.role == .assistant,
+                      message.toolActivity == nil,
+                      let markdown = ReviewSessionManager.displayableMessageContent(
+                          role: message.role,
+                          content: message.content
+                      )
+                else { return nil }
+                return ChatCitationLedger.Entry(id: message.id, markdown: markdown)
+            },
+            open: manager.streamingMessageID
+        )
+    }
+}
+
+extension ReviewChatWorkingIndicator.Phase {
+    /// What the running turn is doing, named for the learner.
+    @MainActor
+    static func current(manager: ReviewSessionManager, walkthroughPreparation: String?) -> Self {
+        // A walk getting a step ready is preparing, whatever else is idle: its
+        // detail names the step, and no model has been asked anything.
+        if walkthroughPreparation != nil, !manager.isGenerating { return .preparing }
+        if manager.isPlanningMemoryReview { return .planning }
+        if manager.isSearching { return .searching }
+        guard manager.isGenerating else { return .preparing }
+        guard let streamingID = manager.streamingMessageID,
+              let streamed = manager.chatMessages.last(where: { $0.id == streamingID }) else {
+            return .thinking
+        }
+        return streamed.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            ? .thinking
+            : .writing
+    }
+}
+
+/// The chat picker's models for Try Again With on the page's ⋯, read off the
+/// main thread the first time a menu opens and kept fresh each time after.
+@MainActor
+enum ChatTryAgainModels {
+    private(set) static var entries: [AIModelCatalogEntry] = []
+    private static var refreshing: Task<Void, Never>?
+
+    static func refresh() {
+        guard refreshing == nil else { return }
+        refreshing = Task { @MainActor in
+            let loaded = await Task.detached(priority: .utility) {
+                InlineModelPicker.loadMenuEntries(task: .chat)
+            }.value
+            entries = loaded
+            refreshing = nil
+        }
+    }
+}
+
+/// Shows the one-page transcript for a chat it draws whole, and the native
+/// transcript otherwise. It reads the messages itself, so a streamed token
+/// re-evaluates this view and not the panel; both transcripts arrive built.
+private struct ReviewChatTranscriptChooser<Native: View, Page: View>: View {
+    let manager: ReviewSessionManager
+    let allowsPage: Bool
+    let native: Native
+    let page: Page
+
+    init(
+        manager: ReviewSessionManager,
+        allowsPage: Bool,
+        @ViewBuilder native: () -> Native,
+        @ViewBuilder page: () -> Page
+    ) {
+        self.manager = manager
+        self.allowsPage = allowsPage
+        self.native = native()
+        self.page = page()
+    }
+
+    private var drawsPage: Bool {
+        guard allowsPage,
+              manager.walkthroughPlayback == nil,
+              !manager.offersMemoryReviewSteer,
+              manager.courseQuizOpenQuestionNumber == nil,
+              manager.completedSummary == nil,
+              manager.pendingContextAdditions.isEmpty else { return false }
+        let blocks = ReviewChatTranscriptBlock.grouping(manager.chatMessages)
+        return ChatTranscriptPage.draws(ReviewChatTranscriptSection.grouping(blocks))
+    }
+
+    var body: some View {
+        if drawsPage {
+            page
+        } else {
+            native
+        }
+    }
+}
+
+/// The one-page transcript's view of the chat: the messages as page blocks,
+/// the tail, where to scroll, and the offers that stay native under it.
+private struct ReviewChatTranscriptPageHost: View {
+    let manager: ReviewSessionManager
+    let isTurnInFlight: Bool
+    let walkthroughPreparation: String?
+    let turnStartedAt: Date?
+    let errorMessage: String?
+    let bottomReserve: CGFloat
+    let layout: ChatTranscriptPage.Layout
+    let findMatchID: UUID?
+    let findScrollRevision: Int
+    let armedSideQuestionBlockID: UUID?
+    let editableMessageID: UUID?
+    @Binding var citationContexts: [UUID: ChatCitationLedger.MessageContext]
+    let suggestedQuestions: (ReviewChatTranscriptBlock, ReviewChatTranscriptRowContext) -> [String]?
+    let resolvers: ChatTranscriptPage.Resolvers
+    let onAction: (ChatTranscriptPage.Action) -> Void
+
+    @Environment(\.chatReplySideChat) private var sideChat
+    @State private var scrollRequest: ChatTranscriptPage.ScrollRequest?
+
+    private var workingPhase: ReviewChatWorkingIndicator.Phase {
+        .current(manager: manager, walkthroughPreparation: walkthroughPreparation)
+    }
+
+    private var state: ChatTranscriptPage.State {
+        let blocks = ReviewChatTranscriptBlock.grouping(manager.chatMessages)
+        let liveBlockID = isTurnInFlight ? blocks.last?.id : nil
+        let pageBlocks: [ChatTranscriptPage.Block] = blocks.map { block in
+            if let user = block.userMessage {
+                return ChatTranscriptPage.userBlock(
+                    block,
+                    message: user,
+                    canEdit: user.id == editableMessageID,
+                    isFindMatch: block.id == findMatchID
+                )
+            }
+            let isLive = block.id == liveBlockID
+            let parts: [ChatTranscriptPage.Part] = ReviewChatAnswerLayout.items(block.answerMessages).compactMap { item in
+                switch item {
+                case .work(let work):
+                    return ChatTranscriptPage.workPart(work, isLive: isLive)
+                case .entry(let entry):
+                    guard let message = entry.message else { return nil }
+                    return ChatTranscriptPage.prosePart(message, citations: citationContexts[message.id] ?? .init())
+                case .pages:
+                    return nil
+                }
+            }
+            return ChatTranscriptPage.Block(
+                id: block.id.uuidString,
+                kind: .answer,
+                parts: parts,
+                footer: isLive ? nil : ChatTranscriptPage.Footer(
+                    sideQuestion: .init(armed: armedSideQuestionBlockID == block.id),
+                    more: true
+                ),
+                isLatest: block.id == blocks.last?.id ? true : nil,
+                isLive: isLive ? true : nil,
+                isFindMatch: block.id == findMatchID ? true : nil
+            )
+        }
+        var tail = ChatTranscriptPage.Tail()
+        if let last = blocks.last, last.userMessage == nil {
+            let context = ReviewChatTranscriptRowContext(
+                isLive: last.id == liveBlockID,
+                isLatest: true,
+                isInsideAside: false,
+                moreDetailsLaneID: nil
+            )
+            tail.suggested = suggestedQuestions(last, context)
+        }
+        if isTurnInFlight || walkthroughPreparation != nil {
+            tail.working = .init(
+                label: ReviewChatWorkingIndicator.label(
+                    for: workingPhase,
+                    detail: walkthroughPreparation ?? manager.sendPreparationDetail
+                ),
+                startedAt: (turnStartedAt ?? Date()).timeIntervalSince1970 * 1000
+            )
+        }
+        tail.error = errorMessage
+        return ChatTranscriptPage.State(
+            blocks: pageBlocks,
+            tail: tail == ChatTranscriptPage.Tail() ? nil : tail,
+            reserve: bottomReserve,
+            layout: layout
+        )
+    }
+
+    /// The newest learner message: a send, or a chat loading its history.
+    private var latestUserMessageID: UUID? {
+        manager.chatMessages.last(where: { $0.role == .user })?.id
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            ChatTranscriptPage(
+                state: state,
+                scrollRequest: scrollRequest,
+                resolvers: resolvers,
+                onAction: onAction
+            )
+            // The side chat about words selected in a reply hangs off the
+            // words, as it does over a native reply.
+            .popover(
+                isPresented: Binding(
+                    get: { sideChat != nil },
+                    set: { shown in if !shown { sideChat?.dismiss() } }
+                ),
+                attachmentAnchor: sideChat?.model.anchor.map { PopoverAttachmentAnchor.rect(.rect($0)) }
+                    ?? PopoverAttachmentAnchor.rect(.bounds),
+                arrowEdge: sideChat?.model.placement.side == .above ? .top : .bottom
+            ) {
+                if let sideChat {
+                    ReviewChatSideChatPopover(presentation: sideChat)
+                        .id(ObjectIdentifier(sideChat.model))
+                }
+            }
+
+            if isTurnInFlight {
+                // The offers that come with a long wait stay native, under the
+                // page, until the page draws them.
+                VStack(alignment: .leading, spacing: 6) {
+                    MemoryReviewPreparationOffer(
+                        isPlanning: workingPhase == .planning,
+                        startedAt: turnStartedAt ?? Date()
+                    )
+                    SlowFreeModelOffer(
+                        turnModel: manager.turnModel,
+                        isWaitingForText: workingPhase == .thinking,
+                        askAgain: { manager.restartTurnOnSelectedModel() }
+                    )
+                }
+                .frame(maxWidth: layout.columnMaxWidth, alignment: .leading)
+                .padding(.horizontal, 14)
+                .frame(maxWidth: .infinity)
+            }
+        }
+        .onChange(of: manager.chatMessages.map(\.id), initial: true) { _, _ in
+            citationContexts = ReviewChatCitationContexts.contexts(for: manager)
+        }
+        .onChange(of: latestUserMessageID) { _, _ in
+            // A send puts the learner's message at the middle, with the reply
+            // to stream under it; a chat loading its history lands at its end.
+            guard let last = ReviewChatTranscriptBlock.grouping(manager.chatMessages).last else { return }
+            let sent = last.userMessage != nil
+            scrollRequest = .init(
+                token: (scrollRequest?.token ?? 0) + 1,
+                blockID: last.id,
+                position: sent ? .center : .bottom
+            )
+        }
+        .onChange(of: findScrollRevision) { _, _ in
+            guard let findMatchID else { return }
+            scrollRequest = .init(
+                token: (scrollRequest?.token ?? 0) + 1,
+                blockID: findMatchID,
+                position: .center,
+                animated: true
+            )
+        }
+    }
+}

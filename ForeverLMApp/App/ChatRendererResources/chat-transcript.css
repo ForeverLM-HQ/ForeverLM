@@ -1,0 +1,354 @@
+/* The frame of the Mac's one-page transcript (`mac-transcript.js`): the
+ * column, the learner's pill, a reply's steps and footer, the tail. Inside a
+ * reply everything is `chat-render.css`, as it was in the per-reply pages.
+ * Sizes are the native transcript's, in quarters of the body size where the
+ * native rows used points at 13 pt. */
+
+:root {
+  color-scheme: light dark;
+  --muted: color-mix(in srgb, CanvasText 55%, transparent);
+  --faint: color-mix(in srgb, CanvasText 35%, transparent);
+  --wash: color-mix(in srgb, CanvasText 8%, transparent);
+  --rule: color-mix(in srgb, CanvasText 8%, transparent);
+  /* StudioDesign.Chat.userBubbleFill: 5% ink in light, 10% white in dark. */
+  --user-fill: rgba(0, 0, 0, 0.05);
+  --column-max: 760px;
+  --message-max: 684px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root { --user-fill: rgba(255, 255, 255, 0.10); }
+}
+
+* { box-sizing: border-box; }
+
+html {
+  /* The page scrolls; the app's scroll view is gone. */
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: transparent;
+  color: CanvasText;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Helvetica Neue", sans-serif;
+  font-size: var(--chat-font-size, 13px);
+  line-height: 1.48;
+}
+
+#transcript {
+  max-width: var(--column-max);
+  margin: 0 auto;
+  padding: 12px 14px 12px;
+}
+
+#blocks {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+#tail:not(:empty) { margin-top: 14px; display: flex; flex-direction: column; gap: 10px; }
+
+.block { position: relative; }
+
+/* Find in chat: a faint wash behind the turn. */
+.block.find-match::before {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border-radius: 10px;
+  background: color-mix(in srgb, AccentColor 9%, transparent);
+  pointer-events: none;
+}
+
+/* ---- The learner's turn: a pill at most 70% of the column wide, against
+   its trailing edge, with Edit and Copy under it on hover. */
+
+.user-column {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  margin-left: auto;
+  max-width: min(70%, var(--message-max));
+  gap: 3px;
+}
+
+.user-bubble {
+  background: var(--user-fill);
+  border-radius: 22px;
+  padding: 9px 14px;
+  max-width: 100%;
+}
+
+.user-text {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  line-height: 1.48;
+}
+
+.user-bubble.collapsed .user-text {
+  display: -webkit-box;
+  -webkit-line-clamp: 6;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.user-more,
+.user-passage {
+  all: unset;
+  cursor: default;
+  color: var(--muted);
+  font-size: 0.92em;
+}
+
+.user-more { display: block; margin-top: 4px; }
+.user-more:hover,
+.user-passage:hover { color: CanvasText; }
+
+.user-passage {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  border-left: 2px solid var(--rule);
+  padding-left: 8px;
+}
+
+.user-guess {
+  color: var(--muted);
+  font-size: 0.92em;
+  max-width: 100%;
+}
+
+.user-actions,
+.answer-footer {
+  display: flex;
+  gap: 2px;
+  height: 24px;
+  opacity: 0;
+  transition: opacity 0.12s ease-out;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.block.user:hover .user-actions,
+.block.answer:hover .answer-footer,
+.block.answer.latest .answer-footer,
+.icon-button.copied { opacity: 1; }
+
+.answer-footer { gap: 5px; margin-top: 1px; }
+
+.icon-button {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 25px;
+  height: 24px;
+  border-radius: 6px;
+  color: var(--muted);
+  cursor: default;
+}
+
+.icon-button:hover { background: var(--wash); color: CanvasText; }
+.icon-button.armed { background: color-mix(in srgb, AccentColor 10%, transparent); color: AccentColor; }
+.icon-button.copied { color: #34a853; }
+
+.icon-button svg,
+.work-chevron svg,
+.work-step-mark svg,
+#jump-latest svg {
+  width: 13px;
+  height: 13px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.icon-button svg circle { fill: currentColor; stroke: none; }
+
+/* ---- A reply: flush text on the panel, as Codex and Claude draw output. */
+
+.block.answer {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  max-width: var(--message-max);
+}
+
+.prose .chat-rendered { padding: 1px 0; }
+
+/* ---- The reply's steps: one quiet line that opens onto each step. */
+
+.work { display: flex; flex-direction: column; gap: 8px; -webkit-user-select: none; user-select: none; }
+
+.work-line {
+  all: unset;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  align-self: flex-start;
+  color: var(--muted);
+  border-radius: 6px;
+  padding: 1px 3px;
+  margin: -1px -3px;
+  cursor: default;
+}
+
+.work-line:hover { background: var(--wash); }
+.work-failed { color: #e8890c; }
+.work-chevron { display: inline-flex; color: var(--faint); }
+.work-chevron svg { width: 10px; height: 10px; stroke-width: 2; }
+
+.work-steps { display: flex; flex-direction: column; gap: 8px; padding-left: 2px; }
+
+.work-reasoning {
+  color: var(--muted);
+  font-size: 0.85em;
+  border-left: 2px solid var(--rule);
+  padding-left: 10px;
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+.work-reasoning p { margin: 0 0 6px; }
+.work-reasoning p:last-child { margin-bottom: 0; }
+
+.work-card {
+  background: color-mix(in srgb, CanvasText 3%, transparent);
+  border: 1px solid color-mix(in srgb, CanvasText 6%, transparent);
+  border-radius: 10px;
+  padding: 6px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.work-step { display: flex; align-items: center; gap: 10px; min-height: 22px; }
+.work-step-mark { display: inline-flex; width: 14px; justify-content: center; color: rgba(52, 168, 83, 0.75); }
+.work-step.failed .work-step-mark { color: #e8890c; }
+.work-step-mark svg { width: 11px; height: 11px; stroke-width: 1.8; }
+.work-step-title { color: var(--muted); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.work-step-summary { color: var(--faint); font-size: 0.92em; white-space: nowrap; }
+
+.work-rule { height: 1px; background: var(--rule); }
+
+.work-spinner {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1.5px solid var(--faint);
+  border-top-color: transparent;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* ---- Pages a web-searched reply cited. */
+
+.web-sources { margin-top: 10px; display: flex; flex-direction: column; gap: 2px; max-width: 42em; }
+.web-sources-heading { color: var(--muted); font-size: 0.85em; font-weight: 600; margin-bottom: 2px; }
+
+.web-source {
+  all: unset;
+  display: flex;
+  gap: 8px;
+  align-items: baseline;
+  padding: 3px 6px;
+  margin: 0 -6px;
+  border-radius: 6px;
+  cursor: default;
+}
+
+.web-source:hover { background: var(--wash); }
+.web-source-title { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.web-source-host { color: var(--faint); font-size: 0.92em; white-space: nowrap; }
+
+/* ---- The tail. */
+
+.suggested { display: flex; flex-direction: column; gap: 6px; max-width: min(var(--message-max), 42em); }
+
+.suggested-question {
+  all: unset;
+  padding: 8px 12px;
+  border-radius: 12px;
+  border: 1px solid color-mix(in srgb, CanvasText 10%, transparent);
+  cursor: default;
+}
+
+.suggested-question:hover { background: var(--wash); }
+
+.working { display: flex; align-items: center; gap: 8px; color: var(--muted); padding: 2px 0; }
+
+.working-mark {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: currentColor;
+  animation: breathe 1.4s ease-in-out infinite;
+}
+
+@keyframes breathe { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+
+.working-clock { color: var(--faint); font-variant-numeric: tabular-nums; }
+
+.error { color: #d93025; }
+
+/* ---- Jump to latest: the native arrow, drawn in the page. */
+
+#jump-latest {
+  all: unset;
+  position: fixed;
+  left: 50%;
+  bottom: 10px;
+  transform: translateX(-50%);
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--muted);
+  background: color-mix(in srgb, Canvas 85%, transparent);
+  -webkit-backdrop-filter: blur(12px);
+  backdrop-filter: blur(12px);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08), inset 0 0 0 1px color-mix(in srgb, CanvasText 10%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.15s ease-out;
+}
+
+#jump-latest.visible { opacity: 1; pointer-events: auto; }
+#jump-latest svg { stroke-width: 1.8; }
+
+/* Sources added just before a message, on the learner's side. */
+.user-added { display: flex; flex-direction: column; align-items: flex-end; -webkit-user-select: none; user-select: none; }
+
+.user-added-toggle,
+.user-added-source {
+  all: unset;
+  cursor: default;
+  color: var(--muted);
+  font-size: 0.85em;
+  padding: 3px 6px;
+  border-radius: 6px;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.user-added-toggle { font-weight: 500; }
+.user-added-toggle:hover,
+.user-added-source:hover { background: var(--wash); color: CanvasText; }
+.user-added-list { display: flex; flex-direction: column; align-items: flex-end; }
+.user-added-list[hidden] { display: none; }

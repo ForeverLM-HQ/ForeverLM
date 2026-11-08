@@ -514,6 +514,7 @@
 		40DD6D06FD0479D699C68768 /* MobileNotebookCoverTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 068343F153A9E86BEBC66AB6 /* MobileNotebookCoverTests.swift */; };
 		41316053FCF6EC32D746BE75 /* MemoryReviewCandidates.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BC4FB499E3C2BD4124BC38D /* MemoryReviewCandidates.swift */; };
 		416931FEAF31BAC4FB819613 /* CloudArticleTTS+Qualification.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5012795BECF673EBD346615F /* CloudArticleTTS+Qualification.swift */; };
+		4170DE5657548EB7A7AB3D84 /* ChatTranscriptPage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1A2D26BF083EB8CB221958F6 /* ChatTranscriptPage.swift */; };
 		41732FD7188EBC52F229B617 /* SourceSkeleton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 59FA05BF1BF3CE82E548E850 /* SourceSkeleton.swift */; };
 		4187794976702080BCBA6F0B /* CardsToolbarButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 67372977AC58EE5B1211C824 /* CardsToolbarButton.swift */; };
 		41883A8FD924012CE3998E47 /* SiteFile.swift in Sources */ = {isa = PBXBuildFile; fileRef = 731C9A1D32EDC7165EBEFD21 /* SiteFile.swift */; };
@@ -2270,6 +2271,7 @@
 		19E7159CA5AD68007EB89956 /* SourceAddArticleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceAddArticleTests.swift; sourceTree = "<group>"; };
 		19F2539030ED29FDB71C0AE7 /* MigrationBodyRule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MigrationBodyRule.swift; sourceTree = "<group>"; };
 		1A079DA34DF70C992AE542BD /* MCPTools+CanvasParity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MCPTools+CanvasParity.swift"; sourceTree = "<group>"; };
+		1A2D26BF083EB8CB221958F6 /* ChatTranscriptPage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatTranscriptPage.swift; sourceTree = "<group>"; };
 		1A53454B591636E6F4BB9929 /* MnemonicReading.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MnemonicReading.swift; sourceTree = "<group>"; };
 		1A6115A45F2110DC0885283C /* StudioViewModel+CourseQuizzes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StudioViewModel+CourseQuizzes.swift"; sourceTree = "<group>"; };
 		1AAC32D98429D83D7A33A5B4 /* QuickAssistantView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QuickAssistantView.swift; sourceTree = "<group>"; };
@@ -5275,6 +5277,7 @@
 				C8987E52ACF1DA68017D9F91 /* ChatPlugins.swift */,
 				3ED3E0F4923640174871D318 /* ChatRendererResources */,
 				38106F25656FEC9A027BA066 /* ChatSourceImage.swift */,
+				1A2D26BF083EB8CB221958F6 /* ChatTranscriptPage.swift */,
 				4E648EED27EE8D4B8A69699E /* CheckForUpdatesView.swift */,
 				9C6180367DA5479B552DD4CD /* CitedSourcesPopover.swift */,
 				C1D50439A8A8CBA23AADC17A /* CommandMenu.swift */,
@@ -7590,6 +7593,7 @@
 				7B278A435789B8E85434BE4E /* ChatSideQuestion.swift in Sources */,
 				854CF29383BFDD487D71D25C /* ChatSkillRequest.swift in Sources */,
 				FFBFBB031023708991491661 /* ChatSourceImage.swift in Sources */,
+				4170DE5657548EB7A7AB3D84 /* ChatTranscriptPage.swift in Sources */,
 				EB45A258C266E525F7A7CD01 /* CheckForUpdatesView.swift in Sources */,
 				0844125F32E007D110D9AAE1 /* ChromiumReadingListStore.swift in Sources */,
 				B968340CFFB9FB63128DC6C5 /* CitedSourcesPopover.swift in Sources */,

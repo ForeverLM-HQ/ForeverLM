@@ -3079,28 +3079,34 @@ struct ReviewChatToolRow: View {
 
     /// What the call returned, in a few words. Counted from the preview the
     /// row keeps, so a result cut at the preview's length says "+".
-    private var resultSummary: String? {
+    private var resultSummary: String? { Self.resultSummary(for: activity) }
+
+    /// `resultSummary` for any step; the one-page transcript's step list reads
+    /// the same words (`ChatTranscriptPage.workPart`).
+    static func resultSummary(for activity: ReviewSessionManager.Message.ToolActivity) -> String? {
         switch activity.state {
         case .running: return nil
         case .failed: return "failed"
         case .succeeded: break
         }
-        if presentsRetrievedPassages {
+        if presentsRetrievedPassages(activity) {
             let count = activity.retrievedPassages.count
             return count == 1 ? "1 passage" : "\(count) passages"
         }
-        if presentsListedSources {
+        if presentsListedSources(activity) {
             let count = activity.listedSources.count
             return count == 1 ? "1 source" : "\(count) sources"
         }
-        if presentsSourceCard { return "loaded" }
+        if presentsSourceCard(activity) { return "loaded" }
         guard let preview = activity.resultPreview else { return "done" }
         let lines = preview.split(whereSeparator: \.isNewline).count
         let cut = preview.count >= 1_200 ? "+" : ""
         return lines == 1 && cut.isEmpty ? "1 line of output" : "\(lines)\(cut) lines of output"
     }
 
-    private var presentsSourceCard: Bool {
+    private var presentsSourceCard: Bool { Self.presentsSourceCard(activity) }
+
+    private static func presentsSourceCard(_ activity: ReviewSessionManager.Message.ToolActivity) -> Bool {
         activity.toolName == "get_source_content"
             && activity.state == .succeeded
             && activity.sourcePresentation != nil
@@ -3108,7 +3114,9 @@ struct ReviewChatToolRow: View {
 
     /// A retrieval that parsed into per-source passages shows those as cards;
     /// one that did not keeps the raw preview so nothing is hidden.
-    private var presentsRetrievedPassages: Bool {
+    private var presentsRetrievedPassages: Bool { Self.presentsRetrievedPassages(activity) }
+
+    private static func presentsRetrievedPassages(_ activity: ReviewSessionManager.Message.ToolActivity) -> Bool {
         activity.toolName == "retrieve_sources"
             && activity.state == .succeeded
             && !activity.retrievedPassages.isEmpty
@@ -3116,7 +3124,9 @@ struct ReviewChatToolRow: View {
 
     /// A day listing whose sources have loaded shows a banner per source; the
     /// transcripts it handed the model stay out of the transcript.
-    private var presentsListedSources: Bool {
+    private var presentsListedSources: Bool { Self.presentsListedSources(activity) }
+
+    private static func presentsListedSources(_ activity: ReviewSessionManager.Message.ToolActivity) -> Bool {
         activity.toolName == "get_today_sources"
             && activity.state == .succeeded
             && !activity.listedSources.isEmpty
@@ -3162,7 +3172,10 @@ struct ReviewChatToolRow: View {
             : "\(activity.toolName) — click to show what it returned"
     }
 
-    private var title: String {
+    private var title: String { Self.title(for: activity) }
+
+    /// `title` for any step (`ChatTranscriptPage.workPart`).
+    static func title(for activity: ReviewSessionManager.Message.ToolActivity) -> String {
         guard ["get_source_content", "retrieve_sources"].contains(activity.toolName) else {
             return activity.title
         }

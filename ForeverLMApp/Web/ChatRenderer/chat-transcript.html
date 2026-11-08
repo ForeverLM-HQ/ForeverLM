@@ -1,0 +1,24 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <!-- The whole chat transcript as one page (`mac-transcript.js`). Every
+         file here is inside the app bundle, as for `chat-render.html`. -->
+    <link rel="stylesheet" href="katex.min.css">
+    <link rel="stylesheet" href="chat-render.css">
+    <link rel="stylesheet" href="chat-transcript.css">
+  </head>
+  <body>
+    <main id="transcript">
+      <div id="blocks"></div>
+      <div id="tail"></div>
+      <div id="reserve"></div>
+    </main>
+    <button id="jump-latest" type="button" title="Jump to latest" aria-label="Jump to latest"></button>
+    <script src="katex.min.js"></script>
+    <!-- mhchem must execute after katex.min.js; it registers \ce{} on it. -->
+    <script src="mhchem.min.js"></script>
+    <script src="chat-transcript.js"></script>
+  </body>
+</html>

@@ -7723,3 +7723,113 @@ struct ChatRequestTurnOrderTests {
         }
     }
 }
+
+// MARK: - One-page transcript
+
+@Suite("One-page chat transcript")
+struct ChatTranscriptPageTests {
+    private static func search(_ state: ReviewSessionManager.Message.ToolActivity.State = .succeeded)
+        -> ReviewSessionManager.Message.ToolActivity {
+        ReviewSessionManager.Message.ToolActivity(
+            toolName: "search_sources_semantic", detail: "q", state: state, resultPreview: "Line one"
+        )
+    }
+
+    private static let thinking = ReviewSessionManager.Message.ToolActivity(
+        kind: .thinking, toolName: ReviewSessionManager.thinkingActivityName, state: .succeeded,
+        resultPreview: nil, reasoning: "First thought.\n\nSecond thought.", thinkingDuration: 8
+    )
+
+    @MainActor
+    private static func plainChat(extraStep: ReviewSessionManager.Message.ToolActivity? = nil) -> [ReviewSessionManager.Message] {
+        var messages = [
+            ReviewSessionManager.Message(role: .user, content: "What did the meeting conclude?"),
+            ReviewSessionManager.Message(role: .assistant, content: "", toolActivity: thinking),
+            ReviewSessionManager.Message(role: .tool, content: "", toolActivity: search()),
+        ]
+        if let extraStep {
+            messages.append(ReviewSessionManager.Message(role: .tool, content: "", toolActivity: extraStep))
+        }
+        messages.append(ReviewSessionManager.Message(role: .assistant, content: "## The question\n\nIt stayed open."))
+        return messages
+    }
+
+    @MainActor
+    private static func sections(_ messages: [ReviewSessionManager.Message]) -> [ReviewChatTranscriptSection] {
+        ReviewChatTranscriptSection.grouping(ReviewChatTranscriptBlock.grouping(messages))
+    }
+
+    @Test("A chat of questions, steps and replies is drawn by the page")
+    @MainActor
+    func pageDrawsAPlainChat() {
+        #expect(ChatTranscriptPage.draws(Self.sections(Self.plainChat())))
+    }
+
+    @Test("A chat holding a row the page does not draw yet stays native")
+    @MainActor
+    func rowsThePageDoesNotDrawKeepTheNativeTranscript() {
+        // A browser step draws a live picture of the tab under it.
+        let browser = ReviewSessionManager.Message.ToolActivity(
+            toolName: "browser_open", detail: "https://example.com", state: .succeeded, resultPreview: nil
+        )
+        #expect(!ChatTranscriptPage.draws(Self.sections(Self.plainChat(extraStep: browser))))
+
+        // A learner message with a picture attached.
+        var messages = Self.plainChat()
+        messages[0] = ReviewSessionManager.Message(
+            role: .user,
+            content: "What is this?\n\n![figure](foreverlm://image/attached/A1B2-C3)"
+        )
+        #expect(!ChatTranscriptPage.draws(Self.sections(messages)))
+    }
+
+    @Test("A reply becomes its steps and its prose, a question its words")
+    @MainActor
+    func blocksCarryWhatTheNativeRowsShow() throws {
+        let messages = Self.plainChat()
+        let blocks = ReviewChatTranscriptBlock.grouping(messages)
+        #expect(blocks.count == 2)
+        let question = try #require(blocks.first?.userMessage)
+        let user = ChatTranscriptPage.userBlock(blocks[0], message: question, canEdit: true, isFindMatch: false)
+        #expect(user.kind == .user)
+        #expect(user.text == "What did the meeting conclude?")
+        #expect(user.canEdit == true)
+        #expect(user.collapses == nil)
+
+        let items = ReviewChatAnswerLayout.items(blocks[1].answerMessages)
+        guard case .work(let work) = items.first, case .entry(let entry) = items.last,
+              let reply = entry.message else {
+            Issue.record("expected the steps, then the reply")
+            return
+        }
+        let settled = ChatTranscriptPage.workPart(work, isLive: false)
+        #expect(settled.kind == .work)
+        #expect(settled.settled == true)
+        #expect(settled.opensWhileLive == false)
+        #expect(settled.steps?.map(\.kind) == ["thinking", "tool"])
+        #expect(settled.steps?.first?.paragraphs == ["First thought.", "Second thought."])
+        #expect(settled.steps?.last?.summary == "1 line of output")
+
+        let working = ChatTranscriptPage.workPart(work, isLive: true)
+        // The answer has begun under these steps, so they are done even live.
+        #expect(working.title == settled.title)
+
+        let prose = try #require(ChatTranscriptPage.prosePart(reply, citations: .init()))
+        #expect(prose.markdown == "## The question\n\nIt stayed open.")
+        #expect(prose.citations == nil)
+        #expect(prose.webSources == nil)
+    }
+
+    @Test("A long paste folds on the page as it does in the native bubble")
+    @MainActor
+    func longPasteFolds() throws {
+        let paste = (1...40).map { "Line \($0) of a pasted log." }.joined(separator: "\n")
+        let messages = [ReviewSessionManager.Message(role: .user, content: paste)]
+        let blocks = ReviewChatTranscriptBlock.grouping(messages)
+        let message = try #require(blocks.first?.userMessage)
+        let user = ChatTranscriptPage.userBlock(blocks[0], message: message, canEdit: false, isFindMatch: true)
+        #expect(user.collapses == true)
+        #expect(user.canEdit == nil)
+        #expect(user.isFindMatch == true)
+    }
+}

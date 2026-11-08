@@ -61,6 +61,16 @@ await build({
   outfile: new URL('chat-render.js', appOutput).pathname,
 })
 
+// The whole transcript as one page (`mac-transcript.js`): the same renderer,
+// drawing every reply of a chat into one document.
+await build({
+  ...shared,
+  entryPoints: ['src/mac-transcript.js'],
+  format: 'iife',
+  alias: { '#source-images': sourceImages },
+  outfile: new URL('chat-transcript.js', appOutput).pathname,
+})
+
 await build({
   ...shared,
   entryPoints: ['src/chat-render.js'],
@@ -78,6 +88,15 @@ await copyFile(
   new URL('chat-render.html', import.meta.url),
   new URL('chat-render.html', appOutput),
 )
+await copyFile(
+  new URL('chat-transcript.html', import.meta.url),
+  new URL('chat-transcript.html', appOutput),
+)
+await copyFile(new URL('src/chat-transcript.css', import.meta.url), new URL('chat-transcript.css', appOutput))
+{
+  const bundle = new URL('chat-transcript.js', appOutput)
+  await writeFile(bundle, (await readFile(bundle, 'utf8')).replace(/[ \t]+$/gm, ''), 'utf8')
+}
 
 // KaTeX ships as a plain script that defines a global, which is what both
 // surfaces load it as. The app bundle also carries the stylesheet and the woff2
