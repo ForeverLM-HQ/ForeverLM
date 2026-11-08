@@ -23,6 +23,13 @@
   white-space: normal;
   line-height: 1.625;
   color: var(--chat-fg, CanvasText);
+  /* A positioned block paints its own selection gaps in WebKit. In the Mac
+     transcript no ancestor of a reply does (the reply is a flex item of a flex
+     item), so a selection drew only each line's words: ragged right edges and
+     a white seam between every line of a paragraph, while list items, which
+     are positioned for their drawn markers, filled solid. Positioned, the
+     reply fills one band edge to edge, as the per-reply page always did. */
+  position: relative;
 }
 
 .chat-rendered p { margin: 0 0 0.25em; }
