@@ -6,6 +6,15 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.199.0 (build 279) — 2026-11-08
+
+**Highlights:**
+- **Voice mode is back**: talk about a source, be quizzed on it, or review your cards out loud, on the Mac, the iPhone and in CarPlay.
+- **Connecting an AI app always asks you first**, and code that chat runs is sealed off more tightly.
+- **Fewer ways to lose work**: book edits, Keychain hiccups and paper retries no longer delete anything, and failed saves say so.
+
+- **Production release.** Everything in the betas 0.195.0 to 0.198.0 below, now for every Mac: it is the first production build since 0.194.0 (build 274).
+
 ## 0.198.0 (build 278) — 2026-11-08
 
 **Highlights:**

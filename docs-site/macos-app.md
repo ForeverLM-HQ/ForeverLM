@@ -18,7 +18,7 @@ You work in **notebooks**. A notebook holds the sources for one piece of work �
 
 ## Install
 
-[Download the app](https://releases.foreverlm.com/ForeverLM-0.194.0-build274-universal.dmg) — a notarized universal binary that runs on both Apple Silicon and Intel Macs. It checks for updates hourly and at launch, then offers each new version in the sidebar.
+[Download the app](https://releases.foreverlm.com/ForeverLM-0.199.0-build279-universal.dmg) — a notarized universal binary that runs on both Apple Silicon and Intel Macs. It checks for updates hourly and at launch, then offers each new version in the sidebar.
 
 Drag ForeverLM into Applications and open it. While the installer is still mounted, ForeverLM asks whether to move it to the Trash; it ejects the installer and moves the downloaded `.dmg` there. **Keep** leaves it alone, and ForeverLM does not ask about that installer again.
 
