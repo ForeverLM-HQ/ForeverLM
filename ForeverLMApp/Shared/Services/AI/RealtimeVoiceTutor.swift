@@ -86,6 +86,75 @@ struct RealtimeVoiceExchange: Equatable, Sendable {
         }
         return exchanges
     }
+
+    /// An assistant chat's title: the start of what the learner first asked,
+    /// as a typed notebook chat is named by its first question.
+    static func assistantChatTitle(firstQuestion: String?) -> String {
+        guard let words = firstQuestion?.trimmingCharacters(in: .whitespacesAndNewlines), !words.isEmpty else {
+            return "Voice chat"
+        }
+        guard words.count > 60 else { return words }
+        let cut = words.prefix(60)
+        let end = cut.lastIndex(of: " ") ?? cut.endIndex
+        return String(cut[..<end]) + "…"
+    }
+}
+
+/// The tools a conversation offers the model, answered on the device. A source
+/// conversation searches its source; the assistant looks across the library,
+/// the plan and the calendar (`MobileRealtimeAssistant`, `MacRealtimeAssistant`).
+protocol RealtimeVoiceToolbox: AnyObject, Sendable {
+    /// Function definitions in OpenAI Realtime's shape. `end_conversation` is
+    /// added by the controller to every conversation.
+    var toolDefinitions: [[String: Any]] { get }
+    /// The tool's output, as the model reads it (JSON or plain text). Never
+    /// throws: a failure is an answer the model can say out loud.
+    func run(name: String, argumentsJSON: String) async -> String
+    /// The sources the conversation opened, so its chat is filed with them.
+    func openedSourceIDs() async -> [String]
+}
+
+/// Everything one conversation runs on.
+struct RealtimeVoiceBrief: @unchecked Sendable {
+    /// What the voice screen is titled.
+    let title: String
+    let instructions: String
+    /// The hidden first learner turn that makes the model speak first.
+    let kickoff: String
+    let toolbox: RealtimeVoiceToolbox
+    /// The one source a source conversation is about; nil for the assistant.
+    let source: RealtimeVoiceSource?
+
+    static func source(_ source: RealtimeVoiceSource, opening: RealtimeVoiceOpening) -> RealtimeVoiceBrief {
+        RealtimeVoiceBrief(
+            title: source.title,
+            instructions: RealtimeVoiceTutor.instructions(for: source, opening: opening),
+            kickoff: RealtimeVoiceTutor.kickoffMessage(for: opening),
+            toolbox: RealtimeVoiceSourceToolbox(source: source),
+            source: source
+        )
+    }
+}
+
+/// A source conversation's one tool: passages of its own text.
+final class RealtimeVoiceSourceToolbox: RealtimeVoiceToolbox, @unchecked Sendable {
+    private let sourceID: String
+    private let passages: [RealtimeVoicePassageSearch.Passage]
+
+    init(source: RealtimeVoiceSource) {
+        sourceID = source.id
+        passages = RealtimeVoicePassageSearch.chunks(of: source.text)
+    }
+
+    var toolDefinitions: [[String: Any]] { [RealtimeVoiceTutor.searchTool] }
+
+    func run(name: String, argumentsJSON: String) async -> String {
+        guard name == RealtimeVoiceTutor.searchToolName else { return #"{"error":"Unknown tool."}"# }
+        let arguments = (try? JSONSerialization.jsonObject(with: Data(argumentsJSON.utf8)) as? [String: Any]) ?? [:]
+        return RealtimeVoicePassageSearch.toolOutput(query: (arguments["query"] as? String) ?? "", passages: passages)
+    }
+
+    func openedSourceIDs() async -> [String] { [sourceID] }
 }
 
 /// What the realtime model is told, and the tools it may call.
@@ -181,32 +250,33 @@ enum RealtimeVoiceTutor {
         }
     }
 
-    static var tools: [[String: Any]] {
+    static var searchTool: [String: Any] {
         [
-            [
-                "type": "function",
-                "name": searchToolName,
-                "description": "Finds the passages of the source that best match a few words, to quote or check it exactly. Returns up to three passages with where they sit in the source.",
-                "parameters": [
-                    "type": "object",
-                    "properties": [
-                        "query": [
-                            "type": "string",
-                            "description": "A few specific words or a phrase that would appear in the passage.",
-                        ],
+            "type": "function",
+            "name": searchToolName,
+            "description": "Finds the passages of the source that best match a few words, to quote or check it exactly. Returns up to three passages with where they sit in the source.",
+            "parameters": [
+                "type": "object",
+                "properties": [
+                    "query": [
+                        "type": "string",
+                        "description": "A few specific words or a phrase that would appear in the passage.",
                     ],
-                    "required": ["query"],
-                ] as [String: Any],
-            ],
-            [
-                "type": "function",
-                "name": endToolName,
-                "description": "Ends the voice conversation after your goodbye has been spoken. Call it only when the learner says they are done.",
-                "parameters": [
-                    "type": "object",
-                    "properties": [String: Any](),
-                ] as [String: Any],
-            ],
+                ],
+                "required": ["query"],
+            ] as [String: Any],
+        ]
+    }
+
+    static var endTool: [String: Any] {
+        [
+            "type": "function",
+            "name": endToolName,
+            "description": "Ends the voice conversation after your goodbye has been spoken. Call it only when the learner says they are done.",
+            "parameters": [
+                "type": "object",
+                "properties": [String: Any](),
+            ] as [String: Any],
         ]
     }
 

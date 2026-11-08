@@ -59,10 +59,12 @@
 		<key>UIImageRespectsSafeAreaInsets</key>
 		<true/>
 	</dict>
+	<key>NSCalendarsFullAccessUsageDescription</key>
+	<string>ForeverLM's voice assistant reads your calendar so it knows your week and day plan when you talk to it, in the app or in CarPlay. It never changes your calendar from the iPhone.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>ForeverLM uses the camera to scan pages into your library.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>ForeverLM uses the microphone so you can speak instead of typing: when you dictate, when you talk with a notebook or a source, and when Siri starts a review or source chat.</string>
+	<string>ForeverLM uses the microphone so you can speak instead of typing: when you dictate, when you talk with ForeverLM or about a source in voice mode or CarPlay, and when Siri starts a review.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>ForeverLM turns your speech into text on this device so you can ask questions about what you are reading out loud, and so spoken answers during a review can be graded.</string>
 	<key>UIBackgroundModes</key>

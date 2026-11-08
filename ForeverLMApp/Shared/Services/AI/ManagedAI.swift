@@ -996,6 +996,9 @@ enum ManagedAI {
         /// The learner's own router key paid for this row (migration 0041);
         /// `billed_microusd` is then what their router charged them, not a debit.
         var ownKey: Int? = nil
+        /// Who paid when it was neither the learner's balance nor their key:
+        /// `foreverlm_openai_credits` for voice mode (migration 0051).
+        var paidBy: String? = nil
         let clientPlatform: String?
         let clientBuild: String?
         let createdAtUnix: TimeInterval
@@ -1017,6 +1020,7 @@ enum ManagedAI {
             case billedMicrousd = "billed_microusd"
             case exactCost = "exact_cost"
             case ownKey = "own_key"
+            case paidBy = "paid_by"
             case clientPlatform = "client_platform"
             case clientBuild = "client_build"
             case createdAtUnix = "created_at_unix"

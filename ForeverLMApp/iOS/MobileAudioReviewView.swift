@@ -140,8 +140,8 @@ struct MobileAudioReviewView: View {
             }
         }
         // No title: the brand is the app's icon, and a large "ForeverLM" over the list only moved
-        // the notebooks down (the product owner, 2026-10-11: it "looks ugly"). The bar holds Settings
-        // and, in Home's own toolbar, +; voice sits beside Search at the bottom.
+        // the notebooks down (the product owner, 2026-10-11: it "looks ugly"). The bar holds Settings,
+        // the voice assistant's waveform (as ChatGPT's voice button) and, in Home's own toolbar, +.
         .navigationTitle("")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -151,6 +151,15 @@ struct MobileAudioReviewView: View {
                 }
                 .accessibilityLabel("Settings")
                 .accessibilityIdentifier("home.settings")
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                Button {
+                    Task { await MobileRealtimeVoice.startAssistant(setting: .phone) }
+                } label: {
+                    Image(systemName: "waveform")
+                }
+                .accessibilityLabel("Talk to ForeverLM")
+                .accessibilityIdentifier("home.voice")
             }
         }
     }

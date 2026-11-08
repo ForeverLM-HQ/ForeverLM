@@ -75,9 +75,12 @@ final class RealtimeVoiceController: ObservableObject {
     @Published private(set) var caption: String?
     @Published private(set) var isMicrophoneMuted = false
     @Published private(set) var isTutorWorking = false
-    @Published private(set) var source: RealtimeVoiceSource?
-    /// The source's title from the moment the conversation is asked for.
+    /// What the conversation runs on, once loaded.
+    @Published private(set) var brief: RealtimeVoiceBrief?
+    /// The title from the moment the conversation is asked for.
     @Published private(set) var title: String?
+    /// The one source a source conversation is about; nil for the assistant.
+    var source: RealtimeVoiceSource? { brief?.source }
     @Published private(set) var opening: RealtimeVoiceOpening = .talk
     @Published var errorMessage: String?
     /// Signed out is the one start failure the learner fixes in place.
@@ -87,8 +90,19 @@ final class RealtimeVoiceController: ObservableObject {
     var isActive: Bool { phase != .idle }
     var startedAt: Date?
 
+    /// A conversation that ended with something said in it.
+    struct Finished {
+        let title: String
+        /// The source of a source conversation; nil for the assistant.
+        let source: RealtimeVoiceSource?
+        /// Every source the conversation read, the source conversation's first.
+        let sourceIDs: [String]
+        let turns: [RealtimeVoiceTurn]
+        let startedAt: Date
+    }
+
     /// Called once per conversation that had any spoken line, after it ends.
-    var onFinished: ((RealtimeVoiceSource, [RealtimeVoiceTurn], Date) -> Void)?
+    var onFinished: ((Finished) -> Void)?
 
     private let makeAudio: () -> RealtimeVoiceAudio
     private var audio: RealtimeVoiceAudio?
@@ -99,8 +113,11 @@ final class RealtimeVoiceController: ObservableObject {
     private var captureContinuation: AsyncStream<Data>.Continuation?
     private var recoveryTask: Task<Void, Never>?
     private var transcriptionModel = RealtimeVoiceDefaults.transcriptionModel
-    private var passages: [RealtimeVoicePassageSearch.Passage] = []
     private var hasBeenLive = false
+    /// The model the proxy minted the session for; usage is recorded under it.
+    private var activeModel = RealtimeVoiceDefaults.model
+    /// One AI Usage row per conversation: every reply's usage carries this.
+    private var activityID = "voice-\(UUID().uuidString.lowercased())"
 
     // Per-turn state.
     private var playbackGate = RealtimePlaybackGate()
@@ -127,22 +144,42 @@ final class RealtimeVoiceController: ObservableObject {
         opening: RealtimeVoiceOpening,
         load: @escaping @Sendable () async throws -> RealtimeVoiceSource
     ) async {
+        await start(title: title, opening: opening, status: "Opening \u{201C}\(title)\u{201D}…") {
+            let loaded = try await load()
+            guard !loaded.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw RealtimeVoiceStartError.noText(title)
+            }
+            return await Task.detached(priority: .userInitiated) {
+                RealtimeVoiceBrief.source(loaded, opening: opening)
+            }.value
+        }
+    }
+
+    /// Starts any conversation: `load` builds its brief (a source's text, or the
+    /// assistant's picture of the learner's day) while the screen says `status`.
+    func start(
+        title: String,
+        opening: RealtimeVoiceOpening = .talk,
+        status: String,
+        load: @escaping @Sendable () async throws -> RealtimeVoiceBrief
+    ) async {
         guard phase == .idle || phase == .failed else { return }
         if phase == .failed { await tearDown() }
         let id = UUID()
         lifecycle = id
         self.title = title
         self.opening = opening
-        source = nil
+        brief = nil
         transcript = []
         errorMessage = nil
         needsSignIn = false
         startedAt = Date()
         hasBeenLive = false
+        activityID = "voice-\(UUID().uuidString.lowercased())"
         transcriptionModel = RealtimeVoiceDefaults.transcriptionModel
         phase = .connecting
-        statusText = "Opening \u{201C}\(title)\u{201D}…"
-        let loaded: RealtimeVoiceSource
+        statusText = status
+        let loaded: RealtimeVoiceBrief
         do {
             loaded = try await load()
         } catch {
@@ -151,21 +188,13 @@ final class RealtimeVoiceController: ObservableObject {
             return
         }
         guard lifecycle == id else { return }
-        guard !loaded.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            fail("\u{201C}\(title)\u{201D} has no text on this device yet, so there is nothing to talk about.")
-            return
-        }
-        source = loaded
-        passages = await Task.detached(priority: .userInitiated) {
-            RealtimeVoicePassageSearch.chunks(of: loaded.text)
-        }.value
-        guard lifecycle == id else { return }
+        brief = loaded
         await begin()
     }
 
     /// Resume after a failure: a fresh session that carries the transcript.
     func resume() async {
-        guard phase == .failed, source != nil else { return }
+        guard phase == .failed, brief != nil else { return }
         // A failure before the text loaded has nothing to resume; starting
         // again is the screen's job.
         await tearDown()
@@ -174,13 +203,13 @@ final class RealtimeVoiceController: ObservableObject {
 
     func resumeAfterSignIn() async {
         needsSignIn = false
-        guard source != nil else { return }
+        guard brief != nil else { return }
         await begin()
     }
 
     func cancelSignIn() {
         needsSignIn = false
-        source = nil
+        brief = nil
         title = nil
     }
 
@@ -195,9 +224,15 @@ final class RealtimeVoiceController: ObservableObject {
         caption = nil
         isTutorWorking = false
         microphoneLevel.set(0)
-        if let source, let startedAt, transcript.contains(where: { !$0.text.isEmpty }) {
-            onFinished?(source, transcript.filter { !$0.text.isEmpty }, startedAt)
-        }
+        guard let brief, let startedAt, transcript.contains(where: { !$0.text.isEmpty }) else { return }
+        let sourceIDs = await brief.toolbox.openedSourceIDs()
+        onFinished?(Finished(
+            title: brief.title,
+            source: brief.source,
+            sourceIDs: sourceIDs,
+            turns: transcript.filter { !$0.text.isEmpty },
+            startedAt: startedAt
+        ))
     }
 
     func toggleMicrophoneMuted() {
@@ -210,7 +245,7 @@ final class RealtimeVoiceController: ObservableObject {
     }
 
     private func begin() async {
-        guard let source else { return }
+        guard let brief else { return }
         let id = UUID()
         lifecycle = id
         errorMessage = nil
@@ -250,22 +285,22 @@ final class RealtimeVoiceController: ObservableObject {
         hasBeenLive = true
         phase = .live
         statusText = "Listening"
-        Self.logger.info("Voice live source=\(source.id, privacy: .public)")
+        Self.logger.info("Voice live: \(brief.source?.id ?? "assistant", privacy: .public)")
     }
 
     /// Mints a secret, opens and configures a socket, and starts its event loop.
     /// A fresh conversation is kicked off; a resumed one gets its transcript.
     private func connect(isResume: Bool, lifecycleID: UUID) async throws {
-        guard let source else { return }
+        guard let brief else { return }
         let secret = try await ManagedAI.mintRealtimeVoiceSecret()
         guard lifecycle == lifecycleID else { return }
+        activeModel = secret.model
         let stream = await session.connect(model: secret.model, secret: secret.value)
         startEventLoop(stream, lifecycleID: lifecycleID)
-        let instructions = RealtimeVoiceTutor.instructions(for: source, opening: opening)
         do {
             try await session.configure(
-                instructions: instructions,
-                tools: RealtimeVoiceTutor.tools,
+                instructions: brief.instructions,
+                tools: brief.toolbox.toolDefinitions + [RealtimeVoiceTutor.endTool],
                 voice: RealtimeVoiceDefaults.voice,
                 transcriptionModel: transcriptionModel
             )
@@ -297,7 +332,7 @@ final class RealtimeVoiceController: ObservableObject {
                 try await session.createResponse()
             }
         } else {
-            try await session.createMessage(role: "user", text: RealtimeVoiceTutor.kickoffMessage(for: opening))
+            try await session.createMessage(role: "user", text: brief.kickoff)
             try await session.createResponse()
         }
     }
@@ -543,8 +578,16 @@ final class RealtimeVoiceController: ObservableObject {
         case .functionCallDone(let callID, let name, let argumentsJSON):
             await runTool(callID: callID, name: name, argumentsJSON: argumentsJSON)
 
-        case .responseDone(_, let status):
+        case .responseDone(_, let status, let usage):
             responseInFlight = false
+            if let usage {
+                ManagedAI.reportRealtimeVoiceUsage(
+                    usage,
+                    model: activeModel,
+                    sourceTitle: brief?.source?.title ?? title,
+                    activityID: activityID
+                )
+            }
             if status == "failed" {
                 errorMessage = "The tutor couldn't answer that. Say it again."
             }
@@ -587,18 +630,16 @@ final class RealtimeVoiceController: ObservableObject {
     }
 
     private func runTool(callID: String, name: String, argumentsJSON: String) async {
-        let arguments = (try? JSONSerialization.jsonObject(with: Data(argumentsJSON.utf8)) as? [String: Any]) ?? [:]
         let output: String
         var asksForReply = true
-        switch name {
-        case RealtimeVoiceTutor.searchToolName:
-            let query = (arguments["query"] as? String) ?? ""
-            output = RealtimeVoicePassageSearch.toolOutput(query: query, passages: passages)
-        case RealtimeVoiceTutor.endToolName:
+        if name == RealtimeVoiceTutor.endToolName {
             output = #"{"ok":true}"#
             asksForReply = false
             endsAfterReply = true
-        default:
+        } else if let toolbox = brief?.toolbox {
+            isTutorWorking = true
+            output = await toolbox.run(name: name, argumentsJSON: argumentsJSON)
+        } else {
             output = #"{"error":"Unknown tool."}"#
         }
         do {
@@ -638,6 +679,17 @@ final class RealtimeVoiceController: ObservableObject {
             if phase == .live { statusText = "Listening" }
         case .failed(let message):
             fail(message)
+        }
+    }
+}
+
+enum RealtimeVoiceStartError: LocalizedError {
+    case noText(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .noText(let title):
+            return "\u{201C}\(title)\u{201D} has no text on this device yet, so there is nothing to talk about."
         }
     }
 }

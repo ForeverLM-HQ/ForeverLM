@@ -457,6 +457,10 @@ targets:
       - Shared/Views/RealtimeVoicePresentation.swift
       - iOS/MobileRealtimeAudio.swift
       - iOS/MobileRealtimeVoice.swift
+      # The voice assistant (CarPlay, Home's waveform): the shared prompt and
+      # library helpers, and the phone's picture of the learner and its tools.
+      - Shared/Services/AI/RealtimeVoiceAssistant.swift
+      - iOS/MobileRealtimeAssistant.swift
       # Speech loudness: shared gain+limiter stages, and the AVPlayer tap that
       # applies them to text-to-speech narration.
       - iOS/MobileSpeechLoudness.swift

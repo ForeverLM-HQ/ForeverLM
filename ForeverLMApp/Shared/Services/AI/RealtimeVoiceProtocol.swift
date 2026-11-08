@@ -27,6 +27,14 @@ enum RealtimeVoiceDefaults {
     static let fallbackTranscriptionModel = "gpt-4o-mini-transcribe"
     /// Both directions are 24 kHz mono PCM16 on the wire.
     static let sampleRate = 24_000.0
+
+    /// A usage-ledger model id that voice mode ran on ("gpt-realtime-2.1",
+    /// "openai/gpt-realtime-2.1-mini"). AI Usage reads these as paid by
+    /// ForeverLM's credits rather than the learner's key.
+    static func isVoiceModeModel(_ model: String) -> Bool {
+        let id = model.lowercased().split(separator: "/").last.map(String.init) ?? ""
+        return id.hasPrefix("gpt-realtime")
+    }
 }
 
 /// The events the controller consumes, decoded from OpenAI's server events.
@@ -43,9 +51,45 @@ enum RealtimeVoiceServerEvent {
     case outputTranscriptDelta(itemID: String, delta: String)
     case outputTranscriptDone(itemID: String, transcript: String)
     case functionCallDone(callID: String, name: String, argumentsJSON: String)
-    case responseDone(responseID: String, status: String)
+    case responseDone(responseID: String, status: String, usage: RealtimeVoiceUsage?)
     case serverError(message: String)
     case ignored(type: String)
+}
+
+/// One reply's tokens, split the way OpenAI prices them. Reported to the proxy
+/// (`ManagedAI.reportRealtimeVoiceUsage`), which records it in the usage ledger
+/// as spent on ForeverLM's own OpenAI credits: shown in AI Usage, never charged.
+struct RealtimeVoiceUsage: Equatable, Sendable {
+    let responseID: String
+    var textInputTokens = 0
+    var audioInputTokens = 0
+    var cachedTextInputTokens = 0
+    var cachedAudioInputTokens = 0
+    var textOutputTokens = 0
+    var audioOutputTokens = 0
+
+    var totalTokens: Int {
+        textInputTokens + audioInputTokens + cachedTextInputTokens + cachedAudioInputTokens
+            + textOutputTokens + audioOutputTokens
+    }
+
+    /// From `response.done`'s `usage`. Cached tokens are counted inside the
+    /// input totals there, so they are taken out of the uncached buckets.
+    init?(responseID: String, usage: [String: Any]) {
+        guard !responseID.isEmpty else { return nil }
+        func int(_ value: Any?) -> Int { (value as? NSNumber)?.intValue ?? 0 }
+        let input = usage["input_token_details"] as? [String: Any] ?? [:]
+        let cached = input["cached_tokens_details"] as? [String: Any] ?? [:]
+        let output = usage["output_token_details"] as? [String: Any] ?? [:]
+        self.responseID = responseID
+        cachedTextInputTokens = int(cached["text_tokens"])
+        cachedAudioInputTokens = int(cached["audio_tokens"])
+        textInputTokens = max(0, int(input["text_tokens"]) - cachedTextInputTokens)
+        audioInputTokens = max(0, int(input["audio_tokens"]) - cachedAudioInputTokens)
+        textOutputTokens = int(output["text_tokens"])
+        audioOutputTokens = int(output["audio_tokens"])
+        guard totalTokens > 0 else { return nil }
+    }
 }
 
 /// How a server `error` event is treated.
@@ -207,9 +251,13 @@ enum OpenAIRealtimeWire {
             )
         case "response.done":
             let response = json["response"] as? [String: Any]
+            let responseID = (response?["id"] as? String) ?? ""
             return .responseDone(
-                responseID: (response?["id"] as? String) ?? "",
-                status: (response?["status"] as? String) ?? "unknown"
+                responseID: responseID,
+                status: (response?["status"] as? String) ?? "unknown",
+                usage: (response?["usage"] as? [String: Any]).flatMap {
+                    RealtimeVoiceUsage(responseID: responseID, usage: $0)
+                }
             )
         case "error":
             let error = json["error"] as? [String: Any]

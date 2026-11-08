@@ -36,6 +36,7 @@
 - [Plan](https://docs.foreverlm.com/plan): The quarter's plan as a Page, and the chat that plans a quarter, or puts a week or a day on the calendar, as Cal Newport teaches it.
 - [In-App Chat](https://docs.foreverlm.com/in-app-chat): Review sources inside ForeverLM with the configured API provider. Completed sessions link back to sources.
 - [Text to Speech](https://docs.foreverlm.com/text-to-speech): Listen to articles and text sources with on-device macOS speech or configured cloud TTS providers.
+- [Voice Mode](https://docs.foreverlm.com/voice-mode): Talk about a source or be quizzed on it out loud, and talk to ForeverLM as a voice assistant that knows your plan, goals and recent work, in the app and in CarPlay.
 - [AI Providers & Models](https://docs.foreverlm.com/ai-providers): Managed provider and model selection for chat, text-to-speech, speech-to-text, and on-device semantic search.
 - [Learning with AI](https://docs.foreverlm.com/learning-with-mcp): Use explain-it-back review and Socratic dialogue with MCP-connected assistants.
 

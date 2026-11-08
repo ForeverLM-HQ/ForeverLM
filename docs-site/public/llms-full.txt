@@ -2391,12 +2391,9 @@ Web Studio offers the models ForeverLM curates and requests each from OpenRouter
 
 ### Voice in the car and in review
 
-CarPlay and **Review by Voice** talk with you turn by turn:
+CarPlay starts [voice mode](/voice-mode)'s assistant: a realtime conversation that knows your recent work, goals and plans, and can talk about or quiz you on any source.
 
-- **Review by Voice** in the **⋯** of the iPhone's card review: today's whole memory review, spoken.
-- CarPlay: ForeverLM first offers a source, the audio you were last playing, else something on today's plan, else what you read or discussed most recently. "Shall I quiz you on …? Say yes, name another source, or ask for your memory review." Say yes, or a title, and it talks about that source in a chat kept as any reading chat is; ask for your memory review ("my memory review", "what's due") and it holds that.
-
-Apple's speech recognition hears you and waits for a short pause. Your chat model answers as it would in a typed chat, and Apple's speech synthesis speaks the answer. The microphone is off while ForeverLM speaks, so let it finish before you answer.
+**Review by Voice**, in the **⋯** of the iPhone's card review, holds today's whole memory review out loud, turn by turn; the CarPlay assistant hands over to it when you ask for your memory review. Apple's speech recognition hears you and waits for a short pause. Your chat model answers as it would in a typed chat, and Apple's speech synthesis speaks the answer. The microphone is off while ForeverLM speaks, so let it finish before you answer.
 
 To talk about a source out loud with another app, share it: see [Share a source](/studio#share-a-source).
 
@@ -2442,6 +2439,55 @@ Text to Speech pairs especially well with Schedule:
 
 ---
 
+<!-- Source: docs-site/voice-mode.md -->
+
+# Voice Mode
+
+Voice mode is a spoken conversation with ForeverLM, the way ChatGPT's voice mode works: you talk, it answers out loud within a moment, and you can cut in at any time. Use it to talk a paper through, to be quizzed on it, or to talk to ForeverLM as your assistant about your work, your goals and your plan, in the app or in the car.
+
+Voice mode runs on OpenAI's realtime voice model, paid for by ForeverLM. It needs Sign in with Apple and nothing else: no key, and nothing is billed to you or to your OpenRouter key. Each account has a generous daily allowance of conversations.
+
+## Talk about a source
+
+- **iPhone:** in the Reader, tap the **waveform** in the bottom bar to talk about the source. Hold it and choose **Quiz Me** to start with a question.
+- **Mac:** in the Reader's **⋯**, choose **Talk About It** or **Quiz Me Out Loud**. The conversation opens in a small floating window that stays above the Reader; close it to end.
+
+ForeverLM has the whole source in front of it (a very long book is searched as you go), so it can explain a result, check what you remember, and point to the passage. When it quizzes you it asks one question at a time, tells you plainly what was right and what was missing, and goes deeper as you get it right.
+
+## Talk to ForeverLM
+
+The assistant is the same conversation about you instead of one source. When it starts it reads, on your device:
+
+- your plan Page for this quarter,
+- your calendar for the week (where your week and day plans live),
+- what is on your Schedule,
+- your goals and notebooks,
+- what you read, listened to, watched or discussed in the last two weeks, and your latest chats.
+
+Ask it what to work on next, to go over your day, or about a paper you read last week. It can find any source in your library, open it, and talk about it or quiz you on it, and it looks things up again when the picture it started with is not enough. It reads; it never changes your library, plan or calendar.
+
+- **iPhone:** the **waveform** at the top of Home.
+- **Mac:** **Chat › Talk to ForeverLM**.
+- **CarPlay:** open ForeverLM and start talking. The assistant greets you with one useful thing, such as what is next in your plan or the paper you were last into, and keeps every answer short enough to follow while driving. Ask for "my memory review" and it hands over to today's spoken memory review.
+
+On the iPhone, the first time the assistant starts it asks for access to your calendar. Without it, the assistant still knows everything else.
+
+## While you talk
+
+- **Interrupt** whenever you like; it stops and listens.
+- **Mute** the microphone from the voice screen.
+- **AirPods, CarPlay and speakers** can change mid-conversation; the audio follows.
+- **A dropped connection** reconnects on its own and carries on where you were, with what was said so far. If it cannot come back, **Resume** starts again with the conversation kept.
+- **End**, or say goodbye: ForeverLM says goodbye and ends the conversation.
+
+Every conversation is saved as a voice chat: a source conversation with that source's chats, filed in the notebook you opened it from, and an assistant conversation under your chats, named by what you first asked. It syncs to your other devices like any chat.
+
+## Usage
+
+Voice conversations are listed in AI Usage on the Mac and in **Settings › Usage** on the iPhone, task **Voice Mode**, with a **ForeverLM credits** capsule: the cost shown is what OpenAI charged ForeverLM, and nothing is billed to you.
+
+---
+
 <!-- Source: docs-site/ai-providers.md -->
 
 # AI Providers & Models
@@ -2483,7 +2529,11 @@ Voice dictation in Chat on the Mac uses the model chosen in **Settings → Voice
 
 Audio is sent only to the model you chose, through OpenRouter, and is not kept after transcription. The web library's composer dictates on the same model, through ForeverLM's proxy, once you stop recording.
 
-On the iPhone, the composer's microphone, CarPlay and spoken reviews use Apple's on-device speech recognition. It is free, works offline, and is not a model you pick.
+On the iPhone, the composer's microphone and spoken reviews use Apple's on-device speech recognition. It is free, works offline, and is not a model you pick.
+
+## Voice mode
+
+[Voice mode](/voice-mode) (talking about a source, the voice assistant, CarPlay) is the one feature that does not go through OpenRouter: it runs on OpenAI's realtime voice model (gpt-realtime-2.1), which OpenRouter does not serve, and ForeverLM pays for it from its own OpenAI account. Your key is not used and nothing is billed to you. AI Usage lists each conversation with a **ForeverLM credits** capsule.
 
 ## Semantic search
 
@@ -6621,6 +6671,10 @@ All notable changes to ForeverLM are documented here. Dates are in YYYY-MM-DD fo
 ForeverLM follows [semantic versioning](https://semver.org) against its public surface: the MCP tool contracts, the knowledge-base/sync format, and licensing compatibility. While the version is 0.x, minor releases may include breaking changes to that surface; patch releases never do.
 
 ## Unreleased
+
+- **Voice mode is back.** Talk about a source out loud, or be quizzed on it, with answers in a moment and room to interrupt: the Reader's waveform on the iPhone (hold for **Quiz Me**), **Talk About It** and **Quiz Me Out Loud** in the Mac Reader's **⋯**. It runs on OpenAI's realtime voice, paid for by ForeverLM: no key needed, nothing billed to you. See [Voice Mode](/voice-mode).
+- **Talk to ForeverLM, in CarPlay too.** A voice assistant that knows your quarter plan, your calendar, your Schedule, goals, notebooks and recent work, and can open any source to talk about or quiz you on. CarPlay starts it when you connect; on the iPhone it is the waveform on Home, on the Mac **Chat › Talk to ForeverLM**.
+- **AI Usage lists voice conversations** with a **ForeverLM credits** capsule: what OpenAI charged ForeverLM, never billed to you.
 
 ## 0.193.0 (build 273) — 2026-11-07
 

@@ -142,4 +142,84 @@ struct RealtimeVoiceTutorTests {
             "item": ["type": "function_call", "id": "i1"],
         ]) == nil)
     }
+
+    @Test("A reply's usage is split into OpenAI's price buckets, cached tokens taken out")
+    func usageDecoding() {
+        let event = OpenAIRealtimeWire.decodeServerEvent([
+            "type": "response.done",
+            "response": [
+                "id": "resp_1",
+                "status": "completed",
+                "usage": [
+                    "input_token_details": [
+                        "text_tokens": 1_000, "audio_tokens": 300,
+                        "cached_tokens_details": ["text_tokens": 800, "audio_tokens": 100],
+                    ],
+                    "output_token_details": ["text_tokens": 40, "audio_tokens": 200],
+                ],
+            ] as [String: Any],
+        ])
+        guard case .responseDone(let id, _, let usage?) = event else {
+            Issue.record("usage not decoded")
+            return
+        }
+        #expect(id == "resp_1")
+        #expect(usage.textInputTokens == 200)
+        #expect(usage.cachedTextInputTokens == 800)
+        #expect(usage.audioInputTokens == 200)
+        #expect(usage.cachedAudioInputTokens == 100)
+        #expect(usage.textOutputTokens == 40)
+        #expect(usage.audioOutputTokens == 200)
+        #expect(RealtimeVoiceUsage(responseID: "", usage: [:]) == nil)
+    }
+
+    @Test("The library is ranked by title words, then by recent attention")
+    func libraryRanking() {
+        let now = Date(timeIntervalSinceReferenceDate: 800_000_000)
+        let items = [
+            RealtimeVoiceLibraryItem(id: "a", title: "Mitochondria and Ageing", sourceType: "paper", byline: nil,
+                                     addedAt: now.addingTimeInterval(-90 * 86_400), lastAttentionAt: nil),
+            RealtimeVoiceLibraryItem(id: "b", title: "Mitochondrial Dynamics in Flies", sourceType: "paper", byline: "C. Example",
+                                     addedAt: now.addingTimeInterval(-200 * 86_400), lastAttentionAt: now.addingTimeInterval(-86_400)),
+            RealtimeVoiceLibraryItem(id: "c", title: "Wing Morphology", sourceType: "article", byline: nil,
+                                     addedAt: now, lastAttentionAt: now),
+        ]
+        let ranked = RealtimeVoiceLibrarySearch.rank("the mitochondria paper", in: items, now: now)
+        #expect(ranked.map(\.id) == ["b", "a"])
+        let output = RealtimeVoiceLibrarySearch.toolOutput(ranked, now: now)
+        #expect(output.contains(#""source_id":"b""#))
+        #expect(RealtimeVoiceLibrarySearch.toolOutput([]).contains("Nothing in the library matches"))
+    }
+
+    @Test("An opened source is handed over whole, or its opening with a note, and searched")
+    func openedSources() {
+        let opened = RealtimeVoiceOpenedSources()
+        #expect(opened.search(sourceID: nil, query: "x").contains("No source is open"))
+        let short = RealtimeVoiceSource(id: "s", title: "Short", sourceType: "article", byline: nil,
+                                        text: "Rotenone inhibits complex I.", reviewGuide: nil)
+        #expect(opened.open(short).contains("Rotenone inhibits complex I."))
+        #expect(opened.search(sourceID: nil, query: "rotenone").contains("Rotenone"))
+        let long = RealtimeVoiceSource(id: "l", title: "Long", sourceType: "book", byline: nil,
+                                       text: String(repeating: "a ", count: RealtimeVoiceOpenedSources.openTextBudget), reviewGuide: nil)
+        #expect(opened.open(long).contains("This is the opening only"))
+        #expect(opened.ids == ["s", "l"])
+    }
+
+    @Test("The assistant knows the learner's picture and how to talk in the car")
+    func assistantInstructions() {
+        let sections = [
+            RealtimeVoiceAssistant.Section(title: "Quarter plan", text: "Objective: finish the thesis draft."),
+            RealtimeVoiceAssistant.Section(title: "Calendar this week", text: ""),
+        ]
+        let car = RealtimeVoiceAssistant.instructions(sections: sections, setting: .car)
+        #expect(car.contains("<quarter_plan>"))
+        #expect(car.contains("finish the thesis draft"))
+        #expect(!car.contains("<calendar_this_week>"))
+        #expect(car.contains("driving"))
+        #expect(!RealtimeVoiceAssistant.instructions(sections: sections, setting: .mac).contains("driving"))
+        #expect(RealtimeVoiceExchange.assistantChatTitle(firstQuestion: nil) == "Voice chat")
+        let long = RealtimeVoiceExchange.assistantChatTitle(firstQuestion: String(repeating: "word ", count: 30))
+        #expect(long.hasSuffix("…"))
+        #expect(long.count <= 61)
+    }
 }

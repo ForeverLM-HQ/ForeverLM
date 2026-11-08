@@ -936,7 +936,7 @@ enum AIUsageTaskLabel {
         case "podcast_youtube_matching": return "Match Podcast on YouTube"
         case "read_aloud": return "Generate Text-to-Speech Audio"
         case "read_aloud_probe": return "Test Text-to-Speech Voice"
-        case "realtime_voice": return "Run Realtime Voice"
+        case "realtime_voice": return "Voice Mode"
         case "realtime_review_preparation": return "Create Review Questions"
         case "rephrase_question": return "Rephrase Question"
         case "report_writing": return "Write Report"
@@ -1066,10 +1066,14 @@ enum AIProviderPricing {
         // Image API's directory lists, so a call whose response carried no
         // charge is still priced (product owner, 2026-10-29: "everything must
         // be priced").
+        // The Image API's directory is the Mac's (`ImageGenerationCatalog.swift`
+        // is not in the iPhone target, whose usage the proxy prices).
+        #if os(macOS)
         if total == nil, (report.imageCount ?? 0) > 0,
            let price = ImageGenerationDirectory.snapshot.first(where: { $0.id.lowercased() == model })?.price {
             add(price.cost(pictures: report.imageCount ?? 1, imageTokens: report.imageOutputTokens ?? report.outputTokens))
         }
+        #endif
 
         return total
     }

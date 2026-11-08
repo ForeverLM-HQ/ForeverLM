@@ -995,6 +995,11 @@ struct ForeverLMApp: App {
             CommandMenu("Chat") {
                 shellActionButton(.sideChat)
                 shellActionButton(.quickChat)
+                // Voice mode's assistant, in its floating panel: it knows the
+                // plan, the calendar, goals and recent work (`MacRealtimeAssistant`).
+                Button("Talk to ForeverLM") {
+                    MacRealtimeVoice.startAssistant()
+                }
 
                 Divider()
 

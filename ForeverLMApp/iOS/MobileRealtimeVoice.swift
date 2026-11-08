@@ -17,11 +17,20 @@ enum MobileRealtimeVoice {
 
     static let controller: RealtimeVoiceController = {
         let controller = RealtimeVoiceController(makeAudio: { MobileRealtimeVoiceAudio() })
-        controller.onFinished = { source, turns, startedAt in
-            save(source: source, turns: turns, startedAt: startedAt)
+        controller.onFinished = { finished in
+            save(finished)
+            if pendingMemoryReview {
+                pendingMemoryReview = false
+                Task { await MobileVoiceConversationController.shared.startMemoryReview() }
+            }
         }
         return controller
     }()
+
+    /// Set by the assistant's `start_memory_review`: when its goodbye has been
+    /// spoken, today's memory review starts on the turn-by-turn conversation,
+    /// which owns cards and grading (and CarPlay follows it).
+    static var pendingMemoryReview = false
 
     /// The source on the voice screen, for its card (thumbnail, subtitle).
     private(set) static var currentSource: MobileCloudSource?
@@ -32,11 +41,7 @@ enum MobileRealtimeVoice {
         notebook: MobileCloudNotebook?,
         opening: RealtimeVoiceOpening
     ) async {
-        let turnByTurn = MobileVoiceConversationController.shared
-        if turnByTurn.isActive { await turnByTurn.end() }
-        // A narration playing under the conversation would talk over it.
-        let player = MobileAudioReviewViewModel.shared
-        if player.isPlaying { player.togglePlayback() }
+        await prepareToTalk()
         currentSource = source
         currentNotebookID = notebook?.id
         let id = source.id
@@ -54,6 +59,29 @@ enum MobileRealtimeVoice {
                 reviewGuide: nil
             )
         }
+    }
+
+    /// The personal assistant (`MobileRealtimeAssistant`): no source, the
+    /// learner's plans and recent work instead. CarPlay starts it on connect.
+    static func startAssistant(setting: RealtimeVoiceAssistant.Setting) async {
+        await prepareToTalk()
+        currentSource = nil
+        currentNotebookID = nil
+        pendingMemoryReview = false
+        await controller.start(
+            title: RealtimeVoiceAssistant.title,
+            status: "Getting your day together…"
+        ) {
+            await MobileRealtimeAssistant.brief(setting: setting)
+        }
+    }
+
+    private static func prepareToTalk() async {
+        let turnByTurn = MobileVoiceConversationController.shared
+        if turnByTurn.isActive { await turnByTurn.end() }
+        // A narration playing under the conversation would talk over it.
+        let player = MobileAudioReviewViewModel.shared
+        if player.isPlaying { player.togglePlayback() }
     }
 
     static var contextItem: VoiceContextItem? {
@@ -87,21 +115,26 @@ enum MobileRealtimeVoice {
 
     /// Saved as a voice chat (`ChatKind.voice`; the `-live-` id is what the
     /// classifier reads as voice for records without a kind).
-    private static func save(source: RealtimeVoiceSource, turns: [RealtimeVoiceTurn], startedAt: Date) {
-        let exchanges = RealtimeVoiceExchange.exchanges(from: turns)
+    private static func save(_ finished: RealtimeVoiceController.Finished) {
+        let exchanges = RealtimeVoiceExchange.exchanges(from: finished.turns)
         guard !exchanges.isEmpty else { return }
         let answered = exchanges.filter { !$0.answer.isEmpty }.count
+        let turns = "\(answered) turn\(answered == 1 ? "" : "s")"
+        // The assistant's chat is called by what the learner first asked.
+        let topic = finished.source?.title
+            ?? RealtimeVoiceExchange.assistantChatTitle(firstQuestion: exchanges.first { !$0.answer.isEmpty }?.answer)
         var result = MobileReviewResult(
             sessionID: "ios-live-\(UUID().uuidString.lowercased())",
-            topic: source.title,
-            sourceID: source.id,
-            goalID: currentNotebookID,
-            startedAt: startedAt,
+            topic: topic,
+            sourceID: finished.sourceIDs.first,
+            goalID: finished.source == nil ? nil : currentNotebookID,
+            startedAt: finished.startedAt,
             endedAt: Date(),
             // A voice conversation grades nothing on its own; a score here would
             // be read by the Mac as the source's latest recall score.
             overallScore: nil,
-            summary: "Voice conversation about \(source.title) on iOS — \(answered) turn\(answered == 1 ? "" : "s").",
+            summary: finished.source.map { "Voice conversation about \($0.title) on iOS — \(turns)." }
+                ?? "Voice conversation with the ForeverLM assistant on iOS — \(turns).",
             exchanges: exchanges.map {
                 MobileReviewRecordedExchange(
                     question: $0.question,
@@ -117,6 +150,7 @@ enum MobileRealtimeVoice {
             modelID: RealtimeVoiceDefaults.model
         )
         result.kind = .voice
+        result.additionalSourceIDs = Array(finished.sourceIDs.dropFirst())
         Task {
             do {
                 try await MobileReviewSessionRecorder.shared.record(result)

@@ -4,11 +4,14 @@ import Foundation
 import OSLog
 import UIKit
 
-// CarPlay front door for the hands-free review companion. CarPlay is the most
-// reliable in-car entry point (Siri AI is waitlisted/region-limited), so this
-// gives the driver a hands-free entry point to the voice conversation, which
-// runs turn by turn (`MobileVoiceConversationController`): it offers a source,
-// listens, and speaks the learner's chat model's reply. The
+// CarPlay front door: connect and talk. Since 2026-11-07 the car starts the
+// personal voice assistant on OpenAI Realtime (`MobileRealtimeVoice.startAssistant`,
+// `MobileRealtimeAssistant`), which knows the learner's recent work, goals and
+// plans and can open any source to talk about or quiz on (product owner,
+// 2026-11-07: "I need to be able to just talk to this AI assistant and have it
+// ... just work"). Asked for today's memory review, it hands over to the
+// turn-by-turn conversation (`MobileVoiceConversationController`), which owns
+// cards and grading; the template follows whichever of the two is running. The
 // approved CarPlay category is voice-based conversation, so the in-car surface
 // deliberately uses Apple's Voice Control template rather than presenting the
 // audio-app Now Playing template. The shared controller outlives the SwiftUI
@@ -32,24 +35,24 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     ) {
         self.interfaceController = interfaceController
         let voiceController = MobileVoiceConversationController.shared
+        let realtime = MobileRealtimeVoice.controller
         let template = makeVoiceTemplate()
         voiceTemplate = template
         interfaceController.setRootTemplate(template, animated: false, completion: nil)
 
-        voiceStateObserver = Publishers.CombineLatest3(
-            voiceController.$phase,
-            voiceController.$statusText,
-            voiceController.$needsSignIn
+        voiceStateObserver = Publishers.CombineLatest(
+            Publishers.CombineLatest3(realtime.$phase, realtime.$statusText, realtime.$needsSignIn),
+            Publishers.CombineLatest3(voiceController.$phase, voiceController.$statusText, voiceController.$needsSignIn)
         )
-            .sink { [weak self] phase, statusText, needsSignIn in
+            .sink { [weak self] assistant, turnByTurn in
                 guard let self else { return }
-                self.voiceTemplate?.activateVoiceControlState(
-                    withIdentifier: self.voiceStateIdentifier(
-                        for: phase,
-                        statusText: statusText,
-                        needsSignIn: needsSignIn
-                    )
-                )
+                let identifier: String
+                if assistant.0 != .idle || assistant.2 {
+                    identifier = self.voiceStateIdentifier(for: assistant.0, statusText: assistant.1, needsSignIn: assistant.2)
+                } else {
+                    identifier = self.voiceStateIdentifier(for: turnByTurn.0, statusText: turnByTurn.1, needsSignIn: turnByTurn.2)
+                }
+                self.voiceTemplate?.activateVoiceControlState(withIdentifier: identifier)
             }
 
         contextSourcesObserver = voiceController.$loadedSources
@@ -59,7 +62,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
                 self?.contextSourcesDidChange(sources)
             }
 
-        if voiceController.phase == .idle {
+        if voiceController.phase == .idle, realtime.phase == .idle {
             startVoiceAgent()
         }
     }
@@ -84,25 +87,29 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         // disconnect can arrive while async preflight is still suspended; End
         // must invalidate that pending start or it could arm the microphone
         // after the car scene is already gone.
-        Task { await MobileVoiceConversationController.shared.end() }
+        Task {
+            await MobileRealtimeVoice.controller.end()
+            await MobileVoiceConversationController.shared.end()
+        }
     }
 
     // MARK: - Voice
 
+    /// Starts the assistant, or resumes the conversation that failed (a
+    /// dropped connection that could not come back, keeping what was said).
     private func startVoiceAgent() {
-        let controller = MobileVoiceConversationController.shared
-        guard controller.phase == .idle || controller.phase == .failed else { return }
+        let realtime = MobileRealtimeVoice.controller
+        let turnByTurn = MobileVoiceConversationController.shared
 
         voiceTemplate?.activateVoiceControlState(withIdentifier: "listening")
 
         Task { @MainActor in
-            // The controller reads the catalog as it starts. Do not put a
-            // second zone pass in front of start: CarPlay would look live
-            // while the app was still deaf.
-            if controller.phase == .failed {
-                await controller.resume()
-            } else {
-                await controller.startFromCarPlay()
+            if realtime.phase == .failed {
+                await realtime.resume()
+            } else if turnByTurn.phase == .failed {
+                await turnByTurn.resume()
+            } else if realtime.phase == .idle, turnByTurn.phase == .idle {
+                await MobileRealtimeVoice.startAssistant(setting: .car)
             }
         }
     }
@@ -303,9 +310,27 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
     }
 
     private func endVoiceSession() {
-        // The controller is authoritative; rendered CarPlay state can lag
+        // The controllers are authoritative; rendered CarPlay state can lag
         // during async startup or a route transition.
-        Task { await MobileVoiceConversationController.shared.end() }
+        Task {
+            await MobileRealtimeVoice.controller.end()
+            await MobileVoiceConversationController.shared.end()
+        }
+    }
+
+    /// The assistant's phases on the same five states.
+    private func voiceStateIdentifier(
+        for phase: RealtimeVoiceController.Phase,
+        statusText: String,
+        needsSignIn: Bool
+    ) -> String {
+        if needsSignIn { return "sign-in" }
+        switch statusText {
+        case "Thinking": return "thinking"
+        case "Speaking": return "speaking"
+        default:
+            return phase == .failed ? "unavailable" : "listening"
+        }
     }
 }
 

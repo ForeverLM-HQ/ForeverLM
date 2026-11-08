@@ -6,6 +6,10 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **Voice mode is back.** Talk about a source out loud, or be quizzed on it, with answers in a moment and room to interrupt: the Reader's waveform on the iPhone (hold for **Quiz Me**), **Talk About It** and **Quiz Me Out Loud** in the Mac Reader's **⋯**. It runs on OpenAI's realtime voice, paid for by ForeverLM: no key needed, nothing billed to you. See [Voice Mode](/voice-mode).
+- **Talk to ForeverLM, in CarPlay too.** A voice assistant that knows your quarter plan, your calendar, your Schedule, goals, notebooks and recent work, and can open any source to talk about or quiz you on. CarPlay starts it when you connect; on the iPhone it is the waveform on Home, on the Mac **Chat › Talk to ForeverLM**.
+- **AI Usage lists voice conversations** with a **ForeverLM credits** capsule: what OpenAI charged ForeverLM, never billed to you.
+
 ## 0.193.0 (build 273) — 2026-11-07
 
 **Highlights:**

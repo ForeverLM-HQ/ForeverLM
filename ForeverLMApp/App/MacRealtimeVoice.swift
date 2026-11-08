@@ -16,8 +16,8 @@ enum MacRealtimeVoice {
 
     static let controller: RealtimeVoiceController = {
         let controller = RealtimeVoiceController(makeAudio: { MacRealtimeVoiceAudio() })
-        controller.onFinished = { source, turns, startedAt in
-            save(source: source, turns: turns, startedAt: startedAt)
+        controller.onFinished = { finished in
+            save(finished)
         }
         return controller
     }()
@@ -62,24 +62,49 @@ enum MacRealtimeVoice {
         }
     }
 
+    /// The personal assistant (`MacRealtimeAssistant`): the learner's plans,
+    /// calendar, goals and recent work, and any source opened by voice.
+    static func startAssistant() {
+        Task {
+            if controller.isActive {
+                isReplacing = true
+                await controller.end()
+                isReplacing = false
+            }
+            currentContext = nil
+            currentNotebookID = nil
+            MacRealtimeVoicePanel.shared.show()
+            await controller.start(title: RealtimeVoiceAssistant.title, status: "Getting your day together…") {
+                await MacRealtimeAssistant.brief()
+            }
+        }
+    }
+
     static var contextItem: VoiceContextItem? { currentContext }
 
     /// Saved as a voice chat (`ChatKind.voice`, under a `mac-live-` id, which
     /// the classifier also reads as voice) through the same storage calls a
     /// typed chat uses, so it syncs like one.
-    private static func save(source: RealtimeVoiceSource, turns: [RealtimeVoiceTurn], startedAt: Date) {
-        let exchanges = RealtimeVoiceExchange.exchanges(from: turns)
+    private static func save(_ finished: RealtimeVoiceController.Finished) {
+        let exchanges = RealtimeVoiceExchange.exchanges(from: finished.turns)
         guard !exchanges.isEmpty else { return }
-        let notebookID = currentNotebookID
+        let notebookID = finished.source == nil ? nil : currentNotebookID
         let answered = exchanges.filter { !$0.answer.isEmpty }.count
+        let turns = "\(answered) turn\(answered == 1 ? "" : "s")"
+        let topic = finished.source?.title
+            ?? RealtimeVoiceExchange.assistantChatTitle(firstQuestion: exchanges.first { !$0.answer.isEmpty }?.answer)
+        let summary = finished.source.map { "Voice conversation about \($0.title) on the Mac — \(turns)." }
+            ?? "Voice conversation with the ForeverLM assistant on the Mac — \(turns)."
+        let sourceIDs = finished.sourceIDs
+        let startedAt = finished.startedAt
         Task {
             let storage = StorageService()
             let sessionID = "mac-live-\(UUID().uuidString.lowercased())"
             do {
                 try await storage.createReviewSession(
                     id: sessionID,
-                    topic: source.title,
-                    sourceIDs: [source.id],
+                    topic: topic,
+                    sourceIDs: sourceIDs,
                     startedAt: startedAt,
                     modelProvider: "OpenAI",
                     modelID: RealtimeVoiceDefaults.model,
@@ -91,7 +116,7 @@ enum MacRealtimeVoice {
                         try await storage.addReviewPrompt(
                             sessionID: sessionID,
                             question: exchange.question,
-                            sourceRefs: [source.id]
+                            sourceRefs: sourceIDs
                         )
                     } else {
                         _ = try await storage.addReviewExchange(
@@ -100,14 +125,14 @@ enum MacRealtimeVoice {
                             answer: exchange.answer,
                             evaluation: exchange.evaluation,
                             knowledgeNote: "Recorded from voice mode on the Mac.",
-                            sourceRefs: [source.id],
+                            sourceRefs: sourceIDs,
                             answeredAt: exchange.answeredAt
                         )
                     }
                 }
                 try await storage.completeReviewSession(
                     sessionID: sessionID,
-                    summary: "Voice conversation about \(source.title) on the Mac — \(answered) turn\(answered == 1 ? "" : "s").",
+                    summary: summary,
                     endedAt: Date()
                 )
             } catch {

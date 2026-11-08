@@ -69,6 +69,7 @@ export default defineConfig({
           { text: 'Plan', link: '/plan' },
           { text: 'In-App Chat', link: '/in-app-chat' },
           { text: 'Text to Speech', link: '/text-to-speech' },
+          { text: 'Voice Mode', link: '/voice-mode' },
           { text: 'AI Providers & Models', link: '/ai-providers' },
         ],
       },
