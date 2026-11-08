@@ -386,10 +386,10 @@ private struct InternalReviewPanelContent: View {
     private let contextSourcesPopoverWidth: CGFloat = 380
     private let contextSourcesPopoverHeight: CGFloat = 420
 
-    /// The empty chat's greeting keeps a focused column, and the suggestions
-    /// over the composer a slightly wider one. The composer itself keeps the
-    /// transcript's width (`chatColumnMaxWidth`), so the first message does not
-    /// move it.
+    /// The empty chat's greeting keeps a focused column. The composer keeps
+    /// the transcript's width (`chatColumnMaxWidth`), so the first message does
+    /// not move it sideways, and the suggestions under it take the same width;
+    /// the canvas's question cards keep `idleComposerMaxWidth`.
     private let idleWelcomeColumnWidth: CGFloat = 420
     private let idleComposerMaxWidth: CGFloat = 620
 
@@ -1306,20 +1306,18 @@ private struct InternalReviewPanelContent: View {
                 compactTranscriptPanel
             }
             if showsIdleWelcome {
-                // Codex's empty chat (product owner, 2026-10-11: "make the chat
-                // experience more look chatgpt codex"): the heading in the
-                // middle, the composer pinned to the foot where it stays once
-                // the chat begins, and the few starting points just above it,
-                // no card, no headers.
+                // ChatGPT's empty chat: the greeting, the composer and the few
+                // starting points under it stand together as one group a little
+                // above the middle, and the composer slides to the foot once
+                // the chat begins. The 2026-10-11 Codex layout (greeting in the
+                // middle, composer pinned to the foot, suggestions just above
+                // it) left a void between them (product owner, 2026-11-08:
+                // "this spacing looks terrible").
                 Spacer(minLength: 12)
                 idleWelcomeHeading
+                    .padding(.bottom, StudioDesign.Spacing.large)
                     .transition(.opacity)
                     .task(id: vm.hasCompletedInitialQueueLoad) { await refreshReadNextSuggestions() }
-                Spacer(minLength: 12)
-                idleWelcomeOffers
-                    .frame(maxWidth: idleComposerMaxWidth)
-                    .padding(.bottom, StudioDesign.Spacing.xSmall)
-                    .transition(.opacity)
             }
             if !shouldShowTranscript,
                let error = manager.errorMessage ?? dictation.errorMessage ?? speech.errorMessage {
@@ -1336,6 +1334,20 @@ private struct InternalReviewPanelContent: View {
                 // leaves the composer where it was.
                 inputBar
                     .frame(maxWidth: chatColumnMaxWidth)
+            }
+            // After the composer, so the composer keeps its place in the view
+            // tree (and its focus) when the first send swaps the welcome for
+            // the transcript. The suggestions take the composer's width, so
+            // their rows line up under its edges.
+            if showsIdleWelcome {
+                idleWelcomeOffers
+                    .frame(maxWidth: chatColumnMaxWidth)
+                    .padding(.top, StudioDesign.Spacing.xSmall)
+                    .transition(.opacity)
+                // Twice the space above the group, which lifts it to about
+                // two fifths of the way down, where ChatGPT's sits.
+                Spacer(minLength: 12)
+                Spacer(minLength: 12)
             }
         }
         .animation(.easeInOut(duration: 0.22), value: shouldShowTranscript)
