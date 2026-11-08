@@ -134,9 +134,9 @@ New versions reach beta testers first. To be one of them, turn on **Settings →
 
 ## First Launch
 
-ForeverLM asks you to **Sign in with Apple** before anything else. Your Apple Account is your ForeverLM account: there is no separate password to create, no card is needed, and the same sign-in works on every device. ForeverLM is free. Signing in starts your 7 free days of MCP, the connection that lets an outside assistant use your library; after that, MCP is $19 paid once (no subscription), in **Settings → Billing**, and the app itself never locks. In the Mac app, Apple's sign-in opens in a sheet inside the app; sign in as you would on any Apple device and choose whether to share or hide your email.
+ForeverLM asks you to **Sign in with Apple** before anything else. Your Apple Account is your ForeverLM account: there is no separate password to create, no card is needed, and the same sign-in works on every device. ForeverLM is free, and so is MCP, the connection that lets an outside assistant use your library. In the Mac app, Apple's sign-in opens in a sheet inside the app; sign in as you would on any Apple device and choose whether to share or hide your email.
 
-The in-app Chat, quizzes and background AI work run on your own [OpenRouter API key](https://openrouter.ai/keys), billed by OpenRouter at its cost with nothing added; OpenRouter is the provider supported today. ForeverLM adds nothing to it: add the key from the OpenRouter button at the bottom of the sidebar, then pay models at cost or use free models, which cost $0. Connecting Claude, ChatGPT, Gemini, or Grok [over MCP](/setup-mcp) needs no key; it is the one paid part of ForeverLM (7 days free, then $19 once).
+The in-app Chat, quizzes and background AI work run on your own [OpenRouter API key](https://openrouter.ai/keys), billed by OpenRouter at its cost with nothing added; OpenRouter is the provider supported today. ForeverLM adds nothing to it: add the key from the OpenRouter button at the bottom of the sidebar, then pay models at cost or use free models, which cost $0. Connecting Claude, ChatGPT, Gemini, or Grok [over MCP](/setup-mcp) needs no key and costs nothing.
 
 After signing in, the **Set up ForeverLM** guide opens over the Studio, one question to a page. After Full Disk Access (below), its AI step is two short pages: **Connect OpenRouter**, then **Pick your models**, where one tap takes the recommended set (chat on an open-weights model run by US hosts, background work on OpenRouter's free models with a cheap backup). **Choose my own** opens the model the chat starts on and the one background work (transcripts, cleanup, metadata) runs on, a free model whose providers may keep what you send or a paid one, and, with a free model, an answer about meetings, which stay on a paid model unless you let them use the free one too, since a meeting's transcript holds private conversations. OpenRouter's privacy settings are in **Settings → AI Usage**. Continuing lets ForeverLM use the key for that work, and **Settings → Background** changes the model later, for text-only work and for multimodal work (work that looks at a figure or a slide), a free model included, and gives any one task a model of its own on the Tasks tab; while meetings are kept off a free model, it names the model they use. The other steps bring your first sources in, one at a time: Apple Podcasts, the browsers whose Reading List ForeverLM reads, where your papers live, then the books, courses, meetings or YouTube you tick, each on a page of its own; the last asks which AI apps you use and adds ForeverLM to each. **Skip this step** moves on, and **Continue later** closes the guide; **ForeverLM → Set Up ForeverLM…** brings it back at any time. The app then opens on the Space, where **New Notebook** starts your first notebook; after that, each window opens in the notebook you last worked in.
 
@@ -2472,6 +2472,17 @@ It is all one model: ForeverLM hears you and answers in its own voice. No separa
 
 ForeverLM has the whole source in front of it (a very long book is searched as you go), so it can explain a result, check what you remember, and point to the passage. When it quizzes you it asks one question at a time, tells you plainly what was right and what was missing, and goes deeper as you get it right.
 
+## Gym Mode
+
+Gym Mode is for listening to a paper instead of a podcast, somewhere you can't talk. On the iPhone, in the Reader, hold the **waveform** and choose **Gym Mode**.
+
+- ForeverLM walks you through the source out loud, about a minute at a time, and goes on to the next part by itself: what the paper asks, what was done, what was found, how sure we can be, and what it changes.
+- The microphone starts off, so the noise around you can't interrupt. Tap the microphone to turn it on if you want to talk after all.
+- To ask something, type it in **Ask a question…** at the bottom of the screen. ForeverLM finishes the part it is saying, answers your question, and then carries on with the walk-through.
+- At the end it sums up the main takeaways and waits for any questions you still have.
+
+The chat is saved with the source like any other voice conversation, with your typed questions and the answers to them.
+
 ## Talk to ForeverLM
 
 The assistant is the same conversation about you instead of one source. When it starts it reads, on your device:
@@ -2534,7 +2545,7 @@ Voice conversations are listed in AI Usage on the Mac and in **Settings › Usag
 
 Every text model, whether Anthropic, OpenAI, Google, Meta, xAI or the long tail, is served through [OpenRouter](https://openrouter.ai), on your key, by way of ForeverLM's proxy. A request never falls back silently to another route.
 
-You can also skip the built-in AI entirely and drive ForeverLM from Claude, Codex, Gemini, or Grok, [connected over MCP](/setup-mcp). Connecting an assistant is ForeverLM's one paid part (MCP: 7 days free, then $19 once), and ForeverLM charges nothing per MCP tool call: your assistant's subscription covers the thinking. Sources, Schedule, and semantic search work either way. Most people mix the two.
+You can also skip the built-in AI entirely and drive ForeverLM from Claude, Codex, Gemini, or Grok, [connected over MCP](/setup-mcp). Connecting an assistant is free, and ForeverLM charges nothing per MCP tool call: your assistant's subscription covers the thinking. Sources, Schedule, and semantic search work either way. Most people mix the two.
 
 ## Chat and reviews (text models)
 
@@ -2581,7 +2592,7 @@ Semantic source search runs entirely on-device using Apple's NaturalLanguage con
 
 - **Your key pays, at OpenRouter's cost.** With an OpenRouter key stored under **API keys** in the OpenRouter button at the bottom of the sidebar, everything ForeverLM sends through OpenRouter goes on your key and OpenRouter bills you directly. ForeverLM adds nothing to it. The key covers text models (chat, reviews, and background tasks) *and* every voice, speech-to-text, image and video model OpenRouter serves: the Gemini and Grok voices, GPT-4o mini transcription, the GPT Image, Gemini, FLUX, Recraft and Seedream image models, and Veo, Kling, Wan, Sora and the other video models. **Settings → AI Models → Images** and **→ Videos** list every one of them, read from OpenRouter each time the pane opens, so a model OpenRouter adds shows up there on its own; each card shows OpenRouter's price. Over MCP the same setting is `get_own_router_key` / `set_own_router_key`.
 - **Your key never touches ForeverLM's servers.** It is saved only in your Keychain, which iCloud Keychain syncs end-to-end encrypted to your Macs and iPhone, and the app sends it only to OpenRouter. Connect OpenRouter signs in at openrouter.ai and hands the key back to the app on your Mac directly. The remote ForeverLM connector refuses to carry a key, so an AI assistant cannot set one through it; paste the key into the app instead.
-- **The app's price is separate from AI.** ForeverLM itself is free. MCP, the connection for an outside assistant, is 7 days free from your first sign-in, then $19 paid once (no subscription), before applicable tax, in **Settings → Billing**. Paying never buys AI: your key runs every model, and OpenRouter's free models cost nothing.
+- **ForeverLM itself is free, MCP included.** Nothing in the app is sold, and ForeverLM adds nothing to AI: your key runs every model at OpenRouter's cost, and OpenRouter's free models cost nothing.
 - The **Activity** list under the sidebar's OpenRouter button itemises every request with the exact cost OpenRouter reports, precise below a cent. Models without a published rate are shown as unpriced rather than guessed.
 - **Prepaid balance is retired.** ForeverLM no longer sells AI balance or offers auto top-up. A balance left from an earlier purchase is shown, read-only, while it lasts, and pays for requests sent without your own key. While a key is stored, it pays for nothing.
 - Background tasks (paper metadata extraction, transcript cleanup, search embeddings) run on the same key and are itemised per task in the ledger. They run on the Background models in **Settings → Background**, which the chat can change too (`set_ai_task_settings`), so a cheap or free model there keeps them cheap. While the Text model is free, meeting work stays on a paid model unless you let it use the free one: a meeting's transcript holds private conversations. Each Background model can also list up to ten **backups**, tried in order when it is busy, fails or sends back nothing usable: right-click a model and choose **Use as Backup**. A backup is billed at its own price. A free model you pick brings the next two free models as its backups when it has none. The chat's model can list backups too, in **Settings → AI Models → Chat**, but only a scheduled task's run moves to them: a chat you type in stays on the model you picked.
@@ -3265,7 +3276,7 @@ screen says exactly this in plain words. Every source it adds is labeled with
 the plugin's name, so you can always see what came from where, and one
 command (`remove_connector_sources`, from Claude or any full-access assistant)
 removes everything a plugin ever added. A plugin connects over MCP, so, like
-any assistant, it works while your MCP is in its 7 free days or paid for. ForeverLM charges nothing per tool call, but the gateway
+any assistant, it costs nothing to connect. ForeverLM charges nothing per tool call, but the gateway
 rate-limits every client, so a runaway script runs out of rope quickly.
 
 ## The recipe (give this to your assistant)
@@ -3553,7 +3564,7 @@ The AI has full access to your source text, so it can cite specific passages, ca
 
 # Connect an AI Assistant
 
-The app is free; connecting an assistant is the paid part. MCP is free for 7 days from your first sign-in (no card, nothing to click), then $19 once, the Early user deal, with no subscription, in **Settings → Billing** on the Mac. It covers Claude, ChatGPT, Grok, Gemini, Claude Code and every other MCP client on your account. When the 7 free days are over and nothing is paid, only MCP locks: the connection stops and an assistant's tool calls are refused with "ForeverLM's MCP connection is not unlocked on this account. Open ForeverLM on your Mac to unlock it." The app keeps working, the in-app Chat is never locked, and nothing is deleted. Paying brings the connection back by itself. The iPhone shows no price, since it has no MCP connection.
+ForeverLM is free, MCP included. Connecting an assistant costs nothing: no free days, nothing to buy, no subscription. It covers Claude, ChatGPT, Grok, Gemini, Claude Code and every other MCP client on your account. ForeverLM charges nothing per tool call; the assistant does its thinking on its own subscription.
 
 ::: tip Most people don't need this
 The easiest way to use your sources with AI is to [drag & drop](/drag-and-drop) them directly from Studio. A persistent connection lets an assistant search your full library and run review sessions without dragging files each time.
@@ -3774,7 +3785,7 @@ three from report to approved change. These need an active Mac:
 | `get_app_settings` | `pane?`, `setting?` | Every catalog setting with its `id`, `value`, `type` (`boolean`, `number`, `choice`, `text`, `string_list`), `reach` (`account` or `this_mac`) and the `options` its picker offers, plus `dedicated_tools` (the panes with a pair of their own), `actions` and `only_in_the_settings_window`. |
 | `set_app_setting` | `setting`, `value` | Change one catalog setting exactly as the pane does. A choice outside the pane's options is refused with them. Returns the setting and `changed`. Model and voice pickers change what work is billed at; ask first. |
 | `run_settings_action` | `action`, `approved_spend_usd?` | One of the buttons that act once, whether or not a pane still shows it: `sync_icloud_now`, `prepare_memory_review_now`, `draw_missing_meeting_icons`, `sync_x_bookmarks`, `clear_usage_ledger_warning`, and the iCloud pane's `confirm_this_mac_holds_my_library`, `upload_library_to_icloud_again`, `apply_old_library_removals` and `keep_old_library_removals`, and `replace_icloud_library`, which only an assistant presses when you ask: it deletes iCloud's copy of your library and uploads this Mac's from the start. |
-| `open_settings` | `pane?` | Open the Settings window on the Mac at one pane, for a sign-in, a payment or the sharing sheet. `plugins` and a plugin's id (`x`, `youtube`, `google_drive`, `apple_calendar`, `slack`, `linear`, `github`, `notion`, `build_your_own_plugin`) open the Plugins place on the icon strip instead, at that plugin's page, where its consent page is opened. |
+| `open_settings` | `pane?` | Open the Settings window on the Mac at one pane, for a sign-in or the sharing sheet. `plugins` and a plugin's id (`x`, `youtube`, `google_drive`, `apple_calendar`, `slack`, `linear`, `github`, `notion`, `build_your_own_plugin`) open the Plugins place on the icon strip instead, at that plugin's page, where its consent page is opened. |
 | `open_in_app` | `kind`, `id?`, `side_by_side?` | Show a notebook, doc, chat, source, quiz or idea in the Mac's window as a click would, `space` (the Space's All list), or `plugins` (the Plugins place, at a plugin's page when `id` names one). Listing or loading a notebook changes nothing on screen; this does. |
 | `get_plugin_connections` | `include_slack_channels?` | Plugins: which of X, YouTube, Google Drive, Calendar (the Mac's), Slack, GitHub, Linear, Notion and the learner's own plugins are connected, their accounts (every X, YouTube and Google account listed on its own, a YouTube account with its import source), Slack channels, followed and hidden YouTube channels, and what connecting each takes. |
 | `disconnect_plugin` | `plugin`, `account_id?` | The pane's Disconnect, Turn Off or Remove Access for `x`, `youtube`, `google_drive`, `apple_calendar`, `slack`, `github`, `linear`, `notion` or `user_plugin`. `x` takes the account as `account_id` (its user id or @username) when more than one is connected, and disconnects that account only: its bookmark sync stops and the posts already imported stay. `youtube` takes the account as `account_id` (its channel id, or its channel title) when more than one is connected, and disconnects that account only: it stops importing, while followed channels and the videos already imported stay. `linear` and `notion` take the workspace as `account_id` (its id, or its name) when more than one is connected, and revoke that workspace only. `apple_calendar` turns the Mac's Calendar off for ForeverLM; every event stays in the calendar. Ask first. |
@@ -3790,8 +3801,8 @@ three from report to approved change. These need an active Mac:
 | `get_team_invitation_link` | `team_id` | The team's invitation link, as Copy Link gives it. For an owner this opens the team to anyone with the link; ask first. |
 | `get_chat_models_offered` | — | The models the chat picker offers, with the default. |
 | `set_chat_model_offered` | `provider`, `model`, `offered`, `remove_from_catalog?` | Offer a model in the chat picker or take it off, adding an OpenRouter model from its directory when needed; `remove_from_catalog` drops a model the learner added. The Default Model cannot be taken off. |
-| `get_billing_settings` | — | Settings › Billing, which is MCP's plan (whether MCP is in its 7 free days, paid once, on a monthly plan bought earlier, comped, covered by a family plan, or locked; a locked MCP stops assistants, never the app) and Settings › AI Usage (a summary of your own OpenRouter key, any leftover balance, and the monthly spending limit and its options). |
-| `set_billing_settings` | `monthly_spending_limit` | Set the monthly limit. Paying for MCP needs Stripe Checkout, so it points at `open_settings billing`. Ask first. |
+| `get_billing_settings` | — | Settings › Billing, which shows the account's plan (MCP is free), and Settings › AI Usage (a summary of your own OpenRouter key, any leftover balance, and the monthly spending limit and its options). |
+| `set_billing_settings` | `monthly_spending_limit` | Set the monthly spending limit. Ask first. |
 | `get_background_ai_jobs` | — | Bulk re-queues waiting before they spend: when an update puts more than 50 sources into a paid background queue (source clean-up, Listen preparation, podcast ad clean-up), nothing runs until you decide. Each job's count, how many the change affects, and an estimate from your own usage ledger (or "unknown"), plus today's background spend against the daily cap. |
 | `decide_background_ai_job` | `job_id`, `decision` | Run all of a held re-queue, only the sources the change affects, or skip it. Running spends money, so the assistant asks first. A run can be stopped later with `cancel_ai_work`. |
 
@@ -4882,7 +4893,7 @@ There are a lot of tools in the "learn and remember more" space, and they're gen
 The five things that most distinguish it:
 
 1. **Your data stays yours** — a local SQLite database and files in your private iCloud container, synced through your Apple account. No uploading your library to a vendor's cloud.
-2. **The app is free. MCP: 7 days free, then $19 once. No subscription.** No tiers: the whole app is open, and only connecting an outside assistant over MCP is paid. The in-app Chat runs any model on your own OpenRouter key, billed by OpenRouter at its cost with nothing added, or free models for nothing. Or connect the Claude/ChatGPT/Gemini/Grok subscription you already pay for over MCP, which is what the $19 covers.
+2. **ForeverLM is free, MCP included. No subscription.** No tiers: the whole app is open, and connecting an outside assistant over MCP costs nothing either. The in-app Chat runs any model on your own OpenRouter key, billed by OpenRouter at its cost with nothing added, or free models for nothing. Or connect the Claude/ChatGPT/Gemini/Grok subscription you already pay for over MCP.
 3. **Podcasts are first-class** — follow shows, get full episode transcripts, read, listen, and get quizzed on them.
 4. **Any model, no lock-in** — MCP works with every major assistant; in-app Chat takes any model through your own OpenRouter key; your files stay in open formats on your disk.
 5. **Review that tests understanding** — explain the source back; an AI tutor with the full text probes your gaps. Not self-graded cards, not one-shot quizzes.
@@ -4893,7 +4904,7 @@ The honest trade-off: **ForeverLM is Mac-centered** (macOS 14+). Its synced iPho
 
 | Tool | Best at | Pricing | AI | Retention/review |
 |---|---|---|---|---|
-| **ForeverLM** | Learning from the sources you keep, by AI review dialogue | **Free**; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Any (MCP or in-app Chat) | AI review dialogue, scheduled |
+| **ForeverLM** | Learning from the sources you keep, by AI review dialogue | **Free**, MCP included; AI on your own OpenRouter key at cost | Any (MCP or in-app Chat) | AI review dialogue, scheduled |
 | [NotebookLM](/compare/notebooklm) | Study material and audio overviews from uploads | Free (capped); $7.99–$99.99+/mo Google AI bundles | Gemini only | One-shot quizzes/flashcards, no tracking |
 | [Heptabase](/compare/heptabase) | Card-first whiteboards for thinking | $107.88–$647.88/yr, no free tier | Credit-metered (Gemini; more on Premium) | AI tutor on $215.88/yr tier; spaced repetition unshipped |
 | [Anki](/compare/anki) | Memorizing with self-graded flashcards | Free (iOS $24.99 one-time) | None built in | Self-graded flashcards, SM-2/FSRS |
@@ -4998,7 +5009,7 @@ The honest trade-off: **ForeverLM is Mac-centered** (macOS 14+). Its synced iPho
 
 **"I learn from podcasts"** → [Snipd](/compare/snipd) for capture while listening on your phone; ForeverLM for full transcripts, scheduling, and being quizzed afterwards on your Mac.
 
-**"I save everything and want AI to organize it"** → [Recall](/compare/recall) is the closest cousin: local-first, many source types, spaced-repetition quizzes at $120/yr. ForeverLM differs on depth of review, automatic ingestion, podcasts-as-transcripts, iCloud sync, and a free app (MCP is $19 once) instead of a required yearly subscription.
+**"I save everything and want AI to organize it"** → [Recall](/compare/recall) is the closest cousin: local-first, many source types, spaced-repetition quizzes at $120/yr. ForeverLM differs on depth of review, automatic ingestion, podcasts-as-transcripts, iCloud sync, and a free app, MCP included, instead of a required yearly subscription.
 
 ## The pricing picture, over three years
 
@@ -5007,7 +5018,7 @@ A subscription bills you every year whether or not you opened the app. Here's wh
 | Tool | 3-year cost (typical paid tier, annual billing) |
 |---|---|
 | Anki | $0–$24.99 |
-| **ForeverLM** | **$0** for the app, **$19** once if you add MCP; plus OpenRouter usage at cost on your own key |
+| **ForeverLM** | **$0**, MCP included; plus OpenRouter usage at cost on your own key |
 | Mochi Pro | ~$180 |
 | Reflect | $360 |
 | Readwise Full | ~$360 |
@@ -5016,11 +5027,11 @@ A subscription bills you every year whether or not you opened the app. Here's wh
 | Heptabase Premium | ~$648 |
 | NotebookLM via Google AI Pro | ~$720 |
 
-ForeverLM is the one row without a fixed total, and that's the honest answer: the app is free, MCP is $19 once, and the AI depends on the route you pick. Two routes, and you can mix them. The in-app Chat runs any model on your own OpenRouter key, which OpenRouter bills at its cost with nothing added by ForeverLM; its free models cost nothing. Driving ForeverLM over MCP from a Claude, ChatGPT, Gemini, or Grok subscription you *already* pay for is what the $19 covers, and the subscription is already in your budget. In the app, some tokens also go to background work (transcript cleanup, paper metadata extraction) on the same key, with the model configurable per task. The app keeps a to-the-cent ledger of every conversation.
+ForeverLM is the one row without a fixed total, and that's the honest answer: the app is free, MCP included, and the AI depends on the route you pick. Two routes, and you can mix them. The in-app Chat runs any model on your own OpenRouter key, which OpenRouter bills at its cost with nothing added by ForeverLM; its free models cost nothing. Driving ForeverLM over MCP from a Claude, ChatGPT, Gemini, or Grok subscription you *already* pay for costs nothing extra, because the subscription is already in your budget. In the app, some tokens also go to background work (transcript cleanup, paper metadata extraction) on the same key, with the model configurable per task. The app keeps a to-the-cent ledger of every conversation.
 
 ## Try it
 
-ForeverLM is free, and MCP is 7 days free, then $19 once: [get it for Mac](https://foreverlm.com) and point it at your reading list. If you're on Windows or Android, we'd honestly point you at Recall or RemNote today.
+ForeverLM is free, MCP included: [get it for Mac](https://foreverlm.com) and point it at your reading list. If you're on Windows or Android, we'd honestly point you at Recall or RemNote today.
 
 ---
 
@@ -5212,7 +5223,7 @@ NotebookLM, renamed **Gemini Notebook** in July 2026 and now at notebook.google.
 
 | | ForeverLM | NotebookLM |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free tier (capped); higher limits via Google AI bundles: $7.99/mo Plus, $19.99/mo Pro, $99.99+/mo Ultra |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost | Free tier (capped); higher limits via Google AI bundles: $7.99/mo Plus, $19.99/mo Pro, $99.99+/mo Ultra |
 | **AI costs** | Your own OpenRouter key, billed by OpenRouter at cost with nothing added, for any model in Chat (free models cost nothing); or an AI subscription you already pay for, over MCP | Included, but capped per day/tier (chats, overviews, quizzes) |
 | **Platforms** | Native macOS app (macOS 14+) | Web + iOS + Android apps; no desktop app |
 | **Data storage** | Local SQLite + files in your private iCloud container | Google's servers — every source must be uploaded |
@@ -5229,7 +5240,7 @@ NotebookLM, renamed **Gemini Notebook** in July 2026 and now at notebook.google.
 
 Gemini Notebook itself is free, with up to 100 notebooks of 50 sources each and usage that refills every five hours up to a weekly cap; Google no longer publishes the numbers for personal accounts. Raising the limits means a Google AI plan — **$199.99/yr for AI Pro**, with 300 sources per notebook and four times the standard usage — that bundles much more than Gemini Notebook, and the limits still exist, just higher. You're paying a flat annual fee for permission to do more, not for what you did.
 
-ForeverLM is **free** and has no daily caps of its own; only MCP is paid, **7 days free, then $19 once** (no subscription). There are no tiers to upgrade through: bring your own OpenRouter key, pick any model in the in-app Chat, and OpenRouter bills you at its cost with nothing added by ForeverLM, or use free models and pay nothing. Or connect the Claude, ChatGPT, Gemini, or Grok subscription you already pay for over MCP: that subscription covers the inference, and ForeverLM charges nothing per request. In the app, a little also goes to background work like transcript cleanup, billed the same way; search embeddings are made on your Mac, for free. Every conversation's cost is shown to the cent.
+ForeverLM is **free**, MCP included, and has no daily caps of its own. There are no tiers to upgrade through: bring your own OpenRouter key, pick any model in the in-app Chat, and OpenRouter bills you at its cost with nothing added by ForeverLM, or use free models and pay nothing. Or connect the Claude, ChatGPT, Gemini, or Grok subscription you already pay for over MCP: that subscription covers the inference, and ForeverLM charges nothing per request. In the app, a little also goes to background work like transcript cleanup, billed the same way; search embeddings are made on your Mac, for free. Every conversation's cost is shown to the cent.
 
 ## Where NotebookLM is better
 
@@ -5266,7 +5277,7 @@ Heptabase is a visual thinking tool: whiteboards and cards for mapping out compl
 
 | | ForeverLM | Heptabase |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | No free tier. Pro $107.88/yr; Premium $215.88/yr; Premium+ $647.88/yr (monthly billing higher) |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost | No free tier. Pro $107.88/yr; Premium $215.88/yr; Premium+ $647.88/yr (monthly billing higher) |
 | **AI costs** | Your own OpenRouter key, billed by OpenRouter at cost with nothing added, for any model in Chat (free models cost nothing); or an AI subscription you already pay for, over MCP | Credit-metered: 100 credits/mo on Pro (Gemini only), 1,800 on Premium; no bring-your-own-key |
 | **AI tutor** | Review with any MCP assistant or in-app Chat — no tier required | AI tutor requires Premium ($215.88/yr) |
 | **Platforms** | Native macOS app (macOS 14+) | Mac, Windows, Linux, iOS, Android, web |
@@ -5283,9 +5294,9 @@ Heptabase is a visual thinking tool: whiteboards and cards for mapping out compl
 
 Heptabase has **no free tier** and its AI is credit-metered. The plan most learners would want — unlimited PDFs plus the AI tutor and non-Gemini models — is Premium at **$215.88/yr billed annually** ($23.99 month-to-month). Heavy AI use points to Premium+ at $647.88/yr. The credits are Heptabase-denominated, they reset every month whether you used them or not, and there's no bring-your-own-key escape from the meter.
 
-ForeverLM is **free**, with no subscription and no tiers to pick between: the whole app is open, with every model on your own OpenRouter key. Only MCP is paid: **7 days free, then $19 once**. Two ways to use AI, mixable: any model in the in-app Chat on your OpenRouter key, billed by OpenRouter at its cost with nothing added by ForeverLM (free models cost nothing); or the Claude, ChatGPT, Gemini, or Grok subscription you already pay for, connected over MCP. Your subscription covers the inference, and ForeverLM charges nothing per request. The in-app route also spends a little on background work (transcript cleanup, paper metadata extraction), billed the same way, with the model configurable per task. The app records every token and shows costs to the cent.
+ForeverLM is **free**, with no subscription and no tiers to pick between: the whole app is open, with every model on your own OpenRouter key, and MCP is included. Two ways to use AI, mixable: any model in the in-app Chat on your OpenRouter key, billed by OpenRouter at its cost with nothing added by ForeverLM (free models cost nothing); or the Claude, ChatGPT, Gemini, or Grok subscription you already pay for, connected over MCP. Your subscription covers the inference, and ForeverLM charges nothing per request. The in-app route also spends a little on background work (transcript cleanup, paper metadata extraction), billed the same way, with the model configurable per task. The app records every token and shows costs to the cent.
 
-The three-year comparison is lopsided in a way that's worth stating plainly: Heptabase Premium is ~$648 before you've done anything, while ForeverLM is free, or $19 once if you also want MCP, plus whatever OpenRouter bills your own key for what you use (nothing on free models).
+The three-year comparison is lopsided in a way that's worth stating plainly: Heptabase Premium is ~$648 before you've done anything, while ForeverLM is free, MCP included, plus whatever OpenRouter bills your own key for what you use (nothing on free models).
 
 ## Where Heptabase is better
 
@@ -5325,7 +5336,7 @@ Anki is the standard-bearer of spaced repetition: free, open source, fifteen-plu
 
 | | ForeverLM | Anki |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free on desktop and Android; AnkiMobile for iOS is $24.99 one-time |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost | Free on desktop and Android; AnkiMobile for iOS is $24.99 one-time |
 | **AI costs** | Your own OpenRouter key, billed by OpenRouter at cost with nothing added, for any model in Chat (free models cost nothing); or an AI subscription you already pay for, over MCP | No built-in AI; desktop-only community add-ons, bring-your-own-key |
 | **Platforms** | Native macOS app (macOS 14+) | Windows, macOS, Linux, iOS, Android, web review |
 | **Data storage** | Local SQLite + files in your private iCloud container | Local SQLite; free AnkiWeb sync or self-hosted sync |
@@ -5338,7 +5349,7 @@ Anki is the standard-bearer of spaced repetition: free, open source, fifteen-plu
 
 ## Pricing: neither one has to be a subscription
 
-This is one comparison where the funding models nearly agree: neither app has to bill you every month. Anki is free (or $24.99 once on iOS). ForeverLM is free too; only MCP, the connection for an outside assistant, costs anything: 7 days free, then $19 once, with no subscription. AI is a separate bill you control: bring your own OpenRouter key and pay models at cost, or use free models and pay nothing.
+This is one comparison where the funding models nearly agree: neither app has to bill you every month. Anki is free (or $24.99 once on iOS). ForeverLM is free too, MCP included, with no subscription. AI is a separate bill you control: bring your own OpenRouter key and pay models at cost, or use free models and pay nothing.
 
 There are two ways to use AI, and you can mix them. Use the in-app Chat with any model you like on your own OpenRouter key, and OpenRouter bills you at its cost with nothing added by ForeverLM. Or connect the Claude, ChatGPT, Gemini, or Grok subscription you already pay for over MCP: your subscription covers the thinking, and ForeverLM charges nothing per request. Anki, of course, charges nothing to run at all, because it has no AI to bill you for.
 
@@ -5378,7 +5389,7 @@ RemNote is an all-in-one student platform: notes that auto-generate flashcards, 
 
 | | ForeverLM | RemNote |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free tier (capped); Pro $96/yr; Pro + AI $216/yr; $395 lifetime (AI still +$10/mo) |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost | Free tier (capped); Pro $96/yr; Pro + AI $216/yr; $395 lifetime (AI still +$10/mo) |
 | **AI costs** | Your own OpenRouter key, billed by OpenRouter at cost with nothing added, for any model in Chat (free models cost nothing); or an AI subscription you already pay for, over MCP | Metered AI credits included in tiers (1,000/mo on Pro, 20,000/mo on Pro + AI); no bring-your-own-key |
 | **Platforms** | Native macOS app (macOS 14+) | Web, Mac, Windows, Linux, iOS, Android |
 | **Data storage** | Local SQLite + files in your private iCloud container | RemNote's cloud by default; local-only knowledge bases on desktop lose sync |
@@ -5393,9 +5404,9 @@ RemNote is an all-in-one student platform: notes that auto-generate flashcards, 
 
 Meaningful AI use on RemNote costs **$216/yr** (Pro + AI), and even the $395 lifetime license excludes AI credits — AI stays a $10/mo add-on forever. The credits are RemNote-denominated: you can't bring your own key or your existing ChatGPT/Claude subscription.
 
-ForeverLM is **free**, and its AI takes two routes, mixable: any model in the in-app Chat, on your own OpenRouter key, billed by OpenRouter at its cost with nothing added (free models cost nothing); or drive ForeverLM over MCP from the Claude, ChatGPT, Gemini, or Grok subscription you're already paying for. The inference is on that subscription, and MCP is the one paid part of ForeverLM: 7 days free, then $19 once. Per-conversation costs in the app are shown to the cent.
+ForeverLM is **free**, and its AI takes two routes, mixable: any model in the in-app Chat, on your own OpenRouter key, billed by OpenRouter at its cost with nothing added (free models cost nothing); or drive ForeverLM over MCP from the Claude, ChatGPT, Gemini, or Grok subscription you're already paying for. The inference is on that subscription, and MCP itself is free. Per-conversation costs in the app are shown to the cent.
 
-Three years of RemNote Pro + AI is ~$648 committed up front. ForeverLM's equivalent number is $0 for the app, or $19 once if you add MCP, plus whatever OpenRouter bills for the AI you chose to run. That is the honest answer, not a dodge: usage is the one line item you control directly.
+Three years of RemNote Pro + AI is ~$648 committed up front. ForeverLM's equivalent number is $0, MCP included, plus whatever OpenRouter bills for the AI you chose to run. That is the honest answer, not a dodge: usage is the one line item you control directly.
 
 ## Where RemNote is better
 
@@ -5431,7 +5442,7 @@ Quizlet is a large study platform built around flashcard sets, Learn mode, pract
 
 | | ForeverLM | Quizlet |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free tier; Plus $35.99/year; Plus Unlimited $44.99/year |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost | Free tier; Plus $35.99/year; Plus Unlimited $44.99/year |
 | **Starting material** | Full papers, articles, books, podcasts, videos, and courses | Flashcard sets, notes, uploaded class material, and textbook content |
 | **Study mode** | Source-grounded review dialogue and scheduled review | Flashcards, Learn, tests, games, and homework help |
 | **Authorship** | Import sources and let the tutor question your understanding | Create sets or use material made by other users and publishers |
@@ -5479,7 +5490,7 @@ The short version: choose Speechify when the voice reader itself is the product.
 
 | | ForeverLM | Speechify |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI and voices on your own OpenRouter key at cost (free voices cost nothing) | Free voice-reader tier; Premium is $29/month on the monthly plan |
+| **Price** | Free, MCP included; AI and voices on your own OpenRouter key at cost (free voices cost nothing) | Free voice-reader tier; Premium is $29/month on the monthly plan |
 | **Platforms** | Mac for the full library and reader; synced listening and voice interaction on iPhone | Web, Mac, Windows, iPhone, iPad, Android, Chrome, and Edge |
 | **What it reads** | Articles, papers, books, and transcript-only sources already organized in your ForeverLM library | Webpages, PDFs, documents, scans, and text imported from cloud drives |
 | **Voices** | Every speech model OpenRouter serves, from many makers; free ones cost nothing | Premium advertises 1,000+ voices in 60+ languages |
@@ -5535,7 +5546,7 @@ ElevenReader is ElevenLabs' mobile reading app for turning articles, PDFs, EPUB 
 
 | | ForeverLM | ElevenReader |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI and voices on your own OpenRouter key at cost (free voices cost nothing) | Free mobile app; separate ElevenLabs services have their own pricing |
+| **Price** | Free, MCP included; AI and voices on your own OpenRouter key at cost (free voices cost nothing) | Free mobile app; separate ElevenLabs services have their own pricing |
 | **Platforms** | Full workflow on Mac, synced listening on iPhone | iPhone, iPad, and Android |
 | **Inputs** | Saved articles, papers, books, and transcripts in the library | PDF, EPUB, TXT, web links, scanned text, and pasted text |
 | **Voices** | Every speech model OpenRouter serves, from many makers; free ones cost nothing | Hundreds of ElevenLabs voices in 32 languages |
@@ -5581,7 +5592,7 @@ ForeverLM overlaps with that first job: it gives you a reading list for articles
 
 | | ForeverLM | Readwise Reader + Readwise |
 |---|---|---|
-| **Reading-list price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | 30-day trial, then $9.99/month billed annually or $12.99/month billed monthly |
+| **Reading-list price** | Free, MCP included; AI on your own OpenRouter key at cost | 30-day trial, then $9.99/month billed annually or $12.99/month billed monthly |
 | **AI costs** | Your own OpenRouter key, billed by OpenRouter at cost with nothing added, for any model in Chat (free models cost nothing); or an assistant subscription you already use, over MCP | Ghostreader is included; external assistants use your own ChatGPT, Claude, or other MCP client account |
 | **Platforms** | Mac-centered library with synced iPhone reading, listening, and voice access | Web, Mac, Windows, iOS, Android, browser extensions, and e-ink viewing |
 | **Capture** | Safari, Chrome, and Brave reading lists; URL paste; local files; plugins; MCP | Browser extensions, share sheet, email newsletters, RSS, file upload, and imports |
@@ -5600,7 +5611,7 @@ Readwise Full costs **$119.88 per year** on annual billing or **$155.88 per year
 
 ForeverLM's reading list comes with the app, which is **free**. Articles saved in Safari, Chrome, or Brave flow into Studio, where you can read them, organize them into notebooks, and put them on Schedule without a subscription. Papers, books, podcasts, videos, courses, and meetings share the same library.
 
-Beyond that, only AI and voices cost anything inside the app, and ForeverLM never charges for them. Free voices cost nothing. In-app Chat runs on your own OpenRouter key, billed by OpenRouter at its cost with nothing added, or on free models for nothing. Connecting a Claude, ChatGPT, Gemini, or Grok subscription through MCP is the one paid part: 7 days free, then $19 once. A quiet reading month adds nothing to your OpenRouter bill.
+Beyond that, only AI and voices cost anything inside the app, and ForeverLM never charges for them. Free voices cost nothing. In-app Chat runs on your own OpenRouter key, billed by OpenRouter at its cost with nothing added, or on free models for nothing. Connecting a Claude, ChatGPT, Gemini, or Grok subscription through MCP is free too. A quiet reading month adds nothing to your OpenRouter bill.
 
 ## Where Readwise is better
 
@@ -5641,7 +5652,7 @@ Matter is a polished read-later app for articles and newsletters on iPhone, iPad
 
 | | ForeverLM | Matter |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost | Free |
 | **Platforms** | Mac-centered, with synced iPhone access | iPhone, iPad, and web |
 | **Best for** | Managing and learning from many source types | A focused queue for articles and newsletters |
 | **Capture** | Reading lists, URLs, files, feeds, reference tools, podcasts, and plugins | Share sheet, browser, email newsletters, and feeds |
@@ -5685,7 +5696,7 @@ Instapaper is a long-running read-later service that turns web content into a cl
 
 | | ForeverLM | Instapaper |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free tier; Premium $6/month or $60/year |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost | Free tier; Premium $6/month or $60/year |
 | **Platforms** | Mac-centered with synced iPhone access | Web, iPhone, iPad, Android, Kindle, and Kobo workflows |
 | **Content** | Articles, papers, books, podcasts, videos, courses, and more | Articles, videos, long email, X saves, and PDFs on Premium |
 | **Listening** | Any speech model OpenRouter serves, free ones included | AI voice playlists and text-to-speech on Premium |
@@ -5729,7 +5740,7 @@ Raindrop.io is a polished bookmark manager for saving, organizing, highlighting,
 
 | | ForeverLM | Raindrop.io |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free plan; optional Pro subscription |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost | Free plan; optional Pro subscription |
 | **Best for** | Learning from a curated source library | Organizing a broad, durable bookmark collection |
 | **Capture** | Reading lists, URLs, files, podcasts, papers, books, and plugins | Browser extensions, share sheets, apps, integrations, and uploads |
 | **Organization** | Notebooks, status, source types, relationships, and Schedule | Collections, nested structure, tags, filters, highlights, and collaboration |
@@ -5773,7 +5784,7 @@ Glasp is a social web highlighter for collecting passages and notes from article
 
 | | ForeverLM | Glasp |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free tier; Pro $15/month or $150/year; Unlimited $36/month or $360/year |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost | Free tier; Pro $15/month or $150/year; Unlimited $36/month or $360/year |
 | **Primary object** | The complete source and its learning history | The highlight, note, summary, and public knowledge profile |
 | **Capture** | Articles, papers, books, podcasts, videos, courses, meetings, and more | Web articles, PDFs, YouTube, and Kindle highlights |
 | **Social layer** | Private personal library | Public profiles, following, discovery, and shareable highlights |
@@ -5819,7 +5830,7 @@ This is not a claim that ForeverLM replaces Zotero for academic writing. It does
 
 | | ForeverLM | Zotero |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free and open source; 300 MB file sync free, then $20/year for 2 GB, $60/year for 6 GB, or $120/year unlimited |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost | Free and open source; 300 MB file sync free, then $20/year for 2 GB, $60/year for 6 GB, or $120/year unlimited |
 | **Platforms** | Mac-centered library with synced iPhone access | Mac, Windows, Linux, iOS, Android, and web library |
 | **Paper capture** | Browser reading lists, URL paste, local PDFs, MCP, and custom plugins; open PDFs fetched when available | Excellent browser plugin, DOI/ISBN lookup, database translators, file import, and feeds |
 | **Organization** | Notebooks, source types, search, status, tags, and a day-by-day Schedule | Collections, tags, related items, saved searches, duplicate detection, and group libraries |
@@ -5875,7 +5886,7 @@ Paperpile helps you move from **paper to citation**. ForeverLM helps you move fr
 
 | | ForeverLM | Paperpile |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Regular $99.60/year; Expert $138/year; eligible academics pay 50% less after a 30-day trial |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost | Regular $99.60/year; Expert $138/year; eligible academics pay 50% less after a 30-day trial |
 | **Platforms** | Mac-centered library with synced iPhone access | Web, iOS, and Android; browser extensions for Chrome, Safari, and Firefox |
 | **Paper capture** | Browser reading lists, URL paste, local PDFs, MCP, and custom plugins; automatic open-PDF retrieval | One-click browser import, database and publisher integrations, identifier search, automatic PDF retrieval |
 | **Organization** | Notebooks, source types, search, tags, status, and Schedule | Folders, labels, stars, filters, duplicate merging, full-text search, and shared libraries |
@@ -5911,7 +5922,7 @@ First, Chat is built into the source library. You can discuss the current paper 
 - **The result comes back.** Review sessions retain their transcript, summary, score, and source links. The library records what was covered rather than forgetting the interaction when the external tab closes.
 - **Papers can be heard as well as read.** Text to Speech cleans academic text for narration, skips citation clutter and reference sections, caches the audio, and syncs it to iPhone.
 - **The reading queue is actionable.** Schedule papers for specific days, move them when plans change, and connect completion to a real review.
-- **No reference-manager subscription.** The paper library, notebooks, Schedule, local reading, Text to Speech and built-in AI all come with the free app; MCP is 7 days free, then $19 once. AI and voices run on your own OpenRouter key at OpenRouter's cost.
+- **No reference-manager subscription.** The paper library, notebooks, Schedule, local reading, Text to Speech and built-in AI all come with the free app, and so does MCP. AI and voices run on your own OpenRouter key at OpenRouter's cost.
 
 ## Which should you choose?
 
@@ -5939,7 +5950,7 @@ Papers moves research from **search to citation**. ForeverLM moves sources from 
 
 | | ForeverLM | Papers |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Essentials $65/year; Pro $130/year; 40% academic discount |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost | Essentials $65/year; Pro $130/year; 40% academic discount |
 | **Library** | Papers plus articles, books, podcasts, videos, courses, meetings, and more | Academic references and research files |
 | **AI** | Chat with any selected sources or the wider library using configurable models and MCP assistants | Chat with one PDF on Essentials; up to 20 papers and AI search on Pro |
 | **Citations** | Stores scholarly metadata, but no cite-while-you-write plugin | SmartCite for Word and Google Docs, with 10,000+ styles |
@@ -5963,7 +5974,7 @@ Papers moves research from **search to citation**. ForeverLM moves sources from 
 - **AI can operate the library.** An MCP assistant can search sources, retrieve content, organize notebooks, manage a learning schedule, and save a review transcript back to ForeverLM.
 - **Listening is integrated.** Read a dense paper aloud, pause to ask questions, and continue without creating a detached audio file.
 - **Understanding is recorded.** Scheduling, completion state, and reviews turn reading into a repeatable learning loop.
-- **No annual research-software fee.** The library is free, instead of an annual tier; only using it from Claude or ChatGPT over MCP is paid, $19 once after 7 free days. The built-in AI runs on your own OpenRouter key: pay models at cost, or use free models.
+- **No annual research-software fee.** The library is free, instead of an annual tier, and so is using it from Claude or ChatGPT over MCP. The built-in AI runs on your own OpenRouter key: pay models at cost, or use free models.
 
 ## Which should you choose?
 
@@ -5985,7 +5996,7 @@ Mendeley is Elsevier's reference manager for storing, organizing, annotating, sh
 
 | | ForeverLM | Mendeley |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free with 2 GB; Plus $55/year; Pro $110/year; Max $165/year |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost | Free with 2 GB; Plus $55/year; Pro $110/year; Max $165/year |
 | **Paper storage** | Local files and metadata in private iCloud | Elsevier cloud, from 2 GB to unlimited by plan |
 | **AI** | Configurable models, multi-source Chat, and MCP assistants | Reading Assistant; Ask My Library and Compare Experiments on Pro and Max |
 | **Citations** | No cite-while-you-write plugin | Mendeley Cite for Microsoft Word |
@@ -6029,7 +6040,7 @@ EndNote is Clarivate's established reference manager for large scholarly librari
 
 | | ForeverLM | EndNote 2025 |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | $275 full license; $150 student; $125 upgrade |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost | $275 full license; $150 student; $125 upgrade |
 | **Primary job** | Source library and active learning | Professional reference management and academic writing |
 | **Citations** | Metadata storage without cite-while-you-write | Cite While You Write and more than 6,000 bibliographic styles |
 | **AI** | Configurable source chat and external MCP assistants | EndNote Research Assistant for paper and library questions |
@@ -6053,7 +6064,7 @@ EndNote is Clarivate's established reference manager for large scholarly librari
 - **Research includes more than citations.** Podcasts, courses, videos, books, articles, and meetings share context with academic papers.
 - **AI is not tied to one vendor.** Choose the model and use external assistants through MCP.
 - **The tutor asks you questions.** A review session evaluates your explanation instead of only answering a query.
-- **A lower one-time price.** ForeverLM itself is free, so you can build the library without buying a $275 desktop license; only MCP costs anything ($19 once after 7 free days).
+- **No license to buy.** ForeverLM is free, MCP included, so you can build the library without buying a $275 desktop license.
 
 ## Which should you choose?
 
@@ -6075,7 +6086,7 @@ Elicit is an AI research assistant for finding literature, screening papers, ext
 
 | | ForeverLM | Elicit |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free Basic; Plus $132/year; Pro $480/year; Scale $1,068/year |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost | Free Basic; Plus $132/year; Pro $480/year; Scale $1,068/year |
 | **Core job** | Persistent source library and learning workflow | Literature discovery, screening, extraction, and systematic review |
 | **Corpus** | Your papers, articles, books, podcasts, videos, and other sources | Search across more than 138 million papers plus imports and uploads |
 | **AI output** | Source-grounded conversation and review | Reports, evidence tables, extraction columns, screening, and paper chat |
@@ -6121,7 +6132,7 @@ SciSpace is an end-to-end academic research platform for discovering literature,
 
 | | ForeverLM | SciSpace |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free Basic with credits; Premium starts at $12/month billed annually |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost | Free Basic with credits; Premium starts at $12/month billed annually |
 | **Core job** | Long-term source library and learning loop | Academic search, literature review, PDF explanation, and writing tools |
 | **Discovery** | Imports and plugins; not a scholarly search engine | Search and agentic review across scientific literature |
 | **AI** | Configurable models, cross-source Chat, and MCP assistants | Literature Review, Deep Review, Chat with PDF, paraphrasing, and AI detection |
@@ -6165,7 +6176,7 @@ Obsidian is the gold standard for owning your notes: free, local Markdown files,
 
 | | ForeverLM | Obsidian |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost; iCloud sync included, no paid sync tier | Free (core app, including commercial use). Sync add-on $4–8/mo; Publish $8/mo |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost; iCloud sync included, no paid sync tier | Free (core app, including commercial use). Sync add-on $4–8/mo; Publish $8/mo |
 | **AI costs** | Your own OpenRouter key, billed by OpenRouter at cost with nothing added, for any model in Chat (free models cost nothing); or an AI subscription you already pay for, over MCP | No built-in AI; community plugins, almost all bring-your-own-key |
 | **Platforms** | Native macOS app (macOS 14+) | macOS, Windows, Linux, iOS, Android |
 | **Data storage** | Local SQLite + files in your private iCloud container, CloudKit sync | Local Markdown files; optional E2E-encrypted paid sync, or DIY iCloud/git sync |
@@ -6181,7 +6192,7 @@ Obsidian is the gold standard for owning your notes: free, local Markdown files,
 
 Obsidian's core app is genuinely free, and if you sync via iCloud or git, it stays free. Paid Sync is $48–96/yr. AI features require assembling plugins and paying per-token with your own keys.
 
-ForeverLM is free, and iCloud sync is included: there's no paid sync tier to graduate onto. AI is a separate bill you control: the in-app Chat runs on your own OpenRouter key, billed by OpenRouter at its cost with nothing added, or on free models for nothing. Driving the app over MCP from a Claude, ChatGPT, Gemini, or Grok subscription you already have is the one paid part: 7 days free, then $19 once. Neither product puts a subscription between you and your own data. The difference is that Obsidian leaves the AI wiring to you, and ForeverLM wires your key in for you.
+ForeverLM is free, and iCloud sync is included: there's no paid sync tier to graduate onto. AI is a separate bill you control: the in-app Chat runs on your own OpenRouter key, billed by OpenRouter at its cost with nothing added, or on free models for nothing. Driving the app over MCP from a Claude, ChatGPT, Gemini, or Grok subscription you already have is free too. Neither product puts a subscription between you and your own data. The difference is that Obsidian leaves the AI wiring to you, and ForeverLM wires your key in for you.
 
 ## Where Obsidian is better
 
@@ -6219,7 +6230,7 @@ DEVONthink is a powerful document and information manager for Mac and iOS. It ar
 
 | | ForeverLM | DEVONthink 4 |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Standard $99, Pro $199, Server $499; one-time license with one year of updates |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost | Standard $99, Pro $199, Server $499; one-time license with one year of updates |
 | **Primary job** | Research library and learning loop | General document archive and information manager |
 | **Storage** | Local SQLite and files in your private iCloud container | Local databases with flexible sync options |
 | **AI** | Configurable in-app models plus Claude, ChatGPT, Gemini, and Grok through MCP | AI chat with supported local or external models |
@@ -6243,7 +6254,7 @@ DEVONthink is a powerful document and information manager for Mac and iOS. It ar
 - **The queue has a purpose.** Schedule what to learn this week and track whether it was reviewed, not merely archived.
 - **AI interaction is portable.** Use in-app Chat or let an external MCP assistant operate the library and save the resulting review.
 - **Active understanding is built in.** Review dialogue probes gaps and preserves the session against the sources covered.
-- **A lower one-time price.** ForeverLM itself is free; MCP is the only paid part, $19 once after 7 free days, against $99 for DEVONthink Standard.
+- **No license to buy.** ForeverLM is free, MCP included, against $99 for DEVONthink Standard.
 
 ## Which should you choose?
 
@@ -6265,7 +6276,7 @@ LiquidText is a deep-reading workspace for pulling excerpts out of PDFs and web 
 
 | | ForeverLM | LiquidText |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free Basic; paid purchases and Live subscriptions vary by platform and region |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost | Free Basic; paid purchases and Live subscriptions vary by platform and region |
 | **Best for** | Long-term research library and learning | Close reading, excerpting, and spatial synthesis |
 | **Sources** | Papers, articles, books, podcasts, videos, courses, meetings, and more | PDFs, documents, web pages, and reference-manager imports |
 | **Annotation** | Reader, extracted text and figures, notes, and source chat | Rich ink, highlights, margin notes, excerpt workspaces, and live links |
@@ -6311,7 +6322,7 @@ MarginNote 4 combines PDF and EPUB reading, highlighting, mind maps, flashcards,
 
 | | ForeverLM | MarginNote 4 |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Pro $12.99 lifetime on iPhone/iPad; Max $16.99/year or $51.99 lifetime |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost | Pro $12.99 lifetime on iPhone/iPad; Max $16.99/year or $51.99 lifetime |
 | **Platforms** | Mac-centered with synced iPhone access | Mac, iPhone, and iPad, depending on plan |
 | **Reading** | Papers, articles, books, and transcripts | Deep PDF and EPUB reading with OCR and visual extraction |
 | **Knowledge structure** | Notebooks, source relationships, search, and Schedule | One card can be a highlight, mind-map node, and flashcard |
@@ -6355,7 +6366,7 @@ Recall (recall.it, formerly getrecall.ai) is a self-organizing AI knowledge base
 
 | | ForeverLM | Recall |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free tier (10 AI summaries/mo); Plus $120/yr; Max $456/yr (billed yearly) |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost | Free tier (10 AI summaries/mo); Plus $120/yr; Max $456/yr (billed yearly) |
 | **AI costs** | Your own OpenRouter key, billed by OpenRouter at cost with nothing added, for any model in Chat (free models cost nothing); or an AI subscription you already pay for, over MCP | Included in subscription; model auto-selected on Plus, model choice only on Max |
 | **Platforms** | Native macOS app (macOS 14+) | Web app + browser extensions, iOS, Android — no native desktop app |
 | **Data storage** | Local SQLite + files in your private iCloud container, CloudKit sync | Local-first on device; sync via Recall's cloud (Google Cloud, EU) |
@@ -6370,7 +6381,7 @@ Recall (recall.it, formerly getrecall.ai) is a self-organizing AI knowledge base
 
 Recall's free tier stores unlimited content but allows only **10 AI summaries a month** — the product's core is effectively paid. Plus is **$120/yr billed yearly**, and choosing which AI model answers you costs **$456/yr** on Max.
 
-ForeverLM has no tiers to climb, because it has no tiers: the app is **free**, and every model in the in-app Chat is open. That Chat runs on your own OpenRouter key, and OpenRouter bills you at its cost with nothing added by ForeverLM; its free models cost nothing. Or connect whichever of Claude, ChatGPT, Gemini, or Grok you already subscribe to over MCP: your subscription covers the inference. MCP is the one paid part: 7 days free, then $19 once. The in-app ledger accounts for it to the cent. There's no tier where the model picker lives, because the model picker was never behind one.
+ForeverLM has no tiers to climb, because it has no tiers: the app is **free**, and every model in the in-app Chat is open. That Chat runs on your own OpenRouter key, and OpenRouter bills you at its cost with nothing added by ForeverLM; its free models cost nothing. Or connect whichever of Claude, ChatGPT, Gemini, or Grok you already subscribe to over MCP: your subscription covers the inference, and MCP itself is free. The in-app ledger accounts for it to the cent. There's no tier where the model picker lives, because the model picker was never behind one.
 
 ## Where Recall is better
 
@@ -6387,13 +6398,13 @@ ForeverLM has no tiers to climb, because it has no tiers: the app is **free**, a
 - **Podcasts as first-class sources.** Follow shows, get full episode transcripts, read or listen, and get quizzed on them — not just saved links.
 - **Your cloud, not theirs.** Both apps are local-first, but Recall syncs through Recall's servers on Google Cloud; ForeverLM syncs through your own iCloud account, and the app's servers never store your library.
 - **A study planner.** The weekly Schedule assigns sources to days with completion tracking and review history; Recall has a review queue but no planning surface.
-- **No tiers and no caps.** No monthly summary allowance to ration, no model-choice upsell, no subscription needed (the app is free; MCP is $19 once); OpenRouter bills what you actually used, and nothing when you don't.
+- **No tiers and no caps.** No monthly summary allowance to ration, no model-choice upsell, no subscription needed (the app is free, MCP included); OpenRouter bills what you actually used, and nothing when you don't.
 
 ## Which should you choose?
 
 Choose **Recall** if you need Android, Windows, or the web — or you want a free place to pile up saves with light AI summaries and are happy with card-style quizzing at $120/yr.
 
-Choose **ForeverLM** if you're on a Mac and want the deeper loop: automatic source capture including full podcast transcripts, a weekly plan, review with the AI of your choice, and a library that lives in your own iCloud — free, plus $19 once if you want MCP after its 7 free days, plus only what your AI use actually costs.
+Choose **ForeverLM** if you're on a Mac and want the deeper loop: automatic source capture including full podcast transcripts, a weekly plan, review with the AI of your choice, and a library that lives in your own iCloud — free, MCP included, plus only what your AI use actually costs.
 
 ---
 
@@ -6407,7 +6418,7 @@ Snipd is the best-known AI podcast player: tap your headphones mid-episode and i
 
 | | ForeverLM | Snipd |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free (AI on 2 episodes/week); Premium advertised from $6.99/mo; US App Store shows ~$11.99/mo monthly, annual plans vary by region |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost | Free (AI on 2 episodes/week); Premium advertised from $6.99/mo; US App Store shows ~$11.99/mo monthly, annual plans vary by region |
 | **AI costs** | Your own OpenRouter key, billed by OpenRouter at cost with nothing added, for any model in Chat (free models cost nothing); or an AI subscription you already pay for, over MCP | Included in Premium, capped at 900 min of AI processing/month |
 | **Platforms** | Native macOS app (macOS 14+) | iOS, Android, Apple Watch, CarPlay — no Mac, Windows, or web app |
 | **Data storage** | Local SQLite + files in your private iCloud container | Snipd's cloud; App Store privacy label lists identity-linked usage data, including for advertising |
@@ -6422,7 +6433,7 @@ Snipd is the best-known AI podcast player: tap your headphones mid-episode and i
 
 Snipd Premium runs roughly **$70–$100+/yr** depending on region and billing period (the website advertises from $6.99/mo; the US App Store lists ~$11.99/mo billed monthly), with a 900-minute monthly cap on AI processing. The free tier limits AI features to two episodes a week. You pay a fixed amount and still hit a ceiling.
 
-ForeverLM is **free**, and podcast transcripts are simply part of the app. AI is a separate bill you control: bring your own OpenRouter key, which OpenRouter bills at its cost with nothing added, or use free models. Review through the assistant you already subscribe to (Claude, ChatGPT, Gemini, or Grok over MCP) is the one paid part, 7 days free then $19 once, with your subscription covering the inference; review in the in-app Chat costs what OpenRouter bills your key for it. Transcript cleanup and other background work bills the same way.
+ForeverLM is **free**, and podcast transcripts are simply part of the app. AI is a separate bill you control: bring your own OpenRouter key, which OpenRouter bills at its cost with nothing added, or use free models. Review through the assistant you already subscribe to (Claude, ChatGPT, Gemini, or Grok over MCP) costs nothing in ForeverLM, with your subscription covering the inference; review in the in-app Chat costs what OpenRouter bills your key for it. Transcript cleanup and other background work bills the same way.
 
 ## Where Snipd is better
 
@@ -6459,7 +6470,7 @@ Paper (paper.ac) is a study workspace that sets out to replace NotebookLM, Notio
 
 | | ForeverLM | Paper |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost, or over MCP from an assistant you already pay for | Free during the beta ("free unlimited credits"); paid plans for heavier use are announced but not priced |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost, or over MCP from an assistant you already pay for | Free during the beta ("free unlimited credits"); paid plans for heavier use are announced but not priced |
 | **Platforms** | Native macOS app (macOS 14+), with an iPhone app and a web library | Web app (works in mobile browsers); a Mac desktop app in testing; a native mobile app planned |
 | **Data storage** | Local SQLite + files in your private iCloud container, CloudKit sync | Paper's cloud (Supabase on AWS, region not stated), encrypted in transit and at rest, not end-to-end |
 | **AI models** | Any model through your own OpenRouter key, or Claude, ChatGPT, Gemini or Grok over MCP | Grok by default, GPT and Gemini per chat (its roadmap lists Claude as added); no bring-your-own-key yet |
@@ -6476,7 +6487,7 @@ Paper (paper.ac) is a study workspace that sets out to replace NotebookLM, Notio
 
 Paper costs nothing while it is in beta, with no key to bring. Its terms already describe monthly billing for paid features, and its own pages say paid tiers may come later for heavy use, large libraries and teams. No prices are published yet, so Paper's cost today is $0 and its long-term cost is unknown.
 
-ForeverLM is free, with no subscription and no tiers; only MCP, the connection for an outside assistant, is paid: 7 days free, then $19 once. The models run on your own OpenRouter key, which OpenRouter bills at its own price with nothing added by ForeverLM. You can also connect the Claude, ChatGPT, Gemini or Grok subscription you already pay for over MCP. The app shows what every conversation cost, to the cent.
+ForeverLM is free, with no subscription and no tiers; MCP, the connection for an outside assistant, is free too. The models run on your own OpenRouter key, which OpenRouter bills at its own price with nothing added by ForeverLM. You can also connect the Claude, ChatGPT, Gemini or Grok subscription you already pay for over MCP. The app shows what every conversation cost, to the cent.
 
 ## Where Paper is better
 
@@ -6513,7 +6524,7 @@ Memo (memo.cards, formerly PDF2Anki) was built by medical students to turn study
 
 | | ForeverLM | Memo |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost, or over MCP from an assistant you already pay for | Free plan (limits not published); Pro $20/mo or $120/yr; Max $50/mo or $300/yr. Usage draws on a monthly "energy" balance with no fixed number of generations |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost, or over MCP from an assistant you already pay for | Free plan (limits not published); Pro $20/mo or $120/yr; Max $50/mo or $300/yr. Usage draws on a monthly "energy" balance with no fixed number of generations |
 | **Platforms** | Native macOS app (macOS 14+), with an iPhone app and a web library | Web, Mac, Windows, Linux, iOS; Android as a web app; Chrome extension |
 | **Data storage** | Local SQLite + files in your private iCloud container, CloudKit sync | Memo's cloud; hosting provider and region not stated; a copy of your data on request |
 | **AI models** | Any model through your own OpenRouter key, or Claude, ChatGPT, Gemini or Grok over MCP | Standard, Thinking and Pro modes; the models are not named; no bring-your-own-key |
@@ -6530,7 +6541,7 @@ Memo (memo.cards, formerly PDF2Anki) was built by medical students to turn study
 
 Memo's free plan needs no card, and its paid plans are Pro at $20 a month ($120 billed yearly) and Max at $50 a month ($300 billed yearly). What a plan buys is a monthly balance of "energy", and Memo says a plan does not promise a fixed number of generations. You find out how far it goes by using it.
 
-ForeverLM is free, with no subscription and no tiers; only MCP, the connection for an outside assistant, is paid: 7 days free, then $19 once. The models run on your own OpenRouter key, which OpenRouter bills at its own price with nothing added by ForeverLM, and the app shows what every conversation cost, to the cent. You can also connect the Claude, ChatGPT, Gemini or Grok subscription you already pay for over MCP.
+ForeverLM is free, with no subscription and no tiers; MCP, the connection for an outside assistant, is free too. The models run on your own OpenRouter key, which OpenRouter bills at its own price with nothing added by ForeverLM, and the app shows what every conversation cost, to the cent. You can also connect the Claude, ChatGPT, Gemini or Grok subscription you already pay for over MCP.
 
 ## Where Memo is better
 
@@ -6569,7 +6580,7 @@ Sapience is a local knowledge workspace built around a visual canvas. Each "spac
 | | ForeverLM | Sapience |
 |---|---|---|
 | **Availability** | Available now for macOS; the newest features reach beta releases first | Invite-only early access (100 tester places announced for Q2 2026) |
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost, or over MCP from an assistant you already pay for | Not published; "start free", no card needed for sign-up |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost, or over MCP from an assistant you already pay for | Not published; "start free", no card needed for sign-up |
 | **Platforms** | Native macOS app (macOS 14+), with an iPhone app and a web library | Not stated (its screenshots show a Mac app) |
 | **Data storage** | Local SQLite + files in your private iCloud container, CloudKit sync | Plain text files in folders on your computer; sync not stated |
 | **Canvas** | Ideas-first Canvas over the whole library: Ideas, regions inside regions, arrows, sources as evidence (in beta releases) | The centre of the app: every folder is a canvas of cards, concept maps and mind maps, and chats can sit on a board |
@@ -6614,7 +6625,7 @@ Gistr calls itself an AI-native notebook. You save YouTube videos, podcasts, PDF
 
 | | ForeverLM | Gistr |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost, or over MCP from an assistant you already pay for | Free (500 credits/mo, 5 collections, 5 sources per thread); Curious $8/mo; Explorer $16/mo; Thinker $40/mo; yearly billing gives two months free |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost, or over MCP from an assistant you already pay for | Free (500 credits/mo, 5 collections, 5 sources per thread); Curious $8/mo; Explorer $16/mo; Thinker $40/mo; yearly billing gives two months free |
 | **Platforms** | Native macOS app (macOS 14+), with an iPhone app and a web library | Web, Chrome extension, Android; iOS in development; no desktop app |
 | **Data storage** | Local SQLite + files in your private iCloud container, CloudKit sync | Gistr's cloud; hosting provider and region not stated; says your content is never used for training |
 | **AI models** | Any model through your own OpenRouter key, or Claude, ChatGPT, Gemini or Grok over MCP | By tier: fast models on Free, frontier Claude, GPT and Gemini from Explorer ($16/mo); no bring-your-own-key |
@@ -6630,7 +6641,7 @@ Gistr calls itself an AI-native notebook. You save YouTube videos, podcasts, PDF
 
 Gistr meters AI in credits: 500 a month free, 2,500 on Curious ($8), 10,000 on Explorer ($16) and 55,000 on Thinker ($40), with unused credits rolling over up to a cap on paid plans. The tier also decides the model: the most capable Claude, GPT and Gemini models start at Explorer. On the free plan, content you haven't touched for three months goes cold and has to be processed again before you can ask about it.
 
-ForeverLM is free, with no subscription and no tiers: the whole app and every model are open. Only MCP, the connection for an outside assistant, is paid: 7 days free, then $19 once. The models run on your own OpenRouter key, which OpenRouter bills at its own price with nothing added by ForeverLM, and the app shows what every conversation cost, to the cent. You can also connect the Claude, ChatGPT, Gemini or Grok subscription you already pay for over MCP, which is what the $19 covers.
+ForeverLM is free, with no subscription and no tiers: the whole app and every model are open, and MCP, the connection for an outside assistant, is free too. The models run on your own OpenRouter key, which OpenRouter bills at its own price with nothing added by ForeverLM, and the app shows what every conversation cost, to the cent. You can also connect the Claude, ChatGPT, Gemini or Grok subscription you already pay for over MCP.
 
 ## Where Gistr is better
 
@@ -6665,7 +6676,7 @@ AnythingLLM, from Mintplex Labs, is an open-source (MIT) app for chatting with y
 
 | | ForeverLM | AnythingLLM |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost, or over MCP from an assistant you already pay for | Desktop app free (an optional Pro subscription lifts the daily limits on its system-wide dictation, highlight-to-ask and autocomplete); self-hosting free; hosted cloud $50/mo Basic, $99/mo Pro, Enterprise by quote |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost, or over MCP from an assistant you already pay for | Desktop app free (an optional Pro subscription lifts the daily limits on its system-wide dictation, highlight-to-ask and autocomplete); self-hosting free; hosted cloud $50/mo Basic, $99/mo Pro, Enterprise by quote |
 | **Platforms** | Native macOS app (macOS 14+), with an iPhone app and a web library | Mac, Windows and Linux desktop apps; Docker server; an Android app with on-device models |
 | **Data storage** | Local SQLite + files in your private iCloud container, CloudKit sync | Local folders on your machine, or your own server; no built-in sync between devices |
 | **AI models** | Any model through your own OpenRouter key, or Claude, ChatGPT, Gemini or Grok over MCP | 40+ providers (OpenRouter among them) plus fully local models: built in, Ollama or LM Studio |
@@ -6709,6 +6720,9 @@ All notable changes to ForeverLM are documented here. Dates are in YYYY-MM-DD fo
 ForeverLM follows [semantic versioning](https://semver.org) against its public surface: the MCP tool contracts, the knowledge-base/sync format, and licensing compatibility. While the version is 0.x, minor releases may include breaking changes to that surface; patch releases never do.
 
 ## Unreleased
+
+- **Gym Mode on the iPhone.** In the Reader, hold the waveform and choose **Gym Mode**: ForeverLM walks you through the paper out loud, a minute at a time, like a podcast, with the microphone off. Type a follow-up question at the bottom of the screen and it answers once the part it is saying ends, then carries on. See [Voice Mode](/voice-mode#gym-mode).
+- **MCP is free.** Connecting Claude, ChatGPT, Codex or another assistant costs nothing now: no free days, no Early user deal, nothing to buy. AI in the app still runs on your own OpenRouter key at OpenRouter's cost.
 
 ## 0.201.0 (build 281) — 2026-11-08
 

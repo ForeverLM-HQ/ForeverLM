@@ -1,6 +1,12 @@
 import Foundation
 
-/// ForeverLM is free to use and MCP is the paid part (product owner,
+/// ForeverLM is free, MCP included (product owner, 2026-11-08: "get rid of
+/// any kind of payment for now", "make the mcp free"): the proxy answers the
+/// state `free` (`State.free`), sells nothing and counts no free days. What
+/// follows is the paid model it replaced, which the code still decodes for
+/// payments made before and for when payment is rethought.
+///
+/// From 2026-10-16 MCP was the paid part (product owner,
 /// 2026-10-16: "make the MCP paywalled; for the rest people should be able to
 /// use the app for free using openrouter"). Everything in the app, sync and
 /// AI included, runs without paying, on the learner's own OpenRouter key,
@@ -61,6 +67,9 @@ extension ManagedAI {
         /// build does not know reads as the free days: a missing or strange
         /// answer never locks.
         enum State: String, Codable, Sendable {
+            /// MCP is free for every account (2026-11-08): nothing to pay,
+            /// no free days counting down, nothing locks.
+            case free
             case freeDays = "free_days"
             case paidOnce = "paid_once"
             case monthly
@@ -74,6 +83,7 @@ extension ManagedAI {
 
             init(serverValue: String?) {
                 switch serverValue {
+                case "free": self = .free
                 case "free_days": self = .freeDays
                 case "paid_once", "forever", "pro": self = .paidOnce
                 case "monthly", "subscribed": self = .monthly
@@ -82,6 +92,13 @@ extension ManagedAI {
                 case "locked": self = .locked
                 default: self = .freeDays
                 }
+            }
+
+            /// `access.state`, the older field, read only when `app_state` is
+            /// missing. There "free" means no payment, not that MCP is free,
+            /// so it reads as the free days.
+            init(legacyValue: String?) {
+                self = legacyValue == "free" ? .freeDays : State(serverValue: legacyValue)
             }
         }
 
@@ -181,7 +198,7 @@ extension ManagedAI {
         var isPaid: Bool {
             switch state {
             case .paidOnce, .monthly, .comped, .family: return true
-            case .freeDays, .locked: return false
+            case .free, .freeDays, .locked: return false
             }
         }
 
@@ -311,10 +328,10 @@ extension ManagedAI {
                 let listed = Set(onSale.compactMap(AppPlan.init(serverValue:)))
                 return AppPlan.allCases.filter(listed.contains)
             } ?? Self.paidAppPlans
-            let rawState = try container.decodeIfPresent(String.self, forKey: .appState)
-                ?? container.decodeIfPresent(String.self, forKey: .state)
+            let appState = try container.decodeIfPresent(String.self, forKey: .appState)
+            let legacyState = try container.decodeIfPresent(String.self, forKey: .state)
             self.init(
-                state: State(serverValue: rawState),
+                state: appState.map { State(serverValue: $0) } ?? State(legacyValue: legacyState),
                 plan: try container.decodeIfPresent(String.self, forKey: .plan),
                 founding: try container.decodeIfPresent(Bool.self, forKey: .founding) ?? false,
                 renewsAt: Self.date(try container.decodeIfPresent(String.self, forKey: .renewsAt)),

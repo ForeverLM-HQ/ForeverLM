@@ -45,6 +45,36 @@ struct AppPlanTests {
         #expect(cached?["plan_access"] == nil)
     }
 
+    @Test("MCP is free (2026-11-08): app_state free reads as free, never locks, counts nothing and sells nothing")
+    @MainActor
+    func mcpFree() throws {
+        // What the proxy sends every open account while MCP is free.
+        let access = try decode("""
+        {"state":"free","app_state":"free","plan":null,"founding":false,"unlocked":true,"app_lock":false,
+         "free_until":null,"free_days_total":7,"own_key_allowed":true,"plans_on_sale":[],
+         "prices":{"once_cents":1900,"monthly_cents":400}}
+        """)
+        #expect(access.state == .free)
+        #expect(!access.isPaid)
+        #expect(!access.isMCPLocked(at: now))
+        #expect(access.freeDaysLeft(at: now) == nil)
+        #expect(access.plansOnSale.isEmpty)
+        // The top-level state is app_state's vocabulary too.
+        let old = try decode(#"{"state":"free"}"#)
+        #expect(old.filling(.init(state: "free", unlocked: true, freeUntil: nil)).state == .free)
+        // The welcome line names no price while nothing is sold, or before the
+        // access is known.
+        #expect(EarlyUserDealOffer.welcomeLine(access: access) == "ForeverLM is free, MCP included.")
+        #expect(EarlyUserDealOffer.welcomeLine(access: nil) == "ForeverLM is free, MCP included.")
+        #expect(EarlyUserDealOffer.freeTitle == "MCP is free")
+        let selling = ManagedAI.AppAccess(state: .freeDays, prices: .init(onceCents: 1900, monthlyCents: nil), freeDaysTotal: 7)
+        #expect(EarlyUserDealOffer.welcomeLine(access: selling) == "The app is free. MCP: 7 days free, then $19 once. No subscription.")
+        for text in [EarlyUserDealOffer.freeWelcomeLine, EarlyUserDealOffer.freeTitle] {
+            #expect(!text.contains("$"))
+            #expect(!text.contains("—"))
+        }
+    }
+
     @Test("The paid app's state is access.app_state; access.state keeps its old values and is read only without it")
     func states() throws {
         for (raw, state) in [

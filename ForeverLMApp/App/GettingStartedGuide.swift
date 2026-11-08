@@ -2878,11 +2878,9 @@ struct WelcomeStory: View {
                 .padding(.leading, 50)
             }
             // What ForeverLM costs, said once at the start (product owner,
-            // 2026-10-10): the count and the price are the account server's.
-            Text(EarlyUserDealOffer.welcomeLine(
-                onceCents: ManagedAI.appAccess?.prices.onceCents,
-                freeDays: ManagedAI.appAccess?.freeDaysTotal
-            ))
+            // 2026-10-10): free, MCP included, since 2026-11-08; a price only
+            // while the account server sells one.
+            Text(EarlyUserDealOffer.welcomeLine(access: ManagedAI.appAccess))
                 .font(.system(size: 17, weight: .semibold, design: .rounded))
                 .frame(maxWidth: .infinity)
                 .multilineTextAlignment(.center)

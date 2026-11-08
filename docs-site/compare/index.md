@@ -13,7 +13,7 @@ There are a lot of tools in the "learn and remember more" space, and they're gen
 The five things that most distinguish it:
 
 1. **Your data stays yours** — a local SQLite database and files in your private iCloud container, synced through your Apple account. No uploading your library to a vendor's cloud.
-2. **The app is free. MCP: 7 days free, then $19 once. No subscription.** No tiers: the whole app is open, and only connecting an outside assistant over MCP is paid. The in-app Chat runs any model on your own OpenRouter key, billed by OpenRouter at its cost with nothing added, or free models for nothing. Or connect the Claude/ChatGPT/Gemini/Grok subscription you already pay for over MCP, which is what the $19 covers.
+2. **ForeverLM is free, MCP included. No subscription.** No tiers: the whole app is open, and connecting an outside assistant over MCP costs nothing either. The in-app Chat runs any model on your own OpenRouter key, billed by OpenRouter at its cost with nothing added, or free models for nothing. Or connect the Claude/ChatGPT/Gemini/Grok subscription you already pay for over MCP.
 3. **Podcasts are first-class** — follow shows, get full episode transcripts, read, listen, and get quizzed on them.
 4. **Any model, no lock-in** — MCP works with every major assistant; in-app Chat takes any model through your own OpenRouter key; your files stay in open formats on your disk.
 5. **Review that tests understanding** — explain the source back; an AI tutor with the full text probes your gaps. Not self-graded cards, not one-shot quizzes.
@@ -24,7 +24,7 @@ The honest trade-off: **ForeverLM is Mac-centered** (macOS 14+). Its synced iPho
 
 | Tool | Best at | Pricing | AI | Retention/review |
 |---|---|---|---|---|
-| **ForeverLM** | Learning from the sources you keep, by AI review dialogue | **Free**; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Any (MCP or in-app Chat) | AI review dialogue, scheduled |
+| **ForeverLM** | Learning from the sources you keep, by AI review dialogue | **Free**, MCP included; AI on your own OpenRouter key at cost | Any (MCP or in-app Chat) | AI review dialogue, scheduled |
 | [NotebookLM](/compare/notebooklm) | Study material and audio overviews from uploads | Free (capped); $7.99–$99.99+/mo Google AI bundles | Gemini only | One-shot quizzes/flashcards, no tracking |
 | [Heptabase](/compare/heptabase) | Card-first whiteboards for thinking | $107.88–$647.88/yr, no free tier | Credit-metered (Gemini; more on Premium) | AI tutor on $215.88/yr tier; spaced repetition unshipped |
 | [Anki](/compare/anki) | Memorizing with self-graded flashcards | Free (iOS $24.99 one-time) | None built in | Self-graded flashcards, SM-2/FSRS |
@@ -129,7 +129,7 @@ The honest trade-off: **ForeverLM is Mac-centered** (macOS 14+). Its synced iPho
 
 **"I learn from podcasts"** → [Snipd](/compare/snipd) for capture while listening on your phone; ForeverLM for full transcripts, scheduling, and being quizzed afterwards on your Mac.
 
-**"I save everything and want AI to organize it"** → [Recall](/compare/recall) is the closest cousin: local-first, many source types, spaced-repetition quizzes at $120/yr. ForeverLM differs on depth of review, automatic ingestion, podcasts-as-transcripts, iCloud sync, and a free app (MCP is $19 once) instead of a required yearly subscription.
+**"I save everything and want AI to organize it"** → [Recall](/compare/recall) is the closest cousin: local-first, many source types, spaced-repetition quizzes at $120/yr. ForeverLM differs on depth of review, automatic ingestion, podcasts-as-transcripts, iCloud sync, and a free app, MCP included, instead of a required yearly subscription.
 
 ## The pricing picture, over three years
 
@@ -138,7 +138,7 @@ A subscription bills you every year whether or not you opened the app. Here's wh
 | Tool | 3-year cost (typical paid tier, annual billing) |
 |---|---|
 | Anki | $0–$24.99 |
-| **ForeverLM** | **$0** for the app, **$19** once if you add MCP; plus OpenRouter usage at cost on your own key |
+| **ForeverLM** | **$0**, MCP included; plus OpenRouter usage at cost on your own key |
 | Mochi Pro | ~$180 |
 | Reflect | $360 |
 | Readwise Full | ~$360 |
@@ -147,8 +147,8 @@ A subscription bills you every year whether or not you opened the app. Here's wh
 | Heptabase Premium | ~$648 |
 | NotebookLM via Google AI Pro | ~$720 |
 
-ForeverLM is the one row without a fixed total, and that's the honest answer: the app is free, MCP is $19 once, and the AI depends on the route you pick. Two routes, and you can mix them. The in-app Chat runs any model on your own OpenRouter key, which OpenRouter bills at its cost with nothing added by ForeverLM; its free models cost nothing. Driving ForeverLM over MCP from a Claude, ChatGPT, Gemini, or Grok subscription you *already* pay for is what the $19 covers, and the subscription is already in your budget. In the app, some tokens also go to background work (transcript cleanup, paper metadata extraction) on the same key, with the model configurable per task. The app keeps a to-the-cent ledger of every conversation.
+ForeverLM is the one row without a fixed total, and that's the honest answer: the app is free, MCP included, and the AI depends on the route you pick. Two routes, and you can mix them. The in-app Chat runs any model on your own OpenRouter key, which OpenRouter bills at its cost with nothing added by ForeverLM; its free models cost nothing. Driving ForeverLM over MCP from a Claude, ChatGPT, Gemini, or Grok subscription you *already* pay for costs nothing extra, because the subscription is already in your budget. In the app, some tokens also go to background work (transcript cleanup, paper metadata extraction) on the same key, with the model configurable per task. The app keeps a to-the-cent ledger of every conversation.
 
 ## Try it
 
-ForeverLM is free, and MCP is 7 days free, then $19 once: [get it for Mac](https://foreverlm.com) and point it at your reading list. If you're on Windows or Android, we'd honestly point you at Recall or RemNote today.
+ForeverLM is free, MCP included: [get it for Mac](https://foreverlm.com) and point it at your reading list. If you're on Windows or Android, we'd honestly point you at Recall or RemNote today.

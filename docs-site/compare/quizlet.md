@@ -12,7 +12,7 @@ Quizlet is a large study platform built around flashcard sets, Learn mode, pract
 
 | | ForeverLM | Quizlet |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free tier; Plus $35.99/year; Plus Unlimited $44.99/year |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost | Free tier; Plus $35.99/year; Plus Unlimited $44.99/year |
 | **Starting material** | Full papers, articles, books, podcasts, videos, and courses | Flashcard sets, notes, uploaded class material, and textbook content |
 | **Study mode** | Source-grounded review dialogue and scheduled review | Flashcards, Learn, tests, games, and homework help |
 | **Authorship** | Import sources and let the tutor question your understanding | Create sets or use material made by other users and publishers |

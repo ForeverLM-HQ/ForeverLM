@@ -99,7 +99,7 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "get_billing_settings",
-                description: "Read the ForeverLM account behind Settings › Billing (unlocking MCP) and AI Usage (the key and the monthly spending limit), freshly fetched from the account server as those panes do when they open. The app is free; MCP, the assistant connection, is the paid part: 7 free days begin at the first sign-in, and then MCP is paid once (the Early user deal), with no subscription; an account that has not paid by then has MCP locked until it does, and nothing else changes and nothing in the library is deleted. No monthly plan is sold; one bought before still counts as paid while it is active. AI is never part of the price and never locked: the learner's own OpenRouter API key pays for every model, billed by OpenRouter at cost, and ForeverLM adds nothing. OpenRouter is the only supported provider. Returns whether the learner is signed in; the plan (state free_days, paid_once, monthly, comped, family or locked; whether MCP is unlocked, when the free days end, how many are left and how many an account gets; a monthly plan's renewal and price) and the plans on sale with the account server's prices (once, the Early user deal, recommended); a summary of the learner's own router key (details in get_own_router_key); any balance left over from before prepaid balance was retired, which still pays for requests sent without the key until it runs out and cannot be added to; and the monthly spending limit (current value, what has been spent this month, whether it is reached, when it resets, and the options the pane's picker offers, including no_limit). This is account state, the same on every device.",
+                description: "Read the ForeverLM account behind Settings › Billing and AI Usage (the key and the monthly spending limit), freshly fetched from the account server as those panes do when they open. ForeverLM is free, MCP included: nothing is sold, no free days count down and MCP never locks (plan state free). A payment or monthly plan made before still shows as itself. AI is never part of the price and never locked: the learner's own OpenRouter API key pays for every model, billed by OpenRouter at cost, and ForeverLM adds nothing. OpenRouter is the only supported provider. Returns whether the learner is signed in; the plan (state free, or for an account from the paid model free_days, paid_once, monthly, comped, family or locked; whether MCP is unlocked; a monthly plan's renewal and price) and the plans on sale (none while MCP is free); a summary of the learner's own router key (details in get_own_router_key); any balance left over from before prepaid balance was retired, which still pays for requests sent without the key until it runs out and cannot be added to; and the monthly spending limit (current value, what has been spent this month, whether it is reached, when it resets, and the options the pane's picker offers, including no_limit). This is account state, the same on every device.",
                 inputSchema: ["type": "object", "properties": [:] as [String: Any], "required": [] as [String]]
             ),
             MCPToolDef(
@@ -540,13 +540,13 @@ extension MCPDataStore {
         } else {
             payload["own_key"] = NSNull()
         }
-        payload["ai_billing"] = "Bring your own key: the learner's own OpenRouter API key pays for every model, billed by OpenRouter at cost, and ForeverLM adds nothing. OpenRouter is the only supported provider. The key runs for every signed-in account: the app is free, and only MCP is paid for."
-        // MCP is the paid part (product owner, 2026-10-10, 2026-10-11 and
-        // 2026-10-16): 7 days free, then the Early user deal, paid once, and
-        // nothing else on sale (`AppAccess.plansOnSale`). Prices and the count
-        // of free days are the account server's.
+        payload["ai_billing"] = "Bring your own key: the learner's own OpenRouter API key pays for every model, billed by OpenRouter at cost, and ForeverLM adds nothing. OpenRouter is the only supported provider. The key runs for every signed-in account: ForeverLM is free, MCP included."
+        // MCP is free since 2026-11-08 ("get rid of any kind of payment for
+        // now"): the account server lists nothing on sale, so `plans` is empty.
+        // Under the paid model (2026-10-16 to 2026-11-08) it listed the Early
+        // user deal (`AppAccess.plansOnSale`), at the account server's price.
         let prices = account.planPrices
-        let onSale = account.appAccess?.plansOnSale ?? ManagedAI.AppAccess.paidAppPlans
+        let onSale = account.appAccess.map { $0.state == .free ? [] : $0.plansOnSale } ?? []
         payload["plans"] = onSale.map { plan -> [String: Any] in
             switch plan {
             case .once:
@@ -577,7 +577,7 @@ extension MCPDataStore {
             payload["plan"] = NSNull()
         }
         payload["only_in_the_settings_window"] = [
-            "Unlock MCP through Stripe Checkout (the Early user deal, paid once), switch a monthly plan bought before to paid once, or cancel it: Cancel Plan… (which asks why) and the billing portal (open_settings billing). Only the learner can complete a checkout.",
+            "Cancel a monthly plan bought before MCP became free: Cancel Plan… (which asks why) and the billing portal (open_settings billing).",
             "Sign in with Apple (open_settings billing).",
         ]
         if let message = account.balanceErrorMessage ?? account.errorMessage {

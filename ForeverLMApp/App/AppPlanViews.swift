@@ -18,6 +18,10 @@ struct EarlyUserDealOffer: View {
     /// What Billing's section says once the free days are over and nothing is
     /// paid.
     static let lockedTitle = "MCP is locked"
+    /// What Billing says while nothing is sold (2026-11-08: MCP is free).
+    static let freeTitle = "MCP is free"
+    /// What the welcome screen says while nothing is sold.
+    static let freeWelcomeLine = "ForeverLM is free, MCP included."
     /// The line every surface says what AI costs with.
     static let ownKeyLine = "The app is free. AI runs on your OpenRouter API key, at OpenRouter's cost. ForeverLM adds nothing."
 
@@ -39,6 +43,14 @@ struct EarlyUserDealOffer: View {
     /// What the welcome screen says once: the app is free, and what is not.
     static func welcomeLine(onceCents: Int?, freeDays: Int?) -> String {
         "The app is free. \(headline(onceCents: onceCents, freeDays: freeDays))"
+    }
+
+    /// The welcome line for an account's access: the price only while the
+    /// account server sells the deal, and "free, MCP included" otherwise,
+    /// before the access is known too, since nothing is sold now.
+    static func welcomeLine(access: ManagedAI.AppAccess?) -> String {
+        guard let access, access.state != .free, access.plansOnSale.contains(.once) else { return freeWelcomeLine }
+        return welcomeLine(onceCents: access.prices.onceCents, freeDays: access.freeDaysTotal)
     }
 
     private var prices: ManagedAI.AppAccess.Prices { account.planPrices }
@@ -94,6 +106,7 @@ struct EarlyUserDealOffer: View {
 /// subscription or manage their subscription … separate from all the AI
 /// usage". The key, limits and activity are AI Usage.
 ///
+/// While MCP is free (2026-11-08) the section says so and offers nothing.
 /// In MCP's free days, or locked, the card is the offer. A buyer sees "Paid
 /// once". A subscriber from before the lock (nothing sells a subscription
 /// now) sees the plan, Switch to Paid Once, and paying and cancelling, one
@@ -135,6 +148,14 @@ struct AppPlanSettingsSection: View {
     @ViewBuilder
     private func planContent(_ access: ManagedAI.AppAccess) -> some View {
         switch access.state {
+        case .free:
+            SettingsSection(title: "MCP", description: EarlyUserDealOffer.freeTitle) {
+                Text(EarlyUserDealOffer.ownKeyLine)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("billing.mcpFree")
+            }
         case .freeDays, .locked:
             SettingsSection(title: "MCP", description: offerSummary(access)) {
                 VStack(alignment: .leading, spacing: 10) {
@@ -264,7 +285,7 @@ struct AppPlanSettingsSection: View {
         case .monthly: return "\(access.planName) plan"
         case .comped: return "Plan"
         case .family: return "Family plan"
-        case .freeDays, .locked: return "Plan"
+        case .free, .freeDays, .locked: return "Plan"
         }
     }
 
@@ -289,7 +310,7 @@ struct AppPlanSettingsSection: View {
             return "Included with your account"
         case .family:
             return "Covered by your family's plan"
-        case .freeDays, .locked:
+        case .free, .freeDays, .locked:
             return ""
         }
     }
@@ -308,7 +329,7 @@ struct AppPlanSettingsSection: View {
         switch access.state {
         case .monthly: return true
         case .paidOnce: return !access.founding
-        case .freeDays, .locked, .comped, .family: return false
+        case .free, .freeDays, .locked, .comped, .family: return false
         }
     }
 }

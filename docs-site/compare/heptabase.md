@@ -12,7 +12,7 @@ Heptabase is a visual thinking tool: whiteboards and cards for mapping out compl
 
 | | ForeverLM | Heptabase |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | No free tier. Pro $107.88/yr; Premium $215.88/yr; Premium+ $647.88/yr (monthly billing higher) |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost | No free tier. Pro $107.88/yr; Premium $215.88/yr; Premium+ $647.88/yr (monthly billing higher) |
 | **AI costs** | Your own OpenRouter key, billed by OpenRouter at cost with nothing added, for any model in Chat (free models cost nothing); or an AI subscription you already pay for, over MCP | Credit-metered: 100 credits/mo on Pro (Gemini only), 1,800 on Premium; no bring-your-own-key |
 | **AI tutor** | Review with any MCP assistant or in-app Chat — no tier required | AI tutor requires Premium ($215.88/yr) |
 | **Platforms** | Native macOS app (macOS 14+) | Mac, Windows, Linux, iOS, Android, web |
@@ -29,9 +29,9 @@ Heptabase is a visual thinking tool: whiteboards and cards for mapping out compl
 
 Heptabase has **no free tier** and its AI is credit-metered. The plan most learners would want — unlimited PDFs plus the AI tutor and non-Gemini models — is Premium at **$215.88/yr billed annually** ($23.99 month-to-month). Heavy AI use points to Premium+ at $647.88/yr. The credits are Heptabase-denominated, they reset every month whether you used them or not, and there's no bring-your-own-key escape from the meter.
 
-ForeverLM is **free**, with no subscription and no tiers to pick between: the whole app is open, with every model on your own OpenRouter key. Only MCP is paid: **7 days free, then $19 once**. Two ways to use AI, mixable: any model in the in-app Chat on your OpenRouter key, billed by OpenRouter at its cost with nothing added by ForeverLM (free models cost nothing); or the Claude, ChatGPT, Gemini, or Grok subscription you already pay for, connected over MCP. Your subscription covers the inference, and ForeverLM charges nothing per request. The in-app route also spends a little on background work (transcript cleanup, paper metadata extraction), billed the same way, with the model configurable per task. The app records every token and shows costs to the cent.
+ForeverLM is **free**, with no subscription and no tiers to pick between: the whole app is open, with every model on your own OpenRouter key, and MCP is included. Two ways to use AI, mixable: any model in the in-app Chat on your OpenRouter key, billed by OpenRouter at its cost with nothing added by ForeverLM (free models cost nothing); or the Claude, ChatGPT, Gemini, or Grok subscription you already pay for, connected over MCP. Your subscription covers the inference, and ForeverLM charges nothing per request. The in-app route also spends a little on background work (transcript cleanup, paper metadata extraction), billed the same way, with the model configurable per task. The app records every token and shows costs to the cent.
 
-The three-year comparison is lopsided in a way that's worth stating plainly: Heptabase Premium is ~$648 before you've done anything, while ForeverLM is free, or $19 once if you also want MCP, plus whatever OpenRouter bills your own key for what you use (nothing on free models).
+The three-year comparison is lopsided in a way that's worth stating plainly: Heptabase Premium is ~$648 before you've done anything, while ForeverLM is free, MCP included, plus whatever OpenRouter bills your own key for what you use (nothing on free models).
 
 ## Where Heptabase is better
 

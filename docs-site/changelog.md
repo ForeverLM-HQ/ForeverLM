@@ -7,6 +7,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 ## Unreleased
 
 - **Gym Mode on the iPhone.** In the Reader, hold the waveform and choose **Gym Mode**: ForeverLM walks you through the paper out loud, a minute at a time, like a podcast, with the microphone off. Type a follow-up question at the bottom of the screen and it answers once the part it is saying ends, then carries on. See [Voice Mode](/voice-mode#gym-mode).
+- **MCP is free.** Connecting Claude, ChatGPT, Codex or another assistant costs nothing now: no free days, no Early user deal, nothing to buy. AI in the app still runs on your own OpenRouter key at OpenRouter's cost.
 
 ## 0.201.0 (build 281) — 2026-11-08
 

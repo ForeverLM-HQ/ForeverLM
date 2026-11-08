@@ -12,7 +12,7 @@ Glasp is a social web highlighter for collecting passages and notes from article
 
 | | ForeverLM | Glasp |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free tier; Pro $15/month or $150/year; Unlimited $36/month or $360/year |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost | Free tier; Pro $15/month or $150/year; Unlimited $36/month or $360/year |
 | **Primary object** | The complete source and its learning history | The highlight, note, summary, and public knowledge profile |
 | **Capture** | Articles, papers, books, podcasts, videos, courses, meetings, and more | Web articles, PDFs, YouTube, and Kindle highlights |
 | **Social layer** | Private personal library | Public profiles, following, discovery, and shareable highlights |

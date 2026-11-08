@@ -12,7 +12,7 @@ Obsidian is the gold standard for owning your notes: free, local Markdown files,
 
 | | ForeverLM | Obsidian |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost; iCloud sync included, no paid sync tier | Free (core app, including commercial use). Sync add-on $4–8/mo; Publish $8/mo |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost; iCloud sync included, no paid sync tier | Free (core app, including commercial use). Sync add-on $4–8/mo; Publish $8/mo |
 | **AI costs** | Your own OpenRouter key, billed by OpenRouter at cost with nothing added, for any model in Chat (free models cost nothing); or an AI subscription you already pay for, over MCP | No built-in AI; community plugins, almost all bring-your-own-key |
 | **Platforms** | Native macOS app (macOS 14+) | macOS, Windows, Linux, iOS, Android |
 | **Data storage** | Local SQLite + files in your private iCloud container, CloudKit sync | Local Markdown files; optional E2E-encrypted paid sync, or DIY iCloud/git sync |
@@ -28,7 +28,7 @@ Obsidian is the gold standard for owning your notes: free, local Markdown files,
 
 Obsidian's core app is genuinely free, and if you sync via iCloud or git, it stays free. Paid Sync is $48–96/yr. AI features require assembling plugins and paying per-token with your own keys.
 
-ForeverLM is free, and iCloud sync is included: there's no paid sync tier to graduate onto. AI is a separate bill you control: the in-app Chat runs on your own OpenRouter key, billed by OpenRouter at its cost with nothing added, or on free models for nothing. Driving the app over MCP from a Claude, ChatGPT, Gemini, or Grok subscription you already have is the one paid part: 7 days free, then $19 once. Neither product puts a subscription between you and your own data. The difference is that Obsidian leaves the AI wiring to you, and ForeverLM wires your key in for you.
+ForeverLM is free, and iCloud sync is included: there's no paid sync tier to graduate onto. AI is a separate bill you control: the in-app Chat runs on your own OpenRouter key, billed by OpenRouter at its cost with nothing added, or on free models for nothing. Driving the app over MCP from a Claude, ChatGPT, Gemini, or Grok subscription you already have is free too. Neither product puts a subscription between you and your own data. The difference is that Obsidian leaves the AI wiring to you, and ForeverLM wires your key in for you.
 
 ## Where Obsidian is better
 

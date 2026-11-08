@@ -12,7 +12,7 @@ Paper (paper.ac) is a study workspace that sets out to replace NotebookLM, Notio
 
 | | ForeverLM | Paper |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost, or over MCP from an assistant you already pay for | Free during the beta ("free unlimited credits"); paid plans for heavier use are announced but not priced |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost, or over MCP from an assistant you already pay for | Free during the beta ("free unlimited credits"); paid plans for heavier use are announced but not priced |
 | **Platforms** | Native macOS app (macOS 14+), with an iPhone app and a web library | Web app (works in mobile browsers); a Mac desktop app in testing; a native mobile app planned |
 | **Data storage** | Local SQLite + files in your private iCloud container, CloudKit sync | Paper's cloud (Supabase on AWS, region not stated), encrypted in transit and at rest, not end-to-end |
 | **AI models** | Any model through your own OpenRouter key, or Claude, ChatGPT, Gemini or Grok over MCP | Grok by default, GPT and Gemini per chat (its roadmap lists Claude as added); no bring-your-own-key yet |
@@ -29,7 +29,7 @@ Paper (paper.ac) is a study workspace that sets out to replace NotebookLM, Notio
 
 Paper costs nothing while it is in beta, with no key to bring. Its terms already describe monthly billing for paid features, and its own pages say paid tiers may come later for heavy use, large libraries and teams. No prices are published yet, so Paper's cost today is $0 and its long-term cost is unknown.
 
-ForeverLM is free, with no subscription and no tiers; only MCP, the connection for an outside assistant, is paid: 7 days free, then $19 once. The models run on your own OpenRouter key, which OpenRouter bills at its own price with nothing added by ForeverLM. You can also connect the Claude, ChatGPT, Gemini or Grok subscription you already pay for over MCP. The app shows what every conversation cost, to the cent.
+ForeverLM is free, with no subscription and no tiers; MCP, the connection for an outside assistant, is free too. The models run on your own OpenRouter key, which OpenRouter bills at its own price with nothing added by ForeverLM. You can also connect the Claude, ChatGPT, Gemini or Grok subscription you already pay for over MCP. The app shows what every conversation cost, to the cent.
 
 ## Where Paper is better
 

@@ -12,7 +12,7 @@ DEVONthink is a powerful document and information manager for Mac and iOS. It ar
 
 | | ForeverLM | DEVONthink 4 |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Standard $99, Pro $199, Server $499; one-time license with one year of updates |
+| **Price** | Free, MCP included; AI on your own OpenRouter key at cost | Standard $99, Pro $199, Server $499; one-time license with one year of updates |
 | **Primary job** | Research library and learning loop | General document archive and information manager |
 | **Storage** | Local SQLite and files in your private iCloud container | Local databases with flexible sync options |
 | **AI** | Configurable in-app models plus Claude, ChatGPT, Gemini, and Grok through MCP | AI chat with supported local or external models |
@@ -36,7 +36,7 @@ DEVONthink is a powerful document and information manager for Mac and iOS. It ar
 - **The queue has a purpose.** Schedule what to learn this week and track whether it was reviewed, not merely archived.
 - **AI interaction is portable.** Use in-app Chat or let an external MCP assistant operate the library and save the resulting review.
 - **Active understanding is built in.** Review dialogue probes gaps and preserves the session against the sources covered.
-- **A lower one-time price.** ForeverLM itself is free; MCP is the only paid part, $19 once after 7 free days, against $99 for DEVONthink Standard.
+- **No license to buy.** ForeverLM is free, MCP included, against $99 for DEVONthink Standard.
 
 ## Which should you choose?
 

@@ -14,7 +14,7 @@
   <a href="https://releases.foreverlm.com/ForeverLM.dmg"><strong>Download for Mac</strong></a>
   &middot; <a href="https://foreverlm.com">Website</a>
   &middot; <a href="https://docs.foreverlm.com">Docs</a><br>
-  Free. MCP: 7 days free, then $19 once. No subscription.
+  Free, MCP included. No subscription.
 </p>
 
 <p align="center">

@@ -12,7 +12,7 @@ ElevenReader is ElevenLabs' mobile reading app for turning articles, PDFs, EPUB 
 
 | | ForeverLM | ElevenReader |
 |---|---|---|
-| **Price** | Free; MCP is 7 days free, then $19 once (no subscription); AI and voices on your own OpenRouter key at cost (free voices cost nothing) | Free mobile app; separate ElevenLabs services have their own pricing |
+| **Price** | Free, MCP included; AI and voices on your own OpenRouter key at cost (free voices cost nothing) | Free mobile app; separate ElevenLabs services have their own pricing |
 | **Platforms** | Full workflow on Mac, synced listening on iPhone | iPhone, iPad, and Android |
 | **Inputs** | Saved articles, papers, books, and transcripts in the library | PDF, EPUB, TXT, web links, scanned text, and pasted text |
 | **Voices** | Every speech model OpenRouter serves, from many makers; free ones cost nothing | Hundreds of ElevenLabs voices in 32 languages |
