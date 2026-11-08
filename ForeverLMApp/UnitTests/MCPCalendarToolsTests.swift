@@ -188,4 +188,140 @@ struct MCPCalendarToolsTests {
     }
 }
 
+/// Groups: each context of the learner's work on a calendar of its own, so
+/// it keeps one colour (`CalendarGroup`, `CalendarGroups`). Made-up names.
+@Suite("Calendar groups")
+struct CalendarGroupsTests {
+
+    private let dayJob = CalendarGroup(id: "g1", name: "Acme", calendarID: "WORK", keywords: ["Widget review"])
+    private let society = CalendarGroup(id: "g2", name: "Guild", calendarID: "GUILD", keywords: ["Grant draft"])
+    private let sport = CalendarGroup(id: "g3", name: "Exercise", calendarID: "GYM", keywords: ["Run", "Gym"])
+
+    private var groups: [CalendarGroup] { [dayJob, society, sport] }
+
+    @Test("A block's title names its group first, then its notes")
+    func titleThenNotes() {
+        #expect(CalendarGroups.group(title: "Guild thesis: write", notes: "Before the Acme sync", in: groups)?.id == "g2")
+        #expect(CalendarGroups.group(title: "Grant draft: proposals", notes: nil, in: groups)?.id == "g2")
+        #expect(CalendarGroups.group(title: "Deep work", notes: "Serves Q4 objective: Acme (handover)", in: groups)?.id == "g1")
+        #expect(CalendarGroups.group(title: "Dentist", notes: "Bring the forms", in: groups) == nil)
+    }
+
+    @Test("A word must stand on its own, in any case and accent")
+    func wholeWords() {
+        #expect(CalendarGroups.names("guild mtDNA thesis", "Guild"))
+        #expect(CalendarGroups.names("Prep (Gym)", "gym"))
+        #expect(!CalendarGroups.names("Guildford trip", "Guild"))
+        #expect(!CalendarGroups.names("Rerun the predictions", "Run"))
+        #expect(CalendarGroups.names("Café run", "cafe"))
+    }
+
+    @Test("The longest word wins when two groups are named")
+    func longestWins() {
+        let block = CalendarGroups.group(title: "Widget review with the Guild", notes: nil, in: groups)
+        #expect(block?.id == "g1")
+    }
+
+    @Test("A block on a group's calendar is that group's, whatever it says")
+    func calendarFirst() {
+        #expect(CalendarGroups.group(calendarID: "GYM", title: "Acme standup", notes: nil, in: groups)?.id == "g3")
+        #expect(CalendarGroups.group(calendarID: "OTHER", title: "Acme standup", notes: nil, in: groups)?.id == "g1")
+    }
+
+    @Test("Words under three letters never name a group")
+    func shortWords() {
+        let tiny = CalendarGroup(name: "Ox", calendarID: "OX", keywords: ["  ", "Oxbow"])
+        #expect(tiny.words == ["Oxbow"])
+        #expect(CalendarGroups.group(title: "Ox day", notes: nil, in: [tiny]) == nil)
+    }
+
+    @Test("Keywords come from a comma list, blanks and repeats dropped")
+    func keywordList() {
+        #expect(CalendarGroups.keywords(from: "Grant draft, , grant draft,WR-16 ") == ["Grant draft", "WR-16"])
+    }
+
+    @Test("Groups survive a round trip through the Mac's defaults, and an empty list clears them")
+    func storage() throws {
+        let defaults = try #require(UserDefaults(suiteName: "CalendarGroupsTests-\(UUID().uuidString)"))
+        CalendarGroups.save(groups, to: defaults)
+        #expect(CalendarGroups.load(from: defaults) == groups)
+        CalendarGroups.save([], to: defaults)
+        #expect(defaults.data(forKey: CalendarGroups.defaultsKey) == nil)
+        #expect(CalendarGroups.load(from: defaults).isEmpty)
+    }
+
+    @Test("A group's calendar is in the day even when the learner's choice leaves it off")
+    func groupCalendarsShown() {
+        let calendars = [
+            AppleCalendarListEntry(id: "MINE", title: "Calendar", account: "iCloud", accountID: "A", isBirthdays: false, isSubscribed: false),
+            AppleCalendarListEntry(id: "GUILD", title: "Guild", account: "iCloud", accountID: "A", isBirthdays: false, isSubscribed: false),
+        ]
+        let without = AppleCalendarService.shown(from: calendars, selectedIDs: ["MINE"], knownAccountIDs: ["A"], newEventsCalendarID: nil)
+        #expect(without.map(\.id) == ["MINE"])
+        let with = AppleCalendarService.shown(
+            from: calendars, selectedIDs: ["MINE"], knownAccountIDs: ["A"], newEventsCalendarID: nil, groupCalendarIDs: ["GUILD"]
+        )
+        #expect(with.map(\.id) == ["MINE", "GUILD"])
+    }
+
+    @Test("Colours read and write as #RRGGBB")
+    func colorHex() {
+        #expect(CalendarColor(hex: "#FF8D28")?.hex == "#FF8D28")
+        #expect(CalendarColor(hex: "a359d9")?.hex == "#A359D9")
+        #expect(CalendarColor(hex: "#12345") == nil)
+        #expect(CalendarColor(hex: "purple") == nil)
+    }
+
+    @Test("Repeats become the rule a planned week needs")
+    func repeats() {
+        #expect(CalendarEventRepeat.weekly.rule(until: nil).frequency == .weekly)
+        #expect(CalendarEventRepeat.weekly.rule(until: nil).daysOfTheWeek == nil)
+        #expect(CalendarEventRepeat.weekdays.rule(until: nil).daysOfTheWeek?.count == 5)
+        let until = Date(timeIntervalSince1970: 1_800_000_000)
+        #expect(CalendarEventRepeat.daily.rule(until: until).recurrenceEnd?.endDate == until)
+    }
+
+    @Test("A regroup reaches from this week's Monday through thirteen weeks")
+    func regroupSpan() throws {
+        let calendar = PlanQuarterWeeks.weekCalendar()
+        let wednesday = try #require(calendar.date(from: DateComponents(year: 2026, month: 11, day: 11, hour: 15)))
+        let span = CalendarGroups.regroupSpan(now: wednesday)
+        #expect(calendar.component(.weekday, from: span.start) == 2)
+        #expect(calendar.component(.day, from: span.start) == 9)
+        #expect(calendar.dateComponents([.day], from: span.start, to: span.end).day == 91)
+    }
+
+    @Test("Overlapping events sit side by side in the week grid")
+    func gridLanes() {
+        let base = Date(timeIntervalSince1970: 1_800_000_000)
+        func at(_ minutes: Int) -> Date { base.addingTimeInterval(TimeInterval(minutes * 60)) }
+        let lanes = PlanWeekGrid.lanes([
+            (id: "a", start: at(0), end: at(60)),
+            (id: "b", start: at(30), end: at(90)),
+            (id: "c", start: at(60), end: at(120)),
+            (id: "d", start: at(180), end: at(240)),
+        ])
+        #expect(lanes["a"]?.index == 0)
+        #expect(lanes["b"]?.index == 1)
+        #expect(lanes["c"]?.index == 0)
+        #expect(lanes["a"]?.count == 2 && lanes["b"]?.count == 2 && lanes["c"]?.count == 2)
+        #expect(lanes["d"]?.index == 0 && lanes["d"]?.count == 1)
+    }
+
+    @Test("The calendar tools offer groups, repeats and one context at a time")
+    func toolsSayIt() throws {
+        let tools = MCPToolRegistry(store: MCPDataStore()).tools
+        let byName = Dictionary(uniqueKeysWithValues: tools.map { ($0.name, $0) })
+        let create = try #require(byName["create_calendar_event"])
+        let createProperties = try #require(create.inputSchema["properties"] as? [String: Any])
+        #expect(createProperties["repeat"] != nil && createProperties["repeat_until"] != nil)
+        #expect(create.description.contains("group"))
+        let set = try #require(byName["set_calendar_settings"])
+        let setProperties = try #require(set.inputSchema["properties"] as? [String: Any])
+        #expect(setProperties["groups"] != nil && setProperties["regroup"] != nil)
+        #expect(MCPDataStore.oneContextGuidance.contains("one context at a time"))
+        #expect(ReviewSlashCommandParser.planDayInstructions.contains("one context in my head at a time"))
+    }
+}
+
 #endif

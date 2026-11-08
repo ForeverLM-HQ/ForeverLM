@@ -72,7 +72,7 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "get_calendar_settings",
-                description: "Read Plugins › Calendar — the Mac's Calendar app, which is the learner's day: whether it is on for ForeverLM, whether macOS granted access or refused it, every calendar the Mac holds (iCloud, Google, Exchange, subscriptions) with its id, title, account, whether it takes new events (writable) and whether it is shown (on_day: its events are what get_calendar_events reads and the Now chip shows), and new_events_calendar — the calendar create_calendar_event writes into unless told otherwise (the learner's choice, or the Calendar app's own default). selection_is_default true means the learner never narrowed the shown list, so every calendar but Birthdays is shown. The choice is this Mac's. Change with set_calendar_settings.",
+                description: "Read Plugins › Calendar — the Mac's Calendar app, which is the learner's day: whether it is on for ForeverLM, whether macOS granted access or refused it, every calendar the Mac holds (iCloud, Google, Exchange, subscriptions) with its id, title, account, whether it takes new events (writable) and whether it is shown (on_day: its events are what get_calendar_events reads and the Now chip shows), its colour (#RRGGBB), new_events_calendar — the calendar create_calendar_event writes into unless told otherwise (the learner's choice, or the Calendar app's own default) — and the learner's groups: each context of their work (the day job, a society, a side project) with the calendar it lives on, that calendar's colour, and the keywords that name it. A block whose title or notes name a group goes onto its calendar, so it wears the group's colour. selection_is_default true means the learner never narrowed the shown list, so every calendar but Birthdays is shown. The choice is this Mac's. Change with set_calendar_settings.",
                 inputSchema: [
                     "type": "object",
                     "properties": [:] as [String: Any],
@@ -81,13 +81,28 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "set_calendar_settings",
-                description: "Change Plugins › Calendar as its controls do, then return get_calendar_settings. apple_calendar_enabled: the pane's Turn On / Turn Off. Turning it on the first time makes macOS show its Calendar permission prompt on the learner's Mac, which only they can answer — tell them to look for it; if they refused before, it fails and they allow ForeverLM in System Settings › Privacy & Security › Calendars. Turning it off forgets the calendar choice; the macOS grant and every event stay. apple_calendar_ids: the whole list of calendars the day is read from (ids or titles from get_calendar_settings); every other calendar the Mac holds now is left off, and an account signed in afterwards (say Exchange, added in System Settings › Internet Accounts) has its calendars shown until a later list leaves them out. new_events_calendar_id: the calendar new events go to (an id or title of a writable calendar), or \"\" for the Calendar app's own default. Ask before removing calendars the learner did not mention.",
+                description: "Change Plugins › Calendar as its controls do, then return get_calendar_settings. apple_calendar_enabled: the pane's Turn On / Turn Off. Turning it on the first time makes macOS show its Calendar permission prompt on the learner's Mac, which only they can answer — tell them to look for it; if they refused before, it fails and they allow ForeverLM in System Settings › Privacy & Security › Calendars. Turning it off forgets the calendar choice; the macOS grant and every event stay. apple_calendar_ids: the whole list of calendars the day is read from (ids or titles from get_calendar_settings); every other calendar the Mac holds now is left off, and an account signed in afterwards (say Exchange, added in System Settings › Internet Accounts) has its calendars shown until a later list leaves them out. new_events_calendar_id: the calendar new events go to (an id or title of a writable calendar), or \"\" for the Calendar app's own default. groups: the whole list of the learner's groups, in order — each a context of their work kept on one calendar so it has one colour; [] removes them all. A group names its calendar by id or title (the day job's Exchange calendar, where its meetings already arrive), or leaves calendar out to get a new calendar named after it, in iCloud when the Mac has it; color #RRGGBB recolours that calendar; keywords are more words that name the group in a block's title or notes. regroup preview lists, and move moves, the blocks from this week's Monday through thirteen weeks on that name a group but sit on another calendar onto the group's calendar — only blocks the learner owns alone and that do not repeat; meetings stay where they are. Preview first and say what will move. Ask before removing calendars the learner did not mention.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
                         "apple_calendar_enabled": ["type": "boolean", "description": "Optional: turn the Mac's Calendar on or off for ForeverLM."],
                         "apple_calendar_ids": ["type": "array", "items": ["type": "string"], "description": "Optional: every calendar to show, by id or title. Needs Calendar on."],
                         "new_events_calendar_id": ["type": "string", "description": "Optional: the writable calendar new events go to, by id or title; \"\" for the Calendar app's default. Needs Calendar on."],
+                        "groups": [
+                            "type": "array",
+                            "description": "Optional: every group, in order; [] removes them all. Needs Calendar on.",
+                            "items": [
+                                "type": "object",
+                                "properties": [
+                                    "name": ["type": "string", "description": "The group's name, which also names its blocks: Day job, Reading group, Exercise."],
+                                    "calendar": ["type": "string", "description": "Id or title of the writable calendar it lives on. Leave out to make a new calendar named after the group."],
+                                    "color": ["type": "string", "description": "Optional #RRGGBB: recolours the group's calendar."],
+                                    "keywords": ["type": "array", "items": ["type": "string"], "description": "More words that name the group in a block's title or notes, e.g. Grant draft."],
+                                ],
+                                "required": ["name"],
+                            ],
+                        ],
+                        "regroup": ["type": "string", "enum": ["preview", "move"], "description": "Optional: list (preview) or move (move) the blocks of the coming weeks that name a group onto its calendar."],
                     ],
                     "required": [] as [String],
                 ]
@@ -883,10 +898,11 @@ extension MCPDataStore {
                     from: calendars,
                     selectedIDs: appleSelection,
                     knownAccountIDs: apple.knownAccountIDs,
-                    newEventsCalendarID: target?.id
+                    newEventsCalendarID: target?.id,
+                    groupCalendarIDs: Set(apple.groups.map(\.calendarID))
                 ).map(\.id))
                 applePayload["calendars"] = calendars.map { calendar -> [String: Any] in
-                    [
+                    var entry: [String: Any] = [
                         "id": calendar.id,
                         "title": calendar.title,
                         "account": calendar.account,
@@ -895,9 +911,26 @@ extension MCPDataStore {
                         "writable": calendar.allowsModifications,
                         "on_day": shown.contains(calendar.id),
                     ]
+                    if let color = calendar.color { entry["color"] = color.hex }
+                    return entry
                 }
                 if let target {
                     applePayload["new_events_calendar"] = ["id": target.id, "title": target.title, "account": target.account]
+                }
+                applePayload["groups"] = apple.groups.map { group -> [String: Any] in
+                    var entry: [String: Any] = [
+                        "name": group.name,
+                        "calendar_id": group.calendarID,
+                        "keywords": group.keywords,
+                    ]
+                    if let calendar = calendars.first(where: { $0.id == group.calendarID }) {
+                        entry["calendar"] = calendar.title
+                        entry["account"] = calendar.account
+                        if let color = calendar.color { entry["color"] = color.hex }
+                    } else {
+                        entry["calendar_missing"] = true
+                    }
+                    return entry
                 }
             } catch {
                 applePayload["calendars_error"] = error.localizedDescription
@@ -905,8 +938,66 @@ extension MCPDataStore {
         }
         return [
             "apple_calendar": applePayload,
-            "how_to_change": "set_calendar_settings: apple_calendar_enabled, apple_calendar_ids (whole list), new_events_calendar_id.",
+            "how_to_change": "set_calendar_settings: apple_calendar_enabled, apple_calendar_ids (whole list), new_events_calendar_id, groups (whole list), regroup (preview or move).",
         ]
+    }
+
+    /// `groups` of set_calendar_settings: the whole list, in order. A group
+    /// names its calendar by id or title; without one it gets a calendar of
+    /// its own, named after it (in iCloud when the Mac has it). color
+    /// recolours the group's calendar. A group keeps its id across writes by
+    /// its name.
+    private func setCalendarGroups(_ raw: [Any], service: AppleCalendarService) async throws -> [String] {
+        var calendars = try await service.calendars()
+        let existing = service.groups
+        var groups: [CalendarGroup] = []
+        var changes: [String] = []
+        for item in raw {
+            guard let object = item as? [String: Any] else {
+                throw MCPError.invalidInput("Each group is an object: {name, calendar, color, keywords}.")
+            }
+            guard let name = (object["name"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !name.isEmpty else {
+                throw MCPError.invalidInput("Each group needs a name.")
+            }
+            guard !groups.contains(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) else {
+                throw MCPError.invalidInput("Two groups are named \(name).")
+            }
+            let keywords = try Self.pluginOptionalStrings(object["keywords"], "keywords") ?? []
+            var color: CalendarColor?
+            if let rawColor = (object["color"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !rawColor.isEmpty {
+                guard let parsed = CalendarColor(hex: rawColor) else {
+                    throw MCPError.invalidInput("\(rawColor) is not a #RRGGBB colour.")
+                }
+                color = parsed
+            }
+            let requested = (object["calendar"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            let calendarID: String
+            do {
+                if requested.isEmpty {
+                    let made = try await service.createCalendar(title: name, color: color)
+                    calendars.append(made)
+                    calendarID = made.id
+                    changes.append("Made the calendar “\(made.title)” in \(made.account.isEmpty ? "this Mac" : made.account) for \(name).")
+                } else {
+                    let writable = calendars.filter(\.allowsModifications)
+                    guard let id = try Self.resolveCalendarIDs([requested], in: writable.map { (id: $0.id, title: $0.title) }, what: "writable").first else {
+                        throw MCPError.notFound("No writable calendar matches \(requested).")
+                    }
+                    calendarID = id
+                    if let color {
+                        try await service.setColor(color, ofCalendar: id)
+                        changes.append("Coloured “\(writable.first { $0.id == id }?.title ?? id)” \(color.hex) for \(name).")
+                    }
+                }
+            } catch let error as AppleCalendarServiceError {
+                throw MCPError.invalidInput(error.localizedDescription)
+            }
+            let keptID = existing.first { $0.name.caseInsensitiveCompare(name) == .orderedSame }?.id ?? UUID().uuidString
+            groups.append(CalendarGroup(id: keptID, name: name, calendarID: calendarID, keywords: keywords))
+        }
+        service.setGroups(groups)
+        changes.append(groups.isEmpty ? "No groups now: new blocks go to the calendar new events go to." : "Groups: \(groups.map(\.name).joined(separator: ", ")). A new block whose title or notes name one goes onto its calendar.")
+        return changes
     }
 
     /// Each requested calendar by id, or by a title only one calendar has.
@@ -940,11 +1031,19 @@ extension MCPDataStore {
         let appleEnabled = try Self.pluginOptionalBool(arguments["apple_calendar_enabled"], "apple_calendar_enabled")
         let appleIDs = try Self.pluginOptionalStrings(arguments["apple_calendar_ids"], "apple_calendar_ids")
         let newEventsCalendar = (arguments["new_events_calendar_id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard appleEnabled != nil || appleIDs != nil || newEventsCalendar != nil else {
-            throw MCPError.invalidInput("Pass at least one of apple_calendar_enabled, apple_calendar_ids, new_events_calendar_id.")
+        let rawGroups = arguments["groups"]
+        if rawGroups != nil, !(rawGroups is [Any]) {
+            throw MCPError.invalidInput("groups must be an array of {name, calendar, color, keywords}.")
         }
-        if appleEnabled == false, appleIDs != nil || newEventsCalendar != nil {
-            throw MCPError.invalidInput("apple_calendar_ids and new_events_calendar_id need Calendar on; don't pass them with apple_calendar_enabled false.")
+        let regroup = (arguments["regroup"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if let regroup, regroup != "preview", regroup != "move" {
+            throw MCPError.invalidInput("regroup is preview or move.")
+        }
+        guard appleEnabled != nil || appleIDs != nil || newEventsCalendar != nil || rawGroups != nil || regroup != nil else {
+            throw MCPError.invalidInput("Pass at least one of apple_calendar_enabled, apple_calendar_ids, new_events_calendar_id, groups, regroup.")
+        }
+        if appleEnabled == false, appleIDs != nil || newEventsCalendar != nil || rawGroups != nil || regroup != nil {
+            throw MCPError.invalidInput("apple_calendar_ids, new_events_calendar_id, groups and regroup need Calendar on; don't pass them with apple_calendar_enabled false.")
         }
         var changes: [String] = []
         let apple = AppleCalendarService.shared
@@ -1005,8 +1104,45 @@ extension MCPDataStore {
             }
         }
 
+        var regroupPayload: [String: Any]?
+        if rawGroups != nil || regroup != nil {
+            guard apple.isConnected else {
+                throw MCPError.invalidInput("Calendar is off for ForeverLM; pass apple_calendar_enabled true first.")
+            }
+            if let rawGroups = rawGroups as? [Any] {
+                changes += try await setCalendarGroups(rawGroups, service: apple)
+            }
+            if let regroup {
+                let span = CalendarGroups.regroupSpan()
+                let moves: [CalendarRegroupMove]
+                do {
+                    moves = try await apple.regroupEvents(from: span.start, to: span.end, apply: regroup == "move")
+                } catch let error as AppleCalendarServiceError {
+                    throw MCPError.invalidInput(error.localizedDescription)
+                }
+                regroupPayload = [
+                    "applied": regroup == "move",
+                    "from": DayPlan.dateString(for: span.start),
+                    "to": DayPlan.dateString(for: span.end.addingTimeInterval(-1)),
+                    "moves": moves.map { move -> [String: Any] in
+                        [
+                            "title": move.title,
+                            "date": DayPlan.dateString(for: move.start),
+                            "start": DayNow.clockString(move.start),
+                            "from_calendar": move.fromCalendar,
+                            "group": move.group,
+                        ]
+                    },
+                ]
+                if regroup == "move" {
+                    changes.append(moves.isEmpty ? "No block needed moving onto its group's calendar." : "Moved \(moves.count) block\(moves.count == 1 ? "" : "s") onto their groups' calendars.")
+                }
+            }
+        }
+
         var payload = await calendarSettingsPayload()
         payload["changes"] = changes.isEmpty ? ["Nothing changed."] : changes
+        if let regroupPayload { payload["regroup"] = regroupPayload }
         return try jsonString(payload)
     }
 

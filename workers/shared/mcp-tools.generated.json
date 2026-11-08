@@ -1329,7 +1329,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Add an event to the Mac's Calendar — how a day is planned: each block of work, reading, review, admin or a break is an event on the learner's clock, titled in the learner's words. It lands on the calendar new events go to (new_events_calendar in get_calendar_events; the learner chooses it in Plugins › Calendar) unless calendar_id names another that takes events, shows at once in the Calendar app and in ForeverLM's Now chip, and reaches the learner's phone through their calendar account. Pass date and start, and end or duration_minutes (an event past midnight takes duration_minutes); all_day true makes an all-day event on date. Blocks of work are best 90–120 minutes and never under 30. Put what the hour is for in notes — the next step, and the foreverlm:// link of a source or Doc it reads — so it opens from the event. A block on one topic may also carry its notebook's [Title](foreverlm://notebook/<id>) link in its notes, so ForeverLM's Now chip opens that notebook from the block and a bout started there is filed under it. Plan into the free stretches get_calendar_events gives, and never over a meeting with other people: the calendar itself allows overlapping events, so read the day first. Returns the event with its event_id.",
+    "description" : "Add an event to the Mac's Calendar — how a day is planned: each block of work, reading, review, admin or a break is an event on the learner's clock, titled in the learner's words. It lands on the calendar of the group its title or notes name (groups in get_calendar_settings: one context of the learner's work, one calendar, one colour), else on the calendar new events go to (new_events_calendar in get_calendar_events; the learner chooses it in Plugins › Calendar), unless calendar_id names another that takes events. It shows at once in the Calendar app and in ForeverLM's Now chip, and reaches the learner's phone through their calendar account. Pass date and start, and end or duration_minutes (an event past midnight takes duration_minutes); all_day true makes an all-day event on date; repeat makes it recur (daily, weekdays, or weekly on its weekday) until repeat_until, or with no end. Blocks of work are best 90–120 minutes and never under 30. Put what the hour is for in notes — the next step, and the foreverlm:// link of a source or Doc it reads — so it opens from the event. A block on one topic may also carry its notebook's [Title](foreverlm://notebook/<id>) link in its notes, so ForeverLM's Now chip opens that notebook from the block and a bout started there is filed under it. Plan into the free stretches get_calendar_events gives, and never over a meeting with other people: the calendar itself allows overlapping events, so read the day first. Returns the event with its event_id.",
     "inputSchema" : {
       "properties" : {
         "all_day" : {
@@ -1337,7 +1337,7 @@
           "type" : "boolean"
         },
         "calendar_id" : {
-          "description" : "Optional calendar id or title from get_calendar_settings; defaults to the calendar new events go to.",
+          "description" : "Optional calendar id or title from get_calendar_settings; defaults to the calendar of the group the title or notes name, else the calendar new events go to.",
           "type" : "string"
         },
         "date" : {
@@ -1358,6 +1358,19 @@
         },
         "notes" : {
           "description" : "Optional detail: the next step, a foreverlm:// link to the source or Doc the hour is for.",
+          "type" : "string"
+        },
+        "repeat" : {
+          "description" : "Optional: make it recur; weekly repeats on date's weekday.",
+          "enum" : [
+            "daily",
+            "weekdays",
+            "weekly"
+          ],
+          "type" : "string"
+        },
+        "repeat_until" : {
+          "description" : "Optional YYYY-MM-DD: the last day it recurs on. Leave out for no end.",
           "type" : "string"
         },
         "start" : {
@@ -4182,7 +4195,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Read Plugins › Calendar — the Mac's Calendar app, which is the learner's day: whether it is on for ForeverLM, whether macOS granted access or refused it, every calendar the Mac holds (iCloud, Google, Exchange, subscriptions) with its id, title, account, whether it takes new events (writable) and whether it is shown (on_day: its events are what get_calendar_events reads and the Now chip shows), and new_events_calendar — the calendar create_calendar_event writes into unless told otherwise (the learner's choice, or the Calendar app's own default). selection_is_default true means the learner never narrowed the shown list, so every calendar but Birthdays is shown. The choice is this Mac's. Change with set_calendar_settings.",
+    "description" : "Read Plugins › Calendar — the Mac's Calendar app, which is the learner's day: whether it is on for ForeverLM, whether macOS granted access or refused it, every calendar the Mac holds (iCloud, Google, Exchange, subscriptions) with its id, title, account, whether it takes new events (writable) and whether it is shown (on_day: its events are what get_calendar_events reads and the Now chip shows), its colour (#RRGGBB), new_events_calendar — the calendar create_calendar_event writes into unless told otherwise (the learner's choice, or the Calendar app's own default) — and the learner's groups: each context of their work (the day job, a society, a side project) with the calendar it lives on, that calendar's colour, and the keywords that name it. A block whose title or notes name a group goes onto its calendar, so it wears the group's colour. selection_is_default true means the learner never narrowed the shown list, so every calendar but Birthdays is shown. The choice is this Mac's. Change with set_calendar_settings.",
     "inputSchema" : {
       "properties" : {
 
@@ -10157,7 +10170,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Change Plugins › Calendar as its controls do, then return get_calendar_settings. apple_calendar_enabled: the pane's Turn On / Turn Off. Turning it on the first time makes macOS show its Calendar permission prompt on the learner's Mac, which only they can answer — tell them to look for it; if they refused before, it fails and they allow ForeverLM in System Settings › Privacy & Security › Calendars. Turning it off forgets the calendar choice; the macOS grant and every event stay. apple_calendar_ids: the whole list of calendars the day is read from (ids or titles from get_calendar_settings); every other calendar the Mac holds now is left off, and an account signed in afterwards (say Exchange, added in System Settings › Internet Accounts) has its calendars shown until a later list leaves them out. new_events_calendar_id: the calendar new events go to (an id or title of a writable calendar), or \"\" for the Calendar app's own default. Ask before removing calendars the learner did not mention.",
+    "description" : "Change Plugins › Calendar as its controls do, then return get_calendar_settings. apple_calendar_enabled: the pane's Turn On / Turn Off. Turning it on the first time makes macOS show its Calendar permission prompt on the learner's Mac, which only they can answer — tell them to look for it; if they refused before, it fails and they allow ForeverLM in System Settings › Privacy & Security › Calendars. Turning it off forgets the calendar choice; the macOS grant and every event stay. apple_calendar_ids: the whole list of calendars the day is read from (ids or titles from get_calendar_settings); every other calendar the Mac holds now is left off, and an account signed in afterwards (say Exchange, added in System Settings › Internet Accounts) has its calendars shown until a later list leaves them out. new_events_calendar_id: the calendar new events go to (an id or title of a writable calendar), or \"\" for the Calendar app's own default. groups: the whole list of the learner's groups, in order — each a context of their work kept on one calendar so it has one colour; [] removes them all. A group names its calendar by id or title (the day job's Exchange calendar, where its meetings already arrive), or leaves calendar out to get a new calendar named after it, in iCloud when the Mac has it; color #RRGGBB recolours that calendar; keywords are more words that name the group in a block's title or notes. regroup preview lists, and move moves, the blocks from this week's Monday through thirteen weeks on that name a group but sit on another calendar onto the group's calendar — only blocks the learner owns alone and that do not repeat; meetings stay where they are. Preview first and say what will move. Ask before removing calendars the learner did not mention.",
     "inputSchema" : {
       "properties" : {
         "apple_calendar_enabled" : {
@@ -10171,8 +10184,47 @@
           },
           "type" : "array"
         },
+        "groups" : {
+          "description" : "Optional: every group, in order; [] removes them all. Needs Calendar on.",
+          "items" : {
+            "properties" : {
+              "calendar" : {
+                "description" : "Id or title of the writable calendar it lives on. Leave out to make a new calendar named after the group.",
+                "type" : "string"
+              },
+              "color" : {
+                "description" : "Optional #RRGGBB: recolours the group's calendar.",
+                "type" : "string"
+              },
+              "keywords" : {
+                "description" : "More words that name the group in a block's title or notes, e.g. Grant draft.",
+                "items" : {
+                  "type" : "string"
+                },
+                "type" : "array"
+              },
+              "name" : {
+                "description" : "The group's name, which also names its blocks: Day job, Reading group, Exercise.",
+                "type" : "string"
+              }
+            },
+            "required" : [
+              "name"
+            ],
+            "type" : "object"
+          },
+          "type" : "array"
+        },
         "new_events_calendar_id" : {
           "description" : "Optional: the writable calendar new events go to, by id or title; \"\" for the Calendar app's default. Needs Calendar on.",
+          "type" : "string"
+        },
+        "regroup" : {
+          "description" : "Optional: list (preview) or move (move) the blocks of the coming weeks that name a group onto its calendar.",
+          "enum" : [
+            "preview",
+            "move"
+          ],
           "type" : "string"
         }
       },

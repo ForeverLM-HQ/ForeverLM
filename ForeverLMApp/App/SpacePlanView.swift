@@ -39,6 +39,12 @@ struct SpacePlanPage: View {
     @State private var loadError: String?
     /// Bumped when the calendar changes under the place, to read it again.
     @State private var calendarChanges = 0
+    /// How the open week's events look in the Calendar app: each one's
+    /// calendar colour, its group's colour, and its link into the app.
+    @State private var eventLooks: [String: PlanEventLook] = [:]
+    /// The learner's groups and every calendar's colour, so an objective
+    /// that names a group wears its colour (`CalendarGroup`).
+    @State private var groupLook = PlanGroupLook()
 
     private var isOwnLibrary: Bool { vm.activeTeamID == nil }
     private var thisQuarter: PlanQuarter { PlanQuarter.containing(Date()) }
@@ -85,6 +91,7 @@ struct SpacePlanPage: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         .task(id: readKey) { await read() }
+        .task(id: lookKey) { await readLooks() }
         .onReceive(NotificationCenter.default.publisher(for: .EKEventStoreChanged)) { _ in calendarChanges += 1 }
         .onReceive(NotificationCenter.default.publisher(for: .pluginConnectionChanged)) { _ in calendarChanges += 1 }
         .accessibilityElement(children: .contain)
@@ -99,6 +106,40 @@ struct SpacePlanPage: View {
         guard isOwnLibrary, let quarter = openQuarter else { return "" }
         let edited = vm.artifacts.first { $0.id == quarter.id }?.updatedAt.timeIntervalSince1970 ?? 0
         return "\(quarter.key)|\(edited)|\(calendarChanges)"
+    }
+
+    private var lookKey: String {
+        "\(openWeek?.timeIntervalSince1970 ?? 0)|\(calendarChanges)"
+    }
+
+    /// The groups and calendar colours, and the open week's events as the
+    /// Calendar app draws them. Read apart from the quarter, so the quarter's
+    /// reading stays the same on the phone.
+    private func readLooks() async {
+        let service = AppleCalendarService.shared
+        guard isOwnLibrary, service.isConnected else {
+            eventLooks = [:]
+            groupLook = PlanGroupLook()
+            return
+        }
+        let groups = service.groups
+        let calendars = (try? await service.calendars()) ?? []
+        var colors: [String: CalendarColor] = [:]
+        for calendar in calendars { colors[calendar.id] = calendar.color }
+        var looks: [String: PlanEventLook] = [:]
+        if let monday = openWeek, let end = weekCalendar.date(byAdding: .day, value: 7, to: monday) {
+            for event in (try? await service.shownEvents(from: monday, to: end)) ?? [] {
+                let group = CalendarGroups.group(calendarID: event.calendarID, title: event.title, notes: event.notes, in: groups)
+                looks[event.occurrenceKey] = PlanEventLook(
+                    calendarColor: event.calendarColor,
+                    groupColor: group.flatMap { colors[$0.calendarID] },
+                    calendarAppURL: event.calendarAppURL
+                )
+            }
+        }
+        guard !Task.isCancelled else { return }
+        eventLooks = looks
+        groupLook = PlanGroupLook(groups: groups, colors: colors)
     }
 
     private func read() async {
@@ -222,7 +263,7 @@ struct SpacePlanPage: View {
                     ForEach(Array(objectives.enumerated()), id: \.offset) { index, objective in
                         HStack(alignment: .firstTextBaseline, spacing: 9) {
                             Circle()
-                                .fill(Self.objectiveColor(index))
+                                .fill(objectiveColor(index))
                                 .frame(width: 7, height: 7)
                                 .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
                             Text(objective)
@@ -354,7 +395,7 @@ struct SpacePlanPage: View {
             VStack(spacing: 0) {
                 ForEach(planned.reversed()) { block in
                     Rectangle()
-                        .fill(Self.blockColor(block))
+                        .fill(blockColor(block))
                         .frame(height: Self.stripHeight * min(1, CGFloat(block.minutes) / CGFloat(Self.fullDayMinutes)))
                 }
             }
@@ -364,70 +405,55 @@ struct SpacePlanPage: View {
         .clipped()
     }
 
-    // MARK: A week's days
+    // MARK: A week
 
+    /// An open week drawn as the Calendar app's week view draws it, every
+    /// event in its calendar's colour (a group's work in its group's), with
+    /// the way into the Calendar app itself.
     private func weekDays(_ week: PlanWeek) -> some View {
-        VStack(alignment: .leading, spacing: 1) {
-            ForEach(week.days) { day in
-                dayRow(day)
-            }
-        }
-    }
-
-    /// A day: its name, and its blocks by time; a click opens it in the
-    /// Day pane. Blocks toward the quarter lead in their objective's colour,
-    /// the rest of the calendar (meetings, errands) stays grey.
-    private func dayRow(_ day: PlanDay) -> some View {
-        let isToday = PlanDate.string(for: Date(), calendar: weekCalendar) == day.date
-        return Button {
-            openDay(day.date)
-        } label: {
-            HStack(alignment: .firstTextBaseline, spacing: 12) {
-                Text(Self.dayText(day.start, calendar: weekCalendar))
-                    .zoomedSystemFont(size: 12, weight: isToday ? .semibold : .medium)
-                    .foregroundStyle(isToday ? Color.accentColor : .secondary)
-                    .monospacedDigit()
-                    .frame(width: 52, alignment: .leading)
-                VStack(alignment: .leading, spacing: 3) {
-                    if day.blocks.isEmpty {
-                        Text("Nothing on the calendar")
-                            .zoomedSystemFont(size: 12)
-                            .foregroundStyle(.tertiary)
-                    }
-                    ForEach(day.blocks) { block in
-                        blockLine(block)
-                    }
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Spacer(minLength: 8)
+                Button {
+                    openInCalendarApp(week)
+                } label: {
+                    Label("Open in Calendar", systemImage: "calendar")
+                        .zoomedSystemFont(size: 11.5, weight: .medium)
                 }
-                Spacer(minLength: 0)
+                .buttonStyle(.hoverWash(cornerRadius: 6, inset: -4))
+                .foregroundStyle(.secondary)
+                .help("Shows this week in the Calendar app")
+                .accessibilityIdentifier("space.plan.week.openCalendar")
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 6)
-            .contentShape(Rectangle())
+            PlanWeekGrid(
+                week: week,
+                calendar: weekCalendar,
+                color: gridColor,
+                openDay: openDay,
+                openBlock: openBlock
+            )
         }
-        .buttonStyle(.hoverWash(cornerRadius: 7, inset: 0))
-        .help("Open \(Self.dayText(day.start, calendar: weekCalendar)) in Day")
-        .accessibilityIdentifier("space.plan.day.\(day.date)")
     }
 
-    private func blockLine(_ block: PlanBlock) -> some View {
-        HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Text(Self.timeText(block.start))
-                .zoomedSystemFont(size: 11.5)
-                .foregroundStyle(.tertiary)
-                .monospacedDigit()
-                .frame(width: 58, alignment: .leading)
-            Circle()
-                .fill(block.servesQuarter ? Self.blockColor(block) : Color.clear)
-                .frame(width: 6, height: 6)
-                .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 1 }
-            Text(block.title)
-                .zoomedSystemFont(size: 12.5)
-                .foregroundStyle(block.servesQuarter ? HierarchicalShapeStyle.primary : .secondary)
-                .lineLimit(1)
-            Text(PlanQuarterWeeks.hoursText(block.minutes))
-                .zoomedSystemFont(size: 11)
-                .foregroundStyle(.tertiary)
-                .monospacedDigit()
+    /// The Calendar app, at one of the week's events so it shows that week;
+    /// with none, the app as it is. (Calendar takes no link to a date, and
+    /// scripting it needs an Apple Events grant ForeverLM does not ask for.)
+    private func openInCalendarApp(_ week: PlanWeek) {
+        let now = Date()
+        let blocks = week.days.flatMap(\.blocks)
+        let shown = blocks.first { $0.end > now } ?? blocks.first
+        if let url = shown.flatMap({ eventLooks[$0.id]?.calendarAppURL }) {
+            NSWorkspace.shared.open(url)
+        } else {
+            AppleCalendarService.openCalendarApp()
+        }
+    }
+
+    private func openBlock(_ block: PlanBlock) {
+        if let url = eventLooks[block.id]?.calendarAppURL {
+            NSWorkspace.shared.open(url)
+        } else {
+            openDay(PlanDate.string(for: block.start, calendar: weekCalendar))
         }
     }
 
@@ -449,8 +475,32 @@ struct SpacePlanPage: View {
         objectivePalette[index % objectivePalette.count]
     }
 
-    static func blockColor(_ block: PlanBlock) -> Color {
-        block.objective.map(objectiveColor) ?? Color.secondary.opacity(0.6)
+    /// An objective's colour: its group's calendar colour when it names a
+    /// group ("Guild grant draft" is the Guild's), else its place's.
+    private func objectiveColor(_ index: Int) -> Color {
+        let objectives = overview?.objectives ?? []
+        guard objectives.indices.contains(index),
+              let color = groupLook.color(naming: objectives[index]) else { return Self.objectiveColor(index) }
+        return Color(cgColor: color.cgColor)
+    }
+
+    /// A planned block's colour in the strip and the day list: its group's,
+    /// else its objective's.
+    private func blockColor(_ block: PlanBlock) -> Color {
+        if let color = eventLooks[block.id]?.groupColor ?? groupLook.color(naming: block.title) {
+            return Color(cgColor: color.cgColor)
+        }
+        return block.objective.map(objectiveColor) ?? Color.secondary.opacity(0.6)
+    }
+
+    /// A block in the week grid: its group's colour, else its objective's
+    /// when it serves the quarter, else its own calendar's, as the Calendar
+    /// app draws it.
+    private func gridColor(_ block: PlanBlock) -> Color {
+        if let color = eventLooks[block.id]?.groupColor { return Color(cgColor: color.cgColor) }
+        if block.servesQuarter { return blockColor(block) }
+        if let color = eventLooks[block.id]?.calendarColor { return Color(cgColor: color.cgColor) }
+        return Color.secondary
     }
 
     /// "Nov 9 – 15", or "Sep 28 – Oct 4" across a month.
@@ -552,6 +602,230 @@ struct SpacePlanPage: View {
 
     private func startPlanningChat(_ argument: String) {
         vm.requestPlanDayChat(request: ReviewSlashCommandParser.planDayRequest(argument))
+    }
+}
+/// How one event of the open week looks in the Calendar app.
+struct PlanEventLook: Equatable {
+    var calendarColor: CalendarColor?
+    /// Its group's colour: the group whose calendar holds it, or whose words
+    /// it names.
+    var groupColor: CalendarColor?
+    var calendarAppURL: URL?
+}
+
+/// The learner's groups with every calendar's colour.
+struct PlanGroupLook: Equatable {
+    var groups: [CalendarGroup] = []
+    var colors: [String: CalendarColor] = [:]
+
+    /// The colour of the group `text` names; nil when it names none.
+    func color(naming text: String) -> CalendarColor? {
+        CalendarGroups.group(title: text, notes: nil, in: groups).flatMap { colors[$0.calendarID] }
+    }
+}
+
+/// A week as the Calendar app's week view draws it: seven columns of hours,
+/// each event a block in its colour at its time, side by side where events
+/// overlap. A day's heading opens it in the Day pane; a block opens in the
+/// Calendar app.
+struct PlanWeekGrid: View {
+    let week: PlanWeek
+    let calendar: Calendar
+    let color: (PlanBlock) -> Color
+    let openDay: (String) -> Void
+    let openBlock: (PlanBlock) -> Void
+
+    private static let hourHeight: CGFloat = 30
+    private static let gutter: CGFloat = 40
+    private static let headerHeight: CGFloat = 24
+
+    var body: some View {
+        let hours = hourRange
+        VStack(spacing: 0) {
+            HStack(spacing: 0) {
+                Color.clear.frame(width: Self.gutter, height: Self.headerHeight)
+                ForEach(week.days) { day in
+                    let isToday = PlanDate.string(for: Date(), calendar: calendar) == day.date
+                    Button {
+                        openDay(day.date)
+                    } label: {
+                        Text(SpacePlanPage.dayText(day.start, calendar: calendar))
+                            .zoomedSystemFont(size: 11.5, weight: isToday ? .semibold : .medium)
+                            .foregroundStyle(isToday ? Color.accentColor : .secondary)
+                            .monospacedDigit()
+                            .frame(maxWidth: .infinity, minHeight: Self.headerHeight)
+                            .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.hoverWash(cornerRadius: 6, inset: 0))
+                    .help("Open \(SpacePlanPage.dayText(day.start, calendar: calendar)) in Day")
+                    .accessibilityIdentifier("space.plan.day.\(day.date)")
+                }
+            }
+            HStack(alignment: .top, spacing: 0) {
+                VStack(alignment: .trailing, spacing: 0) {
+                    ForEach(hours, id: \.self) { hour in
+                        Text(Self.hourText(hour, calendar: calendar))
+                            .zoomedSystemFont(size: 9.5)
+                            .foregroundStyle(.tertiary)
+                            .monospacedDigit()
+                            .frame(width: Self.gutter - 6, height: Self.hourHeight, alignment: .topTrailing)
+                            .offset(y: -6)
+                    }
+                }
+                .frame(width: Self.gutter, alignment: .trailing)
+                ForEach(week.days) { day in
+                    dayColumn(day, hours: hours)
+                }
+            }
+            .frame(height: CGFloat(hours.count) * Self.hourHeight)
+            .clipped()
+        }
+        .padding(.top, 2)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("space.plan.weekGrid")
+    }
+
+    /// The hours drawn: eight in the morning to seven at night, stretched to
+    /// hold every event of the week.
+    private var hourRange: Range<Int> {
+        var first = 8
+        var last = 19
+        for day in week.days {
+            for block in day.blocks {
+                first = min(first, minute(of: block.start, in: day) / 60)
+                last = max(last, Int((Double(endMinute(of: block, in: day)) / 60).rounded(.up)))
+            }
+        }
+        return max(0, first)..<min(24, max(last, first + 1))
+    }
+
+    private func minute(of date: Date, in day: PlanDay) -> Int {
+        let parts = calendar.dateComponents([.hour, .minute], from: date)
+        return date < day.start ? 0 : (parts.hour ?? 0) * 60 + (parts.minute ?? 0)
+    }
+
+    /// The minute a block ends, held to its own day.
+    private func endMinute(of block: PlanBlock, in day: PlanDay) -> Int {
+        guard let next = calendar.date(byAdding: .day, value: 1, to: day.start), block.end < next else { return 24 * 60 }
+        return max(minute(of: block.start, in: day) + 15, minute(of: block.end, in: day))
+    }
+
+    private func dayColumn(_ day: PlanDay, hours: Range<Int>) -> some View {
+        let lanes = Self.lanes(day.blocks.map { (id: $0.id, start: $0.start, end: $0.end) })
+        let top = hours.lowerBound * 60
+        let isToday = PlanDate.string(for: Date(), calendar: calendar) == day.date
+        return GeometryReader { geometry in
+            let width = geometry.size.width
+            ZStack(alignment: .topLeading) {
+                Path { path in
+                    for index in 0...hours.count {
+                        let y = CGFloat(index) * Self.hourHeight
+                        path.move(to: CGPoint(x: 0, y: y))
+                        path.addLine(to: CGPoint(x: width, y: y))
+                    }
+                    path.move(to: CGPoint(x: 0, y: 0))
+                    path.addLine(to: CGPoint(x: 0, y: geometry.size.height))
+                }
+                .stroke(Color.primary.opacity(0.07), lineWidth: 1)
+                if isToday {
+                    Rectangle()
+                        .fill(Color.accentColor.opacity(0.04))
+                }
+                ForEach(day.blocks) { block in
+                    let lane = lanes[block.id] ?? (index: 0, count: 1)
+                    let laneWidth = width / CGFloat(lane.count)
+                    let start = minute(of: block.start, in: day)
+                    let y = CGFloat(start - top) / 60 * Self.hourHeight
+                    let height = max(14, CGFloat(endMinute(of: block, in: day) - start) / 60 * Self.hourHeight)
+                    blockView(block, height: height)
+                        .frame(width: max(8, laneWidth - 3), height: height - 2)
+                        .offset(x: CGFloat(lane.index) * laneWidth + 2, y: y + 1)
+                }
+                if isToday {
+                    let now = minute(of: Date(), in: day)
+                    if now >= top, now < hours.upperBound * 60 {
+                        Rectangle()
+                            .fill(Color.red.opacity(0.8))
+                            .frame(width: width, height: 1.5)
+                            .offset(y: CGFloat(now - top) / 60 * Self.hourHeight)
+                    }
+                }
+            }
+        }
+        .frame(maxWidth: .infinity)
+    }
+
+    private func blockView(_ block: PlanBlock, height: CGFloat) -> some View {
+        let tint = color(block)
+        let time = "\(SpacePlanPage.timeText(block.start)) – \(SpacePlanPage.timeText(block.end))"
+        return Button {
+            openBlock(block)
+        } label: {
+            HStack(spacing: 0) {
+                Rectangle()
+                    .fill(tint)
+                    .frame(width: 3)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text(block.title)
+                        .zoomedSystemFont(size: 10.5, weight: .medium)
+                        .foregroundStyle(.primary)
+                        .lineLimit(height >= 40 ? 2 : 1)
+                    if height >= 44 {
+                        Text(time)
+                            .zoomedSystemFont(size: 9.5)
+                            .foregroundStyle(.secondary)
+                            .monospacedDigit()
+                            .lineLimit(1)
+                    }
+                }
+                .padding(.horizontal, 4)
+                .padding(.vertical, height >= 24 ? 2 : 0)
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .background(tint.opacity(0.2))
+            .clipShape(RoundedRectangle(cornerRadius: 4, style: .continuous))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("\(block.title)\n\(time)")
+        .accessibilityLabel("\(block.title), \(time)")
+    }
+
+    /// Side-by-side lanes for overlapping events, as the Calendar app lays
+    /// them: each event takes the first lane free at its start, and every
+    /// event of an overlapping run shares the run's lane count.
+    static func lanes(_ events: [(id: String, start: Date, end: Date)]) -> [String: (index: Int, count: Int)] {
+        let sorted = events.sorted { ($0.start, $0.end) < ($1.start, $1.end) }
+        var result: [String: (index: Int, count: Int)] = [:]
+        var run: [(id: String, lane: Int)] = []
+        var laneEnds: [Date] = []
+        var runEnd = Date.distantPast
+        func closeRun() {
+            for member in run { result[member.id] = (member.lane, max(1, laneEnds.count)) }
+            run = []
+            laneEnds = []
+        }
+        for event in sorted {
+            if event.start >= runEnd { closeRun() }
+            let end = max(event.end, event.start.addingTimeInterval(15 * 60))
+            if let free = laneEnds.firstIndex(where: { $0 <= event.start }) {
+                laneEnds[free] = end
+                run.append((event.id, free))
+            } else {
+                laneEnds.append(end)
+                run.append((event.id, laneEnds.count - 1))
+            }
+            runEnd = max(runEnd, end)
+        }
+        closeRun()
+        return result
+    }
+
+    /// "9 AM" or "09:00", as the Mac tells time.
+    static func hourText(_ hour: Int, calendar: Calendar) -> String {
+        guard let date = calendar.date(bySettingHour: hour, minute: 0, second: 0, of: Date()) else { return "" }
+        return date.formatted(.dateTime.hour())
     }
 }
 #endif

@@ -47,8 +47,12 @@ extension MCPDataStore {
             "now": DayNow.clockString(now),
             "timezone": TimeZone.current.identifier,
             "days": dayPayloads,
-            "guidance": "Plan a day by adding its hours as events with create_calendar_event, into the free stretches (free_from_now on today). An event with has_other_people is a meeting: it stays at its time, and only the Calendar app may change it. editable says which events you may move or delete; delete only what the learner asked you to or what you added for them.",
+            "guidance": "Plan a day by adding its hours as events with create_calendar_event, into the free stretches (free_from_now on today). An event with has_other_people is a meeting: it stays at its time, and only the Calendar app may change it. editable says which events you may move or delete; delete only what the learner asked you to or what you added for them. \(Self.oneContextGuidance)",
         ]
+        let groups = service.groups
+        if !groups.isEmpty {
+            payload["groups"] = groups.map { ["name": $0.name, "calendar_id": $0.calendarID] }
+        }
         if let calendar = try await service.newEventsCalendar() {
             payload["new_events_calendar"] = ["id": calendar.id, "title": calendar.title, "account": calendar.account]
         }
@@ -74,21 +78,42 @@ extension MCPDataStore {
         )
         let calendarID = try await resolvedCalendarID(Self.dayText(arguments["calendar_id"]), service: service)
         let url = try Self.eventURL(Self.dayText(arguments["url"]))
+        var repeats: CalendarEventRepeat?
+        if let rawRepeat = Self.dayText(arguments["repeat"]) {
+            guard let parsed = CalendarEventRepeat(rawValue: rawRepeat.lowercased()) else {
+                throw MCPError.invalidInput("repeat is daily, weekdays or weekly.")
+            }
+            repeats = parsed
+        }
+        var repeatsUntil: Date?
+        if let rawUntil = Self.dayText(arguments["repeat_until"]) {
+            guard repeats != nil else { throw MCPError.invalidInput("repeat_until needs repeat.") }
+            guard let until = DayPlan.startOfDay(try resolvedDayDate(rawUntil)) else {
+                throw MCPError.invalidInput("repeat_until is a day, YYYY-MM-DD.")
+            }
+            repeatsUntil = until
+        }
+        let notes = Self.dayText(arguments["notes"])
         do {
             let event = try await service.createEvent(CalendarEventDraft(
                 title: title,
                 start: times.start,
                 end: times.end,
                 isAllDay: allDay,
-                notes: Self.dayText(arguments["notes"]),
+                notes: notes,
                 location: Self.dayText(arguments["location"]),
                 url: url,
-                calendarID: calendarID
+                calendarID: calendarID,
+                repeats: repeats,
+                repeatsUntil: repeatsUntil
             ))
+            let group = service.groups.first { $0.calendarID == event.calendarID }
+            let groupNote = group.map { " (\($0.name))" } ?? ""
+            let repeatNote = repeats.map { " Repeats \($0.rawValue)\(repeatsUntil.map { " until \(DayPlan.dateString(for: $0))" } ?? "")." } ?? ""
             return try jsonString([
                 "created": true,
                 "event": calendarEventPayload(event, now: Date()),
-                "message": "Added ‘\(DayNow.displayTitle(event))’ to \(event.calendarTitle), \(Self.dayLabel(event)).",
+                "message": "Added ‘\(DayNow.displayTitle(event))’ to \(event.calendarTitle)\(groupNote), \(Self.dayLabel(event)).\(repeatNote)",
             ] as [String: Any])
         } catch let error as AppleCalendarServiceError {
             throw MCPError.invalidInput(error.localizedDescription)
@@ -258,6 +283,14 @@ extension MCPDataStore {
         ] as [String: Any])
     }
 
+    /// How a planned week or day keeps one context in the learner's head at
+    /// a time (product owner, 2026-11-08: "minimize context switching … long
+    /// uninterrupted periods of time where I have only one context in my
+    /// head … the work for [the day job] gets done right before and right after
+    /// those [meetings] … those meetings get scheduled on the same day as
+    /// much as possible"). Shared by the tool's answer and the /plan skill.
+    static let oneContextGuidance = "Keep one context at a time: each event's group (groups) is a context. Give a group long unbroken stretches — a half day or a whole day of one group beats three short blocks of three — put a group's blocks right before and right after its own meetings, so a meeting sits inside its context instead of breaking another, and never put two groups' blocks back to back when the free time allows otherwise. Meetings are fixed points; when a group's meetings are spread over several days, suggest which ones the learner could ask to move onto one day, but never move them. Exercise and free time are blocks too: when the learner keeps groups for them, plan those onto the calendar like any other context."
+
     // MARK: Payloads
 
     func calendarEventPayload(_ event: AppleCalendarEvent, now: Date) -> [String: Any] {
@@ -276,6 +309,11 @@ extension MCPDataStore {
             "editable": event.isEditable,
             "recurring": event.occurrenceDate != nil,
         ]
+        if !event.isAllDay, let group = CalendarGroups.group(
+            calendarID: event.calendarID, title: event.title, notes: event.notes, in: AppleCalendarService.shared.groups
+        ) {
+            payload["group"] = group.name
+        }
         if !event.isAllDay {
             payload["start"] = DayNow.clockString(event.start)
             payload["end"] = DayNow.clockString(event.end)

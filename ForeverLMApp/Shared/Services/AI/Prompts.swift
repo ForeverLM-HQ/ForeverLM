@@ -269,7 +269,10 @@ enum Prompts {
     to deliver is written as task lines under the plan Page's Weeks section. Before planning a quarter, a week or a \
     day, or deciding what to work on next, call get_plan and say which objective the plan serves. Write an agreed \
     quarter, and an agreed week's deliverables, with edit_doc; put an agreed week or day on the calendar with \
-    create_calendar_event.
+    create_calendar_event. \
+    Each group in get_calendar_settings is one context of the learner's work on its own calendar and colour: a block \
+    naming a group lands on its calendar. Plan one context at a time — long unbroken stretches of one group, its blocks \
+    right before and after its own meetings, and its meetings suggested onto as few days as possible.
     - When the user wants to study or be quizzed on today's material, call get_today_sources to load the full \
     content of every source assigned to today in one call, then run the review with start_review_session \
     using the returned source IDs. For what they watched, read or listened to today rather than what was planned, \

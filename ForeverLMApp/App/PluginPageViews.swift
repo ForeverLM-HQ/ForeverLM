@@ -1968,6 +1968,8 @@ private struct AppleCalendarConnectionSettingsView: View {
                     } else {
                         newEventsPicker
                         Divider()
+                        CalendarGroupsSettingsSection(calendars: calendars, reloadCalendars: loadCalendars)
+                        Divider()
                         Text("Calendars in your day")
                             .font(.caption.weight(.semibold))
                             .foregroundStyle(.secondary)
@@ -1997,8 +1999,8 @@ private struct AppleCalendarConnectionSettingsView: View {
                             .toggleStyle(.checkbox)
                             // What a chat plans lands here, so it is always
                             // in the day (`AppleCalendarService.shown`).
-                            .disabled(takesNewEvents)
-                            .help(takesNewEvents ? "New events go to this calendar, so it is always in your day." : "")
+                            .disabled(takesNewEvents || holdsGroup(calendar))
+                            .help(takesNewEvents ? "New events go to this calendar, so it is always in your day." : (holdsGroup(calendar) ? "A group's blocks go to this calendar, so it is always in your day." : ""))
                             .accessibilityIdentifier("settings.appleCalendar.calendar.\(calendar.id)")
                         }
                     }
@@ -2096,8 +2098,13 @@ private struct AppleCalendarConnectionSettingsView: View {
             from: [calendar],
             selectedIDs: selectedIDs.map(Array.init),
             knownAccountIDs: knownAccountIDs,
-            newEventsCalendarID: newEventsTargetID
+            newEventsCalendarID: newEventsTargetID,
+            groupCalendarIDs: Set(AppleCalendarService.shared.groups.map(\.calendarID))
         ).isEmpty
+    }
+
+    private func holdsGroup(_ calendar: AppleCalendarListEntry) -> Bool {
+        AppleCalendarService.shared.groups.contains { $0.calendarID == calendar.id }
     }
 
     /// The first flip turns what is shown into the learner's own list, and
@@ -2153,6 +2160,286 @@ private struct AppleCalendarConnectionSettingsView: View {
             }
             isConnecting = false
         }
+    }
+}
+
+/// Plugins › Calendar › Groups: each context of the learner's work on a
+/// calendar of its own, so it has one colour everywhere the calendar shows
+/// (`CalendarGroup`). A group's calendar is one an account already brings in
+/// (the day job's Exchange calendar) or one made for it here, in iCloud.
+private struct CalendarGroupsSettingsSection: View {
+    let calendars: [AppleCalendarListEntry]
+    let reloadCalendars: () -> Void
+
+    @State private var groups: [CalendarGroup] = AppleCalendarService.shared.groups
+    @State private var message: String?
+    @State private var isWorking = false
+    /// What Move Blocks Into Groups would move, while the learner confirms.
+    @State private var pendingMoves: [CalendarRegroupMove] = []
+    @State private var confirmingMoves = false
+
+    /// The swatches a group's calendar can wear: distinct at a glance in
+    /// the Calendar app's light and dark week views.
+    private static let swatches: [(name: String, color: CalendarColor)] = [
+        ("Red", CalendarColor(red: 0.90, green: 0.22, blue: 0.27)),
+        ("Orange", CalendarColor(red: 1.00, green: 0.55, blue: 0.16)),
+        ("Yellow", CalendarColor(red: 0.96, green: 0.77, blue: 0.00)),
+        ("Green", CalendarColor(red: 0.20, green: 0.66, blue: 0.33)),
+        ("Teal", CalendarColor(red: 0.10, green: 0.65, blue: 0.70)),
+        ("Blue", CalendarColor(red: 0.12, green: 0.48, blue: 0.95)),
+        ("Purple", CalendarColor(red: 0.64, green: 0.35, blue: 0.85)),
+        ("Pink", CalendarColor(red: 0.95, green: 0.35, blue: 0.62)),
+        ("Brown", CalendarColor(red: 0.62, green: 0.45, blue: 0.30)),
+        ("Graphite", CalendarColor(red: 0.50, green: 0.52, blue: 0.56)),
+    ]
+
+    private static let newCalendarTag = "foreverlm.newCalendar"
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Text("Groups")
+                    .font(.caption.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 8)
+                Button("Add Group") { addGroup() }
+                    .controlSize(.small)
+                    .accessibilityIdentifier("settings.appleCalendar.groups.add")
+            }
+            Text("Each part of your work on a calendar of its own, so it keeps one colour in Calendar, on your phone and in Plan. A block whose title or notes name a group goes onto its calendar.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            ForEach($groups) { $group in
+                row($group)
+            }
+            if !groups.isEmpty {
+                HStack(spacing: 8) {
+                    Button("Move Blocks Into Groups…") { previewMoves() }
+                        .controlSize(.small)
+                        .disabled(isWorking)
+                        .help("Moves the blocks of the coming weeks that name a group onto its calendar. Meetings and repeating events stay where they are.")
+                        .accessibilityIdentifier("settings.appleCalendar.groups.regroup")
+                    if isWorking { ProgressView().controlSize(.small) }
+                }
+            }
+            if let message {
+                Text(message)
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .pluginConnectionChanged)) { _ in
+            let stored = AppleCalendarService.shared.groups
+            if stored != groups { groups = stored }
+        }
+        .confirmationDialog(
+            pendingMoves.count == 1 ? "Move 1 block into its group?" : "Move \(pendingMoves.count) blocks into their groups?",
+            isPresented: $confirmingMoves
+        ) {
+            Button("Move") { applyMoves() }
+            Button("Cancel", role: .cancel) { pendingMoves = [] }
+        } message: {
+            Text(Self.movesSummary(pendingMoves))
+        }
+    }
+
+    private func row(_ group: Binding<CalendarGroup>) -> some View {
+        let calendar = calendars.first { $0.id == group.wrappedValue.calendarID }
+        let writable = calendars.filter(\.allowsModifications)
+        return HStack(spacing: 8) {
+            Menu {
+                ForEach(Self.swatches, id: \.name) { swatch in
+                    Button {
+                        recolor(group.wrappedValue, swatch.color)
+                    } label: {
+                        Label {
+                            Text(swatch.name)
+                        } icon: {
+                            Image(nsImage: Self.swatchImage(swatch.color))
+                        }
+                    }
+                }
+            } label: {
+                Circle()
+                    .fill(calendar?.color.map { Color(cgColor: $0.cgColor) } ?? Color.secondary.opacity(0.3))
+                    .frame(width: 12, height: 12)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .disabled(calendar == nil || calendar?.allowsModifications == false)
+            .help(calendar == nil ? "Choose a calendar first" : "Colour of “\(calendar?.title ?? "")”")
+            TextField("Name", text: group.name)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 110)
+                .onSubmit { save() }
+            Picker("Calendar", selection: Binding(
+                get: { group.wrappedValue.calendarID },
+                set: { choose($0, for: group.wrappedValue) }
+            )) {
+                if calendar == nil { Text("Choose…").tag(group.wrappedValue.calendarID) }
+                ForEach(writable) { entry in
+                    Text(entry.account.isEmpty ? entry.title : "\(entry.title) · \(entry.account)").tag(entry.id)
+                }
+                Divider()
+                Text("New Calendar “\(group.wrappedValue.name)”").tag(Self.newCalendarTag)
+            }
+            .labelsHidden()
+            .frame(maxWidth: 200)
+            TextField("Also named by…", text: Binding(
+                get: { group.wrappedValue.keywords.joined(separator: ", ") },
+                set: { group.wrappedValue.keywords = CalendarGroups.keywords(from: $0) }
+            ))
+            .textFieldStyle(.roundedBorder)
+            .onSubmit { save() }
+            .help("More words that name this group in a block's title or notes, separated by commas: Grant draft, Widget review")
+            Button {
+                groups.removeAll { $0.id == group.wrappedValue.id }
+                save()
+            } label: {
+                Image(systemName: "minus.circle")
+            }
+            .buttonStyle(.borderless)
+            .help("Remove the group. Its calendar and events stay.")
+        }
+        .onChange(of: group.wrappedValue.name) { _, _ in saveSoon() }
+        .onChange(of: group.wrappedValue.keywords) { _, _ in saveSoon() }
+        .accessibilityIdentifier("settings.appleCalendar.group.\(group.wrappedValue.id)")
+    }
+
+    // MARK: Changes
+
+    private func addGroup() {
+        groups.append(CalendarGroup(name: "New Group", calendarID: ""))
+        save()
+    }
+
+    @State private var pendingSave: Task<Void, Never>?
+
+    /// Typing saves after a pause, so each keystroke is not a write.
+    private func saveSoon() {
+        pendingSave?.cancel()
+        pendingSave = Task {
+            try? await Task.sleep(for: .milliseconds(600))
+            guard !Task.isCancelled else { return }
+            save()
+        }
+    }
+
+    private func save() {
+        pendingSave?.cancel()
+        let snapshot = groups
+        Task.detached(priority: .userInitiated) {
+            AppleCalendarService.shared.setGroups(snapshot)
+        }
+    }
+
+    private func choose(_ calendarID: String, for group: CalendarGroup) {
+        guard let index = groups.firstIndex(where: { $0.id == group.id }) else { return }
+        guard calendarID == Self.newCalendarTag else {
+            groups[index].calendarID = calendarID
+            save()
+            return
+        }
+        let name = group.name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else {
+            message = "Name the group first; its new calendar takes the name."
+            return
+        }
+        let taken = Set(groups.compactMap { group in calendars.first { $0.id == group.calendarID }?.color?.hex })
+        let color = Self.swatches.map(\.color).first { !taken.contains($0.hex) }
+        isWorking = true
+        Task {
+            defer { isWorking = false }
+            do {
+                let made = try await AppleCalendarService.shared.createCalendar(title: name, color: color)
+                if let index = groups.firstIndex(where: { $0.id == group.id }) {
+                    groups[index].calendarID = made.id
+                    save()
+                }
+                message = "Made “\(made.title)” in \(made.account.isEmpty ? "this Mac" : made.account)."
+                reloadCalendars()
+            } catch {
+                message = error.localizedDescription
+            }
+        }
+    }
+
+    private func recolor(_ group: CalendarGroup, _ color: CalendarColor) {
+        Task {
+            do {
+                try await AppleCalendarService.shared.setColor(color, ofCalendar: group.calendarID)
+                reloadCalendars()
+            } catch {
+                message = error.localizedDescription
+            }
+        }
+    }
+
+    private func previewMoves() {
+        save()
+        isWorking = true
+        message = nil
+        let span = CalendarGroups.regroupSpan()
+        Task {
+            defer { isWorking = false }
+            do {
+                // Saved first, so the service reads these groups.
+                try? await Task.sleep(for: .milliseconds(100))
+                let moves = try await AppleCalendarService.shared.regroupEvents(from: span.start, to: span.end, apply: false)
+                if moves.isEmpty {
+                    message = "Every block of the coming weeks is already on its group's calendar."
+                } else {
+                    pendingMoves = moves
+                    confirmingMoves = true
+                }
+            } catch {
+                message = error.localizedDescription
+            }
+        }
+    }
+
+    private func applyMoves() {
+        let span = CalendarGroups.regroupSpan()
+        isWorking = true
+        Task {
+            defer { isWorking = false; pendingMoves = [] }
+            do {
+                let moved = try await AppleCalendarService.shared.regroupEvents(from: span.start, to: span.end, apply: true)
+                message = moved.count == 1 ? "Moved 1 block into its group." : "Moved \(moved.count) blocks into their groups."
+            } catch {
+                message = error.localizedDescription
+            }
+        }
+    }
+
+    // MARK: Words and pictures
+
+    /// "Day job: 4 blocks · Society: 7 blocks", then the first few blocks.
+    static func movesSummary(_ moves: [CalendarRegroupMove]) -> String {
+        var counts: [(String, Int)] = []
+        for move in moves {
+            if let index = counts.firstIndex(where: { $0.0 == move.group }) { counts[index].1 += 1 } else { counts.append((move.group, 1)) }
+        }
+        let byGroup = counts.map { "\($0.0): \($0.1) \($0.1 == 1 ? "block" : "blocks")" }.joined(separator: " · ")
+        let formatter = DateFormatter()
+        formatter.setLocalizedDateFormatFromTemplate("EEEMMMdjmm")
+        let first = moves.prefix(6).map { "\(formatter.string(from: $0.start))  \($0.title) → \($0.group)" }
+        let more = moves.count > 6 ? ["and \(moves.count - 6) more"] : []
+        return ([byGroup, ""] + first + more).joined(separator: "\n")
+    }
+
+    /// A menu item's swatch: menus draw an image, not a SwiftUI shape.
+    static func swatchImage(_ color: CalendarColor) -> NSImage {
+        let image = NSImage(size: NSSize(width: 12, height: 12), flipped: false) { rect in
+            NSColor(cgColor: color.cgColor)?.setFill()
+            NSBezierPath(ovalIn: rect.insetBy(dx: 1, dy: 1)).fill()
+            return true
+        }
+        image.isTemplate = false
+        return image
     }
 }
 

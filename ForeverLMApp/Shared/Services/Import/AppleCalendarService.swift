@@ -61,6 +61,167 @@ struct CalendarColor: Equatable, Hashable, Sendable {
         func byte(_ value: Double) -> Int { Int((min(max(value, 0), 1) * 255).rounded()) }
         return String(format: "#%02X%02X%02X", byte(red), byte(green), byte(blue))
     }
+
+    /// `#RRGGBB` or `RRGGBB`; nil for anything else.
+    init?(hex: String) {
+        var digits = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        if digits.hasPrefix("#") { digits.removeFirst() }
+        guard digits.count == 6, let value = UInt32(digits, radix: 16) else { return nil }
+        self.init(
+            red: Double((value >> 16) & 0xFF) / 255,
+            green: Double((value >> 8) & 0xFF) / 255,
+            blue: Double(value & 0xFF) / 255
+        )
+    }
+
+    var cgColor: CGColor { CGColor(srgbRed: red, green: green, blue: blue, alpha: 1) }
+}
+
+// MARK: - Groups: one context, one calendar, one colour
+
+/// A context of the learner's work — the day job, a society, a side
+/// project — held on a calendar of its own, so every block and meeting of it
+/// wears that calendar's colour in the Calendar app, on the phone and in
+/// ForeverLM (product owner, 2026-11-08: "the [day job] work … needs to be
+/// separate from [a society], which needs to be separate from [a side
+/// project] … when you block some work blocks, then those also get those
+/// same colors"). A group's calendar may be one an account already brings in — the
+/// day job's Exchange calendar, where its meetings arrive — or one made for it.
+struct CalendarGroup: Codable, Equatable, Hashable, Identifiable, Sendable {
+    var id: String
+    /// "Acme". Also the first word that names the group's blocks.
+    var name: String
+    /// `EKCalendar.calendarIdentifier` on this Mac.
+    var calendarID: String
+    /// More words that name the group in a block's title or notes:
+    /// "Grant draft", "Widget review".
+    var keywords: [String] = []
+
+    init(id: String = UUID().uuidString, name: String, calendarID: String, keywords: [String] = []) {
+        self.id = id
+        self.name = name
+        self.calendarID = calendarID
+        self.keywords = keywords
+    }
+
+    /// The words a block names the group by, three letters or more.
+    var words: [String] {
+        ([name] + keywords)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { $0.count >= 3 }
+    }
+}
+
+/// The learner's groups, kept on this Mac beside the rest of the calendar
+/// choice (calendar identifiers are this Mac's), and the reading that puts a
+/// block in one.
+enum CalendarGroups {
+    static let defaultsKey = "calendar.groups"
+
+    static func load(from defaults: UserDefaults = .standard) -> [CalendarGroup] {
+        guard let data = defaults.data(forKey: defaultsKey),
+              let groups = try? JSONDecoder().decode([CalendarGroup].self, from: data) else { return [] }
+        return groups
+    }
+
+    static func save(_ groups: [CalendarGroup], to defaults: UserDefaults = .standard) {
+        if groups.isEmpty {
+            defaults.removeObject(forKey: defaultsKey)
+        } else if let data = try? JSONEncoder().encode(groups) {
+            defaults.set(data, forKey: defaultsKey)
+        }
+    }
+
+    /// From this week's Monday through thirteen weeks on: the blocks Move
+    /// Blocks Into Groups (and set_calendar_settings regroup) reaches.
+    static func regroupSpan(now: Date = Date()) -> DateInterval {
+        let calendar = PlanQuarterWeeks.weekCalendar()
+        let monday = calendar.dateInterval(of: .weekOfYear, for: now)?.start ?? calendar.startOfDay(for: now)
+        let end = calendar.date(byAdding: .day, value: 7 * 13, to: monday) ?? monday.addingTimeInterval(91 * 86_400)
+        return DateInterval(start: monday, end: end)
+    }
+
+    /// "Grant draft, Widget review" → two words; blanks and repeats dropped.
+    static func keywords(from text: String) -> [String] {
+        var seen = Set<String>()
+        return text.split(separator: ",")
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty && seen.insert($0.lowercased()).inserted }
+    }
+
+    /// The group a block is for: a word of it in the title, else in the
+    /// notes, the longest word winning when one holds another and the first
+    /// group on a tie. The title goes first because a block's notes may
+    /// mention another context ("before the Acme sync") while its title
+    /// says what it is.
+    static func group(title: String, notes: String?, in groups: [CalendarGroup]) -> CalendarGroup? {
+        for text in [title, notes ?? ""] where !text.isEmpty {
+            var best: (group: CalendarGroup, length: Int)?
+            for group in groups {
+                guard let length = group.words.filter({ names(text, $0) }).map(\.count).max() else { continue }
+                if best.map({ length > $0.length }) ?? true { best = (group, length) }
+            }
+            if let best { return best.group }
+        }
+        return nil
+    }
+
+    /// The group whose calendar holds a block, else the group its words name.
+    static func group(calendarID: String, title: String, notes: String?, in groups: [CalendarGroup]) -> CalendarGroup? {
+        groups.first { $0.calendarID == calendarID } ?? group(title: title, notes: notes, in: groups)
+    }
+
+    /// Whether `text` holds `word` as a word of its own, ignoring case and
+    /// accents: "Guild" names "Guild thesis" but not "Guildford".
+    static func names(_ text: String, _ word: String) -> Bool {
+        var searchStart = text.startIndex
+        while let range = text.range(of: word, options: [.caseInsensitive, .diacriticInsensitive], range: searchStart..<text.endIndex) {
+            let before = range.lowerBound == text.startIndex ? nil : text[text.index(before: range.lowerBound)]
+            let after = range.upperBound == text.endIndex ? nil : text[range.upperBound]
+            let isBoundary: (Character?) -> Bool = { character in
+                guard let character else { return true }
+                return !(character.isLetter || character.isNumber)
+            }
+            if isBoundary(before), isBoundary(after) { return true }
+            searchStart = text.index(after: range.lowerBound)
+        }
+        return false
+    }
+}
+
+/// How a new event repeats: the few patterns a planned week needs.
+enum CalendarEventRepeat: String, Sendable, CaseIterable {
+    case daily
+    case weekdays
+    case weekly
+
+    /// The rule, ending after `until` when given. Weekly repeats on the
+    /// event's own weekday.
+    func rule(until: Date?) -> EKRecurrenceRule {
+        let end = until.map { EKRecurrenceEnd(end: $0) }
+        switch self {
+        case .daily:
+            return EKRecurrenceRule(recurrenceWith: .daily, interval: 1, end: end)
+        case .weekdays:
+            let days: [EKWeekday] = [.monday, .tuesday, .wednesday, .thursday, .friday]
+            return EKRecurrenceRule(
+                recurrenceWith: .weekly, interval: 1,
+                daysOfTheWeek: days.map { EKRecurrenceDayOfWeek($0) },
+                daysOfTheMonth: nil, monthsOfTheYear: nil, weeksOfTheYear: nil, daysOfTheYear: nil, setPositions: nil,
+                end: end
+            )
+        case .weekly:
+            return EKRecurrenceRule(recurrenceWith: .weekly, interval: 1, end: end)
+        }
+    }
+}
+
+/// A block `regroupEvents` moved, or would move, onto its group's calendar.
+struct CalendarRegroupMove: Equatable, Sendable {
+    let title: String
+    let start: Date
+    let fromCalendar: String
+    let group: String
 }
 
 /// One calendar in the Mac's Calendar app, whichever account holds it.
@@ -214,8 +375,13 @@ struct CalendarEventDraft: Sendable {
     var notes: String?
     var location: String?
     var url: URL?
-    /// The calendar to put it on; nil for the one new events go to.
+    /// The calendar to put it on; nil for the calendar of the group the
+    /// title or notes name, else the one new events go to.
     var calendarID: String?
+    /// How it repeats; nil for once.
+    var repeats: CalendarEventRepeat?
+    /// The last day it repeats on; nil for no end.
+    var repeatsUntil: Date?
 }
 
 /// Changes to an existing event; nil leaves a field as it is, and an empty
@@ -379,6 +545,14 @@ actor AppleCalendarService {
         Self.notifyChanged()
     }
 
+    /// The learner's groups (`CalendarGroup`), in their order.
+    nonisolated var groups: [CalendarGroup] { CalendarGroups.load(from: defaults) }
+
+    nonisolated func setGroups(_ groups: [CalendarGroup]) {
+        CalendarGroups.save(groups, to: defaults)
+        Self.notifyChanged()
+    }
+
     /// Turns the calendar on, asking macOS for access the first time. Throws
     /// when the system has said no, so the pane can point at Privacy &
     /// Security.
@@ -519,30 +693,34 @@ actor AppleCalendarService {
     /// The calendars the day is read from: the learner's choice, or, until
     /// there is one, every calendar but Birthdays. Either way a calendar from
     /// an account signed in after the choice is shown too, Birthdays aside,
-    /// and so is the calendar new events go to.
+    /// and so are the calendar new events go to and every group's calendar.
     func shownCalendars() throws -> [AppleCalendarListEntry] {
         let all = try calendars()
         return Self.shown(
             from: all,
             selectedIDs: selectedIDs,
             knownAccountIDs: knownAccountIDs,
-            newEventsCalendarID: try resolvedNewEventsCalendar()?.calendarIdentifier
+            newEventsCalendarID: try resolvedNewEventsCalendar()?.calendarIdentifier,
+            groupCalendarIDs: Set(groups.map(\.calendarID))
         )
     }
 
     /// Pure, so the default can be pinned. `knownAccountIDs` nil with a
     /// choice means the accounts were not recorded yet: the choice alone.
-    /// `newEventsCalendarID` is shown whatever the choice: a chat plans the
-    /// day by writing events there, and a plan the chip cannot read is no
-    /// plan.
+    /// `newEventsCalendarID` and `groupCalendarIDs` are shown whatever the
+    /// choice: a chat plans the day by writing events there, and a plan the
+    /// chip cannot read is no plan. (A group's new iCloud calendar is from an
+    /// account the choice already covers, so the choice alone left it off.)
     nonisolated static func shown(
         from calendars: [AppleCalendarListEntry],
         selectedIDs: [String]?,
         knownAccountIDs: [String]?,
-        newEventsCalendarID: String?
+        newEventsCalendarID: String?,
+        groupCalendarIDs: Set<String> = []
     ) -> [AppleCalendarListEntry] {
         calendars.filter { calendar in
             calendar.id == newEventsCalendarID
+                || groupCalendarIDs.contains(calendar.id)
                 || isChosen(calendar, selectedIDs: selectedIDs, knownAccountIDs: knownAccountIDs)
         }
     }
@@ -702,7 +880,11 @@ actor AppleCalendarService {
         let title = draft.title.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !title.isEmpty else { throw AppleCalendarServiceError.invalidEvent("An event needs a title.") }
         guard draft.end > draft.start else { throw AppleCalendarServiceError.invalidEvent("An event must end after it starts.") }
-        guard let calendar = try resolvedNewEventsCalendar(requested: draft.calendarID) else {
+        if let until = draft.repeatsUntil, until < draft.start {
+            throw AppleCalendarServiceError.invalidEvent("An event cannot stop repeating before it starts.")
+        }
+        let requested = draft.calendarID ?? groupCalendar(title: title, notes: draft.notes)?.calendarIdentifier
+        guard let calendar = try resolvedNewEventsCalendar(requested: requested) else {
             throw AppleCalendarServiceError.noCalendarForNewEvents
         }
         let event = EKEvent(eventStore: store)
@@ -714,8 +896,13 @@ actor AppleCalendarService {
         event.notes = Self.nonEmpty(draft.notes)
         event.location = Self.nonEmpty(draft.location)
         event.url = draft.url
+        if let repeats = draft.repeats {
+            // Through the end of its last day.
+            let until = draft.repeatsUntil.flatMap { Calendar.current.date(bySettingHour: 23, minute: 59, second: 0, of: $0) }
+            event.addRecurrenceRule(repeats.rule(until: until))
+        }
         do {
-            try store.save(event, span: .thisEvent, commit: true)
+            try store.save(event, span: draft.repeats == nil ? .thisEvent : .futureEvents, commit: true)
         } catch {
             throw AppleCalendarServiceError.writeFailed(error.localizedDescription)
         }
@@ -776,6 +963,107 @@ actor AppleCalendarService {
         } catch {
             throw AppleCalendarServiceError.writeFailed(error.localizedDescription)
         }
+    }
+
+    // MARK: - Groups
+
+    /// The writable calendar of the group a new block's title or notes name;
+    /// nil when it names none, or its group's calendar is gone or read-only.
+    private func groupCalendar(title: String, notes: String?) -> EKCalendar? {
+        guard let group = CalendarGroups.group(title: title, notes: notes, in: groups),
+              let calendar = store.calendar(withIdentifier: group.calendarID),
+              calendar.allowsContentModifications else { return nil }
+        return calendar
+    }
+
+    /// Makes a calendar for a group, in iCloud when the Mac has it — so it
+    /// reaches the phone and the other Mac — else in the account new events
+    /// go to, else on this Mac alone.
+    func createCalendar(title: String, color: CalendarColor?) throws -> AppleCalendarListEntry {
+        guard isConnected else { throw AppleCalendarServiceError.notConnected }
+        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty else { throw AppleCalendarServiceError.invalidEvent("A calendar needs a name.") }
+        let sources = store.sources
+        let iCloud = sources.first { $0.sourceType == .calDAV && $0.title.caseInsensitiveCompare("iCloud") == .orderedSame }
+        guard let source = iCloud ?? store.defaultCalendarForNewEvents?.source ?? sources.first(where: { $0.sourceType == .local }) else {
+            throw AppleCalendarServiceError.noCalendarForNewEvents
+        }
+        let calendar = EKCalendar(for: .event, eventStore: store)
+        calendar.title = trimmed
+        calendar.source = source
+        if let color { calendar.cgColor = color.cgColor }
+        do {
+            try store.saveCalendar(calendar, commit: true)
+        } catch {
+            throw AppleCalendarServiceError.writeFailed(error.localizedDescription)
+        }
+        logger.info("Made a calendar in \(source.title, privacy: .public)")
+        Self.notifyChanged()
+        return Self.entry(calendar)
+    }
+
+    /// Recolours a calendar, and with it every event on it. Some accounts
+    /// keep the colour on this Mac only (a Google calendar's colour is
+    /// Google's to set).
+    func setColor(_ color: CalendarColor, ofCalendar id: String) throws {
+        guard isConnected else { throw AppleCalendarServiceError.notConnected }
+        guard let calendar = store.calendar(withIdentifier: id) else {
+            throw AppleCalendarServiceError.invalidEvent("No calendar on this Mac has the id \(id).")
+        }
+        calendar.cgColor = color.cgColor
+        do {
+            try store.saveCalendar(calendar, commit: true)
+        } catch {
+            throw AppleCalendarServiceError.writeFailed(error.localizedDescription)
+        }
+        Self.notifyChanged()
+    }
+
+    /// Puts the blocks in `[from, to)` onto their groups' calendars: each
+    /// timed event the learner owns alone, on a shown calendar that belongs to
+    /// no group, whose title or notes name a group. A recurring event stays —
+    /// moving one occurrence splits the series — and so does anything with
+    /// other people on it. `apply` false only says what would move.
+    func regroupEvents(from: Date, to: Date, apply: Bool) throws -> [CalendarRegroupMove] {
+        guard isConnected else { throw AppleCalendarServiceError.notConnected }
+        let groups = self.groups
+        guard !groups.isEmpty else { return [] }
+        let groupCalendarIDs = Set(groups.map(\.calendarID))
+        let sourceCalendars = try shownCalendars()
+            .filter { $0.allowsModifications && !groupCalendarIDs.contains($0.id) }
+            .compactMap { store.calendar(withIdentifier: $0.id) }
+        guard !sourceCalendars.isEmpty else { return [] }
+        let predicate = store.predicateForEvents(withStart: from, end: to, calendars: sourceCalendars)
+        var moves: [CalendarRegroupMove] = []
+        for event in store.events(matching: predicate).sorted(by: { $0.startDate < $1.startDate }) {
+            guard !event.isAllDay, !event.hasRecurrenceRules, !event.isDetached,
+                  !(event.attendees ?? []).contains(where: { !$0.isCurrentUser }),
+                  event.organizer.map({ $0.isCurrentUser }) ?? true,
+                  let group = CalendarGroups.group(title: event.title ?? "", notes: event.notes, in: groups),
+                  let target = store.calendar(withIdentifier: group.calendarID), target.allowsContentModifications,
+                  let from = event.calendar else { continue }
+            let move = CalendarRegroupMove(title: event.title ?? "", start: event.startDate, fromCalendar: from.title, group: group.name)
+            if apply {
+                event.calendar = target
+                do {
+                    try store.save(event, span: .thisEvent, commit: false)
+                } catch {
+                    store.reset()
+                    throw AppleCalendarServiceError.writeFailed(error.localizedDescription)
+                }
+            }
+            moves.append(move)
+        }
+        if apply, !moves.isEmpty {
+            do {
+                try store.commit()
+            } catch {
+                store.reset()
+                throw AppleCalendarServiceError.writeFailed(error.localizedDescription)
+            }
+            logger.info("Moved \(moves.count) blocks onto their groups' calendars")
+        }
+        return moves
     }
 
     private static func requireEditable(_ event: EKEvent) throws {
