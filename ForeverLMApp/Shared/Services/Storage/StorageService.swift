@@ -875,9 +875,10 @@ actor StorageService {
         await MacSyncSession.current?.pushAndWaitForOutbox(maxAttempts: maxAttempts) ?? 0
     }
 
-    /// The local changes still waiting for iCloud; zero on a Mac that does not sync.
-    func pendingCloudKitChangeCount() async -> Int {
-        await MacSyncSession.current?.outboxBacklog() ?? 0
+    /// The local changes still waiting for iCloud; zero on a Mac that does not sync. Throws when the
+    /// outbox cannot be read, rather than saying nothing waits.
+    func pendingCloudKitChangeCount() async throws -> Int {
+        try await MacSyncSession.current?.outboxBacklog() ?? 0
     }
 
     /// Permanent create-once/immutable CloudKit collisions quarantined out of

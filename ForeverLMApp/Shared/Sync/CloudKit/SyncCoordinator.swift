@@ -169,7 +169,7 @@ actor SyncCoordinator {
             await syncNow()
         } catch {
             Self.logger.error("Generation 2 could not start: \(String(describing: error), privacy: .public)")
-            publish { $0.phase = .idle }
+            publish { $0.phase = .failed(error.localizedDescription) }
         }
     }
 
@@ -267,7 +267,7 @@ actor SyncCoordinator {
         } catch {
             Self.logger.error("A private sync round failed: \(String(describing: error), privacy: .public)")
             await noteThrottle(error)
-            publish { $0.phase = .idle }
+            publish { $0.phase = .failed(error.localizedDescription) }
             return
         }
         await syncSpaces(afterPrivateFetch: privateFetchCompleted)
@@ -305,6 +305,7 @@ actor SyncCoordinator {
     /// leaves nothing unfetched.
     private func syncSpaces(afterPrivateFetch: Bool = false) async {
         var caughtUp = false
+        var failure: String?
         if await engine.stopped == nil {
             do {
                 let walkedAll = try await spaces.sync()
@@ -312,14 +313,17 @@ actor SyncCoordinator {
                 caughtUp = afterPrivateFetch && walkedAll
             } catch {
                 Self.logger.error("A space round failed: \(String(describing: error), privacy: .public)")
+                failure = error.localizedDescription
             }
         }
-        await settle(caughtUp: caughtUp)
+        await settle(caughtUp: caughtUp, failure: failure)
     }
 
     /// Publishes where the round left things, and tells the pacers how many small records wait, so
     /// satellites never hold them back (D43).
-    private func settle(caughtUp: Bool = false) async {
+    /// `failure`: why part of the round failed. The round's work still settles, but the status says
+    /// it failed rather than up to date.
+    private func settle(caughtUp: Bool = false, failure: String? = nil) async {
         let pending = await engine.pendingCount + spaces.pendingCount
         let quotaOwner = await spaces.quotaOwner
         await pacer.setSmallRecordBacklog(pending)
@@ -330,6 +334,8 @@ actor SyncCoordinator {
         } else {
             if case .updateRequired(let minimum)? = await engine.sendHold {
                 publish { $0.phase = .updateRequired(minClientRevision: minimum); $0.pendingChanges = pending; $0.pause = pause }
+            } else if let failure {
+                publish { $0.phase = .failed(failure); $0.pendingChanges = pending; $0.pause = pause }
             } else {
                 publish { $0.phase = .upToDate; $0.pendingChanges = pending; $0.lastSyncedAt = Date(); $0.pause = pause }
             }

@@ -53,6 +53,7 @@ extension MCPDataStore {
         case .syncing: return "syncing"
         case .upToDate: return "up_to_date"
         case .stopped: return "stopped"
+        case .failed: return "failed"
         }
     }
 

@@ -119,8 +119,11 @@ struct SyncGenerationSwitchTests {
 
     @Test("The status the MCP and Settings read names every phase and the cutover's state")
     func statusNames() {
-        let phases: [SyncStatus.Phase] = [.idle, .starting, .noAccount, .waiting(.zonesWithoutRoot), .staysOnGeneration1, .updateRequired(minClientRevision: 2), .syncing, .upToDate, .stopped(.rootMissing)]
+        let phases: [SyncStatus.Phase] = [.idle, .starting, .noAccount, .waiting(.zonesWithoutRoot), .staysOnGeneration1, .updateRequired(minClientRevision: 2), .syncing, .upToDate, .stopped(.rootMissing), .failed("The network connection was lost.")]
         #expect(Set(phases.map(MCPDataStore.phaseName)).count == phases.count)
+        // A failed round says so and why, in Settings and over MCP; it never reads as idle or up to date.
+        #expect(SyncStatus(phase: .failed("The network connection was lost.")).notice?.contains("The network connection was lost.") == true)
+        #expect(SyncStatus(phase: .upToDate).notice == nil)
         #expect(MCPDataStore.cutoverMessage(.waitingForSeed(holder: "macaaaaa"))?.contains("macaaaaa") == true)
         #expect(MCPDataStore.cutoverMessage(.moved) == nil)
     }

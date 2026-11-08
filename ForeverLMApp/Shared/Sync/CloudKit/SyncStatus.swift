@@ -22,6 +22,9 @@ struct SyncStatus: Equatable, Sendable {
         case upToDate
         /// The private database stopped (§2.5) until the learner acts.
         case stopped(PurgeHandler.Event)
+        /// The last start or round failed, for the reason given; the next round tries again. A failure
+        /// never reads as `idle` ("not started") or `upToDate`, and it leaves `lastSyncedAt` as it was.
+        case failed(String)
     }
 
     var phase: Phase = .idle
@@ -45,6 +48,8 @@ struct SyncStatus: Equatable, Sendable {
             return "This Mac's iCloud account changed. Your library was not uploaded to the new account."
         case .updateRequired:
             return "Update ForeverLM to keep syncing your library."
+        case .failed(let reason):
+            return "The last sync with iCloud failed: \(reason) ForeverLM will try again."
         default:
             // A full iCloud: in someone else's space, the owner's (§2.5).
             guard case .quotaExceeded(let owner)? = pause else { return nil }

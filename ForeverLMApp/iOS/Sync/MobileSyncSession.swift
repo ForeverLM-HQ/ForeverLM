@@ -337,6 +337,8 @@ enum MobileSyncNotice {
             return "This iPhone's iCloud account changed. Your library was not copied to the new account."
         case .updateRequired:
             return "Update ForeverLM to keep syncing your library."
+        case .failed(let reason):
+            return "The last sync with iCloud failed: \(reason) ForeverLM will try again."
         default:
             guard case .quotaExceeded(let owner)? = status.pause else { return nil }
             return ShareService.quotaNotice(owner: owner)

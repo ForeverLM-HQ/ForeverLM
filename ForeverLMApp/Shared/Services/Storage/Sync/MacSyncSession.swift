@@ -129,6 +129,14 @@ final class CloudKitSyncStatusAdapter: @unchecked Sendable {
                 switch status.phase {
                 case .syncing:
                     center.beginReceiving()
+                case .failed:
+                    // The readout has no failed state of its own: what waits shows as waiting to retry, and
+                    // the reason is the status's notice (Settings › iCloud, `get_sync_status`).
+                    if pending > 0 {
+                        center.waitToRetry(remaining: pending, stalled: true)
+                    } else {
+                        center.finishReceiving()
+                    }
                 case .upToDate, .idle:
                     if pending > 0 {
                         center.beginSending(remaining: pending)
@@ -293,7 +301,7 @@ actor MacSyncSession {
         let phase = await coordinator?.status.phase
         let running: Bool
         switch phase {
-        case nil, .idle?, .noAccount?: running = false
+        case nil, .idle?, .noAccount?, .failed?: running = false
         default: running = true
         }
         guard !running else {
@@ -332,8 +340,9 @@ actor MacSyncSession {
     }
 
     /// The local changes the outbox still holds for the server.
-    func outboxBacklog() async -> Int {
-        (try? await store.perform { try OutboxBacklog.read(in: $0.connection) })?.changes ?? 0
+    /// A failed read throws: zero means nothing waits, never "could not tell".
+    func outboxBacklog() async throws -> Int {
+        try await store.perform { try OutboxBacklog.read(in: $0.connection) }.changes
     }
 
     // MARK: - Starting

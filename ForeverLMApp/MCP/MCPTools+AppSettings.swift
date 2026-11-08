@@ -1034,7 +1034,7 @@ extension MCPDataStore {
             }
             let storage = StorageService()
             await storage.syncCloudKitNow()
-            let waiting = await storage.pendingCloudKitChangeCount()
+            let waiting = try await storage.pendingCloudKitChangeCount()
             result["still_waiting"] = waiting
             result["done"] = waiting == 0
                 ? "Synced with iCloud now; everything on this Mac has reached iCloud."
