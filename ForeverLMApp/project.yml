@@ -440,11 +440,10 @@ targets:
       - iOS/MobileReviewFoundationBrain.swift
       - iOS/MobileReviewSessionRecorder.swift
       - iOS/MobileMemoryAttemptRecorder.swift
-      # The turn-by-turn voice conversation (Apple dictation, the learner's
-      # chat model through the ordinary chat or review, spoken replies) and
-      # its model-free rules, which the Mac unit tests compile too.
+      # The turn-by-turn voice conversation (Apple dictation, today's memory
+      # review answering, spoken replies): Review by Voice, and the realtime
+      # assistant's hand-over to the review.
       - iOS/MobileVoiceConversationController.swift
-      - iOS/MobileVoiceConversationRules.swift
       # Voice mode on a source: OpenAI Realtime speech to speech, on ForeverLM's
       # own OpenAI credits (back 2026-11-07). The socket, the conversation and
       # its tutor prompt are shared with the Mac; the phone brings its audio
@@ -931,7 +930,6 @@ targets:
       - iOS/MobileWalkthroughDeck.swift
       - iOS/MobileDrivingBenchmarks.swift
       - iOS/MobileVoiceReviewPromptContract.swift
-      - iOS/MobileVoiceConversationRules.swift
       - iOS/MobileRealtimeRates.swift
       - iOS/MobileSpeechLoudness.swift
       # The shared sync vectors (docs/cloudkit-schema-design.md §12.1), as one

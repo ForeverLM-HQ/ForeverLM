@@ -1,7 +1,6 @@
 import CarPlay
 import Combine
 import Foundation
-import OSLog
 import UIKit
 
 // CarPlay front door: connect and talk. Since 2026-11-07 the car starts the
@@ -19,15 +18,9 @@ import UIKit
 // phone locked.
 @MainActor
 final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegate {
-    private static let logger = Logger(subsystem: "com.foreverlm.mobile", category: "CarPlay")
-
     private var interfaceController: CPInterfaceController?
     private var voiceStateObserver: AnyCancellable?
-    private var contextSourcesObserver: AnyCancellable?
     private var voiceTemplate: CPVoiceControlTemplate?
-    private var contextSourcesTemplate: CPListTemplate?
-    private var contextSources: [CarPlayContextSource] = []
-    private var thumbnailTasks: [String: Task<Void, Never>] = [:]
 
     func templateApplicationScene(
         _ templateApplicationScene: CPTemplateApplicationScene,
@@ -55,13 +48,6 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
                 self.voiceTemplate?.activateVoiceControlState(withIdentifier: identifier)
             }
 
-        contextSourcesObserver = voiceController.$loadedSources
-            .map { $0.map(CarPlayContextSource.init) }
-            .removeDuplicates()
-            .sink { [weak self] sources in
-                self?.contextSourcesDidChange(sources)
-            }
-
         if voiceController.phase == .idle, realtime.phase == .idle {
             startVoiceAgent()
         }
@@ -76,13 +62,7 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         }
         voiceStateObserver?.cancel()
         voiceStateObserver = nil
-        contextSourcesObserver?.cancel()
-        contextSourcesObserver = nil
-        thumbnailTasks.values.forEach { $0.cancel() }
-        thumbnailTasks.removeAll()
         voiceTemplate = nil
-        contextSourcesTemplate = nil
-        contextSources = []
         // Do not trust the last rendered phase as the ownership authority. A
         // disconnect can arrive while async preflight is still suspended; End
         // must invalidate that pending start or it could arm the microphone
@@ -162,16 +142,6 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
 
     @available(iOS 26.4, *)
     private func configureVoiceActionButtons(on template: CPVoiceControlTemplate) {
-        if contextSources.isEmpty {
-            template.trailingNavigationBarButtons = []
-        } else {
-            let sourcesButton = CPBarButton(title: "Sources") { [weak self] _ in
-                self?.showContextSources()
-            }
-            sourcesButton.buttonStyle = .rounded
-            template.trailingNavigationBarButtons = [sourcesButton]
-        }
-
         for state in template.voiceControlStates {
             switch state.identifier {
             case "listening", "thinking", "speaking":
@@ -194,98 +164,6 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
             default:
                 state.actionButtons = []
             }
-        }
-    }
-
-    private func contextSourcesDidChange(_ sources: [CarPlayContextSource]) {
-        guard sources != contextSources else { return }
-        contextSources = sources
-
-        if #available(iOS 26.4, *), let voiceTemplate {
-            configureVoiceActionButtons(on: voiceTemplate)
-        }
-        refreshContextSourcesTemplateIfNeeded()
-    }
-
-    private func showContextSources() {
-        guard !contextSources.isEmpty, let interfaceController else { return }
-
-        let template = CPListTemplate(title: "In Context", sections: [])
-        template.emptyViewTitleVariants = ["No sources in context"]
-        template.emptyViewSubtitleVariants = ["Return to the conversation"]
-        contextSourcesTemplate = template
-        refreshContextSourcesTemplateIfNeeded()
-
-        interfaceController.pushTemplate(template, animated: true) { [weak self, weak template] success, error in
-            guard !success else { return }
-            if self?.contextSourcesTemplate === template {
-                self?.contextSourcesTemplate = nil
-            }
-            if let error {
-                Self.logger.error("Could not show CarPlay context sources: \(error.localizedDescription, privacy: .public)")
-            }
-        }
-    }
-
-    private func refreshContextSourcesTemplateIfNeeded() {
-        guard let template = contextSourcesTemplate else { return }
-
-        thumbnailTasks.values.forEach { $0.cancel() }
-        thumbnailTasks.removeAll()
-
-        let visibleSources = Array(contextSources.prefix(CPListTemplate.maximumItemCount))
-        let rows = visibleSources.map { source in
-            let item = CPListItem(
-                text: source.title,
-                detailText: source.detailText,
-                image: CarPlaySourceThumbnail.fallback(for: source.sourceType)
-            )
-            return (source, item)
-        }
-        template.updateSections([CPListSection(items: rows.map(\.1))])
-
-        for (source, item) in rows {
-            thumbnailTasks[source.id] = Task { [weak self, weak item] in
-                guard let image = await self?.thumbnail(for: source),
-                      !Task.isCancelled else { return }
-                item?.setImage(image)
-            }
-        }
-    }
-
-    private func thumbnail(for source: CarPlayContextSource) async -> UIImage? {
-        if source.sourceType == "paper",
-           let paper = await MobileSourceFileStore.shared.fetchPaperThumbnail(sourceID: source.id) {
-            return paper
-        }
-        guard let url = source.thumbnailURL else { return nil }
-
-        let cacheKey = url.absoluteString
-        if let cached = ImageCache.shared.image(for: cacheKey) {
-            return cached
-        }
-        if let diskImage = await Task.detached(priority: .utility, operation: {
-            ThumbnailDiskCache.shared.cachedImage(for: cacheKey)
-        }).value {
-            ImageCache.shared.set(diskImage, for: cacheKey)
-            return diskImage
-        }
-
-        do {
-            let (data, response) = try await URLSession.shared.data(from: url)
-            if let httpResponse = response as? HTTPURLResponse,
-               !(200...299).contains(httpResponse.statusCode) {
-                return nil
-            }
-            guard let image = await Task.detached(priority: .utility, operation: {
-                UIImage(data: data)
-            }).value else {
-                return nil
-            }
-            ImageCache.shared.set(image, for: cacheKey, toDisk: true)
-            return image
-        } catch {
-            return nil
         }
     }
 
@@ -331,66 +209,6 @@ final class CarPlaySceneDelegate: UIResponder, CPTemplateApplicationSceneDelegat
         default:
             return phase == .failed ? "unavailable" : "listening"
         }
-    }
-}
-
-private struct CarPlayContextSource: Equatable {
-    let id: String
-    let title: String
-    let detailText: String
-    let sourceType: String
-    let thumbnailURL: URL?
-
-    init(source: MobileCloudSource) {
-        id = source.id
-        title = source.title
-        sourceType = source.sourceType.lowercased()
-        thumbnailURL = source.thumbnailURL
-
-        let typeLabel = source.sourceType.replacingOccurrences(of: "_", with: " ").capitalized
-        if let subtitle = source.citationSubtitle?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !subtitle.isEmpty {
-            detailText = "\(typeLabel) · \(subtitle)"
-        } else {
-            detailText = typeLabel
-        }
-    }
-}
-
-private enum CarPlaySourceThumbnail {
-    static func fallback(for sourceType: String) -> UIImage? {
-        let symbolName: String
-        let tint: UIColor
-        switch sourceType {
-        case "paper":
-            symbolName = "doc.text.magnifyingglass"
-            tint = .systemPurple
-        case "podcast":
-            symbolName = "headphones"
-            tint = .systemOrange
-        case "book":
-            symbolName = "book.closed"
-            tint = .systemGreen
-        case "course":
-            symbolName = "graduationcap"
-            tint = .systemIndigo
-        case "meeting":
-            symbolName = "person.2.wave.2"
-            tint = .systemTeal
-        case "video":
-            symbolName = "play.rectangle"
-            tint = .systemRed
-        case "xpost", "x_post":
-            symbolName = "bubble.left.and.bubble.right"
-            tint = .label
-        case "manual":
-            symbolName = "link"
-            tint = .secondaryLabel
-        default:
-            symbolName = "doc.richtext"
-            tint = .systemBlue
-        }
-        return UIImage(systemName: symbolName)?.withTintColor(tint, renderingMode: .alwaysOriginal)
     }
 }
 

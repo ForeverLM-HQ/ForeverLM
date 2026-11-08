@@ -8,9 +8,6 @@ import Foundation
 // Distinct from MobileSourceChatService (the Siri hands-free path), which is
 // single-shot and answers under a spoken-length budget. Here the user is looking
 // at the screen, so answers are prose, keep their markdown, and arrive live.
-// The voice conversation (`MobileVoiceConversationController`) drives this same
-// chat turn by turn through `sendSpoken`, so a spoken chat is saved, grounded
-// and billed exactly as a typed one.
 
 /// What a notebook chat reads, fixed when it starts (a chat under way keeps
 /// the catalog it began with, as on the Mac): the notebook, the ticked
@@ -165,18 +162,6 @@ final class MobileChatViewModel: ObservableObject {
     private var shouldSendInitialPrompt = false
     /// The learner's first message, which titles a notebook chat.
     private var firstQuestion: String?
-    /// Set while the voice conversation drives this chat
-    /// (`MobileVoiceConversationController`): it speaks each reply itself
-    /// between listening turns, so the chat's own text-to-speech stays quiet, a
-    /// failed turn's words do not land in the composer, and a dismissal of
-    /// the screen the chat was on does not finish it.
-    var isVoiceDriven = false
-
-    /// A reply to a spoken turn, as the voice conversation speaks and shows it.
-    struct SpokenReply: Equatable {
-        let text: String
-        let figures: [SyncedPaperFigure]
-    }
 
     /// `onSessionSaveFailure` reports into a surface that outlives this chat. The
     /// CloudKit save starts as the sheet is being dismissed, so by the time it can
@@ -328,7 +313,7 @@ final class MobileChatViewModel: ObservableObject {
     /// Call when the chat is dismissed. Idempotent — `onDisappear` can fire more
     /// than once for one presentation.
     func finish() {
-        guard !didFinish, !isVoiceDriven else { return }
+        guard !didFinish else { return }
         didFinish = true
         sendTask?.cancel()
         sendTask = nil
@@ -388,29 +373,11 @@ final class MobileChatViewModel: ObservableObject {
         pendingSelection = nil
     }
 
-    /// One turn of the voice conversation: the learner's dictated words sent
-    /// as a message, answered, saved and billed as a typed one is, with
-    /// `MobileVoiceConversationRules.spokenTurnInstruction` riding the model's
-    /// copy of the turn only. Returns the reply once it has fully arrived, or
-    /// nil when the turn failed; `errorMessage` then says why, as it does
-    /// for a typed send.
-    func sendSpoken(_ words: String) async -> SpokenReply? {
-        let spoken = words.trimmingCharacters(in: .whitespacesAndNewlines)
-        // A typed reply still streaming when voice took the chat over lands
-        // first; the spoken turn goes after it, as a queued message would.
-        if isResponding { await sendTask?.value }
-        guard !spoken.isEmpty, !isResponding,
-              let assistantID = sendNow(typed: spoken, selection: nil, spokenTurn: true) else { return nil }
-        await sendTask?.value
-        guard let reply = messages.first(where: { $0.id == assistantID }), !reply.isStreaming else { return nil }
-        return SpokenReply(text: reply.content, figures: reply.figures)
-    }
-
     /// Starts the stream for one message. Leaves the composer alone: a live
     /// send clears it in `send()`, a queued one was never in it. Returns the
     /// id of the reply it opened; nil when there was nothing to send.
     @discardableResult
-    private func sendNow(typed: String, selection: MobileReaderSelection?, spokenTurn: Bool = false) -> UUID? {
+    private func sendNow(typed: String, selection: MobileReaderSelection?) -> UUID? {
         let contextBlock = selection.map {
             MobileReaderText.contextBlock(selection: $0.text, sourceTitle: source.title)
         } ?? ""
@@ -442,9 +409,6 @@ final class MobileChatViewModel: ObservableObject {
             if let grading = takeGradingContext() {
                 modelContent += "\n\n" + grading
             }
-        }
-        if spokenTurn {
-            modelContent += "\n\n" + MobileVoiceConversationRules.spokenTurnInstruction
         }
 
         messages.append(MobileChatMessage(id: UUID(), role: .user, content: visibleContent, isStreaming: false))
@@ -714,7 +678,7 @@ final class MobileChatViewModel: ObservableObject {
             )
             queueSessionSnapshotSave()
 
-            if speakReplies, !isVoiceDriven { speak(presentation.text) }
+            if speakReplies { speak(presentation.text) }
             // A message sent while this reply streamed goes now, as its own turn.
             sendNextQueuedMessage()
         } catch {
@@ -729,10 +693,10 @@ final class MobileChatViewModel: ObservableObject {
             // a retry is one tap. The real error is surfaced verbatim — never
             // substitute an answer of our own (CLAUDE.md).
             removeTrailingUserMessage()
-            if !isVoiceDriven, draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 draft = restoringDraft
             }
-            if !isVoiceDriven, pendingSelection == nil {
+            if pendingSelection == nil {
                 pendingSelection = restoringSelection
             }
             if let chatError = error as? MobileStreamingChatError, case .notSignedIn = chatError {

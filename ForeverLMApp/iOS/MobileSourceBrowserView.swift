@@ -1636,7 +1636,8 @@ struct MobileBrowserSourceLink: View {
     /// opening never adds).
     var notebookAdd: MobileSourceNotebookAdd? = nil
 
-    @ObservedObject private var live = MobileVoiceConversationController.shared
+    /// Voice mode, to mark the row of the source it is talking about.
+    @ObservedObject private var voice = MobileRealtimeVoice.controller
     @ObservedObject private var offline = MobileOfflineLibrary.shared
     @ObservedObject private var pdfExport = MobileSourcePDFExport.shared
     @ObservedObject private var sharing = MobileSourceShare.shared
@@ -1658,7 +1659,7 @@ struct MobileBrowserSourceLink: View {
                     source: source,
                     subtitleStyle: subtitleStyle,
                     displayTitle: displayTitle,
-                    isActive: live.activeSourceTitle == source.title,
+                    isActive: voice.isActive && voice.source?.id == source.id,
                     isPreparingAudio: vm.isPreparingAudio(sourceID: source.id),
                     isCurrentAudio: vm.currentItem?.id == source.id,
                     isPlaying: vm.isPlaying,

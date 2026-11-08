@@ -571,7 +571,7 @@ struct MobileVoiceSessionCover: View {
     }
 
     private var transcriptTitle: String {
-        completedTranscript?.title ?? live.activeNotebook?.title ?? live.activeSourceTitle ?? "Voice Chat"
+        completedTranscript?.title ?? live.activeMemoryTarget ?? "Voice Chat"
     }
 
     private var realtimeSession: some View {
@@ -614,35 +614,17 @@ struct MobileVoiceSessionCover: View {
         }
     }
 
+    /// Today's memory review, spoken (`MobileVoiceConversationController`).
     private var session: some View {
-        VStack(spacing: MobileDesign.Spacing.medium) {
-            VoiceSessionSurface(
-                state: presentationState,
-                identifierPrefix: "voice",
-                recoveryActionTitle: "Resume",
-                onRecovery: { Task { await live.resume() } },
-                onToggleMute: live.toggleMicrophoneMuted,
-                onEnd: end,
-                onDismissError: { live.errorMessage = nil }
-            )
-            if let figure = live.presentedFigure {
-                MobilePaperFigureCard(
-                    figure: figure,
-                    panel: nil,
-                    relativePDFPath: vm.allSources
-                        .first(where: { $0.id == figure.sourceID })
-                        .flatMap {
-                            MobileSourceFilePath.relativePDFPath(
-                                localFilePath: $0.localFilePath,
-                                url: $0.url
-                            )
-                        }
-                )
-                    .padding(.horizontal, MobileDesign.Spacing.large)
-                    .transition(.opacity.combined(with: .move(edge: .bottom)))
-            }
-        }
-        .animation(.easeOut(duration: 0.2), value: live.presentedFigure?.id)
+        VoiceSessionSurface(
+            state: presentationState,
+            identifierPrefix: "voice",
+            recoveryActionTitle: "Resume",
+            onRecovery: { Task { await live.resume() } },
+            onToggleMute: live.toggleMicrophoneMuted,
+            onEnd: end,
+            onDismissError: { live.errorMessage = nil }
+        )
     }
 
     /// Signed out is the one voice-start failure the learner can act on, so it
@@ -676,31 +658,12 @@ struct MobileVoiceSessionCover: View {
     }
 
     private var presentationState: VoiceSessionPresentationState {
-        let header: (title: String, image: String)
-        if let target = live.activeMemoryTarget {
-            header = (target, "brain.head.profile")
-        } else if let notebook = live.activeNotebook {
-            header = (notebook.title, MobileNotebookGlyph.symbolName)
-        } else if let title = live.activeSourceTitle {
-            header = (title, "doc.text")
-        } else {
-            header = ("Voice", "waveform")
-        }
-
-        return VoiceSessionPresentationState(
+        VoiceSessionPresentationState(
             phase: live.phase.presentationPhase,
             statusText: live.statusText,
-            headerTitle: header.title,
-            headerSystemImage: header.image,
-            contextItems: live.loadedSources.map {
-                VoiceContextItem(
-                    id: $0.id,
-                    title: $0.title,
-                    subtitle: $0.citationSubtitle,
-                    sourceType: $0.sourceType,
-                    thumbnailURL: $0.thumbnailURL
-                )
-            },
+            headerTitle: live.activeMemoryTarget ?? "Memory Review",
+            headerSystemImage: "brain.head.profile",
+            contextItems: [],
             isMicrophoneMuted: live.isMicrophoneMuted,
             microphoneLevel: live.microphoneLevel,
             terminalErrorMessage: live.phase == .failed ? live.errorMessage : nil,

@@ -11,15 +11,12 @@ import Speech
 /// (`MobileReviewSpeechService`). Listening and speaking take turns under one
 /// audio lease, so a reply is never heard by the microphone.
 ///
-/// It replaced the realtime speech-to-speech session on 2026-10-01, when every
-/// model moved to OpenRouter (product owner, 2026-09-27), which serves no
-/// speech-to-speech model. Talking about a source, a notebook or a chat under
-/// way left the app on 2026-10-25 for the ChatGPT share (`MobileSourceShare`);
-/// what is left is what CarPlay and the spoken memory review need:
-/// - nothing (CarPlay): it offers a source, then talks about the one the
-///   learner takes or names in a reading chat, or holds today's memory
-///   review when that is asked for (`MobileVoiceConversationRules`);
-/// - today's memory review: its review chat (`MobileMemoryReviewViewModel`).
+/// What it holds is today's memory review, spoken: the Memory screen's Review
+/// by Voice, and the realtime assistant's hand-over when the learner asks for
+/// their review (in CarPlay above all; `MobileRealtimeVoice.pendingMemoryReview`).
+/// The review chat (`MobileMemoryReviewViewModel`) owns the cards and grading.
+/// Talking about a source, and CarPlay's conversation, are voice mode on OpenAI
+/// Realtime since 2026-11-07 (`MobileRealtimeVoice`); the two never run at once.
 @MainActor
 final class MobileVoiceConversationController: ObservableObject {
     static let shared = MobileVoiceConversationController()
@@ -54,13 +51,7 @@ final class MobileVoiceConversationController: ObservableObject {
     /// "Listening", "Thinking", "Speaking", or what is being read while the
     /// conversation starts. CarPlay's voice template follows the first three.
     @Published private(set) var statusText = ""
-    @Published private(set) var activeSourceTitle: String?
     @Published private(set) var activeMemoryTarget: String?
-    @Published private(set) var activeNotebook: MobileCloudNotebook?
-    /// The sources the conversation reads. CarPlay lists them under Sources.
-    @Published private(set) var loadedSources: [MobileCloudSource] = []
-    /// The paper figure the newest reply placed, shown under the mark.
-    @Published private(set) var presentedFigure: SyncedPaperFigure?
     /// The conversation so far, oldest first. Kept after it ends, for the
     /// cover's transcript, until the next one starts.
     @Published private(set) var transcript: [VoiceTurn] = []
@@ -79,52 +70,40 @@ final class MobileVoiceConversationController: ObservableObject {
 
     var isActive: Bool { phase != .idle }
 
-    private enum Conversation {
-        case chat(MobileChatViewModel, finishesWhenDone: Bool)
-        case memoryReview(MobileMemoryReviewViewModel, finishesWhenDone: Bool)
-        case choosingSource(offer: MobileVoiceConversationRules.SuggestedSource?)
-    }
-
-    private enum Request {
-        case memoryReview(MobileMemoryReviewViewModel?)
-        case unscoped
+    /// Today's review, and whether ending the conversation finishes it (it
+    /// does when no screen shows it).
+    private struct Conversation {
+        let review: MobileMemoryReviewViewModel
+        let finishesWhenDone: Bool
     }
 
     /// What a start read, assigned only once the start is still current.
     private struct Prepared {
         let conversation: Conversation
-        let sourceTitle: String?
-        let notebook: MobileCloudNotebook?
-        let memoryTarget: String?
-        let sources: [MobileCloudSource]
         let transcript: [VoiceTurn]
         /// Spoken first, then the conversation listens.
-        let greeting: String?
+        let question: String
     }
 
     private enum Outcome {
-        case reply(String, figure: SyncedPaperFigure?)
-        case say(String)
+        case reply(String)
         case failed(String)
     }
 
-    private enum StartError: LocalizedError {
-        case sourceHasNoText(String)
-        case reviewUnavailable(String)
-
-        var errorDescription: String? {
-            switch self {
-            case .sourceHasNoText(let title):
-                return "\u{201C}\(title)\u{201D} has no text on this iPhone yet. Open it on your Mac so its text syncs."
-            case .reviewUnavailable(let message):
-                return message
-            }
-        }
+    private struct ReviewUnavailable: LocalizedError {
+        let message: String
+        var errorDescription: String? { message }
     }
 
+    /// What the conversation says when today's review has no question yet.
+    static let noReviewReply = "Today's review has nothing to ask yet."
+    /// Spoken after a turn that failed, so the learner knows to say it again.
+    static let failedTurnReply = "Sorry, that didn't go through. Try saying it again."
+
     private var conversation: Conversation?
-    /// The last start, replayed by Resume and after sign-in.
-    private var request: Request?
+    /// The last start's review (nil: today's), replayed by Resume and after
+    /// sign-in. Set while a start or a failed conversation stands.
+    private var request: MobileMemoryReviewViewModel??
     /// A newer start or an end makes every older await stand down.
     private var lifecycle = UUID()
     private var turnTask: Task<Void, Never>?
@@ -132,7 +111,6 @@ final class MobileVoiceConversationController: ObservableObject {
     private var didRegisterPreemption = false
     private var listenerObservers: Set<AnyCancellable> = []
     private let speech = MobileReviewSpeechService.shared
-    private lazy var voiceAgent = MobileVoiceAgentService()
     // Constructed on the first conversation, never while Home draws: an
     // audio engine can rendezvous with Core Audio as it is built.
     private lazy var listener: MobileVoiceCommandService = {
@@ -152,19 +130,14 @@ final class MobileVoiceConversationController: ObservableObject {
 
     // MARK: - Starting
 
-    /// CarPlay's conversation: it offers a source first, then talks about the one the learner takes or names.
-    func startFromCarPlay() async {
-        await begin(.unscoped)
-    }
-
     /// Today's memory review, spoken. The Memory screen passes the review it
     /// shows, so its cards follow the conversation; nil opens today's review
     /// here (a notebook's Cards row).
     func startMemoryReview(_ review: MobileMemoryReviewViewModel? = nil) async {
-        await begin(.memoryReview(review))
+        await begin(review)
     }
 
-    private func begin(_ request: Request) async {
+    private func begin(_ request: MobileMemoryReviewViewModel?) async {
         guard phase == .idle else { return }
         // Voice mode on a source and this conversation never run at once.
         let realtime = MobileRealtimeVoice.controller
@@ -176,11 +149,7 @@ final class MobileVoiceConversationController: ObservableObject {
         errorMessage = nil
         transcript = []
         caption = nil
-        presentedFigure = nil
-        activeSourceTitle = nil
         activeMemoryTarget = nil
-        activeNotebook = nil
-        loadedSources = []
         isMicrophoneMuted = false
         isTutorWorking = false
         isSpeaking = false
@@ -197,8 +166,8 @@ final class MobileVoiceConversationController: ObservableObject {
             return
         }
 
-        // A CarPlay scene can be the first thing that starts voice; asking
-        // here makes a denial an answer instead of a session that hears
+        // The assistant can hand over from CarPlay with the phone locked;
+        // asking here makes a denial an answer instead of a session that hears
         // nothing. iOS asks once, on the phone.
         if let problem = await Self.permissionProblem() {
             guard lifecycle == id else { return }
@@ -234,93 +203,25 @@ final class MobileVoiceConversationController: ObservableObject {
         }
 
         conversation = prepared.conversation
-        activeSourceTitle = prepared.sourceTitle
-        activeNotebook = prepared.notebook
-        activeMemoryTarget = prepared.memoryTarget
-        loadedSources = prepared.sources
+        activeMemoryTarget = prepared.conversation.review.title
         transcript = prepared.transcript
         phase = .live
         Self.logger.notice("Voice conversation started")
+        say(prepared.question)
+    }
 
-        if let greeting = prepared.greeting {
-            say(greeting)
-        } else {
-            listen()
+    private func prepare(_ given: MobileMemoryReviewViewModel?) async throws -> Prepared {
+        let review = given ?? MobileMemoryReviewViewModel()
+        statusText = "Opening today's review…"
+        await review.open()
+        guard let question = Self.openQuestion(of: review) else {
+            if given == nil { review.finish() }
+            throw ReviewUnavailable(message: review.errorMessage ?? Self.noReviewReply)
         }
-    }
-
-    private func prepare(_ request: Request) async throws -> Prepared {
-        switch request {
-        case .unscoped:
-            let suggestion = await suggestedSource()
-            return Prepared(
-                conversation: .choosingSource(offer: suggestion),
-                sourceTitle: nil,
-                notebook: nil,
-                memoryTarget: nil,
-                sources: [],
-                transcript: [],
-                greeting: MobileVoiceConversationRules.openingOffer(suggestion)
-            )
-
-        case .memoryReview(let given):
-            let review = given ?? MobileMemoryReviewViewModel()
-            statusText = "Opening today's review…"
-            await review.open()
-            guard let question = Self.openQuestion(of: review) else {
-                if given == nil { review.finish() }
-                throw StartError.reviewUnavailable(
-                    review.errorMessage ?? MobileVoiceConversationRules.noReviewReply
-                )
-            }
-            return Prepared(
-                conversation: .memoryReview(review, finishesWhenDone: given == nil),
-                sourceTitle: nil,
-                notebook: nil,
-                memoryTarget: review.title,
-                sources: [],
-                transcript: Self.turns(of: review),
-                greeting: question
-            )
-        }
-    }
-
-    /// A reading chat on `source`, filed in `notebook`, voice-driven from here.
-    private func readingChat(on source: MobileCloudSource, notebook: MobileCloudNotebook?) async throws -> MobileChatViewModel {
-        let text = try await MobileCloudSourceTextStore.shared.loadSourceText(sourceID: source.id)
-        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            throw StartError.sourceHasNoText(source.title)
-        }
-        let chat = MobileChatViewModel(
-            source: source,
-            sourceText: text,
-            selection: nil,
-            notebook: notebook,
-            onSessionSaveFailure: { [weak self] message in self?.errorMessage = message }
-        )
-        chat.isVoiceDriven = true
-        return chat
-    }
-
-    private func library() async -> [MobileCloudSource] {
-        let shown = MobileAudioReviewViewModel.shared.allSources
-        if !shown.isEmpty { return shown }
-        return await MobileCloudSourceCatalog.shared.currentSources()
-    }
-
-    private func suggestedSource() async -> MobileVoiceConversationRules.SuggestedSource? {
-        let catalog = MobileCloudSourceCatalog.shared
-        let nowPlayingSourceID = MobileAudioReviewViewModel.shared.currentItem?.id
-        let sources = await catalog.currentSources()
-        let schedule = await catalog.currentScheduleItems()
-        let recent = await catalog.currentRecentSourceAttention()
-        return MobileVoiceConversationRules.suggestedSource(
-            nowPlayingSourceID: nowPlayingSourceID,
-            schedule: schedule,
-            recentAttention: recent,
-            sources: sources,
-            now: Date(),
-            calendar: .autoupdatingCurrent
+        return Prepared(
+            conversation: Conversation(review: review, finishesWhenDone: given == nil),
+            transcript: Self.turns(of: review),
+            question: question
         )
     }
 
@@ -366,121 +267,35 @@ final class MobileVoiceConversationController: ObservableObject {
             guard let self else { return }
             await self.listener.stop()
             guard self.lifecycle == id, self.phase == .live else { return }
-            let outcome = await self.answer(words, lifecycle: id)
+            let outcome = await self.answer(words)
             guard self.lifecycle == id, self.phase == .live else { return }
             self.isTutorWorking = false
             switch outcome {
-            case .reply(let text, let figure):
+            case .reply(let text):
                 self.transcript.append(VoiceTurn(id: UUID().uuidString, kind: .assistant, text: text))
-                if let figure { self.presentedFigure = figure }
-                self.say(text)
-            case .say(let text):
                 self.say(text)
             case .failed(let message):
                 Self.logger.error("Voice turn failed: \(message, privacy: .public)")
                 self.errorMessage = message
-                self.say(MobileVoiceConversationRules.failedTurnReply)
+                self.say(Self.failedTurnReply)
             }
         }
     }
 
-    private func answer(_ words: String, lifecycle id: UUID) async -> Outcome {
-        switch conversation {
-        case .chat(let chat, _):
-            return await reply(from: chat, to: words)
-
-        case .memoryReview(let review, _):
-            let askedBefore = review.messages.count
-            review.draft = words
-            await review.send()
-            if let error = review.errorMessage { return .failed(error) }
-            guard review.messages.count > askedBefore,
-                  let reply = review.messages.last, reply.role == .tutor, !reply.isStreaming,
-                  !reply.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                return .failed("The tutor's reply did not arrive.")
-            }
-            return .reply(reply.content, figure: nil)
-
-        case .choosingSource(let offer):
-            return await chooseSource(from: words, offer: offer, lifecycle: id)
-
-        case nil:
+    private func answer(_ words: String) async -> Outcome {
+        guard let review = conversation?.review else {
             return .failed("The conversation has nothing open to answer from.")
         }
-    }
-
-    private func reply(from chat: MobileChatViewModel, to words: String) async -> Outcome {
-        if let reply = await chat.sendSpoken(words) {
-            return .reply(reply.text, figure: reply.figures.first)
+        let askedBefore = review.messages.count
+        review.draft = words
+        await review.send()
+        if let error = review.errorMessage { return .failed(error) }
+        guard review.messages.count > askedBefore,
+              let reply = review.messages.last, reply.role == .tutor, !reply.isStreaming,
+              !reply.content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return .failed("The tutor's reply did not arrive.")
         }
-        return .failed(chat.errorMessage ?? "The reply did not arrive.")
-    }
-
-    /// The opening offer taken, or a source named: the conversation becomes
-    /// a reading chat on that source, and the learner's words are its first
-    /// message. Asked for instead, today's memory review takes its place.
-    private func chooseSource(
-        from words: String,
-        offer: MobileVoiceConversationRules.SuggestedSource?,
-        lifecycle id: UUID
-    ) async -> Outcome {
-        let chosen: MobileCloudSource?
-        let firstMessage: String
-        if let offer, MobileVoiceConversationRules.isAcceptance(words) {
-            chosen = offer.source
-            firstMessage = MobileVoiceConversationRules.acceptedOfferRequest
-        } else {
-            let sources = await library()
-            if let match = MobileVoiceConversationRules.titleMatch(utterance: words, sources: sources) {
-                chosen = match
-            } else if MobileVoiceConversationRules.asksForMemoryReview(words) {
-                return await openMemoryReview(lifecycle: id)
-            } else {
-                do {
-                    chosen = try await agentPick(words, sources: sources)
-                } catch {
-                    return .failed(error.localizedDescription)
-                }
-            }
-            firstMessage = words
-        }
-        guard let source = chosen else {
-            return .say(MobileVoiceConversationRules.unmatchedSourceReply)
-        }
-        let chat: MobileChatViewModel
-        do {
-            chat = try await readingChat(on: source, notebook: nil)
-        } catch {
-            return .failed(error.localizedDescription)
-        }
-        guard lifecycle == id, phase == .live else {
-            release(.chat(chat, finishesWhenDone: true))
-            return .failed("Voice ended.")
-        }
-        conversation = .chat(chat, finishesWhenDone: true)
-        activeSourceTitle = source.title
-        loadedSources = [source]
-        return await reply(from: chat, to: firstMessage)
-    }
-
-    /// Today's memory review, asked for from the opening offer (in a car,
-    /// the one way to it): the conversation becomes that review and speaks
-    /// its open question. With nothing to ask, the offer stands.
-    private func openMemoryReview(lifecycle id: UUID) async -> Outcome {
-        let review = MobileMemoryReviewViewModel()
-        await review.open()
-        guard lifecycle == id, phase == .live else {
-            review.finish()
-            return .failed("Voice ended.")
-        }
-        guard let question = Self.openQuestion(of: review) else {
-            let message = review.errorMessage ?? MobileVoiceConversationRules.noReviewReply
-            review.finish()
-            return .say(message)
-        }
-        conversation = .memoryReview(review, finishesWhenDone: true)
-        activeMemoryTarget = review.title
-        return .reply(question, figure: nil)
+        return .reply(reply.content)
     }
 
     /// The tutor's question the review is waiting on, once it has arrived.
@@ -491,32 +306,6 @@ final class MobileVoiceConversationController: ObservableObject {
             .trimmingCharacters(in: .whitespacesAndNewlines),
               !question.isEmpty else { return nil }
         return question
-    }
-
-    /// Asks the voice agent model which library source the learner named
-    /// (`MobileVoiceAgentService`, the Siri path's own router).
-    private func agentPick(_ words: String, sources: [MobileCloudSource]) async throws -> MobileCloudSource? {
-        let state = MobileVoiceAgentState(
-            isPlaying: false,
-            isSourceReviewActive: false,
-            currentSourceID: nil,
-            currentSourceTitle: nil,
-            activeReviewTitle: nil,
-            playbackSpeed: 1,
-            availableSources: sources.enumerated().map { index, source in
-                MobileVoiceAgentSource(
-                    id: source.id,
-                    position: index + 1,
-                    title: source.title,
-                    subtitle: [source.sourceType, source.citationSubtitle]
-                        .compactMap { $0 }
-                        .joined(separator: " • ")
-                )
-            }
-        )
-        let decision = try await voiceAgent.decide(utterance: words, state: state)
-        guard let sourceID = decision.sourceID else { return nil }
-        return sources.first { $0.id == sourceID }
     }
 
     // MARK: - Speaking and listening
@@ -576,8 +365,8 @@ final class MobileVoiceConversationController: ObservableObject {
     // MARK: - Ending and recovering
 
     /// Ends the conversation where it stands. Everything it said is already
-    /// saved by the chat or review it drove; the transcript stays for the
-    /// cover until the next conversation starts.
+    /// saved by the review it drove; the transcript stays for the cover until
+    /// the next conversation starts.
     func end() async {
         guard phase != .idle else { return }
         lifecycle = UUID()
@@ -600,18 +389,10 @@ final class MobileVoiceConversationController: ObservableObject {
         Self.logger.notice("Voice conversation ended")
     }
 
-    /// Hands a conversation's chat or review back to its screen, finishing
-    /// one that has no screen left.
+    /// Hands the review back to its screen, finishing it when no screen
+    /// shows it.
     private func release(_ conversation: Conversation) {
-        switch conversation {
-        case .chat(let chat, let finishesWhenDone):
-            chat.isVoiceDriven = false
-            if finishesWhenDone { chat.finish() }
-        case .memoryReview(let review, let finishesWhenDone):
-            if finishesWhenDone { review.finish() }
-        case .choosingSource:
-            break
-        }
+        if conversation.finishesWhenDone { conversation.review.finish() }
     }
 
     /// Resume after a failure: listening again in the conversation it left
@@ -631,7 +412,7 @@ final class MobileVoiceConversationController: ObservableObject {
             listen()
         } else if let request {
             phase = .idle
-            await begin(request)
+            await begin(request ?? nil)
         } else {
             phase = .idle
         }
@@ -643,7 +424,7 @@ final class MobileVoiceConversationController: ObservableObject {
             return
         }
         needsSignIn = false
-        await begin(request)
+        await begin(request ?? nil)
     }
 
     func cancelSignIn() {
@@ -671,7 +452,7 @@ final class MobileVoiceConversationController: ObservableObject {
     }
 
     /// Another surface took the audio (text-to-speech, the Siri loop, a reading
-    /// chat's reply): the conversation stops where it stands, saved as it is,
+    /// chat's reply, voice mode): the conversation stops where it stands, saved as it is,
     /// and says why; Resume picks the same conversation up. The arbiter awaits
     /// this, so nothing here may go back to the arbiter.
     private func yieldAudio() async {
