@@ -1286,6 +1286,56 @@ struct ChatReaderFocusTests {
         #expect(events.isEmpty)
     }
 
+    @Test("A video is pointed at by a moment — at, or a passage of its timed transcript — and refuses words it never says or a page")
+    func videoIsPointedAtByAMoment() async throws {
+        let storage = makeTemporaryStorage("focus-video")
+        let transcript = """
+        [0:00] Welcome, everyone. Today we follow energy through the cell.
+
+        [16:00] Health is not a point but a continuum, and healing moves you along it toward more energy flow.
+
+        [16:40] So let us look at what that means for the mitochondria.
+        """
+        var video = StudioArticle(url: "https://www.youtube.com/watch?v=abc123xyz00", title: "A journey through energy", sourceType: .video, discoveryOrigin: .manual)
+        video.content = transcript
+        video.wordCount = transcript.split(separator: " ").count
+        video.state = .ready
+        try await storage.saveSource(video)
+        let manager = ReviewSessionManager(storage: storage)
+        var events: [Event] = []
+        manager.walkthroughFocusHandler = { events.append(.focused($0)) }
+        manager.walkthroughReaderShowsSource = { _ in false }
+        manager.readerBesideChatOpener = { sourceID in
+            events.append(.opened(sourceID))
+            return true
+        }
+
+        let at = await manager.focusSourceAnchorForTesting(arguments: ["source_id": video.id, "at": "16:13"])
+        #expect(!at.isError, "\(at.text)")
+        #expect(at.text.contains("16:13"))
+        #expect(events == [.opened(video.id), .focused(.moment(seconds: 973, sourceID: video.id))])
+
+        events = []
+        let said = await manager.focusSourceAnchorForTesting(arguments: [
+            "source_id": video.id,
+            "passage": "Health is not a point but a continuum",
+        ])
+        #expect(!said.isError, "\(said.text)")
+        #expect(events == [.focused(.moment(seconds: 960, sourceID: video.id))], "the opened Reader is not opened again")
+
+        events = []
+        let invented = await manager.focusSourceAnchorForTesting(arguments: [
+            "source_id": video.id,
+            "passage": "Ageing is a programme the genome runs on purpose",
+        ])
+        #expect(invented.isError)
+        let page = await manager.focusSourceAnchorForTesting(arguments: ["source_id": video.id, "page_number": 2])
+        #expect(page.isError)
+        let nothing = await manager.focusSourceAnchorForTesting(arguments: ["source_id": video.id])
+        #expect(nothing.isError)
+        #expect(events.isEmpty)
+    }
+
     @Test("A meeting's notes are pointed at by a passage, and refuse a figure or a page they do not have")
     func meetingNotesTakeAPassageOnly() async throws {
         let storage = makeTemporaryStorage("focus-meeting")

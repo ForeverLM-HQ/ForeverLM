@@ -6914,7 +6914,7 @@ final class ReviewSessionManager {
         if walkthroughFocusHandler != nil {
             specs.append(AIToolSpec(
                 name: "focus_source_anchor",
-                description: "Open a paper, book chapter, article, meeting or podcast from the learner's library in the Reader beside this chat and point at one place in it while you explain: a figure (outlined on its PDF page), one panel of a figure (outlined alone; a chat with no Reader beside it gets a Markdown image line showing it enlarged instead), a passage copied from the source's text (outlined on the page, or scrolled to and flashed when the source is shown as text, as a meeting's notes or a podcast's transcript are), or a page. The source need not be attached to this chat: take its source_id from the attached catalog, a search result or list_open_panes. Call it whenever your reply explains what a source says — its key points, a figure, a panel, a passage — pointing first and then explaining what is there, so the learner reads along in the source itself. The Reader shows one place at a time and is left on the last place a reply points at, so when the learner asks you to go through a source or walk through its figures, take one place per reply — point at it, explain it, and end by offering the next. A reply that covers several places, such as an overview of the key points, points at the one it starts with and cites the others with their excerpt links, which open the Reader there when clicked. To explain what a figure shows, inspect_paper_figure outlines it the same way and adds its vision reading; this tool only points, and costs nothing. Every anchor is checked against the source's figure index and text, so use the printed figure label exactly as the source prints it and copy a passage exactly, eight to thirty words in order; an anchor the source does not print is refused.",
+                description: "Open a paper, book chapter, article, meeting, podcast or video from the learner's library in the Reader beside this chat and point at one place in it while you explain: a figure (outlined on its PDF page), one panel of a figure (outlined alone; a chat with no Reader beside it gets a Markdown image line showing it enlarged instead), a passage copied from the source's text (outlined on the page, or scrolled to and flashed when the source is shown as text, as a meeting's notes or a podcast's transcript are), or a page. A video is pointed at by a moment — at, or a passage copied from its transcript — and its player is paused there. The source need not be attached to this chat: take its source_id from the attached catalog, a search result or list_open_panes. Call it whenever your reply explains what a source says — its key points, a figure, a panel, a passage — pointing first and then explaining what is there, so the learner reads along in the source itself. The Reader shows one place at a time and is left on the last place a reply points at, so when the learner asks you to go through a source or walk through its figures, take one place per reply — point at it, explain it, and end by offering the next. A reply that covers several places, such as an overview of the key points, points at the one it starts with and cites the others with their excerpt links, which open the Reader there when clicked. To explain what a figure shows, inspect_paper_figure outlines it the same way and adds its vision reading; this tool only points, and costs nothing. Every anchor is checked against the source's figure index and text, so use the printed figure label exactly as the source prints it and copy a passage exactly, eight to thirty words in order; an anchor the source does not print is refused.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -6938,6 +6938,10 @@ final class ReviewSessionManager {
                             "type": "integer",
                             "minimum": 1,
                             "description": "PDF sources only: the one-based page to show when no figure or passage names the place."
+                        ],
+                        "at": [
+                            "type": "string",
+                            "description": "Videos only: the moment to show, in seconds (973) or a clock reading (16:13, 1:02:03), as a transcript's [mm:ss] marker gives it."
                         ],
                     ] as [String: Any],
                     "required": ["source_id"],
@@ -13457,6 +13461,14 @@ final class ReviewSessionManager {
         guard let article = await librarySourceArticle(forRequestedID: requestedID) else {
             return AppToolResult(text: Self.sourceNotInLibraryMessage(requestedID), isError: true)
         }
+        // A video is pointed at by its moment: the Reader's player is sought
+        // there, paused, as a video walk's step does. On 2026-11-07 a tutor
+        // pointing at a passage of a recorded talk was refused with "is a
+        // video", a failed row in the middle of its reply, though the talk's
+        // transcript times every passage.
+        if article.sourceType == .video {
+            return await focusVideoMoment(article, arguments: arguments)
+        }
         // A meeting's notes and a podcast's transcript are text the Reader
         // shows, so a passage copied from them is flashed like an article's;
         // they have no figures or pages to outline (a figure or page anchor
@@ -13466,13 +13478,6 @@ final class ReviewSessionManager {
         guard subject != nil || isTranscriptText else {
             return AppToolResult(
                 text: "Error: \"\(article.title)\" is not a paper, a book chapter, an article, a meeting or a podcast; only those have a page or text the Reader can point at.",
-                isError: true
-            )
-        }
-        // A video is pointed at by its moment, which a citation carries.
-        guard subject != .video else {
-            return AppToolResult(
-                text: "Error: \"\(article.title)\" is a video. Cite the moment instead — [Title](foreverlm://source/\(article.id)?t=SECONDS) opens the video there — or show its frame with show_source_image and at.",
                 isError: true
             )
         }
@@ -13608,6 +13613,53 @@ final class ReviewSessionManager {
             lines.append("The learner's Reader is showing the panel outlined beside the chat, so do not add an image of it to the reply.")
         }
         return AppToolResult(text: lines.joined(separator: "\n"), isError: false)
+    }
+
+    /// `focus_source_anchor` on a video: open it beside the chat and seek its
+    /// player to `at`, or to where its timed transcript says `passage` (a few
+    /// seconds early, as a citation of the words opens it), paused. A video
+    /// has no figures or pages; a passage the transcript does not say, or one
+    /// of an untimed transcript, is refused with the way to name the moment.
+    private func focusVideoMoment(_ article: StudioArticle, arguments: [String: Any]) async -> AppToolResult {
+        if arguments["figure_label"] != nil || arguments["page_number"] != nil {
+            return AppToolResult(
+                text: "Error: \"\(article.title)\" is a video and has no figures or pages. Point at a moment: at (seconds or a clock reading such as 16:13), or a passage copied from its transcript.",
+                isError: true
+            )
+        }
+        let seconds: Int
+        let passage = Self.nonEmptyTrimmed(arguments["passage"] as? String)
+        if arguments["at"] != nil {
+            guard let at = SourceImageReference.timestampSeconds(arguments["at"]) else {
+                return AppToolResult(
+                    text: "Error: at must be a time in the video — seconds (973) or a clock reading (16:13, 1:02:03).",
+                    isError: true
+                )
+            }
+            seconds = at
+        } else if let passage {
+            let content = await storage.loadSourceContent(article.id) ?? ""
+            let timeline = LectureQuizTimeline(CourseQuizPlanning.lines(from: content))
+            guard let said = timeline.seconds(saying: passage) else {
+                return AppToolResult(
+                    text: "Error: the passage is not in the timed transcript of \"\(article.title)\" as written. Copy eight to thirty of its own words exactly, in order, or pass at with the time of its [mm:ss] marker.",
+                    isError: true
+                )
+            }
+            seconds = Int(said)
+        } else {
+            return AppToolResult(
+                text: "Error: focus_source_anchor on a video needs at (seconds or a clock reading) or a passage copied from its transcript.",
+                isError: true
+            )
+        }
+        _ = await readerBesideChatShowsOpening(article)
+        walkthroughFocusHandler?(.moment(seconds: seconds, sourceID: article.id))
+        let time = SlideFrameExtraction.displayTime(Double(seconds))
+        return AppToolResult(
+            text: "Pointed the Reader at \(time) in \"\(article.title)\"; the video is paused there. Cite the moment as [\(article.title)](foreverlm://source/\(article.id)?t=\(seconds)).",
+            isError: false
+        )
     }
 
     // MARK: Slack rows
