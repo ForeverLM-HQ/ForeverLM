@@ -389,6 +389,28 @@ struct ModelBrowserTests {
         #expect(emptied.suggestions.isEmpty && emptied.free.isEmpty)
     }
 
+    @Test("Every model the chat's picker offers has a Your Models row: one the lists leave out shows after them")
+    func offeredModelsAlwaysListed() {
+        let listed = AIModelCatalogEntry(maker: .other, provider: .openRouter, modelID: "x/listed")
+        let stray = AIModelCatalogEntry(maker: .other, provider: .openRouter, modelID: "y/stray")
+        let strayFree = AIModelCatalogEntry(maker: .other, provider: .openRouter, modelID: "y/stray:free")
+        let off = AIModelCatalogEntry(maker: .other, provider: .openRouter, modelID: "z/off")
+        let entries = [listed, stray, strayFree, off]
+        let enabled: Set<String> = [listed.id, stray.id, strayFree.id, "together|retired/model"]
+
+        let fresh = ChatModelLists.build(
+            suggested: ["x/listed"], entries: entries, enabledIDs: enabled, directory: nil, isOffered: { _ in true })
+        #expect(fresh.suggestions.map(\.slug) == ["x/listed"])
+        #expect(fresh.offered.map(\.slug) == ["y/stray", "y/stray:free"])
+
+        // A kept list that dropped an offered model still shows it.
+        let kept = ChatModelLists.build(
+            suggested: ["x/listed"], pinned: ["y/stray"], entries: entries, enabledIDs: enabled,
+            directory: nil, isOffered: { _ in true })
+        #expect(kept.suggestions.map(\.slug) == ["y/stray"])
+        #expect(kept.offered.map(\.slug) == ["x/listed", "y/stray:free"])
+    }
+
     @Test("Background keeps one Your Models for text work and one for work that reads images, apart from Chat's")
     func backgroundYourModelsKeys() {
         let keys = [

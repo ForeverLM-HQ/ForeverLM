@@ -177,9 +177,12 @@ struct ChatModelsPane: View {
     /// is those picks; a × or the menu takes a model off, the table's menu
     /// adds one (Add to Your Models), and a drag or Move Up / Move Down sets
     /// the order. Being on the list is not being offered: the row's check is
-    /// still what the chat's picker offers.
+    /// still what the chat's picker offers. But every model the picker offers
+    /// is on it: one the lists leave out shows after them, and taking an
+    /// offered model off the list stops offering it, or the picker would
+    /// offer a model this pane has no row for.
     private var yourModelsSection: some View {
-        let rows = lists.suggestions + lists.free
+        let rows = yourModelRows
         return YourModelsSection(
             suggestions: rows,
             isEdited: snapshot.yourModels != nil,
@@ -200,7 +203,22 @@ struct ChatModelsPane: View {
     /// The slugs the list shows now, in order: what an edit starts from
     /// while the learner has not edited it yet.
     private var shownSlugs: [String] {
-        (lists.suggestions + lists.free).map(\.slug)
+        yourModelRows.map(\.slug)
+    }
+
+    private var yourModelRows: [ChatModelLists.Suggestion] {
+        lists.suggestions + lists.free + lists.offered
+    }
+
+    /// Takes a model off Your Models, and out of the chat's picker: an
+    /// offered model left off the list would come straight back as a row.
+    /// The Default Model stays offered (`AIModelCatalog.setEnabled`).
+    private func removeFromYourModels(_ slug: String) {
+        editYourModels { ChatModelShortlist.removing(slug, from: $0) }
+        if let entry = lists.entryBySlug[slug.lowercased()],
+           snapshot.enabledIDs.contains(entry.id), snapshot.defaultID != entry.id {
+            setOffered(false, entry)
+        }
     }
 
     /// Edits the stored list, or, the first time, the suggested picks as the
@@ -219,7 +237,7 @@ struct ChatModelsPane: View {
 
     private func listActions(for slug: String, at index: Int, count: Int) -> ChatModelRow.ListActions {
         ChatModelRow.ListActions(
-            remove: { editYourModels { ChatModelShortlist.removing(slug, from: $0) } },
+            remove: { removeFromYourModels(slug) },
             moveUp: index == 0 ? nil : { editYourModels { ChatModelShortlist.moving(slug, by: -1, in: $0) } },
             moveDown: index == count - 1 ? nil : { editYourModels { ChatModelShortlist.moving(slug, by: 1, in: $0) } }
         )
@@ -445,7 +463,7 @@ struct ChatModelsPane: View {
         let slug = row.model.id.lowercased()
         if isOnYourModels(slug) {
             items.append(.button("Remove from Your Models", systemImage: "text.badge.minus") {
-                editYourModels { ChatModelShortlist.removing(slug, from: $0) }
+                removeFromYourModels(slug)
             })
         } else {
             items.append(.button("Add to Your Models", systemImage: "text.badge.plus") {
@@ -730,6 +748,10 @@ enum ChatModelLists {
         let suggestions: [Suggestion]
         /// The Free list's chat picks, as Suggested rows are drawn.
         let free: [Suggestion]
+        /// Models the chat's picker offers that neither list above shows,
+        /// in catalog order: Your Models lists them after the rest, so a
+        /// model the picker offers always has a row to turn it off on.
+        let offered: [Suggestion]
         /// With the browser's filters on, only the models they let through.
         let makers: [Maker]
         /// How many of the chat's directory models each filter would list.
@@ -742,7 +764,7 @@ enum ChatModelLists {
         let makerNames: [String: String]
 
         static let empty = Built(
-            suggestions: [], free: [], makers: [], filterCounts: [:],
+            suggestions: [], free: [], offered: [], makers: [], filterCounts: [:],
             entryBySlug: [:], directoryBySlug: [:], makerNames: [:]
         )
 
@@ -796,6 +818,8 @@ enum ChatModelLists {
     ///     Models), in their order; when set, it replaces `suggested` and
     ///     `free` as they stand, newer releases not swapped in.
     ///   - entries: the offered catalog entries, in catalog order.
+    ///   - enabledIDs: what the chat's picker offers; one of those neither
+    ///     list shows is listed after them (`Built.offered`).
     ///   - directory: nil while it is still loading.
     ///   - filters: what the browser is narrowed to; empty for everything.
     ///   - isOffered: whether the learner's settings allow a model the
@@ -851,6 +875,16 @@ enum ChatModelLists {
             entryBySlug: entryBySlug, directoryBySlug: directoryBySlug,
             directoryLoaded: directory != nil, isOffered: isOffered
         )
+        // An offered model the lists leave out (switched on in an earlier
+        // build, or Your Models edited without it) would be offered in the
+        // chat's picker with no row here to turn it off.
+        var listedSlugs = suggestedSlugs.union(freeRows.map(\.slug))
+        let offeredRows: [Suggestion] = entries.compactMap { entry in
+            let slug = Self.slug(of: entry)
+            guard enabledIDs.contains(entry.id), entryBySlug[slug] == entry,
+                  listedSlugs.insert(slug).inserted else { return nil }
+            return .catalog(entry, slug: slug)
+        }
         let usableIDs = Set(usable.map(\.id))
         var filterCounts: [ModelBrowserFilter: Int] = [:]
         for filter in ModelBrowserFilter.allCases {
@@ -859,6 +893,7 @@ enum ChatModelLists {
         return Built(
             suggestions: suggestions,
             free: freeRows,
+            offered: offeredRows,
             makers: Self.makers(in: usable, makerNames: makerNames, isOffered: { model in
                 usableIDs.contains(model.id) && (filters.isEmpty || filters.contains { $0.matches(model) })
             }),
