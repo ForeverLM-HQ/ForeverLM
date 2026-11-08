@@ -6,6 +6,12 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.200.0 (build 280) — 2026-11-08
+
+**Highlights:**
+- **Voice mode one click away:** a waveform at the bottom of the Mac's icon strip, and one in every chat that carries the chat on by voice.
+- **Live meetings:** Chat → Live Meeting transcribes a call on this Mac as it happens.
+
 - **Voice mode is one click away on the Mac:** the **waveform** at the bottom of the icon strip starts Talk to ForeverLM from any window.
 - **Continue a chat by voice:** the **waveform** beside the microphone in a chat carries the chat on out loud, and what ForeverLM said comes back into the chat when you end the call. See [Voice Mode](/voice-mode#continue-a-chat-by-voice).
 - **ForeverLM no longer writes review questions in the background.** The setting **Prepare review questions ahead of time** is gone; a review writes its questions when it starts.
