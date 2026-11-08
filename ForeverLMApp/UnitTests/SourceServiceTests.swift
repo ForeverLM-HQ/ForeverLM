@@ -1111,13 +1111,62 @@ struct PublisherAccessWallDetectionTests {
         #expect(!PaperService.looksLikePaperFullText(text))
     }
 
-    @Test("Titled body sections count, and a bare heading marker opens no section")
+    @Test("Titled body sections count, a bare heading marker opens no section, and a few-word section is not body")
     func titledSectionsCount() {
         let text = "## Abstract\nA short abstract.\n## Main\n" + Self.fullTextParagraph
             + "\n###\n" + Self.fullTextParagraph + "\n## Extended data\n### Extended Data Fig. 1 Legend.\nLegend text."
         #expect(PaperService.looksLikePaperFullText(text))
-        let bodyOnly = Self.fullTextParagraph.split(whereSeparator: { $0.isWhitespace }).count * 2 + 3
+        let bodyOnly = Self.fullTextParagraph.split(whereSeparator: { $0.isWhitespace }).count * 2
         #expect(PaperService.paperBodyWordCount(text) == bodyOnly)
+    }
+
+    /// A publisher's landing page as the reader's text extraction gives it: the
+    /// abstract, then the page around it — metrics, Share and Export panels,
+    /// "How to cite", the footer, and the sign-in and password forms the site
+    /// keeps hidden in the page. Shaped on the page a 2004 paper was stored as
+    /// on 2026-11-08.
+    private static let landingPageWithSiteInterface: String = {
+        var lines = [
+            "A study of metabolism and lifespan in outbred mice",
+            "",
+            "# A study of metabolism and lifespan in outbred mice",
+            "### Summary",
+            String(repeating: "Mice with higher metabolic intensity had greater proton conductance and lived longer than mice with low intensity. ", count: 13),
+            "## Citing Literature", "Volume3, Issue3", "June 2004", "Pages 87-95",
+            "## References", "## Related", "-", "## Information", "## Article Metrics",
+            "### Citations (CrossRef):", "705",
+            "When publishers deposit their content metadata, article citations are tracked and linked, allowing you to see how many times each article has been cited.",
+        ]
+        let panels = [
+            "Share QR Code", "Export citation", "How to cite", "Download Citation",
+            "About the Online Library", "Help & Support", "Opportunities", "Connect with Us",
+            "Log in to the Online Library", "Change Password", "Password Changed Successfully",
+            "Create a new account", "Forgot your password?", "Request Username",
+        ]
+        for panel in panels {
+            lines.append("## \(panel)")
+            lines.append("Something went wrong while loading this panel. Please try again in a moment, and if the issue persists, refresh the page or contact support.")
+            lines.append(contentsOf: ["Email", "Password", "Too Short", "Weak", "Strong", "COPY TEXT", "Close"])
+            lines.append("If the address matches an existing account you will receive an email with instructions to continue.")
+        }
+        return lines.joined(separator: "\n")
+    }()
+
+    @Test("A landing page's interface does not make its abstract the paper")
+    func landingPageInterfaceIsNotFullText() {
+        let text = Self.landingPageWithSiteInterface
+        // Long enough on the interface's words, and still not the paper.
+        let allWords = text.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
+        #expect(allWords > PaperService.minimumPaperFullTextWordCount)
+        #expect(!PaperService.looksLikePublisherAccessWall(text: text))
+        #expect(PaperService.paperBodyWordCount(text) < PaperService.minimumPaperFullTextWordCount)
+        #expect(!PaperService.looksLikePaperFullText(text))
+    }
+
+    @Test("A paper's body still counts beside the page's interface")
+    func bodyBesideInterfaceIsFullText() {
+        let text = Self.landingPageWithSiteInterface + "\n## Introduction\n" + Self.fullTextParagraph
+        #expect(PaperService.looksLikePaperFullText(text))
     }
 }
 

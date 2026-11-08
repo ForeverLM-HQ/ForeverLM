@@ -1012,14 +1012,31 @@ enum PaperService {
         "supplementary table", "fig.", "figure ", "table ",
     ]
 
-    /// Words of the text that stand outside the sections `paperNonBodyHeadings`
-    /// names. Text with no Markdown headings counts whole; the reader's text
-    /// extraction marks a page's headings with `#`, so a publisher page's
-    /// legends, reference list and back matter are set aside by their headings
-    /// and the abstract, the body and anything under a titled section remain.
+    /// The fewest words a section must run to count as the paper's body. A
+    /// paper's sections — the abstract, Introduction, Results, a headingless
+    /// body — run to hundreds of words. A publisher's page around them is a
+    /// scatter of small sections: citation counts, Share and Export panels,
+    /// "How to cite", a footer, and the sign-in and password forms the site
+    /// keeps hidden in the page. Aging Cell's Wiley landing page for a 2004
+    /// paper was stored as that paper's text (2026-11-08): its abstract ran
+    /// 224 words, and some twenty such sections, none over 75 words, carried
+    /// it past `minimumPaperFullTextWordCount`.
+    static let minimumPaperBodySectionWordCount = 150
+
+    /// Words of the text that stand in the paper's body: in sections that run
+    /// to `minimumPaperBodySectionWordCount` words and that `paperNonBodyHeadings`
+    /// does not name. Text with no Markdown headings is one section and counts
+    /// whole; the reader's text extraction marks a page's headings with `#`, so
+    /// a publisher page's legends, reference list, back matter and interface
+    /// are set aside by their headings, and the abstract and the body remain.
     static func paperBodyWordCount(_ text: String) -> Int {
         var count = 0
+        var sectionCount = 0
         var insideNonBodySection = false
+        func closeSection() {
+            if sectionCount >= minimumPaperBodySectionWordCount { count += sectionCount }
+            sectionCount = 0
+        }
         for line in text.split(omittingEmptySubsequences: false, whereSeparator: { $0.isNewline }) {
             let trimmed = line.trimmingCharacters(in: .whitespaces)
             if trimmed.hasPrefix("#") {
@@ -1029,13 +1046,15 @@ enum PaperService {
                     .trimmingCharacters(in: CharacterSet(charactersIn: ".:"))
                 // A bare `###` carries no title and does not open a section.
                 guard !heading.isEmpty else { continue }
+                closeSection()
                 insideNonBodySection = paperNonBodyHeadings.contains(heading)
                     || paperNonBodyHeadingPrefixes.contains(where: { heading.hasPrefix($0) })
                 continue
             }
             guard !insideNonBodySection else { continue }
-            count += trimmed.split(whereSeparator: { $0.isWhitespace }).count
+            sectionCount += trimmed.split(whereSeparator: { $0.isWhitespace }).count
         }
+        closeSection()
         return count
     }
 
