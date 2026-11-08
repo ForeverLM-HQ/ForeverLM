@@ -55,20 +55,60 @@
 .chat-rendered > h3 { max-width: calc(42em / 1.125); }
 
 /* The list indent is one line's height, as Codex's is, and each item a
-   little further in from its marker. */
-.chat-rendered ul { padding-left: 1.625em; list-style-type: disc; }
-.chat-rendered ul ul { list-style-type: circle; }
-.chat-rendered ul ul ul { list-style-type: square; }
-/* Markers draw outside the list box, and the row that hosts a reply clips at
+   little further in from its marker.
+
+   The markers are drawn, not the browser's `::marker`. WebKit paints a
+   selected marker as its own tiles, a second shade inside the selection band
+   beside every bullet and number, and the band stopped short of the item's
+   padding on its first line. A drawn marker is never selected, and the whole
+   indent sits on the list rather than the item, so a selection across a list
+   runs as one band from the same edge as the paragraphs around it. */
+.chat-rendered ul { padding-left: 2em; list-style: none; }
+/* The number draws outside the item, and the row that hosts a reply clips at
    its edge, so an ordered list needs room for a two-digit number or every
    item from 10 on loses its first digit. */
-.chat-rendered ol { padding-left: 2.2em; }
-.chat-rendered li { padding-left: 0.375em; }
+.chat-rendered ol { padding-left: 2.575em; list-style: none; }
+.chat-rendered li { position: relative; }
+.chat-rendered li::before {
+  position: absolute;
+  -webkit-user-select: none;
+  user-select: none;
+}
+.chat-rendered ul > li::before {
+  content: "";
+  right: calc(100% + 1.15em);
+  top: 0.65em;
+  width: 0.38em;
+  height: 0.38em;
+  box-sizing: border-box;
+  border-radius: 50%;
+  background: var(--chat-fg, CanvasText);
+}
+.chat-rendered ul ul > li::before {
+  background: transparent;
+  border: 0.09em solid var(--chat-fg, CanvasText);
+}
+.chat-rendered ul ul ul > li::before {
+  border: 0;
+  border-radius: 0;
+  background: var(--chat-fg, CanvasText);
+}
+.chat-rendered ol > li::before {
+  content: counter(list-item) ".";
+  right: 100%;
+  padding-right: 0.6em;
+  color: var(--chat-fg, CanvasText);
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+/* Lists that draw their own rows (checklists, source entries, the Sources
+   footer) take no marker, and keep the small inset the items always had. */
+.chat-rendered :where(.flm-task-list, .source-entry-list, .source-citations-list) > li { padding-left: 0.375em; }
+.chat-rendered :is(.flm-task-list, .source-entry-list, .source-citations-list) > li::before { content: none; }
 .chat-rendered li > p { margin: 0; }
 .chat-rendered li > p + p { margin-top: 1em; }
 .chat-rendered li > ul,
 .chat-rendered li > ol { margin: 0; }
-.chat-rendered li::marker { color: var(--chat-fg, CanvasText); font-weight: 600; }
 .chat-rendered > ul + p,
 .chat-rendered > ol + p { margin-top: 0.5em; }
 
