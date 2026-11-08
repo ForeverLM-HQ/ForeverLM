@@ -373,6 +373,38 @@ struct RealtimeVoiceTutorTests {
         #expect(catalog.contains { $0.name == "list_notebook_sources" })
         #expect(MacRealtimeAssistant.Toolbox.findAppTools("notebook sources", catalog: catalog).contains("list_notebook_sources"))
     }
+
+    @Test("Voice starts an audio overview with the recipe and the learner's yes, never a larger ceiling")
+    func voiceAudioOverview() {
+        let toolNames = MacRealtimeAssistant.Toolbox().toolDefinitions.compactMap { $0["name"] as? String }
+        #expect(toolNames.contains("make_audio_overview"))
+
+        let priced = MacRealtimeAssistant.Toolbox.audioOverviewArguments([
+            "notebook_id": " nb_1 ",
+            "focus": "Where the two papers disagree",
+            "format": "critique",
+            "length": "",
+            "source_ids": ["src_a", " ", "src_b"],
+            "approved_spend_usd": 50,
+            "generate_audio": false,
+        ])
+        #expect(priced["notebook_id"] as? String == "nb_1")
+        #expect(priced["focus"] as? String == "Where the two papers disagree")
+        #expect(priced["format"] as? String == "critique")
+        #expect(priced["length"] == nil)
+        #expect(priced["source_ids"] as? [String] == ["src_a", "src_b"])
+        #expect(priced["confirm_cost"] == nil)
+        #expect(priced["approved_spend_usd"] == nil)
+        #expect(priced["generate_audio"] == nil)
+
+        let agreed = MacRealtimeAssistant.Toolbox.audioOverviewArguments(["notebook_id": "nb_1", "confirm_cost": true])
+        #expect(agreed["confirm_cost"] as? Bool == true)
+
+        let instructions = RealtimeVoiceAssistant.instructions(sections: [], setting: .mac)
+        #expect(instructions.contains("make_audio_overview"))
+        #expect(instructions.contains("confirm_cost true"))
+        #expect(!RealtimeVoiceAssistant.instructions(sections: [], setting: .phone).contains("make_audio_overview"))
+    }
     #endif
 
     @Test("An opened source is handed over whole, or its opening with a note, and searched")

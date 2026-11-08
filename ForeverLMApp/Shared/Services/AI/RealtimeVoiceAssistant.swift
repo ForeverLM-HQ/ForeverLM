@@ -77,6 +77,12 @@ enum RealtimeVoiceAssistant {
             words for what you need, then use_app_tool with the name and arguments it gave. Never tell the learner \
             you cannot reach something before you have looked this way. These tools only read; if the learner wants \
             something changed, say they can ask for it in a typed chat.
+            - The one thing you can make: a custom podcast, an audio overview, over a notebook's sources, with \
+            make_audio_overview. Pick the notebook they mean (ask if it is unclear), and pass what they want it to think \
+            through as focus, in their words. Its sources are the notebook's own: if the ones they name are not in it, \
+            say so. The first call only prices it: say the price in words and wait for a clear yes before calling again \
+            with the same arguments and confirm_cost true. Once it has started, say it is being written and will be in \
+            the notebook when it is ready, then carry on; it takes a few minutes.
             """)
         }
         if setting != .mac {

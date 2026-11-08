@@ -11,7 +11,10 @@ import OSLog
 /// `use_app_tool`), so a notebook, a meeting or a Page is never out of reach
 /// by voice (product owner, 2026-11-08: "it needs to be able to access
 /// everything in voice mode"). Read only: a tool that changes anything is
-/// refused, as before.
+/// refused, as before — with one exception, a Notebook's audio overview
+/// (`make_audio_overview`), which voice can start once the learner has said
+/// yes to its price out loud (product owner, 2026-11-08: "i have to be able
+/// to fire that off in voice mode too").
 enum MacRealtimeAssistant {
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "RealtimeAssistant")
 
@@ -93,6 +96,19 @@ enum MacRealtimeAssistant {
                     required: ["group_id"]
                 ),
                 RealtimeVoiceAssistant.function(
+                    "make_audio_overview",
+                    "Starts a custom podcast (an audio overview) over a notebook's sources, written in the background and narrated with the learner's voice. The first call only prices it; call again with confirm_cost true once the learner has said yes to that price.",
+                    properties: [
+                        "notebook_id": ["type": "string", "description": "The notebook it is written from and filed in, from the notebooks you know or list_notebooks."],
+                        "source_ids": ["type": "array", "items": ["type": "string"], "description": "Only these of the notebook's own sources. Leave out for the sources ticked in the notebook."],
+                        "focus": ["type": "string", "description": "What it should be about or the question it should think through, in the learner's words."],
+                        "format": ["type": "string", "enum": ["deep_dive", "brief", "critique"], "description": "deep_dive (the default), brief (about two minutes) or critique."],
+                        "length": ["type": "string", "enum": ["shorter", "default", "longer"], "description": "For deep_dive and critique only."],
+                        "confirm_cost": ["type": "boolean", "description": "True only after the learner has heard the price and said yes."],
+                    ],
+                    required: ["notebook_id"]
+                ),
+                RealtimeVoiceAssistant.function(
                     "find_app_tools",
                     "Finds ForeverLM's other read tools by what they do: notebooks and their sources, Pages, cards, courses, highlights, ideas, open questions, past chats, canvases and more. Says how to call each.",
                     properties: ["query": ["type": "string", "description": "A few words for what you need, like \"notebook sources\" or \"due cards\"."]],
@@ -134,6 +150,8 @@ enum MacRealtimeAssistant {
                 return await mcp("list_meeting_groups", [:])
             case "get_meeting_series":
                 return await meetingSeries((arguments["group_id"] as? String) ?? "")
+            case "make_audio_overview":
+                return await mcp("generate_audio_overview", Self.audioOverviewArguments(arguments))
             case "find_app_tools":
                 return Self.findAppTools((arguments["query"] as? String) ?? "")
             case "use_app_tool":
@@ -256,6 +274,25 @@ enum MacRealtimeAssistant {
             "list_meeting_groups", "get_meeting_group", "get_mcp_status",
         ]
 
+        /// `make_audio_overview`'s arguments as `generate_audio_overview`
+        /// takes them: only the recipe and the learner's yes. The spend
+        /// ceiling is never raised by voice, so a run stays under the
+        /// operation's default, and the audio is always narrated.
+        static func audioOverviewArguments(_ arguments: [String: Any]) -> [String: Any] {
+            var forwarded: [String: Any] = [:]
+            for key in ["notebook_id", "focus", "format", "length"] {
+                if let value = (arguments[key] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty {
+                    forwarded[key] = value
+                }
+            }
+            let sourceIDs = ((arguments["source_ids"] as? [Any]) ?? []).compactMap { $0 as? String }
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty }
+            if !sourceIDs.isEmpty { forwarded["source_ids"] = sourceIDs }
+            if (arguments["confirm_cost"] as? Bool) == true { forwarded["confirm_cost"] = true }
+            return forwarded
+        }
+
         /// Output a borrowed tool hands the conversation at most. A realtime
         /// event is capped near 200 KB (`RealtimeVoiceSession.maximumMessageBytes`),
         /// and a long listing read out of a voice call is no use anyway.
@@ -291,6 +328,9 @@ enum MacRealtimeAssistant {
             let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
             guard MCPToolRegistry.shared.tools.contains(where: { $0.name == name }) else {
                 return #"{"error":"No tool by that name. Call find_app_tools first and use a name it gave."}"#
+            }
+            if name == "generate_audio_overview" {
+                return #"{"error":"Use make_audio_overview for an audio overview."}"#
             }
             guard MCPToolRegistry.isReadOnlyTool(name) else {
                 return #"{"error":"Voice mode only reads, and that tool changes things. Tell the learner they can ask for it in a typed chat."}"#
