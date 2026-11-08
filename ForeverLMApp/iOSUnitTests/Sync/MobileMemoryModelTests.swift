@@ -287,3 +287,64 @@ struct MobileSwitchedMemoryTests {
         #expect(MobileMemoryRecords.attempt(answerID: "q", answer: ["subject": "qst:x", "at": SyncJSON(1)], sessionID: nil) == nil)
     }
 }
+
+/// The phone's goals and chat recall come from the replica. They were read from the retired zone
+/// mirror's catalog, which had come back empty since generation 2: no goals for the voice assistant,
+/// no chat recency, and every chat-sourced memory review failing as unreadable.
+@Suite("iPhone goals and chat recall read models", .serialized)
+struct MobileChatRecallReadModelTests {
+    typealias F = MobileReadModelFixture
+
+    @Test("Every Library Goal is read with the notebook it serves")
+    func goals() async throws {
+        let replica = try await F.replica()
+        let records: [(zoneKey: String, envelope: SyncEnvelope)] = [
+            (F.library, try F.notebook("nb1", "Cells", edited: 1)),
+            (F.library, try MobileSyncFixture.envelope(.goal, "gl1", [
+                "title": .string("Finish the course"), "notebookID": .string("nb1"), "status": .string("active"), "dueAt": SyncJSON(9),
+            ])),
+            (F.library, try MobileSyncFixture.envelope(.goal, "gl2", [
+                "title": .string("Read the review"), "status": .string("done"), "dueAt": SyncJSON(9),
+            ])),
+        ]
+        try await MobileSyncFixture.apply(records, to: replica)
+        let snapshot = try await MobileReadModels.snapshot(MobileProjection(replica: replica))
+        #expect(snapshot.goals.map(\.id) == ["gl1", "gl2"])
+        #expect(snapshot.goals.first?.parentNotebookID == "nb1")
+        #expect(snapshot.goals.last?.parentNotebookID == nil)
+        #expect(snapshot.goals.filter(\.isActive).map(\.id) == ["gl1"])
+    }
+
+    @Test("An ordinary chat feeds recency and reads back as the Mac's transcript; a memory review does neither")
+    func chatRecall() async throws {
+        let replica = try await F.replica()
+        let reply = String(repeating: "Mitochondria turn food into ATP. ", count: 20)
+        let records: [(zoneKey: String, envelope: SyncEnvelope)] = [
+            (F.library, try F.notebook("nb1", "Cells", edited: 1)),
+            (F.library, try F.chat("ch1", notebook: "nb1", title: "Energy", edited: 50, [
+                "status": .string("ended"), "contextMode": .string("explicit"), "contextSourceIDs": F.set(["src1"]),
+            ])),
+            (F.library, try F.exchange("ex1", chat: "ch1", seq: 1, question: "What shall we look at?",
+                                       answer: "How do cells make energy?", reply: reply)),
+            (F.library, try F.chat("ch-memory", notebook: "nb1", kind: "memory", edited: 60, [
+                "contextMode": .string("explicit"), "contextSourceIDs": F.set(["src2"]),
+            ])),
+            (F.library, try F.exchange("ex2", chat: "ch-memory", seq: 1, question: "Say what you recall.", answer: "ATP.")),
+        ]
+        try await MobileSyncFixture.apply(records, to: replica)
+        let projection = MobileProjection(replica: replica)
+        let snapshot = try await MobileReadModels.snapshot(projection)
+
+        #expect(snapshot.chatDiscussions.map(\.chatID) == ["ch1"])
+        #expect(snapshot.chatDiscussions.first?.sourceIDs == ["src1"])
+
+        let chat = try #require(try await MobileReadModels.reviewableChat(chatID: "ch1", zoneKey: F.library, projection: projection))
+        let expected = ReviewableChat.transcript(title: "Energy", exchanges: [
+            ReviewableChat.Exchange(sequenceNumber: 0, question: "What shall we look at?", userAnswer: "How do cells make energy?", evaluation: reply),
+        ])
+        #expect(chat.title == "Energy")
+        #expect(chat.text == expected)
+        #expect(try await MobileReadModels.reviewableChat(chatID: "ch-memory", zoneKey: F.library, projection: projection) == nil)
+        #expect(try await MobileReadModels.reviewableChat(chatID: "ch-missing", zoneKey: F.library, projection: projection) == nil)
+    }
+}

@@ -82,16 +82,7 @@ actor MobileCloudMutationService {
         try await writer.transaction { try $0.removeSources(sourceIDs, from: notebookID) }
     }
 
-    func deleteNotebook(
-        id: String,
-        scheduledSources: [MobileCloudScheduledSource],
-        childGoalIDs: [String],
-        linkedSessionIDs: [String],
-        linkedMemoryAttemptIDs: [String],
-        linkedArtifactIDs: [String],
-        referringNotebookIDs: [String] = [],
-        deleteLinkedChats: Bool
-    ) async throws {
+    func deleteNotebook(id: String, deleteLinkedChats: Bool) async throws {
         let writer = try await requiredWriter()
         try await writer.transaction { try $0.deleteNotebook(id, deleteLinkedChats: deleteLinkedChats) }
     }

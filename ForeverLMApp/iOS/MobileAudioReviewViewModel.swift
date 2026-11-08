@@ -727,11 +727,10 @@ actor MobileCloudSourceCatalog {
         return replicaSnapshot?.notebooks ?? []
     }
 
-    /// Raw goal lifecycle rows for relationship validation. The UI does not
-    /// render this collection directly; it uses it to prevent deleting a Notebook
-    /// that still owns child Goals.
+    /// Every Goal in the Library, from the replica: the voice assistant's
+    /// brief of what the learner is working toward.
     func currentGoals() -> [MobileCloudGoal] {
-        Array(assembled().goalsByRecordName.values)
+        replicaSnapshot?.goals ?? []
     }
 
     /// Sources a finished review covered, resolved to this phone's source ids:
@@ -739,13 +738,6 @@ actor MobileCloudSourceCatalog {
     /// a lesson sheet or course PDF that can never be watched or marked read.
     func currentReviewedSourceIDs() -> Set<String> {
         return replicaSnapshot?.reviewedSourceIDs ?? []
-    }
-
-    func currentReviewSessionIDs(linkedTo goalIDs: Set<String>) -> [String] {
-        assembled().reviewSessionsByRecordName.values.compactMap { session in
-            guard let goalID = session.goalID, goalIDs.contains(goalID) else { return nil }
-            return session.id
-        }
     }
 
     /// Phone-side mirror of the Mac's bounded recent-chat preference. Memory
@@ -757,50 +749,18 @@ actor MobileCloudSourceCatalog {
         sessionLimit: Int = 12,
         maximumAgeDays: Int = 14
     ) -> [MemoryTutorRecentSourceActivity] {
-        let catalog = assembled()
-        let identityIndex = MobileMemorySourceIdentityResolver.Index(
-            sources: Array(catalog.sourcesByRecordName.values),
-            normalizeURL: MobileSourceURL.normalize
-        )
+        let availableSourceIDs = Set((replicaSnapshot?.sources ?? []).map(\.id))
         let cutoff = now.addingTimeInterval(
             -Double(max(1, min(maximumAgeDays, 90))) * 86_400
         )
-        let sessions = catalog.reviewSessionsByRecordName.values
-            .filter {
-                ["active", "completed", "external_link"].contains($0.status)
-                    && $0.cardIDs.isEmpty
-                    && (!$0.exchanges.isEmpty || $0.status == "external_link")
-            }
-            .filter { ($0.endedAt ?? $0.startedAt) >= cutoff }
-            .sorted {
-                let lhs = $0.endedAt ?? $0.startedAt
-                let rhs = $1.endedAt ?? $1.startedAt
-                if lhs != rhs { return lhs > rhs }
-                return $0.id < $1.id
-            }
+        // Already newest first (`MobileReadModels.chats`).
+        let discussions = (replicaSnapshot?.chatDiscussions ?? [])
+            .filter { $0.at >= cutoff }
             .prefix(max(0, min(sessionLimit, 50)))
-
-        let availableSourceIDs = Set(catalog.sourcesByRecordName.values.map(\.id))
         var latestBySourceID: [String: Date] = [:]
-        for session in sessions {
-            let identities = Dictionary(
-                session.sourceIdentities.map { ($0.sourceID, $0) },
-                uniquingKeysWith: { first, _ in first }
-            )
-            let remoteIDs = Array(Set(
-                session.sourceIDs + session.exchanges.flatMap(\.sourceRefs)
-            ))
-            let activityAt = session.endedAt ?? session.startedAt
-            for remoteID in remoteIDs {
-                let sourceID = identityIndex.resolvedSourceID(
-                    remoteID,
-                    identity: identities[remoteID]
-                )
-                guard availableSourceIDs.contains(sourceID) else { continue }
-                latestBySourceID[sourceID] = max(
-                    latestBySourceID[sourceID] ?? .distantPast,
-                    activityAt
-                )
+        for discussion in discussions {
+            for sourceID in discussion.sourceIDs where availableSourceIDs.contains(sourceID) {
+                latestBySourceID[sourceID] = max(latestBySourceID[sourceID] ?? .distantPast, discussion.at)
             }
         }
         return latestBySourceID.map {
@@ -867,13 +827,6 @@ actor MobileCloudSourceCatalog {
             + currentRecentSourceConsumptionActivity(now: now)
     }
 
-    func currentMemoryAttemptIDs(linkedToSessionIDs sessionIDs: Set<String>) -> [String] {
-        assembled().memoryAttemptsByRecordName.values.compactMap { attempt in
-            guard let sessionID = attempt.sessionID, sessionIDs.contains(sessionID) else { return nil }
-            return attempt.id
-        }
-    }
-
     /// Every audio overview the Mac saved, as the phone lists them under
     /// their notebooks (`MobileAudioReviewViewModel.audioOverviews(inNotebook:)`):
     /// archived and hidden ones left out, as the Mac's notebook leaves them.
@@ -905,16 +858,6 @@ actor MobileCloudSourceCatalog {
         // Only this chat's exchanges are decoded, a page at a time.
         guard let zoneKey = replicaSnapshot?.chatZones[sessionID], let projection = await replicaProjection() else { return nil }
         return try? await MobileReadModels.transcript(chatID: sessionID, zoneKey: zoneKey, projection: projection)
-    }
-
-    func currentArtifactIDs(linkedTo notebookIDs: Set<String>) -> [String] {
-        return (replicaSnapshot?.artifacts ?? []).filter { artifact in
-            artifact.homeNotebookID.map(notebookIDs.contains) ?? false || !notebookIDs.isDisjoint(with: artifact.linkedNotebookIDs)
-        }.map(\.id)
-    }
-
-    func currentNotebookIDs(referringTo notebookIDs: Set<String>) -> [String] {
-        return (replicaSnapshot?.notebooks ?? []).filter { !notebookIDs.isDisjoint(with: $0.relatedNotebookIDs) }.map(\.id)
     }
 
     /// Canonical concept-level memory state from the same durable zone mirror as
@@ -1448,12 +1391,9 @@ actor MobileCloudSourceCatalog {
     /// are extracted from, built exactly as the Mac builds it so the two agree
     /// on the ideas' content hash. nil when the session is not a reviewable
     /// chat.
-    func currentReviewableChatTranscript(sessionID: String) -> (title: String, text: String)? {
-        guard let session = assembled().reviewSessionsByRecordName.values.first(where: { $0.id == sessionID }),
-              ReviewableChat.qualifies(id: session.id, status: session.status, summary: session.reviewableChatSummary)
-        else { return nil }
-        let title = session.reviewableChatSummary.title
-        return (title, ReviewableChat.transcript(title: title, exchanges: session.reviewableExchanges))
+    func currentReviewableChatTranscript(sessionID: String) async throws -> (title: String, text: String)? {
+        guard let zoneKey = replicaSnapshot?.chatZones[sessionID], let projection = await replicaProjection() else { return nil }
+        return try await MobileReadModels.reviewableChat(chatID: sessionID, zoneKey: zoneKey, projection: projection)
     }
 
     func currentSources(ids: [String]) -> [MobileCloudSource] {
@@ -1496,126 +1436,6 @@ actor MobileCloudSourceCatalog {
         return MemoryTutorStruggleProjector.project(
             item: item,
             attempts: attempts,
-            limit: limit
-        )
-    }
-
-    /// Phone-side first-review intake applies the same `SourceConsumption` rule
-    /// as macOS — an explicit `readAt`, or substantial measured depth from the
-    /// source's activity days — and excludes every source already represented by
-    /// a concept item (including deliberately retired items). Depth matters most
-    /// here: a podcast abandoned at 70% and an article scrolled most of the way
-    /// through are material the learner actually went through, and neither ever
-    /// gets a `readAt`. Canonical source text is fetched only after the learner
-    /// starts the bounded voice review.
-    func currentFirstReviewMemoryItems(
-        now: Date = Date(),
-        limit: Int = 12,
-        restrictToSourceIDs: Set<String>? = nil
-    ) -> [MemoryReviewNewItem] {
-        let catalog = assembled()
-        let collections = Self.collections(from: catalog)
-        let availableSources = catalog.sourcesByRecordName.values
-            .filter(Self.isAvailableInMobileLibrary)
-            .filter {
-                !$0.isArchived
-                    && !MobileSourceVisibility.isHidden($0, collections: collections)
-                    && $0.state == "ready"
-                    && (restrictToSourceIDs?.contains($0.id) ?? true)
-            }
-        let availableSourceIDs = Set(availableSources.map(\.id))
-        let representedSourceIDs = Set(
-            catalog.memoryItemsByRecordName.values
-                .flatMap { $0.sources.map(\.sourceID) }
-        )
-        let identityIndex = MobileMemorySourceIdentityResolver.Index(
-            sources: Array(catalog.sourcesByRecordName.values),
-            normalizeURL: MobileSourceURL.normalize
-        )
-        let attemptedSourceIDsBySession = MobileMemoryAttemptSourceProjection.bySession(
-            items: Array(catalog.memoryItemsByRecordName.values),
-            attempts: Array(catalog.memoryAttemptsByRecordName.values)
-        )
-        let legacySessions = catalog.reviewSessionsByRecordName.values.compactMap {
-            session -> MobileLegacyReviewSession? in
-            guard session.status == "completed" || session.status == "external_link" else {
-                return nil
-            }
-            let identities = Dictionary(
-                session.sourceIdentities.map { ($0.sourceID, $0) },
-                uniquingKeysWith: { first, _ in first }
-            )
-            let remoteIDs: [String]
-            if let attemptedSourceIDs = attemptedSourceIDsBySession[session.id] {
-                // Concept evidence is authoritative. The session relationship is
-                // the launch queue and may contain items the learner never reached.
-                remoteIDs = attemptedSourceIDs.sorted()
-            } else {
-                var attachedIDs = session.sourceIDs
-                var seenRemoteIDs = Set(attachedIDs)
-                for sourceID in session.exchanges.flatMap(\.sourceRefs) {
-                    if seenRemoteIDs.insert(sourceID).inserted { attachedIDs.append(sourceID) }
-                }
-                remoteIDs = attachedIDs
-            }
-            var seenResolvedIDs = Set<String>()
-            let resolved = remoteIDs.compactMap { sourceID -> String? in
-                let mapped = identityIndex.resolvedSourceID(
-                    sourceID,
-                    identity: identities[sourceID]
-                )
-                guard availableSourceIDs.contains(mapped), seenResolvedIDs.insert(mapped).inserted else {
-                    return nil
-                }
-                return mapped
-            }
-            guard !resolved.isEmpty else { return nil }
-            return MobileLegacyReviewSession(
-                date: session.endedAt ?? session.startedAt,
-                score: session.overallScore,
-                sourceIDs: resolved
-            )
-        }
-        let reviewedSourceIDs = Set(legacySessions.flatMap(\.sourceIDs))
-        let legacyStats = MobileLegacyMemoryReviewProjector.stats(
-            sessions: legacySessions,
-            sources: Array(availableSources),
-            excludingSourceIDs: representedSourceIDs
-        )
-        let activityDaysBySourceID = Self.activityDaysBySourceID(catalog)
-        let candidates = availableSources.compactMap { source -> MemoryReviewNewCandidate? in
-            guard !representedSourceIDs.contains(source.id),
-                  !reviewedSourceIDs.contains(source.id) else { return nil }
-            let deepest = SourceActivityDay.deepestPoint(
-                in: activityDaysBySourceID[source.id] ?? []
-            )
-            let signals = SourceConsumptionSignals(
-                readAt: source.readAt,
-                readingPositionPage: nil,
-                readingPositionLocator: nil,
-                dateAdded: source.dateAdded,
-                maxFraction: deepest?.fraction ?? 0,
-                deepestActivityAt: deepest?.reachedAt
-            )
-            guard let consumedAt = SourceConsumption.consumedAt(
-                signals,
-                minimumConfidence: .substantial
-            ) else { return nil }
-            return MemoryReviewNewCandidate(
-                sourceID: source.id,
-                title: source.title,
-                sourceType: source.sourceType,
-                consumedAt: consumedAt
-            )
-        }
-        // Both buckets are gathered in full and bounded together. Filling the
-        // cap from the legacy bucket first spent the entire daily budget on the
-        // oldest backlog whenever that backlog was larger than the cap, which is
-        // how a podcast finished this week stayed out of the queue outright.
-        return MemoryReviewScheduler.firstReviewIntake(
-            legacyStats: legacyStats,
-            freshCandidates: candidates,
-            now: now,
             limit: limit
         )
     }
@@ -1780,13 +1600,6 @@ actor MobileCloudSourceCatalog {
 
 
     // MARK: - Persistence
-
-    /// Rows parsed from the mirror's raw payloads, rebuilt on demand — this
-    /// rebuild is what replaces the old cache-invalidation-and-re-walk when a
-    /// new build changes how payloads are read.
-    private func assembled() -> AssembledCatalog {
-        return AssembledCatalog()
-    }
 
     private static func mirrorDatabaseURL() throws -> URL {
         let applicationSupport = try FileManager.default.url(
@@ -3413,7 +3226,6 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     @Published private(set) var notebooks: [MobileCloudNotebook] = []
     /// Includes child Goals and plain Schedules. Kept for relationship checks;
     /// Notebook browsing continues to use the narrower `notebooks` projection.
-    @Published private(set) var goals: [MobileCloudGoal] = []
     @Published private(set) var scheduledSources: [MobileCloudScheduledSource] = []
     /// Book/course display metadata for grouped lists. The hidden sets it also
     /// carries are already applied — `allSources` only ever holds visible rows.
@@ -3834,7 +3646,6 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
 
         if pending > 0 || allSources.isEmpty {
             notebooks = await sourceCatalog.currentNotebooks()
-            goals = await sourceCatalog.currentGoals()
             collections = await sourceCatalog.currentCollections()
             audioOverviewRecords = await sourceCatalog.currentAudioOverviews()
             await publishNotebookCatalog()
@@ -4445,7 +4256,6 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
         let checkpointSources = await sourceCatalog.currentSources()
         if !checkpointSources.isEmpty {
             notebooks = await sourceCatalog.currentNotebooks()
-            goals = await sourceCatalog.currentGoals()
             collections = await sourceCatalog.currentCollections()
             audioOverviewRecords = await sourceCatalog.currentAudioOverviews()
             await publishNotebookCatalog()
@@ -4505,7 +4315,6 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
             // Same zone pass as the sources — refreshing here keeps the Notebooks
             // list and the book/course metadata as fresh as the sources they shape.
             notebooks = (try? await sourceCatalog.loadNotebooks()) ?? notebooks
-            goals = await sourceCatalog.currentGoals()
             collections = (try? await sourceCatalog.loadCollections()) ?? collections
             audioOverviewRecords = await sourceCatalog.currentAudioOverviews()
             await publishNotebookCatalog()
@@ -5314,40 +5123,12 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
         } ?? false
     }
 
+    /// The replica's own delete (`MobileWrite.deleteNotebook`) unfiles its Goals,
+    /// chats and Pages, or deletes the chats with their exchanges, and releases
+    /// the Schedule's tags naming it, all from what the replica holds.
     func deleteNotebook(id: String, deleteLinkedChats: Bool = false) async -> Bool {
-        let childGoalIDs = goals.filter { $0.parentNotebookID == id }.map(\.id)
-        let placements = scheduledSources
-        let deletedGoalIDs = Set(
-            [id] + childGoalIDs
-        )
-        let linkedSessionIDs = await sourceCatalog.currentReviewSessionIDs(
-            linkedTo: deletedGoalIDs
-        )
-        let linkedArtifactIDs = await sourceCatalog.currentArtifactIDs(
-            linkedTo: deletedGoalIDs
-        )
-        let referringNotebookIDs = await sourceCatalog.currentNotebookIDs(
-            referringTo: deletedGoalIDs
-        )
-        let linkedMemoryAttemptIDs: [String]
-        if deleteLinkedChats {
-            linkedMemoryAttemptIDs = await sourceCatalog.currentMemoryAttemptIDs(
-                linkedToSessionIDs: Set(linkedSessionIDs)
-            )
-        } else {
-            linkedMemoryAttemptIDs = []
-        }
         let deleted = await performLibraryMutation {
-            try await MobileCloudMutationService.shared.deleteNotebook(
-                id: id,
-                scheduledSources: placements,
-                childGoalIDs: childGoalIDs,
-                linkedSessionIDs: linkedSessionIDs,
-                linkedMemoryAttemptIDs: linkedMemoryAttemptIDs,
-                linkedArtifactIDs: linkedArtifactIDs,
-                referringNotebookIDs: referringNotebookIDs,
-                deleteLinkedChats: deleteLinkedChats
-            )
+            try await MobileCloudMutationService.shared.deleteNotebook(id: id, deleteLinkedChats: deleteLinkedChats)
             return true
         } ?? false
         if deleted {

@@ -273,7 +273,7 @@ actor MobileMemoryReviewPreparer {
         let text: String
         var highlights: [SourceHighlight] = []
         if isChat {
-            guard let chat = await catalog.currentReviewableChatTranscript(sessionID: source.sourceID) else {
+            guard let chat = try await catalog.currentReviewableChatTranscript(sessionID: source.sourceID) else {
                 throw SourceIdeaExtractionError.noReadableText(source.title)
             }
             text = chat.text

@@ -49,6 +49,11 @@ enum MobileReadModels {
         var notebookPools: [String: [String]] = [:]
         /// Each Goal's notebook (`Goal.notebookID`), so a thing filed under a Goal is its notebook's.
         var goalParents: [String: String] = [:]
+        /// Every Goal in the Library, whatever its status, with the notebook it serves.
+        var goals: [MobileCloudGoal] = []
+        /// What each ordinary chat discussed and when, newest first: the recency half of "what the
+        /// learner attended to lately". Memory reviews are left out, as their sources are a launch queue.
+        var chatDiscussions: [ChatDiscussion] = []
         /// The sources a finished chat named (`Chat.contextSourceIDs` of an ended one): what a course's
         /// lessons count as reviewed.
         var reviewedSourceIDs: Set<String> = []
@@ -86,7 +91,9 @@ enum MobileReadModels {
         snapshot.chatZones = chats.zones
         snapshot.memoryChats = chats.memory
         snapshot.reviewedSourceIDs = chats.reviewedSourceIDs
+        snapshot.chatDiscussions = chats.discussions
         snapshot.goalParents = try goalParents(in: connection)
+        snapshot.goals = try goals(in: connection)
 
         snapshot.activityDays = try activityDays(in: connection)
         snapshot.placements = try placements(in: connection, activityDays: snapshot.activityDays)
@@ -444,9 +451,17 @@ enum MobileReadModels {
         }
     }
 
+    /// One chat's sources and the moment it last moved, for discussion recency.
+    struct ChatDiscussion: Equatable, Sendable {
+        let chatID: String
+        /// The sources it had in context, by this phone's ids.
+        let sourceIDs: [String]
+        let at: Date
+    }
+
     static func chats(in connection: SQLiteConnection, structure: MobileProjection.LibraryStructure, marks: Marks)
         throws -> (byNotebook: [String: [MobileNotebookChatSummary]], zones: [String: String], memory: [MobileMemoryHistoryDays.Session],
-                   reviewedSourceIDs: Set<String>) {
+                   reviewedSourceIDs: Set<String>, discussions: [ChatDiscussion]) {
         var counts: [String: (exchanges: Int, answered: Int)] = [:]
         try connection.query("SELECT zone_key, chat_id, COUNT(*), SUM(has_answer) FROM m_exchanges GROUP BY zone_key, chat_id", []) { row in
             counts[key(row.text(0), row.text(1))] = (Int(row.integer(2) ?? 0), Int(row.integer(3) ?? 0))
@@ -460,6 +475,7 @@ enum MobileReadModels {
         var zones: [String: String] = [:]
         var memory: [MobileMemoryHistoryDays.Session] = []
         var reviewed = Set<String>()
+        var discussions: [ChatDiscussion] = []
         for chat in structure.chats {
             let chatKey = key(chat.zoneKey, chat.chatID)
             // A finished chat's own sources count as reviewed, as an ended generation-1 session's did.
@@ -471,6 +487,9 @@ enum MobileReadModels {
             if isMemory {
                 memory.append(MobileMemoryHistoryDays.Session(id: chat.chatID, hasTurns: count.exchanges > 0,
                                                               isAnswered: count.answered > 0, isHidden: hidden))
+            } else if chat.status != "archived", count.exchanges > 0, let context = extras[chatKey]?.context, !context.isEmpty,
+                      let at = date(chat.editedAt) ?? date(chat.createdAt) {
+                discussions.append(ChatDiscussion(chatID: chat.chatID, sourceIDs: context, at: at))
             }
             guard !hidden, count.exchanges > 0, let filed = chat.notebookID, !filed.isEmpty else { continue }
             let zone = ProjectionZones.zone(ofKey: chat.zoneKey) ?? .library
@@ -495,7 +514,61 @@ enum MobileReadModels {
                 return $0.id < $1.id
             }
         }
-        return (byNotebook, zones, memory, reviewed)
+        discussions.sort {
+            if $0.at != $1.at { return $0.at > $1.at }
+            return $0.chatID < $1.chatID
+        }
+        return (byNotebook, zones, memory, reviewed, discussions)
+    }
+
+    /// One chat as memory-review material: its title and the transcript its ideas are extracted
+    /// from, built by `ReviewableChat` exactly as the Mac builds it so the two agree on the ideas'
+    /// content hash. nil when the chat is not on this phone or is not a reviewable chat.
+    ///
+    /// The wire carries `ended` for every finished chat (`ChatProjection.wireStatus`), so it reads as
+    /// the Mac's `completed`; the phone cannot tell an external link apart, nor a scheduled task's run.
+    static func reviewableChat(chatID: String, zoneKey: String, projection: MobileProjection) async throws
+        -> (title: String, text: String)? {
+        guard let chat = try await projection.envelope(.chat, id: chatID, zoneKey: zoneKey)?.fields,
+              let wireStatus = chat["status"]?.stringValue else { return nil }
+        let status: String
+        switch wireStatus {
+        case "active": status = "active"
+        case "ended": status = "completed"
+        default: return nil
+        }
+        var exchanges: [ReviewableChat.Exchange] = []
+        var page = MobileProjection.Page.first(200)
+        while true {
+            let batch = try await projection.exchanges(ofChat: chatID, zoneKey: zoneKey, page: page)
+            for envelope in batch {
+                let fields = envelope.fields
+                exchanges.append(ReviewableChat.Exchange(
+                    sequenceNumber: exchanges.count,
+                    question: fields["question"]?.stringValue ?? "",
+                    userAnswer: fields["userAnswer"]?.stringValue,
+                    evaluation: fields["evaluation"]?.stringValue,
+                    score: fields["score"]?.numberValue,
+                    ideaCoverage: fields["grading"]?["ideaCoverage"].map { String(decoding: $0.serialized(), as: UTF8.self) },
+                    answeredAt: date(fields["answeredAt"]?.int64Value)
+                ))
+            }
+            guard batch.count == page.limit else { break }
+            page = page.next
+        }
+        let title = chat["title"]?.stringValue ?? "Chat"
+        let startedAt = date(chat["createdAt"]?.int64Value) ?? .distantPast
+        let summary = ReviewableChat.summary(
+            title: title,
+            kind: chat["kind"]?.stringValue,
+            hasCardIDs: !(chat["cardIDs"]?.arrayValue ?? []).isEmpty,
+            overallScore: chat["overallScore"]?.numberValue,
+            exchanges: exchanges,
+            startedAt: startedAt,
+            endedAt: status == "completed" ? date(chat["editedAt"]?.int64Value) : nil
+        )
+        guard ReviewableChat.qualifies(id: chatID, status: status, summary: summary) else { return nil }
+        return (summary.title, ReviewableChat.transcript(title: summary.title, exchanges: exchanges))
     }
 
     /// A chat's turns for its read-only transcript, from its exchanges in display order; nil when the
@@ -687,6 +760,20 @@ enum MobileReadModels {
             if let id = row.text(0), let notebook = row.text(1) { parents[id] = notebook }
         }
         return parents
+    }
+
+    /// Every Goal in the Library. A row missing its title or status, both required (§3.5.7), is
+    /// left out rather than given one.
+    static func goals(in connection: SQLiteConnection) throws -> [MobileCloudGoal] {
+        var goals: [MobileCloudGoal] = []
+        try connection.query("SELECT id, title, status, notebook_id, due_at FROM m_goals WHERE zone_key = ? ORDER BY id",
+                             [.text(libraryKey)]) { row in
+            guard let id = row.text(0), let title = row.text(1), let status = row.text(2) else { return }
+            let notebookID = row.text(3).flatMap { $0.isEmpty ? nil : $0 }
+            goals.append(MobileCloudGoal(id: id, title: title, status: status, kind: "goal", parentNotebookID: notebookID,
+                                         updatedAt: date(row.integer(4)) ?? .distantPast))
+        }
+        return goals
     }
 
     // MARK: - Helpers
