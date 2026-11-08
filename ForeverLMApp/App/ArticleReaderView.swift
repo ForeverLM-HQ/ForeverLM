@@ -3120,13 +3120,16 @@ struct WebViewReader: NSViewRepresentable {
 
         // MARK: Downloads
 
-        /// The source, while it is a paper: the one that PDFs this page leads to
-        /// attach to. Read at each use, since a source can become a paper while
-        /// its reader is open.
+        /// The source, while it is a paper or an article waiting for its
+        /// document: the one that PDFs this page leads to attach to. Read at
+        /// each use, since a source can become a paper, or readable, while its
+        /// reader is open.
         private var paperReceivingPDFs: String? {
-            WebPagePolicy.readerPaperID(
+            let source = parent.vm.articles.first { $0.id == parent.articleId }
+            return WebPagePolicy.readerPaperID(
                 sourceID: parent.articleId,
-                sourceType: parent.vm.articles.first { $0.id == parent.articleId }?.sourceType
+                sourceType: source?.sourceType,
+                isUnreadable: source.map { $0.hasPaywallMarker || $0.state == .error } ?? false
             )
         }
 

@@ -1035,6 +1035,21 @@ struct SourceReaderPanel: View {
                 .help("Save this page as the paper's text and print it to a PDF")
             }
 
+            // An article the app could not read, whose page the reader shows:
+            // the PDF the page hands over becomes the article's document.
+            if isSavedSource, usesEmbeddedBrowser(article),
+               WebPagePolicy.awaitsDocumentPDF(
+                   sourceType: article.sourceType,
+                   isUnreadable: article.hasPaywallMarker || article.state == .error
+               ) {
+                Button {
+                    articleReaderChrome.downloadPDF?()
+                } label: {
+                    Label("Download PDF", systemImage: "arrow.down.doc")
+                }
+                .help("Download the article's PDF from this page and attach it")
+            }
+
             if isSavedSource, article.sourceType == .article {
                 Divider()
                 ArticleReadingViewMenuItems(article: article)

@@ -503,4 +503,19 @@ struct BrowserWorkspaceTests {
         // A source the library no longer holds takes nothing.
         #expect(WebPagePolicy.readerPaperID(sourceID: "gone", sourceType: nil) == nil)
     }
+
+    @Test("An article the app could not read takes the PDF its reader downloads; a readable one does not")
+    func unreadableArticleTakesItsPDF() {
+        // A publisher check blocked the fetch: the learner gets past it in the
+        // reader, and the PDF they download there is the article's.
+        for type: StudioSourceType in [.article, .unclassified] {
+            #expect(WebPagePolicy.readerPaperID(sourceID: "post", sourceType: type, isUnreadable: true) == "post")
+            #expect(WebPagePolicy.readerPaperID(sourceID: "post", sourceType: type, isUnreadable: false) == nil)
+        }
+        // Other kinds never take one, readable or not.
+        for type: StudioSourceType in [.manual, .book, .course, .video, .podcast, .meeting] {
+            #expect(WebPagePolicy.readerPaperID(sourceID: "source", sourceType: type, isUnreadable: true) == nil)
+        }
+        #expect(WebPagePolicy.readerPaperID(sourceID: "paper", sourceType: .paper, isUnreadable: false) == "paper")
+    }
 }

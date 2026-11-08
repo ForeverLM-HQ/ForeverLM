@@ -724,7 +724,12 @@ struct SourceReaderWindow: View {
                 }
             }
 
-            if article.sourceType == .paper && article.localFilePath == nil && usesEmbeddedBrowser(article) {
+            if usesEmbeddedBrowser(article),
+               (article.sourceType == .paper && article.localFilePath == nil)
+                || WebPagePolicy.awaitsDocumentPDF(
+                    sourceType: article.sourceType,
+                    isUnreadable: article.hasPaywallMarker || article.state == .error
+                ) {
                 Button {
                     articleReaderChrome.downloadPDF?()
                 } label: {

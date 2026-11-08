@@ -682,16 +682,7 @@ extension StudioViewModel {
               initial.sourceType != .paper else { return false }
 
         let sourceURL = initial.url
-        let directoryName = initial.sourceType == .course ? "Courses" : "Articles"
-        let destinationDirectory = (knowledgeBasePath as NSString)
-            .appendingPathComponent(directoryName)
-        await Self.ensureDirectoryExists(at: destinationDirectory)
-
-        let digest = SHA256.hash(data: Data(initial.id.utf8))
-            .map { String(format: "%02x", $0) }
-            .joined()
-        let destinationPath = (destinationDirectory as NSString)
-            .appendingPathComponent("\(digest).pdf")
+        let destinationPath = await documentPDFDestination(for: initial)
         var downloadedNewFile = false
 
         do {
@@ -711,45 +702,16 @@ extension StudioViewModel {
                 throw SourceError.pdfReadFailed
             }
 
-            var updated = articles.first(where: { $0.id == articleId }) ?? initial
-            guard updated.sourceType != .paper else {
-                if downloadedNewFile {
+            guard await recordDocumentPDF(
+                at: destinationPath,
+                for: articleId,
+                context: "Save downloaded document PDF"
+            ) else {
+                if downloadedNewFile,
+                   articles.first(where: { $0.id == articleId })?.sourceType == .paper {
                     await Self.removeItem(at: destinationPath)
                 }
                 return false
-            }
-            updated.localFilePath = destinationPath
-            updated.state = .ready
-            updated.errorMessage = nil
-            updated.isPaywalled = false
-            updated.paywallSuspicion = nil
-
-            #if canImport(PDFKit)
-            let extracted = await Task.detached(priority: .utility) { () -> (text: String, wordCount: Int)? in
-                guard let document = PDFDocument(url: URL(fileURLWithPath: destinationPath)) else {
-                    return nil
-                }
-                let text = PDFTextExtractor.textWithFigureReferences(
-                    from: document,
-                    pages: 0..<document.pageCount
-                )
-                guard !text.isEmpty else { return nil }
-                return (text, text.split(separator: " ").count)
-            }.value
-            if let extracted {
-                updated.content = extracted.text
-                updated.wordCount = extracted.wordCount
-            }
-            #endif
-
-            _ = await Task.detached(priority: .utility) {
-                StudioArticle.warmResolvedLocalPathCache(forRawPaths: [destinationPath])
-            }.value
-            guard await persistSource(updated, context: "Save downloaded document PDF") else {
-                return false
-            }
-            if let currentIndex = articles.firstIndex(where: { $0.id == articleId }) {
-                articles[currentIndex] = updated
             }
             logger.info("Downloaded document PDF without paper ingestion: \(sourceURL) -> \(destinationPath)")
             return true
@@ -757,6 +719,92 @@ extension StudioViewModel {
             logger.warning("Document PDF download failed for \(sourceURL): \(error.localizedDescription)")
             return false
         }
+    }
+
+    /// Attach a PDF the learner has — picked in Finder, or downloaded in the
+    /// reader — to an article the app could not read (a publisher check, a
+    /// paywall). The article stays an article: the file is kept the way
+    /// `downloadDocumentPDF` keeps one, its text becomes the article's, and the
+    /// reader shows the PDF. Attaching a paper's PDF is `attachPDF`.
+    func attachDocumentPDF(to articleId: String, pdfURL: URL) async throws {
+        guard let article = articles.first(where: { $0.id == articleId }) else { throw SourceError.fetchFailed }
+        guard article.sourceType != .paper else {
+            try await attachPDF(to: articleId, pdfURL: pdfURL)
+            return
+        }
+        let didAccess = pdfURL.startAccessingSecurityScopedResource()
+        defer {
+            if didAccess { pdfURL.stopAccessingSecurityScopedResource() }
+        }
+        guard await Self.canOpenPDF(at: pdfURL.path) else { throw SourceError.pdfReadFailed }
+        let destinationPath = await documentPDFDestination(for: article)
+        try await Task.detached(priority: .userInitiated) {
+            let fm = FileManager.default
+            let destination = URL(fileURLWithPath: destinationPath)
+            if fm.fileExists(atPath: destinationPath) {
+                try fm.removeItem(at: destination)
+            }
+            try fm.copyItem(at: pdfURL, to: destination)
+        }.value
+        guard await recordDocumentPDF(at: destinationPath, for: articleId, context: "Attach PDF to article") else {
+            throw SourceError.fetchFailed
+        }
+        queueSourceEmbeddingRefreshIfReady(articleId)
+    }
+
+    /// Where a non-paper source keeps its PDF: one file per source, named for
+    /// its id, under Articles (Courses for a course's handout).
+    private func documentPDFDestination(for article: StudioArticle) async -> String {
+        let directoryName = article.sourceType == .course ? "Courses" : "Articles"
+        let destinationDirectory = (knowledgeBasePath as NSString)
+            .appendingPathComponent(directoryName)
+        await Self.ensureDirectoryExists(at: destinationDirectory)
+        let digest = SHA256.hash(data: Data(article.id.utf8))
+            .map { String(format: "%02x", $0) }
+            .joined()
+        return (destinationDirectory as NSString).appendingPathComponent("\(digest).pdf")
+    }
+
+    /// Make the PDF at `destinationPath` the source's document: its file, its
+    /// text, and a ready state. False when the source is gone or has become a
+    /// paper (whose PDF `attachPDF` owns), or the save failed.
+    private func recordDocumentPDF(at destinationPath: String, for articleId: String, context: String) async -> Bool {
+        guard var updated = articles.first(where: { $0.id == articleId }),
+              updated.sourceType != .paper else { return false }
+        updated.localFilePath = destinationPath
+        updated.state = .ready
+        updated.errorMessage = nil
+        updated.isPaywalled = false
+        updated.paywallSuspicion = nil
+
+        #if canImport(PDFKit)
+        let extracted = await Task.detached(priority: .utility) { () -> (text: String, wordCount: Int)? in
+            guard let document = PDFDocument(url: URL(fileURLWithPath: destinationPath)) else {
+                return nil
+            }
+            let text = PDFTextExtractor.textWithFigureReferences(
+                from: document,
+                pages: 0..<document.pageCount
+            )
+            guard !text.isEmpty else { return nil }
+            return (text, text.split(separator: " ").count)
+        }.value
+        if let extracted {
+            updated.content = extracted.text
+            updated.wordCount = extracted.wordCount
+        }
+        #endif
+
+        _ = await Task.detached(priority: .utility) {
+            StudioArticle.warmResolvedLocalPathCache(forRawPaths: [destinationPath])
+        }.value
+        guard await persistSource(updated, context: context) else {
+            return false
+        }
+        if let currentIndex = articles.firstIndex(where: { $0.id == articleId }) {
+            articles[currentIndex] = updated
+        }
+        return true
     }
 
     func downloadRemoteBookPDF(for articleId: String) async -> Bool {

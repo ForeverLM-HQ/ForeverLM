@@ -710,9 +710,10 @@ enum WebPagePolicy {
               let scheme = pageURL.scheme?.lowercased(), scheme == "http" || scheme == "https" else { return nil }
         let key = SourceDiscovery.normalizedURL(pageURL.absoluteString)
         return library.articles.first {
-            $0.sourceType == .paper
-                && SourceDiscovery.normalizedURL($0.url) == key
-                && $0.paperAttentionReason(hasUsablePDF: $0.cachedHasUsablePDF) == .pdfNeeded
+            SourceDiscovery.normalizedURL($0.url) == key
+                && (($0.sourceType == .paper
+                        && $0.paperAttentionReason(hasUsablePDF: $0.cachedHasUsablePDF) == .pdfNeeded)
+                    || awaitsDocumentPDF(sourceType: $0.sourceType, isUnreadable: $0.hasPaywallMarker || $0.state == .error))
         }?.id
     }
 
@@ -721,8 +722,21 @@ enum WebPagePolicy {
     /// to papers as its references; a PDF one of those links opens is that
     /// other paper, and taking it as the source's turned the article being
     /// read into that paper and archived the library's own copy of it.
-    static func readerPaperID(sourceID: String, sourceType: StudioSourceType?) -> String? {
-        sourceType == .paper ? sourceID : nil
+    ///
+    /// The one exception is an article the app could not read — a publisher
+    /// check or a paywall answered its fetch — which is waiting for the
+    /// learner to hand it its document. Its reader is where the learner gets
+    /// past the check, so the PDF they download there is the article's
+    /// (`attachDocumentPDF`); it stays an article, never becoming a paper.
+    static func readerPaperID(sourceID: String, sourceType: StudioSourceType?, isUnreadable: Bool = false) -> String? {
+        if sourceType == .paper { return sourceID }
+        return awaitsDocumentPDF(sourceType: sourceType, isUnreadable: isUnreadable) ? sourceID : nil
+    }
+
+    /// An article the app could not read (`isUnreadable`: an error state or a
+    /// paywall marker), which takes a PDF the learner brings as its document.
+    static func awaitsDocumentPDF(sourceType: StudioSourceType?, isUnreadable: Bool) -> Bool {
+        (sourceType == .article || sourceType == .unclassified) && isUnreadable
     }
 
     /// A free path in `directory`, since `WKDownload` refuses a destination
@@ -998,9 +1012,11 @@ final class WebPageDownloads: NSObject {
             return
         }
 
+        let isPaper = library.articles.first { $0.id == paperID }?.sourceType == .paper
+
         // PMC can answer with an interstitial that WKDownload saves as is;
         // the validated downloader handles PMC's proof of work.
-        if !isPDF, let sourceURL = item.sourceURL, Self.isPMCDownloadURL(sourceURL) {
+        if isPaper, !isPDF, let sourceURL = item.sourceURL, Self.isPMCDownloadURL(sourceURL) {
             do {
                 try await library.attachPDFFromURL(to: paperID, urlString: sourceURL.absoluteString)
                 notify("Attached the PDF to the paper")
@@ -1030,9 +1046,16 @@ final class WebPageDownloads: NSObject {
         }
 
         do {
-            try await library.attachPDF(to: paperID, pdfPath: fileURL.path)
-            notify("Attached the PDF to the paper")
-            returnToReadingSpot(item.returnItem, in: webView)
+            if isPaper {
+                try await library.attachPDF(to: paperID, pdfPath: fileURL.path)
+                notify("Attached the PDF to the paper")
+                returnToReadingSpot(item.returnItem, in: webView)
+            } else {
+                // An unreadable article's own PDF: it becomes the article's
+                // document, and its reader shows the PDF from here on.
+                try await library.attachDocumentPDF(to: paperID, pdfURL: fileURL)
+                notify("Attached the PDF to the article")
+            }
         } catch {
             keepInDownloads(fileURL, named: name) { _ in "Couldn't attach that PDF — \(error.localizedDescription). It is in Downloads" }
         }

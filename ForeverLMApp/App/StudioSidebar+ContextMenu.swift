@@ -1212,6 +1212,25 @@ extension StudioSidebar {
             } label: {
                 Label("Attach Text File…", systemImage: "doc.badge.plus")
             }
+            // The PDF the learner downloaded past the publisher's check: it
+            // becomes the article's document, and the article stays one.
+            Button {
+                Task {
+                    let urls = await FilePanel.open { panel in
+                        panel.allowedContentTypes = [.pdf]
+                        panel.message = "Select the PDF of this article"
+                    }
+                    guard let url = urls.first else { return }
+                    do {
+                        try await vm.attachDocumentPDF(to: article.id, pdfURL: url)
+                        vm.showToast("PDF attached")
+                    } catch {
+                        vm.showToast("Could not attach PDF: \(error.localizedDescription)")
+                    }
+                }
+            } label: {
+                Label("Attach PDF File…", systemImage: "doc.badge.plus")
+            }
         }
 
         if canAttachPaperPDF {
