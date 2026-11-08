@@ -2122,6 +2122,25 @@ struct TabManagementTests {
         #expect(!vm.meetingSessionWhen(for: dated).isEmpty)
     }
 
+    @Test("the reader names a session's series beside its day or topic")
+    func meetingStandaloneTitleNamesTheSeries() {
+        let vm = makeViewModel()
+        vm.meetingMetadata = ["alpha": MeetingMetadata(title: "Alpha Group")]
+        let dated = makeArticle(title: "2026/10/25", sourceType: .meeting, parentGroup: "alpha")
+        let prefixed = makeArticle(title: "Alpha Group - 2026/10/25", sourceType: .meeting, parentGroup: "alpha")
+        let named = makeArticle(title: "Journal club on ion channels", sourceType: .meeting, parentGroup: "alpha")
+        let loose = makeArticle(title: "2026/10/25", sourceType: .meeting, parentGroup: nil)
+        let video = makeArticle(title: "A talk", sourceType: .video, parentGroup: "alpha")
+
+        let day = vm.meetingRowTitle(for: dated).text
+        #expect(day != "2026/10/25")
+        #expect(vm.standaloneTitle(for: dated) == "Alpha Group — \(day)")
+        #expect(vm.standaloneTitle(for: prefixed) == "Alpha Group — \(day)")
+        #expect(vm.standaloneTitle(for: named) == "Alpha Group — Journal club on ion channels")
+        #expect(vm.standaloneTitle(for: loose) == day)
+        #expect(vm.standaloneTitle(for: video) == "A talk")
+    }
+
     @Test("a folder imported from this Mac is visible in Meetings")
     func locallyImportedMeetingIsVisible() {
         let vm = makeViewModel()

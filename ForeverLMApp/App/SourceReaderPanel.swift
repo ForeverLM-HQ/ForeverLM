@@ -541,7 +541,7 @@ struct SourceReaderPanel: View {
         } identity: { density in
             SourceReaderToolbarIdentity(
                 density: density,
-                title: vm.displayTitle(for: article),
+                title: vm.standaloneTitle(for: article),
                 // A book counted in pages says where you are in pages; the
                 // chapter count is what an EPUB has to offer instead.
                 // A PDF's page lives in the pill at the foot of its pages

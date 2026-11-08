@@ -986,6 +986,20 @@ extension StudioViewModel {
         return row.day != nil ? series : "\(series) — \(row.text)"
     }
 
+    /// The title a source carries where nothing around it names its group: the
+    /// reader's header. A meeting session is stored under its own name, often
+    /// nothing but its day, so on its own it read "2026/10/25" with no word of
+    /// which series it was (product owner, 2026-11-07: "it would be nice if these
+    /// videos … also have like [the group's name] in the title"). It reads
+    /// "<series> — <day or topic>" instead.
+    func standaloneTitle(for article: StudioArticle) -> String {
+        guard article.sourceType == .meeting else { return displayTitle(for: article) }
+        let row = meetingRowTitle(for: article)
+        let series = article.parentGroup.map { meetingDisplayName($0) } ?? ""
+        guard !series.isEmpty, series != row.text else { return row.text }
+        return "\(series) — \(row.text)"
+    }
+
     /// When a session happened, for a list that mixes series: the day it stands
     /// for, with the time when one is known, and no midnight made up when none is.
     func meetingSessionWhen(for article: StudioArticle) -> String {
