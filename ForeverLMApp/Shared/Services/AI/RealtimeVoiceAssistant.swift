@@ -25,9 +25,10 @@ enum RealtimeVoiceAssistant {
         case mac
     }
 
-    /// Each part of the picture is kept to this many characters, so a long
-    /// plan Page or a full calendar never crowds out the conversation.
-    static let sectionBudget = 8_000
+    /// Each part of the picture is kept to this many characters (about 4k
+    /// tokens), so the model starts knowing a lot without a tool call, and a
+    /// long plan Page or a full calendar still never crowds out the conversation.
+    static let sectionBudget = 16_000
     static let title = "ForeverLM"
 
     static func instructions(sections: [Section], setting: Setting, now: Date = Date(), calendar: Calendar = .current) -> String {
@@ -63,6 +64,13 @@ enum RealtimeVoiceAssistant {
         is not enough.
         - When they say goodbye or that they are done, say a one-sentence goodbye, then call end_conversation.
         """)
+        if setting != .mac {
+            parts.append("""
+            - When they ask for their review or their cards, run it out loud: get_due_cards, then one card at a time. \
+            Ask its question, let them answer, say plainly whether they had it and the answer in a sentence, call \
+            grade_card, then ask the next. Stop when they want to or the cards run out, and say how it went.
+            """)
+        }
         switch setting {
         case .car:
             parts.append("""

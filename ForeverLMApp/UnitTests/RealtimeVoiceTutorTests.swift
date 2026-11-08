@@ -3,9 +3,9 @@ import Testing
 @testable import ForeverLM
 
 /// The model-free parts of voice mode (`RealtimeVoiceTutor.swift`,
-/// `RealtimeVoiceProtocol.swift`): what the tutor is told, the passage search
-/// its tool runs on the device, how a conversation is saved as a chat, and how
-/// server errors and response control are handled.
+/// `RealtimeVoiceProtocol.swift`): the session it is minted with, what the
+/// tutor is told, the passage search its tool runs on the device, how a
+/// conversation is saved and resumed, and how server events are read.
 @Suite("Realtime voice tutor")
 struct RealtimeVoiceTutorTests {
     private func source(text: String, guide: String? = nil) -> RealtimeVoiceSource {
@@ -91,12 +91,53 @@ struct RealtimeVoiceTutorTests {
         #expect(exchanges[0].answer.isEmpty)
     }
 
-    @Test("Benign barge-in races are ignored only once the session is up")
+    @Test("Response-control races are not shown; other errors are")
     func errorDisposition() {
-        let race = "Only model output audio messages can be truncated"
-        #expect(RealtimeVoiceServerErrorDisposition.resolve(isReady: true, message: race) == .ignore)
-        #expect(RealtimeVoiceServerErrorDisposition.resolve(isReady: false, message: race) == .failReadiness)
-        #expect(RealtimeVoiceServerErrorDisposition.resolve(isReady: true, message: "Rate limit") == .surfaceInline)
+        #expect(RealtimeVoiceServerErrorDisposition.isBenign("Conversation already has an active response in progress"))
+        #expect(!RealtimeVoiceServerErrorDisposition.isBenign("Rate limit reached"))
+    }
+
+    @Test("The session is minted with the voice, tools and OpenAI's default turn detection, and no transcription")
+    func sessionConfiguration() throws {
+        let configuration = OpenAIRealtimeWire.sessionConfiguration(
+            instructions: "Be brief.",
+            tools: [RealtimeVoiceTutor.endTool],
+            voice: "cedar"
+        )
+        let json = try #require(String(data: JSONSerialization.data(withJSONObject: configuration, options: [.sortedKeys]), encoding: .utf8))
+        #expect(json.contains(#""voice":"cedar""#))
+        #expect(json.contains(#""type":"server_vad""#))
+        #expect(json.contains(#""interrupt_response":true"#))
+        #expect(json.contains(#""threshold":0.5"#))
+        #expect(json.contains(#""retention_ratio":0.8"#))
+        #expect(!json.contains("transcription"))
+        // The proxy sets the type and the model.
+        #expect(configuration["type"] == nil && configuration["model"] == nil)
+        let body = try RealtimeSessionJSON(configuration)
+        let encoded = try #require(String(data: JSONEncoder().encode(body), encoding: .utf8))
+        #expect(encoded.contains(#""create_response":true"#))
+        #expect(encoded.contains(#""prefix_padding_ms":300"#))
+    }
+
+    @Test("A source that fits offers no tool; a long one offers passage search")
+    func sourceTools() {
+        let short = RealtimeVoiceSourceToolbox(source: source(text: "Short."))
+        #expect(short.toolDefinitions.isEmpty)
+        let long = RealtimeVoiceSourceToolbox(source: source(text: String(repeating: "a ", count: RealtimeVoiceTutor.inlineTextBudget)))
+        #expect(long.toolDefinitions.count == 1)
+    }
+
+    @Test("A dropped call resumes with what ForeverLM said, and the learner's spoken turns are marked, never transcribed")
+    func resume() {
+        let turns = [
+            RealtimeVoiceTurn(id: "1", role: .tutor, text: "What is the central claim?"),
+            RealtimeVoiceTurn(id: "2", role: .learner, text: RealtimeVoiceTurn.spokenMark),
+            RealtimeVoiceTurn(id: "3", role: .tutor, text: "Right, and why?"),
+        ]
+        let items = RealtimeVoiceTutor.resumeItems(from: turns)
+        #expect(items.map(\.text) == ["What is the central claim?", "Right, and why?"])
+        #expect(items.allSatisfy { $0.role == "assistant" })
+        #expect(RealtimeVoiceExchange.assistantChatTitle(firstQuestion: RealtimeVoiceTurn.spokenMark) == "Voice chat")
     }
 
     @Test("Response creates are coalesced until the server answers")
@@ -117,15 +158,12 @@ struct RealtimeVoiceTutorTests {
 
     @Test("Server events decode to what the controller needs")
     func decoding() {
-        let audio = OpenAIRealtimeWire.decodeServerEvent([
-            "type": "response.output_audio.delta",
-            "delta": Data([1, 2, 3, 4]).base64EncodedString(),
-        ])
-        if case .audioDelta(let data) = audio {
-            #expect(data.count == 4)
-        } else {
-            Issue.record("audio delta not decoded")
-        }
+        // Over WebRTC the audio is a media track; the data channel says when
+        // it plays, stops, and is cut off.
+        #expect(OpenAIRealtimeWire.decodeServerEvent(["type": "output_audio_buffer.started"]) == .outputAudioStarted)
+        #expect(OpenAIRealtimeWire.decodeServerEvent(["type": "output_audio_buffer.stopped"]) == .outputAudioStopped)
+        #expect(OpenAIRealtimeWire.decodeServerEvent(["type": "output_audio_buffer.cleared"]) == .outputAudioCleared)
+        #expect(OpenAIRealtimeWire.decodeServerEvent(["type": "session.created"]) == .sessionReady)
         let call = OpenAIRealtimeWire.decodeServerEvent([
             "type": "response.function_call_arguments.done",
             "call_id": "c1", "name": "search_source", "arguments": #"{"query":"x"}"#,
@@ -217,6 +255,9 @@ struct RealtimeVoiceTutorTests {
         #expect(!car.contains("<calendar_this_week>"))
         #expect(car.contains("driving"))
         #expect(!RealtimeVoiceAssistant.instructions(sections: sections, setting: .mac).contains("driving"))
+        // Card review runs where its tools are: the iPhone and the car.
+        #expect(car.contains("get_due_cards"))
+        #expect(!RealtimeVoiceAssistant.instructions(sections: sections, setting: .mac).contains("get_due_cards"))
         #expect(RealtimeVoiceExchange.assistantChatTitle(firstQuestion: nil) == "Voice chat")
         let long = RealtimeVoiceExchange.assistantChatTitle(firstQuestion: String(repeating: "word ", count: 30))
         #expect(long.hasSuffix("…"))

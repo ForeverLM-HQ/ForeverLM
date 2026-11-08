@@ -1,21 +1,30 @@
 import Foundation
 
-// Voice mode's wire protocol: OpenAI Realtime, speech to speech, over one
-// WebSocket. It came back on 2026-11-07 (product owner, 2026-11-07: "now we
-// actually have free API credits from OpenAI as part of our plan ... we should
-// 100% implement the real-time voice mode again"). The proxy mints a short-lived
-// client secret on the company's OpenAI account (`ManagedAI.mintRealtimeVoiceSecret`),
-// so no OpenAI key reaches a device and the learner pays nothing. This is the one
+// Voice mode's wire protocol: OpenAI Realtime, speech to speech, over WebRTC.
+// It came back on 2026-11-07 (product owner, 2026-11-07: "now we actually have
+// free API credits from OpenAI as part of our plan ... we should 100% implement
+// the real-time voice mode again"). The proxy mints a short-lived client secret
+// on the company's OpenAI account (`ManagedAI.mintRealtimeVoiceSecret`), so no
+// OpenAI key reaches a device and the learner pays nothing. This is the one
 // model route that does not go through OpenRouter, which serves no
 // speech-to-speech model.
 //
-// The Mac and the iPhone share this file, `RealtimeVoiceSession` (the socket) and
-// `RealtimeVoiceController` (the conversation); each platform brings only its
-// audio graph (`RealtimeVoiceAudio`) and its screens. The protocol details here
-// were proven in the first realtime voice (removed 2026-10-01) and ported from it.
+// Everything runs on the realtime API alone, as OpenAI's guide lays it out
+// (product owner, 2026-11-07: "Should all just call the real-time voice API, not
+// do any sneaky text-to-speech or speech-to-text ... simplify the code and just
+// follow OpenAI's documentation closely"): the learner's audio goes up a WebRTC
+// track and the model's comes down one; the server detects turns, handles
+// interruptions and trims unheard audio. No separate transcription model runs
+// on the learner's words. What the model says comes with its audio
+// (`response.output_audio_transcript.*`) and is kept for the saved chat only;
+// nothing is shown as text while the conversation runs.
+//
+// The Mac and the iPhone share this file, `RealtimeVoiceSession` (the call) and
+// `RealtimeVoiceController` (the conversation); each platform brings its audio
+// permission and session (`RealtimeVoicePlatformAudio`) and its screens.
 
-/// What voice mode runs on. One model, one voice: nothing for the learner to
-/// pick, and nothing on the learner's bill.
+/// What voice mode runs on: one model, the learner's pick of voice, nothing on
+/// the learner's bill.
 enum RealtimeVoiceDefaults {
     static let model = AIModelDefaults.realtimeVoiceModel
     /// OpenAI's recommended voice for the realtime models, and the one a
@@ -43,13 +52,6 @@ enum RealtimeVoiceDefaults {
     static func voiceLabel(_ id: String) -> String {
         id.prefix(1).uppercased() + id.dropFirst()
     }
-    /// Streams the learner's words while they speak, for the caption and the
-    /// saved transcript. `fallbackTranscriptionModel` is tried once if OpenAI
-    /// refuses this one, so a renamed model never stops a conversation.
-    static let transcriptionModel = AIModelDefaults.realtimeVoiceTranscription
-    static let fallbackTranscriptionModel = AIModelDefaults.realtimeVoiceTranscriptionFallback
-    /// Both directions are 24 kHz mono PCM16 on the wire.
-    static let sampleRate = 24_000.0
 
     /// A usage-ledger model id that voice mode ran on ("gpt-realtime-2.1",
     /// "openai/gpt-realtime-2.1-mini"). AI Usage reads these as paid by
@@ -61,16 +63,21 @@ enum RealtimeVoiceDefaults {
 }
 
 /// The events the controller consumes, decoded from OpenAI's server events.
-enum RealtimeVoiceServerEvent {
+enum RealtimeVoiceServerEvent: Equatable {
     case sessionReady
+    /// The server heard the learner start talking. Over WebRTC it stops and
+    /// trims the reply itself.
     case speechStarted
+    /// The learner's turn ended; the server answers it on its own.
     case speechStopped
-    case inputTranscriptDelta(itemID: String, delta: String)
-    case inputTranscriptCompleted(itemID: String, transcript: String)
     case responseCreated(responseID: String)
     case outputItemAdded(itemID: String)
-    /// 24 kHz mono PCM16 to play.
-    case audioDelta(Data)
+    /// The model's audio began playing on the learner's device.
+    case outputAudioStarted
+    /// The model's audio finished playing: every buffered word was heard.
+    case outputAudioStopped
+    /// The model's audio was cut off by the learner and the rest thrown away.
+    case outputAudioCleared
     case outputTranscriptDelta(itemID: String, delta: String)
     case outputTranscriptDone(itemID: String, transcript: String)
     case functionCallDone(callID: String, name: String, argumentsJSON: String)
@@ -115,32 +122,14 @@ struct RealtimeVoiceUsage: Equatable, Sendable {
     }
 }
 
-/// How a server `error` event is treated.
-enum RealtimeVoiceServerErrorDisposition: Equatable {
-    case ignore
-    case failReadiness
-    case surfaceInline
-
-    /// Protocol races nobody should be shown. Barge-in is the one that reaches
-    /// people: trimming the unheard tail of a reply is a request about an item
-    /// the server may already have finished, so healthy interruptions come back
-    /// rejected. The wire gives them no distinguishing code, only the message.
+/// Server `error` events nobody should be shown: protocol races the
+/// conversation recovers from by itself. The wire gives them no distinguishing
+/// code, only the message.
+enum RealtimeVoiceServerErrorDisposition {
     private static let benignFragments = [
-        "only model output audio messages can be truncated",
         "already has an active response",
         "cancellation failed: no active response found",
-        "audio content of",
     ]
-
-    static func resolve(isReady: Bool, message: String) -> Self {
-        // Before the session is up, the same text is the reason it never came
-        // up, and the learner needs it.
-        guard isReady else { return .failReadiness }
-        if isBenign(message) { return .ignore }
-        // OpenAI uses top-level errors for request-scoped races too; its socket
-        // stays usable, so the conversation goes on with a line on screen.
-        return .surfaceInline
-    }
 
     static func isBenign(_ message: String) -> Bool {
         let normalized = message.lowercased()
@@ -148,118 +137,78 @@ enum RealtimeVoiceServerErrorDisposition: Equatable {
     }
 }
 
-/// Keeps reply audio that was already in flight when the learner barged in
-/// from restarting the speaker. A few deltas can arrive after the interruption;
-/// playback stays closed until the next response begins.
-struct RealtimePlaybackGate: Sendable {
-    private(set) var isSuppressed = false
-
-    var acceptsAudio: Bool { !isSuppressed }
-
-    mutating func interrupt() { isSuppressed = true }
-    mutating func beginResponse() { isSuppressed = false }
-}
-
 /// OpenAI Realtime's payloads and server-event decoding.
 enum OpenAIRealtimeWire {
-    static func socketRequest(model: String, secret: String) -> URLRequest {
-        var components = URLComponents(string: "wss://api.openai.com/v1/realtime")!
-        components.queryItems = [URLQueryItem(name: "model", value: model)]
-        var request = URLRequest(url: components.url!)
-        request.setValue("Bearer \(secret)", forHTTPHeaderField: "Authorization")
-        return request
-    }
-
-    /// The whole session configuration. Foundation can bridge a Swift `Double`
-    /// through its binary expansion when serializing an untyped dictionary and
-    /// OpenAI constrains decimal precision on these fields, so they are exact
-    /// decimal numbers.
-    static func configurationPayload(
+    /// The session the proxy mints the client secret with (its type and model
+    /// are the proxy's). Turn detection is OpenAI's documented default for
+    /// speech to speech, server VAD that answers and lets the learner interrupt;
+    /// over WebRTC the server stops and trims the reply when they do. No input
+    /// transcription: nothing runs on the learner's words but the realtime model.
+    static func sessionConfiguration(
         instructions: String,
         tools: [[String: Any]],
-        voice: String,
-        transcriptionModel: String
+        voice: String
     ) -> [String: Any] {
+        // Foundation can bridge a Swift `Double` through its binary expansion
+        // when serializing an untyped dictionary, and OpenAI constrains decimal
+        // precision on these fields, so they are exact decimal numbers.
         let retentionRatio = NSDecimalNumber(mantissa: 8, exponent: -1, isNegative: false)
         let vadThreshold = NSDecimalNumber(mantissa: 5, exponent: -1, isNegative: false)
         return [
-            "type": "session.update",
-            "session": [
-                "type": "realtime",
-                "output_modalities": ["audio"],
-                "instructions": instructions,
-                // A long conversation drops its oldest turns, never the
-                // instructions, which carry the source.
-                "truncation": [
-                    "type": "retention_ratio",
-                    "retention_ratio": retentionRatio,
-                ] as [String: Any],
-                "audio": [
-                    "input": [
-                        "format": ["type": "audio/pcm", "rate": 24_000] as [String: Any],
-                        "transcription": ["model": transcriptionModel],
-                        // Echo cancellation and the platform's own noise
-                        // suppression run before this; the server's adds the
-                        // near-field filter a phone held close needs.
-                        "noise_reduction": ["type": "near_field"],
-                        "turn_detection": [
-                            "type": "server_vad",
-                            "threshold": vadThreshold,
-                            "prefix_padding_ms": 300,
-                            "silence_duration_ms": 600,
-                            "create_response": true,
-                            "interrupt_response": true,
-                        ] as [String: Any],
-                    ] as [String: Any],
-                    "output": [
-                        "format": ["type": "audio/pcm", "rate": 24_000] as [String: Any],
-                        "voice": voice,
-                    ] as [String: Any],
-                ] as [String: Any],
-                "tools": tools,
-                "tool_choice": "auto",
+            "output_modalities": ["audio"],
+            "instructions": instructions,
+            // A long conversation drops its oldest turns, never the
+            // instructions, which carry the source.
+            "truncation": [
+                "type": "retention_ratio",
+                "retention_ratio": retentionRatio,
             ] as [String: Any],
+            "audio": [
+                "input": [
+                    "turn_detection": [
+                        "type": "server_vad",
+                        "threshold": vadThreshold,
+                        "prefix_padding_ms": 300,
+                        "silence_duration_ms": 500,
+                        "create_response": true,
+                        "interrupt_response": true,
+                    ] as [String: Any],
+                ] as [String: Any],
+                "output": ["voice": voice],
+            ] as [String: Any],
+            "tools": tools,
+            "tool_choice": "auto",
         ]
     }
 
     static func decodeServerEvent(_ json: [String: Any]) -> RealtimeVoiceServerEvent? {
         guard let type = json["type"] as? String else { return nil }
         switch type {
-        case "session.created":
-            // The bare session is not ready: only the acknowledgement of our
-            // configuration may release buffered microphone audio.
-            return .ignored(type: type)
-        case "session.updated":
+        case "session.created", "session.updated":
             return .sessionReady
         case "input_audio_buffer.speech_started":
             return .speechStarted
         case "input_audio_buffer.speech_stopped":
             return .speechStopped
-        case "conversation.item.input_audio_transcription.delta":
-            guard let delta = json["delta"] as? String else { return nil }
-            return .inputTranscriptDelta(itemID: (json["item_id"] as? String) ?? "", delta: delta)
-        case "conversation.item.input_audio_transcription.completed":
-            return .inputTranscriptCompleted(
-                itemID: (json["item_id"] as? String) ?? "",
-                transcript: (json["transcript"] as? String) ?? ""
-            )
         case "response.created":
             let response = json["response"] as? [String: Any]
             return .responseCreated(responseID: (response?["id"] as? String) ?? "")
         case "response.output_item.added":
             let item = json["item"] as? [String: Any]
-            // Function calls are output items too, but never own speaker audio.
+            // Function calls are output items too, but never speak.
             guard (item?["type"] as? String) == "message",
                   let itemID = item?["id"] as? String else { return nil }
             return .outputItemAdded(itemID: itemID)
-        case "response.output_audio.delta", "response.audio.delta":
-            guard let base64 = json["delta"] as? String,
-                  let data = Data(base64Encoded: base64) else { return nil }
-            return .audioDelta(data)
-        case "response.output_audio_transcript.delta", "response.audio_transcript.delta":
+        case "output_audio_buffer.started":
+            return .outputAudioStarted
+        case "output_audio_buffer.stopped":
+            return .outputAudioStopped
+        case "output_audio_buffer.cleared":
+            return .outputAudioCleared
+        case "response.output_audio_transcript.delta":
             guard let delta = json["delta"] as? String else { return nil }
             return .outputTranscriptDelta(itemID: (json["item_id"] as? String) ?? "", delta: delta)
-        case "response.output_audio_transcript.done", "response.audio_transcript.done":
+        case "response.output_audio_transcript.done":
             return .outputTranscriptDone(
                 itemID: (json["item_id"] as? String) ?? "",
                 transcript: (json["transcript"] as? String) ?? ""
@@ -292,10 +241,6 @@ enum OpenAIRealtimeWire {
         }
     }
 
-    static func appendAudioPayload(_ pcm16: Data) -> [String: Any] {
-        ["type": "input_audio_buffer.append", "audio": pcm16.base64EncodedString()]
-    }
-
     static func messagePayload(role: String, text: String) -> [String: Any] {
         // The API takes earlier assistant turns as text items, so a resumed
         // conversation can carry what the tutor already said.
@@ -326,15 +271,6 @@ enum OpenAIRealtimeWire {
     }
 
     static let responseCancelPayload: [String: Any] = ["type": "response.cancel"]
-
-    static func truncatePayload(itemID: String, audioEndMs: Int) -> [String: Any] {
-        [
-            "type": "conversation.item.truncate",
-            "item_id": itemID,
-            "content_index": 0,
-            "audio_end_ms": max(0, audioEndMs),
-        ]
-    }
 
     static func responseCreateErrorEventID(in json: [String: Any]) -> String? {
         guard (json["type"] as? String) == "error",
@@ -415,19 +351,16 @@ enum RealtimeVoiceSessionError: LocalizedError, Equatable {
     case notConnected
     case encodingFailed
     case connectionTimedOut
-    case startupAudioBufferExceeded
     case serverRejected(String)
 
     var errorDescription: String? {
         switch self {
         case .notConnected:
-            return "The voice session is not connected."
+            return "The voice call is not connected."
         case .encodingFailed:
             return "Could not encode a voice event."
         case .connectionTimedOut:
             return "The voice service did not finish connecting."
-        case .startupAudioBufferExceeded:
-            return "The voice service took too long to connect while listening."
         case .serverRejected(let message):
             return message
         }

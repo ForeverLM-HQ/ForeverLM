@@ -1,414 +1,405 @@
+#if os(iOS)
+import AVFoundation
+#endif
 import Foundation
 import OSLog
+import WebRTC
 
-/// One OpenAI Realtime WebSocket and the event stream decoded from it.
+/// One voice conversation's connection to OpenAI Realtime, over WebRTC, the way
+/// OpenAI's guide connects a phone or desktop client
+/// (developers.openai.com/api/docs/guides/voice-webrtc, read 2026-11-07):
 ///
-/// It owns the socket only: the conversation (`RealtimeVoiceController`) decides
-/// what to say and what to do when a socket ends. Microphone audio is buffered
-/// here until the session acknowledges its configuration, and again while a dead
-/// socket is replaced, so nothing the learner says in a gap is lost.
-actor RealtimeVoiceSession {
+/// 1. The proxy mints a client secret with the whole session configured on it
+///    (`ManagedAI.mintRealtimeVoiceSecret`): instructions, voice, tools, turn
+///    detection. Nothing large ever crosses the data channel, whose messages
+///    are capped near 256 KB.
+/// 2. The microphone is added as a local audio track and the `oai-events`
+///    data channel is created, before the offer.
+/// 3. The offer's SDP is posted to `https://api.openai.com/v1/realtime/calls`
+///    with the secret; the answer's SDP comes back as the body.
+///
+/// The model's voice then arrives as a remote audio track that WebRTC plays on
+/// its own. The server buffers that audio, so it knows what has been heard and
+/// trims the rest itself when the learner talks over a reply: there is no
+/// client-side playback queue, barge-in or truncation. Echo is cancelled by the
+/// platform's voice processing (WebRTC's audio unit on iOS, its own canceller on
+/// the Mac). JSON events go both ways on the data channel.
+///
+/// One session is one call. When it ends (the network, OpenAI's hour limit)
+/// the event stream finishes, and the controller opens another.
+final class RealtimeVoiceSession: NSObject, @unchecked Sendable {
     private static let logger = Logger(subsystem: "com.foreverlm", category: "RealtimeVoiceTransport")
-    /// A full minute of 24 kHz mono PCM16. Setup takes seconds; the bound keeps a
-    /// stalled socket from growing memory forever.
-    private static let maximumBufferedAudioBytes = 24_000 * 2 * 60
+    static let callsURL = URL(string: "https://api.openai.com/v1/realtime/calls")!
+    static let eventsChannelLabel = "oai-events"
+    /// What the data channel carries in one message. OpenAI's own events stay
+    /// far below it; the guard keeps an oversized tool answer from closing the
+    /// channel, and the toolboxes keep their answers well inside it.
+    static let maximumMessageBytes = 200_000
 
-    private struct ReadyWaiter {
-        let continuation: CheckedContinuation<Void, Error>
-        let timeoutTask: Task<Void, Never>
+    /// One factory for the app's lifetime, as WebRTC expects. On iOS the audio
+    /// session is set up for voice chat before the factory's audio unit exists.
+    private static let factory: RTCPeerConnectionFactory = {
+        RTCInitializeSSL()
+        #if os(iOS)
+        let configuration = RTCAudioSessionConfiguration.webRTC()
+        configuration.category = AVAudioSession.Category.playAndRecord.rawValue
+        configuration.mode = AVAudioSession.Mode.voiceChat.rawValue
+        // The speaker, not the earpiece, when nothing else is connected;
+        // AirPods and CarPlay take the call route.
+        configuration.categoryOptions = [.allowBluetoothHFP, .defaultToSpeaker]
+        RTCAudioSessionConfiguration.setWebRTC(configuration)
+        #endif
+        return RTCPeerConnectionFactory()
+    }()
+
+    private struct State {
+        var peerConnection: RTCPeerConnection?
+        var dataChannel: RTCDataChannel?
+        var microphone: RTCAudioTrack?
+        var continuation: AsyncStream<RealtimeVoiceServerEvent>.Continuation?
+        var openWaiter: CheckedContinuation<Void, Error>?
+        var isOpen = false
+        var isClosed = false
+        var sequencer = OpenAIRealtimeResponseSequencer()
+        var levelTask: Task<Void, Never>?
+        var disconnectTask: Task<Void, Never>?
     }
 
-    private var task: URLSessionWebSocketTask?
-    private var continuation: AsyncStream<RealtimeVoiceServerEvent>.Continuation?
-    private var receiveLoop: Task<Void, Never>?
-    private var keepAliveLoop: Task<Void, Never>?
-    private var readyTimeoutTask: Task<Void, Never>?
-    private var generation = 0
-    private var closing = false
-    private var isReady = false
-    private var readinessFailure: RealtimeVoiceSessionError?
-    private var readyWaiters: [UUID: ReadyWaiter] = [:]
-    private var buffersAudio = false
-    private var bufferedChunks: [Data] = []
-    private var bufferedByteCount = 0
-    /// While a dead socket is replaced under a live microphone, the buffer drops
-    /// its oldest audio instead of throwing: a throw would end the one capture
-    /// task, and the replacement would hear nothing for the rest of the talk.
-    private var evictsOldestBufferedAudio = false
-    private var sequencer = OpenAIRealtimeResponseSequencer()
+    private let lock = NSLock()
+    private var current = State()
 
-    // MARK: - Lifecycle
+    /// Every read and write of `current`: WebRTC calls back on its own threads.
+    private func withState<R>(_ body: (inout State) -> R) -> R {
+        lock.lock()
+        defer { lock.unlock() }
+        return body(&current)
+    }
+    private let onMicrophoneLevel: @Sendable (Float) -> Void
 
-    /// Starts keeping microphone audio before the socket exists, so a tap on
-    /// voice listens at once.
-    func beginBufferingAudio() {
-        readinessFailure = nil
-        resetAudioBuffer()
-        buffersAudio = true
+    init(onMicrophoneLevel: @escaping @Sendable (Float) -> Void) {
+        self.onMicrophoneLevel = onMicrophoneLevel
     }
 
-    /// Opens a socket. Audio kept since `beginBufferingAudio` or since the last
-    /// socket died is delivered, in order, once this one is ready.
-    func connect(model: String, secret: String) -> AsyncStream<RealtimeVoiceServerEvent> {
-        closing = false
-        isReady = false
-        readinessFailure = nil
-        if !buffersAudio {
-            resetAudioBuffer()
+    // MARK: - Connecting
+
+    /// Opens the call and returns its events once the data channel is open.
+    /// Throws when OpenAI refuses the offer or the channel does not open.
+    func connect(secret: String, microphoneMuted: Bool) async throws -> AsyncStream<RealtimeVoiceServerEvent> {
+        let factory = Self.factory
+        let configuration = RTCConfiguration()
+        configuration.sdpSemantics = .unifiedPlan
+        let constraints = RTCMediaConstraints(mandatoryConstraints: nil, optionalConstraints: nil)
+        guard let peerConnection = factory.peerConnection(with: configuration, constraints: constraints, delegate: self) else {
+            throw RealtimeVoiceSessionError.notConnected
         }
-        sequencer.reset()
-        Self.logger.info("Opening realtime voice socket model=\(model, privacy: .public)")
+        // WebRTC's echo canceller, noise suppressor and gain control are on by
+        // default for an audio source; said here so nobody wonders.
+        let audioConstraints = RTCMediaConstraints(
+            mandatoryConstraints: [
+                "googEchoCancellation": "true",
+                "googNoiseSuppression": "true",
+                "googAutoGainControl": "true",
+                "googHighpassFilter": "true",
+            ],
+            optionalConstraints: nil
+        )
+        let microphone = factory.audioTrack(with: factory.audioSource(with: audioConstraints), trackId: "microphone")
+        microphone.isEnabled = !microphoneMuted
+        peerConnection.add(microphone, streamIds: ["foreverlm-voice"])
+        let channelConfiguration = RTCDataChannelConfiguration()
+        channelConfiguration.isOrdered = true
+        guard let dataChannel = peerConnection.dataChannel(forLabel: Self.eventsChannelLabel, configuration: channelConfiguration) else {
+            peerConnection.close()
+            throw RealtimeVoiceSessionError.notConnected
+        }
+        dataChannel.delegate = self
 
         let (stream, continuation) = AsyncStream.makeStream(of: RealtimeVoiceServerEvent.self)
-        self.continuation = continuation
-        generation += 1
-        let generation = self.generation
-        let task = URLSession.shared.webSocketTask(with: OpenAIRealtimeWire.socketRequest(model: model, secret: secret))
-        task.maximumMessageSize = 4 * 1024 * 1024
-        self.task = task
-        task.resume()
-        startKeepAlive(task: task, generation: generation)
-        startReadyTimeout(generation: generation)
-        receiveLoop = Task { [weak self] in
-            await self?.runReceiveLoop(task: task, generation: generation)
+        withState {
+            $0.peerConnection = peerConnection
+            $0.dataChannel = dataChannel
+            $0.microphone = microphone
+            $0.continuation = continuation
         }
+
+        do {
+            let offer = try await Self.offer(peerConnection)
+            try await Self.setLocalDescription(offer, on: peerConnection)
+            let answer = try await Self.exchange(offer: offer.sdp, secret: secret)
+            try await Self.setRemoteDescription(RTCSessionDescription(type: .answer, sdp: answer), on: peerConnection)
+            try await waitUntilOpen(timeout: .seconds(20))
+        } catch {
+            close()
+            throw error
+        }
+        startLevelMeter()
+        Self.logger.info("Realtime voice call open")
         return stream
     }
 
-    func configure(instructions: String, tools: [[String: Any]], voice: String, transcriptionModel: String) async throws {
-        try await send(OpenAIRealtimeWire.configurationPayload(
-            instructions: instructions,
-            tools: tools,
-            voice: voice,
-            transcriptionModel: transcriptionModel
-        ))
-    }
-
-    /// Nothing but configuration may be sent before the session acknowledges it.
-    func waitUntilReady(timeout: Duration = .seconds(20)) async throws {
-        if isReady { return }
-        if let readinessFailure { throw readinessFailure }
-        let id = UUID()
-        try await withTaskCancellationHandler {
-            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
-                if isReady {
-                    continuation.resume()
-                    return
-                }
-                if let readinessFailure {
-                    continuation.resume(throwing: readinessFailure)
-                    return
-                }
-                let timeoutTask = Task { [weak self] in
-                    try? await Task.sleep(for: timeout)
-                    guard !Task.isCancelled else { return }
-                    await self?.expireReadyWaiter(id)
-                }
-                readyWaiters[id] = ReadyWaiter(continuation: continuation, timeoutTask: timeoutTask)
-            }
-        } onCancel: {
-            Task { await self.cancelReadyWaiter(id) }
+    /// The SDP answer for an offer, from OpenAI's calls endpoint.
+    private static func exchange(offer sdp: String, secret: String) async throws -> String {
+        var request = URLRequest(url: callsURL, timeoutInterval: 20)
+        request.httpMethod = "POST"
+        request.setValue("Bearer \(secret)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/sdp", forHTTPHeaderField: "Content-Type")
+        request.httpBody = Data(sdp.utf8)
+        let (data, response) = try await URLSession.shared.data(for: request)
+        let status = (response as? HTTPURLResponse)?.statusCode ?? 0
+        let body = String(data: data, encoding: .utf8) ?? ""
+        guard (200..<300).contains(status), body.hasPrefix("v=") else {
+            let message = (try? JSONSerialization.jsonObject(with: data) as? [String: Any])
+                .flatMap { ($0["error"] as? [String: Any])?["message"] as? String }
+            logger.error("Realtime calls endpoint answered \(status): \(message ?? body.prefix(200).description, privacy: .public)")
+            throw RealtimeVoiceSessionError.serverRejected(message ?? "OpenAI could not open the voice call (\(status)).")
         }
+        return body
     }
 
-    /// Ends the conversation's socket for good.
-    func close() {
-        tearDownSocket(code: .normalClosure)
-        readinessFailure = .notConnected
-        failReadyWaiters(RealtimeVoiceSessionError.notConnected)
-        resetAudioBuffer()
-    }
-
-    /// Ends this socket but keeps the microphone lane: audio that arrives while
-    /// the controller opens a replacement is kept, oldest evicted past a minute.
-    func closeForReplacement() {
-        tearDownSocket(code: .goingAway)
-        readinessFailure = nil
-        failReadyWaiters(RealtimeVoiceSessionError.notConnected)
-        buffersAudio = true
-        evictsOldestBufferedAudio = true
-    }
-
-    private func tearDownSocket(code: URLSessionWebSocketTask.CloseCode) {
-        closing = true
-        receiveLoop?.cancel()
-        receiveLoop = nil
-        keepAliveLoop?.cancel()
-        keepAliveLoop = nil
-        readyTimeoutTask?.cancel()
-        readyTimeoutTask = nil
-        task?.cancel(with: code, reason: nil)
-        task = nil
-        continuation?.finish()
-        continuation = nil
-        isReady = false
-        sequencer.reset()
-    }
-
-    // MARK: - Socket
-
-    /// Keeps a quiet socket visible to URLSession and NATs, and finds a dead one
-    /// before the learner's next sentence does.
-    private func startKeepAlive(task: URLSessionWebSocketTask, generation: Int) {
-        keepAliveLoop?.cancel()
-        keepAliveLoop = Task { [weak self] in
-            while !Task.isCancelled {
-                try? await Task.sleep(for: .seconds(15))
-                guard !Task.isCancelled else { return }
-                await self?.ping(task: task, generation: generation)
-            }
-        }
-    }
-
-    private func startReadyTimeout(generation: Int) {
-        readyTimeoutTask?.cancel()
-        readyTimeoutTask = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(20))
+    private func waitUntilOpen(timeout: Duration) async throws {
+        let timer = Task { [weak self] in
+            try? await Task.sleep(for: timeout)
             guard !Task.isCancelled else { return }
-            await self?.readinessExpired(generation: generation)
+            self?.resolveOpenWaiter(.failure(RealtimeVoiceSessionError.connectionTimedOut))
         }
-    }
-
-    private func readinessExpired(generation: Int) {
-        guard generation == self.generation, !closing, !isReady else { return }
-        finishConnection(error: RealtimeVoiceSessionError.connectionTimedOut, generation: generation)
-    }
-
-    private func ping(task: URLSessionWebSocketTask, generation: Int) async {
-        guard generation == self.generation, !closing else { return }
-        let error = await withCheckedContinuation { (continuation: CheckedContinuation<Error?, Never>) in
-            // A failing socket can call the pong handler twice, and a second
-            // resume is a runtime trap.
-            let resumed = OSAllocatedUnfairLock(initialState: false)
-            task.sendPing { error in
-                let first = resumed.withLock { didResume -> Bool in
-                    guard !didResume else { return false }
-                    didResume = true
-                    return true
-                }
-                if first { continuation.resume(returning: error) }
+        defer { timer.cancel() }
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            let resolved = withState { state -> Result<Void, Error>? in
+                if state.isOpen { return .success(()) }
+                if state.isClosed { return .failure(RealtimeVoiceSessionError.notConnected) }
+                state.openWaiter = continuation
+                return nil
             }
-        }
-        guard let error, generation == self.generation, !closing else { return }
-        finishConnection(error: error, generation: generation)
-    }
-
-    private func runReceiveLoop(task: URLSessionWebSocketTask, generation: Int) async {
-        while !Task.isCancelled {
-            do {
-                let message = try await task.receive()
-                let text: String?
-                switch message {
-                case .string(let string): text = string
-                case .data(let data): text = String(data: data, encoding: .utf8)
-                @unknown default: text = nil
-                }
-                guard let text,
-                      let json = try? JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any],
-                      let event = OpenAIRealtimeWire.decodeServerEvent(json) else { continue }
-
-                if case .sessionReady = event, !isReady {
-                    markReady()
-                    if buffersAudio {
-                        do {
-                            try await flushBufferedAudio()
-                        } catch {
-                            finishConnection(error: error, generation: generation)
-                            return
-                        }
-                    }
-                }
-                if case .serverError(let message) = event {
-                    switch RealtimeVoiceServerErrorDisposition.resolve(isReady: isReady, message: message) {
-                    case .ignore:
-                        Self.logger.debug("Ignored a benign realtime error: \(message, privacy: .public)")
-                        if let action = observeResponseControl(json) {
-                            try? await sendResponseControl(action)
-                        }
-                        continue
-                    case .failReadiness:
-                        let failure = RealtimeVoiceSessionError.serverRejected(message)
-                        readinessFailure = failure
-                        failReadyWaiters(failure)
-                    case .surfaceInline:
-                        break
-                    }
-                }
-                continuation?.yield(event)
-
-                if let action = observeResponseControl(json) {
-                    do {
-                        try await sendResponseControl(action)
-                    } catch {
-                        finishConnection(error: error, generation: generation)
-                        return
-                    }
-                }
-            } catch {
-                finishConnection(error: error, generation: generation)
-                return
-            }
+            if let resolved { continuation.resume(with: resolved) }
         }
     }
 
-    /// A socket ended on its own. The stream finishes, which is how the
-    /// controller learns to replace it; a live conversation's microphone keeps
-    /// buffering from this instant.
-    private func finishConnection(error: Error, generation: Int) {
-        guard generation == self.generation, !closing else { return }
-        Self.logger.error("Realtime voice socket ended: \(error.localizedDescription, privacy: .public)")
-        let hadCompletedSetup = isReady
-        continuation?.yield(.serverError(message: error.localizedDescription))
-        continuation?.finish()
-        continuation = nil
-        keepAliveLoop?.cancel()
-        keepAliveLoop = nil
-        readyTimeoutTask?.cancel()
-        readyTimeoutTask = nil
-        task?.cancel(with: .goingAway, reason: nil)
-        task = nil
-        isReady = false
-        sequencer.reset()
-        if hadCompletedSetup {
-            buffersAudio = true
-            evictsOldestBufferedAudio = true
-        } else {
-            let failure = (error as? RealtimeVoiceSessionError) ?? .serverRejected(error.localizedDescription)
-            readinessFailure = failure
-            failReadyWaiters(failure)
+    private func resolveOpenWaiter(_ result: Result<Void, Error>) {
+        let waiter = withState { state -> CheckedContinuation<Void, Error>? in
+            defer { state.openWaiter = nil }
+            return state.openWaiter
+        }
+        waiter?.resume(with: result)
+    }
+
+    // MARK: - Ending
+
+    /// Hangs up. The event stream finishes; nothing is reported as a drop.
+    func close() {
+        let ended = withState { state -> (RTCPeerConnection?, AsyncStream<RealtimeVoiceServerEvent>.Continuation?)? in
+            guard !state.isClosed else { return nil }
+            state.isClosed = true
+            state.isOpen = false
+            state.levelTask?.cancel()
+            state.disconnectTask?.cancel()
+            let ended = (state.peerConnection, state.continuation)
+            state.dataChannel?.delegate = nil
+            state.dataChannel?.close()
+            state.dataChannel = nil
+            state.microphone = nil
+            state.peerConnection = nil
+            state.continuation = nil
+            state.sequencer.reset()
+            return ended
+        }
+        resolveOpenWaiter(.failure(RealtimeVoiceSessionError.notConnected))
+        guard let ended else { return }
+        ended.1?.finish()
+        ended.0?.close()
+    }
+
+    /// The call ended on its own: the stream says why, then finishes, which is
+    /// how the controller learns to open another.
+    private func drop(_ reason: String) {
+        let continuation = withState { state -> AsyncStream<RealtimeVoiceServerEvent>.Continuation? in
+            guard !state.isClosed else { return nil }
+            return state.continuation
+        }
+        Self.logger.error("Realtime voice call dropped: \(reason, privacy: .public)")
+        resolveOpenWaiter(.failure(RealtimeVoiceSessionError.serverRejected(reason)))
+        continuation?.yield(.serverError(message: reason))
+        close()
+    }
+
+    // MARK: - Sending
+
+    func setMicrophoneMuted(_ muted: Bool) {
+        withState { $0.microphone?.isEnabled = !muted }
+    }
+
+    func createMessage(role: String, text: String) throws {
+        try send(OpenAIRealtimeWire.messagePayload(role: role, text: text))
+    }
+
+    func createFunctionOutput(callID: String, output: String) throws {
+        try send(OpenAIRealtimeWire.functionOutputPayload(callID: callID, output: output))
+    }
+
+    /// Asks for a reply, after the one under way if there is one: OpenAI takes
+    /// one response at a time, and a tool's answer arrives before its call's
+    /// response is done.
+    func createResponse() throws {
+        if let action = withState({ $0.sequencer.requestCreate() }) {
+            try sendResponseControl(action)
         }
     }
 
-    private func markReady() {
-        readyTimeoutTask?.cancel()
-        readyTimeoutTask = nil
-        isReady = true
-        readinessFailure = nil
-        let waiters = Array(readyWaiters.values)
-        readyWaiters.removeAll()
-        for waiter in waiters {
-            waiter.timeoutTask.cancel()
-            waiter.continuation.resume()
-        }
-    }
-
-    private func failReadyWaiters(_ error: Error) {
-        let waiters = Array(readyWaiters.values)
-        readyWaiters.removeAll()
-        for waiter in waiters {
-            waiter.timeoutTask.cancel()
-            waiter.continuation.resume(throwing: error)
-        }
-    }
-
-    private func expireReadyWaiter(_ id: UUID) {
-        guard readyWaiters[id] != nil else { return }
-        let failure = RealtimeVoiceSessionError.connectionTimedOut
-        readinessFailure = failure
-        failReadyWaiters(failure)
-    }
-
-    private func cancelReadyWaiter(_ id: UUID) {
-        guard let waiter = readyWaiters.removeValue(forKey: id) else { return }
-        waiter.timeoutTask.cancel()
-        waiter.continuation.resume(throwing: CancellationError())
-    }
-
-    // MARK: - Audio
-
-    func appendAudio(_ pcm16: Data) async throws {
-        if buffersAudio {
-            var nextByteCount = bufferedByteCount + pcm16.count
-            if nextByteCount > Self.maximumBufferedAudioBytes {
-                guard evictsOldestBufferedAudio else {
-                    throw RealtimeVoiceSessionError.startupAudioBufferExceeded
-                }
-                while nextByteCount > Self.maximumBufferedAudioBytes, !bufferedChunks.isEmpty {
-                    nextByteCount -= bufferedChunks.removeFirst().count
-                }
-            }
-            bufferedChunks.append(pcm16)
-            bufferedByteCount = nextByteCount
-            return
-        }
-        guard isReady else { return }
-        try await send(OpenAIRealtimeWire.appendAudioPayload(pcm16))
-    }
-
-    /// Sends kept audio in order. Chunks that arrive while a send suspends stay
-    /// buffered and go in the next pass; the gate drops only once none is left.
-    private func flushBufferedAudio() async throws {
-        while !bufferedChunks.isEmpty {
-            let chunks = bufferedChunks
-            bufferedChunks.removeAll(keepingCapacity: true)
-            bufferedByteCount = 0
-            for chunk in chunks {
-                try await send(OpenAIRealtimeWire.appendAudioPayload(chunk))
-            }
-        }
-        buffersAudio = false
-        evictsOldestBufferedAudio = false
-    }
-
-    private func resetAudioBuffer() {
-        buffersAudio = false
-        evictsOldestBufferedAudio = false
-        bufferedChunks.removeAll(keepingCapacity: false)
-        bufferedByteCount = 0
-    }
-
-    // MARK: - Conversation items and responses
-
-    func createMessage(role: String, text: String) async throws {
-        try await send(OpenAIRealtimeWire.messagePayload(role: role, text: text))
-    }
-
-    func createFunctionOutput(callID: String, output: String) async throws {
-        try await send(OpenAIRealtimeWire.functionOutputPayload(callID: callID, output: output))
-    }
-
-    func createResponse() async throws {
-        if let action = sequencer.requestCreate() {
-            try await sendResponseControl(action)
-        }
-    }
-
-    func cancelResponse() async throws {
-        if let action = sequencer.requestCancel() {
-            try await sendResponseControl(action)
-        }
-    }
-
-    func truncateItem(itemID: String, audioEndMs: Int) async throws {
-        try await send(OpenAIRealtimeWire.truncatePayload(itemID: itemID, audioEndMs: audioEndMs))
-    }
-
-    private func observeResponseControl(_ json: [String: Any]) -> OpenAIRealtimeResponseSequencer.Action? {
-        switch json["type"] as? String {
-        case "response.created":
-            sequencer.responseCreated()
-            return nil
-        case "response.done":
-            return sequencer.responseDone()
-        case "error":
-            guard let eventID = OpenAIRealtimeWire.responseCreateErrorEventID(in: json) else { return nil }
-            return sequencer.responseCreateFailed(eventID: eventID)
-        default:
-            return nil
-        }
-    }
-
-    private func sendResponseControl(_ action: OpenAIRealtimeResponseSequencer.Action) async throws {
+    private func sendResponseControl(_ action: OpenAIRealtimeResponseSequencer.Action) throws {
         switch action {
-        case .create(let eventID):
-            try await send(OpenAIRealtimeWire.responseCreatePayload(eventID: eventID))
-        case .cancel:
-            try await send(OpenAIRealtimeWire.responseCancelPayload)
+        case .create(let eventID): try send(OpenAIRealtimeWire.responseCreatePayload(eventID: eventID))
+        case .cancel: try send(OpenAIRealtimeWire.responseCancelPayload)
         }
     }
 
-    private func send(_ payload: [String: Any]) async throws {
-        guard let task else { throw RealtimeVoiceSessionError.notConnected }
-        try await task.send(.string(OpenAIRealtimeWire.encodedText(payload)))
+    private func send(_ payload: [String: Any]) throws {
+        let text = try OpenAIRealtimeWire.encodedText(payload)
+        let data = Data(text.utf8)
+        guard data.count <= Self.maximumMessageBytes else {
+            Self.logger.error("Dropped an oversized realtime event (\(data.count) bytes)")
+            throw RealtimeVoiceSessionError.encodingFailed
+        }
+        let channel = withState { $0.isOpen ? $0.dataChannel : nil }
+        guard let channel, channel.sendData(RTCDataBuffer(data: data, isBinary: false)) else {
+            throw RealtimeVoiceSessionError.notConnected
+        }
     }
+
+    // MARK: - Receiving
+
+    private func receive(_ data: Data) {
+        guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let event = OpenAIRealtimeWire.decodeServerEvent(json) else { return }
+        let action: OpenAIRealtimeResponseSequencer.Action? = withState { state in
+            switch json["type"] as? String {
+            case "response.created":
+                state.sequencer.responseCreated()
+                return nil
+            case "response.done":
+                return state.sequencer.responseDone()
+            case "error":
+                return OpenAIRealtimeWire.responseCreateErrorEventID(in: json)
+                    .flatMap { state.sequencer.responseCreateFailed(eventID: $0) }
+            default:
+                return nil
+            }
+        }
+        if case .serverError(let message) = event, RealtimeVoiceServerErrorDisposition.isBenign(message) {
+            Self.logger.debug("Ignored a benign realtime error: \(message, privacy: .public)")
+        } else {
+            withState { $0.continuation }?.yield(event)
+        }
+        if let action { try? sendResponseControl(action) }
+    }
+
+    // MARK: - Microphone level
+
+    /// The waveform's level, read from WebRTC's own statistics ten times a
+    /// second: the outgoing track's `media-source` carries `audioLevel`, 0...1.
+    private func startLevelMeter() {
+        let task = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(100))
+                guard let self, let peerConnection = self.withState({ $0.peerConnection }) else { return }
+                let report = await peerConnection.statistics()
+                let level = report.statistics.values
+                    .first { $0.type == "media-source" && ($0.values["kind"] as? String) == "audio" }
+                    .flatMap { ($0.values["audioLevel"] as? NSNumber)?.floatValue }
+                if let level { self.onMicrophoneLevel(level) }
+            }
+        }
+        withState { $0.levelTask = task }
+    }
+
+    // MARK: - Promise wrappers
+
+    private static func offer(_ peerConnection: RTCPeerConnection) async throws -> RTCSessionDescription {
+        let constraints = RTCMediaConstraints(
+            mandatoryConstraints: ["OfferToReceiveAudio": "true", "OfferToReceiveVideo": "false"],
+            optionalConstraints: nil
+        )
+        return try await withCheckedThrowingContinuation { continuation in
+            peerConnection.offer(for: constraints) { description, error in
+                if let description {
+                    continuation.resume(returning: description)
+                } else {
+                    continuation.resume(throwing: error ?? RealtimeVoiceSessionError.notConnected)
+                }
+            }
+        }
+    }
+
+    private static func setLocalDescription(_ description: RTCSessionDescription, on peerConnection: RTCPeerConnection) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            peerConnection.setLocalDescription(description) { error in
+                if let error { continuation.resume(throwing: error) } else { continuation.resume() }
+            }
+        }
+    }
+
+    private static func setRemoteDescription(_ description: RTCSessionDescription, on peerConnection: RTCPeerConnection) async throws {
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            peerConnection.setRemoteDescription(description) { error in
+                if let error { continuation.resume(throwing: error) } else { continuation.resume() }
+            }
+        }
+    }
+}
+
+// MARK: - WebRTC callbacks
+
+extension RealtimeVoiceSession: RTCDataChannelDelegate {
+    func dataChannelDidChangeState(_ dataChannel: RTCDataChannel) {
+        switch dataChannel.readyState {
+        case .open:
+            withState { $0.isOpen = true }
+            resolveOpenWaiter(.success(()))
+        case .closed:
+            drop("The voice call's event channel closed.")
+        default:
+            break
+        }
+    }
+
+    func dataChannel(_ dataChannel: RTCDataChannel, didReceiveMessageWith buffer: RTCDataBuffer) {
+        guard !buffer.isBinary else { return }
+        receive(buffer.data)
+    }
+}
+
+extension RealtimeVoiceSession: RTCPeerConnectionDelegate {
+    func peerConnection(_ peerConnection: RTCPeerConnection, didChange newState: RTCPeerConnectionState) {
+        switch newState {
+        case .failed:
+            drop("The voice call's connection failed.")
+        case .disconnected:
+            // ICE often comes back from a brief loss (a lift, a Wi-Fi hand-off)
+            // on its own; only a loss that lasts is a drop.
+            let task = Task { [weak self] in
+                try? await Task.sleep(for: .seconds(6))
+                guard !Task.isCancelled else { return }
+                self?.drop("The voice call lost its connection.")
+            }
+            withState {
+                $0.disconnectTask?.cancel()
+                $0.disconnectTask = task
+            }
+        case .connected:
+            withState {
+                $0.disconnectTask?.cancel()
+                $0.disconnectTask = nil
+            }
+        default:
+            break
+        }
+    }
+
+    func peerConnection(_ peerConnection: RTCPeerConnection, didChange stateChanged: RTCSignalingState) {}
+    func peerConnection(_ peerConnection: RTCPeerConnection, didAdd stream: RTCMediaStream) {}
+    func peerConnection(_ peerConnection: RTCPeerConnection, didRemove stream: RTCMediaStream) {}
+    func peerConnectionShouldNegotiate(_ peerConnection: RTCPeerConnection) {}
+    func peerConnection(_ peerConnection: RTCPeerConnection, didChange newState: RTCIceConnectionState) {}
+    func peerConnection(_ peerConnection: RTCPeerConnection, didChange newState: RTCIceGatheringState) {}
+    func peerConnection(_ peerConnection: RTCPeerConnection, didGenerate candidate: RTCIceCandidate) {}
+    func peerConnection(_ peerConnection: RTCPeerConnection, didRemove candidates: [RTCIceCandidate]) {}
+    func peerConnection(_ peerConnection: RTCPeerConnection, didOpen dataChannel: RTCDataChannel) {}
 }

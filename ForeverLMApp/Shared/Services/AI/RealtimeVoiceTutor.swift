@@ -35,6 +35,10 @@ struct RealtimeVoiceTurn: Identifiable, Equatable, Sendable {
     /// The learner talked over this reply; `text` is what had been said.
     var wasInterrupted = false
     var spokenAt = Date()
+
+    /// A learner turn's text: they spoke, and their words are not transcribed
+    /// (voice mode runs on the realtime model alone).
+    static let spokenMark = "(spoken)"
 }
 
 /// A voice conversation as the chat history stores it: one exchange per learner
@@ -90,7 +94,8 @@ struct RealtimeVoiceExchange: Equatable, Sendable {
     /// An assistant chat's title: the start of what the learner first asked,
     /// as a typed notebook chat is named by its first question.
     static func assistantChatTitle(firstQuestion: String?) -> String {
-        guard let words = firstQuestion?.trimmingCharacters(in: .whitespacesAndNewlines), !words.isEmpty else {
+        guard let words = firstQuestion?.trimmingCharacters(in: .whitespacesAndNewlines), !words.isEmpty,
+              words != RealtimeVoiceTurn.spokenMark else {
             return "Voice chat"
         }
         guard words.count > 60 else { return words }
@@ -136,17 +141,20 @@ struct RealtimeVoiceBrief: @unchecked Sendable {
     }
 }
 
-/// A source conversation's one tool: passages of its own text.
+/// A source conversation's one tool, passages of its own text, offered only
+/// when the source is too long to be in the instructions whole.
 final class RealtimeVoiceSourceToolbox: RealtimeVoiceToolbox, @unchecked Sendable {
     private let sourceID: String
     private let passages: [RealtimeVoicePassageSearch.Passage]
+    private let fitsInline: Bool
 
     init(source: RealtimeVoiceSource) {
         sourceID = source.id
-        passages = RealtimeVoicePassageSearch.chunks(of: source.text)
+        fitsInline = source.text.count <= RealtimeVoiceTutor.inlineTextBudget
+        passages = fitsInline ? [] : RealtimeVoicePassageSearch.chunks(of: source.text)
     }
 
-    var toolDefinitions: [[String: Any]] { [RealtimeVoiceTutor.searchTool] }
+    var toolDefinitions: [[String: Any]] { fitsInline ? [] : [RealtimeVoiceTutor.searchTool] }
 
     func run(name: String, argumentsJSON: String) async -> String {
         guard name == RealtimeVoiceTutor.searchToolName else { return #"{"error":"Unknown tool."}"# }
@@ -159,10 +167,12 @@ final class RealtimeVoiceSourceToolbox: RealtimeVoiceToolbox, @unchecked Sendabl
 
 /// What the realtime model is told, and the tools it may call.
 enum RealtimeVoiceTutor {
-    /// About 50k tokens of source text go straight into the instructions, well
-    /// inside gpt-realtime-2.1's 128k window with room for a long conversation.
+    /// About 40k tokens of source text go straight into the instructions, well
+    /// inside gpt-realtime-2.1's 128k window with room for a long conversation;
+    /// the whole session is minted over HTTPS, and OpenAI echoes it back once
+    /// over the call's data channel, which carries up to about 256 KB a message.
     /// Longer sources keep their opening there and are searched for the rest.
-    static let inlineTextBudget = 200_000
+    static let inlineTextBudget = 150_000
     static let searchToolName = "search_source"
     static let endToolName = "end_conversation"
 
@@ -197,7 +207,7 @@ enum RealtimeVoiceTutor {
 
         if fitsInline {
             sections.append("""
-            You have the whole \(kind) below. Use \(searchToolName) only if you need to find an exact passage again.
+            You have the whole \(kind) below.
             """)
         } else {
             sections.append("""
@@ -280,14 +290,18 @@ enum RealtimeVoiceTutor {
         ]
     }
 
-    /// The context a replacement session is given after a dropped connection:
-    /// the conversation so far, newest last, as message items.
-    static func resumeItems(from transcript: [RealtimeVoiceTurn], limit: Int = 40) -> [(role: String, text: String)] {
+    /// The context a replacement call is given after a dropped connection:
+    /// what ForeverLM said so far, newest last. The learner's words were never
+    /// transcribed, so they are not replayed; `resumeNote` says so.
+    static func resumeItems(from transcript: [RealtimeVoiceTurn], limit: Int = 30) -> [(role: String, text: String)] {
         transcript
-            .filter { !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .filter { $0.role == .tutor && !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
             .suffix(limit)
-            .map { (role: $0.role == .learner ? "user" : "assistant", text: $0.text) }
+            .map { (role: "assistant", text: $0.text) }
     }
+
+    /// Sent after `resumeItems`, so the model picks the conversation up.
+    static let resumeNote = "(The call dropped and has just reconnected. Above is what you said before it dropped; the learner's replies were spoken and are not shown. In one short sentence, say you're back and ask them to pick up where you left off.)"
 
     static func spokenKind(_ sourceType: String) -> String {
         switch sourceType.lowercased() {

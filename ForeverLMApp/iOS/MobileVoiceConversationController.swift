@@ -12,9 +12,9 @@ import Speech
 /// audio lease, so a reply is never heard by the microphone.
 ///
 /// What it holds is today's memory review, spoken: the Memory screen's Review
-/// by Voice, and the realtime assistant's hand-over when the learner asks for
-/// their review (in CarPlay above all; `MobileRealtimeVoice.pendingMemoryReview`).
-/// The review chat (`MobileMemoryReviewViewModel`) owns the cards and grading.
+/// by Voice. The review chat (`MobileMemoryReviewViewModel`) owns the cards and
+/// grading. The realtime assistant runs a card review itself (`get_due_cards`,
+/// `grade_card` in `MobileRealtimeAssistant`) and no longer hands over here.
 /// Talking about a source, and CarPlay's conversation, are voice mode on OpenAI
 /// Realtime since 2026-11-07 (`MobileRealtimeVoice`); the two never run at once.
 @MainActor

@@ -1,8 +1,8 @@
 import Foundation
 
 extension ManagedAI {
-    /// A short-lived OpenAI Realtime credential. It only has to open the socket;
-    /// the session it opens outlives it.
+    /// A short-lived OpenAI Realtime credential, minted with the conversation's
+    /// whole session on it. It only has to open the call; the call outlives it.
     struct RealtimeVoiceSecret: Sendable {
         let value: String
         let expiresAt: Date
@@ -15,9 +15,15 @@ extension ManagedAI {
     /// OpenAI account (voice mode is free for the learner; see
     /// `RealtimeVoiceProtocol.swift`). Needs Sign in with Apple, not a key: the
     /// learner's OpenRouter key plays no part.
-    static func mintRealtimeVoiceSecret(model: String = RealtimeVoiceDefaults.model) async throws -> RealtimeVoiceSecret {
+    /// `session` is OpenAI's session object without its type and model, which the
+    /// proxy sets (`OpenAIRealtimeWire.sessionConfiguration`).
+    static func mintRealtimeVoiceSecret(
+        model: String = RealtimeVoiceDefaults.model,
+        session: [String: Any]
+    ) async throws -> RealtimeVoiceSecret {
         struct Body: Encodable {
             let model: String
+            let session: RealtimeSessionJSON
         }
         struct Response: Decodable {
             let value: String?
@@ -34,7 +40,7 @@ extension ManagedAI {
         }
         let response: Response = try await post(
             "/v1/realtime/client_secrets",
-            body: Body(model: model),
+            body: Body(model: model, session: try RealtimeSessionJSON(session)),
             authenticated: true
         )
         guard let value = response.value, !value.isEmpty else {
@@ -113,6 +119,56 @@ extension ManagedAI {
                     try? await Task.sleep(for: .seconds(Double(2 << attempt)))
                 }
             }
+        }
+    }
+}
+
+/// Any JSON value, so the session dictionary rides in a typed request body. It
+/// is read back from `JSONSerialization`'s text, so every number and flag is
+/// exactly what JSON says (a Bool is never a 0 or 1 in disguise).
+enum RealtimeSessionJSON: Codable, Equatable {
+    case null
+    case bool(Bool)
+    case integer(Int)
+    case number(Double)
+    case string(String)
+    case array([RealtimeSessionJSON])
+    case object([String: RealtimeSessionJSON])
+
+    init(_ object: [String: Any]) throws {
+        let data = try JSONSerialization.data(withJSONObject: object)
+        self = try JSONDecoder().decode(RealtimeSessionJSON.self, from: data)
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if container.decodeNil() {
+            self = .null
+        } else if let value = try? container.decode(Bool.self) {
+            self = .bool(value)
+        } else if let value = try? container.decode(Int.self) {
+            self = .integer(value)
+        } else if let value = try? container.decode(Double.self) {
+            self = .number(value)
+        } else if let value = try? container.decode(String.self) {
+            self = .string(value)
+        } else if let value = try? container.decode([RealtimeSessionJSON].self) {
+            self = .array(value)
+        } else {
+            self = .object(try container.decode([String: RealtimeSessionJSON].self))
+        }
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.singleValueContainer()
+        switch self {
+        case .null: try container.encodeNil()
+        case .bool(let value): try container.encode(value)
+        case .integer(let value): try container.encode(value)
+        case .number(let value): try container.encode(value)
+        case .string(let value): try container.encode(value)
+        case .array(let value): try container.encode(value)
+        case .object(let value): try container.encode(value)
         }
     }
 }

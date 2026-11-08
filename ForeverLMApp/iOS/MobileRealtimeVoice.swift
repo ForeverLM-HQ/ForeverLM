@@ -1,40 +1,29 @@
+import AVFoundation
 import Foundation
 import OSLog
 import os
 
 /// Voice mode on the iPhone: talk about a source out loud, or be quizzed on
 /// it, the way ChatGPT's voice mode talks (product owner, 2026-11-07). The
-/// conversation is the shared `RealtimeVoiceController` on OpenAI Realtime; this
-/// starts it from a source, shows it in the shell's voice cover
-/// (`MobileVoiceSessionCover`), and saves what was said as a voice chat on the
-/// source, filed in the notebook it was started from, so the Mac lists it with
-/// the source's other chats.
-///
-/// CarPlay and spoken memory review keep the turn-by-turn conversation
-/// (`MobileVoiceConversationController`); the two never run at once.
+/// conversation is the shared `RealtimeVoiceController` on OpenAI Realtime over
+/// WebRTC; this starts it from a source or as the assistant, shows it in the
+/// shell's voice cover (`MobileVoiceSessionCover`), and saves what was said as
+/// a voice chat, filed in the notebook it was started from, so the Mac lists it
+/// with the source's other chats. CarPlay starts the assistant on connect.
 @MainActor
 enum MobileRealtimeVoice {
     private static let logger = Logger(subsystem: "com.foreverlm.mobile", category: "RealtimeVoice")
 
     static let controller: RealtimeVoiceController = {
         let controller = RealtimeVoiceController(
-            makeAudio: { MobileRealtimeVoiceAudio() },
+            platformAudio: MobileRealtimeVoicePlatformAudio(),
             readVoice: { await MobileRealtimeVoicePick.read() }
         )
         controller.onFinished = { finished in
             save(finished)
-            if pendingMemoryReview {
-                pendingMemoryReview = false
-                Task { await MobileVoiceConversationController.shared.startMemoryReview() }
-            }
         }
         return controller
     }()
-
-    /// Set by the assistant's `start_memory_review`: when its goodbye has been
-    /// spoken, today's memory review starts on the turn-by-turn conversation,
-    /// which owns cards and grading (and CarPlay follows it).
-    static var pendingMemoryReview = false
 
     /// The source on the voice screen, for its card (thumbnail, subtitle).
     private(set) static var currentSource: MobileCloudSource?
@@ -71,7 +60,6 @@ enum MobileRealtimeVoice {
         await prepareToTalk()
         currentSource = nil
         currentNotebookID = nil
-        pendingMemoryReview = false
         await controller.start(
             title: RealtimeVoiceAssistant.title,
             status: "Getting your day together…"
@@ -97,24 +85,6 @@ enum MobileRealtimeVoice {
             sourceType: source.sourceType,
             thumbnailURL: source.thumbnailURL
         )
-    }
-
-    /// The conversation as the shell's transcript sheet shows it once it ends.
-    static func completedTranscript() -> MobileVoiceChatTranscript? {
-        let messages = controller.transcript.compactMap { turn -> MobileChatMessage? in
-            let content = turn.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !content.isEmpty else { return nil }
-            return MobileChatMessage(
-                id: UUID(),
-                role: turn.role == .learner ? .user : .assistant,
-                content: content,
-                isStreaming: false
-            )
-        }
-        guard !messages.isEmpty else { return nil }
-        var transcript = MobileVoiceChatTranscript(messages: messages)
-        transcript.title = controller.title
-        return transcript
     }
 
     /// Saved as a voice chat (`ChatKind.voice`; the `-live-` id is what the
@@ -209,6 +179,36 @@ enum MobileRealtimeVoicePick {
                 try? await Task.sleep(for: wait)
                 if claim() { continuation.resume(returning: lastSeen) }
             }
+        }
+    }
+}
+
+/// The iPhone's part of a voice call: the microphone permission, and the audio
+/// session taken from narration and other players under the arbiter's
+/// `.conversation` lease, in the voice chat mode WebRTC runs in. WebRTC
+/// captures, plays, follows route changes (AirPods, CarPlay) and cancels echo.
+final class MobileRealtimeVoicePlatformAudio: RealtimeVoicePlatformAudio, @unchecked Sendable {
+    func prepare(onPreempted: @escaping @Sendable () -> Void) async throws {
+        guard await AVAudioApplication.requestRecordPermission() else {
+            throw MobileRealtimeVoiceAudioError.microphoneDenied
+        }
+        let arbiter = MobileAudioSessionArbiter.shared
+        await arbiter.register(.realtimeVoice) { onPreempted() }
+        try await arbiter.acquire(.realtimeVoice, for: .conversation)
+    }
+
+    func finish() async {
+        await MobileAudioSessionArbiter.shared.release(.realtimeVoice)
+    }
+}
+
+enum MobileRealtimeVoiceAudioError: LocalizedError {
+    case microphoneDenied
+
+    var errorDescription: String? {
+        switch self {
+        case .microphoneDenied:
+            return "Microphone access is off for ForeverLM. Turn it on in Settings › Privacy & Security › Microphone."
         }
     }
 }

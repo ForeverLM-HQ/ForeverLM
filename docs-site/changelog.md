@@ -6,6 +6,10 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **Voice mode no longer cuts itself off.** It now talks to OpenAI over WebRTC, as OpenAI recommends for apps. That cancels the speaker's echo, so ForeverLM no longer hears itself and stops mid-sentence, and when you do interrupt, it knows how much you heard.
+- **Voice mode is all voice.** No words scroll by while it talks, and nothing but the realtime model hears you: no separate transcription.
+- **Card review by voice**: ask the assistant for your review on the iPhone or in CarPlay, and it goes through today's cards out loud and records each answer.
+
 ## 0.196.0 (build 276) — 2026-11-07
 
 **Highlights:**

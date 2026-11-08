@@ -606,9 +606,9 @@ struct MobileVoiceSessionCover: View {
         isEnding = true
         isEndingRealtime = true
         Task {
+            // The cover closes on what was under it: voice mode shows no
+            // transcript (product owner, 2026-11-07); the chat is saved.
             await realtime.end()
-            // Ended before anyone spoke: the cover closes on what was under it.
-            completedTranscript = MobileRealtimeVoice.completedTranscript()
             isEndingRealtime = false
             isEnding = false
         }

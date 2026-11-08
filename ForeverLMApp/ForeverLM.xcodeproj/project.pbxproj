@@ -978,6 +978,7 @@
 		78A0D34AAAD46F4C8C82DE7C /* AppUpdateController.swift in Sources */ = {isa = PBXBuildFile; fileRef = AC160606B5EB94735741FAED /* AppUpdateController.swift */; };
 		78B4DD4540AC9ED96861AD8C /* KnowledgeStore+ArtifactSchema.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F8E147F040BD103F1253C29 /* KnowledgeStore+ArtifactSchema.swift */; };
 		78D1F187C3AD65CAC58CC6CF /* ShareService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1CBF7982A0332C945D964EF /* ShareService.swift */; };
+		78F65330313151D891CB1E53 /* WebRTC in Frameworks */ = {isa = PBXBuildFile; productRef = 6F10454312AFBA0FC95C6F41 /* WebRTC */; };
 		791624B17A87A0A6EF4B3FDF /* SpaceSyncTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4B2B7ACCA96B458230939199 /* SpaceSyncTests.swift */; };
 		791AA99F0F9EF03BDA584007 /* DailyReviewPreparationCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D8AB3E781B3169C0032B32E /* DailyReviewPreparationCore.swift */; };
 		793073AB1A9CF83F2B699803 /* PublishedPageRenderer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ECE015D457AC0E380779336 /* PublishedPageRenderer.swift */; };
@@ -1083,7 +1084,6 @@
 		8548F3DCB03F880AE4E41C3E /* MacRealtimeAssistant.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9CCE2BE545F4D15E67578B7E /* MacRealtimeAssistant.swift */; };
 		854CF29383BFDD487D71D25C /* ChatSkillRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 221B184E9053AE6143E63C0F /* ChatSkillRequest.swift */; };
 		856CC698AC1CDD9DD0F46992 /* RecordNamingTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 959268B3966D562BD32D7F71 /* RecordNamingTests.swift */; };
-		856CC738EAB38EB9E4E9C615 /* MacRealtimeAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = E6DCCD0A521940F477CEE8A9 /* MacRealtimeAudio.swift */; };
 		85BD6CB2E9B190F7483149CC /* AnimationsTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AD2AB673DC783D935359A6E4 /* AnimationsTests.swift */; };
 		85BFE3056F05DB940996D903 /* ChatLongUserMessageTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 05F010822D4B5A1DFD12AF96 /* ChatLongUserMessageTests.swift */; };
 		85C46029AD6F6FDF62127D7C /* MigrationImportPlanner.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB6D93862DB57434E4B183E3 /* MigrationImportPlanner.swift */; };
@@ -1192,6 +1192,7 @@
 		91AF787005A151913434F8A5 /* SyncVectorRunner.swift in Sources */ = {isa = PBXBuildFile; fileRef = 76601FE23B9D84E93EE7C6C9 /* SyncVectorRunner.swift */; };
 		91C6442EB99A243DF032B71B /* ForeverLMRuntimeIdentity.swift in Sources */ = {isa = PBXBuildFile; fileRef = FF70ADDD992C64F26067F03A /* ForeverLMRuntimeIdentity.swift */; };
 		91F77FDA413F735D83A4C11B /* LegacyV2Mapping+Notebooks.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7BE72F0101C83AC266E5FF7B /* LegacyV2Mapping+Notebooks.swift */; };
+		921A464520073423218755B4 /* WebRTC in Frameworks */ = {isa = PBXBuildFile; productRef = 816472061446B14DA4CA8CB9 /* WebRTC */; };
 		921F8A0BB1443EE5AD773895 /* MobileCloudRecordPayloadTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8AA607BA8C42BFD67C7DBE5A /* MobileCloudRecordPayloadTests.swift */; };
 		92240A3EE5EB91A924F1A4E1 /* ReadingStateProjection.swift in Sources */ = {isa = PBXBuildFile; fileRef = BBEFA27644EE1622CAC0DA95 /* ReadingStateProjection.swift */; };
 		9227DB1E64C9760FD05C9F3A /* ImageCache.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2EC52D3CA2D308F01BC90664 /* ImageCache.swift */; };
@@ -1281,7 +1282,6 @@
 		9D17A4B81A89A4E6B7C4AF17 /* NotebookWorkbenchViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8262E90957340C41663E8EBE /* NotebookWorkbenchViews.swift */; };
 		9D58D76A8AF137308A200A2E /* StampClock.swift in Sources */ = {isa = PBXBuildFile; fileRef = C8F6ECA3354AAA443834ACFE /* StampClock.swift */; };
 		9D5E801D40C650E0990E989B /* ChatRendererResources in Resources */ = {isa = PBXBuildFile; fileRef = 3ED3E0F4923640174871D318 /* ChatRendererResources */; };
-		9D959F3923BDAB6E5421E583 /* MobileRealtimeAudio.swift in Sources */ = {isa = PBXBuildFile; fileRef = 89B08CB1F52A55D7D4B812F9 /* MobileRealtimeAudio.swift */; };
 		9DE9276236C9B898BA5146D5 /* AIService+GoDeeper.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF7F855D0A34B8EB96615265 /* AIService+GoDeeper.swift */; };
 		9E0E9B183F87E10002C7C682 /* ZonePlacement.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8656C2C9C710A53A54093D43 /* ZonePlacement.swift */; };
 		9E2954F028DC29C323694083 /* MCPTools+BackgroundAISpend.swift in Sources */ = {isa = PBXBuildFile; fileRef = 23F629498E97931FF0F34434 /* MCPTools+BackgroundAISpend.swift */; };
@@ -3087,7 +3087,6 @@
 		895CBC947AC6B2D2A2D3D54A /* SpaceCopies.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceCopies.swift; sourceTree = "<group>"; };
 		8992D379ABF066AE16727AEC /* CutoverSeeder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CutoverSeeder.swift; sourceTree = "<group>"; };
 		89AE8CAB87A3801D91FF3CD3 /* TeamSettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TeamSettingsView.swift; sourceTree = "<group>"; };
-		89B08CB1F52A55D7D4B812F9 /* MobileRealtimeAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileRealtimeAudio.swift; sourceTree = "<group>"; };
 		89B7AF01149F3A52176E5296 /* SourceKeywordSearchTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SourceKeywordSearchTests.swift; sourceTree = "<group>"; };
 		8A034D699B4846DC44C10347 /* MnemonicReadingModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MnemonicReadingModel.swift; sourceTree = "<group>"; };
 		8A22E721FA1176C72E56B5A2 /* MobileSourceGroupingAudiobookTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileSourceGroupingAudiobookTests.swift; sourceTree = "<group>"; };
@@ -3783,7 +3782,6 @@
 		E68682739E4F62F9D3FEEB66 /* SyncedStorageObserverTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncedStorageObserverTests.swift; sourceTree = "<group>"; };
 		E6B1C65B449B673533A245C8 /* MobileHighlightRecordTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileHighlightRecordTests.swift; sourceTree = "<group>"; };
 		E6CE6E535CEE887E46097388 /* CourseLectureNamingTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CourseLectureNamingTests.swift; sourceTree = "<group>"; };
-		E6DCCD0A521940F477CEE8A9 /* MacRealtimeAudio.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MacRealtimeAudio.swift; sourceTree = "<group>"; };
 		E6EAF624E04CF171BBCE5BC2 /* Envelope.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Envelope.swift; sourceTree = "<group>"; };
 		E70EA766AEC876B7BC1C0B98 /* TranscriptHighlightSupport.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptHighlightSupport.swift; sourceTree = "<group>"; };
 		E73E5F9A241CA61F9490A0A4 /* MinClientRevisionGateTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MinClientRevisionGateTests.swift; sourceTree = "<group>"; };
@@ -3937,12 +3935,21 @@
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
+		18B7A568B73D44DCF290ECA4 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				78F65330313151D891CB1E53 /* WebRTC in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		2A7560604CA959C2E8B5C60D /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
 				512A61D070086F8F6CA017D3 /* ZIPFoundation in Frameworks */,
 				24207EFF6BF8B1B06EA112F4 /* Sparkle in Frameworks */,
+				921A464520073423218755B4 /* WebRTC in Frameworks */,
 				1A980BE41DB5A01F872B566D /* MediaPlayer.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -4926,7 +4933,6 @@
 				0EAFE0C9E704BC6097A7A751 /* MobileReaderText.swift */,
 				1C0519D221B73F7B79411653 /* MobileReaderWebView.swift */,
 				025A5BB7333C48B28AD2BA7B /* MobileRealtimeAssistant.swift */,
-				89B08CB1F52A55D7D4B812F9 /* MobileRealtimeAudio.swift */,
 				B405E3D8D9CFE5018FDD89CE /* MobileRealtimeRates.swift */,
 				41D3F1DB2CAAE1EA171371EF /* MobileRealtimeVoice.swift */,
 				B2C533B0E1FBBA1819EBD7BE /* MobileReviewBrain.swift */,
@@ -5351,7 +5357,6 @@
 				E5DAE941E4DD24EEDAA2E055 /* MacArticleSpeechVoicePreview.swift */,
 				8779BD620A4986DCAB51C88D /* MacArticleTTSClient.swift */,
 				9CCE2BE545F4D15E67578B7E /* MacRealtimeAssistant.swift */,
-				E6DCCD0A521940F477CEE8A9 /* MacRealtimeAudio.swift */,
 				683B4B4A801921DAD7F65883 /* MacRealtimeVoice.swift */,
 				E86DAF44B91E79B8F7431F5A /* MakeMnemonicReadingSheet.swift */,
 				1E3FCE2B1E028332DEAFAC26 /* ManagedAIAccountModel.swift */,
@@ -6157,6 +6162,7 @@
 			packageProductDependencies = (
 				4C35382A2709C73B54178B47 /* ZIPFoundation */,
 				6DC27E5B0C5BFDA8AB89E056 /* Sparkle */,
+				816472061446B14DA4CA8CB9 /* WebRTC */,
 			);
 			productName = ForeverLM_macOS;
 			productReference = AB5A8690DEE1411D3A9305AD /* ForeverLM.app */;
@@ -6294,6 +6300,7 @@
 				3C679FF515079EA2E96F1427 /* Enforce AI Model Routing */,
 				8521701ED0C83A106FBCCD5D /* Sources */,
 				8FD2A83958F9BFB0C06AE83C /* Resources */,
+				18B7A568B73D44DCF290ECA4 /* Frameworks */,
 				07B9EE084C46CE00FB8B9961 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
@@ -6304,6 +6311,7 @@
 			);
 			name = ForeverLM_iOS;
 			packageProductDependencies = (
+				6F10454312AFBA0FC95C6F41 /* WebRTC */,
 			);
 			productName = ForeverLM_iOS;
 			productReference = BA3539DF20099FD09E44243B /* ForeverLM.app */;
@@ -6357,6 +6365,7 @@
 			minimizedProjectReferenceProxies = 1;
 			packageReferences = (
 				E0A0EB05FBBD2C733A359D2A /* XCRemoteSwiftPackageReference "Sparkle" */,
+				1A1A2AAB721C562248CBA4B7 /* XCRemoteSwiftPackageReference "WebRTC" */,
 				FC144DE27998CD01350DA6C3 /* XCRemoteSwiftPackageReference "ZIPFoundation" */,
 			);
 			preferredProjectObjectVersion = 77;
@@ -7228,7 +7237,6 @@
 				1DFFF87C868244A8EB23C19C /* MobileReaderText.swift in Sources */,
 				12CAE2F83E22E26297E4E966 /* MobileReaderWebView.swift in Sources */,
 				719E4B1B6F19DF42B84A2943 /* MobileRealtimeAssistant.swift in Sources */,
-				9D959F3923BDAB6E5421E583 /* MobileRealtimeAudio.swift in Sources */,
 				237C0DCAC5E253321E25DFA2 /* MobileRealtimeRates.swift in Sources */,
 				6026B1AE8AD77E78B6CEC47D /* MobileRealtimeVoice.swift in Sources */,
 				76069C598985D71AA2A6D791 /* MobileRecordWriter.swift in Sources */,
@@ -7961,7 +7969,6 @@
 				BCC96B473F2374ACD34B67FF /* MacPatchOutbox.swift in Sources */,
 				173B3BD1433E3DC556DA39A4 /* MacPrivateSyncStore.swift in Sources */,
 				8548F3DCB03F880AE4E41C3E /* MacRealtimeAssistant.swift in Sources */,
-				856CC738EAB38EB9E4E9C615 /* MacRealtimeAudio.swift in Sources */,
 				6BD2A66FDFCFBC270A6A3F3F /* MacRealtimeVoice.swift in Sources */,
 				5170E7E936F36CF39996C771 /* MacSyncSession.swift in Sources */,
 				EFCF220CAA136E2250EAB3FB /* MacSyncSupport.swift in Sources */,
@@ -9575,6 +9582,14 @@
 /* End XCConfigurationList section */
 
 /* Begin XCRemoteSwiftPackageReference section */
+		1A1A2AAB721C562248CBA4B7 /* XCRemoteSwiftPackageReference "WebRTC" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/stasel/WebRTC";
+			requirement = {
+				kind = exactVersion;
+				version = 157.0.0;
+			};
+		};
 		E0A0EB05FBBD2C733A359D2A /* XCRemoteSwiftPackageReference "Sparkle" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/sparkle-project/Sparkle";
@@ -9603,6 +9618,16 @@
 			isa = XCSwiftPackageProductDependency;
 			package = E0A0EB05FBBD2C733A359D2A /* XCRemoteSwiftPackageReference "Sparkle" */;
 			productName = Sparkle;
+		};
+		6F10454312AFBA0FC95C6F41 /* WebRTC */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1A1A2AAB721C562248CBA4B7 /* XCRemoteSwiftPackageReference "WebRTC" */;
+			productName = WebRTC;
+		};
+		816472061446B14DA4CA8CB9 /* WebRTC */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 1A1A2AAB721C562248CBA4B7 /* XCRemoteSwiftPackageReference "WebRTC" */;
+			productName = WebRTC;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

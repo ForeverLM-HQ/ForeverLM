@@ -24,6 +24,13 @@ packages:
   Sparkle:
     url: https://github.com/sparkle-project/Sparkle
     from: "2.6.0"
+  # Voice mode talks to OpenAI Realtime over WebRTC, as OpenAI's guide says a
+  # phone or desktop client should: the server buffers and trims the reply's
+  # audio on an interruption, and the system's voice processing cancels echo.
+  # Google's WebRTC, built as a binary framework for iOS and macOS.
+  WebRTC:
+    url: https://github.com/stasel/WebRTC
+    exactVersion: "157.0.0"
 
 settings:
   base:
@@ -205,6 +212,7 @@ targets:
     dependencies:
       - package: ZIPFoundation
       - package: Sparkle
+      - package: WebRTC
       - sdk: MediaPlayer.framework
       # Bundled auxiliary tool that mints Apple Podcasts API bearer tokens.
       # Embedded into Contents/MacOS so pathForAuxiliaryExecutable can find it.
@@ -441,20 +449,18 @@ targets:
       - iOS/MobileReviewSessionRecorder.swift
       - iOS/MobileMemoryAttemptRecorder.swift
       # The turn-by-turn voice conversation (Apple dictation, today's memory
-      # review answering, spoken replies): Review by Voice, and the realtime
-      # assistant's hand-over to the review.
+      # review answering, spoken replies): Review by Voice.
       - iOS/MobileVoiceConversationController.swift
-      # Voice mode on a source: OpenAI Realtime speech to speech, on ForeverLM's
-      # own OpenAI credits (back 2026-11-07). The socket, the conversation and
-      # its tutor prompt are shared with the Mac; the phone brings its audio
-      # graph and its entry points.
+      # Voice mode on a source: OpenAI Realtime speech to speech over WebRTC, on
+      # ForeverLM's own OpenAI credits (back 2026-11-07). The call, the
+      # conversation and its tutor prompt are shared with the Mac; the phone
+      # brings its audio session and its entry points.
       - Shared/Services/AI/RealtimeVoiceProtocol.swift
       - Shared/Services/AI/RealtimeVoiceSession.swift
       - Shared/Services/AI/RealtimeVoiceTutor.swift
       - Shared/Services/AI/RealtimeVoiceController.swift
       - Shared/Services/AI/ManagedAI+RealtimeVoice.swift
       - Shared/Views/RealtimeVoicePresentation.swift
-      - iOS/MobileRealtimeAudio.swift
       - iOS/MobileRealtimeVoice.swift
       # The voice assistant (CarPlay, Home's waveform): the shared prompt and
       # library helpers, and the phone's picture of the learner and its tools.
@@ -804,6 +810,7 @@ targets:
         embed: true
       - target: ForeverLMShareExtension
         embed: true
+      - package: WebRTC
     settings:
       base:
         # One App ID with the Developer ID Mac app (company team, 2026-10-09):

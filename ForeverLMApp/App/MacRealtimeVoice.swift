@@ -1,4 +1,5 @@
 #if os(macOS)
+import AVFoundation
 import AppKit
 import OSLog
 import SwiftUI
@@ -17,7 +18,7 @@ enum MacRealtimeVoice {
     static let controller: RealtimeVoiceController = {
         // The synced row is hydrated into UserDefaults on the Mac.
         let controller = RealtimeVoiceController(
-            makeAudio: { MacRealtimeVoiceAudio() },
+            platformAudio: MacRealtimeVoicePlatformAudio(),
             readVoice: { UserDefaults.standard.string(forKey: RealtimeVoiceDefaults.voicePreferenceKey) }
         )
         controller.onFinished = { finished in
@@ -146,13 +147,28 @@ enum MacRealtimeVoice {
     }
 }
 
+/// The Mac's part of a voice call: the microphone permission. WebRTC opens the
+/// default input and output itself and cancels echo in software.
+final class MacRealtimeVoicePlatformAudio: RealtimeVoicePlatformAudio, @unchecked Sendable {
+    func prepare(onPreempted: @escaping @Sendable () -> Void) async throws {
+        guard await AVCaptureDevice.requestAccess(for: .audio) else {
+            throw MacRealtimeVoiceError.microphoneDenied
+        }
+    }
+
+    func finish() async {}
+}
+
 enum MacRealtimeVoiceError: LocalizedError {
     case noText(String)
+    case microphoneDenied
 
     var errorDescription: String? {
         switch self {
         case .noText(let title):
             return "\u{201C}\(title)\u{201D} has no text yet, so there is nothing to talk about. Try again once it has finished importing."
+        case .microphoneDenied:
+            return "Microphone access is off for ForeverLM. Turn it on in System Settings › Privacy & Security › Microphone."
         }
     }
 }

@@ -8,9 +8,10 @@ import UIKit
 // `MobileRealtimeAssistant`), which knows the learner's recent work, goals and
 // plans and can open any source to talk about or quiz on (product owner,
 // 2026-11-07: "I need to be able to just talk to this AI assistant and have it
-// ... just work"). Asked for today's memory review, it hands over to the
-// turn-by-turn conversation (`MobileVoiceConversationController`), which owns
-// cards and grading; the template follows whichever of the two is running. The
+// ... just work"). Asked for their review, it runs the cards itself. The
+// template also follows the turn-by-turn conversation
+// (`MobileVoiceConversationController`) when Review by Voice was started on the
+// phone. The
 // approved CarPlay category is voice-based conversation, so the in-car surface
 // deliberately uses Apple's Voice Control template rather than presenting the
 // audio-app Now Playing template. The shared controller outlives the SwiftUI
