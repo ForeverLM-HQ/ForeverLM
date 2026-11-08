@@ -143,6 +143,18 @@ owned=true
 (( waited > 0 )) && echo "[xcb] got the gate after ${waited}s" >&2
 
 export FOREVERLM_BUILD_GATE_HELD=1
-xcodebuild "${args[@]}"
+# The build yields to the apps people are using. One gated build still starts a
+# compiler per core, each multithreaded: on 2026-11-08 a single build-for-testing
+# held load at 76–92 on 12 cores, and ForeverLM beachballed 2–5 s opening a
+# notebook. Its stall watchdog, a userInitiated queue doing almost nothing, went
+# unscheduled for the same 2–5 s, so the whole process was starved, not slow.
+# The utility QoS clamp ranks every compiler (and anything else xcodebuild
+# spawns; taskpolicy's policies are inherited) below interactive work and
+# throttles its disk I/O. An idle machine still gives the build every core.
+if [ -x /usr/sbin/taskpolicy ]; then
+    /usr/sbin/taskpolicy -c utility xcodebuild "${args[@]}"
+else
+    xcodebuild "${args[@]}"
+fi
 status=$?
 exit "${status}"
