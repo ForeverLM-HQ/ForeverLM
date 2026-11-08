@@ -6,9 +6,18 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.201.0 (build 281) — 2026-11-08
+
+**Highlights:**
+- **Voice mode finds your meetings:** ask for one by its series and day, and on the Mac it reads the rest of ForeverLM too.
+- **Voice follows your AirPods** on the Mac when they become the default device mid-call.
+
 - **An article a publisher's check blocked takes its PDF.** Get past the check in the Reader and download the PDF there (the site's own button, or **Download PDF** in the **⋯** menu), or use **Attach PDF File…** on the article's right-click menu: the PDF becomes the article's text and the Reader shows it. The article stays an article.
 - **Voice mode finds meetings and reaches the rest of ForeverLM.** Ask for a meeting by its series and day ("the October 25th journal club session") and the assistant finds it, even when it hears the name slightly wrong. On the Mac it can also read your meeting series, notebooks, Pages, cards, courses, highlights, ideas and past chats. See [Voice Mode](/voice-mode#talk-to-foreverlm).
 - **Chat can act on the page open in the Reader.** Ask it to click, type or read on "this page" and it works in the Reader you are looking at, with the sign-ins and checks you already passed there: for example, clicking a publisher's download button so the PDF attaches.
+- **Voice mode on the Mac follows your AirPods.** Put AirPods in mid-conversation, or let them switch over from the iPhone, and the call moves to them; the status line says "Switching audio…" for a moment and the conversation carries on.
+- **Meeting sessions get their names.** A meeting session that was filed under only its date is named from its files once a model can read them, the next time meetings refresh. A title you wrote is left alone.
+- **Voice mode's costs say BYOK.** In AI Usage on the Mac and Usage on the iPhone, voice conversations carry the green BYOK capsule, since voice runs on its own OpenAI key. Nothing is charged to you.
 
 ## 0.200.0 (build 280) — 2026-11-08
 
