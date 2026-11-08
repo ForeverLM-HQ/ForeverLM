@@ -1977,7 +1977,7 @@ final class MCPToolRegistry: @unchecked Sendable {
             ),
             MCPToolDef(
                 name: "link_google_doc",
-                description: "The same call as link_page, kept for callers that learned it first. Prefer link_page.",
+                description: "Put a Google Doc (docs.google.com/document/d/…) or another page in ForeverLM from its link, read-only, as Link a Google Doc… in Docs does. This is the older name of link_page and does exactly what it does.",
                 inputSchema: [
                     "type": "object",
                     "properties": [

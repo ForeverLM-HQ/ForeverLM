@@ -2909,6 +2909,102 @@ class StudioViewModel {
         }
     }
 
+    // MARK: Tabs between windows
+
+    /// Where a tab dragged out of another window lands in this one.
+    enum CenterTabArrival: Equatable {
+        /// On the strip of the pane at `group`, before its tab at `position`
+        /// (`.max` is the end). A drop on the pane's body lands at the end.
+        case strip(group: Int, position: Int)
+        /// At the far edge of the center area, a pane of its own there.
+        case edge(leading: Bool)
+    }
+
+    /// A tab dragged from one window's strip onto another window (product
+    /// owner, 2026-11-08: "If I have two windows open on two screens side by
+    /// side, make it easy to move a tab from one window to the next"). The
+    /// place opens where it was dropped, showing what it showed there — the
+    /// Reader its source, a side reader its source, Pages its page — and
+    /// closes in the window it left, as its × would. A Browser arrives on this
+    /// window's own pages. A chat moves through the windows' chat stores,
+    /// which are view state (`StudioCenterTabGroupsView`), not through here.
+    func moveCenterTab(
+        _ tab: StudioCenterTab,
+        fromGroup originGroupID: UUID,
+        of origin: StudioWindowState,
+        arriving arrival: CenterTabArrival,
+        in destination: StudioWindowState
+    ) {
+        guard origin !== destination else { return }
+        // What it shows, read before the window it leaves lets go of it.
+        let sourceID: String?
+        switch tab {
+        case .reader: sourceID = origin.readerArticleID
+        case .secondaryReader: sourceID = origin.sideReaderSources[originGroupID]
+        default: sourceID = nil
+        }
+        let artifactID = tab == .notepad ? origin.openArtifactID : nil
+        let place = destination.centerTabGroups.arrivingPlace(for: tab)
+        guard let paneID = receiveCenterTab(place, arriving: arrival, in: destination) else { return }
+        closeCenterTab(tab, fromGroup: originGroupID, in: origin)
+        if let sourceID, articlesById[sourceID] != nil {
+            if place == .secondaryReader {
+                destination.sideReaderSources[paneID] = sourceID
+            } else {
+                Task { await selectArticle(sourceID, in: destination) }
+            }
+        }
+        if let artifactID {
+            artifactRevealRequest = ArtifactRevealRequest(artifactID: artifactID, section: .docs, windowID: destination.id)
+        }
+    }
+
+    /// Puts `place`, come in from another window, where `arrival` says, in
+    /// front there and in the pane a sidebar click next opens into. Returns
+    /// that pane's id; nil when there was nowhere to put it.
+    @discardableResult
+    func receiveCenterTab(
+        _ place: StudioCenterTab,
+        arriving arrival: CenterTabArrival,
+        in destination: StudioWindowState
+    ) -> UUID? {
+        if destination.isVoiceWorkspacePresented { destination.isVoiceWorkspacePresented = false }
+        if destination.memoryCardSession != nil { leaveMemoryReviewFocus(in: destination) }
+        let paneID: UUID?
+        switch arrival {
+        case .strip(let group, let position):
+            let groups = destination.centerTabGroups.groups
+            guard !groups.isEmpty else { return nil }
+            let index = max(0, min(group, groups.count - 1))
+            let target = groups[index].id
+            guard let layout = destination.centerTabGroups.receiving(place, inPaneAt: index, at: position) else { return nil }
+            destination.centerTabGroups = layout
+            paneID = target
+        case .edge(let leading):
+            if place.canStandInSeveralPanes {
+                // A copy: a new pane of its own at the edge, or at the pane
+                // limit a tab of the edge pane.
+                var layout = destination.centerTabGroups
+                guard layout.canCreateDraggedGroup else {
+                    let edgePane = leading ? 0 : layout.groups.count - 1
+                    return receiveCenterTab(place, arriving: .strip(group: edgePane, position: .max), in: destination)
+                }
+                layout.groups.insert(.init(tabs: [place], activeTab: place), at: leading ? 0 : layout.groups.count)
+                destination.centerTabGroups = layout
+            } else {
+                placeCenterTabAtEdge(place, leading: leading, in: destination)
+            }
+            let groups = destination.centerTabGroups.groups
+            paneID = (leading ? groups.first : groups.last).flatMap { $0.activeTab == place ? $0.id : nil }
+        }
+        // The pane may have been dissolved and rebuilt by reconciliation;
+        // answer only for one that still shows the place.
+        guard let paneID,
+              destination.centerTabGroups.groups.contains(where: { $0.id == paneID && $0.activeTab == place }) else { return nil }
+        destination.focusedGroupID = paneID
+        return paneID
+    }
+
     /// Places a workspace destination at the requested outer edge: a tab
     /// dragged to the side to view it beside the rest. A tab sharing its pane
     /// with other tabs, or a parked one, splits into a new pane there — a third

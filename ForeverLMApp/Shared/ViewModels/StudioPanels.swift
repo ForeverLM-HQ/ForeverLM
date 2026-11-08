@@ -420,6 +420,59 @@ struct StudioCenterTabGroups: Equatable {
         return layout
     }
 
+    // MARK: Tabs from another window
+
+    /// The place a tab dragged in from another window becomes in this one
+    /// (product owner, 2026-11-08: "if I have a chat on my right display I need
+    /// to be able to drag it and then pop it over to the other window"). The
+    /// window's one Chat, Reader and Browser come in as themselves while this
+    /// window's are not open, and as a side copy (`splitCopy`) while they
+    /// are, so what this window already shows stays. A side pane from the
+    /// other window comes in the same way, as the window place it copies.
+    /// Every other place is itself.
+    func arrivingPlace(for tab: StudioCenterTab) -> StudioCenterTab {
+        let own: StudioCenterTab
+        switch tab {
+        case .secondaryChat: own = .chat
+        case .secondaryReader: own = .reader
+        case .secondaryBrowser: own = .browser
+        default: own = tab
+        }
+        guard StudioCenterTab.windowPlaces.contains(own),
+              groups.contains(where: { $0.openTabs.contains(own) }) else { return own }
+        return own.splitCopy ?? own
+    }
+
+    /// The arrangement once `place`, come in from another window, is the tab
+    /// of the pane at `index` at `position` in its strip (clamped; `.max` is
+    /// the end) and shows there. A place that may stand in several panes gets
+    /// a copy of its own there; any other moves there from wherever it is
+    /// parked or open, and a pane it leaves with nothing open dissolves, its
+    /// parked places going with it, as a tab dropped on a strip does
+    /// (`StudioViewModel.moveCenterTab`). Nil when `index` is not a pane.
+    func receiving(_ place: StudioCenterTab, inPaneAt index: Int, at position: Int) -> StudioCenterTabGroups? {
+        guard groups.indices.contains(index) else { return nil }
+        var layout = self
+        var target = index
+        if !place.canStandInSeveralPanes,
+           !layout.groups[target].tabs.contains(place),
+           let source = layout.groups.firstIndex(where: { $0.tabs.contains(place) }) {
+            let sourceWasAlone = layout.groups[source].openTabs == [place]
+            layout.groups[source].remove(place)
+            if sourceWasAlone {
+                let parked = layout.groups.remove(at: source).tabs
+                if source < target { target -= 1 }
+                layout.groups[target].tabs.append(contentsOf: parked)
+            }
+        }
+        if !layout.groups[target].tabs.contains(place) { layout.groups[target].tabs.append(place) }
+        var open = layout.groups[target].openTabs.filter { $0 != place }
+        open.insert(place, at: max(0, min(position, open.count)))
+        layout.groups[target].openTabs = open
+        layout.groups[target].activeTab = place
+        return layout
+    }
+
     /// The arrangement with no pane showing one of `unoffered`, the panes of
     /// a feature this Mac does not show yet (`BetaFeatures`): such a pane
     /// shows its first other tab instead, preferring the Space, and a

@@ -2693,6 +2693,83 @@ struct CrossWindowStudioDropTests {
         #expect(destination.centerTabGroups.groups.last == .init(tabs: [.notepad], activeTab: .notepad))
     }
 
+    @Test("A window place dragged from another window comes in as itself, or as a side copy beside this window's own")
+    func arrivingPlaceKeepsWhatTheWindowShows() {
+        let chatShut = StudioCenterTabGroups(groups: [
+            .init(tabs: StudioCenterTab.permanentTabs, activeTab: .reader),
+        ])
+        #expect(chatShut.arrivingPlace(for: .chat) == .chat)
+        #expect(chatShut.arrivingPlace(for: .secondaryChat) == .chat)
+        #expect(chatShut.arrivingPlace(for: .reader) == .secondaryReader)
+        #expect(chatShut.arrivingPlace(for: .secondaryBrowser) == .browser)
+        #expect(chatShut.arrivingPlace(for: .tasks) == .tasks)
+        #expect(chatShut.arrivingPlace(for: .notepad) == .notepad)
+    }
+
+    @Test("A tab from another window joins the strip it is dropped on, where it was dropped")
+    func tabFromAnotherWindowJoinsTheStrip() throws {
+        let layout = StudioCenterTabGroups(groups: [
+            .init(tabs: [.chat, .reader], activeTab: .chat, openTabs: [.chat, .reader]),
+            .init(tabs: StudioCenterTab.permanentTabs.filter { ![.chat, .reader].contains($0) }, activeTab: .artifacts),
+        ])
+
+        // A once-per-window place parked in the other pane moves in, before
+        // the tab it was dropped on.
+        let tasks = try #require(layout.receiving(.tasks, inPaneAt: 0, at: 1))
+        #expect(tasks.groups[0].openTabs == [.chat, .tasks, .reader])
+        #expect(tasks.groups[0].activeTab == .tasks)
+        #expect(!tasks.groups[1].tabs.contains(.tasks))
+
+        // A side copy is a tab of this pane alone, at the strip's end.
+        let side = try #require(layout.receiving(.secondaryChat, inPaneAt: 1, at: .max))
+        #expect(side.groups[1].openTabs.last == .secondaryChat)
+        #expect(side.groups[1].activeTab == .secondaryChat)
+        #expect(side.groups[0].openTabs == [.chat, .reader])
+
+        // The Space, open alone in its pane, leaves that pane, which dissolves
+        // into the pane it was dropped on with what it had parked.
+        let space = try #require(layout.receiving(.artifacts, inPaneAt: 0, at: .max))
+        #expect(space.groups.count == 1)
+        #expect(space.groups[0].activeTab == .artifacts)
+        #expect(Set(space.groups[0].tabs) == Set(StudioCenterTab.permanentTabs))
+
+        #expect(layout.receiving(.tasks, inPaneAt: 5, at: 0) == nil)
+    }
+
+    @Test("A tab dragged to another window opens there and closes in the window it left")
+    func tabMovesBetweenWindows() throws {
+        let restoreTemplate = capturedStudioWindowTemplate()
+        defer { restoreTemplate() }
+        let vm = makeViewModel()
+        let right = StudioWindowState()
+        right.centerTabGroups = StudioCenterTabGroups(groups: [
+            .init(tabs: StudioCenterTab.permanentTabs, activeTab: .tasks, openTabs: [.artifacts, .tasks]),
+        ])
+        let left = StudioWindowState()
+        left.centerTabGroups = StudioCenterTabGroups(groups: [
+            .init(tabs: StudioCenterTab.permanentTabs, activeTab: .artifacts),
+        ])
+        let rightPane = try #require(right.centerTabGroups.groups.first?.id)
+
+        vm.moveCenterTab(.tasks, fromGroup: rightPane, of: right, arriving: .strip(group: 0, position: .max), in: left)
+
+        #expect(left.centerTabGroups.groups[0].openTabs == [.artifacts, .tasks])
+        #expect(left.centerTabGroups.groups[0].activeTab == .tasks)
+        #expect(left.focusedGroupID == left.centerTabGroups.groups[0].id)
+        #expect(right.centerTabGroups.groups[0].openTabs == [.artifacts])
+        #expect(right.centerTabGroups.groups[0].activeTab == .artifacts)
+
+        // At an edge it is a pane of its own.
+        vm.moveCenterTab(.tasks, fromGroup: left.centerTabGroups.groups[0].id, of: left, arriving: .edge(leading: true), in: right)
+        #expect(right.centerTabGroups.groups.map(\.activeTab) == [.tasks, .artifacts])
+        #expect(left.centerTabGroups.groups[0].openTabs == [.artifacts])
+
+        // Dropped back on the window it is in, nothing moves.
+        let before = right.centerTabGroups
+        vm.moveCenterTab(.tasks, fromGroup: right.centerTabGroups.groups[0].id, of: right, arriving: .edge(leading: false), in: right)
+        #expect(right.centerTabGroups == before)
+    }
+
     @Test("Dragging the Library, which fills the window, to an edge docks it and gives the rest to Chat")
     func libraryFillingTheWindowDocksAtAnEdge() {
         let restoreTemplate = capturedStudioWindowTemplate()

@@ -410,6 +410,38 @@ final class StudioAssistantSessionStore {
         closeActiveChat()
     }
 
+    /// Gives up `sessionID`'s chat, live, to a pane in another window that the
+    /// learner dragged its tab to: the manager that holds it, shown or still
+    /// answering in the background, so a turn in flight carries on over there
+    /// rather than racing a second copy hydrated from disk. This store shows a
+    /// blank chat if it was showing that one. Nil when no manager here holds
+    /// it, and the other pane opens it from disk.
+    func handOverChat(_ sessionID: String) -> ReviewSessionManager? {
+        if activeManager.currentSessionID == sessionID {
+            let manager = activeManager
+            activeManager = managerFactory()
+            pendingResumeSessionID = nil
+            requestedSessionID = nil
+            return manager
+        }
+        if let index = backgroundManagers.firstIndex(where: { $0.currentSessionID == sessionID }) {
+            return backgroundManagers.remove(at: index)
+        }
+        return nil
+    }
+
+    /// Shows a chat handed over from another window's pane (`handOverChat`),
+    /// what this store showed parked as any chat it leaves is.
+    func takeHandedOverChat(_ manager: ReviewSessionManager) {
+        guard manager !== activeManager else { return }
+        parkActiveManagerIfNeeded()
+        activeManager = manager
+        pendingResumeSessionID = nil
+        requestedSessionID = nil
+        pruneFinishedBackgroundManagers()
+        noteShownSession(manager.currentSessionID)
+    }
+
     func didConsumeNewChatHandoff(id: UUID) {
         if pendingNewChatHandoff?.id == id {
             pendingNewChatHandoff = nil

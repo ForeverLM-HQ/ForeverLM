@@ -2924,6 +2924,57 @@ enum StudioCenterTabDragPayload {
     }
 }
 
+/// A tab on its way out of a window's strip, kept app-wide while the drag
+/// lasts so another window's strip, panes and edges can take it and the window
+/// it left can let it go (product owner, 2026-11-08: "if I have a chat on my
+/// right display I need to be able to drag it and then pop it over to the
+/// other window"). The pasteboard says only which place is dragged; the
+/// window, the pane and the chat it came from stay in this process, like
+/// `NotebookOutputDragPayload`. One drag at a time.
+enum StudioCenterTabWindowDrag {
+    struct Origin {
+        let window: StudioWindowState
+        let groupID: UUID
+        let tab: StudioCenterTab
+        /// For a chat place: the pane's chat store, the chat tab dragged, and
+        /// the chat it shows (nil for a chat not yet sent).
+        var chatStore: StudioAssistantSessionStore?
+        var chatTabID: UUID?
+        var chatSessionID: String?
+    }
+
+    private static var current: Origin?
+    private static var generation = 0
+
+    static func begin(_ origin: Origin) {
+        generation += 1
+        current = origin
+    }
+
+    /// The drag session is over. Forgotten a moment later rather than at
+    /// once, so a destination that hears of the drop after the source does
+    /// still finds where it came from.
+    static func endSoon() {
+        let ended = generation
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            if generation == ended { current = nil }
+        }
+    }
+
+    static func endNow() {
+        current = nil
+    }
+
+    /// The tab in flight when it left a window other than `window`, and is
+    /// `tab` when one is named (what the pasteboard says): nil for a drag
+    /// within one window, or for a drag that did not start on a strip.
+    static func arriving(in window: StudioWindowState, tab: StudioCenterTab? = nil) -> Origin? {
+        guard let current, current.window !== window else { return nil }
+        if let tab, tab != current.tab { return nil }
+        return current
+    }
+}
+
 func studioCenterTabDragProvider(
     for tab: StudioCenterTab,
     startsBlankChat: Bool = false
@@ -3268,7 +3319,111 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
 
     private func replacePane(at index: Int, with destination: StudioPaneDropDestination) {
         replaceTarget = nil
+        // A tab from another window's strip joins this pane's tabs, at the
+        // end, rather than taking the pane over.
+        if case .tab(let payload) = destination,
+           let origin = StudioCenterTabWindowDrag.arriving(in: windowState, tab: payload.tab) {
+            receiveFromAnotherWindow(origin, .strip(group: index, position: .max))
+            return
+        }
         vm.showDropped(destination, inPaneAt: index, in: windowState)
+    }
+
+    // MARK: Tabs from another window
+
+    /// A tab dragged here from another window's strip (product owner,
+    /// 2026-11-08: "if I have a chat on my right display I need to be able to
+    /// drag it and then pop it over to the other window"): it opens where it
+    /// was dropped and closes in the window it left. A chat moves as its own
+    /// conversation, live; every other place through
+    /// `StudioViewModel.moveCenterTab(_:fromGroup:of:arriving:in:)`.
+    private func receiveFromAnotherWindow(
+        _ origin: StudioCenterTabWindowDrag.Origin,
+        _ arrival: StudioViewModel.CenterTabArrival
+    ) {
+        StudioCenterTabWindowDrag.endNow()
+        StudioDragVisibility.shared.endNow()
+        dropTarget = nil
+        withAnimation(.easeInOut(duration: 0.18)) {
+            if let originStore = origin.chatStore {
+                receiveChat(from: origin, store: originStore, arrival)
+            } else {
+                vm.moveCenterTab(origin.tab, fromGroup: origin.groupID, of: origin.window, arriving: arrival, in: windowState)
+            }
+        }
+    }
+
+    /// The chat of a chat tab from another window, in the pane it was dropped
+    /// on: another chat tab there when the pane already has a chat, else this
+    /// window's Chat when it is not open, else a side chat. Its manager comes
+    /// with it (`handOverChat`), so a turn still answering carries on here;
+    /// the chat that pane showed keeps a tab of its own. In the window it
+    /// left, its tab closes, or with no other chat tab there its place does,
+    /// as the × would.
+    private func receiveChat(
+        from origin: StudioCenterTabWindowDrag.Origin,
+        store originStore: StudioAssistantSessionStore,
+        _ arrival: StudioViewModel.CenterTabArrival
+    ) {
+        guard let landing = chatLanding(for: arrival),
+              let store = chatStore(landing.place, landing.paneID),
+              store !== originStore else { return }
+        let (paneID, place) = (landing.paneID, landing.place)
+        let sessionID = origin.chatSessionID
+        let alreadyHere = sessionID.flatMap { id in store.shownChatTabs.first { $0.sessionID == id } }
+        let manager = alreadyHere == nil ? sessionID.flatMap { originStore.handOverChat($0) } : nil
+
+        if originStore.chatTabs.count > 1, let chatTabID = origin.chatTabID {
+            originStore.closeChatTab(chatTabID)
+        } else {
+            vm.closeCenterTab(origin.tab, fromGroup: origin.groupID, in: origin.window)
+        }
+        // One chat is never drawn by two panels.
+        if let sessionID { originStore.releaseChat(sessionID) }
+
+        windowState.focusedGroupID = paneID
+        vm.activateCenterTab(place, in: windowState)
+        if let alreadyHere {
+            if !store.chatTabs.isEmpty { store.selectChatTab(alreadyHere.id) }
+            return
+        }
+        let showsAChat = store.activeSessionID != nil || store.isOpeningChat || !store.chatTabs.isEmpty
+        if showsAChat { store.addChatTab() }
+        if let manager {
+            store.takeHandedOverChat(manager)
+        } else if let sessionID {
+            store.requestOpen(sessionID: sessionID)
+            store.noteShownSession(sessionID)
+        } else if showsAChat {
+            // A chat not yet sent arrives as one.
+            if place == .chat {
+                vm.inWindow(windowState) { vm.requestNewChat() }
+            } else {
+                store.closeActiveChat()
+            }
+        }
+    }
+
+    /// The pane a chat from another window lands in and the chat place it
+    /// shows there.
+    private func chatLanding(for arrival: StudioViewModel.CenterTabArrival) -> (paneID: UUID, place: StudioCenterTab)? {
+        let layout = windowState.centerTabGroups
+        switch arrival {
+        case .strip(let group, _):
+            guard !layout.groups.isEmpty else { return nil }
+            let pane = layout.groups[max(0, min(group, layout.groups.count - 1))]
+            if let place = pane.openTabs.first(where: { chatStore($0, pane.id) != nil }) {
+                return (paneID: pane.id, place: place)
+            }
+        case .edge(let leading):
+            // No room for a pane of its own: the edge pane's strip takes it.
+            if !layout.canCreateDraggedGroup, layout.arrivingPlace(for: .chat) != .chat {
+                return chatLanding(for: .strip(group: leading ? 0 : layout.groups.count - 1, position: .max))
+            }
+        }
+        let place = layout.arrivingPlace(for: .chat)
+        guard let paneID = vm.receiveCenterTab(place, arriving: arrival, in: windowState) else { return nil }
+        return (paneID: paneID, place: place)
     }
 
     // MARK: Tab strip
@@ -3292,6 +3447,7 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                     ForEach(store.shownChatTabs) { chatTab in
                         tabButton(
                             tab, in: group, at: groupIndex, tabIndex: tabIndex,
+                            chat: (store, chatTab),
                             title: chatTabTitle(chatTab),
                             systemImage: systemImage,
                             isActive: group.activeTab == tab && store.isActiveChatTab(chatTab),
@@ -3386,7 +3542,9 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                     target: .stripEnd(group: groupIndex),
                     draggingTab: $draggingTab,
                     dropTarget: $dropTarget,
-                    perform: { vm.moveCenterTab($0, fromGroup: draggingFromGroupID, toGroup: groupIndex, at: .max, in: windowState) }
+                    arriving: { [windowState] in StudioCenterTabWindowDrag.arriving(in: windowState) },
+                    perform: { vm.moveCenterTab($0, fromGroup: draggingFromGroupID, toGroup: groupIndex, at: .max, in: windowState) },
+                    receive: { receiveFromAnotherWindow($0, .strip(group: groupIndex, position: .max)) }
                 ))
 
             // No pane × at the end: every tab carries its own, and a lone
@@ -3415,6 +3573,7 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
         in group: StudioCenterTabGroups.Group,
         at groupIndex: Int,
         tabIndex: Int,
+        chat: (store: StudioAssistantSessionStore, tab: StudioAssistantSessionStore.ChatTab)? = nil,
         title: String,
         systemImage: String,
         isActive: Bool,
@@ -3434,11 +3593,21 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                 draggingTab = tab
                 draggingFromGroupID = group.id
                 dropTarget = nil
+                // Another window may take it (`StudioCenterTabWindowDrag`).
+                StudioCenterTabWindowDrag.begin(.init(
+                    window: windowState,
+                    groupID: group.id,
+                    tab: tab,
+                    chatStore: chat?.store,
+                    chatTabID: chat?.tab.id,
+                    chatSessionID: chat?.tab.sessionID
+                ))
             },
             onDragEnded: {
                 draggingTab = nil
                 draggingFromGroupID = nil
                 dropTarget = nil
+                StudioCenterTabWindowDrag.endSoon()
             },
             splitLeftEnabled: isAlone ? groupIndex > 0 : !atCapacity,
             splitRightEnabled: isAlone ? groupIndex < windowState.centerTabGroups.groups.count - 1 : !atCapacity,
@@ -3451,7 +3620,9 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
             target: .tab(group: groupIndex, index: tabIndex),
             draggingTab: $draggingTab,
             dropTarget: $dropTarget,
-            perform: { vm.moveCenterTab($0, fromGroup: draggingFromGroupID, toGroup: groupIndex, at: tabIndex, in: windowState) }
+            arriving: { [windowState] in StudioCenterTabWindowDrag.arriving(in: windowState) },
+            perform: { vm.moveCenterTab($0, fromGroup: draggingFromGroupID, toGroup: groupIndex, at: tabIndex, in: windowState) },
+            receive: { receiveFromAnotherWindow($0, .strip(group: groupIndex, position: tabIndex)) }
         ))
     }
 
@@ -3583,6 +3754,12 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                         }
                     },
                     onDrop: { payload in
+                        // A tab from another window's strip opens here with
+                        // what it showed, and leaves that window.
+                        if let origin = StudioCenterTabWindowDrag.arriving(in: windowState, tab: payload.tab) {
+                            receiveFromAnotherWindow(origin, .edge(leading: leading))
+                            return
+                        }
                         // A Docs-list row carries its doc beside the pane. Read
                         // it before the drag state is cleared below.
                         let draggedArtifactID = StudioDragVisibility.shared.draggedArtifactID
@@ -3726,15 +3903,38 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
             )
         }
 
-        guard let tab = draggingTab ?? dragVisibility.draggedCenterTab,
-              let sourceIndex = groups.firstIndex(where: { $0.tabs.contains(tab) }) else { return nil }
+        // A tab from another window's strip comes in as this window's place
+        // (`arrivingPlace`); a copy this window does not hold yet opens a pane
+        // of its own, as a split would.
+        let arrivingTab = draggingTab == nil
+            ? StudioCenterTabWindowDrag.arriving(in: windowState)
+                .map { StudioCenterTabGroups(groups: groups).arrivingPlace(for: $0.tab) }
+            : nil
+        guard let tab = draggingTab ?? arrivingTab ?? dragVisibility.draggedCenterTab else { return nil }
 
         // A destination dragged from the sidebar is taken by the pane under
         // the pointer, so the edge zones keep to a gutter and leave each pane
-        // its middle, as they do for a source.
-        let cap = draggingTab == nil && dragVisibility.isPaneDrag
+        // its middle, as they do for a source. So is a tab from another
+        // window, which joins the pane it is dropped on.
+        let cap = draggingTab == nil && (dragVisibility.isPaneDrag || arrivingTab != nil)
             ? StudioCenterTabSplitPreviewSizing.sourceEdgeZoneWidth(totalWidth: totalWidth)
             : .infinity
+
+        guard let sourceIndex = groups.firstIndex(where: { $0.tabs.contains(tab) }),
+              arrivingTab == nil || !tab.canStandInSeveralPanes else {
+            guard arrivingTab != nil else { return nil }
+            if StudioCenterTabGroups(groups: groups).canCreateDraggedGroup {
+                let width = StudioCenterTabSplitPreviewSizing.newPaneWidth(
+                    totalWidth: totalWidth,
+                    currentGroupCount: groups.count,
+                    dividerWidth: dividerWidth,
+                    maximumGroupCount: StudioCenterTabGroups.draggedGroupCount
+                )
+                return width > 0 ? min(width, cap) : nil
+            }
+            let destinationIndex = leading ? 0 : groups.count - 1
+            return min(groupWidth(at: destinationIndex, fractions: fractions, count: groups.count, totalWidth: totalWidth), cap)
+        }
 
         // The same three outcomes as `StudioViewModel.placeCenterTabAtEdge`:
         // a pane of the tab's own moves to the edge, a tab sharing its pane
@@ -4487,14 +4687,20 @@ private struct StudioCenterTabDropDelegate: DropDelegate {
     let target: StudioCenterTabDropTarget
     @Binding var draggingTab: StudioCenterTab?
     @Binding var dropTarget: StudioCenterTabDropTarget?
+    /// A tab dragged here from another window's strip, which this window's
+    /// `draggingTab` never hears of.
+    let arriving: () -> StudioCenterTabWindowDrag.Origin?
     let perform: (StudioCenterTab) -> Void
+    let receive: (StudioCenterTabWindowDrag.Origin) -> Void
+
+    private var takesDrag: Bool { draggingTab != nil || arriving() != nil }
 
     func validateDrop(info: DropInfo) -> Bool {
-        draggingTab != nil
+        takesDrag
     }
 
     func dropEntered(info: DropInfo) {
-        guard draggingTab != nil else { return }
+        guard takesDrag else { return }
         dropTarget = target
     }
 
@@ -4503,7 +4709,7 @@ private struct StudioCenterTabDropDelegate: DropDelegate {
     }
 
     func dropUpdated(info: DropInfo) -> DropProposal? {
-        DropProposal(operation: draggingTab == nil ? .cancel : .move)
+        DropProposal(operation: takesDrag ? .move : .cancel)
     }
 
     func performDrop(info: DropInfo) -> Bool {
@@ -4511,8 +4717,12 @@ private struct StudioCenterTabDropDelegate: DropDelegate {
             draggingTab = nil
             dropTarget = nil
         }
-        guard let tab = draggingTab else { return false }
-        perform(tab)
+        if let tab = draggingTab {
+            perform(tab)
+            return true
+        }
+        guard let origin = arriving() else { return false }
+        receive(origin)
         return true
     }
 }
