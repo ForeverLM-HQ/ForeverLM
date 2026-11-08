@@ -484,7 +484,7 @@ struct MobileSourceReaderView: View {
     }
 
     /// Voice mode, as ChatGPT has it: tap to talk about the source out loud;
-    /// hold for being quizzed on it (`MobileRealtimeVoice`).
+    /// hold for being quizzed on it, or for gym mode (`MobileRealtimeVoice`).
     private var voiceToolbarControl: some View {
         Menu {
             Button {
@@ -497,13 +497,20 @@ struct MobileSourceReaderView: View {
             } label: {
                 Label("Quiz Me", systemImage: "questionmark.bubble")
             }
+            // Gym mode: ForeverLM explains the source like a podcast and the
+            // learner types follow-up questions (product owner, 2026-11-08).
+            Button {
+                startVoice(.gym)
+            } label: {
+                Label("Gym Mode", systemImage: "figure.strengthtraining.traditional")
+            }
         } label: {
             Label("Voice", systemImage: "waveform")
         } primaryAction: {
             startVoice(.talk)
         }
         .accessibilityLabel("Talk about this source")
-        .accessibilityHint("Hold for Quiz Me.")
+        .accessibilityHint("Hold for Quiz Me or Gym Mode.")
         .accessibilityIdentifier("reader.voice")
     }
 

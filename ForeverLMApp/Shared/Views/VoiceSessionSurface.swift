@@ -178,6 +178,9 @@ struct VoiceSessionSurface: View {
     let onToggleMute: (() -> Void)?
     let onEnd: () -> Void
     let onDismissError: (() -> Void)?
+    /// Drawn just above the controls while the conversation is not failed:
+    /// gym mode's question field on the iPhone.
+    let accessory: AnyView?
 
     init(
         state: VoiceSessionPresentationState,
@@ -186,7 +189,8 @@ struct VoiceSessionSurface: View {
         onRecovery: (() -> Void)? = nil,
         onToggleMute: (() -> Void)? = nil,
         onEnd: @escaping () -> Void,
-        onDismissError: (() -> Void)? = nil
+        onDismissError: (() -> Void)? = nil,
+        accessory: AnyView? = nil
     ) {
         self.state = state
         self.identifierPrefix = identifierPrefix
@@ -195,6 +199,7 @@ struct VoiceSessionSurface: View {
         self.onToggleMute = onToggleMute
         self.onEnd = onEnd
         self.onDismissError = onDismissError
+        self.accessory = accessory
     }
 
     var body: some View {
@@ -248,10 +253,15 @@ struct VoiceSessionSurface: View {
         // safe-area inset keeps the controls in their own topmost interaction
         // region instead of making them compete for space in the content stack.
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            controls
-                .padding(.horizontal, 20)
-                .padding(.bottom, 12)
-                .zIndex(1)
+            VStack(spacing: 14) {
+                if let accessory, state.phase != .failed {
+                    accessory
+                }
+                controls
+            }
+            .padding(.horizontal, 20)
+            .padding(.bottom, 12)
+            .zIndex(1)
         }
         .clipped()
         .animation(.easeOut(duration: 0.2), value: state.contextItems.map(\.id))

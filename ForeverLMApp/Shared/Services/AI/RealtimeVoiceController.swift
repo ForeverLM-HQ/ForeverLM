@@ -106,6 +106,19 @@ final class RealtimeVoiceController: ObservableObject {
     private var endFallbackTask: Task<Void, Never>?
     /// The audio devices changed while a call was opening; it reopens once live.
     private var devicesChangedWhileConnecting = false
+    /// A tool's answer was sent and the reply it asked for has not begun.
+    private var awaitingToolReply = false
+    /// A reply has begun speaking and its audio has not finished playing.
+    private var speechPending = false
+
+    // Gym mode (`RealtimeVoiceOpening.gym`), for the whole conversation.
+    /// The walk-through goes on: each part that finishes asks for the next,
+    /// until the model calls `finish_walkthrough`.
+    private var continuesWalkthrough = false
+    /// Typed questions waiting for the part being spoken to finish.
+    private var queuedQuestions: [String] = []
+    /// How many typed questions wait, for the voice screen.
+    @Published private(set) var waitingQuestionCount = 0
 
     /// `readVoice` answers the learner's voice pick (the synced
     /// `RealtimeVoiceDefaults.voicePreferenceKey`), read at each start so a
@@ -153,6 +166,12 @@ final class RealtimeVoiceController: ObservableObject {
         lifecycle = id
         self.title = title
         self.opening = opening
+        // Gym mode starts with the microphone off: the gym is loud and the
+        // learner types instead. Every other conversation starts listening.
+        isMicrophoneMuted = opening == .gym
+        continuesWalkthrough = opening == .gym
+        queuedQuestions = []
+        waitingQuestionCount = 0
         brief = nil
         transcript = []
         errorMessage = nil
@@ -219,6 +238,22 @@ final class RealtimeVoiceController: ObservableObject {
         ))
     }
 
+    /// A question the learner typed (gym mode). It is asked at once when
+    /// ForeverLM is quiet, or after the part it is saying ends, so a part is
+    /// never cut off mid-sentence. It is saved in the chat as typed.
+    func ask(_ question: String) {
+        let text = question.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, phase == .live || phase == .connecting || phase == .reconnecting else { return }
+        transcript.append(RealtimeVoiceTurn(
+            id: "typed-\(UUID().uuidString)",
+            role: .learner,
+            text: text
+        ))
+        queuedQuestions.append(text)
+        waitingQuestionCount = queuedQuestions.count
+        advanceIfQuiet()
+    }
+
     func toggleMicrophoneMuted() {
         isMicrophoneMuted.toggle()
         session?.setMicrophoneMuted(isMicrophoneMuted)
@@ -281,7 +316,8 @@ final class RealtimeVoiceController: ObservableObject {
         guard let brief else { return }
         let configuration = OpenAIRealtimeWire.sessionConfiguration(
             instructions: brief.instructions,
-            tools: brief.toolbox.toolDefinitions + [RealtimeVoiceTutor.endTool],
+            tools: brief.toolbox.toolDefinitions + [RealtimeVoiceTutor.endTool]
+                + (opening == .gym ? [RealtimeVoiceTutor.finishWalkthroughTool] : []),
             voice: voice
         )
         let secret = try await ManagedAI.mintRealtimeVoiceSecret(session: configuration)
@@ -306,7 +342,13 @@ final class RealtimeVoiceController: ObservableObject {
             for item in RealtimeVoiceTutor.resumeItems(from: transcript) {
                 try session.createMessage(role: item.role, text: item.text)
             }
-            try session.createMessage(role: "user", text: RealtimeVoiceTutor.resumeNote)
+            // Questions typed while the call was down are in the replay above.
+            queuedQuestions = []
+            waitingQuestionCount = 0
+            try session.createMessage(
+                role: "user",
+                text: opening == .gym ? RealtimeVoiceTutor.gymResumeNote : RealtimeVoiceTutor.resumeNote
+            )
         } else {
             try session.createMessage(role: "user", text: brief.kickoff)
         }
@@ -358,6 +400,8 @@ final class RealtimeVoiceController: ObservableObject {
         endFallbackTask?.cancel()
         endFallbackTask = nil
         isTutorWorking = false
+        awaitingToolReply = false
+        speechPending = false
     }
 
     static func message(for error: Error) -> String {
@@ -495,11 +539,13 @@ final class RealtimeVoiceController: ObservableObject {
 
         case .responseCreated:
             responseInFlight = true
+            awaitingToolReply = false
             isTutorWorking = true
             if !isSpeaking { statusText = "Thinking" }
 
         case .outputItemAdded(let itemID):
             currentOutputItemID = itemID
+            speechPending = true
             if !transcript.contains(where: { $0.id == itemID }) {
                 transcript.append(RealtimeVoiceTurn(id: itemID, role: .tutor, text: ""))
             }
@@ -511,12 +557,19 @@ final class RealtimeVoiceController: ObservableObject {
 
         case .outputAudioStopped, .outputAudioCleared:
             isSpeaking = false
+            speechPending = false
             if responseInFlight {
                 statusText = "Thinking"
             } else {
                 isTutorWorking = false
                 statusText = isMicrophoneMuted ? "Muted" : "Listening"
-                if endsAfterReply { await end() }
+                if endsAfterReply {
+                    await end()
+                } else if event == .outputAudioStopped {
+                    // A part played to its end (not cut off by the learner):
+                    // gym mode asks the waiting question, or the next part.
+                    advanceIfQuiet()
+                }
             }
 
         case .outputTranscriptDelta(let itemID, let delta):
@@ -548,7 +601,14 @@ final class RealtimeVoiceController: ObservableObject {
                 isTutorWorking = false
                 statusText = isMicrophoneMuted ? "Muted" : "Listening"
             }
-            if endsAfterReply { scheduleEndFallback(after: isSpeaking ? 10 : 2.5) }
+            if endsAfterReply {
+                scheduleEndFallback(after: isSpeaking ? 10 : 2.5)
+            } else if !speechPending {
+                // Nothing left to play (a tool call alone, or audio that
+                // already finished): move on now. Otherwise the audio's end
+                // moves on.
+                advanceIfQuiet()
+            }
 
         case .serverError(let message):
             // A call-ending error arrives here too, just before the stream
@@ -570,6 +630,31 @@ final class RealtimeVoiceController: ObservableObject {
         }
     }
 
+    /// Gym mode, when ForeverLM is quiet: the oldest typed question is asked,
+    /// or else the next part of the walk-through, until it is finished. Any
+    /// other conversation waits for the learner.
+    private func advanceIfQuiet() {
+        guard phase == .live, let session, !isSpeaking, !responseInFlight, !awaitingToolReply, !endsAfterReply else {
+            return
+        }
+        do {
+            if !queuedQuestions.isEmpty {
+                let question = queuedQuestions.removeFirst()
+                waitingQuestionCount = queuedQuestions.count
+                try session.createMessage(role: "user", text: RealtimeVoiceTutor.typedQuestionMessage(question))
+            } else if opening == .gym, continuesWalkthrough {
+                try session.createMessage(role: "user", text: RealtimeVoiceTutor.gymContinueMessage)
+            } else {
+                return
+            }
+            try session.createResponse()
+            isTutorWorking = true
+            statusText = "Thinking"
+        } catch {
+            Self.logger.error("Gym mode could not go on: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
     private func runTool(callID: String, name: String, argumentsJSON: String) async {
         let output: String
         var asksForReply = true
@@ -577,6 +662,10 @@ final class RealtimeVoiceController: ObservableObject {
             output = #"{"ok":true}"#
             asksForReply = false
             endsAfterReply = true
+        } else if name == RealtimeVoiceTutor.finishWalkthroughToolName {
+            output = #"{"ok":true}"#
+            asksForReply = false
+            continuesWalkthrough = false
         } else if let toolbox = brief?.toolbox {
             isTutorWorking = true
             output = await toolbox.run(name: name, argumentsJSON: argumentsJSON)
@@ -584,6 +673,7 @@ final class RealtimeVoiceController: ObservableObject {
             output = #"{"error":"Unknown tool."}"#
         }
         guard let session else { return }
+        if asksForReply { awaitingToolReply = true }
         do {
             try session.createFunctionOutput(callID: callID, output: output)
             if asksForReply { try session.createResponse() }

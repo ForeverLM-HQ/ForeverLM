@@ -16,7 +16,13 @@ extension RealtimeVoiceController {
             phase: surfacePhase,
             statusText: statusText,
             headerTitle: title ?? "Voice",
-            headerSystemImage: opening == .quiz ? "questionmark.bubble" : "waveform",
+            headerSystemImage: {
+                switch opening {
+                case .talk: return "waveform"
+                case .quiz: return "questionmark.bubble"
+                case .gym: return "figure.strengthtraining.traditional"
+                }
+            }(),
             contextItems: context.map { [$0] } ?? [],
             isMicrophoneMuted: isMicrophoneMuted,
             microphoneLevel: microphoneLevel,

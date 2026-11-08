@@ -133,7 +133,11 @@ enum MobileRealtimeVoice {
             // The mean of the answers the tutor graded, which the Mac reads as
             // the source's latest recall score; nil for a talk with none graded.
             overallScore: RealtimeVoiceExchange.overallScore(of: exchanges),
-            summary: (finished.source.map { "Voice conversation about \($0.title) on iOS — \(turns)." }
+            summary: (finished.source.map { source in
+                controller.opening == .gym
+                    ? "Gym mode walk-through of \(source.title) on iOS — \(answered) typed question\(answered == 1 ? "" : "s")."
+                    : "Voice conversation about \(source.title) on iOS — \(turns)."
+            }
                 ?? (isAssistant
                     ? "Voice conversation with the ForeverLM assistant on iOS — \(turns)."
                     : "Card review by voice on iOS — \(turns).")) + (gradedLine.map { " " + $0 } ?? ""),

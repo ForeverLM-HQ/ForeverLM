@@ -20,6 +20,11 @@ enum RealtimeVoiceOpening: String, Equatable, Sendable {
     case talk
     /// Starts with the first question about the source.
     case quiz
+    /// Gym mode (product owner, 2026-11-08): the learner is working out and
+    /// cannot talk, so ForeverLM walks them through the source part by part,
+    /// like a podcast, and they type their follow-up questions. The microphone
+    /// starts off; the controller asks for each next part itself.
+    case gym
 }
 
 /// One line of a voice conversation, as it is shown and saved.
@@ -322,8 +327,10 @@ enum RealtimeVoiceTutor {
     static let searchToolName = "search_source"
     static let endToolName = "end_conversation"
     static let recordAnswerToolName = "record_answer"
+    static let finishWalkthroughToolName = "finish_walkthrough"
 
     static func instructions(for source: RealtimeVoiceSource, opening: RealtimeVoiceOpening) -> String {
+        if opening == .gym { return gymInstructions(for: source) }
         let kind = spokenKind(source.sourceType)
         let fitsInline = source.text.count <= inlineTextBudget
         let text = fitsInline ? source.text : String(source.text.prefix(inlineTextBudget))
@@ -388,13 +395,11 @@ enum RealtimeVoiceTutor {
             Opening: say in a few words that you'll quiz them on the \(kind), then ask the first question, about its \
             central idea.
             """)
+        case .gym:
+            break
         }
 
-        var header = "Title: \(source.title)"
-        if let byline = source.byline?.trimmingCharacters(in: .whitespacesAndNewlines), !byline.isEmpty {
-            header += "\nBy: \(byline)"
-        }
-        sections.append("<source>\n\(header)\n\n\(text)\n</source>")
+        sections.append(sourceBlock(source, text: text))
 
         if let guide = source.reviewGuide?.trimmingCharacters(in: .whitespacesAndNewlines), !guide.isEmpty {
             sections.append("""
@@ -407,13 +412,106 @@ enum RealtimeVoiceTutor {
         return sections.joined(separator: "\n\n")
     }
 
+    /// Gym mode: ForeverLM explains the source out loud in parts, the way a
+    /// good podcast host walks one listener through a paper, and answers the
+    /// questions the learner types. The learner cannot speak, so it never
+    /// quizzes. Each part ends on its own; the controller asks for the next
+    /// with `gymContinueMessage` until `finish_walkthrough` is called.
+    static func gymInstructions(for source: RealtimeVoiceSource) -> String {
+        let kind = spokenKind(source.sourceType)
+        let fitsInline = source.text.count <= inlineTextBudget
+        let text = fitsInline ? source.text : String(source.text.prefix(inlineTextBudget))
+        var sections: [String] = []
+
+        sections.append("""
+        You are ForeverLM's voice tutor. The learner is at the gym with headphones in, listening to you instead of a \
+        podcast. They cannot talk back; when they have a question they type it, and it reaches you as a message from \
+        them. Walk them through one \(kind) they want to understand, out loud, like a sharp, warm host explaining it to \
+        one listener.
+
+        How to explain:
+        - Go through the \(kind) in the order its ideas build, not section by section: the question it asks and why it \
+        matters, what was done, what was found and what the findings mean, how sure we can be and where it is weak, and \
+        what it changes.
+        - Concrete first: the actual finding, an example or the experiment itself, then the abstraction. Define every \
+        technical term the first time it comes up, in plain words. Explain why, not only what.
+        - Speak in parts of about a minute: a few short spoken paragraphs that make one point, then stop. You will be \
+        asked to continue; carry on exactly where you left off, with no greeting, no recap of the part before, and no \
+        "welcome back".
+        - Speak the way people talk: no lists, headings, markdown, URLs, figure numbers or citation numbers read out; \
+        round numbers the way a person would say them.
+        - Say "the \(kind)" or use its title; never "this lecture", "the document" or "the text you provided".
+        - Ground everything in the \(kind). If it does not say something, say so instead of guessing, and keep outside \
+        knowledge clearly labelled as such.
+        - Never quiz the learner or ask them to answer out loud; they cannot.
+
+        When a typed question arrives: answer it first, directly and briefly, then say in a few words that you are \
+        going back to the \(kind), and carry on with the walk-through where it was.
+
+        When you have covered the whole \(kind): sum up its three most important takeaways in a few sentences, say they \
+        can type any question they still have, and then call \(finishWalkthroughToolName). After that, only answer the \
+        questions they type.
+
+        If the learner says goodbye or that they are done, say a one-sentence goodbye and then call \(endToolName).
+        """)
+
+        if fitsInline {
+            sections.append("You have the whole \(kind) below.")
+        } else {
+            sections.append("""
+            Below is the opening of the \(kind); it is too long to include whole. Before you explain or answer anything \
+            beyond it, call \(searchToolName) with a few specific words to read the relevant passages.
+            """)
+        }
+
+        sections.append("""
+        Opening: in one sentence, name the \(kind) and say you'll walk them through it; then go straight into the \
+        first part.
+        """)
+
+        sections.append(sourceBlock(source, text: text))
+        return sections.joined(separator: "\n\n")
+    }
+
+    private static func sourceBlock(_ source: RealtimeVoiceSource, text: String) -> String {
+        var header = "Title: \(source.title)"
+        if let byline = source.byline?.trimmingCharacters(in: .whitespacesAndNewlines), !byline.isEmpty {
+            header += "\nBy: \(byline)"
+        }
+        return "<source>\n\(header)\n\n\(text)\n</source>"
+    }
+
     /// The kickoff turn, sent as a hidden learner message so the tutor speaks
     /// first. It is never shown or saved.
     static func kickoffMessage(for opening: RealtimeVoiceOpening) -> String {
         switch opening {
         case .talk: return "(The learner just opened voice mode. Greet them as instructed.)"
         case .quiz: return "(The learner just opened voice mode to be quizzed. Begin as instructed.)"
+        case .gym: return "(The learner just started gym mode and is listening. Begin the walk-through as instructed.)"
         }
+    }
+
+    /// Sent, hidden, when a gym-mode part has finished playing and no typed
+    /// question is waiting: the next part of the walk-through.
+    static let gymContinueMessage = "(Continue the walk-through with the next part.)"
+
+    /// A question the learner typed in gym mode, as the model reads it.
+    static func typedQuestionMessage(_ question: String) -> String {
+        "(Typed by the learner:) " + question
+    }
+
+    /// Gym mode's last step: the walk-through is done, so the controller stops
+    /// asking for more parts and the model only answers typed questions.
+    static var finishWalkthroughTool: [String: Any] {
+        [
+            "type": "function",
+            "name": finishWalkthroughToolName,
+            "description": "Marks the walk-through of the source as finished, after you have summed up its takeaways. Call it once, at the very end; from then on you only answer the learner's typed questions.",
+            "parameters": [
+                "type": "object",
+                "properties": [String: Any](),
+            ] as [String: Any],
+        ]
     }
 
     static var searchTool: [String: Any] {
@@ -472,17 +570,29 @@ enum RealtimeVoiceTutor {
     }
 
     /// The context a replacement call is given after a dropped connection:
-    /// what ForeverLM said so far, newest last. The learner's words were never
-    /// transcribed, so they are not replayed; `resumeNote` says so.
+    /// what ForeverLM said so far, newest last. The learner's spoken words were
+    /// never transcribed, so they are not replayed; `resumeNote` says so. A
+    /// question the learner typed (gym mode) is replayed as they typed it.
     static func resumeItems(from transcript: [RealtimeVoiceTurn], limit: Int = 30) -> [(role: String, text: String)] {
         transcript
-            .filter { $0.role == .tutor && !$0.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+            .filter { turn in
+                let text = turn.text.trimmingCharacters(in: .whitespacesAndNewlines)
+                return !text.isEmpty && (turn.role == .tutor || text != RealtimeVoiceTurn.spokenMark)
+            }
             .suffix(limit)
-            .map { (role: "assistant", text: $0.text) }
+            .map { turn in
+                turn.role == .tutor
+                    ? (role: "assistant", text: turn.text)
+                    : (role: "user", text: typedQuestionMessage(turn.text))
+            }
     }
 
     /// Sent after `resumeItems`, so the model picks the conversation up.
     static let resumeNote = "(The call dropped and has just reconnected. Above is what you said before it dropped; the learner's replies were spoken and are not shown. In one short sentence, say you're back and ask them to pick up where you left off.)"
+
+    /// Gym mode's resume: the learner cannot answer, so the walk-through just
+    /// carries on.
+    static let gymResumeNote = "(The call dropped and has just reconnected. Above is what you said before it dropped. Say in a few words that you're back, then carry on with the walk-through exactly where you left off; if a typed question above is still unanswered, answer it first.)"
 
     static func spokenKind(_ sourceType: String) -> String {
         switch sourceType.lowercased() {

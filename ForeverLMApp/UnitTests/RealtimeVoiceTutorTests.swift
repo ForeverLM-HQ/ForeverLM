@@ -197,6 +197,45 @@ struct RealtimeVoiceTutorTests {
         #expect(RealtimeVoiceExchange.assistantChatTitle(firstQuestion: RealtimeVoiceTurn.spokenMark) == "Voice chat")
     }
 
+    @Test("Gym mode walks through the source in parts, never quizzes, and finishes with a tool")
+    func gymInstructions() {
+        let text = "Membrane potential falls with age. " + String(repeating: "Body text. ", count: 50)
+        let gym = RealtimeVoiceTutor.instructions(for: source(text: text, guide: "Key idea: decline."), opening: .gym)
+        #expect(gym.contains(text))
+        #expect(gym.contains("at the gym"))
+        #expect(gym.contains("parts of about a minute"))
+        #expect(gym.contains("Never quiz"))
+        #expect(gym.contains("call \(RealtimeVoiceTutor.finishWalkthroughToolName)"))
+        #expect(!gym.contains(RealtimeVoiceTutor.recordAnswerToolName), "nothing is graded in gym mode")
+        #expect(!gym.contains("<review_guide>"))
+        let long = RealtimeVoiceTutor.instructions(
+            for: source(text: String(repeating: "a", count: RealtimeVoiceTutor.inlineTextBudget) + "THE TAIL"),
+            opening: .gym
+        )
+        #expect(!long.contains("THE TAIL"))
+        #expect(long.contains("call \(RealtimeVoiceTutor.searchToolName)"))
+        #expect(RealtimeVoiceTutor.kickoffMessage(for: .gym).contains("gym mode"))
+        #expect(RealtimeVoiceTutor.finishWalkthroughTool["name"] as? String == "finish_walkthrough")
+        #expect(RealtimeVoiceTutor.typedQuestionMessage("Why flies?") == "(Typed by the learner:) Why flies?")
+    }
+
+    @Test("A dropped gym-mode call replays the questions the learner typed")
+    func gymResume() {
+        let turns = [
+            RealtimeVoiceTurn(id: "1", role: .tutor, text: "The paper asks why potential falls."),
+            RealtimeVoiceTurn(id: "2", role: .learner, text: "What is membrane potential?"),
+            RealtimeVoiceTurn(id: "3", role: .tutor, text: "It is the voltage across the inner membrane."),
+            RealtimeVoiceTurn(id: "4", role: .learner, text: RealtimeVoiceTurn.spokenMark),
+        ]
+        let items = RealtimeVoiceTutor.resumeItems(from: turns)
+        #expect(items.map(\.role) == ["assistant", "user", "assistant"])
+        #expect(items[1].text == "(Typed by the learner:) What is membrane potential?")
+        // A typed question is saved as the learner's line, with the reply after it.
+        let exchanges = RealtimeVoiceExchange.exchanges(from: Array(turns.prefix(3)))
+        #expect(exchanges.first?.answer == "What is membrane potential?")
+        #expect(exchanges.first?.evaluation == "It is the voltage across the inner membrane.")
+    }
+
     @Test("Response creates are coalesced until the server answers")
     func sequencer() {
         var sequencer = OpenAIRealtimeResponseSequencer()

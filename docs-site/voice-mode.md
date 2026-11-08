@@ -18,6 +18,17 @@ It is all one model: ForeverLM hears you and answers in its own voice. No separa
 
 ForeverLM has the whole source in front of it (a very long book is searched as you go), so it can explain a result, check what you remember, and point to the passage. When it quizzes you it asks one question at a time, tells you plainly what was right and what was missing, and goes deeper as you get it right.
 
+## Gym Mode
+
+Gym Mode is for listening to a paper instead of a podcast, somewhere you can't talk. On the iPhone, in the Reader, hold the **waveform** and choose **Gym Mode**.
+
+- ForeverLM walks you through the source out loud, about a minute at a time, and goes on to the next part by itself: what the paper asks, what was done, what was found, how sure we can be, and what it changes.
+- The microphone starts off, so the noise around you can't interrupt. Tap the microphone to turn it on if you want to talk after all.
+- To ask something, type it in **Ask a question…** at the bottom of the screen. ForeverLM finishes the part it is saying, answers your question, and then carries on with the walk-through.
+- At the end it sums up the main takeaways and waits for any questions you still have.
+
+The chat is saved with the source like any other voice conversation, with your typed questions and the answers to them.
+
 ## Talk to ForeverLM
 
 The assistant is the same conversation about you instead of one source. When it starts it reads, on your device:

@@ -533,7 +533,10 @@ struct MobileVoiceSessionCover: View {
             onRecovery: { Task { await realtime.resume() } },
             onToggleMute: realtime.toggleMicrophoneMuted,
             onEnd: end,
-            onDismissError: { realtime.errorMessage = nil }
+            onDismissError: { realtime.errorMessage = nil },
+            accessory: realtime.opening == .gym
+                ? AnyView(MobileGymQuestionField(controller: realtime))
+                : nil
         )
     }
 
@@ -561,6 +564,60 @@ struct MobileVoiceSessionCover: View {
             await realtime.end()
             isEnding = false
         }
+    }
+}
+
+/// Gym mode's question field (product owner, 2026-11-08): the learner cannot
+/// talk at the gym, so a follow-up question is typed here. It is asked once
+/// the part ForeverLM is saying ends, then the walk-through goes on.
+private struct MobileGymQuestionField: View {
+    @ObservedObject var controller: RealtimeVoiceController
+    @State private var question = ""
+    @FocusState private var isFocused: Bool
+
+    private var canSend: Bool {
+        !question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
+    var body: some View {
+        VStack(spacing: 6) {
+            if controller.waitingQuestionCount > 0 {
+                Text(controller.waitingQuestionCount == 1
+                     ? "Your question is next, after this part."
+                     : "\(controller.waitingQuestionCount) questions are next, after this part.")
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .accessibilityIdentifier("voice.gym.waiting")
+            }
+            HStack(alignment: .bottom, spacing: 8) {
+                TextField("Ask a question…", text: $question, axis: .vertical)
+                    .lineLimit(1...4)
+                    .focused($isFocused)
+                    .submitLabel(.send)
+                    .onSubmit(send)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 10)
+                    .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .accessibilityIdentifier("voice.gym.question")
+                Button(action: send) {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.system(size: 32))
+                        .foregroundStyle(canSend ? Color.accentColor : Color.secondary.opacity(0.5))
+                }
+                .buttonStyle(.plain)
+                .disabled(!canSend)
+                .accessibilityLabel("Send question")
+                .accessibilityIdentifier("voice.gym.send")
+            }
+        }
+        .frame(maxWidth: 640)
+    }
+
+    private func send() {
+        guard canSend else { return }
+        controller.ask(question)
+        question = ""
+        isFocused = false
     }
 }
 
