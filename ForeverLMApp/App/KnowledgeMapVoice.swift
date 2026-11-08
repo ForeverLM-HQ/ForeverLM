@@ -560,7 +560,10 @@ final class KnowledgeMapVoice {
             let second: Task<Error?, Never>? = race.won == nil && !Task.isCancelled ? attempt(2) : nil
             if let second { race.add(second, as: 2) }
             let errors = await withTaskCancellationHandler {
-                (await first.value, await second?.value ?? nil)
+                // Bound before the tuple: AGENTS.md's Release miscompile.
+                let firstError = await first.value
+                let secondError = await second?.value ?? nil
+                return (firstError, secondError)
             } onCancel: {
                 first.cancel()
                 second?.cancel()

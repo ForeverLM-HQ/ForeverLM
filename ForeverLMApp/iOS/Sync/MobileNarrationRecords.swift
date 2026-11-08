@@ -350,7 +350,11 @@ actor MobileNarrationLibrary {
             let fetched = try await withThrowingTaskGroup(of: (Int, URL).self) { group in
                 for index in window {
                     guard let satellite = satellites[index] else { throw SyncedArticleAudioStoreError.missingAudioChunk(ordered[index].fileName) }
-                    group.addTask { (index, try await session.satellites.url(satellite)) }
+                    group.addTask {
+                        // Bound before the tuple: AGENTS.md's Release miscompile.
+                        let url = try await session.satellites.url(satellite)
+                        return (index, url)
+                    }
                 }
                 var found: [(Int, URL)] = []
                 for try await item in group { found.append(item) }

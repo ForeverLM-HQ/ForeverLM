@@ -1241,7 +1241,11 @@ actor SlideCitationService {
                 for index in batch {
                     let candidate = candidates[index]
                     let locator = locators[candidate.id]
-                    group.addTask { (index, await Self.catalogResolved(candidate, locator: locator)) }
+                    group.addTask {
+                        // Bound before the tuple: AGENTS.md's Release miscompile.
+                        let resolved = await Self.catalogResolved(candidate, locator: locator)
+                        return (index, resolved)
+                    }
                 }
                 for await (index, candidate) in group {
                     resolved[index] = candidate

@@ -136,7 +136,9 @@ actor MobileMemoryReviewPreparer {
                 let cloudSource = sourcesByID[source.sourceID]
                 group.addTask {
                     do {
-                        return (source, .success(try await self.extractIdeas(for: source, cloudSource: cloudSource, sessionID: sessionID)))
+                        // Bound before the tuple: AGENTS.md's Release miscompile.
+                        let ideas = try await self.extractIdeas(for: source, cloudSource: cloudSource, sessionID: sessionID)
+                        return (source, .success(ideas))
                     } catch {
                         return (source, .failure(error))
                     }

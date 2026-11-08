@@ -105,7 +105,11 @@ actor MobileModelPreferenceStore {
         let rows = try await withThrowingTaskGroup(of: (String, OpenRouterHostPreference?).self) { group in
             for slot in OpenRouterHostPreference.sharedSlots {
                 let key = OpenRouterHostPreference.key(slot: slot, slug: route.model)
-                group.addTask { (slot, try await self.string(forKey: key).flatMap(OpenRouterHostPreference.decoded)) }
+                group.addTask {
+                    // Bound before the tuple: AGENTS.md's Release miscompile.
+                    let stored = try await self.string(forKey: key)
+                    return (slot, stored.flatMap(OpenRouterHostPreference.decoded))
+                }
             }
             var rows: [String: OpenRouterHostPreference] = [:]
             for try await (slot, row) in group {

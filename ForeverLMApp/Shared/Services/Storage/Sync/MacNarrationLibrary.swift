@@ -436,7 +436,11 @@ actor MacNarrationLibrary {
             let fetched = try await withThrowingTaskGroup(of: (Int, Data).self) { group in
                 for index in window {
                     guard let child = children[index] else { throw SyncedArticleAudioStoreError.missingAudioChunk(ordered[index].fileName) }
-                    group.addTask { (index, try await blobs.fetch(child, from: zone)) }
+                    group.addTask {
+                        // Bound before the tuple: AGENTS.md's Release miscompile.
+                        let data = try await blobs.fetch(child, from: zone)
+                        return (index, data)
+                    }
                 }
                 var found: [(Int, Data)] = []
                 for try await item in group { found.append(item) }
