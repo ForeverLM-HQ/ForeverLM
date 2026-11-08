@@ -6,7 +6,22 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.198.0 (build 278) — 2026-11-08
+
+**Highlights:**
+- **Review by Voice runs on voice mode** on the iPhone.
+- **Connecting an AI app always asks you first**, and code that chat runs is sealed off more tightly.
+
 - **Review by Voice runs on voice mode.** On the iPhone, **⋯** › **Review by Voice** in the card review now goes through today's cards with the realtime voice: it asks each card, judges your spoken answer, and records Remembered or Forgot. It no longer uses Apple's dictation and speech, so you can answer and interrupt naturally. See [Voice Mode](/voice-mode#review-your-cards-by-voice).
+- **Connecting an AI app always asks you first.** ForeverLM no longer approves a connection on its own when the browser is on the same Mac: approve it in the app, where the match code is shown, or type your pairing code.
+- **Code that chat runs is sealed off more tightly.** It reads only its own folder and its Python, and cannot start other programs or reach the network.
+- **Pictures and pages that chat makes can't open links on their own.** Only ForeverLM's own page can ask to open a link, and articles you read can no longer act on the Reader's behalf.
+- **Editing a book's author, subtitle, edition or kind changes only that book.** A book that had just arrived from your other devices could be deleted by an edit to another one.
+- **A Keychain that can't be read for a moment no longer loses your saved keys.** ForeverLM waits until it can read them instead of starting a fresh set.
+- **Retry Download on a paper keeps its text, walkthroughs and narration** until a new PDF is in hand.
+- **When a save fails, ForeverLM says so** instead of showing a change it didn't keep: moving a source between lectures, removing one from a course, podcast matches, archived pages, a book's chapter titles, course quiz pictures and meeting series.
+- **Organize Course leaves your order alone when the model fails**, and tells you why.
+- **Scrolling a long chat is smooth:** the whole chat is now drawn as one page.
 
 ## 0.197.0 (build 277) — 2026-11-07
 
