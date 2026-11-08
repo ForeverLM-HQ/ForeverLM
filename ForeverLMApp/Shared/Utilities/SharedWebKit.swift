@@ -61,7 +61,33 @@ enum SharedWebKit {
         #endif
     }
 
+    /// What every ForeverLM web view class answers when AppKit asks it
+    /// `unionRectInVisibleSelectedRange`: no rect for a selection on a page
+    /// whose configuration `disableSystemWritingTools(on:)` set, WebKit's own
+    /// rect anywhere else.
+    ///
+    /// macOS 27.0.1 stopped asking `allowsWritingToolsAffordance`: on every
+    /// selection change `-[NSTextInputContext
+    /// _textInputClientDidUpdateSelectionDebounced]` hands the selection's
+    /// rect straight to WritingToolsUI, which draws the badge in its own
+    /// `WTAffordanceWindow` beside it and leaves proofreading underlines in
+    /// the passage (product owner, 2026-11-07, on a chat reply: "why do these
+    /// underlines show up; i don't like that"). The rect is the one thing
+    /// that call reads from the view, and with an empty one the window stays
+    /// hidden (measured in a harness: badge shown with WebKit's rect, hidden
+    /// with `.zero`). A caret is a rect with no width and keeps WebKit's
+    /// answer, so an editor's dictation and input-mode indicators still
+    /// find the cursor.
     #if os(macOS)
+    static func unionRectInVisibleSelectedRange(in webView: WKWebView) -> NSRect {
+        let selector = NSSelectorFromString("unionRectInVisibleSelectedRange")
+        guard let method = class_getInstanceMethod(WKWebView.self, selector) else { return .zero }
+        typealias Getter = @convention(c) (AnyObject, Selector) -> NSRect
+        let rect = unsafeBitCast(method_getImplementation(method), to: Getter.self)(webView, selector)
+        if rect.width > 0, systemWritingToolsDisabled(in: webView.configuration) { return .zero }
+        return rect
+    }
+
     private static func systemWritingToolsDisabled(in configuration: WKWebViewConfiguration) -> Bool {
         guard #available(macOS 15.0, *),
               configuration.responds(to: Selector(("writingToolsBehavior"))) else { return false }

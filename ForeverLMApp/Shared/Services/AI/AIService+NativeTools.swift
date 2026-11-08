@@ -493,7 +493,6 @@ extension AIService {
         maxTokens: Int,
         webSearch: Bool = false,
         webSearchDepth: AIWebSearchDepth = .standard,
-        learnerTurnIndex: Int? = nil,
         onReasoningDelta: (@Sendable (String) -> Void)? = nil,
         onTextDelta: @escaping (String) -> Void
     ) async throws -> AIToolStreamResult {
@@ -538,7 +537,6 @@ extension AIService {
                     turns: turns, tools: tools, maxTokens: cappedMaxTokens, model: config.model,
                     effort: config.effort, speed: config.speed, webSearch: webSearch,
                     webSearchDepth: webSearchDepth,
-                    learnerTurnIndex: learnerTurnIndex,
                     onTextDelta: onTextDelta
                 )
             }
@@ -579,7 +577,6 @@ extension AIService {
         speed: AISpeed?,
         webSearch: Bool,
         webSearchDepth: AIWebSearchDepth,
-        learnerTurnIndex: Int?,
         onTextDelta: @escaping (String) -> Void
     ) async throws -> AIToolStreamResult {
         await Self.primeOpenRouterRegion(provider: provider, model: model)
@@ -595,8 +592,7 @@ extension AIService {
             effort: effort,
             speed: speed,
             webSearch: webSearch,
-            webSearchDepth: webSearchDepth,
-            learnerTurnIndex: learnerTurnIndex
+            webSearchDepth: webSearchDepth
         )
 
         // One endpoint for every OpenRouter-backed provider.
@@ -633,8 +629,7 @@ extension AIService {
         effort: AIEffort?,
         speed: AISpeed? = nil,
         webSearch: Bool = false,
-        webSearchDepth: AIWebSearchDepth = .standard,
-        learnerTurnIndex: Int? = nil
+        webSearchDepth: AIWebSearchDepth = .standard
     ) -> [String: Any] {
         let slug = Self.openAICompatibleModelID(provider: provider, model: model)
         // Source text is a block of its own only where the provider caches
@@ -694,31 +689,8 @@ extension AIService {
            AIRequestOptionSupport.supportedEfforts(provider: provider, model: model).contains(effort) {
             payload["reasoning_effort"] = effort.rawValue
         }
-        AIService.applyOpenRouterPayloadExtras(
-            &payload,
-            provider: provider,
-            speed: speed,
-            learnerMessageIndex: learnerTurnIndex.flatMap {
-                Self.openAIStyleMessageIndex(ofLearnerTurn: $0, in: turns)
-            }
-        )
+        AIService.applyOpenRouterPayloadExtras(&payload, provider: provider, speed: speed)
         return payload
-    }
-
-    /// Where `turns[turnIndex]` lands in `openAIStyleToolMessages`, counting
-    /// the system message first; nil unless that turn is a learner turn.
-    static func openAIStyleMessageIndex(ofLearnerTurn turnIndex: Int, in turns: [AIChatTurn]) -> Int? {
-        guard turns.indices.contains(turnIndex), case .user = turns[turnIndex] else { return nil }
-        var index = 1
-        for turn in turns.prefix(turnIndex) {
-            switch turn {
-            case .user, .assistant:
-                index += 1
-            case .toolResults(let results):
-                index += results.count + (results.contains { !$0.images.isEmpty } ? 1 : 0)
-            }
-        }
-        return index
     }
 
     static func openAIStyleToolMessages(system: String, turns: [AIChatTurn]) -> [[String: Any]] {

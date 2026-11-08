@@ -1713,6 +1713,10 @@ struct ChatMarkdownView: NSViewRepresentable {
         /// No Apple Intelligence badge on a selection (`SharedWebKit.allowsWritingToolsAffordance(in:)`).
         @objc(allowsWritingToolsAffordance)
         var allowsWritingToolsAffordance: Bool { SharedWebKit.allowsWritingToolsAffordance(in: self) }
+        /// macOS 27.0.1 shows the badge without asking the property above; an empty
+        /// selection rect keeps it hidden (`SharedWebKit.unionRectInVisibleSelectedRange(in:)`).
+        @objc(unionRectInVisibleSelectedRange)
+        var unionRectInVisibleSelectedRange: NSRect { SharedWebKit.unionRectInVisibleSelectedRange(in: self) }
 
         /// The source cards this row has resolved, by the token the page asked
         /// with and by the source's own id, so a drag that starts on a card —

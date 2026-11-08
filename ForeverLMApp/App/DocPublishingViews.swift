@@ -246,6 +246,10 @@ final class DocPageWebView: WKWebView {
     /// No Apple Intelligence badge on a selection (`SharedWebKit.allowsWritingToolsAffordance(in:)`).
     @objc(allowsWritingToolsAffordance)
     var allowsWritingToolsAffordance: Bool { SharedWebKit.allowsWritingToolsAffordance(in: self) }
+    /// macOS 27.0.1 shows the badge without asking the property above; an empty
+    /// selection rect keeps it hidden (`SharedWebKit.unionRectInVisibleSelectedRange(in:)`).
+    @objc(unionRectInVisibleSelectedRange)
+    var unionRectInVisibleSelectedRange: NSRect { SharedWebKit.unionRectInVisibleSelectedRange(in: self) }
 
     override func keyDown(with event: NSEvent) {
         if event.isCommandFindShortcut, let findState {
