@@ -10736,6 +10736,9 @@ final class ReviewSessionManager {
             volatile += "\n\n" + courseQuiz.progressNote
         }
         volatile += notebookNotesStateContext()
+        // A meeting being recorded on this Mac: what has been said and shown
+        // since its stored checkpoint, every turn, outside the cached head.
+        volatile += LiveMeetingChatContext.turnContext(forSourceIDs: activeSourceIDs)
         // The grounding rule in the stable head still applies to the learner's
         // sources; this opens a separate lane for live web material.
         switch webSearch {

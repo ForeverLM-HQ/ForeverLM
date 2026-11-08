@@ -28,6 +28,14 @@ enum StudioCenterTab: String, Codable, CaseIterable, Identifiable {
     /// Browser" from anywhere still opens in the window's Browser. Transient,
     /// as the side chat and side reader are.
     case secondaryBrowser
+    /// A call recorded on this Mac as it happens: its transcript, the slides
+    /// kept from a window, and Ask, which opens the chat beside it with the
+    /// meeting in it (product owner, 2026-11-08: "a real time transcript during
+    /// a meeting", "and have a chat on the side then", "can it also look at the
+    /// images on screen? the slides"). Transient, as the side panes are: it
+    /// opens from Chat › Live Meeting and the Meetings list, and is never
+    /// stored with the layout, since the recording lives only in this run.
+    case liveMeeting
     case reader
     /// Recurring instructions the app runs by itself: an instruction on a clock.
     case tasks
@@ -149,7 +157,7 @@ enum StudioCenterTab: String, Codable, CaseIterable, Identifiable {
 
     /// The side panes a split makes, which are never stored with a layout:
     /// what they show lives only in this window's run.
-    static let transientTabs: Set<StudioCenterTab> = [.secondaryChat, .secondaryReader, .secondaryBrowser]
+    static let transientTabs: Set<StudioCenterTab> = [.secondaryChat, .secondaryReader, .secondaryBrowser, .liveMeeting]
 
     /// Whether a copy of this place may open in a second pane.
     var canStandInSeveralPanes: Bool { Self.copyablePlaces.contains(self) }

@@ -325,6 +325,8 @@ struct StudioView: View {
             StudioSideReaderPane()
         case .secondaryBrowser:
             StudioSideBrowserPane()
+        case .liveMeeting:
+            LiveMeetingPane()
         case .reader:
             readerTabContent
         case .tasks:

@@ -54,6 +54,7 @@ You can also use [in-app Chat](/in-app-chat) when you want to stay inside Foreve
 - **Library**: every source in one place, managed across the whole window (⇧⌘L)
 - **Schedule**: assign sources to days and track review progress
 - **In-app Chat**: ask questions and run reviews with your own API provider
+- **Live meetings**: a call's transcript and slides as it happens, with a chat beside it ([below](#live-meetings))
 - **Memory**: the cards you keep from your sources, drafted for you as you finish them, reviewed across every notebook or one
 - **Teams**: a shared library beside your own, stored in its creator's iCloud; share sources, notebooks, Pages and chat transcripts by copy and work a task board together ([Teams](/teams))
 - **Text to Speech**: listen to articles and text sources with on-device or cloud TTS
@@ -61,3 +62,14 @@ You can also use [in-app Chat](/in-app-chat) when you want to stay inside Foreve
 - **Drag & drop to AI**: drag sources into Claude, ChatGPT, Gemini, Grok, or Edison Scientific
 - **Semantic search**: find sources by concept across your entire library
 - **iCloud sync**: all data stored in your private iCloud container, with sync status in Settings
+
+## Live Meetings
+
+**Chat → Live Meeting**, or **Live Meeting** in the Library's Meetings, opens a pane for a call happening now: Google Meet in a browser, Zoom, Teams, any app. It is named after the meeting on your calendar; change the name if you like and press **Start**.
+
+- **The transcript** fills in as people talk. It is made on this Mac by macOS's own speech model, so nothing is sent anywhere and nothing is billed. **Me** is your microphone and **Them** is everyone else on the call; the Mac can't tell the other people apart. Wear headphones if you can; without them, ForeverLM leaves out the call's words it hears again through your microphone.
+- **Watch Slides…** asks which window (or display) to watch. Each time the slide changes, ForeverLM keeps a picture of it. The slides line up along the bottom of the pane.
+- **Ask** opens the chat beside the pane with the meeting in it. Every message you send reads everything said so far and the words on each slide, so you can ask "what paper did they just mention?" while the call is still on. To have the chat look at a slide itself, ask about it ("what's on slide 4?").
+- **Stop** saves the meeting. It is a meeting like any other under Meetings, in the series named after it, with its transcript and slides, and it is saved as you go, so quitting by accident keeps what was heard.
+
+The first time, macOS asks to allow ForeverLM under **Screen & System Audio Recording** and to use the microphone, and the speech model downloads once. Live meetings need macOS 26 or later, and run only on the Mac.

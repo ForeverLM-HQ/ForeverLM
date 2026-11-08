@@ -1284,10 +1284,12 @@ extension StudioSidebar {
                         HStack(spacing: 8) {
                             addMeetingFolderButton
                             addRecordingButton
+                            liveMeetingButton
                         }
                         VStack(spacing: 8) {
                             addMeetingFolderButton
                             addRecordingButton
+                            liveMeetingButton
                         }
                     }
                 }
@@ -1518,6 +1520,21 @@ extension StudioSidebar {
             activeAlert = .addZoomRecording
         } label: {
             Label("Add Recording…", systemImage: "video.badge.plus")
+                .font(.subheadline.weight(.medium))
+                .lineLimit(1)
+                .padding(.vertical, 6)
+        }
+        .buttonStyle(.bordered)
+        .controlSize(.small)
+    }
+
+    /// A meeting happening now, transcribed on this Mac as it is said
+    /// (`LiveMeetingPane`); Chat › Live Meeting opens the same pane.
+    private var liveMeetingButton: some View {
+        Button {
+            vm.openLiveMeeting()
+        } label: {
+            Label("Live Meeting", systemImage: "waveform")
                 .font(.subheadline.weight(.medium))
                 .lineLimit(1)
                 .padding(.vertical, 6)

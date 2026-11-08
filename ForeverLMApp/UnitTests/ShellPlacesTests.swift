@@ -12,7 +12,7 @@ struct ShellPlacesTests {
     /// The titles `StudioCenterTab.title` returned from its own switch, and
     /// Plugins, the place added after it (Track 2).
     private static let titles: [StudioCenterTab: String] = [
-        .chat: "Chat", .secondaryChat: "Chat", .secondaryReader: "Reader", .secondaryBrowser: "Browser", .reader: "Reader", .tasks: "Tasks", .activity: "Day", .activityLog: "Activity",
+        .chat: "Chat", .secondaryChat: "Chat", .secondaryReader: "Reader", .secondaryBrowser: "Browser", .liveMeeting: "Live Meeting", .reader: "Reader", .tasks: "Tasks", .activity: "Day", .activityLog: "Activity",
         .goals: "Goals", .courses: "Courses", .ideas: "Ideas", .notepad: "Pages", .sites: "Sites",
         .browser: "Browser", .videos: "Videos", .animations: "Animations", .artifacts: "Space",
         .memory: "Memory", .library: "Library", .knowledgeMap: "Canvas", .atlas: "Atlas",
@@ -24,7 +24,7 @@ struct ShellPlacesTests {
     /// Spaces glyph since, so one glyph names one place.
     private static let glyphs: [StudioCenterTab: String] = [
         .chat: "bubble.left.and.bubble.right", .secondaryChat: "bubble.left.and.bubble.right",
-        .secondaryReader: "doc.text", .secondaryBrowser: "safari",
+        .secondaryReader: "doc.text", .secondaryBrowser: "safari", .liveMeeting: "waveform",
         .reader: "doc.text", .tasks: "clock.arrow.circlepath", .activity: "calendar", .activityLog: "chart.bar.doc.horizontal",
         .goals: "target", .courses: "graduationcap", .ideas: "lightbulb", .notepad: "note.text",
         .sites: "globe", .browser: "safari", .videos: "film", .animations: "sparkles.tv",
@@ -104,7 +104,7 @@ struct ShellPlacesTests {
 
     @Test("Every tab but the transient side panes is permanent, so a stored layout is reconciled to hold it")
     func permanentTabsCoverTheRegistry() {
-        #expect(StudioCenterTab.transientTabs == [.secondaryChat, .secondaryReader, .secondaryBrowser])
+        #expect(StudioCenterTab.transientTabs == [.secondaryChat, .secondaryReader, .secondaryBrowser, .liveMeeting])
         #expect(Set(StudioCenterTab.permanentTabs) == Set(StudioCenterTab.allCases).subtracting(StudioCenterTab.transientTabs))
         #expect(StudioCenterTab.permanentTabs.count == Set(StudioCenterTab.permanentTabs).count)
     }

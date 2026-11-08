@@ -52,9 +52,9 @@
 	<key>NSCalendarsUsageDescription</key>
 	<string>ForeverLM shows your calendar as your day, and adds, moves or removes the events you or your assistant plan. It never changes an event other people are on.</string>
 	<key>NSMicrophoneUsageDescription</key>
-	<string>ForeverLM uses the microphone when you dictate, and when you speak to a canvas.</string>
+	<string>ForeverLM uses the microphone when you dictate, when you speak to a canvas, and to transcribe your side of a live meeting on this Mac.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
-	<string>ForeverLM recognizes your speech on this Mac when you speak to a canvas, and for voice answers in Review Chat.</string>
+	<string>ForeverLM recognizes speech on this Mac when you speak to a canvas, for voice answers in Review Chat, and to transcribe a live meeting.</string>
 	<!-- Carries the on-screen source/Notebook to Siri so it can resolve "this".
 	     An activity type missing from this list is never advertised. -->
 	<key>NSUserActivityTypes</key>

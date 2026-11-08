@@ -1000,6 +1000,11 @@ struct ForeverLMApp: App {
                 Button("Talk to ForeverLM") {
                     MacRealtimeVoice.startAssistant()
                 }
+                // A call's transcript and slides as it happens, recorded on
+                // this Mac, in a pane with Ask beside it (`LiveMeetingPane`).
+                Button("Live Meeting") {
+                    studioViewModel.openLiveMeeting(in: activeWindowState)
+                }
 
                 Divider()
 
