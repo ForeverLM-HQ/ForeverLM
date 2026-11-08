@@ -446,7 +446,9 @@ struct KnowledgeMapCanvasView: NSViewRepresentable {
         }
 
         func userContentController(_ controller: WKUserContentController, didReceive message: WKScriptMessage) {
-            guard let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
+            // Only the Canvas page itself (`ScriptMessageSender`).
+            guard message.isFrom(.appFile),
+                  let body = message.body as? [String: Any], let type = body["type"] as? String else { return }
             switch type {
             case "ready":
                 isReady = true

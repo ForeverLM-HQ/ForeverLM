@@ -10,7 +10,9 @@ import OSLog
 /// because it can always be made again. A chat's *workspace* is the folder its
 /// scripts run in, which lasts as long as the chat, in Application Support.
 /// A *run* is one script in a `sandbox-exec` profile (`ChatCode.sandboxProfile`)
-/// that writes only to the workspace and has no network: installing happens
+/// that starts from deny-all, reads only the system, its Python and the
+/// workspace, writes only to the workspace, starts no other program and has
+/// no network: installing happens
 /// before the run, outside the sandbox, from binary wheels only, so no package
 /// executes a build script on the learner's Mac.
 ///
@@ -84,11 +86,7 @@ final class StudioChatCodeRunner: ChatCodeRunner, @unchecked Sendable {
             return outcome
         }
         let before = Self.snapshot(of: workspace)
-        let profile = ChatCode.sandboxProfile(
-            workspace: workspace.path,
-            readableSupport: [ready.environmentRoot.path],
-            home: NSHomeDirectory()
-        )
+        let profile = ChatCode.sandboxProfile(workspace: workspace.path, runtime: ready.runtime)
         let venvBin = ready.python.deletingLastPathComponent().path
         let environment = [
             "PATH": "\(venvBin):/usr/bin:/bin:/usr/sbin:/sbin",
@@ -182,6 +180,8 @@ actor CodeEnvironment {
     struct Ready {
         let python: URL
         let environmentRoot: URL
+        /// What the run's sandbox lets it read and start (`ChatCode.SandboxRuntime`).
+        let runtime: ChatCode.SandboxRuntime
         let created: Bool
         let installed: [String]
     }
@@ -192,6 +192,9 @@ actor CodeEnvironment {
 
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "ChatCode")
     private let root: URL
+    /// The sandbox's view of the environment, asked of its Python once and
+    /// kept until the environment is made again.
+    private var runtime: ChatCode.SandboxRuntime?
     private var venv: URL { root.appendingPathComponent("venv-\(ChatCode.pythonVersion)", isDirectory: true) }
     private var venvPython: URL { venv.appendingPathComponent("bin/python") }
 
@@ -221,7 +224,52 @@ actor CodeEnvironment {
             if let failure = await install(missing) { return .failure(failure) }
             installed = missing
         }
-        return .success(Ready(python: venvPython, environmentRoot: CodeProcess.realPath(venv), created: created, installed: installed))
+        let runtime: ChatCode.SandboxRuntime
+        switch await sandboxRuntime() {
+        case .failure(let failure): return .failure(failure)
+        case .success(let found): runtime = found
+        }
+        return .success(Ready(
+            python: venvPython,
+            environmentRoot: CodeProcess.realPath(venv),
+            runtime: runtime,
+            created: created,
+            installed: installed
+        ))
+    }
+
+    /// What a run needs from outside its folder: the environment, the Python
+    /// installation it was made from, and the interpreter binaries. The
+    /// installation is the environment's own answer (`sys.base_prefix`), so a
+    /// uv-managed, Homebrew or python.org Python each name their real place.
+    /// The sandbox checks the real path of a program it starts, so the
+    /// interpreter is named through its links; a framework build's
+    /// `bin/python3.x` is a launcher that hands over to `Python.app`, which is
+    /// named too. A Python that cannot say where it lives runs nothing.
+    private func sandboxRuntime() async -> Result<ChatCode.SandboxRuntime, Failure> {
+        if let runtime { return .success(runtime) }
+        let probe = await CodeProcess.run(
+            executable: venvPython.path,
+            arguments: ["-I", "-c", "import os, sys; print(os.path.realpath(sys.base_prefix))"],
+            environment: ["PATH": "/usr/bin:/bin", "LANG": "en_US.UTF-8"],
+            directory: root.path,
+            timeout: 30
+        )
+        let installation = probe.stdout.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard probe.status == 0, installation.hasPrefix("/"), installation != "/" else {
+            return .failure(Failure(message: "Could not ask the code environment's Python where it is installed, so no code was run: \(Self.tail(probe.stderr.isEmpty ? probe.stdout : probe.stderr))"))
+        }
+        var executables = [CodeProcess.realPath(venvPython).path]
+        let launcherTarget = installation + "/Resources/Python.app/Contents/MacOS/Python"
+        if FileManager.default.isExecutableFile(atPath: launcherTarget) {
+            executables.append(CodeProcess.realPath(URL(fileURLWithPath: launcherTarget)).path)
+        }
+        let found = ChatCode.SandboxRuntime(
+            readable: [CodeProcess.realPath(venv).path, installation],
+            executables: executables
+        )
+        runtime = found
+        return .success(found)
     }
 
     // MARK: Creating
@@ -230,6 +278,7 @@ actor CodeEnvironment {
         let fm = FileManager.default
         // A half-made environment from an earlier failure is made again.
         try? fm.removeItem(at: venv)
+        runtime = nil
         if let uv = Self.locateUV() {
             let made = await CodeProcess.run(
                 executable: uv.path,

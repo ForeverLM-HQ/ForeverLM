@@ -114,3 +114,66 @@ enum SharedWebKit {
         return major >= 26 ? "\(major).0" : "18.6"
     }
 }
+
+/// Who a web view's script message handlers listen to.
+///
+/// WebKit exposes a page's `window.webkit.messageHandlers` to every frame of
+/// it, and nothing about a message says the app's own script sent it. A
+/// chat reply's visualization runs model-written script in a sandboxed frame
+/// of the chat page, and that frame could post `webLinks` and have the app
+/// open any address, no click needed; a publisher's page can post whatever
+/// the reader's injected scripts post. So every handler first asks where a
+/// message came from: the main frame only, and on a page the app serves, a
+/// frame showing that page. A subframe that has something to say (a
+/// visualization's height) tells the page with `postMessage`, and the page's
+/// own script decides what to pass on.
+///
+/// A page from the web shares its world with whatever the app injects there,
+/// so for one the main-frame check is all a handler can do; a reader that
+/// acts on what such a page posts keeps its scripts and handler in a content
+/// world of its own (`WKContentWorld.world(name:)`), which the page's script
+/// cannot reach.
+enum ScriptMessageSender {
+    /// The page a handler belongs to.
+    enum Page: Equatable, Sendable {
+        /// A page the app ships and loads from a file (`loadFileURL`): the
+        /// chat, the transcript, the Canvas, the page editor.
+        case appFile
+        /// A page the app renders under an address of its own
+        /// (`loadHTMLString(_:baseURL:)` with that base).
+        case appOrigin(scheme: String, host: String)
+        /// A page from the web or a book, whose own script runs in the world
+        /// the handler is in: only the frame can be checked.
+        case web
+    }
+
+    /// Whether a message from a frame with this origin is the page's own.
+    /// A sandboxed frame without `allow-same-origin` has an opaque origin
+    /// (empty protocol), and is never the main frame.
+    static func accepts(isMainFrame: Bool, originProtocol: String, originHost: String, from page: Page) -> Bool {
+        guard isMainFrame else { return false }
+        switch page {
+        case .appFile:
+            return originProtocol.lowercased() == "file"
+        case .appOrigin(let scheme, let host):
+            return originProtocol.lowercased() == scheme.lowercased() && originHost.lowercased() == host.lowercased()
+        case .web:
+            return true
+        }
+    }
+}
+
+extension WKScriptMessage {
+    /// Whether the message came from `page`'s own main frame
+    /// (`ScriptMessageSender`). Every handler asks before it reads the body.
+    @MainActor
+    func isFrom(_ page: ScriptMessageSender.Page) -> Bool {
+        let origin = frameInfo.securityOrigin
+        return ScriptMessageSender.accepts(
+            isMainFrame: frameInfo.isMainFrame,
+            originProtocol: origin.protocol,
+            originHost: origin.host,
+            from: page
+        )
+    }
+}

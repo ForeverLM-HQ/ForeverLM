@@ -32,7 +32,11 @@ enum ReaderWebHighlightSupport {
     /// read as one document, one `data-flm-chapter` section per chapter. Each
     /// mark is then found in its own chapter's section, whose text its anchor
     /// was measured in, rather than in the whole page.
-    static func apply(_ highlights: [SourceHighlight], to webView: WKWebView, scopedBySource: Bool = false) {
+    ///
+    /// `world` is the content world the installer script runs in: a reader
+    /// that keeps its scripts out of the page's reach
+    /// (`WebViewReader.scriptWorld`) calls them there.
+    static func apply(_ highlights: [SourceHighlight], to webView: WKWebView, scopedBySource: Bool = false, world: WKContentWorld = .page) {
         let payload = highlights.map { highlight in
             [
                 "id": highlight.id,
@@ -49,13 +53,21 @@ enum ReaderWebHighlightSupport {
         }
         guard let data = try? JSONSerialization.data(withJSONObject: payload),
               let json = String(data: data, encoding: .utf8) else { return }
-        webView.evaluateJavaScript("window.foreverLMApplyHighlights && window.foreverLMApplyHighlights(\(json));")
+        webView.evaluateJavaScript(
+            "window.foreverLMApplyHighlights && window.foreverLMApplyHighlights(\(json)); true;",
+            in: nil,
+            in: world
+        )
     }
 
     /// Scrolls a page to a saved note and flashes it.
-    static func reveal(_ highlight: SourceHighlight, in webView: WKWebView) {
+    static func reveal(_ highlight: SourceHighlight, in webView: WKWebView, world: WKContentWorld = .page) {
         let escaped = highlight.id.replacingOccurrences(of: "'", with: "\\'")
-        webView.evaluateJavaScript("window.foreverLMRevealHighlight && window.foreverLMRevealHighlight('\(escaped)');")
+        webView.evaluateJavaScript(
+            "window.foreverLMRevealHighlight && window.foreverLMRevealHighlight('\(escaped)'); true;",
+            in: nil,
+            in: world
+        )
     }
 
     /// CSS for the highlight pseudo-elements, one rule per color, and the

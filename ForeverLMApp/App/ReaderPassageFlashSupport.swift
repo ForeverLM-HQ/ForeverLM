@@ -369,6 +369,7 @@ enum ReaderPassageFlash {
         _ passage: String,
         in webView: WKWebView,
         scope: String? = nil,
+        world: WKContentWorld = .page,
         found: ((Bool) -> Void)? = nil
     ) {
         var payload = cssChannels()
@@ -379,8 +380,12 @@ enum ReaderPassageFlash {
             found?(false)
             return
         }
-        webView.evaluateJavaScript("window.foreverLMFlashPassage && window.foreverLMFlashPassage(\(json));") { result, _ in
-            found?((result as? NSNumber)?.boolValue ?? false)
+        webView.evaluateJavaScript(
+            "!!(window.foreverLMFlashPassage && window.foreverLMFlashPassage(\(json)));",
+            in: nil,
+            in: world
+        ) { result in
+            found?(((try? result.get()) as? NSNumber)?.boolValue ?? false)
         }
     }
 

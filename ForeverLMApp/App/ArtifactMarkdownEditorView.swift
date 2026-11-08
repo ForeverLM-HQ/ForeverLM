@@ -1493,7 +1493,10 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             _ userContentController: WKUserContentController,
             didReceive message: WKScriptMessage
         ) {
-            guard message.name == ArtifactMarkdownEditorView.messageHandlerName,
+            // Only the editor page itself, never a Visualize block's frame,
+            // which runs model-written script (`ScriptMessageSender`).
+            guard message.isFrom(.appFile),
+                  message.name == ArtifactMarkdownEditorView.messageHandlerName,
                   let payload = message.body as? [String: Any],
                   let type = payload["type"] as? String else { return }
 
@@ -1707,9 +1710,22 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             decidePolicyFor navigationAction: WKNavigationAction,
             decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
         ) {
+            // A Visualize block's frame loads its own document and nothing
+            // more: sending itself somewhere, or a link its script clicks
+            // with no one at the mouse, would carry whatever its program put
+            // in the address off the Mac (`ChatMarkdownView` does the same).
+            if let frame = navigationAction.targetFrame, !frame.isMainFrame,
+               navigationAction.request.url?.scheme?.lowercased() != "about" {
+                decisionHandler(.cancel)
+                return
+            }
             guard navigationAction.navigationType == .linkActivated,
                   let url = navigationAction.request.url else {
                 decisionHandler(.allow)
+                return
+            }
+            guard navigationAction.sourceFrame.isMainFrame else {
+                decisionHandler(.cancel)
                 return
             }
 

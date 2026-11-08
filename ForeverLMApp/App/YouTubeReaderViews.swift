@@ -1425,7 +1425,10 @@ struct YouTubeWatchPageView: NSViewRepresentable {
             _ userContentController: WKUserContentController,
             didReceive message: WKScriptMessage
         ) {
-            guard message.name == "youtubePlayer",
+            // The bridge runs in the watch page's main frame only
+            // (`ScriptMessageSender`); an ad or embed frame is not the player.
+            guard message.isFrom(.web),
+                  message.name == "youtubePlayer",
                   let body = message.body as? [String: Any],
                   let event = body["event"] as? String else { return }
 

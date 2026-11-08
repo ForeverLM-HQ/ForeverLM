@@ -1163,6 +1163,10 @@ struct ChatMarkdownView: NSViewRepresentable {
         }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            // Only the chat page itself: a reply's visualization frame runs
+            // model-written script and sees these handlers too. Its height
+            // reaches the page by `postMessage`, and the page reports it.
+            guard message.isFrom(.appFile) else { return }
             if message.name == ChatMarkdownView.contextLinkMessageName {
                 // The DOM saw the right-click before WebKit built the menu;
                 // the web view remembers the link so `willOpenMenu` can act on it.
@@ -1512,6 +1516,10 @@ struct ChatMarkdownView: NSViewRepresentable {
             for navigationAction: WKNavigationAction,
             windowFeatures: WKWindowFeatures
         ) -> WKWebView? {
+            // Never for a visualization frame: its sandbox already refuses
+            // popups, and a window it asked for would carry its address off
+            // the Mac all the same.
+            guard navigationAction.sourceFrame.isMainFrame else { return nil }
             if let url = navigationAction.request.url {
                 if let link = ChatMarkdownView.sourceLink(from: url) {
                     openSourceInNewWindow(link)
@@ -1531,8 +1539,23 @@ struct ChatMarkdownView: NSViewRepresentable {
             decidePolicyFor navigationAction: WKNavigationAction,
             decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
         ) {
+            // A reply's visualization frame loads its own document and nothing
+            // more: its policy blocks every request, but not the frame sending
+            // itself somewhere else, which would carry whatever the program put
+            // in the address off the Mac. A link it clicks, even one its script
+            // clicks with no one at the mouse, is the same thing, so this
+            // comes before the link handling below.
+            if let frame = navigationAction.targetFrame, !frame.isMainFrame,
+               navigationAction.request.url?.scheme?.lowercased() != "about" {
+                decisionHandler(.cancel)
+                return
+            }
             if navigationAction.navigationType == .linkActivated,
                let url = navigationAction.request.url {
+                guard navigationAction.sourceFrame.isMainFrame else {
+                    decisionHandler(.cancel)
+                    return
+                }
                 if let link = ChatMarkdownView.sourceLink(from: url) {
                     onOpenSource(link)
                 } else if let entity = StudioEntityLink.parse(url) {
@@ -1549,15 +1572,6 @@ struct ChatMarkdownView: NSViewRepresentable {
                 } else {
                     NSWorkspace.shared.open(url)
                 }
-                decisionHandler(.cancel)
-                return
-            }
-            // A reply's visualization frame loads its own document and nothing
-            // more: its policy blocks every request, but not the frame sending
-            // itself somewhere else, which would carry whatever the program put
-            // in the address off the Mac.
-            if let frame = navigationAction.targetFrame, !frame.isMainFrame,
-               navigationAction.request.url?.scheme?.lowercased() != "about" {
                 decisionHandler(.cancel)
                 return
             }

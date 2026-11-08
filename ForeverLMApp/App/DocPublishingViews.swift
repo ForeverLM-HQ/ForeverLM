@@ -277,6 +277,9 @@ struct ArtifactPageWebView: NSViewRepresentable {
     var findRevision: Int = 0
 
     static let editMessageHandlerName = "foreverLMPage"
+    /// The address a page is rendered under, so its relative links resolve
+    /// against the site; the handler listens to this origin only.
+    static let previewBaseURL = URL(string: "https://foreverlm.com/share/preview")!
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
 
@@ -349,7 +352,7 @@ struct ArtifactPageWebView: NSViewRepresentable {
             // The page's relative links (its Markdown address, the favicon)
             // resolve against the site, and the page's own script runs: it is
             // ours, and the web view applies no policy of its own.
-            webView.loadHTMLString(html, baseURL: URL(string: "https://foreverlm.com/share/preview"))
+            webView.loadHTMLString(html, baseURL: ArtifactPageWebView.previewBaseURL)
         }
 
         /// Tell the page its Edit state: on, and what to draw for the request
@@ -377,7 +380,14 @@ struct ArtifactPageWebView: NSViewRepresentable {
         }
 
         nonisolated func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-            guard message.name == ArtifactPageWebView.editMessageHandlerName else { return }
+            // Only the rendered page itself, at the address it is rendered
+            // under (`load(_:into:)`), never a frame inside it or a page it
+            // navigated to (`ScriptMessageSender`). WebKit delivers on main.
+            let base = ArtifactPageWebView.previewBaseURL
+            let fromPage = MainActor.assumeIsolated {
+                message.isFrom(.appOrigin(scheme: base.scheme ?? "", host: base.host ?? ""))
+            }
+            guard fromPage, message.name == ArtifactPageWebView.editMessageHandlerName else { return }
             let body = message.body
             let webView = message.webView
             Task { @MainActor in
@@ -405,6 +415,13 @@ struct ArtifactPageWebView: NSViewRepresentable {
                 decisionHandler(.allow)
                 return
             }
+            // A link in a frame inside the page (a Visualize block runs
+            // model-written script, and a script can click) is not the
+            // page's own, and opens nothing.
+            guard navigationAction.sourceFrame.isMainFrame else {
+                decisionHandler(.cancel)
+                return
+            }
             // A jump within the page — contents, a citation chip, a directory card.
             if url.fragment != nil, url.host?.lowercased() == "foreverlm.com", url.path.hasPrefix("/share/") {
                 decisionHandler(.allow)
@@ -424,7 +441,9 @@ struct ArtifactPageWebView: NSViewRepresentable {
             for navigationAction: WKNavigationAction,
             windowFeatures: WKWindowFeatures
         ) -> WKWebView? {
-            // `target="_blank"` links: source cards and external references.
+            // `target="_blank"` links: source cards and external references,
+            // the page's own only.
+            guard navigationAction.sourceFrame.isMainFrame else { return nil }
             if let url = navigationAction.request.url {
                 if let add = Self.addToLibraryTarget(url) { parent.onAddToLibrary(add) } else { NSWorkspace.shared.open(url) }
             }

@@ -739,7 +739,7 @@ struct ArticleReaderView: View {
                   request.sourceID == article.id,
                   let webView = webViewRef,
                   let highlight = vm.highlight(id: request.highlightID, sourceID: article.id) else { return }
-            ReaderWebHighlightSupport.reveal(highlight, in: webView)
+            ReaderWebHighlightSupport.reveal(highlight, in: webView, world: WebViewReader.scriptWorld)
         }
         .onReceive(
             NotificationCenter.default.publisher(for: .zoomRecordingPasscodeDidChange)
@@ -1437,6 +1437,21 @@ enum ReaderWebViewPark {
 // MARK: - WebView NSViewRepresentable
 
 struct WebViewReader: NSViewRepresentable {
+    /// Where the reader's own scripts and their `foreverlm` handler live.
+    ///
+    /// An article is a publisher's live page, and its script runs in the
+    /// page's world: a handler there would take a `chatRequest`, a
+    /// `highlightRequest` or a `scrollPosition` that marks the article read
+    /// from the publisher as readily as from the reader. A content world of
+    /// the app's own shares the page's DOM — selections, events, highlights —
+    /// but not its script, so the page cannot see the handler at all. Every
+    /// script that posts to it is installed here, and every call into those
+    /// scripts (`ReaderWebHighlightSupport`, `ReaderPassageFlash`) is made
+    /// here. Scripts that only dress the page (colours, Dark Mode, the
+    /// reading view, zoom) stay in the page's world.
+    static let scriptWorld = WKContentWorld.world(name: "ForeverLMArticleReader")
+    static let messageHandlerName = "foreverlm"
+
     let urlString: String
     let articleId: String
     let vm: StudioViewModel
@@ -1549,7 +1564,11 @@ struct WebViewReader: NSViewRepresentable {
         // The user scripts are still installed on the page's own content
         // controller; only the message handler the departing reader detached
         // has to be put back.
-        webView.configuration.userContentController.add(coordinator, name: "foreverlm")
+        webView.configuration.userContentController.add(
+            coordinator,
+            contentWorld: Self.scriptWorld,
+            name: Self.messageHandlerName
+        )
         webView.navigationDelegate = coordinator
         webView.uiDelegate = coordinator
         host.install(webView)
@@ -1574,9 +1593,10 @@ struct WebViewReader: NSViewRepresentable {
         // A YouTube player an article embeds shows no suggestions.
         YouTubeDistractionFilter.attach(to: config.userContentController)
 
-        // Add script message handler for selection detection
+        // The handler the reader's scripts post to, out of the page's reach
+        // (`scriptWorld`).
         let contentController = config.userContentController
-        contentController.add(coordinator, name: "foreverlm")
+        contentController.add(coordinator, contentWorld: Self.scriptWorld, name: Self.messageHandlerName)
 
         // Existing archived files predate the reader color rules. Install the
         // same stylesheet at document start so they become readable immediately,
@@ -1592,7 +1612,8 @@ struct WebViewReader: NSViewRepresentable {
         let selectionScript = WKUserScript(
             source: Self.selectionDetectionJS,
             injectionTime: .atDocumentEnd,
-            forMainFrameOnly: true
+            forMainFrameOnly: true,
+            in: Self.scriptWorld
         )
         contentController.addUserScript(selectionScript)
         let linkHoverScript = WKUserScript(
@@ -1610,9 +1631,10 @@ struct WebViewReader: NSViewRepresentable {
         // Injected at document start: a right-click can land before the page has
         // finished loading, and the reader's link commands need the destination.
         let contextLinkScript = WKUserScript(
-            source: ReaderContextLinkTracking.injectionScript(handlerName: "foreverlm"),
+            source: ReaderContextLinkTracking.injectionScript(handlerName: Self.messageHandlerName),
             injectionTime: .atDocumentStart,
-            forMainFrameOnly: true
+            forMainFrameOnly: true,
+            in: Self.scriptWorld
         )
         contentController.addUserScript(contextLinkScript)
         // No math typesetting here: an article renders as its author wrote it, so
@@ -1626,7 +1648,8 @@ struct WebViewReader: NSViewRepresentable {
         let scrollReportScript = WKUserScript(
             source: Self.scrollReportJS,
             injectionTime: .atDocumentEnd,
-            forMainFrameOnly: true
+            forMainFrameOnly: true,
+            in: Self.scriptWorld
         )
         contentController.addUserScript(scrollReportScript)
         // Installed unconditionally and inert until told otherwise, so a switch
@@ -1729,7 +1752,10 @@ struct WebViewReader: NSViewRepresentable {
         coordinator.parent.chromeState?.unbindNavigation(from: webView)
         // WKUserContentController retains the message handler strongly — remove it
         // to break the retain cycle and prevent use-after-free crashes.
-        webView.configuration.userContentController.removeScriptMessageHandler(forName: "foreverlm")
+        webView.configuration.userContentController.removeScriptMessageHandler(
+            forName: messageHandlerName,
+            contentWorld: scriptWorld
+        )
         webView.navigationDelegate = nil
         webView.uiDelegate = nil
 
@@ -1750,8 +1776,8 @@ struct WebViewReader: NSViewRepresentable {
     // MARK: - Selection Detection JavaScript
 
     static let selectionDetectionJS = [
-        ReaderSelectionCalloutJavaScript.injectionScript(handlerName: "foreverlm"),
-        ReaderWebHighlightSupport.installerScript(handlerName: "foreverlm"),
+        ReaderSelectionCalloutJavaScript.injectionScript(handlerName: messageHandlerName),
+        ReaderWebHighlightSupport.installerScript(handlerName: messageHandlerName),
         ReaderPassageFlash.webInstallerScript,
     ].joined(separator: "\n")
 
@@ -1769,7 +1795,7 @@ struct WebViewReader: NSViewRepresentable {
 
     /// Posts the page's scroll fraction (debounced) through the existing
     /// "foreverlm" handler so the reader can resume where the learner left off.
-    static let scrollReportJS = ArticleScrollTracking.injectionScript(handlerName: "foreverlm")
+    static let scrollReportJS = ArticleScrollTracking.injectionScript(handlerName: messageHandlerName)
 
     /// Fill and submit Zoom's passcode gate without putting the credential in
     /// the source URL, page history, SQLite, or logs. Zoom renders this form
@@ -2479,7 +2505,12 @@ struct WebViewReader: NSViewRepresentable {
         // MARK: WKScriptMessageHandler
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-            guard message.name == "foreverlm",
+            // Only the reader's own scripts reach this handler
+            // (`WebViewReader.scriptWorld`), and only in the article's main
+            // frame (`ScriptMessageSender`).
+            guard message.isFrom(.web),
+                  message.world.name == WebViewReader.scriptWorld.name,
+                  message.name == WebViewReader.messageHandlerName,
                   let body = message.body as? [String: Any],
                   let type = body["type"] as? String else { return }
 
@@ -2725,7 +2756,7 @@ struct WebViewReader: NSViewRepresentable {
         private func flashPassage(_ passage: String, in webView: WKWebView) {
             DispatchQueue.main.asyncAfter(deadline: .now() + ReaderPassageFlash.webSettleDelay) { [weak self, weak webView] in
                 guard let webView else { return }
-                ReaderPassageFlash.flash(passage, in: webView) { found in
+                ReaderPassageFlash.flash(passage, in: webView, world: WebViewReader.scriptWorld) { found in
                     Task { @MainActor [weak webView] in
                         guard !found, let self, let webView, webView.url?.isFileURL != true,
                               self.attemptCachedFallback(in: webView) else { return }
@@ -2741,7 +2772,7 @@ struct WebViewReader: NSViewRepresentable {
             let fingerprint = highlights.map { "\($0.id)|\($0.color.rawValue)|\($0.updatedAt.timeIntervalSince1970)" }
             guard fingerprint != appliedHighlightFingerprint else { return }
             appliedHighlightFingerprint = fingerprint
-            ReaderWebHighlightSupport.apply(highlights, to: webView)
+            ReaderWebHighlightSupport.apply(highlights, to: webView, world: WebViewReader.scriptWorld)
         }
 
         /// The first page this reader finished loading — the article itself

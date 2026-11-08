@@ -1595,6 +1595,15 @@ struct LinkedDocWebView: NSViewRepresentable {
         /// counts; claude.ai's chrome around an artifact, and a site's
         /// third-party frames, are not the page.
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            // The link scripts run in the main frame only, so a link message
+            // from any other frame is not theirs (`ScriptMessageSender`). The
+            // text and selection reports come from frames by design and are
+            // judged by `LinkedPage.frameCarriesText` below.
+            let linkChannels = [
+                LinkedDocWebView.sourceLinksMessageName, LinkedDocWebView.webLinksMessageName,
+                LinkedDocWebView.sourceOpenMessageName, LinkedDocWebView.contextLinkMessageName,
+            ]
+            if linkChannels.contains(message.name), !message.isFrom(.web) { return }
             if message.name == LinkedDocWebView.sourceLinksMessageName {
                 resolveSourceCards(for: message)
                 return

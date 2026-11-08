@@ -510,6 +510,75 @@ struct ReaderSelectionImageTests {
         #expect(message?.text == "matrix")
         #expect(message?.images.isEmpty == true)
     }
+
+    // MARK: - The reader's own world
+
+    /// Records what reaches the article reader's handler, and from which world.
+    @MainActor
+    private final class WorldRecorder: NSObject, WKScriptMessageHandler {
+        var posts: [(world: String?, type: String)] = []
+
+        func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+            let type = (message.body as? [String: Any])?["type"] as? String ?? ""
+            posts.append((message.world.name, type))
+        }
+    }
+
+    @Test("The article reader's scripts post from a world of their own, which the publisher's script cannot reach")
+    @MainActor
+    func articleReaderHandlerIsOutOfThePagesReach() async throws {
+        let recorder = WorldRecorder()
+        let world = WebViewReader.scriptWorld
+        let handler = WebViewReader.messageHandlerName
+        let configuration = WKWebViewConfiguration()
+        configuration.userContentController.add(recorder, contentWorld: world, name: handler)
+        configuration.userContentController.addUserScript(WKUserScript(
+            source: WebViewReader.selectionDetectionJS,
+            injectionTime: .atDocumentEnd,
+            forMainFrameOnly: true,
+            in: world
+        ))
+        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 800, height: 600), configuration: configuration)
+        webView.loadHTMLString(Self.pageHTML, baseURL: URL(string: "https://reader.example/writings/pooled-screens"))
+        var ready = false
+        for _ in 0..<150 where !ready {
+            ready = try await webView.callAsyncJavaScript(
+                "return window.foreverLMReaderUserSelectionInstalled === true && typeof window.foreverLMFlashPassage === 'function'",
+                contentWorld: world
+            ) as? Bool ?? false
+            if !ready { try await Task.sleep(for: .milliseconds(100)) }
+        }
+        #expect(ready, "the reader scripts never installed in their world")
+
+        // The publisher's script sees neither the handler nor the scripts,
+        // so it cannot report a scroll that marks the article read.
+        let pageSees = try await webView.evaluateJavaScript(
+            "[typeof (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.\(handler)), typeof window.foreverLMFlashPassage]"
+        ) as? [String]
+        #expect(pageSees == ["undefined", "undefined"])
+        let posted = try await webView.evaluateJavaScript(
+            "(() => { try { window.webkit.messageHandlers.\(handler).postMessage({ type: 'scrollPosition', fraction: 1, reachedArticleEnd: true, userInitiated: true }); return 'posted'; } catch (e) { return 'refused'; } })()"
+        ) as? String
+        #expect(posted == "refused")
+
+        // The reader's own scripts still hear the selection on the shared
+        // page, and still reach the handler.
+        _ = try await webView.evaluateJavaScript(Self.selectAndRelease("#lead", contents: true))
+        for _ in 0..<60 where recorder.posts.isEmpty {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        #expect(recorder.posts.first?.type == "selection")
+        #expect(recorder.posts.allSatisfy { $0.world == world.name })
+        #expect(!recorder.posts.contains { $0.type == "scrollPosition" })
+
+        // And the app's calls into them land in the same world.
+        let found = await withCheckedContinuation { continuation in
+            ReaderPassageFlash.flash("the question of which T cells are doing useful work", in: webView, world: world) {
+                continuation.resume(returning: $0)
+            }
+        }
+        #expect(found)
+    }
 }
 
 #endif

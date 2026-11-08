@@ -462,7 +462,9 @@ struct ChatTranscriptPage: NSViewRepresentable {
         }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-            guard let parent else { return }
+            // Only the transcript page itself, never a reply's visualization
+            // frame (`ScriptMessageSender`).
+            guard message.isFrom(.appFile), let parent else { return }
             switch message.name {
             case "ready":
                 isReady = true
@@ -599,11 +601,20 @@ struct ChatTranscriptPage: NSViewRepresentable {
             decidePolicyFor navigationAction: WKNavigationAction,
             decisionHandler: @escaping (WKNavigationActionPolicy) -> Void
         ) {
-            if navigationAction.request.url == ChatTranscriptPage.templateURL || navigationAction.targetFrame?.isMainFrame == false {
+            // A reply's visualization frame loads its own document and nothing
+            // more (`ChatMarkdownView`): sending itself, or the page, to an
+            // address would carry whatever its program put there off the Mac,
+            // and a link its script clicks is the same thing.
+            if navigationAction.targetFrame?.isMainFrame == false {
+                decisionHandler(navigationAction.request.url?.scheme?.lowercased() == "about" ? .allow : .cancel)
+                return
+            }
+            if navigationAction.request.url == ChatTranscriptPage.templateURL {
                 decisionHandler(.allow)
                 return
             }
-            if let url = navigationAction.request.url, ["http", "https"].contains(url.scheme?.lowercased() ?? "") {
+            if navigationAction.sourceFrame.isMainFrame,
+               let url = navigationAction.request.url, ["http", "https"].contains(url.scheme?.lowercased() ?? "") {
                 parent?.resolvers.openWebURL(url, nil)
             }
             decisionHandler(.cancel)
@@ -616,6 +627,7 @@ struct ChatTranscriptPage: NSViewRepresentable {
             for navigationAction: WKNavigationAction,
             windowFeatures: WKWindowFeatures
         ) -> WKWebView? {
+            guard navigationAction.sourceFrame.isMainFrame else { return nil }
             if let url = navigationAction.request.url, ["http", "https"].contains(url.scheme?.lowercased() ?? "") {
                 parent?.resolvers.openWebURL(url, nil)
             }

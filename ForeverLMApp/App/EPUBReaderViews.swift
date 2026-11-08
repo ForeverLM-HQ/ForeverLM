@@ -1994,6 +1994,10 @@ struct InlineEPUBReaderView: NSViewRepresentable {
             _ userContentController: WKUserContentController,
             didReceive message: WKScriptMessage
         ) {
+            // The reader's scripts run in the chapter's main frame only; a
+            // frame inside a chapter is the book's, not the reader's
+            // (`ScriptMessageSender`).
+            guard message.isFrom(.web) else { return }
             switch message.name {
             case "selectionChanged":
                 guard let event = ReaderSelectionMessage(body: message.body) else { return }

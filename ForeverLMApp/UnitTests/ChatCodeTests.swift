@@ -179,18 +179,29 @@ struct ChatCodeTests {
 
     // MARK: The sandbox
 
-    @Test("The profile writes to one folder, has no network, and hides the places credentials live")
+    @Test("The profile starts from nothing and allows back only the system, its Python and its own folder")
     func profileShape() {
-        let profile = ChatCode.sandboxProfile(workspace: "/w/chat \"a\"", readableSupport: ["/c/venv"], home: "/Users/zara")
-        #expect(profile.contains("(deny network*)"))
-        #expect(profile.contains("(deny file-write*)"))
-        #expect(profile.contains("(allow file-write* (subpath \"/w/chat \\\"a\\\"\")"))
-        #expect(profile.contains("(deny file-read* (subpath \"/Users/zara/.ssh\"))"))
-        #expect(profile.contains("(deny file-read* (subpath \"/Users/zara/Library/Application Support\"))"))
-        // Last match wins, so each allow must come after the deny it narrows.
-        let deny = profile.range(of: "/Users/zara/Library/Caches")!.lowerBound
-        let allow = profile.range(of: "(allow file-read* (subpath \"/c/venv\"))")!.lowerBound
-        #expect(deny < allow)
+        let profile = ChatCode.sandboxProfile(
+            workspace: "/w/chat \"a\"",
+            runtime: ChatCode.SandboxRuntime(
+                readable: ["/c/venv", "/py/cpython-3.12"],
+                executables: ["/py/cpython-3.12/bin/python3.12"]
+            )
+        )
+        let lines = profile.components(separatedBy: "\n")
+        #expect(lines.prefix(3) == ["(version 1)", "(deny default)", "(import \"system.sb\")"])
+        #expect(!profile.contains("(allow default)"))
+        #expect(profile.contains("(allow file-read* file-write* (subpath \"/w/chat \\\"a\\\"\"))"))
+        #expect(profile.contains("(allow file-read* file-map-executable (subpath \"/c/venv\") (subpath \"/py/cpython-3.12\"))"))
+        // One program may start, named exactly: no shell, no `open`, no fork.
+        #expect(profile.contains("(allow process-exec (literal \"/py/cpython-3.12/bin/python3.12\"))"))
+        #expect(!profile.contains("process-fork"))
+        #expect(!profile.contains("process-exec*"))
+        #expect(!profile.contains("mach-lookup"))
+        // Nothing may write outside the folder, and the network rule comes
+        // last, so no earlier allow reaches a socket.
+        #expect(lines.filter { $0.contains("file-write") }.count == 1)
+        #expect(lines.last == "(deny network*)")
     }
 
     private func temporaryRoot() throws -> URL {
@@ -200,28 +211,42 @@ struct ChatCodeTests {
         return url
     }
 
-    /// Runs a shell snippet under the real profile, in a workspace of its own.
+    /// Runs a bash snippet under the real profile, in a workspace of its own,
+    /// with bash as the one program it may start. The profile allows no fork,
+    /// so the snippets use bash's builtins: any other program is refused,
+    /// which one test checks.
     private func sandboxed(_ script: String, timeout: TimeInterval = 20) async throws -> (CodeProcess.Result, URL) {
         let root = try temporaryRoot()
         let workspace = CodeProcess.realPath(root.appendingPathComponent("w", isDirectory: true))
         try FileManager.default.createDirectory(at: workspace, withIntermediateDirectories: true)
         let real = CodeProcess.realPath(workspace)
-        let profile = ChatCode.sandboxProfile(workspace: real.path, readableSupport: [], home: NSHomeDirectory())
+        let profile = ChatCode.sandboxProfile(
+            workspace: real.path,
+            runtime: ChatCode.SandboxRuntime(readable: [], executables: ["/bin/bash"])
+        )
         let result = await CodeProcess.run(
             executable: StudioChatCodeRunner.sandboxExecPath,
-            arguments: ["-p", profile, "/bin/sh", "-c", script],
-            environment: ["PATH": "/usr/bin:/bin"],
+            arguments: ["-p", profile, "/bin/bash", "--noprofile", "--norc", "-c", script],
+            environment: ["PATH": "/usr/bin:/bin", "HOME": real.path],
             directory: real.path,
             timeout: timeout
         )
         return (result, real)
     }
 
+    /// A file outside the run's folder, as a secret the learner keeps
+    /// elsewhere would be.
+    private func outsideSecret() throws -> URL {
+        let url = CodeProcess.realPath(try temporaryRoot()).appendingPathComponent("secret.env")
+        try "TOKEN=hunter2".write(to: url, atomically: true, encoding: .utf8)
+        return url
+    }
+
     @Test("Under the profile a script writes in its folder and nowhere else")
     func sandboxLimitsWrites() async throws {
-        let (inside, workspace) = try await sandboxed("echo ok > made.txt && cat made.txt")
-        #expect(inside.status == 0)
-        #expect(inside.stdout.contains("ok"))
+        let (inside, workspace) = try await sandboxed("echo ok > made.txt && read line < made.txt && echo \"read $line\"")
+        #expect(inside.status == 0, Comment(rawValue: inside.stderr))
+        #expect(inside.stdout.contains("read ok"))
         #expect(FileManager.default.fileExists(atPath: workspace.appendingPathComponent("made.txt").path))
 
         let outside = NSTemporaryDirectory() + "ChatCodeTests-outside-\(UUID().uuidString)"
@@ -231,20 +256,32 @@ struct ChatCodeTests {
         #expect(!FileManager.default.fileExists(atPath: outside))
     }
 
-    @Test("Under the profile a script cannot read the learner's Documents or reach a host")
-    func sandboxHidesFilesAndNetwork() async throws {
-        let (documents, _) = try await sandboxed("ls '\(NSHomeDirectory())/Documents'")
-        #expect(documents.status != 0)
-        #expect(documents.stderr.contains("not permitted"))
+    @Test("Under the profile a script reads no file outside its folder, wherever it is")
+    func sandboxHidesOtherFiles() async throws {
+        let secret = try outsideSecret()
+        let (read, _) = try await sandboxed("read line < '\(secret.path)'; echo \"got $line\"")
+        #expect(!read.stdout.contains("hunter2"))
+        #expect(read.stderr.contains("not permitted"))
+    }
 
-        let (network, _) = try await sandboxed("/usr/bin/curl -s -m 5 https://example.org")
+    @Test("Under the profile a script starts no other program and reaches no host")
+    func sandboxRefusesProgramsAndNetwork() async throws {
+        // `open` would hand a URL, and whatever the script put in it, to the
+        // learner's browser; `true` stands in for it, so a failing sandbox
+        // opens nothing.
+        let (program, _) = try await sandboxed("/usr/bin/true")
+        #expect(program.status == 126)
+        #expect(program.stderr.contains("not permitted"))
+
+        let (network, _) = try await sandboxed("exec 3<>/dev/tcp/1.1.1.1/443 && echo CONNECTED")
         #expect(network.status != 0)
+        #expect(!network.stdout.contains("CONNECTED"))
     }
 
     @Test("A script that runs past its limit is stopped, and its output so far is kept")
     func timeoutStopsAScript() async throws {
         let started = Date()
-        let (result, _) = try await sandboxed("echo started; sleep 30", timeout: 1)
+        let (result, _) = try await sandboxed("echo started; while :; do :; done", timeout: 1)
         #expect(result.timedOut)
         #expect(result.stdout.contains("started"))
         #expect(Date().timeIntervalSince(started) < 10)
@@ -252,7 +289,7 @@ struct ChatCodeTests {
 
     @Test("Cancelling the task that runs a script ends it at once")
     func cancellationStopsAScript() async throws {
-        let task = Task { try await sandboxed("sleep 30") }
+        let task = Task { try await sandboxed("while :; do :; done") }
         try await Task.sleep(nanoseconds: 800_000_000)
         let started = Date()
         task.cancel()
@@ -361,6 +398,36 @@ struct ChatCodeEndToEndTests {
         let elsewhere = try ChatCode.parse(["code": "print(open('notes.txt').read())"])
         let other = await runner.run(elsewhere, sessionKey: "chat-b")
         #expect(other.exitStatus != 0, "another chat has its own folder")
+    }
+
+    @Test("The real environment's script reads no file outside its folder and starts no program", .timeLimit(.minutes(10)))
+    func sandboxHoldsForPython() async throws {
+        let (runner, support) = try runner()
+        defer { try? FileManager.default.removeItem(at: support) }
+        let secret = support.appendingPathComponent("secret.env")
+        try "TOKEN=hunter2".write(to: secret, atomically: true, encoding: .utf8)
+        let probe = try ChatCode.parse(["code": """
+        import os, subprocess, numpy, matplotlib.pyplot as plt
+        def attempt(label, action):
+            try:
+                action()
+                print(label, "OPEN")
+            except OSError:
+                print(label, "closed")
+        attempt("secret", lambda: open(\(String(reflecting: CodeProcess.realPath(secret).path))).read())
+        attempt("home", lambda: os.listdir(os.path.expanduser("~\(NSUserName())")))
+        attempt("program", lambda: subprocess.run(["/usr/bin/true"]))
+        attempt("python", lambda: subprocess.run([os.sys.executable, "-c", "pass"]))
+        plt.plot(numpy.arange(3)); plt.savefig("ok.png")
+        print("drew", os.path.exists("ok.png"))
+        """])
+        let outcome = await runner.run(probe, sessionKey: "escape")
+        #expect(outcome.setupFailure == nil, Comment(rawValue: outcome.setupFailure ?? ""))
+        #expect(outcome.exitStatus == 0, Comment(rawValue: outcome.stderr))
+        for label in ["secret", "home", "program", "python"] {
+            #expect(outcome.stdout.contains("\(label) closed"), Comment(rawValue: outcome.stdout))
+        }
+        #expect(outcome.stdout.contains("drew True"))
     }
 }
 

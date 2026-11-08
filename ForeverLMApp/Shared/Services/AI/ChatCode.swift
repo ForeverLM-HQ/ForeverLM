@@ -53,7 +53,7 @@ enum ChatCode {
             description: """
             Run Python code on the learner's Mac and get its output. Use it whenever an answer depends on computing something rather than recalling it: arithmetic and statistics, unit conversions, parsing or reshaping data, simulations, plots and charts, and chemistry or biology work (RDKit draws molecules, Biopython reads sequences). Do not guess a number you can compute. The scientific stack is installed (numpy, pandas, matplotlib, scipy, sympy); name any other package from PyPI in `packages` and it is installed before the script runs (binary wheels only), for example rdkit, biopython, scikit-learn, seaborn, networkx or pillow.
 
-            The script runs fresh each call, in a folder that belongs to this chat: files it writes there are still there on the next call, but variables are not, so write what a later call needs to a file. Print what you want back; stdout and stderr return to you. The script cannot reach the network or the learner's other files, so pass it data inside the code or write it to the working folder first. To show a picture, save it as PNG, JPEG, GIF or WebP in the working folder (matplotlib: plt.savefig("chart.png", dpi=150, bbox_inches="tight"); RDKit: img.save("molecules.png")): each new picture comes back as a Markdown image line. Include every such line verbatim, on its own line, where the picture belongs in your answer, and the learner sees it there. Other files the script writes (CSV, text, PDF) are listed by name with their size.
+            The script runs fresh each call, in a folder that belongs to this chat: files it writes there are still there on the next call, but variables are not, so write what a later call needs to a file. Print what you want back; stdout and stderr return to you. The script cannot reach the network or the learner's other files, and cannot start other programs or processes (no subprocess, no multiprocessing), so pass it data inside the code or write it to the working folder first. To show a picture, save it as PNG, JPEG, GIF or WebP in the working folder (matplotlib: plt.savefig("chart.png", dpi=150, bbox_inches="tight"); RDKit: img.save("molecules.png")): each new picture comes back as a Markdown image line. Include every such line verbatim, on its own line, where the picture belongs in your answer, and the learner sees it there. Other files the script writes (CSV, text, PDF) are listed by name with their size.
 
             When a run fails, read the error and fix the code; do not report a failure you have not tried to fix. When it prints nothing, say so rather than inventing output. Report results from what the run printed, not from what you expected.
             """,
@@ -170,37 +170,51 @@ enum ChatCode {
 
     // MARK: - Sandbox
 
-    /// The macOS sandbox profile a script runs under. Writes only to its own
-    /// folder, no network, and no reading of the places a learner keeps
-    /// credentials, mail, documents or the app's own library: a model's code
-    /// is code nobody reviewed, run on the learner's Mac, and what it prints
-    /// goes to a model provider. Rules are matched last-wins, so each deny is
-    /// followed by the narrower allow it needs.
-    static func sandboxProfile(workspace: String, readableSupport: [String], home: String) -> String {
+    /// What a run may load and start besides the system: the Python it runs
+    /// on, found by `StudioChatCodeRunner` from the environment it built.
+    struct SandboxRuntime: Equatable, Sendable {
+        /// Folders the run may read and map code from: the virtual
+        /// environment (its packages) and the Python installation it was made
+        /// from (`sys.base_prefix`: the standard library and its libraries).
+        var readable: [String]
+        /// The only programs the run may start, by real path: the interpreter
+        /// itself, and for a framework build the `Python.app` its
+        /// `bin/python3.x` launcher hands over to. Nothing else — no shell, no
+        /// `open`, no second Python started by the script.
+        var executables: [String]
+    }
+
+    /// The macOS sandbox profile a script runs under. A model's code is code
+    /// nobody reviewed, run on the learner's Mac, and what it prints goes to a
+    /// model provider, so the profile starts from nothing: everything is
+    /// denied, and allowed back is only what the system's own base profile
+    /// gives every process (`system.sb`: the system's libraries, frameworks
+    /// and a curated set of system services, none of which open a URL or an
+    /// app), reading the Python it runs on, starting that Python and nothing
+    /// else, and reading and writing its own folder. No network, no other
+    /// process: an allow-all profile with a list of hidden folders let a
+    /// script read any secret it could name and hand a URL to `/usr/bin/open`.
+    static func sandboxProfile(workspace: String, runtime: SandboxRuntime) -> String {
         func quoted(_ path: String) -> String {
             "\"" + path.replacingOccurrences(of: "\\", with: "\\\\").replacingOccurrences(of: "\"", with: "\\\"") + "\""
         }
-        let hidden = [
-            ".ssh", ".aws", ".gnupg", ".config", ".kube", ".docker", ".netrc", ".npmrc", ".zsh_history", ".bash_history",
-            "Documents", "Desktop", "Downloads", "Pictures", "Movies", "Music",
-            "Library/Keychains", "Library/Cookies", "Library/Mail", "Library/Messages", "Library/Safari",
-            "Library/Application Support", "Library/Mobile Documents", "Library/Group Containers",
-            "Library/Containers", "Library/Caches", "Library/Preferences",
-        ]
         var lines = [
             "(version 1)",
-            "(allow default)",
-            "(deny network*)",
-            "(deny file-write*)",
-            "(allow file-write* (subpath \(quoted(workspace))) (literal \"/dev/null\") (literal \"/dev/dtracehelper\"))",
+            "(deny default)",
+            "(import \"system.sb\")",
         ]
-        for relative in hidden {
-            lines.append("(deny file-read* (subpath \(quoted(home + "/" + relative))))")
+        if !runtime.readable.isEmpty {
+            let paths = runtime.readable.map { "(subpath \(quoted($0)))" }.joined(separator: " ")
+            lines.append("(allow file-read* file-map-executable \(paths))")
         }
-        for path in readableSupport {
-            lines.append("(allow file-read* (subpath \(quoted(path))))")
+        lines.append("(allow file-read* file-write* (subpath \(quoted(workspace))))")
+        if !runtime.executables.isEmpty {
+            let paths = runtime.executables.map { "(literal \(quoted($0)))" }.joined(separator: " ")
+            lines.append("(allow process-exec \(paths))")
         }
-        lines.append("(allow file-read* (subpath \(quoted(workspace))))")
+        lines.append("(allow signal (target self))")
+        // Last, so nothing the base profile allows reaches a socket.
+        lines.append("(deny network*)")
         return lines.joined(separator: "\n")
     }
 
