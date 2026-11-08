@@ -760,10 +760,16 @@ extension AIService {
         payload["provider"] = routing
     }
 
+    /// `learnerMessageIndex` is the index in `payload["messages"]` of the
+    /// learner's own message for this turn, when the caller knows it (a tool
+    /// loop does); the per-turn tail is placed in front of it. Without it the
+    /// tail goes in front of the newest learner-like message
+    /// (`openRouterMessagesWithVolatileContext`).
     static func applyOpenRouterPayloadExtras(
         _ payload: inout [String: Any],
         provider: AIProvider,
-        speed: AISpeed? = nil
+        speed: AISpeed? = nil,
+        learnerMessageIndex: Int? = nil
     ) {
         guard routesThroughOpenRouter(provider) else { return }
 
@@ -852,7 +858,7 @@ extension AIService {
         // the tail is still the second system block.
         let reuseExpected = (payload["tools"] as? [Any])?.isEmpty == false
             || messages.filter { ($0["role"] as? String) != "system" }.count >= 2
-        let moved = openRouterMessagesWithVolatileContext(messages)
+        let moved = openRouterMessagesWithVolatileContext(messages, learnerMessageIndex: learnerMessageIndex)
         messages = moved.messages
         payload["messages"] = messages
 
@@ -928,8 +934,19 @@ extension AIService {
     /// where the tail went, so the message just ahead of it can carry a cache
     /// breakpoint: that message ends the part of the conversation the next
     /// turn repeats byte for byte (nil when there was no tail to move).
+    ///
+    /// The tail must stay where the turn began for all of the turn's tool
+    /// rounds: everything after it is cached per round, and moving it rewrites
+    /// all of that (on 2026-11-07 one Opus call rewrote 147k tokens for $0.74
+    /// that way). Two kinds of user-role message arrive mid-turn and are never
+    /// the learner's: the follow-up that carries a tool result's pictures
+    /// (right after a tool message), and the app's own nudges in a tool loop.
+    /// The first is skipped here; the second only the caller can tell apart,
+    /// so a tool loop passes `learnerMessageIndex`, honoured when it names a
+    /// user message after the system message.
     static func openRouterMessagesWithVolatileContext(
-        _ messages: [[String: Any]]
+        _ messages: [[String: Any]],
+        learnerMessageIndex: Int? = nil
     ) -> (messages: [[String: Any]], tailIndex: Int?) {
         guard let systemIndex = messages.firstIndex(where: {
             let role = ($0["role"] as? String)?.lowercased()
@@ -954,10 +971,17 @@ extension AIService {
             return clean
         }
         let tail: [String: Any] = ["role": "user", "content": Array(volatileBlocks)]
-        let latestUser = prepared.indices.last(where: {
-            $0 > systemIndex && (prepared[$0]["role"] as? String)?.lowercased() == "user"
-        })
-        let tailIndex = latestUser ?? prepared.endIndex
+        func role(_ index: Int) -> String? { (prepared[index]["role"] as? String)?.lowercased() }
+        let anchor: Int?
+        if let learnerMessageIndex, learnerMessageIndex > systemIndex,
+           learnerMessageIndex < prepared.endIndex, role(learnerMessageIndex) == "user" {
+            anchor = learnerMessageIndex
+        } else {
+            anchor = prepared.indices.last(where: {
+                $0 > systemIndex && role($0) == "user" && role($0 - 1) != "tool"
+            })
+        }
+        let tailIndex = anchor ?? prepared.endIndex
         prepared.insert(tail, at: tailIndex)
         return (prepared, tailIndex)
     }
