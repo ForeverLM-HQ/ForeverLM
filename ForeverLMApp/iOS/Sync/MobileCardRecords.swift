@@ -204,8 +204,7 @@ enum MobileCardRecords {
             deckStates: states,
             itemIDs: [],
             legacyItems: [],
-            attemptsByItemID: [:],
-            now: now
+            attemptsByItemID: [:]
         )
         // The deck's Flashcard keeps one line of why; the draft's own face keeps them all.
         .map { card in
