@@ -5786,6 +5786,9 @@ struct ChatRobustnessTests {
     func rememberedHeightWinsOverTheEstimate() {
         let id = UUID()
         let markdown = String(repeating: "A sentence of body text that wraps. ", count: 20)
+        // The estimate is made at the newest report's width; set it to the
+        // width this test records at, whatever another test measured last.
+        ChatMarkdownHeightMemory.record(height: 100, width: 640, fontSize: 13, for: UUID())
         let estimate = ChatMarkdownHeightMemory.initialHeight(for: id, markdown: markdown)
         #expect(estimate > 36)
 
@@ -5794,6 +5797,75 @@ struct ChatRobustnessTests {
         // Another row of the same text still gets the estimate, at the width
         // the transcript was just measured at.
         #expect(ChatMarkdownHeightMemory.initialHeight(for: UUID(), markdown: markdown) == estimate)
+    }
+
+    @Test("A reply in a side question's lane, narrower than the column, does not wipe the column's heights")
+    @MainActor
+    func laneRowsKeepTheColumnsHeights() {
+        let markdown = "A reply."
+        let column = UUID()
+        let lane = UUID()
+        ChatMarkdownHeightMemory.record(height: 412, width: 640, fontSize: 13, for: column)
+        // The lane draws its replies 14 points in.
+        ChatMarkdownHeightMemory.record(height: 433, width: 626, fontSize: 13, for: lane)
+        ChatMarkdownHeightMemory.record(height: 418, width: 640, fontSize: 13, for: UUID())
+        #expect(ChatMarkdownHeightMemory.initialHeight(for: column, markdown: markdown) == 412)
+        #expect(ChatMarkdownHeightMemory.initialHeight(for: lane, markdown: markdown) == 433)
+    }
+
+    @Test("A column that changes width retires its own heights and no other column's")
+    @MainActor
+    func resizedColumnRetiresOnlyItsHeights() {
+        let markdown = "A reply."
+        let first = UUID()
+        let second = UUID()
+        let otherPane = UUID()
+        ChatMarkdownHeightMemory.record(height: 300, width: 600, fontSize: 13, for: first)
+        ChatMarkdownHeightMemory.record(height: 320, width: 600, fontSize: 13, for: second)
+        ChatMarkdownHeightMemory.record(height: 500, width: 410, fontSize: 13, for: otherPane)
+        // The first pane widens: its first row measures again, shorter.
+        ChatMarkdownHeightMemory.record(height: 240, width: 760, fontSize: 13, for: first)
+        #expect(ChatMarkdownHeightMemory.initialHeight(for: first, markdown: markdown) == 240)
+        #expect(ChatMarkdownHeightMemory.height(for: second) == nil)
+        #expect(ChatMarkdownHeightMemory.initialHeight(for: otherPane, markdown: markdown) == 500)
+
+        // A new text size retires everything.
+        ChatMarkdownHeightMemory.record(height: 280, width: 760, fontSize: 15, for: second)
+        #expect(ChatMarkdownHeightMemory.height(for: first) == nil)
+        #expect(ChatMarkdownHeightMemory.height(for: otherPane) == nil)
+        #expect(ChatMarkdownHeightMemory.height(for: second) == 280)
+        // Leave the newest report at the width and size the other tests use.
+        ChatMarkdownHeightMemory.record(height: 100, width: 640, fontSize: 13, for: UUID())
+    }
+
+    @Test("Growth is scrolled past only when the row grows above the middle of the screen")
+    func anchoringDecidesByTheRowsGrowingEdge() {
+        // A 720-point viewport 3000 points down a flipped transcript.
+        let visible = CGRect(x: 0, y: 3000, width: 640, height: 720)
+        func row(_ top: CGFloat, _ bottom: CGFloat) -> CGRect {
+            CGRect(x: 0, y: top, width: 640, height: bottom - top)
+        }
+        // Wholly above the screen.
+        #expect(ChatTranscriptScrollAnchoring.scrollsPastGrowth(of: row(2400, 2900), visible: visible, flipped: true))
+        // Its last lines just coming into view at the top: most of the
+        // screen is below its growing edge.
+        #expect(ChatTranscriptScrollAnchoring.scrollsPastGrowth(of: row(2400, 3100), visible: visible, flipped: true))
+        // One long reply filling the screen, its footer off the bottom: the
+        // words being read are its own and must not move.
+        #expect(!ChatTranscriptScrollAnchoring.scrollsPastGrowth(of: row(1800, 4600), visible: visible, flipped: true))
+        // Its footer in the lower half of the screen.
+        #expect(!ChatTranscriptScrollAnchoring.scrollsPastGrowth(of: row(1800, 3500), visible: visible, flipped: true))
+        // A row that starts on the screen grows below the learner's place.
+        #expect(!ChatTranscriptScrollAnchoring.scrollsPastGrowth(of: row(3050, 3200), visible: visible, flipped: true))
+
+        // The same in an unflipped document, where the top is the larger y.
+        let unflipped = CGRect(x: 0, y: 1000, width: 640, height: 720)
+        func up(_ top: CGFloat, _ bottom: CGFloat) -> CGRect {
+            CGRect(x: 0, y: bottom, width: 640, height: top - bottom)
+        }
+        #expect(ChatTranscriptScrollAnchoring.scrollsPastGrowth(of: up(2400, 1800), visible: unflipped, flipped: false))
+        #expect(ChatTranscriptScrollAnchoring.scrollsPastGrowth(of: up(2400, 1600), visible: unflipped, flipped: false))
+        #expect(!ChatTranscriptScrollAnchoring.scrollsPastGrowth(of: up(2400, 400), visible: unflipped, flipped: false))
     }
 }
 

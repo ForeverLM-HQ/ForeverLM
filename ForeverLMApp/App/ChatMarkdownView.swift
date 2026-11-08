@@ -176,20 +176,39 @@ struct ChatSourceCard: Codable, Equatable {
 /// out and posted its height back, which shoves everything below it while the
 /// scroll is still moving. Starting from the height the row last reported keeps
 /// the column still.
+///
+/// A height is only true for the width and text size it was measured at, and
+/// rows do not all share one width: a side question's lane draws its replies
+/// indented, and two chat panes side by side are two columns. So each row
+/// keeps the width it was measured at. The table used to hold one width for
+/// every row and retire itself whenever a row reported another, which in a
+/// chat with a lane was every other report: the memory was empty again by the
+/// time a row came back, and every rebuilt row opened at an estimate and
+/// sprang to its true height under the scroll.
 @MainActor
 enum ChatMarkdownHeightMemory {
-    private static var heights: [UUID: CGFloat] = [:]
+    private struct Measurement {
+        let height: CGFloat
+        let width: CGFloat
+        let fontSize: CGFloat
+    }
+
+    private static var measurements: [UUID: Measurement] = [:]
     private static var order: [UUID] = []
-    /// A height is only true for the column width and text size it was measured
-    /// at, and every bubble in a transcript shares both. A measurement at new
-    /// values retires the whole table rather than tracking staleness per row.
+    /// The newest report's width and text size: what an unmeasured row is
+    /// estimated at, and the text size every remembered height must share.
     private static var measuredWidth: CGFloat = 0
     private static var measuredFontSize: CGFloat = 0
     /// Enough for any transcript a lazy stack will hold on to, bounded so a long
     /// session cannot grow this without limit.
     private static let capacity = 400
 
-    static func height(for id: UUID) -> CGFloat? { heights[id] }
+    /// What `id` last measured, unless the text size has changed since.
+    static func height(for id: UUID) -> CGFloat? {
+        guard let measurement = measurements[id],
+              measuredFontSize == 0 || measurement.fontSize == measuredFontSize else { return nil }
+        return measurement.height
+    }
 
     /// The height a row opens at: what it measured last time, or an estimate
     /// from its markdown when nothing has measured it yet. A chat opened from
@@ -197,7 +216,7 @@ enum ChatMarkdownHeightMemory {
     /// opening each at one line and letting WebKit spring it to eight hundred
     /// points as it scrolls into view is what read as the transcript jumping.
     static func initialHeight(for id: UUID, markdown: String) -> CGFloat {
-        if let remembered = heights[id] { return remembered }
+        if let remembered = height(for: id) { return remembered }
         return estimatedHeight(
             markdown: markdown,
             width: measuredWidth > 0 ? measuredWidth : defaultEstimateWidth,
@@ -273,16 +292,25 @@ enum ChatMarkdownHeightMemory {
     }
 
     static func record(height: CGFloat, width: CGFloat, fontSize: CGFloat, for id: UUID) {
-        if width != measuredWidth || fontSize != measuredFontSize {
-            heights.removeAll(keepingCapacity: true)
+        if fontSize != measuredFontSize {
+            // The app's text size moved: no height measured before is true.
+            measurements.removeAll(keepingCapacity: true)
             order.removeAll(keepingCapacity: true)
-            measuredWidth = width
-            measuredFontSize = fontSize
+        } else if let previous = measurements[id], previous.width != width {
+            // This row's own column changed width, so every row measured in
+            // that column at the old width is stale. Rows of other columns —
+            // a lane, another pane — keep theirs.
+            let stale = measurements.filter { $0.value.width == previous.width }.keys
+            for staleID in stale { measurements.removeValue(forKey: staleID) }
+            order.removeAll { measurements[$0] == nil }
         }
-        if heights.updateValue(height, forKey: id) == nil {
+        measuredWidth = width
+        measuredFontSize = fontSize
+        let measurement = Measurement(height: height, width: width, fontSize: fontSize)
+        if measurements.updateValue(measurement, forKey: id) == nil {
             order.append(id)
             if order.count > capacity {
-                heights.removeValue(forKey: order.removeFirst())
+                measurements.removeValue(forKey: order.removeFirst())
             }
         }
     }
@@ -362,26 +390,48 @@ enum ChatMarkdownPushPolicy {
 /// cards or pictures arrive grows again. Each such change asks its transcript
 /// to move the visible region by the same amount, in the layout pass that
 /// applies the new size, so the content on screen does not move at all.
+///
+/// A row's page lays out from its top, so a row grows at its foot: what moves
+/// is everything below the row's bottom edge, never the row's own words. The
+/// edge is what decides. A row wholly above the screen, or one whose last
+/// lines are just coming into view at the top, grows at an edge above the
+/// middle of the screen: most of what is visible sits below it, so the region
+/// is scrolled past the growth. A row that fills the screen — one long reply
+/// being read — grows at an edge below the middle or off the screen: the
+/// words being read are the row's own and stay where they are untouched, and
+/// scrolling past the growth would be the only thing that moved them. While
+/// the row's top decided, reading a long reply could jump by whatever its
+/// footer gained: a source card resolving, a picture arriving.
 @MainActor
 enum ChatTranscriptScrollAnchoring {
-    /// Whether the row `view` draws begins above the visible region of the
-    /// scroll view it sits in. Only such a row's growth moves visible content.
-    static func rowStartsAboveVisibleRegion(_ view: NSView?) -> Bool {
+    /// Whether growth of `row` is scrolled past: the row starts above the
+    /// visible region and its bottom edge, where it grows, is above the
+    /// region's middle. In document coordinates, flipped or not.
+    nonisolated static func scrollsPastGrowth(of row: CGRect, visible: CGRect, flipped: Bool) -> Bool {
+        flipped
+            ? row.minY < visible.minY - 0.5 && row.maxY < visible.midY
+            : row.maxY > visible.maxY + 0.5 && row.minY > visible.midY
+    }
+
+    /// Whether the row `view` draws grows at an edge above what the learner
+    /// is reading (`scrollsPastGrowth(of:visible:flipped:)`). Only such a
+    /// row's growth moves most of the visible content.
+    static func scrollsPastGrowth(of view: NSView?) -> Bool {
         guard let view,
               let scrollView = view.enclosingScrollView,
               let document = scrollView.documentView else { return false }
-        let row = view.convert(view.bounds, to: document)
-        let visible = scrollView.contentView.documentVisibleRect
-        return document.isFlipped
-            ? row.minY < visible.minY - 0.5
-            : row.maxY > visible.maxY + 0.5
+        return scrollsPastGrowth(
+            of: view.convert(view.bounds, to: document),
+            visible: scrollView.contentView.documentVisibleRect,
+            flipped: document.isFlipped
+        )
     }
 
     /// Before `view`'s row grows by `growth` (negative when it shrinks): if the
-    /// row is above the visible region, arrange for the transcript to scroll by
-    /// the same amount once the document has taken its new size.
+    /// row grows above what the learner is reading, arrange for the transcript
+    /// to scroll by the same amount once the document has taken its new size.
     static func compensate(for view: NSView?, growth: CGFloat) {
-        guard abs(growth) >= 0.5, rowStartsAboveVisibleRegion(view),
+        guard abs(growth) >= 0.5, scrollsPastGrowth(of: view),
               let scrollView = view?.enclosingScrollView else { return }
         ChatTranscriptScrollObserver.ObserverView.observer(for: scrollView)?.deferScroll(by: growth)
     }
@@ -1364,13 +1414,13 @@ struct ChatMarkdownView: NSViewRepresentable {
             // A row's first measurement lands at once, scroll or no scroll: until
             // it does the row stands at a guess, and a guess held through a
             // scroll is the collapsed bubble that springs open when the wheel
-            // stops. So does a change to a row above the visible region — its
-            // growth is scrolled past in the same layout pass
+            // stops. So does a change to a row growing above what the learner
+            // is reading — its growth is scrolled past in the same layout pass
             // (`ChatTranscriptScrollAnchoring`), so applying it costs the
             // learner nothing, and holding it would land it as a jump later.
             // What waits out a scroll is a row on or below the screen resizing
             // again: the streaming bubble, a dozen times a second.
-            if !hasAppliedHeight || ChatTranscriptScrollAnchoring.rowStartsAboveVisibleRegion(webView) {
+            if !hasAppliedHeight || ChatTranscriptScrollAnchoring.scrollsPastGrowth(of: webView) {
                 applyPendingHeight()
                 return
             }
