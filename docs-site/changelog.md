@@ -6,9 +6,18 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.195.0 (build 275) — 2026-11-07
+
+**Highlights:**
+- **Voice mode is back**: talk a paper through out loud or be quizzed on it, on the Mac (Reader ⋯) and the iPhone.
+- **Talk to ForeverLM**: a voice assistant that knows your plan, calendar, goals and recent work (Chat › Talk to ForeverLM).
+
 - **Voice mode is back.** Talk about a source out loud, or be quizzed on it, with answers in a moment and room to interrupt: the Reader's waveform on the iPhone (hold for **Quiz Me**), **Talk About It** and **Quiz Me Out Loud** in the Mac Reader's **⋯**. It runs on OpenAI's realtime voice, paid for by ForeverLM: no key needed, nothing billed to you. See [Voice Mode](/voice-mode).
 - **Talk to ForeverLM, in CarPlay too.** A voice assistant that knows your quarter plan, your calendar, your Schedule, goals, notebooks and recent work, and can open any source to talk about or quiz you on. CarPlay starts it when you connect; on the iPhone it is the waveform on Home, on the Mac **Chat › Talk to ForeverLM**.
 - **AI Usage lists voice conversations** with a **ForeverLM credits** capsule: what OpenAI charged ForeverLM, never billed to you.
+- **Scrolling an old chat no longer jumps**, and a long reply you are reading is never scrolled past while it grows.
+- **Selecting across a list in a chat** draws one clean band, without tiles beside each bullet.
+- **A meeting session's header in the Reader names its series.**
 
 ## 0.194.0 (build 274) — 2026-11-07
 
