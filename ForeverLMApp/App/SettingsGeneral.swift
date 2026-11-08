@@ -43,8 +43,6 @@ struct GeneralSettingsDetailView: View {
     private var autoDraftsCards: Bool
     @SyncedStorage(wrappedValue: true, MemoryCardSettings.draftNudgesKey)
     private var showsDraftNudges: Bool
-    @SyncedStorage(wrappedValue: true, MemoryCardSettings.prepareReviewQuestionsKey)
-    private var preparesReviewQuestions: Bool
     /// Synced: Think first's level for the library (`ThinkFirst`), so the
     /// picker follows another Mac, the web or MCP.
     @SyncedStorage(wrappedValue: ThinkFirstLevel.off, ThinkFirst.levelKey)
@@ -262,20 +260,6 @@ struct GeneralSettingsDetailView: View {
 
                         rowDivider
 
-                        SettingsRow(
-                            "Prepare review questions ahead of time",
-                            detail: "Uses AI on up to \(StudioViewModel.reviewGuidePrebuildDailyLimit) sources a day, "
-                                + "within your daily background limit."
-                        ) {
-                            Toggle("Prepare review questions ahead of time", isOn: preparesReviewQuestionsBinding)
-                                .labelsHidden()
-                                .toggleStyle(.switch)
-                                .accessibilityIdentifier("settings.memory.prepareReviewQuestions")
-                        }
-                        .settingsFocusRow(.memoryPrepareReviewQuestions)
-
-                        rowDivider
-
                         SettingsRow("Have today's review ready") {
                             Toggle("Have today's review ready", isOn: $prepareDaily)
                                 .labelsHidden()
@@ -377,13 +361,6 @@ struct GeneralSettingsDetailView: View {
                 MemoryCardSettings.setAutoDraftsCards($0)
                 Task(priority: .utility) { await AppModelBridge.studio?.refreshCardsToCheckBanner() }
             }
-        )
-    }
-
-    private var preparesReviewQuestionsBinding: Binding<Bool> {
-        Binding(
-            get: { preparesReviewQuestions },
-            set: { MemoryCardSettings.setPreparesReviewQuestions($0) }
         )
     }
 
@@ -525,7 +502,6 @@ struct SettingsRow<Control: View>: View {
 /// Usage › Activity's Turn off…). The pane scrolls to the row and washes it.
 enum SettingsRowID: String {
     case memoryDraftCards
-    case memoryPrepareReviewQuestions
     case imagesQuizPictures
     case imagesNotebookCovers
     case driveTranscribeRecordings
@@ -534,7 +510,7 @@ enum SettingsRowID: String {
     /// The Settings pane the row is in; nil for a row on a plugin's page.
     var pane: SettingsPane? {
         switch self {
-        case .memoryDraftCards, .memoryPrepareReviewQuestions: .general
+        case .memoryDraftCards: .general
         case .imagesQuizPictures, .imagesNotebookCovers: .aiImages
         case .driveTranscribeRecordings, .youTubeFormatTranscripts: nil
         }

@@ -436,7 +436,6 @@ extension StudioViewModel {
             switchTab(to: first)
         }
         startYouTubeAutoImport()
-        startReviewGuidePrebuild()
 
         // ── Cheap cached-state work only; discovery is manual or change-triggered. ──
         Task(priority: .utility) { [weak self] in

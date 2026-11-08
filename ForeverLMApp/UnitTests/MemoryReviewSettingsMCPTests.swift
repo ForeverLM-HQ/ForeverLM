@@ -72,7 +72,7 @@ struct MemoryReviewSettingsMCPTests {
         let defaults = UserDefaults.standard
         let keys = [
             MemoryCardSettings.newCardsPerDayKey, MemoryCardSettings.autoDraftKey,
-            MemoryCardSettings.draftNudgesKey, MemoryCardSettings.prepareReviewQuestionsKey,
+            MemoryCardSettings.draftNudgesKey,
         ]
         let prior = keys.map { ($0, defaults.object(forKey: $0)) }
         defer {
@@ -90,7 +90,6 @@ struct MemoryReviewSettingsMCPTests {
         #expect(initial["new_cards_per_day"] as? Int == MemoryCardQueue.defaultNewPerDay)
         #expect(initial["auto_draft_cards"] as? Bool == false, "off until the learner turns it on")
         #expect(initial["draft_nudges"] as? Bool == true)
-        #expect(initial["prepare_review_questions"] as? Bool == true, "on until the learner turns it off")
         let scope = try #require(initial["scope"] as? [String: String])
         #expect(scope["new_cards_per_day"] == "your account")
         let drafting = try #require(initial["automatic_drafting"] as? [String: Any])
@@ -98,18 +97,15 @@ struct MemoryReviewSettingsMCPTests {
 
         let changed = try payload(try await store.setMemoryReviewSettings(
             budgetMinutes: nil, prepareDaily: nil, readyByHour: nil,
-            newCardsPerDay: 20, autoDraftCards: true, draftNudges: false,
-            prepareReviewQuestions: false
+            newCardsPerDay: 20, autoDraftCards: true, draftNudges: false
         ))
         #expect(Set(changed["changed"] as? [String] ?? []) == [
-            "new_cards_per_day", "auto_draft_cards", "draft_nudges", "prepare_review_questions",
+            "new_cards_per_day", "auto_draft_cards", "draft_nudges",
         ])
         #expect(changed["new_cards_per_day"] as? Int == 20)
         #expect(MemoryCardSettings.newCardsPerDay() == 20)
         #expect(MemoryCardSettings.autoDraftsCards())
         #expect(!MemoryCardSettings.showsDraftNudges())
-        #expect(!MemoryCardSettings.preparesReviewQuestions())
-        #expect(changed["prepare_review_questions"] as? Bool == false)
         #expect((changed["automatic_drafting"] as? [String: Any])?["sources_a_day"] as? Int == 5)
 
         let same = try payload(try await store.setMemoryReviewSettings(
@@ -127,8 +123,9 @@ struct MemoryReviewSettingsMCPTests {
 
         let tool = try #require(MCPToolRegistry(store: MCPDataStore()).tools.first { $0.name == "set_memory_review_settings" })
         let properties = try #require(tool.inputSchema["properties"] as? [String: Any])
-        for name in ["new_cards_per_day", "auto_draft_cards", "draft_nudges", "prepare_review_questions"] {
+        for name in ["new_cards_per_day", "auto_draft_cards", "draft_nudges"] {
             #expect(properties[name] != nil, Comment(rawValue: name))
         }
+        #expect(properties["prepare_review_questions"] == nil, "no review questions are written ahead of time")
     }
 }

@@ -4651,7 +4651,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Settings › General › Memory review as JSON: budget_minutes (the daily review's length, your account), new_cards_per_day (how many new cards a day's review introduces, which also sets how many sources ForeverLM drafts cards from in the background each day, your account), auto_draft_cards (whether ForeverLM drafts cards into To Check as the learner finishes sources, within the daily background AI limit, your account), draft_nudges (whether the Cards to check corner card and the next morning's banner say drafted cards wait, your account), prepare_review_questions (whether ForeverLM writes review questions ahead of time for the few sources a review is likely to be about today, your account), prepare_daily (\"Have today's review ready\": the reminder on mornings that hold cards, your account), ready_by_hour (when this Mac selects the morning's cards and the reminder fires), automatic_drafting (sources_a_day, this Mac's last_run with what it left waiting, and the sources that failed today), and what this Mac last did about the morning (last_preparation).",
+    "description" : "Settings › General › Memory review as JSON: budget_minutes (the daily review's length, your account), new_cards_per_day (how many new cards a day's review introduces, which also sets how many sources ForeverLM drafts cards from in the background each day, your account), auto_draft_cards (whether ForeverLM drafts cards into To Check as the learner finishes sources, within the daily background AI limit, your account), draft_nudges (whether the Cards to check corner card and the next morning's banner say drafted cards wait, your account), prepare_daily (\"Have today's review ready\": the reminder on mornings that hold cards, your account), ready_by_hour (when this Mac selects the morning's cards and the reminder fires), automatic_drafting (sources_a_day, this Mac's last_run with what it left waiting, and the sources that failed today), and what this Mac last did about the morning (last_preparation).",
     "inputSchema" : {
       "properties" : {
 
@@ -10608,7 +10608,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Change Settings › General › Memory review: budget_minutes, new_cards_per_day, auto_draft_cards, draft_nudges, prepare_review_questions, prepare_daily, ready_by_hour — one or several. Writes through the pane's own entry points, so the reminder and the runner follow. Returns the settings as get_memory_review_settings reads them plus `changed`.",
+    "description" : "Change Settings › General › Memory review: budget_minutes, new_cards_per_day, auto_draft_cards, draft_nudges, prepare_daily, ready_by_hour — one or several. Writes through the pane's own entry points, so the reminder and the runner follow. Returns the settings as get_memory_review_settings reads them plus `changed`.",
     "inputSchema" : {
       "properties" : {
         "auto_draft_cards" : {
@@ -10629,10 +10629,6 @@
         },
         "prepare_daily" : {
           "description" : "Select the morning's cards at ready_by_hour and send the daily reminder on mornings that hold cards. Follows your account.",
-          "type" : "boolean"
-        },
-        "prepare_review_questions" : {
-          "description" : "Write review questions ahead of time for up to six sources a day a review is likely to be about (today's Schedule, then what was read in the last two days), so a review starts at once, within the daily background AI limit. A review without them still runs. On by default. Follows your account.",
           "type" : "boolean"
         },
         "ready_by_hour" : {

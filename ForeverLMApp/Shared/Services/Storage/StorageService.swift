@@ -2262,21 +2262,6 @@ actor StorageService {
         try knowledgeStore().ensureSourceReviewGuidePreparation(sourceID: sourceID)
     }
 
-    func likelyReviewSourceIDsWithoutGuide(
-        now: Date = Date(),
-        calendar: Calendar = .autoupdatingCurrent,
-        lookbackDays: Int,
-        limit: Int
-    ) throws -> [String] {
-        try ensureStoreExists()
-        return try knowledgeStore().likelyReviewSourceIDsWithoutGuide(
-            now: now,
-            calendar: calendar,
-            lookbackDays: lookbackDays,
-            limit: limit
-        )
-    }
-
     func sourceReviewGuideQueueCount() throws -> Int {
         try ensureStoreExists()
         return try knowledgeStore().sourceReviewGuideQueueCount()

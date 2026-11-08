@@ -628,8 +628,6 @@ struct AIActivitySettingsSection: View {
         switch task {
         case "card_drafting":
             return (.memoryDraftCards, "Settings › General › Memory › Draft cards from what you finish")
-        case "realtime_review_preparation":
-            return (.memoryPrepareReviewQuestions, "Settings › General › Memory › Prepare review questions ahead of time")
         case "meeting_transcription":
             return (.driveTranscribeRecordings, "Plugins › Google Drive › Transcribe recordings Google didn't")
         case "notebook_cover":

@@ -2959,7 +2959,7 @@ final class MCPToolRegistry: @unchecked Sendable {
             ),
             MCPToolDef(
                 name: "get_memory_review_settings",
-                description: "Settings › General › Memory review as JSON: budget_minutes (the daily review's length, your account), new_cards_per_day (how many new cards a day's review introduces, which also sets how many sources ForeverLM drafts cards from in the background each day, your account), auto_draft_cards (whether ForeverLM drafts cards into To Check as the learner finishes sources, within the daily background AI limit, your account), draft_nudges (whether the Cards to check corner card and the next morning's banner say drafted cards wait, your account), prepare_review_questions (whether ForeverLM writes review questions ahead of time for the few sources a review is likely to be about today, your account), prepare_daily (\"Have today's review ready\": the reminder on mornings that hold cards, your account), ready_by_hour (when this Mac selects the morning's cards and the reminder fires), automatic_drafting (sources_a_day, this Mac's last_run with what it left waiting, and the sources that failed today), and what this Mac last did about the morning (last_preparation).",
+                description: "Settings › General › Memory review as JSON: budget_minutes (the daily review's length, your account), new_cards_per_day (how many new cards a day's review introduces, which also sets how many sources ForeverLM drafts cards from in the background each day, your account), auto_draft_cards (whether ForeverLM drafts cards into To Check as the learner finishes sources, within the daily background AI limit, your account), draft_nudges (whether the Cards to check corner card and the next morning's banner say drafted cards wait, your account), prepare_daily (\"Have today's review ready\": the reminder on mornings that hold cards, your account), ready_by_hour (when this Mac selects the morning's cards and the reminder fires), automatic_drafting (sources_a_day, this Mac's last_run with what it left waiting, and the sources that failed today), and what this Mac last did about the morning (last_preparation).",
                 inputSchema: [
                     "type": "object",
                     "properties": [:] as [String: Any],
@@ -2968,7 +2968,7 @@ final class MCPToolRegistry: @unchecked Sendable {
             ),
             MCPToolDef(
                 name: "set_memory_review_settings",
-                description: "Change Settings › General › Memory review: budget_minutes, new_cards_per_day, auto_draft_cards, draft_nudges, prepare_review_questions, prepare_daily, ready_by_hour — one or several. Writes through the pane's own entry points, so the reminder and the runner follow. Returns the settings as get_memory_review_settings reads them plus `changed`.",
+                description: "Change Settings › General › Memory review: budget_minutes, new_cards_per_day, auto_draft_cards, draft_nudges, prepare_daily, ready_by_hour — one or several. Writes through the pane's own entry points, so the reminder and the runner follow. Returns the settings as get_memory_review_settings reads them plus `changed`.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -2976,7 +2976,6 @@ final class MCPToolRegistry: @unchecked Sendable {
                         "new_cards_per_day": ["type": "integer", "description": "New cards a day's review introduces (1–100; 10 by default). Also sets how many sources are drafted in the background each day: one for every four new cards, at least one. Follows your account."],
                         "auto_draft_cards": ["type": "boolean", "description": "Draft cards into To Check in the background as the learner finishes sources (Mark as Read, read to the end, listening or watching complete), within the daily background AI limit. Off by default: a source's card is the learner's to write. Follows your account."],
                         "draft_nudges": ["type": "boolean", "description": "Show the Cards to check corner card, and send the next morning's banner, while cards drafted in the background wait or finished sources have none. On by default; its Don't Ask Again turns it off. Follows your account."],
-                        "prepare_review_questions": ["type": "boolean", "description": "Write review questions ahead of time for up to six sources a day a review is likely to be about (today's Schedule, then what was read in the last two days), so a review starts at once, within the daily background AI limit. A review without them still runs. On by default. Follows your account."],
                         "prepare_daily": ["type": "boolean", "description": "Select the morning's cards at ready_by_hour and send the daily reminder on mornings that hold cards. Follows your account."],
                         "ready_by_hour": ["type": "integer", "description": "Hour (0–23, this Mac's clock) by which the morning's review should be waiting."],
                     ],
@@ -6732,8 +6731,7 @@ final class MCPToolRegistry: @unchecked Sendable {
                     readyByHour: arguments["ready_by_hour"] as? Int,
                     newCardsPerDay: arguments["new_cards_per_day"] as? Int,
                     autoDraftCards: arguments["auto_draft_cards"] as? Bool,
-                    draftNudges: arguments["draft_nudges"] as? Bool,
-                    prepareReviewQuestions: arguments["prepare_review_questions"] as? Bool
+                    draftNudges: arguments["draft_nudges"] as? Bool
                 )
             case "draft_cards":
                 return try await store.draftCards(arguments: arguments)

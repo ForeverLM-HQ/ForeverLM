@@ -423,9 +423,6 @@ class StudioViewModel {
     @ObservationIgnored var youtubeAutoImportTask: Task<Void, Never>?
     /// Re-reads `youtubeAccounts` whenever a plugin connection changes.
     @ObservationIgnored var youtubeAccountObserverTask: Task<Void, Never>?
-    /// The low-frequency pass that writes quiz guides ahead of time for the
-    /// sources a review is likely to be about today (`startReviewGuidePrebuild`).
-    @ObservationIgnored var reviewGuidePrebuildTask: Task<Void, Never>?
     /// The YouTube accounts, in the order they were connected
     /// (`reloadYouTubeAccounts`). Observed, so the plugin page, the Plugins
     /// place and the Videos sidebar follow connections.
@@ -4725,72 +4722,5 @@ struct StudioWindowScopedViewModel {
     @discardableResult
     func inWindow<T>(_ body: (StudioViewModel) throws -> T) rethrows -> T {
         try viewModel.inWindow(windowState) { try body(viewModel) }
-    }
-}
-
-// MARK: - Quiz guides ahead of time
-
-extension StudioViewModel {
-    /// Generations the ahead-of-time pass may attempt per calendar day. A
-    /// guide costs one Chat-model call over the source's whole text (14–24k
-    /// tokens in, about 2k out, on 2026-09-11), so the pass stays a handful of
-    /// likely sources, never a library-wide backfill.
-    static let reviewGuidePrebuildDailyLimit = 6
-    private static let reviewGuidePrebuildDayKey = "reviewGuidePrebuild.day"
-    private static let reviewGuidePrebuildCountKey = "reviewGuidePrebuild.count"
-
-    /// Starts the ahead-of-time guide pass once the library has loaded: a
-    /// first pass a few minutes after launch, then one every two hours, each
-    /// within what is left of the day's budget. The guides sync to the phone
-    /// in the source's payload, so a CarPlay quiz finds one waiting. A pass
-    /// runs only while Settings › General › Memory review › Prepare review
-    /// questions ahead of time is on, and stops at the daily background cap,
-    /// like every other background drain.
-    func startReviewGuidePrebuild() {
-        guard reviewGuidePrebuildTask == nil else { return }
-        let service = sourceReviewGuidePreparationService
-        let budget = backgroundAIBudget
-        reviewGuidePrebuildTask = Task(priority: .utility) {
-            do { try await Task.sleep(for: .seconds(3 * 60)) } catch { return }
-            while !Task.isCancelled {
-                let remaining = Self.reviewGuidePrebuildRemainingToday()
-                if remaining > 0,
-                   MemoryCardSettings.preparesReviewQuestions(),
-                   await budget.check().allowsBackgroundSpend {
-                    let attempts = await service.prebuildLikelyReviews(maximum: remaining)
-                    Self.recordReviewGuidePrebuildAttempts(attempts)
-                }
-                do { try await Task.sleep(for: .seconds(2 * 60 * 60)) } catch { return }
-            }
-        }
-    }
-
-    nonisolated static func reviewGuidePrebuildRemainingToday(
-        now: Date = Date(),
-        defaults: UserDefaults = .standard
-    ) -> Int {
-        guard defaults.string(forKey: reviewGuidePrebuildDayKey) == reviewGuidePrebuildDay(now) else {
-            return reviewGuidePrebuildDailyLimit
-        }
-        return max(0, reviewGuidePrebuildDailyLimit - defaults.integer(forKey: reviewGuidePrebuildCountKey))
-    }
-
-    nonisolated static func recordReviewGuidePrebuildAttempts(
-        _ attempts: Int,
-        now: Date = Date(),
-        defaults: UserDefaults = .standard
-    ) {
-        guard attempts > 0 else { return }
-        let day = reviewGuidePrebuildDay(now)
-        let spent = defaults.string(forKey: reviewGuidePrebuildDayKey) == day
-            ? defaults.integer(forKey: reviewGuidePrebuildCountKey)
-            : 0
-        defaults.set(day, forKey: reviewGuidePrebuildDayKey)
-        defaults.set(spent + attempts, forKey: reviewGuidePrebuildCountKey)
-    }
-
-    private nonisolated static func reviewGuidePrebuildDay(_ date: Date) -> String {
-        let parts = Calendar.autoupdatingCurrent.dateComponents([.year, .month, .day], from: date)
-        return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
     }
 }

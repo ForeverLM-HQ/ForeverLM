@@ -3384,64 +3384,6 @@ extension KnowledgeStore {
         )
     }
 
-    /// The sources a review is likely to happen on soon that have no guide
-    /// yet, most likely first: an unfinished placement the learner put on
-    /// today's Schedule, then a source actually engaged with (two minutes, or
-    /// a finished read/listen) within `lookbackDays`, latest first. Only ready,
-    /// active sources with text qualify, and a source whose guide already
-    /// failed twice is left to an on-demand request rather than retried here.
-    func likelyReviewSourceIDsWithoutGuide(
-        now: Date,
-        calendar: Calendar,
-        lookbackDays: Int,
-        limit: Int
-    ) throws -> [String] {
-        let dayStart = calendar.startOfDay(for: now)
-        let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart.addingTimeInterval(86_400)
-        let activityCutoff = now.addingTimeInterval(-Double(max(1, lookbackDays)) * 86_400)
-        var ids: [String] = []
-        try queryBind("""
-            WITH candidates AS (
-                SELECT ss.source_id AS source_id, 0 AS tier, ss.planned_at AS rank_at
-                FROM scheduled_sources ss
-                WHERE ss.completed_at IS NULL
-                  AND ss.is_automatic = 0
-                  AND ss.planned_at >= ?
-                  AND ss.planned_at < ?
-                UNION ALL
-                SELECT sad.source_id, 1, MAX(sad.last_activity_at)
-                FROM source_activity_days sad
-                WHERE sad.last_activity_at >= ?
-                  AND (sad.engaged_seconds >= 120 OR sad.completed_kinds != 0)
-                GROUP BY sad.source_id
-            )
-            SELECT c.source_id
-            FROM candidates c
-            JOIN sources s ON s.id = c.source_id
-            JOIN source_content sc ON sc.source_id = s.id
-            WHERE s.state = 'ready'
-              AND s.status = 'active'
-              AND NOT EXISTS (
-                  SELECT 1 FROM source_review_guides rg WHERE rg.source_id = s.id
-              )
-              AND NOT EXISTS (
-                  SELECT 1 FROM source_review_guide_queue q
-                  WHERE q.source_id = s.id AND q.attempt_count >= 2
-              )
-            GROUP BY c.source_id
-            ORDER BY MIN(c.tier), MAX(c.rank_at) DESC
-            LIMIT ?
-        """, bind: { stmt in
-            sqlite3_bind_double(stmt, 1, dayStart.timeIntervalSinceReferenceDate)
-            sqlite3_bind_double(stmt, 2, dayEnd.timeIntervalSinceReferenceDate)
-            sqlite3_bind_double(stmt, 3, activityCutoff.timeIntervalSinceReferenceDate)
-            sqlite3_bind_int(stmt, 4, Int32(max(0, limit)))
-        }) { stmt in
-            if let id = self.string(stmt, 0) { ids.append(id) }
-        }
-        return ids
-    }
-
     func sourceReviewGuideQueueCount() throws -> Int {
         var count = 0
         try query("SELECT COUNT(*) FROM source_review_guide_queue") { stmt in

@@ -268,9 +268,6 @@ enum SyncedPreferenceKeys {
         MemoryCardSettings.newCardsPerDayKey,
         MemoryCardSettings.autoDraftKey,
         MemoryCardSettings.draftNudgesKey,
-        // Whether review questions are written ahead of time for the sources
-        // a review is likely to be about: the account's background spend.
-        MemoryCardSettings.prepareReviewQuestionsKey,
         // Think first's level for the whole library (`ThinkFirst`): how much the
         // learner wants to be asked for their own line first is a choice about
         // how they learn, not about the Mac they said it on.

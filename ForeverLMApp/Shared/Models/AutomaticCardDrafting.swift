@@ -29,11 +29,6 @@ enum MemoryCardSettings {
     /// Whether the "Cards to check" corner card is shown. Its Don't Ask Again
     /// turns it off.
     static let draftNudgesKey = "memory.draft_nudges"
-    /// Whether ForeverLM writes review questions ahead of time for the few
-    /// sources a review is likely to be about today
-    /// (`StudioViewModel.startReviewGuidePrebuild`). On until the learner
-    /// turns it off; a review without them still runs.
-    static let prepareReviewQuestionsKey = "memory.prepare_review_questions"
 
     static func newCardsPerDay(defaults: UserDefaults = .standard) -> Int {
         MemoryCardQueue.newPerDay(stored: (defaults.object(forKey: newCardsPerDayKey) as? NSNumber)?.intValue)
@@ -57,14 +52,6 @@ enum MemoryCardSettings {
 
     static func setShowsDraftNudges(_ on: Bool) {
         PreferenceStore.set(on, forKey: draftNudgesKey)
-    }
-
-    static func preparesReviewQuestions(defaults: UserDefaults = .standard) -> Bool {
-        (defaults.object(forKey: prepareReviewQuestionsKey) as? NSNumber)?.boolValue ?? true
-    }
-
-    static func setPreparesReviewQuestions(_ on: Bool) {
-        PreferenceStore.set(on, forKey: prepareReviewQuestionsKey)
     }
 }
 

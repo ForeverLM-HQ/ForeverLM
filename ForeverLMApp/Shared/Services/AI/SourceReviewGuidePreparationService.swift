@@ -49,8 +49,8 @@ enum SourceReviewGuidePreparationError: LocalizedError, Sendable {
 /// Preparation of a single source's review curriculum. A guide is generated
 /// for a source a review is actually about to happen on — the one a voice
 /// session was opened on, the one its greeting offers, the one the tutor just
-/// loaded — and, ahead of time, for the few sources a review is likely to be
-/// about today (`prebuildLikelyReviews`), never for the library at large.
+/// loaded — and never ahead of time or for the library at large: no AI pass
+/// runs unattended (product owner, 2026-10-15).
 /// Concurrent requests for the same source share one generation, and the
 /// result is accepted only while its source hash matches.
 actor SourceReviewGuidePreparationService {
@@ -106,47 +106,6 @@ actor SourceReviewGuidePreparationService {
             throw SourceReviewGuidePreparationError.noConfiguredModel
         }
         return try await prepare(candidate: candidate, config: config)
-    }
-
-    /// Writes guides for the sources a review is likely to be about soon —
-    /// today's Schedule, then what was engaged with in the last two days — so
-    /// a quiz started from the car answers "yes" with its first question
-    /// instead of a cold generation over a whole transcript (product owner,
-    /// 2026-09-22: "how can we make it a LOT faster by maybe prepping work in
-    /// advance?"). At most `maximum` generations are attempted; the caller
-    /// owns the daily budget. Returns how many attempts spent a model call.
-    func prebuildLikelyReviews(maximum: Int) async -> Int {
-        guard maximum > 0,
-              KeychainService.resolveConfig(for: .realtimeReviewPreparation) != nil else { return 0 }
-        let sourceIDs: [String]
-        do {
-            sourceIDs = try await storage.likelyReviewSourceIDsWithoutGuide(
-                lookbackDays: 2,
-                limit: maximum * 2
-            )
-        } catch {
-            return 0
-        }
-        var attempts = 0
-        for sourceID in sourceIDs where attempts < maximum {
-            // Turned off mid-pass: stop before the next call, not at the
-            // next pass two hours on.
-            guard !Task.isCancelled, MemoryCardSettings.preparesReviewQuestions() else { break }
-            do {
-                _ = try await prepare(sourceID: sourceID)
-                attempts += 1
-            } catch SourceReviewGuidePreparationError.sourceNotReady {
-                // Text still being cleaned: nothing was spent, and the next
-                // pass or an on-demand request picks it up.
-                continue
-            } catch {
-                // A failed generation may still have been billed; it counts,
-                // and its queue row's attempt count keeps it out of later
-                // passes after a second failure.
-                attempts += 1
-            }
-        }
-        return attempts
     }
 
     private func prepare(
