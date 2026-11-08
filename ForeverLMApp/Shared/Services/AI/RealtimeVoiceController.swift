@@ -71,6 +71,8 @@ final class RealtimeVoiceController: ObservableObject {
         let sourceIDs: [String]
         let turns: [RealtimeVoiceTurn]
         let startedAt: Date
+        /// The answers the tutor graded (`record_answer`); empty for a talk.
+        var answers: [RealtimeVoiceAnswerRecord] = []
     }
 
     /// Called once per conversation in which ForeverLM said anything, after it ends.
@@ -198,12 +200,14 @@ final class RealtimeVoiceController: ObservableObject {
         guard let brief, let startedAt,
               transcript.contains(where: { $0.role == .tutor && !$0.text.isEmpty }) else { return }
         let sourceIDs = await brief.toolbox.openedSourceIDs()
+        let answers = await brief.toolbox.recordedAnswers()
         onFinished?(Finished(
             title: brief.title,
             source: brief.source,
             sourceIDs: sourceIDs,
             turns: transcript.filter { !$0.text.isEmpty },
-            startedAt: startedAt
+            startedAt: startedAt,
+            answers: answers
         ))
     }
 

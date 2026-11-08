@@ -119,12 +119,69 @@ struct RealtimeVoiceTutorTests {
         #expect(encoded.contains(#""prefix_padding_ms":300"#))
     }
 
-    @Test("A source that fits offers no tool; a long one offers passage search")
+    @Test("Every source conversation can record answers; a long source adds passage search")
     func sourceTools() {
         let short = RealtimeVoiceSourceToolbox(source: source(text: "Short."))
-        #expect(short.toolDefinitions.isEmpty)
+        #expect(short.toolDefinitions.compactMap { $0["name"] as? String } == ["record_answer"])
         let long = RealtimeVoiceSourceToolbox(source: source(text: String(repeating: "a ", count: RealtimeVoiceTutor.inlineTextBudget)))
-        #expect(long.toolDefinitions.count == 1)
+        #expect(long.toolDefinitions.compactMap { $0["name"] as? String } == ["search_source", "record_answer"])
+        #expect(RealtimeVoiceTutor.instructions(for: source(text: "Short."), opening: .quiz).contains("call record_answer once"))
+    }
+
+    @Test("record_answer keeps what the tutor judged, refuses a call missing its parts, and drops a gap on a full answer")
+    func recordAnswer() async {
+        let toolbox = RealtimeVoiceSourceToolbox(source: source(text: "Short."))
+        let refused = await toolbox.run(name: "record_answer", argumentsJSON: #"{"question":"Why?","verdict":"maybe"}"#)
+        #expect(refused.contains("error"))
+        let ok = await toolbox.run(
+            name: "record_answer",
+            argumentsJSON: #"{"question":"Why do the cells change?","learner_said":"Because of the voltage.","verdict":"partly","gap":"Did not name the ion channels."}"#
+        )
+        #expect(ok == #"{"recorded":true}"#)
+        _ = await toolbox.run(
+            name: "record_answer",
+            argumentsJSON: #"{"question":"What grew?","learner_said":"An eye.","verdict":"had_it","gap":"none"}"#
+        )
+        let answers = await toolbox.recordedAnswers()
+        #expect(answers.map(\.verdict) == [.partly, .hadIt])
+        #expect(answers[0].gap == "Did not name the ion channels.")
+        #expect(answers[1].gap == nil, "a full answer has no gap")
+    }
+
+    @Test("Recorded grades land on the learner lines they followed, and the session's score is their mean")
+    func gradedExchanges() throws {
+        let start = Date(timeIntervalSince1970: 1_800_000_000)
+        let turns = [
+            RealtimeVoiceTurn(id: "1", role: .tutor, text: "What grew on the gut?", spokenAt: start),
+            RealtimeVoiceTurn(id: "2", role: .learner, text: RealtimeVoiceTurn.spokenMark, spokenAt: start.addingTimeInterval(5)),
+            RealtimeVoiceTurn(id: "3", role: .tutor, text: "Yes, an eye. Why there?", spokenAt: start.addingTimeInterval(8)),
+            RealtimeVoiceTurn(id: "4", role: .learner, text: RealtimeVoiceTurn.spokenMark, spokenAt: start.addingTimeInterval(15)),
+            RealtimeVoiceTurn(id: "5", role: .tutor, text: "Partly: the channels set the voltage.", spokenAt: start.addingTimeInterval(18)),
+        ]
+        func record(_ json: String, at seconds: Double) throws -> RealtimeVoiceAnswerRecord {
+            try #require(RealtimeVoiceAnswerRecord(argumentsJSON: json, recordedAt: start.addingTimeInterval(seconds)))
+        }
+        let answers = [
+            try record(#"{"question":"Why there?","learner_said":"The voltage told them to.","verdict":"partly","gap":"The ion channels set the voltage."}"#, at: 17),
+            try record(#"{"question":"What grew on the gut?","learner_said":"An eye.","verdict":"had_it"}"#, at: 7),
+        ]
+        let exchanges = RealtimeVoiceExchange.exchanges(from: turns, answers: answers)
+        #expect(exchanges.count == 2)
+        #expect(exchanges[0].answer == "An eye.")
+        #expect(exchanges[0].score == 1)
+        #expect(exchanges[0].evaluation == "Yes, an eye. Why there?", "the tutor's reply stays the evaluation")
+        #expect(exchanges[1].answer == "The voltage told them to.")
+        #expect(exchanges[1].score == 0.5)
+        #expect(exchanges[1].gap == "The ion channels set the voltage.")
+        #expect(RealtimeVoiceExchange.overallScore(of: exchanges) == 0.75)
+        #expect(RealtimeVoiceExchange.gradedLine(of: exchanges) == "2 answers graded: 1 had it, 1 partly, 0 missed.")
+
+        // A talk with nothing graded keeps its spoken marks and has no score.
+        let talk = RealtimeVoiceExchange.exchanges(from: turns, answers: [])
+        #expect(talk.allSatisfy { $0.score == nil })
+        #expect(talk.first?.answer == RealtimeVoiceTurn.spokenMark)
+        #expect(RealtimeVoiceExchange.overallScore(of: talk) == nil)
+        #expect(RealtimeVoiceExchange.gradedLine(of: talk) == nil)
     }
 
     @Test("A dropped call resumes with what ForeverLM said, and the learner's spoken turns are marked, never transcribed")

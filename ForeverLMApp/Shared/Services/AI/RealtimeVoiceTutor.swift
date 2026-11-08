@@ -50,6 +50,11 @@ struct RealtimeVoiceExchange: Equatable, Sendable {
     var answer: String
     var evaluation: String
     var answeredAt: Date
+    /// The tutor's grade of this answer (`RealtimeVoiceAnswerRecord`): 1, 0.5
+    /// or 0. Nil for a line that was talk, not an answer the tutor judged.
+    var score: Double? = nil
+    /// What the answer was missing or got wrong, as the tutor recorded it.
+    var gap: String? = nil
 
     static func exchanges(from turns: [RealtimeVoiceTurn]) -> [RealtimeVoiceExchange] {
         var exchanges: [RealtimeVoiceExchange] = []
@@ -91,6 +96,69 @@ struct RealtimeVoiceExchange: Equatable, Sendable {
         return exchanges
     }
 
+    /// The conversation's exchanges with the tutor's recorded grades laid on
+    /// them: each record goes to the latest learner line spoken before it was
+    /// recorded that has none yet, whose "(spoken)" becomes what the tutor
+    /// heard the learner say, with the score and the gap. A record with no
+    /// such line (recorded before the learner spoke) is an exchange of its
+    /// own. The tutor's spoken reply stays the evaluation.
+    static func exchanges(from turns: [RealtimeVoiceTurn], answers: [RealtimeVoiceAnswerRecord]) -> [RealtimeVoiceExchange] {
+        var exchanges = Self.exchanges(from: turns)
+        var graded = Set<Int>()
+        var loose: [RealtimeVoiceExchange] = []
+        for record in answers.sorted(by: { $0.recordedAt < $1.recordedAt }) {
+            let index = exchanges.indices.last { index in
+                !graded.contains(index)
+                    && !exchanges[index].answer.isEmpty
+                    && exchanges[index].answeredAt <= record.recordedAt
+            }
+            guard let index else {
+                loose.append(RealtimeVoiceExchange(
+                    question: record.question,
+                    answer: record.learnerSaid,
+                    evaluation: record.verdict.label,
+                    answeredAt: record.recordedAt,
+                    score: record.verdict.score,
+                    gap: record.gap
+                ))
+                continue
+            }
+            graded.insert(index)
+            if exchanges[index].question.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                exchanges[index].question = record.question
+            }
+            exchanges[index].answer = record.learnerSaid
+            exchanges[index].score = record.verdict.score
+            exchanges[index].gap = record.gap
+            let reply = exchanges[index].evaluation.trimmingCharacters(in: .whitespacesAndNewlines)
+            exchanges[index].evaluation = reply.isEmpty ? record.verdict.label : reply
+        }
+        guard !loose.isEmpty else { return exchanges }
+        return (exchanges + loose).sorted { $0.answeredAt < $1.answeredAt }
+    }
+
+    /// The grade of a whole conversation: the mean of its answers' scores, or
+    /// nil when the tutor graded none (a talk, not a review).
+    static func overallScore(of exchanges: [RealtimeVoiceExchange]) -> Double? {
+        let scores = exchanges.compactMap(\.score)
+        guard !scores.isEmpty else { return nil }
+        return scores.reduce(0, +) / Double(scores.count)
+    }
+
+    /// "4 answers graded: 2 had it, 1 partly, 1 missed." Nil with none graded.
+    static func gradedLine(of exchanges: [RealtimeVoiceExchange]) -> String? {
+        let scores = exchanges.compactMap(\.score)
+        guard !scores.isEmpty else { return nil }
+        let had = scores.filter { $0 >= 1 }.count
+        let missed = scores.filter { $0 <= 0 }.count
+        let partly = scores.count - had - missed
+        var parts = ["\(had) had it"]
+        if partly > 0 { parts.append("\(partly) partly") }
+        parts.append("\(missed) missed")
+        let answers = scores.count == 1 ? "1 answer" : "\(scores.count) answers"
+        return "\(answers) graded: " + parts.joined(separator: ", ") + "."
+    }
+
     /// An assistant chat's title: the start of what the learner first asked,
     /// as a typed notebook chat is named by its first question.
     static func assistantChatTitle(firstQuestion: String?) -> String {
@@ -117,6 +185,69 @@ protocol RealtimeVoiceToolbox: AnyObject, Sendable {
     func run(name: String, argumentsJSON: String) async -> String
     /// The sources the conversation opened, so its chat is filed with them.
     func openedSourceIDs() async -> [String]
+    /// The answers the tutor graded with `record_answer`, in the order they
+    /// were recorded. Only a source conversation records any.
+    func recordedAnswers() async -> [RealtimeVoiceAnswerRecord]
+}
+
+extension RealtimeVoiceToolbox {
+    func recordedAnswers() async -> [RealtimeVoiceAnswerRecord] { [] }
+}
+
+/// One answer the tutor judged in a source conversation, recorded with
+/// `record_answer` as it gave its feedback: the question, what it heard the
+/// learner say (the realtime model's own account of their words; nothing is
+/// transcribed), its verdict and the gap. Saved on the review as a typed
+/// review's graded exchange is, so a voice review counts as one.
+struct RealtimeVoiceAnswerRecord: Equatable, Sendable {
+    enum Verdict: String, CaseIterable, Sendable {
+        case hadIt = "had_it"
+        case partly
+        case missed
+
+        var score: Double {
+            switch self {
+            case .hadIt: return 1
+            case .partly: return 0.5
+            case .missed: return 0
+            }
+        }
+
+        var label: String {
+            switch self {
+            case .hadIt: return "Had it."
+            case .partly: return "Partly."
+            case .missed: return "Missed."
+            }
+        }
+    }
+
+    let question: String
+    let learnerSaid: String
+    let verdict: Verdict
+    let gap: String?
+    let recordedAt: Date
+
+    /// The tool call's arguments as a record; nil when the question, the
+    /// learner's answer or a known verdict is missing.
+    init?(argumentsJSON: String, recordedAt: Date) {
+        guard let arguments = (try? JSONSerialization.jsonObject(with: Data(argumentsJSON.utf8))) as? [String: Any] else {
+            return nil
+        }
+        func text(_ key: String) -> String? {
+            let value = (arguments[key] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return value?.isEmpty == false ? value : nil
+        }
+        guard let question = text("question"),
+              let said = text("learner_said"),
+              let verdict = text("verdict").flatMap(Verdict.init(rawValue:))
+        else { return nil }
+        self.question = question
+        self.learnerSaid = said
+        self.verdict = verdict
+        self.gap = verdict == .hadIt ? nil : text("gap")
+        self.recordedAt = recordedAt
+    }
 }
 
 /// Everything one conversation runs on.
@@ -147,6 +278,8 @@ final class RealtimeVoiceSourceToolbox: RealtimeVoiceToolbox, @unchecked Sendabl
     private let sourceID: String
     private let passages: [RealtimeVoicePassageSearch.Passage]
     private let fitsInline: Bool
+    private let lock = NSLock()
+    private var answers: [RealtimeVoiceAnswerRecord] = []
 
     init(source: RealtimeVoiceSource) {
         sourceID = source.id
@@ -154,15 +287,28 @@ final class RealtimeVoiceSourceToolbox: RealtimeVoiceToolbox, @unchecked Sendabl
         passages = fitsInline ? [] : RealtimeVoicePassageSearch.chunks(of: source.text)
     }
 
-    var toolDefinitions: [[String: Any]] { fitsInline ? [] : [RealtimeVoiceTutor.searchTool] }
+    var toolDefinitions: [[String: Any]] {
+        (fitsInline ? [] : [RealtimeVoiceTutor.searchTool]) + [RealtimeVoiceTutor.recordAnswerTool]
+    }
 
     func run(name: String, argumentsJSON: String) async -> String {
+        if name == RealtimeVoiceTutor.recordAnswerToolName {
+            guard let record = RealtimeVoiceAnswerRecord(argumentsJSON: argumentsJSON, recordedAt: Date()) else {
+                return #"{"error":"Pass question, learner_said and verdict (had_it, partly or missed)."}"#
+            }
+            lock.withLock { answers.append(record) }
+            return #"{"recorded":true}"#
+        }
         guard name == RealtimeVoiceTutor.searchToolName else { return #"{"error":"Unknown tool."}"# }
         let arguments = (try? JSONSerialization.jsonObject(with: Data(argumentsJSON.utf8)) as? [String: Any]) ?? [:]
         return RealtimeVoicePassageSearch.toolOutput(query: (arguments["query"] as? String) ?? "", passages: passages)
     }
 
     func openedSourceIDs() async -> [String] { [sourceID] }
+
+    func recordedAnswers() async -> [RealtimeVoiceAnswerRecord] {
+        lock.withLock { answers }
+    }
 }
 
 /// What the realtime model is told, and the tools it may call.
@@ -175,6 +321,7 @@ enum RealtimeVoiceTutor {
     static let inlineTextBudget = 150_000
     static let searchToolName = "search_source"
     static let endToolName = "end_conversation"
+    static let recordAnswerToolName = "record_answer"
 
     static func instructions(for source: RealtimeVoiceSource, opening: RealtimeVoiceOpening) -> String {
         let kind = spokenKind(source.sourceType)
@@ -216,6 +363,15 @@ enum RealtimeVoiceTutor {
             "let me check" first so the learner is not left in silence.
             """)
         }
+
+        sections.append("""
+        Recording answers: every time you judge an answer the learner gave to a question you asked about the \(kind), \
+        call \(recordAnswerToolName) once, as you give your feedback: the question, what the learner said in substance \
+        (one or two sentences, as close to their own words as you heard them), your verdict (had_it, partly or missed) \
+        and, unless they had it, the gap: what was missing or wrong, in a sentence. This is how the review is kept \
+        with the \(kind), so record every judged answer and never invent one. Do not record small talk, the learner's \
+        own questions, or your explanations. Never mention the recording out loud; keep talking as you would.
+        """)
 
         sections.append("""
         When the learner says goodbye or that they are done, say a one-sentence goodbye and then call \(endToolName).
@@ -274,6 +430,31 @@ enum RealtimeVoiceTutor {
                     ],
                 ],
                 "required": ["query"],
+            ] as [String: Any],
+        ]
+    }
+
+    static var recordAnswerTool: [String: Any] {
+        [
+            "type": "function",
+            "name": recordAnswerToolName,
+            "description": "Records one answer you just judged, so the review is kept with the source: the question, what the learner said, your verdict and the gap. Call it once per judged answer, while you give your feedback.",
+            "parameters": [
+                "type": "object",
+                "properties": [
+                    "question": ["type": "string", "description": "The question you asked, in a sentence."],
+                    "learner_said": [
+                        "type": "string",
+                        "description": "What the learner said in answer, in substance: one or two sentences, as close to their own words as you heard them.",
+                    ],
+                    "verdict": [
+                        "type": "string",
+                        "enum": RealtimeVoiceAnswerRecord.Verdict.allCases.map(\.rawValue),
+                        "description": "had_it when the answer was right and complete, partly when part of it was, missed when it was wrong or they did not know.",
+                    ],
+                    "gap": ["type": "string", "description": "Unless they had it: what was missing or wrong, in a sentence."],
+                ],
+                "required": ["question", "learner_said", "verdict"],
             ] as [String: Any],
         ]
     }

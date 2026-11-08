@@ -106,10 +106,14 @@ enum MobileRealtimeVoice {
     }
 
     /// Saved as a voice chat (`ChatKind.voice`; the `-live-` id is what the
-    /// classifier reads as voice for records without a kind).
+    /// classifier reads as voice for records without a kind). The answers the
+    /// tutor graded (`record_answer`) are saved as a hands-free review's are:
+    /// each exchange with what the learner said and its score, the mean as
+    /// the session's score, and each gap.
     private static func save(_ finished: RealtimeVoiceController.Finished) {
-        let exchanges = RealtimeVoiceExchange.exchanges(from: finished.turns)
+        let exchanges = RealtimeVoiceExchange.exchanges(from: finished.turns, answers: finished.answers)
         guard !exchanges.isEmpty else { return }
+        let gradedLine = RealtimeVoiceExchange.gradedLine(of: exchanges)
         let answered = exchanges.filter { !$0.answer.isEmpty }.count
         let turns = "\(answered) turn\(answered == 1 ? "" : "s")"
         // The assistant's chat is called by what the learner first asked; a
@@ -126,20 +130,23 @@ enum MobileRealtimeVoice {
             goalID: isAssistant ? nil : currentNotebookID,
             startedAt: finished.startedAt,
             endedAt: Date(),
-            // A voice conversation grades nothing on its own; a score here would
-            // be read by the Mac as the source's latest recall score.
-            overallScore: nil,
-            summary: finished.source.map { "Voice conversation about \($0.title) on iOS — \(turns)." }
+            // The mean of the answers the tutor graded, which the Mac reads as
+            // the source's latest recall score; nil for a talk with none graded.
+            overallScore: RealtimeVoiceExchange.overallScore(of: exchanges),
+            summary: (finished.source.map { "Voice conversation about \($0.title) on iOS — \(turns)." }
                 ?? (isAssistant
                     ? "Voice conversation with the ForeverLM assistant on iOS — \(turns)."
-                    : "Card review by voice on iOS — \(turns)."),
-            exchanges: exchanges.map {
-                MobileReviewRecordedExchange(
-                    question: $0.question,
-                    userAnswer: $0.answer,
-                    evaluation: $0.evaluation.isEmpty ? nil : $0.evaluation,
-                    score: nil,
-                    answeredAt: $0.answeredAt
+                    : "Card review by voice on iOS — \(turns).")) + (gradedLine.map { " " + $0 } ?? ""),
+            // The recorder keeps no gaps of its own, so a gap rides in its
+            // exchange's evaluation, as the Mac saves it.
+            exchanges: exchanges.map { exchange in
+                let evaluation = exchange.gap.map { exchange.evaluation + "\n\nGap: " + $0 } ?? exchange.evaluation
+                return MobileReviewRecordedExchange(
+                    question: exchange.question,
+                    userAnswer: exchange.answer,
+                    evaluation: evaluation.isEmpty ? nil : evaluation,
+                    score: exchange.score,
+                    answeredAt: exchange.answeredAt
                 )
             },
             gaps: [],
@@ -149,9 +156,12 @@ enum MobileRealtimeVoice {
         )
         result.kind = .voice
         result.additionalSourceIDs = Array(finished.sourceIDs.dropFirst())
+        // A graded voice review is a review of its sources, as a hands-free
+        // one is: each is logged reviewed and its Schedule placement completed.
+        let reviewed = result.overallScore == nil ? [] : finished.sourceIDs
         Task {
             do {
-                try await MobileReviewSessionRecorder.shared.record(result)
+                try await MobileReviewSessionRecorder.shared.record(result, reviewedSourceIDs: reviewed)
             } catch {
                 logger.error("Voice chat not saved: \(error.localizedDescription, privacy: .public)")
             }

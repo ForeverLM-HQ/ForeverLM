@@ -52,7 +52,7 @@ On the iPhone, the first time the assistant starts it asks for access to your ca
 - **A dropped connection** reconnects on its own and picks up where you were. If it cannot come back, **Resume** starts again.
 - **End**, or say goodbye: ForeverLM says goodbye and ends the conversation.
 
-Every conversation is saved as a voice chat: a source conversation with that source's chats, filed in the notebook you opened it from, and an assistant conversation under your chats. The chat keeps what ForeverLM said; your own turns show as spoken, because your words are never transcribed. It syncs to your other devices like any chat.
+Every conversation is saved as a voice chat: a source conversation with that source's chats, filed in the notebook you opened it from, and an assistant conversation under your chats. The chat keeps what ForeverLM said. When the tutor quizzes you on a source, it grades each answer as it gives its feedback (had it, partly or missed) and notes what you said in substance and what was missing, so the chat shows your answer, its grade and the gap. The review then counts for the source like a typed review: its score is the mean of your grades, and the source is marked reviewed on your Schedule. Turns the tutor did not grade, such as small talk, show as spoken, because your words are never transcribed; what the tutor notes is its own account of what it heard. It syncs to your other devices like any chat.
 
 ## Choose the voice
 

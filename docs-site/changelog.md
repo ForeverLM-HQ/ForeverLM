@@ -8,6 +8,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 - **You write a source's card yourself.** **Write Card** (the Library's rows and **No Cards** list, the Reader's **⋯** menu, a notebook's Cards, the morning notification) opens the source with a blank card beside it: write the question and the answer in your own words, select the passage it stands on, and **Save Card** keeps it. **Write Cards for 10** takes you through the newest sources without cards one by one. No model writes these cards; ask a chat if you want drafts.
 - **A Library row is quieter.** It shows the source's picture, title and byline, and one word at its end: its card count, or **To follow up** when passages wait and it has no card yet. Click it to see the source's cards, the passages you set aside to follow up, and **Write Card**. The flag count, the added date, **Not Worth Keeping** and **Write Card** under the pointer, and the notebook check and + on every row are gone; **Not Worth Keeping** and **Add to** / **Remove from** the notebook are on the right-click menu.
+- **A voice review counts like a typed one.** When voice mode quizzes you on a source, the tutor grades each answer (had it, partly, missed) and notes what you said and what was missing; the chat shows them, the review gets a score, and the source is marked reviewed on your Schedule.
 - **ForeverLM no longer drafts cards in the background unless you turn it on** (**Settings → General → Memory review → Draft cards from what you finish**).
 
 ## 0.198.0 (build 278) — 2026-11-08

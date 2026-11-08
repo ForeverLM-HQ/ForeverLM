@@ -89,17 +89,23 @@ enum MacRealtimeVoice {
 
     /// Saved as a voice chat (`ChatKind.voice`, under a `mac-live-` id, which
     /// the classifier also reads as voice) through the same storage calls a
-    /// typed chat uses, so it syncs like one.
+    /// typed chat uses, so it syncs like one. The answers the tutor graded
+    /// (`record_answer`) are saved as a typed review's are: each exchange with
+    /// what the learner said and its score, the session with the mean, and
+    /// each source marked reviewed on the Schedule.
     private static func save(_ finished: RealtimeVoiceController.Finished) {
-        let exchanges = RealtimeVoiceExchange.exchanges(from: finished.turns)
+        let exchanges = RealtimeVoiceExchange.exchanges(from: finished.turns, answers: finished.answers)
         guard !exchanges.isEmpty else { return }
+        let overallScore = RealtimeVoiceExchange.overallScore(of: exchanges)
+        let gradedLine = RealtimeVoiceExchange.gradedLine(of: exchanges)
         let notebookID = finished.source == nil ? nil : currentNotebookID
         let answered = exchanges.filter { !$0.answer.isEmpty }.count
         let turns = "\(answered) turn\(answered == 1 ? "" : "s")"
         let topic = finished.source?.title
             ?? RealtimeVoiceExchange.assistantChatTitle(firstQuestion: exchanges.first { !$0.answer.isEmpty }?.answer)
-        let summary = finished.source.map { "Voice conversation about \($0.title) on the Mac — \(turns)." }
+        let said = finished.source.map { "Voice conversation about \($0.title) on the Mac — \(turns)." }
             ?? "Voice conversation with the ForeverLM assistant on the Mac — \(turns)."
+        let summary = gradedLine.map { said + " " + $0 } ?? said
         let sourceIDs = finished.sourceIDs
         let startedAt = finished.startedAt
         Task {
@@ -128,18 +134,28 @@ enum MacRealtimeVoice {
                             sessionID: sessionID,
                             question: exchange.question,
                             answer: exchange.answer,
-                            evaluation: exchange.evaluation,
+                            evaluation: exchange.gap.map { exchange.evaluation + "\n\nGap: " + $0 } ?? exchange.evaluation,
+                            score: exchange.score,
                             knowledgeNote: "Recorded from voice mode on the Mac.",
                             sourceRefs: sourceIDs,
                             answeredAt: exchange.answeredAt
                         )
                     }
                 }
+                let endedAt = Date()
                 try await storage.completeReviewSession(
                     sessionID: sessionID,
+                    overallScore: overallScore,
                     summary: summary,
-                    endedAt: Date()
+                    endedAt: endedAt
                 )
+                // A graded voice review is a review of its sources, as a
+                // typed one is (`ReviewSessionManager.completeSession`).
+                if overallScore != nil {
+                    for sourceID in sourceIDs {
+                        try await storage.recordScheduledSourceReview(sourceID: sourceID, on: endedAt)
+                    }
+                }
             } catch {
                 logger.error("Voice chat not saved: \(error.localizedDescription, privacy: .public)")
             }
