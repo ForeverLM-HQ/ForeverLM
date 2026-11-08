@@ -29,9 +29,9 @@ struct SourceCardVerdictsTests {
         #expect(SourceCardState.cards(1).label == "1 card")
         #expect(SourceCardState.cards(12).label == "12 cards")
         #expect(SourceCardState.retired.label == "Retired")
-        #expect(SourceCardState.none.makeCardsTitle == "Make Cards")
+        #expect(SourceCardState.none.makeCardsTitle == "Write Card")
         for state in [SourceCardState.toCheck, .cards(2), .retired] {
-            #expect(state.makeCardsTitle == "Make More Cards")
+            #expect(state.makeCardsTitle == "Write Another Card")
         }
     }
 

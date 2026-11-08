@@ -374,16 +374,18 @@ struct NotebookStudioTests {
         #expect(other.memoryReviewFocusSessionID == nil)
     }
 
-    @Test("The Cards tile's Make Cards… opens a chat on the notebook's ticked sources with the request unsent, and Practice starts nothing in a notebook without cards")
-    func cardsTileMakesAndPractises() async {
+    @Test("The Cards tile's Write Cards opens the notebook's ticked sources to write a card for each, no chat, and Practice starts nothing in a notebook without cards")
+    func cardsTileWritesAndPractises() async {
         let restore = capturingSharedDefaults()
         defer { restore() }
         let (vm, window, paperID, _) = studio()
-        vm.inWindow(window) { vm.requestNotebookMakeCardsChat(notebookID: "bio") }
-        #expect(vm.pendingReviewChatNotebookID == "bio", "the chat is filed in the notebook")
-        #expect(vm.contextSourceIds == [paperID], "the ticked sources the library holds")
-        #expect(vm.pendingReviewChatDraft?.hasPrefix("Make cards from") == true, "typed, not sent")
-        #expect(vm.reviewChatResetRequestID != nil, "a fresh chat")
+        vm.inWindow(window) { vm.requestNotebookWriteCards(notebookID: "bio") }
+        #expect(window.cardWriting?.sourceIDs == [paperID], "the ticked sources the library holds")
+        #expect(window.cardWriting?.notebookID == "bio")
+        #expect(window.cardWriting?.sourceID == paperID, "the first is the one to write")
+        #expect(vm.pendingReviewChatDraft == nil, "no chat drafts them")
+        vm.endCardWriting(in: window)
+        #expect(window.cardWriting == nil)
 
         // Practice reads the notebook's cards first: with none it says so and
         // the window stays the notebook's.

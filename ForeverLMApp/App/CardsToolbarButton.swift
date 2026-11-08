@@ -40,7 +40,7 @@ struct CardsToolbarButton: View {
 }
 
 /// The source's card items, for the Reader's ⋯ menu and the sidebar's
-/// context menu: **Make Cards…**, **Cards to Check (N)** while drafts wait,
+/// context menu: **Write Card**, **Cards to Check (N)** while drafts wait,
 /// and **Stop Making Cards** while they are being drafted.
 struct CardsMenuItems: View {
     let article: StudioArticle
@@ -59,11 +59,11 @@ struct CardsMenuItems: View {
                 }
             } else {
                 Button {
-                    vm.requestReaderMakeCardsChat(sourceID: article.id, in: windowState)
+                    vm.requestReaderWriteCard(sourceID: article.id, in: windowState)
                 } label: {
-                    Label("Make Cards…", systemImage: MemoryReviewSession.sidebarIcon)
+                    Label("Write Card", systemImage: MemoryReviewSession.sidebarIcon)
                 }
-                .help("Draft cards from this source for Memory's To Check")
+                .help("Write this source's card beside it")
             }
             let toCheck = vm.memoryCardsToCheck(sourceID: article.id)
             if toCheck > 0 {

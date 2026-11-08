@@ -88,7 +88,7 @@ struct MemoryReviewSettingsMCPTests {
 
         let initial = try payload(try await store.getMemoryReviewSettings())
         #expect(initial["new_cards_per_day"] as? Int == MemoryCardQueue.defaultNewPerDay)
-        #expect(initial["auto_draft_cards"] as? Bool == true)
+        #expect(initial["auto_draft_cards"] as? Bool == false, "off until the learner turns it on")
         #expect(initial["draft_nudges"] as? Bool == true)
         #expect(initial["prepare_review_questions"] as? Bool == true, "on until the learner turns it off")
         let scope = try #require(initial["scope"] as? [String: String])
@@ -98,7 +98,7 @@ struct MemoryReviewSettingsMCPTests {
 
         let changed = try payload(try await store.setMemoryReviewSettings(
             budgetMinutes: nil, prepareDaily: nil, readyByHour: nil,
-            newCardsPerDay: 20, autoDraftCards: false, draftNudges: false,
+            newCardsPerDay: 20, autoDraftCards: true, draftNudges: false,
             prepareReviewQuestions: false
         ))
         #expect(Set(changed["changed"] as? [String] ?? []) == [
@@ -106,7 +106,7 @@ struct MemoryReviewSettingsMCPTests {
         ])
         #expect(changed["new_cards_per_day"] as? Int == 20)
         #expect(MemoryCardSettings.newCardsPerDay() == 20)
-        #expect(!MemoryCardSettings.autoDraftsCards())
+        #expect(MemoryCardSettings.autoDraftsCards())
         #expect(!MemoryCardSettings.showsDraftNudges())
         #expect(!MemoryCardSettings.preparesReviewQuestions())
         #expect(changed["prepare_review_questions"] as? Bool == false)

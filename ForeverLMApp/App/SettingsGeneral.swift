@@ -39,7 +39,7 @@ struct GeneralSettingsDetailView: View {
     /// Synced: the day's new cards, background drafting, and the corner card.
     @SyncedStorage(wrappedValue: MemoryCardQueue.defaultNewPerDay, MemoryCardSettings.newCardsPerDayKey)
     private var newCardsPerDay: Int
-    @SyncedStorage(wrappedValue: true, MemoryCardSettings.autoDraftKey)
+    @SyncedStorage(wrappedValue: false, MemoryCardSettings.autoDraftKey)
     private var autoDraftsCards: Bool
     @SyncedStorage(wrappedValue: true, MemoryCardSettings.draftNudgesKey)
     private var showsDraftNudges: Bool

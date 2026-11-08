@@ -133,12 +133,19 @@ struct MemoryPane: View {
     private var toolbar: some View {
         HStack(spacing: 4) {
             HStack(spacing: 2) {
+                // While the window is writing a source's card, Write leads
+                // the pills; any other ends the writing and opens itself.
+                if windowState.cardWriting != nil {
+                    SpaceScopePill(title: "Write", isSelected: true, count: nil) {}
+                        .accessibilityIdentifier("memory.pane.section.write")
+                }
                 ForEach(MemoryPaneSection.allCases) { item in
                     SpaceScopePill(
                         title: item.title,
-                        isSelected: section == item,
+                        isSelected: windowState.cardWriting == nil && section == item,
                         count: pillCount(item)
                     ) {
+                        vm.endCardWriting(in: windowState)
                         if windowState.memoryPaneSection != item { windowState.memoryPaneSection = item }
                     }
                     .accessibilityIdentifier("memory.pane.section.\(item.rawValue)")
@@ -209,6 +216,17 @@ struct MemoryPane: View {
 
     @ViewBuilder
     private var content: some View {
+        if let writing = windowState.cardWriting {
+            // A new source is a new blank card.
+            MemoryCardWritingView(session: writing, windowState: windowState)
+                .id(writing.sourceID)
+        } else {
+            sectionContent
+        }
+    }
+
+    @ViewBuilder
+    private var sectionContent: some View {
         switch section {
         case .review: reviewSection
         case .toCheck: toCheckSection

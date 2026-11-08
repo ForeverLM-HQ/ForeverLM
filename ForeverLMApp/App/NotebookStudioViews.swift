@@ -484,8 +484,8 @@ struct NotebookStudioTileControl: View {
                     vm.inWindow(windowState) { vm.startNotebookPractice(notebookID: goal.id) }
                 }
                 .disabled(cardCounts?.isEmpty == true)
-                Button("Make Cards…", systemImage: "plus.rectangle.on.rectangle") {
-                    vm.inWindow(windowState) { vm.requestNotebookMakeCardsChat(notebookID: goal.id) }
+                Button("Write Cards", systemImage: "plus.rectangle.on.rectangle") {
+                    vm.inWindow(windowState) { vm.requestNotebookWriteCards(notebookID: goal.id) }
                 }
                 .disabled(vm.notebookStudioSourceIDs(goal.id).isEmpty)
                 Divider()
@@ -920,7 +920,7 @@ private struct NotebookCardsRow: View {
             if isHovering {
                 iconButton("play", label: "Practice", help: "Practice this notebook's cards, the ones to check among them", action: practice)
                     .accessibilityIdentifier("notebook.studio.cards.practice")
-                iconButton("plus.rectangle.on.rectangle", label: "Make Cards", help: "Make cards from the ticked sources", action: make)
+                iconButton("plus.rectangle.on.rectangle", label: "Write Cards", help: "Write a card for each ticked source, one at a time", action: make)
                     .disabled(vm.notebookStudioSourceIDs(notebookID).isEmpty)
                     .accessibilityIdentifier("notebook.studio.cards.make")
             } else {
@@ -942,7 +942,7 @@ private struct NotebookCardsRow: View {
             }
             Divider()
             Button("Practice", action: practice)
-            Button("Make Cards…", action: make)
+            Button("Write Cards", action: make)
                 .disabled(vm.notebookStudioSourceIDs(notebookID).isEmpty)
         }
     }
@@ -973,7 +973,7 @@ private struct NotebookCardsRow: View {
     }
 
     private func make() {
-        vm.inWindow(windowState) { vm.requestNotebookMakeCardsChat(notebookID: notebookID) }
+        vm.inWindow(windowState) { vm.requestNotebookWriteCards(notebookID: notebookID) }
     }
 }
 
@@ -1328,8 +1328,8 @@ struct NotebookMakeMenuItems: View {
             NotebookStudioActions.requestAudioOverview(in: windowState)
         }
         .disabled(!takes || vm.audioOverviewOptionsTarget(notebookID: notebookID) == nil)
-        Button("Make Cards…") {
-            vm.inWindow(windowState) { vm.requestNotebookMakeCardsChat(notebookID: notebookID) }
+        Button("Write Cards") {
+            vm.inWindow(windowState) { vm.requestNotebookWriteCards(notebookID: notebookID) }
         }
         .disabled(vm.notebookStudioSourceIDs(notebookID).isEmpty)
         // The tile's Practice: the notebook's kept cards and its cards to

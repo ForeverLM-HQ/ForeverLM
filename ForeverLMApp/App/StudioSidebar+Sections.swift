@@ -743,15 +743,16 @@ extension StudioSidebar {
                 meetingsByDateToggle
             }
             // With the No Cards filter on (the card's Choose Sources turns it
-            // on), Make Cards for the first ten: the Library's head, not the
+            // on), Write Cards for the first ten, one source after another
+            // (`requestWriteCards`): the Library's head, not the
             // notebook column's, whose own kinds row is its head ("one head
             // for every list").
             if sourcesListLayout == .wide, sidebar.sourceCardFilter == .withoutCards,
                let batch = StudioViewModel.sourceCardBatch(windowVM.filteredActiveItems) {
-                SpaceDarkPillButton(title: "Make Cards for \(batch.count)", systemImage: nil, image: nil) {
-                    windowVM.inWindow { $0.requestMakeCardsChat(notebookID: sidebarNotebook?.notebookID, sourceIDs: batch) }
+                SpaceDarkPillButton(title: "Write Cards for \(batch.count)", systemImage: nil, image: nil) {
+                    windowVM.inWindow { $0.requestWriteCards(notebookID: sidebarNotebook?.notebookID, sourceIDs: batch) }
                 }
-                .help("Make cards for the first \(batch.count) sources without cards together, so the cards can link their ideas")
+                .help("Write a card for each of the first \(batch.count) sources without cards, one source at a time")
                 .accessibilityIdentifier("library.cards.makeBatch")
             }
         }

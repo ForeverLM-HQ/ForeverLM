@@ -6705,7 +6705,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "List the sources of the learner's library with how many cards each has, as Memory's Sources section does. The learner's goal is at least one card for each source, cards that help piece the ideas together, and every source worth its weight: go through the sources with status none one at a time and give each a verdict. Make Cards: save_card_drafts with cards you draft yourself (draft_cards only when the learner asks for ForeverLM's model), then more cards for a source that has some. Not Worth Keeping: remove_source, only when the learner says so. scope without_cards (the default) lists the sources no card covers; all lists every source. Each source has source_id, title, source_type, date_added, status (none, to_check, kept or retired) and cards (kept cards). notebook_id narrows to one Notebook's sources. Also returns without_cards and total over that scope. Sources kept from AI, archived, still fetching, paywalled, without text or a team's copy are not listed. Reads only; free.",
+    "description" : "List the sources of the learner's library with how many cards each has, as the Library's No Cards list does. The learner's goal is at least one card for each source, and every source worth its weight. The learner writes each source's card themselves, in their own words, in the app (Write Card opens the source with a blank card beside it): the effort is the point. Do not draft cards for these sources, and do not offer to, unless the learner explicitly asks you to; then save_card_drafts with cards you draft yourself (draft_cards only when they ask for ForeverLM's model). You may go through the list with them: name the sources still without a card, open one with open_in_app (kind source) for them to write its card, or quiz them on it. Not Worth Keeping: remove_source, only when the learner says so. scope without_cards (the default) lists the sources no card covers; all lists every source. Each source has source_id, title, source_type, date_added, status (none, to_check, kept or retired) and cards (kept cards). notebook_id narrows to one Notebook's sources. Also returns without_cards and total over that scope. Sources kept from AI, archived, still fetching, paywalled, without text or a team's copy are not listed. Reads only; free.",
     "inputSchema" : {
       "properties" : {
         "limit" : {
@@ -10612,7 +10612,7 @@
     "inputSchema" : {
       "properties" : {
         "auto_draft_cards" : {
-          "description" : "Draft cards into To Check in the background as the learner finishes sources (Mark as Read, read to the end, listening or watching complete), within the daily background AI limit. On by default. Follows your account.",
+          "description" : "Draft cards into To Check in the background as the learner finishes sources (Mark as Read, read to the end, listening or watching complete), within the daily background AI limit. Off by default: a source's card is the learner's to write. Follows your account.",
           "type" : "boolean"
         },
         "budget_minutes" : {

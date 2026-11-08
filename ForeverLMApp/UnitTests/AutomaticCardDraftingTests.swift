@@ -509,18 +509,18 @@ struct AutomaticCardDraftingTests {
         #expect(run.waiting(asOf: now.addingTimeInterval(2 * 86_400)) == 0)
     }
 
-    @Test("The settings read their defaults until set: ten new cards, drafting and the card on; the day close follows the morning's switch until it has its own")
+    @Test("The settings read their defaults until set: ten new cards, drafting off (the learner writes a source's card), the card on")
     func settingsDefaults() throws {
         let suite = "foreverlm-test-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
         #expect(MemoryCardSettings.newCardsPerDay(defaults: defaults) == 10)
-        #expect(MemoryCardSettings.autoDraftsCards(defaults: defaults))
+        #expect(!MemoryCardSettings.autoDraftsCards(defaults: defaults))
         #expect(MemoryCardSettings.showsDraftNudges(defaults: defaults))
         defaults.set(250, forKey: MemoryCardSettings.newCardsPerDayKey)
         #expect(MemoryCardSettings.newCardsPerDay(defaults: defaults) == 100)
-        defaults.set(false, forKey: MemoryCardSettings.autoDraftKey)
-        #expect(!MemoryCardSettings.autoDraftsCards(defaults: defaults))
+        defaults.set(true, forKey: MemoryCardSettings.autoDraftKey)
+        #expect(MemoryCardSettings.autoDraftsCards(defaults: defaults))
     }
 
 }

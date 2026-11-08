@@ -17,12 +17,14 @@ import Foundation
 // day, there should also be a suggestion to make cards for all the content i
 // added to the library that day; even at the highest level perhaps"): a
 // source added today or yesterday that no card covers is named, and the click
-// opens a Make Cards chat on all of them at once.
+// opens the first of them with a card to write beside it, the rest one after
+// another (`StudioViewModel.requestWriteCards`).
 
 extension Notification.Name {
     /// Asks Studio to take up the cards banner's click in its active window.
     /// `object` is the `[String]` of finished sources with no cards, whose
-    /// Make Cards chat opens; empty, To Check opens over every notebook.
+    /// cards the learner writes one after another; empty, To Check opens over
+    /// every notebook.
     static let requestCardsFromFinished = Notification.Name("requestCardsFromFinished")
 }
 
@@ -31,7 +33,6 @@ enum CardsToCheckBanner {
     /// The title when the library's additions are all it is about.
     static let addedTitle = "Cards from what you added"
     static let goThroughTitle = "Go Through Them"
-    static let makeCardsTitle = "Make Cards"
 
     /// What the banner is about, as the library stands.
     struct Subject: Equatable, Sendable {

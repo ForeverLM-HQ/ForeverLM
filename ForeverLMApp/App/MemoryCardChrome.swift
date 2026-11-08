@@ -178,8 +178,9 @@ struct MemoryCardEditorForm: View {
 /// One of the card's lines to type into: no box, the text of the card in the
 /// card's own type. It grows with what is typed (a hidden copy of the text
 /// sets its height under the editor), and a wash appears under the pointer
-/// and under the line that has the keys.
-private struct MemoryCardEditorField: View {
+/// and under the line that has the keys. A card the learner writes beside its
+/// source uses it too (`MemoryCardWritingView`).
+struct MemoryCardEditorField: View {
     @Binding var text: String
     let prompt: String
     let font: Font

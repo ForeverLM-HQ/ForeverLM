@@ -52,7 +52,7 @@ enum SourceCardState: Equatable, Sendable {
     }
 
     /// The verdict that keeps the source: the first cards, or more.
-    var makeCardsTitle: String { hasCards ? "Make More Cards" : "Make Cards" }
+    var makeCardsTitle: String { hasCards ? "Write Another Card" : "Write Card" }
 }
 
 /// One source as the coverage lists it.

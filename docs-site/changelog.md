@@ -6,6 +6,9 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **You write a source's card yourself.** **Write Card** (the Library's rows and **No Cards** list, the Reader's **⋯** menu, a notebook's Cards, the morning notification) opens the source with a blank card beside it: write the question and the answer in your own words, select the passage it stands on, and **Save Card** keeps it. **Write Cards for 10** takes you through the newest sources without cards one by one. No model writes these cards; ask a chat if you want drafts.
+- **ForeverLM no longer drafts cards in the background unless you turn it on** (**Settings → General → Memory review → Draft cards from what you finish**).
+
 ## 0.198.0 (build 278) — 2026-11-08
 
 **Highlights:**

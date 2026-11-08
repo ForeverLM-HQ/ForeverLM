@@ -859,6 +859,11 @@ final class StudioWindowState: Identifiable {
     /// chat's saved cards were opened at (`openChatSavedCard`). To Check
     /// clears it when it takes it, or once it has read its cards without it.
     var memoryPaneFocusCardID: String?
+    /// The learner writing cards for sources, one at a time, beside the
+    /// Reader (`StudioViewModel.requestWriteCards`): while set, the Memory
+    /// pane shows the card being written instead of its sections.
+    /// Presentation, absent from `Snapshot`.
+    var cardWriting: CardWritingSession?
     var isDockedReaderImmersive = false
     /// Whether this window's chat is showing in its own pop-out window. The
     /// rail highlights the chat's row while the chat is on screen somewhere,

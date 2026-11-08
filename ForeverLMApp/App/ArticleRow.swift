@@ -275,14 +275,15 @@ struct ArticleRow: View {
         }
     }
 
-    /// Make Cards (Make More Cards once it has some): a chat that makes them
-    /// from this source, in the notebook the list marks (`requestMakeCardsChat`).
+    /// Write Card (Write Another Card once it has some): the source in the
+    /// Reader with a blank card beside it, in the notebook the list marks
+    /// (`requestWriteCards`).
     private func makeCards() {
         let notebookID = notebook?.notebookID
         if let windowState {
-            vm.inWindow(windowState) { vm.requestMakeCardsChat(notebookID: notebookID, sourceIDs: [article.id]) }
+            vm.inWindow(windowState) { vm.requestWriteCards(notebookID: notebookID, sourceIDs: [article.id]) }
         } else {
-            vm.requestMakeCardsChat(notebookID: notebookID, sourceIDs: [article.id])
+            vm.requestWriteCards(notebookID: notebookID, sourceIDs: [article.id])
         }
     }
 

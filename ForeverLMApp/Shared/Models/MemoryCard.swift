@@ -43,6 +43,10 @@ struct MemoryCardOrigin: RawRepresentable, Hashable, Sendable {
     static let walkthrough = MemoryCardOrigin(rawValue: "walkthrough")
     /// A course-quiz question graded incorrect or partial: kept the same way.
     static let courseQuiz = MemoryCardOrigin(rawValue: "course_quiz")
+    /// Written by the learner from a source and kept as written, never a
+    /// draft (`WrittenCard.swift`). Its raw value is `Card.origin`'s wire
+    /// word (schema `CardOrigin.manual`).
+    static let manual = MemoryCardOrigin(rawValue: "manual")
     /// An item from before cards, read as a card (`MemoryCard.legacyFace`).
     /// Never written: such an item keeps the rubric it was made with.
     static let legacy = MemoryCardOrigin(rawValue: "legacy")

@@ -21,7 +21,10 @@ enum MemoryCardSettings {
     /// also sets how many sources are drafted in the background a day.
     static let newCardsPerDayKey = MemoryCardQueue.newPerDayPreferenceKey
     /// Whether ForeverLM drafts cards in the background as sources are
-    /// finished. On until the learner turns it off: decisions v5, 3.
+    /// finished. Off until the learner turns it on: a source's card is the
+    /// learner's to write (product owner, 2026-11-08: "It shouldn't just be
+    /// AI making those cards"; `WrittenCard.swift`), which retires decisions
+    /// v5, 3's default.
     static let autoDraftKey = "memory.auto_draft_cards"
     /// Whether the "Cards to check" corner card is shown. Its Don't Ask Again
     /// turns it off.
@@ -41,7 +44,7 @@ enum MemoryCardSettings {
     }
 
     static func autoDraftsCards(defaults: UserDefaults = .standard) -> Bool {
-        (defaults.object(forKey: autoDraftKey) as? NSNumber)?.boolValue ?? true
+        (defaults.object(forKey: autoDraftKey) as? NSNumber)?.boolValue ?? false
     }
 
     static func setAutoDraftsCards(_ on: Bool) {

@@ -343,11 +343,12 @@ extension StudioViewModel {
     }
 
     /// A selection with no Idea or arrow to draft from: its sources go to
-    /// the source Make Cards the Reader's button opens; with none, a toast
-    /// says what is missing. True when the chat was asked for.
+    /// the Reader's Write Card, one source after another
+    /// (`requestWriteCards`); with none, a toast says what is missing. True
+    /// when the writing was opened.
     private func knowledgeMapHandOff(_ plan: KnowledgeMapCardAnchors) -> Bool {
         if !plan.sourceIDs.isEmpty {
-            requestMakeCardsChat(notebookID: nil, sourceIDs: plan.sourceIDs)
+            requestWriteCards(notebookID: nil, sourceIDs: plan.sourceIDs)
             return true
         }
         if plan.ideasWithoutEvidence > 0 || plan.arrowsWithoutSources > 0 {

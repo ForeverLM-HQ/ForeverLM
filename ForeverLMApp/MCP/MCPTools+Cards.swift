@@ -536,11 +536,12 @@ extension MCPDataStore {
 
     // MARK: list_source_card_coverage
 
-    /// The sources of the library and how many cards each has: Memory's
-    /// Sources section, for an assistant to go through with the learner. The
-    /// verdicts are the tools that already exist: Make Cards is
-    /// `save_card_drafts` (the assistant drafts) or `draft_cards`, Not Worth
-    /// Keeping is `remove_source`. Reads only.
+    /// The sources of the library and how many cards each has: the
+    /// Library's No Cards list, for an assistant to go through with the
+    /// learner. A source's card is the learner's to write in the app
+    /// (`WrittenCard.swift`); an assistant drafts one only when asked
+    /// (`save_card_drafts`, `draft_cards`). Not Worth Keeping is
+    /// `remove_source`. Reads only.
     func listSourceCardCoverage(scope rawScope: String?, notebookID: String?, limit rawLimit: Int?) async throws -> String {
         let scope = Self.trimmedOrNil(rawScope)?.lowercased() ?? "without_cards"
         guard ["without_cards", "all"].contains(scope) else {
@@ -578,7 +579,7 @@ extension MCPDataStore {
             }
             return entry
         }
-        payload["guidance"] = "The learner's goal is at least one card for each source, and every source worth its weight. For each source with status none, make cards (save_card_drafts with cards you draft yourself; draft_cards only when the learner asks for ForeverLM's model) or, when the learner says it is not worth keeping, remove_source. Never remove a source on your own judgment. to_check means drafts wait in Memory's To Check; kept sources can get more cards."
+        payload["guidance"] = "The learner's goal is at least one card for each source, and every source worth its weight. The learner writes each source's card themselves, in their own words, in the app (Write Card opens the source with a blank card beside it): the effort is the point. Do not draft cards for these sources, and do not offer to, unless the learner explicitly asks you to; then save_card_drafts with cards you draft yourself (draft_cards only when they ask for ForeverLM's model). You may name the sources still without a card, open one with open_in_app (kind source) for them to write its card, or quiz them on it. remove_source only when the learner says a source is not worth keeping; never on your own judgment. to_check means drafts wait in Memory's To Check; kept sources can get more cards."
         return try jsonString(payload)
     }
 

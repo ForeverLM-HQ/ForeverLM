@@ -154,6 +154,7 @@ struct CardProjection: RecordProjection {
         case MemoryCardOrigin.walkthrough.rawValue?: return "walkthrough"
         case MemoryCardOrigin.courseQuiz.rawValue?: return "courseQuiz"
         case MemoryCardOrigin.assistant.rawValue?: return "assistant"
+        case MemoryCardOrigin.manual.rawValue?: return "manual"
         case MemoryCardOrigin.drafted.rawValue?:
             return KnowledgeStore.draftedOrigin(seedKey: seedKey)
         default:

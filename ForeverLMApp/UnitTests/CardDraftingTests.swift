@@ -954,20 +954,18 @@ struct MakeCardsViewModelTests {
         #expect(panes.memoryPaneSection == .review, "nothing changes when there is no place")
     }
 
-    @Test("Make Cards opens a fresh chat on its sources, the request typed but unsent")
-    func makeCardsChat() {
+    @Test("Make Cards opens no chat: sources the library does not hold give nothing to write, and say so")
+    func makeCardsWritesNoChat() {
         let (vm, root) = makeViewModel()
         defer { try? FileManager.default.removeItem(at: root) }
         #expect(NotebookStudioTile.cards.isMenu)
         #expect(!NotebookStudioTile.cards.makesIntoNotebook)
-        vm.requestMakeCardsChat(notebookID: nil, sourceIDs: ["a", " a ", "b", ""])
-        #expect(vm.pendingReviewChatNotebookID == nil, "no notebook named, none the store holds")
-        #expect(vm.pendingReviewChatDraft == "Make cards from these 2 sources. ")
-        #expect(vm.reviewChatResetRequestID != nil)
+        let window = StudioWindowState()
+        vm.inWindow(window) { vm.requestWriteCards(notebookID: nil, sourceIDs: ["a", " a ", "b", ""]) }
+        #expect(window.cardWriting == nil)
+        #expect(vm.pendingReviewChatDraft == nil, "no chat is asked to draft them")
+        #expect(vm.toastMessage == "These sources have no text to write a card from")
 
-        #expect(StudioViewModel.makeCardsChatDraft(titles: ["Mitochondria"], sourceCount: 1) == "Make cards from \u{201C}Mitochondria\u{201D}. ")
-        #expect(StudioViewModel.makeCardsChatDraft(titles: [], sourceCount: 1) == "Make cards from this source. ")
-        #expect(StudioViewModel.makeCardsChatDraft(titles: ["A", "B", "C"], sourceCount: 3) == "Make cards from these 3 sources. ")
         #expect(MakeMnemonicReadingSheet.clause("It is kept from AI or archived.") == "it is kept from AI or archived")
         #expect(MakeMnemonicReadingSheet.clause("It is a spoken script ForeverLM wrote.") == "it is a spoken script ForeverLM wrote")
     }

@@ -1,72 +1,16 @@
 #if os(macOS)
 import Foundation
 
-// MARK: - Memory as cards: Make Cards
+// MARK: - Memory as cards: drafts and the cards a chat saved
 
-// docs/memory-design.md, "Drafting" and notebooks-design.md, "Studio". Make
-// Cards is said in the chat (product owner, 2026-11-06: "I think that should
-// always be in the chat"): the Reader's Make Cards (its source), the
-// notebook's Studio Cards tile (its ticked sources), the Library's rows and
-// its Make Cards for N open a fresh chat with those sources and "Make cards
-// from …" typed but unsent, so the learner adds how many or what for in their
-// own words. The chat drafts the cards itself (`save_card_drafts`) or has
-// ForeverLM draft them, priced first (`draft_cards`). They wait in Memory's
-// To Check, which the chat's reply opens; the Reader's toolbar says "Cards ·
-// N to check" for its source until they are gone through.
+// docs/memory-design.md, "Drafting". A source's card is the learner's to
+// write (`StudioViewModel+WriteCards.swift`); a model drafts cards only when
+// the learner asks a chat for them (`save_card_drafts`, or `draft_cards`
+// priced first). Those drafts wait in Memory's To Check, which the chat's
+// reply opens; the Reader's toolbar says "Cards · N to check" for its source
+// until they are gone through.
 
 extension StudioViewModel {
-
-    // MARK: The chat
-
-    /// Make Cards: a fresh chat on `sourceIDs`, in the active window, with
-    /// the request typed but unsent (`makeCardsChatDraft`). `notebookID` is
-    /// the notebook the chat is filed in — its decided cards are the
-    /// drafter's exemplars — and nil from a Reader outside a notebook, which
-    /// files it where the window files new chats.
-    func requestMakeCardsChat(notebookID: String?, sourceIDs: [String]) {
-        var seen = Set<String>()
-        let ids = sourceIDs
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty && seen.insert($0).inserted }
-        guard !ids.isEmpty else {
-            showToast("Tick a source to make cards from")
-            return
-        }
-        let titles = ids.compactMap { id in articlesById[id].map { displayTitle(for: $0) } }
-        pendingReviewChatNotebookID = notebookID.flatMap { notebook(id: $0)?.id }
-        setContextSources(ids)
-        pendingReviewChatDraft = Self.makeCardsChatDraft(titles: titles, sourceCount: ids.count)
-        reviewChatPanelMode = .chat
-        showAssistantOverlay = true
-        reviewChatResetRequestID = UUID()
-        reviewChatFocusRequestID = UUID()
-    }
-
-    /// The notebook's Studio Cards tile's Make Cards…, and the Notebook
-    /// menu's Make ▸ Make Cards…: the notebook's ticked sources.
-    func requestNotebookMakeCardsChat(notebookID: String) {
-        requestMakeCardsChat(notebookID: notebookID, sourceIDs: notebookStudioSourceIDs(notebookID))
-    }
-
-    /// The Reader's Make Cards…: its source, in the notebook `windowState`
-    /// holds when the source is one of the notebook's.
-    func requestReaderMakeCardsChat(sourceID: String, in windowState: StudioWindowState) {
-        let notebookID = windowState.notebook?.notebookID
-        let inNotebook = notebookID.map { notebookHolds($0, sourceID: sourceID) } ?? false
-        inWindow(windowState) {
-            requestMakeCardsChat(notebookID: inNotebook ? notebookID : nil, sourceIDs: [sourceID])
-        }
-    }
-
-    /// The unsent opening of a Make Cards chat: the source by name when there
-    /// is one, else how many. It ends on a space, so what the learner types
-    /// next — "about ten, on the methods" — reads on from it.
-    static func makeCardsChatDraft(titles: [String], sourceCount: Int) -> String {
-        if sourceCount == 1, let title = titles.first?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
-            return "Make cards from \u{201C}\(title)\u{201D}. "
-        }
-        return sourceCount == 1 ? "Make cards from this source. " : "Make cards from these \(sourceCount) sources. "
-    }
 
     /// Whether `notebookID`'s sources include `sourceID`, a team's copy of it
     /// counted as the learner's own source.

@@ -1085,8 +1085,8 @@ struct StudioView: View {
                 vm.inWindow(windowState) { vm.requestCardReview(scope: .allNotebooks) }
             }
             // The morning-after cards banner: the drafts that wait in To Check
-            // over every notebook, or a Make Cards chat for the finished
-            // sources that have none.
+            // over every notebook, or a card to write for each finished or
+            // added source that has none.
             .onReceive(NotificationCenter.default.publisher(for: .requestCardsFromFinished)) { note in
                 guard StudioWindowRegistry.shared.activeState === windowState else { return }
                 let undrafted = note.object as? [String] ?? []
@@ -1094,7 +1094,7 @@ struct StudioView: View {
                     if undrafted.isEmpty {
                         vm.openCardsToCheck(scope: .allNotebooks)
                     } else {
-                        vm.requestMakeCardsChat(notebookID: nil, sourceIDs: undrafted)
+                        vm.requestWriteCards(notebookID: nil, sourceIDs: undrafted)
                     }
                 }
             }
