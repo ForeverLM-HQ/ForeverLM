@@ -267,18 +267,31 @@ extension MCPDataStore {
             }
             data = decoded
         } else {
-            let path = (localPath! as NSString).expandingTildeInPath
+            // The same check every local-file tool makes: inside the library or
+            // Desktop, Documents or Downloads, never a credential location.
+            let fileURL: URL
             do {
-                data = try await Task.detached(priority: .userInitiated) { try readLocalFile(path) }.value
+                fileURL = try validateClientProvidedPath(localPath!)
             } catch {
-                return .failure("Could not read \(path): \(error.localizedDescription)")
+                return .failure(error.localizedDescription)
+            }
+            // A file that cannot be read gets the same answer as one that is
+            // not a picture, so the reply never tells whether a file exists.
+            do {
+                data = try await Task.detached(priority: .userInitiated) { try readLocalFile(fileURL.path) }.value
+            } catch {
+                logger.notice("save_image could not read local_path: \(error.localizedDescription)")
+                data = Data()
             }
         }
-        guard !data.isEmpty, data.count <= Self.maxSavedImageBytes else {
-            return .failure(data.isEmpty ? "The picture is empty." : "The picture is \(data.count / 1_048_576) MB; save_image takes at most 20 MB.")
+        guard data.count <= Self.maxSavedImageBytes else {
+            return .failure("The picture is \(data.count / 1_048_576) MB; save_image takes at most 20 MB.")
         }
-        guard let mediaType = GeneratedImageStore.mediaType(of: data) else {
-            return .failure("That is not an image this Mac can read. Pass a PNG, JPEG, WebP, HEIC or another common image format.")
+        guard !data.isEmpty, let mediaType = GeneratedImageStore.mediaType(of: data) else {
+            if localPath != nil {
+                return .failure("local_path is not a picture this Mac can read. Pass a PNG, JPEG, WebP, HEIC or another common image file.")
+            }
+            return .failure(data.isEmpty ? "The picture is empty." : "That is not an image this Mac can read. Pass a PNG, JPEG, WebP, HEIC or another common image format.")
         }
         let model = Self.trimmedOrNil(arguments["model"] as? String)
         let revising = ReviewSessionManager.imageID(fromArgument: arguments["revises"])

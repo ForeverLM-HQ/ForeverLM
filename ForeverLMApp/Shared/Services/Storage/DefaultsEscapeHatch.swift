@@ -11,7 +11,7 @@ import Foundation
 ///     container    ~/Library/Containers/com.foreverlm/Data/Library/Preferences/com.foreverlm.plist
 ///     user domain  ~/Library/Preferences/com.foreverlm.plist
 ///
-/// So `defaults write com.foreverlm studio.mcpZeroClickOAuthApproval -bool NO` lands
+/// So `defaults write com.foreverlm readingListSafari -bool NO` lands
 /// in the container plist, invisible to the build that reads the user domain and
 /// falls back to its default. The hatches documented in this codebase have therefore
 /// never worked, silently: the setting is accepted, stored, and ignored.

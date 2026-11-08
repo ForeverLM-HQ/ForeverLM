@@ -63,7 +63,7 @@ final class MCPServerLauncher {
     private let relay = MCPRelayClient()
     private let logger = Logger(subsystem: "ForeverLM", category: "MCPLauncher")
     private var lastProvisionError: String?
-    private var loopbackApprovalServer: MCPHTTPServer?
+    private var loopbackServer: MCPHTTPServer?
 
     /// True from the first line of `startHostedTunnel` to its return, so the
     /// launch-time callers that arrive together see one start and return. It
@@ -333,8 +333,8 @@ final class MCPServerLauncher {
     func stop() async {
         await relay.disconnect()
         await MCPGatewayAuthorizationVerifier.shared.clear()
-        loopbackApprovalServer?.stop()
-        loopbackApprovalServer = nil
+        loopbackServer?.stop()
+        loopbackServer = nil
         tunnelURL = nil
         state = .idle
     }
@@ -439,35 +439,30 @@ final class MCPServerLauncher {
             KeychainService.save(connectedURL, for: .mcpTunnelURL)
             logger.info("Updated cached MCP URL to working relay host \(connectedURL)")
         }
-        startLoopbackApprovalListener()
+        startLoopbackListener()
         state = .running
         logger.info("MCP server ready at \(connectedURL)")
     }
 
     /// Loopback listener (bound to 127.0.0.1, local connections only) exposing
-    /// ONLY two things: the same-machine OAuth approval endpoint (see
-    /// handleLocalApprove in MCPOAuth.swift) and `GET /mcp-url`, the personal
-    /// URL this app serves now (`personalURLResponse`). Everything else stays
-    /// relay-only so the local port opens no data surface. Both are progressive
-    /// enhancements: if the port is taken, the in-app prompt still approves and
-    /// Settings still shows the URL, so a bind failure is logged and otherwise
-    /// ignored.
-    private func startLoopbackApprovalListener() {
-        guard loopbackApprovalServer == nil else { return }
+    /// ONLY `GET /mcp-url`, the personal URL this app serves now
+    /// (`personalURLResponse`). It carries no OAuth route: every authorization
+    /// is approved by the learner in the app (match code) or with the pairing
+    /// code. Everything else stays relay-only so the local port opens no data
+    /// surface. If the port is taken, Settings still shows the URL, so a bind
+    /// failure is logged and otherwise ignored.
+    private func startLoopbackListener() {
+        guard loopbackServer == nil else { return }
         let server = MCPHTTPServer()
-        server.route("*", "/oauth/local-approve") { request in
-            let oauthProvider = await MCPOAuthProvider.sharedProvider()
-            return await oauthProvider.handleLocalApprove(request)
-        }
         server.route("*", Self.personalURLPath) { [weak self] request in
             let tunnelURL = await self?.tunnelURL
             return Self.personalURLResponse(to: request, tunnelURL: tunnelURL, port: MCPHTTPServer.loopbackPort)
         }
         do {
             try server.start(port: MCPHTTPServer.loopbackPort)
-            loopbackApprovalServer = server
+            loopbackServer = server
         } catch {
-            logger.warning("Loopback approval listener failed to start: \(error.localizedDescription)")
+            logger.warning("Loopback listener failed to start: \(error.localizedDescription)")
         }
     }
 

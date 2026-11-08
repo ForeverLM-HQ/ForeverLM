@@ -659,8 +659,7 @@ struct PreferenceSyncTests {
     /// `defaults write`.
     @Test("Escape hatches are excluded from sync")
     func escapeHatchesNotSynced() {
-        for key in ["studio.mcpZeroClickOAuthApproval", "preferredBrowser",
-                    "readingListSafari", "readingListChrome", "readingListBrave"] {
+        for key in ["preferredBrowser", "readingListSafari", "readingListChrome", "readingListBrave"] {
             #expect(SyncedPreferenceKeys.isSynced(key) == false)
         }
     }

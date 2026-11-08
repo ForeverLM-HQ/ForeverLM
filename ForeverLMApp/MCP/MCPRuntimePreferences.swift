@@ -5,21 +5,6 @@ enum MCPRuntimePreferences {
     static var assistantIntegrationsEnabled: Bool {
         UserDefaults.standard.object(forKey: "studio.assistantIntegrationsEnabled") as? Bool ?? true
     }
-
-    /// When true (default), an OAuth consent page loaded in a browser on this
-    /// Mac auto-approves by proving same-machine via the loopback listener
-    /// (see handleLocalApprove in MCPOAuth.swift). Disable to always require
-    /// the in-app Approve click:
-    /// `defaults write com.foreverlm studio.mcpZeroClickOAuthApproval -bool NO`
-    ///
-    /// Read through `DefaultsEscapeHatch` because that command writes the
-    /// *sandboxed container* domain whenever a container exists, which only the
-    /// App Store build reads. Going through the helper checks both domains, so the
-    /// documented command works in a dev build too — it previously did not, and
-    /// failed silently.
-    static var zeroClickOAuthApprovalEnabled: Bool {
-        DefaultsEscapeHatch.bool(forKey: "studio.mcpZeroClickOAuthApproval", default: true)
-    }
 }
 
 /// Which notebook each open Studio window holds, and which window is frontmost

@@ -303,17 +303,9 @@ final class MCPAuthorizationPromptModel {
     func refresh() {
         Task {
             let oauthProvider = await MCPOAuthProvider.sharedProvider()
-            var pending = await oauthProvider.pendingAuthorizationSummaries()
+            let pending = await oauthProvider.pendingAuthorizationSummaries()
             // Keep the sheet stable while its request is still waiting.
             if let current, pending.contains(current) { return }
-            if current == nil, !pending.isEmpty {
-                // Give same-machine zero-click auto-approval a moment to land
-                // (see handleLocalApprove in MCPOAuth.swift) so the sheet never
-                // flashes for requests that approve themselves.
-                try? await Task.sleep(for: .milliseconds(900))
-                pending = await oauthProvider.pendingAuthorizationSummaries()
-                if let current, pending.contains(current) { return }
-            }
             current = pending.first
             if current != nil {
                 NSApp.activate(ignoringOtherApps: true)

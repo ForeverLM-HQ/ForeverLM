@@ -130,15 +130,48 @@ struct MCPImageToolsTests {
 
     @Test("save_image reads a local file on this Mac")
     func saveFromLocalPath() async throws {
-        let bytes = try Self.picture(red: 0.7)
+        let file = FileManager.default.temporaryDirectory.appendingPathComponent("rendered-\(UUID().uuidString).png")
+        try Self.picture(red: 0.7).write(to: file)
+        defer { try? FileManager.default.removeItem(at: file) }
         let result = await MCPDataStore().saveImage(
-            arguments: ["prompt": "Rendered by a script", "title": "Script render", "local_path": "/tmp/rendered.png"],
-            readLocalFile: { path in
-                #expect(path == "/tmp/rendered.png")
-                return bytes
-            }
+            arguments: ["prompt": "Rendered by a script", "title": "Script render", "local_path": file.path]
         )
         #expect(!result.isError, "\(result.text)")
         Self.cleanUp(try Self.imageID(in: result.text))
+    }
+
+    /// local_path goes through the same check as every other local-file tool,
+    /// so a picture outside the library and the learner's folders is never read
+    /// in and handed back by get_image.
+    @Test("save_image refuses a local_path outside the allowed folders without reading it")
+    func saveRefusesPathOutsideAllowedRoots() async throws {
+        let result = await MCPDataStore().saveImage(
+            arguments: ["prompt": "x", "title": "Outside", "local_path": "/opt/foreverlm-test-outside/secret.png"],
+            readLocalFile: { path in
+                Issue.record("read a refused path: \(path)")
+                return Data()
+            }
+        )
+        #expect(result.isError)
+        #expect(result.text.contains("must point inside the ForeverLM library"), "\(result.text)")
+    }
+
+    /// A missing file and a file that is not a picture get one answer, so the
+    /// reply never tells whether a file exists.
+    @Test("save_image gives one answer for a missing local file and one that is not a picture")
+    func saveLocalPathOneAnswer() async throws {
+        let folder = FileManager.default.temporaryDirectory
+        let notPicture = folder.appendingPathComponent("not-a-picture-\(UUID().uuidString).png")
+        try Data("hello".utf8).write(to: notPicture)
+        defer { try? FileManager.default.removeItem(at: notPicture) }
+        let missing = folder.appendingPathComponent("missing-\(UUID().uuidString).png")
+
+        let store = MCPDataStore()
+        let notImage = await store.saveImage(arguments: ["prompt": "x", "title": "Not a picture", "local_path": notPicture.path])
+        let absent = await store.saveImage(arguments: ["prompt": "x", "title": "Missing", "local_path": missing.path])
+        #expect(notImage.isError)
+        #expect(absent.isError)
+        #expect(notImage.text == absent.text)
+        #expect(absent.text.contains("not a picture this Mac can read"), "\(absent.text)")
     }
 }

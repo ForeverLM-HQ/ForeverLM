@@ -140,9 +140,6 @@ actor MCPOAuthProvider {
             return await handleToken(request)
         case "/oauth/register":
             return handleRegister(request)
-        // /oauth/local-approve is intentionally absent: it must stay
-        // unreachable through the relay and is registered only on the
-        // loopback listener (see MCPServerLauncher).
         default:
             return nil
         }
@@ -277,7 +274,13 @@ actor MCPOAuthProvider {
         if let existing = pendingAuthorizations.first(where: {
             $0.value.coalesceKey == coalesceKey && $0.value.resolution == nil
         }) {
-            return waitingPageResponse(requestID: existing.key, pending: existing.value)
+            return Self.waitingPageResponse(
+                requestID: existing.key,
+                params: existing.value.params,
+                clientName: existing.value.clientName,
+                matchCode: existing.value.matchCode,
+                scope: existing.value.grantedScope
+            )
         }
 
         // Anyone who knows the relay URL can hit this endpoint, so cap how many
@@ -300,7 +303,13 @@ actor MCPOAuthProvider {
         pendingAuthorizations[requestID] = pending
         logger.info("Created pending authorization for \(pending.clientName); waiting for in-app approval")
         notifyPendingAuthorizationsChanged()
-        return waitingPageResponse(requestID: requestID, pending: pending)
+        return Self.waitingPageResponse(
+            requestID: requestID,
+            params: params,
+            clientName: pending.clientName,
+            matchCode: pending.matchCode,
+            scope: pending.grantedScope
+        )
     }
 
     private static func coalesceKey(for params: [String: String]) -> String {
@@ -385,82 +394,6 @@ actor MCPOAuthProvider {
         Task { @MainActor in
             NotificationCenter.default.post(name: .mcpPendingAuthorizationsChanged, object: nil)
         }
-    }
-
-    // MARK: Same-machine zero-click approval
-    //
-    // Served ONLY by the loopback listener (`MCPServerLauncher` registers this
-    // route there); the relay dispatch in `handleRequest` has no case for this
-    // path, so it is unreachable from the public tunnel URL. The waiting page —
-    // served from the tunnel origin — fires a fetch at 127.0.0.1: reaching this
-    // endpoint proves the browser sits on the same Mac as the app, which is
-    // stronger owner evidence than a typed pairing code. Two things keep a
-    // malicious website from driving this: browsers attach an unforgeable
-    // Origin header to cross-origin fetches and only this install's own tunnel
-    // origin is accepted, and the waiting page forbids framing
-    // (frame-ancestors 'none') so it can't be embedded invisibly. Request IDs
-    // are unguessable and known only to the initiating browser tab.
-    //
-    // Chrome gates public-site → loopback fetches behind Private Network
-    // Access, which sends a CORS preflight first — hence the OPTIONS branch
-    // with Access-Control-Allow-Private-Network. Safari blocks the fetch as
-    // mixed content; there the in-app prompt simply remains the flow.
-
-    func handleLocalApprove(_ request: HTTPRequest) -> HTTPResponse {
-        guard MCPRuntimePreferences.zeroClickOAuthApprovalEnabled else {
-            return .json(["error": "disabled"], status: 403)
-        }
-        guard let origin = firstHeaderValue(named: "origin", in: request.headers),
-              isTrustedLocalApproveOrigin(origin) else {
-            logger.warning("Rejected /oauth/local-approve: missing or untrusted Origin header")
-            return .json(["error": "forbidden"], status: 403)
-        }
-
-        let corsHeaders = [
-            "Access-Control-Allow-Origin": origin,
-            "Vary": "Origin",
-        ]
-
-        if request.method == "OPTIONS" {
-            var headers = corsHeaders
-            headers["Access-Control-Allow-Methods"] = "POST, OPTIONS"
-            headers["Access-Control-Allow-Headers"] = "content-type"
-            headers["Access-Control-Allow-Private-Network"] = "true"
-            headers["Access-Control-Max-Age"] = "600"
-            return HTTPResponse(status: 204, statusText: "No Content", headers: headers, body: Data())
-        }
-        guard request.method == "POST" else {
-            return .json(["error": "method_not_allowed"], status: 405)
-        }
-
-        sweepExpiredPendingAuthorizations()
-        let params = parseTokenParams(request)
-        guard let requestID = params["request"],
-              let pending = pendingAuthorizations[requestID],
-              pending.resolution == nil else {
-            return .json(["error": "unknown_request"], status: 404)
-        }
-
-        logger.notice("Auto-approving authorization for \(pending.clientName): browser proved same-machine via loopback")
-        resolveAuthorization(id: requestID, approved: true)
-        return HTTPResponse(status: 204, statusText: "No Content", headers: corsHeaders, body: Data())
-    }
-
-    /// Only the page this install itself serves may drive same-machine
-    /// approval: the tunnel/issuer origin, or loopback during local testing.
-    private func isTrustedLocalApproveOrigin(_ origin: String) -> Bool {
-        guard let originURL = URL(string: origin),
-              let originHost = originURL.host?.lowercased() else {
-            return false
-        }
-        if let issuer = ProcessInfo.processInfo.environment["OAUTH_ISSUER_URL"]?.trimmingCharacters(in: .whitespacesAndNewlines),
-           let issuerURL = URL(string: issuer),
-           let issuerHost = issuerURL.host?.lowercased(),
-           originHost == issuerHost,
-           originURL.scheme?.lowercased() == issuerURL.scheme?.lowercased() {
-            return true
-        }
-        return ["localhost", "127.0.0.1", "::1"].contains(originHost)
     }
 
     /// Handle the owner-consent form POST. Validates the entered pairing code and,
@@ -672,9 +605,9 @@ actor MCPOAuthProvider {
         }
     }
 
-    /// Consent surfaces must never render inside a frame: an invisibly embedded
-    /// waiting page could otherwise drive same-machine auto-approval from a
-    /// malicious site (see handleLocalApprove).
+    /// Consent surfaces must never render inside a frame, so a malicious site
+    /// cannot embed the pairing-code form or the waiting page and dress them
+    /// up as something else.
     private static let consentPageHeaders = [
         "Content-Type": "text/html; charset=utf-8",
         "Content-Security-Policy": "frame-ancestors 'none'",
@@ -684,13 +617,20 @@ actor MCPOAuthProvider {
     /// Render the primary consent surface: a waiting page that shows the match
     /// code, polls /oauth/pending, and completes once the owner approves in the
     /// app. Embeds a collapsed pairing-code form for owners not at the Mac.
-    private func waitingPageResponse(requestID: String, pending: PendingAuthorization) -> HTTPResponse {
-        let params = pending.params
+    /// The page itself never approves anything: only the learner's Approve in
+    /// the app or a correct pairing code does.
+    static func waitingPageResponse(
+        requestID: String,
+        params: [String: String],
+        clientName: String,
+        matchCode rawMatchCode: String,
+        scope: MCPAuthScope
+    ) -> HTTPResponse {
         let hiddenFields = Self.hiddenFormFields(for: params)
-        let clientLabel = Self.htmlEscape(pending.clientName)
+        let clientLabel = Self.htmlEscape(clientName)
         let redirectLabel = Self.htmlEscape(params["redirect_uri"] ?? "")
-        let matchCode = Self.htmlEscape(pending.matchCode)
-        let lede = Self.scopeLede(escapedClientLabel: clientLabel, scope: pending.grantedScope)
+        let matchCode = Self.htmlEscape(rawMatchCode)
+        let lede = Self.scopeLede(escapedClientLabel: clientLabel, scope: scope)
 
         let html = """
         <!DOCTYPE html>
@@ -769,29 +709,16 @@ actor MCPOAuthProvider {
                       resolved = true;
                       show("expired");
                     } else {
-                      // Poll quickly at first so same-machine auto-approval
-                      // feels instant, then settle into a slower cadence.
+                      // Poll quickly at first so an approval in the app lands
+                      // at once, then settle into a slower cadence.
                       setTimeout(poll, attempts < 6 ? 500 : 1500);
                     }
                   })
                   .catch(function () { setTimeout(poll, 3000); });
               }
               poll();
-              // Zero-click: prove this browser is on the same Mac as the app by
-              // reaching its loopback listener. Chrome preflights this under
-              // Private Network Access; Safari blocks it as mixed content and
-              // falls back to the in-app prompt. The response is intentionally
-              // opaque — polling picks up the approval.
-              try {
-                fetch("http://127.0.0.1:\(MCPHTTPServer.loopbackPort)/oauth/local-approve", {
-                  method: "POST",
-                  mode: "no-cors",
-                  headers: { "Content-Type": "application/x-www-form-urlencoded" },
-                  body: "request=\(requestID)"
-                }).catch(function () {});
-              } catch (e) {}
               // Bring the desktop app forward so the approval prompt is visible,
-              // unless same-machine approval already landed.
+              // unless the request was already resolved.
               setTimeout(function () {
                 if (!resolved) { location.href = "foreverlm://mcp/approve"; }
               }, 1600);

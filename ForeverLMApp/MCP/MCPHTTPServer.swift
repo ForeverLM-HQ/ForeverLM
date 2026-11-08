@@ -106,10 +106,9 @@ typealias RouteHandler = @Sendable (HTTPRequest) async -> HTTPResponse
 // MARK: - HTTP Server
 
 final class MCPHTTPServer: @unchecked Sendable {
-    /// Loopback port for same-machine OAuth approval and personal-URL discovery
-    /// (`MCPServerLauncher.startLoopbackApprovalListener`); the consent waiting
-    /// page hardcodes this into its fetch URL (see waitingPageResponse in
-    /// MCPOAuth.swift), and local plugins ask it for `/mcp-url`.
+    /// Loopback port for personal-URL discovery
+    /// (`MCPServerLauncher.startLoopbackListener`): local plugins ask it for
+    /// `/mcp-url`.
     static let loopbackPort = ForeverLMRuntimeIdentity.mcpLoopbackPort
 
     private var listener: NWListener?

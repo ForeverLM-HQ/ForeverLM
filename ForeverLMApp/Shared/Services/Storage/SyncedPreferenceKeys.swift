@@ -468,7 +468,6 @@ enum SyncedPreferenceKeys {
         // unrelated reason — the sandboxed and non-sandboxed builds read different
         // preference domains, so `defaults write com.foreverlm` targets a plist the
         // dev builds never read.)
-        "studio.mcpZeroClickOAuthApproval": "defaults-write escape hatch",
         "preferredBrowser": "defaults-write escape hatch",
         "readingListSafari": "per-Mac browser choice from setup; each Mac has its own browsers",
         "readingListChrome": "per-Mac browser choice from setup; each Mac has its own browsers",

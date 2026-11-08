@@ -200,6 +200,39 @@ struct MCPOAuthForgottenClientTests {
     }
 }
 
+/// Every authorization is approved by the learner in the app (match code) or
+/// with the pairing code. The waiting page once fetched a loopback
+/// `/oauth/local-approve` that approved by itself; a forged Origin or a crafted
+/// authorize link could drive it, so it is gone, and the page only polls.
+@Suite("MCP OAuth waiting page")
+struct MCPOAuthWaitingPageTests {
+    @Test("The waiting page only polls for the learner's decision; nothing on it approves")
+    func waitingPageNeverApprovesByItself() throws {
+        let response = MCPOAuthProvider.waitingPageResponse(
+            requestID: "req123",
+            params: [
+                "response_type": "code",
+                "client_id": "dyn_example",
+                "redirect_uri": "https://claude.ai/api/mcp/auth_callback",
+                "code_challenge": "abc",
+                "code_challenge_method": "S256",
+                "state": "s",
+            ],
+            clientName: "Claude",
+            matchCode: "42",
+            scope: .full
+        )
+        #expect(response.status == 200)
+        let html = try #require(String(data: response.body, encoding: .utf8))
+        #expect(html.contains("/oauth/pending?request=req123"), "the page polls for the decision")
+        #expect(html.contains(">42<"), "the page shows the match code the app shows")
+        #expect(!html.contains("local-approve"))
+        #expect(!html.contains("127.0.0.1"))
+        #expect(!html.contains("localhost"))
+        #expect(response.headers["Content-Security-Policy"] == "frame-ancestors 'none'")
+    }
+}
+
 @Suite("MCP auth scopes")
 struct MCPAuthScopeTests {
     @Test("Absent or full scope requests grant full access")
