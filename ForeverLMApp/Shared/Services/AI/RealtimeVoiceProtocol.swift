@@ -18,8 +18,31 @@ import Foundation
 /// pick, and nothing on the learner's bill.
 enum RealtimeVoiceDefaults {
     static let model = AIModelDefaults.realtimeVoiceModel
-    /// OpenAI's recommended voice for the realtime models.
+    /// OpenAI's recommended voice for the realtime models, and the one a
+    /// conversation speaks in until the learner picks another.
     static let voice = "marin"
+    /// The voices the realtime models speak in (OpenAI's list; the speech
+    /// models' fable, nova and onyx are not among them), recommended first.
+    static let voices = [
+        "marin", "cedar", "alloy", "ash", "ballad",
+        "coral", "echo", "sage", "shimmer", "verse",
+    ]
+    /// Synced preference key for the learner's pick (Settings › Voice on the
+    /// Mac, Settings › Voice Mode on the iPhone). Listed in
+    /// `SyncedPreferenceKeys.synced`; absent is `voice`.
+    static let voicePreferenceKey = "voiceMode.voice"
+
+    /// The voice a conversation speaks in: the stored pick when the realtime
+    /// models still offer it, else the default.
+    static func resolvedVoice(_ stored: String?) -> String {
+        guard let stored, voices.contains(stored) else { return voice }
+        return stored
+    }
+
+    /// "Marin", as the pickers list it.
+    static func voiceLabel(_ id: String) -> String {
+        id.prefix(1).uppercased() + id.dropFirst()
+    }
     /// Streams the learner's words while they speak, for the caption and the
     /// saved transcript. `fallbackTranscriptionModel` is tried once if OpenAI
     /// refuses this one, so a renamed model never stops a conversation.

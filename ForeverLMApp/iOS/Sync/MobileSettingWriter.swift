@@ -34,6 +34,7 @@ extension MobileSettingCatalog {
         ArticleSpeechSelection.syncedVoiceKey: Entry(type: "string"),
         ArticleSpeechSelection.syncedProviderKey: Entry(type: "string"),
         SharingRightsAffirmation.preferenceKey: Entry(type: "string"),
+        RealtimeVoiceDefaults.voicePreferenceKey: Entry(type: "string", values: RealtimeVoiceDefaults.voices),
     ]
 
     /// The key families the phone writes, by prefix (a family's pattern is its prefix and a name).

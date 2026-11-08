@@ -5,10 +5,11 @@ import AVFoundation
 //
 // Every control in `VoiceSettingsDetailView` (SettingsAIModels.swift) as a
 // `set_app_setting` entry: the two Speech-to-Text model groups (dictation is
-// transcribed after you stop) and the Text-to-Speech card (read aloud).
-// Realtime voice and live dictation went on 2026-10-01, and with them
-// realtime_voice.model, realtime_voice.voice, dictation.realtime and
-// dictation.realtime_model. Each `write` calls the setter the pane
+// transcribed after you stop), the Text-to-Speech card (read aloud) and voice
+// mode's voice (voice_mode.voice). Realtime voice and live dictation went on
+// 2026-10-01, and with them realtime_voice.model, realtime_voice.voice,
+// dictation.realtime and dictation.realtime_model; voice mode came back on
+// 2026-11-07 on ForeverLM's own credits, with only its voice to choose. Each `write` calls the setter the pane
 // calls, so the side effects match — a model change that resets a voice the
 // new model does not offer, a provider change that repairs the stored pick.
 //
@@ -28,6 +29,37 @@ extension MCPDataStore {
         OpenRouterAudioDirectory.warm(.transcription)
         return speechToTextSettingEntries()
             + textToSpeechSettingEntries()
+            + [voiceModeVoiceEntry()]
+    }
+
+    // MARK: Voice mode
+
+    private static func voiceModeVoiceEntry() -> AppSettingEntry {
+        let key = RealtimeVoiceDefaults.voicePreferenceKey
+        return AppSettingEntry(
+            id: "voice_mode.voice",
+            pane: "Voice › Voice mode",
+            title: "Voice",
+            detail: "The voice ForeverLM speaks in during a voice mode conversation, on the Mac, the iPhone and CarPlay. Applies from the next conversation. Voice mode runs on ForeverLM's own credits, so no voice costs the learner anything.",
+            reach: .account,
+            kind: .choice,
+            preferenceKeys: [key],
+            options: {
+                RealtimeVoiceDefaults.voices.map { id -> [String: Any] in
+                    ["value": id, "label": RealtimeVoiceDefaults.voiceLabel(id)]
+                }
+            },
+            read: {
+                RealtimeVoiceDefaults.resolvedVoice(UserDefaults.standard.string(forKey: key))
+            },
+            write: { value in
+                let voice = try AppSettingEntry.string(value, "voice_mode.voice")
+                guard RealtimeVoiceDefaults.voices.contains(voice) else {
+                    throw MCPError.invalidInput("voice_mode.voice takes one of: \(RealtimeVoiceDefaults.voices.joined(separator: ", ")).")
+                }
+                PreferenceStore.set(voice, forKey: key)
+            }
+        )
     }
 
     // MARK: Speech-to-Text

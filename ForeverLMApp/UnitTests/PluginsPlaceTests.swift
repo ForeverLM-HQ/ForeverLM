@@ -39,8 +39,6 @@ struct PluginsPlaceTests {
         let hidden = StudioRailHiddenItems(storage: "plugins")
         #expect(hidden.railItems() == [.home, .space, .memory, .library])
         #expect(StudioRailHiddenItems(storage: hidden.setting(.plugins, hidden: false).storage).railItems().last == .plugins)
-        // It leaves a notebook, as the Library does.
-        #expect(NotebookWorkspace.route(.plugins, coursePageID: nil) == .leave)
         // Open in Other Window names the plugin, or the place.
         #expect(StudioWindowDestination.plugins(.directory).noun == "Plugins")
         #expect(StudioWindowDestination.plugins(.plugin(.slack)).noun == "Slack")

@@ -105,6 +105,10 @@ final class RealtimeVoiceController: ObservableObject {
     var onFinished: ((Finished) -> Void)?
 
     private let makeAudio: () -> RealtimeVoiceAudio
+    private let readVoice: @Sendable () async -> String?
+    /// Fixed for a whole conversation, reconnects included: OpenAI keeps a
+    /// session's voice once it has spoken, and a resumed one should sound the same.
+    private var voice = RealtimeVoiceDefaults.voice
     private var audio: RealtimeVoiceAudio?
     private var session = RealtimeVoiceSession()
     private var lifecycle = UUID()
@@ -130,8 +134,15 @@ final class RealtimeVoiceController: ObservableObject {
     private var learnerCaptionByItem: [String: String] = [:]
     private var endsAfterReply = false
 
-    init(makeAudio: @escaping () -> RealtimeVoiceAudio) {
+    /// `readVoice` answers the learner's voice pick (the synced
+    /// `RealtimeVoiceDefaults.voicePreferenceKey`), read at each start so a
+    /// change in Settings applies to the next conversation.
+    init(
+        makeAudio: @escaping () -> RealtimeVoiceAudio,
+        readVoice: @escaping @Sendable () async -> String?
+    ) {
         self.makeAudio = makeAudio
+        self.readVoice = readVoice
     }
 
     // MARK: - Starting and ending
@@ -187,7 +198,9 @@ final class RealtimeVoiceController: ObservableObject {
             fail(error.localizedDescription)
             return
         }
+        let chosenVoice = RealtimeVoiceDefaults.resolvedVoice(await readVoice())
         guard lifecycle == id else { return }
+        voice = chosenVoice
         brief = loaded
         await begin()
     }
@@ -301,7 +314,7 @@ final class RealtimeVoiceController: ObservableObject {
             try await session.configure(
                 instructions: brief.instructions,
                 tools: brief.toolbox.toolDefinitions + [RealtimeVoiceTutor.endTool],
-                voice: RealtimeVoiceDefaults.voice,
+                voice: voice,
                 transcriptionModel: transcriptionModel
             )
             try await session.waitUntilReady()

@@ -44,6 +44,10 @@ On the iPhone, the first time the assistant starts it asks for access to your ca
 
 Every conversation is saved as a voice chat: a source conversation with that source's chats, filed in the notebook you opened it from, and an assistant conversation under your chats, named by what you first asked. It syncs to your other devices like any chat.
 
+## Choose the voice
+
+Pick the voice ForeverLM speaks in from ten: Marin (the default), Cedar, Alloy, Ash, Ballad, Coral, Echo, Sage, Shimmer and Verse. On the Mac it is **Settings** -> **Voice** -> **Voice mode**; on the iPhone, **Settings** -> **Voice Mode**. One pick serves the Mac, the iPhone and CarPlay, and your next conversation speaks in it; a conversation under way keeps its voice. A chat can set it too (`voice_mode.voice`). Every voice costs the same: nothing, to you.
+
 ## Usage
 
 Voice conversations are listed in AI Usage on the Mac and in **Settings › Usage** on the iPhone, task **Voice Mode**, with a **ForeverLM credits** capsule: the cost shown is what OpenAI charged ForeverLM, and nothing is billed to you.

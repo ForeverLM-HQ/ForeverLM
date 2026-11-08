@@ -974,6 +974,7 @@ The Setting record keys (§3.5.3): one record per key, account scope in Library 
 | `macos.tts.together.voice` | string | account | `set_app_setting` read_aloud.voice | The text-to-speech voice for that provider. |
 | `macos.tts.openrouter.voice` | string | account | `set_app_setting` read_aloud.voice | The text-to-speech voice for that provider. |
 | `macos.tts.local_qwen3.voice` | string | account | `set_app_setting` read_aloud.local_voice | The voice name the local text-to-speech server expects. |
+| `voiceMode.voice` | string | account | `set_app_setting` voice_mode.voice | The voice voice mode speaks in, on the Mac, the iPhone and CarPlay (RealtimeVoiceDefaults.voices); absent is marin. Read when a conversation starts. One of marin, cedar, alloy, ash, ballad, coral, echo, sage, shimmer, verse. |
 | `macos.tts.openai.instructions` | string | account | `set_app_setting` read_aloud.openai_instructions | Hand-written speaking instructions sent with each text-to-speech request to that provider. |
 | `macos.tts.local_qwen3.instructions` | string | account | `set_app_setting` read_aloud.local_qwen3_instructions | Hand-written speaking instructions sent with each text-to-speech request to that provider. |
 | `readAloud.autoGenerate.articles` | bool | account | `set_automatic_audio_settings` enabled | Prepare narration for every new article on its own (SourceAudioAutomation). |

@@ -124,6 +124,8 @@ enum SyncedPreferenceKeys {
         "macos.tts.gemini.voice", "macos.tts.together.voice",
         "macos.tts.openrouter.voice", "macos.tts.local_qwen3.voice",
         "macos.tts.openai.instructions", "macos.tts.local_qwen3.instructions",
+        // Voice mode's voice: one pick for the Mac, the iPhone and CarPlay.
+        RealtimeVoiceDefaults.voicePreferenceKey,
         "readAloud.autoGenerate.articles", "readAloud.autoGenerate.papers",
         "readAloud.autoGenerate.books", "readAloud.autoGenerate.courses",
         // Explainers are article-typed sources with a switch of their own

@@ -15,7 +15,11 @@ enum MacRealtimeVoice {
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "RealtimeVoice")
 
     static let controller: RealtimeVoiceController = {
-        let controller = RealtimeVoiceController(makeAudio: { MacRealtimeVoiceAudio() })
+        // The synced row is hydrated into UserDefaults on the Mac.
+        let controller = RealtimeVoiceController(
+            makeAudio: { MacRealtimeVoiceAudio() },
+            readVoice: { UserDefaults.standard.string(forKey: RealtimeVoiceDefaults.voicePreferenceKey) }
+        )
         controller.onFinished = { finished in
             save(finished)
         }

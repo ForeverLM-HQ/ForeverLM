@@ -1,5 +1,6 @@
 import Foundation
 import OSLog
+import os
 
 /// Voice mode on the iPhone: talk about a source out loud, or be quizzed on
 /// it, the way ChatGPT's voice mode talks (product owner, 2026-11-07). The
@@ -16,7 +17,10 @@ enum MobileRealtimeVoice {
     private static let logger = Logger(subsystem: "com.foreverlm.mobile", category: "RealtimeVoice")
 
     static let controller: RealtimeVoiceController = {
-        let controller = RealtimeVoiceController(makeAudio: { MobileRealtimeVoiceAudio() })
+        let controller = RealtimeVoiceController(
+            makeAudio: { MobileRealtimeVoiceAudio() },
+            readVoice: { await MobileRealtimeVoicePick.read() }
+        )
         controller.onFinished = { finished in
             save(finished)
             if pendingMemoryReview {
@@ -156,6 +160,54 @@ enum MobileRealtimeVoice {
                 try await MobileReviewSessionRecorder.shared.record(result)
             } catch {
                 logger.error("Voice chat not saved: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+    }
+}
+
+/// The learner's voice for voice mode, on the iPhone. The account row is the
+/// truth (the Mac and the phone both set it), but a conversation must not wait
+/// on iCloud to start, least of all in CarPlay: the row is read with a short
+/// wait, and when it does not answer in time the last pick this phone saw is
+/// used. A late answer still lands in that copy for the next conversation.
+enum MobileRealtimeVoicePick {
+    private static let key = RealtimeVoiceDefaults.voicePreferenceKey
+    private static let wait: Duration = .milliseconds(1500)
+
+    /// The pick this phone last saw, kept beside the account row.
+    static var lastSeen: String? {
+        UserDefaults.standard.string(forKey: key)
+    }
+
+    static func remember(_ voice: String?) {
+        if let voice {
+            UserDefaults.standard.set(voice, forKey: key)
+        } else {
+            UserDefaults.standard.removeObject(forKey: key)
+        }
+    }
+
+    static func read() async -> String? {
+        let once = OSAllocatedUnfairLock(initialState: false)
+        let claim: @Sendable () -> Bool = {
+            once.withLock { claimed in
+                defer { claimed = true }
+                return !claimed
+            }
+        }
+        return await withCheckedContinuation { (continuation: CheckedContinuation<String?, Never>) in
+            Task.detached {
+                do {
+                    let voice = try await MobileModelPreferenceStore.shared.string(forKey: key)
+                    remember(voice)
+                    if claim() { continuation.resume(returning: voice) }
+                } catch {
+                    if claim() { continuation.resume(returning: lastSeen) }
+                }
+            }
+            Task.detached {
+                try? await Task.sleep(for: wait)
+                if claim() { continuation.resume(returning: lastSeen) }
             }
         }
     }

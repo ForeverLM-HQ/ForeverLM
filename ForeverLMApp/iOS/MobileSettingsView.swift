@@ -2,10 +2,9 @@ import AVFoundation
 import AuthenticationServices
 import SwiftUI
 
-/// The quiet corner behind the home screen's gear: the text-to-speech voice, the
-/// memory review's day, the data policy, and the account's spending,
-/// day by day. A voice conversation runs on the learner's chat model, chosen
-/// on the Mac; it has no settings of its own here.
+/// The quiet corner behind the home screen's gear: the text-to-speech voice,
+/// voice mode's voice, the memory review's day, the data policy, and the
+/// account's spending, day by day.
 struct MobileSettingsView: View {
     @Environment(MobileAccountGateModel.self) private var account
     @ObservedObject private var offline = MobileOfflineLibrary.shared
@@ -25,6 +24,10 @@ struct MobileSettingsView: View {
     // row, read once here and written through on change. See `AIDataPolicy`.
     @State private var denyDataCollection = false
     @State private var dataPolicyError: String?
+    // Voice mode's voice, the account's row (the Mac sets it too); shown from
+    // the last pick this phone saw until the row answers.
+    @State private var voiceModeVoice = RealtimeVoiceDefaults.resolvedVoice(MobileRealtimeVoicePick.lastSeen)
+    @State private var voiceModeError: String?
     @AppStorage(DailyReviewPreparationKeys.hour)
     private var prepareDailyReviewHour: Int = DailyReviewPreparationKeys.defaultHour
     @ObservedObject private var reviewScheduler = MobileMemoryReviewScheduler.shared
@@ -77,6 +80,21 @@ struct MobileSettingsView: View {
                 // The Speech to Text section, a paragraph with no control,
                 // went the same day.
                 Text("Continuing books makes missing chapters, billed to your OpenRouter key.")
+            }
+
+            Section {
+                Picker("Voice", selection: voiceModeVoiceBinding) {
+                    ForEach(RealtimeVoiceDefaults.voices, id: \.self) { id in
+                        Text(RealtimeVoiceDefaults.voiceLabel(id)).tag(id)
+                    }
+                }
+                .accessibilityIdentifier("settings.voiceMode.voice")
+                if let voiceModeError {
+                    Text(voiceModeError)
+                        .foregroundStyle(.red)
+                }
+            } header: {
+                Text("Voice Mode")
             }
 
             Section {
@@ -279,6 +297,16 @@ struct MobileSettingsView: View {
                 memorySettingsError = error.localizedDescription
             }
         }
+        .task {
+            do {
+                let stored = try await MobileModelPreferenceStore.shared
+                    .string(forKey: RealtimeVoiceDefaults.voicePreferenceKey)
+                MobileRealtimeVoicePick.remember(stored)
+                voiceModeVoice = RealtimeVoiceDefaults.resolvedVoice(stored)
+            } catch {
+                voiceModeError = error.localizedDescription
+            }
+        }
         .task { await offline.refreshUsage() }
     }
 
@@ -291,6 +319,31 @@ struct MobileSettingsView: View {
             return "Tried today: \(message)"
         }
         return "Prepared today"
+    }
+
+    /// Voice mode's voice, written through to the account row; a failed write
+    /// puts the pick back and says why.
+    private var voiceModeVoiceBinding: Binding<String> {
+        Binding(
+            get: { voiceModeVoice },
+            set: { picked in
+                let previous = voiceModeVoice
+                voiceModeVoice = picked
+                Task {
+                    do {
+                        try await MobileModelPreferenceStore.shared.setString(
+                            picked,
+                            forKey: RealtimeVoiceDefaults.voicePreferenceKey
+                        )
+                        MobileRealtimeVoicePick.remember(picked)
+                        voiceModeError = nil
+                    } catch {
+                        voiceModeVoice = previous
+                        voiceModeError = error.localizedDescription
+                    }
+                }
+            }
+        )
     }
 
     /// The data-policy switch, written through to the account row the Mac

@@ -6,6 +6,8 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **Choose voice mode's voice**: ten voices, in **Settings** -> **Voice** -> **Voice mode** on the Mac and **Settings** -> **Voice Mode** on the iPhone. One pick serves the Mac, the iPhone and CarPlay. See [Voice Mode](/voice-mode#choose-the-voice).
+
 ## 0.195.0 (build 275) — 2026-11-07
 
 **Highlights:**

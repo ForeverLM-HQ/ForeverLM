@@ -400,6 +400,15 @@ struct VoiceSettingsDetailView: View {
                         )
                     }
                 }
+
+                SettingsSection(
+                    title: "Voice mode",
+                    description: "The voice ForeverLM speaks in when you talk to it, here, on the iPhone and in CarPlay."
+                ) {
+                    SettingsCard {
+                        VoiceModeVoicePicker()
+                    }
+                }
             }
             .padding(24)
             .frame(maxWidth: 760, alignment: .leading)
@@ -1931,6 +1940,46 @@ private struct ModelListPicker: View {
                     .buttonStyle(.hoverWash(cornerRadius: 10, inset: 0))
                 }
             }
+        }
+    }
+}
+
+/// Settings › Voice › Voice mode: the voice a conversation speaks in
+/// (`RealtimeVoiceDefaults.voicePreferenceKey`, synced, so the iPhone and
+/// CarPlay speak in it too). A change applies to the next conversation; one
+/// under way keeps its voice, as OpenAI holds a session's voice once it has spoken.
+struct VoiceModeVoicePicker: View {
+    @State private var voice = Self.stored
+
+    private static var stored: String {
+        RealtimeVoiceDefaults.resolvedVoice(
+            UserDefaults.standard.string(forKey: RealtimeVoiceDefaults.voicePreferenceKey)
+        )
+    }
+
+    var body: some View {
+        Picker("Voice", selection: Binding(
+            get: { voice },
+            set: { picked in
+                voice = picked
+                PreferenceStore.set(picked, forKey: RealtimeVoiceDefaults.voicePreferenceKey)
+            }
+        )) {
+            ForEach(RealtimeVoiceDefaults.voices, id: \.self) { id in
+                Text(RealtimeVoiceDefaults.voiceLabel(id)).tag(id)
+            }
+        }
+        .fixedSize()
+        .accessibilityIdentifier("settings.voice.voiceMode.voice")
+        .onReceive(NotificationCenter.default.publisher(for: PreferenceStore.didChangeRemotely)) { note in
+            guard let keys = note.userInfo?[PreferenceStore.changedKeysKey] as? Set<String>,
+                  keys.contains(RealtimeVoiceDefaults.voicePreferenceKey) else { return }
+            voice = Self.stored
+        }
+        // set_app_setting writes the same key on this Mac.
+        .onReceive(NotificationCenter.default.publisher(for: UserDefaults.didChangeNotification).receive(on: RunLoop.main)) { _ in
+            let stored = Self.stored
+            if stored != voice { voice = stored }
         }
     }
 }
