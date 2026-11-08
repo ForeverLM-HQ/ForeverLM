@@ -223,6 +223,10 @@ const destructive = new Set([
   // OpenAI's tool scan (2026-11-08): each of these deletes, replaces or
   // overwrites something the learner made or set, or ends work, a team
   // membership or a connection, in a way calling it again does not undo.
+  "run_settings_action",
+  "save_canvas_version",
+  "set_practice",
+  "update_course",
   "add_course_quiz_pictures",
   "cancel_ai_work",
   "delete_animation",
@@ -269,12 +273,12 @@ function title(name: string): string {
     .replaceAll("Mcp", "MCP").replaceAll("Ai", "AI").replaceAll("Pdf", "PDF").replaceAll("Url", "URL");
 }
 
-/// Registry reads that leave a file behind, so the directories do not count
-/// them as read-only (OpenAI's tool scan, 2026-11-08): screenshot_canvas saves
-/// its PNG under Exports/, and inspect_paper_figure renders and keeps the
-/// figure's crop. Not read-only here also keeps them off the hosted-mirror
-/// fallback.
-const leavesAFile = new Set(["screenshot_canvas", "inspect_paper_figure"]);
+/// Registry reads with an effect the directories count (OpenAI's tool scan,
+/// 2026-11-08): screenshot_canvas saves its PNG under Exports/,
+/// inspect_paper_figure renders and keeps the figure's crop, and
+/// find_card_sources spends on an embedding of the card's words. Not read-only
+/// here also keeps them off the hosted-mirror fallback.
+const leavesAFile = new Set(["screenshot_canvas", "inspect_paper_figure", "find_card_sources"]);
 
 function tool(name: string, description: string, inputSchema: JSONSchema, registryReadOnly: boolean): ToolDefinition {
   const isReadOnly = registryReadOnly && !leavesAFile.has(name);
