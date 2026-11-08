@@ -1601,6 +1601,21 @@ final class ReviewSessionManager {
     /// the next reply filled it, and every later answer was stored with the
     /// reply to a later message.
     @ObservationIgnored private var turnReplyRow: ReplyRow?
+    /// The running turn has begun writing its reply to storage
+    /// (`persistAssistantResponse`). A failure after that point must not save
+    /// the reply a second time.
+    @ObservationIgnored private var turnReplyWriteStarted = false
+    /// The turn that just failed saved what it had written on its message's
+    /// row (`keepFailedTurnText`), so Retry asks again for a message that
+    /// already has a reply.
+    @ObservationIgnored private var failedTurnReplySaved = false
+    /// Retry has asked again for a message whose failed reply was saved; read
+    /// once by the turn it starts (`turnFollowsSavedFailedReply`).
+    @ObservationIgnored private var retryFollowsSavedFailedReply = false
+    /// The running turn is that retry: its reply goes on a row of its own
+    /// with no message, so a reopened chat shows the learner's message once,
+    /// then the failed reply, then this one, as the transcript does.
+    @ObservationIgnored private var turnFollowsSavedFailedReply = false
     @ObservationIgnored private var historyDigest = ""
     @ObservationIgnored private var historyDigestCoveredMessageCount = 0
     /// The background fold in flight, if any. Never awaited by a turn: the
@@ -3259,6 +3274,7 @@ final class ReviewSessionManager {
 
     func retryLastGeneration() async {
         guard canRetryLastGeneration else { return }
+        retryFollowsSavedFailedReply = failedTurnReplySaved
         markFailedAttemptRows()
         await generateQuestion(isFirst: chatMessages.isEmpty)
     }
@@ -4553,6 +4569,10 @@ final class ReviewSessionManager {
         lastGenerationError = nil
         lastGenerationFailed = false
         userStoppedGeneration = false
+        turnReplyWriteStarted = false
+        turnFollowsSavedFailedReply = retryFollowsSavedFailedReply
+        retryFollowsSavedFailedReply = false
+        failedTurnReplySaved = false
         beginReplyPairing(isFirst: isFirst)
         removeProviderMetadataMessages()
 
@@ -4642,6 +4662,7 @@ final class ReviewSessionManager {
                     chatMessages.remove(at: index)
                 } else {
                     chatMessages[index].content = trimmed
+                    await keepFailedTurnText(trimmed, rowID: streamedAssistantMessageID, isFirst: isFirst, config: config)
                 }
             }
             errorMessage = error.localizedDescription
@@ -8853,6 +8874,29 @@ final class ReviewSessionManager {
         await discardEmptyAutomaticStartIfNeeded(isFirst: isFirst)
     }
 
+    /// A turn that failed after it had begun to answer saves what it wrote, as
+    /// Stop does. The words stay on screen either way; unsaved, they vanished
+    /// the next time the chat opened, and a "keep going" after them read as a
+    /// reply to nothing (2026-11-07).
+    ///
+    /// Not when the turn had begun its own save, which a later failure must
+    /// not repeat, and not in a memory review, whose replies are stored only
+    /// with the graded attempt they answer. A failed save is logged: the
+    /// error the learner sees stays the one that ended the turn.
+    private func keepFailedTurnText(_ text: String, rowID: UUID, isFirst: Bool, config: AITaskConfig) async {
+        guard sessionID != nil, !turnReplyWriteStarted,
+              stagedMemoryAttempt == nil, memoryCompanionPlan == nil,
+              let index = chatMessages.firstIndex(where: { $0.id == rowID }),
+              chatMessages[index].exchangeID == nil else { return }
+        do {
+            try await persistAssistantResponse(text, isFirst: isFirst, config: config)
+            lastAssistantQuestion = text
+            failedTurnReplySaved = true
+        } catch {
+            logger.error("Failed to save the reply a failed turn had written: \(error.localizedDescription)")
+        }
+    }
+
     /// A turn stopped before it said anything — during its source search, say
     /// — leaves the learner's message as a pending row. The next reply names
     /// its own row, so it no longer lands here; the row is still closed with
@@ -9249,6 +9293,7 @@ final class ReviewSessionManager {
 
     private func persistAssistantResponse(_ response: String, isFirst: Bool, config: AITaskConfig) async throws {
         guard let sessionID else { return }
+        turnReplyWriteStarted = true
         // A settled turn has split its suggested questions off already; the
         // Stop path saves whatever had streamed. Either way the stored reply,
         // which the model's history, copy, fork, MCP transcripts and every
@@ -9353,10 +9398,12 @@ final class ReviewSessionManager {
             if let updatedPendingExchange {
                 sequence = updatedPendingExchange
             } else {
+                // A retry of a failed reply that was saved: the message is
+                // on the failed reply's row already, so this row holds none.
                 sequence = try await storage.addReviewExchange(
                     sessionID: sessionID,
                     question: question,
-                    answer: userAnswer,
+                    answer: turnFollowsSavedFailedReply ? "" : userAnswer,
                     evaluation: stored,
                     score: grade?.score,
                     knowledgeNote: nil,
@@ -9368,12 +9415,14 @@ final class ReviewSessionManager {
                 stagedContourGrade = nil
                 applyMemoryReviewGrade(grade)
             }
-            await updateLastMessagePersistence(
-                role: .user,
-                content: userAnswer,
-                sequence: sequence,
-                field: .userAnswer
-            )
+            if updatedPendingExchange != nil || !turnFollowsSavedFailedReply {
+                await updateLastMessagePersistence(
+                    role: .user,
+                    content: userAnswer,
+                    sequence: sequence,
+                    field: .userAnswer
+                )
+            }
             await updateLastMessagePersistence(
                 role: .assistant,
                 content: response,
@@ -9398,6 +9447,7 @@ final class ReviewSessionManager {
             // reply to that same pending row, falling back to a fresh exchange
             // only if eager persistence failed.
             let sequence: Int
+            var messageOnRow = true
             if let pendingSequence = try await answerTurnRow(
                 sessionID: sessionID,
                 answer: userMessage,
@@ -9407,22 +9457,26 @@ final class ReviewSessionManager {
             ) {
                 sequence = pendingSequence
             } else {
+                // As above: a retry of a saved failed reply writes no message.
+                messageOnRow = !turnFollowsSavedFailedReply
                 sequence = try await storage.addReviewExchange(
                     sessionID: sessionID,
                     question: "",
-                    answer: userMessage,
+                    answer: messageOnRow ? userMessage : "",
                     evaluation: stored,
                     score: nil,
                     knowledgeNote: nil,
                     sourceRefs: activeSourceIDs
                 )
             }
-            await updateLastMessagePersistence(
-                role: .user,
-                content: userMessage,
-                sequence: sequence,
-                field: .userAnswer
-            )
+            if messageOnRow {
+                await updateLastMessagePersistence(
+                    role: .user,
+                    content: userMessage,
+                    sequence: sequence,
+                    field: .userAnswer
+                )
+            }
             await updateLastMessagePersistence(
                 role: .assistant,
                 content: response,
