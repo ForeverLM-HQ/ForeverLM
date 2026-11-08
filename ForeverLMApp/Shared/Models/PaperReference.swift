@@ -176,3 +176,183 @@ struct SyncedPaperReference: Codable, Equatable, Sendable {
     var origin: String
     var catalogCheckedAt: Date?
 }
+
+/// A reference entry in a few words, as a citation card shows it: its first author (with
+/// "et al." when there are more), its year and its title, rather than every author the list
+/// prints (product owner, 2026-11-08: "no need to show SO many authors; can just do first author
+/// and then a title and link"). Read from the stored entry's catalog record when it has one,
+/// otherwise from the words the entry prints. Pure.
+struct PaperReferenceSummary: Equatable, Sendable {
+    /// "Hsu et al., 2013", "Vyas et al., 2016", "Brenner, 1999".
+    let byline: String?
+    let title: String?
+
+    init(byline: String?, title: String?) {
+        self.byline = byline
+        self.title = title
+    }
+
+    init(entryText text: String, stored: PaperReference?) {
+        let authors = stored?.authors.map { $0.split(separator: ";").map { $0.trimmingCharacters(in: .whitespaces) } }
+            .flatMap { $0.isEmpty ? nil : $0 }
+        let surname = authors?.first.flatMap { $0.split(separator: " ").last.map(String.init) }
+            ?? Self.firstSurname(in: text)
+        let several = authors.map { $0.count > 1 } ?? Self.printsSeveralAuthors(text)
+        let year = Self.nonBlank(stored?.year) ?? PaperReferenceIdentity.years(in: text).first.map(String.init)
+        var byline = surname.map { several ? "\($0) et al." : $0 }
+        if let year { byline = byline.map { "\($0), \(year)" } ?? year }
+        self.byline = byline
+        self.title = Self.nonBlank(stored?.title) ?? Self.printedTitle(in: text)
+    }
+
+    private static func nonBlank(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
+        return trimmed
+    }
+
+    /// The first author's surname: before the first comma ("Hsu, P.", "Vyas S, …",
+    /// "J. Abramson, …", "Justas Dauparas, …"), less a leading entry number.
+    static func firstSurname(in text: String) -> String? {
+        var head = text.replacingOccurrences(of: #"^\s*[\[(]?\d{1,4}[.\])]?\s*"#, with: "", options: .regularExpression)
+        if let comma = head.firstIndex(of: ",") {
+            head = String(head[..<comma])
+        } else if let stop = head.range(of: #"\p{L}{2,}\s\p{Lu}{1,3}\.\s"#, options: .regularExpression) {
+            // One author and no comma: "Wenz T. PGC-1α activation …".
+            head = String(head[..<head.index(before: stop.upperBound)])
+        } else {
+            return nil
+        }
+        head = PaperReferenceSummary.firstName(in: head)
+        guard head.count <= 60, let surname = SlideCitationService.surname(inAuthorEntry: head),
+              surname.first?.isLetter == true else { return nil }
+        return surname
+    }
+
+    /// The first of names a list joins with "and" or "&" before any comma ("C. D. Allis and
+    /// T. Jenuwein").
+    static func firstName(in head: String) -> String {
+        guard let joint = head.range(of: #"\s+(?:and|&)\s+"#, options: .regularExpression) else { return head }
+        return String(head[..<joint.lowerBound])
+    }
+
+    /// Whether the author list names more than one: a second name before the title.
+    private static func printsSeveralAuthors(_ text: String) -> Bool {
+        guard let authorsEnd = authorListEnd(in: text) else { return text.contains(" et al") }
+        let authors = text[..<authorsEnd]
+        return authors.contains(" et al") || authors.contains(" and ") || authors.contains(" & ")
+            || authors.filter({ $0 == "," }).count >= 2
+    }
+
+    /// Where the author list ends and what follows it begins, tried in turn:
+    /// - authors set initials first (Science, ML papers): the first comma-separated part that is
+    ///   not a name ("M. Lazarou et al., The ubiquitin …", "… J. A. Kolberg, Single-copy …");
+    /// - a year in brackets straight after the authors ("… Qu, C.K. (2013). ", "… et al (2003) ");
+    /// - the last author, after "&" or "and", with initials ("… & Li, H. The atomic …");
+    /// - "et al." ("Chen, P.-M. et al. CD38 …");
+    /// - a surname and initials followed by a word that is no surname ("Wyss-Coray, T. Ageing …");
+    /// - the first full stop after a surname ("… Jenuwein. ") or after the initials that follow
+    ///   one ("… Haigis MC. ", "… Wenz T. "), or after a year standing alone ("… Schwarz. 2013. ").
+    static func authorListEnd(in text: String) -> String.Index? {
+        authorListEnds(in: text).first
+    }
+
+    /// Every place the rules above say the author list may end, in the order they are tried.
+    static func authorListEnds(in text: String) -> [String.Index] {
+        var ends: [String.Index] = []
+        let head = text.replacingOccurrences(of: #"^\s*[\[(]?\d{1,4}[.\])]?\s*"#, with: "", options: .regularExpression)
+        let offset = text.count - head.count
+        func inText(_ index: String.Index) -> String.Index {
+            text.index(text.startIndex, offsetBy: offset + head.distance(from: head.startIndex, to: index))
+        }
+        if head.range(of: #"^\p{Lu}\.\s?"#, options: .regularExpression) != nil, let end = initialsFirstAuthorsEnd(in: head) {
+            ends.append(inText(end))
+        }
+        let early = head.index(head.startIndex, offsetBy: min(head.count, 600))
+        for pattern in [
+            // Not a year after the title ("… Mitochondria and cancer. Cell (2016) 166:…"): no
+            // sentence stands before it.
+            #"^(?:(?!\.\s+\p{Lu}\p{Ll}+\s+\p{Ll})[^()]){3,}?\((?:19|20)\d{2}[a-z]?\)[.:,]?\s+(?=["“\p{L}\d])"#,
+            #"^.*?(?:&|\band\b)\s+(?:(?:de|van|von|der|den|la|le|del|di|da|du)\s)*\p{Lu}[\p{L}'’\-]+(?:\s\p{Lu}[\p{L}'’\-]+)?,?\s+\p{Lu}\.(?:\s?-?\p{Lu}\.)*\s+(?=["“\p{Lu}\d])"#,
+            #"^.*?\bet al\.?,?\s+(?=["“\p{Lu}\d])"#,
+            // "Wyss-Coray, T. Ageing …", "… Lin, J. Recent Advances …": a surname and its initials,
+            // then a word that is no surname (it is not followed by a comma).
+            #"^.*?\p{Lu}[\p{L}'’\-]+,\s?\p{Lu}\.(?:\s?-?\p{Lu}\.)*\s+(?=["“]?(?:\p{Lu}[\p{Ll}\d\-]+|\d|\p{Lu}{2,})(?:[\s:\-]|$))(?![\p{L}'’\-]+,)"#,
+        ] {
+            if let match = head.range(of: pattern, options: .regularExpression), match.upperBound <= early {
+                ends.append(inText(match.upperBound))
+            }
+        }
+        let ns = head as NSString
+        guard let stop = try? NSRegularExpression(pattern: #"(\S+)\.\s+(?=["“\p{Lu}\d(\[])"#) else { return ends }
+        for match in stop.matches(in: head, range: NSRange(location: 0, length: ns.length)) {
+            let tokenRange = match.range(at: 1)
+            let token = ns.substring(with: tokenRange)
+            let before = tokenRange.location > 0 ? ns.substring(with: NSRange(location: tokenRange.location - 1, length: 1)) : ""
+            let isYear = token.range(of: #"^\(?(?:19|20)\d{2}[a-z]?\)?$"#, options: .regularExpression) != nil
+            let letters = token.filter(\.isLetter)
+            let isWord = letters.count >= 2 && token.contains(where: \.isLowercase) && !token.contains(".")
+            let isInitialsAfterSurname = before == " " && !letters.isEmpty && letters.count <= 3
+                && token.allSatisfy({ $0.isUppercase || $0 == "-" })
+                && ns.substring(to: tokenRange.location).trimmingCharacters(in: .whitespaces).last?.isLetter == true
+            if isYear || isWord || isInitialsAfterSurname, let end = Range(NSRange(location: NSMaxRange(match.range), length: 0), in: head) {
+                ends.append(inText(end.lowerBound))
+                break
+            }
+        }
+        return ends
+    }
+
+    /// Initials-first authors: names are "J. Abramson", "A. N. Player", "Y.-M. Ma", "and S. Weinbach",
+    /// each closed by a comma; the first part after a comma that is not one starts the title.
+    private static func initialsFirstAuthorsEnd(in head: String) -> String.Index? {
+        let name = #"^(?:and\s+)?(?:\p{Lu}\.\s?-?)+\s?(?:(?:de|van|von|der|den|la|le|del|di|da|du)\s)*\p{Lu}[\p{L}'’\-]+(?:\s+et al\.?)?$"#
+        var position = head.startIndex
+        var sawName = false
+        while position < head.endIndex {
+            let rest = head[position...]
+            let comma = rest.range(of: ", ")
+            let partEnd = comma?.lowerBound ?? rest.endIndex
+            let part = rest[..<partEnd].trimmingCharacters(in: .whitespaces)
+            if part.range(of: name, options: .regularExpression) != nil {
+                sawName = true
+                guard let comma else { return nil }
+                position = comma.upperBound
+                continue
+            }
+            // "…, J. Dunger, et al. Accurate …".
+            if sawName, let etAl = part.range(of: #"^et al\.?\s+"#, options: .regularExpression) {
+                return head.index(position, offsetBy: part.distance(from: part.startIndex, to: etAl.upperBound))
+            }
+            // "… C. D. Allis and T. Jenuwein. The molecular …": the last name ends with a full stop.
+            if let stop = part.range(of: #"^(?:and\s+)?(?:\p{Lu}\.\s?-?)+\s?\p{Lu}[\p{L}'’\-]+(?:\s+and\s+(?:\p{Lu}\.\s?-?)+\s?\p{Lu}[\p{L}'’\-]+)?\.\s+"#, options: .regularExpression) {
+                return head.index(position, offsetBy: part.distance(from: part.startIndex, to: stop.upperBound))
+            }
+            return sawName ? position : nil
+        }
+        return nil
+    }
+
+    /// The title an entry prints: the sentence after its author list (and after the year,
+    /// when the year stands between them), up to its closing full stop.
+    static func printedTitle(in text: String) -> String? {
+        for start in authorListEnds(in: text) {
+            if let title = title(in: text, from: start) { return title }
+        }
+        return nil
+    }
+
+    private static func title(in text: String, from authorsEnd: String.Index) -> String? {
+        var start = authorsEnd
+        var rest = text[start...]
+        // "… Schwarz. 2013. The pathways …": the year stands alone after the authors.
+        if let year = rest.range(of: #"^\(?(?:19|20)\d{2}[a-z]?\)?[.,]?\s+"#, options: .regularExpression) {
+            start = year.upperBound
+            rest = text[start...]
+        }
+        guard let end = rest.range(of: #"[.?!](?=\s|$)"#, options: .regularExpression) else { return nil }
+        let title = rest[..<end.lowerBound].trimmingCharacters(in: CharacterSet(charactersIn: " \"“”"))
+        let closing = rest[end.lowerBound] == "." ? "" : String(rest[end.lowerBound])
+        guard title.count >= 12, title.count <= 300, title.split(separator: " ").count >= 2 else { return nil }
+        return title + closing
+    }
+}

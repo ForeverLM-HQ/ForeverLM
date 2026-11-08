@@ -391,6 +391,12 @@ actor PaperReferenceLinkService {
         isDraining = true
         defer { isDraining = false }
 
+        // A paper the parser of an older version found no list in is read again by this one.
+        do {
+            try await storage.requeueEmptyPaperReferenceReads()
+        } catch {
+            referenceLinkLogger.error("Could not queue empty reference reads again: \(error.localizedDescription, privacy: .public)")
+        }
         var papersRead = 0
         while !Task.isCancelled {
             if ProcessInfo.processInfo.isLowPowerModeEnabled { break }

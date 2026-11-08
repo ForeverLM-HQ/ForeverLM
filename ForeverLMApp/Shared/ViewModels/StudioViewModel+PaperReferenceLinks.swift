@@ -53,15 +53,12 @@ extension StudioViewModel {
         }
     }
 
-    /// The link of citation number `number` in `sourceID`, nil when the list has no such entry
-    /// or the entry names no paper.
-    func referenceLink(forNumber number: Int, inSource sourceID: String) async -> URL? {
-        await paperReferenceIndex(forSource: sourceID).link(forNumber: number)
-    }
-
-    /// The link of the entry whose text is `text`, as the popover read it off the PDF.
-    func referenceLink(forEntryText text: String, inSource sourceID: String) async -> URL? {
-        await paperReferenceIndex(forSource: sourceID).link(forEntryText: text)
+    /// The stored entry a citation card names: by its number when the list is numbered and has
+    /// that entry, otherwise the entry whose words the card read off the PDF.
+    func storedReference(number: Int?, entryText text: String, inSource sourceID: String) async -> PaperReference? {
+        let index = await paperReferenceIndex(forSource: sourceID)
+        if let number, let byNumber = index.reference(forNumber: number) { return byNumber }
+        return index.reference(matchingEntryText: text)
     }
 
     /// The library source each linked entry of `index` already is, by entry number: the paper's

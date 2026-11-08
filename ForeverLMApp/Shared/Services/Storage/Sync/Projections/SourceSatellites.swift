@@ -674,6 +674,16 @@ enum InboundSourceFiles {
         try connection.execute(
             "UPDATE source_files SET local_path = ? WHERE source_id = ? AND role = ?", [.text(installedPath), .text(sourceID), .text(pdfRole)]
         )
+        // The paper's reference list is read from the file it now has, as a paper saved with a
+        // file is (`enqueuePaperReferenceRead`): without this a paper whose PDF came from another
+        // Mac had no citations to hover. A list another Mac published already counts as read,
+        // and is left as it is.
+        try connection.execute("""
+            INSERT INTO paper_reference_reads (source_id, state, pdf_path, enqueued_at)
+            SELECT source_id, 'queued', local_file_path, ? FROM papers
+            WHERE source_id = ? AND local_file_path = ?
+            ON CONFLICT(source_id) DO NOTHING
+        """, [.real(Date().timeIntervalSinceReferenceDate), .text(sourceID), .text(installedPath)])
         waiting[pdfRole] = nil
         try save(waiting, sourceID: sourceID, connection: connection)
         return true

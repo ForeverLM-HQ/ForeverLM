@@ -695,3 +695,286 @@ struct PaperReferenceSyncTests {
         #expect(!(try InboundSourceFiles.referencesWorthTaking(pointer, sourceID: "p", connection: store)), "every entry linked")
     }
 }
+
+@Suite("Paper reference lists: one entry a reference (parser 2)")
+struct PaperReferenceSplittingTests {
+
+    @Test("Authors set initials first (ML papers) open entries, and are labelled by the first surname")
+    func initialsFirst() {
+        let text = """
+        References
+        J. Abramson, J. Adler, J. Dunger, R. Evans, T. Green, A. Pritzel, O. Ronneberger, L. Willmore, A. J. Ballard,
+        J. Bambrick, et al. Accurate structure prediction of biomolecular interactions with AlphaFold 3. Nature,
+        2024.
+        C. D. Allis and T. Jenuwein. The molecular hallmarks of epigenetic control. Nature Reviews Genetics, 17(8):
+        487–500, 2016.
+        Ž. Avsec, V. Agarwal, D. Visentin, J. R. Ledsam, A. Grabska-Barwinska, K. R. Taylor, Y. Assael, J. Jumper,
+        P. Kohli, and D. R. Kelley. Effective gene expression prediction from sequence by integrating long-range
+        interactions. Nature Methods, 18(10):1196–1203, 2021.
+        G. Benegas, S. S. Batra, and Y. S. Song. DNA language models are powerful predictors of genome-wide variant
+        effects. Proceedings of the National Academy of Sciences, 120(44):e2311219120, 2023.
+        S. Biderman, H. Schoelkopf, Q. G. Anthony, H. Bradley, K. O'Brien, E. Hallahan, M. A. Khan, S. Purohit, U. S.
+        Prashanth, E. Raff, et al. Pythia: A suite for analyzing large language models across training and scaling.
+        In International Conference on Machine Learning, pages 2397–2430. PMLR, 2023.
+        """
+        let entries = PaperReferenceParser.entries(inPaperText: text)
+        #expect(entries.map(\.label) == ["Abramson 2024", "Allis 2016", "Avsec 2021", "Benegas 2023", "Biderman 2023"])
+    }
+
+    @Test("A line that ends on an author's initials continues the author list; it does not end the entry")
+    func brokenAfterInitials() {
+        let text = """
+        References
+        Ashrafi, G., and T.L. Schwarz. 2013. The pathways of mitophagy for quality
+        control and clearance of mitochondria. Cell Death Differ. 20:31–42.
+        Chan, N.C., A.M. Salazar, A.H. Pham, M.J. Sweredoski, N.J. Kolawa, R.L.
+        Graham, S. Hess, and D.C. Chan. 2011. Broad activation of the ubiquitin-
+        proteasome system by Parkin is critical for mitophagy. Hum. Mol. Genet.
+        20:1726–1737.
+        Deas, E., H. Plun-Favreau, S. Gandhi, H. Desmond, S. Kjaer, S.H. Loh, A.E.
+        Renton, R.J. Harvey, A.J. Whitworth, L.M. Martins, et al. 2011. PINK1
+        cleavage at position A103 by the mitochondrial protease PARL. Hum.
+        Mol. Genet. 20:867–879.
+        Geisler, S., K.M. Holmström, D. Skujat, F.C. Fiesel, O.C. Rothfuss, P.J. Kahle,
+        and W. Springer. 2010. PINK1/Parkin-mediated mitophagy is dependent
+        on VDAC1 and p62/SQSTM1. Nat. Cell Biol. 12:119–131.
+        Kane, L.A., M. Lazarou, A.I. Fogel, Y. Li, K. Yamano, S.A. Sarraf, S. Banerjee,
+        and R.J. Youle. 2014. PINK1 phosphorylates ubiquitin to activate Parkin E3
+        ubiquitin ligase activity. J. Cell Biol. 205:143–153.
+        """
+        let entries = PaperReferenceParser.entries(inPaperText: text)
+        #expect(entries.map(\.label) == ["Ashrafi 2013", "Chan 2011", "Deas 2011", "Geisler 2010", "Kane 2014"])
+        #expect(entries[1].text.contains("R.L. Graham, S. Hess"))
+        #expect(!PaperReferenceParser.looksFinished(["Graham, S. Hess, and D.C. Chan. 2011. A title, R.L."]))
+        #expect(PaperReferenceParser.looksFinished(["Hamilton, J. B. (1965) J. Gerontol. 24, 39541 I."]))
+        #expect(PaperReferenceParser.looksFinished(["Smith J. A study. Proc. Natl. Acad. Sci. U.S.A."]))
+    }
+
+    @Test("A year set against a journal's full stop counts as the entry's year")
+    func yearAfterFullStop() {
+        #expect(PaperReferenceIdentity.years(in: "I.M.Orme,J.Immunol.1987,138,4414.") == [1987])
+        #expect(PaperReferenceIdentity.years(in: "Section 1.2019 of the code").isEmpty)
+        let text = """
+        References
+        [1] I.M.Orme,J.Immunol.1987,138,4414.
+        [2] A.N.Akbar,S.M.Henson,A.Lanna,TrendsImmunol.2016,37,866.
+        [3] A. Donnini, F. Re, M. Bollettini, R. Moresi, S. Tesei, G. Bernardini,
+        M.Provinciali,Biogerontology2005,6,193.
+        [4] J.Nikolich-Žugich,J.Immunol.2014,193,2622.
+        [5] R. E. Yanes, H. Zhang, Y. Shen, C. M. Weyand, J. J. Goronzy, Clin.
+        Immunol.2019,207,58.
+        """
+        #expect(PaperReferenceParser.entries(inPaperText: text).map(\.ordinal) == [1, 2, 3, 4, 5])
+    }
+
+    @Test("A note set under an entry (Nature News & Views) is no entry of its own")
+    func notesUnderEntries() {
+        let text = """
+        References
+        1. 2. 3. 4. Luongo, T. S. et al. SLC25A51 is a
+        mammalian mitochondrial NAD+
+        transporter. Nature
+        588, 174–179 (2020).
+        Girardi, E. et al. Epistasis-driven
+        identification of SLC25A51. Nat.
+        Commun. 11, 6145 (2020).
+        Kory, N. et al. MCART1/SLC25A51 is
+        required for mitochondrial NAD transport.
+        Sci. Adv. 6, eabe5310 (2020).
+        The papers in references 1, 2 and 3 report
+        the identification of SLC25A51 as a
+        mitochondrial NAD+ carrier.
+        Mukherjee, S. et al. Nicotinamide adenine
+        dinucleotide biosynthesis promotes liver
+        regeneration. Hepatology 65, 616–630
+        (2017).
+        This manuscript describes NAD+
+        precursor supplementation as a strategy.
+        """
+        let entries = PaperReferenceParser.entries(inPaperText: text)
+        #expect(entries.map(\.ordinal) == [1, 2, 3, 4])
+        #expect(entries[3].text.hasPrefix("Mukherjee, S. et al."))
+    }
+
+    @Test("Words beside a run of numbers that finish the entry before it are that entry's, not the next")
+    func runCarriesOver() {
+        let text = """
+        References
+        1. 2. 3. Kalache, A., and Gatti, A. (2003). Active ageing: a policy framework. Adv. Gerontol. 11, 7–18.
+        Partridge, L., Deelen, J., and Slagboom, P.E. (2018). Facing up to the global challenges of ageing. Nature 561, 45–56.
+        Dolan, M.-J., Rakosi-Schmidt, R., Garcia, E., Lin, Y., Nadaf, N.M., Dixon, J., Guo, S.,
+        4. 5. Morshed, N., Depp, C., Doman, J., et al. (2025). Spatiotemporal analysis of remyelination
+        reveals a concerted interferon-responsive glial state. bioRxiv, 2025.04.22.649486.
+        Jin, W.-N., Shi, K., He, W., Sun, J.-H., and Liu, Q. (2021). Depletion of microglia exacerbates
+        injury after intracerebral hemorrhage. Neurobiol. Dis. 152, 105299.
+        Salter, M.W., and Stevens, B. (2017). Microglia emerge as central players in brain disease. Nat. Med. 23, 1018–1027.
+        """
+        let entries = PaperReferenceParser.entries(inPaperText: text)
+        #expect(entries.map(\.ordinal) == [1, 2, 3, 4, 5])
+        #expect(entries[2].text.contains("Guo, S., Morshed, N."))
+        #expect(entries[2].text.hasSuffix("bioRxiv, 2025.04.22.649486."))
+        #expect(entries[3].text.hasPrefix("Jin, W.-N."))
+    }
+
+    @Test("Authors printed with first names open an entry after one that closed on its year")
+    func fullNames() {
+        let text = """
+        References
+        Aleksandra Szczepankiewicz, Anna Breborowicz, Paulina Sobkowiak, and Anna Popiel. Polymorphisms of two
+        histamine-metabolizing enzymes genes and childhood allergic asthma. Clinical and Molecular Allergy, 8(1):14, 2010.
+        Karel HM van Wely, Jelto Swaving, Roland Freudl, and Arnold JM Driessen. Translocation of proteins across the
+        cell envelope of gram-positive bacteria. FEMS microbiology reviews, 25(4):437–454, 2001.
+        Mihaly Varadi, Stephen Anyango, Mandar Deshpande, Sreenath Nair, Cindy Natassia, Galabina Yordanova,
+        David Yuan, Oana Stroe, Gemma Wood. AlphaFold protein structure database. Nucleic acids research, 50(D1):D439–D444, 2022.
+        Qiu Zhengqi, Guo Zezhi, Jiang Lei, Qiu He, Pan Jinyao, and Ao Ying. Prognostic role of phyh for overall
+        survival in clear cell renal cell carcinoma. European Journal of Medical Research, 26(1):9, 2021.
+        Justas Dauparas, Ivan Anishchenko, Nathaniel Bennett, Hua Bai, Robert J Ragotte, et al. Robust deep
+        learning–based protein sequence design using proteinmpnn. Science, 378(6615):49–56, 2022.
+        """
+        let entries = PaperReferenceParser.entries(inPaperText: text)
+        #expect(entries.map(\.label) == ["Szczepankiewicz 2010", "van Wely 2001", "Varadi 2022", "Zhengqi 2021", "Dauparas 2022"])
+    }
+
+    @Test("A list goes on past another column's closing sections, and the entry left open keeps only its own words")
+    func resumesPastColumnHeadings() {
+        let text = """
+        REFERENCES
+        1. Vyas S, Zaganjor E, Haigis MC. Mitochondria and cancer. Cell (2016)
+        166:555–66. doi: 10.1016/j.cell.2016.07.002
+        2. Federico A, Cardaioli E, Da Pozzo P, Formichi P, Gallus GN,
+        Radi E. Mitochondria, oxidative stress and neurodegeneration.
+        molecule derived from beta-lapachone, increased energy production
+        and improved mitochondrial dysfunction and oxidative stress
+        in MELAS fibroblasts. Compared with idebenone, KL1333 was
+        a more potent substrate for NQO1 and had a stronger effect
+        on ATP levels in MELAS fibroblasts. These results suggest that
+        KL1333 may be more effective than idebenone for treatment of
+        mitochondrial diseases, and that its dual activation of PGC-1a
+        through deacetylation and phosphorylation is worth study.
+        AUTHOR CONTRIBUTIONS
+        Zara Holt and Ines Varga designed the experiments and wrote the paper.
+        3. Suomalainen A, Battersby BJ. Mitochondrial diseases: the
+        contribution of organelle stress responses to pathology.
+        Nat Rev Mol Cell Biol. (2018) 19:77–92. doi: 10.1038/nrm.2017.66
+        4. Lin J, Zhao CB, Lu JH, Wang HJ. Novel mutations in MT-ND1 associated with MELAS.
+        Mitochondrial DNA (2014) 25:56–62. doi: 10.3109/19401736.2013.779259
+        """
+        let entries = PaperReferenceParser.entries(inPaperText: text)
+        #expect(entries.map(\.ordinal) == [1, 2, 3, 4])
+        #expect(entries[1].text.hasSuffix("Mitochondria, oxidative stress and neurodegeneration."))
+    }
+
+    @Test("A citation card's words stop where the next author-year entry starts")
+    func cardStopsAtNextEntry() {
+        func line(_ text: String) -> PDFReferenceEntries.Line {
+            PDFReferenceEntries.Line(text: text, bounds: .zero, continuesWord: false)
+        }
+        let lines = [
+            line("Hsu, P., and Qu, C.K. (2013). Metabolic plasticity and"),
+            line("hematopoietic stem cell biology. Curr. Opin. Hematol. 20, 289–"),
+            line("294."),
+            line("Ito, K., and Suda, T. (2014). Metabolic requirements for"),
+            line("the maintenance of self-renewing stem cells. Nat. Rev. Mol. Cell Biol. 15, 243–256."),
+        ]
+        #expect(PDFReferenceEntries.linesBeforeAuthorEntry(lines).map(\.text) == lines.prefix(3).map(\.text))
+        // A numbered entry is left to the numbers.
+        let numbered = [line("12. Smith J. A title. Cell 2019; 1: 2."), line("Lee K, Doe A. Another. Cell 2020; 3: 4.")]
+        #expect(PDFReferenceEntries.linesBeforeAuthorEntry(numbered).count == 2)
+    }
+}
+
+@Suite("Paper reference lists: a citation card's short form")
+struct PaperReferenceSummaryTests {
+
+    @Test("First author, year and title are read off the words in each journal's style")
+    func printed() {
+        let cases: [(String, String, String)] = [
+            ("Hsu, P., and Qu, C.K. (2013). Metabolic plasticity and hematopoietic stem cell biology. Curr. Opin. Hematol. 20, 289–294.",
+             "Hsu et al., 2013", "Metabolic plasticity and hematopoietic stem cell biology"),
+            ("Vyas S, Zaganjor E, Haigis MC. Mitochondria and cancer. Cell (2016) 166:555–66.",
+             "Vyas et al., 2016", "Mitochondria and cancer"),
+            ("J. Abramson, J. Adler, J. Dunger, et al. Accurate structure prediction of biomolecular interactions with AlphaFold 3. Nature, 2024.",
+             "Abramson et al., 2024", "Accurate structure prediction of biomolecular interactions with AlphaFold 3"),
+            ("Bai, L., Wang, T., Zhao, G., Kovach, A. & Li, H. The atomic structure of a eukaryotic oligosaccharyltransferase complex. Nature 555, 328–333 (2018).",
+             "Bai et al., 2018", "The atomic structure of a eukaryotic oligosaccharyltransferase complex"),
+            ("Ashrafi, G., and T.L. Schwarz. 2013. The pathways of mitophagy for quality control and clearance of mitochondria. Cell Death Differ. 20:31–42.",
+             "Ashrafi et al., 2013", "The pathways of mitophagy for quality control and clearance of mitochondria"),
+            ("Brenner, S. (1999). Theoretical biology in the third millennium. Phil. Trans. R. Soc. B 354, 1963–1965.",
+             "Brenner, 1999", "Theoretical biology in the third millennium"),
+            ("12. Wenz T. PGC-1α activation as a therapeutic approach in mitochondrial disease. IUBMB Life (2009) 61:1051–62.",
+             "Wenz, 2009", "PGC-1α activation as a therapeutic approach in mitochondrial disease"),
+        ]
+        for (text, byline, title) in cases {
+            let summary = PaperReferenceSummary(entryText: text, stored: nil)
+            #expect(summary.byline == byline, "\(text)")
+            #expect(summary.title == title, "\(text)")
+        }
+    }
+
+    @Test("A stored entry's catalog record wins over the words")
+    func stored() {
+        let reference = PaperReference(
+            sourceID: "s", ordinal: 1, label: "1",
+            text: "Jayatunga MKP, Ayers M, Bruens L. How successful... Drug Discov Today 2024.",
+            title: "How successful are AI-discovered drugs in clinical trials?",
+            authors: "KP Jayatunga; Ayers; Bruens", year: "2024"
+        )
+        let summary = PaperReferenceSummary(entryText: reference.text, stored: reference)
+        #expect(summary.byline == "Jayatunga et al., 2024")
+        #expect(summary.title == "How successful are AI-discovered drugs in clinical trials?")
+    }
+}
+
+@Suite("Paper reference lists: papers owed a read")
+struct PaperReferenceRequeueTests {
+
+    private func store(_ name: String) throws -> (KnowledgeStore, URL) {
+        let root = try Schema154Fixture.temporaryRoot(name)
+        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        return (store, root)
+    }
+
+    private func addPaper(_ store: KnowledgeStore, _ id: String, path: String?) throws {
+        try store.execForTesting("""
+            INSERT INTO sources (id, date_added, state, source_type, status) VALUES ('\(id)', 0, 'ready', 'paper', 'active');
+            INSERT INTO papers (source_id, url, local_file_path) VALUES ('\(id)', 'https://doi.org/10.1/\(id)', \(path.map { "'\($0)'" } ?? "NULL"));
+        """)
+    }
+
+    @Test("A paper an older parser found no list in is queued once for this one; a list, or an assistant's, is left alone")
+    func requeuesEmptyReads() throws {
+        let (store, root) = try store("paper-references-requeue")
+        defer { try? FileManager.default.removeItem(at: root) }
+        for id in ["empty-old", "empty-new", "listed", "agent"] { try addPaper(store, id, path: "Papers/\(id).pdf") }
+        try store.savePaperReference(PaperReference(sourceID: "listed", ordinal: 1, label: "1", text: "Smith J. A title. Cell 2019."))
+        try store.execForTesting("""
+            INSERT INTO paper_reference_reads (source_id, state, enqueued_at, parser_version, entry_count, authored_by) VALUES
+                ('empty-old', 'read', 0, 1, 0, 'app'),
+                ('empty-new', 'read', 0, \(PaperReferenceParser.version), 0, 'app'),
+                ('listed', 'read', 0, 1, 1, 'app'),
+                ('agent', 'read', 0, 1, 0, 'agent');
+        """)
+        #expect(try store.requeueEmptyPaperReferenceReads() == 1)
+        #expect(try store.paperReferenceReadCandidates(limit: 10).map(\.sourceID) == ["empty-old"])
+        // The read it gets stamps this version, so it is not queued again.
+        try store.finishPaperReferenceRead(sourceID: "empty-old", pdfPath: nil, failure: nil, authoredBy: "app")
+        #expect(try store.requeueEmptyPaperReferenceReads() == 0)
+    }
+
+    @Test("A paper whose PDF arrives from another Mac is queued for its reference list")
+    func syncedPDFIsQueued() throws {
+        let (store, root) = try store("paper-references-synced-pdf")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try addPaper(store, "p", path: nil)
+        let bytes = Data("%PDF-paper".utf8)
+        let ref = FileRef(owner: "p", role: "pdf", hash: SyncIdentity.sha256Hex(bytes), size: Int64(bytes.count),
+                          mime: "application/pdf", encoding: "identity", storedParts: [bytes])
+        try InboundSourceFiles.save([InboundSourceFiles.pdfRole: ref.value], sourceID: "p", connection: store)
+
+        #expect(try InboundSourceFiles.receivedPDF(bytes, installedPath: "Papers/synced-p.pdf", sourceID: "p", connection: store))
+        let state = try #require(try store.paperReferenceReadState(sourceID: "p"))
+        #expect(state.state == .queued)
+        #expect(state.pdfPath == "Papers/synced-p.pdf")
+        #expect(try store.paperReferenceReadCandidates(limit: 5).map(\.sourceID) == ["p"])
+    }
+}

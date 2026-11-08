@@ -154,6 +154,21 @@ extension KnowledgeStore {
         ])
     }
 
+    /// Papers an older parser read and found no list in, queued to be read again by this one.
+    /// A read the app made only (an assistant's saved list is its own), and only once per
+    /// parser version: the read stamps the version it was made with.
+    @discardableResult
+    func requeueEmptyPaperReferenceReads() throws -> Int {
+        try execute("""
+            UPDATE paper_reference_reads SET
+                state = 'queued', attempt_count = 0, last_error = NULL, enqueued_at = ?
+            WHERE state = 'read' AND entry_count = 0 AND parser_version < ?
+              AND COALESCE(authored_by, 'app') = 'app'
+              AND NOT EXISTS (SELECT 1 FROM paper_references r WHERE r.source_id = paper_reference_reads.source_id)
+        """, [.real(Date().timeIntervalSinceReferenceDate), .integer(Int64(PaperReferenceParser.version))])
+        return Int(try scalarInteger("SELECT changes()", []) ?? 0)
+    }
+
     /// A source that is no longer a paper has no list.
     func dropPaperReferences(sourceID: String) throws {
         try execute("DELETE FROM paper_references WHERE source_id = ?", [.text(sourceID)])

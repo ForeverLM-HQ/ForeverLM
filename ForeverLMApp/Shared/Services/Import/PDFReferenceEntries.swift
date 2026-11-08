@@ -578,6 +578,7 @@ actor PDFReferenceEntries {
         if let firstLine, visualLine.maxX - firstLine.maxX > 3 * columnGutter {
             texts = columnEntry(from: start, line: visualLine, on: page, boxes: boxes, pageStarts: pageStarts)
         }
+        texts = linesBeforeAuthorEntry(texts)
         let text = joined(texts)
         // A figure link lands on a panel letter, not on anything worth showing.
         guard text.count >= minimumLength else { return nil }
@@ -735,6 +736,29 @@ actor PDFReferenceEntries {
             kept.removeLast()
         }
         return kept
+    }
+
+    /// Lines up to the next author-year entry: one that opens with an author after a line that
+    /// finished an entry, as the stored list splits it (`PaperReferenceParser.splitIntoEntries`).
+    /// An entry nobody cites has no link landing on it to end the one before, so a flush list
+    /// read on into it (product owner, 2026-11-08: "each individual citation should always have
+    /// their own clickable link"). Only an entry that itself opens with an author is cut so.
+    nonisolated static func linesBeforeAuthorEntry(_ lines: [Line]) -> [Line] {
+        guard lines.count > 1, let first = lines.first,
+              ReferenceEntryShape.opensWithAuthor(first.text) || ReferenceEntryShape.opensWithFullName(first.text) else {
+            return lines
+        }
+        let texts = lines.map(\.text)
+        for index in texts.indices.dropFirst() {
+            let tail = Array(texts[max(0, index - 3)..<index])
+            guard ReferenceEntryShape.looksFinished(tail) else { continue }
+            let line = texts[index]
+            if ReferenceEntryShape.opensWithAuthor(line)
+                || (ReferenceEntryShape.endsWithYearOrAddress(tail) && ReferenceEntryShape.opensWithFullName(line)) {
+                return Array(lines[..<index])
+            }
+        }
+        return lines
     }
 
     /// Lines up to the next one that begins at an entry's margin — the left
@@ -1019,5 +1043,65 @@ extension PDFReferenceEntries {
             doi.removeFirst(prefix.count)
         }
         return doi
+    }
+}
+
+/// What a reference entry's lines look like: where one opens and where one has finished. Shared
+/// by the stored list's reader (`PaperReferenceParser`) and the citation card's (`PDFReferenceEntries`)
+/// on the Mac and the iPhone, so the two split a list alike.
+enum ReferenceEntryShape {
+    /// A line that opens an author-year entry: a surname, then either a comma and initials
+    /// ("Smith, J.", "van der Berg, A.B.", "Lee, K-H.") or initials without the comma
+    /// ("Albamonte MS,", "Allen JF,").
+    static let authorYearStart: NSRegularExpression? = try? NSRegularExpression(
+        pattern: #"^(?:\p{Lu}[\p{L}'\x{2019}\-]+(?:\s(?:de|van|von|der|den|la|le|del|di|da|el|al|bin|ibn|ten|ter|dos|das|du|\p{Lu}[\p{L}'\x{2019}\-]+)){0,3},\s+\p{Lu}[.\p{L}\-]{0,3}(?:[\s.,]|$)|(?:(?:de|van|von|der|den|la|le|del|di|da|el|al|bin|ibn|ten|ter|dos|das|du)\s)*\p{Lu}[\p{L}'\x{2019}\-]+\s\p{Lu}{1,3}[,.])"#
+    )
+
+    /// A line that opens an entry with its first author's initials before the surname, as
+    /// machine-learning papers and Science print them ("J. Abramson, J. Adler, …",
+    /// "C. D. Allis and T. Jenuwein.", "H. Abdine et al.", "L.Nestler,K.Parker"): the surname
+    /// is followed by a comma, "and", "&" or "et al.".
+    static let initialsFirstStart: NSRegularExpression? = try? NSRegularExpression(
+        pattern: #"^\p{Lu}\.(?:\s?-?\p{Lu}\.)*\s?(?:(?:de|van|von|der|den|la|le|del|di|da|du)\s)*\p{Lu}[\p{L}'\x{2019}\-]+(?:,|\s+(?:and|&)\s|\s+et\s+al\.)"#
+    )
+
+    static func opensWithAuthor(_ line: String) -> Bool {
+        let range = NSRange(line.startIndex..., in: line)
+        return [authorYearStart, initialsFirstStart].contains { opener in
+            opener?.firstMatch(in: line, range: range) != nil
+        }
+    }
+
+    static let fullNameStart: NSRegularExpression? = try? NSRegularExpression(
+        pattern: #"^\p{Lu}[\p{Ll}'\x{2019}\-]+(?:\s(?:\p{Lu}\.?|\p{Lu}{2,3}|\p{Lu}[\p{Ll}'\x{2019}\-]+|de|van|von|der|den|la|le|del|di|da|du)){1,3},\s"#
+    )
+
+    /// "Justas Dauparas, …", "Karel HM van Wely, …", "Qiu Zhengqi, …".
+    static func opensWithFullName(_ line: String) -> Bool {
+        fullNameStart?.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) != nil
+    }
+
+    /// An entry closed on its year ("…, 2021.", "(2021).") or on the address it ends with.
+    static func endsWithYearOrAddress(_ lines: [String]) -> Bool {
+        let text = lines.suffix(2).joined(separator: " ").trimmingCharacters(in: .whitespaces)
+        if text.range(of: #"(?:19|20)\d{2}[a-z]?\)?\.$"#, options: .regularExpression) != nil { return true }
+        guard let last = lines.last?.split(separator: " ").last else { return false }
+        return last.hasPrefix("http") || last.range(of: #"10\.\d{4,9}/"#, options: .regularExpression) != nil
+    }
+
+    /// Whether the lines read as a whole reference: long enough, and ending where one ends.
+    static func looksFinished(_ lines: [String]) -> Bool {
+        let text = lines.suffix(3).joined(separator: " ").trimmingCharacters(in: .whitespaces)
+        guard text.count >= 25, let last = text.last else { return false }
+        // An author's initials end a line inside the author list ("… A.M. Pham, R.L."), never
+        // an entry: the next line is the next author ("Graham, S. Hess, and …"), not the next
+        // entry. "U.S.A." is a journal's name, which may end one.
+        if !text.hasSuffix("U.S.A."),
+           let initials = text.range(of: #"(?:^|[\s,])\p{Lu}\.(?:-?\p{Lu}\.)*$"#, options: .regularExpression),
+           // A letter after a number ("24, 39541 I.") is a misread page, not a name.
+           text[..<initials.lowerBound].trimmingCharacters(in: .whitespaces).last?.isNumber != true {
+            return false
+        }
+        return last.isNumber || ".)]\"'\u{201D}\u{2019}".contains(last)
     }
 }

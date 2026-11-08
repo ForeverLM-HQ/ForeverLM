@@ -1506,12 +1506,9 @@ struct PDFKitInlineView: NSViewRepresentable {
         preview.chapterFiles = chapterFiles
         preview.library = vm
         preview.configureHighlighting(viewModel: vm, sourceID: sourceID, sections: sections)
-        preview.linkForEntry = { [weak vm] entry in
+        preview.referenceForEntry = { [weak vm] entry in
             guard let vm, let sourceID = entry.sourceID else { return nil }
-            if let number = entry.number, let url = await vm.referenceLink(forNumber: number, inSource: sourceID) {
-                return url
-            }
-            return await vm.referenceLink(forEntryText: entry.text, inSource: sourceID)
+            return await vm.storedReference(number: entry.number, entryText: entry.text, inSource: sourceID)
         }
         preview.openSource = opensCitedSource ?? { [weak vm] sourceID in
             Task { await vm?.revealSourceInReader(sourceID) }

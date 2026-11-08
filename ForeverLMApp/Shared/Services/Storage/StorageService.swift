@@ -1748,6 +1748,12 @@ actor StorageService {
         return try knowledgeStore().paperReferenceReadCandidates(limit: limit)
     }
 
+    @discardableResult
+    func requeueEmptyPaperReferenceReads() throws -> Int {
+        try ensureStoreExists()
+        return try knowledgeStore().requeueEmptyPaperReferenceReads()
+    }
+
     func paperReferenceReadQueueCount() throws -> Int {
         try ensureStoreExists()
         return try knowledgeStore().paperReferenceReadQueueCount()

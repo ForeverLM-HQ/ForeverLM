@@ -65,7 +65,10 @@ enum PaperReferenceIdentity {
         let withoutAddresses = text
             .replacingOccurrences(of: #"10\.\d{4,9}/\S+"#, with: " ", options: .regularExpression)
             .replacingOccurrences(of: #"https?://\S+"#, with: " ", options: .regularExpression)
-        guard let expression = try? NSRegularExpression(pattern: #"(?<![\d.])((?:19|20)\d{2})(?![\d])"#) else { return [] }
+        // A year may follow a journal's full stop with no space ("J.Immunol.1987,138"), as a
+        // typesetter that drops spaces prints it; never a digit, or a digit and its point
+        // ("1.2019", a section or a version).
+        guard let expression = try? NSRegularExpression(pattern: #"(?<!\d)(?<!\d\.)((?:19|20)\d{2})(?![\d])"#) else { return [] }
         let range = NSRange(withoutAddresses.startIndex..., in: withoutAddresses)
         return expression.matches(in: withoutAddresses, range: range).compactMap { match in
             Range(match.range(at: 1), in: withoutAddresses).flatMap { Int(withoutAddresses[$0]) }

@@ -20,7 +20,10 @@ enum PaperReferenceParser {
 
     /// Bumped when a better read should be taken again: a paper whose list was read under an
     /// older version is queued once more (`paper_reference_reads.parser_version`).
-    static let version = 1
+    /// 2 (2026-11-08): initials-first authors, a year set against a journal's full stop, an
+    /// author list broken after initials, notes under a numbered entry, a list resumed past
+    /// another column's headings. A paper version 1 found no list in is read again.
+    static let version = 2
 
     struct Entry: Equatable, Sendable {
         /// The citation number of a numbered list; the position of an author-year one.
@@ -245,12 +248,36 @@ enum PaperReferenceParser {
                     index = resume
                     continue
                 }
+                // A two-column page read across its columns (Frontiers) puts the other
+                // column's closing sections ("Author contributions") inside the list, and the
+                // list goes on after them with the next number. The entry left open took the
+                // other column's text up to the heading: only its own lines are kept.
+                if let resume = nextOpener(in: table, after: index, numbered: expected, style: style) {
+                    if var finished = current {
+                        finished.lines = linesBeforeRunOn(finished.lines)
+                        entries.append(finished)
+                    }
+                    current = nil
+                    index = resume
+                    continue
+                }
                 break
             }
             if style == .dot, let run = table.runs[index], run.numbers.first == expected {
                 if let finished = current { entries.append(finished) }
                 current = nil
-                guard let block = entriesBesideNumberRun(table, runIndex: index, run: run) else { break }
+                var block = entriesBesideNumberRun(table, runIndex: index, run: run)
+                // The run set beside the last entry's run-on from the page before ("14. 15. …
+                // G., Carey, D., …"): when the entries do not count out with those words as
+                // the first, and the entry before is unfinished ("… Guo, S.,"), they finish it.
+                // Tried second, since an entry with no authors ("Recognizing the importance of
+                // …") opens with words too.
+                if block == nil, !run.rest.isEmpty, let previous = entries.last, !looksFinished(previous.lines),
+                   let continued = entriesBesideNumberRun(table, runIndex: index, run: run, carriesOver: true) {
+                    entries[entries.count - 1].lines += continued.carried
+                    block = continued
+                }
+                guard let block else { break }
                 entries += block.entries
                 expected = (run.numbers.last ?? expected) + 1
                 index = block.nextIndex
@@ -283,6 +310,28 @@ enum PaperReferenceParser {
         return (index + 1..<end).first { table.runs[$0]?.numbers.first == number }
     }
 
+    /// The next line, within the next 400, that opens entry `number` in `style` with a few words
+    /// of an entry after it (not "3. Results", a section of the paper).
+    private static func nextOpener(in table: LineTable, after index: Int, numbered number: Int, style: NumberStyle) -> Int? {
+        let end = min(table.lines.count, index + 400)
+        guard index + 1 < end else { return nil }
+        return (index + 1..<end).first { candidate in
+            guard let opened = table.start(candidate, style), opened.number == number else { return false }
+            return opened.rest.split(whereSeparator: \.isWhitespace).count >= 3
+        }
+    }
+
+    /// An entry's lines up to where it looks finished, when they run on past what any reference
+    /// holds (another column's prose read into it). An entry of a reference's length is kept
+    /// whole.
+    static func linesBeforeRunOn(_ lines: [String]) -> [String] {
+        guard lines.reduce(0, { $0 + $1.count + 1 }) > 400 else { return lines }
+        for end in lines.indices where looksFinished(Array(lines[...end])) {
+            return Array(lines[...end])
+        }
+        return lines
+    }
+
     private static let numberRunExpression: NSRegularExpression? = try? NSRegularExpression(
         pattern: #"^((?:\d{1,3}\.\s*){2,})(.*)$"#
     )
@@ -302,12 +351,15 @@ enum PaperReferenceParser {
     /// The entries that follow a run of numbers, one for each, in order: the lines up to the
     /// next run, the next inline-numbered entry or a heading after the list, split where an
     /// entry looks finished and another opens. Nil unless that gives exactly as many entries as
-    /// numbers: guessing which number an entry has is worse than not reading it.
+    /// numbers: guessing which number an entry has is worse than not reading it. With
+    /// `carriesOver`, the first lines up to the first entry finish the entry before the run
+    /// (`carried`), and the rest must count out.
     private static func entriesBesideNumberRun(
         _ table: LineTable,
         runIndex: Int,
-        run: NumberRun
-    ) -> (entries: [RawEntry], nextIndex: Int)? {
+        run: NumberRun,
+        carriesOver: Bool = false
+    ) -> (entries: [RawEntry], nextIndex: Int, carried: [String])? {
         var body: [String] = run.rest.isEmpty ? [] : [run.rest]
         var index = runIndex + 1
         let resumes = (run.numbers.last ?? 0) + 1
@@ -318,10 +370,24 @@ enum PaperReferenceParser {
             body.append(line)
             index += 1
         }
-        let groups = splitIntoEntries(body)
+        var groups = splitIntoEntries(body)
+        var carried: [String] = []
+        if carriesOver {
+            guard groups.count > 1 else { return nil }
+            carried = groups.removeFirst()
+        }
+        // A list that says what each paper showed (Nature's News & Views, Nature Reviews) sets a
+        // note under an entry ("The papers in references 1, 2 and 3 report …"). A note prints no
+        // year and opens with no author; an entry does one or the other.
+        if groups.count > run.numbers.count {
+            groups = groups.filter { group in
+                guard let first = group.first else { return false }
+                return opensWithAuthor(first) || !PaperReferenceIdentity.years(in: entryText(group)).isEmpty
+            }
+        }
         guard groups.count == run.numbers.count else { return nil }
         let entries = zip(run.numbers, groups).map { RawEntry(number: $0, lines: $1) }
-        return (entries, index)
+        return (entries, index, carried)
     }
 
     private static let pageTags: Set<String> = [
@@ -350,7 +416,11 @@ enum PaperReferenceParser {
             let opensByEnding = endsWithParenthesisedYear(tail)
                 && line.first?.isLetter == true
                 && line.split(whereSeparator: \.isWhitespace).count >= 3
-            if looksFinished(tail), opensWithAuthor(line) || opensByEnding {
+            // Authors printed with their first names (natbib's plain style: "Karel HM van Wely,
+            // Jelto Swaving, …") open an entry only after one that closed on its year or its
+            // address, since a line inside an author list opens the same way.
+            let opensByFullName = endsWithYearOrAddress(tail) && opensWithFullName(line)
+            if looksFinished(tail), opensWithAuthor(line) || opensByEnding || opensByFullName {
                 groups.append([line])
                 tail = [line]
             } else {
@@ -362,21 +432,14 @@ enum PaperReferenceParser {
         return groups
     }
 
-    static func opensWithAuthor(_ line: String) -> Bool {
-        guard let opener = authorYearStart else { return false }
-        return opener.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) != nil
-    }
+    static func opensWithAuthor(_ line: String) -> Bool { ReferenceEntryShape.opensWithAuthor(line) }
+    static func opensWithFullName(_ line: String) -> Bool { ReferenceEntryShape.opensWithFullName(line) }
+    static func endsWithYearOrAddress(_ lines: [String]) -> Bool { ReferenceEntryShape.endsWithYearOrAddress(lines) }
+    static func looksFinished(_ lines: [String]) -> Bool { ReferenceEntryShape.looksFinished(lines) }
 
     private static func endsWithParenthesisedYear(_ lines: [String]) -> Bool {
         let text = lines.suffix(2).joined(separator: " ").trimmingCharacters(in: .whitespaces)
         return text.range(of: #"\((?:19|20)\d{2}[a-z]?\)\.?$"#, options: .regularExpression) != nil
-    }
-
-    /// Whether the lines read as a whole reference: long enough, and ending where one ends.
-    static func looksFinished(_ lines: [String]) -> Bool {
-        let text = lines.suffix(3).joined(separator: " ").trimmingCharacters(in: .whitespaces)
-        guard text.count >= 25, let last = text.last else { return false }
-        return last.isNumber || ".)]\"'\u{201D}\u{2019}".contains(last)
     }
 
     /// The headings a paper prints after its list, which end the last entry.
@@ -453,13 +516,6 @@ enum PaperReferenceParser {
 
     // MARK: Author-year lists
 
-    /// A line that opens an author-year entry: a surname, then either a comma and initials
-    /// ("Smith, J.", "van der Berg, A.B.", "Lee, K-H.") or initials without the comma
-    /// ("Albamonte MS,", "Allen JF,").
-    private static let authorYearStart: NSRegularExpression? = try? NSRegularExpression(
-        pattern: #"^(?:\p{Lu}[\p{L}'\x{2019}\-]+(?:\s(?:de|van|von|der|den|la|le|del|di|da|el|al|bin|ibn|ten|ter|dos|das|du|\p{Lu}[\p{L}'\x{2019}\-]+)){0,3},\s+\p{Lu}[.\p{L}\-]{0,3}(?:[\s.,]|$)|(?:(?:de|van|von|der|den|la|le|del|di|da|el|al|bin|ibn|ten|ter|dos|das|du)\s)*\p{Lu}[\p{L}'\x{2019}\-]+\s\p{Lu}{1,3}[,.])"#
-    )
-
     private static let yearExpression: NSRegularExpression? = try? NSRegularExpression(
         pattern: #"\b((?:19|20)\d{2})([a-z]?)\b"#
     )
@@ -474,7 +530,7 @@ enum PaperReferenceParser {
             kept.append(line)
         }
         // Lines before the first author belong to no entry.
-        let firstAuthor = kept.firstIndex(where: opensWithAuthor) ?? kept.count
+        let firstAuthor = kept.firstIndex(where: { opensWithAuthor($0) || opensWithFullName($0) }) ?? kept.count
         let groups = splitIntoEntries(Array(kept[firstAuthor...]))
         var entries: [Entry] = []
         for group in groups {
@@ -490,7 +546,7 @@ enum PaperReferenceParser {
     /// the first year it prints. Nil for an entry that prints no year.
     static func authorYearLabel(of text: String) -> String? {
         guard let comma = text.firstIndex(of: ","), let year = yearExpression,
-              let surname = SlideCitationService.surname(inAuthorEntry: String(text[..<comma])),
+              let surname = SlideCitationService.surname(inAuthorEntry: PaperReferenceSummary.firstName(in: String(text[..<comma]))),
               surname.count <= 40 else { return nil }
         let range = NSRange(text.startIndex..., in: text)
         guard let match = year.firstMatch(in: text, range: range),

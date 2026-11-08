@@ -65,11 +65,14 @@ final class ReaderPDFReferencePreview {
     /// The source a page of the document belongs to, for a link seam that
     /// keeps its links by source. A book is one document of many sources.
     var sourceIDOfPage: ((Int) -> String?)?
-    /// The seam through which a reference entry's own link reaches the card:
-    /// the address stored for the entry when its paper was added, if any. The
-    /// card shows what this returns first; with nothing, the DOI or address
-    /// the entry prints, then the paper Crossref matches it to.
-    var linkForEntry: (@MainActor (ReaderReferenceEntryRef) async -> URL?)?
+    /// The seam through which a reference entry's stored record reaches the
+    /// card: the entry of the paper's reference list read when the paper was
+    /// added (`PaperReferenceLinkService`), one entry a reference, with its
+    /// own link, title and authors. The card shows its link first, and its
+    /// first author, year and title in place of the words the PDF prints;
+    /// with nothing stored, the DOI or address the entry prints, then the
+    /// paper Crossref matches it to.
+    var referenceForEntry: (@MainActor (ReaderReferenceEntryRef) async -> PaperReference?)?
     /// What Crossref said an entry without a DOI names — a DOI address, or
     /// nil for nothing it could vouch for — so hovering it again asks nobody.
     private var identified: [String: String?] = [:]
@@ -364,6 +367,8 @@ final class ReaderPDFReferencePreview {
             sourceID: sourceID
         )
         item.link = ReaderReferenceLink.printed(inReferenceEntry: cited.text)
+        // The short form at once from the words; the stored entry refines it (`identify`).
+        item.summary = PaperReferenceSummary(entryText: cited.text, stored: nil)
         guard let document, !cited.pieces.isEmpty else { return item }
         // The words as the page's own text reads them, to line the card's up with.
         let pieces = cited.pieces.compactMap { piece -> (pageIndex: Int, range: NSRange, text: String)? in
@@ -437,12 +442,17 @@ final class ReaderPDFReferencePreview {
     /// DOI printed in the entry settles it; an entry without one is matched
     /// against the library's titles, and failing that, against Crossref.
     private func identify(_ item: ReaderReferenceEntryItem) async {
-        if let linkForEntry,
-           let url = await linkForEntry(ReaderReferenceEntryRef(sourceID: item.sourceID, number: item.number, text: item.text)) {
-            item.link = url
-        }
+        let stored = await referenceForEntry?(ReaderReferenceEntryRef(sourceID: item.sourceID, number: item.number, text: item.text))
+        // The stored entry is one reference, split from the list as the paper prints it, with
+        // the link of that reference alone: it wins over an address read off the PDF's words.
+        if let url = stored?.linkURL { item.link = url }
+        item.summary = PaperReferenceSummary(entryText: stored?.text ?? item.text, stored: stored)
         guard let library else {
             item.library = .notAPaper
+            return
+        }
+        if let href = stored?.linkURL?.absoluteString {
+            item.library = await status(ofReference: href, in: library)
             return
         }
         let text = item.text
@@ -512,7 +522,7 @@ final class ReaderPDFReferencePreview {
     }
 }
 
-/// A reference entry, as the link seam (`ReaderPDFReferencePreview.linkForEntry`)
+/// A reference entry, as the seam (`ReaderPDFReferencePreview.referenceForEntry`)
 /// is asked about it: the source it was read from, when the reader knows it,
 /// its number in the reference list when it is numbered, and its text.
 struct ReaderReferenceEntryRef: Sendable, Equatable {
@@ -560,9 +570,13 @@ final class ReaderReferenceEntryItem: Identifiable {
     let firstPage: Int
     let sourceID: String?
     var library: Library = .checking
-    /// The entry's own address: the DOI or link it prints, what the link seam
-    /// gave, or the paper Crossref matched it to.
+    /// The entry's own address: the DOI or link it prints, what the stored
+    /// entry holds, or the paper Crossref matched it to.
     var link: URL?
+    /// The entry in a few words: first author, year, title. Read from the words
+    /// when the card opens and from the stored entry once it is looked up; with
+    /// no title to show, the card shows the words.
+    var summary: PaperReferenceSummary?
     /// The highlights on its words.
     var marks: [ReaderReferenceMark] = []
     /// The words selected, with the box they fill.
@@ -661,27 +675,71 @@ private struct ReaderReferenceEntryView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            ZStack(alignment: .topLeading) {
-                ReaderReferenceText(
-                    text: item.text,
-                    marks: item.marks,
-                    selectionChanged: { item.selection = $0.map { (range: $0.0, rect: $0.1) } },
-                    pressed: card.pressed,
-                    handle: item.textHandle
-                )
-                .frame(maxWidth: .infinity, alignment: .leading)
-                if item.canHighlight, let selection = item.selection {
-                    ReaderReferenceHighlightBar { color in
-                        card.highlight(item, selection.range, color)
+            if let summary = item.summary, let title = summary.title {
+                VStack(alignment: .leading, spacing: 3) {
+                    if let byline = summary.byline {
+                        Text(byline)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .textSelection(.enabled)
                     }
-                    .offset(barOffset(over: selection.rect))
+                    titleText(title)
                 }
+            } else {
+                words(in: NSRange(location: 0, length: (item.text as NSString).length))
             }
             if item.hasFooter {
                 footer
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .textSelection(.disabled)
+            }
+        }
+    }
+
+    /// The title: the entry's own words on the page when it prints them, so they
+    /// can be highlighted as before; a catalog's title it does not print, as text.
+    @ViewBuilder
+    private func titleText(_ title: String) -> some View {
+        let printed = (item.text as NSString).range(of: title, options: [.caseInsensitive, .diacriticInsensitive])
+        if printed.location != NSNotFound {
+            words(in: printed)
+        } else {
+            Text(title)
+                .font(.callout)
+                .textSelection(.enabled)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+    }
+
+    /// The entry's words in `range` of its text, selectable and highlightable: a
+    /// selection and the marks are kept in the whole text's numbering.
+    private func words(in range: NSRange) -> some View {
+        let shown = (item.text as NSString).substring(with: range)
+        let marks = item.marks.compactMap { mark -> ReaderReferenceMark? in
+            let overlap = NSIntersectionRange(mark.range, range)
+            guard overlap.length > 0 else { return nil }
+            return ReaderReferenceMark(range: NSRange(location: overlap.location - range.location, length: overlap.length), color: mark.color)
+        }
+        return ZStack(alignment: .topLeading) {
+            ReaderReferenceText(
+                text: shown,
+                marks: marks,
+                selectionChanged: { selected in
+                    item.selection = selected.map {
+                        (range: NSRange(location: $0.0.location + range.location, length: $0.0.length), rect: $0.1)
+                    }
+                },
+                pressed: card.pressed,
+                handle: item.textHandle
+            )
+            .frame(maxWidth: .infinity, alignment: .leading)
+            if item.canHighlight, let selection = item.selection {
+                ReaderReferenceHighlightBar { color in
+                    card.highlight(item, selection.range, color)
+                }
+                .offset(barOffset(over: selection.rect))
             }
         }
     }
