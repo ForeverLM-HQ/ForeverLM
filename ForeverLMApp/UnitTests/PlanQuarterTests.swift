@@ -261,6 +261,16 @@ struct PlanQuarterTests {
                 "a line rewritten meanwhile is not guessed at")
     }
 
+    @Test("An objective named after another wears its colour; families take colours in order")
+    func objectiveColorSlots() {
+        #expect(PlanQuarterWeeks.colorSlots(["Lab", "Thesis", "Thesis Bridge", "Grant"]) == [0, 1, 1, 2])
+        #expect(PlanQuarterWeeks.colorSlots(["Thesis Bridge", "Thesis"]) == [0, 0], "the family takes the colour its first member is given")
+        #expect(PlanQuarterWeeks.colorSlots(["Thesis", "Thesis Bridge", "Thesis Bridge Pilot"]) == [0, 0, 0], "the shortest name is the family")
+        #expect(PlanQuarterWeeks.colorSlots(["Lab", "Labrador"]) == [0, 1], "a name runs to a word boundary")
+        #expect(PlanQuarterWeeks.colorSlots(["AB", "AB test"]) == [0, 1], "names under three letters make no family")
+        #expect(PlanQuarterWeeks.colorSlots([]) == [])
+    }
+
     @Test("Hours read short")
     func hoursText() {
         #expect(PlanQuarterWeeks.hoursText(45) == "45 min")

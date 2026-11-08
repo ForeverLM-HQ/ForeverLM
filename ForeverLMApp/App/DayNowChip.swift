@@ -617,7 +617,7 @@ private struct DayNowPopover: View {
                     .lineLimit(2)
                     .fixedSize(horizontal: false, vertical: true)
                 if let objective = deliverable.objective, objective < plans.objectiveNames.count {
-                    objectiveTag(objective, name: plans.objectiveNames[objective])
+                    objectiveTag(colorSlot: plans.colorSlot(objective), name: plans.objectiveNames[objective])
                 }
             }
             Spacer(minLength: 6)
@@ -633,10 +633,10 @@ private struct DayNowPopover: View {
         .accessibilityIdentifier("studio.now.plan.deliverable")
     }
 
-    private func objectiveTag(_ index: Int, name: String) -> some View {
+    private func objectiveTag(colorSlot: Int, name: String) -> some View {
         HStack(spacing: 4) {
             Circle()
-                .fill(SpacePlanPage.objectiveColor(index))
+                .fill(SpacePlanPage.objectiveColor(colorSlot))
                 .frame(width: 6, height: 6)
             Text(name)
                 .zoomedSystemFont(size: 10.5)
@@ -717,7 +717,7 @@ private struct DayNowPopover: View {
     private func objectiveRow(_ index: Int, name: String, plans: PlanGlance) -> some View {
         HStack(spacing: 8) {
             Circle()
-                .fill(SpacePlanPage.objectiveColor(index))
+                .fill(SpacePlanPage.objectiveColor(plans.colorSlot(index)))
                 .frame(width: 7, height: 7)
                 .frame(width: 16)
             Text(name)

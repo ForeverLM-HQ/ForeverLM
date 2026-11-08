@@ -164,6 +164,13 @@ struct PlanGlance: Equatable, Sendable {
 
     /// The objectives' short names (`PlanQuarterWeeks.objectiveName`).
     var objectiveNames: [String] { objectives.map(PlanQuarterWeeks.objectiveName) }
+
+    /// The colour an objective wears, by its place: its family's
+    /// (`PlanQuarterWeeks.colorSlots`).
+    func colorSlot(_ index: Int) -> Int {
+        let slots = PlanQuarterWeeks.colorSlots(objectiveNames)
+        return slots.indices.contains(index) ? slots[index] : index
+    }
 }
 
 /// One week as the popover shows it: what it is to deliver, and the hours its
@@ -613,6 +620,33 @@ enum PlanQuarterWeeks {
             if best.map({ name.count > $0.length }) ?? true { best = (index, name.count) }
         }
         return best?.index
+    }
+
+    /// The colour slot each objective wears. An objective whose name opens
+    /// with another's, a word boundary after it, is of that one's family and
+    /// wears its colour: "Norn Talent Bridge" is Norn's (product owner,
+    /// 2026-11-08: "norn talent bridge and norn thesis should have the same
+    /// color"). Families take slots in the order they first appear, so the
+    /// colours stay put while objectives are only added below.
+    static func colorSlots(_ names: [String]) -> [Int] {
+        let lowered = names.map { $0.lowercased().trimmingCharacters(in: .whitespaces) }
+        /// The family an objective is of: the shortest other name it opens with.
+        func root(_ index: Int) -> Int {
+            var best = index
+            for (other, name) in lowered.enumerated() where other != index && name.count >= 3 {
+                guard lowered[index].hasPrefix(name + " "), name.count < lowered[best].count else { continue }
+                best = other
+            }
+            return best
+        }
+        var slotOfRoot: [Int: Int] = [:]
+        return names.indices.map { index in
+            let family = root(index)
+            if let slot = slotOfRoot[family] { return slot }
+            let slot = slotOfRoot.count
+            slotOfRoot[family] = slot
+            return slot
+        }
     }
 
     /// Minutes said short: "45 min", "3 h", "2.5 h".
