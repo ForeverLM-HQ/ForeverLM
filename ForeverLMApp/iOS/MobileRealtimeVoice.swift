@@ -220,9 +220,13 @@ enum MobileRealtimeVoicePick {
 /// The iPhone's part of a voice call: the microphone permission, and the audio
 /// session taken from narration and other players under the arbiter's
 /// `.conversation` lease, in the voice chat mode WebRTC runs in. WebRTC
-/// captures, plays, follows route changes (AirPods, CarPlay) and cancels echo.
+/// captures, plays, follows route changes (AirPods, CarPlay) and cancels echo,
+/// so a route change never needs the call reopened.
 final class MobileRealtimeVoicePlatformAudio: RealtimeVoicePlatformAudio, @unchecked Sendable {
-    func prepare(onPreempted: @escaping @Sendable () -> Void) async throws {
+    func prepare(
+        onPreempted: @escaping @Sendable () -> Void,
+        onDevicesChanged: @escaping @Sendable () -> Void
+    ) async throws {
         guard await AVAudioApplication.requestRecordPermission() else {
             throw MobileRealtimeVoiceAudioError.microphoneDenied
         }

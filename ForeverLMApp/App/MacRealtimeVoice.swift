@@ -1,6 +1,7 @@
 #if os(macOS)
 import AVFoundation
 import AppKit
+import CoreAudio
 import OSLog
 import SwiftUI
 
@@ -204,16 +205,130 @@ enum MacRealtimeVoice {
     }
 }
 
-/// The Mac's part of a voice call: the microphone permission. WebRTC opens the
-/// default input and output itself and cancels echo in software.
+/// The Mac's part of a voice call: the microphone permission, and watching the
+/// default speaker and microphone. WebRTC opens the defaults itself when a
+/// call opens and cancels echo in software, but keeps those devices for the
+/// whole call, so putting AirPods in mid-call would leave it on the built-in
+/// speaker and microphone until the controller reopens it.
 final class MacRealtimeVoicePlatformAudio: RealtimeVoicePlatformAudio, @unchecked Sendable {
-    func prepare(onPreempted: @escaping @Sendable () -> Void) async throws {
+    private let lock = NSLock()
+    private var watcher: MacDefaultAudioDevicesWatcher?
+
+    func prepare(
+        onPreempted: @escaping @Sendable () -> Void,
+        onDevicesChanged: @escaping @Sendable () -> Void
+    ) async throws {
         guard await AVCaptureDevice.requestAccess(for: .audio) else {
             throw MacRealtimeVoiceError.microphoneDenied
         }
+        let watcher = MacDefaultAudioDevicesWatcher(onChange: onDevicesChanged)
+        let previous = lock.withLock {
+            let previous = self.watcher
+            self.watcher = watcher
+            return previous
+        }
+        previous?.stop()
     }
 
-    func finish() async {}
+    func finish() async {
+        let watcher = lock.withLock {
+            let watcher = self.watcher
+            self.watcher = nil
+            return watcher
+        }
+        watcher?.stop()
+    }
+}
+
+/// Calls `onChange` when the Mac's default output or input device has become
+/// a different one. AirPods switch both, a moment apart, so changes are
+/// settled for a short while and reported once.
+final class MacDefaultAudioDevicesWatcher: @unchecked Sendable {
+    private static let selectors = [
+        kAudioHardwarePropertyDefaultOutputDevice,
+        kAudioHardwarePropertyDefaultInputDevice,
+    ]
+    private static let settleDelay: DispatchTimeInterval = .milliseconds(600)
+    private static let logger = Logger(subsystem: "com.foreverlm", category: "RealtimeVoice")
+
+    private let queue = DispatchQueue(label: "com.foreverlm.voice.audio-devices")
+    private let onChange: @Sendable () -> Void
+    private var listener: AudioObjectPropertyListenerBlock?
+    // Read and written on `queue` only.
+    private var reported: [AudioDeviceID]
+    private var pendingCheck: DispatchWorkItem?
+    private var isStopped = false
+
+    init(onChange: @escaping @Sendable () -> Void) {
+        self.onChange = onChange
+        reported = Self.currentDefaults()
+        let listener: AudioObjectPropertyListenerBlock = { [weak self] _, _ in
+            self?.scheduleCheck()
+        }
+        self.listener = listener
+        for selector in Self.selectors {
+            var address = Self.address(selector)
+            let status = AudioObjectAddPropertyListenerBlock(
+                AudioObjectID(kAudioObjectSystemObject), &address, queue, listener
+            )
+            if status != noErr {
+                Self.logger.error("Voice cannot watch the default audio device (\(selector)): \(status)")
+            }
+        }
+    }
+
+    /// Stops watching. Never called on `queue`.
+    func stop() {
+        queue.sync {
+            isStopped = true
+            pendingCheck?.cancel()
+            pendingCheck = nil
+        }
+        guard let listener else { return }
+        self.listener = nil
+        for selector in Self.selectors {
+            var address = Self.address(selector)
+            AudioObjectRemovePropertyListenerBlock(
+                AudioObjectID(kAudioObjectSystemObject), &address, queue, listener
+            )
+        }
+    }
+
+    /// On `queue`, where CoreAudio calls the listener.
+    private func scheduleCheck() {
+        guard !isStopped else { return }
+        pendingCheck?.cancel()
+        let check = DispatchWorkItem { [weak self] in
+            guard let self, !self.isStopped else { return }
+            let now = Self.currentDefaults()
+            guard now != self.reported else { return }
+            self.reported = now
+            Self.logger.notice("Voice default audio devices changed (output, input): \(now, privacy: .public)")
+            self.onChange()
+        }
+        pendingCheck = check
+        queue.asyncAfter(deadline: .now() + Self.settleDelay, execute: check)
+    }
+
+    private static func currentDefaults() -> [AudioDeviceID] {
+        selectors.map { selector in
+            var address = address(selector)
+            var device = AudioDeviceID(kAudioObjectUnknown)
+            var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+            let status = AudioObjectGetPropertyData(
+                AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &device
+            )
+            return status == noErr ? device : AudioDeviceID(kAudioObjectUnknown)
+        }
+    }
+
+    private static func address(_ selector: AudioObjectPropertySelector) -> AudioObjectPropertyAddress {
+        AudioObjectPropertyAddress(
+            mSelector: selector,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+    }
 }
 
 enum MacRealtimeVoiceError: LocalizedError {

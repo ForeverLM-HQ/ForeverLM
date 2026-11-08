@@ -3,12 +3,18 @@ import Foundation
 import OSLog
 
 /// What a platform does around a voice call that WebRTC does not: ask for the
-/// microphone and, on the iPhone, take the audio session from narration and
-/// other players. WebRTC captures, plays and cancels echo itself.
+/// microphone, on the iPhone take the audio session from narration and other
+/// players, and on the Mac say when the default speaker or microphone changes.
+/// WebRTC captures, plays and cancels echo itself.
 protocol RealtimeVoicePlatformAudio: AnyObject, Sendable {
     /// Throws a learner-readable error when the microphone cannot be used.
     /// `onPreempted` is called if something else takes the audio for good.
-    func prepare(onPreempted: @escaping @Sendable () -> Void) async throws
+    /// `onDevicesChanged` is called when the call should move to other audio
+    /// devices that WebRTC will not move it to itself.
+    func prepare(
+        onPreempted: @escaping @Sendable () -> Void,
+        onDevicesChanged: @escaping @Sendable () -> Void
+    ) async throws
     func finish() async
 }
 
@@ -98,6 +104,8 @@ final class RealtimeVoiceController: ObservableObject {
     private var currentOutputItemID: String?
     private var endsAfterReply = false
     private var endFallbackTask: Task<Void, Never>?
+    /// The audio devices changed while a call was opening; it reopens once live.
+    private var devicesChangedWhileConnecting = false
 
     /// `readVoice` answers the learner's voice pick (the synced
     /// `RealtimeVoiceDefaults.voicePreferenceKey`), read at each start so a
@@ -241,12 +249,18 @@ final class RealtimeVoiceController: ObservableObject {
 
         do {
             if !hasAudio {
-                try await platformAudio.prepare(onPreempted: { [weak self] in
-                    Task { @MainActor in await self?.end() }
-                })
+                try await platformAudio.prepare(
+                    onPreempted: { [weak self] in
+                        Task { @MainActor in await self?.end() }
+                    },
+                    onDevicesChanged: { [weak self] in
+                        Task { @MainActor in self?.audioDevicesChanged() }
+                    }
+                )
                 hasAudio = true
             }
             guard lifecycle == id else { return }
+            devicesChangedWhileConnecting = false
             try await connect(isResume: !transcript.isEmpty, lifecycleID: id)
         } catch {
             guard lifecycle == id else { return }
@@ -257,6 +271,7 @@ final class RealtimeVoiceController: ObservableObject {
         phase = .live
         if statusText == "Connecting…" { statusText = "Listening" }
         Self.logger.info("Voice live: \(self.brief?.source?.id ?? "assistant", privacy: .public)")
+        reopenIfDevicesChangedWhileConnecting()
     }
 
     /// Mints a secret with the whole session on it, opens the call, and starts
@@ -364,14 +379,14 @@ final class RealtimeVoiceController: ObservableObject {
 
     // MARK: - Recovery
 
-    private func scheduleRecovery(after message: String) {
+    private func scheduleRecovery(after message: String, status: String = "Reconnecting…") {
         guard phase == .live, recoveryTask == nil else { return }
-        Self.logger.notice("Voice call dropped: \(message, privacy: .public)")
+        Self.logger.notice("Voice call reopening: \(message, privacy: .public)")
         if let itemID = currentOutputItemID, let index = transcript.lastIndex(where: { $0.id == itemID }) {
             transcript[index].wasInterrupted = true
         }
         phase = .reconnecting
-        statusText = "Reconnecting…"
+        statusText = status
         recoveryTask = Task { @MainActor [weak self] in
             await self?.recover()
         }
@@ -390,12 +405,14 @@ final class RealtimeVoiceController: ObservableObject {
             try? await Task.sleep(for: .milliseconds(Int(delay * 1_000)))
             guard lifecycle == id, phase == .reconnecting else { return }
             do {
+                devicesChangedWhileConnecting = false
                 try await connect(isResume: true, lifecycleID: id)
                 guard lifecycle == id else { return }
                 recoveryTask = nil
                 phase = .live
                 statusText = "Listening"
                 errorMessage = nil
+                reopenIfDevicesChangedWhileConnecting()
                 return
             } catch {
                 guard lifecycle == id else { return }
@@ -411,6 +428,29 @@ final class RealtimeVoiceController: ObservableObject {
         }
         recoveryTask = nil
         fail("The voice connection dropped and could not come back. Resume to keep going.")
+    }
+
+    /// The Mac's default speaker or microphone changed: AirPods put in, taken
+    /// out, or switched over from the iPhone. WebRTC on the Mac plays and
+    /// records on the devices that were the default when the call opened and
+    /// never follows a change (its iPhone audio follows the route itself), so
+    /// the call is reopened on the new ones, carrying what ForeverLM said, the
+    /// way a dropped call is.
+    private func audioDevicesChanged() {
+        switch phase {
+        case .live:
+            scheduleRecovery(after: "the default audio devices changed", status: "Switching audio…")
+        case .connecting, .reconnecting:
+            devicesChangedWhileConnecting = true
+        case .idle, .ending, .failed:
+            break
+        }
+    }
+
+    private func reopenIfDevicesChangedWhileConnecting() {
+        guard devicesChangedWhileConnecting else { return }
+        devicesChangedWhileConnecting = false
+        audioDevicesChanged()
     }
 
     // MARK: - Server events
