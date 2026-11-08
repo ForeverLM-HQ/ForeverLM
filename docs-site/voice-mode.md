@@ -30,19 +30,23 @@ The assistant is the same conversation about you instead of one source. When it 
 
 Ask it what to work on next, to go over your day, or about a paper you read last week. It can find any source in your library, open it, and talk about it or quiz you on it, and it looks things up again when the picture it started with is not enough. It never changes your library, plan or calendar.
 
+- **iPhone:** the **waveform** at the top of Home.
+- **Mac:** the **waveform** at the bottom of the icon strip on the left of every window, or **Chat › Talk to ForeverLM**.
+- **CarPlay:** open ForeverLM and start talking. The assistant greets you with one useful thing, such as what is next in your plan or the paper you were last into, and keeps every answer short enough to follow while driving.
+
 On the iPhone and in CarPlay, ask for "my review" or "my cards" and it goes through today's cards out loud: it asks each card, tells you whether you had it, and records Remembered or Forgot just as the card review does.
+
+On the iPhone, the first time the assistant starts it asks for access to your calendar. Without it, the assistant still knows everything else.
+
+## Continue a chat by voice
+
+On the Mac, the **waveform** beside the microphone in a chat's message box carries that chat on out loud. ForeverLM knows what the chat said so far and picks up where it left off. When you end the call, what ForeverLM said is added to the chat as one reply, with a mark wherever you spoke (your words are not transcribed), so you can keep typing from there.
 
 ## Review your cards by voice
 
 On the iPhone, open today's card review and choose **⋯** › **Review by Voice**. Voice mode starts with today's cards in the scope the review shows (all notebooks, or one), and asks the first one straight away. Answer in your own words: it judges the meaning, not the wording, says whether you had it and what the answer is, records Remembered or Forgot, and asks the next. Say "I don't know" to hear the answer. When you end, the card review shows the cards still due.
 
 It is the same realtime conversation as the rest of voice mode, so you can interrupt it, and it is saved as a voice chat called Card Review.
-
-- **iPhone:** the **waveform** at the top of Home.
-- **Mac:** **Chat › Talk to ForeverLM**.
-- **CarPlay:** open ForeverLM and start talking. The assistant greets you with one useful thing, such as what is next in your plan or the paper you were last into, and keeps every answer short enough to follow while driving.
-
-On the iPhone, the first time the assistant starts it asks for access to your calendar. Without it, the assistant still knows everything else.
 
 ## While you talk
 

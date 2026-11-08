@@ -10,22 +10,36 @@ import OSLog
 enum MacRealtimeAssistant {
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "RealtimeAssistant")
 
-    static func brief() async -> RealtimeVoiceBrief {
+    /// `continuing` is a typed chat carried on out loud
+    /// (`RealtimeVoiceChatContinuation`): the assistant also knows the chat so
+    /// far and opens by picking it up.
+    static func brief(continuing chat: RealtimeVoiceChatContinuation.Chat? = nil) async -> RealtimeVoiceBrief {
         let toolbox = Toolbox()
         async let plan = toolbox.mcp("get_plan", [:])
         async let calendar = toolbox.mcp("get_calendar_events", ["days": 7])
         async let goals = toolbox.goalsText()
         async let recent = toolbox.recentText()
-        let sections = await [
+        var sections = await [
             RealtimeVoiceAssistant.Section(title: "Quarter plan", text: plan),
             RealtimeVoiceAssistant.Section(title: "Calendar this week", text: calendar),
             RealtimeVoiceAssistant.Section(title: "Goals and notebooks", text: goals),
             RealtimeVoiceAssistant.Section(title: "Recent work", text: recent),
         ]
+        var instructions: String
+        let kickoff: String
+        if let chat {
+            sections.append(RealtimeVoiceChatContinuation.section(for: chat))
+            instructions = RealtimeVoiceAssistant.instructions(sections: sections, setting: .mac)
+            instructions += "\n\n" + RealtimeVoiceChatContinuation.instructions
+            kickoff = RealtimeVoiceChatContinuation.kickoff(hasMessages: !chat.turns.isEmpty)
+        } else {
+            instructions = RealtimeVoiceAssistant.instructions(sections: sections, setting: .mac)
+            kickoff = RealtimeVoiceAssistant.kickoff(setting: .mac)
+        }
         return RealtimeVoiceBrief(
-            title: RealtimeVoiceAssistant.title,
-            instructions: RealtimeVoiceAssistant.instructions(sections: sections, setting: .mac),
-            kickoff: RealtimeVoiceAssistant.kickoff(setting: .mac),
+            title: chat.map { $0.title.isEmpty ? RealtimeVoiceAssistant.title : $0.title } ?? RealtimeVoiceAssistant.title,
+            instructions: instructions,
+            kickoff: kickoff,
             toolbox: toolbox,
             source: nil
         )

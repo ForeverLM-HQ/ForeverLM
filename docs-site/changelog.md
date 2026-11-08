@@ -6,6 +6,8 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **Voice mode is one click away on the Mac:** the **waveform** at the bottom of the icon strip starts Talk to ForeverLM from any window.
+- **Continue a chat by voice:** the **waveform** beside the microphone in a chat carries the chat on out loud, and what ForeverLM said comes back into the chat when you end the call. See [Voice Mode](/voice-mode#continue-a-chat-by-voice).
 - **ForeverLM no longer writes review questions in the background.** The setting **Prepare review questions ahead of time** is gone; a review writes its questions when it starts.
 - **Video overviews are made from papers and articles only**, as intended; talks and podcasts no longer ground them.
 - **Live meetings.** **Chat → Live Meeting** transcribes a call as it happens, on this Mac, in any meeting app: you are **Me**, everyone else is **Them**. **Watch Slides…** keeps a picture of each new slide from the window you pick, and **Ask** opens a chat beside it that reads everything said and shown so far. **Stop** saves it under Meetings. Needs macOS 26. See [Live Meetings](/macos-app#live-meetings).

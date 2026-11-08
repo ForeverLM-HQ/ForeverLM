@@ -4644,6 +4644,7 @@ private struct InternalReviewPanelContent: View {
                     // trailing edge below.
                     if !manager.canStopGeneration {
                         composerMicControl
+                        composerVoiceModeButton
                     }
 
                     // Only once the context is filling up: until then the ring
@@ -4759,6 +4760,34 @@ private struct InternalReviewPanelContent: View {
             .accessibilityLabel("Dictate message")
             .accessibilityIdentifier("mac.chatDictation")
         }
+    }
+
+    /// Voice mode from the chat, as ChatGPT's composer has it beside dictation:
+    /// the conversation carries this chat on out loud, knowing what was said,
+    /// and what ForeverLM says comes back into the chat when the call ends
+    /// (`RealtimeVoiceChatContinuation`). A chat with no row yet starts voice
+    /// mode's assistant, which keeps its own voice chat.
+    private var composerVoiceModeButton: some View {
+        Button {
+            guard let chat = manager.voiceContinuationChat else {
+                MacRealtimeVoice.startAssistant()
+                return
+            }
+            let manager = manager
+            MacRealtimeVoice.continueChat(chat) { note in
+                await manager.appendVoiceConversation(note, toSession: chat.sessionID)
+            }
+        } label: {
+            Image(systemName: "waveform")
+                .font(.system(size: 12, weight: .semibold))
+                .frame(width: 22, height: 22)
+                .foregroundStyle(.secondary)
+        }
+        .buttonStyle(.hoverWash(in: Circle(), opacity: 0.12))
+        .disabled(manager.isBusyOutsideTurn)
+        .help("Continue this chat by voice")
+        .accessibilityLabel("Continue this chat by voice")
+        .accessibilityIdentifier("mac.chatVoiceMode")
     }
 
     /// The ring is drawn once the request fills this much of the model's

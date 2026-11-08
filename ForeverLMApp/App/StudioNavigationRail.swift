@@ -718,6 +718,20 @@ struct StudioNavigationRail: View {
                 RailUpdateButton(updateController: appUpdates, isCompact: true)
                     .transition(.scale(scale: 0.8).combined(with: .opacity))
             }
+            // Voice mode, one click from anywhere (product owner, 2026-11-08:
+            // "I should just be able to open voice mode ... in the bottom left
+            // where those icons are"): the assistant that knows the plan, the
+            // calendar and recent work (`MacRealtimeAssistant`).
+            Button {
+                MacRealtimeVoice.startAssistant()
+            } label: {
+                RailGlyph(systemImage: "waveform")
+                    .contentShape(Rectangle())
+            }
+            .buttonStyle(.hoverWash(cornerRadius: 7, inset: 0))
+            .railTooltip("Talk to ForeverLM")
+            .accessibilityLabel("Talk to ForeverLM")
+            .accessibilityIdentifier("studio.navigation.voice")
             // What an AI app set the app's models to do, an explainer, an
             // import: the app's logo, over the paid work (product owner, 2026-10-13).
             StudioWorkButton()

@@ -29,6 +29,10 @@ enum MacRealtimeVoice {
 
     private static var currentNotebookID: String?
     private static var currentContext: VoiceContextItem?
+    /// Where the conversation under way goes back to when it is a typed chat
+    /// carried on out loud (`continueChat`): it writes ForeverLM's side into
+    /// that chat instead of saving a voice chat of its own.
+    private static var currentChatWriter: (@MainActor (String) async -> Void)?
     /// True while one conversation is ended to make way for another, so the
     /// panel does not close in between.
     private(set) static var isReplacing = false
@@ -50,6 +54,7 @@ enum MacRealtimeVoice {
             }
             currentContext = VoiceContextItem(id: id, title: title, subtitle: byline.isEmpty ? nil : byline, sourceType: sourceType)
             currentNotebookID = notebookID
+            currentChatWriter = nil
             MacRealtimeVoicePanel.shared.show()
             await controller.start(title: title, opening: opening) {
                 guard let text = await StorageService().loadSourceContent(id) else {
@@ -78,9 +83,35 @@ enum MacRealtimeVoice {
             }
             currentContext = nil
             currentNotebookID = nil
+            currentChatWriter = nil
             MacRealtimeVoicePanel.shared.show()
             await controller.start(title: RealtimeVoiceAssistant.title, status: "Getting your day together…") {
                 await MacRealtimeAssistant.brief()
+            }
+        }
+    }
+
+    /// A typed chat carried on out loud (the chat composer's voice button):
+    /// the assistant, knowing the chat so far, opens by picking it up, and when
+    /// the call ends `write` puts what ForeverLM said into that chat
+    /// (`RealtimeVoiceChatContinuation.note`). No separate voice chat is saved.
+    static func continueChat(
+        _ chat: RealtimeVoiceChatContinuation.Chat,
+        write: @escaping @MainActor (String) async -> Void
+    ) {
+        Task {
+            if controller.isActive {
+                isReplacing = true
+                await controller.end()
+                isReplacing = false
+            }
+            currentContext = nil
+            currentNotebookID = nil
+            currentChatWriter = write
+            MacRealtimeVoicePanel.shared.show()
+            let title = chat.title.isEmpty ? RealtimeVoiceAssistant.title : chat.title
+            await controller.start(title: title, status: "Picking up the chat…") {
+                await MacRealtimeAssistant.brief(continuing: chat)
             }
         }
     }
@@ -94,6 +125,16 @@ enum MacRealtimeVoice {
     /// what the learner said and its score, the session with the mean, and
     /// each source marked reviewed on the Schedule.
     private static func save(_ finished: RealtimeVoiceController.Finished) {
+        if let write = currentChatWriter {
+            currentChatWriter = nil
+            guard let note = RealtimeVoiceChatContinuation.note(
+                turns: finished.turns,
+                startedAt: finished.startedAt,
+                endedAt: Date()
+            ) else { return }
+            Task { await write(note) }
+            return
+        }
         let exchanges = RealtimeVoiceExchange.exchanges(from: finished.turns, answers: finished.answers)
         guard !exchanges.isEmpty else { return }
         let overallScore = RealtimeVoiceExchange.overallScore(of: exchanges)

@@ -1957,6 +1957,65 @@ final class ReviewSessionManager {
         }
     }
 
+    /// The chat as voice mode is told it when the learner carries it on out
+    /// loud (`RealtimeVoiceChatContinuation`): what was typed and what was
+    /// answered, with tool rows and empty turns left out. Nil while no chat
+    /// is open.
+    var voiceContinuationChat: RealtimeVoiceChatContinuation.Chat? {
+        guard let sessionID else { return nil }
+        let turns: [RealtimeVoiceChatContinuation.ChatTurn] = chatMessages.compactMap { message in
+            let text = message.content.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !text.isEmpty else { return nil }
+            switch message.role {
+            case .user: return .init(role: .learner, text: text)
+            case .assistant: return .init(role: .assistant, text: text)
+            case .tool: return nil
+            }
+        }
+        return RealtimeVoiceChatContinuation.Chat(sessionID: sessionID, title: topic, turns: turns)
+    }
+
+    /// Keeps what ForeverLM said in a voice conversation that carried chat
+    /// `targetSessionID` on (`RealtimeVoiceChatContinuation.note`) as one reply
+    /// in it. Shown at once when that chat is the one open here, after any
+    /// typed turn still running; written to the store alone when the learner
+    /// has moved to another chat meanwhile, where it shows on reopening.
+    func appendVoiceConversation(_ note: String, toSession targetSessionID: String) async {
+        if sessionID == targetSessionID {
+            // Not in the middle of a typed reply: the note follows it.
+            var waited = 0
+            while canStopGeneration, waited < 600 {
+                try? await Task.sleep(for: .milliseconds(500))
+                waited += 1
+            }
+        }
+        guard sessionID == targetSessionID else {
+            do {
+                _ = try await storage.addReviewPrompt(sessionID: targetSessionID, question: note, sourceRefs: [])
+            } catch {
+                logger.error("Voice conversation not kept in chat \(targetSessionID, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            }
+            return
+        }
+        chatMessages.append(Message(role: .assistant, content: note))
+        do {
+            let sequence = try await storage.addReviewPrompt(
+                sessionID: targetSessionID,
+                question: note,
+                sourceRefs: activeSourceIDs
+            )
+            await updateLastMessagePersistence(
+                role: .assistant,
+                content: note,
+                sequence: sequence,
+                field: .question
+            )
+        } catch {
+            errorMessage = "The voice conversation could not be added to this chat: \(error.localizedDescription)"
+            logger.error("Voice conversation not kept in chat \(targetSessionID, privacy: .public): \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
     /// Start today's memory review: plan it, then open it as an ordinary review
     /// chat whose stable briefing is the plan and the material.
     ///
