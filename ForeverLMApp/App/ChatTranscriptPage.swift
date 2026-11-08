@@ -24,8 +24,8 @@ import WebKit
 /// draws the learner's turns, replies with their steps and footer, suggested
 /// questions and the working line. A chat holding anything else — a side
 /// question's lane, saved cards, a page card, a walk, a memory review's cards —
-/// stays on the native transcript (`draws(_:)`), and the page is off unless
-/// `isEnabled`.
+/// stays on the native transcript (`draws(_:)`). The page is on unless
+/// `isEnabled` says it was turned off.
 struct ChatTranscriptPage: NSViewRepresentable {
     // MARK: What the page draws
 
@@ -189,11 +189,13 @@ struct ChatTranscriptPage: NSViewRepresentable {
 
     // MARK: When the page is used
 
-    /// The switch while the page is new: off unless set with
-    /// `defaults write com.foreverlm chatTranscriptOnePage -bool YES`
+    /// On by default (product owner, 2026-11-08: "I think it's still glitchy
+    /// actually, so please fix that": the native list still guessed heights).
+    /// While the page is new it can be turned off with
+    /// `defaults write com.foreverlm chatTranscriptOnePage -bool NO`
     /// (`com.foreverlm.dev` for the Dev app).
     static var isEnabled: Bool {
-        UserDefaults.standard.bool(forKey: "chatTranscriptOnePage")
+        UserDefaults.standard.object(forKey: "chatTranscriptOnePage") as? Bool ?? true
     }
 
     /// Whether the page draws every row of these sections. Anything it does
