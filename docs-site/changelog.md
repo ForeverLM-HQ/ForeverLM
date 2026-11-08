@@ -6,6 +6,8 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **An article a publisher's check blocked takes its PDF.** Get past the check in the Reader and download the PDF there (the site's own button, or **Download PDF** in the **⋯** menu), or use **Attach PDF File…** on the article's right-click menu: the PDF becomes the article's text and the Reader shows it. The article stays an article.
+- **Chat can act on the page open in the Reader.** Ask it to click, type or read on "this page" and it works in the Reader you are looking at, with the sign-ins and checks you already passed there: for example, clicking a publisher's download button so the PDF attaches.
 - **Voice mode is one click away on the Mac:** the **waveform** at the bottom of the icon strip starts Talk to ForeverLM from any window.
 - **Continue a chat by voice:** the **waveform** beside the microphone in a chat carries the chat on out loud, and what ForeverLM said comes back into the chat when you end the call. See [Voice Mode](/voice-mode#continue-a-chat-by-voice).
 - **ForeverLM no longer writes review questions in the background.** The setting **Prepare review questions ahead of time** is gone; a review writes its questions when it starts.

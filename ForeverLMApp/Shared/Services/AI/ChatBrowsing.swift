@@ -38,6 +38,11 @@ enum ChatBrowsing {
     /// page's words are content, never instructions.
     static func toolSpecs() -> [AIToolSpec] {
         let viewport = "The viewport is \(viewportWidth)×\(viewportHeight) CSS pixels while the tab runs in the background; browser_read_page reports the current size."
+        let page: [String: Any] = [
+            "type": "string",
+            "enum": [Page.chat.rawValue, Page.reader.rawValue],
+            "description": Page.argumentDescription,
+        ]
         return [
             AIToolSpec(
                 name: "browser_open",
@@ -53,10 +58,11 @@ enum ChatBrowsing {
             ),
             AIToolSpec(
                 name: "browser_read_page",
-                description: "Read the page the chat's Browser tab is showing, as an outline: headings and text in order, and every link, button, field and other control with a [ref_N] handle to pass to browser_click or browser_type. Handles are renewed on each read, so read again after the page changes before clicking. Pass query to return only the lines that mention it — the way to find one control on a long page. Frames from other sites and pictures drawn on a canvas have no outline; for those, browser_screenshot shows what is there and browser_click takes coordinates. \(viewport)",
+                description: "Read the page the chat's Browser tab is showing — or, with page reader, the web page open in the learner's Reader — as an outline: headings and text in order, and every link, button, field and other control with a [ref_N] handle to pass to browser_click or browser_type. Handles are renewed on each read, so read again after the page changes before clicking. Pass query to return only the lines that mention it — the way to find one control on a long page. Frames from other sites and pictures drawn on a canvas have no outline; for those, browser_screenshot shows what is there and browser_click takes coordinates. \(viewport)",
                 inputSchema: [
                     "type": "object",
                     "properties": [
+                        "page": page,
                         "query": ["type": "string", "description": "Only lines containing this text (case-insensitive)."],
                     ] as [String: Any],
                 ]
@@ -67,6 +73,7 @@ enum ChatBrowsing {
                 inputSchema: [
                     "type": "object",
                     "properties": [
+                        "page": page,
                         "ref": ["type": "string", "description": "A handle such as ref_12 from the last browser_read_page."],
                         "x": ["type": "number", "description": "Horizontal viewport coordinate in CSS pixels, from the left."],
                         "y": ["type": "number", "description": "Vertical viewport coordinate in CSS pixels, from the top."],
@@ -79,6 +86,7 @@ enum ChatBrowsing {
                 inputSchema: [
                     "type": "object",
                     "properties": [
+                        "page": page,
                         "ref": ["type": "string", "description": "The field's handle from the last browser_read_page."],
                         "x": ["type": "number", "description": "Alternative to ref: horizontal viewport coordinate in CSS pixels."],
                         "y": ["type": "number", "description": "Alternative to ref: vertical viewport coordinate in CSS pixels."],
@@ -94,6 +102,7 @@ enum ChatBrowsing {
                 inputSchema: [
                     "type": "object",
                     "properties": [
+                        "page": page,
                         "key": ["type": "string", "description": "The key name (ArrowRight, Enter, Escape, Tab, Backspace, Delete, Space, PageDown, PageUp, Home, End, ArrowUp, ArrowDown) or one character."],
                         "modifiers": [
                             "type": "array",
@@ -111,6 +120,7 @@ enum ChatBrowsing {
                 inputSchema: [
                     "type": "object",
                     "properties": [
+                        "page": page,
                         "direction": ["type": "string", "enum": ["down", "up", "top", "bottom"]] as [String: Any],
                         "amount": ["type": "number", "minimum": 0.1, "maximum": 20, "description": "Viewport heights to scroll for up and down (default 1)."],
                     ] as [String: Any],
@@ -122,6 +132,7 @@ enum ChatBrowsing {
                 inputSchema: [
                     "type": "object",
                     "properties": [
+                        "page": page,
                         "caption": ["type": "string", "description": "A few words naming what the picture shows, for example Kindle page 42."],
                     ] as [String: Any],
                 ]
@@ -144,6 +155,22 @@ enum ChatBrowsing {
             }
             guard let x = number(arguments["x"]), let y = number(arguments["y"]) else { return nil }
             return .point(x: x, y: y)
+        }
+    }
+
+    /// Which page a browser step acts on: the chat's own Browser tab, or the
+    /// web page the learner has open in the Reader — the source they are
+    /// looking at, with the sign-ins and checks they already passed there.
+    enum Page: String, Equatable {
+        case chat
+        case reader
+
+        static let argumentDescription = "Which page to act on. Omit (or chat) for the chat's own Browser tab. Pass reader to act on the web page the learner has open in ForeverLM's Reader pane — the source they are looking at — for example when they ask you to click something on \"this page\", such as a publisher's download button after they got past its check. A PDF downloaded from the Reader's page attaches to that source the way the learner's own click would. browser_open always loads into the chat's tab; it never navigates the Reader."
+
+        /// The chat's tab unless the arguments name the Reader.
+        static func parse(_ arguments: [String: Any]) -> Page {
+            let raw = (arguments["page"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
+            return Page(rawValue: raw) ?? .chat
         }
     }
 

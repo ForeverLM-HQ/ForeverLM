@@ -132,7 +132,7 @@ final class StudioChatBrowserAgent: ChatBrowserAgent {
         let webView = workspace.webView(for: tab)
         host(webView)
         workspace.load(url, in: tab)
-        await waitForLoad(of: tab, webView: webView)
+        await waitForLoad(webView: webView)
         if let preview = await preview(of: webView) { onPreview(preview) }
         if let failure = tab.loadErrorMessage {
             return ChatBrowserToolOutcome(
@@ -142,7 +142,7 @@ final class StudioChatBrowserAgent: ChatBrowserAgent {
             )
         }
         let outline = await outline(of: webView)
-        var text = "Opened \(pageHeading(tab: tab, webView: webView, outline: outline))"
+        var text = "Opened \(pageHeading(DrivenPage(webView: webView, tab: tab), outline: outline))"
         if !profile.isLibrary { text += " under the \(profile.name) profile" }
         text += ".\n\n" + outlineText(outline, limit: ChatBrowsing.outlineCharacterLimit, query: nil)
         if tab.passkeyRequestURL != nil {
@@ -152,17 +152,27 @@ final class StudioChatBrowserAgent: ChatBrowserAgent {
     }
 
     private func readPage(arguments: [String: Any], onPreview: @escaping @MainActor (Data) -> Void) async -> ChatBrowserToolOutcome {
-        guard let (tab, webView) = current() else { return noTab() }
+        let page: DrivenPage
+        switch drivenPage(arguments) {
+        case .failed(let outcome): return outcome
+        case .found(let found): page = found
+        }
+        let webView = page.webView
         host(webView)
         let outline = await outline(of: webView)
         let query = (arguments["query"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let text = pageHeading(tab: tab, webView: webView, outline: outline) + "\n\n"
+        let text = page.lead + pageHeading(page, outline: outline) + "\n\n"
             + outlineText(outline, limit: ChatBrowsing.outlineCharacterLimit, query: query.flatMap { $0.isEmpty ? nil : $0 })
         return ChatBrowserToolOutcome(text: text, isError: false, preview: await preview(of: webView))
     }
 
     private func click(arguments: [String: Any], onPreview: @escaping @MainActor (Data) -> Void) async -> ChatBrowserToolOutcome {
-        guard let (tab, webView) = current() else { return noTab() }
+        let page: DrivenPage
+        switch drivenPage(arguments) {
+        case .failed(let outcome): return outcome
+        case .found(let found): page = found
+        }
+        let webView = page.webView
         guard let target = ChatBrowsing.Target.parse(arguments) else {
             return ChatBrowserToolOutcome(text: "Error: browser_click needs a ref from browser_read_page, or both x and y.", isError: true)
         }
@@ -174,13 +184,18 @@ final class StudioChatBrowserAgent: ChatBrowserAgent {
         case .success(let point):
             ChatBrowserInput.click(at: point, in: webView)
         }
-        await settle(tab: tab, webView: webView, navigatedFrom: before)
+        await settle(webView: webView, navigatedFrom: before)
         if let preview = await preview(of: webView) { onPreview(preview) }
-        return await actionOutcome(verb: "Clicked", tab: tab, webView: webView, navigatedFrom: before)
+        return await actionOutcome(verb: "Clicked", page: page, navigatedFrom: before)
     }
 
     private func type(arguments: [String: Any], onPreview: @escaping @MainActor (Data) -> Void) async -> ChatBrowserToolOutcome {
-        guard let (tab, webView) = current() else { return noTab() }
+        let page: DrivenPage
+        switch drivenPage(arguments) {
+        case .failed(let outcome): return outcome
+        case .found(let found): page = found
+        }
+        let webView = page.webView
         guard let text = arguments["text"] as? String, !text.isEmpty else {
             return ChatBrowserToolOutcome(text: "Error: browser_type needs text.", isError: true)
         }
@@ -206,13 +221,18 @@ final class StudioChatBrowserAgent: ChatBrowserAgent {
             try? await Task.sleep(for: .milliseconds(80))
             ChatBrowserInput.press(enter, in: webView)
         }
-        await settle(tab: tab, webView: webView, navigatedFrom: before)
+        await settle(webView: webView, navigatedFrom: before)
         if let preview = await preview(of: webView) { onPreview(preview) }
-        return await actionOutcome(verb: "Typed", tab: tab, webView: webView, navigatedFrom: before)
+        return await actionOutcome(verb: "Typed", page: page, navigatedFrom: before)
     }
 
     private func pressKey(arguments: [String: Any], onPreview: @escaping @MainActor (Data) -> Void) async -> ChatBrowserToolOutcome {
-        guard let (tab, webView) = current() else { return noTab() }
+        let page: DrivenPage
+        switch drivenPage(arguments) {
+        case .failed(let outcome): return outcome
+        case .found(let found): page = found
+        }
+        let webView = page.webView
         let key = (arguments["key"] as? String) ?? ""
         let modifierNames = (arguments["modifiers"] as? [Any])?.compactMap { $0 as? String } ?? []
         guard let press = ChatBrowsing.KeyPress.parse(key: key, modifierNames: modifierNames) else {
@@ -228,14 +248,19 @@ final class StudioChatBrowserAgent: ChatBrowserAgent {
             ChatBrowserInput.press(press, in: webView)
             if index < times - 1 { try? await Task.sleep(for: .milliseconds(250)) }
         }
-        await settle(tab: tab, webView: webView, navigatedFrom: before)
+        await settle(webView: webView, navigatedFrom: before)
         if let preview = await preview(of: webView) { onPreview(preview) }
         let verb = times > 1 ? "Pressed \(key.trimmingCharacters(in: .whitespaces)) \(times) times" : "Pressed \(key.trimmingCharacters(in: .whitespaces))"
-        return await actionOutcome(verb: verb, tab: tab, webView: webView, navigatedFrom: before)
+        return await actionOutcome(verb: verb, page: page, navigatedFrom: before)
     }
 
     private func scroll(arguments: [String: Any], onPreview: @escaping @MainActor (Data) -> Void) async -> ChatBrowserToolOutcome {
-        guard let (tab, webView) = current() else { return noTab() }
+        let page: DrivenPage
+        switch drivenPage(arguments) {
+        case .failed(let outcome): return outcome
+        case .found(let found): page = found
+        }
+        let webView = page.webView
         host(webView)
         let request = ChatBrowsing.ScrollRequest.parse(arguments)
         let script: String
@@ -250,7 +275,7 @@ final class StudioChatBrowserAgent: ChatBrowserAgent {
         if let preview = await preview(of: webView) { onPreview(preview) }
         let outline = await outline(of: webView)
         let inView = outline.lines.filter(\.inView)
-        var text = "Scrolled \(request.direction.rawValue). " + scrollPosition(outline) + "\n\n"
+        var text = page.lead + "Scrolled \(request.direction.rawValue). " + scrollPosition(outline) + "\n\n"
         text += inView.isEmpty
             ? "Nothing of the outline is in view here; the page may draw itself on a canvas or in a frame — browser_screenshot shows it."
             : "In view now:\n" + joinedLines(inView, limit: ChatBrowsing.outlineCharacterLimit)
@@ -258,13 +283,18 @@ final class StudioChatBrowserAgent: ChatBrowserAgent {
     }
 
     private func screenshot(arguments: [String: Any], onPreview: @escaping @MainActor (Data) -> Void) async -> ChatBrowserToolOutcome {
-        guard let (tab, webView) = current() else { return noTab() }
+        let page: DrivenPage
+        switch drivenPage(arguments) {
+        case .failed(let outcome): return outcome
+        case .found(let found): page = found
+        }
+        let webView = page.webView
         host(webView)
         guard let png = await ChatBrowserSnapshot.png(of: webView, width: nil) else {
             return ChatBrowserToolOutcome(text: "Error: The page could not be pictured; it may still be loading.", isError: true)
         }
         let caption = (arguments["caption"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let fallbackAlt = tab.title.isEmpty ? "Screenshot of \(webView.url?.host ?? "the page")" : tab.title
+        let fallbackAlt = page.title.isEmpty ? "Screenshot of \(webView.url?.host ?? "the page")" : page.title
         let alt = caption.flatMap { $0.isEmpty ? nil : $0 } ?? fallbackAlt
         let id = GeneratedImageReference.newID()
         guard let reference = GeneratedImageReference(id: id) else {
@@ -283,7 +313,7 @@ final class StudioChatBrowserAgent: ChatBrowserAgent {
         }
         let line = reference.markdown(alt: alt)
         let text = """
-        Screenshot of \(pageHeading(tab: tab, webView: webView, outline: nil)).
+        \(page.lead)Screenshot of \(pageHeading(page, outline: nil)).
         \(line)
 
         The picture is attached to this result when the selected model reads images. Include the Markdown image line above verbatim, on its own line, where the picture belongs in your answer when the learner asked to see the page.
@@ -298,15 +328,50 @@ final class StudioChatBrowserAgent: ChatBrowserAgent {
 
     // MARK: - Tab and hosting
 
-    private func current() -> (BrowserTab, WKWebView)? {
-        guard let tab = liveTab, let webView = tab.webView else { return nil }
-        return (tab, webView)
+    /// The page a step acts on: the chat's own tab, or the web page open in
+    /// the learner's Reader.
+    @MainActor
+    struct DrivenPage {
+        let webView: WKWebView
+        /// The chat's tab; nil for the Reader's page.
+        let tab: BrowserTab?
+
+        var title: String { tab?.title ?? webView.title ?? "" }
+        var loadErrorMessage: String? { tab?.loadErrorMessage }
+        /// Said first in a Reader step's result, so neither the model nor the
+        /// learner mistakes which page was acted on.
+        var lead: String { tab == nil ? "In the learner's Reader: " : "" }
+    }
+
+    enum PageLookup {
+        case found(DrivenPage)
+        case failed(ChatBrowserToolOutcome)
+    }
+
+    private func drivenPage(_ arguments: [String: Any]) -> PageLookup {
+        switch ChatBrowsing.Page.parse(arguments) {
+        case .reader:
+            guard let webView = ReaderWebPages.frontmost() else {
+                return .failed(ChatBrowserToolOutcome(
+                    text: "Error: The learner's Reader is not showing a web page — it is closed, or the source open there is a PDF, a book or a video rather than a page. Omit page to use the chat's own Browser tab.",
+                    isError: true
+                ))
+            }
+            return .found(DrivenPage(webView: webView, tab: nil))
+        case .chat:
+            guard let tab = liveTab, let webView = tab.webView else { return .failed(noTab()) }
+            return .found(DrivenPage(webView: webView, tab: tab))
+        }
     }
 
     private func noTab() -> ChatBrowserToolOutcome {
-        let text = tab == nil
+        var text = tab == nil
             ? "Error: No page is open in the chat's Browser tab. Call browser_open with a URL first."
             : "Error: The chat's Browser tab was closed. Call browser_open with a URL to open a new one."
+        if let reader = ReaderWebPages.frontmost() {
+            let title = reader.title?.isEmpty == false ? "“\(reader.title!)”" : (reader.url?.host ?? "a page")
+            text += " The learner's Reader is showing \(title); pass page reader to act on that page instead."
+        }
         return ChatBrowserToolOutcome(text: text, isError: true)
     }
 
@@ -319,7 +384,7 @@ final class StudioChatBrowserAgent: ChatBrowserAgent {
 
     // MARK: - Waiting
 
-    private func waitForLoad(of tab: BrowserTab, webView: WKWebView) async {
+    private func waitForLoad(webView: WKWebView) async {
         // The load starts asynchronously; give it a moment to be in flight
         // before waiting for it to end.
         try? await Task.sleep(for: .milliseconds(150))
@@ -332,10 +397,10 @@ final class StudioChatBrowserAgent: ChatBrowserAgent {
 
     /// After an input: wait for a navigation it may have started, then let
     /// the page's scripts finish what a click or key set in motion.
-    private func settle(tab: BrowserTab, webView: WKWebView, navigatedFrom before: URL?) async {
+    private func settle(webView: WKWebView, navigatedFrom before: URL?) async {
         try? await Task.sleep(for: .milliseconds(150))
         if webView.isLoading || webView.url != before {
-            await waitForLoad(of: tab, webView: webView)
+            await waitForLoad(webView: webView)
         } else {
             try? await Task.sleep(for: .seconds(settleDelay))
         }
@@ -418,9 +483,9 @@ final class StudioChatBrowserAgent: ChatBrowserAgent {
         return outline
     }
 
-    private func pageHeading(tab: BrowserTab, webView: WKWebView, outline: Outline?) -> String {
-        let title = outline?.title.isEmpty == false ? outline!.title : tab.title
-        let url = outline?.url.isEmpty == false ? outline!.url : (webView.url?.absoluteString ?? "")
+    private func pageHeading(_ page: DrivenPage, outline: Outline?) -> String {
+        let title = outline?.title.isEmpty == false ? outline!.title : page.title
+        let url = outline?.url.isEmpty == false ? outline!.url : (page.webView.url?.absoluteString ?? "")
         return title.isEmpty ? url : "“\(title)” — \(url)"
     }
 
@@ -470,13 +535,14 @@ final class StudioChatBrowserAgent: ChatBrowserAgent {
         return text
     }
 
-    private func actionOutcome(verb: String, tab: BrowserTab, webView: WKWebView, navigatedFrom before: URL?) async -> ChatBrowserToolOutcome {
-        if let failure = tab.loadErrorMessage {
+    private func actionOutcome(verb: String, page: DrivenPage, navigatedFrom before: URL?) async -> ChatBrowserToolOutcome {
+        let webView = page.webView
+        if let failure = page.loadErrorMessage {
             return ChatBrowserToolOutcome(text: "Error: \(verb), but the page that followed could not be loaded. \(failure)", isError: true, preview: await preview(of: webView))
         }
         let outline = await outline(of: webView)
-        var text = "\(verb). "
-        text += webView.url != before ? "The page navigated to \(pageHeading(tab: tab, webView: webView, outline: outline))." : "Still on \(pageHeading(tab: tab, webView: webView, outline: outline))."
+        var text = page.lead + "\(verb). "
+        text += webView.url != before ? "The page navigated to \(pageHeading(page, outline: outline))." : "Still on \(pageHeading(page, outline: outline))."
         text += "\n\n" + outlineText(outline, limit: Self.actionOutlineLimit, query: nil)
         if outline.lines.count > 0 {
             text += "\n\n(browser_read_page returns the full outline; browser_screenshot shows the page as rendered.)"
@@ -489,6 +555,49 @@ final class StudioChatBrowserAgent: ChatBrowserAgent {
     /// The row's thumbnail: the page at 480 points wide.
     private func preview(of webView: WKWebView) async -> Data? {
         await ChatBrowserSnapshot.png(of: webView, width: 480)
+    }
+}
+
+// MARK: - The Reader's page
+
+/// The web page open in the learner's Reader, found the way the learner sees
+/// it: in the windows on screen, front to back. Nothing registers itself —
+/// a reader's page moves between hosts and is parked when its pane goes
+/// (`ReaderWebViewPark`), so a list kept beside it would drift; the view
+/// tree never does. Within a window, the reader holding the keyboard focus
+/// wins, then the first one.
+@MainActor
+enum ReaderWebPages {
+    static func frontmost() -> WKWebView? {
+        var seen = Set<ObjectIdentifier>()
+        let windows = [NSApp.keyWindow, NSApp.mainWindow].compactMap { $0 } + NSApp.orderedWindows
+        for window in windows where window.isVisible && seen.insert(ObjectIdentifier(window)).inserted {
+            guard let content = window.contentView else { continue }
+            var hosts: [ReaderWebViewHost] = []
+            collect(in: content, into: &hosts)
+            let pages = hosts.compactMap { host -> WKWebView? in
+                guard let webView = host.webView, !host.isHiddenOrHasHiddenAncestor,
+                      webView.url != nil else { return nil }
+                return webView
+            }
+            guard !pages.isEmpty else { continue }
+            if let focused = window.firstResponder as? NSView,
+               let page = pages.first(where: { focused.isDescendant(of: $0) }) {
+                return page
+            }
+            return pages.first
+        }
+        return nil
+    }
+
+    private static func collect(in view: NSView, into hosts: inout [ReaderWebViewHost]) {
+        if let host = view as? ReaderWebViewHost {
+            hosts.append(host)
+            return
+        }
+        for subview in view.subviews {
+            collect(in: subview, into: &hosts)
+        }
     }
 }
 

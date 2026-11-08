@@ -65,6 +65,27 @@ struct ChatBrowserToolsTests {
         #expect((open.inputSchema["required"] as? [String]) == ["url"])
     }
 
+    @Test("Every step but opening can act on the Reader's page; the chat's tab is the default")
+    func readerPageChoice() {
+        let specs = ChatBrowsing.toolSpecs()
+        for spec in specs {
+            let properties = spec.inputSchema["properties"] as? [String: Any]
+            let page = properties?["page"] as? [String: Any]
+            if spec.name == "browser_open" {
+                // Opening loads the chat's tab; it never navigates the Reader.
+                #expect(page == nil)
+            } else {
+                #expect((page?["enum"] as? [String]) == ["chat", "reader"], Comment(rawValue: spec.name))
+            }
+        }
+        #expect(ChatBrowsing.Page.parse([:]) == .chat)
+        #expect(ChatBrowsing.Page.parse(["page": "chat"]) == .chat)
+        #expect(ChatBrowsing.Page.parse(["page": " Reader "]) == .reader)
+        // Anything else stays on the chat's own tab rather than guessing.
+        #expect(ChatBrowsing.Page.parse(["page": "browser"]) == .chat)
+        #expect(ChatBrowsing.Page.parse(["page": 1]) == .chat)
+    }
+
     @Test("A click lands on a handle or on a point, and on nothing half-named")
     func clickTargets() {
         #expect(ChatBrowsing.Target.parse(["ref": " ref_4 "]) == .ref("ref_4"))
