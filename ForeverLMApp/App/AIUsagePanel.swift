@@ -34,6 +34,7 @@ struct AIUsageAccountSections: View {
             } else {
                 signedOutSection
             }
+            RealtimeVoiceOwnKeySection()
             spendingSection
             if account.isSignedIn { CompanySpendCapsSection() }
 
@@ -1388,5 +1389,128 @@ private struct CompanySpendCapEditor: View {
         }
         .padding(16)
         .frame(width: 300)
+    }
+}
+
+/// Settings › AI Usage › Voice mode: the learner's own OpenAI key for voice
+/// mode (product owner, 2026-11-08: "let people put their own openai key for
+/// the voice mode"). With one, voice sessions open straight with OpenAI on it
+/// and OpenAI bills the learner; without one, voice runs on ForeverLM's own
+/// OpenAI account. The key is checked with OpenAI before it is stored, and
+/// sits in iCloud Keychain beside the OpenRouter key, shared with the iPhone.
+struct RealtimeVoiceOwnKeySection: View {
+    static let description = "Voice mode runs on ForeverLM's OpenAI account unless you add your own OpenAI API key. With yours, OpenAI bills you for voice, and ForeverLM's daily limit on voice sessions no longer applies."
+    static let privacyNote = "Kept in your iCloud Keychain and sent only to OpenAI, never to ForeverLM."
+
+    @State private var suffix: String?
+    @State private var loaded = false
+    @State private var draft = ""
+    @State private var isReplacing = false
+    @State private var saving = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        SettingsSection(title: "Voice mode", description: Self.description) {
+            BillingCard {
+                VStack(alignment: .leading, spacing: 0) {
+                    if let suffix {
+                        BillingRow(title: "OpenAI key ending in \(suffix)", detail: "Voice mode runs on your key, billed by OpenAI") {
+                            Button("Replace") {
+                                draft = ""
+                                isReplacing = true
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(isReplacing || saving)
+
+                            Button("Remove", role: .destructive) {
+                                Task { await store("") }
+                            }
+                            .buttonStyle(.bordered)
+                            .disabled(saving)
+                            .help("Voice mode goes back to ForeverLM's OpenAI account")
+                        }
+                    }
+                    if loaded, suffix == nil || isReplacing {
+                        if suffix != nil { BillingRowDivider() }
+                        entry
+                    }
+                }
+            }
+            if let errorMessage {
+                Label(errorMessage, systemImage: "exclamationmark.circle.fill")
+                    .font(.caption)
+                    .foregroundStyle(.red)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityIdentifier("voice.ownKey.error")
+            }
+        }
+        .task { await load() }
+        .onReceive(NotificationCenter.default.publisher(for: .managedAIOwnKeyDidChange).receive(on: RunLoop.main)) { _ in
+            Task { await load() }
+        }
+    }
+
+    private var entry: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 8) {
+                SecureField("Paste your OpenAI API key", text: $draft)
+                    .textFieldStyle(.roundedBorder)
+                    .onSubmit { Task { await store(draft) } }
+                    .accessibilityIdentifier("voice.ownKey.field")
+                Button {
+                    Task { await store(draft) }
+                } label: {
+                    if saving { ProgressView().controlSize(.small) } else { Text("Save") }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || saving)
+                .accessibilityIdentifier("voice.ownKey.save")
+                if isReplacing {
+                    Button("Cancel") {
+                        isReplacing = false
+                        draft = ""
+                    }
+                    .buttonStyle(.bordered)
+                }
+            }
+            Link("Get an OpenAI key", destination: ManagedAI.ownOpenAIVoiceKeysURL)
+                .font(.caption)
+            Label(Self.privacyNote, systemImage: "lock.fill")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+        }
+    }
+
+    private func load() async {
+        suffix = await Task.detached(priority: .userInitiated) {
+            ManagedAI.reloadOwnOpenAIVoiceKey()
+            return ManagedAI.ownOpenAIVoiceKeySuffix
+        }.value
+        loaded = true
+    }
+
+    /// Checks a new key with OpenAI and stores it only if OpenAI accepts it;
+    /// an empty key removes the stored one.
+    private func store(_ rawKey: String) async {
+        let key = rawKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !saving else { return }
+        saving = true
+        errorMessage = nil
+        defer { saving = false }
+        if !key.isEmpty {
+            do {
+                if case .rejected(let reason) = try await ManagedAI.checkOwnOpenAIVoiceKey(key) {
+                    errorMessage = reason
+                    return
+                }
+            } catch {
+                errorMessage = "Couldn't check the key with OpenAI: \(error.localizedDescription)"
+                return
+            }
+        }
+        await Task.detached(priority: .userInitiated) { ManagedAI.setOwnOpenAIVoiceKey(key) }.value
+        draft = ""
+        isReplacing = false
+        await load()
     }
 }

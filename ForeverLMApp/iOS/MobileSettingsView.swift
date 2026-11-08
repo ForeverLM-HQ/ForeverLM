@@ -786,6 +786,7 @@ private struct MobileCreditsView: View {
     var body: some View {
         List {
             ownKeySection
+            MobileRealtimeVoiceOwnKeySection()
             if showsBalanceSection {
                 balanceSection
             }
@@ -1425,4 +1426,97 @@ enum MobileKeyScreenCopy {
     static let aiFooter = "AI runs on your OpenRouter API key, at OpenRouter's cost. ForeverLM adds nothing."
 
     static let creditsRequired = "AI features run on your own OpenRouter API key. Add your key in Settings › Key."
+}
+
+/// The learner's own OpenAI key for voice mode (product owner, 2026-11-08),
+/// the same iCloud Keychain item the Mac writes. With one, voice sessions open
+/// straight with OpenAI on it and OpenAI bills the learner; without one, voice
+/// runs on ForeverLM's OpenAI account. Checked with OpenAI before it is stored.
+struct MobileRealtimeVoiceOwnKeySection: View {
+    @State private var suffix: String?
+    @State private var loaded = false
+    @State private var draft = ""
+    @State private var saving = false
+    @State private var errorMessage: String?
+
+    var body: some View {
+        Section {
+            if let suffix {
+                LabeledContent("OpenAI key", value: "•••• \(suffix)")
+                    .accessibilityIdentifier("voice.ownKey.current")
+                Button("Remove key", role: .destructive) {
+                    Task { await store("") }
+                }
+                .disabled(saving)
+            } else if !loaded {
+                ProgressView()
+                    .frame(maxWidth: .infinity)
+                    .accessibilityLabel("Reading your key")
+            }
+
+            SecureField("Paste your OpenAI API key", text: $draft)
+                .textInputAutocapitalization(.never)
+                .autocorrectionDisabled()
+                .submitLabel(.done)
+                .onSubmit { Task { await store(draft) } }
+                .accessibilityIdentifier("voice.ownKey.field")
+
+            Button {
+                Task { await store(draft) }
+            } label: {
+                HStack {
+                    Text(suffix == nil ? "Save key" : "Replace key")
+                    if saving {
+                        Spacer()
+                        ProgressView().controlSize(.small)
+                    }
+                }
+            }
+            .disabled(draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || saving)
+
+            Link("Get an OpenAI key", destination: ManagedAI.ownOpenAIVoiceKeysURL)
+
+            if let errorMessage {
+                Text(errorMessage)
+                    .font(.footnote)
+                    .foregroundStyle(.red)
+            }
+        } header: {
+            Text("Voice mode")
+        } footer: {
+            Text("Voice mode runs on ForeverLM's OpenAI account unless you add your own OpenAI API key. With yours, OpenAI bills you for voice, and ForeverLM's daily limit on voice sessions no longer applies. The key is kept in your iCloud Keychain, shared with your Mac, and sent only to OpenAI.")
+        }
+        .task { await load() }
+    }
+
+    private func load() async {
+        suffix = await Task.detached(priority: .userInitiated) {
+            ManagedAI.reloadOwnOpenAIVoiceKey()
+            return ManagedAI.ownOpenAIVoiceKeySuffix
+        }.value
+        loaded = true
+    }
+
+    @MainActor
+    private func store(_ rawKey: String) async {
+        let key = rawKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !saving else { return }
+        saving = true
+        errorMessage = nil
+        defer { saving = false }
+        if !key.isEmpty {
+            do {
+                if case .rejected(let reason) = try await ManagedAI.checkOwnOpenAIVoiceKey(key) {
+                    errorMessage = reason
+                    return
+                }
+            } catch {
+                errorMessage = "Couldn't check the key with OpenAI: \(error.localizedDescription)"
+                return
+            }
+        }
+        await Task.detached(priority: .userInitiated) { ManagedAI.setOwnOpenAIVoiceKey(key) }.value
+        draft = ""
+        await load()
+    }
 }

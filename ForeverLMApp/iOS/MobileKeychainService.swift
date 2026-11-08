@@ -31,6 +31,9 @@ enum KeychainService {
         /// The learner's own router key (`ManagedAI.OwnKey`), the same iCloud
         /// Keychain items the Mac writes, so both devices bill one router account.
         case ownOpenRouterKey = "own_openrouter_key"
+        /// The learner's own OpenAI key for voice mode, the same iCloud
+        /// Keychain item the Mac writes (`ManagedAI.ownOpenAIVoiceKey`).
+        case ownOpenAIVoiceKey = "own_openai_voice_key"
     }
 
     static var openAITranscriptionModel: String {
@@ -138,7 +141,7 @@ enum KeychainService {
 
     private static func syncsAcrossDevices(_ key: Key) -> Bool {
         key == .openAIAPIKey || key == .anthropicAPIKey
-            || key == .ownOpenRouterKey
+            || key == .ownOpenRouterKey || key == .ownOpenAIVoiceKey
     }
 
     private static func baseQuery(for key: Key) -> [String: Any] {

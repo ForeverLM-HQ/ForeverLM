@@ -143,6 +143,12 @@ enum KeychainService {
         /// from the retired `openRouterAPIKey` slot, which the upgrade purge
         /// deletes; this one is never purged.
         case ownOpenRouterKey = "own_openrouter_key"
+        /// The learner's own OpenAI API key for voice mode
+        /// (`ManagedAI.ownOpenAIVoiceKey`, product owner, 2026-11-08): voice
+        /// sessions are opened on it straight with OpenAI, which bills the
+        /// learner. Its own slot, not the retired `openAIAPIKey` one, which
+        /// the upgrade purge deletes.
+        case ownOpenAIVoiceKey = "own_openai_voice_key"
         /// This account's X25519 private key for family plans, raw and base64
         /// (docs/family-design.md). A parent seals a child's OpenRouter key to
         /// its public half; only this Keychain can open it. Synced, so a
@@ -326,6 +332,8 @@ enum KeychainService {
         // The learner's own router key follows them to their other devices, so
         // the iPhone is billed to the same router account the Mac is.
         .ownOpenRouterKey,
+        // The voice key too, so the iPhone's voice mode runs on it as well.
+        .ownOpenAIVoiceKey,
         // A child's other Macs open the same sealed family key, and know it
         // was the family's key that they hold (docs/family-design.md).
         .familyDeviceKey,

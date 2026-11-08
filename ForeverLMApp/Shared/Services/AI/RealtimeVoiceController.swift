@@ -95,6 +95,8 @@ final class RealtimeVoiceController: ObservableObject {
     private var hasAudio = false
     /// The model the proxy minted the call for; usage is recorded under it.
     private var activeModel = RealtimeVoiceDefaults.model
+    /// Whether the live session runs on the learner's own OpenAI key.
+    private var activePaidByOwnKey = false
     /// One AI Usage row per conversation: every reply's usage carries this.
     private var activityID = "voice-\(UUID().uuidString.lowercased())"
 
@@ -273,7 +275,11 @@ final class RealtimeVoiceController: ObservableObject {
         statusText = "Connecting…"
         resetCallState()
 
-        let signedIn = await Task.detached(priority: .userInitiated) { ManagedAI.isSignedIn }.value
+        // The learner's own OpenAI key opens the session without ForeverLM's
+        // server, so it needs no Sign in with Apple.
+        let signedIn = await Task.detached(priority: .userInitiated) {
+            ManagedAI.isSignedIn || ManagedAI.ownOpenAIVoiceKey != nil
+        }.value
         guard lifecycle == id else { return }
         guard signedIn else {
             needsSignIn = true
@@ -323,6 +329,7 @@ final class RealtimeVoiceController: ObservableObject {
         let secret = try await ManagedAI.mintRealtimeVoiceSecret(session: configuration)
         guard lifecycle == lifecycleID else { return }
         activeModel = secret.model
+        activePaidByOwnKey = secret.paidByOwnKey
         let level = microphoneLevel
         let session = RealtimeVoiceSession(onMicrophoneLevel: { [weak self] value in
             Task { @MainActor in
@@ -591,7 +598,8 @@ final class RealtimeVoiceController: ObservableObject {
                     usage,
                     model: activeModel,
                     sourceTitle: brief?.source?.title ?? title,
-                    activityID: activityID
+                    activityID: activityID,
+                    paidByOwnKey: activePaidByOwnKey
                 )
             }
             if status == "failed" {

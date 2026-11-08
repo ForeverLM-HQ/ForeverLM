@@ -8,6 +8,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 - **Several chats in one pane, each its own tab.** In a pane with Chat, the + at the end of its tabs now offers **New Chat**: a new chat opens as another tab, and the chat you were in keeps its own tab (a reply still coming carries on). Each chat tab is named after its chat; double-click it, or right-click › **Rename…**, to rename the chat. A tab's × closes only that chat, which stays in your Chats. Split the pane to see chats side by side.
 - **Gym Mode on the iPhone.** In the Reader, hold the waveform and choose **Gym Mode**: ForeverLM walks you through the paper out loud, a minute at a time, like a podcast, with the microphone off. Type a follow-up question at the bottom of the screen and it answers once the part it is saying ends, then carries on. See [Voice Mode](/voice-mode#gym-mode).
+- **Voice mode on your own OpenAI key.** Paste an OpenAI API key under Settings › AI Usage › Voice mode on the Mac, or Settings › API keys on the iPhone, and voice conversations run on it: OpenAI bills you, the daily allowance no longer applies, and the key goes only to OpenAI. See [Voice Mode](/voice-mode#your-own-openai-key).
 - **MCP is free.** Connecting Claude, ChatGPT, Codex or another assistant costs nothing now: no free days, no Early user deal, nothing to buy. AI in the app still runs on your own OpenRouter key at OpenRouter's cost.
 
 ## 0.201.0 (build 281) — 2026-11-08

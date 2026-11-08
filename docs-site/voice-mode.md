@@ -9,6 +9,10 @@ Voice mode is a spoken conversation with ForeverLM, the way ChatGPT's voice mode
 
 Voice mode runs on OpenAI's realtime voice model, paid for by ForeverLM. It needs Sign in with Apple and nothing else: no key, and nothing is billed to you or to your OpenRouter key. Each account has a generous daily allowance of conversations.
 
+## Your own OpenAI key
+
+You can run voice mode on your own OpenAI API key instead. Paste it under **Settings › AI Usage › Voice mode** on the Mac, or **Settings › API keys › Voice mode** on the iPhone. ForeverLM checks it with OpenAI before saving it. With your key, every voice conversation opens straight with OpenAI on it: OpenAI bills you at its own price, the daily allowance no longer applies, and voice works without Sign in with Apple. The key is kept in your iCloud Keychain, shared between your Mac and iPhone, and sent only to OpenAI, never to ForeverLM's server. Remove it and voice goes back to ForeverLM's account. Get a key at [platform.openai.com/api-keys](https://platform.openai.com/api-keys).
+
 It is all one model: ForeverLM hears you and answers in its own voice. No separate speech-to-text or text-to-speech runs, and nothing is shown as text while you talk.
 
 ## Talk about a source
@@ -79,4 +83,4 @@ Pick the voice ForeverLM speaks in from ten: Marin (the default), Cedar, Alloy, 
 
 ## Usage
 
-Voice conversations are listed in AI Usage on the Mac and in **Settings › Usage** on the iPhone, task **Voice Mode**, with a **BYOK** capsule, because it runs on its own OpenAI key rather than through OpenRouter: the cost shown is what OpenAI charged ForeverLM, and nothing is billed to you.
+Voice conversations are listed in AI Usage on the Mac and in **Settings › Usage** on the iPhone, task **Voice Mode**, with a **BYOK** capsule, because it runs on its own OpenAI key rather than through OpenRouter: the cost shown is what OpenAI charged ForeverLM, and nothing is billed to you. With your own OpenAI key, the Mac lists each reply as your key's, at OpenAI's list price; the iPhone's Usage does not show those, and OpenAI's own usage page has them all.

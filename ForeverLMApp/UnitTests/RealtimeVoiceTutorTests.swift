@@ -528,3 +528,58 @@ struct RealtimeVoiceTutorTests {
         #expect(due["name"] as? String == "get_due_cards")
     }
 }
+
+/// Voice mode on the learner's own OpenAI key (product owner, 2026-11-08):
+/// the key check, the mint body the app sends OpenAI itself, and the list
+/// price the Mac records an own-key reply at.
+@Suite("Realtime voice on the learner's own OpenAI key")
+struct RealtimeVoiceOwnKeyTests {
+    @Test("OpenAI's answer about a key: 2xx accepts, 401/403 rejects, anything else says nothing")
+    func keyCheck() {
+        #expect(ManagedAI.ownOpenAIVoiceKeyCheckResult(statusCode: 200) == .accepted)
+        if case .rejected(let reason) = ManagedAI.ownOpenAIVoiceKeyCheckResult(statusCode: 401) {
+            #expect(reason.contains("OpenAI"))
+        } else {
+            Issue.record("401 should reject the key")
+        }
+        #expect(ManagedAI.ownOpenAIVoiceKeyCheckResult(statusCode: 403) != .accepted)
+        #expect(ManagedAI.ownOpenAIVoiceKeyCheckResult(statusCode: 429) == nil)
+        #expect(ManagedAI.ownOpenAIVoiceKeyCheckResult(statusCode: 500) == nil)
+    }
+
+    @Test("The mint body is the proxy's: the app's session under type and model, a two-minute secret")
+    func mintBody() throws {
+        let body = ManagedAI.ownKeyRealtimeMintBody(
+            model: "gpt-realtime-2.1",
+            session: ["instructions": "Be brief.", "type": "transcription", "model": "other"]
+        )
+        let session = try #require(body["session"] as? [String: Any])
+        #expect(session["type"] as? String == "realtime")
+        #expect(session["model"] as? String == "gpt-realtime-2.1")
+        #expect(session["instructions"] as? String == "Be brief.")
+        let expiry = try #require(body["expires_after"] as? [String: Any])
+        #expect(expiry["anchor"] as? String == "created_at")
+        #expect(expiry["seconds"] as? Int == 120)
+        #expect(JSONSerialization.isValidJSONObject(body))
+    }
+
+    @Test("A reply's list price matches the proxy's rates, and an unknown model has none")
+    func listCost() throws {
+        var usage = try #require(RealtimeVoiceUsage(responseID: "resp_1", usage: [:]))
+        usage.textInputTokens = 1_000_000
+        usage.audioOutputTokens = 1_000_000
+        #expect(abs(try #require(usage.listCostUSD(model: "gpt-realtime-2.1")) - 68) < 1e-9)
+        #expect(abs(try #require(usage.listCostUSD(model: "gpt-realtime-2.1-mini")) - 20.6) < 1e-9)
+        #expect(usage.listCostUSD(model: "not-a-voice-model") == nil)
+    }
+
+    @Test("With no key stored, voice keeps ForeverLM's route")
+    func noKeyNoDirectRoute() {
+        ManagedAI.ownOpenAIVoiceKeyOverrideForTesting = .some(nil)
+        defer { ManagedAI.ownOpenAIVoiceKeyOverrideForTesting = nil }
+        #expect(ManagedAI.ownOpenAIVoiceKey == nil)
+        #expect(ManagedAI.ownOpenAIVoiceKeySuffix == nil)
+        ManagedAI.ownOpenAIVoiceKeyOverrideForTesting = .some("sk-test-abcd1234")
+        #expect(ManagedAI.ownOpenAIVoiceKeySuffix == "1234")
+    }
+}
