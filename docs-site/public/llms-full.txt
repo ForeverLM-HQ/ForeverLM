@@ -124,7 +124,7 @@ You work in **notebooks**. A notebook holds the sources for one piece of work �
 
 ## Install
 
-[Download the app](https://releases.foreverlm.com/ForeverLM-0.194.0-build274-universal.dmg) — a notarized universal binary that runs on both Apple Silicon and Intel Macs. It checks for updates hourly and at launch, then offers each new version in the sidebar.
+[Download the app](https://releases.foreverlm.com/ForeverLM-0.199.0-build279-universal.dmg) — a notarized universal binary that runs on both Apple Silicon and Intel Macs. It checks for updates hourly and at launch, then offers each new version in the sidebar.
 
 Drag ForeverLM into Applications and open it. While the installer is still mounted, ForeverLM asks whether to move it to the Trash; it ejects the installer and moves the downloaded `.dmg` there. **Keep** leaves it alone, and ForeverLM does not ask about that installer again.
 
@@ -6707,6 +6707,15 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **A Library row is quieter.** It shows the source's picture, title and byline, and one word at its end: its card count, or **To follow up** when passages wait and it has no card yet. Click it to see the source's cards, the passages you set aside to follow up, and **Write Card**. The flag count, the added date, **Not Worth Keeping** and **Write Card** under the pointer, and the notebook check and + on every row are gone; **Not Worth Keeping** and **Add to** / **Remove from** the notebook are on the right-click menu.
 - **A voice review counts like a typed one.** When voice mode quizzes you on a source, the tutor grades each answer (had it, partly, missed) and notes what you said and what was missing; the chat shows them, the review gets a score, and the source is marked reviewed on your Schedule.
 - **ForeverLM no longer drafts cards in the background unless you turn it on** (**Settings → General → Memory review → Draft cards from what you finish**).
+
+## 0.199.0 (build 279) — 2026-11-08
+
+**Highlights:**
+- **Voice mode is back**: talk about a source, be quizzed on it, or review your cards out loud, on the Mac, the iPhone and in CarPlay.
+- **Connecting an AI app always asks you first**, and code that chat runs is sealed off more tightly.
+- **Fewer ways to lose work**: book edits, Keychain hiccups and paper retries no longer delete anything, and failed saves say so.
+
+- **Production release.** Everything in the betas 0.195.0 to 0.198.0 below, now for every Mac: it is the first production build since 0.194.0 (build 274).
 
 ## 0.198.0 (build 278) — 2026-11-08
 
