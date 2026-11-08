@@ -10,6 +10,19 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **Talk to ForeverLM, in CarPlay too.** A voice assistant that knows your quarter plan, your calendar, your Schedule, goals, notebooks and recent work, and can open any source to talk about or quiz you on. CarPlay starts it when you connect; on the iPhone it is the waveform on Home, on the Mac **Chat › Talk to ForeverLM**.
 - **AI Usage lists voice conversations** with a **ForeverLM credits** capsule: what OpenAI charged ForeverLM, never billed to you.
 
+## 0.194.0 (build 274) — 2026-11-07
+
+**Highlights:**
+- **Every team's papers are in My Library**, and **Your Models** is one list you keep for chat, text work and images.
+- **Split anything**: up to four panes side by side, every pane a tab, a notebook beside them.
+- **Plan the quarter, the week and the day** in Space › Plan, the week and day on your calendar.
+- **The Library is one list** with **To Read** and **Follow up**, and highlight colors that mean something.
+- **A paper's references are read and linked**, and Pages have footnotes that show their papers on hover.
+- **Long chats cost far less**: sources are read as needed and from the cache.
+
+- **Production release.** Everything in the betas 0.182.0 to 0.193.0 below, now for every Mac: it is the first production build since 0.181.0 (build 261).
+- **A chat turn that fails mid-answer keeps what it had written.**
+
 ## 0.193.0 (build 273) — 2026-11-07
 
 **Highlights:**
