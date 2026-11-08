@@ -502,6 +502,10 @@ extension ScheduledTask {
             }
         }
         guard let occurrence = mostRecentOccurrence(onOrBefore: now) else { return nil }
+        // A slot that passed before the task existed was never missed: a
+        // weekly task made on Sunday afternoon starts next Sunday, not with a
+        // catch-up of that morning's run (nor a "was not open" receipt for it).
+        if occurrence < createdAt { return nil }
         if let lastOccurrenceAt, occurrence <= lastOccurrenceAt { return nil }
         return (occurrence, now.timeIntervalSince(occurrence) > 60)
     }

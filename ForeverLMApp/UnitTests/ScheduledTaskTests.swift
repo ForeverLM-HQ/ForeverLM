@@ -83,7 +83,8 @@ struct ScheduledTaskTests {
             cadence: .daily,
             hour: 7,
             timeZoneID: "Europe/Amsterdam",
-            isEnabled: false
+            isEnabled: false,
+            createdAt: date("2026-08-01T00:00:00", zone: "Europe/Amsterdam")
         )
         #expect(task.dueOccurrence(now: now) == nil)
 
@@ -96,6 +97,29 @@ struct ScheduledTaskTests {
         #expect(task.dueOccurrence(now: now) == nil)
         task.runNowRequestedAt = now
         #expect(task.dueOccurrence(now: now)?.occurrence == now)
+    }
+
+    @Test("A slot that passed before the task was made is not caught up")
+    func dueOccurrenceIgnoresSlotsBeforeCreation() {
+        // A weekly Sunday 09:00 task made at 10:44 that Sunday: the 09:00 slot
+        // is inside the catch-up window, but it was never missed.
+        let created = date("2026-11-08T10:44:00", zone: "America/New_York")
+        let task = ScheduledTask(
+            title: "Prep",
+            instruction: "Go.",
+            cadence: .weekly,
+            weekday: 1,
+            hour: 9,
+            timeZoneID: "America/New_York",
+            createdAt: created
+        )
+        #expect(task.dueOccurrence(now: created.addingTimeInterval(60)) == nil)
+        #expect(task.upcomingOccurrence(now: created) == date("2026-11-15T09:00:00", zone: "America/New_York"))
+
+        // The next Sunday's slot is due as usual, and caught up if missed.
+        let nextSlot = date("2026-11-15T09:00:00", zone: "America/New_York")
+        #expect(task.dueOccurrence(now: nextSlot)?.occurrence == nextSlot)
+        #expect(task.dueOccurrence(now: nextSlot.addingTimeInterval(3600))?.occurrence == nextSlot)
     }
 
     @Test("An occurrence older than the catch-up window is stale")
