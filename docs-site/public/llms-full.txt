@@ -6676,7 +6676,20 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.196.0 (build 276) — 2026-11-07
+
+**Highlights:**
+- **Choose voice mode's voice**: ten voices, one pick for the Mac, the iPhone and CarPlay.
+- **iCloud sync says when it fails**, and the iPhone's voice assistant knows your goals again.
+
+- **iCloud sync says when it fails.** Settings › iCloud shows why the last sync failed and that it will try again, instead of saying it is up to date.
+- **On the iPhone, Talk to ForeverLM knows your goals again,** your recent chats count toward what memory review brings up, and reviewing a chat you had works again.
+- **An AI app can no longer crash ForeverLM by sending a huge number,** and a source, lecture or group it asks for that isn't there is reported to it as an error.
 - **Choose voice mode's voice**: ten voices, in **Settings** -> **Voice** -> **Voice mode** on the Mac and **Settings** -> **Voice Mode** on the iPhone. One pick serves the Mac, the iPhone and CarPlay. See [Voice Mode](/voice-mode#choose-the-voice).
+- **Scrolling up through a long chat no longer jumps:** its replies are measured as soon as the chat opens.
+- **No Apple Intelligence badge or proofreading underlines on a selection** on macOS 27.0.1.
+- **Every model the chat picker offers has a row in Settings › Chat's Your Models.**
+- **Chat can open a video at the moment it is talking about** instead of failing.
 
 ## 0.195.0 (build 275) — 2026-11-07
 
