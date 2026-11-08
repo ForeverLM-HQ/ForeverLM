@@ -8692,7 +8692,7 @@
 				CODE_SIGN_ENTITLEMENTS = iOSShare/ForeverLMShare.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 37;
+				CURRENT_PROJECT_VERSION = 38;
 				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = iOSShare/Info.plist;
@@ -8719,7 +8719,7 @@
 				CODE_SIGN_ENTITLEMENTS = iOSShare/ForeverLMShare.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 37;
+				CURRENT_PROJECT_VERSION = 38;
 				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = iOSShare/Info.plist;
@@ -8770,7 +8770,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 276;
+				CURRENT_PROJECT_VERSION = 277;
 				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FOREVERLM_BUNDLE_NAME = "ForeverLM (Dev)";
@@ -8785,7 +8785,7 @@
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ForeverLM uses the microphone for dictation.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "ForeverLM uses speech recognition for voice answers in Review Chat.";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 0.196.0;
+				MARKETING_VERSION = 0.197.0;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.foreverlm.dev;
 				PRODUCT_MODULE_NAME = ForeverLM;
@@ -8808,7 +8808,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 276;
+				CURRENT_PROJECT_VERSION = 277;
 				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FOREVERLM_BUNDLE_NAME = ForeverLM;
@@ -8823,7 +8823,7 @@
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ForeverLM uses the microphone for dictation.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "ForeverLM uses speech recognition for voice answers in Review Chat.";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 0.196.0;
+				MARKETING_VERSION = 0.197.0;
 				ONLY_ACTIVE_ARCH = NO;
 				PRODUCT_BUNDLE_IDENTIFIER = com.foreverlm;
 				PRODUCT_MODULE_NAME = ForeverLM;
@@ -8842,7 +8842,7 @@
 				CODE_SIGN_ENTITLEMENTS = iOS/ForeverLMiOS.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 37;
+				CURRENT_PROJECT_VERSION = 38;
 				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				FOREVERLM_CLOUDKIT_CONTAINER = iCloud.com.foreverlm.knowledge;
 				FOREVERLM_CLOUDKIT_ENVIRONMENT = Production;
@@ -8877,7 +8877,7 @@
 				CODE_SIGN_ENTITLEMENTS = iOSWidget/ForeverLMTodayWidget.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 37;
+				CURRENT_PROJECT_VERSION = 38;
 				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = iOSWidget/Info.plist;
@@ -8968,7 +8968,7 @@
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
 				COPY_PHASE_STRIP = NO;
-				CURRENT_PROJECT_VERSION = 276;
+				CURRENT_PROJECT_VERSION = 277;
 				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FOREVERLM_BUNDLE_NAME = "ForeverLM (First Run)";
@@ -8983,7 +8983,7 @@
 				INFOPLIST_KEY_NSMicrophoneUsageDescription = "ForeverLM uses the microphone for dictation.";
 				INFOPLIST_KEY_NSSpeechRecognitionUsageDescription = "ForeverLM uses speech recognition for voice answers in Review Chat.";
 				LD_RUNPATH_SEARCH_PATHS = "$(inherited) @executable_path/../Frameworks";
-				MARKETING_VERSION = 0.196.0;
+				MARKETING_VERSION = 0.197.0;
 				ONLY_ACTIVE_ARCH = YES;
 				PRODUCT_BUNDLE_IDENTIFIER = com.foreverlm.dev.firstrun;
 				PRODUCT_MODULE_NAME = ForeverLM;
@@ -9040,7 +9040,7 @@
 				CODE_SIGN_ENTITLEMENTS = iOS/ForeverLMiOS.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 37;
+				CURRENT_PROJECT_VERSION = 38;
 				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				FOREVERLM_CLOUDKIT_CONTAINER = iCloud.com.foreverlm.knowledge;
 				FOREVERLM_CLOUDKIT_ENVIRONMENT = Production;
@@ -9074,7 +9074,7 @@
 				CODE_SIGN_ENTITLEMENTS = iOSShare/ForeverLMShare.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 37;
+				CURRENT_PROJECT_VERSION = 38;
 				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = iOSShare/Info.plist;
@@ -9204,7 +9204,7 @@
 				CODE_SIGN_ENTITLEMENTS = iOS/ForeverLMiOSDevelopment.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 37;
+				CURRENT_PROJECT_VERSION = 38;
 				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				FOREVERLM_CLOUDKIT_CONTAINER = iCloud.com.foreverlm.knowledge;
 				FOREVERLM_CLOUDKIT_ENVIRONMENT = Development;
@@ -9239,7 +9239,7 @@
 				CODE_SIGN_ENTITLEMENTS = iOSWidget/ForeverLMTodayWidget.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 37;
+				CURRENT_PROJECT_VERSION = 38;
 				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = iOSWidget/Info.plist;
@@ -9356,7 +9356,7 @@
 				CODE_SIGN_ENTITLEMENTS = iOSWidget/ForeverLMTodayWidget.entitlements;
 				CODE_SIGN_IDENTITY = "Apple Development";
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 37;
+				CURRENT_PROJECT_VERSION = 38;
 				DEVELOPMENT_TEAM = XXXXXXXXXX;
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = iOSWidget/Info.plist;
