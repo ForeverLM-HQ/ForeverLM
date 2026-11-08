@@ -187,10 +187,13 @@ struct ChatSourceCard: Codable, Equatable {
 /// sprang to its true height under the scroll.
 @MainActor
 enum ChatMarkdownHeightMemory {
-    private struct Measurement {
+    struct Measurement {
         let height: CGFloat
         let width: CGFloat
         let fontSize: CGFloat
+        /// False for a height the transcript measured ahead of the row
+        /// (`ChatMarkdownView.Premeasurer`); true once the row itself did.
+        let byRow: Bool
     }
 
     private static var measurements: [UUID: Measurement] = [:]
@@ -205,9 +208,15 @@ enum ChatMarkdownHeightMemory {
 
     /// What `id` last measured, unless the text size has changed since.
     static func height(for id: UUID) -> CGFloat? {
+        measurement(for: id)?.height
+    }
+
+    /// `id`'s measurement with the width and text size it was taken at,
+    /// unless the text size has changed since.
+    static func measurement(for id: UUID) -> Measurement? {
         guard let measurement = measurements[id],
               measuredFontSize == 0 || measurement.fontSize == measuredFontSize else { return nil }
-        return measurement.height
+        return measurement
     }
 
     /// The height a row opens at: what it measured last time, or an estimate
@@ -235,10 +244,13 @@ enum ChatMarkdownHeightMemory {
     /// the remainder for rows above what the learner is looking at.
     static func estimatedHeight(markdown: String, width: CGFloat, fontSize: CGFloat) -> CGFloat {
         let size = max(8, fontSize)
-        // Average advance of the system font at body sizes is about half the
-        // point size; the column keeps a little padding on each side, and
-        // prose stops at the page's 42em measure however wide the column is.
-        let charactersPerLine = max(16, floor(max(160, min(width - 24, size * 42)) / (size * 0.5)))
+        // Average advance of the system font in English prose at body sizes,
+        // as a share of the point size; the column keeps a little padding on
+        // each side, and prose stops at the page's 42em measure however wide
+        // the column is. 0.43 and the block gap below were fitted to WebKit's
+        // own measurements of 40 replies at three widths and text sizes: their
+        // median error went from 16% too tall (0.5 and 0.62) to about 2%.
+        let charactersPerLine = max(16, floor(max(160, min(width - 24, size * 42)) / (size * 0.43)))
         // chat-render.css: line-height 1.625, Codex's.
         let lineHeight = size * 1.625
         var height: CGFloat = 0
@@ -282,7 +294,7 @@ enum ChatMarkdownHeightMemory {
         }
         // Space between blocks: paragraphs, list items and headings all carry
         // some. A heading's larger share is counted with its line above.
-        height += CGFloat(max(0, blocks - 1)) * size * 0.62
+        height += CGFloat(max(0, blocks - 1)) * size * 0.45
         if !citations.isEmpty {
             // "Sources" heading, then one two-line card per distinct citation.
             height += size * 2.4 + CGFloat(citations.count) * size * 3.4
@@ -291,7 +303,7 @@ enum ChatMarkdownHeightMemory {
         return max(36, ceil(height + size * 1.2))
     }
 
-    static func record(height: CGFloat, width: CGFloat, fontSize: CGFloat, for id: UUID) {
+    static func record(height: CGFloat, width: CGFloat, fontSize: CGFloat, for id: UUID, byRow: Bool = true) {
         if fontSize != measuredFontSize {
             // The app's text size moved: no height measured before is true.
             measurements.removeAll(keepingCapacity: true)
@@ -306,7 +318,7 @@ enum ChatMarkdownHeightMemory {
         }
         measuredWidth = width
         measuredFontSize = fontSize
-        let measurement = Measurement(height: height, width: width, fontSize: fontSize)
+        let measurement = Measurement(height: height, width: width, fontSize: fontSize, byRow: byRow)
         if measurements.updateValue(measurement, forKey: id) == nil {
             order.append(id)
             if order.count > capacity {
@@ -1449,6 +1461,9 @@ struct ChatMarkdownView: NSViewRepresentable {
                     fontSize: lastFontSize,
                     for: identity
                 )
+                // The first row of a chat to measure itself gives its column's
+                // width and text size, which the rest are measured at.
+                ChatMarkdownView.Premeasurer.noteRowMeasured()
             }
             let current = height.wrappedValue
             guard abs(current - reportedHeight) > 1 else { return }
@@ -1974,6 +1989,160 @@ struct ChatMarkdownView: NSViewRepresentable {
             }
 
             nextResponder?.scrollWheel(with: event)
+        }
+    }
+}
+
+extension ChatMarkdownView {
+    /// Measures a chat's replies before their rows are built.
+    ///
+    /// A reply's row opens at the height it measured last time, or at an
+    /// estimate from its markdown, and takes WebKit's measurement a few frames
+    /// after it is built. The transcript is lazy, so a chat opened from history
+    /// builds its replies only as they scroll into view: each one changed
+    /// height just as it arrived at the top of the screen, and on a chat of
+    /// long replies a band of text there jumped by hundreds of points at a
+    /// time, while the lazy stack's idea of the transcript's height swung by
+    /// thousands. Measured on a six-turn chat whose replies run to 15,000
+    /// characters: two jumps, of 390 and 263 points, on the first scroll up,
+    /// and none once every reply had been measured. So the transcript hands
+    /// over its replies as soon as it shows them, and one hidden page renders
+    /// each in turn at the column's width and text size — the same page, the
+    /// same push, the same measurement the row makes — into
+    /// `ChatMarkdownHeightMemory`, newest first, which is the order the
+    /// learner scrolls into them from the foot of the chat. A row then opens
+    /// at its true height. What the hidden page cannot know (source cards
+    /// resolving, pictures arriving) the row measures itself, as before.
+    @MainActor
+    enum Premeasurer {
+        struct Entry: Equatable {
+            let id: UUID
+            let markdown: String
+            let citationContext: ChatCitationLedger.MessageContext
+        }
+
+        /// The open transcript's replies in its main column, newest first.
+        private static var entries: [Entry] = []
+        private static var task: Task<Void, Never>?
+        private static var webView: WKWebView?
+
+        static func setEntries(_ newEntries: [Entry]) {
+            entries = newEntries
+            start()
+        }
+
+        /// A row measured itself: the column's width and text size may be
+        /// known now.
+        static func noteRowMeasured() {
+            guard !entries.isEmpty else { return }
+            start()
+        }
+
+        private static func start() {
+            guard task == nil else { return }
+            task = Task { @MainActor in
+                await run()
+                task = nil
+            }
+        }
+
+        private static func run() async {
+            var attempted = Set<UUID>()
+            while true {
+                // The hidden page shares the web process with the rows; a row
+                // entering the screen comes first.
+                while ChatScrollActivity.isScrolling {
+                    try? await Task.sleep(for: .milliseconds(120))
+                }
+                guard let column = columnSize(),
+                      let next = entries.first(where: {
+                          !attempted.contains($0.id) && needsMeasurement($0.id, in: column)
+                      })
+                else { return }
+                attempted.insert(next.id)
+                guard let height = await measure(next, width: column.width, fontSize: column.fontSize) else { return }
+                // The row may have measured itself while the page worked; its
+                // own measurement wins.
+                guard needsMeasurement(next.id, in: column) else { continue }
+                ChatMarkdownHeightMemory.record(
+                    height: height,
+                    width: column.width,
+                    fontSize: column.fontSize,
+                    for: next.id,
+                    byRow: false
+                )
+            }
+        }
+
+        private struct ColumnSize: Hashable {
+            let width: CGFloat
+            let fontSize: CGFloat
+        }
+
+        /// The width and text size the column's own rows measured at, the
+        /// most common of them, so one odd row cannot set it. Nil until a row
+        /// of this transcript has measured itself.
+        private static func columnSize() -> ColumnSize? {
+            var counts: [ColumnSize: Int] = [:]
+            for entry in entries {
+                guard let measurement = ChatMarkdownHeightMemory.measurement(for: entry.id),
+                      measurement.byRow else { continue }
+                counts[ColumnSize(width: measurement.width, fontSize: measurement.fontSize), default: 0] += 1
+            }
+            return counts.max { $0.value < $1.value }?.key
+        }
+
+        private static func needsMeasurement(_ id: UUID, in column: ColumnSize) -> Bool {
+            guard let measurement = ChatMarkdownHeightMemory.measurement(for: id) else { return true }
+            return measurement.width != column.width || measurement.fontSize != column.fontSize
+        }
+
+        private static func measure(_ entry: Entry, width: CGFloat, fontSize: CGFloat) async -> CGFloat? {
+            let view: WKWebView
+            if let webView {
+                view = webView
+            } else {
+                view = ChatMarkdownView.makeTemplateWebView()
+                webView = view
+            }
+            if view.frame.width != width {
+                view.setFrameSize(NSSize(width: width, height: 200))
+            }
+            guard await pageIsReady(view) else { return nil }
+            // What the row's page does on a push, then the row's own
+            // measurement (`chat-render.js`'s height report), read at once:
+            // reading the box lays the page out.
+            let body = """
+            document.body.style.fontSize = font + 'px';
+            window.setCitationContext(JSON.parse(context));
+            window.setMarkdown(markdown);
+            const content = document.getElementById('content');
+            const box = content.getBoundingClientRect();
+            return Math.max(content.scrollHeight, box.height, box.bottom + window.scrollY);
+            """
+            let result = try? await view.callAsyncJavaScript(
+                body,
+                arguments: [
+                    "font": Double(fontSize),
+                    "context": ChatMarkdownView.citationContextJSON(entry.citationContext),
+                    "markdown": entry.markdown,
+                ],
+                contentWorld: .page
+            )
+            guard let raw = (result as? NSNumber)?.doubleValue, raw > 0 else { return nil }
+            return max(24, ceil(raw))
+        }
+
+        private static func pageIsReady(_ view: WKWebView) async -> Bool {
+            for _ in 0..<100 {
+                let ready = try? await view.callAsyncJavaScript(
+                    "return typeof window.setMarkdown === 'function' && !!document.getElementById('content');",
+                    contentWorld: .page
+                )
+                if (ready as? Bool) == true { return true }
+                try? await Task.sleep(for: .milliseconds(50))
+            }
+            return false
         }
     }
 }

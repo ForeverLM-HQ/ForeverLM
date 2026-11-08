@@ -7914,6 +7914,13 @@ private struct InternalReviewPanelContent: View {
 /// manager's coarse `chatMessageCount`, and the one body that reads the
 /// messages is this one. The row builder and error view come from the panel as
 /// closures, so the rows themselves are unchanged.
+/// What `ReviewChatTranscriptStack` hands `ChatMarkdownView.Premeasurer`
+/// changes with: which replies, and what each says about its citations.
+private struct ChatPremeasureKey: Equatable {
+    let ids: [UUID]
+    let contexts: [ChatCitationLedger.MessageContext]
+}
+
 private struct ReviewChatTranscriptStack<Row: View, ErrorView: View>: View {
     let manager: ReviewSessionManager
     let proxy: ScrollViewProxy
@@ -7993,6 +8000,18 @@ private struct ReviewChatTranscriptStack<Row: View, ErrorView: View>: View {
         let showsNewest = card.isNewest
         let blocks = ReviewChatTranscriptBlock.grouping(messages)
         let sections = ReviewChatTranscriptSection.grouping(blocks)
+        // The replies drawn in the main column, newest first, measured ahead
+        // of their rows (`ChatMarkdownView.Premeasurer`). Not the one
+        // streaming: its row measures it as it grows.
+        let premeasured = sections.filter { !$0.isSideQuestion }
+            .flatMap(\.blocks)
+            .flatMap(\.answerMessages)
+            .filter { $0.role == .assistant && $0.toolActivity == nil && $0.id != manager.streamingMessageID }
+            .reversed()
+        let premeasureKey = ChatPremeasureKey(
+            ids: premeasured.map(\.id),
+            contexts: premeasured.map { citationContexts[$0.id] ?? .init() }
+        )
         let liveBlockID = isTurnInFlight && showsNewest ? blocks.last?.id : nil
         // Newest by time: a lane about an older reply is drawn up under it.
         let newestSectionID = showsNewest ? ReviewChatTranscriptSection.newest(in: sections, blocks: blocks)?.id : nil
@@ -8132,6 +8151,21 @@ private struct ReviewChatTranscriptStack<Row: View, ErrorView: View>: View {
                 },
                 open: manager.streamingMessageID
             )
+        }
+        .onChange(of: premeasureKey, initial: true) { _, _ in
+            ChatMarkdownView.Premeasurer.setEntries(premeasured.compactMap { message in
+                guard let display = ReviewSessionManager.displayableMessageContent(
+                    role: message.role,
+                    content: message.content
+                ) else { return nil }
+                // What the row's bubble renders: the reply without its web
+                // sources footer, which it lists natively.
+                return ChatMarkdownView.Premeasurer.Entry(
+                    id: message.id,
+                    markdown: ReviewSessionManager.splitWebSourcesFooter(display).body,
+                    citationContext: citationContexts[message.id] ?? .init()
+                )
+            })
         }
         .onChange(of: latestUserMessageID) { _, _ in
             // Scroll only when the user submits a message (or a session loads
