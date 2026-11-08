@@ -601,4 +601,55 @@ struct MeetingSessionRowTitleTests {
         #expect(!StudioViewModel.isSeriesVariant("Ro", of: "Robin <> Zara standup"))
         #expect(!StudioViewModel.isSeriesVariant("Biostasis", of: "Robin <> Zara standup"))
     }
+
+    // MARK: - Sessions filed under their date
+
+    /// A session filed while the topic call could not run kept its date and,
+    /// until 2026-11-08, kept it for good. These pin which filed sessions are
+    /// asked about again.
+    @Test("a session titled only by its date and with no presenter is read again")
+    func dateOnlySessionNeedsDescriptor() {
+        #expect(StudioViewModel.meetingSessionNeedsDescriptor(
+            storedTitle: "2026/10/11", author: nil,
+            sessionKey: "2026/10/11", groupTitle: "Acme Lab Nexus"
+        ))
+        #expect(StudioViewModel.meetingSessionNeedsDescriptor(
+            storedTitle: "Acme Lab Nexus - 2026/07/12 11:48", author: "  ",
+            sessionKey: "Acme Lab Nexus - 2026/07/12 11:48", groupTitle: "Acme Lab Nexus"
+        ))
+    }
+
+    @Test("a session with a topic, a presenter, or the learner's own name is left alone")
+    func describedSessionIsLeftAlone() {
+        #expect(!StudioViewModel.meetingSessionNeedsDescriptor(
+            storedTitle: "JC: Cellular Identity in Aging", author: nil,
+            sessionKey: "2026/10/11", groupTitle: "Acme Lab Nexus"
+        ))
+        #expect(!StudioViewModel.meetingSessionNeedsDescriptor(
+            storedTitle: "2026/10/11", author: "Morgan Ellery",
+            sessionKey: "2026/10/11", groupTitle: "Acme Lab Nexus"
+        ))
+        #expect(!StudioViewModel.meetingSessionNeedsDescriptor(
+            storedTitle: "Acme Lab Nexus Retrospective", author: nil,
+            sessionKey: "2026/10/11", groupTitle: "Acme Lab Nexus"
+        ))
+    }
+
+    @Test("a session is read again only when its file names change")
+    func attemptKeyFollowsFileNames() {
+        let first = StudioViewModel.meetingDescriptorAttemptKey(
+            groupID: "G", sessionKey: "2026/10/11",
+            fileNames: ["2026-10-11 - [Notes]", "2026-10-11 - [Recording]"]
+        )
+        let reordered = StudioViewModel.meetingDescriptorAttemptKey(
+            groupID: "G", sessionKey: "2026/10/11",
+            fileNames: ["2026-10-11 - [Recording]", "2026-10-11 - [Notes]"]
+        )
+        let renamed = StudioViewModel.meetingDescriptorAttemptKey(
+            groupID: "G", sessionKey: "2026/10/11",
+            fileNames: ["2026-10-11 - [Notes] - Topic - Morgan Ellery", "2026-10-11 - [Recording]"]
+        )
+        #expect(first == reordered)
+        #expect(first != renamed)
+    }
 }

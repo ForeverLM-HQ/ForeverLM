@@ -1523,15 +1523,45 @@ extension StudioViewModel {
         // rows land already named. Grouping is already fixed at this point, so a
         // failure here costs the topic and presenter, never the sessions
         // themselves — surface it and keep the date-based titles.
+        //
+        // A session filed while the call could not run (no model to run it on,
+        // a failed request) kept the date its key spells, and used to keep it
+        // for good: only new sessions were ever asked about. Every Nexus
+        // session from 2026-10-11 on stayed "2026/10/11" while meeting tasks
+        // waited for a paid model. Such a session is asked about again on each
+        // refresh until a call has read its current file names once.
         var descriptors: [String: (title: String, presenter: String?)] = [:]
-        let existingArticleURLs = Set(articles.map(\.url))
-        let newSessions = grouped.filter { sessionKey, _ in
+        let existingArticlesByURL = Dictionary(
+            articles.map { ($0.url, $0) },
+            uniquingKeysWith: { first, _ in first }
+        )
+        var retriedSessionKeys: Set<String> = []
+        var retryAttemptKeys: Set<String> = []
+        let sessionsToDescribe = grouped.filter { sessionKey, artifacts in
             let url = "meeting://\(groupID)/\(Self.percentEncodedMeetingPathComponent(sessionKey))"
-            return !existingArticleURLs.contains(url)
+            guard let existing = existingArticlesByURL[url] else { return true }
+            guard Self.meetingSessionNeedsDescriptor(
+                storedTitle: existing.title,
+                author: existing.author,
+                sessionKey: sessionKey,
+                groupTitle: displayTitle
+            ) else { return false }
+            let attemptKey = Self.meetingDescriptorAttemptKey(
+                groupID: groupID,
+                sessionKey: sessionKey,
+                fileNames: artifacts.map(\.title)
+            )
+            guard !MeetingDescriptorAttempts.described.contains(attemptKey) else { return false }
+            retriedSessionKeys.insert(sessionKey)
+            retryAttemptKeys.insert(attemptKey)
+            return true
         }
-        if !newSessions.isEmpty {
+        if !sessionsToDescribe.isEmpty {
             do {
-                descriptors = try await Self.meetingSessionDescriptors(for: newSessions, groupTitle: displayTitle)
+                descriptors = try await Self.meetingSessionDescriptors(for: sessionsToDescribe, groupTitle: displayTitle)
+                // Read once with these file names: a session whose files carry
+                // no topic is not asked about again until they change.
+                MeetingDescriptorAttempts.described.formUnion(retryAttemptKeys)
             } catch {
                 logger.error("Meeting session detail extraction failed: \(error.localizedDescription)")
                 if !silent {
@@ -1572,6 +1602,13 @@ extension StudioViewModel {
                     parentGroup: groupID
                 )
             article.sourceType = .meeting
+            // A session filed under its date takes the topic it was just read
+            // for. A title the learner wrote never reaches here: it is not a
+            // date, so the session was not asked about.
+            if existingArticle != nil, retriedSessionKeys.contains(sessionKey),
+               let described = descriptors[sessionKey] {
+                article.title = described.title
+            }
             // Only stamp the origin on sessions this import created. A group may
             // mix plugins (Drive sessions plus a read.ai session), and
             // overwriting on every re-import dragged existing sessions into
@@ -2185,6 +2222,34 @@ extension StudioViewModel {
     nonisolated static func meetingSessionTitle(from sessionKey: String, groupTitle: String) -> String {
         let stripped = strippingMeetingSeriesPrefix(from: sessionKey, series: [groupTitle])
         return stripped.isEmpty ? sessionKey : stripped
+    }
+
+    /// Whether a filed session still reads as nothing but when it happened,
+    /// with no presenter: the name an import gives a session it could not
+    /// read the topic of. A title the learner or a provider wrote, or a
+    /// session that has a presenter, has been read and is left alone.
+    nonisolated static func meetingSessionNeedsDescriptor(
+        storedTitle: String,
+        author: String?,
+        sessionKey: String,
+        groupTitle: String
+    ) -> Bool {
+        if let author, !author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty { return false }
+        let series = [groupTitle, meetingSeriesTitle(from: sessionKey)].compactMap { $0 }
+        let stored = strippingMeetingSeriesPrefix(from: storedTitle, series: series)
+        return stored == sessionKey
+            || stored == meetingSessionTitle(from: sessionKey, groupTitle: groupTitle)
+            || isRawMeetingDateTitle(stored)
+    }
+
+    /// One session read with one set of file names, so a session is asked
+    /// about again only when its files change.
+    nonisolated static func meetingDescriptorAttemptKey(
+        groupID: String,
+        sessionKey: String,
+        fileNames: [String]
+    ) -> String {
+        ([groupID, sessionKey] + fileNames.sorted()).joined(separator: "\u{1F}")
     }
 
     /// What a session row prints where its name goes.
@@ -4639,4 +4704,14 @@ extension StudioViewModel {
             article.author = pageAuthor
         }
     }
+}
+
+/// Sessions whose topic has been read with the file names they have now, for
+/// this launch. A session filed under its date is asked about on each refresh
+/// until one call has read it; this keeps a session whose files carry no topic
+/// at all from being sent again every few minutes. Nothing here is stored: a
+/// relaunch reads each such session once more.
+@MainActor
+enum MeetingDescriptorAttempts {
+    static var described: Set<String> = []
 }
