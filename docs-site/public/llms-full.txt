@@ -6622,6 +6622,27 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.193.0 (build 273) — 2026-11-07
+
+**Highlights:**
+- **Every team's papers are in My Library**, and `/source` finds them.
+- **Your Models**: one list you keep for chat, text work and images, and GPT runs on your own OpenAI key.
+
+- **Every team's papers are in My Library.** A source a team holds is no longer the team's alone: My Library lists it, and `/source`, `@` and the Docs source picker find it, whichever library is open.
+- **GPT models run on your own OpenAI key.** With an OpenAI key added to OpenRouter (Settings › Integrations), a GPT model OpenAI serves itself now always runs on OpenAI, not Azure or Amazon Bedrock, so the call uses your key instead of OpenRouter credits, as Claude already did with an Anthropic key. AI Usage flags GPT calls billed to credits the same way.
+- **Every model in AI Usage shows its own key.** A row that used two models (say GPT 6.1 Terra and Opus 5.5) now puts a **BYOK** capsule beside each, so you can see which key paid for which; hover the models for each one's calls.
+- **Linked References at the foot of a Page are plain links.** Each page that links here is listed once, by its title, instead of quoting every paragraph that links. Click one to open it.
+- **Your Models in Settings.** Settings › Chat's Suggested and Free lists become Your Models, a list you keep, and Settings › Background has the same: one list for text work, one for images.
+- **A notebook is its columns around the window's tabs.** The chat-and-slot layout is gone; the notebook's center is the window's own tabs, and Studio rows drag onto a pane.
+- **The notebook column lists chats like ChatGPT,** and a source goes into the chat with a +.
+- **A quarter in Plan opens to its objectives and weeks,** and a week to its days.
+- **Chat no longer fails with an assistant prefill error,** and when a model declines for safety reasons the chat says so.
+- **AI Usage prices more calls:** an OpenRouter call with no listed price reads its charge, and token-billed transcription and speech calls get a price. Ramp Router is gone.
+- **A suggested question card shows the whole question.**
+- **A type's tab menu in the Library shows what is hidden in it.**
+- **Folding a meeting series folds that series only,** not the ones below it.
+- **A resolved page link shows its library source.**
+
 ## 0.192.0 (build 272) — 2026-11-07
 
 **Highlights:**
