@@ -300,55 +300,44 @@ extension StudioViewModel {
         return nil
     }
 
-    /// Set or clear a book's author (persisted to books table in SQLite).
+    /// Set or clear a book's author.
     func updateBookAuthor(groupName: String, author: String) async {
-        let value = author.isEmpty ? nil : author
-        bookAuthors[groupName] = value
-        saveBooksToDisk()
+        await updateBookField(.author, of: groupName, to: author)
     }
 
-    /// Set or clear a book's subtitle (persisted to books table in SQLite).
+    /// Set or clear a book's subtitle.
     func updateBookSubtitle(groupName: String, subtitle: String) async {
-        let value = subtitle.isEmpty ? nil : subtitle
-        bookSubtitles[groupName] = value
-        saveBooksToDisk()
+        await updateBookField(.subtitle, of: groupName, to: subtitle)
     }
 
-    /// Set or clear a book's edition (persisted to books table in SQLite).
+    /// Set or clear a book's edition.
     func updateBookEdition(groupName: String, edition: String) async {
-        let value = edition.isEmpty ? nil : edition
-        bookEditions[groupName] = value
-        saveBooksToDisk()
+        await updateBookField(.edition, of: groupName, to: edition)
     }
 
-    /// Set or clear a book's kind/category (persisted to books table in SQLite).
+    /// Set or clear a book's kind/category.
     func updateBookKind(groupName: String, kind: String) async {
-        let value = kind.isEmpty ? nil : kind
-        bookKinds[groupName] = value
-        saveBooksToDisk()
+        await updateBookField(.kind, of: groupName, to: kind)
     }
 
-    /// Persist book metadata (authors, cover paths, kinds) to SQLite.
-    func saveBooksToDisk() {
-        let titles = bookTitles
-        let subtitles = bookSubtitles
-        let authors = bookAuthors
-        let editions = bookEditions
-        let coverPaths = bookCoverPaths
-        let kinds = bookKinds
-        Task {
-            do {
-                try await storage.saveBooks(
-                    titles: titles,
-                    subtitles: subtitles,
-                    authors: authors,
-                    editions: editions,
-                    coverPaths: coverPaths,
-                    kinds: kinds
-                )
-            } catch {
-                logger.error("Failed to save books to DB: \(error.localizedDescription)")
-            }
+    /// Writes the one field of the one book, then shows what was stored. Only
+    /// that row's column is written, so a book this view model has not loaded
+    /// yet (one that arrived by sync a moment ago) is never touched, and a
+    /// failed write leaves the book showing what is stored.
+    private func updateBookField(_ field: KnowledgeStore.BookField, of groupName: String, to value: String) async {
+        let stored: String?
+        do {
+            stored = try await storage.setBookField(field, of: groupName, to: value)
+        } catch {
+            logger.error("Failed to save the \(field.rawValue) of book \(groupName): \(error.localizedDescription)")
+            errorMessage = error.localizedDescription
+            return
+        }
+        switch field {
+        case .subtitle: bookSubtitles[groupName] = stored
+        case .author: bookAuthors[groupName] = stored
+        case .edition: bookEditions[groupName] = stored
+        case .kind: bookKinds[groupName] = stored
         }
     }
 }

@@ -1592,9 +1592,17 @@ extension StudioViewModel {
         // Try to automatically fetch the transcript using the store track ID
         if let trackId = held.trackId {
             guard let idx = articles.firstIndex(where: { $0.id == articleId }) else { return }
-            articles[idx].state = .fetching
-            articles[idx].podcastMatchTrackId = nil
-            try? await storage.saveSource(articles[idx])
+            var fetching = articles[idx]
+            fetching.state = .fetching
+            fetching.podcastMatchTrackId = nil
+            // Stored before the fetch starts: a row the store never took keeps
+            // its match in view, shown failed, rather than fetching on a state
+            // only memory holds.
+            guard await persistSource(fetching, context: "Confirm the podcast match") else { return }
+            mutateArticle(id: articleId) { row in
+                row.state = .fetching
+                row.podcastMatchTrackId = nil
+            }
             logger.info("Auto-fetching transcript for track ID \(trackId)")
 
             // The user just confirmed this specific episode, so it earns a
@@ -1620,7 +1628,7 @@ extension StudioViewModel {
             if let idx2 = articles.firstIndex(where: { $0.id == articleId }) {
                 articles[idx2].state = .error
                 articles[idx2].errorMessage = Self.noPodcastTranscriptMessage
-                try? await storage.saveSource(articles[idx2])
+                await persistSource(articles[idx2], context: "Save the podcast's missing transcript")
             }
             return
         }
@@ -1630,7 +1638,7 @@ extension StudioViewModel {
         articles[idx2].state = .error
         articles[idx2].statusFlag = .needsTranscript
         articles[idx2].podcastMatchTrackId = nil
-        try? await storage.saveSource(articles[idx2])
+        await persistSource(articles[idx2], context: "Save the podcast's missing transcript")
     }
 
     /// What a confirmed match makes of its row before its transcript is
@@ -1726,14 +1734,26 @@ extension StudioViewModel {
     }
 
     /// User rejected the podcast match — clear it.
+    /// Stored first: a rejection the store did not take is shown failed and
+    /// leaves the match on offer, as it still is in the library.
     func rejectPodcastMatch(for articleId: String) async {
+        guard let idx = articles.firstIndex(where: { $0.id == articleId }) else {
+            stagedPodcastMatches[articleId] = nil
+            return
+        }
+        var rejected = articles[idx]
+        rejected.podcastMatch = nil
+        rejected.podcastMatchTrackId = nil
+        rejected.state = .queued
+        rejected.errorMessage = nil
+        guard await persistSource(rejected, context: "Reject the podcast match") else { return }
         stagedPodcastMatches[articleId] = nil
-        guard let idx = articles.firstIndex(where: { $0.id == articleId }) else { return }
-        articles[idx].podcastMatch = nil
-        articles[idx].podcastMatchTrackId = nil
-        articles[idx].state = .queued
-        articles[idx].errorMessage = nil
-        try? await storage.saveSource(articles[idx])
+        mutateArticle(id: articleId) { row in
+            row.podcastMatch = nil
+            row.podcastMatchTrackId = nil
+            row.state = .queued
+            row.errorMessage = nil
+        }
     }
 
     func removeArticle(id: String) async {
@@ -1860,18 +1880,51 @@ extension StudioViewModel {
         forceMetadataExtractionForMissingAuthor: Bool = false,
         identity: PaperPDFIdentityGate? = nil
     ) async -> Bool {
-        guard let idx = articles.firstIndex(where: { $0.id == articleId }) else { return false }
-        let article = articles[idx]
-        guard shouldSearchForPaperAlternative(article) else { return false }
+        guard let article = articles.first(where: { $0.id == articleId }),
+              shouldSearchForPaperAlternative(article) else { return false }
         let alternatives = await PaperService.findOpenAccessAlternatives(
             url: article.url,
             title: article.title,
             doi: article.doi
         )
-        guard !alternatives.isEmpty else { return false }
+        return await adoptOpenAccessAlternative(
+            for: articleId,
+            among: alternatives,
+            userInitiated: userInitiated,
+            markFailure: markFailure,
+            identity: identity
+        ) { gate in
+            await self.downloadPaperPDF(
+                for: articleId,
+                userInitiated: userInitiated,
+                forceMetadataExtractionForMissingAuthor: forceMetadataExtractionForMissingAuthor,
+                identity: gate,
+                replacingDerivedData: true
+            )
+        }
+    }
 
-        let original = article
-        let oldURL = article.url
+    /// The candidates of `adoptOpenAccessAlternativeIfAvailable`, tried with
+    /// `download` (the paper pipeline, or a test's stand-in).
+    ///
+    /// Nothing stored is cleared while a candidate is tried: the copy's address
+    /// sits on the row in memory only, and the paper's text, walkthroughs,
+    /// review guides and narration stay until a candidate's PDF is accepted.
+    /// The save that attaches that PDF clears them in the same transaction
+    /// (`downloadPaperPDF(replacingDerivedData: true)`), so a Retry Download
+    /// that finds no usable copy leaves the paper as it was.
+    @discardableResult
+    func adoptOpenAccessAlternative(
+        for articleId: String,
+        among alternatives: [PaperService.OpenAccessAlternativeResult],
+        userInitiated: Bool,
+        markFailure: Bool,
+        identity: PaperPDFIdentityGate?,
+        download: (_ identity: PaperPDFIdentityGate) async -> PaperDownloadResult
+    ) async -> Bool {
+        guard !alternatives.isEmpty,
+              let original = articles.first(where: { $0.id == articleId }) else { return false }
+        let oldURL = original.url
         let gate = identity ?? PaperPDFIdentityGate(article: original)
         for (attempt, alternative) in alternatives.enumerated() {
             guard let idx2 = articles.firstIndex(where: { $0.id == articleId }) else { return true }
@@ -1887,23 +1940,11 @@ extension StudioViewModel {
             articles[idx2].errorMessage = nil
             if userInitiated {
                 articles[idx2].state = .fetching
-                await storage.clearSourceDerivedData(articleId)
-                try? await storage.saveSource(articles[idx2], syncImmediately: true)
             }
             logger.info("Trying paper OA candidate: \(oldURL) → \(alternative.replacementURL)")
 
-            let result = await downloadPaperPDF(
-                for: articleId,
-                userInitiated: userInitiated,
-                forceMetadataExtractionForMissingAuthor: forceMetadataExtractionForMissingAuthor,
-                identity: gate
-            )
+            let result = await download(gate)
             if result.success {
-                if !userInitiated,
-                   let idx3 = articles.firstIndex(where: { $0.id == articleId }),
-                   articles[idx3].resolvedPDFPath != nil {
-                    await storage.clearSourceDerivedData(articleId)
-                }
                 if let idx3 = articles.firstIndex(where: { $0.id == articleId }),
                    Self.titleNeedsResolution(articles[idx3].title, domain: articles[idx3].domain, url: articles[idx3].url) {
                     await extractPaperTitle(for: articleId)
@@ -1915,13 +1956,20 @@ extension StudioViewModel {
 
         guard let idx3 = articles.firstIndex(where: { $0.id == articleId }) else { return true }
         articles[idx3] = original
-        // The candidates' saves left their own address and state on the row; putting the original
-        // back changes them again, and a save writes only what its copy changed (`SourceEdits`).
+        // A candidate's own steps may have saved its address or state on the
+        // row; putting the original back changes them again, and a save writes
+        // only what its copy changed (`SourceEdits`).
         articles[idx3].edits.noteAll()
         if markFailure {
-            articles[idx3].state = .error
-            articles[idx3].errorMessage = Self.openAccessFailureMessage(turnedAway: gate.rejections)
-            try? await storage.saveSource(articles[idx3])
+            var failed = articles[idx3]
+            failed.state = .error
+            failed.errorMessage = Self.openAccessFailureMessage(turnedAway: gate.rejections)
+            if await persistSource(failed, context: "Save the failed download") {
+                mutateArticle(id: articleId) { row in
+                    row.state = failed.state
+                    row.errorMessage = failed.errorMessage
+                }
+            }
         }
         return true
     }
@@ -1939,33 +1987,56 @@ extension StudioViewModel {
     }
 
     /// Attempt to fetch article content from archive.ph and transition out of paywall state.
+    ///
+    /// The archived text is stored before it is shown, and a paper's paid
+    /// metadata step runs only on text the store took: a failed save is shown
+    /// and the row goes back to the state it had.
     func fetchFromArchive(articleId: String) async {
         guard let idx = articles.firstIndex(where: { $0.id == articleId }) else { return }
         let urlString = articles[idx].url
+        let priorState = articles[idx].state
         articles[idx].state = .fetching
         do {
             let content = try await SourceService.shared.fetchArchiveContent(for: urlString)
             guard let idx2 = articles.firstIndex(where: { $0.id == articleId }) else { return }
-            articles[idx2].content = content
-            articles[idx2].wordCount = content.split(separator: " ").count
-            if articles[idx2].sourceType == .paper {
-                articles[idx2].prepareForPaperMetadataExtraction()
+            var updated = articles[idx2]
+            updated.content = content
+            updated.wordCount = content.split(separator: " ").count
+            if updated.sourceType == .paper {
+                updated.prepareForPaperMetadataExtraction()
             } else {
-                articles[idx2].state = .ready
-                articles[idx2].errorMessage = nil
+                updated.state = .ready
+                updated.errorMessage = nil
             }
-            let updated = articles[idx2]
-            let needsPaperMetadata = updated.sourceType == .paper
-            try? await storage.saveSource(updated, syncImmediately: true)
-            if needsPaperMetadata {
+            guard await persistSource(updated, context: "Save the archived copy", syncImmediately: true) else {
+                mutateArticle(id: articleId) { $0.state = priorState }
+                return
+            }
+            if let idx3 = articles.firstIndex(where: { $0.id == articleId }) {
+                articles[idx3] = updated
+            }
+            if updated.sourceType == .paper {
                 _ = await extractPaperMetadataWithAI(id: articleId, showToasts: true)
             }
         } catch {
             guard let idx2 = articles.firstIndex(where: { $0.id == articleId }) else { return }
-            articles[idx2].state = articles[idx2].sourceType == .paper ? .error : .ready
-            articles[idx2].statusFlag = .paywall
-            articles[idx2].isPaywalled = true
-            try? await storage.saveSource(articles[idx2], syncImmediately: true)
+            var paywalled = articles[idx2]
+            // Ready only over text the store holds (its preview); the store
+            // refuses a ready row with none.
+            var hasStoredText = false
+            if paywalled.sourceType != .paper {
+                hasStoredText = await storage.hasReadableSourceContent(paywalled.id)
+            }
+            paywalled.state = hasStoredText ? .ready : .error
+            paywalled.statusFlag = .paywall
+            paywalled.isPaywalled = true
+            guard await persistSource(paywalled, context: "Mark the source paywalled", syncImmediately: true) else {
+                mutateArticle(id: articleId) { $0.state = priorState }
+                return
+            }
+            if let idx3 = articles.firstIndex(where: { $0.id == articleId }) {
+                articles[idx3] = paywalled
+            }
         }
     }
 

@@ -3277,11 +3277,19 @@ final class ArticleSpeechService: NSObject, ObservableObject {
     }
 
     /// Forgets a source's resume point everywhere: the file beside the audio, the account copy and,
-    /// under generation 2, its ReadingState.
+    /// under generation 2, its ReadingState. The ReadingState goes first: when that write fails the
+    /// local copy stays too, so the next play still finds the resume point at the end and forgets it
+    /// again, rather than this Mac forgetting while every other device resumes from it.
     private nonisolated static func clearListenPosition(sourceID: String, storage: StorageService) async {
+        if ForeverLMRuntimeIdentity.syncGeneration == .two {
+            do {
+                try await storage.saveListenPosition(nil, sourceID: sourceID)
+            } catch {
+                articleSpeechLogger.error("Could not forget the resume point of \(sourceID, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                return
+            }
+        }
         SyncedArticleAudioStore.clearPlaybackPosition(sourceID: sourceID)
-        guard ForeverLMRuntimeIdentity.syncGeneration == .two else { return }
-        try? await storage.saveListenPosition(nil, sourceID: sourceID)
     }
 
     /// Re-reads the stored configuration at the start of a listening session,

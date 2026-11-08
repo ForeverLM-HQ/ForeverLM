@@ -1227,15 +1227,24 @@ extension StudioViewModel {
 
     // MARK: - Private Helpers
 
+    /// Save `article`, showing a failure unless `showErrorToast` is false.
+    /// `replacingDerivedData` is for a source whose text was replaced at its
+    /// root (a new PDF of the paper): the old text and everything derived from
+    /// it go in the same transaction as the save, and stay if it fails.
     @discardableResult
     func persistSource(
         _ article: StudioArticle,
         context: String,
         showErrorToast: Bool = true,
-        syncImmediately: Bool = false
+        syncImmediately: Bool = false,
+        replacingDerivedData: Bool = false
     ) async -> Bool {
         do {
-            try await storage.saveSource(article, syncImmediately: syncImmediately)
+            if replacingDerivedData {
+                try await storage.saveSourceReplacingDerivedData(article, syncImmediately: syncImmediately)
+            } else {
+                try await storage.saveSource(article, syncImmediately: syncImmediately)
+            }
             // A new source is searchable by its title at once, even queued with no text yet.
             kickSourceEmbeddingIndexingSoon()
             if article.state == .ready,

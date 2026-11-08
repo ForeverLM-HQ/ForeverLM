@@ -764,3 +764,120 @@ struct PaperPDFIdentityBrowserAgentTests {
         #expect(rejection.origin == "thelancet.com")
     }
 }
+
+// MARK: - Retry Download keeps the paper until a copy is accepted
+
+/// Retry Download tries the paper's open-access copies. It used to clear the
+/// paper's text, walkthroughs and narration before each try, so a retry that
+/// found no usable copy left the paper with nothing. Now nothing is cleared
+/// until a copy's PDF is accepted, and then in the transaction that saves it.
+@Suite("Open-access retry keeps the paper until a copy is accepted")
+@MainActor
+struct OpenAccessRetryKeepsPaperTests {
+    private static let text = "Mitochondria couple respiration to ATP synthesis through a proton gradient across the inner membrane."
+
+    private static func walkthrough(for sourceID: String) -> PaperWalkthrough {
+        PaperWalkthrough(
+            sourceID: sourceID,
+            sourceSHA256: PaperContentPreparationService.sha256(text),
+            title: "Coupling",
+            steps: [
+                PaperWalkthroughStep(
+                    id: "step-0", kind: .explain, title: "Coupling", body: "Respiration and ATP synthesis are coupled.",
+                    anchor: PaperWalkthroughAnchor(passage: "couple respiration to ATP synthesis")
+                ),
+            ],
+            author: .assistant
+        )
+    }
+
+    /// A paper whose download failed, holding stored text and a walkthrough.
+    private static func seedPaper(_ store: KnowledgeStore, id: String = "paper-1") throws -> StudioArticle {
+        var paper = StudioArticle(
+            url: "https://journals.example.org/article/\(id)",
+            title: "Coupling in the inner membrane",
+            sourceType: .paper,
+            id: id
+        )
+        paper.domain = "journals.example.org"
+        paper.state = .error
+        paper.errorMessage = "PDF download failed"
+        try store.saveSource(paper)
+        try store.execForTesting("INSERT OR REPLACE INTO source_content (source_id, content) VALUES ('\(id)', '\(text)')")
+        try store.savePaperWalkthrough(walkthrough(for: id))
+        return paper
+    }
+
+    @Test("A retry whose every copy fails leaves the paper's text, walkthrough and address as they were")
+    func everyCandidateFailing() async throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("OpenAccessRetry-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let storage = StorageService(storeRoot: root)
+        let vm = StudioViewModel(storageService: storage, observeCloudKitChanges: false)
+        let store = try await storage.notebookFilesKnowledgeStore()
+        let paper = try Self.seedPaper(store)
+        vm.articles.append(paper)
+        let gate = StudioViewModel.PaperPDFIdentityGate(article: paper, registeredTitle: { _ in nil }, recordMismatch: { _, _ in })
+
+        var tried: [String] = []
+        let handled = await vm.adoptOpenAccessAlternative(
+            for: paper.id,
+            among: [
+                PaperService.OpenAccessAlternativeResult(replacementURL: "https://repository.example.org/a.pdf", sourceName: "Repository A"),
+                PaperService.OpenAccessAlternativeResult(replacementURL: "https://repository.example.org/b.pdf", sourceName: "Repository B"),
+            ],
+            userInitiated: true,
+            markFailure: true,
+            identity: gate
+        ) { _ in
+            tried.append(vm.articles.first { $0.id == paper.id }?.url ?? "")
+            // While a copy is tried, nothing stored has gone.
+            #expect(try! store.hasPaperWalkthroughRow(paper.id))
+            #expect(try! store.loadSourceContent(paper.id) == Self.text)
+            return StudioViewModel.PaperDownloadResult(success: false, lastError: SourceError.pdfReadFailed)
+        }
+
+        #expect(handled)
+        #expect(tried == ["https://repository.example.org/a.pdf", "https://repository.example.org/b.pdf"])
+        #expect(try store.hasPaperWalkthroughRow(paper.id), "the walkthrough survives a retry that attached nothing")
+        #expect(try store.loadSourceContent(paper.id) == Self.text, "the text survives too")
+        let stored = try #require(try store.loadSourceForSync(paper.id))
+        #expect(stored.url == paper.url)
+        #expect(stored.state == .error)
+        #expect(stored.errorMessage == StudioViewModel.openAccessFailureMessage(turnedAway: []))
+        let shown = try #require(vm.articles.first { $0.id == paper.id })
+        #expect(shown.url == paper.url)
+        #expect(shown.errorMessage == stored.errorMessage)
+    }
+
+    @Test("The save that attaches a copy clears the old text and walkthrough with it, and a refused save clears nothing")
+    func replacingSaveIsOneTransaction() throws {
+        let store = try KnowledgeStore(inMemory: true)
+        let paper = try Self.seedPaper(store)
+
+        // A save the store refuses (ready with no text) rolls the clearing back.
+        var refused = paper
+        refused.state = .ready
+        refused.errorMessage = nil
+        refused.content = "   "
+        #expect(throws: (any Error).self) { try store.saveSourceReplacingDerivedData(refused) }
+        #expect(try store.hasPaperWalkthroughRow(paper.id))
+        #expect(try store.loadSourceContent(paper.id) == Self.text)
+        #expect(try store.loadSourceForSync(paper.id)?.state == .error)
+
+        // The accepted copy's save takes the old text and its walkthrough.
+        var attached = paper
+        attached.url = "https://repository.example.org/a.pdf"
+        attached.localFilePath = "Papers/paper-1.pdf"
+        attached.domain = "Local PDF"
+        attached.prepareForPaperMetadataExtraction()
+        try store.saveSourceReplacingDerivedData(attached)
+        #expect(try !store.hasPaperWalkthroughRow(paper.id))
+        #expect(try store.loadSourceContent(paper.id) == nil)
+        let stored = try #require(try store.loadSourceForSync(paper.id))
+        #expect(stored.url == "https://repository.example.org/a.pdf")
+        #expect(stored.state == .queued)
+    }
+}

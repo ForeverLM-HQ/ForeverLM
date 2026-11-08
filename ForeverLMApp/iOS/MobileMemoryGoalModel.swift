@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import OSLog
 import UIKit
 
 /// The phone's clock on today's memory review, and the goal state and days
@@ -39,6 +40,11 @@ final class MobileMemoryGoalModel: ObservableObject {
     private var otherDevicesSecondsToday: TimeInterval = 0
     private var completedOtherDays: Set<String> = []
     private var secondsSincePersist: TimeInterval = 0
+    /// Closed days whose total has not been written yet, as (seconds, goal)
+    /// by day: nothing writes a closed day again, so a failed write is kept
+    /// and retried with the next persist.
+    private var unsavedClosedDays: [String: (seconds: TimeInterval, goalSeconds: TimeInterval, at: Date)] = [:]
+    private static let logger = Logger(subsystem: "com.foreverlm.mobile", category: "MemoryGoal")
     private var goalSeconds: TimeInterval = MemoryReviewGoal.goalSeconds(budgetMinutes: MemoryReviewBudget.defaultMinutes)
     private var today: String
 
@@ -193,8 +199,8 @@ final class MobileMemoryGoalModel: ObservableObject {
         let day = MemoryReviewGoal.dayKey(for: now)
         guard day != today else { return }
         if secondsSincePersist > 0 {
-            let (day, seconds, goal) = (today, deviceSecondsToday, goalSeconds)
-            Task { await Self.save(day: day, seconds: seconds, goalSeconds: goal, at: now) }
+            unsavedClosedDays[today] = (deviceSecondsToday, goalSeconds, now)
+            Task { await writeClosedDays() }
         }
         if snapshot.isTodayComplete { completedOtherDays.insert(today) }
         today = day
@@ -206,16 +212,44 @@ final class MobileMemoryGoalModel: ObservableObject {
     }
 
     private func persist(force: Bool) async {
+        await writeClosedDays()
         guard secondsSincePersist > 0 else { return }
         if !force, secondsSincePersist < MemoryReviewGoal.persistInterval { return }
+        let (day, seconds, goal) = (today, deviceSecondsToday, goalSeconds)
+        let unsaved = secondsSincePersist
         secondsSincePersist = 0
-        await Self.save(day: today, seconds: deviceSecondsToday, goalSeconds: goalSeconds, at: Date())
+        do {
+            try await Self.save(day: day, seconds: seconds, goalSeconds: goal, at: Date())
+        } catch {
+            Self.logger.error("Could not record review minutes for \(day, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            // The write is the day's running total, so the next persist
+            // carries these seconds too; a day that closed meanwhile is owed
+            // this total instead.
+            if today == day {
+                secondsSincePersist += unsaved
+            } else if unsavedClosedDays[day] == nil {
+                unsavedClosedDays[day] = (seconds, goal, Date())
+            }
+        }
+    }
+
+    /// Writes the closed days still owed. Each is the day's whole total, and
+    /// `recordReviewSeconds` keeps the larger, so writing one twice is harmless.
+    private func writeClosedDays() async {
+        for (day, owed) in unsavedClosedDays.sorted(by: { $0.key < $1.key }) {
+            do {
+                try await Self.save(day: day, seconds: owed.seconds, goalSeconds: owed.goalSeconds, at: owed.at)
+                if unsavedClosedDays[day]?.seconds == owed.seconds { unsavedClosedDays[day] = nil }
+            } catch {
+                Self.logger.error("Could not record review minutes for \(day, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            }
+        }
     }
 
     /// This device's minutes of a day: the review clock of its own ActivityLog (§3.5.24), which the replica
     /// sends with the log's 5-minute debounce.
-    private static func save(day: String, seconds: TimeInterval, goalSeconds: TimeInterval, at date: Date) async {
-        try? await save(day: day, seconds: seconds, goalSeconds: goalSeconds, at: date, writer: { await MobileRecordWriter.current() })
+    private static func save(day: String, seconds: TimeInterval, goalSeconds: TimeInterval, at date: Date) async throws {
+        try await save(day: day, seconds: seconds, goalSeconds: goalSeconds, at: date, writer: { await MobileRecordWriter.current() })
     }
 
     nonisolated static func save(day: String, seconds: TimeInterval, goalSeconds: TimeInterval, at date: Date,

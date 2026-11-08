@@ -79,6 +79,10 @@ final class MemoryReviewEngagementTracker {
     /// streak when today crosses the line between loads.
     @ObservationIgnored private var completedOtherDays: Set<String> = []
     @ObservationIgnored private var secondsSincePersist: TimeInterval = 0
+    /// Closed days whose total has not reached the store yet, by day. A day's
+    /// row is written once it closes and nothing writes it again, so a failed
+    /// write is kept here and retried with the next persist.
+    @ObservationIgnored private var unsavedClosedDays: [String: MemoryReviewActivity] = [:]
     @ObservationIgnored private var today: String
     @ObservationIgnored private var reloadTask: Task<Void, Never>?
     @ObservationIgnored private let logger = Logger(subsystem: "com.foreverlm", category: "MemoryReviewGoal")
@@ -415,15 +419,15 @@ final class MemoryReviewEngagementTracker {
         guard day != today else { return }
         let closingDay = today
         let closingSeconds = deviceSecondsToday
-        if secondsSincePersist > 0, let storage {
-            let row = MemoryReviewActivity(
+        if secondsSincePersist > 0, storage != nil {
+            unsavedClosedDays[closingDay] = MemoryReviewActivity(
                 day: closingDay,
                 deviceID: MemoryReviewActivityDevice.id,
                 activeSeconds: closingSeconds,
                 goalSeconds: snapshot.today.goalSeconds,
                 updatedAt: now
             )
-            Task { try? await storage.recordMemoryReviewActivity(row) }
+            Task { await writeClosedDays() }
         }
         if snapshot.isTodayComplete { completedOtherDays.insert(closingDay) }
         today = day
@@ -442,6 +446,7 @@ final class MemoryReviewEngagementTracker {
     /// the leaving-the-screen and resigning-active case, which writes at once
     /// rather than waiting out the interval.
     private func persist(force: Bool) async {
+        await writeClosedDays()
         guard let storage, secondsSincePersist > 0 else { return }
         if !force, secondsSincePersist < MemoryReviewGoal.persistInterval { return }
         let row = MemoryReviewActivity(
@@ -451,11 +456,36 @@ final class MemoryReviewEngagementTracker {
             goalSeconds: snapshot.today.goalSeconds,
             updatedAt: Date()
         )
+        let unsaved = secondsSincePersist
         secondsSincePersist = 0
         do {
             try await storage.recordMemoryReviewActivity(row)
         } catch {
             logger.error("Failed to record memory review activity: \(error.localizedDescription)")
+            // The row is the day's running total, so the next persist writes
+            // these seconds too; until then they still count as unsaved. A
+            // day that closed during the write is owed this row instead.
+            if today == row.day {
+                secondsSincePersist += unsaved
+            } else if unsavedClosedDays[row.day] == nil {
+                unsavedClosedDays[row.day] = row
+            }
+        }
+    }
+
+    /// Writes the closed days still owed to the store. Each row is the day's
+    /// whole total, so writing one again is harmless.
+    private func writeClosedDays() async {
+        guard let storage, !unsavedClosedDays.isEmpty else { return }
+        for (day, row) in unsavedClosedDays.sorted(by: { $0.key < $1.key }) {
+            do {
+                try await storage.recordMemoryReviewActivity(row)
+                if unsavedClosedDays[day]?.activeSeconds == row.activeSeconds {
+                    unsavedClosedDays[day] = nil
+                }
+            } catch {
+                logger.error("Failed to record memory review activity for \(day): \(error.localizedDescription)")
+            }
         }
     }
 }

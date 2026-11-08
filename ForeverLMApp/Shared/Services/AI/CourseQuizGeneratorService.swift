@@ -64,7 +64,8 @@ struct CourseQuizDrawingResult: Sendable, Equatable {
     /// or stopped before they were drawn.
     var waiting: [String: Int] = [:]
     /// The first drawing that failed, by quiz id; the quiz's other briefs
-    /// wait for the next run.
+    /// wait for the next run. The run's closing save that sends the pictures
+    /// to the learner's other devices reports its failure here too.
     var failures: [String: String] = [:]
 
     var drawnCount: Int { drawn.values.reduce(0, +) }
@@ -923,7 +924,7 @@ struct CourseQuizGeneratorService: Sendable {
     ) async -> CourseQuizDrawingResult {
         await onProgress(.drawing, 0, quizIDs.count)
         CourseQuizPicturePackage.holdUploads(courseID: courseID)
-        let result = await drawQuestionPicturesHoldingUploads(
+        var result = await drawQuestionPicturesHoldingUploads(
             quizIDs: quizIDs,
             courseTitle: courseTitle,
             model: model,
@@ -932,11 +933,21 @@ struct CourseQuizGeneratorService: Sendable {
         )
         CourseQuizPicturePackage.releaseUploads(courseID: courseID)
         // The course's record went out meanwhile without its pictures; one
-        // more save sends them, once, with the package of the whole run.
-        if result.drawnCount > 0,
-           let quizID = result.drawn.keys.sorted().first,
-           let quiz = try? await storage.loadCourseQuiz(quizID) {
-            try? await storage.saveCourseQuiz(quiz)
+        // more save sends them, once, with the package of the whole run. A
+        // failure here is the run's too: the pictures were paid for and are
+        // kept on this Mac, but no other device has them until a later save
+        // of the course goes out.
+        if result.drawnCount > 0, let quizID = result.drawn.keys.sorted().first {
+            do {
+                if let quiz = try await storage.loadCourseQuiz(quizID) {
+                    try await storage.saveCourseQuiz(quiz)
+                }
+            } catch {
+                courseQuizWriterLogger.error("Sending the pictures of course \(courseID, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
+                if result.failures[quizID] == nil {
+                    result.failures[quizID] = "its pictures were drawn and kept on this Mac, but could not be sent to your other devices: \(error.localizedDescription)"
+                }
+            }
         }
         return result
     }

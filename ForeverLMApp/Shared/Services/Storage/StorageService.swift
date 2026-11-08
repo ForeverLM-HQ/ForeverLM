@@ -3070,24 +3070,13 @@ actor StorageService {
         )
     }
 
-    func saveBooks(
-        titles: [String: String] = [:],
-        subtitles: [String: String] = [:],
-        authors: [String: String],
-        editions: [String: String] = [:],
-        coverPaths: [String: String] = [:],
-        kinds: [String: String] = [:]
-    ) throws {
+    /// Set or clear one field of one book (`KnowledgeStore.setBookField`).
+    @discardableResult
+    func setBookField(_ field: KnowledgeStore.BookField, of groupName: String, to value: String?) throws -> String? {
         try ensureStoreExists()
-        try knowledgeStore().saveBooks(
-            titles: titles,
-            subtitles: subtitles,
-            authors: authors,
-            editions: editions,
-            coverPaths: coverPaths,
-            kinds: kinds
-        )
+        let stored = try knowledgeStore().setBookField(field, of: groupName, to: value)
         scheduleCloudKitSync()
+        return stored
     }
 
     func saveBookMetadata(
@@ -5557,6 +5546,18 @@ actor StorageService {
             || article.articleContentPreparationForPersistence != nil {
             removeFromSearchIndexes(article.id)
         }
+        refreshTeamCopiesAwaitingText(of: [article])
+        scheduleCloudKitSync(syncImmediately ? .immediate : .coalesced)
+        NotificationCenter.default.post(name: .derivedSourceWorkNeeded, object: nil)
+    }
+
+    /// Persist a source whose text was just replaced at its root, clearing the
+    /// old text and everything derived from it in the same transaction
+    /// (`KnowledgeStore.saveSourceReplacingDerivedData`).
+    func saveSourceReplacingDerivedData(_ article: StudioArticle, syncImmediately: Bool = false) throws {
+        try ensureStoreExists()
+        try knowledgeStore().saveSourceReplacingDerivedData(article)
+        removeFromSearchIndexes(article.id)
         refreshTeamCopiesAwaitingText(of: [article])
         scheduleCloudKitSync(syncImmediately ? .immediate : .coalesced)
         NotificationCenter.default.post(name: .derivedSourceWorkNeeded, object: nil)

@@ -3518,9 +3518,11 @@ struct CloudKitMigrationTests {
         let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
         var article = makeCloudKitArticle(url: "https://example.com/source", title: "Source")
         _ = try store.insertSourceIfNew(&article)
-        try store.saveBooks(
-            authors: ["Book A": "Author"],
-            coverPaths: ["Book A": "Books/BookA/cover.jpg"]
+        try store.saveBookMetadata(
+            groupName: "Book A",
+            title: "Book A",
+            author: "Author",
+            coverPath: "Books/BookA/cover.jpg"
         )
         try store.saveCourseGroup(
             name: "Course A",

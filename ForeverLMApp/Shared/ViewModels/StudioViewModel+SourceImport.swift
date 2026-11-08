@@ -777,20 +777,17 @@ extension StudioViewModel {
             // Pre-warm the thumbnail cache so it renders instantly
             prewarmBookCoverThumbnail(coverPath: coverPath)
         }
-        do {
-            try await storage.saveBookMetadata(
-                groupName: bookID,
-                title: bookTitle,
-                subtitle: bookSubtitles[bookID],
-                author: bookAuthors[bookID],
-                edition: bookEditions[bookID],
-                coverPath: bookCoverPaths[bookID],
-                kind: kind
-            )
-        } catch {
-            logger.error("Failed to save book metadata: \(error.localizedDescription)")
-            saveBooksToDisk()
-        }
+        // The book's own row names it everywhere; an import that cannot write
+        // it fails as an import, with the book already readable.
+        try await storage.saveBookMetadata(
+            groupName: bookID,
+            title: bookTitle,
+            subtitle: bookSubtitles[bookID],
+            author: bookAuthors[bookID],
+            edition: bookEditions[bookID],
+            coverPath: bookCoverPaths[bookID],
+            kind: kind
+        )
         // Added again, this file is this book.
         do {
             try await storage.recordBookFileDigest(digest, bookID: bookID)
@@ -960,10 +957,8 @@ extension StudioViewModel {
         }
         guard title != oldTitle || subtitle != bookSubtitles[bookID]
             || author != bookAuthors[bookID] || edition != bookEditions[bookID] else { return }
-        bookTitles[bookID] = title
-        bookSubtitles[bookID] = subtitle
-        bookAuthors[bookID] = author
-        bookEditions[bookID] = edition
+        // The row is written first and memory follows it, so a failed write
+        // leaves the book as it was stored rather than showing names it lost.
         do {
             try await storage.saveBookMetadata(
                 groupName: bookID,
@@ -975,16 +970,22 @@ extension StudioViewModel {
                 kind: kind
             )
         } catch {
-            logger.error("Failed to save book metadata: \(error.localizedDescription)")
-            saveBooksToDisk()
+            logger.error("[BookImport] Could not save the found metadata for book \(bookID): \(error.localizedDescription)")
+            return
         }
+        bookTitles[bookID] = title
+        bookSubtitles[bookID] = subtitle
+        bookAuthors[bookID] = author
+        bookEditions[bookID] = edition
         // A book still read as one entry is named as the book is.
         if let title, let oldTitle, title != oldTitle {
             for chapter in articles where chapter.parentGroup == bookID && chapter.status == .active && chapter.title == oldTitle {
                 var renamed = chapter
                 renamed.title = title
-                try? await storage.saveSource(renamed)
-                if let index = articles.firstIndex(where: { $0.id == renamed.id }) { articles[index] = renamed }
+                // Stored first, as the book's own row is: a failed write is
+                // shown and the entry keeps the name it is stored under.
+                guard await persistSource(renamed, context: "Rename the book's entry") else { continue }
+                mutateArticle(id: renamed.id) { $0.title = title }
             }
         }
     }

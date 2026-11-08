@@ -53,6 +53,36 @@ extension KnowledgeStore {
         }
     }
 
+    /// Save a source whose text has just been replaced at its root (a new PDF
+    /// of the paper accepted in place of what it held), removing the old text
+    /// and everything derived from it (`clearSourceText`: review guides,
+    /// walkthroughs and their progress, narration, figures, search rows) in
+    /// the same transaction. A failure rolls both back, so the source never
+    /// ends with its old work gone and nothing in its place; nothing is
+    /// cleared before the replacement is in hand.
+    func saveSourceReplacingDerivedData(_ article: StudioArticle) throws {
+        try exec("BEGIN IMMEDIATE")
+        let keptStored: Bool
+        do {
+            let sourceWasMissing = !(try sourceExists(article.id))
+            try clearSourceText(article.id)
+            keptStored = try persistSourceRows(article)
+            if sourceWasMissing {
+                try restoreDeferredReviewSessionSourceLinks(sourceID: article.id)
+            }
+            try markRecordChanged(entity: .source, logicalKey: article.id)
+            try exec("COMMIT")
+        } catch {
+            try? exec("ROLLBACK")
+            throw error
+        }
+        if keptStored {
+            var changes = AppliedRemoteChanges()
+            changes.note(.source, localID: article.id)
+            appliedRemoteChangesHandler?(changes)
+        }
+    }
+
     /// Source payload identity is derived from the canonical subtype rows rather
     /// than duplicated onto `StudioArticle`. Apply it in the same transaction as
     /// the aggregate so a published DOI can never arrive without its Source row.

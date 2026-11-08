@@ -516,3 +516,63 @@ struct CourseNotebookViewModelTests {
         #expect(window.notebook == nil, "a notebook following the course does not pull the window into it")
     }
 }
+
+// MARK: - Organize Course
+
+/// Organize Course used to fall back to a natural title sort when its model
+/// call failed and write that over the learner's order without a word. A
+/// failed call is shown and changes nothing.
+@Suite("Organize Course")
+@MainActor
+struct OrganizeCourseTests {
+    private struct ModelDown: LocalizedError {
+        var errorDescription: String? { "The model timed out" }
+    }
+
+    /// Two materials of course "bio" in the learner's order: "Lecture 2"
+    /// first, which a title sort would move after "Lecture 1".
+    private func seed(_ name: String) async throws -> (StudioViewModel, KnowledgeStore, URL) {
+        let root = try CourseNotebookFixtures.temporaryRoot(name)
+        let storage = StorageService(storeRoot: root)
+        let vm = StudioViewModel(storageService: storage, observeCloudKitChanges: false)
+        let store = try await storage.notebookFilesKnowledgeStore()
+        for (index, (id, title)) in [("second", "Lecture 2"), ("first", "Lecture 1")].enumerated() {
+            var source = StudioArticle(url: "https://example.org/\(id)", title: title, sourceType: .article, id: id)
+            source.parentGroup = "bio"
+            source.courseSortIndex = index
+            try store.saveSource(source)
+            vm.articles.append(source)
+        }
+        return (vm, store, root)
+    }
+
+    @Test("A failed model call is shown and leaves the learner's order, in memory and stored")
+    func failedModelCallChangesNothing() async throws {
+        let (vm, store, root) = try await seed("organize-fail")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        await vm.organizeCourse(name: "bio", modelOrder: { _ in throw ModelDown() })
+
+        #expect(vm.articles.first { $0.id == "second" }?.courseSortIndex == 0)
+        #expect(vm.articles.first { $0.id == "first" }?.courseSortIndex == 1)
+        #expect(try store.loadSourceWithoutContent("second")?.courseSortIndex == 0)
+        #expect(try store.loadSourceWithoutContent("first")?.courseSortIndex == 1)
+        #expect(vm.toastMessage?.contains("The model timed out") == true)
+    }
+
+    @Test("The model's order is stored, then shown")
+    func modelOrderIsApplied() async throws {
+        let (vm, store, root) = try await seed("organize-ok")
+        defer { try? FileManager.default.removeItem(at: root) }
+
+        await vm.organizeCourse(name: "bio", modelOrder: { items in
+            #expect(Set(items.map(\.id)) == ["first", "second"])
+            return ["first", "second"]
+        })
+
+        #expect(try store.loadSourceWithoutContent("first")?.courseSortIndex == 0)
+        #expect(try store.loadSourceWithoutContent("second")?.courseSortIndex == 1)
+        #expect(vm.articles.first { $0.id == "first" }?.courseSortIndex == 0)
+        #expect(vm.articles.first { $0.id == "second" }?.courseSortIndex == 1)
+    }
+}

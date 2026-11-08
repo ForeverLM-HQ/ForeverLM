@@ -274,8 +274,15 @@ extension StudioViewModel {
             metadata.isHidden = true
         }
         if meetingMetadata[groupID] != metadata {
-            meetingMetadata[groupID] = metadata
-            try? await storage.saveMeetingGroup(name: groupID, metadata: metadata)
+            // Stored first: memory never shows a series, or a lifted removal,
+            // that the store did not take.
+            do {
+                try await storage.saveMeetingGroup(name: groupID, metadata: metadata)
+                meetingMetadata[groupID] = metadata
+            } catch {
+                logger.error("Could not save meeting series \(groupID, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                showToast("Could not save the meeting series \(title): \(error.localizedDescription)")
+            }
         }
         if userMeetingGroupNames.insert(groupID).inserted { saveUserMeetingGroupNames() }
     }
@@ -2808,16 +2815,23 @@ extension StudioViewModel {
         let playlistIdSet = Set(playlistIds)
         var lectures = courseLecturesByCourse[courseName] ?? []
 
+        // An empty playlist lecture leaves the outline only once the store has
+        // deleted it; one that could not be deleted stays, as it is stored.
+        var deletedLectureIds = Set<String>()
         for lecture in lectures where playlistIdSet.contains(lecture.id) {
             if (courseLectureItemsByLectureId[lecture.id] ?? []).isEmpty {
-                try? await storage.deleteCourseLecture(lecture.id)
-                courseLectureItemsByLectureId[lecture.id] = nil
+                do {
+                    try await storage.deleteCourseLecture(lecture.id)
+                    courseLectureItemsByLectureId[lecture.id] = nil
+                    deletedLectureIds.insert(lecture.id)
+                } catch {
+                    logger.error("Could not delete empty playlist lecture \(lecture.id, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                    showToast("Could not remove an empty lecture: \(error.localizedDescription)")
+                }
             }
         }
 
-        lectures = courseLecturesByCourse[courseName]?.filter {
-            !(playlistIdSet.contains($0.id) && (courseLectureItemsByLectureId[$0.id] ?? []).isEmpty)
-        } ?? []
+        lectures = courseLecturesByCourse[courseName]?.filter { !deletedLectureIds.contains($0.id) } ?? []
         courseLecturesByCourse[courseName] = lectures
 
         let orderedPlaylistLectures = playlistIds.compactMap { id in
@@ -2957,17 +2971,27 @@ extension StudioViewModel {
         return nil
     }
 
+    /// Move a source to another lecture of its course. The new lecture takes
+    /// it first, and only then do the old lectures let it go, each item as
+    /// the store deletes it: a failure leaves the source in both lectures,
+    /// shown, never in neither. (Not one transaction: the item writes are the
+    /// store's own `saveCourseLectureItem`/`deleteCourseLectureItem`, each
+    /// committed on its own.)
     func moveArticle(_ articleId: String, toLecture targetLectureId: String, inCourse courseName: String) async {
+        guard await addArticleToLecture(articleId: articleId, lectureId: targetLectureId) else { return }
         for lecture in courseLectures(for: courseName) where lecture.id != targetLectureId {
-            let items = courseLectureItemsByLectureId[lecture.id] ?? []
-            let removed = items.filter { $0.sourceId == articleId }
-            guard !removed.isEmpty else { continue }
+            let removed = (courseLectureItemsByLectureId[lecture.id] ?? []).filter { $0.sourceId == articleId }
             for item in removed {
-                try? await storage.deleteCourseLectureItem(item.id)
+                do {
+                    try await storage.deleteCourseLectureItem(item.id)
+                } catch {
+                    logger.error("Could not take source \(articleId, privacy: .public) out of lecture \(lecture.id, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                    showToast("Could not take it out of its old lecture: \(error.localizedDescription)")
+                    continue
+                }
+                courseLectureItemsByLectureId[lecture.id]?.removeAll { $0.id == item.id }
             }
-            courseLectureItemsByLectureId[lecture.id] = items.filter { $0.sourceId != articleId }
         }
-        await addArticleToLecture(articleId: articleId, lectureId: targetLectureId)
     }
 
     static func materialOrdinal(for article: StudioArticle, courseName: String) -> CourseMaterialOrdinal? {
@@ -3203,11 +3227,14 @@ extension StudioViewModel {
         await addArticleToLecture(articleId: articleId, lectureId: lecture.id)
     }
 
-    func addArticleToLecture(articleId: String, lectureId: String, sortIndex: Int? = nil) async {
+    /// Whether the lecture holds the source afterwards. A failed write is
+    /// shown and leaves the lecture as it was stored.
+    @discardableResult
+    func addArticleToLecture(articleId: String, lectureId: String, sortIndex: Int? = nil) async -> Bool {
         guard let article = articles.first(where: { $0.id == articleId }),
-              let lecture = courseLecturesByCourse.values.flatMap({ $0 }).first(where: { $0.id == lectureId }) else { return }
-        var items = courseLectureItemsByLectureId[lectureId] ?? []
-        if items.contains(where: { $0.sourceId == articleId }) { return }
+              let lecture = courseLecturesByCourse.values.flatMap({ $0 }).first(where: { $0.id == lectureId }) else { return false }
+        if (courseLectureItemsByLectureId[lectureId] ?? []).contains(where: { $0.sourceId == articleId }) { return true }
+        let items = courseLectureItemsByLectureId[lectureId] ?? []
         let item = CourseLectureItem(
             lectureId: lectureId,
             sourceId: articleId,
@@ -3218,34 +3245,47 @@ extension StudioViewModel {
         saveUserCourseNames()
         do {
             let notebookSourcesAdded = try await storage.saveCourseLectureItem(item)
-            items.append(item)
-            courseLectureItemsByLectureId[lectureId] = items.sorted { $0.sortIndex < $1.sortIndex }
+            var stored = courseLectureItemsByLectureId[lectureId] ?? []
+            stored.append(item)
+            courseLectureItemsByLectureId[lectureId] = stored.sorted { $0.sortIndex < $1.sortIndex }
             if notebookSourcesAdded > 0 {
                 await loadLearningGoals()
             }
+            return true
         } catch {
             logger.error("Failed to attach source to lecture: \(error.localizedDescription)")
+            showToast("Could not add “\(article.title)” to the lecture: \(error.localizedDescription)")
+            return false
         }
     }
 
     /// Remove an article from course lectures.
+    ///
+    /// Each lecture lets the source go as the store deletes its item, and the
+    /// source leaves the course's folder once its row is saved. A failure is
+    /// shown and stops there, so what the course shows is what it stores.
     func removeArticleFromCourse(articleId: String) async {
         for (lectureId, items) in courseLectureItemsByLectureId {
             for item in items where item.sourceId == articleId {
-                try? await storage.deleteCourseLectureItem(item.id)
+                do {
+                    try await storage.deleteCourseLectureItem(item.id)
+                } catch {
+                    logger.error("Could not take source \(articleId, privacy: .public) out of lecture \(lectureId, privacy: .public): \(error.localizedDescription, privacy: .public)")
+                    showToast("Could not remove it from the course: \(error.localizedDescription)")
+                    return
+                }
+                courseLectureItemsByLectureId[lectureId]?.removeAll { $0.id == item.id }
             }
-            courseLectureItemsByLectureId[lectureId] = items.filter { $0.sourceId != articleId }
         }
 
         guard let idx = articles.firstIndex(where: { $0.id == articleId }),
               articles[idx].sourceType != .course,
               articles[idx].sourceType != .book else { return }
         if let group = articles[idx].parentGroup, allCourseGroupNames.contains(group) {
-            articles[idx].parentGroup = nil
-            try? await storage.saveSource(articles[idx])
-            if let idx2 = articles.firstIndex(where: { $0.id == articleId }) {
-                articles[idx2].parentGroup = nil
-            }
+            var removed = articles[idx]
+            removed.parentGroup = nil
+            guard await persistSource(removed, context: "Remove from the course") else { return }
+            mutateArticle(id: articleId) { $0.parentGroup = nil }
         }
     }
 
@@ -3368,9 +3408,29 @@ extension StudioViewModel {
         )
     }
 
-    /// Organize items in a course: uses natural title sort for numbered content,
-    /// falls back to LLM for mixed/unnumbered items.
+    /// Organize items in a course: the Course Ordering model orders them when
+    /// one is set up, and a natural title sort ("Chapter 1", "Lecture 2a")
+    /// does when none is. A model call that fails is shown and changes
+    /// nothing: the learner's order is never swapped for a title sort they
+    /// did not ask for.
     func organizeCourse(name: String) async {
+        let orderConfig = KeychainService.resolveConfig(for: .courseOrdering)
+        let aiService = self.aiService
+        await organizeCourse(
+            name: name,
+            modelOrder: orderConfig.map { config in
+                { items in try await aiService.organizeCourse(items: items, courseName: name, config: config) }
+            }
+        )
+    }
+
+    /// `organizeCourse(name:)` with its model call handed in; nil orders by
+    /// title. The new order is stored first and shown after, so a failed
+    /// write leaves the course as it was too.
+    func organizeCourse(
+        name: String,
+        modelOrder: ((_ items: [(id: String, title: String)]) async throws -> [String])?
+    ) async {
         guard !organizingCourseNames.contains(name) else { return }
         organizingCourseNames.insert(name)
         defer { organizingCourseNames.remove(name) }
@@ -3383,35 +3443,35 @@ extension StudioViewModel {
 
         logger.info("[Organize] Organizing '\(name)' with \(courseItems.count) items")
 
-        // Try natural title sort first — works well for "Chapter 1", "Lecture 2a", etc.
-        let naturallySorted = courseItems.sorted {
-            $0.title.localizedStandardCompare($1.title) == .orderedAscending
-        }
-
-        // Use AI ordering only if we have an API key; otherwise natural sort is fine
-        var orderedIds = naturallySorted.map(\.id)
-
-        if let orderConfig = KeychainService.resolveConfig(for: .courseOrdering) {
+        let orderedIds: [String]
+        if let modelOrder {
             do {
-                let items = courseItems.map { (id: $0.id, title: $0.title) }
-                orderedIds = try await aiService.organizeCourse(items: items, courseName: name, config: orderConfig)
+                orderedIds = try await modelOrder(courseItems.map { (id: $0.id, title: $0.title) })
             } catch {
-                logger.warning("[Organize] AI ordering failed, using natural sort: \(error)")
-                // Fall through with naturallySorted order
+                logger.error("[Organize] Course ordering failed for '\(name)': \(error.localizedDescription)")
+                showToast("Could not organize \(courseDisplayName(name)): \(error.localizedDescription)")
+                return
             }
+        } else {
+            orderedIds = courseItems.sorted {
+                $0.title.localizedStandardCompare($1.title) == .orderedAscending
+            }.map(\.id)
         }
 
-        var matched = 0
-        var ordering: [(String, Int)] = []
-        for (index, id) in orderedIds.enumerated() {
-            if let idx = articles.firstIndex(where: { $0.id == id }) {
-                articles[idx].courseSortIndex = index
-                ordering.append((id, index))
-                matched += 1
-            }
+        let ordering: [(String, Int)] = orderedIds.enumerated().compactMap { index, id in
+            articles.contains(where: { $0.id == id }) ? (id, index) : nil
         }
-        logger.info("[Organize] Applied sort order: \(matched)/\(orderedIds.count) IDs matched")
-        try? await storage.updateCourseSortOrder(ordering)
+        logger.info("[Organize] Applying sort order: \(ordering.count)/\(orderedIds.count) IDs matched")
+        do {
+            try await storage.updateCourseSortOrder(ordering)
+        } catch {
+            logger.error("[Organize] Could not save the order of '\(name)': \(error.localizedDescription)")
+            showToast("Could not save the order of \(courseDisplayName(name)): \(error.localizedDescription)")
+            return
+        }
+        for (id, index) in ordering {
+            mutateArticle(id: id) { $0.courseSortIndex = index }
+        }
         await refreshArticles()
     }
 

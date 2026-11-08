@@ -1277,72 +1277,45 @@ extension KnowledgeStore {
 
     // MARK: - Book Metadata
 
-    func saveBooks(
-        titles: [String: String] = [:],
-        subtitles: [String: String] = [:],
-        authors: [String: String],
-        editions: [String: String] = [:],
-        coverPaths: [String: String] = [:],
-        kinds: [String: String] = [:]
-    ) throws {
-        let bookColumns = try tableColumnNames("books")
-        let hasSubtitle = bookColumns.contains("subtitle")
-        let hasEdition = bookColumns.contains("edition")
-        let persistedCoverPaths = coverPaths.mapValues(StorageService.relativeSourcePath)
-        let existing = try loadBooks()
-        let existingKeys = Set(existing.titles.keys)
-            .union(existing.subtitles.keys)
-            .union(existing.authors.keys)
-            .union(existing.editions.keys)
-            .union(existing.coverPaths.keys)
-            .union(existing.kinds.keys)
+    /// A field of a book the learner sets on its own. The title has its own
+    /// path (`renameBookGroup`), which also renames the book's chapters.
+    enum BookField: String, CaseIterable {
+        case subtitle
+        case author
+        case edition
+        case kind
+
+        /// The `books` column; a fixed literal, never learner text.
+        var column: String { rawValue }
+    }
+
+    /// Set or clear one field of one book, leaving every other book and every
+    /// other column as stored. Returns the value stored: an author that is
+    /// some other field read as one (`SourceAuthor.storable`) is stored as nil.
+    ///
+    /// A book with no row throws rather than inventing one: its title would
+    /// have to be made up, and a book arrives with its row (import, sync).
+    @discardableResult
+    func setBookField(_ field: BookField, of groupName: String, to value: String?) throws -> String? {
+        let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines)
+        var stored = (trimmed?.isEmpty ?? true) ? nil : trimmed
+        if field == .author { stored = SourceAuthor.storable(stored) }
         try exec("BEGIN IMMEDIATE")
         do {
-            try exec("DELETE FROM books")
-            let allKeys = Set(authors.keys)
-                .union(titles.keys)
-                .union(subtitles.keys)
-                .union(editions.keys)
-                .union(coverPaths.keys)
-                .union(kinds.keys)
-            for key in allKeys {
-                if hasSubtitle && hasEdition {
-                    try execBind("""
-                        INSERT INTO books (id, title, subtitle, author, edition, cover_path, kind)
-                        VALUES (?,?,?,?,?,?,?)
-                    """) { stmt in
-                        bind(stmt, 1, key)
-                        bind(stmt, 2, titles[key] ?? existing.titles[key] ?? key)
-                        bind(stmt, 3, subtitles[key])
-                        bind(stmt, 4, SourceAuthor.storable(authors[key]))
-                        bind(stmt, 5, editions[key])
-                        bind(stmt, 6, persistedCoverPaths[key])
-                        bind(stmt, 7, kinds[key])
-                    }
-                } else {
-                    try execBind("""
-                        INSERT INTO books (id, title, author, cover_path, kind)
-                        VALUES (?,?,?,?,?)
-                    """) { stmt in
-                        bind(stmt, 1, key)
-                        bind(stmt, 2, titles[key] ?? existing.titles[key] ?? key)
-                        bind(stmt, 3, SourceAuthor.storable(authors[key]))
-                        bind(stmt, 4, persistedCoverPaths[key])
-                        bind(stmt, 5, kinds[key])
-                    }
-                }
+            try execBind("UPDATE books SET \(field.column) = ? WHERE id = ?") { stmt in
+                bind(stmt, 1, stored)
+                bind(stmt, 2, groupName)
             }
-            for key in allKeys {
-                try markRecordChanged(entity: .book, logicalKey: key)
+            guard sqlite3_changes(db) > 0 else {
+                throw KnowledgeStoreError.invalidData("No book with id \(groupName) to set its \(field.rawValue) on.")
             }
-            for deletedKey in existingKeys.subtracting(allKeys) {
-                try markRecordDeleted(entity: .book, logicalKey: deletedKey)
-            }
+            try markRecordChanged(entity: .book, logicalKey: groupName)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
             throw error
         }
+        return stored
     }
 
     struct BookRow {

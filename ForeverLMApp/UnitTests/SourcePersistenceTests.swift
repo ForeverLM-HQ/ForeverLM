@@ -4928,22 +4928,73 @@ struct SourcePersistenceTests {
         #expect(payload?.edition == "Second Edition")
     }
 
-    @Test("Book subtitle and edition round-trip through bulk metadata save")
-    func bookSubtitleAndEditionRoundTripThroughBulkSave() throws {
+    @Test("Book subtitle and edition round-trip through single-field saves")
+    func bookSubtitleAndEditionRoundTripThroughFieldSaves() throws {
         let store = try makeInMemoryStore()
         let uuid = "91dd38ad-7356-5d08-b691-a44493dff38a"
+        try store.saveBookMetadata(groupName: uuid, title: "Tidal Notes", coverPath: nil)
 
-        try store.saveBooks(
-            titles: [uuid: "Immune"],
-            subtitles: [uuid: "A Journey into the Mysterious System That Keeps You Alive"],
-            authors: [uuid: "Philipp Dettmer"],
-            editions: [uuid: "First Edition"]
-        )
+        try store.setBookField(.subtitle, of: uuid, to: "A Field Guide to the Shore")
+        try store.setBookField(.author, of: uuid, to: "Zara Holt")
+        try store.setBookField(.edition, of: uuid, to: "First Edition")
 
         let books = try store.loadBooks()
 
-        #expect(books.subtitles[uuid] == "A Journey into the Mysterious System That Keeps You Alive")
+        #expect(books.titles[uuid] == "Tidal Notes")
+        #expect(books.subtitles[uuid] == "A Field Guide to the Shore")
+        #expect(books.authors[uuid] == "Zara Holt")
         #expect(books.editions[uuid] == "First Edition")
+    }
+
+    /// The regression the whole-table book save had: a book that arrived by
+    /// sync before the view model reloaded was deleted, and the deletion
+    /// synced, when the learner edited any other book.
+    @Test("Editing one book's field leaves a book memory never loaded, and queues no deletion")
+    func editingOneBookFieldLeavesOtherBooksAndQueuesNoDeletion() throws {
+        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        try store.saveBookMetadata(groupName: "book-edited", title: "Tidal Notes", author: "Zara Holt", coverPath: nil, kind: "Field Guide")
+        // Arrived by sync: in the database, not in any view model's memory.
+        try store.saveBookRecord(
+            CloudKitBookPayload(
+                id: "book-synced",
+                title: "Salt Marsh Ledger",
+                subtitle: "Notes from Acme Lab",
+                author: "Ines Varga",
+                edition: "Second Edition",
+                coverPath: nil
+            )
+        )
+        try store.clearAllPendingSyncChanges()
+
+        try store.setBookField(.edition, of: "book-edited", to: "Third Edition")
+        try store.setBookField(.kind, of: "book-edited", to: "")
+
+        let books = try store.loadBooks()
+        #expect(books.titles["book-synced"] == "Salt Marsh Ledger")
+        #expect(books.subtitles["book-synced"] == "Notes from Acme Lab")
+        #expect(books.authors["book-synced"] == "Ines Varga")
+        #expect(books.editions["book-synced"] == "Second Edition")
+        // The edited book changed only in the field written; a cleared field is nil.
+        #expect(books.titles["book-edited"] == "Tidal Notes")
+        #expect(books.authors["book-edited"] == "Zara Holt")
+        #expect(books.editions["book-edited"] == "Third Edition")
+        #expect(books.kinds["book-edited"] == nil)
+
+        let pending = try store.pendingSyncChanges()
+        #expect(!pending.contains { $0.operation == .delete })
+        #expect(pending.filter { $0.entity == .book }.map(\.logicalKey) == ["book-edited"])
+    }
+
+    @Test("Setting a field of a book with no row throws and writes nothing")
+    func settingFieldOfMissingBookThrows() throws {
+        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        try store.clearAllPendingSyncChanges()
+
+        #expect(throws: KnowledgeStoreError.self) {
+            try store.setBookField(.author, of: "no-such-book", to: "Zara Holt")
+        }
+        #expect(try store.loadBooks().titles.isEmpty)
+        #expect(try store.pendingSyncChanges().isEmpty)
     }
 
     @Test("insertSourceIfNew skips existing active source")

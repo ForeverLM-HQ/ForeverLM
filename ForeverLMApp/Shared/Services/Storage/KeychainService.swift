@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 import Security
 
 extension Notification.Name {
@@ -28,8 +29,51 @@ enum KeychainService {
     private static let retiredVaultAccount = "__feynmanlm_keychain_vault_v1"
     private static let vaultVersion = 1
     private static let vaultLock = NSRecursiveLock()
-    private static var cachedVault: [String: String]?
+    private static let vaultLogger = Logger(subsystem: "ForeverLM", category: "KeychainVault")
+
+    /// The Keychain calls the vault makes, and the vault as this process last
+    /// read it. The app runs on `.system`; a test runs its own backend through
+    /// `$vaultBackend.withValue` to stand in for a Keychain that cannot be read,
+    /// without touching the real vault or another test's.
+    final class VaultBackend: @unchecked Sendable {
+        let copyMatching: (CFDictionary, UnsafeMutablePointer<CFTypeRef?>?) -> OSStatus
+        let update: (CFDictionary, CFDictionary) -> OSStatus
+        let add: (CFDictionary, UnsafeMutablePointer<CFTypeRef?>?) -> OSStatus
+        /// The vault as last read or written; nil until a read has succeeded.
+        /// Held under `vaultLock`.
+        fileprivate var cachedVault: [String: String]?
+        /// Why the last read of the vault failed; nil once it has been read.
+        /// Held under `vaultLock`.
+        fileprivate var readFailure: OSStatus?
+
+        init(
+            copyMatching: @escaping (CFDictionary, UnsafeMutablePointer<CFTypeRef?>?) -> OSStatus,
+            update: @escaping (CFDictionary, CFDictionary) -> OSStatus,
+            add: @escaping (CFDictionary, UnsafeMutablePointer<CFTypeRef?>?) -> OSStatus
+        ) {
+            self.copyMatching = copyMatching
+            self.update = update
+            self.add = add
+        }
+
+        static let system = VaultBackend(copyMatching: SecItemCopyMatching, update: SecItemUpdate, add: SecItemAdd)
+    }
+
+    @TaskLocal static var vaultBackend: VaultBackend = .system
     #endif
+
+    /// The Keychain holds a vault this process could not read: locked
+    /// (`errSecInteractionNotAllowed`), refused, or a payload this build cannot
+    /// decode (`errSecDecode`). Not the same as a value that was never stored,
+    /// and nothing is written over the vault while it stands.
+    struct VaultUnavailableError: Error, LocalizedError {
+        let status: OSStatus
+
+        var errorDescription: String? {
+            let reason = SecCopyErrorMessageString(status, nil).map { $0 as String } ?? "OSStatus \(status)"
+            return "The Keychain could not be read (\(reason)). Stored credentials are unchanged; try again once the Mac is unlocked."
+        }
+    }
     /// Non-synced keys known absent from the individual Keychain, so repeated
     /// reads of a missing value (e.g. `managedAISessionToken` while signed out)
     /// don't pay a securityd IPC round-trip each time — reads happen on the
@@ -381,8 +425,16 @@ enum KeychainService {
             _ = deleteVaultValue(for: key)
             return
         }
-        if saveVaultValue(value, for: key) {
+        switch saveVaultValue(value, for: key) {
+        case .written:
             return
+        case .refused(let status):
+            // Not written anywhere else either: an individual item written now
+            // would be shadowed by the vault's own copy once the vault reads.
+            vaultLogger.error("Did not save \(key.rawValue, privacy: .public): the Keychain vault could not be read (OSStatus \(status)).")
+            return
+        case .failed:
+            break
         }
         #endif
 
@@ -467,6 +519,22 @@ enum KeychainService {
         return loadFromKeychain(key)
     }
 
+    /// `load`, but a Keychain vault that could not be read throws rather than
+    /// reading as a value never stored. Use it where a missing value leads to
+    /// an action: minting a replacement, signing out, telling the learner to
+    /// connect again.
+    static func loadIfReadable(_ key: Key) throws -> String? {
+        if let value = load(key) {
+            return value
+        }
+        #if os(macOS)
+        if let status = withVaultLock({ vaultBackend.readFailure }) {
+            throw VaultUnavailableError(status: status)
+        }
+        #endif
+        return nil
+    }
+
     private static func loadFromKeychain(_ key: Key) -> String? {
         #if os(macOS)
         if syncsAcrossDevices(key) {
@@ -477,11 +545,19 @@ enum KeychainService {
             if let value = loadIndividual(key) {
                 return value
             }
-            return loadVaultValue(for: key)
+            guard case .value(let value) = loadVaultValue(for: key) else { return nil }
+            return value
         }
 
-        if let value = loadVaultValue(for: key) {
+        switch loadVaultValue(for: key) {
+        case .value(let value):
             return value
+        case .unavailable:
+            // Unknown, not missing: an individual item may be older than the
+            // vault's copy, and promoting it would be a write.
+            return nil
+        case .missing:
+            break
         }
 
         if individualMissCached(key) {
@@ -613,48 +689,86 @@ enum KeychainService {
         var values: [String: String]
     }
 
-    private static func loadVaultValue(for key: Key) -> String? {
-        withVaultLock {
-            if cachedVault == nil {
-                cachedVault = loadVault() ?? bootstrapVaultFromIndividualItems()
-            }
+    /// What one key's vault entry is.
+    private enum VaultValue {
+        case value(String)
+        case missing
+        /// The vault could not be read, so whether the key is stored is unknown.
+        case unavailable(OSStatus)
+    }
 
-            guard let value = cachedVault?[key.rawValue], !value.isEmpty else {
-                return nil
+    /// What a write to the vault came to.
+    private enum VaultWrite {
+        case written
+        /// The vault was read but the Keychain refused the write.
+        case failed
+        /// The vault could not be read, so nothing was written over it.
+        case refused(OSStatus)
+    }
+
+    /// The vault, read once per process and cached; `.failure` while it cannot
+    /// be read. Only a vault the Keychain reports absent is rebuilt from the
+    /// individual items. A read that failed is not cached, so the next call
+    /// asks the Keychain again (a locked Mac unlocks). Held under `vaultLock`.
+    private static func readableVault() -> Result<[String: String], VaultUnavailableError> {
+        let backend = vaultBackend
+        if let cached = backend.cachedVault {
+            return .success(cached)
+        }
+        switch loadVault() {
+        case .found(let values):
+            backend.cachedVault = values
+        case .absent:
+            backend.cachedVault = bootstrapVaultFromIndividualItems()
+        case .unreadable(let status):
+            if backend.readFailure != status {
+                vaultLogger.error("Keychain vault could not be read (OSStatus \(status)); it is left as stored and nothing is written over it until it reads.")
             }
-            return value
+            backend.readFailure = status
+            return .failure(VaultUnavailableError(status: status))
+        }
+        backend.readFailure = nil
+        return .success(backend.cachedVault ?? [:])
+    }
+
+    private static func loadVaultValue(for key: Key) -> VaultValue {
+        withVaultLock {
+            switch readableVault() {
+            case .failure(let error):
+                return .unavailable(error.status)
+            case .success(let vault):
+                guard let value = vault[key.rawValue], !value.isEmpty else { return .missing }
+                return .value(value)
+            }
         }
     }
 
-    private static func saveVaultValue(_ value: String, for key: Key) -> Bool {
-        withVaultLock {
-            if cachedVault == nil {
-                cachedVault = loadVault() ?? bootstrapVaultFromIndividualItems()
-            }
-
-            var vault = cachedVault ?? [:]
-            vault[key.rawValue] = value
-            guard saveVault(vault) else {
-                return false
-            }
-            cachedVault = vault
-            return true
-        }
+    private static func saveVaultValue(_ value: String, for key: Key) -> VaultWrite {
+        writeVault { $0[key.rawValue] = value }
     }
 
-    private static func deleteVaultValue(for key: Key) -> Bool {
-        withVaultLock {
-            if cachedVault == nil {
-                cachedVault = loadVault() ?? bootstrapVaultFromIndividualItems()
-            }
+    private static func deleteVaultValue(for key: Key) -> VaultWrite {
+        writeVault { $0.removeValue(forKey: key.rawValue) }
+    }
 
-            var vault = cachedVault ?? [:]
-            vault.removeValue(forKey: key.rawValue)
-            guard saveVault(vault) else {
-                return false
+    /// Changes the vault as read, never a vault that could not be read: the
+    /// write replaces the whole item, so writing from an empty stand-in would
+    /// erase every credential it holds.
+    private static func writeVault(_ change: (inout [String: String]) -> Void) -> VaultWrite {
+        withVaultLock {
+            var vault: [String: String]
+            switch readableVault() {
+            case .failure(let error):
+                return .refused(error.status)
+            case .success(let read):
+                vault = read
             }
-            cachedVault = vault
-            return true
+            change(&vault)
+            guard saveVault(vault) else {
+                return .failed
+            }
+            vaultBackend.cachedVault = vault
+            return .written
         }
     }
 
@@ -673,13 +787,30 @@ enum KeychainService {
         return result
     }
 
-    private static func loadVault() -> [String: String]? {
+    /// What reading the vault item found.
+    private enum VaultRead {
+        case found([String: String])
+        /// The Keychain reports no such item.
+        case absent
+        /// Any other answer, or a payload this build cannot decode.
+        case unreadable(OSStatus)
+    }
+
+    /// Reads the vault. Only `errSecItemNotFound` from every place the vault
+    /// is stored makes it absent; a vault that is there but cannot be read is
+    /// never mistaken for none, since what follows an absent vault writes one.
+    private static func loadVault() -> VaultRead {
         var values: [String: String]?
         for query in vaultLookupQueries() {
-            if let decoded = decodeVault(matching: query) {
+            switch readVault(matching: query) {
+            case .found(let decoded):
                 values = decoded
-                break
+            case .absent:
+                continue
+            case .unreadable(let status):
+                return .unreadable(status)
             }
+            break
         }
 
         if values == nil {
@@ -743,7 +874,7 @@ enum KeychainService {
             }
         }
 
-        return values
+        return values.map(VaultRead.found) ?? .absent
     }
 
     /// The product rename changed the Keychain service and vault account. Read
@@ -922,8 +1053,9 @@ enum KeychainService {
         }
         let outcome = Outcome()
         let finished = DispatchSemaphore(value: 0)
+        let backend = vaultBackend
         DispatchQueue.global(qos: .userInitiated).async {
-            let result = decodeVaultResult(matching: query)
+            let result = decodeVaultResult(matching: query, backend: backend)
             outcome.lock.lock()
             outcome.result = result
             outcome.lock.unlock()
@@ -953,19 +1085,39 @@ enum KeychainService {
 
     /// Reports the status as well, so a caller can tell "no such item" from
     /// "the person said no" — the two answers deserve different treatment.
-    private static func decodeVaultResult(matching query: [String: Any]) -> (values: [String: String]?, status: OSStatus) {
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+    private static func decodeVaultResult(
+        matching query: [String: Any],
+        backend: VaultBackend = vaultBackend
+    ) -> (values: [String: String]?, status: OSStatus) {
+        var result: CFTypeRef?
+        let status = backend.copyMatching(query as CFDictionary, &result)
         guard status == errSecSuccess, let data = result as? Data else {
             return (nil, status)
         }
+        return (decodeVaultPayload(data), status)
+    }
+
+    /// The vault this process reads and writes, told apart from its absence.
+    private static func readVault(matching query: [String: Any]) -> VaultRead {
+        var result: CFTypeRef?
+        let status = vaultBackend.copyMatching(query as CFDictionary, &result)
+        if status == errSecItemNotFound {
+            return .absent
+        }
+        guard status == errSecSuccess, let data = result as? Data else {
+            return .unreadable(status == errSecSuccess ? errSecDecode : status)
+        }
+        guard let values = decodeVaultPayload(data) else {
+            return .unreadable(errSecDecode)
+        }
+        return .found(values)
+    }
+
+    private static func decodeVaultPayload(_ data: Data) -> [String: String]? {
         if let payload = try? JSONDecoder().decode(VaultPayload.self, from: data) {
-            return (payload.values, status)
+            return payload.values
         }
-        if let values = try? JSONDecoder().decode([String: String].self, from: data) {
-            return (values, status)
-        }
-        return (nil, status)
+        return try? JSONDecoder().decode([String: String].self, from: data)
     }
 
     private static func saveVault(_ values: [String: String]) -> Bool {
@@ -978,7 +1130,8 @@ enum KeychainService {
             let update: [String: Any] = [
                 kSecValueData as String: data,
             ]
-            let updateStatus = SecItemUpdate(query as CFDictionary, update as CFDictionary)
+            let backend = vaultBackend
+            let updateStatus = backend.update(query as CFDictionary, update as CFDictionary)
             if updateStatus == errSecSuccess {
                 return true
             }
@@ -989,12 +1142,12 @@ enum KeychainService {
             var addQuery = query
             addQuery[kSecValueData as String] = data
             addQuery[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-            let addStatus = SecItemAdd(addQuery as CFDictionary, nil)
+            let addStatus = backend.add(addQuery as CFDictionary, nil)
             if addStatus == errSecSuccess {
                 return true
             }
             if addStatus == errSecDuplicateItem,
-               SecItemUpdate(query as CFDictionary, update as CFDictionary) == errSecSuccess {
+               backend.update(query as CFDictionary, update as CFDictionary) == errSecSuccess {
                 return true
             }
         }
@@ -1021,8 +1174,8 @@ enum KeychainService {
     }
 
     private static func mergeIndividualItems(from query: [String: Any], into values: inout [String: String]) {
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        var result: CFTypeRef?
+        let status = vaultBackend.copyMatching(query as CFDictionary, &result)
         guard status == errSecSuccess else {
             return
         }
@@ -1264,7 +1417,9 @@ enum KeychainService {
             PreferenceStore.remove(forKey: key.rawValue)
         }
         #if os(macOS)
-        _ = deleteVaultValue(for: key)
+        if case .refused(let status) = deleteVaultValue(for: key) {
+            vaultLogger.error("Did not remove \(key.rawValue, privacy: .public) from the Keychain vault: it could not be read (OSStatus \(status)).")
+        }
         #endif
 
         deleteCurrent(key)

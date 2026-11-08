@@ -530,7 +530,8 @@ extension StudioViewModel {
         userInitiated: Bool = true,
         forceAIForMissingAuthor: Bool = false,
         identity: PaperPDFIdentityGate? = nil,
-        destinationPath: String? = nil
+        destinationPath: String? = nil,
+        replacingDerivedData: Bool = false
     ) async throws {
         guard let idx = articles.firstIndex(where: { $0.id == articleId }) else { return }
         guard articles[idx].resolvedPDFPath == nil else { return }
@@ -568,7 +569,11 @@ extension StudioViewModel {
                 sourceURL: sourceURLString
             )
             convertPaperToLocalPDF(at: idx, destPath: destPath, doi: savedDOI, updateDateAdded: userInitiated)
-            try await storage.saveSource(articles[idx])
+            if replacingDerivedData {
+                try await storage.saveSourceReplacingDerivedData(articles[idx])
+            } else {
+                try await storage.saveSource(articles[idx])
+            }
             logger.info("Saved remote PDF to local paper store: \(filename)")
             let metadataComplete = await enrichPaperMetadataAfterPDFAttachment(
                 articleId: articleId,
@@ -1271,11 +1276,17 @@ extension StudioViewModel {
     /// open-access copies passes the gate it built from the paper before the
     /// row took a candidate's address; without one, the row as it is now is
     /// the paper.
+    ///
+    /// With `replacingDerivedData`, the save that attaches an accepted PDF
+    /// also clears the paper's old text and everything derived from it, in one
+    /// transaction (`persistSource(replacingDerivedData:)`). Nothing is
+    /// cleared for a file that is never accepted.
     func downloadPaperPDF(
         for articleId: String,
         userInitiated: Bool = true,
         forceMetadataExtractionForMissingAuthor: Bool = false,
-        identity: PaperPDFIdentityGate? = nil
+        identity: PaperPDFIdentityGate? = nil,
+        replacingDerivedData: Bool = false
     ) async -> PaperDownloadResult {
         var log: [String] = []
         func setDownloadStep(_ step: String) {
@@ -1413,7 +1424,11 @@ extension StudioViewModel {
                     sourceURL: candidateURL ?? pdfURL
                 )
                 convertPaperToLocalPDF(at: idx, destPath: destPath, doi: doi, updateDateAdded: userInitiated)
-                guard await persistSource(articles[idx], context: saveContext) else {
+                guard await persistSource(
+                    articles[idx],
+                    context: saveContext,
+                    replacingDerivedData: replacingDerivedData
+                ) else {
                     log.append("\(step): DB save FAILED")
                     return PaperDownloadResult(success: false, lastError: SourceError.fetchFailed, debugLog: log)
                 }
@@ -1543,7 +1558,8 @@ extension StudioViewModel {
                             userInitiated: userInitiated,
                             forceAIForMissingAuthor: forceMetadataExtractionForMissingAuthor,
                             identity: gate,
-                            destinationPath: destPath
+                            destinationPath: destPath,
+                            replacingDerivedData: replacingDerivedData
                         )
                         guard paperHasLocalPDF(articleId) else { throw SourceError.pdfReadFailed }
                         log.append("Step 1c: SUCCESS")
@@ -2879,7 +2895,7 @@ extension StudioViewModel {
             logger.error("Paper PDF download debug log:\n\(debugTrace)")
             debugAlertMessage = debugTrace
             showDebugAlert = true
-            try? await storage.saveSource(articles[idx2])
+            await persistSource(articles[idx2], context: "Save the failed download")
         }
         isFetchingContent = false
     }
