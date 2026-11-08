@@ -9,7 +9,8 @@ import os
 /// WebRTC; this starts it from a source or as the assistant, shows it in the
 /// shell's voice cover (`MobileVoiceSessionCover`), and saves what was said as
 /// a voice chat, filed in the notebook it was started from, so the Mac lists it
-/// with the source's other chats. CarPlay starts the assistant on connect.
+/// with the source's other chats. CarPlay starts the assistant on connect; the
+/// card review's Review by Voice starts a card review.
 @MainActor
 enum MobileRealtimeVoice {
     private static let logger = Logger(subsystem: "com.foreverlm.mobile", category: "RealtimeVoice")
@@ -68,9 +69,26 @@ enum MobileRealtimeVoice {
         }
     }
 
+    /// Review by Voice: today's cards in the card review's scope, asked and
+    /// graded out loud (`MobileRealtimeCardReview`). The chat is filed in the
+    /// notebook the review is narrowed to.
+    static func startCardReview(scope: MemoryReviewScope, scopeTitle: String) async {
+        await prepareToTalk()
+        currentSource = nil
+        if case .notebook(let notebookID) = scope {
+            currentNotebookID = notebookID
+        } else {
+            currentNotebookID = nil
+        }
+        await controller.start(
+            title: RealtimeVoiceCardReview.title,
+            status: "Dealing today's cards…"
+        ) {
+            try await MobileRealtimeCardReview.brief(scope: scope, scopeTitle: scopeTitle)
+        }
+    }
+
     private static func prepareToTalk() async {
-        let turnByTurn = MobileVoiceConversationController.shared
-        if turnByTurn.isActive { await turnByTurn.end() }
         // A narration playing under the conversation would talk over it.
         let player = MobileAudioReviewViewModel.shared
         if player.isPlaying { player.togglePlayback() }
@@ -94,21 +112,27 @@ enum MobileRealtimeVoice {
         guard !exchanges.isEmpty else { return }
         let answered = exchanges.filter { !$0.answer.isEmpty }.count
         let turns = "\(answered) turn\(answered == 1 ? "" : "s")"
-        // The assistant's chat is called by what the learner first asked.
+        // The assistant's chat is called by what the learner first asked; a
+        // card review is called a card review.
+        let isAssistant = finished.source == nil && finished.title == RealtimeVoiceAssistant.title
         let topic = finished.source?.title
-            ?? RealtimeVoiceExchange.assistantChatTitle(firstQuestion: exchanges.first { !$0.answer.isEmpty }?.answer)
+            ?? (isAssistant
+                ? RealtimeVoiceExchange.assistantChatTitle(firstQuestion: exchanges.first { !$0.answer.isEmpty }?.answer)
+                : finished.title)
         var result = MobileReviewResult(
             sessionID: "ios-live-\(UUID().uuidString.lowercased())",
             topic: topic,
             sourceID: finished.sourceIDs.first,
-            goalID: finished.source == nil ? nil : currentNotebookID,
+            goalID: isAssistant ? nil : currentNotebookID,
             startedAt: finished.startedAt,
             endedAt: Date(),
             // A voice conversation grades nothing on its own; a score here would
             // be read by the Mac as the source's latest recall score.
             overallScore: nil,
             summary: finished.source.map { "Voice conversation about \($0.title) on iOS — \(turns)." }
-                ?? "Voice conversation with the ForeverLM assistant on iOS — \(turns).",
+                ?? (isAssistant
+                    ? "Voice conversation with the ForeverLM assistant on iOS — \(turns)."
+                    : "Card review by voice on iOS — \(turns)."),
             exchanges: exchanges.map {
                 MobileReviewRecordedExchange(
                     question: $0.question,

@@ -7,10 +7,10 @@ import UIKit
 // The voice conversation's screen: the ForeverLM mark moving with the session,
 // what the conversation reads, and the controls to mute or end it. Drawn by
 // voice mode on the Mac and the iPhone (`RealtimeVoiceController`, OpenAI
-// Realtime, back since 2026-11-07) and by the iPhone's turn-by-turn
-// conversation (`MobileVoiceConversationController`, CarPlay and spoken memory
-// review); the mark itself (`VoiceOrb`) is also the loading indicator on both
-// platforms.
+// Realtime, back since 2026-11-07): a source, the assistant and CarPlay, and
+// Review by Voice. It shows no words while the conversation talks (product
+// owner, 2026-11-07). The mark itself (`VoiceOrb`) is also the loading
+// indicator on both platforms.
 
 enum VoiceSessionPhase: Equatable {
     case idle
@@ -113,10 +113,6 @@ struct VoiceSessionPresentationState {
     /// learner turn sent and its answer not yet spoken. `statusText` alone
     /// cannot say while it still reads "Listening" from the turn before.
     var isTutorWorking: Bool = false
-    /// The words in flight, shown under the mark: what the microphone is
-    /// hearing while the learner speaks, then the reply being spoken. Nil
-    /// between turns.
-    var caption: String? = nil
 
     private var trimmedStatus: String {
         statusText.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -227,20 +223,6 @@ struct VoiceSessionSurface: View {
                         .accessibilityLabel("Voice status")
                         .accessibilityValue(state.displayedStatus)
                         .accessibilityIdentifier("\(identifierPrefix).status")
-
-                        if let caption = state.caption?.trimmingCharacters(in: .whitespacesAndNewlines),
-                           !caption.isEmpty {
-                            Text(caption)
-                                .font(.callout)
-                                .foregroundStyle(.secondary)
-                                .multilineTextAlignment(.center)
-                                .lineLimit(4)
-                                .truncationMode(.head)
-                                .frame(maxWidth: 440)
-                                .padding(.horizontal, 32)
-                                .padding(.top, 10)
-                                .accessibilityIdentifier("\(identifierPrefix).caption")
-                        }
 
                         if !state.contextItems.isEmpty {
                             VoiceContextSources(

@@ -2,8 +2,8 @@ import SwiftUI
 
 /// Today's memory review chat on the phone, from before cards: the same chat
 /// the Mac's Memory row opened, read from and written to the same synced
-/// record — reached since the phone's card review only by voice and by the
-/// card review's Continue Today's Review Chat — dealt as a deck of
+/// record — reached since the phone's card review only by the card review's
+/// Continue Today's Review Chat — dealt as a deck of
 /// cards — one exchange a card, swiped through like the walkthrough's deck —
 /// or, from the header's switch, as the conversation underneath. The cards,
 /// the composer, and the two chips under a graded reply are the whole surface
@@ -16,9 +16,6 @@ import SwiftUI
 /// "Review by topic").
 struct MobileMemoryReviewView: View {
     @ObservedObject var viewModel: MobileMemoryReviewViewModel
-    /// Continues this review by voice, turn by turn
-    /// (`MobileVoiceConversationController.startMemoryReview`).
-    var onStartVoice: (() -> Void)?
 
     @StateObject private var dictation = MobileComposerDictation()
     @ObservedObject private var goal = MobileMemoryGoalModel.shared
@@ -508,16 +505,6 @@ struct MobileMemoryReviewView: View {
                 .onSubmit { Task { await viewModel.send() } }
                 .disabled(viewModel.isResponding || !viewModel.canCompose)
                 .accessibilityIdentifier("memory.composer")
-
-            if let onStartVoice {
-                Button(action: onStartVoice) {
-                    Image(systemName: "waveform")
-                        .font(.body.weight(.semibold))
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Continue this review in voice")
-                .accessibilityIdentifier("memory.voice")
-            }
 
             Button {
                 isComposerFocused = false

@@ -32,6 +32,12 @@ Ask it what to work on next, to go over your day, or about a paper you read last
 
 On the iPhone and in CarPlay, ask for "my review" or "my cards" and it goes through today's cards out loud: it asks each card, tells you whether you had it, and records Remembered or Forgot just as the card review does.
 
+## Review your cards by voice
+
+On the iPhone, open today's card review and choose **⋯** › **Review by Voice**. Voice mode starts with today's cards in the scope the review shows (all notebooks, or one), and asks the first one straight away. Answer in your own words: it judges the meaning, not the wording, says whether you had it and what the answer is, records Remembered or Forgot, and asks the next. Say "I don't know" to hear the answer. When you end, the card review shows the cards still due.
+
+It is the same realtime conversation as the rest of voice mode, so you can interrupt it, and it is saved as a voice chat called Card Review.
+
 - **iPhone:** the **waveform** at the top of Home.
 - **Mac:** **Chat › Talk to ForeverLM**.
 - **CarPlay:** open ForeverLM and start talking. The assistant greets you with one useful thing, such as what is next in your plan or the paper you were last into, and keeps every answer short enough to follow while driving.

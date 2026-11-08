@@ -27,10 +27,6 @@ actor MobileAudioSessionArbiter {
         // would let either consumer drop the lease the other depends on.
         case readingDictation
         case readingSpeech
-        // The turn-by-turn voice conversation (`MobileVoiceConversationController`):
-        // its listening and its spoken replies take turns under one lease, so
-        // the reply never plays into an open microphone.
-        case voiceConversation
         // Voice mode's WebRTC call on OpenAI Realtime
         // (`MobileRealtimeVoicePlatformAudio`): the one full-duplex holder. It owns both directions at once, so the
         // half-duplex invariant applies between holders, not within this one.

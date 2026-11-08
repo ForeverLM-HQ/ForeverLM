@@ -6,6 +6,8 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **Review by Voice runs on voice mode.** On the iPhone, **⋯** › **Review by Voice** in the card review now goes through today's cards with the realtime voice: it asks each card, judges your spoken answer, and records Remembered or Forgot. It no longer uses Apple's dictation and speech, so you can answer and interrupt naturally. See [Voice Mode](/voice-mode#review-your-cards-by-voice).
+
 ## 0.197.0 (build 277) — 2026-11-07
 
 **Highlights:**

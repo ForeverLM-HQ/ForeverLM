@@ -22,10 +22,7 @@ extension RealtimeVoiceController {
             microphoneLevel: microphoneLevel,
             terminalErrorMessage: phase == .failed ? errorMessage : nil,
             inlineErrorMessage: phase == .failed ? nil : errorMessage,
-            isTutorWorking: isTutorWorking,
-            // Voice mode shows no words while it talks (product owner,
-            // 2026-11-07): the conversation is heard, not read.
-            caption: nil
+            isTutorWorking: isTutorWorking
         )
     }
 }

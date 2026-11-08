@@ -191,7 +191,6 @@ final class MobileAccountGateModel {
     /// it runs on the session.
     func signOut() async {
         await MobileRealtimeVoice.controller.end()
-        await MobileVoiceConversationController.shared.end()
         await Task.detached(priority: .userInitiated) { ManagedAI.clearSession() }.value
         hasAccountAccess = false
         lastValidationAt = Date()

@@ -263,4 +263,51 @@ struct RealtimeVoiceTutorTests {
         #expect(long.hasSuffix("…"))
         #expect(long.count <= 61)
     }
+
+    @Test("Review by Voice carries today's cards in its instructions and asks the first one")
+    func cardReviewInstructions() {
+        let cards = [
+            RealtimeVoiceCardReview.Card(id: "item-1", question: "What does ATP synthase make?", answer: "ATP, from the proton gradient.", source: "Mitochondria review"),
+            RealtimeVoiceCardReview.Card(id: "item-2", question: "Line one\nline two", answer: String(repeating: "a", count: 900), source: nil),
+        ]
+        let few = RealtimeVoiceCardReview.instructions(cards: cards, dueToday: 2, scopeTitle: "all their notebooks")
+        #expect(few.contains("card_id: item-1"))
+        #expect(few.contains("question: What does ATP synthase make?"))
+        #expect(few.contains("source: Mitochondria review"))
+        #expect(few.contains("question: Line one line two"))
+        #expect(few.contains("Today's cards, 2 due:"))
+        #expect(few.contains("grade_card"))
+        #expect(few.contains("end_conversation"))
+        // Nothing more is due, so the model is not sent looking for more.
+        #expect(!few.contains("call get_due_cards"))
+        // A long answer is clipped out loud.
+        #expect(few.contains(String(repeating: "a", count: RealtimeVoiceCardReview.fieldBudget) + "…"))
+        #expect(!few.contains(String(repeating: "a", count: RealtimeVoiceCardReview.fieldBudget + 1)))
+
+        let more = RealtimeVoiceCardReview.instructions(cards: cards, dueToday: 30, scopeTitle: "the notebook \u{201C}Biology\u{201D}")
+        #expect(more.contains("the first 2 of 30 due"))
+        #expect(more.contains("call get_due_cards"))
+        #expect(more.contains("Biology"))
+
+        #expect(RealtimeVoiceCardReview.kickoff(cardCount: 1).contains("one card"))
+        #expect(RealtimeVoiceCardReview.kickoff(cardCount: 12).contains("12 cards"))
+    }
+
+    @Test("get_due_cards answers with the cards, or says none are left")
+    func cardReviewToolOutput() throws {
+        let output = RealtimeVoiceCardReview.dueCardsOutput(
+            [RealtimeVoiceCardReview.Card(id: "item-3", question: "Q?", answer: "A.", source: nil)],
+            dueToday: 7
+        )
+        let object = try #require(try JSONSerialization.jsonObject(with: Data(output.utf8)) as? [String: Any])
+        let rows = try #require(object["cards"] as? [[String: Any]])
+        #expect(rows.first?["card_id"] as? String == "item-3")
+        #expect(rows.first?["source"] == nil)
+        #expect(object["due_today"] as? Int == 7)
+        #expect(RealtimeVoiceCardReview.dueCardsOutput([], dueToday: 0).contains("No cards are due today"))
+        #expect(RealtimeVoiceCardReview.dueCardsOutput([], dueToday: 3).contains("already dealt"))
+        #expect(RealtimeVoiceCardReview.gradeCardTool["name"] as? String == "grade_card")
+        let due = RealtimeVoiceCardReview.dueCardsTool(description: "More cards.")
+        #expect(due["name"] as? String == "get_due_cards")
+    }
 }

@@ -431,36 +431,13 @@ struct MobileChatCitation: Hashable {
     let sourceID: String
 }
 
-/// The voice conversation that just ended, shown when the learner exits
-/// voice. The conversation saved its turns through the chat or review it
-/// drove; this value is presentation-only and deliberately does not create a
-/// second persistence path.
+/// A saved voice chat's turns, as its transcript shows them. This value is
+/// presentation-only and deliberately does not create a second persistence
+/// path.
 struct MobileVoiceChatTranscript {
     let messages: [MobileChatMessage]
     /// What the transcript sheet is titled; nil lets the cover name it.
     var title: String? = nil
-
-    init(turns: [MobileVoiceConversationController.VoiceTurn]) {
-        messages = turns.compactMap { turn in
-            let content = turn.text.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !content.isEmpty else { return nil }
-
-            let role: MobileChatMessage.Role
-            switch turn.kind {
-            case .user:
-                role = .user
-            case .assistant:
-                role = .assistant
-            }
-
-            return MobileChatMessage(
-                id: UUID(),
-                role: role,
-                content: content,
-                isStreaming: false
-            )
-        }
-    }
 
     init(messages: [MobileChatMessage]) {
         self.messages = messages

@@ -2393,7 +2393,7 @@ Web Studio offers the models ForeverLM curates and requests each from OpenRouter
 
 CarPlay starts [voice mode](/voice-mode)'s assistant: a realtime conversation that knows your recent work, goals and plans, and can talk about or quiz you on any source.
 
-**Review by Voice**, in the **⋯** of the iPhone's card review, holds today's whole memory review out loud, turn by turn; the CarPlay assistant hands over to it when you ask for your memory review. Apple's speech recognition hears you and waits for a short pause. Your chat model answers as it would in a typed chat, and Apple's speech synthesis speaks the answer. The microphone is off while ForeverLM speaks, so let it finish before you answer.
+**Review by Voice**, in the **⋯** of the iPhone's card review, goes through today's cards out loud in [voice mode](/voice-mode#review-your-cards-by-voice): it asks each card, tells you whether you had it, and records Remembered or Forgot. The CarPlay assistant does the same when you ask for your cards.
 
 To talk about a source out loud with another app, share it: see [Share a source](/studio#share-a-source).
 
@@ -2469,6 +2469,12 @@ The assistant is the same conversation about you instead of one source. When it 
 Ask it what to work on next, to go over your day, or about a paper you read last week. It can find any source in your library, open it, and talk about it or quiz you on it, and it looks things up again when the picture it started with is not enough. It never changes your library, plan or calendar.
 
 On the iPhone and in CarPlay, ask for "my review" or "my cards" and it goes through today's cards out loud: it asks each card, tells you whether you had it, and records Remembered or Forgot just as the card review does.
+
+## Review your cards by voice
+
+On the iPhone, open today's card review and choose **⋯** › **Review by Voice**. Voice mode starts with today's cards in the scope the review shows (all notebooks, or one), and asks the first one straight away. Answer in your own words: it judges the meaning, not the wording, says whether you had it and what the answer is, records Remembered or Forgot, and asks the next. Say "I don't know" to hear the answer. When you end, the card review shows the cards still due.
+
+It is the same realtime conversation as the rest of voice mode, so you can interrupt it, and it is saved as a voice chat called Card Review.
 
 - **iPhone:** the **waveform** at the top of Home.
 - **Mac:** **Chat › Talk to ForeverLM**.
@@ -6679,6 +6685,8 @@ All notable changes to ForeverLM are documented here. Dates are in YYYY-MM-DD fo
 ForeverLM follows [semantic versioning](https://semver.org) against its public surface: the MCP tool contracts, the knowledge-base/sync format, and licensing compatibility. While the version is 0.x, minor releases may include breaking changes to that surface; patch releases never do.
 
 ## Unreleased
+
+- **Review by Voice runs on voice mode.** On the iPhone, **⋯** › **Review by Voice** in the card review now goes through today's cards with the realtime voice: it asks each card, judges your spoken answer, and records Remembered or Forgot. It no longer uses Apple's dictation and speech, so you can answer and interrupt naturally. See [Voice Mode](/voice-mode#review-your-cards-by-voice).
 
 ## 0.197.0 (build 277) — 2026-11-07
 

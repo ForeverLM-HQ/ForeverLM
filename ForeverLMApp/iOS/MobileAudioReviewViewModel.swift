@@ -5849,7 +5849,7 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
         // composition and hands over at the current second.
         guard progress.contiguousChunks > 0,
               !progress.isComplete,
-              !MobileVoiceConversationController.shared.isActive else { return }
+              !MobileRealtimeVoice.controller.isActive else { return }
 
         let prefixItem = MobileAudioItem(manifest: item.manifest.prefix(chunkCount: progress.contiguousChunks))
         if openingPlaybackSourceID == item.id {
@@ -5914,7 +5914,7 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
         if let item = itemForSourceID(sourceID) {
             // A conversation started in the meantime outranks this playback:
             // acquiring the audio session here would tear that session down.
-            guard !MobileVoiceConversationController.shared.isActive else { return }
+            guard !MobileRealtimeVoice.controller.isActive else { return }
             await play(item)
             return
         }
@@ -6480,7 +6480,7 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
                 error: error
             )
             errorMessage = error.localizedDescription
-            if MobileVoiceConversationController.shared.isActive {
+            if MobileRealtimeVoice.controller.isActive {
                 return
             } else {
                 speakAndResumeListening(error.localizedDescription, pausePlayback: true, resumePlaybackAfterSpeech: true)
@@ -6844,7 +6844,7 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
                 // behind. A Listen tap plays it the way a cache hit would, and
                 // a prepare-only request simply has its answer.
                 item = published
-                if playsOpeningWhenReady, !MobileVoiceConversationController.shared.isActive {
+                if playsOpeningWhenReady, !MobileRealtimeVoice.controller.isActive {
                     await play(item)
                 }
             } else {
@@ -6943,7 +6943,7 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
             if pendingTextToSpeechAfterPreparationSourceID == source.id {
                 pendingTextToSpeechAfterPreparationSourceID = nil
                 errorMessage = error.localizedDescription
-                if !MobileVoiceConversationController.shared.isActive {
+                if !MobileRealtimeVoice.controller.isActive {
                     speakWithoutListening(error.localizedDescription)
                 }
             }
@@ -7157,7 +7157,7 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
         textToSpeechPreparationDetail = "Checking iCloud for existing audio…"
         if let published = await adoptPublishedSyncedAudioIfAvailable(for: source) {
             generationSucceeded = true
-            guard autoplay, !MobileVoiceConversationController.shared.isActive else { return }
+            guard autoplay, !MobileRealtimeVoice.controller.isActive else { return }
             await play(published)
             return
         }
@@ -7319,7 +7319,7 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
         let generatedItem = publishGeneratedTextToSpeechManifest(manifest, sourceID: source.id)
         generationSucceeded = true
 
-        guard autoplay, !MobileVoiceConversationController.shared.isActive else { return }
+        guard autoplay, !MobileRealtimeVoice.controller.isActive else { return }
 
         // Hand the listener over from the opening to the whole source without
         // moving them: same second, and still paused if they paused it.
@@ -7348,7 +7348,7 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     ) async -> Bool {
         guard currentItem == nil,
               backgroundOpeningPlaybackOwnerSourceID == nil,
-              !MobileVoiceConversationController.shared.isActive else { return false }
+              !MobileRealtimeVoice.controller.isActive else { return false }
 
         backgroundOpeningPlaybackOwnerSourceID = item.id
         let didStart = await startOpeningPlayback(item)
@@ -7366,7 +7366,7 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     ) async {
         guard openingPlaybackSourceID == item.id,
               currentItem?.id == item.id,
-              !MobileVoiceConversationController.shared.isActive else { return }
+              !MobileRealtimeVoice.controller.isActive else { return }
 
         let startAt = currentTime
         let keepPaused = !isPlaying && !openingPlaybackRanDry
@@ -7392,7 +7392,7 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
         _ item: MobileAudioItem,
         startAt: TimeInterval = 0
     ) async -> Bool {
-        guard !MobileVoiceConversationController.shared.isActive else { return false }
+        guard !MobileRealtimeVoice.controller.isActive else { return false }
         // A listener who started something else during generation keeps it.
         guard currentItem == nil || currentItem?.id == item.id || !isPlaying else { return false }
 
@@ -7451,7 +7451,7 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     private func extendOpeningPlayback(_ item: MobileAudioItem) async -> Bool {
         guard openingPlaybackSourceID == item.id,
               currentItem?.id == item.id,
-              !MobileVoiceConversationController.shared.isActive else { return false }
+              !MobileRealtimeVoice.controller.isActive else { return false }
 
         do {
             let urls = try await Task.detached(priority: .userInitiated) {

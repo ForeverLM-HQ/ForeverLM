@@ -156,7 +156,7 @@ Web Studio offers the models ForeverLM curates and requests each from OpenRouter
 
 CarPlay starts [voice mode](/voice-mode)'s assistant: a realtime conversation that knows your recent work, goals and plans, and can talk about or quiz you on any source.
 
-**Review by Voice**, in the **⋯** of the iPhone's card review, holds today's whole memory review out loud, turn by turn; the CarPlay assistant hands over to it when you ask for your memory review. Apple's speech recognition hears you and waits for a short pause. Your chat model answers as it would in a typed chat, and Apple's speech synthesis speaks the answer. The microphone is off while ForeverLM speaks, so let it finish before you answer.
+**Review by Voice**, in the **⋯** of the iPhone's card review, goes through today's cards out loud in [voice mode](/voice-mode#review-your-cards-by-voice): it asks each card, tells you whether you had it, and records Remembered or Forgot. The CarPlay assistant does the same when you ask for your cards.
 
 To talk about a source out loud with another app, share it: see [Share a source](/studio#share-a-source).
 

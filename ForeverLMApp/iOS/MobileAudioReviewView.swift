@@ -7,16 +7,13 @@ import SwiftUI
 // (`foreverlm://notebook/…`, `…/source/…`, `…/doc/…`) and the cold launch's
 // return to the last notebook can push them too. On a screen with the room,
 // the Space is a split view over the stack instead (`MobileSpaceSplitView`). Voice
-// (voice mode on a source, CarPlay, Review by Voice) is a full-screen cover over
+// (voice mode on a source, the assistant and CarPlay, Review by Voice) is a full-screen cover over
 // whatever is on screen, so it comes back to what was open. Playback rides
 // outside the stack.
 struct MobileAudioReviewView: View {
     @EnvironmentObject private var vm: MobileAudioReviewViewModel
-    @ObservedObject private var live = MobileVoiceConversationController.shared
     @ObservedObject private var realtime = MobileRealtimeVoice.controller
     @State private var path: [MobileShellRoute] = []
-    /// The voice conversation that just ended, shown in the cover until Done.
-    @State private var completedVoiceChat: MobileVoiceChatTranscript?
     @State private var isEndingVoiceSession = false
     /// What the cover's presentation is set to; it follows
     /// `isVoiceCoverPresented`, and is asked again when UIKit refused it.
@@ -84,11 +81,7 @@ struct MobileAudioReviewView: View {
             }
         }
         .fullScreenCover(isPresented: voiceCoverBinding) {
-            MobileVoiceSessionCover(
-                completedTranscript: $completedVoiceChat,
-                isEnding: $isEndingVoiceSession,
-                onFollowLink: { link in follow(link, fromInsideApp: true) }
-            )
+            MobileVoiceSessionCover(isEnding: $isEndingVoiceSession)
             .environmentObject(vm)
             .onAppear { voiceCoverIsOnScreen = true }
             .onDisappear { voiceCoverIsOnScreen = false }
@@ -237,8 +230,7 @@ struct MobileAudioReviewView: View {
     // MARK: - Voice
 
     private var isVoiceCoverPresented: Bool {
-        live.isActive || isEndingVoiceSession || completedVoiceChat != nil || live.needsSignIn
-            || realtime.isActive || realtime.needsSignIn
+        isEndingVoiceSession || realtime.isActive || realtime.needsSignIn
     }
 
     private var voiceCoverBinding: Binding<Bool> {
@@ -247,8 +239,6 @@ struct MobileAudioReviewView: View {
             set: { presented in
                 showsVoiceCover = presented
                 guard !presented else { return }
-                completedVoiceChat = nil
-                if live.needsSignIn { live.cancelSignIn() }
                 if realtime.needsSignIn { realtime.cancelSignIn() }
             }
         )
@@ -498,95 +488,58 @@ private struct MobileShellPageDestination: View {
 /// (`MobileCardReviewSession.dayChatIsUnderway`), and it never prepares one —
 /// a chat gone meanwhile says so. Every entry that opened this chat opens
 /// the card review since the phone's card review (docs/memory-design.md,
-/// "The card review on the iPhone"); voice still speaks the chat, preparing
-/// it when none exists. This screen owns the conversation while it is on the
-/// stack.
+/// "The card review on the iPhone"), and Review by Voice reviews the cards
+/// on OpenAI Realtime since 2026-11-08. This screen owns the conversation
+/// while it is on the stack.
 struct MobileMemoryReviewChatScreen: View {
     @StateObject private var review = MobileMemoryReviewViewModel(preparesIfMissing: false)
 
     var body: some View {
-        MobileMemoryReviewView(viewModel: review) {
-            // The same review, spoken turn by turn: voice drives this very
-            // review, so its cards follow the conversation.
-            Task { await MobileVoiceConversationController.shared.startMemoryReview(review) }
-        }
+        MobileMemoryReviewView(viewModel: review)
         .navigationTitle("Memory")
         .navigationBarTitleDisplayMode(.inline)
     }
 }
 
 /// The voice session as a full-screen cover over wherever it was started —
-/// Home, a notebook, the Reader — so ending it returns there. It shows the
-/// live session, then the conversation that just ended until Done; a start
-/// that needs Sign in with Apple asks here, inside the same cover, so no sheet
-/// races the cover's own dismissal.
+/// Home, a notebook, the Reader, the card review — so ending it returns there.
+/// Voice is one conversation on OpenAI Realtime (`MobileRealtimeVoice`): a
+/// source, the assistant, or Review by Voice. It shows no transcript when it
+/// ends (product owner, 2026-11-07); the chat is saved. A start that needs
+/// Sign in with Apple asks here, inside the same cover, so no sheet races the
+/// cover's own dismissal.
 struct MobileVoiceSessionCover: View {
-    @Binding var completedTranscript: MobileVoiceChatTranscript?
     @Binding var isEnding: Bool
-    /// Follows a foreverlm:// link in the shell's stack, under the cover.
-    let onFollowLink: (MobileDeepLink) -> Void
 
-    @EnvironmentObject private var vm: MobileAudioReviewViewModel
-    @ObservedObject private var live = MobileVoiceConversationController.shared
-    /// Voice mode on a source (`MobileRealtimeVoice`). It and the turn-by-turn
-    /// conversation never run at once; whichever is running is shown.
     @ObservedObject private var realtime = MobileRealtimeVoice.controller
-    @State private var isEndingRealtime = false
 
     var body: some View {
         Group {
-            if realtime.isActive || isEndingRealtime {
-                realtimeSession
-            } else if live.isActive || isEnding {
+            if realtime.isActive || isEnding {
                 session
             } else if realtime.needsSignIn {
-                realtimeSignIn
-            } else if live.needsSignIn {
                 signIn
-            } else if let completedTranscript {
-                NavigationStack {
-                    MobileVoiceTranscriptView(transcript: completedTranscript)
-                        .navigationTitle(transcriptTitle)
-                        .navigationBarTitleDisplayMode(.inline)
-                        .toolbar {
-                            ToolbarItem(placement: .topBarLeading) {
-                                Button("Done") { self.completedTranscript = nil }
-                                    .accessibilityIdentifier("voice.transcript.done")
-                            }
-                        }
-                }
-                // A source the conversation cited opens where it was started:
-                // the transcript closes, and the Reader is pushed in the
-                // notebook (or on Home) under it.
-                .environment(\.openURL, OpenURLAction { url in
-                    guard let link = MobileDeepLink.parse(url) else { return .systemAction }
-                    self.completedTranscript = nil
-                    onFollowLink(link)
-                    return .handled
-                })
             } else {
                 Color(uiColor: .systemBackground).ignoresSafeArea()
             }
         }
     }
 
-    private var transcriptTitle: String {
-        completedTranscript?.title ?? live.activeMemoryTarget ?? "Voice Chat"
-    }
-
-    private var realtimeSession: some View {
+    private var session: some View {
         VoiceSessionSurface(
             state: realtime.presentationState(context: MobileRealtimeVoice.contextItem),
             identifierPrefix: "voice",
             recoveryActionTitle: "Resume",
             onRecovery: { Task { await realtime.resume() } },
             onToggleMute: realtime.toggleMicrophoneMuted,
-            onEnd: endRealtime,
+            onEnd: end,
             onDismissError: { realtime.errorMessage = nil }
         )
     }
 
-    private var realtimeSignIn: some View {
+    /// Signed out is the one voice-start failure the learner can act on, so it
+    /// gets the real Sign in with Apple button.
+    private var signIn: some View {
         NavigationStack {
             MobileSignInPrompt {
                 Task { await realtime.resumeAfterSignIn() }
@@ -601,87 +554,12 @@ struct MobileVoiceSessionCover: View {
         }
     }
 
-    private func endRealtime() {
-        guard !isEnding else { return }
-        isEnding = true
-        isEndingRealtime = true
-        Task {
-            // The cover closes on what was under it: voice mode shows no
-            // transcript (product owner, 2026-11-07); the chat is saved.
-            await realtime.end()
-            isEndingRealtime = false
-            isEnding = false
-        }
-    }
-
-    /// Today's memory review, spoken (`MobileVoiceConversationController`).
-    private var session: some View {
-        VoiceSessionSurface(
-            state: presentationState,
-            identifierPrefix: "voice",
-            recoveryActionTitle: "Resume",
-            onRecovery: { Task { await live.resume() } },
-            onToggleMute: live.toggleMicrophoneMuted,
-            onEnd: end,
-            onDismissError: { live.errorMessage = nil }
-        )
-    }
-
-    /// Signed out is the one voice-start failure the learner can act on, so it
-    /// gets the real Sign in with Apple button.
-    private var signIn: some View {
-        NavigationStack {
-            MobileSignInPrompt {
-                Task { await live.resumeAfterSignIn() }
-            }
-            .navigationTitle("Voice Session")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .topBarLeading) {
-                    Button("Cancel") { live.cancelSignIn() }
-                }
-            }
-        }
-    }
-
     private func end() {
         guard !isEnding else { return }
         isEnding = true
         Task {
-            await live.end()
-            let transcript = MobileVoiceChatTranscript(turns: live.transcript)
-            // A session ended before anyone spoke has nothing to show; the
-            // cover closes on what was under it.
-            completedTranscript = transcript.messages.isEmpty ? nil : transcript
+            await realtime.end()
             isEnding = false
-        }
-    }
-
-    private var presentationState: VoiceSessionPresentationState {
-        VoiceSessionPresentationState(
-            phase: live.phase.presentationPhase,
-            statusText: live.statusText,
-            headerTitle: live.activeMemoryTarget ?? "Memory Review",
-            headerSystemImage: "brain.head.profile",
-            contextItems: [],
-            isMicrophoneMuted: live.isMicrophoneMuted,
-            microphoneLevel: live.microphoneLevel,
-            terminalErrorMessage: live.phase == .failed ? live.errorMessage : nil,
-            inlineErrorMessage: live.phase == .failed ? nil : live.errorMessage,
-            isTutorWorking: live.isTutorWorking,
-            caption: live.caption
-        )
-    }
-}
-
-private extension MobileVoiceConversationController.Phase {
-    var presentationPhase: VoiceSessionPhase {
-        switch self {
-        case .idle: return .idle
-        case .connecting: return .connecting
-        case .live: return .live
-        case .ending: return .ending
-        case .failed: return .failed
         }
     }
 }

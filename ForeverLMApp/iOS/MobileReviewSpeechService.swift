@@ -17,9 +17,6 @@ final class MobileReviewSpeechService: NSObject, ObservableObject, AVSpeechSynth
     enum SpeechOwner: Equatable, Sendable {
         case voiceTab
         case readingChat
-        /// The turn-by-turn voice conversation (`MobileVoiceConversationController`),
-        /// which always passes its own finish handler.
-        case voiceConversation
         case watch
     }
 
@@ -107,7 +104,7 @@ final class MobileReviewSpeechService: NSObject, ObservableObject, AVSpeechSynth
         // re-arming its microphone against speech the Voice tab never started.
         let owner = currentOwner
         let completion = onFinishCurrentUtterance
-            ?? (owner == .readingChat || owner == .voiceConversation ? nil : onFinishSpeaking)
+            ?? (owner == .readingChat ? nil : onFinishSpeaking)
         onFinishCurrentUtterance = nil
         currentOwner = nil
         completion?()

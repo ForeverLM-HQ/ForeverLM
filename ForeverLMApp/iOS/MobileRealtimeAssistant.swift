@@ -7,8 +7,9 @@ import os
 /// what it knows when it starts, read from the phone's own replica of the
 /// library, and the tools it looks further with. Everything is read on the
 /// device. The one write is a card's grade in a spoken card review
-/// (`grade_card`), recorded exactly as the phone's card review records a
-/// Forgot or Remembered; nothing else a misheard word says can change the library.
+/// (`grade_card`, `MobileRealtimeCardTools`), recorded exactly as the phone's
+/// card review records a Forgot or Remembered; nothing else a misheard word
+/// says can change the library.
 ///
 /// What it reads:
 /// - the quarter plan Page (`PlanQuarter`, from the Space store);
@@ -88,20 +89,10 @@ enum MobileRealtimeAssistant {
                 ),
                 RealtimeVoiceAssistant.function("get_goals", "The learner's goals and notebooks, with what each notebook is for."),
                 RealtimeVoiceAssistant.function("get_recent_work", "What the learner read, listened to, watched or discussed in the last two weeks, and their latest chats."),
-                RealtimeVoiceAssistant.function(
-                    "get_due_cards",
-                    "Today's review cards (spaced repetition), each with its question and answer, for a card review out loud when the learner asks for their review or their cards. Ask one card's question at a time, let them answer, say plainly whether they had it and the answer in a sentence, then call grade_card before the next.",
-                    properties: ["limit": ["type": "integer", "description": "How many cards, 1 to 20; 10 if left out."]]
+                RealtimeVoiceCardReview.dueCardsTool(
+                    description: "Today's review cards (spaced repetition), each with its question and answer, for a card review out loud when the learner asks for their review or their cards. Ask one card's question at a time, let them answer, say plainly whether they had it and the answer in a sentence, then call grade_card before the next."
                 ),
-                RealtimeVoiceAssistant.function(
-                    "grade_card",
-                    "Records whether the learner remembered a card from get_due_cards, which moves it on their review schedule. Remembered only when their answer had the card's point.",
-                    properties: [
-                        "card_id": ["type": "string", "description": "The card_id from get_due_cards."],
-                        "remembered": ["type": "boolean", "description": "true when they had it, false when they did not."],
-                    ],
-                    required: ["card_id", "remembered"]
-                ),
+                RealtimeVoiceCardReview.gradeCardTool,
             ]
         }
 
@@ -125,15 +116,9 @@ enum MobileRealtimeAssistant {
                 return await goalsText()
             case "get_recent_work":
                 return await recentText(now: Date())
-            case "get_due_cards":
-                return await dueCards(limit: min(max((arguments["limit"] as? NSNumber)?.intValue ?? 10, 1), 20))
-            case "grade_card":
-                return await gradeCard(
-                    itemID: (arguments["card_id"] as? String) ?? "",
-                    remembered: (arguments["remembered"] as? Bool) ?? false
-                )
             default:
-                return #"{"error":"Unknown tool."}"#
+                return await cards.run(name: name, argumentsJSON: argumentsJSON, onlyNew: false)
+                    ?? #"{"error":"Unknown tool."}"#
             }
         }
 
@@ -141,65 +126,8 @@ enum MobileRealtimeAssistant {
 
         // MARK: Cards
 
-        /// One sitting per conversation: every grade's attempt id derives from
-        /// it, so a card is graded once however often the model asks.
-        private let cardSittingKey = "voice-\(UUID().uuidString.lowercased())"
-        private let dealt = OSAllocatedUnfairLock(initialState: [String: String]())
-
-        /// Today's cards over every notebook, as the phone's card review deals
-        /// them (`MobileCardReviewSession.Backend.live`).
-        @MainActor
-        private func dueCards(limit: Int) async -> String {
-            let deal = await MobileCardReviewSession.Backend.live().deal(.today(.allNotebooks), .today, Date())
-            let cards = Array(deal.cards.prefix(limit))
-            guard !cards.isEmpty else {
-                return #"{"cards":[],"note":"No cards are due today. Say so, and offer to quiz them on something they read instead."}"#
-            }
-            dealt.withLock { prompts in
-                for card in cards { prompts[card.itemID] = card.prompt }
-            }
-            let rows = cards.map { card -> [String: Any] in
-                var row: [String: Any] = ["card_id": card.itemID, "question": card.prompt, "answer": card.back]
-                if let sourceID = card.sourceID, let title = deal.sourceTitles[sourceID] { row["source"] = title }
-                return row
-            }
-            let object: [String: Any] = ["cards": rows, "due_today": deal.cards.count]
-            let data = (try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])) ?? Data()
-            return String(data: data, encoding: .utf8) ?? #"{"cards":[]}"#
-        }
-
-        /// A grade, written as the card review writes a Forgot or Remembered
-        /// (`MobileSelfGradedAnswer`): only a card this conversation dealt, once.
-        @MainActor
-        private func gradeCard(itemID: String, remembered: Bool) async -> String {
-            guard let prompt = dealt.withLock({ $0[itemID] }) else {
-                return #"{"error":"That card_id is not one from get_due_cards in this conversation."}"#
-            }
-            let backend = MobileCardReviewSession.Backend.live()
-            do {
-                guard let context = await backend.answerContext(itemID) else {
-                    throw MobileCardReviewError.cardGone
-                }
-                let decision = try MobileSelfGradedAnswer.decide(
-                    item: context.item,
-                    history: context.history,
-                    prompt: prompt,
-                    remembered: remembered,
-                    sessionKey: cardSittingKey,
-                    practice: false,
-                    at: backend.now()
-                )
-                guard case .write(let attempt) = decision else {
-                    return #"{"ok":true,"note":"Already graded, or not counted today."}"#
-                }
-                _ = try await backend.write(attempt, MemoryTutorIdentity.immutableCurriculumFingerprint(context.item))
-                await backend.noteRecorded(attempt)
-                return #"{"ok":true}"#
-            } catch {
-                MobileRealtimeAssistant.logger.error("Voice card grade not saved: \(error.localizedDescription, privacy: .public)")
-                return #"{"error":"The grade was not saved. Say so briefly and carry on."}"#
-            }
-        }
+        /// Today's cards over every notebook, and their grades.
+        private let cards = MobileRealtimeCardTools(scope: .allNotebooks)
 
         // MARK: Library
 

@@ -3,9 +3,8 @@ import Foundation
 import Speech
 
 /// Apple's speech recognition, listening continuously and handing each
-/// utterance over after a short silence. The Siri hands-free loop owns one
-/// (holder `.voiceTab`) and the turn-by-turn voice conversation another
-/// (`.voiceConversation`); the holder is whose lease the microphone is taken
+/// utterance over after a short silence. The Siri hands-free loop owns it
+/// (holder `.voiceTab`); the holder is whose lease the microphone is taken
 /// under (`MobileAudioSessionArbiter`).
 @MainActor
 final class MobileVoiceCommandService: NSObject, ObservableObject {

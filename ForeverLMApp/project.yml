@@ -448,9 +448,6 @@ targets:
       - iOS/MobileReviewFoundationBrain.swift
       - iOS/MobileReviewSessionRecorder.swift
       - iOS/MobileMemoryAttemptRecorder.swift
-      # The turn-by-turn voice conversation (Apple dictation, today's memory
-      # review answering, spoken replies): Review by Voice.
-      - iOS/MobileVoiceConversationController.swift
       # Voice mode on a source: OpenAI Realtime speech to speech over WebRTC, on
       # ForeverLM's own OpenAI credits (back 2026-11-07). The call, the
       # conversation and its tutor prompt are shared with the Mac; the phone
@@ -466,6 +463,10 @@ targets:
       # library helpers, and the phone's picture of the learner and its tools.
       - Shared/Services/AI/RealtimeVoiceAssistant.swift
       - iOS/MobileRealtimeAssistant.swift
+      # Review by Voice: today's cards asked and graded on the same realtime
+      # conversation.
+      - Shared/Services/AI/RealtimeVoiceCardReview.swift
+      - iOS/MobileRealtimeCardReview.swift
       # Speech loudness: shared gain+limiter stages, and the AVPlayer tap that
       # applies them to text-to-speech narration.
       - iOS/MobileSpeechLoudness.swift

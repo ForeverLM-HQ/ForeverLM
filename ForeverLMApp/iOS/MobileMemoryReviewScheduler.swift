@@ -3,8 +3,8 @@ import Foundation
 import UIKit
 import UserNotifications
 
-/// Prepares today's memory review chat on the phone, for voice, which speaks
-/// it turn by turn, and sends the daily reminder.
+/// Prepares today's memory review chat on the phone, and sends the daily
+/// reminder.
 ///
 /// The phone's half of the daily preparation (docs/memory-design.md). The
 /// switch is the account's; the hour is this phone's. iOS grants background
@@ -12,7 +12,7 @@ import UserNotifications
 /// for at the hour, the first foreground after the hour as the path that
 /// always works, and the daily reminder as the backstop. Since the phone's
 /// card review (2026-10-02) the reminder opens today's cards, which prepare
-/// nothing; voice prepares the chat on the spot when nothing ran. Whichever
+/// nothing, and since 2026-11-08 Review by Voice reviews the cards too. Whichever
 /// device prepares first wins: the day's session id is the claim, and a
 /// phone that finds the record already there simply opens it.
 @MainActor

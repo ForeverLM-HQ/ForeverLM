@@ -1199,7 +1199,8 @@ private struct MobileTextToSpeechPickTestStatus: View {
 private struct MobileTextToSpeechVoiceListView: View {
     let modelID: String
 
-    @ObservedObject private var live = MobileVoiceConversationController.shared
+    /// A voice conversation holds the audio; a sample would end it.
+    @ObservedObject private var realtime = MobileRealtimeVoice.controller
     @ObservedObject private var textToSpeech = ArticleSpeechPreferences.shared
     @StateObject private var preview = MobileTextToSpeechVoicePreviewService()
     @StateObject private var pickTest = MobileTextToSpeechPickTest()
@@ -1273,7 +1274,7 @@ private struct MobileTextToSpeechVoiceListView: View {
                             }
                         }
                         .buttonStyle(.borderless)
-                        .disabled(live.isActive)
+                        .disabled(realtime.isActive)
                         .accessibilityLabel(
                             preview.isPlaying(modelID: modelID, voiceID: voice.id)
                                 ? "Stop sample"

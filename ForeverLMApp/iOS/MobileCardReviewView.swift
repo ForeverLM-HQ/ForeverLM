@@ -182,6 +182,13 @@ final class MobileCardReviewSession: ObservableObject {
         Task { await deal(kind: openingKind) }
     }
 
+    /// Deals today's cards again, after a card review by voice graded some of
+    /// them while this sitting waited under it.
+    func dealAgain() {
+        guard hasOpened, case .today = mode else { return }
+        Task { await deal(kind: nil) }
+    }
+
     /// The empty review's Practice N New Cards: the scope's new cards that
     /// today's deal leaves out — kept today, or past the day's allowance —
     /// as practice the learner started, whose first answers count.
@@ -642,8 +649,9 @@ final class MobileBackgroundSaveAssertion {
 /// nothing typed and the learner grades themselves (the Mac's
 /// `MemoryCardSessionView`, on a phone).
 /// Today's review carries the scope in its title — All notebooks or one — and
-/// its menu speaks today's review by voice and, when today's review chat from
-/// before cards holds an answer, continues it. A card's source opens in the
+/// its menu reviews today's cards by voice (`MobileRealtimeVoice.startCardReview`,
+/// on OpenAI Realtime) and, when today's review chat from before cards holds an
+/// answer, continues it. A card's source opens in the
 /// Reader, pushed over the review, which waits where it was.
 ///
 /// Since 2026-10-11 it is drawn as the Mac's deck (docs/memory-design.md, "How
@@ -661,7 +669,11 @@ struct MobileCardReviewScreen: View {
     @StateObject private var session: MobileCardReviewSession
     @EnvironmentObject private var vm: MobileAudioReviewViewModel
     @ObservedObject private var goal = MobileMemoryGoalModel.shared
-    @ObservedObject private var live = MobileVoiceConversationController.shared
+    /// Review by Voice (`MobileRealtimeVoice.startCardReview`).
+    @ObservedObject private var realtime = MobileRealtimeVoice.controller
+    /// A card review by voice was started here: its grades move cards, so the
+    /// deck is dealt again once it ends.
+    @State private var startedVoiceReview = false
     @Environment(\.dismiss) private var dismiss
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
@@ -715,6 +727,11 @@ struct MobileCardReviewScreen: View {
             .navigationBarTitleDisplayMode(.inline)
             .toolbar { toolbar }
             .task { await session.open() }
+            .onChange(of: realtime.isActive) { _, active in
+                guard !active, startedVoiceReview else { return }
+                startedVoiceReview = false
+                session.dealAgain()
+            }
             // The day's goal clock runs while the review is on screen and the
             // app is in front; a tap keeps it running.
             .onAppear {
@@ -810,11 +827,13 @@ struct MobileCardReviewScreen: View {
             ToolbarItem(placement: .topBarTrailing) {
                 Menu {
                     Button {
-                        Task { await live.startMemoryReview() }
+                        startedVoiceReview = true
+                        let title = scopeTitle
+                        Task { await MobileRealtimeVoice.startCardReview(scope: scope, scopeTitle: title) }
                     } label: {
                         Label("Review by Voice", systemImage: "waveform")
                     }
-                    .disabled(live.isActive)
+                    .disabled(realtime.isActive || session.phase != .reviewing)
                     if session.dayChatIsUnderway {
                         Button {
                             showsDayChat = true
