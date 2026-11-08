@@ -2484,6 +2484,10 @@ The assistant is the same conversation about you instead of one source. When it 
 
 Ask it what to work on next, to go over your day, or about a paper you read last week. It can find any source in your library, open it, and talk about it or quiz you on it, and it looks things up again when the picture it started with is not enough. It never changes your library, plan or calendar.
 
+Name a source the way you would say it: its title, its author, or, for a meeting, its series and the day it happened ("quiz me on the October 25th journal club session"). A name it hears slightly wrong still finds the right one.
+
+On the Mac it can read everything else in ForeverLM too: your recurring meetings and each session's talk, a notebook's sources and notes, your Pages, cards, courses, highlights, ideas, open questions and past chats. It only reads; to change something, ask in a typed chat.
+
 - **iPhone:** the **waveform** at the top of Home.
 - **Mac:** the **waveform** at the bottom of the icon strip on the left of every window, or **Chat › Talk to ForeverLM**.
 - **CarPlay:** open ForeverLM and start talking. The assistant greets you with one useful thing, such as what is next in your plan or the paper you were last into, and keeps every answer short enough to follow while driving.
@@ -2518,7 +2522,7 @@ Pick the voice ForeverLM speaks in from ten: Marin (the default), Cedar, Alloy, 
 
 ## Usage
 
-Voice conversations are listed in AI Usage on the Mac and in **Settings › Usage** on the iPhone, task **Voice Mode**, with a **ForeverLM credits** capsule: the cost shown is what OpenAI charged ForeverLM, and nothing is billed to you.
+Voice conversations are listed in AI Usage on the Mac and in **Settings › Usage** on the iPhone, task **Voice Mode**, with a **BYOK** capsule, because it runs on its own OpenAI key rather than through OpenRouter: the cost shown is what OpenAI charged ForeverLM, and nothing is billed to you.
 
 ---
 
@@ -2567,7 +2571,7 @@ On the iPhone, the composer's microphone and spoken reviews use Apple's on-devic
 
 ## Voice mode
 
-[Voice mode](/voice-mode) (talking about a source, the voice assistant, CarPlay) is the one feature that does not go through OpenRouter: it runs on OpenAI's realtime voice model (gpt-realtime-2.1), which OpenRouter does not serve, and ForeverLM pays for it from its own OpenAI account. Your key is not used and nothing is billed to you. AI Usage lists each conversation with a **ForeverLM credits** capsule.
+[Voice mode](/voice-mode) (talking about a source, the voice assistant, CarPlay) is the one feature that does not go through OpenRouter: it runs on OpenAI's realtime voice model (gpt-realtime-2.1), which OpenRouter does not serve, and ForeverLM pays for it from its own OpenAI account. Your key is not used and nothing is billed to you. AI Usage lists each conversation with a **BYOK** capsule, since it runs on its own OpenAI key rather than through OpenRouter.
 
 ## Semantic search
 
@@ -6706,8 +6710,18 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.201.0 (build 281) — 2026-11-08
+
+**Highlights:**
+- **Voice mode finds your meetings:** ask for one by its series and day, and on the Mac it reads the rest of ForeverLM too.
+- **Voice follows your AirPods** on the Mac when they become the default device mid-call.
+
 - **An article a publisher's check blocked takes its PDF.** Get past the check in the Reader and download the PDF there (the site's own button, or **Download PDF** in the **⋯** menu), or use **Attach PDF File…** on the article's right-click menu: the PDF becomes the article's text and the Reader shows it. The article stays an article.
+- **Voice mode finds meetings and reaches the rest of ForeverLM.** Ask for a meeting by its series and day ("the October 25th journal club session") and the assistant finds it, even when it hears the name slightly wrong. On the Mac it can also read your meeting series, notebooks, Pages, cards, courses, highlights, ideas and past chats. See [Voice Mode](/voice-mode#talk-to-foreverlm).
 - **Chat can act on the page open in the Reader.** Ask it to click, type or read on "this page" and it works in the Reader you are looking at, with the sign-ins and checks you already passed there: for example, clicking a publisher's download button so the PDF attaches.
+- **Voice mode on the Mac follows your AirPods.** Put AirPods in mid-conversation, or let them switch over from the iPhone, and the call moves to them; the status line says "Switching audio…" for a moment and the conversation carries on.
+- **Meeting sessions get their names.** A meeting session that was filed under only its date is named from its files once a model can read them, the next time meetings refresh. A title you wrote is left alone.
+- **Voice mode's costs say BYOK.** In AI Usage on the Mac and Usage on the iPhone, voice conversations carry the green BYOK capsule, since voice runs on its own OpenAI key. Nothing is charged to you.
 
 ## 0.200.0 (build 280) — 2026-11-08
 
