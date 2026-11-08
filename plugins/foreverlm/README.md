@@ -80,14 +80,27 @@ surface the error instead of guessing library contents.
 
 ## Public tool surface
 
-The plugin exposes ForeverLM's whole public MCP contract, every tool in the app's
-registry (400 on 2026-10-11): the library, highlights, meeting groups, Notebooks,
-Pages, the Schedule, reviews, cards, Settings, scheduled tasks, and reading Slack,
-Linear, GitHub and Notion. Every tool carries a title and read-only, destructive,
-and open-world annotations. The gateway enforces that contract; calls outside it
-are refused.
+The plugin exposes ForeverLM's public MCP contract: the library, highlights, meeting
+groups, Notebooks, Pages, the Schedule, reviews, cards, Settings, scheduled tasks,
+and reading Slack, Linear, GitHub and Notion. In Claude (Claude Code, Cowork,
+claude.ai) that contract leaves out ForeverLM's AI image, video and audio generation:
+those tools are neither listed nor callable from Claude, and a picture Claude makes
+itself is kept with `save_image`. Every tool carries a title and read-only,
+destructive, and open-world annotations. The gateway enforces that contract; calls
+outside it are refused.
 
 See the full directory and behavior in the ForeverLM documentation.
+
+## What the plugin runs and sends
+
+The plugin runs nothing on your computer: it has no hooks, no scripts, no commands
+and no local MCP server. It declares one remote MCP server,
+`https://plugin.foreverlm.com/mcp`, run by ForeverLM. The assistant's tool calls and
+their arguments go there, and ForeverLM's servers pass them to your own library: the
+ForeverLM app on your Mac, or ForeverLM's always-on host that reads your library from
+your iCloud account. A tool that reads Slack, Linear, GitHub or Notion calls that
+service only for a workspace you connected in ForeverLM. The four skills are
+instructions to the assistant and run no code of their own.
 
 ## Links
 
@@ -99,7 +112,7 @@ See the full directory and behavior in the ForeverLM documentation.
 
 ## Status
 
-One package, versioned 1.0.6, serves every provider:
+One package, versioned 1.0.7, serves every provider:
 
 - **Claude Code and Cowork:** installable from this marketplace today; submission to
   Anthropic's plugin directory is in progress.
