@@ -66,9 +66,9 @@ extension StudioViewModel {
     /// when nil), as the learner asks for it — the View menu's Space (⌘P), a
     /// notebook's ‹ and its Close Notebook, the rail's Notebooks header, Siri's
     /// Show Notebooks, the MCP `open_in_app` target `space` — and wherever the
-    /// app once showed the Notebooks home. A notebook the window holds leaves
-    /// first, and its rail row or its row in the list brings it back as it was
-    /// (`StudioWindowState.notebookLeft`).
+    /// app once showed the Notebooks home. A notebook the window holds stays
+    /// open: its center is the window's tabs, and the Space is one more tab
+    /// there. Close Notebook leaves it (`leaveNotebookForSpace`).
     func showSpaceAll(in destinationWindowState: StudioWindowState? = nil) {
         showSpace(.all, in: destinationWindowState)
     }
@@ -88,9 +88,9 @@ extension StudioViewModel {
     /// the pointer, showing the other, shows `tab` in its place, every other
     /// pane and pin left as they were (`StudioCenterTabGroups.showingSpaceTab`).
     /// Courses shows the list of courses, so a course's page the window held
-    /// gives way to it. With no such pane on screen — a notebook the
-    /// window holds, the Space asked for from a menu — the tab opens by the
-    /// ordinary rules, leaving a notebook as the Space does.
+    /// gives way to it. With no such pane on screen — the Space asked for
+    /// from a menu — the tab opens by the ordinary rules. A notebook the
+    /// window holds stays open, the tab one more of the window's tabs.
     func showSpaceTab(_ tab: SpaceTab, in destinationWindowState: StudioWindowState? = nil) {
         let destination = destinationWindowState ?? activeWindowState
         if tab == .courses {

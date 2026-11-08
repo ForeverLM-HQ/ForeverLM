@@ -137,11 +137,12 @@ struct ChatOpenPanesVideoPlayheadTests {
         ),
     ])
 
-    @Test("The video in the chat's window carries its moment; another window's video is not on screen here")
+    @Test("Each window's video carries its own moment, the chat's window first")
     func playheadRidesTheMessage() {
         let shown = Self.talk.sourcesOnScreen
-        #expect(shown.map(\.id) == ["src-talk"])
+        #expect(shown.map(\.id) == ["src-talk", "src-other"])
         #expect(shown.first?.moment == ChatContextAdditions.VideoMoment(at: 1611, playing: false))
+        #expect(shown.last?.moment == ChatContextAdditions.VideoMoment(at: 60, playing: true))
         #expect(Self.talk.text.contains("(source_id: src-talk), paused at 26:51."))
     }
 

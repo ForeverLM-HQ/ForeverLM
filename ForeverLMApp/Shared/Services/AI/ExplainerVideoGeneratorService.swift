@@ -169,7 +169,10 @@ struct ExplainerVideoGeneratorService: Sendable {
     var progress: @Sendable (ExplainerVideoStage) -> Void = { _ in }
 
     /// The types a video can lean on: the two whose text is a written argument.
-    static let groundingSourceTypes: Set<StudioSourceType> = GeneratedExplainer.explainableSourceTypes
+    /// Its own set, not the Explainer's (`GeneratedExplainer.explainableSourceTypes`),
+    /// which also explains talks, podcasts and meetings: a film is cut from an
+    /// argument laid out in writing, not from a transcript.
+    static let groundingSourceTypes: Set<StudioSourceType> = [.paper, .article]
 
     func run(request: ExplainerVideoRequest) async throws -> ExplainerVideoGenerationResult {
         let workflowID = UUID().uuidString

@@ -875,13 +875,16 @@ struct StudioSideChatSplitTests {
         }
     }
 
-    @Test("Chat splits into a side chat, Pages into a copy, and nothing else copies")
+    @Test("Chat, the Reader and the Browser split into a side pane, Pages into a copy, and nothing else copies")
     func splitCopies() {
         #expect(StudioCenterTab.chat.splitCopy == .secondaryChat)
         #expect(StudioCenterTab.secondaryChat.splitCopy == .secondaryChat)
+        #expect(StudioCenterTab.reader.splitCopy == .secondaryReader)
+        #expect(StudioCenterTab.secondaryReader.splitCopy == .secondaryReader)
+        #expect(StudioCenterTab.browser.splitCopy == .secondaryBrowser)
+        #expect(StudioCenterTab.secondaryBrowser.splitCopy == .secondaryBrowser)
         #expect(StudioCenterTab.notepad.splitCopy == .notepad)
         #expect(StudioCenterTab.library.splitCopy == nil)
-        #expect(StudioCenterTab.reader.splitCopy == nil)
     }
 
     @Test("the split button beside a chat opens side chats up to four panes, and each × closes its own")

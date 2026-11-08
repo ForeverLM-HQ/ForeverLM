@@ -6150,14 +6150,24 @@ struct MCPDataStoreTests {
 
     /// A store whose card tools keep their state rows in a defaults suite of
     /// their own, so nothing reaches the host's defaults or its sync queue.
-    private func makeCardStore() throws -> (store: MCPDataStore, dbPath: String, defaults: UserDefaults, cleanup: () -> Void) {
+    /// A card store over a fresh library. `activated` gives it the shape every Mac's store has once
+    /// generation 2's activation ran (what ships): a card to check is a draft Card row in
+    /// `memory_card_states`. Without it the store is not activated yet, and drafts go to the source's
+    /// draft-deck Artifact, generation 1's shape, which WP30 deletes.
+    private func makeCardStore(activated: Bool = false) throws -> (store: MCPDataStore, dbPath: String, defaults: UserDefaults, cleanup: () -> Void) {
         let tmpDir = FileManager.default.temporaryDirectory.appendingPathComponent("mcp_cards_\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
         let dbPath = tmpDir.appendingPathComponent("knowledge.db").path
         let suite = "foreverlm-test-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
-        let store = MCPDataStore(dbPath: dbPath, cardStateDefaults: defaults)
-        _ = try store.knowledgeStore()
+        let store = activated
+            ? MCPDataStore(dbPath: dbPath, cardStateDefaults: defaults, syncGeneration: .two)
+            : MCPDataStore(dbPath: dbPath, cardStateDefaults: defaults)
+        let knowledge = try store.knowledgeStore()
+        if activated {
+            try knowledge.execForTesting("INSERT INTO ck_activation (id, activated_at) VALUES (1, 1) ON CONFLICT(id) DO UPDATE SET activated_at = 1")
+            #expect(try knowledge.recordsMemoryForGeneration2())
+        }
         return (store, dbPath, defaults, {
             defaults.removePersistentDomain(forName: suite)
             try? FileManager.default.removeItem(at: tmpDir)
@@ -6251,7 +6261,9 @@ struct MCPDataStoreTests {
 
     @Test("update_card puts pictures on a card still to check, with no Memory pane open, and leaves its words alone")
     func updateCardPicturesOnCardToCheck() async throws {
-        let (store, dbPath, _, cleanup) = try makeCardStore()
+        // The pictures are written onto the draft Card (`setCardDraftPictures`), generation 2's
+        // card to check, so the store is activated as every shipping Mac's is.
+        let (store, dbPath, _, cleanup) = try makeCardStore(activated: true)
         defer { cleanup() }
         try insertSource(dbPath: dbPath, id: "source-cards", title: "Retrieval practice", content: Self.cardSourceText)
         _ = try await store.saveCardDrafts(cards: [

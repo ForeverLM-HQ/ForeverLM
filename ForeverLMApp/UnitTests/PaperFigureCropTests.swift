@@ -2110,13 +2110,14 @@ struct FocusAnchorUnindexedPaperTests {
         try SyntheticPaperPage.write(to: pdf)
 
         let storage = StorageService(storeRoot: root.appendingPathComponent("store", isDirectory: true))
-        var paper = StudioArticle(
+        // Freshly imported: its PDF is on disk and nothing derived from it yet
+        // (the store refuses `.ready` before the paper's text is stored).
+        let paper = StudioArticle(
             url: "https://example.org/zara-holt-preprint",
             title: "A synthetic preprint",
             sourceType: .paper,
             localFilePath: pdf.path
         )
-        paper.state = .ready
         try await storage.saveSource(paper)
         #expect(try await storage.paperFigures(sourceID: paper.id).isEmpty)
 

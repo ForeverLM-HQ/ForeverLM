@@ -7778,7 +7778,7 @@ struct ChatTranscriptPageTests {
         var messages = Self.plainChat()
         messages[0] = ReviewSessionManager.Message(
             role: .user,
-            content: "What is this?\n\n![figure](foreverlm://image/attached/A1B2-C3)"
+            content: "What is this?\n\n![figure](foreverlm://image/attached/0f1e2d3c-4b5a)"
         )
         #expect(!ChatTranscriptPage.draws(Self.sections(messages)))
     }

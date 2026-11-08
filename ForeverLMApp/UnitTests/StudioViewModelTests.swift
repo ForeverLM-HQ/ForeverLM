@@ -3092,20 +3092,39 @@ struct CrossWindowStudioDropTests {
         let vm = makeViewModel()
         let acting = StudioWindowState()
         let other = StudioWindowState()
+        // Two panes, set here rather than read from the stored template: a
+        // notebook opens in the window's own tabs, and a window of two panes
+        // or more keeps them as arranged.
+        other.centerTabGroups = StudioCenterTabGroups(groups: [
+            .init(tabs: [.artifacts, .chat], activeTab: .artifacts),
+            .init(tabs: [.reader], activeTab: .reader),
+        ])
+        let actingPanes = acting.centerTabGroups
         let otherPanes = other.centerTabGroups
 
         StudioWindowDestination.notebook("notebook-1").open(in: other, vm: vm)
 
         // The notebook belongs to the window it was sent to, and the open
-        // notebook read in that window is it; the acting window holds none.
-        // Its workspace draws that window, so the panes underneath are not
-        // rearranged.
+        // notebook read in that window is it; the acting window holds none
+        // and keeps its panes. The panes underneath are not rearranged, and
+        // each shows what it showed.
         #expect(vm.inWindow(other) { vm.workbenchNotebookID } == "notebook-1")
         #expect(other.NotebookID == "notebook-1")
         #expect(acting.NotebookID == nil)
         #expect(other.centerTabGroups == otherPanes)
-        #expect(vm.visibleCenterTabs(in: other) == [.chat])
-        #expect(acting.centerTabGroups.groups.contains { $0.activeTab == .artifacts } == false)
+        #expect(vm.visibleCenterTabs(in: other) == [.artifacts, .reader])
+        #expect(acting.centerTabGroups == actingPanes)
+
+        // A window of one pane not showing the chat opens the notebook on its
+        // conversation, what it showed staying one of its tabs.
+        let single = StudioWindowState()
+        single.centerTabGroups = StudioCenterTabGroups(groups: [
+            .init(tabs: [.artifacts, .chat], activeTab: .artifacts),
+        ])
+        StudioWindowDestination.notebook("notebook-1").open(in: single, vm: vm)
+        #expect(single.NotebookID == "notebook-1")
+        #expect(vm.visibleCenterTabs(in: single) == [.chat])
+        #expect(single.centerTabGroups.groups.first?.tabs.contains(.artifacts) == true)
     }
 
     @Test("A chat sent to another window is that window's chat request")

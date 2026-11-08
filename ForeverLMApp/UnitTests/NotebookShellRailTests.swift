@@ -376,7 +376,7 @@ struct SpaceTabTests {
         return StudioViewModel(storageService: StorageService(storeRoot: root))
     }
 
-    @Test("The view model swaps the Space's tab in the window asked, and a notebook leaves for the Space")
+    @Test("The view model swaps the Space's tab in the window asked, and a notebook stays open around it")
     func viewModelShowsTheTab() {
         let restore = capturingWindowDefaults()
         defer { restore() }
@@ -408,7 +408,7 @@ struct SpaceTabTests {
         let inNotebook = StudioWindowState()
         inNotebook.NotebookID = "bio"
         vm.showSpaceTab(.space, in: inNotebook)
-        #expect(inNotebook.notebook == nil, "the Space is the library's: it leaves the notebook")
+        #expect(inNotebook.notebook?.notebookID == "bio", "a notebook's center is the window's tabs: the Space is one more of them")
         #expect(inNotebook.centerTabGroups.groups.contains { $0.activeTab == .artifacts })
     }
 }

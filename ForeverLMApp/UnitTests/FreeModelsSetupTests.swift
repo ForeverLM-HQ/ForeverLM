@@ -92,7 +92,7 @@ struct FreeModelsSetupTests {
     @Test("No free model can be picked without an OpenRouter key or while the data switch is on")
     func pickBlocker() {
         #expect(FreeModelsSetup.pickBlocker(hasOpenRouterKey: true, deniesDataCollection: false) == nil)
-        #expect(FreeModelsSetup.pickBlocker(hasOpenRouterKey: false, deniesDataCollection: false)?.contains("OpenRouter key") == true)
+        #expect(FreeModelsSetup.pickBlocker(hasOpenRouterKey: false, deniesDataCollection: false)?.contains("OpenRouter API key") == true)
         #expect(FreeModelsSetup.pickBlocker(hasOpenRouterKey: true, deniesDataCollection: true)?.contains(AIDataPolicy.switchTitle) == true)
     }
 
@@ -279,7 +279,8 @@ struct AIModelPriceWatchTests {
         )
         #expect(first.changes == [.freeVariantEnded(id: id, name: "Qwen")])
         #expect(first.record[id] == nil)
-        let second = AIModelPriceWatch.compare(watched: [id], previous: first.record, directory: directory([]))
+        // The caller keeps an announced free model's id, as `observe` does.
+        let second = AIModelPriceWatch.compare(watched: [id], previous: first.record, directory: directory([]), announced: [id])
         #expect(second.changes.isEmpty)
     }
 

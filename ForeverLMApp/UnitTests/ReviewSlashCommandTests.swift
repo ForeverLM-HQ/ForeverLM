@@ -615,16 +615,16 @@ struct ChatPluginSetupNeedTests {
         #expect(ChatPluginRequest.setupNeeds(in: [(toolName: "read_github_file", error: nil)]).isEmpty)
     }
 
-    // MARK: - /plan is the day
+    // MARK: - /plan is the quarter, the week or the day
 
-    @Test("/plan plans the day into the calendar")
+    @Test("/plan plans a quarter, a week or a day")
     func planIsTheDay() throws {
         let byName = Dictionary(uniqueKeysWithValues: ReviewSlashCommand.all.map { ($0.name, $0) })
         let plan = try #require(byName["plan"])
         #expect(plan.kind == .plan)
-        #expect(plan.summary == "Plan a day into the calendar")
-        #expect(plan.arguments.map(\.value) == ["today", "tomorrow"])
-        #expect(plan.argumentSource == .fixed, "the days are a fixed pair, not a library search")
+        #expect(plan.summary == "Plan a quarter, a week or a day")
+        #expect(plan.arguments.map(\.value) == ["today", "tomorrow", "week", "quarter"])
+        #expect(plan.argumentSource == .fixed, "the spans are a fixed list, not a library search")
 
         // /today is the day's question, not the Schedule's: what the calendar
         // holds now.
@@ -695,7 +695,9 @@ struct ChatPluginSetupNeedTests {
         #expect(request.contains("get_plan, create true"))
         #expect(request.contains("edit_doc"))
         #expect(request.contains("get_calendar_events for the seven days (days 7)"))
-        #expect(request.contains("the calendar is the week's only record"))
+        // A week's deliverables live in the quarter's Page (179ffef).
+        #expect(request.contains("its Weeks section says what earlier weeks set out to deliver"))
+        #expect(!request.contains("the calendar is the week's only record"))
         #expect(request.contains("the quarter's plan (get_plan), and say which of its objectives each block serves"))
         #expect(!request.contains("scale week"))
     }
