@@ -614,51 +614,63 @@ enum KeychainService {
     }
 
     private static func loadVaultValue(for key: Key) -> String? {
-        vaultLock.lock()
-        defer { vaultLock.unlock() }
+        withVaultLock {
+            if cachedVault == nil {
+                cachedVault = loadVault() ?? bootstrapVaultFromIndividualItems()
+            }
 
-        if cachedVault == nil {
-            cachedVault = loadVault() ?? bootstrapVaultFromIndividualItems()
+            guard let value = cachedVault?[key.rawValue], !value.isEmpty else {
+                return nil
+            }
+            return value
         }
-
-        guard let value = cachedVault?[key.rawValue], !value.isEmpty else {
-            return nil
-        }
-        return value
     }
 
     private static func saveVaultValue(_ value: String, for key: Key) -> Bool {
-        vaultLock.lock()
-        defer { vaultLock.unlock() }
+        withVaultLock {
+            if cachedVault == nil {
+                cachedVault = loadVault() ?? bootstrapVaultFromIndividualItems()
+            }
 
-        if cachedVault == nil {
-            cachedVault = loadVault() ?? bootstrapVaultFromIndividualItems()
+            var vault = cachedVault ?? [:]
+            vault[key.rawValue] = value
+            guard saveVault(vault) else {
+                return false
+            }
+            cachedVault = vault
+            return true
         }
-
-        var vault = cachedVault ?? [:]
-        vault[key.rawValue] = value
-        guard saveVault(vault) else {
-            return false
-        }
-        cachedVault = vault
-        return true
     }
 
     private static func deleteVaultValue(for key: Key) -> Bool {
+        withVaultLock {
+            if cachedVault == nil {
+                cachedVault = loadVault() ?? bootstrapVaultFromIndividualItems()
+            }
+
+            var vault = cachedVault ?? [:]
+            vault.removeValue(forKey: key.rawValue)
+            guard saveVault(vault) else {
+                return false
+            }
+            cachedVault = vault
+            return true
+        }
+    }
+
+    /// Runs `body` under `vaultLock`. What it settled about the retired vault is written to
+    /// UserDefaults only once the outermost hold is released: a defaults write under a lock is the
+    /// Swift trap AGENTS.md names, and these reads run on the main thread from view code.
+    private static func withVaultLock<T>(_ body: () -> T) -> T {
         vaultLock.lock()
-        defer { vaultLock.unlock() }
-
-        if cachedVault == nil {
-            cachedVault = loadVault() ?? bootstrapVaultFromIndividualItems()
-        }
-
-        var vault = cachedVault ?? [:]
-        vault.removeValue(forKey: key.rawValue)
-        guard saveVault(vault) else {
-            return false
-        }
-        cachedVault = vault
-        return true
+        vaultLockDepth += 1
+        let result = body()
+        vaultLockDepth -= 1
+        let settle = vaultLockDepth == 0 && retiredFileVaultSettlePending
+        if settle { retiredFileVaultSettlePending = false }
+        vaultLock.unlock()
+        if settle { UserDefaults.standard.set(true, forKey: retiredFileVaultAdoptedKey) }
+        return result
     }
 
     private static func loadVault() -> [String: String]? {
@@ -788,8 +800,15 @@ enum KeychainService {
     /// and each adopts independently.
     private static let retiredFileVaultAdoptedKey = "keychain.retiredProductFileVaultAdopted"
 
+    /// Held under `vaultLock`. `settledThisLaunch` answers the lookup at once; the defaults write waits
+    /// for `withVaultLock` to release the lock.
+    private static var vaultLockDepth = 0
+    private static var retiredFileVaultSettledThisLaunch = false
+    private static var retiredFileVaultSettlePending = false
+
     private static func settleRetiredFileVault() {
-        UserDefaults.standard.set(true, forKey: retiredFileVaultAdoptedKey)
+        retiredFileVaultSettledThisLaunch = true
+        retiredFileVaultSettlePending = true
     }
 
     private static func retiredProductVaultLookupQueries(allowFileBased: Bool) -> [[String: Any]] {
@@ -819,6 +838,7 @@ enum KeychainService {
         //     someone dismissing the dialog.
         if allowFileBased,
            sharedAccessGroup != nil,
+           !retiredFileVaultSettledThisLaunch,
            !UserDefaults.standard.bool(forKey: retiredFileVaultAdoptedKey) {
             queries.append(vaultQuery(service: retiredService, account: retiredVaultAccount, accessGroup: retiredSharedAccessGroup, dataProtection: false))
             queries.append(vaultQuery(service: retiredService, account: retiredVaultAccount, accessGroup: nil, dataProtection: false))
