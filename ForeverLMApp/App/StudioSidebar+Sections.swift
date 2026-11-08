@@ -1901,16 +1901,7 @@ extension StudioSidebar {
                             ?? items.first?.id
                             ?? vm.bookSourceArticles(for: groupName).first?.id
                             ?? groupName
-                        // The hover lives in its own view, so the cover's +
-                        // can show under the pointer without re-running this body.
-                        NotebookHoverRow(isActive: sidebarNotebook != nil) { isHovered in
-                            courseOrBookGroupLabel(
-                                groupName: groupName,
-                                itemCount: itemCount,
-                                notebookRowHovered: isHovered,
-                                notebookRowTag: selectionID
-                            )
-                        }
+                        courseOrBookGroupLabel(groupName: groupName, itemCount: itemCount)
                         .tag(selectionID)
                         .contentShape(Rectangle())
                         .onDrop(of: [.studioArticle, .studioGroup] + supportedBookImportDropTypes, isTargeted: nil) { providers in
@@ -2584,9 +2575,7 @@ extension StudioSidebar {
             }
     }
 
-    /// A collection row's label. A book cover also carries the notebook mark
-    /// while the list marks one: `notebookRowHovered` shows its +, and a press
-    /// on it claims `notebookRowTag`, the chapter the cover opens. The count of
+    /// A collection row's label. The count of
     /// a series or playlist shows only while `countRevealed` (the pointer is
     /// over the row): a column of numbers down the list was noise
     /// (product owner, 2026-10-06, "kind of like the chatgpt app"; ChatGPT's rows
@@ -2595,8 +2584,6 @@ extension StudioSidebar {
     private func courseOrBookGroupLabel(
         groupName: String,
         itemCount: Int,
-        notebookRowHovered: Bool = false,
-        notebookRowTag: String? = nil,
         countRevealed: Bool = false
     ) -> some View {
         HStack(spacing: 8) {
@@ -2698,18 +2685,6 @@ extension StudioSidebar {
                         .filter(ArticleSpeechContent.canAttemptRead)
                         .map(\.id)
                 )
-                // A cover stands for its chapters (the ids its drag carries),
-                // so it can be partly in the notebook.
-                if let notebook = sidebarNotebook {
-                    let chapterIDs = vm.sourceIDsForGroupInOrder(groupName)
-                    NotebookMembershipMark(
-                        sourceIDs: chapterIDs,
-                        notebook: notebook,
-                        isRowHovered: notebookRowHovered,
-                        rowControlIDs: chapterIDs + [notebookRowTag ?? groupName]
-                    )
-                    .fixedSize()
-                }
             } else {
                 groupItemCount(itemCount, alignment: .trailing, isRevealed: countRevealed)
             }
@@ -3157,7 +3132,7 @@ extension StudioSidebar {
             displayArticle.title = title
         }
 
-        return ArticleRow(article: displayArticle, metadataVisibility: metadataVisibility, notebook: sidebarNotebook)
+        return ArticleRow(article: displayArticle, metadataVisibility: metadataVisibility)
             .tag(article.id)
             .swipeActions(edge: .trailing, allowsFullSwipe: false) {
                 Button(role: .destructive) {
@@ -3206,8 +3181,7 @@ extension StudioSidebar {
         ArticleRow(
             article: article,
             metadataVisibility: metadataVisibility,
-            showsMeetingSeries: showsMeetingSeries,
-            notebook: sidebarNotebook
+            showsMeetingSeries: showsMeetingSeries
         )
             .tag(article.id)
             .swipeActions(edge: .trailing, allowsFullSwipe: false) {

@@ -30,15 +30,10 @@ struct ArticleRow: View {
     /// by date), where no series header says whose it is: the row names its
     /// series and leads its metadata with the day.
     var showsMeetingSeries: Bool = false
-    /// The notebook the Sources list is marking (`sidebarNotebook(in:)`); nil
-    /// everywhere else. The row only hosts the mark: `NotebookMembershipMark`
-    /// reads the membership itself, so adding a row never re-runs this one.
-    var notebook: SidebarNotebook? = nil
     /// A host that wraps this row in its own full-row wash paints the highlight for
     /// us; painting a second one inside it shows as a double grey edge.
     @Environment(\.containerOwnsRowHoverWash) private var containerOwnsRowHoverWash
-    /// The full-window Library's rows say more: when the source was added
-    /// (`LibraryRowDetails`).
+    /// Compact (one line, a notebook's column) or wide (the Library's).
     @Environment(\.sourcesListLayout) private var sourcesListLayout
     /// `.increased` while the list draws this row selected in the accent colour.
     @Environment(\.backgroundProminence) private var backgroundProminence
@@ -253,45 +248,9 @@ struct ArticleRow: View {
 
     /// Where the source stands on cards, from the Library's one coverage
     /// read; nil for a source that cannot have cards (a team's copy, hidden,
-    /// paywalled, without text), which gets no count and no verdict.
+    /// paywalled, without text), which gets no count.
     private var cardState: SourceCardState? {
         vm.sourceCardCoverage.statesByID[article.id]
-    }
-
-    /// The row's card count, a muted trailer ("3 cards", "To check",
-    /// "Retired"); nothing with no card, where the No Cards pill and the
-    /// verdicts say so.
-    @ViewBuilder
-    private var cardCountTrailer: some View {
-        if let label = cardState?.label {
-            Text(label)
-                .zoomedSystemFont(size: 11)
-                .foregroundStyle(.tertiary)
-                .monospacedDigit()
-                .lineLimit(1)
-                .fixedSize()
-                .textSelection(.disabled)
-                .accessibilityLabel(label)
-        }
-    }
-
-    /// Write Card (Write Another Card once it has some): the source in the
-    /// Reader with a blank card beside it, in the notebook the list marks
-    /// (`requestWriteCards`).
-    private func makeCards() {
-        let notebookID = notebook?.notebookID
-        if let windowState {
-            vm.inWindow(windowState) { vm.requestWriteCards(notebookID: notebookID, sourceIDs: [article.id]) }
-        } else {
-            vm.requestWriteCards(notebookID: notebookID, sourceIDs: [article.id])
-        }
-    }
-
-    /// Not Worth Keeping: the source leaves the library as the Sources
-    /// list's Remove takes it, with the same Undo banner (`removeArticle`).
-    private func notWorthKeeping() {
-        let id = article.id
-        Task { await vm.removeArticle(id: id) }
     }
 
     @ViewBuilder
@@ -366,7 +325,7 @@ struct ArticleRow: View {
     /// owner, 2026-10-12, of a notebook's column showing the Library's
     /// full rows: "how can this look better. how does gemini notebook do
     /// this?"): a small cover or the kind's glyph, the title, the show,
-    /// author or channel faint after it, then the notebook's mark. No line
+    /// author or channel faint after it, then its cards. No line
     /// between rows; what needs the learner (a paper's attention, an error)
     /// is a glyph whose help says it.
     private var compactContent: some View {
@@ -410,16 +369,7 @@ struct ArticleRow: View {
                     .help(attention)
                     .accessibilityLabel(attention)
             }
-            SourceFollowUpFlag(sourceID: article.id)
-            cardCountTrailer
-            if let notebook {
-                NotebookMembershipMark(
-                    sourceIDs: [article.id],
-                    notebook: notebook,
-                    isRowHovered: isHovering
-                )
-                .fixedSize()
-            }
+            SourceCardsTrailer(sourceID: article.id, cardsLabel: cardState?.label)
         }
         .padding(.vertical, 1)
         .frame(maxWidth: .infinity, minHeight: 28, alignment: .leading)
@@ -551,17 +501,6 @@ struct ArticleRow: View {
                         trackingStatusView
                             .fixedSize()
                     }
-
-                    // The rightmost slot, held on every row while the list
-                    // marks a notebook, so the read-state column stays aligned.
-                    if let notebook {
-                        NotebookMembershipMark(
-                            sourceIDs: [article.id],
-                            notebook: notebook,
-                            isRowHovered: isHovering
-                        )
-                        .fixedSize()
-                    }
                 }
 
                 if article.sourceType == .paper, !filteredPaperParts.isEmpty {
@@ -621,10 +560,9 @@ struct ArticleRow: View {
 
                         Spacer()
 
-                        // Passages waiting to be followed up, then the card
-                        // count: a quiet right column down the list.
-                        SourceFollowUpFlag(sourceID: article.id)
-                        cardCountTrailer
+                        // Its cards, and the passages waiting to be followed
+                        // up behind them: one quiet word down the list.
+                        SourceCardsTrailer(sourceID: article.id, cardsLabel: cardState?.label)
 
                         if let paperAttentionReason {
                             paperAttentionBadge(paperAttentionReason)
@@ -638,16 +576,6 @@ struct ArticleRow: View {
                             )
                         }
                     }
-                }
-
-                if sourcesListLayout == .wide {
-                    LibraryRowDetails(
-                        article: article,
-                        isRowHovered: isHovering,
-                        cardState: cardState,
-                        makeCards: makeCards,
-                        notWorthKeeping: notWorthKeeping
-                    )
                 }
 
                 if article.isPaperContentCleanupFailure {

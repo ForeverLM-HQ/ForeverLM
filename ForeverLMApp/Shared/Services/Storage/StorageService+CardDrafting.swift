@@ -370,6 +370,17 @@ extension StorageService {
         try readSourceCardCoverage()
     }
 
+    /// The kept cards on one source, newest first: what its Library row's
+    /// card count lists (`SourceCardsTrailer`). Only active items, as the
+    /// count counts them (`activeMemoryItemCountsBySource`).
+    func keptCards(onSource sourceID: String) throws -> [MemoryItem] {
+        let store = try notebookFilesKnowledgeStore()
+        return try store.memoryItemIDs(anchoredOn: sourceID)
+            .compactMap { try store.loadMemoryItem($0) }
+            .filter { $0.status == .active }
+            .sorted { $0.createdAt > $1.createdAt }
+    }
+
     private func readSourceCardCoverage() throws -> SourceCardCoverage {
         let store = try notebookFilesKnowledgeStore()
         let excluded = try store.knowledgeSearchExcludedSourceIDs(includeArchived: true)

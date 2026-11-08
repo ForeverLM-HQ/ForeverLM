@@ -68,9 +68,9 @@ extension EnvironmentValues {
 /// 2026-11-07: "Ideally just one, and somehow differentiate otherwise, like
 /// how many cards there are"). Each row says where its source stands: an
 /// unread title in the primary colour and a read one in grey with its mark,
-/// a flag with how many passages wait to be followed up or doubted
-/// (`SourceFollowUpFlag`), and how many cards it has kept. A source with
-/// nothing of these left is done, and reads quietest.
+/// and one quiet word for its cards, whose click lists them and the
+/// passages still waiting to be followed up (`SourceCardsTrailer`). A source
+/// with nothing of these left is done, and reads quietest.
 struct LibraryPane: View {
     /// Below this width the wide rows have no room for what they add.
     private static let wideLayoutMinimumWidth: CGFloat = 560
@@ -239,81 +239,5 @@ struct LibraryBulkBar: View {
     private func perform(_ action: LibraryBulkAction, on selection: Set<String>, inBooks: Bool) {
         let window = windowState
         Task { await vm.performLibraryBulkAction(action, on: selection, inBooksTab: inBooks, in: window) }
-    }
-}
-
-/// What a wide row adds under its metadata, shown while the pointer is over
-/// the row: when the source came into the library (product owner, 2026-10-06,
-/// "kind of like the chatgpt app": a date down every row was one more column
-/// to read past), and the source's two card verdicts (docs/memory-design.md,
-/// "Cards for every source") — **Not Worth Keeping**, which removes it with
-/// Undo, and **Make Cards** (**Make More Cards** once it has some), which
-/// opens a chat that makes them. Quiet words at the row's end, hover-only,
-/// as the row's other controls are; the row's menu offers them too. The line
-/// keeps its height either way, so a row does not grow under the pointer. A
-/// podcast episode or a meeting already says its date; a source that cannot
-/// have cards (`cardState` nil) gets no verdict. The notebooks holding the
-/// source are on its right-click menu, In Notebooks, not on the row (product
-/// owner, 2026-10-03: "maybe no need to show by default in which notebook a
-/// source exists").
-struct LibraryRowDetails: View {
-    let article: StudioArticle
-    var isRowHovered = false
-    /// Where the source stands on cards; nil for one that cannot have cards.
-    var cardState: SourceCardState? = nil
-    var makeCards: () -> Void = {}
-    var notWorthKeeping: () -> Void = {}
-
-    /// The line's height, with or without the pointer: the verdicts' words
-    /// fit it, so revealing them moves nothing.
-    private static let lineHeight: CGFloat = 16
-
-    private var showsAddedDate: Bool {
-        article.sourceType != .podcast && article.sourceType != .meeting
-    }
-
-    var body: some View {
-        if showsAddedDate || cardState != nil {
-            HStack(spacing: 8) {
-                Spacer(minLength: 0)
-                if showsAddedDate {
-                    Text("Added \(article.dateAdded.formatted(date: .abbreviated, time: .omitted))")
-                        .zoomedSystemFont(size: 10)
-                        .foregroundStyle(.tertiary)
-                        .lineLimit(1)
-                        .textSelection(.disabled)
-                }
-                if let cardState {
-                    HStack(spacing: 2) {
-                        verdict("Not Worth Keeping", identifier: "not-worth-keeping", action: notWorthKeeping)
-                        verdict(cardState.makeCardsTitle, identifier: "make-cards", action: makeCards)
-                    }
-                    .padding(.trailing, -6)
-                }
-            }
-            .frame(height: Self.lineHeight)
-            .opacity(isRowHovered ? 1 : 0)
-            .allowsHitTesting(isRowHovered)
-        }
-    }
-
-    /// One verdict: a quiet word in a capsule wash, whose press is the
-    /// control's and not the row's (`RowControlButtonStyle`).
-    private func verdict(_ title: String, identifier: String, action: @escaping () -> Void) -> some View {
-        Button(action: action) {
-            Text(title)
-                .zoomedSystemFont(size: 10.5, weight: .medium)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .fixedSize()
-                .padding(.horizontal, 6)
-                .frame(height: Self.lineHeight)
-                .contentShape(Capsule())
-        }
-        .buttonStyle(RowControlButtonStyle(
-            sourceIDs: [article.id],
-            wash: .hoverWash(in: Capsule(), inset: 0, opacity: 0.08)
-        ))
-        .accessibilityIdentifier("library.cards.\(identifier).\(article.id)")
     }
 }

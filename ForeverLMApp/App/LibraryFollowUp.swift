@@ -50,90 +50,194 @@ extension StudioViewModel {
     }
 }
 
-/// A Library row's flag: how many passages of this source wait to be followed
-/// up or doubted, beside its card count, in the row's grey ("Lists are
-/// monochrome", docs/ui-design.md). Nothing while none waits. A click lists
-/// them in a popover, each opening the Reader at its card, with its check to
-/// mark it followed up (product owner, 2026-11-07: "each source I have to at
-/// least like follow up on and at least write some kind of takeaway"). It
-/// replaces the Library's Follow up scope, a second list of the same marks.
-struct SourceFollowUpFlag: View {
+/// A Library row's one trailer: where the source stands on cards ("2 cards",
+/// "To check", "Retired"), in the row's grey ("Lists are monochrome",
+/// docs/ui-design.md). A click opens the source's cards and, under them, the
+/// passages still set aside to follow up or doubt, each opening the Reader at
+/// its mark, with its check to mark it followed up. A source with no card but
+/// passages waiting says "To follow up"; one with neither shows nothing.
+/// The popover ends with Write Card (Write Another Card once it has some),
+/// the source's one card action off its right-click menu.
+/// One quiet word instead of a flag count beside a card count (product owner,
+/// 2026-11-08: "why so many different bells and whistles on a source?",
+/// "go to the cards, and then you also see like the flag things").
+struct SourceCardsTrailer: View {
     @Environment(StudioViewModel.self) private var vm
+    /// The window the row is in, where Write Card opens the source.
+    @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
     let sourceID: String
+    /// The row's card state's label; nil with no card.
+    let cardsLabel: String?
     @State private var isListing = false
 
     var body: some View {
-        let marks = vm.followUpMarks(forSource: sourceID)
-        if !marks.isEmpty {
-            let label = marks.count == 1 ? "1 passage to follow up" : "\(marks.count) passages to follow up"
+        let followUps = vm.followUpMarks(forSource: sourceID).count
+        if let label = cardsLabel ?? (followUps > 0 ? "To follow up" : nil) {
             Button {
                 isListing = true
             } label: {
-                HStack(spacing: 2) {
-                    Image(systemName: "flag")
-                        .zoomedSystemFont(size: 10, weight: .medium)
-                    Text("\(marks.count)")
-                        .zoomedSystemFont(size: 11)
-                        .monospacedDigit()
-                }
-                .foregroundStyle(.secondary)
-                .padding(.horizontal, 4)
-                .frame(height: 16)
-                .contentShape(Capsule())
+                Text(label)
+                    .zoomedSystemFont(size: 11)
+                    .foregroundStyle(.tertiary)
+                    .monospacedDigit()
+                    .lineLimit(1)
+                    .padding(.horizontal, 4)
+                    .frame(height: 16)
+                    .contentShape(Capsule())
             }
-            // The press is the flag's, so the row does not also open its
+            // The press is the trailer's, so the row does not also open its
             // source under it (`SidebarRowControlPress`).
             .buttonStyle(RowControlButtonStyle(
                 sourceIDs: [sourceID],
                 wash: .hoverWash(in: Capsule(), inset: 0, opacity: 0.08)
             ))
             .fixedSize()
-            .help(label)
-            .accessibilityLabel(label)
-            .accessibilityIdentifier("library.followUp.flag.\(sourceID)")
+            .help(help(label: label, followUps: followUps))
+            .accessibilityLabel(help(label: label, followUps: followUps))
+            .accessibilityIdentifier("library.cards.trailer.\(sourceID)")
             .popover(isPresented: $isListing, arrowEdge: .bottom) {
-                SourceFollowUpPopover(sourceID: sourceID)
-                    .environment(vm)
+                SourceCardsPopover(
+                    sourceID: sourceID,
+                    writeCardTitle: cardsLabel == nil ? "Write Card" : "Write Another Card",
+                    writeCard: writeCard
+                )
+                .environment(vm)
             }
+        }
+    }
+
+    /// The source in the Reader with a blank card beside it
+    /// (`requestWriteCards`).
+    private func writeCard() {
+        isListing = false
+        let ids = [sourceID]
+        if let windowState {
+            vm.inWindow(windowState) { vm.requestWriteCards(notebookID: nil, sourceIDs: ids) }
+        } else {
+            vm.requestWriteCards(notebookID: nil, sourceIDs: ids)
+        }
+    }
+
+    private func help(label: String, followUps: Int) -> String {
+        guard followUps > 0, cardsLabel != nil else { return label }
+        let passages = followUps == 1 ? "1 passage" : "\(followUps) passages"
+        return "\(label), \(passages) to follow up"
+    }
+}
+
+extension StudioViewModel {
+    /// The kept cards on one source, newest first; none when they cannot be
+    /// read, and the reason logged.
+    func keptCards(onSource sourceID: String) async -> [MemoryItem] {
+        do {
+            return try await storage.keptCards(onSource: sourceID)
+        } catch {
+            followUpLogger.error("The cards of a source could not be read: \(error.localizedDescription, privacy: .public)")
+            return []
         }
     }
 }
 
-/// The flag's popover: the source's open marks, newest first. It reads them
-/// live, so a mark checked here leaves at once, and the popover closes on
-/// its own once none is left.
-private struct SourceFollowUpPopover: View {
+/// The trailer's popover: the source's kept cards, then its open marks,
+/// newest first, then Write Card. The marks are read live, so one checked
+/// here leaves at once.
+private struct SourceCardsPopover: View {
     @Environment(StudioViewModel.self) private var vm
-    @Environment(\.dismiss) private var dismiss
     let sourceID: String
+    let writeCardTitle: String
+    let writeCard: () -> Void
+    @State private var cards: [MemoryItem] = []
 
     var body: some View {
         let marks = vm.followUpMarks(forSource: sourceID)
-        VStack(alignment: .leading, spacing: 0) {
-            Text("To follow up")
-                .zoomedSystemFont(size: 12, weight: .semibold)
-                .foregroundStyle(.secondary)
-                .textSelection(.disabled)
-                .padding(.horizontal, 14)
-                .padding(.top, 10)
-                .padding(.bottom, 4)
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(marks) { mark in
-                        LibraryFollowUpRow(mark: mark)
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: 0) {
+                if !cards.isEmpty {
+                    heading(cards.count == 1 ? "1 Card" : "\(cards.count) Cards")
+                    ForEach(cards) { item in
+                        KeptCardRow(item: item, sourceID: sourceID)
                     }
                 }
-                .padding(.horizontal, 6)
-                .padding(.bottom, 8)
+                if !marks.isEmpty {
+                    heading("To Follow Up")
+                    Text("Passages you marked to follow up or doubt while reading.")
+                        .zoomedSystemFont(size: 11.5)
+                        .foregroundStyle(.tertiary)
+                        .padding(.horizontal, 14)
+                        .padding(.bottom, 4)
+                    ForEach(marks) { mark in
+                        LibraryFollowUpRow(mark: mark)
+                            .padding(.horizontal, 6)
+                    }
+                }
             }
-            .frame(maxHeight: 420)
+            .padding(.bottom, 4)
+        }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            HStack {
+                Button(writeCardTitle, systemImage: "square.and.pencil", action: writeCard)
+                    .buttonStyle(.hoverWash)
+                    .zoomedSystemFont(size: 12, weight: .medium)
+                    .accessibilityIdentifier("library.cards.write")
+                Spacer(minLength: 0)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
         }
         .frame(width: 380)
+        .frame(maxHeight: 480)
         .fixedSize(horizontal: false, vertical: true)
-        .onChange(of: marks.isEmpty) { _, isEmpty in
-            if isEmpty { dismiss() }
+        .task(id: vm.memoryCardRevision) {
+            cards = await vm.keptCards(onSource: sourceID)
         }
-        .accessibilityIdentifier("library.followUp.popover")
+        .accessibilityIdentifier("library.cards.popover")
+    }
+
+    private func heading(_ title: String) -> some View {
+        Text(title)
+            .zoomedSystemFont(size: 12, weight: .semibold)
+            .foregroundStyle(.secondary)
+            .textSelection(.disabled)
+            .padding(.horizontal, 14)
+            .padding(.top, 10)
+            .padding(.bottom, 4)
+    }
+}
+
+/// One kept card: its front, its back faint under it. A click opens the
+/// source the card stands on.
+private struct KeptCardRow: View {
+    @Environment(StudioViewModel.self) private var vm
+    let item: MemoryItem
+    let sourceID: String
+
+    var body: some View {
+        let card = MemoryCard(storedIn: item)
+        Button {
+            Task { await vm.revealSourceInReader(sourceID) }
+        } label: {
+            VStack(alignment: .leading, spacing: 3) {
+                Text(card?.front ?? item.target)
+                    .zoomedSystemFont(size: 13, weight: .medium)
+                    .foregroundStyle(.primary)
+                    .lineLimit(3)
+                    .multilineTextAlignment(.leading)
+                if let back = card?.back {
+                    Text(back)
+                        .zoomedSystemFont(size: 12)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                }
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 8)
+            .padding(.vertical, 5)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.hoverWash(cornerRadius: 8, inset: 0))
+        .padding(.horizontal, 6)
+        .accessibilityIdentifier("library.cards.card")
     }
 }
 

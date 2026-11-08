@@ -752,23 +752,25 @@ has no Plugins. See [Plugins](/external-plugins).
 
 **Library** — the rail's row or View → Library (⇧⌘L) —
 spreads the whole library across the window for managing it: every source
-type, search and filters, each row with chips for the notebooks it is in (a
-click opens that notebook) and when it was added. Select two or more rows for
+type, search and filters; a row's right-click menu says which notebooks hold
+it, under **In Notebooks**. Select two or more rows for
 a bar: "N selected", **Add to Notebook ▸**, **New Notebook with N Sources…**,
 **Mark Read** or **Mark Unread**, **Hide**, **Remove…**, and × to clear the
 selection. Opened from inside a notebook, its top line starts with **‹** and
 the notebook's name, which opens it again. A source
 clicked here opens in the Reader beside the list.
 
-The Library is also where every source gets its cards. Each row says how many
-cards the source has, quietly at its end ("3 cards", "To check", or nothing
-yet), and the **No Cards** pill beside the search lists the sources in the tab
-that have none, newest first, with their count. Under the pointer a row offers
-**Write Card**, which opens the source in the Reader with a blank card beside it
-for you to write (**Write Another Card** once it has some), and **Not Worth
-Keeping**, which removes the source as **Remove** does, with the same Undo; both
-are on the row's right-click menu too, where **Write Cards** takes a whole
-selection. With **No Cards** on, **Write Cards for 10** at the head takes you
+The Library is also where every source gets its cards. A row is the source's
+picture, title and byline, with one quiet word at its end: how many cards it
+has ("3 cards", "To check"), or **To follow up** when it has none yet but
+passages wait. Click it for the source's cards, then the passages you set
+aside to follow up, and **Write Card**, which opens the source in the Reader
+with a blank card beside it for you to write (**Write Another Card** once it
+has some). The **No Cards** pill beside the search lists the sources in the
+tab that have none, newest first, with their count. The row's right-click menu
+has **Write Card** (**Write Cards** for a whole selection), **Not Worth
+Keeping**, which removes the source as **Remove** does, with the same Undo, and
+**Add to** or **Remove from** the notebook the window works in. With **No Cards** on, **Write Cards for 10** at the head takes you
 through the first ten sources still waiting, one after another. The goal is at least one
 card for each source, and every source worth its weight. Team copies, hidden
 and paywalled sources, and sources without text are never counted as missing
@@ -1447,8 +1449,8 @@ meaning beside the color.
 The colors steer the AI too. Passages you mark **Follow up** or **Doubt** are the
 ones you set aside to come back to: a review reads them first, and a flashcard
 is drafted from one only when the source answers it. In the
-**Library**, a source with such passages shows a flag and how many wait. Click
-the flag to list them, newest first; a click on one opens the source in the
+**Library**, click a source's card count (or its **To follow up**) to list
+them under its cards, newest first; a click on one opens the source in the
 Reader with that highlight's card. Hover one and click the check, or
 right-click it for **Followed Up**, and the passage goes back to **Remember**
 and leaves the list; **Color** in the same menu picks any other. On the iPhone and
@@ -6689,6 +6691,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 ## Unreleased
 
 - **You write a source's card yourself.** **Write Card** (the Library's rows and **No Cards** list, the Reader's **⋯** menu, a notebook's Cards, the morning notification) opens the source with a blank card beside it: write the question and the answer in your own words, select the passage it stands on, and **Save Card** keeps it. **Write Cards for 10** takes you through the newest sources without cards one by one. No model writes these cards; ask a chat if you want drafts.
+- **A Library row is quieter.** It shows the source's picture, title and byline, and one word at its end: its card count, or **To follow up** when passages wait and it has no card yet. Click it to see the source's cards, the passages you set aside to follow up, and **Write Card**. The flag count, the added date, **Not Worth Keeping** and **Write Card** under the pointer, and the notebook check and + on every row are gone; **Not Worth Keeping** and **Add to** / **Remove from** the notebook are on the right-click menu.
 - **ForeverLM no longer drafts cards in the background unless you turn it on** (**Settings → General → Memory review → Draft cards from what you finish**).
 
 ## 0.198.0 (build 278) — 2026-11-08

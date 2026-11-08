@@ -1,12 +1,11 @@
 import SwiftUI
 
-// The Sources sidebar's notebook marks. While a window works in a notebook
-// (`StudioViewModel.sidebarNotebook(in:)`), each row carries a trailing mark:
-// a check on the notebook's sources, a + under the pointer on the rest, and a
-// half circle on a book only some of whose chapters are in. The right-click
-// menu leads with Add to / Remove from the notebook. Only these views read
-// the membership index, so a + re-runs the marks, never the sidebar's body
-// and its List.
+// The Sources sidebar's notebook controls. While a window works in a
+// notebook (`StudioViewModel.sidebarNotebook(in:)`), a row's right-click menu
+// leads with Add to / Remove from that notebook. The rows carry no mark for
+// it: a check or + on every row was one more thing to read past (product
+// owner, 2026-11-08: "those like select things and pluses ... that's also
+// confusing").
 
 // MARK: - Row controls that do not open the row
 
@@ -14,7 +13,8 @@ import SwiftUI
 /// go. A List row opens its source from three places that all see a click on
 /// a control inside it: the row's tap gesture, AppKit's selection write on
 /// mouse-down, and the deferred open on mouse-up. Each asks here first, so a
-/// row's + (or its read-state button) never opens or selects that row.
+/// row's own control (its read-state mark, its card count) never opens or
+/// selects that row.
 struct SidebarRowControlPress: Equatable {
     let sourceIDs: Set<String>
     let pressedAt: Date
@@ -70,140 +70,11 @@ struct RowControlButtonStyle: ButtonStyle {
     }
 }
 
-// MARK: - The trailing mark
+// MARK: - Row hover
 
-/// One row's notebook mark. Reads the membership index, and whether the
-/// notebook takes sources, itself, so the row that hosts it, and the List
-/// around that, never depend on either.
-struct NotebookMembershipMark: View {
-    @Environment(StudioViewModel.self) private var vm
-    /// What the row stands for, named as the Sources list names it.
-    let sourceIDs: [String]
-    let notebook: SidebarNotebook
-    let isRowHovered: Bool
-    /// The ids a press on the mark claims (`SidebarRowControlPress`); the
-    /// row's own tag among them.
-    var rowControlIDs: [String]? = nil
-
-    var body: some View {
-        let membership = vm.notebookMembership(of: sourceIDs, in: notebook.notebookID)
-        // A notebook that takes no sources (a read-only team's, an archived
-        // one) shows its state with no button.
-        let takesSources = vm.importableNotebook(notebook.notebookID) != nil
-        NotebookMembershipButton(
-            membership: membership,
-            notebookTitle: notebook.title,
-            isRowHovered: isRowHovered,
-            rowControlIDs: rowControlIDs ?? sourceIDs,
-            toggle: takesSources ? { toggle(from: membership) } : nil
-        )
-    }
-
-    /// The check takes the row out; the + and the half circle bring in what
-    /// is missing. Quiet: the mark changing is the answer, and a failure still
-    /// says so.
-    private func toggle(from membership: NotebookMembershipState) {
-        let notebookID = notebook.notebookID
-        let ids = sourceIDs
-        Task {
-            if membership == .all {
-                await vm.removeSourcesFromNotebook(ids, notebookID: notebookID, announce: false)
-            } else {
-                await vm.addSourcesToNotebookContext(ids, notebookID: notebookID, announce: false)
-            }
-        }
-    }
-}
-
-/// The mark itself, from plain values: a + that shows under the row's
-/// pointer, a check that turns into a minus under its own, or a half circle.
-/// `toggle` nil (a read-only library) draws the state with no button. The
-/// slot is kept while empty, so the read-state column beside it stays aligned.
-struct NotebookMembershipButton: View {
-    let membership: NotebookMembershipState
-    let notebookTitle: String
-    let isRowHovered: Bool
-    let rowControlIDs: [String]
-    let toggle: (() -> Void)?
-
-    @State private var isHovered = false
-    /// Set by a click until the pointer leaves: the + just pressed shows the
-    /// check it became, not the minus a hovered check offers.
-    @State private var holdsCheckUnderPointer = false
-
-    private var systemImage: String {
-        switch membership {
-        case .none: return "plus.circle"
-        case .some: return "circle.lefthalf.filled"
-        case .all:
-            let offersRemove = isHovered && !holdsCheckUnderPointer && toggle != nil
-            return offersRemove ? "minus.circle" : "checkmark.circle.fill"
-        }
-    }
-
-    private var help: String {
-        guard toggle != nil else { return "In \(notebookTitle)" }
-        return membership == .all ? "Remove from \(notebookTitle)" : "Add to \(notebookTitle)"
-    }
-
-    private var icon: some View {
-        Image(systemName: systemImage)
-            .zoomedSystemFont(size: 12, weight: .medium)
-            .foregroundStyle(membership == .none ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.accentColor))
-            .frame(width: 18, height: 18)
-            .contentShape(Circle())
-    }
-
-    var body: some View {
-        if let toggle {
-            // The + is built only under the row's pointer, the hidden icon
-            // holding its slot: a button at opacity 0 is still a live
-            // control, and while an assistive app reads the screen SwiftUI
-            // walks every control in the window for each one an update
-            // builds (2026-10-03). The right-click leads with Add to.
-            if membership != .none || isRowHovered {
-                Button {
-                    holdsCheckUnderPointer = membership != .all
-                    toggle()
-                } label: {
-                    icon
-                }
-                .buttonStyle(RowControlButtonStyle(
-                    sourceIDs: rowControlIDs,
-                    wash: .hoverWash(cornerRadius: 6, inset: -2)
-                ))
-                .onHover { hovering in
-                    isHovered = hovering
-                    if !hovering { holdsCheckUnderPointer = false }
-                }
-                .help(help)
-                .accessibilityLabel(help)
-            } else {
-                icon
-                    .hidden()
-                    // The button may go before its own hover exit arrives;
-                    // a stale hover would show the next check as a minus.
-                    .onAppear {
-                        isHovered = false
-                        holdsCheckUnderPointer = false
-                    }
-            }
-        } else if membership == .none {
-            Color.clear
-                .frame(width: 18, height: 18)
-                .accessibilityHidden(true)
-        } else {
-            icon
-                .help(help)
-                .accessibilityElement()
-                .accessibilityLabel(help)
-        }
-    }
-}
-
-/// A row-wide hover for a row that is not an `ArticleRow` (a book cover), so
-/// its + can show under the pointer without `@State` on the sidebar, whose
-/// body would re-run on every hover. Tracks nothing while `isActive` is false.
+/// A row-wide hover for a row that is not an `ArticleRow`, so a control can
+/// show under the pointer without `@State` on its host, whose body would
+/// re-run on every hover. Tracks nothing while `isActive` is false.
 struct NotebookHoverRow<Content: View>: View {
     let isActive: Bool
     @ViewBuilder let content: (_ isHovered: Bool) -> Content
