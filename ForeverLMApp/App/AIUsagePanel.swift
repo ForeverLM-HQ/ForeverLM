@@ -842,14 +842,15 @@ struct AIActivitySettingsSection: View {
     /// OpenRouter returned with each call. Credits are called out only for
     /// the models a learner brings a lab key for (Claude, and GPT models
     /// OpenAI serves itself: `AIService.ownKeyLab`); a row with no flag
-    /// recorded says nothing. Voice mode's calls ran on neither: ForeverLM's
-    /// own OpenAI credits paid for them (`RealtimeVoiceDefaults.isVoiceModeModel`).
+    /// recorded says nothing. Voice mode's calls ran on its own OpenAI key,
+    /// outside OpenRouter (`RealtimeVoiceDefaults.isVoiceModeModel`), and say
+    /// BYOK too (product owner, 2026-11-08: "maybe just BYOK, not foreverlm credits").
     static func byokRoute(_ models: [AIUsageModelUse]) -> (label: String, isBYOK: Bool, help: String)? {
         if !models.isEmpty, models.allSatisfy({ RealtimeVoiceDefaults.isVoiceModeModel($0.model) }) {
             return (
-                "ForeverLM credits",
+                "BYOK",
                 true,
-                "Voice mode runs on ForeverLM's own OpenAI credits. The cost shown is what OpenAI charged ForeverLM; nothing was billed to you or to your OpenRouter key."
+                "Voice mode runs on its own OpenAI key, outside OpenRouter. The cost shown is what OpenAI charged; nothing was billed to your OpenRouter credits."
             )
         }
         let byok = models.reduce(0) { $0 + $1.byokCallCount }

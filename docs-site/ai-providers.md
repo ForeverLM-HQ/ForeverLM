@@ -46,7 +46,7 @@ On the iPhone, the composer's microphone and spoken reviews use Apple's on-devic
 
 ## Voice mode
 
-[Voice mode](/voice-mode) (talking about a source, the voice assistant, CarPlay) is the one feature that does not go through OpenRouter: it runs on OpenAI's realtime voice model (gpt-realtime-2.1), which OpenRouter does not serve, and ForeverLM pays for it from its own OpenAI account. Your key is not used and nothing is billed to you. AI Usage lists each conversation with a **ForeverLM credits** capsule.
+[Voice mode](/voice-mode) (talking about a source, the voice assistant, CarPlay) is the one feature that does not go through OpenRouter: it runs on OpenAI's realtime voice model (gpt-realtime-2.1), which OpenRouter does not serve, and ForeverLM pays for it from its own OpenAI account. Your key is not used and nothing is billed to you. AI Usage lists each conversation with a **BYOK** capsule, since it runs on its own OpenAI key rather than through OpenRouter.
 
 ## Semantic search
 

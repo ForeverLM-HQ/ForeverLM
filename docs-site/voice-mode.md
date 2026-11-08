@@ -64,4 +64,4 @@ Pick the voice ForeverLM speaks in from ten: Marin (the default), Cedar, Alloy, 
 
 ## Usage
 
-Voice conversations are listed in AI Usage on the Mac and in **Settings › Usage** on the iPhone, task **Voice Mode**, with a **ForeverLM credits** capsule: the cost shown is what OpenAI charged ForeverLM, and nothing is billed to you.
+Voice conversations are listed in AI Usage on the Mac and in **Settings › Usage** on the iPhone, task **Voice Mode**, with a **BYOK** capsule, because it runs on its own OpenAI key rather than through OpenRouter: the cost shown is what OpenAI charged ForeverLM, and nothing is billed to you.

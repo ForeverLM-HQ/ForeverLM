@@ -359,10 +359,10 @@ struct MobileUsageHistoryView: View {
                 var parts = [String]()
                 if title != key.model { parts.append(key.model) }
                 parts.append("\(rows.count.formatted()) \(noun)")
-                // Voice mode runs on ForeverLM's own OpenAI credits, the way a
-                // BYOK row runs on the learner's key: say who paid.
+                // Voice mode runs on its own OpenAI key, outside OpenRouter:
+                // BYOK, as the Mac's AI Usage says.
                 if RealtimeVoiceDefaults.isVoiceModeModel(key.model) {
-                    parts.append("ForeverLM credits")
+                    parts.append("BYOK")
                 }
                 // Only foreign platforms get named: this ledger is shared with
                 // the Mac and the watch, and a Mac row that looked local would

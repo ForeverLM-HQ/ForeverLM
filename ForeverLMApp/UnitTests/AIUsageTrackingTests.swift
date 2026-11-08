@@ -566,11 +566,11 @@ struct AIUsageTrackingTests {
         #expect(AIActivitySettingsSection.byokRoute(split[0].uses)?.label == "BYOK")
     }
 
-    @Test("Voice mode's calls say ForeverLM's credits paid for them")
+    @Test("Voice mode's calls say BYOK: they ran on its own OpenAI key")
     func voiceModeCallsCarryForeverLMCredits() {
         let voice = [AIUsageModelUse(provider: "openai", model: "gpt-realtime-2.1", callCount: 12)]
         let route = AIActivitySettingsSection.byokRoute(voice)
-        #expect(route?.label == "ForeverLM credits")
+        #expect(route?.label == "BYOK")
         #expect(route?.isBYOK == true)
         // A row that mixes voice with a learner's own model keeps the BYOK rule.
         let mixed = voice + [AIUsageModelUse(provider: "OpenRouter", model: "openai/gpt-6.1-terra", callCount: 1, byokCallCount: 1)]
