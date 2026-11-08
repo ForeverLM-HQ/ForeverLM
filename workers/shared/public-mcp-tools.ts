@@ -118,6 +118,17 @@ const openWorld = new Set([
   // Searches the live web with the learner's chat model and opens each page
   // it lists to check that it is real.
   "discover_sources",
+  // OpenAI's tool scan (2026-11-08): these publish, share or rewrite pages and
+  // invitations that people outside the learner's library can open, or follow
+  // a channel on YouTube.
+  "adopt_page",
+  "edit_doc",
+  "follow_youtube_channel",
+  "get_team_invitation_link",
+  "publish_doc",
+  "restore_doc_version",
+  "share_notebook",
+  "write_doc",
 ]);
 
 const destructive = new Set([
@@ -209,6 +220,48 @@ const destructive = new Set([
   // Starting a card over retires it and restarts its schedule, and a retired
   // card is never asked again.
   "update_card",
+  // OpenAI's tool scan (2026-11-08): each of these deletes, replaces or
+  // overwrites something the learner made or set, or ends work, a team
+  // membership or a connection, in a way calling it again does not undo.
+  "add_course_quiz_pictures",
+  "cancel_ai_work",
+  "delete_animation",
+  "delete_doc",
+  "delete_team",
+  "delete_walkthrough",
+  "disconnect_plugin",
+  "generate_course_quizzes",
+  "generate_walkthrough",
+  "import_review_chat",
+  "leave_team",
+  "link_page",
+  "make_article_reading_view",
+  "make_atlas",
+  "publish_doc",
+  "save_animation",
+  "save_paper_references",
+  "save_site",
+  "save_skill",
+  "save_walkthrough",
+  "set_automatic_audio_settings",
+  "set_calendar_settings",
+  "set_chat_model_offered",
+  "set_course_quiz_picture",
+  "set_meeting_schedule",
+  "set_own_router_key",
+  "share_with_team",
+  "unlink_idea",
+  "unpublish_doc",
+  "update_calendar_event",
+  "update_direction",
+  "update_doc",
+  "update_idea",
+  "update_notebook_collection",
+  "update_notebook_task",
+  "update_source_highlight",
+  "update_space",
+  "update_working_note",
+  "write_doc",
 ]);
 
 function title(name: string): string {
@@ -216,7 +269,15 @@ function title(name: string): string {
     .replaceAll("Mcp", "MCP").replaceAll("Ai", "AI").replaceAll("Pdf", "PDF").replaceAll("Url", "URL");
 }
 
-function tool(name: string, description: string, inputSchema: JSONSchema, isReadOnly: boolean): ToolDefinition {
+/// Registry reads that leave a file behind, so the directories do not count
+/// them as read-only (OpenAI's tool scan, 2026-11-08): screenshot_canvas saves
+/// its PNG under Exports/, and inspect_paper_figure renders and keeps the
+/// figure's crop. Not read-only here also keeps them off the hosted-mirror
+/// fallback.
+const leavesAFile = new Set(["screenshot_canvas", "inspect_paper_figure"]);
+
+function tool(name: string, description: string, inputSchema: JSONSchema, registryReadOnly: boolean): ToolDefinition {
+  const isReadOnly = registryReadOnly && !leavesAFile.has(name);
   return {
     name,
     title: title(name),

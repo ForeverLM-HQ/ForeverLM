@@ -21,7 +21,7 @@ extension MCPToolRegistry {
         return [
             MCPToolDef(
                 name: "list_space_lists",
-                description: "List the learner's lists in their Space: lists of goals and lists of ideas, items beside their pages and canvases as a to-do list is in ChatGPT's Space, each filed in at most one of their spaces. Returns each list's list_id, kind (goals or ideas), name, created_at, the space it is in (space_id and name) if any, whether it is pinned, whether it is in Trash, and what it holds: for a goals list each goal's goal_id, title, deadline and status; for an ideas list each idea's idea_id, title and whether it is open. A goal or an idea is in one list at most and stays listed by list_goals or list_ideas whatever list it is in. Pass include_trash to list the lists in Trash too.",
+                description: "List the learner's lists in their Space: lists of goals and lists of ideas, items beside their pages and canvases, each filed in at most one of their spaces. Returns each list's list_id, kind (goals or ideas), name, created_at, the space it is in (space_id and name) if any, whether it is pinned, whether it is in Trash, and what it holds: for a goals list each goal's goal_id, title, deadline and status; for an ideas list each idea's idea_id, title and whether it is open. A goal or an idea is in one list at most and stays listed by list_goals or list_ideas whatever list it is in. Pass include_trash to list the lists in Trash too.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
