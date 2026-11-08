@@ -5307,6 +5307,12 @@ final class ReviewSessionManager {
                 ? AIChatTurn.assistant(text: message.content, toolCalls: [])
                 : Self.userTurn(content: message.content, imagesReadable: imagesReadable)
         }
+        // The learner's message this turn: the per-turn tail stays in front of
+        // it for every round, whatever nudges the rounds append after it.
+        let learnerTurnIndex = turns.lastIndex { turn in
+            if case .user = turn { return true }
+            return false
+        }
         var tools = nativeToolSpecs(webSearch: webSearch)
         var toolCharacters = Self.projectedToolCharacterCount(of: tools)
         // Rounds of this turn that carried the provider's web tool; Deep
@@ -5368,6 +5374,7 @@ final class ReviewSessionManager {
                 config: config,
                 webSearch: attachWebSearch,
                 webSearchDepth: deepResearchTurn ? .deepResearch : .standard,
+                learnerTurnIndex: learnerTurnIndex,
                 showsTextWhileStreaming: !holdsCourseQuizText
             )
 
@@ -5882,6 +5889,7 @@ final class ReviewSessionManager {
         config: AITaskConfig,
         webSearch: Bool,
         webSearchDepth: AIWebSearchDepth,
+        learnerTurnIndex: Int? = nil,
         showsTextWhileStreaming: Bool = true
     ) async throws -> AIToolStreamResult {
         chatMessages.append(Message(
@@ -5958,6 +5966,7 @@ final class ReviewSessionManager {
                         maxTokens: currentMaxTokens,
                         webSearch: webSearch,
                         webSearchDepth: webSearchDepth,
+                        learnerTurnIndex: learnerTurnIndex,
                         onReasoningDelta: { delta in reasoningBatcher.consume(delta) },
                         onTextDelta: { delta in batcher.consume(delta) }
                     )
@@ -5987,11 +5996,11 @@ final class ReviewSessionManager {
                         before: messageID
                     )
                     currentMaxTokens = min(currentMaxTokens * 2, chatResponseMaxOutputTokensCeiling)
-                    // Retry directives go in the volatile tail so the cached
-                    // stable prefix (instructions + source text) still hits.
+                    // The directive goes at the end of the request, not in the
+                    // per-turn tail: the tail sits ahead of this turn's tool
+                    // rounds, so changing it rewrites every one of them.
                     currentSystem = system
-                    currentSystem.volatile += "\n\nYour previous response streamed no visible text — only hidden reasoning or metadata. Answer directly in plain text now, or call the appropriate tool. Lead with the answer and keep internal reasoning minimal."
-                    currentTurns = turns
+                    currentTurns = Self.nativeTurns(turns, endingWith: "Your previous response streamed no visible text — only hidden reasoning or metadata. Answer directly in plain text now, or call the appropriate tool. Lead with the answer and keep internal reasoning minimal.")
                     prefixText = ""
                     if let index = chatMessages.firstIndex(where: { $0.id == messageID }) {
                         chatMessages[index].content = ""
@@ -6035,8 +6044,7 @@ final class ReviewSessionManager {
                     )
                     currentMaxTokens = min(currentMaxTokens * 2, chatResponseMaxOutputTokensCeiling)
                     currentSystem = system
-                    currentSystem.volatile += "\n\nAnswer directly and concisely. Lead with the answer and keep internal reasoning minimal so the response fits within the output budget."
-                    currentTurns = turns
+                    currentTurns = Self.nativeTurns(turns, endingWith: "Answer directly and concisely. Lead with the answer and keep internal reasoning minimal so the response fits within the output budget.")
                     prefixText = ""
                     if let index = chatMessages.firstIndex(where: { $0.id == messageID }) {
                         chatMessages[index].content = ""
@@ -6149,6 +6157,17 @@ final class ReviewSessionManager {
                 continue
             }
         }
+    }
+
+    /// `turns` with a retry directive at the end. After tool results it is a
+    /// message of its own; after the learner's message it joins that message,
+    /// so the request never carries two learner turns in a row. Either way the
+    /// cached request ahead of it is unchanged.
+    static func nativeTurns(_ turns: [AIChatTurn], endingWith directive: String) -> [AIChatTurn] {
+        guard case .user(let text, let images)? = turns.last else {
+            return turns + [.user(directive)]
+        }
+        return turns.dropLast() + [.user(text + "\n\n" + directive, images: images)]
     }
 
     /// App tools the study-oriented prompt kinds (`review`, `study`, `summarize`)

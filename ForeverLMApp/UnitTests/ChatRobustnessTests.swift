@@ -4016,6 +4016,79 @@ struct ChatRobustnessTests {
         #expect(alone.messages.count == 2)
     }
 
+    @Test("The per-turn tail stays in front of the learner's message for every tool round of the turn")
+    func volatileTailStaysPutAcrossToolRounds() throws {
+        let system: [String: Any] = ["role": "system", "content": [
+            ["type": "text", "text": "HEAD"] as [String: Any],
+            ["type": "text", "text": "TAIL"] as [String: Any],
+        ]]
+        let toolRound: [[String: Any]] = [
+            ["role": "assistant", "content": "", "tool_calls": [["id": "c1", "type": "function",
+                "function": ["name": "search_sources_semantic", "arguments": "{}"]]]],
+            ["role": "tool", "tool_call_id": "c1", "content": "results"],
+        ]
+        let base: [[String: Any]] = [system, ["role": "user", "content": "ask"]] + toolRound
+
+        // The pictures of a tool result arrive as a user message right after
+        // the tool message: never the learner's, so the tail does not move.
+        let pictured = AIService.openRouterMessagesWithVolatileContext(
+            base + [["role": "user", "content": [["type": "text", "text": "picture"]]]]
+        )
+        #expect(pictured.tailIndex == 1)
+        #expect(pictured.messages[2]["content"] as? String == "ask")
+
+        // A nudge after a rejected reply looks like a learner message; the
+        // tool loop names the learner's message, and the tail stays there.
+        let nudged = base + [
+            ["role": "assistant", "content": "I'll search now."],
+            ["role": "user", "content": "Call the tool now."],
+        ]
+        #expect(AIService.openRouterMessagesWithVolatileContext(nudged).tailIndex == 5)
+        let pinned = AIService.openRouterMessagesWithVolatileContext(nudged, learnerMessageIndex: 1)
+        #expect(pinned.tailIndex == 1)
+        #expect(pinned.messages[2]["content"] as? String == "ask")
+        #expect(pinned.messages.last?["content"] as? String == "Call the tool now.")
+
+        // An index that names no user message falls back to the default.
+        #expect(AIService.openRouterMessagesWithVolatileContext(nudged, learnerMessageIndex: 2).tailIndex == 5)
+    }
+
+    @Test("A learner turn's message index counts tool results and picture follow-ups")
+    func learnerTurnMessageIndex() {
+        let picture = AIChatImage(data: Data([0]), mediaType: "image/png")
+        let turns: [AIChatTurn] = [
+            .user("one"),
+            .assistant(text: "", toolCalls: [AIToolCallRequest(id: "a", name: "t", argumentsJSON: "{}")]),
+            .toolResults([
+                AIToolResultPayload(callID: "a", toolName: "t", text: "r", isError: false, images: [picture]),
+                AIToolResultPayload(callID: "b", toolName: "t", text: "r", isError: false),
+            ]),
+            .assistant(text: "answer", toolCalls: []),
+            .user("two"),
+        ]
+        // system, one, assistant, tool a, tool b, picture follow-up, answer, two
+        #expect(AIService.openAIStyleMessageIndex(ofLearnerTurn: 4, in: turns) == 7)
+        #expect(AIService.openAIStyleMessageIndex(ofLearnerTurn: 0, in: turns) == 1)
+        #expect(AIService.openAIStyleMessageIndex(ofLearnerTurn: 3, in: turns) == nil)
+        #expect(AIService.openAIStyleMessageIndex(ofLearnerTurn: 9, in: turns) == nil)
+        #expect(AIService.openAIStyleToolMessages(system: "S", turns: turns)[7]["content"] as? String == "two")
+    }
+
+    @Test("A retry directive ends the request instead of changing the per-turn tail")
+    @MainActor
+    func retryDirectiveEndsTheRequest() {
+        let afterLearner = ReviewSessionManager.nativeTurns([.user("ask")], endingWith: "Answer now.")
+        #expect(afterLearner.count == 1)
+        if case .user(let text, _) = afterLearner[0] { #expect(text == "ask\n\nAnswer now.") } else { Issue.record("not a user turn") }
+
+        let afterTools = ReviewSessionManager.nativeTurns(
+            [.user("ask"), .toolResults([AIToolResultPayload(callID: "a", toolName: "t", text: "r", isError: false)])],
+            endingWith: "Answer now."
+        )
+        #expect(afterTools.count == 3)
+        if case .user(let text, _) = afterTools[2] { #expect(text == "Answer now.") } else { Issue.record("not a user turn") }
+    }
+
     @Test("Gemini moves changing context after the immutable cached paper instruction")
     @MainActor
     func geminiVolatileContextFollowsCachedPaper() async throws {
