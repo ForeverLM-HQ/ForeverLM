@@ -1053,18 +1053,7 @@ struct SpaceBrowseView: View {
 
     // MARK: Header
 
-    private var placeTitle: String {
-        switch destination {
-        case .team(let id):
-            return vm.teams.first { $0.id == id }?.name ?? "Space"
-        case .space(let id):
-            return vm.pageSpaces.space(id)?.name ?? "Space"
-        case .list(let id):
-            return vm.spaceLists.list(id)?.name ?? "List"
-        default:
-            return destination.title
-        }
-    }
+    private var placeTitle: String { vm.spacePlaceTitle(destination) }
 
     /// The list this place shows, while it is there.
     private var openList: SpaceList? {

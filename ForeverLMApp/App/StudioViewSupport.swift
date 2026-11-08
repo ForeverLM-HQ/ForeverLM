@@ -2790,10 +2790,42 @@ extension StudioViewModel {
     }
 }
 
+extension StudioViewModel {
+    /// A Space place's name as the learner reads it: a team's, a space's and a
+    /// list's are their own; every other place's is its fixed title.
+    func spacePlaceTitle(_ destination: SpaceDestination) -> String {
+        switch destination {
+        case .team(let id):
+            return teams.first { $0.id == id }?.name ?? "Space"
+        case .space(let id):
+            return pageSpaces.space(id)?.name ?? "Space"
+        case .list(let id):
+            return spaceLists.list(id)?.name ?? "List"
+        default:
+            return destination.title
+        }
+    }
+
+    /// What the window's Space tab is called: the place it shows (Plan, Pages,
+    /// a team's name), so two Space tabs in two windows read apart (product
+    /// owner, 2026-11-08: "instead of just showing space here, in the tab
+    /// title, maybe it should show what the exact space is"). All, the
+    /// landing list, keeps the name Space.
+    func spaceTabTitle(in windowState: StudioWindowState) -> String {
+        let destination = SpaceDestination(key: windowState.spaceDestinationKey)
+        return destination == .all ? StudioCenterTab.artifacts.title : spacePlaceTitle(destination)
+    }
+}
+
 extension StudioCenterTab {
-    /// What a tab in a strip is called: the Reader says Video while it holds one.
-    func stripTitle(readerShowsVideo: Bool) -> String {
-        self == .reader && readerShowsVideo ? "Video" : title
+    /// What a tab in a strip is called: the Reader says Video while it holds
+    /// one, and the Space names the place it shows (`spaceTabTitle`).
+    func stripTitle(readerShowsVideo: Bool, spaceTitle: String? = nil) -> String {
+        switch self {
+        case .reader where readerShowsVideo: return "Video"
+        case .artifacts: return spaceTitle ?? title
+        default: return title
+        }
     }
 
     /// The glyph a tab in a strip draws: the Reader draws a player while it
@@ -3204,6 +3236,7 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
         at groupIndex: Int
     ) -> some View {
         let readerShowsVideo = vm.readerShowsVideo(in: windowState)
+        let spaceTitle = vm.spaceTabTitle(in: windowState)
         return HStack(spacing: 2) {
             ForEach(Array(group.openTabs.enumerated()), id: \.element) { tabIndex, tab in
                 if dropTarget == .tab(group: groupIndex, index: tabIndex) {
@@ -3212,7 +3245,7 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                 let isAlone = group.openTabs == [tab]
                 let atCapacity = !windowState.centerTabGroups.canCreateDraggedGroup
                 StudioCenterTabButton(
-                    title: tab.stripTitle(readerShowsVideo: readerShowsVideo),
+                    title: tab.stripTitle(readerShowsVideo: readerShowsVideo, spaceTitle: spaceTitle),
                     systemImage: tab.stripSystemImage(readerShowsVideo: readerShowsVideo),
                     isActive: group.activeTab == tab,
                     action: {

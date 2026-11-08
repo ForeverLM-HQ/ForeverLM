@@ -63,6 +63,14 @@ struct ShellPlacesTests {
         }
     }
 
+    @Test("The Space's tab names the place it shows; no other tab takes that name")
+    func spaceTabNamesItsPlace() {
+        #expect(StudioCenterTab.artifacts.stripTitle(readerShowsVideo: false, spaceTitle: "Plan") == "Plan")
+        #expect(StudioCenterTab.artifacts.stripTitle(readerShowsVideo: false) == "Space")
+        #expect(StudioCenterTab.reader.stripTitle(readerShowsVideo: false, spaceTitle: "Plan") == "Reader")
+        #expect(StudioCenterTab.notepad.stripTitle(readerShowsVideo: false, spaceTitle: "Plan") == "Pages")
+    }
+
     @Test("A glyph a module also draws elsewhere is the same symbol there")
     @MainActor
     func glyphsAgreeWithTheirModules() {
