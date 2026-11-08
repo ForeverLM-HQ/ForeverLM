@@ -1460,6 +1460,82 @@ enum ManagedAI {
         )
     }
 
+    // MARK: - Company spending caps
+
+    /// What ForeverLM itself pays each model maker for, this UTC month and
+    /// year, and the caps an operator set (product owner, 2026-11-07: "let me
+    /// set that in settings, like per month caps for each provider. it can
+    /// also be a per year cap"). Company-paid is voice on the company's OpenAI
+    /// credits and every call on the proxy's own OpenRouter key; a learner's
+    /// own key is neither counted nor capped. Operators only: anyone else gets
+    /// `not_admin`, which the Settings section reads as "not shown".
+    struct CompanySpendCaps: Decodable, Sendable {
+        struct Period: Decodable, Sendable, Equatable {
+            let capMicroUSD: Int?
+            let spentMicroUSD: Int
+            let reached: Bool
+            let resetsAt: String
+
+            enum CodingKeys: String, CodingKey {
+                case capMicroUSD = "cap_microusd"
+                case spentMicroUSD = "spent_microusd"
+                case reached
+                case resetsAt = "resets_at"
+            }
+        }
+
+        struct Provider: Decodable, Sendable, Identifiable, Equatable {
+            /// The maker as OpenRouter names it: "anthropic", "openai".
+            let provider: String
+            let label: String
+            let month: Period
+            let year: Period
+            var id: String { provider }
+        }
+
+        let providers: [Provider]
+    }
+
+    enum CompanySpendCapPeriod: String, Sendable {
+        case month
+        case year
+    }
+
+    static func companySpendCaps() async throws -> CompanySpendCaps {
+        try await get("/v1/admin/company-spend-caps")
+    }
+
+    /// Sets one cap, or removes it with nil, and returns the listing as it
+    /// now stands.
+    static func setCompanySpendCap(
+        provider: String,
+        period: CompanySpendCapPeriod,
+        capUSD: Double?
+    ) async throws -> CompanySpendCaps {
+        // `encode` rather than `encodeIfPresent`: the server refuses a body
+        // without `cap_usd`, so removing a cap must send an explicit null.
+        struct Body: Encodable {
+            let provider: String
+            let period: String
+            let capUSD: Double?
+            enum CodingKeys: String, CodingKey {
+                case provider, period
+                case capUSD = "cap_usd"
+            }
+            func encode(to encoder: Encoder) throws {
+                var container = encoder.container(keyedBy: CodingKeys.self)
+                try container.encode(provider, forKey: .provider)
+                try container.encode(period, forKey: .period)
+                try container.encode(capUSD, forKey: .capUSD)
+            }
+        }
+        return try await post(
+            "/v1/admin/company-spend-caps",
+            body: Body(provider: provider, period: period.rawValue, capUSD: capUSD),
+            authenticated: true
+        )
+    }
+
     /// Stripe billing-portal URL: the user's plan, invoices, and receipts,
     /// under their own Stripe login.
     static func billingPortalURL() async throws -> URL {

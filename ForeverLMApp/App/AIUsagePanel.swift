@@ -35,6 +35,7 @@ struct AIUsageAccountSections: View {
                 signedOutSection
             }
             spendingSection
+            if account.isSignedIn { CompanySpendCapsSection() }
 
             accountError
         }
@@ -1209,5 +1210,184 @@ private struct AIUsageSpentToday: View {
             since: start, provider: nil, model: nil, operation: nil, task: nil, clientPlatform: nil
         )
         totals = try? await StorageService().aiUsageEventTotals(filter: filter)
+    }
+}
+
+/// ForeverLM's own AI spending, with a monthly and a yearly cap per model
+/// maker (product owner, 2026-11-07: "let me set that in settings, like per
+/// month caps for each provider. it can also be a per year cap"). The proxy
+/// keeps the caps and refuses company-paid calls to a maker once one is
+/// reached. Only an operator account sees the section: the proxy answers
+/// anyone else with `not_admin`, and the section stays away.
+struct CompanySpendCapsSection: View {
+    @State private var caps: ManagedAI.CompanySpendCaps?
+    @State private var editing: ManagedAI.CompanySpendCaps.Provider?
+    @State private var errorMessage: String?
+
+    var body: some View {
+        Group {
+            if let caps {
+                SettingsSection(
+                    title: "ForeverLM's AI spending",
+                    description: "What ForeverLM pays each model maker for: voice on its OpenAI credits, and calls on its OpenRouter key. Learners' own keys aren't counted. Only operators see this."
+                ) {
+                    BillingCard {
+                        VStack(alignment: .leading, spacing: 0) {
+                            ForEach(Array(caps.providers.enumerated()), id: \.element.id) { index, provider in
+                                if index > 0 { BillingRowDivider() }
+                                row(provider)
+                            }
+                            if let errorMessage {
+                                BillingRowDivider()
+                                Label(errorMessage, systemImage: "exclamationmark.circle.fill")
+                                    .font(.caption)
+                                    .foregroundStyle(.red)
+                                    .fixedSize(horizontal: false, vertical: true)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        .task { await load() }
+    }
+
+    private func row(_ provider: ManagedAI.CompanySpendCaps.Provider) -> some View {
+        BillingRow(
+            title: provider.label,
+            detail: "This month \(Self.line(provider.month)) · This year \(Self.line(provider.year))",
+            isWarning: provider.month.reached || provider.year.reached
+        ) {
+            Button("Set Caps…") { editing = provider }
+                .buttonStyle(.bordered)
+                .popover(isPresented: Binding(
+                    get: { editing?.id == provider.id },
+                    set: { if !$0 { editing = nil } }
+                )) {
+                    CompanySpendCapEditor(provider: provider) { month, year in
+                        await save(provider: provider, month: month, year: year)
+                    }
+                }
+        }
+    }
+
+    private static func dollars(_ microUSD: Int) -> String {
+        (Double(microUSD) / 1_000_000).formatted(.currency(code: "USD").precision(.fractionLength(2)))
+    }
+
+    private static func line(_ period: ManagedAI.CompanySpendCaps.Period) -> String {
+        guard let cap = period.capMicroUSD else { return "\(dollars(period.spentMicroUSD)), no cap" }
+        let figure = "\(dollars(period.spentMicroUSD)) of \(dollars(cap))"
+        return period.reached ? "\(figure), reached" : figure
+    }
+
+    private func load() async {
+        do {
+            caps = try await ManagedAI.companySpendCaps()
+        } catch {
+            // Not an operator, signed out, or offline: the section is
+            // simply not there.
+            caps = nil
+        }
+    }
+
+    /// Writes only the periods that changed, one request each, and keeps the
+    /// listing the last one returns.
+    private func save(provider: ManagedAI.CompanySpendCaps.Provider, month: Double?, year: Double?) async -> Bool {
+        errorMessage = nil
+        let changes: [(ManagedAI.CompanySpendCapPeriod, Double?, Int?)] = [
+            (.month, month, provider.month.capMicroUSD),
+            (.year, year, provider.year.capMicroUSD),
+        ]
+        do {
+            for (period, newUSD, oldMicroUSD) in changes {
+                let newMicroUSD = newUSD.map { Int(($0 * 1_000_000).rounded()) }
+                guard newMicroUSD != oldMicroUSD else { continue }
+                caps = try await ManagedAI.setCompanySpendCap(provider: provider.provider, period: period, capUSD: newUSD)
+            }
+            return true
+        } catch {
+            errorMessage = "Couldn't save the \(provider.label) caps. \(error.localizedDescription)"
+            return false
+        }
+    }
+}
+
+/// The two caps for one maker, in dollars. An empty field is no cap.
+private struct CompanySpendCapEditor: View {
+    let provider: ManagedAI.CompanySpendCaps.Provider
+    let onSave: (Double?, Double?) async -> Bool
+
+    @Environment(\.dismiss) private var dismiss
+    @State private var month: String
+    @State private var year: String
+    @State private var saving = false
+
+    init(provider: ManagedAI.CompanySpendCaps.Provider, onSave: @escaping (Double?, Double?) async -> Bool) {
+        self.provider = provider
+        self.onSave = onSave
+        _month = State(initialValue: Self.text(provider.month.capMicroUSD))
+        _year = State(initialValue: Self.text(provider.year.capMicroUSD))
+    }
+
+    private static func text(_ microUSD: Int?) -> String {
+        guard let microUSD else { return "" }
+        return (Double(microUSD) / 1_000_000).formatted(.number.precision(.fractionLength(0...2)).grouping(.never))
+    }
+
+    /// Nil for an empty field; `.some(nil)` for one that isn't an amount.
+    private static func amount(_ text: String) -> Double?? {
+        let trimmed = text.trimmingCharacters(in: .whitespaces).replacingOccurrences(of: "$", with: "")
+        if trimmed.isEmpty { return .some(nil) }
+        guard let value = Double(trimmed), value >= 0, value <= 1_000_000 else { return nil }
+        return .some(value)
+    }
+
+    private var monthAmount: Double?? { Self.amount(month) }
+    private var yearAmount: Double?? { Self.amount(year) }
+    private var isValid: Bool { monthAmount != nil && yearAmount != nil }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("\(provider.label) caps")
+                .font(.headline)
+            Grid(alignment: .leading, horizontalSpacing: 10, verticalSpacing: 8) {
+                GridRow {
+                    Text("Per month")
+                    TextField("No cap", text: $month)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 120)
+                }
+                GridRow {
+                    Text("Per year")
+                    TextField("No cap", text: $year)
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 120)
+                }
+            }
+            Text("Dollars. Leave a field empty for no cap. Months and years run in UTC.")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack {
+                Spacer()
+                Button("Cancel") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+                Button {
+                    guard let monthValue = monthAmount, let yearValue = yearAmount else { return }
+                    Task {
+                        saving = true
+                        defer { saving = false }
+                        if await onSave(monthValue, yearValue) { dismiss() }
+                    }
+                } label: {
+                    if saving { ProgressView().controlSize(.small) } else { Text("Save") }
+                }
+                .keyboardShortcut(.defaultAction)
+                .disabled(!isValid || saving)
+            }
+        }
+        .padding(16)
+        .frame(width: 300)
     }
 }

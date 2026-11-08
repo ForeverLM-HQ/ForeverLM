@@ -472,7 +472,8 @@ final class RealtimeVoiceController: ObservableObject {
             } catch {
                 guard lifecycle == id else { return }
                 if let service = error as? ManagedAI.ServiceError,
-                   service.isInvalidSession || service.code == "realtime_daily_limit" || service.isAccountDisabled {
+                   service.isInvalidSession || service.code == "realtime_daily_limit"
+                    || service.code == "company_spend_cap_reached" || service.isAccountDisabled {
                     recoveryTask = nil
                     fail(service.message)
                     return
