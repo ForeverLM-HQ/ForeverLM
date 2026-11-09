@@ -44,18 +44,15 @@ final class MobileMemoryReviewViewModel: ObservableObject {
 
     private let store = MobileMemoryReviewStore.shared
     private let catalog = MobileCloudSourceCatalog.shared
-    private var ideasBySource: [String: [SourceIdea]] = [:]
+    /// Ideas, titles, notebooks and depths for the grader
+    /// (`MobileMemoryReviewGrading`, shared with Memory Check by Voice).
+    private var grading = MobileMemoryReviewGrading()
     /// Today's topics, off the record's briefing; empty for a review planned
     /// source by source.
     @Published private(set) var topics: [MemoryReviewTopic] = []
-    private var depthBySource: [String: MemoryReviewDepth] = [:]
-    private var sourceTitles: [String: String] = [:]
     /// Every source and chat the briefing names, by id, so a chat in the day's
     /// material has a name on its card too.
     private var briefingTitles: [String: String] = [:]
-    /// The notebooks holding each of the day's sources, for an understanding
-    /// probe's analogy partner (`MemoryUnderstandingProbe`).
-    private var notebooksBySource: [String: [MemoryUnderstandingProbe.Notebook]] = [:]
     /// The understanding probe Go deeper asked last in this review, so the
     /// next rotates past it; the saved grades say it after a relaunch.
     private var lastProbeKind: MemoryUnderstandingProbe.Kind?
@@ -105,7 +102,7 @@ final class MobileMemoryReviewViewModel: ObservableObject {
 
     /// The name a card gives the source, or topic, it is about.
     func sourceTitle(_ id: String) -> String? {
-        sourceTitles[id] ?? briefingTitles[id]
+        grading.sourceTitles[id] ?? briefingTitles[id]
     }
 
     /// Whether the review is organized by topic: a card per topic, the topic
@@ -155,13 +152,7 @@ final class MobileMemoryReviewViewModel: ObservableObject {
         return MemoryReviewIdeaState.ledgerRows(topic: topic, states: record.ideaStates, ideasByID: ideasByID)
     }
 
-    private var ideasByID: [String: SourceIdea] {
-        var result: [String: SourceIdea] = [:]
-        for ideas in ideasBySource.values {
-            for idea in ideas { result[idea.id] = idea }
-        }
-        return result
-    }
+    private var ideasByID: [String: SourceIdea] { grading.ideasByID }
 
     // MARK: - Lifecycle
 
@@ -254,36 +245,10 @@ final class MobileMemoryReviewViewModel: ObservableObject {
     /// another notebook; with none the rotation skips the analogy. Nil while
     /// anything there is missing or partial.
     private func understandingProbeNote() -> String? {
-        guard let record, let current = record.currentSourceID else { return nil }
-        let ideas = ideasByID
-        let topic = self.topic(current)
-        let ideaIDs = (topic?.ideaIDs ?? (ideasBySource[current] ?? []).map(\.id)).filter { ideas[$0] != nil }
-        let states = record.ideaStates
-        guard MemoryUnderstandingProbe.isRecalled(ideaIDs: ideaIDs, states: states) else { return nil }
-        let recalled = ideaIDs.filter { states[$0]?.status == .produced }
-        let wanted = Set(recalled.filter { ideas[$0]?.wanted == true })
-        guard let target = MemoryUnderstandingProbe.probeTarget(ideaIDs: recalled, wanted: wanted, states: states) else { return nil }
-        let last = lastProbeKind ?? MemoryUnderstandingProbe.lastKind(operations: record.exchanges.map(\.operation))
-        var kind = MemoryUnderstandingProbe.next(after: last, includesAnalogy: true)
-        var partner: MemoryUnderstandingProbe.AnalogyPartner?
-        if kind == .analogy {
-            var titles = briefingTitles
-            for (id, title) in sourceTitles { titles[id] = title }
-            partner = topic.flatMap {
-                MemoryUnderstandingProbe.analogyPartner(
-                    forTopic: $0,
-                    among: topics,
-                    ideasByID: ideas,
-                    states: states,
-                    notebooksBySource: notebooksBySource,
-                    titles: titles
-                )
-            }
-            if partner == nil { kind = MemoryUnderstandingProbe.next(after: last, includesAnalogy: false) }
-        }
-        lastProbeKind = kind
-        pendingProbe = topic == nil ? nil : (kind, target)
-        return MemoryUnderstandingProbe.reviewNote(kind: kind, ideaID: target, topicID: topic?.id, partner: partner)
+        guard let record, let probe = grading.understandingProbe(review: record, lastProbeKind: lastProbeKind) else { return nil }
+        lastProbeKind = probe.kind
+        pendingProbe = probe.topicID == nil ? nil : (probe.kind, probe.ideaID)
+        return probe.note
     }
 
     /// The honest miss: sent as an answer, so it is graded like one and costs
@@ -381,14 +346,7 @@ final class MobileMemoryReviewViewModel: ObservableObject {
     /// grader's words for a topic, the contour grader's for a source. The
     /// opening of a topic is the grade that reaches its ideas first.
     private func acknowledgement(for grade: MemoryContourGrade, review: MobileMemoryReviewRecord) -> String {
-        if review.isByTopic {
-            let topic = self.topic(grade.sourceID)
-            let states = review.ideaStates
-            let isOpening = Set(states.keys).isDisjoint(with: Set(topic?.ideaIDs ?? []))
-            return MemoryReviewTutoring.topicGradeAcknowledgement(grade: grade, topic: topic, isOpening: isOpening, priorStates: states)
-        }
-        let depth = depthBySource[grade.sourceID] ?? .standard
-        return MemoryReviewTutoring.gradeAcknowledgement(grade: grade, depth: depth)
+        grading.acknowledgement(for: grade, review: review)
     }
 
     /// The structured twin of the Mac's `grade_memory_contour` tool call, or
@@ -398,7 +356,7 @@ final class MobileMemoryReviewViewModel: ObservableObject {
     /// Mac validates a tool call; an invalid grade is sent back once with the
     /// validator's own words, then surfaced.
     private func gradeIfContour(answer: String, review: MobileMemoryReviewRecord) async throws -> MemoryContourGrade? {
-        guard !ideasBySource.isEmpty, let question = review.openQuestion else { return nil }
+        guard !grading.ideasBySource.isEmpty, let question = review.openQuestion else { return nil }
         let byTopic = review.isByTopic
         let tool = byTopic ? MemoryReviewTutoring.gradeTopicRecallTool : MemoryReviewTutoring.gradeMemoryContourTool
         let toolJSON = tool.requestDictionary
@@ -443,75 +401,28 @@ final class MobileMemoryReviewViewModel: ObservableObject {
             }
             guard let gradeArguments = step.grade else { return nil }
             let arguments = gradeArguments.mapValues(\.value)
-            switch validate(arguments: arguments, review: review) {
+            switch grading.validate(arguments: arguments, review: review) {
             case .success(let grade):
                 return grade
             case .failure(let failure):
                 // The validator speaks for the contour grader; a topic review
                 // hears its own tool's name, as on the Mac.
-                lastError = byTopic
-                    ? failure.message.replacingOccurrences(of: "grade_memory_contour", with: "grade_topic_recall")
-                    : failure.message
+                lastError = MobileMemoryReviewGrading.rejection(failure, review: review)
             }
         }
         _ = question
         throw MobileMemoryReviewError.gradeRejected(lastError ?? "the grade could not be validated")
     }
 
-    /// The Mac's check, on the Mac's rule: a topic grade against the
-    /// briefing's topics and the ideas already graded today (which is what
-    /// says whether this answer is the topic's opening), a contour grade
-    /// against the source's ideas.
-    private func validate(arguments: [String: Any], review: MobileMemoryReviewRecord) -> Result<MemoryContourGrade, MemoryContourGrade.ValidationError> {
-        if review.isByTopic {
-            return MemoryContourGrade.validateTopic(
-                arguments: arguments,
-                topics: review.topics,
-                ideasByID: ideasByID,
-                gradedIdeaIDs: Set(review.ideaStates.keys)
-            )
-        }
-        return MemoryContourGrade.validate(arguments: arguments, ideasBySource: ideasBySource)
-    }
-
     private func applyDepthChange(_ change: GradingStep.DepthChange, review: MobileMemoryReviewRecord) async {
         guard let depth = MemoryReviewDepth(rawValue: change.depth.lowercased()) else { return }
-        if let sourceID = change.sourceID, review.sourceIDs.contains(sourceID) {
-            // Per-source depth lives on the Mac's source row; on the phone it
-            // holds for this review.
-            depthBySource[sourceID] = depth
-        } else if let sourceType = change.sourceType?.lowercased(), !sourceType.isEmpty {
-            try? await MobileModelPreferenceStore.shared.setString(
-                depth.rawValue,
-                forKey: MemoryReviewDepth.typePreferenceKey(sourceType: sourceType)
-            )
-        }
+        grading = await grading.applyingDepth(depth, sourceID: change.sourceID, sourceType: change.sourceType, review: review)
     }
 
     // MARK: - Context
 
     private func loadReviewContext(for review: MobileMemoryReviewRecord) async {
-        _ = try? await catalog.loadSources()
-        ideasBySource = await catalog.currentSourceIdeas(sourceIDs: review.sourceIDs)
-        let sources = await catalog.currentSources(ids: review.sourceIDs)
-        sourceTitles = Dictionary(sources.map { ($0.id, $0.title) }, uniquingKeysWith: { first, _ in first })
-        // Which notebooks hold the day's sources, for an analogy's partner.
-        let material = Set(review.sourceIDs)
-        var holding: [String: [MemoryUnderstandingProbe.Notebook]] = [:]
-        for notebook in await catalog.currentNotebooks().sorted(by: { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }) {
-            for sourceID in Set(notebook.sourceIDs) where material.contains(sourceID) {
-                holding[sourceID, default: []].append(MemoryUnderstandingProbe.Notebook(id: notebook.id, title: notebook.title))
-            }
-        }
-        notebooksBySource = holding
-        var depths: [String: MemoryReviewDepth] = [:]
-        for source in sources {
-            let typeDefault = (try? await MobileModelPreferenceStore.shared
-                .string(forKey: MemoryReviewDepth.typePreferenceKey(sourceType: source.sourceType)))
-                .flatMap { MemoryReviewDepth(rawValue: $0) }
-            depths[source.id] = MemoryReviewDepth.effective(sourceDepth: nil, typeDefault: typeDefault)
-        }
-        depthBySource = depths
+        grading = await MobileMemoryReviewGrading.load(for: review, catalog: catalog)
     }
 
     private func systemPrompt(for review: MobileMemoryReviewRecord) -> String {
@@ -548,12 +459,10 @@ final class MobileMemoryReviewViewModel: ObservableObject {
     }
 
     private func apply(_ review: MobileMemoryReviewRecord) {
-        var titles = MemoryReviewTutoring.sourceTitles(inBriefing: review.briefing ?? "")
         // A topic's title rides with the sources' so a card names a topic
         // the way it names a source.
         let topics = review.topics
-        for topic in topics { titles[topic.id] = topic.title }
-        briefingTitles = titles
+        briefingTitles = MobileMemoryReviewGrading.briefingTitles(review)
         if topics != self.topics { self.topics = topics }
         record = review
         var rows: [MobileMemoryReviewMessage] = []

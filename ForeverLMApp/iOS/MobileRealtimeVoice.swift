@@ -88,6 +88,24 @@ enum MobileRealtimeVoice {
         }
     }
 
+    /// Memory Check by Voice: today's cards, then today's memory review,
+    /// out loud (`MobileRealtimeMemoryCheck`). The review half is saved on
+    /// the day's review as it goes, so it is not filed again as a voice chat.
+    static func startMemoryCheck() async {
+        await prepareToTalk()
+        currentSource = nil
+        currentNotebookID = nil
+        await controller.start(
+            title: RealtimeVoiceMemoryCheck.title,
+            status: "Getting today's check ready…"
+        ) {
+            try await MobileRealtimeMemoryCheck.brief()
+        }
+    }
+
+    /// The running Memory Check's tools, which save its last turn when it ends.
+    static var memoryCheck: MobileRealtimeMemoryCheck.Toolbox?
+
     private static func prepareToTalk() async {
         // A narration playing under the conversation would talk over it.
         let player = MobileAudioReviewViewModel.shared
@@ -111,6 +129,13 @@ enum MobileRealtimeVoice {
     /// each exchange with what the learner said and its score, the mean as
     /// the session's score, and each gap.
     private static func save(_ finished: RealtimeVoiceController.Finished) {
+        if let check = memoryCheck, finished.title == RealtimeVoiceMemoryCheck.title {
+            memoryCheck = nil
+            // Taken now: the next conversation starts a new transcript.
+            let transcript = controller.transcript
+            Task { await check.finish(transcript: transcript) }
+            return
+        }
         let exchanges = RealtimeVoiceExchange.exchanges(from: finished.turns, answers: finished.answers)
         guard !exchanges.isEmpty else { return }
         let gradedLine = RealtimeVoiceExchange.gradedLine(of: exchanges)

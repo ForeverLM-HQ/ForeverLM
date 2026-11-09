@@ -10,8 +10,9 @@ struct MobileSiriCommand: Codable, Equatable {
         case playLatestPaper
         case quiz
         case memoryReview
-        /// Review by Voice over every notebook (`MobileRealtimeVoice.startCardReview`).
-        case voiceCardReview
+        /// Memory Check by Voice: today's cards, then today's review, out loud
+        /// (`MobileRealtimeVoice.startMemoryCheck`).
+        case voiceMemoryCheck
         case askAboutSource
         case pausePlayback
         case resumePlayback
@@ -44,8 +45,8 @@ struct MobileSiriCommand: Codable, Equatable {
         MobileSiriCommand(action: .memoryReview)
     }
 
-    static func voiceCardReview() -> MobileSiriCommand {
-        MobileSiriCommand(action: .voiceCardReview)
+    static func voiceMemoryCheck() -> MobileSiriCommand {
+        MobileSiriCommand(action: .voiceMemoryCheck)
     }
 
     static func askAboutSource(_ source: SourceEntity, question: String? = nil) -> MobileSiriCommand {
@@ -189,20 +190,21 @@ struct StartMemoryReviewIntent: AppIntent {
     }
 }
 
-/// Today's cards, asked and graded out loud, with nothing to tap: what a
-/// review on the way to the gym needs (product owner, 2026-11-09: "the memory
-/// check also fully via voice … so i can do it on my way to the gym in the
-/// morning"). Siri's "Start my memory review" runs this one, since whoever
-/// asks Siri is already talking; the deck on screen stays Start Memory Review,
-/// in Shortcuts and on the reminder.
-struct ReviewCardsByVoiceIntent: AppIntent {
-    static var title: LocalizedStringResource = "Review My Cards by Voice"
-    static var description = IntentDescription("Go through today's memory cards out loud: ForeverLM asks each one and grades what you say.")
+/// Today's memory check out loud, with nothing to tap: the due cards, then
+/// today's memory review, asked and graded by voice (product owner,
+/// 2026-11-09: "the memory check also fully via voice … so i can do it on my
+/// way to the gym in the morning"; "imagine i'm walking on the street and
+/// talking to it"). Siri's "Start my memory review" runs this one, since
+/// whoever asks Siri is already talking; the deck on screen stays Start
+/// Memory Review, in Shortcuts and on the reminder.
+struct StartMemoryCheckByVoiceIntent: AppIntent {
+    static var title: LocalizedStringResource = "Memory Check by Voice"
+    static var description = IntentDescription("Today's cards, then today's memory review, out loud: ForeverLM asks, you answer, and every answer is graded and saved.")
     static var openAppWhenRun = true
 
     func perform() async throws -> some IntentResult & ProvidesDialog {
-        MobileSiriCommandCenter.shared.enqueue(.voiceCardReview())
-        return .result(dialog: "Starting your card review.")
+        MobileSiriCommandCenter.shared.enqueue(.voiceMemoryCheck())
+        return .result(dialog: "Starting your memory check.")
     }
 }
 
@@ -428,14 +430,14 @@ struct ForeverLMAppShortcuts: AppShortcutsProvider {
         )
 
         AppShortcut(
-            intent: ReviewCardsByVoiceIntent(),
+            intent: StartMemoryCheckByVoiceIntent(),
             phrases: [
                 "Start my memory review in \(.applicationName)",
+                "Start my memory check in \(.applicationName)",
                 "Review what I remember with \(.applicationName)",
-                "Review my cards with \(.applicationName)",
-                "Review my cards by voice in \(.applicationName)"
+                "Review my cards with \(.applicationName)"
             ],
-            shortTitle: "Review by Voice",
+            shortTitle: "Memory Check",
             systemImageName: "waveform"
         )
 

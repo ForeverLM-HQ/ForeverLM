@@ -650,8 +650,9 @@ final class MobileBackgroundSaveAssertion {
 /// `MemoryCardSessionView`, on a phone).
 /// Today's review carries the scope in its title — All notebooks or one — and
 /// its menu reviews today's cards by voice (`MobileRealtimeVoice.startCardReview`,
-/// on OpenAI Realtime) and, when today's review chat from before cards holds an
-/// answer, continues it. A card's source opens in the
+/// on OpenAI Realtime), runs the whole memory check by voice — the cards, then
+/// today's review (`MobileRealtimeVoice.startMemoryCheck`) — and, when today's
+/// review chat from before cards holds an answer, continues it. A card's source opens in the
 /// Reader, pushed over the review, which waits where it was.
 ///
 /// Since 2026-10-11 it is drawn as the Mac's deck (docs/memory-design.md, "How
@@ -834,6 +835,13 @@ struct MobileCardReviewScreen: View {
                         Label("Review by Voice", systemImage: "waveform")
                     }
                     .disabled(realtime.isActive || session.phase != .reviewing)
+                    Button {
+                        startedVoiceReview = true
+                        Task { await MobileRealtimeVoice.startMemoryCheck() }
+                    } label: {
+                        Label("Memory Check by Voice", systemImage: "brain.head.profile")
+                    }
+                    .disabled(realtime.isActive)
                     if session.dayChatIsUnderway {
                         Button {
                             showsDayChat = true

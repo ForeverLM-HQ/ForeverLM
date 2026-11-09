@@ -467,6 +467,10 @@ targets:
       # conversation.
       - Shared/Services/AI/RealtimeVoiceCardReview.swift
       - iOS/MobileRealtimeCardReview.swift
+      # Memory Check by Voice: the cards, then today's memory review, graded
+      # through the typed review's grading.
+      - Shared/Services/AI/RealtimeVoiceMemoryCheck.swift
+      - iOS/MobileRealtimeMemoryCheck.swift
       # Speech loudness: shared gain+limiter stages, and the AVPlayer tap that
       # applies them to text-to-speech narration.
       - iOS/MobileSpeechLoudness.swift
@@ -663,6 +667,7 @@ targets:
       - iOS/MobileMemoryReviewStore.swift
       - iOS/MobileMemoryReviewPreparer.swift
       - iOS/MobileMemoryReviewViewModel.swift
+      - iOS/MobileMemoryReviewGrading.swift
       - iOS/MobileMemoryReviewView.swift
       - iOS/MobileMemoryReviewScheduler.swift
       - Shared/Models/MemoryReviewSession.swift

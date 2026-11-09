@@ -21,10 +21,11 @@ final class MobileMemoryReviewScheduler: ObservableObject {
 
     static let refreshTaskIdentifier = "com.foreverlm.mobile.memory-review.prepare"
     nonisolated static let notificationIdentifier = "com.foreverlm.mobile.memory-review.ready"
-    /// The reminder's category, which carries Review by Voice.
+    /// The reminder's category, which carries Memory Check by Voice.
     nonisolated static let notificationCategory = "com.foreverlm.mobile.memory-review"
-    /// The reminder's Review by Voice action: today's cards out loud, so a
-    /// review can start from the Lock Screen with nothing else to tap.
+    /// The reminder's Memory Check by Voice action: today's cards and review
+    /// out loud, so the check starts from the Lock Screen with nothing else
+    /// to tap.
     nonisolated static let reviewByVoiceAction = "com.foreverlm.mobile.memory-review.voice"
     private static let lastAttemptDayKey = "memoryReview.dailyPreparation.lastAttemptDay.v1"
     private static let lastAttemptMessageKey = "memoryReview.dailyPreparation.lastAttemptMessage.v1"
@@ -73,7 +74,7 @@ final class MobileMemoryReviewScheduler: ObservableObject {
                 actions: [
                     UNNotificationAction(
                         identifier: Self.reviewByVoiceAction,
-                        title: "Review by Voice",
+                        title: "Memory Check by Voice",
                         options: [.foreground],
                         icon: UNNotificationActionIcon(systemImageName: "waveform")
                     ),
@@ -186,7 +187,7 @@ final class MobileMemoryReviewScheduler: ObservableObject {
         }
     }
 
-    /// A reminder scheduled before the reminder had Review by Voice repeats
+    /// A reminder scheduled before the reminder had its voice action repeats
     /// without it until the next refresh, which may come after the morning's
     /// reminder: give it the category now, keeping its trigger.
     private static func carryVoiceActionOnPendingReminder() async {
@@ -224,8 +225,8 @@ final class MobileMemoryReviewScheduler: ObservableObject {
     }
 }
 
-/// Tapping the reminder opens today's card review; its Review by Voice
-/// action reviews the cards out loud instead. The phone sends no other
+/// Tapping the reminder opens today's card review; its Memory Check by
+/// Voice action runs the cards and today's review out loud instead. The phone sends no other
 /// notification.
 final class MobileMemoryReviewNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     func userNotificationCenter(
@@ -245,7 +246,7 @@ final class MobileMemoryReviewNotificationDelegate: NSObject, UNUserNotification
             // Queued like Siri's command: the shell runs it once it is up,
             // whether the action launched the app or found it running.
             await MainActor.run {
-                MobileSiriCommandCenter.shared.enqueue(.voiceCardReview())
+                MobileSiriCommandCenter.shared.enqueue(.voiceMemoryCheck())
             }
         case UNNotificationDefaultActionIdentifier:
             // Held for the shell rather than posted: a tap that launched the app
