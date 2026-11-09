@@ -61,13 +61,17 @@ actor MobileModelPreferenceStore {
             customNames: names,
             defaultPreference: defaultPreference
         ).filter { choice in
-            // The default is what a chat runs on anyway, so it stays listed.
-            guard hidesTrainingModels, choice.id != defaultID else { return true }
             let slug = (try? openRouterModelID(
                 provider: choice.preference.provider,
                 model: choice.preference.model,
                 speed: choice.preference.speed
             )) ?? choice.preference.model
+            // A subsidized account lists only what its access covers
+            // (`AIModelAccess`), its default included: a default it may not
+            // use runs on the covered substitute.
+            guard AIModelAccess.allows(slug: slug) else { return false }
+            // The default is what a chat runs on anyway, so it stays listed.
+            guard hidesTrainingModels, choice.id != defaultID else { return true }
             return !AIDataPolicy.trainsOnInputs(modelSlug: slug)
         }
         return (choices, choices.first { $0.id == defaultID })
@@ -319,11 +323,13 @@ actor MobileModelPreferenceStore {
         return ResolvedAITextRoute(
             task: task,
             provider: "OpenRouter",
-            model: try openRouterModelID(
+            // A subsidized account's pick its access does not cover runs on the
+            // covered substitute (`AIModelAccess`), as on the Mac.
+            model: AIModelAccess.permittedSlug(try openRouterModelID(
                 provider: provider,
                 model: rawModel,
                 speed: preference.speed
-            ),
+            )),
             effort: preference.effort,
             deniesDataCollection: deniesDataCollection
         )

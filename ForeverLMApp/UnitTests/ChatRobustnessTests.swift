@@ -2273,6 +2273,28 @@ struct ChatRobustnessTests {
         #expect((proxied["provider"] as? [String: Any])?["order"] == nil)
     }
 
+    @Test("A subsidized account may pick its makers' models and the free ones; any other pick runs on the substitute")
+    func subsidizedModelAccess() throws {
+        let json = Data(#"{"makers":["anthropic","openai"],"free_models":true}"#.utf8)
+        let access = try JSONDecoder().decode(AIModelAccess.self, from: json)
+        #expect(access == AIModelAccess(makers: ["anthropic", "openai"], freeModels: true))
+        for slug in ["anthropic/claude-opus-5.5", "OpenAI/gpt-6.1-terra", "openrouter/free", "meta-llama/llama-4:free"] {
+            #expect(access.allows(slug: slug), "\(slug)")
+        }
+        for slug in ["google/gemini-2.5-flash", "deepseek/deepseek-v4-flash", "nvidia/parakeet-tdt-0.6b-v3", "claude-opus-5.5"] {
+            #expect(!access.allows(slug: slug), "\(slug)")
+        }
+        #expect(access.permitted("deepseek/deepseek-v4-flash") == AIModelAccess.substituteSlug)
+        #expect(access.permitted("anthropic/claude-opus-5.5") == "anthropic/claude-opus-5.5")
+        #expect(access.permitted("nvidia/parakeet-tdt-0.6b-v3", substitute: AIModelDefaults.batchTranscription)
+            == AIModelDefaults.batchTranscription)
+        // The substitutes are themselves covered.
+        #expect(access.allows(slug: AIModelAccess.substituteSlug))
+        #expect(access.allows(slug: AIModelDefaults.batchTranscription))
+        // Without free models only the makers remain.
+        #expect(!AIModelAccess(makers: ["anthropic"], freeModels: false).allows(slug: "openrouter/free"))
+    }
+
     @Test("A first-party lab has no text endpoint; Muse Spark's text travels OpenRouter")
     func firstPartyLabsHaveNoTextEndpoint() throws {
         // The labs are model families on the routers. ForeverLM sends their

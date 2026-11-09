@@ -412,7 +412,10 @@ enum VideoGenerationDirectory {
     /// together switch once and say so once.
     private static let switching = OSAllocatedUnfairLock<Set<String>>(initialState: [])
 
-    static var snapshot: [VideoGenerationModel] { latest.withLock { $0 } }
+    /// A subsidized account sees only what its access covers (`AIModelAccess`).
+    static var snapshot: [VideoGenerationModel] {
+        latest.withLock { $0 }.filter { AIModelAccess.allows(slug: $0.id) }
+    }
 
     private static let directory = OpenRouterMediaDirectoryCache<[VideoGenerationModel]>(freshness: 30 * 60) {
         var request = URLRequest(url: VideoGenerationCatalog.directoryURL)
@@ -435,7 +438,7 @@ enum VideoGenerationDirectory {
     }
 
     static func models(forceRefresh: Bool = false) async throws -> [VideoGenerationModel] {
-        let models = try await directory.current(forceRefresh: forceRefresh)
+        let models = try await directory.current(forceRefresh: forceRefresh).filter { AIModelAccess.allows(slug: $0.id) }
         latest.withLock { $0 = models }
         settleStoredChoice(in: models)
         return models

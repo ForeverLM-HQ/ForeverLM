@@ -449,7 +449,7 @@ enum AIModelCatalog {
     /// custom list is a few UserDefaults-backed rows, so rebuilding is cheap.
     static var makerGroups: [MakerGroup] {
         let groups = catalogSnapshot().makerGroups
-        guard hidesTrainingModels else { return groups }
+        guard hidesTrainingModels || AIModelAccess.current != nil else { return groups }
         return groups.compactMap { group in
             let entries = group.entries.filter(isOffered)
             return entries.isEmpty ? nil : MakerGroup(maker: group.maker, entries: entries)
@@ -463,9 +463,12 @@ enum AIModelCatalog {
     static var hidesTrainingModels: Bool { AIDataPolicy.hidesTrainingModels }
 
     /// Whether the catalog offers an entry right now: everything in the
-    /// snapshot except, while the switch is on, the models that train.
+    /// snapshot except, while the switch is on, the models that train, and
+    /// for a subsidized account the models its access does not cover
+    /// (`AIModelAccess`).
     private static func isOffered(_ entry: AIModelCatalogEntry) -> Bool {
         !(hidesTrainingModels && entry.trainsOnInputs)
+            && AIModelAccess.allows(slug: OpenRouterModelID.slug(provider: entry.provider, model: entry.modelID))
     }
 
     /// Whether the catalog would offer a model today, catalogued or not: the

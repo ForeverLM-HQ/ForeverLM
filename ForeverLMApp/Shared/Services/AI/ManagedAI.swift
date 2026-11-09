@@ -1111,6 +1111,8 @@ enum ManagedAI {
             let state: String?
             let unlocked: Bool?
             let freeUntil: String?
+            /// Which models the account may pick; absent is any.
+            let modelAccess: AIModelAccess?
 
             enum CodingKeys: String, CodingKey {
                 case sessionToken = "session_token"
@@ -1123,6 +1125,7 @@ enum ManagedAI {
                 case state
                 case unlocked
                 case freeUntil = "free_until"
+                case modelAccess = "model_access"
             }
         }
 
@@ -1142,6 +1145,7 @@ enum ManagedAI {
                 freeUntil: response.freeUntil
             )
         )
+        AIModelAccess.store(response.modelAccess)
         return response.balanceMicrousd
     }
 
@@ -1267,6 +1271,7 @@ enum ManagedAI {
                 case state
                 case unlocked
                 case freeUntil = "free_until"
+                case modelAccess = "model_access"
             }
 
             let spendCap: SpendCapRow?
@@ -1278,6 +1283,8 @@ enum ManagedAI {
             let state: String?
             let unlocked: Bool?
             let freeUntil: String?
+            /// Which models the account may pick; absent is any.
+            let modelAccess: AIModelAccess?
         }
 
         let response: Response = try await get(
@@ -1298,6 +1305,7 @@ enum ManagedAI {
                 freeUntil: response.freeUntil
             )
         )
+        AIModelAccess.store(response.modelAccess)
         return Balance(
             microUSD: response.balanceMicrousd,
             disabled: response.disabled,
@@ -1824,5 +1832,90 @@ extension URLSession {
         } catch {
             throw ManagedAI.namingUnreachableService(error)
         }
+    }
+}
+
+/// Which models the account may pick, as the proxy says on every session and
+/// balance read (`model_access`): its makers' models and, when `freeModels`,
+/// OpenRouter's free ones. A subsidized ("covered") account gets Anthropic and
+/// OpenAI; everyone else gets nil, which is any model (product owner,
+/// 2026-11-09: subsidized users "should not see all the models").
+///
+/// It binds only while ForeverLM pays, so it lapses while the learner's own
+/// OpenRouter key is stored: that key pays for whatever it runs. The proxy
+/// refuses any other model for the account; the pickers hide what it would
+/// refuse, and `permittedSlug` moves a stored pick it would refuse onto one it
+/// serves, so the account's work runs instead of failing.
+struct AIModelAccess: Codable, Equatable, Sendable {
+    let makers: [String]
+    let freeModels: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case makers
+        case freeModels = "free_models"
+    }
+
+    /// What runs in place of a stored pick the account may not use: Anthropic's
+    /// cheapest current model, which reads images and runs every background
+    /// task, on the Anthropic credits the account is covered by.
+    static let substituteSlug = "anthropic/claude-haiku-5.5"
+
+    /// Whether an OpenRouter slug (`maker/model`) is one this access covers.
+    func allows(slug: String) -> Bool {
+        let id = slug.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if freeModels, id == "openrouter/free" || id.hasSuffix(":free") { return true }
+        guard let slash = id.firstIndex(of: "/") else { return false }
+        return makers.contains { $0.lowercased() == id[..<slash] }
+    }
+
+    static let defaultsKey = "managedAI.modelAccess"
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var cache: AIModelAccess??
+
+    /// The limit in force: nil while any model may be picked.
+    static var current: AIModelAccess? {
+        guard !ManagedAI.hasOwnKey else { return nil }
+        return stored
+    }
+
+    /// Read outside the lock: UserDefaults is never touched under one.
+    private static var stored: AIModelAccess? {
+        if let cached = lock.withLock({ cache }) { return cached }
+        let loaded = UserDefaults.standard.data(forKey: defaultsKey)
+            .flatMap { try? JSONDecoder().decode(AIModelAccess.self, from: $0) }
+        lock.withLock { if cache == nil { cache = .some(loaded) } }
+        return loaded
+    }
+
+    /// Keeps what the proxy last said. A change rebuilds every picker.
+    static func store(_ access: AIModelAccess?) {
+        guard stored != access else { return }
+        if let access, let data = try? JSONEncoder().encode(access) {
+            UserDefaults.standard.set(data, forKey: defaultsKey)
+        } else {
+            UserDefaults.standard.removeObject(forKey: defaultsKey)
+        }
+        lock.withLock { cache = .some(access) }
+        // `.aiProviderDidChange` by its name, which this file shares with
+        // targets that do not compile KeychainService.
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(name: Notification.Name("aiProviderDidChange"), object: nil)
+        }
+    }
+
+    /// Whether a picker may list this OpenRouter slug.
+    static func allows(slug: String) -> Bool {
+        current?.allows(slug: slug) ?? true
+    }
+
+    /// The slug to send: the one given, or `substitute` when the account may
+    /// not use it.
+    static func permittedSlug(_ slug: String, substitute: String = substituteSlug) -> String {
+        current?.permitted(slug, substitute: substitute) ?? slug
+    }
+
+    /// `slug` when this access covers it, else `substitute`.
+    func permitted(_ slug: String, substitute: String = AIModelAccess.substituteSlug) -> String {
+        allows(slug: slug) ? slug : substitute
     }
 }

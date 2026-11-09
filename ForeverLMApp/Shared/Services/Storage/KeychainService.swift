@@ -2299,7 +2299,12 @@ enum KeychainService {
     /// worth paying more per minute to get right. One setting could not serve
     /// both without making one of them wrong.
     static var mediaTranscriptionModel: String {
-        get { load(.sttModelMedia) ?? defaultMediaTranscriptionModel }
+        get {
+            AIModelAccess.permittedSlug(
+                load(.sttModelMedia) ?? defaultMediaTranscriptionModel,
+                substitute: AIModelDefaults.batchTranscription
+            )
+        }
         set {
             let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.isEmpty { delete(.sttModelMedia) }
@@ -2330,12 +2335,16 @@ enum KeychainService {
     /// model and goes to OpenRouter (`ManagedTranscriptionClient.route`).
     static var speechToTextProvider: SpeechToTextProvider { .openai }
 
+    /// A subsidized account's pick its access does not cover transcribes on
+    /// OpenAI's batch model instead (`AIModelAccess`).
     static func transcriptionModel(for provider: SpeechToTextProvider) -> String {
+        let stored: String
         switch provider {
-        case .groq: return groqTranscriptionModel
-        case .openai: return openAITranscriptionModel
-        case .openRouter: return openRouterTranscriptionModel
+        case .groq: stored = groqTranscriptionModel
+        case .openai: stored = openAITranscriptionModel
+        case .openRouter: stored = openRouterTranscriptionModel
         }
+        return AIModelAccess.permittedSlug(stored, substitute: AIModelDefaults.batchTranscription)
     }
 
     static func setTranscriptionModel(_ model: String, for provider: SpeechToTextProvider) {
@@ -2393,7 +2402,11 @@ enum KeychainService {
     ) -> (provider: AIProvider, model: String) {
         switch mode {
         case .openRouter:
-            return (.openRouter, OpenRouterModelID.slug(provider: provider, model: model))
+            // A subsidized account's stored pick that its access does not cover
+            // runs on the covered substitute instead of being refused
+            // (`AIModelAccess`; product owner, 2026-11-09: "subsidized users
+            // should have it easier").
+            return (.openRouter, AIModelAccess.permittedSlug(OpenRouterModelID.slug(provider: provider, model: model)))
         }
     }
 
