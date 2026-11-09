@@ -38,8 +38,6 @@ struct MobileNotebookHomeView: View {
     let open: (MobileShellRoute) -> Void
 
     @EnvironmentObject private var vm: MobileAudioReviewViewModel
-    @Environment(\.horizontalSizeClass) private var horizontalSizeClass
-    @Environment(\.verticalSizeClass) private var verticalSizeClass
     /// The Planner's bout, when one is running on a Mac.
     @ObservedObject private var boutTimer = MobileLearningBoutTimer.shared
     /// The learner's collections of notebooks, as this phone last read them.
@@ -191,7 +189,6 @@ struct MobileNotebookHomeView: View {
             hasMoreNotebooks: shown.hasMore,
             isSyncing: vm.notebooks.isEmpty && vm.syncStatus != nil,
             showsSpaces: spaceStore.isAvailable,
-            columns: usesGallery ? 3 : 2,
             actions: MobileHomeActions(
                 open: open,
                 // By Voice is the Memory Check by Voice (90b5b90): today's cards, then
@@ -229,8 +226,8 @@ struct MobileNotebookHomeView: View {
     }
 
     /// The notebooks on Home: the pinned ones, then the ones last worked in
-    /// (the rail's order), then the rest by recency, up to a row or two of
-    /// cards; See All lists every one.
+    /// (the rail's order), then the rest by recency, three of them; See All
+    /// lists every one.
     private var homeNotebooks: (items: [MobileHomeNotebookItem], hasMore: Bool) {
         let recency = self.recency
         let rail = MobileNotebookRailRules.rail(
@@ -246,7 +243,7 @@ struct MobileNotebookHomeView: View {
         let ordered = (rail.pinnedIDs + rail.recentIDs + [rail.openNotebookID].compactMap { $0 } + orderedNotebooks.map(\.id))
             .filter { seen.insert($0).inserted }
             .compactMap { byID[$0] }
-        let limit = usesGallery ? 6 : 4
+        let limit = 3
         let items = ordered.prefix(limit).map { notebook in
             let overview = vm.audioOverviews(inNotebook: notebook.id).first
             return MobileHomeNotebookItem(
@@ -259,16 +256,6 @@ struct MobileNotebookHomeView: View {
             )
         }
         return (items, ordered.count > items.count)
-    }
-
-    /// A screen in regular width and height (an iPad, an iPhone Duo opened)
-    /// draws three notebook cards to a row (`MobileNotebookColumnLayout.usesGallery`);
-    /// a phone two.
-    private var usesGallery: Bool {
-        MobileNotebookColumnLayout.usesGallery(
-            isRegularWidth: horizontalSizeClass == .regular,
-            isRegularHeight: verticalSizeClass == .regular
-        )
     }
 
     /// Courses beside the notebooks (docs/notebooks-design.md, "Courses

@@ -8,7 +8,7 @@ import SwiftUI
 /// NotebookLM's; "we shouldn't really have separate modes for voice and drive and
 /// gym"; the settings and plus buttons at the top waste space). From the top: the
 /// day's date; today's cards, with Review and By Voice; Voice, the one voice mode,
-/// talked or typed to; the notebooks as cover cards, two to a row, with + and See
+/// talked or typed to; the notebooks at hand as three quiet rows, with + and See
 /// All; and the library as a quiet row of chips at the foot.
 ///
 /// It draws only what it is handed, so Home (`MobileNotebookHomeView`) and the
@@ -23,8 +23,6 @@ struct MobileHomeDashboard<NotebookMenu: View>: View {
     let isSyncing: Bool
     /// Whether the Spaces chip shows (the Space opens on generation 2).
     let showsSpaces: Bool
-    /// How many notebook cards share a row.
-    let columns: Int
     let actions: MobileHomeActions
     /// A notebook card's long-press menu (Pin, Rename, Archive…).
     @ViewBuilder let notebookMenu: (MobileCloudNotebook) -> NotebookMenu
@@ -81,30 +79,19 @@ struct MobileHomeDashboard<NotebookMenu: View>: View {
         }
     }
 
+    /// The notebooks at hand as quiet rows, behind the cards and Voice (product
+    /// owner, 2026-11-09: "the notebook should get less of a priority visually in
+    /// the iOS app"); the cover cards are the Notebooks screen's.
     @ViewBuilder
     private var notebookGrid: some View {
         if notebooks.isEmpty {
             MobileHomeEmptyNotebooks(isSyncing: isSyncing, newNotebook: actions.newNotebook)
         } else {
-            LazyVGrid(
-                columns: Array(repeating: GridItem(.flexible(), spacing: MobileDesign.Spacing.medium, alignment: .top), count: max(columns, 1)),
-                alignment: .leading,
-                spacing: MobileDesign.Spacing.medium
-            ) {
+            VStack(spacing: 0) {
                 ForEach(notebooks) { item in
-                    MobileNotebookGalleryCard(
-                        notebook: item.notebook,
-                        sourceCount: item.sourceCount,
-                        lastActivity: item.lastActivity,
-                        overviewIsPlaying: item.overviewIsPlaying,
-                        hasOverview: item.overviewSourceID != nil,
-                        isPreparingOverview: item.isPreparingOverview,
-                        onOpen: { actions.open(.notebook(item.notebook.id)) },
-                        onPlay: {
-                            if let sourceID = item.overviewSourceID { actions.playOverview(sourceID) }
-                        },
-                        isCompact: true
-                    )
+                    MobileHomeNotebookRow(item: item, open: { actions.open(.notebook(item.notebook.id)) }) {
+                        if let sourceID = item.overviewSourceID { actions.playOverview(sourceID) }
+                    }
                     .contextMenu { notebookMenu(item.notebook) }
                 }
             }
@@ -112,7 +99,7 @@ struct MobileHomeDashboard<NotebookMenu: View>: View {
     }
 }
 
-/// One notebook card on Home.
+/// One notebook on Home.
 struct MobileHomeNotebookItem: Identifiable {
     let notebook: MobileCloudNotebook
     let sourceCount: Int
@@ -337,6 +324,58 @@ struct MobileHomePressStyle: ButtonStyle {
 }
 
 // MARK: - Notebooks
+
+/// A notebook on Home: its small cover or emoji, its name and "28 sources · 13 hr.
+/// ago" in grey, and ▶ for its audio overview when it has one.
+struct MobileHomeNotebookRow: View {
+    let item: MobileHomeNotebookItem
+    let open: () -> Void
+    let play: () -> Void
+
+    var body: some View {
+        let title = NotebookTitle(item.notebook.title)
+        Button(action: open) {
+            HStack(spacing: MobileDesign.Spacing.medium) {
+                MobileNotebookIconView(
+                    notebookID: item.notebook.id,
+                    size: 36,
+                    cornerRadius: 9,
+                    plate: NotebookTint.color(for: item.notebook.id)
+                ) {
+                    Text(title.displayIcon)
+                        .font(.body)
+                }
+                .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title.text.isEmpty ? "Untitled notebook" : title.text)
+                        .font(.body)
+                        .foregroundStyle(.primary)
+                        .lineLimit(1)
+                    Text(MobileNotebookCard.line(notebook: item.notebook, sourceCount: item.sourceCount, lastActivity: item.lastActivity))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+                if item.overviewSourceID != nil {
+                    Button(action: play) {
+                        Image(systemName: item.overviewIsPlaying ? "pause.fill" : "play.fill")
+                            .font(.footnote)
+                            .foregroundStyle(.secondary)
+                            .frame(width: 32, height: 32)
+                            .background(MobileHomeMetrics.fill, in: Circle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel(item.overviewIsPlaying ? "Pause audio overview" : "Play audio overview")
+                }
+            }
+            .padding(.vertical, 7)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(MobileHomePressStyle())
+        .accessibilityIdentifier("browser.notebookRow")
+    }
+}
 
 struct MobileHomeEmptyNotebooks: View {
     let isSyncing: Bool

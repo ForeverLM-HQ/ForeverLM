@@ -51,11 +51,10 @@ struct MobileHomeHarnessView: View {
             List {
                 MobileHomeDashboard(
                     cards: cards,
-                    notebooks: MobileHomeHarness.notebooks,
+                    notebooks: Array(MobileHomeHarness.notebooks.prefix(3)),
                     hasMoreNotebooks: true,
                     isSyncing: false,
                     showsSpaces: true,
-                    columns: 2,
                     actions: MobileHomeActions(
                         open: { _ in },
                         reviewByVoice: {},
