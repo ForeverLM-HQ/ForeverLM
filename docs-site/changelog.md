@@ -6,8 +6,22 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.205.0 (build 285) — 2026-11-08
+
+**Highlights:**
+- **Nudge me back on track:** your Mac notices when you drift from a bout's goal and nudges you once.
+- **Animations have a place of their own in the Space,** and play right in the chat that made them.
+- **A paper takes its journal's supplementary PDF.**
+
 - **Nudge me back on track.** Turn it on in Settings › Chat › Day: during a learning bout or a calendar block of your own, Apple Intelligence on your Mac notices when what is in front of you — any app, or a page in your browser — has drifted from the goal, nudges you once after two minutes, and logs the drift on the day as Off track. It reads the app, the window's title and the page's address through Accessibility, never the screen, and nothing leaves your Mac. **Not a Distraction** on the nudge allows that site or app for the rest of the bout or block and takes its time off the log. **Read the window too** also reads the words in the window in front, on your Mac and kept nowhere, so a chat or a music app is judged by what it shows.
 - **A paper takes its supplementary file.** Choose **Add Supplementary PDF…** on a paper's right-click menu, or ask an assistant (`attach_supplementary_pdf`): the journal's supplementary PDF is added after the article's pages, so "Supplementary Fig. 2" and "Fig. S4" can be shown and explained like the paper's own figures, and search reads their captions. Nothing is billed, and the article's pages keep their numbers.
+- **Animations have a place of their own in the Space,** after Sites, and an animation a chat saves plays right under the reply, with Enlarge and Open, and again when you reopen the chat.
+- **The Library's Papers tab scrolls smoothly** with a large library: the list is lazy and a row's picture no longer redraws the whole list.
+- **A paper opens as its PDF again** after sync, rather than as text.
+- **References:** a paper by one author is labelled by that author, and papers from before DOIs link to PubMed.
+- **A site behind a Cloudflare check opens again** in ForeverLM's web views.
+- **Hide any icon at the bottom of the strip,** and bring it back from Show in Sidebar; the calendar icon no longer shows a dot while an event is on, and the account menu no longer repeats Settings.
+- **A chat's passage or video moment opens in its own window's Reader,** never in another window.
 
 ## 0.204.0 (build 284) — 2026-11-08
 
