@@ -2827,6 +2827,52 @@ struct CrossWindowStudioDropTests {
         #expect(keyWindow.readerArticleID != paper.id)
     }
 
+    @Test("A chat pointing at a passage flashes it in its own window's Reader, not in another window showing the same paper")
+    func chatPassageStaysInTheChatsWindow() {
+        let vm = makeViewModel()
+        let chatWindow = StudioWindowState(snapshot: .init(
+            centerTabGroups: ["reader*", "chat*"],
+            navigationRailVisible: true
+        ))
+        let otherWindow = StudioWindowState(snapshot: .init(
+            centerTabGroups: ["chat*", "reader*"],
+            navigationRailVisible: true
+        ))
+        let paperID = "oocyte-paper"
+
+        vm.applyWalkthroughReaderFocus(.flash(passage: "measured using a Seahorse XFe96 Analyser", sourceID: paperID), in: chatWindow)
+
+        #expect(vm.readerPassageTarget?.windowID == chatWindow.id)
+        let otherReader = ReaderPassageTargetTracker()
+        otherReader.readerWindowID = otherWindow.id
+        #expect(otherReader.pending(for: paperID, in: vm) == nil)
+        let chatReader = ReaderPassageTargetTracker()
+        chatReader.readerWindowID = chatWindow.id
+        #expect(chatReader.pending(for: paperID, in: vm)?.passage == "measured using a Seahorse XFe96 Analyser")
+        // A Reader in no Studio window (popped out) still answers it.
+        #expect(ReaderPassageTargetTracker().pending(for: paperID, in: vm) != nil)
+
+        // A moment and an outline go the same way, and the other window's
+        // chat clearing its outline leaves this one's up.
+        vm.applyWalkthroughReaderFocus(.moment(seconds: 42, sourceID: paperID), in: chatWindow)
+        #expect(vm.readerTimeTarget?.windowID == chatWindow.id)
+        vm.applyWalkthroughReaderFocus(.outline(.page(pageIndex: 3), stepID: "focus", sourceID: paperID), in: chatWindow)
+        #expect(vm.readerWalkthroughFocus?.windowID == chatWindow.id)
+        vm.applyWalkthroughReaderFocus(.clear, in: otherWindow)
+        #expect(vm.readerWalkthroughFocus != nil)
+        vm.applyWalkthroughReaderFocus(.clear, in: chatWindow)
+        #expect(vm.readerWalkthroughFocus == nil)
+    }
+
+    @Test("A Reader request reaches only its window's Reader; one naming no window, or a Reader in none, still meet")
+    func readerRequestWindowRule() {
+        let a = UUID(), b = UUID()
+        #expect(ReaderRequestWindow.reaches(a, readerIn: a))
+        #expect(!ReaderRequestWindow.reaches(a, readerIn: b))
+        #expect(ReaderRequestWindow.reaches(nil, readerIn: b))
+        #expect(ReaderRequestWindow.reaches(a, readerIn: nil))
+    }
+
     @Test("The Docs index and a doc reveal name the window they were asked in, so another window's Doc stays open")
     func docsIndexAndRevealStayInTheirWindow() {
         let leftDisplay = StudioWindowState(snapshot: .init(

@@ -532,7 +532,8 @@ struct YouTubeVideoReaderView: View {
     /// this video: the target outlives one selection, and one aimed at another
     /// source is not this reader's to spend.
     private var chatTimeTarget: ReaderTimeTarget? {
-        guard let target = vm.readerTimeTarget, target.sourceID == article.id else { return nil }
+        guard let target = vm.readerTimeTarget, target.sourceID == article.id,
+              ReaderRequestWindow.reaches(target.windowID, readerIn: windowState.id) else { return nil }
         return target
     }
 

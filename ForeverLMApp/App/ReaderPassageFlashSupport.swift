@@ -590,6 +590,10 @@ enum ReaderPassageFlash {
 /// off the SwiftUI update it was read in.
 final class ReaderPassageTargetTracker {
     private var handledKey: String?
+    /// The Studio window this reader is drawn in, set by the reader on each
+    /// update; nil in a window that is no Studio window. A request naming
+    /// another window is not this reader's (`ReaderRequestWindow`).
+    var readerWindowID: UUID?
 
     /// Created in a coordinator's stored-property initialiser, which is not on
     /// any actor; everything it does afterwards is.
@@ -600,6 +604,7 @@ final class ReaderPassageTargetTracker {
     func pending(for sourceID: String, in vm: StudioViewModel) -> ReaderPassageTarget? {
         guard let target = vm.readerPassageTarget,
               target.sourceID == sourceID,
+              ReaderRequestWindow.reaches(target.windowID, readerIn: readerWindowID),
               target.presentationKey != handledKey else { return nil }
         return target
     }

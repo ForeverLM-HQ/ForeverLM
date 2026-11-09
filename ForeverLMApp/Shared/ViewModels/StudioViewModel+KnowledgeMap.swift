@@ -338,7 +338,7 @@ extension StudioViewModel {
         switch item.kind {
         case .source:
             await selectArticle(item.id, in: windowState, revealingReader: true)
-            requestReaderPassage(nil, page: knowledgeMap.layout.placements[ref]?.page, for: canonicalSourceID(item.id))
+            requestReaderPassage(nil, page: knowledgeMap.layout.placements[ref]?.page, for: canonicalSourceID(item.id), in: windowState)
         case .doc:
             revealArtifact(item.id, in: windowState)
         case .idea:

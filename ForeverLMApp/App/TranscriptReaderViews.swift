@@ -9,6 +9,9 @@ struct PodcastSpeakerEditDraft: Identifiable, Equatable {
 }
 
 struct TranscriptReaderView: View {
+    /// The Studio window this reader is drawn in: a moment asked for another
+    /// window's Reader is not this one's (`ReaderRequestWindow`).
+    @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
     let article: StudioArticle
     let content: String
     @Binding var selectedText: String
@@ -118,7 +121,8 @@ struct TranscriptReaderView: View {
     /// in-app seeks instead, and its reader spends the target before it gets here.
     private var readerTimeTarget: ReaderTimeTarget? {
         guard let target = vm.readerTimeTarget,
-              target.sourceID == article.id else { return nil }
+              target.sourceID == article.id,
+              ReaderRequestWindow.reaches(target.windowID, readerIn: windowState?.id) else { return nil }
         return target
     }
 

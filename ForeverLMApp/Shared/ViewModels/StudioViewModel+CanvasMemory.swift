@@ -277,7 +277,7 @@ extension StudioViewModel {
             showToast("Source not found in library")
             return
         }
-        requestReaderPassage(quote, for: id)
+        requestReaderPassage(quote, for: id, in: windowState)
         knowledgeMap.memory.review?.refocus()
     }
 

@@ -283,8 +283,10 @@ extension StudioViewModel {
         await selectArticle(article.id, in: destination)
         var moment = seconds
         if moment == nil { moment = await transcriptMoment(saying: passage, in: article) }
-        requestReaderTime(moment, for: article.id)
-        requestReaderPassage(passage, page: page, for: article.id)
+        // The moment and the passage are for this window's Reader alone: the
+        // same source open in another window stays where it is.
+        requestReaderTime(moment, for: article.id, in: destination)
+        requestReaderPassage(passage, page: page, for: article.id, in: destination)
     }
 
     /// When a timed transcript says `passage`: a card's Show Passage and a
@@ -307,15 +309,22 @@ extension StudioViewModel {
     /// already standing when it mounts is read before its player exists, whereas
     /// one arriving afterwards is a change the reader answers when it can. A
     /// reader that mounts later still finds it — the target waits until the
-    /// reader for that source consumes it.
-    func requestReaderTime(_ seconds: Double?, for sourceID: String, plays: Bool = true) {
+    /// reader for that source consumes it. With `window`, only that window's
+    /// Reader does (`ReaderRequestWindow`).
+    func requestReaderTime(
+        _ seconds: Double?,
+        for sourceID: String,
+        plays: Bool = true,
+        in window: StudioWindowState? = nil
+    ) {
         guard let seconds, seconds.isFinite, seconds >= 0 else { return }
         readerTimeTargetRevision &+= 1
         readerTimeTarget = ReaderTimeTarget(
             sourceID: sourceID,
             seconds: seconds,
             revision: readerTimeTargetRevision,
-            plays: plays
+            plays: plays,
+            windowID: window?.id
         )
     }
 
@@ -332,8 +341,14 @@ extension StudioViewModel {
     /// or — for a PDF whose pages do not carry the passage, or a citation that
     /// names only a page — to open `page`. Same timing rule as
     /// `requestReaderTime`: set after the selection, so the reader that mounts
-    /// for the source finds it waiting.
-    func requestReaderPassage(_ passage: String?, page: Int? = nil, for sourceID: String) {
+    /// for the source finds it waiting. With `window`, only that window's
+    /// Reader acts on it (`ReaderRequestWindow`).
+    func requestReaderPassage(
+        _ passage: String?,
+        page: Int? = nil,
+        for sourceID: String,
+        in window: StudioWindowState? = nil
+    ) {
         let trimmed = passage?.trimmingCharacters(in: .whitespacesAndNewlines)
         let words = trimmed?.isEmpty == false ? trimmed : nil
         let page = page.flatMap { $0 >= 1 ? $0 : nil }
@@ -343,7 +358,8 @@ extension StudioViewModel {
             sourceID: sourceID,
             passage: words,
             page: page,
-            revision: readerPassageTargetRevision
+            revision: readerPassageTargetRevision,
+            windowID: window?.id
         )
     }
 
@@ -362,7 +378,8 @@ extension StudioViewModel {
         stepID: String,
         for sourceID: String,
         emphasis: ReaderWalkthroughFocus.Emphasis = .outline,
-        pickablePanels: [ReaderWalkthroughFocus.PickablePanel] = []
+        pickablePanels: [ReaderWalkthroughFocus.PickablePanel] = [],
+        in window: StudioWindowState? = nil
     ) {
         readerWalkthroughFocusRevision &+= 1
         readerWalkthroughFocus = ReaderWalkthroughFocus(
@@ -371,20 +388,22 @@ extension StudioViewModel {
             target: target,
             revision: readerWalkthroughFocusRevision,
             emphasis: emphasis,
-            pickablePanels: pickablePanels
+            pickablePanels: pickablePanels,
+            windowID: window?.id
         )
     }
 
     /// The chat playing a walkthrough moved to a step, or the tutor pointed
-    /// at a place in the source: the reader showing it follows.
-    func applyWalkthroughReaderFocus(_ focus: WalkthroughReaderFocus) {
+    /// at a place in the source: the reader showing it follows — the one in
+    /// `window`, the chat's own, when the chat has one.
+    func applyWalkthroughReaderFocus(_ focus: WalkthroughReaderFocus, in window: StudioWindowState? = nil) {
         switch focus {
         case .outline(let target, let stepID, let sourceID):
-            focusWalkthrough(target, stepID: stepID, for: sourceID)
+            focusWalkthrough(target, stepID: stepID, for: sourceID, in: window)
         case .spotlight(let target, let stepID, let sourceID, let veiled):
-            focusWalkthrough(target, stepID: stepID, for: sourceID, emphasis: veiled ? .veiled : .spotlight)
+            focusWalkthrough(target, stepID: stepID, for: sourceID, emphasis: veiled ? .veiled : .spotlight, in: window)
         case .pickPanel(let target, let stepID, let sourceID, let panels):
-            focusWalkthrough(target, stepID: stepID, for: sourceID, emphasis: .spotlight, pickablePanels: panels)
+            focusWalkthrough(target, stepID: stepID, for: sourceID, emphasis: .spotlight, pickablePanels: panels, in: window)
             // A click on one of the panels answers the Find it card of the
             // chat walking this window.
             readerPanelPickHandler = { [weak self] pickedSourceID, panel in
@@ -392,17 +411,17 @@ extension StudioViewModel {
                 Task { await manager.pickWalkthroughPanel(sourceID: pickedSourceID, panel: panel) }
             }
         case .flash(let passage, let sourceID):
-            clearWalkthroughFocus()
-            requestReaderPassage(passage, for: sourceID)
+            clearWalkthroughFocus(in: window)
+            requestReaderPassage(passage, for: sourceID, in: window)
         case .moment(let seconds, let sourceID):
-            clearWalkthroughFocus()
-            requestReaderTime(Double(seconds), for: sourceID, plays: false)
+            clearWalkthroughFocus(in: window)
+            requestReaderTime(Double(seconds), for: sourceID, plays: false, in: window)
         case .animation(let artifactID, let step, let conditions):
-            clearWalkthroughFocus()
+            clearWalkthroughFocus(in: window)
             animationWalkFocusRevision &+= 1
             animationWalkFocus = AnimationWalkFocus(artifactID: artifactID, step: step, conditions: conditions, revision: animationWalkFocusRevision)
         case .clear:
-            clearWalkthroughFocus()
+            clearWalkthroughFocus(in: window)
         }
     }
 
@@ -427,9 +446,12 @@ extension StudioViewModel {
     }
 
     /// The chat moved to a step with nothing to point at, or the tutor asked
-    /// for the outline to come down: the reader takes it down.
-    func clearWalkthroughFocus() {
-        guard readerWalkthroughFocus != nil else { return }
+    /// for the outline to come down: the reader takes it down. A chat in
+    /// `window` takes down only an outline it could have put up — one for its
+    /// own window or for none — never another window's chat's.
+    func clearWalkthroughFocus(in window: StudioWindowState? = nil) {
+        guard let focus = readerWalkthroughFocus else { return }
+        if let window, let owner = focus.windowID, owner != window.id { return }
         readerWalkthroughFocusRevision &+= 1
         readerWalkthroughFocus = nil
     }

@@ -53,7 +53,7 @@ extension StudioViewModel {
                 return
             }
             // A paper shown as its page opens at that page.
-            requestReaderPassage(nil, page: knowledgeMap.layout.placements[ref]?.page, for: canonicalSourceID(item.id))
+            requestReaderPassage(nil, page: knowledgeMap.layout.placements[ref]?.page, for: canonicalSourceID(item.id), in: windowState)
         } else if item.kind == .doc {
             revealArtifact(item.id, in: windowState, beside: .knowledgeMap)
         } else if item.kind == .idea {

@@ -802,7 +802,7 @@ private struct InternalReviewPanelContent: View {
         // The chat points the Reader through the Studio model, which the
         // manager does not hold: every pane showing a manager lends it its own.
         .task(id: ObjectIdentifier(manager)) {
-            manager.walkthroughFocusHandler = { focus in vm.applyWalkthroughReaderFocus(focus) }
+            manager.walkthroughFocusHandler = { focus in vm.applyWalkthroughReaderFocus(focus, in: windowState) }
             manager.teachBackStarter = { notebookID in pendingTeachBackNotebookID = notebookID }
             // A step or a focused panel is enlarged in the row only when no
             // Reader in this window already shows the source outlined beside

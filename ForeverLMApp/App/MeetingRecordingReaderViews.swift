@@ -135,6 +135,9 @@ private struct OfflineRecordingRequest: Equatable {
 }
 
 struct MeetingRecordingReaderView: View {
+    /// The Studio window this reader is drawn in: a moment asked for another
+    /// window's Reader is not this one's (`ReaderRequestWindow`).
+    @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
     let article: StudioArticle
     let media: MeetingRecordingMedia
     @Binding var selectedText: String
@@ -183,7 +186,8 @@ struct MeetingRecordingReaderView: View {
     /// The moment a chat citation asked this recording to open at, while it
     /// names this session — see `YouTubeVideoReaderView.chatTimeTarget`.
     private var chatTimeTarget: ReaderTimeTarget? {
-        guard let target = vm.readerTimeTarget, target.sourceID == article.id else { return nil }
+        guard let target = vm.readerTimeTarget, target.sourceID == article.id,
+              ReaderRequestWindow.reaches(target.windowID, readerIn: windowState?.id) else { return nil }
         return target
     }
 

@@ -1358,6 +1358,9 @@ final class ICloudFileChangeMonitor: @unchecked Sendable {
 
 struct PDFKitInlineView: NSViewRepresentable {
     @Environment(StudioViewModel.self) private var vm
+    /// The Studio window this reader is drawn in: a passage or an outline
+    /// asked for another window's Reader is not this one's.
+    @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
     let document: PDFDocument
     /// The source this document belongs to, so notes taken here are filed
     /// against the right chapter of a book rather than the book as a whole.
@@ -1467,6 +1470,7 @@ struct PDFKitInlineView: NSViewRepresentable {
 
     func updateNSView(_ nsView: PDFView, context: Context) {
         context.coordinator.parent = self
+        context.coordinator.readerWindowID = windowState?.id
         configureReferencePreview(context.coordinator.referencePreview)
         if let pdfView = nsView as? FindablePDFView {
             pdfView.findState = findState
@@ -1569,6 +1573,11 @@ struct PDFKitInlineView: NSViewRepresentable {
         private weak var noteViewModel: StudioViewModel?
         /// Which citation passage this reader has already flashed.
         private let passageTracker = ReaderPassageTargetTracker()
+        /// The Studio window this reader is drawn in (`ReaderRequestWindow`).
+        var readerWindowID: UUID? {
+            get { passageTracker.readerWindowID }
+            set { passageTracker.readerWindowID = newValue }
+        }
         /// The walkthrough's outline around the current step's figure or
         /// passage, kept while the step is current.
         let walkthroughSpotlight = ReaderWalkthroughSpotlight()
@@ -1596,7 +1605,8 @@ struct PDFKitInlineView: NSViewRepresentable {
         @MainActor
         func applyWalkthroughFocusIfNeeded(in pdfView: PDFView, vm: StudioViewModel) {
             guard let document = pdfView.document else { return }
-            if let focus = vm.readerWalkthroughFocus {
+            if let focus = vm.readerWalkthroughFocus,
+               ReaderRequestWindow.reaches(focus.windowID, readerIn: readerWindowID) {
                 for section in sections(in: document) where section.sourceID == focus.sourceID {
                     walkthroughSpotlight.apply(focus, in: pdfView, pageRange: section.pageRange)
                     return

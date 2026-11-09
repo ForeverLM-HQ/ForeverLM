@@ -119,7 +119,7 @@ extension StudioViewModel {
                 showToast("That passage's source is not in the library")
                 return
             }
-            requestReaderPassage(clip.quote, page: ReaderClip.passagePage(of: clip) ?? knowledgeMap.passagePage(clip.id), for: clip.sourceID)
+            requestReaderPassage(clip.quote, page: ReaderClip.passagePage(of: clip) ?? knowledgeMap.passagePage(clip.id), for: clip.sourceID, in: windowState)
             return
         }
         // A talk's slide opens its video beside the Canvas, at the moment the
@@ -131,7 +131,7 @@ extension StudioViewModel {
             }
             let content = await storage.loadSourceContent(clip.sourceID) ?? ""
             let frame = YouTubeSlideContentParser.parse(content).slides.first { $0.index == slide }
-            requestReaderTime(frame?.timeSeconds, for: clip.sourceID, plays: false)
+            requestReaderTime(frame?.timeSeconds, for: clip.sourceID, plays: false, in: windowState)
             return
         }
         guard let clip = knowledgeMap.clips[clipID], let reference = ReaderClip.reference(of: clip),
@@ -143,7 +143,8 @@ extension StudioViewModel {
         focusWalkthrough(
             .figure(pageIndex: page - 1, rect: reference.crop, caption: ReaderClip.title(of: clip), sharesPageWithOtherFigures: false),
             stepID: "clip:\(clipID)",
-            for: clip.sourceID
+            for: clip.sourceID,
+            in: windowState
         )
     }
 }
@@ -531,6 +532,6 @@ extension StudioViewModel {
             showToast("That page's source is not in the library")
             return
         }
-        requestReaderPassage(nil, page: page, for: sourceID)
+        requestReaderPassage(nil, page: page, for: sourceID, in: windowState)
     }
 }

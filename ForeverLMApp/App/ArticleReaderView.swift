@@ -1495,6 +1495,9 @@ struct WebViewReader: NSViewRepresentable {
     /// publisher's own page, and reading the environment itself is what makes an
     /// already-open article follow the Mac instead of waiting for a reload.
     @Environment(\.colorScheme) private var colorScheme
+    /// The Studio window this reader is drawn in: a passage asked for another
+    /// window's Reader is not this one's (`ReaderRequestWindow`).
+    @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
     /// The reader's opt-out from the forced-dark pass. A page with a dark design
     /// of its own is unaffected either way: this only ever governs the inversion.
     @SyncedStorage(ReaderDarkMode.originalPageColorsKey) private var originalPageColors = false
@@ -1722,6 +1725,7 @@ struct WebViewReader: NSViewRepresentable {
         coordinator.performFindIfNeeded(in: webView, revision: findRevision, state: findState)
         coordinator.refreshZoomPasscodeIfNeeded(in: webView, revision: zoomPasscodeRevision)
         coordinator.applyHighlightsIfNeeded(vm.highlights(for: articleId), to: webView)
+        coordinator.passageTracker.readerWindowID = windowState?.id
         coordinator.applyPassageTargetIfNeeded(to: webView)
     }
 
@@ -2724,7 +2728,7 @@ struct WebViewReader: NSViewRepresentable {
         private var appliedHighlightFingerprint: [String] = []
 
         /// Which citation passage this reader has already flashed.
-        private let passageTracker = ReaderPassageTargetTracker()
+        let passageTracker = ReaderPassageTargetTracker()
 
         /// A chat citation asked for a passage of this article: once its page
         /// has settled, scroll to the passage and flash it.

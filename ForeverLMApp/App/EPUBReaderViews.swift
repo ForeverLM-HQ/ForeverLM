@@ -273,6 +273,9 @@ final class ProseTextView: FindableTextView {
 
 struct InlineTextReaderView: NSViewRepresentable {
     @Environment(StudioViewModel.self) private var vm
+    /// The Studio window this reader is drawn in: a passage asked for another
+    /// window's Reader is not this one's (`ReaderRequestWindow`).
+    @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
     let content: String
     /// The source these notes belong to.
     let sourceID: String
@@ -417,6 +420,7 @@ struct InlineTextReaderView: NSViewRepresentable {
             nsView.appearance = desiredAppearance
         }
         context.coordinator.parent = self
+        context.coordinator.passageTracker.readerWindowID = windowState?.id
         context.coordinator.navigateToTargetIfNeeded(in: textView, target: navigationTarget)
         context.coordinator.performFindIfNeeded(in: textView, revision: findRevision, state: findState)
         context.coordinator.repaintHighlightsIfNeeded(vm.highlights(for: sourceID), in: textView)
@@ -444,7 +448,7 @@ struct InlineTextReaderView: NSViewRepresentable {
         private weak var noteTextView: NSTextView?
         private weak var noteViewModel: StudioViewModel?
         /// Which citation passage this reader has already flashed.
-        private let passageTracker = ReaderPassageTargetTracker()
+        let passageTracker = ReaderPassageTargetTracker()
 
         init(parent: InlineTextReaderView) {
             self.parent = parent
@@ -1440,6 +1444,9 @@ struct ArchivedArticleReaderView: View {
 
 struct InlineEPUBReaderView: NSViewRepresentable {
     @Environment(StudioViewModel.self) private var vm
+    /// The Studio window this reader is drawn in: a passage asked for another
+    /// window's Reader is not this one's (`ReaderRequestWindow`).
+    @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
     let filePath: String
     /// The source whose notes belong to the page currently loaded. For a book
     /// this follows the chapter the reader has navigated to.
@@ -1601,6 +1608,7 @@ struct InlineEPUBReaderView: NSViewRepresentable {
 
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.parent = self
+        context.coordinator.passageTracker.readerWindowID = windowState?.id
         chromeState?.bindNavigation(to: webView)
         if let webView = webView as? ForeverLMWebView {
             webView.findState = findState
@@ -1733,7 +1741,7 @@ struct InlineEPUBReaderView: NSViewRepresentable {
         }
 
         /// Which citation passage this reader has already flashed.
-        private let passageTracker = ReaderPassageTargetTracker()
+        let passageTracker = ReaderPassageTargetTracker()
 
         /// A chat citation asked for a passage of the source on screen: once
         /// the document has loaded, scroll to it and flash it.

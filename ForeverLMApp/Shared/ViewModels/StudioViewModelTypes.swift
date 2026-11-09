@@ -270,9 +270,26 @@ struct ReaderTimeTarget: Equatable, Sendable {
     /// Whether the player plays from the moment, as a citation's click does,
     /// or holds there paused, as a walkthrough step does.
     var plays: Bool = true
+    /// The Studio window whose Reader the request is for (`ReaderRequestWindow`);
+    /// nil reaches a Reader in any window.
+    var windowID: UUID? = nil
 
     var presentationKey: String {
         "\(sourceID)|\(seconds)|\(revision)"
+    }
+}
+
+/// Which Reader a request to show a place in a source reaches: a passage to
+/// flash, a moment to seek to, a figure to outline. A request made for one
+/// window names it, and a Reader showing the same source in another window
+/// leaves it alone (product owner, 2026-11-08, of a chat pointing at a passage
+/// that jumped the same paper in the other window's Reader too: "it still opens
+/// a paper reader in BOTH foreverlm windows"). A request naming no window, and a
+/// Reader in no Studio window (a popped-out Reader), keep reaching each other.
+enum ReaderRequestWindow {
+    static func reaches(_ requestWindowID: UUID?, readerIn readerWindowID: UUID?) -> Bool {
+        guard let requestWindowID, let readerWindowID else { return true }
+        return requestWindowID == readerWindowID
     }
 }
 
@@ -301,12 +318,16 @@ struct ReaderPassageTarget: Equatable, Sendable {
     /// found, or when there is no passage; readers without pages ignore it.
     let page: Int?
     let revision: UInt
+    /// The Studio window whose Reader the request is for (`ReaderRequestWindow`);
+    /// nil reaches a Reader in any window.
+    let windowID: UUID?
 
-    init(sourceID: String, passage: String?, page: Int? = nil, revision: UInt) {
+    init(sourceID: String, passage: String?, page: Int? = nil, revision: UInt, windowID: UUID? = nil) {
         self.sourceID = sourceID
         self.passage = passage
         self.page = page
         self.revision = revision
+        self.windowID = windowID
     }
 
     var presentationKey: String {
@@ -356,6 +377,9 @@ struct ReaderWalkthroughFocus: Equatable, Sendable {
     var emphasis: Emphasis = .outline
     /// A Find it's panels, each a click target on the page; empty otherwise.
     var pickablePanels: [PickablePanel] = []
+    /// The Studio window of the chat pointing (`ReaderRequestWindow`); nil
+    /// reaches a Reader in any window.
+    var windowID: UUID? = nil
 }
 
 /// Walk Through was pressed on a source: the chat beside the Reader plays
