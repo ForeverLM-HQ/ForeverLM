@@ -128,7 +128,7 @@ struct MobileHomeNotebookItem: Identifiable {
 struct MobileHomeActions {
     /// Pushes a screen, or opens the Space where the screen has the room.
     let open: (MobileShellRoute) -> Void
-    /// Review by Voice over every notebook.
+    /// The Memory Check by Voice: today's cards, then today's review, out loud.
     let reviewByVoice: () -> Void
     /// Voice mode: the assistant, which finds and opens a source the learner
     /// names ("let's talk about the oocytes paper"), hands free, and takes

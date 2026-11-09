@@ -194,8 +194,10 @@ struct MobileNotebookHomeView: View {
             columns: usesGallery ? 3 : 2,
             actions: MobileHomeActions(
                 open: open,
+                // By Voice is the Memory Check by Voice (90b5b90): today's cards, then
+                // today's review, out loud, as Siri's "Start my memory review" starts it.
                 reviewByVoice: {
-                    Task { await MobileRealtimeVoice.startCardReview(scope: .allNotebooks, scopeTitle: "All notebooks") }
+                    Task { await MobileRealtimeVoice.startMemoryCheck() }
                 },
                 talk: {
                     Task { await MobileRealtimeVoice.startAssistant(setting: .phone) }
