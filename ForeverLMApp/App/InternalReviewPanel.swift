@@ -948,7 +948,7 @@ private struct InternalReviewPanelContent: View {
         // A source left out of this chat with its chip's × is left out while
         // it stays open; once it leaves the window, opening it again is
         // asking about it again, so the chat sees it and its chip is back.
-        .onChange(of: sourcesOnScreenBesideChat.map(\.id) + [cardOnScreenBesideChat?.id].compactMap { $0 }, initial: true) { _, ids in
+        .onChange(of: openKeysBesideChat, initial: true) { _, ids in
             manager.keepOnScreenSourcesLeftOut(within: Set(ids))
         }
         // An empty chat in a window that holds a notebook is that notebook's:
@@ -4958,6 +4958,7 @@ private struct InternalReviewPanelContent: View {
                 if let card = chips.card {
                     onScreenCardChip(card)
                 }
+                openItemChips(chips.open)
                 if chips.context {
                     attachedSourcesChip
                 }
@@ -4970,13 +4971,40 @@ private struct InternalReviewPanelContent: View {
     /// own window, the "in context" pill when something is (in the notebook's
     /// window only for an attached Page), the canvas's, and one for each
     /// source open beside the chat.
-    private var composerContextChips: (notebook: Bool, context: Bool, onScreen: [ChatContextAdditions.OnScreen], card: ChatContextAdditions.CardOnScreen?, showsAny: Bool) {
+    private var composerContextChips: (notebook: Bool, context: Bool, onScreen: [ChatContextAdditions.OnScreen], card: ChatContextAdditions.CardOnScreen?, open: [ChatContextAdditions.OpenItem], showsAny: Bool) {
         let inOwnNotebookWindow = notebookGuideNotebook != nil
         let notebook = linkedResearchNotebook != nil && !inOwnNotebookWindow
         let context = contextItemCount > 0 && (!inOwnNotebookWindow || !manager.contextDocs.isEmpty)
         let onScreen = onScreenChipSources
         let card = onScreenCardChipCard
-        return (notebook, context, onScreen, card, notebook || context || !onScreen.isEmpty || card != nil || manager.canvasContext != nil)
+        let open = openItemChipItems
+        return (notebook, context, onScreen, card, open, notebook || context || !onScreen.isEmpty || card != nil || !open.isEmpty || manager.canvasContext != nil)
+    }
+
+    /// The Pages, Sites, web pages and courses on screen in any
+    /// window, read as a message sent now reads them
+    /// (`ChatOpenPanes.openOnScreen`). Empty for a chat outside a Studio
+    /// window.
+    private var openItemsBesideChat: [ChatContextAdditions.OpenItem] {
+        guard let windowState else { return [] }
+        return ChatOpenPanes.openOnScreen(chatWindow: windowState, chatSessionID: manager.currentSessionID, vm: vm)
+    }
+
+    /// What a chip's × can leave out, as it is open now: each source's id,
+    /// the card's, and each open item's key.
+    private var openKeysBesideChat: [String] {
+        var keys = sourcesOnScreenBesideChat.map(\.id)
+        if let card = cardOnScreenBesideChat { keys.append(card.id) }
+        keys += openItemsBesideChat.map(\.key)
+        return keys
+    }
+
+    /// The open items the tray gives a chip: less what the learner left out
+    /// with a chip's ×, and less a Page the "in context" pill already counts.
+    private var openItemChipItems: [ChatContextAdditions.OpenItem] {
+        let leftOut = manager.onScreenSourcesLeftOut
+        let attachedDocs = Set(manager.contextDocs.map(\.id))
+        return openItemsBesideChat.filter { !leftOut.contains($0.key) && !attachedDocs.contains($0.id ?? "") }
     }
 
     /// The library sources on screen in this chat's window, read as a
@@ -5055,6 +5083,40 @@ private struct InternalReviewPanelContent: View {
                 remove: { manager.leaveOutOnScreenSource(source.id) }
             )
             .accessibilityIdentifier("chat.onScreenChip")
+        }
+    }
+
+    /// A chip for each Page, Site, web page or course open in any
+    /// window (product owner, 2026-11-08: "put everything that's open into
+    /// the context"): every message carries them
+    /// (`ChatContextAdditions.openFraming`), the chip says so, and its ×
+    /// leaves the item out of this chat for as long as it stays open.
+    @ViewBuilder
+    private func openItemChips(_ items: [ChatContextAdditions.OpenItem]) -> some View {
+        ForEach(items, id: \.key) { item in
+            let title = item.title.isEmpty ? (item.url ?? item.kind) : item.title
+            ComposerRemovableChip(
+                symbol: Self.openItemSymbol(item.kind),
+                title: title,
+                maxTitleWidth: 220,
+                help: "Open in ForeverLM, so the chat sees it",
+                removeHelp: "Leave \u{201C}\(title)\u{201D} out of this chat while it is open",
+                accessibilityLabel: "Open in ForeverLM: \(item.kind) \(title)",
+                open: nil,
+                remove: { manager.leaveOutOnScreenSource(item.key) }
+            )
+            .accessibilityIdentifier("chat.openItemChip")
+        }
+    }
+
+    private static func openItemSymbol(_ kind: String) -> String {
+        switch kind {
+        case "Page": return "doc.text"
+        case "Site": return "safari"
+        case "animation": return "film"
+        case "web page": return "globe"
+        case "course": return "graduationcap"
+        default: return "doc"
         }
     }
 

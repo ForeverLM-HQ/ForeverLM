@@ -32,7 +32,7 @@ struct ChatOpenPanesTests {
         #expect(text.contains("- Left pane, on screen: Chat — this conversation."))
         #expect(text.contains("- Right pane, on screen: Reader — paper “Elevated Na is a dynamic"))
         #expect(text.contains("(source_id: \(Self.paperID)), page 3 of 15."))
-        #expect(text.contains("  - Behind it: Pages — “Sodium notes” (artifact_id: doc-1)."))
+        #expect(text.contains("  - Behind it: Pages — Page “Sodium notes” (artifact_id: doc-1)."))
         #expect(text.contains("inspect_paper_figure"))
         #expect(Self.readingBesideChat.sourceIDs == [Self.paperID])
     }
@@ -350,5 +350,71 @@ struct ChatOpenPanesLeftOutTests {
         #expect(kept.cardOnScreen == nil)
         #expect(!kept.text.contains("card-1"))
         #expect(Self.cardBesideChat.leavingOut(["src-other"]).cardOnScreen == Self.card)
+    }
+
+    /// The product owner's 2026-11-08 set-up: two windows on two displays,
+    /// a Page in one, the chat and a paper in the other.
+    private static let pageInOtherWindow = ChatOpenPanes(windows: [
+        .init(isChatsWindow: false, panes: [
+            .init(onScreen: .init(name: "Pages", contents: [.artifact(id: "doc-mtdna", title: "Do mtDNA mutations drive aging?")])),
+            .init(onScreen: .init(name: "Browser", contents: [.webPage(title: "ARIA", url: "https://aria.org.uk")])),
+        ]),
+        .init(isChatsWindow: true, panes: [
+            .init(onScreen: .init(name: "Chat", contents: [.chat(title: "New chat", isThisChat: true)])),
+            .init(
+                onScreen: .init(name: "Sites", contents: [.artifact(id: "site-1", title: "Lab site", kind: "Site")]),
+                behind: [.init(name: "Pages", contents: [.artifact(id: "doc-behind", title: "Behind")])]
+            ),
+        ], alsoOnScreen: [.course(id: "course-1", title: "Mitochondria 101")]),
+    ])
+
+    @Test("Pages, Sites, web pages and courses drawn in any window are open, the chat's window first; tabs behind and chats are not")
+    func openOnScreenAcrossWindows() {
+        let open = Self.pageInOtherWindow.openOnScreen
+        #expect(open.map(\.key) == ["site-1", "course-1", "doc-mtdna", "https://aria.org.uk"])
+        #expect(open[0].kind == "Site")
+        #expect(open[2] == .init(kind: "Page", title: "Do mtDNA mutations drive aging?", id: "doc-mtdna"))
+        #expect(open[3].url == "https://aria.org.uk")
+    }
+
+    @Test("An open item's chip × leaves it out by its key, and nothing else")
+    func openItemCanBeLeftOut() {
+        let kept = Self.pageInOtherWindow.leavingOut(["doc-mtdna", "https://aria.org.uk"])
+        #expect(kept.openOnScreen.map(\.key) == ["site-1", "course-1"])
+        #expect(!kept.text.contains("doc-mtdna"))
+        #expect(!kept.text.contains("aria.org.uk"))
+    }
+
+    @Test("Open items ride in the mark, read back, and survive filling in a video's moment")
+    func openItemsRideInTheMark() throws {
+        let open = Self.pageInOtherWindow.openOnScreen
+        let video = ChatContextAdditions.OnScreen(id: "src-talk", title: "Talk", kind: "video", moment: .init(at: 10))
+        let stored = try #require(ChatContextAdditions.contextContent("quoted", onScreen: [video], open: open))
+        let parsed = ChatContextAdditions.parse(contextContent: stored)
+        #expect(parsed.open == open)
+        #expect(parsed.remainder == "quoted")
+        let completed = ChatContextAdditions.contextContent(stored, completingMoments: ["src-talk": .init(at: 10, said: "words")])
+        #expect(ChatContextAdditions.parse(contextContent: completed).open == open)
+        // Open items alone still make a mark.
+        let alone = try #require(ChatContextAdditions.contextContent(nil, onScreen: [], open: open))
+        #expect(ChatContextAdditions.parse(contextContent: alone).open == open)
+        // Nothing open leaves a stored message's bytes as they were.
+        #expect(ChatContextAdditions.marker(added: [], onScreen: [video]) == ChatContextAdditions.marker(added: [], onScreen: [video], open: []))
+        #expect(!(ChatContextAdditions.marker(added: [], onScreen: [video]) ?? "").contains("open"))
+    }
+
+    @Test("The framing names each open item with the id a tool takes and says to read a Page")
+    func openFramingNamesItems() throws {
+        let framing = try #require(ChatContextAdditions.openFraming(Self.pageInOtherWindow.openOnScreen))
+        #expect(framing.hasPrefix("<also_open_when_sent>"))
+        #expect(framing.contains("Page \u{201C}Do mtDNA mutations drive aging?\u{201D} (doc_id: doc-mtdna)"))
+        #expect(framing.contains("Site \u{201C}Lab site\u{201D} (doc_id: site-1)"))
+        #expect(framing.contains("course \u{201C}Mitochondria 101\u{201D} (course_id: course-1)"))
+        #expect(framing.contains("web page \u{201C}ARIA\u{201D} (https://aria.org.uk)"))
+        #expect(framing.contains("read_doc"))
+        #expect(ChatContextAdditions.openFraming([]) == nil)
+        let webOnly = try #require(ChatContextAdditions.openFraming([.init(kind: "web page", title: "", url: "https://x.org")]))
+        #expect(webOnly.contains("web page (https://x.org)"))
+        #expect(!webOnly.contains("read_doc"))
     }
 }

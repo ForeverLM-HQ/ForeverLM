@@ -31,6 +31,18 @@ extension ChatOpenPanes {
         studio(chatWindow: state, chatSessionID: nil, vm: vm).sourcesOnScreen
     }
 
+    /// The Pages, Sites, web pages and courses on screen in every
+    /// window, read the way a message sent from a chat in `state` reads them:
+    /// what the chips over that chat's composer show.
+    @MainActor
+    static func openOnScreen(
+        chatWindow state: StudioWindowState,
+        chatSessionID: String?,
+        vm: StudioViewModel
+    ) -> [ChatContextAdditions.OpenItem] {
+        studio(chatWindow: state, chatSessionID: chatSessionID, vm: vm).openOnScreen
+    }
+
     /// The Studio windows whose screen shows library source `sourceID` right
     /// now, the window the learner last used first. `open_in_app` asks before
     /// it opens a source: one already drawn in a Reader is brought forward,
@@ -82,7 +94,13 @@ extension ChatOpenPanes {
         func artifact(_ id: String) -> Content? {
             guard let record = vm.artifacts.first(where: { $0.id == id }) else { return nil }
             reported.insert(id)
-            return .artifact(id: id, title: record.title)
+            let kind: String
+            switch record.section {
+            case .docs: kind = "Page"
+            case .sites: kind = "Site"
+            case .animations: kind = "animation"
+            }
+            return .artifact(id: id, title: record.title, kind: kind)
         }
         func chatTitle(_ sessionID: String?) -> String {
             guard let sessionID else { return "New chat" }
@@ -92,8 +110,13 @@ extension ChatOpenPanes {
         }
         let dockedChatIsAsking = chatSessionID != nil && state.chatSessionID == chatSessionID
 
-        func describedTab(_ tab: StudioCenterTab, isOnScreen: Bool) -> Tab {
+        func describedTab(_ tab: StudioCenterTab, isOnScreen: Bool, pane: UUID) -> Tab {
             var contents: [Content] = []
+            // The page a Pages, Sites or Space view in this pane registered,
+            // read only for the pane's drawn tab: a view kept mounted behind
+            // another tab still holds its page, unseen.
+            let paneArtifact = isOnScreen && StudioCenterTab.showsArtifactPages.contains(tab)
+                ? state.artifactsOnScreenByPane[pane].flatMap(artifact) : nil
             switch tab {
             case .chat:
                 guard isOnScreen else { break }
@@ -112,9 +135,14 @@ extension ChatOpenPanes {
                     contents = [shown]
                 }
             case .notepad:
-                if let id = state.openArtifactID, let shown = artifact(id) {
+                if let paneArtifact {
+                    contents = [paneArtifact]
+                } else if !isOnScreen, let id = state.openArtifactID, let shown = artifact(id) {
+                    // Behind another tab: the page it would come back to.
                     contents = [shown]
                 }
+            case .sites, .animations, .artifacts:
+                if let paneArtifact { contents = [paneArtifact] }
             case .browser:
                 if let page = BrowserWorkspace.existing(forWindow: state.id)?.activeTab,
                    let url = page.url ?? page.requestedURL {
@@ -149,19 +177,23 @@ extension ChatOpenPanes {
         // columns, as a window with none draws them.
         let panes = state.centerTabGroups.groups.map { group in
             Pane(
-                onScreen: describedTab(group.activeTab, isOnScreen: true),
+                onScreen: describedTab(group.activeTab, isOnScreen: true, pane: group.id),
                 behind: group.tabs
                     .filter { $0 != group.activeTab }
-                    .map { describedTab($0, isOnScreen: false) }
+                    .map { describedTab($0, isOnScreen: false, pane: group.id) }
                     .filter { !$0.contents.isEmpty }
             )
         }
+        // A Pages view standing in no pane of the window's groups registered
+        // under a key of its own; one in a pane was read with that pane.
+        let paneIDs = Set(state.centerTabGroups.groups.map(\.id))
+        let canvasesInNoPane = Set(state.artifactsOnScreenByPane.filter { !paneIDs.contains($0.key) }.values)
         // Readers and linked pages the panes above did not account for — a
         // second Reader, a Site shown inside Artifacts — are on screen too.
         let alsoOnScreen = state.readerSourceIDsOnScreen.sorted()
             .filter { !reported.contains($0) }
             .compactMap(source)
-            + state.linkedArtifactIDsOnScreen.sorted()
+            + state.linkedArtifactIDsOnScreen.union(canvasesInNoPane).sorted()
             .filter { !reported.contains($0) }
             .compactMap(artifact)
         // A video Reader registers its playhead only while it is mounted, and

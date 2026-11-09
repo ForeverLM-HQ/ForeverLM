@@ -163,6 +163,16 @@ struct ArtifactCanvas: View {
     let notebookID: String?
     let onBack: (() -> Void)?
 
+    /// Tells the window which page this canvas shows, or that it shows its
+    /// index, for the chats of every window (`ChatOpenPanes.openOnScreen`).
+    private func registerArtifactOnScreen() {
+        let key = paneGroupID ?? screenKey
+        let shown = isShowingIndex ? nil : selectedArtifactID
+        if windowState.artifactsOnScreenByPane[key] != shown {
+            windowState.artifactsOnScreenByPane[key] = shown
+        }
+    }
+
     /// Whether a request aimed at `groupID`'s pane is this canvas's.
     private func answers(paneOf groupID: UUID?) -> Bool {
         groupID == nil || paneGroupID == nil || groupID == paneGroupID
@@ -174,6 +184,10 @@ struct ArtifactCanvas: View {
     /// While it is on, `reconcileSelection` leaves the selection empty rather
     /// than reopening the remembered doc.
     @State private var isShowingIndex = false
+    /// Where this canvas registers the page it shows in
+    /// `StudioWindowState.artifactsOnScreenByPane` when it stands in no pane
+    /// of the window's groups.
+    @State private var screenKey = UUID()
     /// The canvas has read the library and chosen what to open at least once.
     /// Until then an empty selection is a doc on its way, not a choice left to
     /// the learner, so the pane spins rather than saying "Select a doc".
@@ -442,6 +456,14 @@ struct ArtifactCanvas: View {
                 searchText = ""
                 selectedArtifactID = request.artifactID
                 pendingBlockReveal = request.block.map { ArtifactBlockRevealRequest(artifactID: request.artifactID, reveal: $0) }
+            }
+            // The page this canvas shows, for the chats of every window: what
+            // is open is in their context (`ChatOpenPanes.openOnScreen`).
+            .onChange(of: "\(selectedArtifactID ?? "")|\(isShowingIndex)", initial: true) { _, _ in
+                registerArtifactOnScreen()
+            }
+            .onDisappear {
+                windowState.artifactsOnScreenByPane[paneGroupID ?? screenKey] = nil
             }
             .onChange(of: selectedArtifactID, initial: true) { _, artifactID in
                 // The replacement editor publishes its own caret state once it
@@ -3073,9 +3095,6 @@ private struct ArtifactEditor: View {
     @State private var paneWidth: CGFloat = 0
     @State private var findState = ReaderFindState()
     @FocusState private var titleFocused: Bool
-    /// False while Pages is kept mounted behind another tab of its pane
-    /// (`StudioKeptPaneTabs`): the page stays loaded, unseen.
-    @Environment(\.studioPaneTabIsShown) private var paneTabIsShown
 
     /// Mirrors the page geometry in `artifact-editor.css` so the title starts on
     /// the same left edge as the prose beneath it: a column capped at the page
@@ -3170,23 +3189,7 @@ private struct ArtifactEditor: View {
         )
     }
 
-    // Put behind another tab of its pane, the page stays mounted, so the
-    // leaving that `onDisappear` answers happens here: the draft and title are
-    // saved now, the title gives up the keyboard, and the body is published as
-    // a closed Doc's is. Outside `editorBody`, whose chain is already as long
-    // as the type checker takes in reasonable time.
     var body: some View {
-        editorBody.onChange(of: paneTabIsShown) { _, shown in
-            guard !shown else { return }
-            titleFocused = false
-            editorDraft.cancelAutosave()
-            save(draft)
-            saveTitle()
-            DocBodySync.requestPublish(artifact.id)
-        }
-    }
-
-    private var editorBody: some View {
         HStack(spacing: 0) {
             if chrome.sidePanel == nil || sidePanelFitsBesidePage {
                 // The column's width is read in layout, so it reaches the rows

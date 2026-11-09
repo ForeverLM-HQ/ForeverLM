@@ -835,8 +835,6 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
     let onSelectionChange: (ArtifactEditorSelection) -> Void
     let onError: (String) -> Void
     @Environment(\.uiZoomScale) private var uiZoomScale
-    /// False while Pages is kept mounted behind another tab of its pane.
-    @Environment(\.studioPaneTabIsShown) private var paneTabIsShown
 
     private static let messageHandlerName = "artifactEditor"
     @MainActor private static var reusableWebViews: [ArtifactEditorWebView] = []
@@ -934,7 +932,6 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
-        StudioKeptPaneTabs.apply(isShown: paneTabIsShown, to: webView)
         context.coordinator.onImageFiles = onImageFiles
         context.coordinator.onPageWidthChange = onPageWidthChange
         context.coordinator.onCommentAnchorClicked = onCommentAnchorClicked
@@ -1001,8 +998,6 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
            let reusable = webView as? ArtifactEditorWebView,
            reusableWebViews.count < reusePoolCapacity {
             reusable.removeFromSuperview()
-            // Dismantled while its pane hid it: the next page shows it.
-            reusable.isHidden = false
             reusableWebViews.append(reusable)
         } else {
             webView.loadHTMLString("", baseURL: nil)

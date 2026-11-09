@@ -3976,16 +3976,19 @@ final class ReviewSessionManager {
         return ChatContextAdditions.contextContent(added: added, referenceContext: contextualContent)
     }
 
-    /// The stored context for the message about to be sent, with the sources
-    /// on screen in this chat's window written into its mark
-    /// (`ChatContextAdditions.onScreen`). A chat outside a Studio window, or
-    /// a window showing no source, leaves the context as it was.
+    /// The stored context for the message about to be sent, with what every
+    /// window has on screen written into its mark: the sources
+    /// (`ChatContextAdditions.onScreen`), the card, and the Pages, Sites, web
+    /// pages and courses (`ChatContextAdditions.OpenItem`). A chat
+    /// outside a Studio window, or windows showing none of it, leaves the
+    /// context as it was.
     private func attachOnScreenSources(to contextualContent: String?) -> String? {
         guard let panes = openPanesForThisChat() else { return contextualContent }
         return ChatContextAdditions.contextContent(
             contextualContent,
             onScreen: panes.sourcesOnScreen,
-            card: panes.cardOnScreen
+            card: panes.cardOnScreen,
+            open: panes.openOnScreen
         )
     }
 
@@ -15880,6 +15883,11 @@ final class ReviewSessionManager {
                 // What the chat's window showed as the message went, so "the
                 // article I have open" is the one on screen, not the attached one.
                 if let framing = ChatContextAdditions.onScreenFraming(stored.onScreen) {
+                    content += "\n\n" + framing
+                }
+                // The Pages, Sites, web pages and courses open in any
+                // window, so "my page" is the one in the other window.
+                if let framing = ChatContextAdditions.openFraming(stored.open) {
                     content += "\n\n" + framing
                 }
                 // The flashcard the Memory pane beside the chat had in front

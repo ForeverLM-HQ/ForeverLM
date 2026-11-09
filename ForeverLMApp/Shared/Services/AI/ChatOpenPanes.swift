@@ -19,8 +19,8 @@ struct ChatOpenPanes: Equatable {
         /// A web page that is not a library source: a cited page in the
         /// Reader, or the Browser's tab.
         case webPage(title: String, url: String)
-        /// A Doc, Site or animation.
-        case artifact(id: String, title: String)
+        /// A Page, Site or animation; `kind` is the word the learner sees.
+        case artifact(id: String, title: String, kind: String = "Page")
         /// A chat; `isThisChat` when it is the conversation asking.
         case chat(title: String, isThisChat: Bool)
         /// The day the Activity pane is turned to, "2026-09-22".
@@ -152,6 +152,37 @@ struct ChatOpenPanes: Equatable {
         return shown
     }
 
+    /// Everything else a pane in any window draws — Pages, Sites, animations,
+    /// web pages, a course — each once, the chat's own window first. Tabs
+    /// behind a drawn tab are left out, as for sources, and so are chats, a
+    /// day and a card: a chat's title says nothing a tool can read, and the
+    /// card has its own line (`cardOnScreen`).
+    /// Every message the learner sends carries this list
+    /// (`ChatContextAdditions.openFraming`), so a Page in the other window is
+    /// as much in the chat's context as a paper in the Reader beside it.
+    var openOnScreen: [ChatContextAdditions.OpenItem] {
+        var seen = Set<String>()
+        var shown: [ChatContextAdditions.OpenItem] = []
+        for window in windowsChatsFirst {
+            let contents = window.panes.flatMap(\.onScreen.contents) + window.alsoOnScreen
+            for content in contents {
+                let item: ChatContextAdditions.OpenItem
+                switch content {
+                case let .artifact(id, title, kind):
+                    item = .init(kind: kind, title: title, id: id)
+                case let .webPage(title, url):
+                    item = .init(kind: "web page", title: title, url: url)
+                case let .course(id, title):
+                    item = .init(kind: "course", title: title, id: id)
+                case .source, .chat, .day, .card:
+                    continue
+                }
+                if seen.insert(item.key).inserted { shown.append(item) }
+            }
+        }
+        return shown
+    }
+
     /// The flashcard a Memory pane in any window has in front of the learner,
     /// the chat's own window first. Every message the learner sends carries
     /// it (`ChatContextAdditions.cardFraming`), so "this question is phrased
@@ -174,7 +205,8 @@ struct ChatOpenPanes: Equatable {
         return shown?.id == pinnedCard.id ? shown : pinnedCard
     }
 
-    /// The windows with these sources (and the card, by its id) taken out,
+    /// The windows with these sources (and the card, and any open item, by
+    /// its `OpenItem.key`) taken out,
     /// wherever they are shown: what a chat is told once the learner has left
     /// them out of it with the × on their chip over its composer. A Reader showing only a left-out
     /// source reads as an empty Reader, and a left-out video's playhead goes
@@ -187,6 +219,9 @@ struct ChatOpenPanes: Equatable {
                 case let .source(id, _, _, _): return !sourceIDs.contains(id)
                 // The card chip's × is left out the same way, by the card's id.
                 case let .card(card): return !sourceIDs.contains(card.id)
+                case let .artifact(id, _, _): return !sourceIDs.contains(id)
+                case let .webPage(_, url): return !sourceIDs.contains(url)
+                case let .course(id, _): return !sourceIDs.contains(id)
                 default: return true
                 }
             }
@@ -277,8 +312,8 @@ struct ChatOpenPanes: Equatable {
             return line
         case let .webPage(title, url):
             return title.isEmpty ? "web page \(url)" : "web page \u{201C}\(title)\u{201D} (\(url))"
-        case let .artifact(id, title):
-            return "\u{201C}\(title)\u{201D} (artifact_id: \(id))"
+        case let .artifact(id, title, kind):
+            return "\(kind) \u{201C}\(title)\u{201D} (artifact_id: \(id))"
         case let .chat(title, isThisChat):
             return isThisChat ? "this conversation" : "the chat \u{201C}\(title)\u{201D}"
         case let .day(date):

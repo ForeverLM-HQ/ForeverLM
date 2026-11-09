@@ -127,6 +127,10 @@ enum StudioCenterTab: String, Codable, CaseIterable, Identifiable {
     /// Ideas, which a Doc's idea link opens beside it (`openIdea`).
     static let artifactKinds: Set<StudioCenterTab> = [.notepad, .sites, .ideas]
 
+    /// The places whose view is an `ArtifactCanvas`, which registers the page
+    /// it shows in `StudioWindowState.artifactsOnScreenByPane`.
+    static let showsArtifactPages: Set<StudioCenterTab> = [.notepad, .sites, .animations, .artifacts]
+
     /// The places that may stand in more than one pane of a window at once, a
     /// copy in each, as a terminal splits a pane (product owner, 2026-11-07:
     /// "just like in a terminal window, we need to be able to have like two
@@ -951,6 +955,16 @@ final class StudioWindowState: Identifiable {
     /// it shows while mounted. A walkthrough step that shows an animation on
     /// screen here points the pane at the step and draws no card of its own.
     var linkedArtifactIDsOnScreen: Set<String> = []
+    /// The Page, Site or animation each Pages, Sites or Space view in this
+    /// window shows right now, by the pane it is in
+    /// (`StudioCenterTabGroups.Group.id`); each `ArtifactCanvas` registers
+    /// its page while mounted and showing one, and drops it when it shows its
+    /// index or goes. A Pages pane split in two shows two pages, so the window's
+    /// one `openArtifactID` cannot say both. Every message from a chat in any
+    /// window carries them (`ChatOpenPanes.openOnScreen`). Observed, for the
+    /// chip over the chat's composer; it changes only when a page is opened.
+    /// Presentation, so not in `Snapshot`.
+    var artifactsOnScreenByPane: [UUID: String] = [:]
     #if os(macOS)
     /// The chat whose walkthrough is playing in this window: a click on a
     /// panel in the Reader answers that chat's Find it card. Its cards stay

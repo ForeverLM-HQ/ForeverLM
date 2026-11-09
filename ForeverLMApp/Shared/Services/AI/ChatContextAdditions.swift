@@ -69,6 +69,37 @@ enum ChatContextAdditions {
         }
     }
 
+    /// Something other than a library source or a flashcard that a pane in
+    /// any ForeverLM window drew as the message went: a Page, a Site, an
+    /// animation, a web page, a course (product owner,
+    /// 2026-11-08: "across multiple windows of foreverlm (e.g. 2 external
+    /// monitors with 2 windows); put everything that's open into the
+    /// context"). Until then only sources and the card rode with a message,
+    /// and a Page open beside the chat reached the model only if it thought
+    /// to call `list_open_panes`. Named, with the id a tool takes, and read
+    /// on demand like an open source — never its text, which would ride
+    /// again with every later message of the chat.
+    struct OpenItem: Codable, Equatable, Hashable, Sendable {
+        /// The word the listing uses: "Page", "Site", "animation", "web
+        /// page", "course".
+        var kind: String
+        var title: String
+        /// The id a tool takes: an artifact's for `read_doc`, a course's.
+        var id: String?
+        /// A web page's address.
+        var url: String?
+
+        init(kind: String, title: String, id: String? = nil, url: String? = nil) {
+            self.kind = kind
+            self.title = title
+            self.id = id
+            self.url = url
+        }
+
+        /// What tells two items apart, and what the chip's × leaves out by.
+        var key: String { id ?? url ?? "\(kind):\(title)" }
+    }
+
     /// The flashcard the Memory pane beside the chat had in front of the
     /// learner as the message went: its To Check card, the one "this
     /// question" or "it" means (product owner, 2026-10-15: "whatever is open
@@ -176,19 +207,26 @@ enum ChatContextAdditions {
         var added: [Source]
         var onScreen: [OnScreen]?
         var card: CardOnScreen?
+        var open: [OpenItem]?
     }
 
     /// The one-line mark for these additions and on-screen sources, or nil
     /// when there is nothing to mark. The payload is JSON on one line —
     /// `JSONEncoder` escapes any newline inside a title — with sorted keys,
     /// so the same additions always produce the same bytes.
-    static func marker(added: [Source], onScreen: [OnScreen] = [], card: CardOnScreen? = nil) -> String? {
+    static func marker(added: [Source], onScreen: [OnScreen] = [], card: CardOnScreen? = nil, open: [OpenItem] = []) -> String? {
         let additions = dedupe(added)
         let shown = dedupe(onScreen)
-        guard !additions.isEmpty || !shown.isEmpty || card != nil else { return nil }
+        let alsoOpen = dedupe(open)
+        guard !additions.isEmpty || !shown.isEmpty || card != nil || !alsoOpen.isEmpty else { return nil }
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
-        let payload = Payload(added: additions, onScreen: shown.isEmpty ? nil : shown, card: card)
+        let payload = Payload(
+            added: additions,
+            onScreen: shown.isEmpty ? nil : shown,
+            card: card,
+            open: alsoOpen.isEmpty ? nil : alsoOpen
+        )
         guard let data = try? encoder.encode(payload),
               let json = String(data: data, encoding: .utf8) else { return nil }
         return openingTag + json + closingTag
@@ -204,10 +242,11 @@ enum ChatContextAdditions {
         added: [Source],
         onScreen: [OnScreen] = [],
         card: CardOnScreen? = nil,
+        open: [OpenItem] = [],
         referenceContext: String?
     ) -> String? {
         let reference = referenceContext?.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard let mark = marker(added: added, onScreen: onScreen, card: card) else {
+        guard let mark = marker(added: added, onScreen: onScreen, card: card, open: open) else {
             return reference?.isEmpty == false ? reference : nil
         }
         guard let reference, !reference.isEmpty else { return mark }
@@ -217,10 +256,15 @@ enum ChatContextAdditions {
     /// The stored context with the sources on screen written into its mark,
     /// beside any additions already there. Nothing on screen hands the
     /// context back unchanged.
-    static func contextContent(_ contextContent: String?, onScreen: [OnScreen], card: CardOnScreen? = nil) -> String? {
-        guard !dedupe(onScreen).isEmpty || card != nil else { return contextContent }
+    static func contextContent(
+        _ contextContent: String?,
+        onScreen: [OnScreen],
+        card: CardOnScreen? = nil,
+        open: [OpenItem] = []
+    ) -> String? {
+        guard !dedupe(onScreen).isEmpty || card != nil || !dedupe(open).isEmpty else { return contextContent }
         let stored = parse(contextContent: contextContent)
-        return self.contextContent(added: stored.added, onScreen: onScreen, card: card, referenceContext: stored.remainder)
+        return self.contextContent(added: stored.added, onScreen: onScreen, card: card, open: open, referenceContext: stored.remainder)
     }
 
     /// The stored context with each on-screen video's moment replaced by the
@@ -236,7 +280,7 @@ enum ChatContextAdditions {
             if let moment = moments[source.id] { source.moment = moment }
             return source
         }
-        return self.contextContent(added: stored.added, onScreen: completed, card: stored.card, referenceContext: stored.remainder)
+        return self.contextContent(added: stored.added, onScreen: completed, card: stored.card, open: stored.open, referenceContext: stored.remainder)
     }
 
     /// A message's stored context, read back: the sources that joined before
@@ -247,6 +291,7 @@ enum ChatContextAdditions {
         var added: [Source]
         var onScreen: [OnScreen] = []
         var card: CardOnScreen? = nil
+        var open: [OpenItem] = []
         var remainder: String?
     }
 
@@ -270,6 +315,7 @@ enum ChatContextAdditions {
             added: dedupe(payload.added),
             onScreen: dedupe(payload.onScreen ?? []),
             card: payload.card,
+            open: dedupe(payload.open ?? []),
             remainder: rest.isEmpty ? nil : rest
         )
     }
@@ -336,6 +382,33 @@ enum ChatContextAdditions {
             + "whether or not it is attached to this chat; the chat's attached sources are what the learner gave it, not what they are looking at. "
             + "A shown source that is not attached is still in the library: read it with get_source_content before answering about it. "
             + "Only the latest message's list is what is open now.\n</on_screen_when_sent>"
+    }
+
+    /// Appended to the learner's turn beside the on-screen framing: the
+    /// Pages, Sites, web pages and courses open in any window as the
+    /// message went, by name and the id a tool takes, so "my page", "this
+    /// site" or "what I wrote on the left" means them.
+    static func openFraming(_ open: [OpenItem]) -> String? {
+        let items = dedupe(open)
+        guard !items.isEmpty else { return nil }
+        func clean(_ text: String) -> String { text.trimmingCharacters(in: .whitespacesAndNewlines) }
+        let names = items.map { item -> String in
+            let title = clean(item.title)
+            var line = title.isEmpty ? item.kind : "\(item.kind) \u{201C}\(title)\u{201D}"
+            switch (item.kind, item.id, item.url) {
+            case ("course", let id?, _): line += " (course_id: \(id))"
+            case (_, let id?, _): line += " (doc_id: \(id))"
+            case (_, nil, let url?): line += " (\(url))"
+            default: break
+            }
+            return line
+        }
+        let readsDocs = items.contains { $0.id != nil && $0.kind != "course" }
+        return "<also_open_when_sent>\nWhen the learner sent this message, ForeverLM's windows also showed "
+            + names.joined(separator: "; ")
+            + ". \"My page\", \"this page\", \"what I wrote\", \"this site\" or \"the other window\" means what was shown. "
+            + (readsDocs ? "Read a Page, Site or animation shown here with read_doc and its doc_id before answering about what it says; it is the learner's current text. " : "")
+            + "Only the latest message's list is what is open now.\n</also_open_when_sent>"
     }
 
     /// Appended to the learner's turn beside the on-screen framing: the
@@ -480,6 +553,11 @@ enum ChatContextAdditions {
             let id = source.id.trimmingCharacters(in: .whitespacesAndNewlines)
             return !id.isEmpty && seen.insert(id).inserted
         }
+    }
+
+    private static func dedupe(_ open: [OpenItem]) -> [OpenItem] {
+        var seen: Set<String> = []
+        return open.filter { seen.insert($0.key).inserted }
     }
 
     private static func dedupe(_ onScreen: [OnScreen]) -> [OnScreen] {
