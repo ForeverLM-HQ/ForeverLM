@@ -21,6 +21,11 @@ final class MobileMemoryReviewScheduler: ObservableObject {
 
     static let refreshTaskIdentifier = "com.foreverlm.mobile.memory-review.prepare"
     nonisolated static let notificationIdentifier = "com.foreverlm.mobile.memory-review.ready"
+    /// The reminder's category, which carries Review by Voice.
+    nonisolated static let notificationCategory = "com.foreverlm.mobile.memory-review"
+    /// The reminder's Review by Voice action: today's cards out loud, so a
+    /// review can start from the Lock Screen with nothing else to tap.
+    nonisolated static let reviewByVoiceAction = "com.foreverlm.mobile.memory-review.voice"
     private static let lastAttemptDayKey = "memoryReview.dailyPreparation.lastAttemptDay.v1"
     private static let lastAttemptMessageKey = "memoryReview.dailyPreparation.lastAttemptMessage.v1"
 
@@ -62,6 +67,21 @@ final class MobileMemoryReviewScheduler: ObservableObject {
         guard !didRegister else { return }
         didRegister = true
         UNUserNotificationCenter.current().delegate = notificationDelegate
+        UNUserNotificationCenter.current().setNotificationCategories([
+            UNNotificationCategory(
+                identifier: Self.notificationCategory,
+                actions: [
+                    UNNotificationAction(
+                        identifier: Self.reviewByVoiceAction,
+                        title: "Review by Voice",
+                        options: [.foreground],
+                        icon: UNNotificationActionIcon(systemImageName: "waveform")
+                    ),
+                ],
+                intentIdentifiers: []
+            ),
+        ])
+        Task { await Self.carryVoiceActionOnPendingReminder() }
         BGTaskScheduler.shared.register(
             forTaskWithIdentifier: Self.refreshTaskIdentifier,
             using: nil
@@ -166,6 +186,19 @@ final class MobileMemoryReviewScheduler: ObservableObject {
         }
     }
 
+    /// A reminder scheduled before the reminder had Review by Voice repeats
+    /// without it until the next refresh, which may come after the morning's
+    /// reminder: give it the category now, keeping its trigger.
+    private static func carryVoiceActionOnPendingReminder() async {
+        let center = UNUserNotificationCenter.current()
+        guard let pending = await center.pendingNotificationRequests()
+            .first(where: { $0.identifier == notificationIdentifier }),
+              pending.content.categoryIdentifier != notificationCategory,
+              let content = pending.content.mutableCopy() as? UNMutableNotificationContent else { return }
+        content.categoryIdentifier = notificationCategory
+        try? await center.add(UNNotificationRequest(identifier: notificationIdentifier, content: content, trigger: pending.trigger))
+    }
+
     /// One daily reminder at the hour, the same channel the Mac keeps. Tapping
     /// it opens today's card review over every notebook.
     static func refreshReminder(enabled: Bool, hour: Int) async {
@@ -178,6 +211,7 @@ final class MobileMemoryReviewScheduler: ObservableObject {
         content.title = "Time for today's review"
         content.body = "Open Memory to go through today's cards."
         content.sound = .default
+        content.categoryIdentifier = notificationCategory
         var components = DateComponents()
         components.hour = DailyReviewPreparationTiming.clampHour(hour)
         components.minute = 0
@@ -190,7 +224,8 @@ final class MobileMemoryReviewScheduler: ObservableObject {
     }
 }
 
-/// Tapping the reminder opens today's card review. The phone sends no other
+/// Tapping the reminder opens today's card review; its Review by Voice
+/// action reviews the cards out loud instead. The phone sends no other
 /// notification.
 final class MobileMemoryReviewNotificationDelegate: NSObject, UNUserNotificationCenterDelegate {
     func userNotificationCenter(
@@ -204,12 +239,22 @@ final class MobileMemoryReviewNotificationDelegate: NSObject, UNUserNotification
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse
     ) async {
-        guard response.notification.request.identifier == MobileMemoryReviewScheduler.notificationIdentifier,
-              response.actionIdentifier == UNNotificationDefaultActionIdentifier else { return }
-        // Held for the shell rather than posted: a tap that launched the app
-        // arrives before the shell is on screen to hear it.
-        await MainActor.run {
-            MobileAudioReviewViewModel.shared.pendingDeepLink = .review
+        guard response.notification.request.identifier == MobileMemoryReviewScheduler.notificationIdentifier else { return }
+        switch response.actionIdentifier {
+        case MobileMemoryReviewScheduler.reviewByVoiceAction:
+            // Queued like Siri's command: the shell runs it once it is up,
+            // whether the action launched the app or found it running.
+            await MainActor.run {
+                MobileSiriCommandCenter.shared.enqueue(.voiceCardReview())
+            }
+        case UNNotificationDefaultActionIdentifier:
+            // Held for the shell rather than posted: a tap that launched the app
+            // arrives before the shell is on screen to hear it.
+            await MainActor.run {
+                MobileAudioReviewViewModel.shared.pendingDeepLink = .review
+            }
+        default:
+            return
         }
     }
 }

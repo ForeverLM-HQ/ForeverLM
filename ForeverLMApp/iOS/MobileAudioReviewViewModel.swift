@@ -5563,6 +5563,10 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
         case .memoryReview:
             // Today's card review over every notebook; the shell opens it.
             pendingDeepLink = .review
+        case .voiceCardReview:
+            // Review by Voice over every notebook. A conversation already on
+            // (the assistant in CarPlay) keeps going: it grades cards too.
+            await MobileRealtimeVoice.startCardReview(scope: .allNotebooks, scopeTitle: "All notebooks")
         case .pausePlayback:
             if speech.isSpeaking {
                 speech.stop(owner: .voiceTab)
