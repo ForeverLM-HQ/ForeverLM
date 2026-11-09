@@ -153,6 +153,44 @@ enum MobileOpenRouterChat {
             "The AI provider served \(served) instead of the selected model \(route.model). The response was rejected."
         )
     }
+
+    /// One streamed chat completion, gathered line by line into the whole
+    /// answer. For work that wants the complete text and nothing on screen
+    /// while it arrives: streaming is then only what keeps the connection
+    /// alive, because a slow model that answers in one piece leaves the phone
+    /// waiting in silence until the request times out.
+    struct StreamedAnswer: Sendable {
+        private(set) var text = ""
+        private(set) var servedModel: String?
+        /// The provider's own words when it ends a stream with an error frame.
+        private(set) var providerError: String?
+        private(set) var isFinished = false
+
+        /// Takes one line of the event stream. Only "data:" frames carry
+        /// payload; blank separators and the router's keepalive comments are
+        /// what keep a slow answer's connection open, and say nothing else.
+        mutating func consume(line: String) {
+            guard !isFinished, line.hasPrefix("data:") else { return }
+            let payload = line.dropFirst("data:".count).trimmingCharacters(in: .whitespaces)
+            if payload == "[DONE]" {
+                isFinished = true
+                return
+            }
+            guard let data = payload.data(using: .utf8),
+                  let frame = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+            if let error = frame["error"] as? [String: Any] {
+                providerError = (error["message"] as? String) ?? "The AI provider ended the answer with an error."
+                isFinished = true
+                return
+            }
+            if let served = AIUsageParser.servedModel(from: frame) { servedModel = served }
+            if let choices = frame["choices"] as? [[String: Any]],
+               let delta = choices.first?["delta"] as? [String: Any],
+               let fragment = delta["content"] as? String {
+                text += fragment
+            }
+        }
+    }
 }
 
 #if os(iOS)
@@ -171,19 +209,24 @@ enum MobilePaperTextToSpeechPreparation {
         let text: String
     }
 
-    private struct Removal: Hashable, Sendable {
+    private struct Removal: Hashable, Sendable, Codable {
         let blockID: String
         let exactText: String
         let occurrence: Int
     }
 
-    private struct Relocation: Sendable {
+    private struct Relocation: Sendable, Codable {
         let ids: [String]
         let insertAfterID: String
     }
 
-    private struct ChunkPlan: Sendable {
-        let adaptations: [(ids: [String], spokenText: String?)]
+    private struct Adaptation: Sendable, Codable {
+        let ids: [String]
+        let spokenText: String?
+    }
+
+    private struct ChunkPlan: Sendable, Codable {
+        let adaptations: [Adaptation]
         let relocations: [Relocation]
         let removals: [Removal]
     }
@@ -193,8 +236,44 @@ enum MobilePaperTextToSpeechPreparation {
         let plan: ChunkPlan
     }
 
+    /// The windows already planned for one source, kept on disk so a Listen
+    /// that stopped part-way (a dropped connection, the phone suspending the
+    /// app) asks the model only for the windows it never got. Both signatures
+    /// and the window count must match, so a changed source, model or prompt
+    /// starts again from nothing.
+    private struct Checkpoint: Codable {
+        let sourceSignature: String
+        let preparationSignature: String
+        let windowCount: Int
+        var plans: [Int: ChunkPlan]
+    }
+
+    /// A failed window worth asking for again on the same model: the request
+    /// never got an answer, or the provider said it was busy.
+    private struct TransientWindowFailure: Error {
+        let underlying: Error
+    }
+
     private static let maximumRequestCharacters = 48_000
     private static let maximumConcurrentRequests = 4
+    /// Each window is asked for at most this many times. A second and third
+    /// try are the same request to the same model; nothing else is substituted.
+    private static let maximumWindowAttempts = 3
+    /// The longest silence allowed on an open stream. The router sends
+    /// keepalives while a model thinks, so this bounds a dead connection, not
+    /// how long the answer takes.
+    private static let streamIdleTimeout: TimeInterval = 120
+    private static let maximumErrorBodyCharacters = 4_000
+
+    private static let session: URLSession = {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = streamIdleTimeout
+        config.timeoutIntervalForResource = 30 * 60
+        // A request made in a dead spot waits for the radio instead of failing
+        // on the spot.
+        config.waitsForConnectivity = true
+        return URLSession(configuration: config)
+    }()
     private static let task = AITask.paperTextToSpeechPreparation.rawValue
 
     static func prepare(
@@ -239,15 +318,17 @@ enum MobilePaperTextToSpeechPreparation {
             throw MobileSourceChatError.badResponse("This source has no text to prepare for narration.")
         }
 
-        await onProgress?(0, chunks.count)
         let chunkPlans = try await prepareChunks(
+            sourceID: sourceID,
+            sourceSignature: sourceSignature,
+            preparationSignature: preparationSignature,
             route: route,
             sourceType: sourceType,
             title: title,
             chunks: chunks,
             onProgress: onProgress
         )
-        var adaptations: [(ids: [String], spokenText: String?)] = []
+        var adaptations: [Adaptation] = []
         var relocations: [Relocation] = []
         var removals: [Removal] = []
         for plan in chunkPlans {
@@ -283,15 +364,34 @@ enum MobilePaperTextToSpeechPreparation {
     }
 
     private static func prepareChunks(
+        sourceID: String,
+        sourceSignature: String,
+        preparationSignature: String,
         route: ResolvedAITextRoute,
         sourceType: String,
         title: String,
         chunks: [[Block]],
         onProgress: (@MainActor @Sendable (_ completed: Int, _ total: Int) -> Void)?
     ) async throws -> [ChunkPlan] {
-        let initialCount = min(maximumConcurrentRequests, chunks.count)
-        return try await withThrowingTaskGroup(of: IndexedChunkPlan.self) { group in
-            for index in 0..<initialCount {
+        var checkpoint = Checkpoint(
+            sourceSignature: sourceSignature,
+            preparationSignature: preparationSignature,
+            windowCount: chunks.count,
+            plans: [:]
+        )
+        if let saved = loadCheckpoint(sourceID: sourceID),
+           saved.sourceSignature == sourceSignature,
+           saved.preparationSignature == preparationSignature,
+           saved.windowCount == chunks.count {
+            checkpoint.plans = saved.plans.filter { chunks.indices.contains($0.key) }
+        }
+        var missing = chunks.indices.filter { checkpoint.plans[$0] == nil }
+        await onProgress?(checkpoint.plans.count, chunks.count)
+
+        try await withThrowingTaskGroup(of: IndexedChunkPlan.self) { group in
+            func addNext() {
+                guard !missing.isEmpty else { return }
+                let index = missing.removeFirst()
                 let chunk = chunks[index]
                 group.addTask {
                     IndexedChunkPlan(
@@ -307,37 +407,40 @@ enum MobilePaperTextToSpeechPreparation {
                     )
                 }
             }
-
-            var nextIndex = initialCount
-            var completedCount = 0
-            var results: [IndexedChunkPlan] = []
-            results.reserveCapacity(chunks.count)
+            for _ in 0..<maximumConcurrentRequests { addNext() }
             while let result = try await group.next() {
-                results.append(result)
-                completedCount += 1
-                await onProgress?(completedCount, chunks.count)
-
-                if nextIndex < chunks.count {
-                    let index = nextIndex
-                    let chunk = chunks[index]
-                    nextIndex += 1
-                    group.addTask {
-                        IndexedChunkPlan(
-                            index: index,
-                            plan: try await prepareChunk(
-                                route: route,
-                                sourceType: sourceType,
-                                title: title,
-                                chunk: chunk,
-                                index: index,
-                                chunkCount: chunks.count
-                            )
-                        )
-                    }
-                }
+                // Saved as each one lands: a window that failed later must not
+                // cost the ones that were already answered and paid for.
+                checkpoint.plans[result.index] = result.plan
+                saveCheckpoint(checkpoint, sourceID: sourceID)
+                await onProgress?(checkpoint.plans.count, chunks.count)
+                addNext()
             }
-            return results.sorted { $0.index < $1.index }.map(\.plan)
         }
+        return chunks.indices.compactMap { checkpoint.plans[$0] }
+    }
+
+    private static func checkpointURL(sourceID: String) -> URL {
+        FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("ListenPreparation", isDirectory: true)
+            .appendingPathComponent(sha256(sourceID) + ".json")
+    }
+
+    private static func loadCheckpoint(sourceID: String) -> Checkpoint? {
+        guard let data = try? Data(contentsOf: checkpointURL(sourceID: sourceID)) else { return nil }
+        return try? JSONDecoder().decode(Checkpoint.self, from: data)
+    }
+
+    /// Best effort by design: a checkpoint that could not be written costs a
+    /// repeated window on the next try, never a wrong narration.
+    private static func saveCheckpoint(_ checkpoint: Checkpoint, sourceID: String) {
+        let url = checkpointURL(sourceID: sourceID)
+        try? FileManager.default.createDirectory(
+            at: url.deletingLastPathComponent(),
+            withIntermediateDirectories: true
+        )
+        guard let data = try? JSONEncoder().encode(checkpoint) else { return }
+        try? data.write(to: url, options: .atomic)
     }
 
     private static func prepareChunk(
@@ -370,20 +473,90 @@ enum MobilePaperTextToSpeechPreparation {
                 \(taggedBlocks)
                 ]
                 """)],
-            // Match macOS: a long ordering window can legitimately need more
-            // than 4k tokens of compact relocation/adaptation/citation JSON.
-            maxTokens: 8_192,
-            jsonMode: true
+            // The Mac's ceiling for the same pass. A reasoning model spends
+            // this budget on its thinking too, and one that ran out before
+            // writing the plan returned nothing usable.
+            maxTokens: 32_768,
+            jsonMode: true,
+            // Streamed, though nothing is shown while it arrives: asked for in
+            // one piece, a slow model's answer had to land whole within the
+            // request's timeout, and on the phone it regularly did not
+            // (product owner, 2026-11-09: "it would always time out").
+            stream: true
         )
-        request.timeoutInterval = 120
-        let (data, response) = try await URLSession.shared.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
-            let body = String(data: data, encoding: .utf8) ?? "No response body."
-            throw MobileSourceChatError.badResponse("Text-to-speech preparation failed: \(body)")
+        request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+        request.timeoutInterval = streamIdleTimeout
+
+        var attempt = 1
+        while true {
+            do {
+                let answer = try await streamedAnswer(for: request, route: route)
+                return try validatedPlan(answer, blocks: chunk)
+            } catch let failure as TransientWindowFailure {
+                guard attempt < maximumWindowAttempts else { throw failure.underlying }
+                // 2 s, then 8 s: long enough for a busy provider or a cell
+                // handover, short enough that the listener is still there.
+                try await Task.sleep(nanoseconds: UInt64(attempt * attempt) * 2_000_000_000)
+                attempt += 1
+            }
         }
-        let parsed = try MobileOpenRouterChat.text(from: data)
-        try MobileOpenRouterChat.requireSelectedModel(parsed.json, route: route)
-        return try validatedPlan(parsed.text, blocks: chunk)
+    }
+
+    /// One window's whole answer, read off the stream. Failures the same
+    /// request can reasonably outlive come back as `TransientWindowFailure`.
+    private static func streamedAnswer(
+        for request: URLRequest,
+        route: ResolvedAITextRoute
+    ) async throws -> String {
+        var answer = MobileOpenRouterChat.StreamedAnswer()
+        do {
+            let (bytes, response) = try await session.bytes(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                throw MobileSourceChatError.badResponse(
+                    "Text-to-speech preparation failed: the AI provider did not return an HTTP response."
+                )
+            }
+            guard (200...299).contains(http.statusCode) else {
+                var body = ""
+                for try await line in bytes.sseLines {
+                    body += line
+                    if body.count > maximumErrorBodyCharacters { break }
+                }
+                let failure = MobileSourceChatError.badResponse(
+                    "Text-to-speech preparation failed (\(http.statusCode)): \(body.isEmpty ? "No response body." : body)"
+                )
+                if http.statusCode == 408 || http.statusCode == 429 || http.statusCode >= 500 {
+                    throw TransientWindowFailure(underlying: failure)
+                }
+                throw failure
+            }
+            for try await line in bytes.sseLines {
+                try Task.checkCancellation()
+                answer.consume(line: line)
+                if let served = answer.servedModel {
+                    var identity = AIUsageReport.empty
+                    identity.servedModel = served
+                    try MobileOpenRouterChat.requireSelectedModel(report: identity, route: route)
+                }
+                if answer.isFinished { break }
+            }
+        } catch let error as URLError where error.code != .cancelled {
+            throw TransientWindowFailure(underlying: error)
+        }
+        if let providerError = answer.providerError {
+            throw TransientWindowFailure(underlying: MobileSourceChatError.badResponse(
+                "Text-to-speech preparation failed: \(providerError)"
+            ))
+        }
+        // A stream that closed without its end mark was cut off, and what
+        // arrived is part of an answer.
+        guard answer.isFinished else {
+            throw TransientWindowFailure(underlying: URLError(.networkConnectionLost))
+        }
+        guard !answer.text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            throw MobileSourceChatError.badResponse("Text-to-speech preparation returned an empty answer.")
+        }
+        return answer.text
     }
 
     private static func requestChunks(_ blocks: [Block]) -> [[Block]] {
@@ -424,7 +597,7 @@ enum MobilePaperTextToSpeechPreparation {
         }
         let indexByID = Dictionary(uniqueKeysWithValues: blocks.enumerated().map { ($0.element.id, $0.offset) })
         var claimed = Set<String>()
-        var accepted: [(ids: [String], spokenText: String?)] = []
+        var accepted: [Adaptation] = []
         for raw in rawAdaptations {
             guard let ids = raw["blockIDs"] as? [String], !ids.isEmpty,
                   ids.allSatisfy({ indexByID[$0] != nil && !claimed.contains($0) }),
@@ -439,7 +612,7 @@ enum MobilePaperTextToSpeechPreparation {
             guard spoken == nil || (spoken!.count <= 1_200 && spoken!.rangeOfCharacter(from: .alphanumerics) != nil) else {
                 continue
             }
-            accepted.append((ids: ids, spokenText: spoken?.isEmpty == false ? spoken : nil))
+            accepted.append(Adaptation(ids: ids, spokenText: spoken?.isEmpty == false ? spoken : nil))
             claimed.formUnion(ids)
         }
 
@@ -504,7 +677,7 @@ enum MobilePaperTextToSpeechPreparation {
 
     private static func reconstruct(
         blocks: [Block],
-        adaptations: [(ids: [String], spokenText: String?)],
+        adaptations: [Adaptation],
         relocations: [Relocation],
         removals: [Removal]
     ) -> String {

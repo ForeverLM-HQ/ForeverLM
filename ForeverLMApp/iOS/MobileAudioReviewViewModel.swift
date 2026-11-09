@@ -3384,6 +3384,10 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     /// as it thaws, which used to end the whole generation for good.
     private var pendingTextToSpeechResumes: [String: Bool] = [:]
     private var automaticTextToSpeechResumeCounts: [String: Int] = [:]
+    /// Sources whose Listen stopped while the text was still being prepared,
+    /// before any speech was asked for. Restarting one repeats no narration, so
+    /// the automatic resume may pick it up without a speech journal.
+    private var textToSpeechStoppedWhilePreparingText: Set<String> = []
     private var isResumingTextToSpeechGeneration = false
     /// How many times an interrupted generation restarts itself before it waits
     /// for a deliberate Listen. A long absence can strand the same source
@@ -6637,6 +6641,7 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
         // chapter's own text is read, as before. An explainer's script is the
         // one article read as it stands: it was written for the ear, and the
         // pass is never run on it anywhere (`MobileTextToSpeechNarrationPolicy`).
+        textToSpeechStoppedWhilePreparingText.remove(source.id)
         let requiresPreparedNarration = MobileTextToSpeechNarrationPolicy.requiresMacPreparedNarration(
             sourceType: source.sourceType,
             url: source.url
@@ -6662,17 +6667,23 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
             if requiresPreparedNarration {
                 onDetail("Loading source…")
                 let canonicalText = try await sourceTextStore.loadSourceText(sourceID: source.id)
-                let prepared = try await MobilePaperTextToSpeechPreparation.prepare(
-                    sourceID: source.id,
-                    sourceType: source.sourceType,
-                    title: source.title,
-                    canonicalText: canonicalText,
-                    onProgress: { completed, total in
-                        onDetail(completed == 0
-                            ? "Preparing text…"
-                            : "Preparing text \(completed) of \(total)…")
-                    }
-                )
+                let prepared: PreparedMobilePaperNarration
+                do {
+                    prepared = try await MobilePaperTextToSpeechPreparation.prepare(
+                        sourceID: source.id,
+                        sourceType: source.sourceType,
+                        title: source.title,
+                        canonicalText: canonicalText,
+                        onProgress: { completed, total in
+                            onDetail(completed == 0
+                                ? "Preparing text…"
+                                : "Preparing text \(completed) of \(total)…")
+                        }
+                    )
+                } catch {
+                    textToSpeechStoppedWhilePreparingText.insert(source.id)
+                    throw error
+                }
                 return MobilePreparedTextToSpeechNarration(
                     text: prepared.text,
                     sourceContentSignature: prepared.sourceContentSignature,
@@ -7074,10 +7085,16 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
             guard !isPreparingAudio(sourceID: sourceID) else { continue }
             // Only resumable work is restarted automatically. Without a journal
             // the retry would re-narrate — and re-bill — the whole source, which
-            // is the listener's call to make, not this pass's.
-            let hasProgress = await Task.detached(priority: .utility) {
+            // is the listener's call to make, not this pass's. A Listen that
+            // stopped while its text was being prepared has narrated nothing
+            // yet, and the windows it did finish are kept, so it restarts too:
+            // that stop used to end the Listen for good, which on a phone that
+            // was locked or between cells was nearly every time.
+            let stoppedWhilePreparingText = textToSpeechStoppedWhilePreparingText.remove(sourceID) != nil
+            let hasJournal = await Task.detached(priority: .utility) {
                 SyncedArticleAudioStore.hasGenerationProgress(sourceID: sourceID)
             }.value
+            let hasProgress = hasJournal || stoppedWhilePreparingText
             guard hasProgress else {
                 pendingTextToSpeechResumes[sourceID] = nil
                 releaseInterruptedOpeningPlayback(sourceID: sourceID)

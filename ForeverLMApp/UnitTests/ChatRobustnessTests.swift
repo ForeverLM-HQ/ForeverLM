@@ -6556,6 +6556,39 @@ struct AIDataPolicyTests {
         #expect((open["provider"] as? [String: Any])?["sort"] as? String == "throughput")
     }
 
+    @Test("A streamed answer is gathered whole, past keepalives and thinking frames")
+    func streamedAnswerGathersTheWholeText() {
+        var answer = MobileOpenRouterChat.StreamedAnswer()
+        for line in [
+            ": OPENROUTER PROCESSING",
+            "",
+            #"data: {"model":"vendor/model-a","choices":[{"delta":{"reasoning":"thinking"}}]}"#,
+            #"data: {"model":"vendor/model-a","choices":[{"delta":{"content":"{\"adaptations\""}}]}"#,
+            ": OPENROUTER PROCESSING",
+            #"data: {"choices":[{"delta":{"content":":[]}"}}]}"#,
+            #"data: {"choices":[],"usage":{"prompt_tokens":10,"completion_tokens":4}}"#,
+            "data: [DONE]",
+            #"data: {"choices":[{"delta":{"content":"after the end"}}]}"#,
+        ] {
+            answer.consume(line: line)
+        }
+        #expect(answer.text == #"{"adaptations":[]}"#)
+        #expect(answer.servedModel == "vendor/model-a")
+        #expect(answer.isFinished)
+        #expect(answer.providerError == nil)
+    }
+
+    @Test("A stream the provider ends with an error says so instead of passing as an answer")
+    func streamedAnswerKeepsTheProvidersError() {
+        var answer = MobileOpenRouterChat.StreamedAnswer()
+        answer.consume(line: #"data: {"choices":[{"delta":{"content":"{\"adapt"}}]}"#)
+        answer.consume(line: #"data: {"error":{"code":502,"message":"Upstream provider is overloaded"}}"#)
+        answer.consume(line: #"data: {"choices":[{"delta":{"content":"ations\":[]}"}}]}"#)
+        #expect(answer.providerError == "Upstream provider is overloaded")
+        #expect(answer.isFinished)
+        #expect(answer.text == #"{"adapt"#)
+    }
+
     @Test("OpenRouter's data-policy refusal names the switch, only while it is on")
     func dataPolicyRefusalNamesTheSwitch() async throws {
         let refusal = #"{"error":{"message":"No endpoints found matching your data policy","code":404}}"#
