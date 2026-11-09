@@ -3916,7 +3916,12 @@ class StudioViewModel {
     /// Task handle for debounced Apple Podcasts catalog search.
     var podcastCatalogSearchTask: Task<Void, Never>?
     /// Article IDs currently being backfilled for artwork.
-    var artworkBackfillInFlight: Set<String> = []
+    @ObservationIgnored var artworkBackfillInFlight: Set<String> = []
+    /// Pictures found by `backfillArtworkIfNeeded`, by source id, waiting to
+    /// land in `articles` together (`queueBackfilledArtwork`).
+    @ObservationIgnored var pendingBackfilledArtwork: [String: String] = [:]
+    /// The one scheduled write of `pendingBackfilledArtwork`.
+    @ObservationIgnored var backfilledArtworkFlushTask: Task<Void, Never>?
     /// Source IDs currently running a generic content fetch.
     var contentFetchInFlight: Set<String> = []
     /// Papers whose reader has given up on a PDF the publisher refuses to

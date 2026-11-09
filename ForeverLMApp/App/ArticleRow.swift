@@ -283,6 +283,11 @@ struct ArticleRow: View {
             }
         ))
         .task(id: article.artworkURL) {
+            // A row that draws its own document's page never shows a web
+            // picture, so it does not fetch one: a paper with its PDF asked the
+            // publisher's page for an og:image on every scroll into view.
+            guard localDocumentThumbnailPath == nil,
+                  !(article.sourceType == .paper && vm.displayHasUsablePDF(article)) else { return }
             await vm.backfillArtworkIfNeeded(article.id)
         }
         .siriSourceAnnotation(article.id)

@@ -572,36 +572,70 @@ extension StudioViewModel {
         }
     }
 
+    /// A row asks for its picture as it scrolls into view. Each answer used to
+    /// be its own write to `articles`, and every write re-diffs every row of
+    /// the List it lands in: on a ~1,000-paper Papers tab that was 1–2 s of
+    /// main thread per answer, so scrolling stalled again and again (product
+    /// owner, 2026-11-08: "very glitchy and slow. It needs to be super fast").
+    /// The lookup is the id index, not a scan of the library, and the answers
+    /// land together in one write (`queueBackfilledArtwork`).
     func backfillArtworkIfNeeded(_ articleId: String) async {
-        guard let idx = articles.firstIndex(where: { $0.id == articleId }) else { return }
-        guard articles[idx].artworkURL == nil else { return }
+        guard let article = articlesStore.articlesById[articleId],
+              article.artworkURL == nil else { return }
 
         // An X post's picture is its author's. It is not in the page metadata
         // the og:image path below reads — x.com answers an HTTP client with a
         // login wall — so it comes from X's own endpoints instead.
-        if articles[idx].sourceType == .xPost {
+        if article.sourceType == .xPost {
             await backfillXPostArtwork()
             return
         }
 
         // YouTube thumbnails are deterministic — no fetch needed
-        if let thumb = articles[idx].youtubeThumbnailURL {
-            articles[idx].artworkURL = thumb
+        if let thumb = article.youtubeThumbnailURL {
+            queueBackfilledArtwork(thumb, for: articleId)
             return
         }
 
-        guard shouldBackfillArtwork(for: articles[idx]) else { return }
-        guard !artworkBackfillInFlight.contains(articleId) else { return }
-        guard let url = URL(string: articles[idx].url) else { return }
+        guard shouldBackfillArtwork(for: article) else { return }
+        guard pendingBackfilledArtwork[articleId] == nil,
+              !artworkBackfillInFlight.contains(articleId) else { return }
+        guard let url = URL(string: article.url) else { return }
 
         artworkBackfillInFlight.insert(articleId)
         defer { artworkBackfillInFlight.remove(articleId) }
 
         guard let imageURL = await Self.fetchArtworkURL(for: url) else { return }
-        guard let idx2 = articles.firstIndex(where: { $0.id == articleId }) else { return }
-        guard articles[idx2].artworkURL != imageURL else { return }
+        queueBackfilledArtwork(imageURL, for: articleId)
+    }
 
-        articles[idx2].artworkURL = imageURL
+    /// Holds a found picture for the next batched write. The first one
+    /// schedules that write a fixed time ahead and later ones join it, so a
+    /// steady stream of answers cannot postpone it the way a trailing debounce
+    /// would.
+    private func queueBackfilledArtwork(_ artworkURL: String, for articleId: String) {
+        pendingBackfilledArtwork[articleId] = artworkURL
+        guard backfilledArtworkFlushTask == nil else { return }
+        backfilledArtworkFlushTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            self?.flushBackfilledArtwork()
+        }
+    }
+
+    private func flushBackfilledArtwork() {
+        backfilledArtworkFlushTask = nil
+        let pending = pendingBackfilledArtwork
+        pendingBackfilledArtwork = [:]
+        guard !pending.isEmpty else { return }
+        var updated = articles
+        var changed = false
+        for idx in updated.indices {
+            guard let artworkURL = pending[updated[idx].id],
+                  updated[idx].artworkURL == nil else { continue }
+            updated[idx].artworkURL = artworkURL
+            changed = true
+        }
+        if changed { articles = updated }
     }
 
     /// Classify sources with `source_type = 'unclassified'` as article, paper, or book via LLM.
