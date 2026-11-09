@@ -118,6 +118,8 @@ struct ForeverLMMobileApp: App {
                     Task { await MobileSyncSession.startIfEnabled() }
                 }
                 await viewModel.load(forceRefresh: false)
+                // The daily quiz reminder, on for every signed-in phone.
+                await MobileMemoryReviewScheduler.ensureDailyReminder(hour: MobileMemoryReviewScheduler.shared.hour)
                 await viewModel.importPendingSharedSources()
                 await viewModel.handlePendingSiriCommandIfNeeded()
                 hasCompletedInitialLoad = true

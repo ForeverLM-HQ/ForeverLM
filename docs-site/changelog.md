@@ -6,7 +6,8 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
-- **The iPhone opens on voice.** Home is one large voice button: talk about anything, name a source, or ask it to go through today's cards, and type instead whenever you can't talk (every voice conversation now has a field for that, so the gym is just voice). Under it, a quiet pill with today's card count opens the card review, pictures and all. Everything else (notebooks, the library, To Read, Follow Up, Spaces, Memory, Settings) is in the menu at the bottom.
+- **The iPhone opens on voice.** Home is ForeverLM's mark: tap it to talk about anything, name a source, or go through today's cards, which voice offers first when they are due; type instead whenever you can't talk (every voice conversation now has a field for that, so the gym is just voice). Everything else (notebooks, the library, To Read, Follow Up, Spaces, **Review Cards** to tap through them with their pictures, Memory and Settings) is in the menu at the bottom.
+- **A daily quiz reminder on the iPhone,** on by default at 7:00 (or your review hour): tap it to go through today's cards, or use its Memory Check by Voice button. iOS asks once for permission.
 
 ## 0.206.0 (build 286) — 2026-11-08
 

@@ -12,10 +12,9 @@ enum MobileNotebookGlyph {
 /// Home, a voice interface (product owner, 2026-11-09: "can it just be mostly a
 /// voice interface? And then the other things we might want to do are a bit more
 /// like tucked away in the app, just on an as needed basis"): the voice button in
-/// the middle, today's cards as one quiet pill under it, and everything else in
-/// the menu at the foot (`MobileHomeDashboard`). A running bout sits at the top
-/// while there is one. Voice reaches the rest by itself: it opens a source the
-/// learner names, and goes through today's cards when asked.
+/// the middle and everything else in the menu at the foot (`MobileHomeDashboard`).
+/// A running bout sits at the top while there is one. Voice reaches the rest by
+/// itself: it opens a source the learner names, and offers today's cards first.
 struct MobileNotebookHomeView: View {
     /// Pushes a route on the shell's stack.
     let open: (MobileShellRoute) -> Void
@@ -25,12 +24,9 @@ struct MobileNotebookHomeView: View {
     @ObservedObject private var boutTimer = MobileLearningBoutTimer.shared
     /// The Space, whose menu item shows once the phone's pages can open here (generation 2).
     @Environment(MobileSpaceStore.self) private var spaceStore
-    /// Today's cards as the Memory screen counts them; nil until read.
-    @State private var cardCounts: MemoryCardDayCounts?
 
     var body: some View {
         MobileHomeDashboard(
-            cards: homeCardCounts,
             showsSpaces: spaceStore.isAvailable,
             actions: MobileHomeActions(
                 open: open,
@@ -41,19 +37,9 @@ struct MobileNotebookHomeView: View {
                 MobileLearningBoutCard(timer: boutTimer)
             }
         }
-        .task(id: vm.memoryCardsRevision) {
-            cardCounts = await vm.cardReviewRead(scope: .allNotebooks).counts
-        }
         .task {
             if !spaceStore.isAvailable { await spaceStore.refresh() }
         }
-    }
-
-    /// Today's cards as the Memory screen reads them, or, until that read
-    /// lands, the widget's count; nil while nothing has synced.
-    private var homeCardCounts: MemoryCardDayCounts? {
-        guard !vm.allSources.isEmpty else { return nil }
-        return cardCounts ?? MemoryCardDayCounts(today: vm.todayMemoryCards, practice: 0)
     }
 }
 

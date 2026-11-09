@@ -8,17 +8,15 @@ import SwiftUI
 /// just on an as needed basis").
 ///
 /// One large voice button in the middle (talk, or type when you can't: the voice
-/// screen has the field); today's cards as one quiet pill under it, which opens
-/// the card review with its pictures; and one menu at the foot holding the rest:
-/// notebooks, the library, To Read, Follow Up, the Space, Memory and Settings.
-/// Voice itself opens a source the learner names and goes through today's cards
-/// when asked, so neither needs a button of its own.
+/// screen has the field), and one menu at the foot holding the rest: notebooks,
+/// the library, To Read, Follow Up, the Space, Memory (the card review that is
+/// tapped through, pictures and all) and Settings. Voice opens a source the
+/// learner names, and offers today's cards first when they are due ("maybe even
+/// get rid of this cards stuff; do that voice only also by default").
 ///
 /// It draws only what it is handed, so Home (`MobileNotebookHomeView`) and the
 /// DEBUG harness (`MobileHomeHarness`) draw the same screen.
 struct MobileHomeDashboard<Top: View>: View {
-    /// Today's cards; nil until the phone knows (nothing synced yet).
-    let cards: MemoryCardDayCounts?
     /// Whether the menu offers the Space (it opens on generation 2).
     let showsSpaces: Bool
     let actions: MobileHomeActions
@@ -32,10 +30,6 @@ struct MobileHomeDashboard<Top: View>: View {
                 .padding(.top, MobileDesign.Spacing.small)
             Spacer(minLength: MobileDesign.Spacing.xLarge)
             MobileHomeVoiceButton(talk: actions.talk)
-            if let cards, cards.today > 0 {
-                MobileHomeCardsPill(count: cards.today) { actions.open(.cardReview(.allNotebooks)) }
-                    .padding(.top, 40)
-            }
             Spacer(minLength: MobileDesign.Spacing.xLarge)
             HStack {
                 MobileHomeMenu(showsSpaces: showsSpaces, open: actions.open)
@@ -129,35 +123,6 @@ struct MobileHomeVoiceButton: View {
     }
 }
 
-// MARK: - Today's cards
-
-/// Today's cards as one quiet pill: the count, which opens the card review
-/// (tap through the cards, pictures and all). Drawn only while cards wait.
-struct MobileHomeCardsPill: View {
-    let count: Int
-    let review: () -> Void
-
-    var body: some View {
-        Button(action: review) {
-            HStack(spacing: 8) {
-                Image(systemName: "rectangle.stack")
-                    .accessibilityHidden(true)
-                Text(count == 1 ? "1 card" : "\(count) cards")
-                    .monospacedDigit()
-            }
-            .font(.body.weight(.semibold))
-            .foregroundStyle(.primary)
-            .padding(.horizontal, 22)
-            .frame(height: 48)
-            .background(MobileHomeMetrics.fill, in: Capsule())
-            .contentShape(Capsule())
-        }
-        .buttonStyle(MobileHomePressStyle())
-        .accessibilityLabel(count == 1 ? "Review 1 card" : "Review \(count) cards")
-        .accessibilityIdentifier("home.review")
-    }
-}
-
 // MARK: - The menu
 
 /// Everything that is not voice or today's cards, tucked into one menu at the
@@ -179,6 +144,9 @@ struct MobileHomeMenu: View {
                 }
             }
             Section {
+                // Today's cards tapped through, pictures and all (voice is the
+                // default way through them).
+                Button("Review Cards", systemImage: "rectangle.stack") { open(.cardReview(.allNotebooks)) }
                 Button("Memory", systemImage: MemoryReviewSession.sidebarIcon) { open(.memory) }
                 Button("Settings", systemImage: "gearshape") { open(.settings) }
             }

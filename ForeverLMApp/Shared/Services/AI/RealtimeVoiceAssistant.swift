@@ -134,9 +134,13 @@ enum RealtimeVoiceAssistant {
 
     static func kickoff(setting: Setting) -> String {
         switch setting {
+        // On the phone and in the car cards are reviewed by voice by default (product
+        // owner, 2026-11-09): Home has no card button, so voice offers them first.
         case .car:
-            return "(The learner just started ForeverLM in the car. Greet them in one short sentence, and offer one useful, specific thing from what you know: what is next in their plan, or the source they were last into. Then listen.)"
-        case .phone, .mac:
+            return "(The learner just started ForeverLM in the car. Greet them in one short sentence. If today's cards are due, offer to go through them out loud first; otherwise offer one useful, specific thing from what you know: what is next in their plan, or the source they were last into. Then listen.)"
+        case .phone:
+            return "(The learner just opened ForeverLM's voice assistant. Greet them in one short sentence. If today's cards are due, offer to go through them out loud first; otherwise ask what they would like to do, offering one specific suggestion from what you know.)"
+        case .mac:
             return "(The learner just opened ForeverLM's voice assistant. Greet them in one short sentence and ask what they would like to do, offering one specific suggestion from what you know.)"
         }
     }

@@ -116,7 +116,7 @@ struct MobileSettingsView: View {
                     .onChange(of: prepareDailyReviewHour) { _, hour in
                         reviewScheduler.hour = hour
                         reviewScheduler.scheduleNextRefresh()
-                        Task { await MobileMemoryReviewScheduler.refreshReminder(enabled: true, hour: hour) }
+                        Task { await MobileMemoryReviewScheduler.refreshReminder(hour: hour) }
                     }
                     LabeledContent("Today") {
                         Text(memoryPreparationStatus)
@@ -383,10 +383,8 @@ struct MobileSettingsView: View {
                             forKey: DailyReviewPreparationKeys.enabled
                         )
                         memorySettingsError = nil
-                        if enabled {
-                            _ = await MobileMemoryReviewScheduler.requestNotificationAuthorization()
-                        }
-                        await MobileMemoryReviewScheduler.refreshReminder(enabled: enabled, hour: reviewScheduler.hour)
+                        // The daily quiz reminder stays on either way
+                        // (`MobileMemoryReviewScheduler.ensureDailyReminder`).
                         reviewScheduler.scheduleNextRefresh()
                     } catch {
                         prepareDailyReview = !enabled

@@ -157,7 +157,7 @@ final class MobileMemoryReviewScheduler: ObservableObject {
         do {
             let record = try await MobileMemoryReviewPreparer.shared.prepare(now: now)
             recordAttempt(day: day, message: nil)
-            await Self.refreshReminder(enabled: true, hour: hour)
+            await Self.refreshReminder(hour: hour)
             _ = record
             return .prepared
         } catch {
@@ -200,17 +200,30 @@ final class MobileMemoryReviewScheduler: ObservableObject {
         try? await center.add(UNNotificationRequest(identifier: notificationIdentifier, content: content, trigger: pending.trigger))
     }
 
+    /// The daily quiz reminder, on for every signed-in phone (product owner,
+    /// 2026-11-09: "make sure there are push notifications every day for me to
+    /// do my daily quiz"), not only while "Have today's review ready" is on:
+    /// asks iOS once, then keeps the reminder at the hour. Turning it off is
+    /// iOS's own Settings › Notifications.
+    static func ensureDailyReminder(hour: Int) async {
+        let center = UNUserNotificationCenter.current()
+        if await center.notificationSettings().authorizationStatus == .notDetermined {
+            _ = await requestNotificationAuthorization()
+        }
+        await refreshReminder(hour: hour)
+    }
+
     /// One daily reminder at the hour, the same channel the Mac keeps. Tapping
-    /// it opens today's card review over every notebook.
-    static func refreshReminder(enabled: Bool, hour: Int) async {
+    /// it opens today's card review over every notebook; its action starts
+    /// Memory Check by Voice.
+    static func refreshReminder(hour: Int) async {
         let center = UNUserNotificationCenter.current()
         center.removePendingNotificationRequests(withIdentifiers: [notificationIdentifier])
-        guard enabled else { return }
         let settings = await center.notificationSettings()
         guard settings.authorizationStatus == .authorized || settings.authorizationStatus == .provisional else { return }
         let content = UNMutableNotificationContent()
-        content.title = "Time for today's review"
-        content.body = "Open Memory to go through today's cards."
+        content.title = "Time for today's quiz"
+        content.body = "Tap to go through today's cards, or do them by voice."
         content.sound = .default
         content.categoryIdentifier = notificationCategory
         var components = DateComponents()

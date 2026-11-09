@@ -42,7 +42,11 @@ enum MobileRealtimeAssistant {
         async let schedule = toolbox.scheduleText(days: 7, now: now)
         async let goals = toolbox.goalsText()
         async let recent = toolbox.recentText(now: now)
+        async let cards = dueCardsText()
         let sections = await [
+            // First, so voice offers the review when cards wait (Home has no
+            // card button since 2026-11-09: cards are voice by default).
+            RealtimeVoiceAssistant.Section(title: "Today's cards", text: cards),
             RealtimeVoiceAssistant.Section(title: "Quarter plan", text: plan ?? ""),
             RealtimeVoiceAssistant.Section(title: "Calendar this week", text: calendar),
             RealtimeVoiceAssistant.Section(title: "Schedule", text: schedule),
@@ -56,6 +60,18 @@ enum MobileRealtimeAssistant {
             toolbox: toolbox,
             source: nil
         )
+    }
+
+    /// How many review cards wait today over every notebook, as the card
+    /// review deals them.
+    @MainActor
+    private static func dueCardsText() async -> String {
+        let count = await MobileCardReviewSession.Backend.live().deal(.today(.allNotebooks), .today, Date()).cards.count
+        switch count {
+        case 0: return "No review cards are due today."
+        case 1: return "1 review card is due today."
+        default: return "\(count) review cards are due today."
+        }
     }
 
     final class Toolbox: RealtimeVoiceToolbox, @unchecked Sendable {
