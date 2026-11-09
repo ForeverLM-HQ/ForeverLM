@@ -255,9 +255,29 @@ export function installSelectionActions({ document: document_ = document, action
     });
   };
 
+  // WebKit draws the selection in pieces as a drag grows it, and in the Mac
+  // app a piece can go unredrawn: a strip of plain background under one line
+  // of an otherwise solid band (product owner, 2026-11-08: "still seeing a
+  // weird line when i highlight stuff"). The same page, text, width and drag
+  // in the same system WebKit drew one clean band, so this redraws every reply
+  // the finished selection touches, in one pass: a change of background image
+  // that paints nothing still repaints the whole reply.
+  const repaintSelection = () => {
+    const selection = window_.getSelection();
+    if (!selection || selection.rangeCount === 0) return;
+    const range = selection.getRangeAt(0);
+    const replies = [...document_.querySelectorAll(".chat-rendered")].filter((reply) => range.intersectsNode(reply));
+    for (const reply of replies) reply.classList.add("chat-selection-repaint");
+    window_.requestAnimationFrame(() => {
+      for (const reply of replies) reply.classList.remove("chat-selection-repaint");
+    });
+  };
+
   const check = () => {
-    if (selectionText()) place();
-    else hide();
+    if (selectionText()) {
+      repaintSelection();
+      place();
+    } else hide();
   };
 
   // Only a finished gesture shows the bar: mouse-up, or a keyboard selection.

@@ -30,9 +30,11 @@ enum PaperFigureIndexContract {
     /// Bumped when the structural read of a PDF changes what it indexes, so a
     /// paper indexed under an older version is read again the next time
     /// anything prepares its figures (`enqueuePaperFigureIndexIfNeeded`
-    /// re-queues a state row below this number). Nothing sweeps the library:
-    /// the re-read happens per paper, on use, and the writer's structure-only
-    /// read (`prepareStructure`) runs no vision. Existing analyses survive by
+    /// re-queues a state row below this number). The re-read happens per
+    /// paper, on use, and once for the whole library at launch since
+    /// 2026-11-08 (`runDeferredPaperFigureIndexBackfill`, so every paper's
+    /// figure mentions link): both are the structure-only read
+    /// (`prepareStructure`), which runs no vision. Existing analyses survive by
     /// figure id, so only figures new to the index are ever analysed.
     ///
     /// 1: main figures ("Figure 3", "Fig. S2").
@@ -326,6 +328,49 @@ extension KnowledgeStore {
         }
         guard let pdfPath else { return }
         try enqueuePaperFigureIndexIfNeeded(sourceID: sourceID, pdfPath: pdfPath, force: force)
+    }
+
+    /// Whether the paper's figure index was built under the current rules, so
+    /// it can be read as stored rather than read out of the PDF again.
+    func paperFigureIndexIsCurrent(sourceID: String) throws -> Bool {
+        var isCurrent = false
+        try queryBind("""
+            SELECT 1 FROM paper_figure_index_state
+            WHERE source_id = ? AND index_version >= ?
+            LIMIT 1
+        """, bind: { stmt in
+            bind(stmt, 1, sourceID)
+            sqlite3_bind_int(stmt, 2, Int32(PaperFigureIndexContract.currentVersion))
+        }) { _ in isCurrent = true }
+        return isCurrent
+    }
+
+    /// The papers whose figure index is missing or was built under older
+    /// rules: what the library's one backfill reads (product owner, 2026-11-08:
+    /// "backfill that in our library of papers"), so every paper's figure
+    /// mentions open their figures. Papers only, as the historical staging is;
+    /// a paper whose read failed three times is left alone.
+    func papersNeedingFigureIndex() throws -> [String] {
+        var ids: [String] = []
+        try queryBind("""
+            SELECT p.source_id
+            FROM papers p
+            JOIN sources s ON s.id = p.source_id
+            LEFT JOIN paper_figure_index_state st ON st.source_id = p.source_id
+            LEFT JOIN paper_figure_index_queue q ON q.source_id = p.source_id
+            WHERE s.status = 'active'
+              AND p.local_file_path IS NOT NULL
+              AND TRIM(p.local_file_path) != ''
+              AND LOWER(p.local_file_path) LIKE '%.pdf'
+              AND (st.source_id IS NULL OR st.index_version < ?)
+              AND COALESCE(q.attempt_count, 0) < 3
+            ORDER BY p.source_id
+        """, bind: { stmt in
+            sqlite3_bind_int(stmt, 1, Int32(PaperFigureIndexContract.currentVersion))
+        }) { stmt in
+            if let id = self.string(stmt, 0) { ids.append(id) }
+        }
+        return ids
     }
 
     func paperFigureIndexQueueCount() throws -> Int {

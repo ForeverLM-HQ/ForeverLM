@@ -526,6 +526,7 @@ class StudioViewModel {
     @ObservationIgnored var paperFigureMarkdownRepairInFlight = false
     @ObservationIgnored var sourceWordCountRepairInFlight = false
     @ObservationIgnored var paperFigureImageSweepInFlight = false
+    @ObservationIgnored var paperFigureIndexBackfillInFlight = false
     @ObservationIgnored var missingPaperPDFDownloadTask: Task<Void, Never>?
     /// Auto-fetch bookkeeping: every paper that needs a PDF gets one silent
     /// background fetch attempt per session, deduplicated through this set so we
@@ -4423,6 +4424,43 @@ class StudioViewModel {
                 message: error.localizedDescription
             )
         }
+    }
+
+    /// Build the figure index of every paper that has none, or one built under
+    /// older rules, so a figure mention in any paper's text opens its figure
+    /// (product owner, 2026-11-08: "make that the case for all figures in the
+    /// library", "backfill that in our library of papers"). The structural
+    /// read only: the PDF's caption lines, no model and no credits. One paper
+    /// at a time, at the launch's utility priority; a paper finished is
+    /// current and is not read again, so the sweep ends itself and resumes
+    /// where a quit left it.
+    func runDeferredPaperFigureIndexBackfill() async {
+        guard !paperFigureIndexBackfillInFlight else { return }
+        paperFigureIndexBackfillInFlight = true
+        defer { paperFigureIndexBackfillInFlight = false }
+        let ids: [String]
+        do {
+            ids = try await storage.papersNeedingFigureIndex()
+        } catch {
+            logger.error("Figure index backfill could not list papers: \(error.localizedDescription)")
+            return
+        }
+        guard !ids.isEmpty else { return }
+        var indexed = 0
+        var failed = 0
+        for id in ids {
+            guard !Task.isCancelled else { break }
+            do {
+                _ = try await paperFigureIndexer.prepareStructure(sourceID: id)
+                indexed += 1
+            } catch {
+                // The indexer files the failure against the paper; three and
+                // the backfill leaves it alone.
+                failed += 1
+            }
+            await Task.yield()
+        }
+        logger.notice("Figure index backfill read \(indexed) paper(s); \(failed) could not be read")
     }
 
     /// Drain canonical cleanup and prepare already-eligible Listen derivatives

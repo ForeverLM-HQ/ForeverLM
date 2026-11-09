@@ -1013,6 +1013,16 @@ actor StorageService {
         try knowledgeStore().ensurePaperFigureIndexQueuedForReview(sourceID: sourceID, force: force)
     }
 
+    func paperFigureIndexIsCurrent(sourceID: String) throws -> Bool {
+        try ensureStoreExists()
+        return try knowledgeStore().paperFigureIndexIsCurrent(sourceID: sourceID)
+    }
+
+    func papersNeedingFigureIndex() throws -> [String] {
+        try ensureStoreExists()
+        return try knowledgeStore().papersNeedingFigureIndex()
+    }
+
     func paperFigureIndexQueueCount() throws -> Int {
         try ensureStoreExists()
         return try knowledgeStore().paperFigureIndexQueueCount()

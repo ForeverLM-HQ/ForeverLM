@@ -32,6 +32,11 @@
   position: relative;
 }
 
+/* Set for one frame when a selection gesture ends (`mac-selection-actions.js`):
+   an image that draws nothing, so WebKit repaints the whole reply and no strip
+   of a half-drawn selection band is left behind. */
+.chat-rendered.chat-selection-repaint { background-image: linear-gradient(transparent, transparent); }
+
 .chat-rendered p { margin: 0 0 0.25em; }
 .chat-rendered > p:not(:first-child) { margin-top: 0.5em; }
 .chat-rendered > p + p { margin-block: 1em; }

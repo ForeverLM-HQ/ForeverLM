@@ -164,6 +164,31 @@ actor WalkthroughAnchorResolver {
         )
     }
 
+    /// A whole figure drawn alone for the lightbox (PNG, at `pixelSize` on
+    /// its longer side), with its caption and page: what a click on a figure
+    /// mention in the paper's text opens (`ReaderFigureMentionLinks`). The
+    /// figure's page alone, with no picture, when the page yields no crop;
+    /// nil when the index has no such figure.
+    func figureLens(
+        labelled label: String,
+        pixelSize: CGFloat,
+        maximumScale: CGFloat
+    ) -> (pageIndex: Int, caption: String, image: Data?)? {
+        guard let record = Self.figureRecord(labelled: label, in: figures) else { return nil }
+        // Nature's "See next page for caption" stub takes its words from the
+        // continuation, as the legends panel shows it.
+        let caption = PaperWalkthroughGeneratorService.displayRecord(for: record, in: figures).caption
+        let shares = Set(figures.filter { $0.pageIndex == record.pageIndex }.map { $0.figureLabel.lowercased() }).count > 1
+        guard let crop = figureCrop(for: record, sharesPage: shares), let page = page(at: record.pageIndex) else {
+            return (record.pageIndex, caption, nil)
+        }
+        let key = "\(record.id)/lightbox/\(Int(pixelSize))"
+        if let cached = lenses[key] { return (record.pageIndex, caption, cached) }
+        let image = Self.renderLens(crop, on: page, pixelSize: pixelSize, maximumScale: maximumScale, lossless: true)
+        if let image { lenses[key] = image }
+        return (record.pageIndex, caption, image)
+    }
+
     /// The figures on one page as the Reader's Clip tool matches and snaps a
     /// box to them: each figure's crop and its panels', from the same cached
     /// reads a walkthrough step makes. Empty for a page with no indexed figure,

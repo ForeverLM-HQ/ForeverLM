@@ -458,6 +458,11 @@ extension StudioViewModel {
             await self.runDeferredPaperFigureImageSweep()
             await self.runDeferredMemoryScheduleRebuild()
             self.scheduleBookCoverPathPopulation()
+            // Long (a read of every paper's PDF the first time), so on a task
+            // of its own: nothing below waits for it.
+            Task(priority: .utility) { [weak self] in
+                await self?.runDeferredPaperFigureIndexBackfill()
+            }
 
             do {
                 self.learningGoalLinkedSourceIds = try await self.storage.sourceIdsWithReviewSession()

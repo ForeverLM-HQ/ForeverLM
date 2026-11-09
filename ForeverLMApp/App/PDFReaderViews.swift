@@ -1432,6 +1432,8 @@ struct PDFKitInlineView: NSViewRepresentable {
         context.coordinator.callout.attach(toPDFView: pdfView)
         context.coordinator.referencePreview.attach(to: pdfView)
         configureReferencePreview(context.coordinator.referencePreview)
+        // After the citation card, whose link handlers it passes other links to.
+        context.coordinator.figureMentions.attach(to: pdfView, vm: vm, sections: context.coordinator.documentSections(of: pdfView))
         context.coordinator.installNoteHandling(in: pdfView, vm: vm)
         context.coordinator.clipTool.attach(to: pdfView, vm: vm, host: context.coordinator.clipHost(for: pdfView))
 
@@ -1484,6 +1486,7 @@ struct PDFKitInlineView: NSViewRepresentable {
             context.coordinator.walkthroughSpotlight.reset()
             context.coordinator.questionLayer.reset()
             context.coordinator.referencePreview.documentChanged()
+            context.coordinator.figureMentions.documentChanged()
             context.coordinator.clipTool.reset()
         }
         ReaderDarkMode.apply(darkensPage, to: nsView)
@@ -1523,6 +1526,7 @@ struct PDFKitInlineView: NSViewRepresentable {
         NotificationCenter.default.removeObserver(coordinator, name: .PDFViewScaleChanged, object: nsView)
         coordinator.callout.detach()
         coordinator.referencePreview.detach()
+        coordinator.figureMentions.detach()
         coordinator.walkthroughSpotlight.clear()
         coordinator.questionLayer.detach()
         coordinator.clipTool.detach()
@@ -1579,6 +1583,8 @@ struct PDFKitInlineView: NSViewRepresentable {
         private var questionsMemoryRevision: Int?
         /// What a citation link's reference entry says, under the pointer.
         let referencePreview = ReaderPDFReferencePreview()
+        /// Figure mentions in the text as links that open their figure.
+        let figureMentions = ReaderFigureMentionLinks()
 
         init(parent: PDFKitInlineView) {
             self.parent = parent
@@ -1893,6 +1899,14 @@ struct PDFKitInlineView: NSViewRepresentable {
         /// the whole document is.
         private func sections(in document: PDFDocument) -> [PDFDocumentSection] {
             parent.sections ?? [PDFDocumentSection(sourceID: parent.sourceID, pageRange: 0..<document.pageCount)]
+        }
+
+        /// The document's sections as the view's document stands when asked.
+        func documentSections(of pdfView: PDFView) -> () -> [PDFDocumentSection] {
+            { [weak self, weak pdfView] in
+                guard let self, let document = pdfView?.document else { return [] }
+                return self.sections(in: document)
+            }
         }
 
         /// What the Clip tool asks of this reader: the chapter a page belongs

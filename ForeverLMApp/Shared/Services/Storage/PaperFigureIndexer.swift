@@ -187,6 +187,18 @@ actor PaperFigureIndexer {
         try await prepare(sourceID: sourceID, analyzing: [])
     }
 
+    /// The figures the Reader links a paper's figure mentions to: the stored
+    /// index when it was built under the current rules, else the free
+    /// structural read. Unlike `prepareStructure`, a current index is never
+    /// read again because some of its figures are unexplained, so opening a
+    /// paper does not reread its PDF every time.
+    func figuresForReading(sourceID: String) async throws -> [PaperFigureRecord] {
+        if inFlight[sourceID] == nil, try await storage.paperFigureIndexIsCurrent(sourceID: sourceID) {
+            return try await storage.paperFigures(sourceID: sourceID)
+        }
+        return try await prepareStructure(sourceID: sourceID)
+    }
+
     /// The label match the tools use: case-folded, and blind to whether the
     /// paper prints "Fig." or "Figure".
     static func figure(labelled label: String, in figures: [PaperFigureRecord]) -> PaperFigureRecord? {
