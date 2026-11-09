@@ -529,6 +529,9 @@ struct ForeverLMApp: App {
                 .environment(studioViewModel.articlesStore)
                 .environment(studioViewModel.readingProgressStore)
                 .environment(managedAIAccount)
+                // A `Link` or a link in a `Text` opens where Settings ›
+                // Sources › Links says: the Browser pane by default.
+                .environment(\.openURL, OpenURLAction { WebLinkOpening.handle($0) })
                 .environmentObject(appUpdateController)
                 .environmentObject(CloudKitSyncStatusCenter.shared)
                 .appUIZoom(step: $uiZoomStep)

@@ -363,7 +363,7 @@ struct RemotePDFFailureView: View {
 
     private var openInBrowserButton: some View {
         Button {
-            NSWorkspace.shared.open(browserURL)
+            WebLinkOpening.open(browserURL)
         } label: {
             Label(failure.isPaywall ? "Open Publisher Page" : "Open in Browser", systemImage: "safari")
         }

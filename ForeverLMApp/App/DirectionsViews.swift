@@ -414,7 +414,7 @@ private struct DirectionEvidenceRow: View {
                         dismiss()
                         Task { await vm.openLinkedSourceInReader(librarySourceID, beside: .goals) }
                     } else if let url = evidence.openURL {
-                        _ = NSWorkspace.shared.open(url)
+                        WebLinkOpening.open(url)
                     }
                 } label: {
                     Text(evidence.title.map { "\(evidence.citation) — \($0)" } ?? evidence.citation)

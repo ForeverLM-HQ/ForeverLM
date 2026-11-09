@@ -1963,9 +1963,12 @@ final class FindablePDFView: PDFView {
                 return
             }
             // PDFKit follows a web link only where no highlight covers it, and
-            // would open the highlight instead.
-            if hit.coveredByMark, let url = ReaderPDFLinkHitTest.externalURL(of: hit.annotation) {
-                NSWorkspace.shared.open(url)
+            // would open the highlight instead; and it hands every link to
+            // macOS, where a web link should open where Settings › Sources ›
+            // Links says (`WebLinkOpening`).
+            if let url = ReaderPDFLinkHitTest.externalURL(of: hit.annotation),
+               hit.coveredByMark || WebLinkOpening.isWebLink(url) {
+                WebLinkOpening.open(url)
                 swallowingLinkClick = true
                 return
             }

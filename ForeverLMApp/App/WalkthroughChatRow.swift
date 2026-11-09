@@ -943,7 +943,7 @@ private struct WalkthroughCitedWorkCard: View {
             Button("Open Page") { open(shown, libraryID: nil) }
             Button("Add to Library") { Task { await vm.addCitedPageToSources(address) } }
         } else if let search = shown.scholarSearchURL {
-            Button("Search Google Scholar") { _ = NSWorkspace.shared.open(search) }
+            Button("Search Google Scholar") { WebLinkOpening.open(search) }
         }
         Divider()
         Button("Copy Citation") { Self.copy(shown.referenceLine) }
@@ -958,7 +958,7 @@ private struct WalkthroughCitedWorkCard: View {
         } else if let address = shown.address {
             vm.openWebCitationInReader(address, title: shown.title)
         } else if let search = shown.scholarSearchURL {
-            _ = NSWorkspace.shared.open(search)
+            WebLinkOpening.open(search)
         }
     }
 

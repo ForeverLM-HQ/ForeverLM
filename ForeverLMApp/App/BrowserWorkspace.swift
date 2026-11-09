@@ -2,6 +2,7 @@ import AppKit
 import Foundation
 import Observation
 import Security
+import SwiftUI
 import WebKit
 
 // MARK: - Profiles
@@ -1494,5 +1495,93 @@ enum BrowserPasskeySupport {
                 workspace?.passkeyRequested(in: webView)
             }
         }
+    }
+}
+
+// MARK: - Where a web link opens
+
+/// Where a web link clicked in ForeverLM opens on this Mac (product owner,
+/// 2026-11-08: "allow to open links by default in the in app browser; let me
+/// set that in settings"). The Browser pane is the default: a page opened
+/// there can go into the library with the pane's Add to Sources, and it
+/// shares the Library profile's sign-ins with the readers. The other choice
+/// is the Mac's own default browser (Safari when ForeverLM itself is the
+/// default, `BrowserPasskeySupport.externalBrowser`).
+enum WebLinkDestination: String, CaseIterable, Identifiable {
+    case browserPane
+    case defaultBrowser
+
+    var id: String { rawValue }
+
+    var title: String {
+        switch self {
+        case .browserPane: return "ForeverLM’s Browser"
+        case .defaultBrowser: return "Your Default Browser"
+        }
+    }
+}
+
+/// Every web link a click opens goes through `open(_:)`, which honours
+/// `WebLinkDestination`. A link of another app's (`mailto:`, `zoommtg:`, a
+/// System Settings anchor) always goes to macOS. Menu items that name a
+/// browser of their own ("Open in Browser" beside "Open in ForeverLM's
+/// Browser") keep their word and do not come here.
+enum WebLinkOpening {
+    /// This Mac's choice; never synced (`SyncedPreferenceKeys.excluded`).
+    static let preferenceKey = "webLinks.opensIn"
+
+    static var destination: WebLinkDestination {
+        destination(stored: UserDefaults.standard.string(forKey: preferenceKey))
+    }
+
+    /// The Browser pane unless this Mac chose otherwise.
+    static func destination(stored raw: String?) -> WebLinkDestination {
+        raw.flatMap(WebLinkDestination.init(rawValue:)) ?? .browserPane
+    }
+
+    static func setDestination(_ destination: WebLinkDestination) {
+        UserDefaults.standard.set(destination.rawValue, forKey: preferenceKey)
+    }
+
+    /// An http or https address with a host: the only links the Browser pane
+    /// takes.
+    static func isWebLink(_ url: URL) -> Bool {
+        guard let scheme = url.scheme?.lowercased(), scheme == "http" || scheme == "https" else { return false }
+        return url.host?.isEmpty == false
+    }
+
+    /// Whether a web link goes to the Browser pane rather than out of the
+    /// app: the setting says so and a Studio window is there to show it.
+    @MainActor
+    static func opensInApp(_ url: URL) -> Bool {
+        isWebLink(url) && destination == .browserPane && AppModelBridge.studio != nil
+    }
+
+    /// Opens a clicked link where the setting says.
+    @MainActor
+    static func open(_ url: URL, profileID: UUID? = nil) {
+        guard isWebLink(url) else {
+            NSWorkspace.shared.open(url)
+            return
+        }
+        if opensInApp(url), let vm = AppModelBridge.studio {
+            vm.openInBrowser(url, profileID: profileID)
+            if let state = StudioWindowRegistry.shared.activeState,
+               let window = StudioWorkspaceWindowCoordinator.shared.window(for: state),
+               !window.isKeyWindow {
+                window.makeKeyAndOrderFront(nil)
+            }
+        } else {
+            BrowserPasskeySupport.openOutside(url)
+        }
+    }
+
+    /// The same choice for a SwiftUI `Link` or a link in a `Text`: the
+    /// Studio window's `openURL` (`StudioWebLinkRouting`).
+    @MainActor
+    static func handle(_ url: URL) -> OpenURLAction.Result {
+        guard isWebLink(url) else { return .systemAction }
+        open(url)
+        return .handled
     }
 }

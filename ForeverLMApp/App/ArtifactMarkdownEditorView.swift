@@ -1776,7 +1776,7 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             if let link = StudioEntityLink.parse(url) {
                 openEntityLink(link, address: url)
             } else if !Self.isPrivateSourceAddress(url) {
-                NSWorkspace.shared.open(url)
+                WebLinkOpening.open(url)
             }
             decisionHandler(.cancel)
         }

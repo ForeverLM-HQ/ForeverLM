@@ -519,6 +519,7 @@ enum SyncedPreferenceKeys {
         // reason its own code gives.
         "browser.profiles.v1": "a profile names a data store on this disk; a synced list would name jars another Mac does not have",
         "browser.session.v1": "which tabs are open in this Mac's browser window",
+        "webLinks.opensIn": "whether this Mac's links open in its Browser pane or in this Mac's own default browser",
         "cohortReview.dismissedSignatures.v1": "\"not right now\" is about the machine being sat at; syncing it would let a dismissal here swallow the phone's morning nudge",
         "studio.activeMCPNotebookID": "which Notebook this Mac's own MCP endpoint serves",
         "studio.lastSessionResumesContent": "this Mac's window restore",

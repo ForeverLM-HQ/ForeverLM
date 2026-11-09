@@ -518,4 +518,25 @@ struct BrowserWorkspaceTests {
         }
         #expect(WebPagePolicy.readerPaperID(sourceID: "paper", sourceType: .paper, isUnreadable: false) == "paper")
     }
+
+    // MARK: Where a web link opens
+
+    @Test("Links open in the Browser pane unless this Mac chose its own browser")
+    func webLinksDefaultToTheBrowserPane() {
+        #expect(WebLinkOpening.destination(stored: nil) == .browserPane)
+        #expect(WebLinkOpening.destination(stored: "somethingElse") == .browserPane)
+        #expect(WebLinkOpening.destination(stored: "defaultBrowser") == .defaultBrowser)
+        #expect(WebLinkOpening.destination(stored: "browserPane") == .browserPane)
+        #expect(!SyncedPreferenceKeys.isSynced(WebLinkOpening.preferenceKey))
+    }
+
+    @Test("Only an http or https address with a host is a web link the pane takes")
+    func onlyWebAddressesAreWebLinks() {
+        #expect(WebLinkOpening.isWebLink(URL(string: "https://example.org/paper")!))
+        #expect(WebLinkOpening.isWebLink(URL(string: "HTTP://example.org")!))
+        #expect(!WebLinkOpening.isWebLink(URL(string: "mailto:someone@example.org")!))
+        #expect(!WebLinkOpening.isWebLink(URL(string: "zoommtg://zoom.us/join?confno=1")!))
+        #expect(!WebLinkOpening.isWebLink(URL(string: "foreverlm://doc/abc")!))
+        #expect(!WebLinkOpening.isWebLink(URL(string: "https:///nohost")!))
+    }
 }

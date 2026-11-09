@@ -3860,7 +3860,7 @@ private struct MeetingArtifactRow: View {
     private func open(_ external: ExternalCopy) {
         switch external {
         case .webPage(let url):
-            NSWorkspace.shared.open(url)
+            WebLinkOpening.open(url)
         case .fileOnDisk(let url):
             NSWorkspace.shared.activateFileViewerSelecting([url])
         }

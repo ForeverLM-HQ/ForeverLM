@@ -1876,7 +1876,7 @@ struct ArtifactCanvas: View {
                 }
                 .help("Invite people, open the link to anyone, or share with a team")
                 Button {
-                    NSWorkspace.shared.open(publishedStatus.url)
+                    WebLinkOpening.open(publishedStatus.url)
                 } label: {
                     Label("Open Page", systemImage: "safari")
                 }

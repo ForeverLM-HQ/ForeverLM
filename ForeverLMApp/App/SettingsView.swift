@@ -906,6 +906,7 @@ private struct SourcesSettingsDetailView: View {
     @State private var zoomFolderContents: (transcripts: Int, recordings: Int, unconverted: Int)?
     @State private var enabledReadingListBrowsers = ReadingListBrowser.enabled
     @State private var readingListImportWindow = SourceDiscovery.ReadingListImportWindow.chosen ?? .everything
+    @State private var webLinkDestination = WebLinkOpening.destination
 
     var body: some View {
         ScrollView {
@@ -926,6 +927,8 @@ private struct SourcesSettingsDetailView: View {
                     }
                 }
 
+                linksSection
+
                 readingListsSection
 
                 zoomTranscriptsSection
@@ -935,6 +938,35 @@ private struct SourcesSettingsDetailView: View {
         }
         .background(Color(nsColor: .windowBackgroundColor))
         .navigationTitle("Sources")
+    }
+
+    // MARK: - Links
+
+    /// Where a web link clicked in ForeverLM opens on this Mac
+    /// (`WebLinkOpening`): the Browser pane, whose Add to Sources files the
+    /// page, unless the learner picks their own browser.
+    private var linksSection: some View {
+        SettingsSection(
+            title: "Links",
+            description: "Where a web link you click in ForeverLM opens on this Mac. In ForeverLM’s Browser, Add to Sources puts the page in your library."
+        ) {
+            SettingsCard {
+                Picker("Open links in", selection: Binding(
+                    get: { webLinkDestination },
+                    set: { destination in
+                        WebLinkOpening.setDestination(destination)
+                        webLinkDestination = destination
+                    }
+                )) {
+                    ForEach(WebLinkDestination.allCases) { destination in
+                        Text(destination.title).tag(destination)
+                    }
+                }
+                .padding(.vertical, 8)
+                .accessibilityIdentifier("settings.sources.linksOpenIn")
+            }
+        }
+        .onAppear { webLinkDestination = WebLinkOpening.destination }
     }
 
     // MARK: - Reading Lists

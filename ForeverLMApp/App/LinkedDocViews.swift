@@ -1881,7 +1881,7 @@ struct LinkedDocWebView: NSViewRepresentable {
                 if let link = sourceLink(for: url) {
                     parent.onOpenSourceInNewWindow(link)
                 } else {
-                    NSWorkspace.shared.open(url)
+                    WebLinkOpening.open(url)
                 }
             }
             return nil

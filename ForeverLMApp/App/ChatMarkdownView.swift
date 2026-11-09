@@ -1528,7 +1528,7 @@ struct ChatMarkdownView: NSViewRepresentable {
                 } else if let cards = ChatSavedCards.parse(url) {
                     NotificationCenter.default.post(name: .requestOpenChatSavedCards, object: cards)
                 } else {
-                    NSWorkspace.shared.open(url)
+                    WebLinkOpening.open(url)
                 }
             }
             return nil

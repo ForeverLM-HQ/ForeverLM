@@ -493,16 +493,28 @@ extension StudioViewModel {
         // its watch address, which the Reader plays alone, and none of
         // YouTube's other pages.
         let rawURL: URL
+        let isVideo: Bool
         switch YouTubeContainment.decision(for: citedURL) {
-        case .video(let watchURL): rawURL = watchURL
+        case .video(let watchURL):
+            rawURL = watchURL
+            isVideo = true
         case .refused:
             showToast(YouTubeContainment.refusalMessage)
             return
-        case .notYouTube: rawURL = citedURL
+        case .notYouTube:
+            rawURL = citedURL
+            isVideo = false
         }
 
         if let sourceID = librarySourceID(forURL: rawURL.absoluteString) {
             openSavedCopy(sourceID, in: destinationWindowState)
+            return
+        }
+        // A page the library does not hold opens in the learner's own browser
+        // when Settings › Sources › Links says so; a video still plays in the
+        // Reader, the one place YouTube opens.
+        if !isVideo, WebLinkOpening.destination == .defaultBrowser {
+            BrowserPasskeySupport.openOutside(rawURL)
             return
         }
 

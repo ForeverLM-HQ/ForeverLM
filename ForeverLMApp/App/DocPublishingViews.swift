@@ -88,7 +88,7 @@ struct PublishDocSheet: View {
                         NSPasteboard.general.setString(result.url.absoluteString, forType: .string)
                         didCopy = true
                     }
-                    Button("Open") { NSWorkspace.shared.open(result.url) }
+                    Button("Open") { WebLinkOpening.open(result.url) }
                 }
                 .padding(10)
                 .background(RoundedRectangle(cornerRadius: 8).fill(Color(nsColor: .quaternarySystemFill)))
@@ -434,7 +434,7 @@ struct ArtifactPageWebView: NSViewRepresentable {
             if let add = Self.addToLibraryTarget(url) {
                 parent.onAddToLibrary(add)
             } else {
-                NSWorkspace.shared.open(url)
+                WebLinkOpening.open(url)
             }
             decisionHandler(.cancel)
         }
@@ -449,7 +449,7 @@ struct ArtifactPageWebView: NSViewRepresentable {
             // the page's own only.
             guard navigationAction.sourceFrame.isMainFrame else { return nil }
             if let url = navigationAction.request.url {
-                if let add = Self.addToLibraryTarget(url) { parent.onAddToLibrary(add) } else { NSWorkspace.shared.open(url) }
+                if let add = Self.addToLibraryTarget(url) { parent.onAddToLibrary(add) } else { WebLinkOpening.open(url) }
             }
             return nil
         }

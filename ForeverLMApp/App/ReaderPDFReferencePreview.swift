@@ -303,7 +303,7 @@ final class ReaderPDFReferencePreview {
         card.activate = { [weak self] item in self?.activate(item) }
         card.highlight = { [weak self] item, range, color in self?.highlight(range, of: item, color: color) }
         card.pressed = { [weak self] in self?.pin() }
-        card.openLink = { url in NSWorkspace.shared.open(url) }
+        card.openLink = { url in WebLinkOpening.open(url) }
         let content = NSHostingController(rootView: ReaderReferencePreviewCard(card: card) { [weak self] inside in
             self?.cardHover(inside)
         })

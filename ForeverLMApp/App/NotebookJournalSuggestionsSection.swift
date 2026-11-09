@@ -58,7 +58,7 @@ struct NotebookJournalSuggestionsSection: View {
         HStack(alignment: .top, spacing: 6) {
             Button {
                 if let url = URL(string: suggestion.item.itemURL) {
-                    NSWorkspace.shared.open(url)
+                    WebLinkOpening.open(url)
                 }
             } label: {
                 VStack(alignment: .leading, spacing: 3) {

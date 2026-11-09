@@ -177,6 +177,7 @@ extension MCPDataStore {
             + (ForeverLMRuntimeIdentity.syncGeneration == .two ? notebookCoverSettingEntries() : [])
             + videoSettingEntries()
             + sourceAndPluginSettingEntries()
+            + webLinkSettingEntries()
             + viewSettingEntries()
             + (JournalWatch.isEnabled ? feedSettingEntries() : [])
             // Admin only: absent for everyone else, so `get_app_settings` never
@@ -381,6 +382,35 @@ extension MCPDataStore {
                 preferenceKeys: [BetaReleases.preferenceKey],
                 read: { BetaReleases.isSignedUp },
                 write: { BetaReleases.setSignedUp(try AppSettingEntry.bool($0, "updates.beta_releases")) }
+            ),
+        ]
+    }
+
+    // MARK: - Sources › Links
+
+    /// Settings › Sources › Links (`WebLinkOpening`).
+    @MainActor
+    private static func webLinkSettingEntries() -> [AppSettingEntry] {
+        [
+            AppSettingEntry(
+                id: "links.open_in",
+                pane: "Sources › Links",
+                title: "Open links in",
+                detail: "Where a web link the learner clicks in ForeverLM opens on this Mac: browserPane (the default) opens it in a tab of ForeverLM's own Browser pane, where Add to Sources files the page in the library; defaultBrowser hands it to the Mac's default browser (Safari when ForeverLM is the default). A link to a page the library already holds still opens the saved source, and a YouTube video still plays in the Reader. Links of other apps (mailto:, zoommtg:) always go to macOS. This Mac only; it never syncs. Ask the learner before changing it.",
+                reach: .thisMac,
+                kind: .choice,
+                preferenceKeys: [WebLinkOpening.preferenceKey],
+                options: {
+                    WebLinkDestination.allCases.map { ["value": $0.rawValue, "label": $0.title] }
+                },
+                read: { WebLinkOpening.destination.rawValue },
+                write: { value in
+                    let raw = try AppSettingEntry.string(value, "links.open_in")
+                    guard let destination = WebLinkDestination(rawValue: raw) else {
+                        throw MCPError.invalidInput("links.open_in takes one of: \(WebLinkDestination.allCases.map(\.rawValue).joined(separator: ", ")).")
+                    }
+                    WebLinkOpening.setDestination(destination)
+                }
             ),
         ]
     }
