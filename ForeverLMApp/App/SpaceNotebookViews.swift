@@ -11,12 +11,15 @@ import SwiftUI
 // each of its jobs went.
 
 /// The glyph a notebook is drawn by where it has no cover or emoji of its
-/// own: a folder, as Add to Notebook and Move to Notebook draw it. Not the
+/// own: a bound book with writing on it, which is what a notebook is. Not the
 /// grid it was, which is Plugins' on the icon strip, where the two stood
 /// side by side and read as one (product owner, 2026-11-07: "the notebooks
-/// has the wrong icon").
+/// has the wrong icon"); not the bare folder that replaced it, which read as
+/// a place to file things, not a thing you write in (product owner,
+/// 2026-11-09: "Notebooks icon needs to be better"). Not `book.closed`
+/// either, which is a *book* source's (`SourceThumbnail`).
 enum NotebookGlyph {
-    static let systemImage = "folder"
+    static let systemImage = "text.book.closed"
 }
 
 /// A question a notebook's menu asks, answered by the dialog on the row or

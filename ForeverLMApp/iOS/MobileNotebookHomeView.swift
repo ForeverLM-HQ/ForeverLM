@@ -1,10 +1,12 @@
 import SwiftUI
 
 /// The glyph the phone draws for notebooks where no one notebook's emoji
-/// fits (an empty Home, a header that takes a symbol): the Mac rail's All
-/// notebooks glyph. A notebook is not a folder.
+/// fits (an empty Home, a header that takes a symbol): the Mac's notebook
+/// glyph (`NotebookGlyph`, a bound book with writing on it; the Mac file is
+/// macOS-only, so the name is repeated here). A notebook is neither a folder
+/// nor a grid, which is Plugins'.
 enum MobileNotebookGlyph {
-    static let symbolName = "square.grid.2x2"
+    static let symbolName = "text.book.closed"
     /// Uncategorized's, the Mac rail's.
     static let uncategorizedSymbolName = "tray"
 }
