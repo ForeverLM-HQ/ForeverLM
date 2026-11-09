@@ -364,6 +364,29 @@ struct ModelBrowserTests {
         #expect(ChatModelShortlist.moving("a/one", onto: "x/absent", in: list) == ["b/two", "c/three", "d/four", "a/one"])
     }
 
+    @Test("Your Models starts maker by maker: catalog makers in order, the rest by name, the dearest first, unpriced last")
+    func yourModelsByMaker() {
+        let models = [
+            Self.directoryModel("openai/luna", input: 0.1, output: 0.5),
+            Self.directoryModel("anthropic/opus", input: 4, output: 20),
+            Self.directoryModel("openai/astra", input: 10, output: 50),
+            Self.directoryModel("zeta/z1", input: 1, output: 1),
+            Self.directoryModel("anthropic/haiku", input: 0.1, output: 0.5),
+            Self.directoryModel("anthropic/sonnet", input: 2, output: 10),
+            Self.directoryModel("alpha/a1", input: nil, output: nil),
+            Self.directoryModel("openai/sol", input: 2, output: 10),
+        ]
+        var rows = models.map { ChatModelLists.Suggestion.directory($0) }
+        rows.insert(.pending(slug: "anthropic/new"), at: 2)
+        let bySlug = Dictionary(uniqueKeysWithValues: models.map { ($0.id, $0) })
+        let sorted = ChatModelLists.byMaker(rows, directoryBySlug: bySlug, makerNames: [:])
+        #expect(sorted.map(\.slug) == [
+            "anthropic/opus", "anthropic/sonnet", "anthropic/haiku", "anthropic/new",
+            "openai/astra", "openai/sol", "openai/luna",
+            "alpha/a1", "zeta/z1",
+        ])
+    }
+
     @Test("A kept list replaces Suggested and Free as it stands: its order, no newer release swapped in")
     func pinnedListReplacesSuggestions() {
         let directory = [

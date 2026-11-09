@@ -237,9 +237,11 @@ struct BackgroundModelsPane: View {
         }
     }
 
-    /// The list's rows this work can use, in order.
+    /// The list's rows this work can use, in order: maker by maker until
+    /// the learner orders the list, as Settings › Chat's.
     private var shownRows: [ChatModelLists.Suggestion] {
-        (lists.suggestions + lists.free).filter(canDoThisWork)
+        let rows = (lists.suggestions + lists.free).filter(canDoThisWork)
+        return yourModels == nil ? lists.byMaker(rows) : rows
     }
 
     /// Edits the stored list, or, the first time, the picks as the pane

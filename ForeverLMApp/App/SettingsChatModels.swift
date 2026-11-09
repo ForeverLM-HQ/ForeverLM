@@ -206,8 +206,10 @@ struct ChatModelsPane: View {
         yourModelRows.map(\.slug)
     }
 
+    /// Maker by maker until the learner orders the list; their order after.
     private var yourModelRows: [ChatModelLists.Suggestion] {
-        lists.suggestions + lists.free + lists.offered
+        let rows = lists.suggestions + lists.free + lists.offered
+        return snapshot.yourModels == nil ? lists.byMaker(rows) : rows
     }
 
     /// Takes a model off Your Models, and out of the chat's picker: an
@@ -724,6 +726,15 @@ enum ChatModelLists {
             case .pending(let slug): return slug
             }
         }
+
+        /// The model's name as its row shows it; the slug while it waits.
+        var name: String {
+            switch self {
+            case .catalog(let entry, _): return entry.displayName
+            case .directory(let model): return model.name
+            case .pending(let slug): return slug
+            }
+        }
     }
 
     /// Who made a model, as the pane shows it.
@@ -770,6 +781,11 @@ enum ChatModelLists {
 
         func identity(ofSlug slug: String) -> MakerIdentity {
             ChatModelLists.identity(ofSlug: slug, makerNames: makerNames)
+        }
+
+        /// The rows maker by maker (`ChatModelLists.byMaker`).
+        func byMaker(_ rows: [Suggestion]) -> [Suggestion] {
+            ChatModelLists.byMaker(rows, directoryBySlug: directoryBySlug, makerNames: makerNames)
         }
 
         /// A router or model OpenRouter serves at no charge, for the caption
@@ -962,6 +978,53 @@ enum ChatModelLists {
         return input < pickInput && output < pickOutput
     }
 
+    /// Your Models until the learner orders it themselves (product owner,
+    /// 2026-11-08: "sort by provider by default"): maker by maker, the
+    /// catalog's makers first in its order and the rest by name, as the
+    /// table groups them (`makers`); within a maker the dearest first, so
+    /// its flagship leads. A model with no price yet (the directory is still
+    /// loading) follows its maker's priced ones, in the order given. Pure.
+    static func byMaker(
+        _ rows: [Suggestion],
+        directoryBySlug: [String: OpenRouterDirectoryModel],
+        makerNames: [String: String]
+    ) -> [Suggestion] {
+        let catalogOrder = AIModelMaker.allCases.filter { $0 != .other }
+        struct Key {
+            let rank: Int
+            let maker: String
+            let price: Double?
+            let index: Int
+        }
+        let keyed = rows.enumerated().map { index, row -> (Key, Suggestion) in
+            let identity = Self.identity(ofSlug: row.slug, makerNames: makerNames)
+            let model: OpenRouterDirectoryModel? = {
+                if case .directory(let model) = row { return model }
+                return directoryBySlug[row.slug]
+            }()
+            let price: Double? = model.flatMap { model in
+                guard model.inputUSDPerMTokens != nil || model.outputUSDPerMTokens != nil else { return nil }
+                return (model.inputUSDPerMTokens ?? 0) + (model.outputUSDPerMTokens ?? 0)
+            }
+            let rank = identity.logo.flatMap { catalogOrder.firstIndex(of: $0) } ?? catalogOrder.count
+            return (Key(rank: rank, maker: identity.name, price: price, index: index), row)
+        }
+        return keyed.sorted { lhs, rhs in
+            let (l, r) = (lhs.0, rhs.0)
+            if l.rank != r.rank { return l.rank < r.rank }
+            if l.rank == catalogOrder.count {
+                let byName = l.maker.localizedCaseInsensitiveCompare(r.maker)
+                if byName != .orderedSame { return byName == .orderedAscending }
+            }
+            switch (l.price, r.price) {
+            case let (lp?, rp?) where lp != rp: return lp > rp
+            case (.some, nil): return true
+            case (nil, .some): return false
+            default: return l.index < r.index
+            }
+        }.map(\.1)
+    }
+
     /// The directory by maker: every model the chat can use (tool calling,
     /// and what `isOffered` allows), newest first. The catalog's makers lead,
     /// in its order, then the rest by how many models they list.
@@ -1113,8 +1176,15 @@ enum ChatModelShortlist {
 
 /// The Your Models list as Settings › Chat and Settings › Background draw
 /// it: its title, Restore Suggested once it was edited, a caption, and the
-/// rows, each dragged onto another to take its place. The pane draws each
-/// row (`row`), since what a row's check means is the pane's.
+/// rows. The pane draws each row (`row`), since what a row's check means is
+/// the pane's.
+///
+/// A row is picked up by its leading edge, where a grip shows under the
+/// pointer (product owner, 2026-11-08: "let me reorder these"): the row
+/// itself is a Button, and on macOS a Button keeps the mouse to itself, so
+/// a drag on it never started. While it is carried the rows make room
+/// where it will land; letting go there saves the order, and carrying it
+/// out of the list puts every row back.
 struct YourModelsSection<Row: View>: View {
     let suggestions: [ChatModelLists.Suggestion]
     /// Whether the learner has edited the list, so Restore Suggested shows.
@@ -1122,9 +1192,27 @@ struct YourModelsSection<Row: View>: View {
     /// Why some rows cannot be used yet, when they cannot.
     var caption: String? = nil
     let restore: () -> Void
-    /// The slug dragged, then the slug of the row it was dropped on.
+    /// The slug dragged, then the slug of the row whose place it takes.
     let move: (String, String) -> Void
     @ViewBuilder let row: (ChatModelLists.Suggestion, Int) -> Row
+
+    /// The slug being carried. It outlives a drag let go outside the list,
+    /// so nothing draws it as carried while `liveOrder` is nil.
+    @State private var dragged: String?
+    /// The order the rows show while one is carried; nil otherwise.
+    @State private var liveOrder: [String]?
+    /// Each row's frame in the list, to find the row under the pointer.
+    @State private var rowFrames: [String: CGRect] = [:]
+    @State private var hovered: String?
+
+    private static var listSpace: String { "settings.yourModels" }
+
+    private var shown: [ChatModelLists.Suggestion] {
+        guard let liveOrder else { return suggestions }
+        let bySlug = Dictionary(suggestions.map { ($0.slug, $0) }, uniquingKeysWith: { first, _ in first })
+        let carried = Set(liveOrder)
+        return liveOrder.compactMap { bySlug[$0] } + suggestions.filter { !carried.contains($0.slug) }
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -1138,7 +1226,7 @@ struct YourModelsSection<Row: View>: View {
                         .buttonStyle(.plain)
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .help("Put back the suggested and free models this list started with, in their order")
+                        .help("Put back the suggested and free models this list started with, maker by maker")
                 }
             }
             if let caption {
@@ -1153,19 +1241,145 @@ struct YourModelsSection<Row: View>: View {
                     .foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
             } else {
-                VStack(spacing: 6) {
-                    ForEach(Array(suggestions.enumerated()), id: \.element.id) { index, suggestion in
-                        row(suggestion, index)
-                            .draggable(suggestion.slug)
-                            .dropDestination(for: String.self) { dropped, _ in
-                                guard let moved = dropped.first, moved != suggestion.slug else { return false }
-                                move(moved, suggestion.slug)
-                                return true
-                            }
-                    }
-                }
+                rows
             }
         }
+    }
+
+    private var rows: some View {
+        let shown = shown
+        return VStack(spacing: 6) {
+            ForEach(Array(shown.enumerated()), id: \.element.id) { index, suggestion in
+                row(suggestion, index)
+                    .opacity(liveOrder != nil && dragged == suggestion.slug ? 0.35 : 1)
+                    .overlay(alignment: .leading) {
+                        grip(suggestion, shown: shown)
+                    }
+                    .onHover { inside in
+                        if inside {
+                            hovered = suggestion.slug
+                        } else if hovered == suggestion.slug {
+                            hovered = nil
+                        }
+                    }
+                    .onGeometryChange(for: CGRect.self) { proxy in
+                        proxy.frame(in: .named(Self.listSpace))
+                    } action: { frame in
+                        rowFrames[suggestion.slug] = frame
+                    }
+            }
+        }
+        .coordinateSpace(.named(Self.listSpace))
+        // One delegate for the whole list: on macOS an inner drop target
+        // under an outer one never hears the drag.
+        .onDrop(
+            of: [.text],
+            delegate: YourModelsReorder(
+                original: suggestions.map(\.slug),
+                frames: rowFrames,
+                dragged: $dragged,
+                liveOrder: $liveOrder,
+                move: move
+            )
+        )
+    }
+
+    /// The row's leading edge, over its padding and logo: under the pointer
+    /// a grip and an open hand, and the place a drag starts.
+    private func grip(_ suggestion: ChatModelLists.Suggestion, shown: [ChatModelLists.Suggestion]) -> some View {
+        let isShown = hovered == suggestion.slug || (liveOrder != nil && dragged == suggestion.slug)
+        return Image(systemName: "line.3.horizontal")
+            .zoomedSystemFont(size: 9, weight: .semibold)
+            .foregroundStyle(.tertiary)
+            .frame(width: 14)
+            .opacity(isShown ? 1 : 0)
+            .frame(width: 44, alignment: .leading)
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .openHandCursor()
+            .help("Drag to reorder")
+            .onDrag {
+                dragged = suggestion.slug
+                liveOrder = shown.map(\.slug)
+                return NSItemProvider(object: suggestion.slug as NSString)
+            } preview: {
+                Text(suggestion.name)
+                    .font(.body.weight(.semibold))
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 6)
+                    .background(Capsule().fill(.regularMaterial))
+            }
+            .accessibilityHidden(true)
+    }
+}
+
+/// Carries a Your Models row through the list: the rows make room under
+/// the pointer, letting go saves the move, and leaving the list undoes it.
+private struct YourModelsReorder: DropDelegate {
+    /// The rows' slugs as the list showed them before the drag.
+    let original: [String]
+    let frames: [String: CGRect]
+    @Binding var dragged: String?
+    @Binding var liveOrder: [String]?
+    let move: (String, String) -> Void
+
+    func validateDrop(info: DropInfo) -> Bool {
+        dragged != nil
+    }
+
+    /// A row carried out of the list and back picks up where it started.
+    func dropEntered(info: DropInfo) {
+        if liveOrder == nil, dragged != nil {
+            liveOrder = original
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        guard let dragged, var order = liveOrder,
+              let target = Self.row(at: info.location, frames: frames, among: order),
+              target != dragged,
+              let from = order.firstIndex(of: dragged),
+              let to = order.firstIndex(of: target)
+        else { return DropProposal(operation: .move) }
+        order.remove(at: from)
+        order.insert(dragged, at: to)
+        withAnimation(.snappy(duration: 0.18)) {
+            liveOrder = order
+        }
+        return DropProposal(operation: .move)
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        defer {
+            liveOrder = nil
+            dragged = nil
+        }
+        guard let dragged, let order = liveOrder,
+              let landed = order.firstIndex(of: dragged), original.indices.contains(landed)
+        else { return false }
+        let target = original[landed]
+        if target != dragged {
+            move(dragged, target)
+        }
+        return true
+    }
+
+    /// Every row goes back. `dragged` stays, so the row can be carried
+    /// back in; with no `liveOrder` nothing draws it as carried.
+    func dropExited(info: DropInfo) {
+        withAnimation(.snappy(duration: 0.18)) {
+            liveOrder = nil
+        }
+    }
+
+    /// The row under `point`, else the nearest one above or below it (the
+    /// gaps between rows belong to no row). Pure.
+    static func row(at point: CGPoint, frames: [String: CGRect], among order: [String]) -> String? {
+        let placed = order.compactMap { slug in frames[slug].map { (slug, $0) } }
+        if let hit = placed.first(where: { $0.1.minY <= point.y && point.y <= $0.1.maxY }) {
+            return hit.0
+        }
+        return placed.min { abs($0.1.midY - point.y) < abs($1.1.midY - point.y) }?.0
     }
 }
 
