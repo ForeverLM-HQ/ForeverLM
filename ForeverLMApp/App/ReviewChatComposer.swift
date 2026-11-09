@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import PDFKit
 import UniformTypeIdentifiers
 
 /// A picture the learner pasted into the composer: raw bytes from a
@@ -526,6 +527,47 @@ enum ChatPastedText {
     static func summary(_ text: String) -> String {
         ChatLongUserMessage.summary(lineCount: ChatLongUserMessage.lineCount(text))
     }
+
+    // MARK: - A PDF read for this message
+
+    /// A PDF dropped on the chat, or picked from its Add menu, is for the
+    /// message and not the library (product owner, 2026-11-09: "just because I
+    /// upload a PDF to the chat doesn't mean it should be ingested as a
+    /// paper"), as a dropped picture is. Its text is held as a pasted text
+    /// that names the file in its first line, so the model reads which file
+    /// it is and the chip says so. Nothing is saved as a source.
+    private static let pdfHeaderOpen = "Attached PDF \u{201C}"
+    private static let pdfHeaderClose = "\u{201D}"
+
+    static func pdfAttachment(name: String, text: String) -> String {
+        let cleaned = name
+            .replacingOccurrences(of: "\n", with: " ")
+            .replacingOccurrences(of: pdfHeaderClose, with: "\"")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        let header = pdfHeaderOpen + (cleaned.isEmpty ? "document.pdf" : cleaned) + pdfHeaderClose
+        return header + "\n\n" + text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// What the chip is called: the PDF's file name, or "Pasted text".
+    static func title(_ text: String) -> String {
+        guard let firstLine = text.split(separator: "\n", maxSplits: 1, omittingEmptySubsequences: false).first,
+              firstLine.hasPrefix(pdfHeaderOpen), firstLine.hasSuffix(pdfHeaderClose) else {
+            return "Pasted text"
+        }
+        let name = firstLine.dropFirst(pdfHeaderOpen.count).dropLast(pdfHeaderClose.count)
+        return name.isEmpty ? "Pasted text" : String(name)
+    }
+
+    /// The selectable text of every page, or nil when the file does not open
+    /// or holds none (a scan). Reads the file: never call it on the main actor.
+    nonisolated static func extractPDFText(at url: URL) -> String? {
+        guard let document = PDFDocument(url: url), document.pageCount > 0 else { return nil }
+        let text = (0..<document.pageCount)
+            .compactMap { document.page(at: $0)?.string }
+            .joined(separator: "\n\n")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? nil : text
+    }
 }
 
 /// The editable box: the AppKit text view and the empty-state placeholder.
@@ -880,8 +922,10 @@ struct ReviewChatPastedTexts: View {
                             Image(systemName: "doc.plaintext")
                                 .zoomedSystemFont(size: 10, weight: .medium)
                                 .foregroundStyle(.secondary)
-                            Text("Pasted text")
+                            Text(ChatPastedText.title(text))
                                 .zoomedSystemFont(size: 11, weight: .medium)
+                                .lineLimit(1)
+                                .truncationMode(.middle)
                                 .textSelection(.disabled)
                             Text(ChatPastedText.summary(text))
                                 .zoomedSystemFont(size: 11)
@@ -892,7 +936,7 @@ struct ReviewChatPastedTexts: View {
                     }
                     .buttonStyle(.hoverWash(cornerRadius: 5, inset: -2, opacity: 0.08))
                     .help("Show in text field")
-                    .accessibilityLabel("Pasted text, \(ChatPastedText.summary(text)). Show in text field")
+                    .accessibilityLabel("\(ChatPastedText.title(text)), \(ChatPastedText.summary(text)). Show in text field")
                     Button {
                         remove(index)
                     } label: {

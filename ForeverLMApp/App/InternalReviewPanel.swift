@@ -4989,15 +4989,27 @@ private struct InternalReviewPanelContent: View {
             panel.prompt = "Add"
         }
         for url in urls {
-            if Self.isImageFile(url) {
-                await attachImageFile(url)
-                continue
-            }
-            let previousIDs = Set(vm.contextSourceIds)
-            await vm.importDroppedFile(url: url)
-            let newArticles = vm.contextSourceArticles.filter { !previousIDs.contains($0.id) }
-            await addArticlesToChatContext(newArticles)
+            await addDroppedFile(url)
         }
+    }
+
+    /// One file the learner gave this chat, by drop or by the Add menu. A
+    /// picture and a PDF are for the message, not the library; anything else
+    /// (a book, a text file) is imported as a source and joins the chat.
+    @MainActor
+    private func addDroppedFile(_ url: URL) async {
+        if Self.isImageFile(url) {
+            await attachImageFile(url)
+            return
+        }
+        if url.isFileURL, url.pathExtension.lowercased() == "pdf" {
+            await attachPDFFile(url)
+            return
+        }
+        let previousIDs = Set(vm.contextSourceIds)
+        await vm.importDroppedFile(url: url)
+        let newArticles = vm.contextSourceArticles.filter { !previousIDs.contains($0.id) }
+        await addArticlesToChatContext(newArticles)
     }
 
     // The record button carries the two quiet voice states; the loud one — the mic
@@ -7726,15 +7738,9 @@ private struct InternalReviewPanelContent: View {
                     Task { @MainActor in
                         // A picture is for the message, not the library: there
                         // is no image source type, and what the learner means
-                        // by dropping a screenshot is "look at this".
-                        if Self.isImageFile(url) {
-                            await attachImageFile(url)
-                            return
-                        }
-                        let previousIDs = Set(vm.contextSourceIds)
-                        await vm.importDroppedFile(url: url)
-                        let newArticles = vm.contextSourceArticles.filter { !previousIDs.contains($0.id) }
-                        await addArticlesToChatContext(newArticles)
+                        // by dropping a screenshot is "look at this". A PDF
+                        // is the same (`addDroppedFile`).
+                        await addDroppedFile(url)
                     }
                 }
                 continue
@@ -7785,6 +7791,24 @@ private struct InternalReviewPanelContent: View {
     private static func isImageFile(_ url: URL) -> Bool {
         guard url.isFileURL else { return false }
         return UTType(filenameExtension: url.pathExtension)?.conforms(to: .image) == true
+    }
+
+    /// Reads the PDF's text off the main actor and holds it in the composer
+    /// as an attachment of the next message (`ChatPastedText.pdfAttachment`).
+    /// It is not added to the library and no paper is made of it. A scan
+    /// with no selectable text is said so in the chat's error line.
+    @MainActor
+    private func attachPDFFile(_ url: URL) async {
+        let text = await Task.detached(priority: .userInitiated) {
+            ChatPastedText.extractPDFText(at: url)
+        }.value
+        guard let text else {
+            manager.errorMessage = "\(url.lastPathComponent) has no text this chat can read. Add it to your library to have it read."
+            return
+        }
+        composer.pastedTexts.append(ChatPastedText.pdfAttachment(name: url.lastPathComponent, text: text))
+        // Filed with the draft, as a long paste is, so a quit keeps it.
+        fileDraft()
     }
 
     @MainActor

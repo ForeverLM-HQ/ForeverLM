@@ -836,6 +836,30 @@ struct ChatPastedTextTests {
         #expect(ChatPastedText.field("", showing: "pasted") == "pasted")
         #expect(ChatPastedText.field("look at", showing: "pasted") == "look at\npasted")
     }
+
+    @Test("A PDF is held as a pasted text named for its file; plain paste keeps its name")
+    func pdfAttachment() {
+        let held = ChatPastedText.pdfAttachment(name: "Smith 2024.pdf", text: "\n Body of the paper \n")
+        #expect(held == "Attached PDF \u{201C}Smith 2024.pdf\u{201D}\n\nBody of the paper")
+        #expect(ChatPastedText.title(held) == "Smith 2024.pdf")
+        #expect(ChatPastedText.title("just some pasted words\nover two lines") == "Pasted text")
+        #expect(ChatPastedText.title(ChatPastedText.pdfAttachment(name: "", text: "x")) == "document.pdf")
+        // The file's name may not break the header's closing quote.
+        let odd = ChatPastedText.pdfAttachment(name: "a\u{201D}b\nc.pdf", text: "x")
+        #expect(ChatPastedText.title(odd) == "a\"b c.pdf")
+    }
+
+    @Test("A PDF's text is read off its pages; a file with no text reads as nil")
+    func pdfText() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("ChatPDF_\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let missing = root.appendingPathComponent("missing.pdf")
+        #expect(ChatPastedText.extractPDFText(at: missing) == nil)
+        let notPDF = root.appendingPathComponent("not.pdf")
+        try Data("plain".utf8).write(to: notPDF)
+        #expect(ChatPastedText.extractPDFText(at: notPDF) == nil)
+    }
 }
 
 /// The queue above the composer, as Codex's.
