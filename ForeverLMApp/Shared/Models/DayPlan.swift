@@ -981,13 +981,20 @@ struct DayPlan: Identifiable, Codable, Equatable, Sendable {
 /// What the app saw the learner doing: the kinds of activity the Planner's
 /// log lane records beside the plan. Reading, listening and watching are a
 /// source's own activity kinds as the Schedule ledger names them; a chat is a
-/// conversation in the chat panel; a doc is a Doc being written.
+/// conversation in the chat panel; a doc is a Doc being written. Off track is
+/// time the learner drifted from a bout's or a calendar block's goal to an
+/// app or a site outside it (`FocusWatch`); its `targetID` is that site's
+/// host or that app's bundle id, and it is the one kind that is not learning.
+///
+/// The log stays on the Mac that saw it (`day_activities` does not sync), so a
+/// new kind reaches no other device.
 enum DayActivityKind: String, Codable, CaseIterable, Sendable {
     case reading
     case listening
     case watching
     case chat
     case doc
+    case offTrack = "off_track"
 
     var displayName: String {
         switch self {
@@ -996,18 +1003,24 @@ enum DayActivityKind: String, Codable, CaseIterable, Sendable {
         case .watching: return "Watching"
         case .chat: return "Chat"
         case .doc: return "Page"
+        case .offTrack: return "Off track"
         }
     }
 
     /// The kind of thing `DayActivity.targetID` names, as the link scheme
     /// spells it: `foreverlm://source/…`, `foreverlm://chat/…`, `foreverlm://doc/…`.
+    /// Off track names an app or a site outside ForeverLM, which no link opens.
     var targetKind: String {
         switch self {
         case .reading, .listening, .watching: return "source"
         case .chat: return "chat"
         case .doc: return "doc"
+        case .offTrack: return "app"
         }
     }
+
+    /// Time spent learning, as against drifting off it.
+    var isLearning: Bool { self != .offTrack }
 }
 
 /// One stretch of the clock the app saw the learner spend on one thing: a
@@ -1084,9 +1097,11 @@ struct DayActivity: Identifiable, Codable, Equatable, Sendable {
     }
 
     /// The link that opens the thing: the product scheme, so it reads the same
-    /// in a chat, a Doc and over MCP.
-    var link: String {
-        "\(StudioEntityLink.productScheme)://\(kind.targetKind)/\(StudioEntityLink.encode(targetID))"
+    /// in a chat, a Doc and over MCP. Nil for time off track, which was spent
+    /// outside ForeverLM.
+    var link: String? {
+        guard kind.isLearning else { return nil }
+        return "\(StudioEntityLink.productScheme)://\(kind.targetKind)/\(StudioEntityLink.encode(targetID))"
     }
 
     /// Whether an observation of the same thing at `minute` continues this
@@ -1519,6 +1534,8 @@ struct DayPlanDetail: Identifiable, Equatable, Sendable {
                 }
             case .doc:
                 key = "doc/\(activity.targetID)"
+            case .offTrack:
+                key = "app/\(activity.targetID)"
             }
             if spansByKey[key] == nil { order.append(key) }
             spansByKey[key, default: []].append(activity)
@@ -1538,6 +1555,9 @@ struct DayPlanDetail: Identifiable, Equatable, Sendable {
                 title = sourceSpans.first { !$0.title.isEmpty }?.title ?? spans.first { !$0.title.isEmpty }?.title ?? ""
             case "doc":
                 kind = .doc
+                title = spans.first { !$0.title.isEmpty }?.title ?? ""
+            case "app":
+                kind = .offTrack
                 title = spans.first { !$0.title.isEmpty }?.title ?? ""
             default:
                 kind = .chat

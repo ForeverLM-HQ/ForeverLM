@@ -111,6 +111,7 @@ extension DayActivityKind {
         case .watching: return .pink
         case .chat: return .cyan
         case .doc: return .orange
+        case .offTrack: return .gray
         }
     }
 
@@ -121,6 +122,7 @@ extension DayActivityKind {
         case .watching: return "play.rectangle"
         case .chat: return "bubble.left.and.bubble.right"
         case .doc: return "doc.richtext"
+        case .offTrack: return "arrow.uturn.backward"
         }
     }
 }

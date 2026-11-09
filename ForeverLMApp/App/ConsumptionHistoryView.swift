@@ -59,13 +59,15 @@ enum ActivityHistory {
             }
         }
 
-        static func of(_ span: DayActivity) -> Part {
+        /// Nil for time off track: History is what the learner took in.
+        static func of(_ span: DayActivity) -> Part? {
             switch span.kind {
             case .reading: return .read
             case .listening: return .listened
             case .watching: return .watched
             case .doc: return .wrote
             case .chat: return ActivityHistory.isMemoryReview(span.targetID) ? .review : .chat
+            case .offTrack: return nil
             }
         }
     }
@@ -159,8 +161,11 @@ enum ActivityHistory {
         calendar: Calendar = .current
     ) -> [Day] {
         var activitiesByDay: [String: [DayActivity]] = [:]
-        for detail in details where !detail.activities.isEmpty {
-            activitiesByDay[detail.id, default: []].append(contentsOf: detail.activities)
+        // Time off track is the Activity pane's; History is what was taken in.
+        for detail in details {
+            let learning = detail.activities.filter(\.kind.isLearning)
+            guard !learning.isEmpty else { continue }
+            activitiesByDay[detail.id, default: []].append(contentsOf: learning)
         }
         var ledgerByDay: [String: [SourceConsumptionEntry]] = [:]
         for entry in ledger {
@@ -236,7 +241,8 @@ enum ActivityHistory {
         spans: [DayActivity]
     ) -> Block {
         let minutes = spans.reduce(into: [Part: Int]()) { totals, span in
-            totals[Part.of(span), default: 0] += span.durationMinutes
+            guard let part = Part.of(span) else { return }
+            totals[part, default: 0] += span.durationMinutes
         }
         return Block(
             id: id, kind: kind, targetID: targetID, title: title,
@@ -489,6 +495,8 @@ struct ActivityHistoryListView: View {
                 if let title = chats[activity.targetID] { titles[key] = title }
             case .doc:
                 if let title = docs[activity.targetID] { titles[key] = title }
+            case .offTrack:
+                break
             }
         }
         return titles
@@ -611,6 +619,8 @@ private struct HistoryDaySection: View {
             return ActivityHistory.isMemoryReview(block.targetID) ? nil : "Chat"
         case .doc:
             return "Page"
+        case .offTrack:
+            return nil
         }
     }
 
@@ -620,6 +630,8 @@ private struct HistoryDaySection: View {
             return ActivityHistory.isMemoryReview(block.targetID) ? "brain.head.profile" : "bubble.left.and.bubble.right"
         case .doc:
             return "doc.plaintext"
+        case .offTrack:
+            return DayActivityKind.offTrack.systemImage
         case .reading, .listening, .watching:
             return glyph(forSource: block.targetID, fallback: nil)
         }

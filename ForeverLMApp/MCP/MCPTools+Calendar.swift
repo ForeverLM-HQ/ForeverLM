@@ -349,9 +349,14 @@ extension MCPDataStore {
             "duration_minutes": max(0, endMinute - activity.startMinute),
             "kind": activity.kind.rawValue,
             "title": activity.title,
-            "\(activity.kind.targetKind)_id": activity.targetID,
-            "link": activity.link,
         ]
+        if let link = activity.link {
+            payload["\(activity.kind.targetKind)_id"] = activity.targetID
+            payload["link"] = link
+        } else {
+            // Off track: the site or app the learner drifted to.
+            payload["off_track_to"] = activity.targetID
+        }
         if nowMinute != nil { payload["ongoing"] = true }
         return payload
     }
@@ -634,7 +639,7 @@ struct DayClock: Sendable {
 extension MCPDataStore {
 
     @MainActor
-    static func daySettingsPayload(notifications: NotificationPermission) -> [String: Any] {
+    static func daySettingsPayload(notifications: NotificationPermission, focusStatus: FocusWatcher.Status) -> [String: Any] {
         let window = PlannerDayHours.window
         let morningStart = DayPlan.clockString(minute: window.lowerBound * 60)
         let morningEnd = DayPlan.clockString(minute: PlanTheDay.morningEndMinute(dayHours: window))
@@ -651,6 +656,9 @@ extension MCPDataStore {
             "suggest_planning_scope": planningScope,
             "notifications_status": notifications.rawValue,
             "notifications_note": dayNotificationsNote(notifications),
+            "nudge_back_on_track": FocusWatch.isEnabled,
+            "nudge_status": focusStatus.mcpValue,
+            "nudge_note": focusStatus.summary,
         ]
     }
 
@@ -681,7 +689,19 @@ extension MCPDataStore {
 
     func getDaySettings() async throws -> String {
         let notifications = await NotificationPermission.current()
-        return try jsonString(await Self.daySettingsPayload(notifications: notifications))
+        let focus = await Self.focusStatus()
+        return try jsonString(await Self.daySettingsPayload(notifications: notifications, focusStatus: focus))
+    }
+
+    /// Nudge Me Back on Track's state, looked at afresh: Accessibility may
+    /// have been granted since the watcher last looked.
+    @MainActor
+    static func focusStatus() async -> FocusWatcher.Status {
+        let watcher = FocusWatcher.shared
+        watcher.start()
+        watcher.look()
+        try? await Task.sleep(for: .milliseconds(300))
+        return watcher.status
     }
 
     func setDaySettings(
@@ -689,13 +709,14 @@ extension MCPDataStore {
         dayEndHour: Int?,
         suggestPlanningTheDay: Bool? = nil,
         forcePlanningTheDay: Bool? = nil,
-        requestNotifications: Bool? = nil
+        requestNotifications: Bool? = nil,
+        nudgeBackOnTrack: Bool? = nil
     ) async throws -> String {
         // request_notifications is the pane's Allow Notifications button, not
         // a setting: only true presses it.
         let requestsNotifications = requestNotifications == true
-        guard dayStartHour != nil || dayEndHour != nil || suggestPlanningTheDay != nil || forcePlanningTheDay != nil || requestsNotifications else {
-            throw MCPError.invalidInput("Pass at least one of day_start_hour, day_end_hour, suggest_planning_the_day, force_planning_the_day, or request_notifications true.")
+        guard dayStartHour != nil || dayEndHour != nil || suggestPlanningTheDay != nil || forcePlanningTheDay != nil || nudgeBackOnTrack != nil || requestsNotifications else {
+            throw MCPError.invalidInput("Pass at least one of day_start_hour, day_end_hour, suggest_planning_the_day, force_planning_the_day, nudge_back_on_track, or request_notifications true.")
         }
         if let message = await MainActor.run(body: { PlannerDayHours.validationMessage(start: dayStartHour, end: dayEndHour) }) {
             throw MCPError.invalidInput(message)
@@ -718,6 +739,13 @@ extension MCPDataStore {
                 changed = UserDefaults.standard.bool(forKey: PlanTheDay.forcedKey) != forcePlanningTheDay || changed
                 PlanTheDay.setForced(forcePlanningTheDay)
             }
+            if let nudgeBackOnTrack {
+                changed = FocusWatch.isEnabled != nudgeBackOnTrack || changed
+                FocusWatch.setEnabled(nudgeBackOnTrack)
+                // macOS's Accessibility prompt on the learner's Mac, as the
+                // pane's switch shows it; only they can answer it.
+                if nudgeBackOnTrack { FrontWindowReader.requestTrust() }
+            }
             return changed
         }
         let notifications = await NotificationPermission.current()
@@ -730,7 +758,8 @@ extension MCPDataStore {
                 Task { await NotificationPermission.request() }
             }
         }
-        var payload = await Self.daySettingsPayload(notifications: notifications)
+        let focus = await Self.focusStatus()
+        var payload = await Self.daySettingsPayload(notifications: notifications, focusStatus: focus)
         payload["changed"] = changed
         if let requestAnswer { payload["notifications_request"] = requestAnswer }
         return try jsonString(payload)

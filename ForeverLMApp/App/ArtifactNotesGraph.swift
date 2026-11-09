@@ -698,12 +698,14 @@ enum NotesGraphDailyActivity {
         var groupOrder: [String] = []
         for activity in activities.sorted(by: DayActivityGroup.byStart) {
             if activity.kind == .doc, activity.targetID == excludingDocID { continue }
+            // Time off track is the Activity pane's, not a note's: it opens nothing.
+            guard activity.kind.isLearning else { continue }
             let key = "\(activity.kind.targetKind)/\(activity.targetID)"
             if groups[key] == nil { groupOrder.append(key) }
             groups[key, default: []].append(activity)
         }
         for key in groupOrder {
-            guard let spans = groups[key], let first = spans.first else { continue }
+            guard let spans = groups[key], let first = spans.first, let href = first.link else { continue }
             let minutes = DayActivityGroup.minutesByKind(spans)
             let total = minutes.values.reduce(0, +)
             let kind = DayActivityGroup.dominantKind(minutes) ?? first.kind
@@ -716,7 +718,7 @@ enum NotesGraphDailyActivity {
             rows.append(Row(
                 minute: first.startMinute,
                 order: rows.count,
-                item: NotesGraphWire.Activity(kind: wireKind(kind), title: name, detail: detail, href: first.link)
+                item: NotesGraphWire.Activity(kind: wireKind(kind), title: name, detail: detail, href: href)
             ))
         }
 
@@ -750,6 +752,7 @@ enum NotesGraphDailyActivity {
         case .watching: return "watched"
         case .chat: return "chat"
         case .doc: return "doc"
+        case .offTrack: return "off_track"
         }
     }
 }

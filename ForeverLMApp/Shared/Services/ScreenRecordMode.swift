@@ -721,6 +721,8 @@ extension ScreenRecordScope {
         switch activity.kind {
         case .reading, .listening, .watching: return allowedSourceIDs.contains(activity.targetID)
         case .chat, .doc: return true
+        // The other apps and sites the learner had in front are their own.
+        case .offTrack: return false
         }
     }
 

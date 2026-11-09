@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 // Settings has no General pane since 2026-11-08 (product owner: "these
@@ -80,6 +81,10 @@ struct SettingsDaySection: View {
     private var suggestPlanningTheDay = true
     @AppStorage(PlanTheDay.forcedKey)
     private var forcePlanningTheDay = false
+    /// This Mac's: it watches this Mac's screen.
+    @AppStorage(FocusWatch.settingKey)
+    private var nudgesBackOnTrack = false
+    private var focusWatcher: FocusWatcher { FocusWatcher.shared }
     /// Synced: the learner's day is the same on every Mac.
     @AppStorage(PlannerDayHours.startKey)
     private var dayStartHour: Int = PlannerDayHours.defaultStart
@@ -146,7 +151,45 @@ struct SettingsDaySection: View {
                         .disabled(!suggestPlanningTheDay)
                         .accessibilityIdentifier("settings.general.forcePlanningTheDay")
                 }
+
+                SettingsLayout.rowDivider
+
+                SettingsRow("Nudge me back on track", detail: focusDetail) {
+                    Toggle("Nudge me back on track during a bout or a calendar block", isOn: Binding(
+                        get: { nudgesBackOnTrack },
+                        set: { on in
+                            FocusWatch.setEnabled(on)
+                            // macOS's prompt, which offers System Settings.
+                            if on { FrontWindowReader.requestTrust() }
+                        }
+                    ))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .accessibilityIdentifier("settings.general.nudgeBackOnTrack")
+                }
+                if nudgesBackOnTrack, focusWatcher.status == .needsAccessibility, let url = FrontWindowReader.systemSettingsURL {
+                    Button("Allow Accessibility…") { NSWorkspace.shared.open(url) }
+                        .buttonStyle(.hoverWash)
+                        .font(.system(size: 11))
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .accessibilityIdentifier("settings.general.nudgeBackOnTrack.accessibility")
+                }
             }
+        }
+        // Accessibility is granted in System Settings, away from this window.
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            focusWatcher.look()
+        }
+    }
+
+    private static let focusPromise = "During a bout or a calendar block; Apple Intelligence judges on this Mac."
+
+    /// Off, the promise; on, what stands in its way, if anything.
+    private var focusDetail: String {
+        guard nudgesBackOnTrack else { return Self.focusPromise }
+        switch focusWatcher.status {
+        case .needsAccessibility, .judgeUnavailable: return focusWatcher.status.summary
+        case .off, .waiting, .watching: return Self.focusPromise
         }
     }
 }

@@ -361,7 +361,8 @@ struct ActivityLogPane: View {
     }
 
     /// Opens what a group records: the source in the Reader beside this
-    /// pane, the chat in the chat panel, the Doc in Docs.
+    /// pane, the chat in the chat panel, the Doc in Docs. Time off track was
+    /// spent outside ForeverLM and opens nothing.
     private func open(_ group: DayActivityGroup) {
         Task {
             switch group.kind {
@@ -371,6 +372,8 @@ struct ActivityLogPane: View {
                 await vm.open(.chat(group.targetID))
             case .doc:
                 await vm.open(.doc(group.targetID))
+            case .offTrack:
+                break
             }
         }
     }
@@ -839,6 +842,8 @@ struct DayActivityBySourceView: View {
             OtherWindowMenuItem(.chat(group.targetID))
         case .doc:
             OtherWindowMenuItem(.doc(group.targetID))
+        case .offTrack:
+            EmptyView()
         }
     }
 }

@@ -594,6 +594,8 @@ final class ArtifactNotesGraphHost {
             return vm.reviewSessionLinks.first { $0.id == targetID }?.title ?? logged
         case .doc:
             return vm.artifacts.first { $0.id == targetID }?.title ?? logged
+        case .offTrack:
+            return logged
         }
     }
 

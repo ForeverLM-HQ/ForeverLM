@@ -1317,8 +1317,12 @@ struct StudioView: View {
                 )
             }
             // The chip and the Today menu read the day before any window has
-            // shown the Activity pane. Idempotent.
-            .task { DayModel.shared.start() }
+            // shown the Activity pane. Idempotent. Nudge Me Back on Track
+            // reads the day's bout and calendar from it.
+            .task {
+                DayModel.shared.start()
+                FocusWatcher.shared.start()
+            }
     }
 
     private var studioDataEventContent: some View {

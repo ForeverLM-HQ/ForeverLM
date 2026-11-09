@@ -21,7 +21,7 @@ struct MCPDaySettingsToolsTests {
     /// Restores the defaults the tools write, whatever a test did.
     private func restoringDefaults<T>(_ body: () async throws -> T) async throws -> T {
         let defaults = UserDefaults.standard
-        let keys = [PlannerDayHours.startKey, PlannerDayHours.endKey, PlanTheDay.settingKey, PlanTheDay.forcedKey]
+        let keys = [PlannerDayHours.startKey, PlannerDayHours.endKey, PlanTheDay.settingKey, PlanTheDay.forcedKey, FocusWatch.settingKey]
         let prior = keys.map { ($0, defaults.object(forKey: $0)) }
         defer {
             for (key, value) in prior {
@@ -42,7 +42,8 @@ struct MCPDaySettingsToolsTests {
         let set = try #require(byName["set_day_settings"])
         #expect((set.inputSchema["required"] as? [String]) == [])
         let properties = try #require(set.inputSchema["properties"] as? [String: Any])
-        #expect(Set(properties.keys) == ["day_start_hour", "day_end_hour", "suggest_planning_the_day", "force_planning_the_day", "request_notifications"])
+        #expect(Set(properties.keys) == ["day_start_hour", "day_end_hour", "suggest_planning_the_day", "force_planning_the_day", "request_notifications", "nudge_back_on_track"])
+        #expect(get.description.contains("nudge_back_on_track"))
         #expect(set.description.contains("request_notifications"))
     }
 
@@ -50,13 +51,13 @@ struct MCPDaySettingsToolsTests {
     @MainActor
     func notificationsStatus() async throws {
         try await restoringDefaults {
-            let allowed = MCPDataStore.daySettingsPayload(notifications: .allowed)
+            let allowed = MCPDataStore.daySettingsPayload(notifications: .allowed, focusStatus: .off)
             #expect(allowed["notifications_status"] as? String == "allowed")
-            let refused = MCPDataStore.daySettingsPayload(notifications: .refused)
+            let refused = MCPDataStore.daySettingsPayload(notifications: .refused, focusStatus: .off)
             #expect(refused["notifications_status"] as? String == "refused")
             let refusedNote = try #require(refused["notifications_note"] as? String)
             #expect(refusedNote.contains("System Settings › Notifications"))
-            let notAsked = MCPDataStore.daySettingsPayload(notifications: .notAsked)
+            let notAsked = MCPDataStore.daySettingsPayload(notifications: .notAsked, focusStatus: .off)
             #expect(notAsked["notifications_status"] as? String == "not_asked")
             #expect((notAsked["notifications_note"] as? String)?.contains("request_notifications") == true)
             // The switch reads the same whatever macOS answers.
@@ -124,6 +125,17 @@ struct MCPDaySettingsToolsTests {
             await #expect(throws: MCPError.self) {
                 _ = try await store.setDaySettings(dayStartHour: nil, dayEndHour: nil)
             }
+
+            // Nudge Me Back on Track is off until switched on, and off says so.
+            // (Switching it on shows macOS's Accessibility prompt, so the
+            // test only switches it off.)
+            #expect(read["nudge_back_on_track"] as? Bool == false)
+            #expect(read["nudge_status"] as? String == "off")
+            UserDefaults.standard.set(true, forKey: FocusWatch.settingKey)
+            let nudging = try payload(try await store.setDaySettings(dayStartHour: nil, dayEndHour: nil, nudgeBackOnTrack: false))
+            #expect(nudging["nudge_back_on_track"] as? Bool == false && nudging["changed"] as? Bool == true)
+            #expect(nudging["nudge_status"] as? String == "off")
+            #expect(!FocusWatch.isEnabled)
         }
     }
 
