@@ -396,7 +396,7 @@ extension MCPDataStore {
             return ("Source not found. Search the library again and use the returned source.", nil)
         }
         let excludedSourceIDs = try knowledgeStore().knowledgeSearchExcludedSourceIDs(includeArchived: true)
-        guard !excludedSourceIDs.contains(resolvedSourceID) else {
+        guard !KnowledgeStore.isBlockedFromOpening(resolvedSourceID, excluded: excludedSourceIDs) else {
             return ("Source is excluded from knowledge search and AI in ForeverLM Settings. Include its source family there before loading it.", nil)
         }
         let response: String = try withDB { db in

@@ -387,19 +387,28 @@ extension StudioViewModel {
     // MARK: - Knowledge Base Context Management
 
     /// Add a source to the chat context.
-    func addSourceToContext(_ articleId: String) {
-        guard let article = articlesById[articleId], isSourceIncludedInKnowledge(article) else { return }
+    ///
+    /// `explicit` is true when the learner named this source themselves (a file
+    /// dropped or uploaded into the chat, a source picked or dragged in). Asking
+    /// a chat to work with one source is not ambient search, so the per-family
+    /// "kept from AI" switch does not refuse it; that switch only keeps a family
+    /// out of what search and discovery surface on their own.
+    func addSourceToContext(_ articleId: String, explicit: Bool = false) {
+        guard let article = articlesById[articleId], explicit || isSourceIncludedInKnowledge(article) else { return }
+        if explicit { ChatNamedSources.shared.grant([articleId]) }
         guard !contextSourceIds.contains(articleId) else { return }
         contextSourceIds.append(articleId)
         fetchContextContentIfNeeded(for: articleId)
     }
 
     /// Add sources to the chat context while preserving the current context order.
-    func addSourcesToContext(_ articleIds: [String]) {
+    /// `explicit` as in `addSourceToContext`.
+    func addSourcesToContext(_ articleIds: [String], explicit: Bool = false) {
         let ids = orderedUniqueSourceIDs(articleIds).filter { id in
             guard let article = articlesById[id] else { return false }
-            return isSourceIncludedInKnowledge(article)
+            return explicit || isSourceIncludedInKnowledge(article)
         }
+        if explicit { ChatNamedSources.shared.grant(ids) }
         for id in ids where !contextSourceIds.contains(id) {
             contextSourceIds.append(id)
         }
@@ -455,6 +464,7 @@ extension StudioViewModel {
     /// Remove a source from the chat context.
     func removeSourceFromContext(_ articleId: String) {
         contextSourceIds.removeAll { $0 == articleId }
+        ChatNamedSources.shared.revoke(articleId)
     }
 
     /// Toggle a source in/out of chat context.
@@ -462,7 +472,7 @@ extension StudioViewModel {
         if contextSourceIds.contains(articleId) {
             removeSourceFromContext(articleId)
         } else {
-            addSourceToContext(articleId)
+            addSourceToContext(articleId, explicit: true)
         }
     }
 

@@ -2792,7 +2792,7 @@ extension StudioViewModel {
 
         _ = try? await storage.insertSourceIfNew(&article)
         articles.insert(article, at: 0)
-        addSourceToContext(article.id)
+        addSourceToContext(article.id, explicit: true)
         retitleAddedText(article.id, provisionalTitle: "Pasted Text", url: "")
     }
 
@@ -2820,7 +2820,7 @@ extension StudioViewModel {
         }
         // Auto-add the newly inserted article to context
         if articles.count > countBefore, let newArticle = articles.first {
-            addSourceToContext(newArticle.id)
+            addSourceToContext(newArticle.id, explicit: true)
         }
     }
 

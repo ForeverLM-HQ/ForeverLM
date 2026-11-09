@@ -10959,6 +10959,36 @@ struct SourceContextManagementTests {
         #expect(vm.contextSourceIds.contains(a.id))
     }
 
+    @Test("a family kept from AI refuses ambient adds but not one the learner names")
+    func keptFamilyTakesExplicitAdd() {
+        let vm = makeViewModel()
+        let a = makeArticle()
+        vm.articles = [a]
+        let before = vm.excludedKnowledgeTabs
+        defer { vm.excludedKnowledgeTabs = before }
+        guard let tab = StudioSidebarTab.knowledgeTab(for: a) else { return }
+        vm.excludedKnowledgeTabs = [tab]
+
+        vm.addSourceToContext(a.id)
+        #expect(!vm.contextSourceIds.contains(a.id))
+        vm.addSourcesToContext([a.id])
+        #expect(!vm.contextSourceIds.contains(a.id))
+
+        vm.addSourceToContext(a.id, explicit: true)
+        #expect(vm.contextSourceIds.contains(a.id))
+    }
+
+    @Test("a source named in a chat opens by id even when its family is kept from AI")
+    func namedSourceOpensDespiteKeptFamily() {
+        let id = "named-\(UUID().uuidString)"
+        let excluded: Set<String> = [id]
+        #expect(KnowledgeStore.isBlockedFromOpening(id, excluded: excluded))
+        ChatNamedSources.shared.grant([id])
+        #expect(!KnowledgeStore.isBlockedFromOpening(id, excluded: excluded))
+        ChatNamedSources.shared.revoke(id)
+        #expect(KnowledgeStore.isBlockedFromOpening(id, excluded: excluded))
+    }
+
     @Test("addSourceToContext does not duplicate")
     func addSourceNoDuplicate() {
         let vm = makeViewModel()

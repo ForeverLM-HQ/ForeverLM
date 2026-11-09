@@ -217,6 +217,15 @@ extension KnowledgeStore {
         var bookPages: Range<Int>? = nil
     }
 
+    /// Whether a tool that opens one named source may read it: the ambient
+    /// boundary (`knowledgeSearchExcludedSourceIDs`) keeps a family out of what
+    /// search and discovery surface on their own, but a source the learner put
+    /// into a chat is named, and the chat works with it fully, as Claude or
+    /// Codex does with a file handed to them.
+    static func isBlockedFromOpening(_ id: String, excluded: Set<String>) -> Bool {
+        excluded.contains(id) && !ChatNamedSources.shared.contains(id)
+    }
+
     /// Source ids that must not participate in ambient search or AI discovery.
     /// Two things draw this boundary: the per-family knowledge preference, and
     /// a hidden podcast show or YouTube channel (`is_collection_hidden`), whose
@@ -976,5 +985,31 @@ extension KnowledgeStore {
             holds = sqlite3_column_int(stmt, 0) != 0
         }
         return holds
+    }
+}
+
+
+/// Sources the learner named in a chat (dropped, uploaded, picked), for as long
+/// as the app runs. The per-family "kept from AI" switch does not refuse these
+/// when a tool opens or edits them by id; it still keeps the family out of
+/// search, lists and discovery. In memory only: a relaunch asks the chat again.
+final class ChatNamedSources: @unchecked Sendable {
+    static let shared = ChatNamedSources()
+    private let lock = NSLock()
+    private var ids = Set<String>()
+
+    func grant(_ newIDs: some Sequence<String>) {
+        lock.lock(); defer { lock.unlock() }
+        ids.formUnion(newIDs)
+    }
+
+    func revoke(_ id: String) {
+        lock.lock(); defer { lock.unlock() }
+        ids.remove(id)
+    }
+
+    func contains(_ id: String) -> Bool {
+        lock.lock(); defer { lock.unlock() }
+        return ids.contains(id)
     }
 }

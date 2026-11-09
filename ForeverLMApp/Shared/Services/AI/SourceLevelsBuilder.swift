@@ -800,7 +800,7 @@ enum SourceLevelsWriter {
             throw SourceLevelsError.notInLibrary(sourceID)
         }
         let excluded = try await storage.knowledgeSearchExcludedSourceIDs(includeArchived: true)
-        guard !excluded.contains(sourceID) else { throw SourceLevelsError.keptFromAI }
+        guard !KnowledgeStore.isBlockedFromOpening(sourceID, excluded: excluded) else { throw SourceLevelsError.keptFromAI }
         let text = await storage.loadSourceContent(sourceID) ?? ""
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw SourceLevelsError.noText(article.title)
