@@ -1664,8 +1664,9 @@ Space sidebar, fold open **Invite people** and give it a name, or open
 **Create**. The team appears in the Space sidebar at once, empty, and the
 app switches into it.
 
-While a team is open, the account menu carries a second settings entry named
-after it — **Mitochondria Settings**, say — beside **My Settings**. It opens the
+While a team is open, the account menu carries a settings entry named after
+it — **Mitochondria Settings**, say (your own Settings is the gear on the strip).
+It opens the
 team's own pages: **General** (name, invitation link, leave or delete) and
 **Members** (the roster). The same two pages sit in the Settings sidebar under
 the team's name for as long as that team is the open library; switch to another

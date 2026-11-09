@@ -2158,7 +2158,9 @@ struct StudioNavigationRail: View {
         .accessibilityIdentifier("studio.navigation.mcp")
     }
 
-    /// Settings on the strip, opening on the AI models.
+    /// Settings on the strip, opening on the AI models. The account menu
+    /// carries no My Settings row beside it (product owner, 2026-11-08:
+    /// "settings is redundant"); with the gear hidden, ⌘, still opens it.
     private var railSettingsButton: some View {
         Button {
             onOpenSettings(nil)
@@ -2169,7 +2171,7 @@ struct StudioNavigationRail: View {
         .buttonStyle(.hoverWash(cornerRadius: 7, inset: 0))
         .railTooltip("Settings")
         .accessibilityLabel("Settings")
-        .accessibilityIdentifier("studio.navigation.settings")
+        .accessibilityIdentifier(AccessibilityID.settingsButton)
     }
 
     // MARK: - Account
@@ -2291,15 +2293,6 @@ struct StudioNavigationRail: View {
             }
             .help(account.isMCPLocked ? "Open Billing" : "Open MCP settings")
             .accessibilityValue(mcpStatusLightLabel)
-        }
-
-        accountMenuAction(
-            title: "My Settings",
-            systemImage: "gearshape",
-            accessibilityIdentifier: AccessibilityID.settingsButton
-        ) {
-            showsAccountMenu = false
-            onOpenSettings(nil)
         }
 
         if let team = vm.activeTeam {

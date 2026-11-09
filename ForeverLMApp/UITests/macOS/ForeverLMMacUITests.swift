@@ -222,22 +222,19 @@ final class ForeverLMMacUITests: XCTestCase {
         )
     }
 
-    func testAccountMenuShowsSettingsAndSignOut() {
+    func testAccountMenuShowsSignOut() {
         let accountMenuButton = app.buttons[AccessibilityID.accountMenuButton]
         XCTAssertTrue(accountMenuButton.waitForExistence(timeout: 8))
         accountMenuButton.tap()
 
-        XCTAssertTrue(app.buttons[AccessibilityID.settingsButton].waitForExistence(timeout: 3))
-        XCTAssertTrue(app.buttons[AccessibilityID.signOutButton].exists)
+        XCTAssertTrue(app.buttons[AccessibilityID.signOutButton].waitForExistence(timeout: 3))
+        // Settings is the strip's gear, not a row of this menu.
+        XCTAssertFalse(app.buttons["My Settings"].exists)
     }
 
     func testSettingsWindowOpens() {
-        let accountMenuButton = app.buttons[AccessibilityID.accountMenuButton]
-        XCTAssertTrue(accountMenuButton.waitForExistence(timeout: 8))
-        accountMenuButton.tap()
-
         let settingsButton = app.buttons[AccessibilityID.settingsButton]
-        XCTAssertTrue(settingsButton.waitForExistence(timeout: 3))
+        XCTAssertTrue(settingsButton.waitForExistence(timeout: 8))
         settingsButton.tap()
 
         XCTAssertTrue(
