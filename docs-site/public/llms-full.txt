@@ -1058,7 +1058,7 @@ Select words on an open Site and a small bar appears at the selection: **Add to 
 
 Right-click a source in the sidebar, or open the reader's ⋯ menu, for **Linked in**: the Pages, sites and animations linked to that source (grounded on it, or citing its address), each opening from the menu. It is absent when nothing links to the source.
 
-The **Browser** row in the rail opens a web browser inside ForeverLM (in a notebook, beside its chat): tabs, an address bar (⌘L; type words to search, a host to load), back, forward and reload. Each tab belongs to a **profile**, a separate set of cookies and logins. **Library** is the one the readers and paper downloads share, so signing in to a publisher there helps every paper fetch; any other profile is the browser's alone, which is how ChatGPT can run on one Google account while the Google Drive plugin, which signs in through your system browser, keeps another. The person menu opens a tab in a profile, creates one, or manages them; removing a profile deletes its logins. **Add to Sources** on the toolbar saves the page you are reading, and hands over the page as the browser rendered it when the publisher will not give ForeverLM's own fetch the text. Open tabs come back on the next launch. Passkeys wait on an Apple entitlement ForeverLM has requested; until it arrives, a sign-in page that asks for one shows a notice with **Open in Brave** (your default browser), where the passkey works, and a password or code still signs you in here. The linked pages shown in Pages and Sites use these profiles too: a linked Codex site, Claude artifact or Google Doc runs on Library unless you pick another **Sign-in Profile** in the page's ⋯ menu, and its sign-in notice offers **Sign in in ForeverLM Browser**, which opens the same address in the Browser pane in that profile so you can sign in yourself; the page picks the sign-in up from there. **Use another account** is for a site whose workspace belongs to a different ChatGPT or Google account than the one already signed in: it switches the page to a profile you have already signed in with, so that sign-in comes straight back, or gives it a fresh profile through **New Profile…**.
+The **Browser** row in the rail opens a web browser inside ForeverLM (in a notebook, beside its chat): tabs, an address bar (⌘L; type words to search, a host to load), back, forward and reload. Each tab belongs to a **profile**, a separate set of cookies and logins. **Library** is the one the readers and paper downloads share, so signing in to a publisher there helps every paper fetch; any other profile is the browser's alone, which is how ChatGPT can run on one Google account while the Google Drive plugin, which signs in through your system browser, keeps another. The person menu opens a tab in a profile, creates one, or manages them; removing a profile deletes its logins. **Add to Library** on the toolbar saves the page you are reading, and hands over the page as the browser rendered it when the publisher will not give ForeverLM's own fetch the text. Open tabs come back on the next launch. Passkeys wait on an Apple entitlement ForeverLM has requested; until it arrives, a sign-in page that asks for one shows a notice with **Open in Brave** (your default browser), where the passkey works, and a password or code still signs you in here. The linked pages shown in Pages and Sites use these profiles too: a linked Codex site, Claude artifact or Google Doc runs on Library unless you pick another **Sign-in Profile** in the page's ⋯ menu, and its sign-in notice offers **Sign in in ForeverLM Browser**, which opens the same address in the Browser pane in that profile so you can sign in yourself; the page picks the sign-in up from there. **Use another account** is for a site whose workspace belongs to a different ChatGPT or Google account than the one already signed in: it switches the page to a profile you have already signed in with, so that sign-in comes straight back, or gives it a fresh profile through **New Profile…**.
 
 **Share**, beside the More menu on an open Page, is the one place to say who can open it. Its popover invites people by email (they read the published page, which reads the same for everyone but its author), lists who has access: an **Anyone with the link** row with **Can read** or **No access**, an **Anyone at \<team\>** row per team that shares a copy into the team and admits its members to the published page, each reader with a remove control, and you as the author. It ends with one sentence saying who can open the Page, a gear that opens the publish sheet for a custom address, and **Copy link**. A Page that is not published yet is published by the first invite, or by **Can read** on the link row; **Unpublish…** stays in the More menu. Web Studio's publish dialog has the same rows and the same sentence.
 
@@ -1141,11 +1141,11 @@ A line that is nothing but a link to the web — a paper under a research report
 an item in a reading list — is drawn as a card: the title, a quieter detail such
 as `— Nature, 2024`, the site, and what your library says about it. A source you
 already have carries a filled check that opens it beside the page; one you don't
-offers **Add to Sources**, which files it the same way pasting the address into
+offers **Add to Library**, which files it the same way pasting the address into
 the sidebar would, and turns into the check when it lands. The library a card
 asks is the page's: a page in My Library asks My Library, and a team page (or your
 draft of one) asks the team library and nothing else, so a paper only you hold
-privately still offers Add to Sources on a team page, and adding it there puts
+privately still offers Add to Library on a team page, and adding it there puts
 it in the team library for everyone; only a team's editors can. Matching follows the
 library's own rules — the address, its DOI (including a saved preprint's journal
 DOI), its arXiv id, or for a Nature paper hosted on another site the article id
@@ -1354,7 +1354,7 @@ Sources flow into Studio from multiple directions:
 - **Browser reading lists** — Safari, Chrome, and Brave reading lists are scanned automatically
 - **Apple Podcasts** — episodes you've listened to appear after you view the transcript once in Podcasts.app. Apple Podcasts is the only supported player; others like Spotify don't make transcripts accessible to other apps.
 - **Files** — drop a paper's PDF on the Library's **Papers** tab (or use its **Upload PDFs…**), a book (PDF, EPUB or DRM-free Kindle) on its **Books** tab (**Add Book…**), or PDFs on a notebook's Sources column
-- **Links** — paste a link or DOI into a notebook's **Add sources**, or save the page you are reading in the Browser with **Add to Sources**
+- **Links** — paste a link or DOI into a notebook's **Add sources**, or save the page you are reading in the Browser with **Add to Library**
 - **Gemini Notebook** — paste a notebook's link to bring in its sources, chats and notes as a notebook ([Importing a Gemini Notebook](#importing-a-gemini-notebook))
 - **AI assistants** — Your AI assistant can add sources via the [MCP connection](/setup-mcp)
 - **X (Twitter)** — sign in to sync your bookmarked posts
@@ -2234,7 +2234,7 @@ Every web page the reply searched or read is listed under it as **Web sources**,
 folded to one line with a count until you click it open.
 On the Mac each row shows the page's title and site: click the title to read the
 page beside Chat without importing it, or click **Add** to keep it in your library.
-Add runs the same import as the Reader's "Add to Sources" button, so a page
+Add runs the same import as the Reader's "Add to Library" button, so a page
 already in your library reads **Added** and a new one is deduplicated the same
 way. Nothing is added to your library unless you click Add.
 
@@ -2855,7 +2855,7 @@ This also works in the other direction: if a web article turns out to be an acad
 Save the paper's abstract or landing page to your browser's reading list (Safari, Chrome, or Brave). The app picks it up automatically, as far back as you chose in setup or in **Settings → Sources → Reading Lists** (see [Articles](/articles#how-articles-are-discovered)).
 
 **Manual paste:**
-In a notebook, paste the paper's URL or DOI into **Add sources** and choose **Add link**: the paper joins your library and the notebook in one step. In ForeverLM's Browser, **Add to Sources** saves the page you are reading.
+In a notebook, paste the paper's URL or DOI into **Add sources** and choose **Add link**: the paper joins your library and the notebook in one step. In ForeverLM's Browser, **Add to Library** saves the page you are reading.
 
 **Via MCP:**
 Your AI assistant adds a paper with `import_paper_from_url` (a URL or DOI) or `import_local_pdf_as_paper` (a PDF on your Mac). Either way the paper shows in Papers as soon as its PDF is in, as processing until its metadata is read. `add_source` is for non-paper sources. Given a notebook's `notebook_id`, `import_paper_from_url` files the paper in that notebook as well, and a paper already in your library joins it instead of being imported again.
@@ -2940,6 +2940,12 @@ Some publishers go further and hand the PDF only to a browser: nature.com, for o
 When an AI assistant runs the bulk PDF download over MCP, papers that fail in a paywall-shaped way (access denied, login or payment required, an HTML page served instead of a PDF, or no open-access copy found anywhere) are automatically marked as paywalled so they stop being retried. Attaching a PDF clears the marker, and the assistant can also clear it with `set_source_paywall_status`.
 
 The same applies when an AI assistant imports a single paper by URL or DOI (`import_paper_from_url`): if the publisher blocks the PDF, the paper is still added, marked paywalled, with the title, authors, venue, year, and DOI the landing page and Crossref provide. It appears in the Papers tab with the paywall recovery options, ready for you to attach the PDF, and a later paywall recheck can pick up a free copy. Only transient failures, such as a network error or a 404, leave nothing behind.
+
+## Supplementary figures and Extended Data
+
+A paper's text often points at figures printed outside the article: "Extended Data Fig. 3", "Supplementary Fig. 2", "Fig. S4". Nature prints Extended Data at the back of the article's own PDF, so those figures are there whenever the paper's PDF is the journal's full version. Supplementary figures, and the Extended Data some journals ship separately, come as their own file on the journal's site.
+
+To give a paper its supplementary file, download it, then choose **Add Supplementary PDF…** from the paper's right-click menu. Its pages are added after the article's own pages in the paper's PDF, so the Reader shows them, search finds their text, and chat can show and explain their figures the way it does the main ones. The article's pages keep their numbers and the paper keeps its title and authors; nothing is billed. An AI assistant can do the same with `attach_supplementary_pdf`, from a file on your Mac or the journal's link.
 
 ## Tips
 
@@ -3630,7 +3636,7 @@ claude plugin marketplace add ForeverLM-HQ/foreverlm-plugins
 claude plugin install foreverlm@foreverlm
 ```
 
-Then run `/mcp` in Claude Code, choose **foreverlm**, and complete Sign in with Apple. The plugin bundles the remote MCP server and four skills: a paper-library migration that moves a [Zotero, Paperpile or Mendeley library](/papers#coming-from-a-reference-manager) into ForeverLM once; a chat export that brings a conversation held with another assistant into ForeverLM as a chat, with the Markdown it produced saved as Pages and its citations linked to your Sources; an AI cost review that reads your AI usage ledger, names the tasks and models behind the spend, and proposes cheaper model settings from the [MCP tools](/mcp-tools#settings) that it applies only once you approve them; and a walkthrough writer that explains a paper, book chapter or article the way a good textbook does, one point at a time with short questions after the points they test, and saves it as the source's walkthrough. Once ForeverLM is published in the Claude plugin directory, `/plugin` will offer it without adding the marketplace.
+Then run `/mcp` in Claude Code, choose **foreverlm**, and complete Sign in with Apple. The plugin bundles the remote MCP server and five skills: a paper-library migration that moves a [Zotero, Paperpile or Mendeley library](/papers#coming-from-a-reference-manager) into ForeverLM once; a chat export that brings a conversation held with another assistant into ForeverLM as a chat, with the Markdown it produced saved as Pages and its citations linked to your Sources; an AI cost review that reads your AI usage ledger, names the tasks and models behind the spend, and proposes cheaper model settings from the [MCP tools](/mcp-tools#settings) that it applies only once you approve them; and a walkthrough writer that explains a paper, book chapter or article the way a good textbook does, one point at a time with short questions after the points they test, and saves it as the source's walkthrough; and a figure coverage check that goes through your papers, finds the ones whose text refers to Extended Data or supplementary figures their PDF does not carry, and offers to replace a copy with the journal's full article PDF once you approve. Once ForeverLM is published in the Claude plugin directory, `/plugin` will offer it without adding the marketplace.
 
 ## ChatGPT custom setup
 
@@ -4347,6 +4353,7 @@ Changing, hiding and removing what is already in the library.
 | `refetch_source_content` | `source_id` | Fetch a source's text again from its address and clear an error. An article is refreshed as **Refresh from Website** does it, and kept only when the site returned at least as much text as the saved copy, so a paywall preview never replaces it; a podcast episode's transcript is fetched from Apple Podcasts again, in the background. |
 | `fetch_source_from_archive` | `source_id` | Fetch a paywalled or failed web article's text from archive.ph and store it. |
 | `attach_pdf_to_paper` | `source_id`, `file_path?`, `pdf_url?` | Give a paper its PDF, from a file on the Mac or a URL (a Slack file's `download_url` works): copied into the synced Papers folder, its text extracted and its metadata read, paywall and error state cleared. |
+| `attach_supplementary_pdf` | `source_id`, `file_path?`, `pdf_url?` | Join a journal's supplementary PDF to a paper that has its own PDF: its pages follow the article's, so its figures join the paper's figure index and `inspect_paper_figure`, `show_source_image`, the Reader and search reach them. The article's pages keep their numbers; no model runs. A supplement already joined is refused. |
 | `attach_text_file_to_source` | `source_id`, `file_path` | Attach a text, Markdown or HTML file on the Mac to an article, copied into the synced Articles folder with its text stored. |
 | `extract_paper_metadata` | `source_id`, `approved_spend_usd?` | Read a paper's author, journal, year and DOI again with AI. |
 | `extract_article_metadata` | `source_id`, `approved_spend_usd?` | Read an article's title and author again with AI. |
@@ -6737,6 +6744,26 @@ All notable changes to ForeverLM are documented here. Dates are in YYYY-MM-DD fo
 ForeverLM follows [semantic versioning](https://semver.org) against its public surface: the MCP tool contracts, the knowledge-base/sync format, and licensing compatibility. While the version is 0.x, minor releases may include breaking changes to that surface; patch releases never do.
 
 ## Unreleased
+
+- **A paper takes its supplementary file.** Choose **Add Supplementary PDF…** on a paper's right-click menu, or ask an assistant (`attach_supplementary_pdf`): the journal's supplementary PDF is added after the article's pages, so "Supplementary Fig. 2" and "Fig. S4" can be shown and explained like the paper's own figures, and search reads their captions. Nothing is billed, and the article's pages keep their numbers.
+
+## 0.204.0 (build 284) — 2026-11-08
+
+**Highlights:**
+- **Drag the strip's icons into your own order,** at the top and at the bottom of the left strip.
+- **Links open in ForeverLM's Browser,** with Add to Library one click away.
+- **A figure mentioned in a paper's text opens that figure.**
+
+- **Links open in ForeverLM's Browser.** A web link you click in a Page, a published page or a PDF now opens as a tab of the Browser pane instead of your web browser, and **Add to Library** there saves the page to your library (the button the Reader and the Browser called Add to Sources). To send links, chat links included, to your own browser instead, choose it under Settings › Sources › **Links**.
+- **Drag the strip's icons into your own order.** Every icon on the left strip moves where you drag it: Home, Spaces, Memory, Library, Plugins and the places you keep there at the top, and voice, the calendar, the bell, MCP, Settings and your account at the bottom. The order follows your account to your other Macs.
+- **Settings and MCP sit on the strip.** The General pane is gone; Settings opens from the gear at the bottom left, with MCP's status beside it.
+- **A figure mentioned in a paper's text opens that figure,** and a citation of several numbers shows every entry it names, across your library.
+- **Chat scrolls without jumping:** every chat is one page now. A stream that never sends a byte times out and tries again, and the steps' thinking line keeps its size beside the reply.
+- **Pages stay loaded behind your Space,** so coming back to one is instant.
+- **A chat opening a paper beside itself opens it in its own window only.**
+- **Settings › Models:** drag Your Models by a grip; the list starts maker by maker.
+- **Library rows carry no read mark.**
+- **"Extended Data Figure 1 was not found" on a paper that prints it.** A paper whose figure index predated Extended Data listed only its main figures, and the figure tools kept using that index. They now read an out-of-date index again, and a paper whose PDF changed, before answering.
 
 ## 0.203.0 (build 283) — 2026-11-08
 
