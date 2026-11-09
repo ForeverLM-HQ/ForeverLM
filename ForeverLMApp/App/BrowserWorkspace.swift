@@ -1239,6 +1239,11 @@ extension BrowserTabController: WKNavigationDelegate {
         _ webView: WKWebView,
         decidePolicyFor navigationResponse: WKNavigationResponse
     ) async -> WKNavigationResponsePolicy {
+        // A site's Cloudflare check never clears under the Safari user agent;
+        // the page is asked for again under WebKit's own.
+        if SharedWebKit.retryCloudflareChallengeWithWebKitUserAgent(navigationResponse, in: webView) {
+            return .cancel
+        }
         // A PDF reached from a paper's own page — or shown at the paper's own
         // address — is that paper's, as in the reader.
         let paperID = paperNeedingPDF(in: webView)

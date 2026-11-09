@@ -113,6 +113,69 @@ enum SharedWebKit {
         let major = ProcessInfo.processInfo.operatingSystemVersion.majorVersion
         return major >= 26 ? "\(major).0" : "18.6"
     }
+
+    /// Whether a response is Cloudflare's bot check ("Performing security
+    /// verification", titled *Just a moment...*). Cloudflare marks the
+    /// challenge document with `cf-mitigated: challenge`.
+    static func isCloudflareChallenge(_ response: URLResponse) -> Bool {
+        guard let http = response as? HTTPURLResponse,
+              let mitigated = http.value(forHTTPHeaderField: "cf-mitigated") else { return false }
+        return mitigated.trimmingCharacters(in: .whitespaces).lowercased() == "challenge"
+    }
+
+    /// Cloudflare's bot check never clears for a web view that presents
+    /// `desktopSafariUserAgent`: it spins on *Verifying…* for good, because
+    /// the page can tell a WKWebView claiming to be Safari from Safari. The
+    /// same web view under WebKit's own user agent clears it in seconds
+    /// (measured 2026-11-08 on a tandfonline.com paper: three runs each, a
+    /// fresh data store, still on the check after 39 s with the Safari tokens,
+    /// through it with WebKit's own).
+    ///
+    /// Called first from a `decidePolicyFor navigationResponse`: when the
+    /// document is that check and the web view is presenting the Safari user
+    /// agent, it drops the override for this web view only (the clearance
+    /// cookie is tied to the user agent that earned it, so the web view keeps
+    /// WebKit's own from here on) and asks for the page again. Returns whether
+    /// it did, and then the caller answers the response `.cancel`.
+    ///
+    /// Cancel, not allow: a load started while an allowed challenge commits
+    /// is dropped about three times in four, leaving the check on screen.
+    /// The cancel reports `didFailProvisionalNavigation` with WebKit's
+    /// "frame load interrupted" (102) before the new load starts; a delegate
+    /// that would treat that as a failure asks
+    /// `isCloudflareRetryInterruption(_:in:)` first.
+    @MainActor
+    static func retryCloudflareChallengeWithWebKitUserAgent(
+        _ navigationResponse: WKNavigationResponse,
+        in webView: WKWebView
+    ) -> Bool {
+        guard navigationResponse.isForMainFrame,
+              webView.customUserAgent == desktopSafariUserAgent,
+              isCloudflareChallenge(navigationResponse.response),
+              let url = navigationResponse.response.url else { return false }
+        webView.customUserAgent = nil
+        cloudflareRetryWebViews.add(webView)
+        DispatchQueue.main.async { [weak webView] in
+            webView?.load(URLRequest(url: url))
+        }
+        return true
+    }
+
+    /// Whether a navigation failure is the cancel
+    /// `retryCloudflareChallengeWithWebKitUserAgent` answered the challenge
+    /// with, which the page asked for again replaces. Answers once per retry.
+    @MainActor
+    static func isCloudflareRetryInterruption(_ error: Error, in webView: WKWebView) -> Bool {
+        let nsError = error as NSError
+        guard nsError.domain == WKErrorDomain || nsError.domain == "WebKitErrorDomain",
+              nsError.code == 102,
+              cloudflareRetryWebViews.contains(webView) else { return false }
+        cloudflareRetryWebViews.remove(webView)
+        return true
+    }
+
+    @MainActor
+    private static let cloudflareRetryWebViews = NSHashTable<WKWebView>.weakObjects()
 }
 
 /// Who a web view's script message handlers listen to.

@@ -1886,6 +1886,7 @@ final class PaperAIBrowserDownloadService: NSObject, WKNavigationDelegate, WKUID
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
         let nsError = error as NSError
         if nsError.domain == NSURLErrorDomain && nsError.code == NSURLErrorCancelled { return }
+        if SharedWebKit.isCloudflareRetryInterruption(error, in: webView) { return }
         let failure = BrowserAgentError.pageLoadFailed(error.localizedDescription)
         loadTimeoutTask?.cancel()
         loadTimeoutTask = nil
@@ -1920,6 +1921,12 @@ final class PaperAIBrowserDownloadService: NSObject, WKNavigationDelegate, WKUID
         decidePolicyFor navigationResponse: WKNavigationResponse,
         decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void
     ) {
+        // A publisher's Cloudflare check never clears under the Safari user
+        // agent; the page is asked for again under WebKit's own.
+        if SharedWebKit.retryCloudflareChallengeWithWebKitUserAgent(navigationResponse, in: webView) {
+            decisionHandler(.cancel)
+            return
+        }
         let mimeType = navigationResponse.response.mimeType?.lowercased() ?? ""
         if mimeType == "application/pdf" || !navigationResponse.canShowMIMEType {
             downloadInProgress = true

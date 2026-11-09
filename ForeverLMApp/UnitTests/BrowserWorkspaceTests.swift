@@ -540,3 +540,41 @@ struct BrowserWorkspaceTests {
         #expect(!WebLinkOpening.isWebLink(URL(string: "https:///nohost")!))
     }
 }
+
+/// A WKWebView presenting the Safari user agent never clears Cloudflare's bot
+/// check, so web views answer the check by asking again under WebKit's own
+/// (`SharedWebKit.retryCloudflareChallengeWithWebKitUserAgent`). The check is
+/// recognised by Cloudflare's own header, never by the page's words.
+@Suite("Cloudflare bot check")
+@MainActor
+struct CloudflareChallengeRetryTests {
+    private func response(_ headers: [String: String], status: Int = 403) -> HTTPURLResponse {
+        HTTPURLResponse(
+            url: URL(string: "https://publisher.example/doi/full/10.1000/example")!,
+            statusCode: status,
+            httpVersion: "HTTP/2",
+            headerFields: headers
+        )!
+    }
+
+    @Test("Cloudflare's challenge header marks the check, in any case")
+    func challengeHeaderMarksTheCheck() {
+        #expect(SharedWebKit.isCloudflareChallenge(response(["cf-mitigated": "challenge"])))
+        #expect(SharedWebKit.isCloudflareChallenge(response(["CF-Mitigated": " Challenge"])))
+    }
+
+    @Test("A Cloudflare page without the challenge header is the page")
+    func otherCloudflareResponsesAreNotTheCheck() {
+        #expect(!SharedWebKit.isCloudflareChallenge(response(["server": "cloudflare"], status: 200)))
+        #expect(!SharedWebKit.isCloudflareChallenge(response(["cf-mitigated": "block"])))
+        let plain = URLResponse(url: URL(string: "https://publisher.example/")!, mimeType: "text/html", expectedContentLength: 0, textEncodingName: nil)
+        #expect(!SharedWebKit.isCloudflareChallenge(plain))
+    }
+
+    @Test("A frame-load interruption is the retry's only for a web view that retried")
+    func interruptionWithoutRetryIsAFailure() {
+        let webView = WKWebView(frame: .zero)
+        let interrupted = NSError(domain: "WebKitErrorDomain", code: 102)
+        #expect(!SharedWebKit.isCloudflareRetryInterruption(interrupted, in: webView))
+    }
+}

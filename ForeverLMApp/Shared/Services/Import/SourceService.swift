@@ -2570,6 +2570,12 @@ final class WebSessionPDFDownloader: NSObject, WKNavigationDelegate, WKUIDelegat
             decisionHandler(.allow)
             return
         }
+        // A publisher's Cloudflare check never clears under the Safari user
+        // agent; the page is asked for again under WebKit's own.
+        if SharedWebKit.retryCloudflareChallengeWithWebKitUserAgent(navigationResponse, in: webView) {
+            decisionHandler(.cancel)
+            return
+        }
         let disposition = (navigationResponse.response as? HTTPURLResponse)?
             .value(forHTTPHeaderField: "Content-Disposition")
         if Self.responseIsDownload(
@@ -2607,6 +2613,7 @@ final class WebSessionPDFDownloader: NSObject, WKNavigationDelegate, WKUIDelegat
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        if SharedWebKit.isCloudflareRetryInterruption(error, in: webView) { return }
         navigationFailed(error)
     }
 
@@ -2854,6 +2861,20 @@ final class WebViewContentExtractor: NSObject, WKNavigationDelegate {
         }
     }
 
+    /// A publisher's Cloudflare check never clears under the Safari user
+    /// agent; the page is asked for again under WebKit's own.
+    func webView(
+        _ webView: WKWebView,
+        decidePolicyFor navigationResponse: WKNavigationResponse,
+        decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void
+    ) {
+        if SharedWebKit.retryCloudflareChallengeWithWebKitUserAgent(navigationResponse, in: webView) {
+            decisionHandler(.cancel)
+            return
+        }
+        decisionHandler(.allow)
+    }
+
     nonisolated func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
         Task { @MainActor in
             self.finishWith(error: SourceError.fetchFailed)
@@ -2861,6 +2882,12 @@ final class WebViewContentExtractor: NSObject, WKNavigationDelegate {
     }
 
     nonisolated func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
+        // The Cloudflare retry's cancel; the page asked for again reports
+        // for itself.
+        let retrying = MainActor.assumeIsolated {
+            SharedWebKit.isCloudflareRetryInterruption(error, in: webView)
+        }
+        guard !retrying else { return }
         Task { @MainActor in
             self.finishWith(error: SourceError.fetchFailed)
         }

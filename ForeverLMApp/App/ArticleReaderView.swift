@@ -3057,6 +3057,12 @@ struct WebViewReader: NSViewRepresentable {
         /// (from any other source it is shown like a page), and any other file
         /// goes to Downloads.
         func webView(_ webView: WKWebView, decidePolicyFor navigationResponse: WKNavigationResponse, decisionHandler: @escaping (WKNavigationResponsePolicy) -> Void) {
+            // A publisher's Cloudflare check never clears under the Safari
+            // user agent; the page is asked for again under WebKit's own.
+            if SharedWebKit.retryCloudflareChallengeWithWebKitUserAgent(navigationResponse, in: webView) {
+                decisionHandler(.cancel)
+                return
+            }
             let response = navigationResponse.response
             if navigationResponse.isForMainFrame {
                 mainFrameMIMEType = response.mimeType?.lowercased()
