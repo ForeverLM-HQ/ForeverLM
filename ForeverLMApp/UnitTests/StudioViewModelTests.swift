@@ -112,6 +112,39 @@ private func warmLocalPathCache(_ rawPaths: [String]) async {
 @Suite("Paper PDF import presentation")
 @MainActor
 struct PaperPDFImportPresentationTests {
+    // Sync clears the resolved-path cache when another Mac's text lands. The
+    // reload changes nothing a row shows, so nothing warmed the cache again and
+    // the Reader showed a paper's stored text instead of its PDF until relaunch.
+    @Test("A cleared path cache is warmed again, so a paper's PDF stays readable")
+    func clearedPathCacheIsWarmedAgain() async throws {
+        let vm = makeViewModel()
+        let pdf = try makeTempPDF()
+        defer {
+            StudioArticle.invalidateResolvedPathCache(forRawPaths: [pdf.path])
+            try? FileManager.default.removeItem(at: pdf)
+        }
+        var paper = makeArticle(url: "https://example.com/oocyte-paper", title: "Oocytes", sourceType: .paper)
+        paper.localFilePath = pdf.path
+        StudioArticle.warmResolvedLocalPathCache(forRawPaths: [pdf.path])
+        vm.articles = [paper]
+        #expect(paper.cachedResolvedPDFPath == pdf.path)
+        // Let the warm that assignment scheduled (400 ms debounce) finish, so
+        // only the clear's own warm can bring the path back below.
+        try await Task.sleep(for: .seconds(1))
+
+        // What `invalidateAllResolvedPathCaches()` does, for this path only:
+        // a library-wide clear would race the other suites' cached PDFs.
+        StudioArticle.invalidateResolvedPathCache(forRawPaths: [pdf.path])
+        #expect(paper.cachedResolvedPDFPath == nil)
+        NotificationCenter.default.post(name: .resolvedPathCacheDidClear, object: nil)
+
+        let deadline = ContinuousClock.now + .seconds(5)
+        while paper.cachedResolvedPDFPath == nil, ContinuousClock.now < deadline {
+            try await Task.sleep(for: .milliseconds(50))
+        }
+        #expect(paper.cachedResolvedPDFPath == pdf.path)
+    }
+
     @Test("A background-style Finder drop does not implicitly open PDFKit")
     func importWithoutReaderSelection() async throws {
         let vm = makeViewModel()

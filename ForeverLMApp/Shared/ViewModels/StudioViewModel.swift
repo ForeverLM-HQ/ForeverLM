@@ -694,6 +694,23 @@ class StudioViewModel {
         }
     }
 
+    @ObservationIgnored private var resolvedPathCacheClearTask: Task<Void, Never>?
+
+    /// Sync clears the whole resolved-path cache when another Mac's files or
+    /// text land (`invalidateAllResolvedPathCaches`). The reload that follows
+    /// often changes nothing a row shows, so `articles`' didSet never warms it
+    /// again, and every local PDF answered "unknown": the Reader showed a
+    /// paper's stored text instead of its PDF until relaunch. Warm on the clear.
+    func startObservingResolvedPathCacheClears() {
+        resolvedPathCacheClearTask?.cancel()
+        resolvedPathCacheClearTask = Task { [weak self] in
+            for await _ in NotificationCenter.default.notifications(named: .resolvedPathCacheDidClear) {
+                guard !Task.isCancelled else { return }
+                self?.scheduleResolvedPathRevalidation()
+            }
+        }
+    }
+
     /// Raw stored path strings for every source, for off-main path resolution.
     /// `StudioArticle` is not Sendable; these strings are.
     private func resolvedPathWarmupSnapshot() -> [String] {
@@ -4773,6 +4790,7 @@ class StudioViewModel {
         self.paperFigureIndexer = PaperFigureIndexer(storage: storageService, aiService: ai)
         if observeCloudKitChanges {
             startObservingCloudKitRemoteChanges()
+            startObservingResolvedPathCacheClears()
             startObservingCloudKitSyncConflicts()
             startObservingDerivedSourceWork()
             startObservingManagedAICreditsRestored()

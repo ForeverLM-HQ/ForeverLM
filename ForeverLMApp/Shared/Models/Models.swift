@@ -3448,14 +3448,22 @@ struct StudioArticle: Identifiable, Codable, Equatable {
     /// A legacy-root consolidation can relocate thousands of files while the
     /// app is open. Cached values store the previously located absolute path,
     /// so clear both polarities once the verified batch has changed anything;
-    /// subsequent UI reads remain cache-only and the normal off-main warmer
+    /// subsequent UI reads remain cache-only and the off-main warmer
     /// repopulates them against the canonical root.
+    ///
+    /// Sync clears it too, whenever another Mac's source files or text land.
+    /// Until the warmer runs again, every local PDF answers "unknown", and the
+    /// Reader shows a paper's stored text instead of its PDF. The warmer used to
+    /// run only on a source change a row can see, and text arriving is not one,
+    /// so a paper stayed text for the rest of the session. The clear now says so
+    /// (`resolvedPathCacheDidClear`), and the view model warms the cache again.
     static func invalidateAllResolvedPathCaches() {
         resolvedPathCacheLock.lock()
         resolvedPathCache.removeAll(keepingCapacity: true)
         negativeResolvedPathCache.removeAll(keepingCapacity: true)
         resolvedPathCacheGenerationValue &+= 1
         resolvedPathCacheLock.unlock()
+        NotificationCenter.default.post(name: .resolvedPathCacheDidClear, object: nil)
     }
 
     /// Resolve a stored absolute path only when the file exists, memoizing hits
@@ -5262,4 +5270,10 @@ enum PodcastDiscoveryStatus: Equatable {
     case schemaChanged(details: String)
     /// Query executed but returned zero rows
     case noEpisodesFound
+}
+
+extension Notification.Name {
+    /// Posted by `StudioArticle.invalidateAllResolvedPathCaches()`, on whatever
+    /// thread cleared the cache. The view model answers by warming it again.
+    static let resolvedPathCacheDidClear = Notification.Name("ForeverLM.resolvedPathCacheDidClear")
 }
