@@ -37,8 +37,8 @@ struct DayNowChip: View {
     var compact = false
     /// A calendar glyph alone, centred, for the 52-point icon strip, where
     /// even the minutes do not fit; the help says the rest. Unlike the full
-    /// chip it is always there, with the tone's dot on its corner while
-    /// something is happening, and its popover is the day's schedule.
+    /// chip it is always there, plain (no dot, whatever is happening), and
+    /// its popover is the day's schedule.
     var iconOnly = false
     /// The room the chip may take; nil for as much as its text needs.
     var maxWidth: CGFloat? = nil
@@ -82,15 +82,10 @@ struct DayNowChip: View {
                 Image(systemName: "calendar")
                     .font(.system(size: 14, weight: .medium))
                     .foregroundStyle(.secondary)
-                    // The tone's dot rides the glyph's corner while something
-                    // is happening, as the notifications bell's does.
-                    .overlay(alignment: .topTrailing) {
-                        if let presentation {
-                            DayNowDot(tone: presentation.tone)
-                                .scaleEffect(0.8)
-                                .offset(x: 4, y: -3)
-                        }
-                    }
+                    // No dot on the glyph while an event is on (product owner,
+                    // 2026-11-08: "no notifications here for calendar ...
+                    // it's visually distracting"). The help still names the
+                    // event and the minutes left.
                     .frame(width: 36, height: 30)
                     .background(
                         RoundedRectangle(cornerRadius: StudioDesign.Radius.control, style: .continuous)
