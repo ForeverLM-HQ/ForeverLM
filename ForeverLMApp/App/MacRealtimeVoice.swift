@@ -210,9 +210,14 @@ enum MacRealtimeVoice {
 /// call opens and cancels echo in software, but keeps those devices for the
 /// whole call, so putting AirPods in mid-call would leave it on the built-in
 /// speaker and microphone until the controller reopens it.
+///
+/// The default microphone is also kept running for the whole call, from before
+/// WebRTC opens anything (`MacCallMicrophoneHold`), so a Bluetooth headset is
+/// already in its call mode, at the sample rate it keeps, when WebRTC opens it.
 final class MacRealtimeVoicePlatformAudio: RealtimeVoicePlatformAudio, @unchecked Sendable {
     private let lock = NSLock()
     private var watcher: MacDefaultAudioDevicesWatcher?
+    private var microphone: MacCallMicrophoneHold?
 
     func prepare(
         onPreempted: @escaping @Sendable () -> Void,
@@ -221,22 +226,170 @@ final class MacRealtimeVoicePlatformAudio: RealtimeVoicePlatformAudio, @unchecke
         guard await AVCaptureDevice.requestAccess(for: .audio) else {
             throw MacRealtimeVoiceError.microphoneDenied
         }
-        let watcher = MacDefaultAudioDevicesWatcher(onChange: onDevicesChanged)
+        let microphone = MacCallMicrophoneHold()
+        await microphone.holdDefaultMicrophone()
+        // The call reopens on the new devices only once the new microphone is
+        // held and the new speaker has settled, for the same reason.
+        let watcher = MacDefaultAudioDevicesWatcher(onChange: {
+            Task {
+                await microphone.holdDefaultMicrophone()
+                onDevicesChanged()
+            }
+        })
         let previous = lock.withLock {
-            let previous = self.watcher
+            let previous = (self.watcher, self.microphone)
             self.watcher = watcher
+            self.microphone = microphone
             return previous
         }
-        previous?.stop()
+        previous.0?.stop()
+        previous.1?.release()
     }
 
     func finish() async {
-        let watcher = lock.withLock {
-            let watcher = self.watcher
+        let held = lock.withLock {
+            let held = (self.watcher, self.microphone)
             self.watcher = nil
-            return watcher
+            self.microphone = nil
+            return held
         }
-        watcher?.stop()
+        held.0?.stop()
+        held.1?.release()
+    }
+}
+
+/// Keeps the Mac's default microphone running for the whole call, started
+/// before WebRTC opens any device.
+///
+/// A Bluetooth headset such as AirPods plays at 48 kHz and drops to its call
+/// mode, 24 or 16 kHz, the moment any app starts its microphone. WebRTC on the
+/// Mac opens the speaker first and the microphone after it, so the speaker's
+/// rate changed under a call that was already playing, and WebRTC went on
+/// writing 48 kHz audio into a 24 kHz device: the voice played at half speed,
+/// an octave down (product owner, 2026-11-09: "it just sounds like it's very
+/// slowed down and very deep"; the log showed AirPods' output going from 48000
+/// to 24000 Hz as WebRTC started their microphone). With the microphone already
+/// running, the headset is in call mode before WebRTC opens it, and stays there
+/// across the controller's reopens.
+final class MacCallMicrophoneHold: @unchecked Sendable {
+    private static let logger = Logger(subsystem: "com.foreverlm", category: "RealtimeVoice")
+    /// How long a Bluetooth speaker's sample rate must stay put before the call
+    /// opens on it, and the longest the call waits for that. AirPods can take
+    /// a second or two to bring their call mode up.
+    private static let settledFor: Duration = .milliseconds(700)
+    private static let longestWait: Duration = .seconds(3)
+    private static let pollInterval: Duration = .milliseconds(100)
+
+    private let lock = NSLock()
+    // Guarded by `lock`.
+    private var device = AudioDeviceID(kAudioObjectUnknown)
+    private var procID: AudioDeviceIOProcID?
+
+    /// Starts the current default microphone, leaving any other one this hold
+    /// was running, then, when the default speaker is Bluetooth, waits until
+    /// its sample rate has stopped changing.
+    func holdDefaultMicrophone() async {
+        let input = MacAudioDevice.defaultDevice(kAudioHardwarePropertyDefaultInputDevice)
+        let output = MacAudioDevice.defaultDevice(kAudioHardwarePropertyDefaultOutputDevice)
+        hold(input)
+        guard output != kAudioObjectUnknown, MacAudioDevice.isBluetooth(output) else { return }
+        let clock = ContinuousClock()
+        let started = clock.now
+        let before = MacAudioDevice.nominalSampleRate(output)
+        var rate = before
+        var stableSince = started
+        while clock.now - started < Self.longestWait, clock.now - stableSince < Self.settledFor {
+            try? await Task.sleep(for: Self.pollInterval)
+            let now = MacAudioDevice.nominalSampleRate(output)
+            if now != rate {
+                rate = now
+                stableSince = clock.now
+            }
+        }
+        let waited = clock.now - started
+        Self.logger.notice(
+            "Voice Bluetooth speaker \(output, privacy: .public) at \(rate, privacy: .public) Hz (was \(before, privacy: .public)) after \(String(describing: waited), privacy: .public)"
+        )
+    }
+
+    /// Stops the microphone. Safe to call more than once.
+    func release() {
+        lock.withLock { stopHeld() }
+    }
+
+    private func hold(_ input: AudioDeviceID) {
+        lock.withLock {
+            if procID != nil, device == input { return }
+            stopHeld()
+            guard input != kAudioObjectUnknown else { return }
+            var created: AudioDeviceIOProcID?
+            // Nothing is read: a running input is what puts the headset in call
+            // mode. WebRTC captures the microphone on its own.
+            var status = AudioDeviceCreateIOProcIDWithBlock(&created, input, nil) { _, _, _, _, _ in }
+            guard status == noErr, let created else {
+                Self.logger.error("Voice cannot open microphone \(input, privacy: .public): \(status, privacy: .public)")
+                return
+            }
+            status = AudioDeviceStart(input, created)
+            guard status == noErr else {
+                AudioDeviceDestroyIOProcID(input, created)
+                Self.logger.error("Voice cannot start microphone \(input, privacy: .public): \(status, privacy: .public)")
+                return
+            }
+            device = input
+            procID = created
+        }
+    }
+
+    /// Under `lock`.
+    private func stopHeld() {
+        guard let held = procID else { return }
+        AudioDeviceStop(device, held)
+        AudioDeviceDestroyIOProcID(device, held)
+        procID = nil
+        device = AudioDeviceID(kAudioObjectUnknown)
+    }
+}
+
+/// The few CoreAudio device properties voice mode reads.
+enum MacAudioDevice {
+    static func defaultDevice(_ selector: AudioObjectPropertySelector) -> AudioDeviceID {
+        var address = AudioObjectPropertyAddress(
+            mSelector: selector,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var device = AudioDeviceID(kAudioObjectUnknown)
+        var size = UInt32(MemoryLayout<AudioDeviceID>.size)
+        let status = AudioObjectGetPropertyData(
+            AudioObjectID(kAudioObjectSystemObject), &address, 0, nil, &size, &device
+        )
+        return status == noErr ? device : AudioDeviceID(kAudioObjectUnknown)
+    }
+
+    static func isBluetooth(_ device: AudioDeviceID) -> Bool {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyTransportType,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var transport: UInt32 = 0
+        var size = UInt32(MemoryLayout<UInt32>.size)
+        guard AudioObjectGetPropertyData(device, &address, 0, nil, &size, &transport) == noErr else { return false }
+        return transport == kAudioDeviceTransportTypeBluetooth || transport == kAudioDeviceTransportTypeBluetoothLE
+    }
+
+    /// 0 when the device cannot say.
+    static func nominalSampleRate(_ device: AudioDeviceID) -> Float64 {
+        var address = AudioObjectPropertyAddress(
+            mSelector: kAudioDevicePropertyNominalSampleRate,
+            mScope: kAudioObjectPropertyScopeGlobal,
+            mElement: kAudioObjectPropertyElementMain
+        )
+        var rate: Float64 = 0
+        var size = UInt32(MemoryLayout<Float64>.size)
+        guard AudioObjectGetPropertyData(device, &address, 0, nil, &size, &rate) == noErr else { return 0 }
+        return rate
     }
 }
 
