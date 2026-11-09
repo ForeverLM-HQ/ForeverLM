@@ -6,8 +6,15 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.203.0 (build 283) — 2026-11-08
+
+**Highlights:**
+- **Voice mode works things through in the background:** ask it to pull up sources and come to a conclusion, write a Page or do deep research, keep talking, and hear what it found when it is done.
+- **Voice on the iPhone reaches everything** voice on the Mac does, through your Mac.
+
 - **Voice mode does work in the background.** Ask it to pull up sources and work something through, write a Page, make cards or do deep research, and it hands the task to a chat with every tool the typed chat has while you keep talking; when the task finishes, voice tells you what it concluded. Each task is also a chat under your chats. See [Voice Mode](/voice-mode#hand-work-off).
 - **Voice mode on the iPhone reaches everything the Mac's does.** Your meetings by series and day, every notebook, Page, card and past chat, audio overviews and background tasks, done by your Mac while ForeverLM is open on it.
+- **Set how wide a Page's text runs by dragging its edges.** Hover the edge of the text column and drag: the column resizes live with a readout, out to the pane's edges fills it, and a double-click goes back to Standard.
 
 ## 0.202.0 (build 282) — 2026-11-08
 
