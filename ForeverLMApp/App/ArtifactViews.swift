@@ -159,17 +159,21 @@ struct ArtifactCanvas: View {
     /// The pane this canvas is drawn in: with Pages in two panes, a request
     /// naming a pane is this canvas's only when it names this one.
     @Environment(\.studioPaneGroupID) private var paneGroupID
+    /// False while this canvas is kept mounted behind another tab of its pane
+    /// (`StudioKeptPaneTabs`): its page is loaded but not on screen.
+    @Environment(\.studioPaneTabIsShown) private var paneTabIsShown
     let section: ArtifactSection
     let notebookID: String?
     let onBack: (() -> Void)?
 
     /// Tells the window which page this canvas shows, or that it shows its
-    /// index, for the chats of every window (`ChatOpenPanes.openOnScreen`).
+    /// index or is hidden behind another tab, for the chats of every window
+    /// (`ChatOpenPanes.openOnScreen`).
     private func registerArtifactOnScreen() {
-        let key = paneGroupID ?? screenKey
-        let shown = isShowingIndex ? nil : selectedArtifactID
-        if windowState.artifactsOnScreenByPane[key] != shown {
-            windowState.artifactsOnScreenByPane[key] = shown
+        let shown = isShowingIndex || !paneTabIsShown ? nil : selectedArtifactID
+        let entry = shown.map { StudioWindowState.ArtifactOnScreen(pane: paneGroupID, artifactID: $0) }
+        if windowState.artifactsOnScreen[screenKey] != entry {
+            windowState.artifactsOnScreen[screenKey] = entry
         }
     }
 
@@ -184,9 +188,7 @@ struct ArtifactCanvas: View {
     /// While it is on, `reconcileSelection` leaves the selection empty rather
     /// than reopening the remembered doc.
     @State private var isShowingIndex = false
-    /// Where this canvas registers the page it shows in
-    /// `StudioWindowState.artifactsOnScreenByPane` when it stands in no pane
-    /// of the window's groups.
+    /// This canvas's key in `StudioWindowState.artifactsOnScreen`.
     @State private var screenKey = UUID()
     /// The canvas has read the library and chosen what to open at least once.
     /// Until then an empty selection is a doc on its way, not a choice left to
@@ -459,11 +461,11 @@ struct ArtifactCanvas: View {
             }
             // The page this canvas shows, for the chats of every window: what
             // is open is in their context (`ChatOpenPanes.openOnScreen`).
-            .onChange(of: "\(selectedArtifactID ?? "")|\(isShowingIndex)", initial: true) { _, _ in
+            .onChange(of: "\(selectedArtifactID ?? "")|\(isShowingIndex)|\(paneTabIsShown)", initial: true) { _, _ in
                 registerArtifactOnScreen()
             }
             .onDisappear {
-                windowState.artifactsOnScreenByPane[paneGroupID ?? screenKey] = nil
+                windowState.artifactsOnScreen[screenKey] = nil
             }
             .onChange(of: selectedArtifactID, initial: true) { _, artifactID in
                 // The replacement editor publishes its own caret state once it

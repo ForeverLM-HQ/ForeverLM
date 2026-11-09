@@ -112,11 +112,11 @@ extension ChatOpenPanes {
 
         func describedTab(_ tab: StudioCenterTab, isOnScreen: Bool, pane: UUID) -> Tab {
             var contents: [Content] = []
-            // The page a Pages, Sites or Space view in this pane registered,
-            // read only for the pane's drawn tab: a view kept mounted behind
-            // another tab still holds its page, unseen.
+            // The page the Pages, Sites or Space view in front in this pane
+            // registered; a view hidden behind another tab registers none.
             let paneArtifact = isOnScreen && StudioCenterTab.showsArtifactPages.contains(tab)
-                ? state.artifactsOnScreenByPane[pane].flatMap(artifact) : nil
+                ? state.artifactsOnScreen.values.first { $0.pane == pane }.flatMap { artifact($0.artifactID) }
+                : nil
             switch tab {
             case .chat:
                 guard isOnScreen else { break }
@@ -187,7 +187,9 @@ extension ChatOpenPanes {
         // A Pages view standing in no pane of the window's groups registered
         // under a key of its own; one in a pane was read with that pane.
         let paneIDs = Set(state.centerTabGroups.groups.map(\.id))
-        let canvasesInNoPane = Set(state.artifactsOnScreenByPane.filter { !paneIDs.contains($0.key) }.values)
+        let canvasesInNoPane = Set(state.artifactsOnScreen.values
+            .filter { $0.pane.map { !paneIDs.contains($0) } ?? true }
+            .map(\.artifactID))
         // Readers and linked pages the panes above did not account for — a
         // second Reader, a Site shown inside Artifacts — are on screen too.
         let alsoOnScreen = state.readerSourceIDsOnScreen.sorted()
