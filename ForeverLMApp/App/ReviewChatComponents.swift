@@ -2344,6 +2344,7 @@ struct ReviewChatWorkingIndicator: View {
     /// All of the thinking so far streams under the label, the way Claude
     /// shows thinking as it happens, until the learner closes it.
     @State private var isShowingReasoning = true
+    @Environment(\.uiZoomScale) private var uiZoomScale
 
     /// The generic phase label, or the named wait while preparing.
     var label: String {
@@ -2403,20 +2404,23 @@ struct ReviewChatWorkingIndicator: View {
                     style: .flowingGoo
                 )
 
+                // The size of the "Worked for" line it becomes, and of the
+                // thinking under it: all three scale with the chat's zoom, so
+                // they keep their proportions to the reply at every size.
                 Text(label)
-                    .font(.caption.weight(.medium))
+                    .font(.system(size: ChatMarkdownView.baseFontSize * uiZoomScale))
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
 
                 Text(Self.elapsedText(from: startedAt, to: context.date))
-                    .font(.caption.monospacedDigit())
+                    .font(.system(size: ReviewChatReasoningText.fontSize * uiZoomScale).monospacedDigit())
                     .foregroundStyle(.tertiary)
                     .contentTransition(.numericText())
 
                 if chevron {
                     Image(systemName: isShowingReasoning ? "chevron.down" : "chevron.right")
-                        .font(.system(size: 9, weight: .semibold))
+                        .font(.system(size: 10 * uiZoomScale, weight: .semibold))
                         .foregroundStyle(.tertiary)
                 }
             }
@@ -2485,6 +2489,11 @@ struct ReviewChatWorkingIndicator: View {
 /// scroll box and no clipped window. Emphasis renders, so a summary's bold
 /// step headings read as headings and raw thinking shows no stray asterisks.
 struct ReviewChatReasoningText: View {
+    /// One step under the reply's 13, before zoom. A fixed `.caption` (10pt)
+    /// did not scale with the chat's zoom while the reply and the tool rows
+    /// did, so a zoomed chat set the thinking at half their size.
+    static let fontSize: CGFloat = 12
+
     let reasoning: String
     /// From the rule to the text, so the text can line up with the label above.
     var textInset: CGFloat = 12
@@ -2498,7 +2507,7 @@ struct ReviewChatReasoningText: View {
                     .equatable()
             }
         }
-        .font(.caption)
+        .zoomedSystemFont(size: Self.fontSize)
         .foregroundStyle(.secondary)
         .multilineTextAlignment(.leading)
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -3209,13 +3218,13 @@ struct ReviewChatToolRow: View {
             .frame(width: 14, height: 14)
 
             Text(title)
-                .zoomedSystemFont(size: 13)
+                .zoomedSystemFont(size: ReviewChatReasoningText.fontSize)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
 
             if let detail = activity.detail, !detail.isEmpty {
                 Text(detail)
-                    .zoomedSystemFont(size: 13)
+                    .zoomedSystemFont(size: ReviewChatReasoningText.fontSize)
                     .foregroundStyle(.tertiary)
                     .lineLimit(1)
                     .truncationMode(activity.sourcePresentation == nil ? .middle : .tail)
@@ -3225,14 +3234,14 @@ struct ReviewChatToolRow: View {
 
             if let resultSummary {
                 Text(resultSummary)
-                    .zoomedSystemFont(size: 13)
+                    .zoomedSystemFont(size: ReviewChatReasoningText.fontSize)
                     .foregroundStyle(activity.state == .failed ? AnyShapeStyle(Color.orange) : AnyShapeStyle(.tertiary))
                     .lineLimit(1)
             }
 
             if canExpand {
                 Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                    .font(.system(size: 9, weight: .semibold))
+                    .zoomedSystemFont(size: 10, weight: .semibold)
                     .foregroundStyle(.tertiary)
             }
         }

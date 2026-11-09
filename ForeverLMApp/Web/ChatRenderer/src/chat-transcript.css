@@ -211,9 +211,11 @@ body {
 
 .work-steps { display: flex; flex-direction: column; gap: 8px; padding-left: 2px; }
 
+/* The thinking and the tool rows sit a step under the reply (12 to its 13),
+   one size between them, as the native fold sets them. */
 .work-reasoning {
   color: var(--muted);
-  font-size: 0.85em;
+  font-size: 0.92em;
   border-left: 2px solid var(--rule);
   padding-left: 10px;
   -webkit-user-select: text;
@@ -228,6 +230,7 @@ body {
   border: 1px solid color-mix(in srgb, CanvasText 6%, transparent);
   border-radius: 10px;
   padding: 6px 10px;
+  font-size: 0.92em;
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -238,7 +241,7 @@ body {
 .work-step.failed .work-step-mark { color: #e8890c; }
 .work-step-mark svg { width: 11px; height: 11px; stroke-width: 1.8; }
 .work-step-title { color: var(--muted); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.work-step-summary { color: var(--faint); font-size: 0.92em; white-space: nowrap; }
+.work-step-summary { color: var(--faint); white-space: nowrap; }
 
 .work-rule { height: 1px; background: var(--rule); }
 
@@ -299,7 +302,7 @@ body {
 
 @keyframes breathe { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
 
-.working-clock { color: var(--faint); font-variant-numeric: tabular-nums; }
+.working-clock { color: var(--faint); font-size: 0.92em; font-variant-numeric: tabular-nums; }
 
 .error { color: #d93025; }
 
