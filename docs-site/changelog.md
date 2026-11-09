@@ -8,10 +8,20 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 - **Voice mode does work in the background.** Ask it to pull up sources and work something through, write a Page, make cards or do deep research, and it hands the task to a chat with every tool the typed chat has while you keep talking; when the task finishes, voice tells you what it concluded. Each task is also a chat under your chats. See [Voice Mode](/voice-mode#hand-work-off).
 - **Voice mode on the iPhone reaches everything the Mac's does.** Your meetings by series and day, every notebook, Page, card and past chat, audio overviews and background tasks, done by your Mac while ForeverLM is open on it.
+
+## 0.202.0 (build 282) — 2026-11-08
+
+**Highlights:**
+- **Drag a tab between windows:** a chat on one display pops over to the window on the other, mid-answer too.
+- **Several chats in one pane,** each its own tab you can rename.
+
 - **Several chats in one pane, each its own tab.** In a pane with Chat, the + at the end of its tabs now offers **New Chat**: a new chat opens as another tab, and the chat you were in keeps its own tab (a reply still coming carries on). Each chat tab is named after its chat; double-click it, or right-click › **Rename…**, to rename the chat. A tab's × closes only that chat, which stays in your Chats. Split the pane to see chats side by side.
 - **Gym Mode on the iPhone.** In the Reader, hold the waveform and choose **Gym Mode**: ForeverLM walks you through the paper out loud, a minute at a time, like a podcast, with the microphone off. Type a follow-up question at the bottom of the screen and it answers once the part it is saying ends, then carries on. See [Voice Mode](/voice-mode#gym-mode).
 - **Voice mode on your own OpenAI key.** Paste an OpenAI API key under Settings › AI Usage › Voice mode on the Mac, or Settings › API keys on the iPhone, and voice conversations run on it: OpenAI bills you, the daily allowance no longer applies, and the key goes only to OpenAI. See [Voice Mode](/voice-mode#your-own-openai-key).
 - **MCP is free.** Connecting Claude, ChatGPT, Codex or another assistant costs nothing now: no free days, no Early user deal, nothing to buy. AI in the app still runs on your own OpenRouter key at OpenRouter's cost.
+- **Move a tab to your other window.** With a window on each display, drag a tab from one window's tab bar onto the other window: drop it on the tab bar to place it there, on a pane to add it as that pane's last tab, or at the far edge for a pane of its own. A chat comes over as itself, still answering if it was; the Reader brings its source and Pages its page. The window it left closes the tab.
+- **Selecting across a chat reply reads as one band,** without white seams between the lines.
+- **Paywalled rows in a notebook are quieter:** a row you marked paywalled shows its glyph and title only.
 
 ## 0.201.0 (build 281) — 2026-11-08
 
