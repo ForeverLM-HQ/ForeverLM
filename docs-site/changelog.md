@@ -9,6 +9,21 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **The iPhone opens on voice.** Home is ForeverLM's mark: tap it to talk about anything, name a source, or go through today's cards, which voice offers first when they are due; type instead whenever you can't talk (every voice conversation now has a field for that, so the gym is just voice). Everything else (notebooks, the library, To Read, Follow Up, Spaces, **Review Cards** to tap through them with their pictures, Memory and Settings) is in the menu at the bottom.
 - **A daily quiz reminder on the iPhone,** on by default at 7:00 (or your review hour): tap it to go through today's cards, or use its Memory Check by Voice button. iOS asks once for permission.
 
+## 0.207.0 (build 287) — 2026-11-09
+
+**Highlights:**
+- **Updates get through work firewalls**: the app updates from foreverlm.com/releases/ alone.
+- **The Library scrolls fast on every tab**, and **yesterday's kept cards lead today's review**.
+- **Voice mode with AirPods sounds right** on the Mac.
+
+- **Updates come from one address that work networks let through.** The app reads its updates, and downloads them, from foreverlm.com/releases/. The old releases.foreverlm.com, which company firewalls blocked, now only forwards there, so even an old install still finds this update.
+- **The Library scrolls fast on every tab.** Articles, Podcasts, Books, Meetings, YouTube and X are lazy lists now, as Papers already was.
+- **Cards you kept yesterday come first** in today's review, ahead of the due cards, so a heavy day no longer leaves them out.
+- **Voice mode with AirPods sounds right on the Mac.** The microphone is held before the call opens, so a Bluetooth headset no longer plays the voice slow and deep.
+- **On your own OpenRouter key, an OpenAI model always runs on OpenAI's endpoint**, so it spends your OpenAI credits, even before ForeverLM has read that model's endpoints.
+- **A covered account sees only the models it is covered for** when picking a model.
+- **Figures: a reference in running text ("fig. 6 A-C)") is no longer listed as a figure**, and replacing a supplement's PDF removes the old one.
+
 ## 0.206.0 (build 286) — 2026-11-08
 
 **Highlights:**
