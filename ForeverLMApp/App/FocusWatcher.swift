@@ -69,6 +69,11 @@ final class FocusWatcher {
 
     @ObservationIgnored private var tracker = FocusDriftTracker()
     @ObservationIgnored private var goal: FocusGoal?
+    /// What the learner said is not a distraction, for the goal standing.
+    @ObservationIgnored private var allowances = FocusAllowances()
+    /// The off-track spans logged under the goal standing, by site or app, so
+    /// Not a Distraction can take them back off the day.
+    @ObservationIgnored private var loggedSpanIDs: [String: Set<String>] = [:]
     @ObservationIgnored private var hasStarted = false
     @ObservationIgnored private var observers: [NSObjectProtocol] = []
     @ObservationIgnored private var workspaceObservers: [NSObjectProtocol] = []
@@ -156,6 +161,7 @@ final class FocusWatcher {
             // A new goal: whatever drifted from the old one ends here.
             apply(tracker.close(at: now))
             goal = current
+            loggedSpanIDs = [:]
         }
         publish(.watching(goal: current.title))
         armBackstop()
@@ -181,6 +187,10 @@ final class FocusWatcher {
                 FrontWindowReader.scene(pid: pid, appName: name, bundleID: bundleID)
             }.value
         }
+        if allowances.allows(scene, for: current) {
+            apply(tracker.observe(onTrack: true, scene: scene, at: now))
+            return
+        }
         let onTrack: Bool
         do {
             onTrack = try await judge.isOnTrack(scene, goal: current)
@@ -201,6 +211,7 @@ final class FocusWatcher {
     private func stopWatching(status newStatus: Status, at moment: Date) {
         apply(tracker.close(at: moment))
         goal = nil
+        loggedSpanIDs = [:]
         publish(newStatus)
         backstop?.invalidate()
         backstop = nil
@@ -243,21 +254,52 @@ final class FocusWatcher {
                 guard let goal else { continue }
                 Task { await FocusNudges.shared.nudge(goal: goal, scene: scene) }
             case .log(let scene, let from, let to):
+                let origin = goal?.origin
                 Task {
                     do {
-                        try await storage.recordDayActivitySpan(
+                        let span = try await storage.recordDayActivitySpan(
                             kind: .offTrack,
                             targetID: scene.targetID,
                             title: scene.displayName,
                             from: from,
                             to: to
                         )
+                        if let span, origin == goal?.origin {
+                            loggedSpanIDs[scene.targetID, default: []].insert(span.id)
+                        }
                     } catch {
                         logger.error("Could not log time off track: \(error.localizedDescription)")
                     }
                 }
             }
         }
+    }
+
+    // MARK: - Not a distraction
+
+    /// The nudge's Not a Distraction: `targetID` is allowed for the rest of
+    /// the goal the nudge named, the drift ends without its time there, and
+    /// what was logged of it under that goal comes off the day. A nudge from
+    /// a goal that has since ended changes nothing.
+    func notADistraction(targetID: String, goalKey: String) {
+        guard let goal, goal.origin.key == goalKey else {
+            logger.info("Not a distraction pressed for a goal that has ended; nothing to change")
+            return
+        }
+        allowances.allow(targetID, for: goal.origin)
+        apply(tracker.forgive(targetID, at: Date()))
+        let ids = Array(loggedSpanIDs.removeValue(forKey: targetID) ?? [])
+        if !ids.isEmpty {
+            Task {
+                do {
+                    try await storage.deleteDayActivities(ids)
+                    NotificationCenter.default.post(name: .dayPlansDidChange, object: nil)
+                } catch {
+                    logger.error("Could not take the forgiven time off the day: \(error.localizedDescription)")
+                }
+            }
+        }
+        look()
     }
 
     // MARK: - ForeverLM's own windows
@@ -346,10 +388,16 @@ final class FocusWatcher {
 final class FocusNudges {
     static let shared = FocusNudges()
 
-    static let identifier = "com.foreverlm.focusNudge"
+    // Read by the notification delegate, which is not on the main actor.
+    nonisolated static let identifier = "com.foreverlm.focusNudge"
+    nonisolated static let categoryIdentifier = "com.foreverlm.focusNudge"
+    nonisolated static let notADistractionActionIdentifier = "com.foreverlm.focusNudge.notADistraction"
+    nonisolated static let targetIDKey = "targetID"
+    nonisolated static let goalKey = "goal"
 
     private let logger = Logger(subsystem: "ForeverLM", category: "FocusWatch")
     private var hasAskedForPermission = false
+    private var hasRegisteredCategory = false
 
     private init() {}
 
@@ -363,12 +411,27 @@ final class FocusNudges {
         let minutes = Int(FocusWatch.nudgeAfterSeconds / 60)
         content.body = "\(scene.displayName) has had your last \(minutes) minutes."
         content.sound = .default
+        content.categoryIdentifier = Self.categoryIdentifier
+        content.userInfo = [Self.targetIDKey: scene.targetID, Self.goalKey: goal.origin.key]
+        await registerCategoryIfNeeded()
         let request = UNNotificationRequest(identifier: Self.identifier, content: content, trigger: nil)
         do {
             try await UNUserNotificationCenter.current().add(request)
         } catch {
             logger.error("Could not nudge: \(error.localizedDescription)")
         }
+    }
+
+    /// Not a Distraction, answered without bringing ForeverLM forward.
+    private func registerCategoryIfNeeded() async {
+        guard !hasRegisteredCategory else { return }
+        hasRegisteredCategory = true
+        let action = UNNotificationAction(identifier: Self.notADistractionActionIdentifier, title: "Not a Distraction", options: [])
+        let category = UNNotificationCategory(identifier: Self.categoryIdentifier, actions: [action], intentIdentifiers: [], options: [])
+        let center = UNUserNotificationCenter.current()
+        var all = await center.notificationCategories().filter { $0.identifier != Self.categoryIdentifier }
+        all.insert(category)
+        center.setNotificationCategories(all)
     }
 
     /// Asks once, the first time a nudge is due, as the bout alarms do.

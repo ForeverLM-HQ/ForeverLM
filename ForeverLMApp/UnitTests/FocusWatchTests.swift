@@ -68,6 +68,37 @@ struct FocusWatchTests {
         #expect(!tracker.isDrifting)
     }
 
+    @Test("Not a Distraction ends the drift without its time there, and logs the rest")
+    func forgiveDropsOnlyThatTarget() {
+        var tracker = FocusDriftTracker()
+        _ = tracker.observe(onTrack: false, scene: feed, at: at(0))
+        _ = tracker.observe(onTrack: false, scene: videos, at: at(30))
+        #expect(tracker.forgive("youtube.com", at: at(150)) == [.log(feed, from: at(0), to: at(30))])
+        #expect(!tracker.isDrifting)
+        // Forgiving the only thing a short drift held logs nothing.
+        _ = tracker.observe(onTrack: false, scene: videos, at: at(300))
+        #expect(tracker.forgive("youtube.com", at: at(420)).isEmpty)
+    }
+
+    @Test("What was allowed holds for the goal it was said under, not the next one")
+    func allowancesFollowTheGoal() {
+        let bout = FocusGoal(origin: .bout(id: "b1"), title: "Read the ESM3 paper", context: [])
+        let next = FocusGoal(origin: .bout(id: "b2"), title: "Write the thesis intro", context: [])
+        var allowances = FocusAllowances()
+        #expect(!allowances.allows(videos, for: bout))
+        allowances.allow(videos.targetID, for: bout.origin)
+        #expect(allowances.allows(videos, for: bout))
+        // Another YouTube page of the same bout: the site is allowed.
+        let lecture = FocusScene(appName: "Brave Browser", bundleID: "com.brave.Browser", windowTitle: "Lecture 2", url: URL(string: "https://youtube.com/watch?v=1"))
+        #expect(allowances.allows(lecture, for: bout))
+        #expect(!allowances.allows(feed, for: bout))
+        #expect(!allowances.allows(videos, for: next))
+        // Allowing under a new goal starts over.
+        allowances.allow(feed.targetID, for: next.origin)
+        #expect(!allowances.allows(videos, for: next) && allowances.allows(feed, for: next))
+        #expect(FocusGoal.Origin.bout(id: "b1").key == "bout:b1" && FocusGoal.Origin.event(key: "e@1").key == "event:e@1")
+    }
+
     @Test("A thing in front is named by its site, else its app, and judged without its query")
     func sceneNames() {
         #expect(feed.targetID == "x.com" && feed.displayName == "x.com")

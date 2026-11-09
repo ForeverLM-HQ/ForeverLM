@@ -1096,6 +1096,18 @@ extension AppUpdateController: UNUserNotificationCenterDelegate {
             return
         }
 
+        // Nudge Me Back on Track: Not a Distraction allows what was in front
+        // for the rest of the goal, without bringing the app forward; a
+        // click on the nudge itself only dismisses it.
+        if identifier == FocusNudges.identifier {
+            guard response.actionIdentifier == FocusNudges.notADistractionActionIdentifier else { return }
+            let info = response.notification.request.content.userInfo
+            guard let targetID = info[FocusNudges.targetIDKey] as? String,
+                  let goalKey = info[FocusNudges.goalKey] as? String else { return }
+            Task { @MainActor in FocusWatcher.shared.notADistraction(targetID: targetID, goalKey: goalKey) }
+            return
+        }
+
         // "Cards from what you finished" opens the drafts in To Check, or
         // Make Cards for the finished sources that have none; Don't Ask
         // Again is the Settings switch, flipped without bringing the app

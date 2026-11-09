@@ -64,9 +64,17 @@ extension Notification.Name {
 
 /// What the learner set out to do, which what is in front is judged against.
 struct FocusGoal: Equatable, Sendable {
-    enum Origin: Equatable, Sendable {
+    enum Origin: Equatable, Hashable, Sendable {
         case bout(id: String)
         case event(key: String)
+
+        /// How a notification carries it: "bout:<id>", "event:<key>".
+        var key: String {
+            switch self {
+            case .bout(let id): return "bout:" + id
+            case .event(let key): return "event:" + key
+            }
+        }
     }
 
     let origin: Origin
@@ -95,6 +103,30 @@ struct FocusGoal: Equatable, Sendable {
         guard !title.isEmpty else { return nil }
         let notes = (event.notes ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         return FocusGoal(origin: .event(key: event.occurrenceKey), title: title, context: notes.isEmpty ? [] : [String(notes.prefix(400))])
+    }
+}
+
+/// What the learner said is not a distraction, with the nudge's Not a
+/// Distraction (product owner, 2026-11-08: "Yes, add it", to "Add 'Not a
+/// distraction' to the nudge so it learns your false alarms?"). It holds for
+/// the goal it was said under — the bout, or the calendar block — and goes
+/// with it: YouTube allowed for a bout on a lecture is not allowed for every
+/// bout after. Kept by site or app (`FocusScene.targetID`), the way the log
+/// and the nudge name what was in front.
+struct FocusAllowances: Equatable {
+    private(set) var goal: FocusGoal.Origin?
+    private(set) var targetIDs: Set<String> = []
+
+    mutating func allow(_ targetID: String, for goal: FocusGoal.Origin) {
+        if self.goal != goal {
+            self.goal = goal
+            targetIDs = []
+        }
+        targetIDs.insert(targetID)
+    }
+
+    func allows(_ scene: FocusScene, for goal: FocusGoal) -> Bool {
+        self.goal == goal.origin && targetIDs.contains(scene.targetID)
     }
 }
 
@@ -219,6 +251,16 @@ struct FocusDriftTracker: Equatable {
         }
         drift = current
         return effects
+    }
+
+    /// The learner said `targetID` is not a distraction: the drift ends, and
+    /// what it held of anything else is logged as `close` would; the time on
+    /// `targetID` is not.
+    mutating func forgive(_ targetID: String, at moment: Date) -> [Effect] {
+        close(at: moment).filter {
+            if case .log(let scene, _, _) = $0 { return scene.targetID != targetID }
+            return true
+        }
     }
 
     /// Ends a drift: the learner is back on track, went idle, the goal ended
