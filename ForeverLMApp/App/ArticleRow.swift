@@ -253,30 +253,6 @@ struct ArticleRow: View {
         vm.sourceCardCoverage.statesByID[article.id]
     }
 
-    @ViewBuilder
-    private var trackingStatusView: some View {
-        if article.cachedSupportsReadTracking {
-            Button {
-                Task { await vm.setArticleRead(article.id, read: !article.isRead) }
-            } label: {
-                trackingStatusIcon
-            }
-            // Marks the press as the button's, so a Sources row does not also
-            // open its source under it (`SidebarRowControlPress`).
-            .buttonStyle(RowControlButtonStyle(sourceIDs: [article.id]))
-            .help("\(trackingStatus.title) — mark as \(article.isRead ? "unread" : "read")")
-            .accessibilityLabel("\(trackingStatus.title) — mark as \(article.isRead ? "unread" : "read")")
-        } else {
-            trackingStatusIcon
-                .help(trackingStatus.title)
-                .accessibilityLabel(trackingStatus.title)
-        }
-    }
-
-    private var trackingStatusIcon: some View {
-        SourceReadStateMark(sourceID: article.id, status: trackingStatus, isRowHovered: isHovering)
-    }
-
     var body: some View {
         rowContent
         // Same neutral wash the app's buttons use, so a source reads as something
@@ -474,7 +450,10 @@ struct ArticleRow: View {
                         .lineLimit(2)
 
                     // Row controls live at the trailing edge, not inline after the
-                    // title, so the learning-stage icons line up in one column.
+                    // title. No read mark: a read source's title is grey, and
+                    // Mark as Read/Unread is on the right-click menu (product
+                    // owner, 2026-11-08: "i don't want any sources to have this
+                    // book icon").
                     Spacer(minLength: 0)
 
                     // Audio availability is independent of consumption. A source can
@@ -492,14 +471,6 @@ struct ArticleRow: View {
                         ProgressView()
                             .controlSize(.mini)
                             .help(paperProcessingStepLabel)
-                    }
-
-                    // Screen record mode draws no read badge: it is the
-                    // learner's own history.
-                    if !vm.isScreenRecordModeActive,
-                       article.cachedSupportsReadTracking || trackingStatus != .unread {
-                        trackingStatusView
-                            .fixedSize()
                     }
                 }
 
@@ -999,40 +970,6 @@ extension StudioViewModel {
         default:
             return "Fetching content…"
         }
-    }
-}
-
-/// A source row's read state, at the row's trailing edge. Read's closed book
-/// and Listened's headphones stay drawn, in the row's grey; Unread's empty
-/// circle shows only while the pointer is over the row or the row is
-/// selected, since a column of empty circles down every unread row was noise
-/// (product owner, 2026-10-06, "kind of like the chatgpt app"; "Lists are
-/// monochrome", docs/ui-design.md). An unread title already reads in the
-/// primary colour, a read one in grey. The slot keeps its size either way, so
-/// the column stays aligned, and the button around it keeps its click,
-/// tooltip and accessibility label.
-///
-/// A view of its own so that only this mark, and only on an unread row the
-/// pointer is not over, reads the window's selection: a click in the list
-/// never re-runs the rows around it.
-private struct SourceReadStateMark: View {
-    @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
-    let sourceID: String
-    let status: SourceConsumptionStatus
-    let isRowHovered: Bool
-
-    private var isShown: Bool {
-        status != .unread
-            || isRowHovered
-            || windowState?.sidebarSelectedSourceIDs.contains(sourceID) == true
-    }
-
-    var body: some View {
-        Image(systemName: status.icon)
-            .zoomedSystemFont(size: 12, weight: .medium)
-            .foregroundStyle(isShown ? AnyShapeStyle(.secondary) : AnyShapeStyle(Color.clear))
-            .frame(width: 18, height: 18)
-            .contentShape(Circle())
     }
 }
 
