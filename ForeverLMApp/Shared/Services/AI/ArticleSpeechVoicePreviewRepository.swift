@@ -130,8 +130,10 @@ actor ArticleSpeechVoicePreviewRepository {
 
     /// Where the samples already made live, named by the same key
     /// (`scripts/publish_voice_previews.sh` puts them there). They are not in the
-    /// app: the update download is the app (product owner, 2026-10-09).
-    nonisolated static let hostedBaseURL = URL(string: "https://releases.foreverlm.com/voice-previews/")!
+    /// app: the update download is the app (product owner, 2026-10-09). Read through
+    /// foreverlm.com/releases/, the same bucket behind the foreverlm-releases Worker:
+    /// company URL filters block the releases.foreverlm.com host itself.
+    nonisolated static let hostedBaseURL = URL(string: "https://foreverlm.com/releases/voice-previews/")!
 
     /// The sample from the CDN, or nil when it has none (or the network does not
     /// answer in a few seconds): the caller then generates it.
