@@ -4975,6 +4975,9 @@ extension UTType {
     /// Custom UTType for a Space place dragged onto the icon strip, which
     /// keeps it there as a shortcut (`StudioRailShortcut`): its key.
     static let studioRailShortcut = UTType(exportedAs: "com.foreverlm.studio-rail-shortcut")
+    /// Custom UTType for an icon of the strip dragged up or down its group
+    /// to reorder it (`StudioStripEntry`): its key.
+    static let studioStripEntry = UTType(exportedAs: "com.foreverlm.studio-strip-entry")
     /// Custom UTType for a row of a notebook's Studio column dragged onto a
     /// pane, which opens that output there (`NotebookOutputDragPayload`): a
     /// token naming the output, read back in this process only.

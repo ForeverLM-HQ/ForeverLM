@@ -2498,6 +2498,9 @@ final class StudioDragVisibility {
     /// The Space place a Space sidebar row or a kept shortcut is carrying:
     /// the icon strip draws it where it would land and keeps it there.
     private(set) var draggedRailShortcut: StudioRailShortcut?
+    /// The strip icon being dragged up or down its group: the strip moves
+    /// it as the drag goes.
+    private(set) var draggedStripEntry: StudioStripEntry?
 
     /// True while a whole pane is being dragged — Schedule, Docs, Notebooks, or
     /// New chat on its way to its own side-by-side pane. A pane drag carries no
@@ -2511,7 +2514,9 @@ final class StudioDragVisibility {
     ///
     /// A Space place on its way to the icon strip counts too, with or without
     /// a pane: it carries no source either, and the strip is its destination.
-    var isPaneDrag: Bool { (draggedCenterTab != nil || draggedRailShortcut != nil) && draggedArtifactID == nil }
+    var isPaneDrag: Bool {
+        (draggedCenterTab != nil || draggedRailShortcut != nil || draggedStripEntry != nil) && draggedArtifactID == nil
+    }
 
     @ObservationIgnored private var resetTask: Task<Void, Never>?
     @ObservationIgnored private var mouseButtonReleaseTask: Task<Void, Never>?
@@ -2526,7 +2531,8 @@ final class StudioDragVisibility {
         centerTab: StudioCenterTab? = nil,
         artifactID: String? = nil,
         goalID: String? = nil,
-        railShortcut: StudioRailShortcut? = nil
+        railShortcut: StudioRailShortcut? = nil,
+        stripEntry: StudioStripEntry? = nil
     ) {
         setDragState(
             isDragging: true,
@@ -2537,7 +2543,8 @@ final class StudioDragVisibility {
             draggedCenterTab: centerTab,
             draggedArtifactID: artifactID,
             draggedGoalID: goalID,
-            draggedRailShortcut: railShortcut
+            draggedRailShortcut: railShortcut,
+            draggedStripEntry: stripEntry
         )
         NSCursor.closedHand.set()
         installMouseUpMonitors()
@@ -2568,7 +2575,8 @@ final class StudioDragVisibility {
             draggedCenterTab: nil,
             draggedArtifactID: nil,
             draggedGoalID: nil,
-            draggedRailShortcut: nil
+            draggedRailShortcut: nil,
+            draggedStripEntry: nil
         )
         mouseButtonReleaseTask?.cancel()
         mouseButtonReleaseTask = nil
@@ -2585,7 +2593,8 @@ final class StudioDragVisibility {
         draggedCenterTab: StudioCenterTab?,
         draggedArtifactID: String?,
         draggedGoalID: String?,
-        draggedRailShortcut: StudioRailShortcut?
+        draggedRailShortcut: StudioRailShortcut?,
+        draggedStripEntry: StudioStripEntry?
     ) {
         // `@Observable` notifies a property's observers on every write, equal
         // value or not, so each assignment is guarded — a chat drag must not
@@ -2599,6 +2608,7 @@ final class StudioDragVisibility {
         if self.draggedArtifactID != draggedArtifactID { self.draggedArtifactID = draggedArtifactID }
         if self.draggedGoalID != draggedGoalID { self.draggedGoalID = draggedGoalID }
         if self.draggedRailShortcut != draggedRailShortcut { self.draggedRailShortcut = draggedRailShortcut }
+        if self.draggedStripEntry != draggedStripEntry { self.draggedStripEntry = draggedStripEntry }
     }
 
     private func scheduleReset(after seconds: TimeInterval) {

@@ -150,6 +150,39 @@ extension MCPDataStore {
         return StudioRailShortcuts(shortcuts).storage
     }
 
+    /// One group of the strip's order as a JSON array of icon ids, in order.
+    static func stripOrderJSON(_ storage: String) -> String {
+        let ids = StudioStripOrder(storage: storage).keys
+        guard let data = try? JSONSerialization.data(withJSONObject: ids), let text = String(data: data, encoding: .utf8) else { return "[]" }
+        return text
+    }
+
+    /// A JSON array of icon ids of one group (`footer` or the top) in the comma-separated form
+    /// the strip reads, refused when an id is not one of that group's icons.
+    static func stripOrderStorage(fromJSON text: String, footer: Bool, setting: String) throws -> String {
+        let known = stripOrderIDs(footer: footer)
+        guard let ids = (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String] else {
+            throw MCPError.invalidInput("\(setting) takes a JSON array of icon ids as text: \(known.joined(separator: ", ")).")
+        }
+        var keys: [String] = []
+        for raw in ids {
+            let id = raw.trimmingCharacters(in: .whitespaces)
+            guard let entry = StudioStripEntry(key: id), entry.isFooter == footer, known.contains(id) else {
+                throw MCPError.invalidInput("\(setting) has no icon ‘\(raw)’; the icons are \(known.joined(separator: ", ")).")
+            }
+            keys.append(entry.key)
+        }
+        return StudioStripOrder(keys).storage
+    }
+
+    /// The ids one group of the strip can order: the footer's icons, or the strip's rows and
+    /// every place that can be kept there.
+    static func stripOrderIDs(footer: Bool) -> [String] {
+        footer
+            ? StudioStripFooterItem.allCases.map(\.rawValue)
+            : StudioRailHiddenItems.railOrder.map(\.rawValue) + StudioRailShortcut.offered(listsCanvases: true).map(\.key)
+    }
+
     @MainActor
     static func viewSettingEntries() -> [AppSettingEntry] {
         sourceListSettingEntries()
@@ -302,12 +335,38 @@ extension MCPDataStore {
             ),
             AppSettingEntry(
                 id: "window.rail_shortcuts", pane: "Navigation rail (no pane)", title: "Icon strip shortcuts",
-                detail: "The places kept on the icon strip under its line, in order, as a JSON array of place ids (\(StudioRailShortcut.offered(listsCanvases: true).map(\.key).joined(separator: ", "))). [] keeps none.",
+                detail: "The places kept on the icon strip, as a JSON array of place ids (\(StudioRailShortcut.offered(listsCanvases: true).map(\.key).joined(separator: ", "))). [] keeps none. Where each stands is window.rail_order.",
                 reach: .account, kind: .text, preferenceKeys: [StudioRailShortcuts.storageKey],
                 read: { Self.railShortcutsJSON(UserDefaults.standard.string(forKey: StudioRailShortcuts.storageKey) ?? "") },
                 write: { value in
                     let text = try AppSettingEntry.string(value, "window.rail_shortcuts")
                     PreferenceStore.set(try Self.railShortcutsStorage(fromJSON: text), forKey: StudioRailShortcuts.storageKey)
+                }
+            ),
+            AppSettingEntry(
+                id: "window.rail_order", pane: "Navigation rail (no pane)", title: "Icon strip order",
+                detail: "The order of the icon strip's top icons, its rows and the places kept there, as a JSON array of ids (\(Self.stripOrderIDs(footer: false).joined(separator: ", "))). An icon not listed stands after the one before it in the strip's own order; [] is the strip's own order.",
+                reach: .account, kind: .text, preferenceKeys: [StudioStripOrder.topStorageKey],
+                read: { Self.stripOrderJSON(UserDefaults.standard.string(forKey: StudioStripOrder.topStorageKey) ?? "") },
+                write: { value in
+                    let text = try AppSettingEntry.string(value, "window.rail_order")
+                    PreferenceStore.set(
+                        try Self.stripOrderStorage(fromJSON: text, footer: false, setting: "window.rail_order"),
+                        forKey: StudioStripOrder.topStorageKey
+                    )
+                }
+            ),
+            AppSettingEntry(
+                id: "window.rail_footer_order", pane: "Navigation rail (no pane)", title: "Icon strip footer order",
+                detail: "The order of the icon strip's bottom icons as a JSON array of ids (\(Self.stripOrderIDs(footer: true).joined(separator: ", "))). An icon not listed stands after the one before it in the strip's own order; [] is the strip's own order.",
+                reach: .account, kind: .text, preferenceKeys: [StudioStripOrder.footerStorageKey],
+                read: { Self.stripOrderJSON(UserDefaults.standard.string(forKey: StudioStripOrder.footerStorageKey) ?? "") },
+                write: { value in
+                    let text = try AppSettingEntry.string(value, "window.rail_footer_order")
+                    PreferenceStore.set(
+                        try Self.stripOrderStorage(fromJSON: text, footer: true, setting: "window.rail_footer_order"),
+                        forKey: StudioStripOrder.footerStorageKey
+                    )
                 }
             ),
             preferenceEntry(

@@ -207,6 +207,9 @@ enum SyncedPreferenceKeys {
         // The places kept on the icon strip (2026-10-12): the same act as
         // hiding a row there.
         StudioRailShortcuts.storageKey,
+        // The order the learner dragged the strip's icons into (2026-11-08).
+        StudioStripOrder.topStorageKey,
+        StudioStripOrder.footerStorageKey,
         "studio.navigation.chatsExpanded.v1",
         "studio.navigation.hiddenChatsExpanded.v1",
         "studio.navigation.expandedProjectIDs.v1",

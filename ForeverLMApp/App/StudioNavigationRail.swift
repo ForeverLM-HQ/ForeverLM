@@ -268,8 +268,14 @@ enum StudioRailShortcut: Hashable, Identifiable, Sendable {
 
     /// Starts the drag: the strip draws the place where it would land, and
     /// the content drop zones stay hidden, as for a pane.
-    func beginDrag() {
-        StudioDragVisibility.shared.begin(centerTab: centerTab, railShortcut: self)
+    /// `onStrip`: the drag began on the strip's own icon, which the strip
+    /// moves as the drag goes, rather than on the Space sidebar's row.
+    func beginDrag(onStrip: Bool = false) {
+        StudioDragVisibility.shared.begin(
+            centerTab: centerTab,
+            railShortcut: self,
+            stripEntry: onStrip ? .shortcut(self) : nil
+        )
     }
 
     /// The place a strip drop carries, read off the first provider with one.
@@ -326,26 +332,168 @@ struct StudioRailShortcuts: Equatable {
         return StudioRailShortcuts(kept)
     }
 
-    /// Kept just above `next`, the shortcut it was dropped on, or at the end
-    /// when dropped anywhere else on the strip. One already kept moves there,
-    /// which is how a drag up or down the strip reorders it.
-    func keeping(_ shortcut: StudioRailShortcut, before next: StudioRailShortcut?) -> StudioRailShortcuts {
-        // Dropped back on itself: kept where it is.
-        if next == shortcut, contains(shortcut) { return self }
-        var kept = items.filter { $0 != shortcut }
-        if let next, let index = kept.firstIndex(of: next) {
-            kept.insert(shortcut, at: index)
-        } else {
-            kept.append(shortcut)
-        }
-        return StudioRailShortcuts(kept)
-    }
-
     /// The shortcuts the strip draws: the kept ones this Mac offers, so a
     /// kept Canvases waits, unshown, where canvases are not listed.
     func shown(listsCanvases: Bool) -> [StudioRailShortcut] {
         let offered = Set(StudioRailShortcut.offered(listsCanvases: listsCanvases))
         return items.filter(offered.contains)
+    }
+}
+
+/// An icon on the strip below the ⋯: voice, the work running for an AI app,
+/// AI Usage, the day, the bell, MCP, Settings and the account. Each is one
+/// the learner can drag up or down among the others (`StudioStripOrder`).
+enum StudioStripFooterItem: String, CaseIterable, Identifiable, Sendable {
+    case voice
+    case work
+    case aiUsage
+    case day
+    case notifications
+    case mcp
+    case settings
+    case account
+
+    var id: String { rawValue }
+}
+
+/// One icon of the strip the learner can drag to another place in its own
+/// group (product owner, 2026-11-08: "for all these icons at the bottom left
+/// and also top left; allow me to drag to reorder them"). The top group is
+/// the strip's own rows and the places kept there, mixed as the learner
+/// arranges them; the bottom group is the footer's icons. An icon never
+/// crosses from one group to the other: the ⋯ and the free space stand
+/// between them.
+enum StudioStripEntry: Hashable, Identifiable, Sendable {
+    case row(StudioRailItem)
+    case shortcut(StudioRailShortcut)
+    case footer(StudioStripFooterItem)
+
+    var id: String { key }
+
+    /// How the order stores it: the row's, the place's or the footer
+    /// icon's own name. The three sets of names never meet, which the
+    /// tests hold, so no prefix is needed.
+    var key: String {
+        switch self {
+        case .row(let item): return item.rawValue
+        case .shortcut(let shortcut): return shortcut.key
+        case .footer(let item): return item.rawValue
+        }
+    }
+
+    init?(key: String) {
+        if let item = StudioStripFooterItem(rawValue: key) {
+            self = .footer(item)
+        } else if let item = StudioRailItem(rawValue: key) {
+            self = .row(item)
+        } else if let shortcut = StudioRailShortcut(key: key) {
+            self = .shortcut(shortcut)
+        } else {
+            return nil
+        }
+    }
+
+    var isFooter: Bool {
+        if case .footer = self { return true }
+        return false
+    }
+}
+
+/// The order the learner dragged one group of strip icons into. Follows
+/// the account, like the hidden rows and the shortcuts: the strip is the
+/// learner's arrangement, not one Mac's. Empty until the learner drags,
+/// and then only a list of names: what the strip shows still comes from
+/// the hidden rows, the kept shortcuts and the footer's own conditions, and
+/// this only says where each shown icon stands.
+struct StudioStripOrder: Equatable {
+    /// The top group: the strip's rows and the kept places.
+    static let topStorageKey = "studio.navigation.stripOrder.v1"
+    /// The bottom group: the footer's icons.
+    static let footerStorageKey = "studio.navigation.stripFooterOrder.v1"
+
+    /// The names in order. A name not shown now (a hidden row, a shortcut
+    /// taken off, MCP's icon while its light is off) keeps its place, so it
+    /// comes back where the learner left it.
+    var keys: [String]
+
+    init(_ keys: [String] = []) {
+        var seen = Set<String>()
+        self.keys = keys.filter { !$0.isEmpty && seen.insert($0).inserted }
+    }
+
+    init(storage: String) {
+        self.init(storage.split(separator: ",").map { String($0).trimmingCharacters(in: .whitespaces) })
+    }
+
+    var storage: String { keys.joined(separator: ",") }
+
+    /// The shown names, given in the strip's own order, in the learner's.
+    /// One the learner never placed (a new shortcut, a row a later build
+    /// added) stands after the one it follows in the strip's own order.
+    func arranged(_ shown: [String]) -> [String] {
+        let shownSet = Set(shown)
+        return merged(with: shown).filter(shownSet.contains)
+    }
+
+    /// The shown entries in the learner's order.
+    func arranged(_ shown: [StudioStripEntry]) -> [StudioStripEntry] {
+        let byKey = Dictionary(shown.map { ($0.key, $0) }, uniquingKeysWith: { first, _ in first })
+        return arranged(shown.map(\.key)).compactMap { byKey[$0] }
+    }
+
+    /// `key` takes `target`'s place, as a drag that reaches it moves it:
+    /// below it when coming from above, above it when coming from below.
+    func moving(_ key: String, to target: String, shown: [String]) -> StudioStripOrder {
+        var names = merged(with: shown)
+        guard key != target,
+              let from = names.firstIndex(of: key),
+              let to = names.firstIndex(of: target) else { return self }
+        names.remove(at: from)
+        names.insert(key, at: to)
+        return StudioStripOrder(names)
+    }
+
+    /// `key` just above `target`, or last when there is no target: where a
+    /// place dragged in from the Space sidebar lands.
+    func placing(_ key: String, before target: String?, shown: [String]) -> StudioStripOrder {
+        var names = merged(with: shown).filter { $0 != key }
+        if let target, target != key, let index = names.firstIndex(of: target) {
+            names.insert(key, at: index)
+        } else {
+            names.append(key)
+        }
+        return StudioStripOrder(names)
+    }
+
+    /// Every stored name, with each shown one the learner never placed put
+    /// right after the shown one before it in the strip's own order, or
+    /// first when it leads.
+    private func merged(with shown: [String]) -> [String] {
+        var names = keys
+        for (index, key) in shown.enumerated() where !names.contains(key) {
+            if index > 0, let previous = names.firstIndex(of: shown[index - 1]) {
+                names.insert(key, at: previous + 1)
+            } else {
+                names.insert(key, at: 0)
+            }
+        }
+        return names
+    }
+}
+
+extension NSItemProvider {
+    /// Marks a drag as one of the strip's icons, which the strip moves where
+    /// the drag goes. Read in this process only.
+    func carryingStripEntry(_ entry: StudioStripEntry) -> NSItemProvider {
+        let data = Data(entry.key.utf8)
+        registerDataRepresentation(
+            forTypeIdentifier: UTType.studioStripEntry.identifier,
+            visibility: .ownProcess
+        ) { completion in
+            completion(data, nil)
+            return nil
+        }
+        return self
     }
 }
 
@@ -407,8 +555,13 @@ struct StudioNavigationRail: View {
     /// A Space place is being dragged over the strip, which keeps it at the
     /// end of its shortcuts unless it is over one of them.
     @State private var shortcutDropIsTargeted = false
-    /// The kept shortcut a dragged place is over: dropped, it lands above it.
-    @State private var shortcutDropBefore: StudioRailShortcut?
+    /// The strip icon a place dragged in from the Space sidebar is over:
+    /// dropped, it lands above it.
+    @State private var stripDropBefore: StudioStripEntry?
+    /// The order the learner dragged the strip's top icons and its footer's
+    /// icons into (`StudioStripOrder`).
+    @SyncedStorage(wrappedValue: "", StudioStripOrder.topStorageKey) private var stripTopOrderStorage: String
+    @SyncedStorage(wrappedValue: "", StudioStripOrder.footerStorageKey) private var stripFooterOrderStorage: String
     @State private var mcpLauncher = MCPServerLauncher.shared
     @SyncedStorage(AssistantIntegrationSettings.enabledKey) private var assistantIntegrationsEnabled = true
     @SyncedStorage(AssistantIntegrationSettings.statusLightVisibleKey) private var showsMCPStatusLight = true
@@ -654,34 +807,44 @@ struct StudioNavigationRail: View {
     /// sidebar is not showing.
     @ViewBuilder
     private var compactRail: some View {
-        let hiddenItems = hiddenRailItems
         let shortcuts = railShortcuts.shown(listsCanvases: vm.listsCanvases)
         let litShortcut = shortcuts.first(where: isShowing)
-        // The place a drag over the strip would keep at the end, drawn
-        // there until the drop: over a kept shortcut, a line above that one
-        // shows where it lands instead.
-        let landing = shortcutDropIsTargeted && shortcutDropBefore == nil
+        let topEntries = stripTopEntries(shortcuts: shortcuts)
+        let footerEntries = stripFooterEntries
+        let dragged = StudioDragVisibility.shared.draggedStripEntry
+        // The place a drag from the Space sidebar would keep at the end,
+        // drawn there until the drop: over an icon, a line above that one
+        // shows where it lands instead. A strip icon's own drag moves the
+        // icon itself.
+        let landing = shortcutDropIsTargeted && stripDropBefore == nil && dragged == nil
             ? StudioDragVisibility.shared.draggedRailShortcut
             : nil
         VStack(spacing: 4) {
-            ForEach(hiddenItems.railItems()) { item in
-                switch item {
-                case .space: spaceButton(compact: true, yieldsTo: litShortcut != nil)
-                case .memory: memoryButton(compact: true)
-                case .library: libraryButton(compact: true)
-                case .plugins: pluginsButton(compact: true)
-                case .home: homeButton()
-                case .newChat, .browser: EmptyView()
-                }
-            }
-            // The kept places stand with the strip's own rows, above the ⋯,
-            // with no line between: under a line they read as a second,
-            // stray group (product owner, 2026-11-07: "those new icons
-            // shouldn't show up under that like dividing bar").
-            ForEach(shortcuts) { shortcut in
-                shortcutButton(shortcut, isSelected: shortcut == litShortcut)
-                    // A kept one dragged to the end shows there instead.
-                    .opacity(shortcut == landing ? 0.35 : 1)
+            // The strip's rows and the kept places, in the learner's order.
+            // The kept places stand with the rows, above the ⋯, with no line
+            // between: under a line they read as a second, stray group
+            // (product owner, 2026-11-07: "those new icons shouldn't show up
+            // under that like dividing bar").
+            ForEach(topEntries) { entry in
+                topStripButton(entry, litShortcut: litShortcut)
+                    // A kept one dragged to the end shows there instead; the
+                    // icon being dragged stays dimmed where it would land.
+                    .opacity(entry == dragged || entry == landing.map(StudioStripEntry.shortcut) ? 0.35 : 1)
+                    .onDrop(
+                        of: [.studioStripEntry, .studioRailShortcut],
+                        delegate: stripDropDelegate(target: entry, footer: false, shown: topEntries)
+                    )
+                    .overlay(alignment: .top) {
+                        if stripDropBefore == entry, dragged == nil,
+                           StudioDragVisibility.shared.draggedRailShortcut.map(StudioStripEntry.shortcut) != entry {
+                            Capsule()
+                                .fill(Color.primary.opacity(0.5))
+                                .frame(width: 24, height: 2)
+                                .offset(y: -3)
+                                .allowsHitTesting(false)
+                                .accessibilityHidden(true)
+                        }
+                    }
             }
             if let landing {
                 RailGlyph(systemImage: landing.systemImage, assetImage: landing.assetImage)
@@ -718,48 +881,23 @@ struct StudioNavigationRail: View {
                 RailUpdateButton(updateController: appUpdates, isCompact: true)
                     .transition(.scale(scale: 0.8).combined(with: .opacity))
             }
-            // Voice mode, one click from anywhere (product owner, 2026-11-08:
-            // "I should just be able to open voice mode ... in the bottom left
-            // where those icons are"): the assistant that knows the plan, the
-            // calendar and recent work (`MacRealtimeAssistant`).
-            Button {
-                MacRealtimeVoice.startAssistant()
-            } label: {
-                RailGlyph(systemImage: "waveform")
-                    .contentShape(Rectangle())
+            // The footer's icons, in the learner's order.
+            ForEach(footerEntries) { entry in
+                if case .footer(let item) = entry {
+                    footerStripButton(item)
+                        .opacity(entry == dragged ? 0.35 : 1)
+                        .onDrag {
+                            StudioDragVisibility.shared.begin(stripEntry: entry)
+                            return NSItemProvider().carryingStripEntry(entry)
+                        }
+                        .onDrop(
+                            of: [.studioStripEntry],
+                            delegate: stripDropDelegate(target: entry, footer: true, shown: footerEntries)
+                        )
+                }
             }
-            .buttonStyle(.hoverWash(cornerRadius: 7, inset: 0))
-            .railTooltip("Talk to ForeverLM")
-            .accessibilityLabel("Talk to ForeverLM")
-            .accessibilityIdentifier("studio.navigation.voice")
-            // What an AI app set the app's models to do, an explainer, an
-            // import: the app's logo, over the paid work (product owner, 2026-10-13).
-            StudioWorkButton()
-            // The OpenRouter button: paid work running in the background, one
-            // click from its progress and a Stop (product owner, 2026-10-08),
-            // and under it what has run and the key (2026-10-15).
-            BackgroundWorkButton(
-                monitor: BackgroundWorkMonitor.shared,
-                onOpenSettings: { onOpenSettings($0) }
-            )
-            DayNowChip(style: .rail, compact: true, iconOnly: true)
-            // Every corner card that is waiting, the ones tucked away included.
-            NotificationCenterButton(
-                kinds: activeNoticeKinds,
-                planDay: DayModel.shared.planTheDayAsk,
-                cardsToCheckDetail: vm.cardsToCheckDetail
-            )
-            // MCP's state and Settings, one click each beside the account
-            // (product owner, 2026-11-08: "why not put settings and mcp
-            // status also here in the bottom left as icons"). The account
-            // menu keeps its rows for both.
-            if showsMCPStatusLight {
-                railMCPButton
-            }
-            railSettingsButton
-            accountMenuButton(compact: true)
-                .padding(.bottom, 8)
         }
+        .padding(.bottom, 8)
         .task { BackgroundWorkMonitor.shared.start() }
         // The strip is in every window, always: it reports the window's chats
         // to the unread marks.
@@ -772,19 +910,150 @@ struct StudioNavigationRail: View {
         // end of its shortcuts, its glyph alone, as the ⋯'s Show in Sidebar
         // keeps one.
         .contentShape(Rectangle())
-        .onDrop(of: [.studioRailShortcut], isTargeted: $shortcutDropIsTargeted) { providers in
-            StudioDragVisibility.shared.endSoon()
-            return keepDroppedShortcut(providers, before: nil)
-        }
+        .onDrop(
+            of: [.studioStripEntry, .studioRailShortcut],
+            delegate: stripDropDelegate(target: nil, footer: false, shown: topEntries)
+        )
         .animation(.easeInOut(duration: 0.16), value: landing)
+        .animation(.easeInOut(duration: 0.16), value: topEntries)
+        .animation(.easeInOut(duration: 0.16), value: footerEntries)
     }
 
-    /// Keeps the place a drop carries on the strip, above `next` or at the end.
-    private func keepDroppedShortcut(_ providers: [NSItemProvider], before next: StudioRailShortcut?) -> Bool {
+    /// The strip's rows the learner has not hidden and the places kept
+    /// there, in the order the learner dragged them into.
+    private func stripTopEntries(shortcuts: [StudioRailShortcut]) -> [StudioStripEntry] {
+        let shown = hiddenRailItems.railItems().map(StudioStripEntry.row) + shortcuts.map(StudioStripEntry.shortcut)
+        return StudioStripOrder(storage: stripTopOrderStorage).arranged(shown)
+    }
+
+    /// The footer's icons, MCP's only while its light is shown, in the
+    /// order the learner dragged them into.
+    private var stripFooterEntries: [StudioStripEntry] {
+        let shown = StudioStripFooterItem.allCases
+            .filter { $0 != .mcp || showsMCPStatusLight }
+            .map(StudioStripEntry.footer)
+        return StudioStripOrder(storage: stripFooterOrderStorage).arranged(shown)
+    }
+
+    @ViewBuilder
+    private func topStripButton(_ entry: StudioStripEntry, litShortcut: StudioRailShortcut?) -> some View {
+        switch entry {
+        case .row(.space): spaceButton(compact: true, yieldsTo: litShortcut != nil)
+        case .row(.memory): memoryButton(compact: true)
+        case .row(.library): libraryButton(compact: true)
+        case .row(.plugins): pluginsButton(compact: true)
+        case .row(.home): homeButton()
+        case .row(.newChat), .row(.browser), .footer: EmptyView()
+        case .shortcut(let shortcut): shortcutButton(shortcut, isSelected: shortcut == litShortcut)
+        }
+    }
+
+    @ViewBuilder
+    private func footerStripButton(_ item: StudioStripFooterItem) -> some View {
+        switch item {
+        // Voice mode, one click from anywhere (product owner, 2026-11-08:
+        // "I should just be able to open voice mode ... in the bottom left
+        // where those icons are"): the assistant that knows the plan, the
+        // calendar and recent work (`MacRealtimeAssistant`).
+        case .voice: railVoiceButton
+        // What an AI app set the app's models to do, an explainer, an
+        // import: the app's logo, over the paid work (product owner, 2026-10-13).
+        case .work: StudioWorkButton()
+        // The OpenRouter button: paid work running in the background, one
+        // click from its progress and a Stop (product owner, 2026-10-08),
+        // and under it what has run and the key (2026-10-15).
+        case .aiUsage:
+            BackgroundWorkButton(
+                monitor: BackgroundWorkMonitor.shared,
+                onOpenSettings: { onOpenSettings($0) }
+            )
+        case .day: DayNowChip(style: .rail, compact: true, iconOnly: true)
+        // Every corner card that is waiting, the ones tucked away included.
+        case .notifications:
+            NotificationCenterButton(
+                kinds: activeNoticeKinds,
+                planDay: DayModel.shared.planTheDayAsk,
+                cardsToCheckDetail: vm.cardsToCheckDetail
+            )
+        // MCP's state and Settings, one click each beside the account
+        // (product owner, 2026-11-08: "why not put settings and mcp
+        // status also here in the bottom left as icons"). The account
+        // menu keeps its rows for both.
+        case .mcp: railMCPButton
+        case .settings: railSettingsButton
+        case .account: accountMenuButton(compact: true)
+        }
+    }
+
+    private var railVoiceButton: some View {
+        Button {
+            MacRealtimeVoice.startAssistant()
+        } label: {
+            RailGlyph(systemImage: "waveform")
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.hoverWash(cornerRadius: 7, inset: 0))
+        .railTooltip("Talk to ForeverLM")
+        .accessibilityLabel("Talk to ForeverLM")
+        .accessibilityIdentifier("studio.navigation.voice")
+    }
+
+    /// Where a drag over the strip lands. A strip icon's own drag moves it
+    /// within its group as it passes over the others; a place dragged in
+    /// from the Space sidebar is kept above the icon it is dropped on, or
+    /// at the end of the top group.
+    private func stripDropDelegate(target: StudioStripEntry?, footer: Bool, shown: [StudioStripEntry]) -> StudioStripDropDelegate {
+        StudioStripDropDelegate(
+            target: target,
+            acceptsPlaces: !footer,
+            footer: footer,
+            reorder: { dragged in
+                guard let target, dragged.isFooter == footer else { return }
+                let keys = shown.map(\.key)
+                withAnimation(.easeInOut(duration: 0.16)) {
+                    if footer {
+                        stripFooterOrderStorage = StudioStripOrder(storage: stripFooterOrderStorage)
+                            .moving(dragged.key, to: target.key, shown: keys)
+                            .storage
+                    } else {
+                        stripTopOrderStorage = StudioStripOrder(storage: stripTopOrderStorage)
+                            .moving(dragged.key, to: target.key, shown: keys)
+                            .storage
+                    }
+                }
+            },
+            hoverPlace: { isOver in
+                if let target {
+                    if isOver {
+                        stripDropBefore = target
+                    } else if stripDropBefore == target {
+                        stripDropBefore = nil
+                    }
+                } else {
+                    shortcutDropIsTargeted = isOver
+                }
+            },
+            keepPlace: { providers in
+                keepDroppedShortcut(providers, before: target, shown: shown)
+            }
+        )
+    }
+
+    /// Keeps the place a drop carries on the strip, above `next` or at the
+    /// end of the top group.
+    private func keepDroppedShortcut(
+        _ providers: [NSItemProvider],
+        before next: StudioStripEntry?,
+        shown: [StudioStripEntry]
+    ) -> Bool {
         StudioRailShortcut.loadDropped(from: providers) { shortcut in
+            let entry = StudioStripEntry.shortcut(shortcut)
             withAnimation(.easeInOut(duration: 0.16)) {
-                railShortcutsStorage = StudioRailShortcuts(storage: railShortcutsStorage)
-                    .keeping(shortcut, before: next)
+                if !railShortcuts.contains(shortcut) {
+                    railShortcutsStorage = railShortcuts.setting(shortcut, shown: true).storage
+                }
+                stripTopOrderStorage = StudioStripOrder(storage: stripTopOrderStorage)
+                    .placing(entry.key, before: next?.key, shown: shown.map(\.key))
                     .storage
             }
         }
@@ -1351,8 +1620,8 @@ struct StudioNavigationRail: View {
         // Draggable like New chat: dropped at either edge of the center area
         // it opens a fresh chat in its own pane.
         .onDrag {
-            StudioDragVisibility.shared.begin(centerTab: .chat)
-            return studioCenterTabDragProvider(for: .chat, startsBlankChat: true)
+            StudioDragVisibility.shared.begin(centerTab: .chat, stripEntry: .row(.home))
+            return studioCenterTabDragProvider(for: .chat, startsBlankChat: true).carryingStripEntry(.row(.home))
         }
     }
 
@@ -1410,8 +1679,8 @@ struct StudioNavigationRail: View {
             vm.inWindow(windowState) { vm.openMemoryPane() }
         }
         .onDrag {
-            StudioDragVisibility.shared.begin(centerTab: .memory)
-            return studioCenterTabDragProvider(for: .memory)
+            StudioDragVisibility.shared.begin(centerTab: .memory, stripEntry: .row(.memory))
+            return studioCenterTabDragProvider(for: .memory).carryingStripEntry(.row(.memory))
         }
         .onAppear { goalTracker.configure(storage: vm.storage) }
     }
@@ -1444,8 +1713,8 @@ struct StudioNavigationRail: View {
             vm.inWindow(windowState) { vm.openArtifactsInReader() }
         }
         .onDrag {
-            StudioDragVisibility.shared.begin(centerTab: .artifacts)
-            return studioCenterTabDragProvider(for: .artifacts)
+            StudioDragVisibility.shared.begin(centerTab: .artifacts, stripEntry: .row(.space))
+            return studioCenterTabDragProvider(for: .artifacts).carryingStripEntry(.row(.space))
         }
     }
 
@@ -1472,8 +1741,8 @@ struct StudioNavigationRail: View {
             vm.inWindow(windowState) { vm.openLibraryView() }
         }
         .onDrag {
-            StudioDragVisibility.shared.begin(centerTab: .library)
-            return studioCenterTabDragProvider(for: .library)
+            StudioDragVisibility.shared.begin(centerTab: .library, stripEntry: .row(.library))
+            return studioCenterTabDragProvider(for: .library).carryingStripEntry(.row(.library))
         }
     }
 
@@ -1500,8 +1769,8 @@ struct StudioNavigationRail: View {
             vm.openPluginsPlace(nil, in: windowState)
         }
         .onDrag {
-            StudioDragVisibility.shared.begin(centerTab: .plugins)
-            return studioCenterTabDragProvider(for: .plugins)
+            StudioDragVisibility.shared.begin(centerTab: .plugins, stripEntry: .row(.plugins))
+            return studioCenterTabDragProvider(for: .plugins).carryingStripEntry(.row(.plugins))
         }
     }
 
@@ -1529,31 +1798,8 @@ struct StudioNavigationRail: View {
             openShortcut(shortcut)
         }
         .onDrag {
-            shortcut.beginDrag()
-            return shortcut.dragProvider()
-        }
-        .onDrop(of: [.studioRailShortcut], isTargeted: Binding(
-            get: { shortcutDropBefore == shortcut },
-            set: { targeted in
-                if targeted {
-                    shortcutDropBefore = shortcut
-                } else if shortcutDropBefore == shortcut {
-                    shortcutDropBefore = nil
-                }
-            }
-        )) { providers in
-            StudioDragVisibility.shared.endSoon()
-            return keepDroppedShortcut(providers, before: shortcut)
-        }
-        .overlay(alignment: .top) {
-            if shortcutDropBefore == shortcut, StudioDragVisibility.shared.draggedRailShortcut != shortcut {
-                Capsule()
-                    .fill(Color.primary.opacity(0.5))
-                    .frame(width: 24, height: 2)
-                    .offset(y: -3)
-                    .allowsHitTesting(false)
-                    .accessibilityHidden(true)
-            }
+            shortcut.beginDrag(onStrip: true)
+            return shortcut.dragProvider().carryingStripEntry(.shortcut(shortcut))
         }
     }
 
@@ -2481,6 +2727,53 @@ struct WindowPlaceArrows: View {
 /// alone; its icon is never tinted. Open Beside, Open in Other Window and
 /// Hide are on its menu, and the row drags to the center's edge; the
 /// hover glyph that opened it beside went that day.
+/// The strip's drop handling for one icon, or for the strip's free space
+/// (`target` nil). A strip icon's own drag (`StudioDragVisibility`'s
+/// `draggedStripEntry`) takes the place of each icon of its group it
+/// reaches, so the group rearranges under the pointer, as the Dock does;
+/// the drop only ends it. A place dragged in from the Space sidebar is
+/// kept where it is dropped.
+struct StudioStripDropDelegate: DropDelegate {
+    let target: StudioStripEntry?
+    /// The top group takes places from the Space sidebar; the footer none.
+    let acceptsPlaces: Bool
+    let footer: Bool
+    let reorder: (StudioStripEntry) -> Void
+    let hoverPlace: (Bool) -> Void
+    let keepPlace: ([NSItemProvider]) -> Bool
+
+    private var draggedEntry: StudioStripEntry? { StudioDragVisibility.shared.draggedStripEntry }
+
+    func validateDrop(info: DropInfo) -> Bool {
+        if let draggedEntry { return draggedEntry.isFooter == footer || target == nil }
+        return acceptsPlaces && info.hasItemsConforming(to: [.studioRailShortcut])
+    }
+
+    func dropEntered(info: DropInfo) {
+        if let draggedEntry {
+            if draggedEntry != target { reorder(draggedEntry) }
+        } else if acceptsPlaces {
+            hoverPlace(true)
+        }
+    }
+
+    func dropUpdated(info: DropInfo) -> DropProposal? {
+        DropProposal(operation: .move)
+    }
+
+    func dropExited(info: DropInfo) {
+        if draggedEntry == nil { hoverPlace(false) }
+    }
+
+    func performDrop(info: DropInfo) -> Bool {
+        defer { StudioDragVisibility.shared.endSoon() }
+        if draggedEntry != nil { return true }
+        hoverPlace(false)
+        guard acceptsPlaces else { return false }
+        return keepPlace(info.itemProviders(for: [.studioRailShortcut]))
+    }
+}
+
 private struct RailButtonRow: View {
     let title: String
     var systemImage: String? = nil

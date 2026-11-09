@@ -1,5 +1,6 @@
 import Foundation
 import Testing
+import UniformTypeIdentifiers
 @testable import ForeverLM
 
 @Suite("Navigation rail hidden items")
@@ -249,18 +250,96 @@ struct StudioRailShortcutsTests {
         #expect(kept.shown(listsCanvases: true) == [.place(.canvases), .place(.images)])
     }
 
-    @Test("A place dropped on the strip is kept at the end, or above the shortcut it was dropped on; a kept one moves there")
-    func keepingWhereDropped() {
-        let kept = StudioRailShortcuts([.place(.pages), .courses])
-        #expect(kept.keeping(.place(.images), before: nil).items == [.place(.pages), .courses, .place(.images)])
-        #expect(kept.keeping(.place(.images), before: .courses).items == [.place(.pages), .place(.images), .courses])
-        // Dragged up or down the strip, a kept one moves rather than repeats.
-        #expect(kept.keeping(.courses, before: .place(.pages)).items == [.courses, .place(.pages)])
-        #expect(kept.keeping(.place(.pages), before: nil).items == [.courses, .place(.pages)])
-        // Dropped back on itself, nothing moves.
-        #expect(kept.keeping(.courses, before: .courses) == kept)
-        // Above a place that is not kept (it left meanwhile): the end.
-        #expect(kept.keeping(.place(.sites), before: .place(.drive)).items == [.place(.pages), .courses, .place(.sites)])
+    @Test("The strip's own order until the learner drags; a dragged icon takes the place of the one it reaches")
+    func stripOrderMoves() {
+        let shown = ["home", "space", "memory", "library", "plugins"]
+        #expect(StudioStripOrder(storage: "").arranged(shown) == shown)
+        // Down: Home past Memory lands below it. Up: Plugins to Space lands above it.
+        let down = StudioStripOrder().moving("home", to: "memory", shown: shown)
+        #expect(down.arranged(shown) == ["space", "memory", "home", "library", "plugins"])
+        let up = down.moving("plugins", to: "space", shown: shown)
+        #expect(up.arranged(shown) == ["plugins", "space", "memory", "home", "library"])
+        // Onto itself, or onto an icon not shown, nothing moves.
+        #expect(up.moving("home", to: "home", shown: shown) == up)
+        #expect(up.moving("home", to: "voice", shown: shown) == up)
+        // It round-trips through its stored form.
+        #expect(StudioStripOrder(storage: up.storage) == up)
+    }
+
+    @Test("A hidden icon keeps its place, and one never placed stands after the one before it in the strip's own order")
+    func stripOrderKeepsHiddenAndNewIcons() {
+        let order = StudioStripOrder(["library", "home", "space", "memory", "plugins"])
+        // Memory hidden, then shown again: back where it was.
+        #expect(order.arranged(["home", "space", "library", "plugins"]) == ["library", "home", "space", "plugins"])
+        #expect(order.arranged(["home", "space", "memory", "library", "plugins"]) == ["library", "home", "space", "memory", "plugins"])
+        // A newly kept place follows the last icon before it: Plugins.
+        #expect(order.arranged(["home", "space", "memory", "library", "plugins", "pages"])
+            == ["library", "home", "space", "memory", "plugins", "pages"])
+        // A stored name this build does not show is harmless.
+        #expect(StudioStripOrder(["retired", "home"]).arranged(["home", "space"]) == ["home", "space"])
+    }
+
+    @Test("A place dragged in from the Space sidebar lands above the icon it is dropped on, or last")
+    func stripOrderPlacesDroppedPlace() {
+        let shown = ["home", "space", "memory", "pages"]
+        let order = StudioStripOrder()
+        #expect(order.placing("images", before: "space", shown: shown).arranged(shown + ["images"])
+            == ["home", "images", "space", "memory", "pages"])
+        #expect(order.placing("images", before: nil, shown: shown).arranged(shown + ["images"])
+            == ["home", "space", "memory", "pages", "images"])
+        // A kept one moves rather than repeats.
+        #expect(order.placing("pages", before: "home", shown: shown).arranged(shown) == ["pages", "home", "space", "memory"])
+    }
+
+    @Test("Every strip icon has a key of its own, read back as the same icon, and the groups never share one")
+    func stripEntryKeys() {
+        let rows = StudioRailItem.allCases.map(StudioStripEntry.row)
+        let places = StudioRailShortcut.offered(listsCanvases: true).map(StudioStripEntry.shortcut)
+        let footer = StudioStripFooterItem.allCases.map(StudioStripEntry.footer)
+        let all = rows + places + footer
+        #expect(Set(all.map(\.key)).count == all.count)
+        for entry in all { #expect(StudioStripEntry(key: entry.key) == entry) }
+        let footerAreFooter = footer.allSatisfy(\.isFooter)
+        let topHasFooter = (rows + places).contains(where: \.isFooter)
+        #expect(footerAreFooter)
+        #expect(!topHasFooter)
+        #expect(StudioStripEntry(key: "trash") == nil)
+    }
+
+    @Test("A strip icon's drag is a pane drag and carries the icon")
+    @MainActor
+    func stripEntryDrag() {
+        let visibility = StudioDragVisibility.shared
+        defer { visibility.endNow() }
+        StudioRailShortcut.place(.pages).beginDrag(onStrip: true)
+        #expect(visibility.draggedStripEntry == .shortcut(.place(.pages)))
+        StudioRailShortcut.place(.pages).beginDrag()
+        #expect(visibility.draggedStripEntry == nil, "the Space sidebar's row is a place coming in, not a strip icon")
+        visibility.begin(stripEntry: .footer(.account))
+        #expect(visibility.isPaneDrag)
+        let provider = NSItemProvider().carryingStripEntry(.footer(.account))
+        #expect(provider.hasItemConformingToTypeIdentifier(UTType.studioStripEntry.identifier))
+        visibility.endNow()
+        #expect(visibility.draggedStripEntry == nil)
+    }
+
+    @Test("Over MCP each group's order is a JSON array of its own icon ids")
+    @MainActor
+    func stripOrderOverMCP() throws {
+        let top = try MCPDataStore.stripOrderStorage(fromJSON: #"["memory","pages","home"]"#, footer: false, setting: "window.rail_order")
+        #expect(top == "memory,pages,home")
+        #expect(MCPDataStore.stripOrderJSON(top) == #"["memory","pages","home"]"#)
+        let footer = try MCPDataStore.stripOrderStorage(fromJSON: #"["account","voice"]"#, footer: true, setting: "window.rail_footer_order")
+        #expect(footer == "account,voice")
+        #expect(throws: (any Error).self) {
+            try MCPDataStore.stripOrderStorage(fromJSON: #"["voice"]"#, footer: false, setting: "window.rail_order")
+        }
+        #expect(throws: (any Error).self) {
+            try MCPDataStore.stripOrderStorage(fromJSON: #"["home"]"#, footer: true, setting: "window.rail_footer_order")
+        }
+        #expect(throws: (any Error).self) {
+            try MCPDataStore.stripOrderStorage(fromJSON: #"["newChat"]"#, footer: false, setting: "window.rail_order")
+        }
     }
 
     @Test("A Space row's drag carries the place for the strip, and its pane where it has one")
