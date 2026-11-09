@@ -46,16 +46,16 @@ struct ReaderToolbarPolicyTests {
 
         #expect(available == .available)
         #expect(available.isEnabled)
-        #expect(available.activationMessage == "Adding to Sources…")
+        #expect(available.activationMessage == "Adding to Library…")
         #expect(adding == .adding)
         #expect(!adding.isEnabled)
-        #expect(adding.activationMessage == "Adding to Sources…")
+        #expect(adding.activationMessage == "Adding to Library…")
         #expect(saved == .saved)
         #expect(saved.isEnabled)
         #expect(saved.opensSavedSource)
         #expect(!available.opensSavedSource)
-        #expect(saved.title == "View in Sources")
-        #expect(saved.activationMessage == "Already in Sources")
+        #expect(saved.title == "View in Library")
+        #expect(saved.activationMessage == "Already in Library")
         #expect(saved.help == "Open the saved source in the Reader")
     }
 

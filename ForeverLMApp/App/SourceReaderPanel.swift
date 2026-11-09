@@ -711,7 +711,7 @@ struct SourceReaderPanel: View {
     /// shows that source instead — in this window, releasing the live page.
     private func openSavedSource(for pageURL: URL) {
         guard let sourceID = vm.librarySourceID(forURL: pageURL.absoluteString) else {
-            vm.showToast("Already in Sources")
+            vm.showToast("Already in Library")
             return
         }
         Task { await vm.selectArticle(sourceID, in: windowState, revealingReader: true) }
@@ -728,7 +728,7 @@ struct SourceReaderPanel: View {
               let sourceID = vm.librarySourceID(forURL: external.url.absoluteString) else { return }
         Task {
             await vm.selectArticle(sourceID, in: windowState, revealingReader: true)
-            vm.showToast("Opened from Sources")
+            vm.showToast("Opened from Library")
         }
     }
 

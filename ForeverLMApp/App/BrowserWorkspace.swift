@@ -1503,7 +1503,7 @@ enum BrowserPasskeySupport {
 /// Where a web link clicked in ForeverLM opens on this Mac (product owner,
 /// 2026-11-08: "allow to open links by default in the in app browser; let me
 /// set that in settings"). The Browser pane is the default: a page opened
-/// there can go into the library with the pane's Add to Sources, and it
+/// there can go into the library with the pane’s Add to Library, and it
 /// shares the Library profile's sign-ins with the readers. The other choice
 /// is the Mac's own default browser (Safari when ForeverLM itself is the
 /// default, `BrowserPasskeySupport.externalBrowser`).

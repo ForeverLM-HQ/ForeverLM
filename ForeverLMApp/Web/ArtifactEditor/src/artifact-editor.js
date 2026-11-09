@@ -2762,7 +2762,7 @@ function referenceAction(href, status, compact = false) {
     const pending = document.createElement('span')
     pending.className = 'artifact-reference-pending'
     pending.textContent = compact ? '…' : 'Adding…'
-    if (compact) pending.title = 'Adding to Sources'
+    if (compact) pending.title = 'Adding to Library'
     return pending
   }
   if (state === 'requested') {
@@ -2819,15 +2819,15 @@ function referenceAction(href, status, compact = false) {
     add.dataset.role = 'add'
     if (compact) {
       add.classList.add('is-compact')
-      add.setAttribute('aria-label', 'Add to Sources')
-      add.title = state === 'failed' && status?.message ? status.message : 'Add to Sources'
+      add.setAttribute('aria-label', 'Add to Library')
+      add.title = state === 'failed' && status?.message ? status.message : 'Add to Library'
       const plus = document.createElement('span')
       plus.className = 'artifact-reference-plus'
       plus.setAttribute('aria-hidden', 'true')
       plus.innerHTML = referencePlusSVG
       add.append(plus)
     } else {
-      add.textContent = 'Add to Sources'
+      add.textContent = 'Add to Library'
       if (state === 'failed' && status?.message) add.title = status.message
     }
     add.addEventListener('click', (event) => {

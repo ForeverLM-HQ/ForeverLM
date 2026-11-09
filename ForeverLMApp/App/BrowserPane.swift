@@ -462,7 +462,7 @@ struct BrowserPane: View {
     /// loaded page declared about itself.
     private func openSavedSource(for url: URL) {
         guard let sourceID = vm.librarySourceID(forURL: url.absoluteString) else {
-            vm.showToast("Already in Sources")
+            vm.showToast("Already in Library")
             return
         }
         Task { await vm.revealSourceInReader(sourceID) }

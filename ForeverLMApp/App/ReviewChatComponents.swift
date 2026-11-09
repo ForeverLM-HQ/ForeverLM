@@ -420,7 +420,7 @@ struct ReviewChatBubble: View, Equatable {
 /// The pages a web-searched reply cited, as rows the learner can open beside
 /// Chat or keep with one click. Opening never imports; Add runs the canonical
 /// URL import with deduplication and archived-source revival — the same path
-/// as the Reader's "Add to Sources" button — so a page kept from here is the
+/// as the Reader's "Add to Library" button — so a page kept from here is the
 /// same library record it would be from anywhere else. In a notebook's chat
 /// Add files the page in that notebook too, and a row reads saved only once
 /// the notebook holds it.
@@ -558,7 +558,7 @@ struct ReviewChatWebSourcesList: View {
 
     private func addHelp(_ state: ReaderAddPageToolbarState, notebook: LearningGoalRecord?) -> String {
         guard state == .available, let notebook else { return state.help }
-        return "Add to Sources and to \u{201C}\(notebook.title)\u{201D}"
+        return "Add to Library and to \u{201C}\(notebook.title)\u{201D}"
     }
 
     /// Mirrors the Reader's Add to Sources flow: acknowledge at once, check
@@ -569,7 +569,7 @@ struct ReviewChatWebSourcesList: View {
         if state.opensSavedSource {
             // View in Sources: the saved copy, the way a source citation opens.
             guard let sourceID = vm.librarySourceID(forURL: url.absoluteString) else {
-                vm.showToast("Already in Sources")
+                vm.showToast("Already in Library")
                 return
             }
             Task { await vm.openLinkedSourceInReader(sourceID) }

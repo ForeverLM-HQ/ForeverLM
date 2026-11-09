@@ -568,7 +568,7 @@ extension StudioViewModel {
         }
         let address = url.absoluteString
         if libraryContainsSource(url: address) {
-            showToast("Already in Sources")
+            showToast("Already in Library")
             return true
         }
         let previousError = errorMessage
@@ -581,14 +581,14 @@ extension StudioViewModel {
                 knownTitle: title
             )
         } catch {
-            showToast("Could not add to Sources: \(error.localizedDescription)")
+            showToast("Could not add to Library: \(error.localizedDescription)")
             return false
         }
         if libraryContainsSource(url: address) {
             if let errorMessage, errorMessage != previousError {
                 showToast(errorMessage)
             } else {
-                showToast("Added to Sources")
+                showToast("Added to Library")
             }
             return true
         }
@@ -596,7 +596,7 @@ extension StudioViewModel {
             showToast(errorMessage)
             return errorMessage.localizedCaseInsensitiveContains("already")
         }
-        showToast("Could not add to Sources")
+        showToast("Could not add to Library")
         return false
     }
 

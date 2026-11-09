@@ -28,7 +28,7 @@ This also works in the other direction: if a web article turns out to be an acad
 Save the paper's abstract or landing page to your browser's reading list (Safari, Chrome, or Brave). The app picks it up automatically, as far back as you chose in setup or in **Settings → Sources → Reading Lists** (see [Articles](/articles#how-articles-are-discovered)).
 
 **Manual paste:**
-In a notebook, paste the paper's URL or DOI into **Add sources** and choose **Add link**: the paper joins your library and the notebook in one step. In ForeverLM's Browser, **Add to Sources** saves the page you are reading.
+In a notebook, paste the paper's URL or DOI into **Add sources** and choose **Add link**: the paper joins your library and the notebook in one step. In ForeverLM's Browser, **Add to Library** saves the page you are reading.
 
 **Via MCP:**
 Your AI assistant adds a paper with `import_paper_from_url` (a URL or DOI) or `import_local_pdf_as_paper` (a PDF on your Mac). Either way the paper shows in Papers as soon as its PDF is in, as processing until its metadata is read. `add_source` is for non-paper sources. Given a notebook's `notebook_id`, `import_paper_from_url` files the paper in that notebook as well, and a paper already in your library joins it instead of being imported again.

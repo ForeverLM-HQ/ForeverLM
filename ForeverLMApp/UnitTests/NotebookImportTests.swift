@@ -508,7 +508,7 @@ struct NotebookImportLinkTests {
         #expect(added.landed)
         #expect(added.addedSourceID != nil)
         #expect(added.addedSourceID == vm.librarySourceID(forURL: fresh.absoluteString))
-        #expect(vm.toastMessage == "Added to Sources and to \u{201C}Mitochondria\u{201D}")
+        #expect(vm.toastMessage == "Added to Library and to \u{201C}Mitochondria\u{201D}")
         #expect(vm.notebookHoldsSource(url: fresh.absoluteString, notebookID: notebook.id))
 
         // Outside a notebook, and in a pop-out Reader (no window), the
@@ -516,12 +516,12 @@ struct NotebookImportLinkTests {
         let elsewhere = try #require(URL(string: "https://example.com/live-page-elsewhere"))
         let libraryOnly = await vm.addLivePageToSources(elsewhere, in: outside)
         #expect(libraryOnly.landed)
-        #expect(vm.toastMessage == "Added to Sources")
+        #expect(vm.toastMessage == "Added to Library")
         #expect(vm.librarySourceID(forURL: elsewhere.absoluteString) != nil)
         #expect(!vm.notebookHoldsSource(url: elsewhere.absoluteString, notebookID: notebook.id))
         let again = await vm.addLivePageToSources(elsewhere, in: nil)
         #expect(again == StudioViewModel.LivePageAdd(landed: true, addedSourceID: nil))
-        #expect(vm.toastMessage == "Already in Sources")
+        #expect(vm.toastMessage == "Already in Library")
     }
 
     @Test("A block's source links name library rows, and a notebook made from the block is found again by its title and sources")
@@ -587,12 +587,12 @@ struct NotebookImportLinkTests {
     func toasts() {
         typealias Outcome = StudioViewModel.NotebookImportOutcome
         let title = "Aging"
-        #expect(StudioViewModel.notebookImportToast(Outcome(library: .added, membership: .added), notebookTitle: title) == "Added to Sources and to \u{201C}Aging\u{201D}")
+        #expect(StudioViewModel.notebookImportToast(Outcome(library: .added, membership: .added), notebookTitle: title) == "Added to Library and to \u{201C}Aging\u{201D}")
         #expect(StudioViewModel.notebookImportToast(Outcome(library: .alreadyHeld, membership: .added), notebookTitle: title) == "Added to \u{201C}Aging\u{201D}")
         #expect(StudioViewModel.notebookImportToast(Outcome(library: .linkedPage, membership: .added), notebookTitle: title) == "Linked in \u{201C}Aging\u{201D}")
         #expect(StudioViewModel.notebookImportToast(Outcome(library: .linkedPage, membership: .alreadyIn), notebookTitle: title) == "Already in \u{201C}Aging\u{201D}")
         #expect(StudioViewModel.notebookImportToast(Outcome(library: .failed("Not a page."), membership: .none), notebookTitle: title) == "Not a page.")
-        #expect(StudioViewModel.notebookImportToast(Outcome(library: .added, membership: .none), notebookTitle: nil) == "Added to Sources")
+        #expect(StudioViewModel.notebookImportToast(Outcome(library: .added, membership: .none), notebookTitle: nil) == "Added to Library")
         #expect(!Outcome(library: .added, membership: .failed("no")).landed)
     }
 }

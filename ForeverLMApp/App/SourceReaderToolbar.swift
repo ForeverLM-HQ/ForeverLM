@@ -75,16 +75,16 @@ enum ReaderAddPageToolbarState: Equatable {
 
     var title: String {
         switch self {
-        case .available: return "Add to Sources"
+        case .available: return "Add to Library"
         case .adding: return "Adding…"
-        case .saved: return "View in Sources"
+        case .saved: return "View in Library"
         }
     }
 
     var help: String {
         switch self {
-        case .available: return "Add current page to Sources"
-        case .adding: return "Adding to Sources"
+        case .available: return "Add current page to Library"
+        case .adding: return "Adding to Library"
         case .saved: return "Open the saved source in the Reader"
         }
     }
@@ -104,8 +104,8 @@ enum ReaderAddPageToolbarState: Equatable {
     /// this message with the exact result once persistence finishes.
     var activationMessage: String {
         switch self {
-        case .available, .adding: return "Adding to Sources…"
-        case .saved: return "Already in Sources"
+        case .available, .adding: return "Adding to Library…"
+        case .saved: return "Already in Library"
         }
     }
 }
@@ -859,7 +859,7 @@ struct ReaderToolbarButton<Label: View>: View {
     }
 }
 
-/// "Add to Sources" for a live web page, wherever the reader toolbar is mounted.
+/// "Add to Library" for a live web page, wherever the reader toolbar is mounted.
 /// Same split as `ReaderNavigationButton`: in the titlebar band a native
 /// `NSButton` lights up but never receives its mouse-down (see
 /// `TitlebarBandHitSurfaceView`), so the band host gets a `TitlebarBandButton`
@@ -944,7 +944,7 @@ final class ReaderTitlebarActionButton: NSButton {
     }
 
     /// The label slot a band-mounted copy of this control needs. A bare symbol
-    /// fits the shared square; a titled control (the labeled "Add to Sources")
+    /// fits the shared square; a titled control (the labeled "Add to Library")
     /// widens by the title's measured width, the symbol beside it, and the
     /// same 8pt this button's `intrinsicContentSize` adds around a title. The
     /// band button frames its label at exactly this width, and its native hit

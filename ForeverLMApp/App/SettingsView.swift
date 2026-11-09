@@ -943,12 +943,12 @@ private struct SourcesSettingsDetailView: View {
     // MARK: - Links
 
     /// Where a web link clicked in ForeverLM opens on this Mac
-    /// (`WebLinkOpening`): the Browser pane, whose Add to Sources files the
+    /// (`WebLinkOpening`): the Browser pane, whose Add to Library files the
     /// page, unless the learner picks their own browser.
     private var linksSection: some View {
         SettingsSection(
             title: "Links",
-            description: "Where a web link you click in ForeverLM opens on this Mac. In ForeverLM’s Browser, Add to Sources puts the page in your library."
+            description: "Where a web link you click in ForeverLM opens on this Mac. In ForeverLM’s Browser, Add to Library saves the page to your library."
         ) {
             SettingsCard {
                 Picker("Open links in", selection: Binding(

@@ -396,7 +396,7 @@ extension MCPDataStore {
                 id: "links.open_in",
                 pane: "Sources › Links",
                 title: "Open links in",
-                detail: "Where a web link the learner clicks in ForeverLM opens on this Mac: browserPane (the default) opens it in a tab of ForeverLM's own Browser pane, where Add to Sources files the page in the library; defaultBrowser hands it to the Mac's default browser (Safari when ForeverLM is the default). A link to a page the library already holds still opens the saved source, and a YouTube video still plays in the Reader. Links of other apps (mailto:, zoommtg:) always go to macOS. This Mac only; it never syncs. Ask the learner before changing it.",
+                detail: "Where a web link the learner clicks in ForeverLM opens on this Mac: browserPane (the default) opens it in a tab of ForeverLM's own Browser pane, where Add to Library files the page in the library; defaultBrowser hands it to the Mac's default browser (Safari when ForeverLM is the default). A link to a page the library already holds still opens the saved source, and a YouTube video still plays in the Reader. Links of other apps (mailto:, zoommtg:) always go to macOS. This Mac only; it never syncs. Ask the learner before changing it.",
                 reach: .thisMac,
                 kind: .choice,
                 preferenceKeys: [WebLinkOpening.preferenceKey],

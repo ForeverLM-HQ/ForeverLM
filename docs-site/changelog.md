@@ -6,7 +6,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
-- **Links open in ForeverLM's Browser.** A web link you click in a Page, a published page or a PDF now opens as a tab of the Browser pane instead of your web browser, and **Add to Sources** there puts the page in your library. To send links, chat links included, to your own browser instead, choose it under Settings › Sources › **Links**.
+- **Links open in ForeverLM's Browser.** A web link you click in a Page, a published page or a PDF now opens as a tab of the Browser pane instead of your web browser, and **Add to Library** there saves the page to your library (the button the Reader and the Browser called Add to Sources). To send links, chat links included, to your own browser instead, choose it under Settings › Sources › **Links**.
 
 ## 0.203.0 (build 283) — 2026-11-08
 

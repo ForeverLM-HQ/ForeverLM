@@ -852,7 +852,7 @@ struct SourceReaderWindow: View {
 
             if vm.articles.contains(where: { SourceDiscovery.normalizedURL($0.url) == pageKey }) {
                 savedLibraryPageKeys.insert(pageKey)
-                vm.showToast("Already in Sources")
+                vm.showToast("Already in Library")
                 return
             }
 
@@ -865,7 +865,7 @@ struct SourceReaderWindow: View {
                     reviveArchivedSourceIfNeeded: true
                 )
             } catch {
-                vm.showToast("Could not add to Sources: \(error.localizedDescription)")
+                vm.showToast("Could not add to Library: \(error.localizedDescription)")
                 return
             }
 
@@ -875,7 +875,7 @@ struct SourceReaderWindow: View {
                    errorMessage != previousError {
                     vm.showToast(errorMessage)
                 } else {
-                    vm.showToast("Added to Sources")
+                    vm.showToast("Added to Library")
                 }
                 return
             }
@@ -889,7 +889,7 @@ struct SourceReaderWindow: View {
                 return
             }
 
-            vm.showToast("Could not add to Sources")
+            vm.showToast("Could not add to Library")
         }
     }
 

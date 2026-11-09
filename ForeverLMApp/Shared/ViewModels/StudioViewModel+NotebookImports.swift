@@ -149,7 +149,7 @@ extension StudioViewModel {
     /// notebook (`notebookInScope(for:)`), the page joins the library and
     /// that notebook through the notebook import (`importLink`, the
     /// team-aware membership write), and the toast names the notebook
-    /// ("Added to Sources and to “Mito”", "Added to “Mito”"). Anywhere else
+    /// ("Added to Library and to “Mito”", "Added to “Mito”"). Anywhere else
     /// it joins the library only. A pop-out Reader belongs to no Studio
     /// window and passes nil.
     func addLivePageToSources(_ url: URL, in windowState: StudioWindowState?) async -> LivePageAdd {
@@ -164,7 +164,7 @@ extension StudioViewModel {
         }
         let key = SourceDiscovery.normalizedURL(address)
         if articles.contains(where: { SourceDiscovery.normalizedURL($0.url) == key }) {
-            showToast("Already in Sources")
+            showToast("Already in Library")
             return LivePageAdd(landed: true, addedSourceID: nil)
         }
         let previousError = errorMessage
@@ -176,7 +176,7 @@ extension StudioViewModel {
                 reviveArchivedSourceIfNeeded: true
             )
         } catch {
-            showToast("Could not add to Sources: \(error.localizedDescription)")
+            showToast("Could not add to Library: \(error.localizedDescription)")
             return LivePageAdd(landed: false, addedSourceID: nil)
         }
         // `addArticle` reports a refusal or a duplicate through
@@ -187,10 +187,10 @@ extension StudioViewModel {
                 showToast(newError)
                 return LivePageAdd(landed: newError.localizedCaseInsensitiveContains("already"), addedSourceID: nil)
             }
-            showToast("Could not add to Sources")
+            showToast("Could not add to Library")
             return LivePageAdd(landed: false, addedSourceID: nil)
         }
-        showToast(newError ?? "Added to Sources")
+        showToast(newError ?? "Added to Library")
         return LivePageAdd(landed: true, addedSourceID: article.id)
     }
 
@@ -404,23 +404,23 @@ extension StudioViewModel {
         case (.failed(let reason), _):
             return reason
         case (_, .alreadyIn):
-            return outcome.library == .added ? "Added to Sources; already in \(notebook)" : "Already in \(notebook)"
+            return outcome.library == .added ? "Added to Library; already in \(notebook)" : "Already in \(notebook)"
         case (.linkedPage, .failed(let reason)):
             return "Not linked in \(notebook): \(reason)"
         case (.linkedPage, _):
             return "Linked in \(notebook)"
         case (.added, .added):
-            return "Added to Sources and to \(notebook)"
+            return "Added to Library and to \(notebook)"
         case (.alreadyHeld, .added):
             return "Added to \(notebook)"
         case (.added, .failed(let reason)):
-            return "Added to Sources, but not to \(notebook): \(reason)"
+            return "Added to Library, but not to \(notebook): \(reason)"
         case (.alreadyHeld, .failed(let reason)):
             return "Not added to \(notebook): \(reason)"
         case (.added, .none):
-            return "Added to Sources"
+            return "Added to Library"
         case (.alreadyHeld, .none):
-            return "Already in Sources"
+            return "Already in Library"
         }
     }
 

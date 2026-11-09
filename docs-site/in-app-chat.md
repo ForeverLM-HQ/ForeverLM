@@ -236,7 +236,7 @@ Every web page the reply searched or read is listed under it as **Web sources**,
 folded to one line with a count until you click it open.
 On the Mac each row shows the page's title and site: click the title to read the
 page beside Chat without importing it, or click **Add** to keep it in your library.
-Add runs the same import as the Reader's "Add to Sources" button, so a page
+Add runs the same import as the Reader's "Add to Library" button, so a page
 already in your library reads **Added** and a new one is deduplicated the same
 way. Nothing is added to your library unless you click Add.
 
