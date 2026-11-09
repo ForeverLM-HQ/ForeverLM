@@ -4198,9 +4198,6 @@ struct ReviewChatMessageContent: View {
     var passage: ChatPassageOrigin.Passage?
     /// Opens `passage` in the Reader; the quote is a button when it is set.
     var openPassage: ((ChatPassageOrigin.Passage) -> Void)?
-    /// False for a reply drawn outside the transcript's column, such as the
-    /// side chat's answer (`ChatMarkdownView.remembersHeight`).
-    var remembersHeight = true
     @State private var renderedHeight: CGFloat
 
     @MainActor
@@ -4210,8 +4207,7 @@ struct ReviewChatMessageContent: View {
         rendersMarkdown: Bool = true,
         citationContext: ChatCitationLedger.MessageContext = .init(),
         passage: ChatPassageOrigin.Passage? = nil,
-        openPassage: ((ChatPassageOrigin.Passage) -> Void)? = nil,
-        remembersHeight: Bool = true
+        openPassage: ((ChatPassageOrigin.Passage) -> Void)? = nil
     ) {
         self.messageID = messageID
         self.content = content
@@ -4219,16 +4215,15 @@ struct ReviewChatMessageContent: View {
         self.citationContext = citationContext
         self.passage = passage
         self.openPassage = openPassage
-        self.remembersHeight = remembersHeight
-        // The transcript is lazy, so this row may be a rebuild of one that
-        // already rendered, or the first build of a row above the fold of a
-        // chat opened from history. Open at the height it reported last time,
-        // or at an estimate from its text, instead of one line: a row that
-        // collapses and springs back moves everything under it, which reads as
-        // the scroll jumping under the pointer.
+        // Open at an estimate from the text rather than one line, so the
+        // measurement a frame later moves the column by a few lines at most.
         _renderedHeight = State(
             initialValue: rendersMarkdown
-                ? ChatMarkdownHeightMemory.initialHeight(for: messageID, markdown: content)
+                ? ChatMarkdownHeightEstimate.estimatedHeight(
+                    markdown: content,
+                    width: ChatMarkdownHeightEstimate.defaultEstimateWidth,
+                    fontSize: ChatMarkdownView.baseFontSize
+                )
                 : 36
         )
     }
@@ -4314,8 +4309,7 @@ struct ReviewChatMessageContent: View {
                         await GeneratedImageRedrawCenter.shared.redraw(
                             id: versionID, with: model, prompt: prompt, usageTask: "chat_image", vm: vm
                         )
-                    },
-                    remembersHeight: remembersHeight
+                    }
                 )
                     .frame(height: renderedHeight)
                     // The side chat about words selected in this reply hangs
@@ -4460,12 +4454,8 @@ struct ReviewChatSavedCardsView: View {
 
     private static let maxWidth: CGFloat = 560
 
-    /// The transcript is a lazy stack, which drops this row when it scrolls
-    /// away and builds it again on the way back, with every `@State` reset.
-    /// A row that comes back as a 96pt spinner and then grows to its deck is
-    /// the transcript changing height under the learner's scroll, and a
-    /// scroll down to a card at the foot of a chat snapped back up
-    /// (`ChatSavedCardsMemory`). So the row is built with what it last showed.
+    /// Opened again, the deck shows the cards it last read, on the card it
+    /// was left at (`ChatSavedCardsMemory`), while a fresh read lands.
     init(saved: ChatSavedCards) {
         self.saved = saved
         _cards = State(initialValue: ChatSavedCardsMemory.cards["\(saved.destination)"])
@@ -4473,13 +4463,6 @@ struct ReviewChatSavedCardsView: View {
     }
 
     private var reloadKey: String { "\(saved.destination)#\(vm.memoryCardRevision)" }
-
-    /// What the row measured the last time it stood at this exact state: the
-    /// card on top, and where the cards stand. Pictures resolve after the row
-    /// is drawn, so a rebuilt row holds this height while they come back.
-    private var heightKey: String {
-        "\(reloadKey)|\(min(page, max(0, (cards?.count ?? 1) - 1)))"
-    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -4511,10 +4494,6 @@ struct ReviewChatSavedCardsView: View {
                 .strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5)
         )
         .textSelection(.disabled)
-        .onGeometryChange(for: CGFloat.self, of: { $0.size.height }) { height in
-            ChatSavedCardsMemory.remember(height: height, for: heightKey)
-        }
-        .frame(minHeight: ChatSavedCardsMemory.heights[heightKey], alignment: .top)
         .task(id: reloadKey) { await load() }
         .onChange(of: page) { _, page in
             ChatSavedCardsMemory.pages["\(saved.destination)"] = page
@@ -4581,9 +4560,17 @@ struct ReviewChatSavedCardsView: View {
     /// The source the cards stand on, and how many the call sent that were not
     /// saved.
     private var subtitle: String? {
+        Self.subtitle(saved, articlesById: vm.articlesById, canonicalID: vm.canonicalSourceID)
+    }
+
+    static func subtitle(
+        _ saved: ChatSavedCards,
+        articlesById: [String: StudioArticle],
+        canonicalID: (String) -> String
+    ) -> String? {
         var parts: [String] = []
         if saved.sourceIDs.count == 1 {
-            let title = vm.articlesById[vm.canonicalSourceID(saved.sourceIDs[0])]?.title
+            let title = articlesById[canonicalID(saved.sourceIDs[0])]?.title
                 .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
             if !title.isEmpty { parts.append(title) }
         } else if saved.sourceIDs.count > 1 {
@@ -4801,24 +4788,12 @@ struct ReviewChatSavedCardsView: View {
 }
 
 /// What `ReviewChatSavedCardsView` last showed, per set of saved cards, for
-/// the moment its row is built again. Kept off the view because the view is
-/// the thing the lazy transcript throws away; none of it is stored or synced,
-/// and a read replaces it as soon as it lands.
+/// the next time the deck opens. None of it is stored or synced, and a read
+/// replaces it as soon as it lands.
 @MainActor
 enum ChatSavedCardsMemory {
     static var cards: [String: [ChatSavedCard]] = [:]
     static var pages: [String: Int] = [:]
-    /// Natural height of the row, per state of it. Only ever grows for one
-    /// state: a picture still on its way would otherwise shrink the figure.
-    static var heights: [String: CGFloat] = [:]
-
-    private static let limit = 200
-
-    static func remember(height: CGFloat, for key: String) {
-        guard height > (heights[key] ?? 0) else { return }
-        if heights.count >= limit { heights.removeAll() }
-        heights[key] = height
-    }
 }
 
 // MARK: - Find in chat

@@ -3309,10 +3309,7 @@ private struct InternalReviewPanelContent: View {
     /// The one-page transcript for a chat it draws whole, the native one for
     /// every other (`ChatTranscriptPage`).
     private var transcriptView: some View {
-        ReviewChatTranscriptChooser(
-            manager: manager,
-            allowsPage: ChatTranscriptPage.isEnabled && !showsMemoryReviewCards
-        ) {
+        ReviewChatTranscriptChooser(showsNative: showsMemoryReviewCards) {
             transcriptScrollView
         } page: {
             transcriptPage
@@ -3338,10 +3335,12 @@ private struct InternalReviewPanelContent: View {
             editableMessageID: manager.chatMessages.last(where: { $0.role == .user }).flatMap { message in
                 editAction(for: message) == nil ? nil : message.id
             },
+            laneExpansionRequest: laneExpansionRequest,
             citationContexts: $citationContexts,
             suggestedQuestions: { block, context in
                 suggestedQuestions(under: block, context: context)
             },
+            lookups: transcriptPageLookups,
             resolvers: transcriptPageResolvers,
             onAction: { action in
                 handleTranscriptPageAction(action)
@@ -3419,10 +3418,37 @@ private struct InternalReviewPanelContent: View {
         )
     }
 
+    /// What the page's rows read from the library and the panel.
+    private var transcriptPageLookups: ChatTranscriptLookups {
+        let vm = vm
+        let sources = reviewSources
+        return ChatTranscriptLookups(
+            pageTitle: { page in
+                let current = vm.artifacts.first(where: { $0.id == page.id })?.title
+                    .trimmingCharacters(in: .whitespacesAndNewlines)
+                if let current, !current.isEmpty { return current }
+                return page.title.isEmpty ? "Untitled" : page.title
+            },
+            walkTitle: { id in walkthroughSubjectTitle(id) },
+            reviewPosition: { sourceID in
+                guard sources.count > 1, let index = sources.firstIndex(where: { $0.id == sourceID }) else { return nil }
+                return "\(index + 1) of \(sources.count)"
+            },
+            savedCardsSubtitle: { saved in ReviewChatSavedCardsView.subtitle(saved, articlesById: vm.articlesById, canonicalID: vm.canonicalSourceID) },
+            offersQuizSkip: { context in offersCourseQuizSkip(context: context) }
+        )
+    }
+
+    /// The messages the transcript shows: while a walk plays, its card's own
+    /// conversation (`WalkthroughTranscriptFold`).
+    private var transcriptMessages: [ReviewSessionManager.Message] {
+        WalkthroughTranscriptFold.cardThread(manager.chatMessages, playback: manager.walkthroughPlayback)
+    }
+
     /// What the learner did on the page, done the way the native rows do it.
     @MainActor
     private func handleTranscriptPageAction(_ action: ChatTranscriptPage.Action) {
-        let blocks = ReviewChatTranscriptBlock.grouping(manager.chatMessages)
+        let blocks = ReviewChatTranscriptBlock.grouping(transcriptMessages)
         func block(_ id: UUID) -> ReviewChatTranscriptBlock? { blocks.first { $0.id == id } }
         switch action {
         case .copyAnswer(let blockID):
@@ -3456,7 +3482,64 @@ private struct InternalReviewPanelContent: View {
             Task { await vm.openLinkedSourceInReader(sourceID) }
         case .suggestedQuestion(let question):
             askSuggestedQuestion(question)
+        case .openMoment(let sourceID, let seconds):
+            Task { await vm.openLinkedSourceInReader(sourceID, at: Double(seconds)) }
+        case .skipQuizQuestion:
+            Task { await skipCourseQuizQuestion() }
+        case .steer(let next):
+            Task { await steerMemoryReview(next ? .next : .deeper) }
+        case .laneAnswer:
+            returnToOpenQuestion()
+        case .laneSkip:
+            Task { await skipOpenQuestion() }
+        case .laneFollowUp:
+            followUpSideQuestion()
+        case .laneNewChat:
+            openSideQuestionInNewChat()
+        case .resumeWalk(let sourceID):
+            Task { await startWalkthroughPlayback(sourceID: sourceID) }
+        case .openPage(let id):
+            vm.revealArtifact(id, in: windowState)
+        case .openSavedCards(let blockID, let partID, let rect, let view):
+            guard let block = block(blockID) else { return }
+            let saved = ReviewChatAnswerLayout.items(block.answerMessages).lazy.compactMap { item -> ChatSavedCards? in
+                guard case .entry(let entry) = item, entry.id == partID else { return nil }
+                return entry.savedCards
+            }.first
+            guard let saved else { return }
+            showSavedCards(saved, at: rect, in: view)
+        case .pluginSetup(let blockID, let partID, let index):
+            guard let block = block(blockID) else { return }
+            for item in ReviewChatAnswerLayout.items(block.answerMessages) {
+                guard case .work(let work) = item, work.id == partID else { continue }
+                let needs = ChatTranscriptPage.setupNeeds(work)
+                if needs.indices.contains(index) { needs[index].openSetup() }
+                return
+            }
+        case .revealBrowser:
+            revealChatBrowserTab()
         }
+    }
+
+    /// The cards a call saved, in a popover over their card on the page: the
+    /// same deck the transcript drew inline, to check, keep and page through.
+    @MainActor
+    private func showSavedCards(_ saved: ChatSavedCards, at rect: CGRect, in view: NSView) {
+        let deck = ReviewChatSavedCardsView(saved: saved)
+            .padding(12)
+            .frame(width: 560)
+            .environment(vm)
+            .environment(windowState)
+        let popover = NSPopover()
+        popover.behavior = .transient
+        popover.contentViewController = NSHostingController(rootView: deck)
+        let anchor = NSRect(
+            x: rect.minX,
+            y: view.isFlipped ? rect.minY : view.bounds.height - rect.maxY,
+            width: rect.width,
+            height: rect.height
+        )
+        popover.show(relativeTo: anchor, of: view, preferredEdge: .maxY)
     }
 
     /// A reply's ⋯ on the page: the same lines as the native footer's menu
@@ -3475,8 +3558,12 @@ private struct InternalReviewPanelContent: View {
         let canFork = !manager.isGenerating && !manager.isSearching
             && block.answerMessages.contains { $0.exchangeID != nil && $0.exchangeField != nil }
         let discussInNewChat = discussInNewChatAction(for: block.answerMessages)
+        // A reply whose More details lane already hangs under it reopens
+        // that lane rather than asking a second time.
+        let existingLaneID = ReviewChatTranscriptSection.grouping(ReviewChatTranscriptBlock.grouping(transcriptMessages))
+            .first { $0.isSideQuestion && $0.isMoreDetails && $0.aboutBlockID == block.id }?.id
         let moreDetails: (() -> Void)? = replyLine == nil ? nil : {
-            requestMoreDetails(about: ReviewChatReplyReference(blockID: block.id, line: replyLine), existingLaneID: nil)
+            requestMoreDetails(about: ReviewChatReplyReference(blockID: block.id, line: replyLine), existingLaneID: existingLaneID)
         }
         let offersTryAgain = isLatest && editingMessage == nil && manager.canTakeBackNewestTurn
         let timeLine = block.answerMessages.last(where: { $0.role == .assistant }).map {
@@ -8253,13 +8340,6 @@ private struct InternalReviewPanelContent: View {
 /// manager's coarse `chatMessageCount`, and the one body that reads the
 /// messages is this one. The row builder and error view come from the panel as
 /// closures, so the rows themselves are unchanged.
-/// What `ReviewChatTranscriptStack` hands `ChatMarkdownView.Premeasurer`
-/// changes with: which replies, and what each says about its citations.
-private struct ChatPremeasureKey: Equatable {
-    let ids: [UUID]
-    let contexts: [ChatCitationLedger.MessageContext]
-}
-
 private struct ReviewChatTranscriptStack<Row: View, ErrorView: View>: View {
     let manager: ReviewSessionManager
     let proxy: ScrollViewProxy
@@ -8339,18 +8419,6 @@ private struct ReviewChatTranscriptStack<Row: View, ErrorView: View>: View {
         let showsNewest = card.isNewest
         let blocks = ReviewChatTranscriptBlock.grouping(messages)
         let sections = ReviewChatTranscriptSection.grouping(blocks)
-        // The replies drawn in the main column, newest first, measured ahead
-        // of their rows (`ChatMarkdownView.Premeasurer`). Not the one
-        // streaming: its row measures it as it grows.
-        let premeasured = sections.filter { !$0.isSideQuestion }
-            .flatMap(\.blocks)
-            .flatMap(\.answerMessages)
-            .filter { $0.role == .assistant && $0.toolActivity == nil && $0.id != manager.streamingMessageID }
-            .reversed()
-        let premeasureKey = ChatPremeasureKey(
-            ids: premeasured.map(\.id),
-            contexts: premeasured.map { citationContexts[$0.id] ?? .init() }
-        )
         let liveBlockID = isTurnInFlight && showsNewest ? blocks.last?.id : nil
         // Newest by time: a lane about an older reply is drawn up under it.
         let newestSectionID = showsNewest ? ReviewChatTranscriptSection.newest(in: sections, blocks: blocks)?.id : nil
@@ -8382,10 +8450,9 @@ private struct ReviewChatTranscriptStack<Row: View, ErrorView: View>: View {
                 memoryCardFoot: topicFoot
             )
         }
-        // Lazy is load-bearing: each assistant bubble hosts a WKWebView, and
-        // materializing a whole chat's worth at once on a session switch stalls
-        // the main thread. Only the visible screenful may be built eagerly.
-        LazyVStack(alignment: .leading, spacing: 14) {
+        // One card's exchange: few enough rows to build at once, so no row is
+        // torn down and rebuilt under the scroll.
+        VStack(alignment: .leading, spacing: 14) {
             // A finished review's graded summary: a quiet caption, the
             // grader's words, with no box around them.
             if showsNewest, let summary = manager.completedSummary {
@@ -8464,9 +8531,6 @@ private struct ReviewChatTranscriptStack<Row: View, ErrorView: View>: View {
         // drops land anywhere); only the content column is capped.
         .frame(maxWidth: columnMaxWidth)
         .frame(maxWidth: .infinity)
-        // Tells the streaming bubbles when the transcript is moving, whatever
-        // is moving it, so they hold their resizes and text until it stops.
-        .background(ChatTranscriptScrollObserver())
         // Which replies exist is what moves the ledger. A streaming reply's own
         // text cannot: nothing below it is written yet, and its context was
         // settled by the transcript it arrived into -- the whole cast so far,
@@ -8475,21 +8539,6 @@ private struct ReviewChatTranscriptStack<Row: View, ErrorView: View>: View {
         // step, so the id change always sees the streaming id already set.
         .onChange(of: manager.chatMessages.map(\.id), initial: true) { _, _ in
             citationContexts = ReviewChatCitationContexts.contexts(for: manager)
-        }
-        .onChange(of: premeasureKey, initial: true) { _, _ in
-            ChatMarkdownView.Premeasurer.setEntries(premeasured.compactMap { message in
-                guard let display = ReviewSessionManager.displayableMessageContent(
-                    role: message.role,
-                    content: message.content
-                ) else { return nil }
-                // What the row's bubble renders: the reply without its web
-                // sources footer, which it lists natively.
-                return ChatMarkdownView.Premeasurer.Entry(
-                    id: message.id,
-                    markdown: ReviewSessionManager.splitWebSourcesFooter(display).body,
-                    citationContext: citationContexts[message.id] ?? .init()
-                )
-            })
         }
         .onChange(of: latestUserMessageID) { _, _ in
             // Scroll only when the user submits a message (or a session loads
@@ -9305,45 +9354,46 @@ enum ChatTryAgainModels {
     }
 }
 
-/// Shows the one-page transcript for a chat it draws whole, and the native
-/// transcript otherwise. It reads the messages itself, so a streamed token
-/// re-evaluates this view and not the panel; both transcripts arrive built.
+/// The one-page transcript for every chat, and the native one for a memory
+/// review dealt as cards. It reads nothing per token, so a streamed token
+/// re-evaluates the transcript and not the panel.
 private struct ReviewChatTranscriptChooser<Native: View, Page: View>: View {
-    let manager: ReviewSessionManager
-    let allowsPage: Bool
+    let showsNative: Bool
     let native: Native
     let page: Page
 
     init(
-        manager: ReviewSessionManager,
-        allowsPage: Bool,
+        showsNative: Bool,
         @ViewBuilder native: () -> Native,
         @ViewBuilder page: () -> Page
     ) {
-        self.manager = manager
-        self.allowsPage = allowsPage
+        self.showsNative = showsNative
         self.native = native()
         self.page = page()
     }
 
-    private var drawsPage: Bool {
-        guard allowsPage,
-              manager.walkthroughPlayback == nil,
-              !manager.offersMemoryReviewSteer,
-              manager.courseQuizOpenQuestionNumber == nil,
-              manager.completedSummary == nil,
-              manager.pendingContextAdditions.isEmpty else { return false }
-        let blocks = ReviewChatTranscriptBlock.grouping(manager.chatMessages)
-        return ChatTranscriptPage.draws(ReviewChatTranscriptSection.grouping(blocks))
-    }
-
     var body: some View {
-        if drawsPage {
-            page
-        } else {
+        if showsNative {
             native
+        } else {
+            page
         }
     }
+}
+
+/// The lookups the page's rows need from the library and the panel, read as
+/// the page is built: titles as they stand now, and what the panel decides.
+struct ChatTranscriptLookups {
+    /// A Page's title as the library holds it now, else the one the tool gave.
+    let pageTitle: (ChatWrittenPage) -> String
+    /// The name a walk's resume row gives its source or animation.
+    let walkTitle: (String) -> String
+    /// "2 of 5": a reviewed source's place in the day, when it has one.
+    let reviewPosition: (String) -> String?
+    /// The source a saved-cards card names, and how many cards were not saved.
+    let savedCardsSubtitle: (ChatSavedCards) -> String?
+    /// Skip, under the newest reply while a quiz question waits.
+    let offersQuizSkip: (ReviewChatTranscriptRowContext) -> Bool
 }
 
 /// The one-page transcript's view of the chat: the messages as page blocks,
@@ -9360,8 +9410,11 @@ private struct ReviewChatTranscriptPageHost: View {
     let findScrollRevision: Int
     let armedSideQuestionBlockID: UUID?
     let editableMessageID: UUID?
+    /// More details pressed on a reply whose lane already exists.
+    let laneExpansionRequest: ReviewChatLaneExpansionRequest?
     @Binding var citationContexts: [UUID: ChatCitationLedger.MessageContext]
     let suggestedQuestions: (ReviewChatTranscriptBlock, ReviewChatTranscriptRowContext) -> [String]?
+    let lookups: ChatTranscriptLookups
     let resolvers: ChatTranscriptPage.Resolvers
     let onAction: (ChatTranscriptPage.Action) -> Void
 
@@ -9372,52 +9425,84 @@ private struct ReviewChatTranscriptPageHost: View {
         .current(manager: manager, walkthroughPreparation: walkthroughPreparation)
     }
 
+    /// While a walk plays its step turns are the card above the chat, and the
+    /// transcript holds the card's own conversation (`WalkthroughTranscriptFold`).
+    private var messages: [ReviewSessionManager.Message] {
+        WalkthroughTranscriptFold.cardThread(manager.chatMessages, playback: manager.walkthroughPlayback)
+    }
+
+    private static func laneID(_ section: ReviewChatTranscriptSection) -> String {
+        "lane:\(section.id.uuidString)"
+    }
+
     private var state: ChatTranscriptPage.State {
-        let blocks = ReviewChatTranscriptBlock.grouping(manager.chatMessages)
+        let blocks = ReviewChatTranscriptBlock.grouping(messages)
+        let sections = ReviewChatTranscriptSection.grouping(blocks)
         let liveBlockID = isTurnInFlight ? blocks.last?.id : nil
-        let pageBlocks: [ChatTranscriptPage.Block] = blocks.map { block in
-            if let user = block.userMessage {
-                return ChatTranscriptPage.userBlock(
-                    block,
-                    message: user,
-                    canEdit: user.id == editableMessageID,
-                    isFindMatch: block.id == findMatchID
-                )
-            }
-            let isLive = block.id == liveBlockID
-            let parts: [ChatTranscriptPage.Part] = ReviewChatAnswerLayout.items(block.answerMessages).compactMap { item in
-                switch item {
-                case .work(let work):
-                    return ChatTranscriptPage.workPart(work, isLive: isLive)
-                case .entry(let entry):
-                    guard let message = entry.message else { return nil }
-                    return ChatTranscriptPage.prosePart(message, citations: citationContexts[message.id] ?? .init())
-                case .pages:
-                    return nil
-                }
-            }
-            return ChatTranscriptPage.Block(
-                id: block.id.uuidString,
-                kind: .answer,
-                parts: parts,
-                footer: isLive ? nil : ChatTranscriptPage.Footer(
-                    sideQuestion: .init(armed: armedSideQuestionBlockID == block.id),
-                    more: true
-                ),
-                isLatest: block.id == blocks.last?.id ? true : nil,
-                isLive: isLive ? true : nil,
-                isFindMatch: block.id == findMatchID ? true : nil
-            )
-        }
-        var tail = ChatTranscriptPage.Tail()
-        if let last = blocks.last, last.userMessage == nil {
-            let context = ReviewChatTranscriptRowContext(
-                isLive: last.id == liveBlockID,
-                isLatest: true,
-                isInsideAside: false,
+        let latestBlockID = blocks.last?.id
+        let newestSectionID = ReviewChatTranscriptSection.newest(in: sections, blocks: blocks)?.id
+        var pageBlocks: [ChatTranscriptPage.Block] = []
+        func context(_ block: ReviewChatTranscriptBlock, insideAside: Bool) -> ReviewChatTranscriptRowContext {
+            ReviewChatTranscriptRowContext(
+                isLive: block.id == liveBlockID,
+                isLatest: block.id == latestBlockID,
+                isInsideAside: insideAside,
                 moreDetailsLaneID: nil
             )
-            tail.suggested = suggestedQuestions(last, context)
+        }
+        for section in sections {
+            guard section.isSideQuestion else {
+                for block in section.blocks {
+                    pageBlocks.append(pageBlock(block, context: context(block, insideAside: false), lane: nil))
+                }
+                continue
+            }
+            let lane = Self.laneID(section)
+            let isNewest = section.id == newestSectionID
+            let isLaneLive = section.blocks.contains { $0.id == liveBlockID }
+            let firstLine = section.sideQuestionMessage.map {
+                ReviewSessionManager.displayableMessageContent(role: .user, content: $0.content) ?? $0.content
+            }?.components(separatedBy: "\n").first { !$0.trimmingCharacters(in: .whitespaces).isEmpty }
+            let replies = section.blocks.dropFirst().count
+            pageBlocks.append(ChatTranscriptPage.Block(
+                id: lane,
+                kind: .laneHead,
+                laneTitle: section.isMoreDetails ? ChatSideQuestion.moreDetailsQuestion : "Side question",
+                laneLine: section.isMoreDetails ? nil : ChatSideQuestion.plainLine(firstLine ?? ""),
+                laneReplies: replies > 1 ? replies : nil,
+                laneWaits: (isNewest || isLaneLive) && section.openQuestion != nil ? true : nil,
+                laneOpen: isNewest || isLaneLive,
+                laneMoreDetails: section.isMoreDetails ? true : nil
+            ))
+            for block in section.blocks {
+                // A More details press is the app's, not the learner's words:
+                // the heading is their line.
+                if let user = block.userMessage, user.isMoreDetailsRequest { continue }
+                pageBlocks.append(pageBlock(block, context: context(block, insideAside: true), lane: lane))
+            }
+            // The ways on, under the newest lane once its reply has landed,
+            // outside the fold so the way back is never hidden.
+            if isNewest, !isLaneLive, section.openQuestion != nil || !section.isMoreDetails {
+                pageBlocks.append(ChatTranscriptPage.Block(
+                    id: "lane-card:\(section.id.uuidString)",
+                    kind: .laneCard,
+                    openQuestion: section.openQuestion,
+                    followUp: section.isMoreDetails ? nil : true,
+                    newChat: section.isMoreDetails ? nil : true
+                ))
+            }
+        }
+
+        var tail = ChatTranscriptPage.Tail()
+        tail.pending = ChatTranscriptPage.added(manager.pendingContextAdditions)
+        if let last = blocks.last, last.userMessage == nil {
+            let insideAside = sections.contains { $0.isSideQuestion && $0.blocks.contains { $0.id == last.id } }
+            let lastContext = context(last, insideAside: insideAside)
+            if !lastContext.isLive, manager.offersMemoryReviewSteer, !manager.isGenerating, !manager.isSearching {
+                tail.steer = true
+            } else {
+                tail.suggested = suggestedQuestions(last, lastContext)
+            }
         }
         if isTurnInFlight || walkthroughPreparation != nil {
             tail.working = .init(
@@ -9431,15 +9516,124 @@ private struct ReviewChatTranscriptPageHost: View {
         tail.error = errorMessage
         return ChatTranscriptPage.State(
             blocks: pageBlocks,
+            summary: manager.completedSummary,
             tail: tail == ChatTranscriptPage.Tail() ? nil : tail,
             reserve: bottomReserve,
             layout: layout
         )
     }
 
+    /// One block of the transcript as the page draws it.
+    private func pageBlock(
+        _ block: ReviewChatTranscriptBlock,
+        context: ReviewChatTranscriptRowContext,
+        lane: String?
+    ) -> ChatTranscriptPage.Block {
+        if let user = block.userMessage {
+            return ChatTranscriptPage.userBlock(
+                block,
+                message: user,
+                canEdit: user.id == editableMessageID,
+                isFindMatch: block.id == findMatchID,
+                lane: lane
+            )
+        }
+        if let marker = block.answerMessages.first?.walkthroughStep {
+            // Only a walk that is not playing leaves a step turn in the
+            // transcript (`WalkthroughTranscriptFold.resting`): its cards
+            // come back from here.
+            return ChatTranscriptPage.Block(
+                id: block.id.uuidString,
+                kind: .answer,
+                lane: lane,
+                parts: [ChatTranscriptPage.Part(
+                    kind: .resume,
+                    id: block.id.uuidString,
+                    title: "Walkthrough of \(lookups.walkTitle(marker.sourceID))",
+                    subtitle: "Resume picks the cards up where you left them",
+                    sourceID: marker.sourceID
+                )]
+            )
+        }
+        let parts: [ChatTranscriptPage.Part] = ReviewChatAnswerLayout.items(block.answerMessages).compactMap { item in
+            switch item {
+            case .work(let work):
+                return ChatTranscriptPage.workPart(work, isLive: context.isLive, pageTitle: lookups.pageTitle)
+            case .pages(let id, let pages):
+                return ChatTranscriptPage.Part(
+                    kind: .pages,
+                    id: id.uuidString,
+                    pages: ChatTranscriptPage.pageCards(pages, title: lookups.pageTitle)
+                )
+            case .entry(let entry):
+                return entryPart(entry)
+            }
+        }
+        return ChatTranscriptPage.Block(
+            id: block.id.uuidString,
+            kind: .answer,
+            lane: lane,
+            parts: parts,
+            footer: context.isLive ? nil : ChatTranscriptPage.Footer(
+                sideQuestion: .init(armed: armedSideQuestionBlockID == block.id, followUp: context.isInsideAside),
+                skip: lookups.offersQuizSkip(context) ? true : nil,
+                more: true
+            ),
+            isLatest: context.isLatest ? true : nil,
+            isLive: context.isLive ? true : nil,
+            isFindMatch: block.id == findMatchID ? true : nil
+        )
+    }
+
+    /// A row that stands on its own in a reply: its prose, a review's turn to
+    /// a source or topic, or the cards a call saved.
+    private func entryPart(_ entry: ReviewChatTranscriptEntry) -> ChatTranscriptPage.Part? {
+        if let message = entry.message {
+            return ChatTranscriptPage.prosePart(message, citations: citationContexts[message.id] ?? .init())
+        }
+        if let turn = entry.sourceTurn {
+            return ChatTranscriptPage.Part(
+                kind: .turn,
+                id: entry.id.uuidString,
+                title: turn.title,
+                subtitle: ["Now reviewing", lookups.reviewPosition(turn.id)].compactMap { $0 }.joined(separator: " · "),
+                sourceID: turn.id
+            )
+        }
+        if entry.activities.count == 1, let activity = entry.activities.first,
+           activity.kind == .sourceTurn, let topicID = activity.turnTargetID {
+            let kind = manager.memoryReviewTopics.first { $0.id == topicID }?.kind
+            return ChatTranscriptPage.Part(
+                kind: .turn,
+                id: entry.id.uuidString,
+                title: activity.title,
+                subtitle: kind.map { "Now reviewing · \($0.label)" } ?? "Now reviewing"
+            )
+        }
+        if let saved = entry.savedCards {
+            return ChatTranscriptPage.Part(
+                kind: .savedCards,
+                id: entry.id.uuidString,
+                title: saved.label,
+                subtitle: lookups.savedCardsSubtitle(saved)
+            )
+        }
+        return nil
+    }
+
     /// The newest learner message: a send, or a chat loading its history.
     private var latestUserMessageID: UUID? {
-        manager.chatMessages.last(where: { $0.role == .user })?.id
+        messages.last(where: { $0.role == .user })?.id
+    }
+
+    private func requestScroll(to id: String?, _ position: ChatTranscriptPage.ScrollRequest.Position, animated: Bool = false, opensLane: Bool = false) {
+        scrollRequest = .init(
+            token: (scrollRequest?.token ?? 0) + 1,
+            blockID: id,
+            position: position,
+            animated: animated,
+            opensLane: opensLane
+        )
     }
 
     var body: some View {
@@ -9469,7 +9663,7 @@ private struct ReviewChatTranscriptPageHost: View {
 
             if isTurnInFlight {
                 // The offers that come with a long wait stay native, under the
-                // page, until the page draws them.
+                // page.
                 VStack(alignment: .leading, spacing: 6) {
                     MemoryReviewPreparationOffer(
                         isPlanning: workingPhase == .planning,
@@ -9492,22 +9686,33 @@ private struct ReviewChatTranscriptPageHost: View {
         .onChange(of: latestUserMessageID) { _, _ in
             // A send puts the learner's message at the middle, with the reply
             // to stream under it; a chat loading its history lands at its end.
-            guard let last = ReviewChatTranscriptBlock.grouping(manager.chatMessages).last else { return }
-            let sent = last.userMessage != nil
-            scrollRequest = .init(
-                token: (scrollRequest?.token ?? 0) + 1,
-                blockID: last.id,
-                position: sent ? .center : .bottom
-            )
+            // A More details press draws no bubble: its lane's heading is the
+            // line it sent.
+            let blocks = ReviewChatTranscriptBlock.grouping(messages)
+            guard let last = blocks.last else { return }
+            if let user = last.userMessage, user.isMoreDetailsRequest,
+               let lane = ReviewChatTranscriptSection.grouping(blocks).first(where: {
+                   $0.isSideQuestion && $0.blocks.contains { $0.id == last.id }
+               }) {
+                requestScroll(to: Self.laneID(lane), .top)
+                return
+            }
+            requestScroll(to: last.id.uuidString, last.userMessage != nil ? .center : .bottom)
         }
         .onChange(of: findScrollRevision) { _, _ in
             guard let findMatchID else { return }
-            scrollRequest = .init(
-                token: (scrollRequest?.token ?? 0) + 1,
-                blockID: findMatchID,
-                position: .center,
-                animated: true
-            )
+            requestScroll(to: findMatchID.uuidString, .center, animated: true)
+        }
+        .onChange(of: laneExpansionRequest) { _, request in
+            // More details pressed again: the lane opens and comes into view.
+            guard let request else { return }
+            requestScroll(to: "lane:\(request.laneID.uuidString)", .top, animated: true, opensLane: true)
+        }
+        .onChange(of: manager.walkthroughStepScrollRequest) { _, request in
+            // A move in the walk: the chat under the card shows the end of
+            // that card's conversation.
+            guard request != nil, let last = ReviewChatTranscriptBlock.grouping(messages).last else { return }
+            requestScroll(to: last.id.uuidString, .bottom, animated: true)
         }
     }
 }

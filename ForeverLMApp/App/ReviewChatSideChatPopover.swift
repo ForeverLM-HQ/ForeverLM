@@ -287,7 +287,7 @@ struct ReviewChatSideChatPopover: View {
             } else {
                 // Drawn at the popover's width, not the transcript's, so its
                 // height stays out of the transcript's height memory.
-                ReviewChatMessageContent(messageID: turn.id, content: turn.text, remembersHeight: false)
+                ReviewChatMessageContent(messageID: turn.id, content: turn.text)
                     .accessibilityIdentifier("mac.chatSideChatAnswer")
             }
         }

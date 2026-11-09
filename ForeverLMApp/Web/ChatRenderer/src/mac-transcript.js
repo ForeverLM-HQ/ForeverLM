@@ -19,6 +19,7 @@ import { installSelectionActions } from "./mac-selection-actions.js";
 
 const post = (name, body) => window.webkit?.messageHandlers?.[name]?.postMessage(body);
 
+const headRoot = document.getElementById("head");
 const blocksRoot = document.getElementById("blocks");
 const tailRoot = document.getElementById("tail");
 const reserve = document.getElementById("reserve");
@@ -124,7 +125,13 @@ function scrollToY(y, animated) {
 /// Brings a block into view: "bottom" puts its end at the foot of the screen
 /// (a chat opened from history), "center" its middle at the middle (a message
 /// just sent, with the reply to stream under it), "top" its start at the top.
-window.transcriptScrollTo = (id, position = "bottom", animated = false) => {
+window.transcriptScrollTo = (id, position = "bottom", animated = false, opensLane = false) => {
+  if (opensLane && id) {
+    keepingPlace(() => {
+      laneChoices.set(id, true);
+      applyLaneFolds();
+    });
+  }
   const element = id ? blocksRoot.querySelector(`[data-block-id="${CSS.escape(id)}"]`) : null;
   if (!element) {
     if (position === "bottom") scrollToY(maxScrollY(), animated);
@@ -187,6 +194,18 @@ const renderer = createChatRenderer({
 window.setSourceCards = (cards) => keepingPlace(() => renderer.setSourceCards(cards));
 window.setSourceImages = (images) => keepingPlace(() => renderer.setSourceImages(images));
 
+/// The frames video moments were asked at, by "sourceID@seconds".
+const momentFrames = new Map();
+const requestedMomentFrames = new Set();
+window.setMomentFrames = (frames) => keepingPlace(() => {
+  for (const [key, url] of Object.entries(frames ?? {})) {
+    momentFrames.set(key, url);
+    for (const thumb of blocksRoot.querySelectorAll(`[data-moment-key="${CSS.escape(key)}"]`)) {
+      thumb.replaceChildren(momentImage(url));
+    }
+  }
+});
+
 /// Selecting words in a reply offers the same three actions the per-reply
 /// pages did; the post says which message the words were read in.
 function selectionMessageID() {
@@ -218,6 +237,14 @@ const icons = {
   chevronDown: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 6L8 10.5 12.5 6"/></svg>',
   arrowDown: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.75v10.5"/><path d="M3.75 9L8 13.25 12.25 9"/></svg>',
   warning: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 2.2l6.2 11H1.8z"/><path d="M8 6.5v3"/><circle cx="8" cy="11.4" r=".4"/></svg>',
+  skip: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M3.5 3.5l5 4.5-5 4.5z"/><path d="M11.5 3.5v9"/></svg>',
+  play: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2" y="3.5" width="12" height="9" rx="1.6"/><path d="M7 6.3v3.4L9.8 8z"/></svg>',
+  doc: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M4 2.25h5.5L12.5 5.2v8.55H4z"/><path d="M9.5 2.25V5.2h3"/><path d="M6 8.25h4.5M6 10.5h4.5"/></svg>',
+  stack: '<svg viewBox="0 0 16 16" aria-hidden="true"><rect x="2.75" y="5.25" width="10.5" height="8" rx="1.6"/><path d="M4.5 3.25h7"/></svg>',
+  magnify: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="3.75"/><path d="M9.8 9.8l3.2 3.2"/></svg>',
+  back: '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M6 4.5L3 7.5l3 3"/><path d="M3.5 7.5h6.25a3 3 0 010 6H8"/></svg>',
+  deeper: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.75"/><path d="M6 6l4 4M10 6.6V10H6.6"/></svg>',
+  next: '<svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.75"/><path d="M5.5 8h5M8.4 5.9L10.5 8l-2.1 2.1"/></svg>',
 };
 jumpButton.innerHTML = icons.arrowDown;
 
@@ -269,37 +296,96 @@ const drawn = new Map();
 /// The learner opened or closed a reply's steps; that outranks the default.
 const foldChoices = new Map();
 
+/// "Added 3 articles to context", opening onto the sources by name, each
+/// opening its source in the Reader.
+function addedRow(added) {
+  const row = element("div", "user-added");
+  const toggle = element("button", "user-added-toggle", added.summary);
+  toggle.type = "button";
+  const list = element("div", "user-added-list");
+  list.hidden = true;
+  for (const source of added.sources) {
+    const name = element("button", "user-added-source", source.title);
+    name.type = "button";
+    name.title = `Open ${source.title} in the reader`;
+    name.addEventListener("click", (event) => {
+      event.preventDefault();
+      sendAction("openContextSource", null, { sourceID: source.id });
+    });
+    list.append(name);
+  }
+  toggle.addEventListener("click", (event) => {
+    event.preventDefault();
+    keepingPlace(() => {
+      list.hidden = !list.hidden;
+    });
+  });
+  row.append(toggle, list);
+  return row;
+}
+
+function momentImage(url) {
+  const img = element("img");
+  img.src = url;
+  img.alt = "";
+  return img;
+}
+
+/// The moment of a video a question was asked at: the frame the tutor was
+/// shown, the time and the video's name. A click plays it from there.
+function momentButton(moment) {
+  const button = element("button", "user-moment");
+  button.type = "button";
+  button.title = `Play from ${moment.clock}`;
+  const key = `${moment.sourceID}@${moment.seconds}`;
+  const thumb = element("span", "user-moment-thumb");
+  thumb.dataset.momentKey = key;
+  if (momentFrames.has(key)) thumb.append(momentImage(momentFrames.get(key)));
+  else thumb.innerHTML = icons.play;
+  const words = element("span", "user-moment-words");
+  words.append(element("span", "user-moment-clock", moment.clock), element("span", "user-moment-title", moment.title));
+  button.append(thumb, words);
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    sendAction("openMoment", null, { sourceID: moment.sourceID, seconds: moment.seconds });
+  });
+  return button;
+}
+
+function requestMomentFrames(moments) {
+  const wanted = moments.filter((moment) => {
+    const key = `${moment.sourceID}@${moment.seconds}`;
+    if (!moment.hasFrame || momentFrames.has(key) || requestedMomentFrames.has(key)) return false;
+    requestedMomentFrames.add(key);
+    return true;
+  });
+  if (wanted.length) post("momentFrames", wanted.map(({ sourceID, seconds }) => ({ sourceID, seconds })));
+}
+
 function drawUser(block, entry) {
   const root = entry.element;
   root.className = "block user";
+  if (entry.images) {
+    renderer.forgetContainer(entry.images);
+    entry.images = null;
+  }
   root.replaceChildren();
   const column = element("div", "user-column");
-  if (block.added) {
-    // Sources the learner brought in just before this message: a summary
-    // that opens onto their names, each opening its source in the Reader.
-    const added = element("div", "user-added");
-    const toggle = element("button", "user-added-toggle", block.added.summary);
-    toggle.type = "button";
-    const list = element("div", "user-added-list");
-    list.hidden = true;
-    for (const source of block.added.sources) {
-      const row = element("button", "user-added-source", source.title);
-      row.type = "button";
-      row.title = `Open ${source.title} in the reader`;
-      row.addEventListener("click", (event) => {
-        event.preventDefault();
-        sendAction("openContextSource", null, { sourceID: source.id });
-      });
-      list.append(row);
-    }
-    toggle.addEventListener("click", (event) => {
-      event.preventDefault();
-      keepingPlace(() => {
-        list.hidden = !list.hidden;
-      });
-    });
-    added.append(toggle, list);
-    column.append(added);
+  if (block.added) column.append(addedRow(block.added));
+  if (block.moments?.length) {
+    const moments = element("div", "user-moments");
+    for (const moment of block.moments) moments.append(momentButton(moment));
+    column.append(moments);
+    requestMomentFrames(block.moments);
+  }
+  if (block.images) {
+    // The pictures go through the reply renderer, which resolves them from
+    // the same store the model read them from and opens one full-window.
+    const images = element("div", "user-images chat-rendered");
+    images.dataset.messageId = block.messageID;
+    renderer.render(images, block.images, {});
+    entry.images = images;
+    column.append(images);
   }
   if (block.passage) {
     const quote = element("button", "user-passage", `“${block.passage}”`);
@@ -351,6 +437,7 @@ function drawUser(block, entry) {
 function drawWork(part, previous) {
   const wrapper = previous?.element ?? element("div", "work");
   wrapper.replaceChildren();
+  wrapper.dataset.partId = part.id;
   const choice = foldChoices.get(part.id);
   const expanded = choice ?? part.opensWhileLive;
   const line = element("button", "work-line");
@@ -374,7 +461,7 @@ function drawWork(part, previous) {
   if (expanded) {
     const steps = element("div", "work-steps");
     let card = null;
-    for (const step of part.steps ?? []) {
+    for (const [index, step] of (part.steps ?? []).entries()) {
       if (step.kind === "thinking") {
         card = null;
         const reasoning = element("div", "work-reasoning");
@@ -393,11 +480,128 @@ function drawWork(part, previous) {
       row.append(mark, element("span", "work-step-title", step.title));
       if (step.summary) row.append(element("span", "work-step-summary", step.summary));
       card.append(row);
+      if (part.preview && index === part.previewStep) card.append(browserPreview(part));
     }
     wrapper.append(steps);
+  } else if (part.preview && (!part.settled || part.running)) {
+    // Folded while the turn still runs: the learner watches the chat work
+    // in the Browser without opening the steps.
+    wrapper.append(browserPreview(part));
   }
   if (part.settled) wrapper.append(element("div", "work-rule"));
+  (part.setup ?? []).forEach((need, index) => wrapper.append(setupCard(need, index, part.id)));
+  if (part.pages?.length) wrapper.append(pageCards(part.pages));
   return { kind: "work", element: wrapper, json: JSON.stringify(part) };
+}
+
+/// The newest browser step's picture; a click opens the tab in the Browser.
+function browserPreview(part) {
+  const button = element("button", "browser-preview");
+  button.type = "button";
+  button.title = "Open this tab in the Browser";
+  const img = element("img");
+  img.src = part.preview;
+  img.alt = "Browser preview";
+  button.append(img);
+  if (part.running) button.append(element("span", "work-spinner browser-preview-spinner"));
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    sendAction("revealBrowser", null);
+  });
+  return button;
+}
+
+/// A plugin a failed step needed, and the button that sets it up.
+function setupCard(need, index, partID) {
+  const card = element("div", "inline-card setup-card");
+  const words = element("div", "inline-card-words");
+  words.append(element("div", "inline-card-title", need.title), element("div", "inline-card-body", need.body));
+  const button = element("button", "pill-button prominent", need.action);
+  button.type = "button";
+  button.title = need.help;
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    const blockID = card.closest("[data-block-id]")?.dataset.blockId ?? null;
+    sendAction("pluginSetup", blockID, { partID, index });
+  });
+  card.append(words, button);
+  return card;
+}
+
+/// The Pages a reply wrote, a card each: its title, "Page", and Open.
+function pageCards(pages) {
+  const list = element("div", "page-cards");
+  for (const page of pages) {
+    const card = element("button", "page-card");
+    card.type = "button";
+    card.title = `Open ${page.title}`;
+    const glyph = element("span", "page-card-glyph");
+    glyph.innerHTML = icons.doc;
+    const words = element("span", "page-card-words");
+    words.append(element("span", "page-card-title", page.title), element("span", "page-card-kind", "Page"));
+    card.append(glyph, words, element("span", "page-card-open", "Open"));
+    card.addEventListener("click", (event) => {
+      event.preventDefault();
+      sendAction("openPage", null, { pageID: page.id });
+    });
+    list.append(card);
+  }
+  return list;
+}
+
+/// A part that is not prose or steps: Pages, a walk's resume row, a memory
+/// review's turn heading, or the cards a call saved.
+function drawCardPart(part, previous) {
+  const json = JSON.stringify(part);
+  if (previous?.json === json) return previous;
+  let node;
+  if (part.kind === "pages") {
+    node = pageCards(part.pages ?? []);
+  } else if (part.kind === "resume") {
+    node = element("div", "inline-card resume-card");
+    const glyph = element("span", "inline-card-glyph accent");
+    glyph.innerHTML = icons.stack;
+    const words = element("div", "inline-card-words");
+    words.append(element("div", "inline-card-title", part.title), element("div", "inline-card-body", part.subtitle));
+    const button = element("button", "pill-button prominent", "Resume");
+    button.type = "button";
+    button.title = "Go back to the cards, on the step you stopped at";
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      sendAction("resumeWalk", null, { sourceID: part.sourceID });
+    });
+    node.append(glyph, words, button);
+  } else if (part.kind === "turn") {
+    node = element(part.sourceID ? "button" : "div", "turn-heading");
+    if (part.sourceID) {
+      node.type = "button";
+      node.title = `Open ${part.title}`;
+      node.addEventListener("click", (event) => {
+        event.preventDefault();
+        sendAction("openContextSource", null, { sourceID: part.sourceID });
+      });
+    }
+    const words = element("span", "turn-words");
+    words.append(element("span", "turn-kicker", part.subtitle), element("span", "turn-title", part.title));
+    node.append(element("span", "turn-rule short"), words, element("span", "turn-rule"));
+  } else {
+    node = element("div", "inline-card saved-cards");
+    const glyph = element("span", "inline-card-glyph accent");
+    glyph.innerHTML = icons.stack;
+    const words = element("div", "inline-card-words");
+    words.append(element("div", "inline-card-title", part.title));
+    if (part.subtitle) words.append(element("div", "inline-card-body", part.subtitle));
+    const button = element("button", "pill-button", "Open");
+    button.type = "button";
+    button.title = "Check, keep and page through these cards";
+    button.addEventListener("click", (event) => {
+      event.preventDefault();
+      const blockID = node.closest("[data-block-id]")?.dataset.blockId ?? null;
+      sendAction("openSavedCards", blockID, { partID: part.id, rect: rectOf(button) });
+    });
+    node.append(glyph, words, button);
+  }
+  return { kind: part.kind, element: node, json };
 }
 
 function drawProse(part, previous) {
@@ -446,8 +650,10 @@ function drawAnswer(block, entry) {
     if (part.kind === "work") {
       const json = JSON.stringify(part);
       drawnPart = previous?.kind === "work" && previous.json === json ? previous : drawWork(part, previous?.kind === "work" ? previous : null);
-    } else {
+    } else if (part.kind === "prose") {
       drawnPart = drawProse(part, previous?.kind === "prose" ? previous : null);
+    } else {
+      drawnPart = drawCardPart(part, previous?.kind === part.kind ? previous : null);
     }
     parts.set(part.id, drawnPart);
     children.push(drawnPart.element);
@@ -477,18 +683,130 @@ function drawFooter(block) {
     flashCopied(button);
   }));
   if (actions.sideQuestion) {
+    const asks = actions.sideQuestion.followUp
+      ? "Ask a follow-up about this reply in the side question (⌥Return sends one)"
+      : "Ask a side question about this reply (⌥Return sends one)";
     const side = iconButton(
       "side",
-      actions.sideQuestion.armed ? "Take the side question off" : "Ask a side question about this reply (⌥Return sends one)",
+      actions.sideQuestion.armed ? "Take the side question off" : asks,
       () => sendAction("sideQuestion", block.id),
       actions.sideQuestion.armed ? "armed" : "",
     );
     footer.append(side);
   }
+  if (actions.skip) {
+    footer.append(iconButton("skip", "Skip this question", () => sendAction("skipQuizQuestion", null)));
+  }
   if (actions.more) {
     footer.append(iconButton("more", "More", (button) => sendAction("moreMenu", block.id, { rect: rectOf(button) })));
   }
   return footer;
+}
+
+/// A side question's lane heading: folds the lane, and says what the folded
+/// lane holds (`ReviewChatAsideLane`).
+function drawLaneHead(block, entry) {
+  const root = entry.element;
+  root.className = "block lane-head";
+  const open = laneChoices.get(block.id) ?? Boolean(block.laneOpen);
+  const button = element("button", "lane-heading");
+  button.type = "button";
+  button.setAttribute("aria-expanded", String(open));
+  const glyph = element("span", "lane-glyph");
+  glyph.innerHTML = block.laneMoreDetails ? icons.magnify : icons.side;
+  button.append(glyph, element("span", "lane-title", block.laneTitle));
+  if (!open) {
+    if (block.laneLine) button.append(element("span", "lane-line", block.laneLine));
+    if (block.laneReplies) button.append(element("span", "lane-note", `${block.laneReplies} replies`));
+  } else if (block.laneWaits) {
+    button.append(element("span", "lane-note", "the quiz waits"));
+  }
+  const chevron = element("span", "work-chevron");
+  chevron.innerHTML = open ? icons.chevronDown : icons.chevronRight;
+  button.append(chevron);
+  button.title = block.laneMoreDetails
+    ? (open ? "Fold the details away" : "Show the details")
+    : (open ? "Fold the side question away" : "Show the side question and its replies");
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    keepingPlace(() => {
+      laneChoices.set(block.id, !open);
+      drawLaneHead(block, entry);
+      applyLaneFolds();
+    });
+  });
+  root.replaceChildren(button);
+}
+
+/// The card under the newest lane: stay with the side question (Follow up,
+/// New chat) or go back to the tutor's open question (Answer it, Skip).
+function drawLaneCard(block, entry) {
+  const root = entry.element;
+  root.className = "block lane-card";
+  const card = element("div", "lane-card-box");
+  if (block.followUp || block.newChat) {
+    const row = element("div", "lane-card-row");
+    const glyph = element("span", "lane-card-glyph");
+    glyph.innerHTML = icons.side;
+    const words = element("div", "lane-card-words");
+    words.append(
+      element("div", "lane-card-kicker", "Still on the side question?"),
+      element("div", "lane-card-text muted", "Ask more here, or take it to a chat of its own."),
+    );
+    row.append(glyph, words);
+    if (block.followUp) row.append(pillButton("Follow up", "laneFollowUp", block.openQuestion
+      ? "Ask more about the side question here; the quiz keeps waiting"
+      : "Ask more about the side question here", "bordered"));
+    if (block.newChat) row.append(pillButton("New chat", "laneNewChat", "Take the side question and its replies to a new chat, where nothing is held back", "quiet"));
+    card.append(row);
+  }
+  if (block.openQuestion) {
+    const row = element("div", "lane-card-row");
+    const glyph = element("span", "lane-card-glyph");
+    glyph.innerHTML = icons.back;
+    const words = element("div", "lane-card-words");
+    words.append(element("div", "lane-card-kicker", "Back to the question"), element("div", "lane-card-text clamp", block.openQuestion));
+    row.append(glyph, words);
+    row.append(pillButton("Answer it", "laneAnswer", "Go back to answering the tutor's question", "bordered"));
+    row.append(pillButton("Skip", "laneSkip", "Let this question go and ask the tutor to move on", "quiet"));
+    card.append(row);
+  }
+  root.replaceChildren(card);
+}
+
+function pillButton(label, action, help, style, extra = {}) {
+  const button = element("button", `pill-button ${style}`, label);
+  button.type = "button";
+  button.title = help;
+  button.addEventListener("click", (event) => {
+    event.preventDefault();
+    sendAction(action, null, extra);
+  });
+  return button;
+}
+
+/// Lanes the learner opened or folded; that outranks the default.
+const laneChoices = new Map();
+
+/// Hides the rows of every folded lane.
+function applyLaneFolds() {
+  for (const [id, entry] of drawn) {
+    const lane = entry.lane;
+    if (!lane) continue;
+    const head = drawn.get(lane);
+    const open = laneChoices.get(lane) ?? Boolean(head?.block?.laneOpen);
+    entry.element.classList.toggle("lane-folded", !open);
+  }
+}
+
+function forgetEntry(entry) {
+  for (const part of entry.parts?.values() ?? []) {
+    const body = part.element.querySelector(":scope > .chat-rendered");
+    if (body) renderer.forgetContainer(body);
+  }
+  if (entry.images) renderer.forgetContainer(entry.images);
+  entry.parts = null;
+  entry.images = null;
 }
 
 function drawBlock(block) {
@@ -498,12 +816,17 @@ function drawBlock(block) {
     entry.element.dataset.blockId = block.id;
     drawn.set(block.id, entry);
   } else if (entry.kind !== block.kind) {
-    entry.parts = null;
+    forgetEntry(entry);
     entry.element.replaceChildren();
   }
   entry.kind = block.kind;
+  entry.block = block;
+  entry.lane = block.lane ?? null;
   if (block.kind === "user") drawUser(block, entry);
+  else if (block.kind === "laneHead") drawLaneHead(block, entry);
+  else if (block.kind === "laneCard") drawLaneCard(block, entry);
   else drawAnswer(block, entry);
+  entry.element.classList.toggle("in-lane", Boolean(block.lane));
   entry.element.classList.toggle("find-match", Boolean(block.isFindMatch));
 }
 
@@ -524,6 +847,21 @@ function drawTail(tail) {
   workingTimer = null;
   tailRoot.replaceChildren();
   if (!tail) return;
+  if (tail.pending) {
+    // Sources brought in since the last message: they go with the next one.
+    const column = element("div", "user-column");
+    column.append(addedRow(tail.pending));
+    tailRoot.append(column);
+  }
+  if (tail.steer) {
+    const chips = element("div", "steer");
+    const deeper = pillButton("Go deeper", "steer", "Stay on this source for a probe: on what did not come back, or past what did", "bordered", { next: false });
+    deeper.insertAdjacentHTML("afterbegin", icons.deeper);
+    const next = pillButton("Next", "steer", "Move on to the next source", "bordered", { next: true });
+    next.insertAdjacentHTML("afterbegin", icons.next);
+    chips.append(deeper, next);
+    tailRoot.append(chips);
+  }
   if (tail.suggested?.length) {
     const list = element("div", "suggested");
     for (const question of tail.suggested) {
@@ -572,10 +910,7 @@ window.transcriptApply = (update) => {
       const keep = new Set(update.order);
       for (const [id, entry] of drawn) {
         if (keep.has(id)) continue;
-        for (const part of entry.parts?.values() ?? []) {
-          const body = part.element.querySelector(":scope > .chat-rendered");
-          if (body) renderer.forgetContainer(body);
-        }
+        forgetEntry(entry);
         entry.element.remove();
         drawn.delete(id);
       }
@@ -584,6 +919,12 @@ window.transcriptApply = (update) => {
       if (current.length !== wanted.length || current.some((child, index) => child !== wanted[index])) {
         blocksRoot.replaceChildren(...wanted);
       }
+    }
+    applyLaneFolds();
+    if ("summary" in update) {
+      // A finished review's graded summary: a quiet caption over the turns.
+      headRoot.replaceChildren();
+      if (update.summary) headRoot.append(element("div", "summary", update.summary));
     }
     if ("tail" in update) drawTail(update.tail);
     if (typeof update.reserve === "number") reserve.style.height = `${Math.max(0, update.reserve)}px`;

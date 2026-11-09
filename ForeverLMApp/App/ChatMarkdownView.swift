@@ -167,72 +167,12 @@ struct ChatSourceCard: Codable, Equatable {
     }
 }
 
-/// Remembers how tall each rendered message came out.
-///
-/// The transcript is lazy and every assistant bubble is a web view, so a row
-/// that scrolls out of the stack is torn down — its `@State` height with it —
-/// and built again from scratch when it comes back. A rebuilt row used to start
-/// at one line and spring open a frame later, once WebKit had laid the markdown
-/// out and posted its height back, which shoves everything below it while the
-/// scroll is still moving. Starting from the height the row last reported keeps
-/// the column still.
-///
-/// A height is only true for the width and text size it was measured at, and
-/// rows do not all share one width: a side question's lane draws its replies
-/// indented, and two chat panes side by side are two columns. So each row
-/// keeps the width it was measured at. The table used to hold one width for
-/// every row and retire itself whenever a row reported another, which in a
-/// chat with a lane was every other report: the memory was empty again by the
-/// time a row came back, and every rebuilt row opened at an estimate and
-/// sprang to its true height under the scroll.
-@MainActor
-enum ChatMarkdownHeightMemory {
-    struct Measurement {
-        let height: CGFloat
-        let width: CGFloat
-        let fontSize: CGFloat
-        /// False for a height the transcript measured ahead of the row
-        /// (`ChatMarkdownView.Premeasurer`); true once the row itself did.
-        let byRow: Bool
-    }
-
-    private static var measurements: [UUID: Measurement] = [:]
-    private static var order: [UUID] = []
-    /// The newest report's width and text size: what an unmeasured row is
-    /// estimated at, and the text size every remembered height must share.
-    private static var measuredWidth: CGFloat = 0
-    private static var measuredFontSize: CGFloat = 0
-    /// Enough for any transcript a lazy stack will hold on to, bounded so a long
-    /// session cannot grow this without limit.
-    private static let capacity = 400
-
-    /// What `id` last measured, unless the text size has changed since.
-    static func height(for id: UUID) -> CGFloat? {
-        measurement(for: id)?.height
-    }
-
-    /// `id`'s measurement with the width and text size it was taken at,
-    /// unless the text size has changed since.
-    static func measurement(for id: UUID) -> Measurement? {
-        guard let measurement = measurements[id],
-              measuredFontSize == 0 || measurement.fontSize == measuredFontSize else { return nil }
-        return measurement
-    }
-
-    /// The height a row opens at: what it measured last time, or an estimate
-    /// from its markdown when nothing has measured it yet. A chat opened from
-    /// history lands at its bottom, so every row above the fold is unmeasured;
-    /// opening each at one line and letting WebKit spring it to eight hundred
-    /// points as it scrolls into view is what read as the transcript jumping.
-    static func initialHeight(for id: UUID, markdown: String) -> CGFloat {
-        if let remembered = height(for: id) { return remembered }
-        return estimatedHeight(
-            markdown: markdown,
-            width: measuredWidth > 0 ? measuredWidth : defaultEstimateWidth,
-            fontSize: measuredFontSize > 0 ? measuredFontSize : ChatMarkdownView.baseFontSize
-        )
-    }
-
+/// How tall a reply's bubble opens before its page has measured it: an
+/// estimate from its markdown, near enough that the measurement, when it
+/// lands a frame later, moves the column by a few lines rather than a screen.
+/// Only the memory review's cards and the side chats draw bubbles natively;
+/// the transcript is one page that measures itself (`ChatTranscriptPage`).
+enum ChatMarkdownHeightEstimate {
     /// The column width assumed before any bubble has reported one.
     static let defaultEstimateWidth: CGFloat = 640
 
@@ -240,8 +180,7 @@ enum ChatMarkdownHeightMemory {
     /// line height, headings and list items as their own lines, plus the
     /// Sources footer a reply with citations ends with. It only has to be near
     /// enough that the measured height, when it lands, moves the column by a
-    /// few lines rather than a screen; `ChatTranscriptScrollAnchoring` hides
-    /// the remainder for rows above what the learner is looking at.
+    /// few lines rather than a screen.
     static func estimatedHeight(markdown: String, width: CGFloat, fontSize: CGFloat) -> CGFloat {
         let size = max(8, fontSize)
         // Average advance of the system font in English prose at body sizes,
@@ -303,326 +242,6 @@ enum ChatMarkdownHeightMemory {
         return max(36, ceil(height + size * 1.2))
     }
 
-    static func record(height: CGFloat, width: CGFloat, fontSize: CGFloat, for id: UUID, byRow: Bool = true) {
-        if fontSize != measuredFontSize {
-            // The app's text size moved: no height measured before is true.
-            measurements.removeAll(keepingCapacity: true)
-            order.removeAll(keepingCapacity: true)
-        } else if let previous = measurements[id], previous.width != width {
-            // This row's own column changed width, so every row measured in
-            // that column at the old width is stale. Rows of other columns —
-            // a lane, another pane — keep theirs.
-            let stale = measurements.filter { $0.value.width == previous.width }.keys
-            for staleID in stale { measurements.removeValue(forKey: staleID) }
-            order.removeAll { measurements[$0] == nil }
-        }
-        measuredWidth = width
-        measuredFontSize = fontSize
-        let measurement = Measurement(height: height, width: width, fontSize: fontSize, byRow: byRow)
-        if measurements.updateValue(measurement, forKey: id) == nil {
-            order.append(id)
-            if order.count > capacity {
-                measurements.removeValue(forKey: order.removeFirst())
-            }
-        }
-    }
-}
-
-/// When the transcript was last in motion.
-///
-/// A streaming answer republishes its text a dozen times a second, and each
-/// publish re-renders the bubble's page and reposts its height; the height
-/// resizes a row inside the transcript, which sends AppKit through a full
-/// layout of the window's hosting view. Doing any of that under a live scroll
-/// is what made scrolling a generating chat jitter: the thing being scrolled
-/// keeps changing underneath the scroll. So while the transcript is moving, a
-/// streaming bubble holds both its new text and its new height, and applies
-/// them the moment it stops. Nothing is dropped: the newest text and the newest
-/// measurement are what land, and a transcript nobody is scrolling streams at
-/// full speed as before.
-///
-/// Motion is reported by `ChatTranscriptScrollObserver`, which listens to the
-/// transcript's scroll view itself, so every way of scrolling counts — wheel
-/// and trackpad over any row or margin, momentum, a scroller drag, a keyboard
-/// page, an accessibility client — where the earlier wheel-only hook saw only
-/// events that landed on an assistant bubble.
-@MainActor
-enum ChatScrollActivity {
-    private static var lastEventAt: ContinuousClock.Instant?
-
-    /// How long after the last scroll event the transcript still counts as
-    /// moving. Momentum keeps posting events, so it stays covered; the period
-    /// only has to outlast the gap between two of them.
-    private static let quietPeriod = Duration.milliseconds(180)
-
-    static func noteScrollEvent() {
-        lastEventAt = .now
-    }
-
-    /// The scroll view said the gesture is over, so held updates need not wait
-    /// out the quiet period.
-    static func noteScrollEnded() {
-        lastEventAt = nil
-    }
-
-    static var isScrolling: Bool {
-        guard let lastEventAt else { return false }
-        return ContinuousClock.now - lastEventAt < quietPeriod
-    }
-}
-
-/// Whether a bubble's markdown goes to its page now or waits for the scroll
-/// to stop.
-///
-/// Two kinds of push reach a row. A rewrite of a bubble that is already drawn
-/// is the streaming reply, a dozen times a second; under a live scroll that
-/// re-layout and the resize it posts are the jitter, so it waits. A row's
-/// first paint is different: the row was just built by the lazy transcript
-/// for a message scrolled back into view, and its page is blank. Holding that
-/// is not smoothing anything — it is a blank bubble for as long as the wheel
-/// moves, then every row on screen filling in at once a beat after it stops,
-/// which read as the transcript taking a second to load old messages. So a
-/// first paint goes at once, scroll or no scroll; the page renders in its own
-/// process, and the height it posts lands through the same first-measurement
-/// path that has always applied mid-scroll.
-enum ChatMarkdownPushPolicy {
-    static func holdsPush(isScrolling: Bool, hasPainted: Bool) -> Bool {
-        isScrolling && hasPainted
-    }
-}
-
-/// Keeps what the learner is looking at still when a row above it changes
-/// height — what a browser calls scroll anchoring.
-///
-/// The transcript's scroll view is anchored at its top: when a row above the
-/// visible region grows, everything below it moves down by the growth, and
-/// the paragraph under the pointer is suddenly somewhere else. Rows above the
-/// fold grow all the time: a lazy row rebuilt from history opens at an
-/// estimate and is measured by WebKit a frame later, and a row whose source
-/// cards or pictures arrive grows again. Each such change asks its transcript
-/// to move the visible region by the same amount, in the layout pass that
-/// applies the new size, so the content on screen does not move at all.
-///
-/// A row's page lays out from its top, so a row grows at its foot: what moves
-/// is everything below the row's bottom edge, never the row's own words. The
-/// edge is what decides. A row wholly above the screen, or one whose last
-/// lines are just coming into view at the top, grows at an edge above the
-/// middle of the screen: most of what is visible sits below it, so the region
-/// is scrolled past the growth. A row that fills the screen — one long reply
-/// being read — grows at an edge below the middle or off the screen: the
-/// words being read are the row's own and stay where they are untouched, and
-/// scrolling past the growth would be the only thing that moved them. While
-/// the row's top decided, reading a long reply could jump by whatever its
-/// footer gained: a source card resolving, a picture arriving.
-@MainActor
-enum ChatTranscriptScrollAnchoring {
-    /// Whether growth of `row` is scrolled past: the row starts above the
-    /// visible region and its bottom edge, where it grows, is above the
-    /// region's middle. In document coordinates, flipped or not.
-    nonisolated static func scrollsPastGrowth(of row: CGRect, visible: CGRect, flipped: Bool) -> Bool {
-        flipped
-            ? row.minY < visible.minY - 0.5 && row.maxY < visible.midY
-            : row.maxY > visible.maxY + 0.5 && row.minY > visible.midY
-    }
-
-    /// Whether the row `view` draws grows at an edge above what the learner
-    /// is reading (`scrollsPastGrowth(of:visible:flipped:)`). Only such a
-    /// row's growth moves most of the visible content.
-    static func scrollsPastGrowth(of view: NSView?) -> Bool {
-        guard let view,
-              let scrollView = view.enclosingScrollView,
-              let document = scrollView.documentView else { return false }
-        return scrollsPastGrowth(
-            of: view.convert(view.bounds, to: document),
-            visible: scrollView.contentView.documentVisibleRect,
-            flipped: document.isFlipped
-        )
-    }
-
-    /// Before `view`'s row grows by `growth` (negative when it shrinks): if the
-    /// row grows above what the learner is reading, arrange for the transcript
-    /// to scroll by the same amount once the document has taken its new size.
-    static func compensate(for view: NSView?, growth: CGFloat) {
-        guard abs(growth) >= 0.5, scrollsPastGrowth(of: view),
-              let scrollView = view?.enclosingScrollView else { return }
-        ChatTranscriptScrollObserver.ObserverView.observer(for: scrollView)?.deferScroll(by: growth)
-    }
-}
-
-/// Sits invisibly inside the transcript's scroll view and reports its motion
-/// to `ChatScrollActivity`. Live-scroll notifications cover wheel and trackpad
-/// gestures including momentum; the clip view's bounds cover everything else
-/// that moves the content, scroller drags and programmatic scrolls included.
-///
-/// It is also the transcript's scroll anchor (`ChatTranscriptScrollAnchoring`):
-/// it watches the document view's frame, and a growth registered against it
-/// is applied as a scroll in the same layout pass that resizes the document.
-struct ChatTranscriptScrollObserver: NSViewRepresentable {
-    func makeNSView(context: Context) -> ObserverView {
-        ObserverView(frame: .zero)
-    }
-
-    func updateNSView(_ nsView: ObserverView, context: Context) {}
-
-    final class ObserverView: NSView {
-        private var observations: [NSObjectProtocol] = []
-        private weak var observedScrollView: NSScrollView?
-        private var lastClipOrigin: CGPoint = .zero
-        /// Growth above the visible region that has not been scrolled past
-        /// yet. Applied on the document's next frame change, or dropped if
-        /// none comes: a growth that never reached the layout has nothing to
-        /// compensate.
-        private var pendingAdjustment: CGFloat = 0
-        /// Where the visible region stood, and how tall the document was, when
-        /// the first pending growth was registered. The adjustment is measured
-        /// from here rather than from wherever the region is once the document
-        /// resizes, because AppKit may already have moved it by then: when a
-        /// row above a transcript scrolled to its bottom shrinks, the region is
-        /// left hanging past the document's end and the clip view pulls it
-        /// back inside as the document takes its new size. Measured from the
-        /// moved region, the same shrink was scrolled twice, and the newest
-        /// message left the bottom of the screen by the second copy.
-        private var pendingAnchorOrigin: CGPoint?
-        private var pendingDocumentHeight: CGFloat = 0
-        private var pendingAdjustmentExpiry: Task<Void, Never>?
-
-        /// One observer per transcript; the anchoring helper finds it by the
-        /// scroll view the row lives in.
-        private static let observersByScrollView = NSMapTable<NSScrollView, ObserverView>.weakToWeakObjects()
-
-        static func observer(for scrollView: NSScrollView) -> ObserverView? {
-            observersByScrollView.object(forKey: scrollView)
-        }
-
-        func deferScroll(by delta: CGFloat) {
-            if pendingAnchorOrigin == nil, let scrollView = observedScrollView {
-                pendingAnchorOrigin = scrollView.contentView.bounds.origin
-                pendingDocumentHeight = scrollView.documentView?.frame.height ?? 0
-            }
-            pendingAdjustment += delta
-            pendingAdjustmentExpiry?.cancel()
-            pendingAdjustmentExpiry = Task { @MainActor [weak self] in
-                try? await Task.sleep(for: .milliseconds(250))
-                guard !Task.isCancelled else { return }
-                self?.pendingAdjustment = 0
-                self?.pendingAnchorOrigin = nil
-            }
-        }
-
-        private func applyPendingAdjustment() {
-            guard pendingAdjustment != 0,
-                  let scrollView = observedScrollView,
-                  let document = scrollView.documentView else { return }
-            let delta = pendingAdjustment
-            let clipView = scrollView.contentView
-            var origin = pendingAnchorOrigin ?? clipView.bounds.origin
-            pendingAdjustment = 0
-            pendingAnchorOrigin = nil
-            pendingAdjustmentExpiry?.cancel()
-            pendingAdjustmentExpiry = nil
-            origin.y += document.isFlipped ? delta : -delta
-            let constrained = clipView.constrainBoundsRect(
-                NSRect(origin: origin, size: clipView.bounds.size)
-            ).origin
-            // The transcript's own correction is not the learner scrolling.
-            lastClipOrigin = constrained
-            // Nothing to do when the clip view's own correction already put the
-            // region where the growth says it belongs.
-            guard constrained != clipView.bounds.origin else { return }
-            clipView.scroll(to: constrained)
-            scrollView.reflectScrolledClipView(clipView)
-        }
-
-        /// The visible region moved. Between a growth being registered and the
-        /// document taking its new size, that happens for one of two reasons:
-        /// the document resizing under the region is the clip view keeping it
-        /// inside the document, which is not the learner and is already in the
-        /// pending adjustment's reckoning; anything else is the learner, and the
-        /// pending adjustment follows them.
-        private func clipViewBoundsDidChange(_ clipView: NSView) {
-            let origin = clipView.bounds.origin
-            guard origin != lastClipOrigin else { return }
-            let previous = lastClipOrigin
-            lastClipOrigin = origin
-            if let anchor = pendingAnchorOrigin {
-                let documentHeight = observedScrollView?.documentView?.frame.height ?? 0
-                if documentHeight != pendingDocumentHeight { return }
-                pendingAnchorOrigin = CGPoint(
-                    x: anchor.x + origin.x - previous.x,
-                    y: anchor.y + origin.y - previous.y
-                )
-            }
-            ChatScrollActivity.noteScrollEvent()
-        }
-
-        override var isOpaque: Bool { false }
-
-        /// Never the target of a click or a drop; the content in front of it and
-        /// the scroll view behind it own those.
-        override func hitTest(_ point: NSPoint) -> NSView? { nil }
-
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            observe(enclosingScrollView)
-        }
-
-        override func viewDidMoveToSuperview() {
-            super.viewDidMoveToSuperview()
-            observe(enclosingScrollView)
-        }
-
-        private func observe(_ scrollView: NSScrollView?) {
-            guard scrollView !== observedScrollView else { return }
-            stopObserving()
-            if let previous = observedScrollView, Self.observer(for: previous) === self {
-                Self.observersByScrollView.removeObject(forKey: previous)
-            }
-            observedScrollView = scrollView
-            guard let scrollView else { return }
-            Self.observersByScrollView.setObject(self, forKey: scrollView)
-            let center = NotificationCenter.default
-            if let document = scrollView.documentView {
-                document.postsFrameChangedNotifications = true
-                observations.append(center.addObserver(
-                    forName: NSView.frameDidChangeNotification, object: document, queue: nil
-                ) { [weak self] _ in
-                    MainActor.assumeIsolated { self?.applyPendingAdjustment() }
-                })
-            }
-            let moving: (Notification) -> Void = { _ in
-                MainActor.assumeIsolated { ChatScrollActivity.noteScrollEvent() }
-            }
-            for name in [NSScrollView.willStartLiveScrollNotification, NSScrollView.didLiveScrollNotification] {
-                observations.append(center.addObserver(forName: name, object: scrollView, queue: nil, using: moving))
-            }
-            observations.append(center.addObserver(
-                forName: NSScrollView.didEndLiveScrollNotification, object: scrollView, queue: nil
-            ) { _ in
-                MainActor.assumeIsolated { ChatScrollActivity.noteScrollEnded() }
-            })
-            // Only a move of the visible region counts. The clip view also posts
-            // when the window resizes, and it must not count when the document
-            // merely grows under the viewport: that is the streaming row landing
-            // its height, and treating it as a scroll would hold the next one.
-            scrollView.contentView.postsBoundsChangedNotifications = true
-            lastClipOrigin = scrollView.contentView.bounds.origin
-            observations.append(center.addObserver(
-                forName: NSView.boundsDidChangeNotification, object: scrollView.contentView, queue: nil
-            ) { [weak self] notification in
-                guard let clipView = notification.object as? NSView else { return }
-                MainActor.assumeIsolated { self?.clipViewBoundsDidChange(clipView) }
-            })
-        }
-
-        private func stopObserving() {
-            for token in observations { NotificationCenter.default.removeObserver(token) }
-            observations.removeAll()
-        }
-
-        deinit {
-            for token in observations { NotificationCenter.default.removeObserver(token) }
-        }
-    }
 }
 
 /// What the learner can do with words selected in a reply: the three
@@ -731,12 +350,6 @@ struct ChatMarkdownView: NSViewRepresentable {
     /// returns once the redraw has landed or failed. Nil offers no menu lines
     /// for pictures.
     var redrawPicture: (@MainActor (String, ImageGenerationModel, String?) async -> Void)? = nil
-    /// Whether this row's measured height goes into `ChatMarkdownHeightMemory`.
-    /// The memory holds one column width for the whole transcript and retires
-    /// every height when a row reports at another, so a reply drawn at some
-    /// other width, such as the side chat's answer in its popover, must not
-    /// record: it would make every transcript row open at an estimate again.
-    var remembersHeight = true
     @Environment(\.uiZoomScale) private var uiZoomScale
 
     /// Base size for chat body text at zoom scale 1. The web view holds rendered
@@ -764,8 +377,7 @@ struct ChatMarkdownView: NSViewRepresentable {
             sourceImageForToken: sourceImageForToken,
             addSlideCitedPaper: addSlideCitedPaper,
             openPictureBeside: openPictureBeside,
-            redrawPicture: redrawPicture,
-            remembersHeight: remembersHeight
+            redrawPicture: redrawPicture
         )
     }
 
@@ -842,14 +454,8 @@ struct ChatMarkdownView: NSViewRepresentable {
         reusePoolWarmTask = Task { @MainActor in
             defer { reusePoolWarmTask = nil }
             while reusableWebViews.count < reusePoolWarmTarget {
-                // Never make one under a live scroll: the init is on the main
-                // thread and the template load competes with entering rows for
-                // the web process. Wait it out, then space them out so a chat
-                // opening pays a few milliseconds a turn, not a burst.
-                while ChatScrollActivity.isScrolling {
-                    try? await Task.sleep(for: .milliseconds(120))
-                    guard !Task.isCancelled else { return }
-                }
+                // Spaced out, so a chat opening pays a few milliseconds a turn,
+                // not a burst: the init is on the main thread.
                 try? await Task.sleep(for: .milliseconds(150))
                 guard !Task.isCancelled, reusableWebViews.count < reusePoolWarmTarget else { return }
                 reusableWebViews.insert(makeTemplateWebView(), at: 0)
@@ -1012,25 +618,12 @@ struct ChatMarkdownView: NSViewRepresentable {
         /// before its first update.
         var lastCitationScopeKey: String?
         var redrawPicture: (@MainActor (String, ImageGenerationModel, String?) async -> Void)?
-        /// `ChatMarkdownView.remembersHeight`, fixed for this row.
-        let remembersHeight: Bool
         var lastMarkdown = ""
         var lastCitationContext = ChatCitationLedger.MessageContext()
         var lastFontSize: CGFloat = ChatMarkdownView.baseFontSize
         /// The web view this coordinator drives, for finding the row's place in
         /// the transcript when its height lands.
         weak var webView: WKWebView?
-        private var pendingHeight: CGFloat?
-        private var pendingWidth: CGFloat = 0
-        /// Whether a measurement has landed since this row was built. Until one
-        /// has, the row stands at a remembered or estimated height.
-        private var hasAppliedHeight = false
-        private var heightUpdateTask: Task<Void, Never>?
-        private var markdownPushTask: Task<Void, Never>?
-        /// Whether this row's page has been handed markdown to draw. False for
-        /// a row the transcript just built, and again for a page that just
-        /// loaded: those paint at once (`ChatMarkdownPushPolicy`).
-        private var hasPaintedMarkdown = false
         private var sourceCardResolutionGeneration = 0
         /// Hears that a picture was drawn again, so this row's page shows
         /// the redraw where it showed the picture.
@@ -1049,11 +642,9 @@ struct ChatMarkdownView: NSViewRepresentable {
             sourceImageForToken: @escaping @MainActor (String) async -> ChatSourceImage?,
             addSlideCitedPaper: (@MainActor (String) async -> Void)? = nil,
             openPictureBeside: (@MainActor (DockedChatPicture) -> Void)? = nil,
-            redrawPicture: (@MainActor (String, ImageGenerationModel, String?) async -> Void)? = nil,
-            remembersHeight: Bool = true
+            redrawPicture: (@MainActor (String, ImageGenerationModel, String?) async -> Void)? = nil
         ) {
             self.identity = identity
-            self.remembersHeight = remembersHeight
             self.lastCitationContext = citationContext
             self.height = height
             self.onOpenSourceInNewWindow = onOpenSourceInNewWindow
@@ -1090,17 +681,10 @@ struct ChatMarkdownView: NSViewRepresentable {
         }
 
         func cancelPendingUpdates() {
-            heightUpdateTask?.cancel()
-            heightUpdateTask = nil
-            pendingHeight = nil
-            markdownPushTask?.cancel()
-            markdownPushTask = nil
             sourceCardResolutionGeneration &+= 1
         }
 
         deinit {
-            heightUpdateTask?.cancel()
-            markdownPushTask?.cancel()
             if let redrawObserver { NotificationCenter.default.removeObserver(redrawObserver) }
         }
 
@@ -1125,41 +709,12 @@ struct ChatMarkdownView: NSViewRepresentable {
             }
         }
 
-        /// Sends `lastMarkdown` to the page — now, unless the transcript is
-        /// scrolling. A streaming bubble is rewritten a dozen times a second, and
-        /// each rewrite has the web process re-lay out the whole message and the
-        /// app commit its new layers, then reposts a height that resizes the row.
-        /// Under a live scroll that is the jitter, so the push waits for the
-        /// scroll to stop. One waiter is enough: it reads `lastMarkdown` when it
-        /// lands, so the text that arrives is the newest, never a stale frame.
+        /// Sends `lastMarkdown` to the page.
         func pushMarkdown(into webView: WKWebView) {
-            let holds = ChatMarkdownPushPolicy.holdsPush(
-                isScrolling: ChatScrollActivity.isScrolling,
-                hasPainted: hasPaintedMarkdown
-            )
-            guard holds else {
-                markdownPushTask?.cancel()
-                markdownPushTask = nil
-                hasPaintedMarkdown = true
-                webView.evaluateJavaScript(ChatMarkdownView.markdownPushScript(
-                    citationContext: lastCitationContext,
-                    markdown: lastMarkdown
-                ))
-                return
-            }
-            guard markdownPushTask == nil else { return }
-            markdownPushTask = Task { @MainActor [weak self, weak webView] in
-                while ChatScrollActivity.isScrolling {
-                    try? await Task.sleep(for: .milliseconds(60))
-                    guard !Task.isCancelled else { return }
-                }
-                guard let self, let webView else { return }
-                self.markdownPushTask = nil
-                _ = try? await webView.evaluateJavaScript(ChatMarkdownView.markdownPushScript(
-                    citationContext: self.lastCitationContext,
-                    markdown: self.lastMarkdown
-                ))
-            }
+            webView.evaluateJavaScript(ChatMarkdownView.markdownPushScript(
+                citationContext: lastCitationContext,
+                markdown: lastMarkdown
+            ))
         }
 
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
@@ -1277,10 +832,7 @@ struct ChatMarkdownView: NSViewRepresentable {
                 rawHeight = nil
             }
             guard let rawHeight else { return }
-            scheduleHeightUpdate(
-                max(24, ceil(rawHeight)),
-                width: (message.webView?.frame.width ?? 0).rounded()
-            )
+            applyHeight(max(24, ceil(rawHeight)))
         }
 
         private func resolveSourceCards(for message: WKScriptMessage) {
@@ -1422,56 +974,8 @@ struct ChatMarkdownView: NSViewRepresentable {
             }
         }
 
-        private func scheduleHeightUpdate(_ nextHeight: CGFloat, width: CGFloat) {
-            pendingHeight = nextHeight
-            pendingWidth = width
-            heightUpdateTask?.cancel()
-            heightUpdateTask = nil
-            // A row's first measurement lands at once, scroll or no scroll: until
-            // it does the row stands at a guess, and a guess held through a
-            // scroll is the collapsed bubble that springs open when the wheel
-            // stops. So does a change to a row growing above what the learner
-            // is reading — its growth is scrolled past in the same layout pass
-            // (`ChatTranscriptScrollAnchoring`), so applying it costs the
-            // learner nothing, and holding it would land it as a jump later.
-            // What waits out a scroll is a row on or below the screen resizing
-            // again: the streaming bubble, a dozen times a second.
-            if !hasAppliedHeight || ChatTranscriptScrollAnchoring.scrollsPastGrowth(of: webView) {
-                applyPendingHeight()
-                return
-            }
-            heightUpdateTask = Task { @MainActor in
-                try? await Task.sleep(for: .milliseconds(48))
-                guard !Task.isCancelled else { return }
-                // Wait out a scroll in progress rather than resizing a row the
-                // wheel is currently moving. A later report replaces this one,
-                // so what lands afterwards is the newest height, not a stale one.
-                while ChatScrollActivity.isScrolling {
-                    try? await Task.sleep(for: .milliseconds(60))
-                    guard !Task.isCancelled else { return }
-                }
-                self.applyPendingHeight()
-            }
-        }
-
-        private func applyPendingHeight() {
-            guard let reportedHeight = pendingHeight else { return }
-            pendingHeight = nil
-            hasAppliedHeight = true
-            if remembersHeight, pendingWidth > 0 {
-                ChatMarkdownHeightMemory.record(
-                    height: reportedHeight,
-                    width: pendingWidth,
-                    fontSize: lastFontSize,
-                    for: identity
-                )
-                // The first row of a chat to measure itself gives its column's
-                // width and text size, which the rest are measured at.
-                ChatMarkdownView.Premeasurer.noteRowMeasured()
-            }
-            let current = height.wrappedValue
-            guard abs(current - reportedHeight) > 1 else { return }
-            ChatTranscriptScrollAnchoring.compensate(for: webView, growth: reportedHeight - current)
+        private func applyHeight(_ reportedHeight: CGFloat) {
+            guard abs(height.wrappedValue - reportedHeight) > 1 else { return }
             height.wrappedValue = reportedHeight
         }
 
@@ -1482,10 +986,6 @@ struct ChatMarkdownView: NSViewRepresentable {
             // content now that the page is ready, so a fast stream can't leave
             // the view blank. Same for a zoom change that raced the page load.
             webView.evaluateJavaScript("document.body.style.fontSize = '\(lastFontSize)px';")
-            // A page that just loaded shows nothing yet, whatever was pushed at
-            // it before its scripts existed, so this is a first paint and goes
-            // at once even mid-scroll.
-            hasPaintedMarkdown = false
             pushMarkdown(into: webView)
         }
 
@@ -1987,7 +1487,6 @@ struct ChatMarkdownView: NSViewRepresentable {
         }
 
         override func scrollWheel(with event: NSEvent) {
-            ChatScrollActivity.noteScrollEvent()
             guard abs(event.scrollingDeltaY) >= abs(event.scrollingDeltaX) else {
                 super.scrollWheel(with: event)
                 return
@@ -2003,160 +1502,6 @@ struct ChatMarkdownView: NSViewRepresentable {
             }
 
             nextResponder?.scrollWheel(with: event)
-        }
-    }
-}
-
-extension ChatMarkdownView {
-    /// Measures a chat's replies before their rows are built.
-    ///
-    /// A reply's row opens at the height it measured last time, or at an
-    /// estimate from its markdown, and takes WebKit's measurement a few frames
-    /// after it is built. The transcript is lazy, so a chat opened from history
-    /// builds its replies only as they scroll into view: each one changed
-    /// height just as it arrived at the top of the screen, and on a chat of
-    /// long replies a band of text there jumped by hundreds of points at a
-    /// time, while the lazy stack's idea of the transcript's height swung by
-    /// thousands. Measured on a six-turn chat whose replies run to 15,000
-    /// characters: two jumps, of 390 and 263 points, on the first scroll up,
-    /// and none once every reply had been measured. So the transcript hands
-    /// over its replies as soon as it shows them, and one hidden page renders
-    /// each in turn at the column's width and text size — the same page, the
-    /// same push, the same measurement the row makes — into
-    /// `ChatMarkdownHeightMemory`, newest first, which is the order the
-    /// learner scrolls into them from the foot of the chat. A row then opens
-    /// at its true height. What the hidden page cannot know (source cards
-    /// resolving, pictures arriving) the row measures itself, as before.
-    @MainActor
-    enum Premeasurer {
-        struct Entry: Equatable {
-            let id: UUID
-            let markdown: String
-            let citationContext: ChatCitationLedger.MessageContext
-        }
-
-        /// The open transcript's replies in its main column, newest first.
-        private static var entries: [Entry] = []
-        private static var task: Task<Void, Never>?
-        private static var webView: WKWebView?
-
-        static func setEntries(_ newEntries: [Entry]) {
-            entries = newEntries
-            start()
-        }
-
-        /// A row measured itself: the column's width and text size may be
-        /// known now.
-        static func noteRowMeasured() {
-            guard !entries.isEmpty else { return }
-            start()
-        }
-
-        private static func start() {
-            guard task == nil else { return }
-            task = Task { @MainActor in
-                await run()
-                task = nil
-            }
-        }
-
-        private static func run() async {
-            var attempted = Set<UUID>()
-            while true {
-                // The hidden page shares the web process with the rows; a row
-                // entering the screen comes first.
-                while ChatScrollActivity.isScrolling {
-                    try? await Task.sleep(for: .milliseconds(120))
-                }
-                guard let column = columnSize(),
-                      let next = entries.first(where: {
-                          !attempted.contains($0.id) && needsMeasurement($0.id, in: column)
-                      })
-                else { return }
-                attempted.insert(next.id)
-                guard let height = await measure(next, width: column.width, fontSize: column.fontSize) else { return }
-                // The row may have measured itself while the page worked; its
-                // own measurement wins.
-                guard needsMeasurement(next.id, in: column) else { continue }
-                ChatMarkdownHeightMemory.record(
-                    height: height,
-                    width: column.width,
-                    fontSize: column.fontSize,
-                    for: next.id,
-                    byRow: false
-                )
-            }
-        }
-
-        private struct ColumnSize: Hashable {
-            let width: CGFloat
-            let fontSize: CGFloat
-        }
-
-        /// The width and text size the column's own rows measured at, the
-        /// most common of them, so one odd row cannot set it. Nil until a row
-        /// of this transcript has measured itself.
-        private static func columnSize() -> ColumnSize? {
-            var counts: [ColumnSize: Int] = [:]
-            for entry in entries {
-                guard let measurement = ChatMarkdownHeightMemory.measurement(for: entry.id),
-                      measurement.byRow else { continue }
-                counts[ColumnSize(width: measurement.width, fontSize: measurement.fontSize), default: 0] += 1
-            }
-            return counts.max { $0.value < $1.value }?.key
-        }
-
-        private static func needsMeasurement(_ id: UUID, in column: ColumnSize) -> Bool {
-            guard let measurement = ChatMarkdownHeightMemory.measurement(for: id) else { return true }
-            return measurement.width != column.width || measurement.fontSize != column.fontSize
-        }
-
-        private static func measure(_ entry: Entry, width: CGFloat, fontSize: CGFloat) async -> CGFloat? {
-            let view: WKWebView
-            if let webView {
-                view = webView
-            } else {
-                view = ChatMarkdownView.makeTemplateWebView()
-                webView = view
-            }
-            if view.frame.width != width {
-                view.setFrameSize(NSSize(width: width, height: 200))
-            }
-            guard await pageIsReady(view) else { return nil }
-            // What the row's page does on a push, then the row's own
-            // measurement (`chat-render.js`'s height report), read at once:
-            // reading the box lays the page out.
-            let body = """
-            document.body.style.fontSize = font + 'px';
-            window.setCitationContext(JSON.parse(context));
-            window.setMarkdown(markdown);
-            const content = document.getElementById('content');
-            const box = content.getBoundingClientRect();
-            return Math.max(content.scrollHeight, box.height, box.bottom + window.scrollY);
-            """
-            let result = try? await view.callAsyncJavaScript(
-                body,
-                arguments: [
-                    "font": Double(fontSize),
-                    "context": ChatMarkdownView.citationContextJSON(entry.citationContext),
-                    "markdown": entry.markdown,
-                ],
-                contentWorld: .page
-            )
-            guard let raw = (result as? NSNumber)?.doubleValue, raw > 0 else { return nil }
-            return max(24, ceil(raw))
-        }
-
-        private static func pageIsReady(_ view: WKWebView) async -> Bool {
-            for _ in 0..<100 {
-                let ready = try? await view.callAsyncJavaScript(
-                    "return typeof window.setMarkdown === 'function' && !!document.getElementById('content');",
-                    contentWorld: .page
-                )
-                if (ready as? Bool) == true { return true }
-                try? await Task.sleep(for: .milliseconds(50))
-            }
-            return false
         }
     }
 }

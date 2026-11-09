@@ -5702,125 +5702,18 @@ struct ChatRobustnessTests {
         #expect(manager.chatMessageCount == 0)
     }
 
-    @Test("Scroll activity ends when the scroll view reports the end")
-    @MainActor
-    func scrollActivityEndsWithTheGesture() {
-        ChatScrollActivity.noteScrollEvent()
-        #expect(ChatScrollActivity.isScrolling)
-
-        ChatScrollActivity.noteScrollEnded()
-        #expect(!ChatScrollActivity.isScrolling)
-    }
-
-    @Test("A row's first paint is never held for a scroll; only a redraw waits")
-    func firstPaintIsNeverHeldForAScroll() {
-        // The lazy transcript rebuilds a row for a message scrolled back into
-        // view with a blank page. Holding that paint until the wheel stopped
-        // was the second of blank bubbles at the top of a chat.
-        #expect(!ChatMarkdownPushPolicy.holdsPush(isScrolling: true, hasPainted: false))
-        #expect(!ChatMarkdownPushPolicy.holdsPush(isScrolling: false, hasPainted: false))
-        // A bubble already drawn — the streaming reply — still waits out the
-        // scroll rather than re-laying out under the pointer.
-        #expect(ChatMarkdownPushPolicy.holdsPush(isScrolling: true, hasPainted: true))
-        #expect(!ChatMarkdownPushPolicy.holdsPush(isScrolling: false, hasPainted: true))
-    }
-
-    /// A transcript for the anchoring tests: a flipped document, as SwiftUI's
-    /// hosting view is, inside a scroll view the size of a chat pane, with the
-    /// observer sitting in the document the way the transcript places it. The
-    /// numbers are the ones the harness measured on the Alzheimer's chat that
-    /// showed the bug: a 5965-point transcript in a 720-point viewport.
-    @MainActor
-    private func makeAnchoredTranscript(
-        documentHeight: CGFloat = 5965,
-        scrolledTo offset: CGFloat
-    ) -> (scrollView: NSScrollView, document: NSView, observer: ChatTranscriptScrollObserver.ObserverView) {
-        let scrollView = NSScrollView(frame: NSRect(x: 0, y: 0, width: 640, height: 720))
-        scrollView.borderType = .noBorder
-        let document = FlippedTranscriptDocument(frame: NSRect(x: 0, y: 0, width: 640, height: documentHeight))
-        scrollView.documentView = document
-        let observer = ChatTranscriptScrollObserver.ObserverView(frame: .zero)
-        document.addSubview(observer)
-        let clipView = scrollView.contentView
-        clipView.scroll(to: CGPoint(x: 0, y: offset))
-        scrollView.reflectScrolledClipView(clipView)
-        return (scrollView, document, observer)
-    }
-
-    @Test("A row shrinking above a transcript at its bottom is scrolled past once, not twice")
-    @MainActor
-    func anchoringDoesNotRepeatTheClipViewsOwnCorrection() {
-        // Scrolled to the bottom: 5965 - 720.
-        let transcript = makeAnchoredTranscript(scrolledTo: 5245)
-        let clipView = transcript.scrollView.contentView
-        #expect(ChatTranscriptScrollObserver.ObserverView.observer(for: transcript.scrollView) === transcript.observer)
-        transcript.observer.deferScroll(by: -178)
-        transcript.document.setFrameSize(NSSize(width: 640, height: 5787))
-        // The clip view already pulled the region back inside the shorter
-        // document, which is the whole of the shrink. Scrolling it again by
-        // the same amount is what left the newest message off the screen.
-        #expect(clipView.bounds.origin.y == 5067)
-        #expect(transcript.document.frame.height - clipView.bounds.origin.y - clipView.bounds.height == 0)
-    }
-
-    @Test("A row growing above the visible region moves the region by the growth, at the bottom too")
-    @MainActor
-    func anchoringScrollsPastGrowthAboveTheVisibleRegion() {
-        let middle = makeAnchoredTranscript(scrolledTo: 3000)
-        middle.observer.deferScroll(by: 344)
-        middle.document.setFrameSize(NSSize(width: 640, height: 6309))
-        #expect(middle.scrollView.contentView.bounds.origin.y == 3344)
-
-        let bottom = makeAnchoredTranscript(scrolledTo: 5245)
-        bottom.observer.deferScroll(by: 344)
-        bottom.document.setFrameSize(NSSize(width: 640, height: 6309))
-        #expect(bottom.scrollView.contentView.bounds.origin.y == 5589)
-    }
-
-    @Test("A row shrinking above the middle of a transcript moves the region up by the shrink")
-    @MainActor
-    func anchoringScrollsBackPastShrinkAboveTheVisibleRegion() {
-        let transcript = makeAnchoredTranscript(scrolledTo: 3000)
-        transcript.observer.deferScroll(by: -178)
-        transcript.document.setFrameSize(NSSize(width: 640, height: 5787))
-        #expect(transcript.scrollView.contentView.bounds.origin.y == 2822)
-    }
-
-    @Test("A scroll the learner makes while a growth is pending is kept")
-    @MainActor
-    func anchoringFollowsTheLearnersOwnScroll() {
-        let transcript = makeAnchoredTranscript(scrolledTo: 3000)
-        let clipView = transcript.scrollView.contentView
-        transcript.observer.deferScroll(by: 344)
-        // The wheel moves the region before the layout pass applies the growth.
-        clipView.scroll(to: CGPoint(x: 0, y: 3050))
-        transcript.scrollView.reflectScrolledClipView(clipView)
-        transcript.document.setFrameSize(NSSize(width: 640, height: 6309))
-        #expect(clipView.bounds.origin.y == 3394)
-    }
-
-    @Test("Two growths registered before one layout pass are scrolled past together")
-    @MainActor
-    func anchoringSumsGrowthsWithinOneLayoutPass() {
-        let transcript = makeAnchoredTranscript(scrolledTo: 5245)
-        transcript.observer.deferScroll(by: 344)
-        transcript.observer.deferScroll(by: -178)
-        transcript.document.setFrameSize(NSSize(width: 640, height: 6131))
-        #expect(transcript.scrollView.contentView.bounds.origin.y == 5411)
-    }
-
     @Test("An unmeasured row opens at an estimate that grows with its text, never at one line")
     @MainActor
     func estimatedHeightFollowsTheMarkdown() {
         let width: CGFloat = 640
         let size: CGFloat = 13
-        let oneLine = ChatMarkdownHeightMemory.estimatedHeight(markdown: "Yes.", width: width, fontSize: size)
+        let oneLine = ChatMarkdownHeightEstimate.estimatedHeight(markdown: "Yes.", width: width, fontSize: size)
         // One line at Codex's 1.625 leading (21.125 pt) plus the bubble's padding (15.6 pt).
         #expect(oneLine == 37)
 
         let paragraph = String(repeating: "Mitochondrial heteroplasmy shifts with selection. ", count: 12)
-        let short = ChatMarkdownHeightMemory.estimatedHeight(markdown: paragraph, width: width, fontSize: size)
-        let long = ChatMarkdownHeightMemory.estimatedHeight(
+        let short = ChatMarkdownHeightEstimate.estimatedHeight(markdown: paragraph, width: width, fontSize: size)
+        let long = ChatMarkdownHeightEstimate.estimatedHeight(
             markdown: [paragraph, paragraph, paragraph, paragraph].joined(separator: "\n\n"),
             width: width,
             fontSize: size
@@ -5834,17 +5727,17 @@ struct ChatRobustnessTests {
         #expect(short > 80 && short < 200)
 
         // A narrower column wraps more, so the same text estimates taller.
-        let narrow = ChatMarkdownHeightMemory.estimatedHeight(markdown: paragraph, width: 320, fontSize: size)
+        let narrow = ChatMarkdownHeightEstimate.estimatedHeight(markdown: paragraph, width: 320, fontSize: size)
         #expect(narrow > short)
 
         // Citations add the Sources footer: one card per distinct source, so
         // the same number cited twice is one card.
-        let cited = ChatMarkdownHeightMemory.estimatedHeight(
+        let cited = ChatMarkdownHeightEstimate.estimatedHeight(
             markdown: paragraph + " [1] and again [1], then [2].",
             width: width,
             fontSize: size
         )
-        let citedOnce = ChatMarkdownHeightMemory.estimatedHeight(
+        let citedOnce = ChatMarkdownHeightEstimate.estimatedHeight(
             markdown: paragraph + " [1].",
             width: width,
             fontSize: size
@@ -5854,92 +5747,6 @@ struct ChatRobustnessTests {
         #expect(cited - citedOnce < (citedOnce - short))
     }
 
-    @Test("A remembered measurement beats the estimate for the same row")
-    @MainActor
-    func rememberedHeightWinsOverTheEstimate() {
-        let id = UUID()
-        let markdown = String(repeating: "A sentence of body text that wraps. ", count: 20)
-        // The estimate is made at the newest report's width; set it to the
-        // width this test records at, whatever another test measured last.
-        ChatMarkdownHeightMemory.record(height: 100, width: 640, fontSize: 13, for: UUID())
-        let estimate = ChatMarkdownHeightMemory.initialHeight(for: id, markdown: markdown)
-        #expect(estimate > 36)
-
-        ChatMarkdownHeightMemory.record(height: 412, width: 640, fontSize: 13, for: id)
-        #expect(ChatMarkdownHeightMemory.initialHeight(for: id, markdown: markdown) == 412)
-        // Another row of the same text still gets the estimate, at the width
-        // the transcript was just measured at.
-        #expect(ChatMarkdownHeightMemory.initialHeight(for: UUID(), markdown: markdown) == estimate)
-    }
-
-    @Test("A reply in a side question's lane, narrower than the column, does not wipe the column's heights")
-    @MainActor
-    func laneRowsKeepTheColumnsHeights() {
-        let markdown = "A reply."
-        let column = UUID()
-        let lane = UUID()
-        ChatMarkdownHeightMemory.record(height: 412, width: 640, fontSize: 13, for: column)
-        // The lane draws its replies 14 points in.
-        ChatMarkdownHeightMemory.record(height: 433, width: 626, fontSize: 13, for: lane)
-        ChatMarkdownHeightMemory.record(height: 418, width: 640, fontSize: 13, for: UUID())
-        #expect(ChatMarkdownHeightMemory.initialHeight(for: column, markdown: markdown) == 412)
-        #expect(ChatMarkdownHeightMemory.initialHeight(for: lane, markdown: markdown) == 433)
-    }
-
-    @Test("A column that changes width retires its own heights and no other column's")
-    @MainActor
-    func resizedColumnRetiresOnlyItsHeights() {
-        let markdown = "A reply."
-        let first = UUID()
-        let second = UUID()
-        let otherPane = UUID()
-        ChatMarkdownHeightMemory.record(height: 300, width: 600, fontSize: 13, for: first)
-        ChatMarkdownHeightMemory.record(height: 320, width: 600, fontSize: 13, for: second)
-        ChatMarkdownHeightMemory.record(height: 500, width: 410, fontSize: 13, for: otherPane)
-        // The first pane widens: its first row measures again, shorter.
-        ChatMarkdownHeightMemory.record(height: 240, width: 760, fontSize: 13, for: first)
-        #expect(ChatMarkdownHeightMemory.initialHeight(for: first, markdown: markdown) == 240)
-        #expect(ChatMarkdownHeightMemory.height(for: second) == nil)
-        #expect(ChatMarkdownHeightMemory.initialHeight(for: otherPane, markdown: markdown) == 500)
-
-        // A new text size retires everything.
-        ChatMarkdownHeightMemory.record(height: 280, width: 760, fontSize: 15, for: second)
-        #expect(ChatMarkdownHeightMemory.height(for: first) == nil)
-        #expect(ChatMarkdownHeightMemory.height(for: otherPane) == nil)
-        #expect(ChatMarkdownHeightMemory.height(for: second) == 280)
-        // Leave the newest report at the width and size the other tests use.
-        ChatMarkdownHeightMemory.record(height: 100, width: 640, fontSize: 13, for: UUID())
-    }
-
-    @Test("Growth is scrolled past only when the row grows above the middle of the screen")
-    func anchoringDecidesByTheRowsGrowingEdge() {
-        // A 720-point viewport 3000 points down a flipped transcript.
-        let visible = CGRect(x: 0, y: 3000, width: 640, height: 720)
-        func row(_ top: CGFloat, _ bottom: CGFloat) -> CGRect {
-            CGRect(x: 0, y: top, width: 640, height: bottom - top)
-        }
-        // Wholly above the screen.
-        #expect(ChatTranscriptScrollAnchoring.scrollsPastGrowth(of: row(2400, 2900), visible: visible, flipped: true))
-        // Its last lines just coming into view at the top: most of the
-        // screen is below its growing edge.
-        #expect(ChatTranscriptScrollAnchoring.scrollsPastGrowth(of: row(2400, 3100), visible: visible, flipped: true))
-        // One long reply filling the screen, its footer off the bottom: the
-        // words being read are its own and must not move.
-        #expect(!ChatTranscriptScrollAnchoring.scrollsPastGrowth(of: row(1800, 4600), visible: visible, flipped: true))
-        // Its footer in the lower half of the screen.
-        #expect(!ChatTranscriptScrollAnchoring.scrollsPastGrowth(of: row(1800, 3500), visible: visible, flipped: true))
-        // A row that starts on the screen grows below the learner's place.
-        #expect(!ChatTranscriptScrollAnchoring.scrollsPastGrowth(of: row(3050, 3200), visible: visible, flipped: true))
-
-        // The same in an unflipped document, where the top is the larger y.
-        let unflipped = CGRect(x: 0, y: 1000, width: 640, height: 720)
-        func up(_ top: CGFloat, _ bottom: CGFloat) -> CGRect {
-            CGRect(x: 0, y: bottom, width: 640, height: top - bottom)
-        }
-        #expect(ChatTranscriptScrollAnchoring.scrollsPastGrowth(of: up(2400, 1800), visible: unflipped, flipped: false))
-        #expect(ChatTranscriptScrollAnchoring.scrollsPastGrowth(of: up(2400, 1600), visible: unflipped, flipped: false))
-        #expect(!ChatTranscriptScrollAnchoring.scrollsPastGrowth(of: up(2400, 400), visible: unflipped, flipped: false))
-    }
 }
 
 // MARK: - Chat tool surface
@@ -6614,12 +6421,6 @@ struct ChatWrittenPageTests {
             .sorted { $0.sequenceNumber < $1.sequenceNumber }
         #expect(next.last?.evaluation == "Hidden.")
     }
-}
-
-/// SwiftUI's hosting view lays the transcript out top-down; the anchoring
-/// tests' document does the same so the offsets read like the real one.
-private final class FlippedTranscriptDocument: NSView {
-    override var isFlipped: Bool { true }
 }
 
 /// The "Don't let AI providers keep my data" switch: what it puts on the wire,
@@ -7754,33 +7555,53 @@ struct ChatTranscriptPageTests {
         return messages
     }
 
+    @Test("A question with a picture shows the picture over its words, and the words alone in the bubble")
     @MainActor
-    private static func sections(_ messages: [ReviewSessionManager.Message]) -> [ReviewChatTranscriptSection] {
-        ReviewChatTranscriptSection.grouping(ReviewChatTranscriptBlock.grouping(messages))
+    func attachedPicturesRideAboveTheWords() throws {
+        let picture = "foreverlm://image/attached/0F1E2D3C-4B5A-4C6D-8E7F-0A1B2C3D4E5F"
+        let message = ReviewSessionManager.Message(role: .user, content: "What is this?\n\n![figure](\(picture))")
+        let blocks = ReviewChatTranscriptBlock.grouping([message])
+        let user = ChatTranscriptPage.userBlock(blocks[0], message: try #require(blocks.first?.userMessage), canEdit: false, isFindMatch: false)
+        #expect(user.text == "What is this?")
+        #expect(user.images?.contains(picture) == true)
+
+        // A message that was only the picture has no bubble.
+        let only = ReviewSessionManager.Message(role: .user, content: "![figure](\(picture))")
+        let onlyBlocks = ReviewChatTranscriptBlock.grouping([only])
+        let pictureOnly = ChatTranscriptPage.userBlock(onlyBlocks[0], message: only, canEdit: false, isFindMatch: false)
+        #expect(pictureOnly.text == nil)
+        #expect(pictureOnly.images != nil)
     }
 
-    @Test("A chat of questions, steps and replies is drawn by the page")
+    @Test("A browser step's picture and a missing plugin ride the reply's steps")
     @MainActor
-    func pageDrawsAPlainChat() {
-        #expect(ChatTranscriptPage.draws(Self.sections(Self.plainChat())))
-    }
-
-    @Test("A chat holding a row the page does not draw yet stays native")
-    @MainActor
-    func rowsThePageDoesNotDrawKeepTheNativeTranscript() {
-        // A browser step draws a live picture of the tab under it.
-        let browser = ReviewSessionManager.Message.ToolActivity(
+    func workCarriesBrowserPreviewAndSetup() {
+        var browser = ReviewSessionManager.Message.ToolActivity(
             toolName: "browser_open", detail: "https://example.com", state: .succeeded, resultPreview: nil
         )
-        #expect(!ChatTranscriptPage.draws(Self.sections(Self.plainChat(extraStep: browser))))
-
-        // A learner message with a picture attached.
-        var messages = Self.plainChat()
-        messages[0] = ReviewSessionManager.Message(
-            role: .user,
-            content: "What is this?\n\n![figure](foreverlm://image/attached/0f1e2d3c-4b5a)"
+        browser.previewImage = Data([0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A])
+        let work = ReviewChatWork(
+            id: UUID(),
+            steps: [Self.search(), browser],
+            pages: [ChatWrittenPage(id: "page-1", title: "Notes")],
+            duration: 12,
+            answerHasBegun: true
         )
-        #expect(!ChatTranscriptPage.draws(Self.sections(messages)))
+        let part = ChatTranscriptPage.workPart(work, isLive: false) { page in "Now: \(page.title)" }
+        #expect(part.previewStep == 1)
+        #expect(part.preview?.hasPrefix("data:image/png;base64,") == true)
+        #expect(part.pages == [ChatTranscriptPage.PageCard(id: "page-1", title: "Now: Notes")])
+        #expect(part.setup == nil)
+    }
+
+    @Test("Sources added before a message read as one line that opens onto their names")
+    @MainActor
+    func addedSourcesSummarise() {
+        #expect(ChatTranscriptPage.added([]) == nil)
+        let added = ChatTranscriptPage.added([
+            ChatContextAdditions.Source(id: "a", title: "", type: "article"),
+        ])
+        #expect(added?.sources.first?.title == "Untitled source")
     }
 
     @Test("A reply becomes its steps and its prose, a question its words")

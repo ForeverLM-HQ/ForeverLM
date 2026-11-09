@@ -262,12 +262,7 @@ struct ChatPluginSetupCard: View {
             }
             Spacer(minLength: 8)
             Button(need.actionTitle) {
-                switch need.destination {
-                case .settings(let pane):
-                    NotificationCenter.default.post(name: .requestOpenStudioSettings, object: pane)
-                case .plugin(let page):
-                    PluginsPlace.requestOpen(page)
-                }
+                need.openSetup()
             }
             .buttonStyle(.borderedProminent)
             .controlSize(.small)
@@ -293,6 +288,17 @@ extension ChatPluginRequest.SetupNeed {
         case settings(SettingsPane)
         /// The plugin's own page in the Plugins place.
         case plugin(PluginPage)
+    }
+
+    /// Opens where the card's button goes: the plugin's page, or Settings.
+    @MainActor
+    func openSetup() {
+        switch destination {
+        case .settings(let pane):
+            NotificationCenter.default.post(name: .requestOpenStudioSettings, object: pane)
+        case .plugin(let page):
+            PluginsPlace.requestOpen(page)
+        }
     }
 
     var destination: Destination {
