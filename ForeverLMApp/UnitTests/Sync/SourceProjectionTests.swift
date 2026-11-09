@@ -236,6 +236,40 @@ struct SourceProjectionTests {
         #expect(SourceProjection.wireIngestState(try #require(try SourceProjection.loadRows(localID: Self.paperID, connection: store))) == "ready")
     }
 
+    @Test("Marking a failed paper paywalled, and clearing the mark, reach the other Mac")
+    func paywallMarkOnFailedPaperSyncs() throws {
+        let (root, store) = try Fixture.makeStore("source-paywall-failed")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try Fixture.prepareReplica(store)
+        var failed = Self.fullPaper()
+        for field in ["collectionID", "collectionOrder", "mergedInto"] { failed.removeValue(forKey: field) }
+        failed["ingest"] = .object(["ord": .array([1, 3]), "state": .string("error"), "error": .string("No PDF found")])
+        try Fixture.apply(store, [try Fixture.record(.source, Self.paperID, failed)])
+
+        // Marked paywalled here: the same rank as the error, so it must be the next generation, or the
+        // server's equal `ord` keeps the error.
+        try store.execForTesting("UPDATE papers SET is_paywalled = 1 WHERE source_id = '\(Self.paperID)'")
+        let change = try Fixture.pending(store)["Source:\(Self.paperID)"]
+        let marked = try #require(Fixture.savedFields(change)?["ingest"])
+        #expect(marked["state"] == "paywalled")
+        #expect(marked["ord"] == .array([2, 3]))
+        guard case .save(let local)? = change?.action else { Issue.record("no save"); return }
+        let server = try SyncEnvelope(storedPayload: try Fixture.record(.source, Self.paperID, failed).payload)
+        #expect(FieldMerge.merge(server: server, local: local, base: nil).merged.fields["ingest"]?["state"] == "paywalled")
+
+        // The other Mac takes the mark, then takes it off again when it is cleared.
+        let (otherRoot, other) = try Fixture.makeStore("source-paywall-failed-other")
+        defer { try? FileManager.default.removeItem(at: otherRoot) }
+        try Fixture.prepareReplica(other)
+        var sent = failed
+        sent["ingest"] = marked
+        try Fixture.apply(other, [try Fixture.record(.source, Self.paperID, sent)])
+        #expect(try Fixture.text(other, "SELECT s.state || '|' || p.is_paywalled FROM sources s JOIN papers p ON p.source_id = s.id") == "error|1")
+        sent["ingest"] = .object(["ord": .array([3, 3]), "state": .string("error"), "error": .string("No PDF found")])
+        try Fixture.apply(other, [try Fixture.record(.source, Self.paperID, sent)])
+        #expect(try Fixture.text(other, "SELECT s.state || '|' || p.is_paywalled FROM sources s JOIN papers p ON p.source_id = s.id") == "error|0")
+    }
+
     @Test("A deleted source deletes its record; the member's own rows about it stay")
     func deleteKeepsPersonalRows() throws {
         let (root, store) = try Fixture.makeStore("source-delete")

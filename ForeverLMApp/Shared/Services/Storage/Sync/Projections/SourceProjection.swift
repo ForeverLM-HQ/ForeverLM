@@ -559,9 +559,16 @@ struct SourceProjection: RecordProjection {
         if let kept = rows.wire.lossy.value("ingest", local: signature) { return kept }
         let state = wireIngestState(rows)
         let rank = ingestRank(state)
-        let held = rows.wire.lossy.entries["ingest"]?.wire["ord"]?.arrayValue
+        let heldIngest = rows.wire.lossy.entries["ingest"]?.wire
+        let held = heldIngest?["ord"]?.arrayValue
         var generation = held?.first?.int64Value ?? 0
-        if let heldRank = held?.dropFirst().first?.int64Value, Int64(rank) < heldRank { generation += 1 }
+        if let heldRank = held?.dropFirst().first?.int64Value {
+            // `error` and `paywalled` share rank 3, and an equal `ord` keeps the server's value, so marking
+            // a failed paper paywalled (or clearing the mark) never left this Mac (2026-11-09). A different
+            // state at the same rank is a new generation too.
+            let heldState = heldIngest?["state"]?.stringValue
+            if Int64(rank) < heldRank || (Int64(rank) == heldRank && heldState != nil && heldState != state) { generation += 1 }
+        }
         var object: [String: SyncJSON] = ["ord": .array([SyncJSON(generation), SyncJSON(rank)]), "state": .string(state)]
         if state == "error", let error = rows.errorMessage { object["error"] = .string(error) }
         return .object(object)
@@ -673,8 +680,9 @@ extension SourceProjection {
                 state = "error"
                 if let error = ingest["error"]?.stringValue { errorMessage = error }
             }
-            if wireState == "ready" { paywalled = false }
-            paywalled = paywalled && table == "papers"
+            // A paywalled paper always goes out as `paywalled` (`wireIngestState`), so any other state
+            // says the mark is off: a mark cleared on a failed paper arrives as `error` and clears it here.
+            paywalled = wireState == "paywalled" && table == "papers"
             lossy.entries["ingest"] = .init(
                 wire: ingest,
                 local: Self.ingestSignature(state: state, paywalled: paywalled, error: errorMessage)
