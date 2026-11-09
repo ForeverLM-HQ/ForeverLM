@@ -7879,7 +7879,7 @@ private struct InternalReviewPanelContent: View {
     @MainActor
     private func addSourceIDsToChatContext(_ ids: [String]) async {
         adoptLiveNotebookSelection()
-        vm.addSourcesToContext(ids)
+        vm.addSourcesToContext(ids, explicit: true)
         let articles = ids.compactMap { id in
             vm.articles.first { $0.id == id }
         }
@@ -7890,18 +7890,16 @@ private struct InternalReviewPanelContent: View {
     private func addArticlesToChatContext(_ articles: [StudioArticle]) async {
         adoptLiveNotebookSelection()
         for article in articles {
-            vm.addSourceToContext(article.id)
+            vm.addSourceToContext(article.id, explicit: true)
         }
         await addArticlesToActiveOrIdleChat(articles)
     }
 
     @MainActor
     private func addArticlesToActiveOrIdleChat(_ articles: [StudioArticle]) async {
-        let articles = articles.filter { vm.isSourceIncludedInKnowledge($0) }
-        guard !articles.isEmpty else {
-            vm.showToast("This source family is excluded from search and AI in Settings.")
-            return
-        }
+        // The learner named these sources (a drop, an upload, a pick), so the
+        // family switch that keeps sources out of ambient search does not apply.
+        guard !articles.isEmpty else { return }
         await addArticlesToFocusNotebookPool(articles)
         let sourceIDs = Set(articles.map(\.id))
         await vm.ensureContextSourceContentLoaded(sourceIDs: sourceIDs)

@@ -10959,6 +10959,25 @@ struct SourceContextManagementTests {
         #expect(vm.contextSourceIds.contains(a.id))
     }
 
+    @Test("a family kept from AI refuses ambient adds but not one the learner names")
+    func keptFamilyTakesExplicitAdd() {
+        let vm = makeViewModel()
+        let a = makeArticle()
+        vm.articles = [a]
+        let before = vm.excludedKnowledgeTabs
+        defer { vm.excludedKnowledgeTabs = before }
+        guard let tab = StudioSidebarTab.knowledgeTab(for: a) else { return }
+        vm.excludedKnowledgeTabs = [tab]
+
+        vm.addSourceToContext(a.id)
+        #expect(!vm.contextSourceIds.contains(a.id))
+        vm.addSourcesToContext([a.id])
+        #expect(!vm.contextSourceIds.contains(a.id))
+
+        vm.addSourceToContext(a.id, explicit: true)
+        #expect(vm.contextSourceIds.contains(a.id))
+    }
+
     @Test("addSourceToContext does not duplicate")
     func addSourceNoDuplicate() {
         let vm = makeViewModel()
