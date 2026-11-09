@@ -122,6 +122,12 @@ final class RealtimeVoiceController: ObservableObject {
     /// How many typed questions wait, for the voice screen.
     @Published private(set) var waitingQuestionCount = 0
 
+    /// Notes the toolbox posted (`RealtimeVoiceToolbox.setNoticeHandler`),
+    /// waiting for a moment when neither side is talking.
+    private var queuedNotices: [String] = []
+    /// The learner is speaking: the server heard speech start and not stop.
+    private var isLearnerSpeaking = false
+
     /// `readVoice` answers the learner's voice pick (the synced
     /// `RealtimeVoiceDefaults.voicePreferenceKey`), read at each start so a
     /// change in Settings applies to the next conversation.
@@ -174,6 +180,8 @@ final class RealtimeVoiceController: ObservableObject {
         continuesWalkthrough = opening == .gym
         queuedQuestions = []
         waitingQuestionCount = 0
+        queuedNotices = []
+        isLearnerSpeaking = false
         brief = nil
         transcript = []
         errorMessage = nil
@@ -194,6 +202,9 @@ final class RealtimeVoiceController: ObservableObject {
         guard lifecycle == id else { return }
         voice = chosenVoice
         brief = loaded
+        loaded.toolbox.setNoticeHandler { [weak self] notice in
+            Task { @MainActor in self?.post(notice, lifecycle: id) }
+        }
         await begin()
     }
 
@@ -253,6 +264,16 @@ final class RealtimeVoiceController: ObservableObject {
         ))
         queuedQuestions.append(text)
         waitingQuestionCount = queuedQuestions.count
+        advanceIfQuiet()
+    }
+
+    /// A note from the toolbox for the learner: said now if the call is
+    /// quiet, or after what is being said. One from an earlier call is dropped.
+    private func post(_ notice: String, lifecycle id: UUID) {
+        let text = notice.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty, lifecycle == id,
+              phase == .live || phase == .connecting || phase == .reconnecting else { return }
+        queuedNotices.append(text)
         advanceIfQuiet()
     }
 
@@ -343,6 +364,7 @@ final class RealtimeVoiceController: ObservableObject {
             return
         }
         self.session = session
+        isLearnerSpeaking = false
         startEventLoop(stream, lifecycleID: lifecycleID)
 
         if isResume {
@@ -527,6 +549,7 @@ final class RealtimeVoiceController: ObservableObject {
             break
 
         case .speechStarted:
+            isLearnerSpeaking = true
             // Over WebRTC the server stops a reply the learner talks over and
             // trims what was not heard; the controller only follows along.
             if let itemID = currentOutputItemID, isSpeaking,
@@ -536,6 +559,7 @@ final class RealtimeVoiceController: ObservableObject {
             statusText = "Listening"
 
         case .speechStopped:
+            isLearnerSpeaking = false
             transcript.append(RealtimeVoiceTurn(
                 id: "learner-\(UUID().uuidString)",
                 role: .learner,
@@ -638,9 +662,10 @@ final class RealtimeVoiceController: ObservableObject {
         }
     }
 
-    /// Gym mode, when ForeverLM is quiet: the oldest typed question is asked,
-    /// or else the next part of the walk-through, until it is finished. Any
-    /// other conversation waits for the learner.
+    /// When ForeverLM is quiet: the oldest typed question is asked (gym
+    /// mode), else a note the toolbox posted is said once the learner is
+    /// quiet too, else gym mode's next part of the walk-through, until it is
+    /// finished. Otherwise the conversation waits for the learner.
     private func advanceIfQuiet() {
         guard phase == .live, let session, !isSpeaking, !responseInFlight, !awaitingToolReply, !endsAfterReply else {
             return
@@ -650,6 +675,9 @@ final class RealtimeVoiceController: ObservableObject {
                 let question = queuedQuestions.removeFirst()
                 waitingQuestionCount = queuedQuestions.count
                 try session.createMessage(role: "user", text: RealtimeVoiceTutor.typedQuestionMessage(question))
+            } else if !queuedNotices.isEmpty, !isLearnerSpeaking, !isTutorWorking {
+                let notice = queuedNotices.removeFirst()
+                try session.createMessage(role: "user", text: RealtimeVoiceTutor.appNoticeMessage(notice))
             } else if opening == .gym, continuesWalkthrough {
                 try session.createMessage(role: "user", text: RealtimeVoiceTutor.gymContinueMessage)
             } else {

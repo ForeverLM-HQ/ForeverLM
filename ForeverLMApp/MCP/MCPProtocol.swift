@@ -193,6 +193,15 @@ final class MCPProtocolHandler: @unchecked Sendable {
         }
 
         let arguments = params["arguments"] as? [String: Any] ?? [:]
+        // The iPhone's voice mode, relayed by the gateway's /web/call
+        // (`MacVoiceRelayTools`): answered here, outside the registry.
+        if MacVoiceRelayTools.names.contains(toolName),
+           let text = await MacVoiceRelayTools.call(toolName, arguments: arguments) {
+            return jsonRPCResult(id, result: [
+                "content": [["type": "text", "text": text]],
+                "isError": false,
+            ])
+        }
         let outcome = await tools.callToolDetailed(name: toolName, arguments: arguments, access: access)
 
         // Tool execution errors are successful JSON-RPC exchanges whose MCP

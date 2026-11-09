@@ -43,11 +43,24 @@ The assistant is the same conversation about you instead of one source. When it 
 - your goals and notebooks,
 - what you read, listened to, watched or discussed in the last two weeks, and your latest chats.
 
-Ask it what to work on next, to go over your day, or about a paper you read last week. It can find any source in your library, open it, and talk about it or quiz you on it, and it looks things up again when the picture it started with is not enough. It never changes your library, plan or calendar.
+Ask it what to work on next, to go over your day, or about a paper you read last week. It can find any source in your library, open it, and talk about it or quiz you on it, and it looks things up again when the picture it started with is not enough. By itself it only reads; anything that changes your library, plan or calendar goes to a background task (below), which you agree to first.
 
 Name a source the way you would say it: its title, its author, or, for a meeting, its series and the day it happened ("quiz me on the October 25th journal club session"). A name it hears slightly wrong still finds the right one.
 
-On the Mac it can read everything else in ForeverLM too: your recurring meetings and each session's talk, a notebook's sources and notes, your Pages, cards, courses, highlights, ideas, open questions and past chats. It only reads; to change something, ask in a typed chat.
+It can read everything else in ForeverLM too: your recurring meetings and each session's talk, a notebook's sources and notes, your Pages, cards, courses, highlights, ideas, open questions and past chats. Ask "let's talk through the notes from the group meeting two weeks ago" and it finds the session and reads it.
+
+On the iPhone and in CarPlay, these reads, audio overviews and background tasks are done by your Mac: ForeverLM has to be open on it, signed in to the same iCloud account. If it is not, voice says so, and everything else (your library, plan, calendar, Schedule and cards) still works from the phone.
+
+### Hand work off
+
+Ask for something that takes more than a quick look, such as "pull up my sources on complex I and tell me where they disagree", "draft a Page on the October sessions", or "do some deep research on this", and voice hands it to a **background task**: a typed chat with every tool ForeverLM's chat has, which runs while you keep talking. Voice says the task back in a sentence and starts it when you agree.
+
+- It reads sources, searches the literature, and with deep research the web too, writes Pages and notes, makes cards, and changes your plan or calendar when you asked for that.
+- When it finishes, voice tells you at the next pause what it concluded and offers to go through it. Ask "how is that task going?" at any time, or tell it to stop.
+- Each task is also a chat under your chats, where you can read all of it or carry it on.
+- It runs on your Chat model (Deep Research on its own model), on your OpenRouter key, and stops at $3. It shows in the background work list, where you can stop it too. Up to three run at once, while ForeverLM is open on your Mac.
+
+Ask for a custom podcast, an audio overview over a notebook's sources, and voice prices it first and starts it once you say yes.
 
 - **iPhone:** the **waveform** at the top of Home.
 - **Mac:** the **waveform** at the bottom of the icon strip on the left of every window, or **Chat › Talk to ForeverLM**.

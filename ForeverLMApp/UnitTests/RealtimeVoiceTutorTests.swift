@@ -378,13 +378,13 @@ struct RealtimeVoiceTutorTests {
     #if os(macOS)
     @Test("A meeting series is told by day and talk, and named through a merge")
     func meetingSeriesRows() {
-        #expect(MacRealtimeAssistant.Toolbox.talkTitle("2026-10-25 - [Notes] - JC: The Rise of X - A. Speaker")
+        #expect(RealtimeVoiceReach.talkTitle("2026-10-25 - [Notes] - JC: The Rise of X - A. Speaker")
             == "JC: The Rise of X - A. Speaker")
-        #expect(MacRealtimeAssistant.Toolbox.talkTitle("Plain title") == "Plain title")
+        #expect(RealtimeVoiceReach.talkTitle("Plain title") == "Plain title")
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = TimeZone(identifier: "America/Los_Angeles")!
         let date = calendar.date(from: DateComponents(year: 2026, month: 10, day: 25))!
-        let row = MacRealtimeAssistant.Toolbox.meetingSessionRow([
+        let row = RealtimeVoiceReach.meetingSessionRow([
             "source_id": "src_1",
             "title": "2026/10/25",
             "date_added": date.timeIntervalSinceReferenceDate,
@@ -418,7 +418,7 @@ struct RealtimeVoiceTutorTests {
         let toolNames = MacRealtimeAssistant.Toolbox().toolDefinitions.compactMap { $0["name"] as? String }
         #expect(toolNames.contains("make_audio_overview"))
 
-        let priced = MacRealtimeAssistant.Toolbox.audioOverviewArguments([
+        let priced = RealtimeVoiceReach.audioOverviewArguments([
             "notebook_id": " nb_1 ",
             "focus": "Where the two papers disagree",
             "format": "critique",
@@ -436,13 +436,119 @@ struct RealtimeVoiceTutorTests {
         #expect(priced["approved_spend_usd"] == nil)
         #expect(priced["generate_audio"] == nil)
 
-        let agreed = MacRealtimeAssistant.Toolbox.audioOverviewArguments(["notebook_id": "nb_1", "confirm_cost": true])
+        let agreed = RealtimeVoiceReach.audioOverviewArguments(["notebook_id": "nb_1", "confirm_cost": true])
         #expect(agreed["confirm_cost"] as? Bool == true)
+        #expect(agreed["approved_spend_usd"] == nil)
+        // The iPhone's route names the default ceiling with the yes, as the
+        // gateway requires; the learner's own number is never forwarded.
+        let viaGateway = RealtimeVoiceReach.audioOverviewArguments(
+            ["notebook_id": "nb_1", "confirm_cost": true, "approved_spend_usd": 50],
+            approvingCeiling: true
+        )
+        #expect(viaGateway["approved_spend_usd"] as? Double == RealtimeVoiceReach.audioOverviewSpendCeilingUSD)
+        #expect(RealtimeVoiceReach.audioOverviewArguments(["notebook_id": "nb_1"], approvingCeiling: true)["approved_spend_usd"] == nil)
 
         let instructions = RealtimeVoiceAssistant.instructions(sections: [], setting: .mac)
         #expect(instructions.contains("make_audio_overview"))
         #expect(instructions.contains("confirm_cost true"))
-        #expect(!RealtimeVoiceAssistant.instructions(sections: [], setting: .phone).contains("make_audio_overview"))
+    }
+
+    @Test("A background task takes the learner's request, titled, with each source once")
+    func backgroundTaskRequest() {
+        let request = VoiceBackgroundTasks.Request([
+            "task": "  Read the October 25 group session notes and list the open questions.  ",
+            "title": " ",
+            "source_ids": ["src_a", " src_a ", "", "src_b"],
+            "deep_research": true,
+        ])
+        #expect(request.task == "Read the October 25 group session notes and list the open questions.")
+        #expect(request.title == "Read the October 25 group session")
+        #expect(request.sourceIDs == ["src_a", "src_b"])
+        #expect(request.deepResearch)
+        #expect(!VoiceBackgroundTasks.Request(["task": "x", "title": "Short"]).deepResearch)
+    }
+
+    @Test("A background task with nothing to do is refused before anything starts")
+    @MainActor
+    func backgroundTaskEmpty() {
+        let answer = VoiceBackgroundTasks.shared.start(VoiceBackgroundTasks.Request(task: "", title: "Nothing"), notify: nil)
+        #expect(answer.contains("task is empty"))
+        #expect(VoiceBackgroundTasks.shared.check("voice-task-missing").contains("No background task by that id"))
+        #expect(VoiceBackgroundTasks.shared.stop("voice-task-missing").contains("No background task by that id"))
+    }
+
+    @Test("A finished task's conclusion is its chat's last reply, cut for voice")
+    @MainActor
+    func backgroundTaskConclusion() {
+        let messages = [
+            ReviewSessionManager.Message(role: .user, content: "Do the thing"),
+            ReviewSessionManager.Message(role: .assistant, content: "First look."),
+            ReviewSessionManager.Message(role: .assistant, content: "The two sessions agree on the method."),
+        ]
+        #expect(VoiceBackgroundTasks.conclusion(from: messages) == "The two sessions agree on the method.")
+        #expect(VoiceBackgroundTasks.conclusion(from: [ReviewSessionManager.Message(role: .user, content: "Hi")]) == nil)
+        let long = String(repeating: "a", count: VoiceBackgroundTasks.conclusionBudget + 10)
+        let cut = VoiceBackgroundTasks.conclusion(from: [ReviewSessionManager.Message(role: .assistant, content: long)])
+        #expect(cut?.hasSuffix("the whole reply is in the chat.)") == true)
+    }
+
+    @Test("Voice hears how a background task ended, except one it stopped itself")
+    func backgroundTaskNotices() {
+        let finished = RealtimeVoiceReach.backgroundTaskNotice(
+            taskID: "voice-task-1", title: "Open questions", state: "finished",
+            conclusion: "Three questions are still open.", failure: nil, stoppedByVoice: false
+        )
+        #expect(finished?.contains("Three questions are still open.") == true)
+        #expect(finished?.contains("\u{201C}Open questions\u{201D}") == true)
+        #expect(RealtimeVoiceReach.backgroundTaskNotice(
+            taskID: "t", title: "x", state: "failed", conclusion: nil, failure: "Rate limited", stoppedByVoice: false
+        )?.contains("Rate limited") == true)
+        #expect(RealtimeVoiceReach.backgroundTaskNotice(
+            taskID: "t", title: "x", state: "stopped", conclusion: nil, failure: nil, stoppedByVoice: true
+        ) == nil)
+        #expect(RealtimeVoiceReach.backgroundTaskNotice(
+            taskID: "t", title: "x", state: "stopped", conclusion: nil, failure: nil, stoppedByVoice: false
+        ) != nil)
+        #expect(RealtimeVoiceReach.backgroundTaskNotice(
+            taskID: "t", title: "x", state: "running", conclusion: nil, failure: nil, stoppedByVoice: false
+        ) == nil)
+        #expect(RealtimeVoiceReach.startedTaskID(fromStartAnswer: #"{"task_id":"voice-task-9","state":"running"}"#) == "voice-task-9")
+        #expect(RealtimeVoiceReach.startedTaskID(fromStartAnswer: #"{"error":"task is empty"}"#) == nil)
+        let row = RealtimeVoiceReach.backgroundTaskRow(fromCheckAnswer: #"{"task":{"task_id":"t","state":"finished"}}"#)
+        #expect(row?["state"] as? String == "finished")
+    }
+
+    @Test("Voice on the Mac and the iPhone has the same reach, and the iPhone hands it to the Mac")
+    func sameReachEverywhere() {
+        let reach = Set(RealtimeVoiceReach.toolDefinitions.compactMap { $0["name"] as? String })
+        #expect(reach == [
+            "list_meetings", "get_meeting_series", "make_audio_overview", "find_app_tools", "use_app_tool",
+            "start_background_task", "check_background_tasks", "stop_background_task",
+        ])
+        let macTools = Set(MacRealtimeAssistant.Toolbox().toolDefinitions.compactMap { $0["name"] as? String })
+        #expect(reach.isSubset(of: macTools))
+        for setting in [RealtimeVoiceAssistant.Setting.mac, .phone, .car] {
+            let instructions = RealtimeVoiceAssistant.instructions(sections: [], setting: setting)
+            #expect(instructions.contains("start_background_task"))
+            #expect(instructions.contains("make_audio_overview"))
+        }
+        #expect(RealtimeVoiceAssistant.instructions(sections: [], setting: .phone).contains("open on their Mac"))
+        #expect(!RealtimeVoiceAssistant.instructions(sections: [], setting: .mac).contains("open on their Mac"))
+        #expect(RealtimeVoiceReach.useAppToolRefusal("delete_source", isReadOnly: false) != nil)
+        #expect(RealtimeVoiceReach.useAppToolRefusal("generate_audio_overview", isReadOnly: true) != nil)
+        #expect(RealtimeVoiceReach.useAppToolRefusal("list_notebooks", isReadOnly: true) == nil)
+        #expect(MacVoiceRelayTools.names.allSatisfy { $0.hasPrefix("voice_") })
+        #expect(!MacVoiceRelayTools.names.contains { MCPToolRegistry.shared.tools.map(\.name).contains($0) })
+    }
+
+    @Test("A meeting series listing is cut to day, talk and source")
+    func meetingSeriesCut() {
+        let raw = #"{"title":"Riverbend Group Nexus","sessions":[{"source_id":"src_1","title":"2026/10/25","state":"ready","artifacts":[{"title":"2026-10-25 - [Notes] - A Talk"}]}]}"#
+        let cut = RealtimeVoiceReach.meetingSeries(fromGroupListing: raw, groupID: "g1")
+        #expect(cut.contains("Riverbend Group Nexus"))
+        #expect(cut.contains("A Talk"))
+        #expect(!cut.contains("artifacts"))
+        #expect(RealtimeVoiceReach.meetingSeries(fromGroupListing: "Error: no group", groupID: "g1") == "Error: no group")
     }
     #endif
 

@@ -193,10 +193,16 @@ protocol RealtimeVoiceToolbox: AnyObject, Sendable {
     /// The answers the tutor graded with `record_answer`, in the order they
     /// were recorded. Only a source conversation records any.
     func recordedAnswers() async -> [RealtimeVoiceAnswerRecord]
+    /// Where the toolbox posts something the learner should hear without
+    /// having asked just now, such as a background task that finished
+    /// (`VoiceBackgroundTasks`). The controller says it at the next quiet
+    /// moment (`RealtimeVoiceTutor.appNoticeMessage`). Set once per call.
+    func setNoticeHandler(_ handler: @escaping @Sendable (String) -> Void)
 }
 
 extension RealtimeVoiceToolbox {
     func recordedAnswers() async -> [RealtimeVoiceAnswerRecord] { [] }
+    func setNoticeHandler(_ handler: @escaping @Sendable (String) -> Void) {}
 }
 
 /// One answer the tutor judged in a source conversation, recorded with
@@ -498,6 +504,12 @@ enum RealtimeVoiceTutor {
     /// A question the learner typed in gym mode, as the model reads it.
     static func typedQuestionMessage(_ question: String) -> String {
         "(Typed by the learner:) " + question
+    }
+
+    /// A note from ForeverLM itself, as the model reads it: news the learner
+    /// did not just ask for, said at a quiet moment.
+    static func appNoticeMessage(_ notice: String) -> String {
+        "(A note from ForeverLM, not said by the learner:) " + notice
     }
 
     /// Gym mode's last step: the walk-through is done, so the controller stops

@@ -223,6 +223,24 @@ enum MobileMacRelay {
         return request
     }
 
+    /// Any one tool the gateway's `/web/call` lets through, with its
+    /// arguments (voice mode's reach, `MobileVoiceMac`).
+    static func toolRequest(token: String, iCloudUser: String, name: String, arguments: [String: Any], timeout: TimeInterval = timeout) -> URLRequest {
+        let body: [String: Any] = [
+            "name": name,
+            "arguments": arguments,
+            "icloud_user": iCloudUser,
+            "icloud_environment": environment,
+        ]
+        var request = URLRequest(url: gateway.appendingPathComponent("web/call"), timeoutInterval: timeout)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.httpBody = try? JSONSerialization.data(withJSONObject: body, options: [.sortedKeys])
+        return request
+    }
+
     /// Whether the Mac can be asked, from `GET /web/desktop`'s answer.
     enum Availability: Equatable, Sendable {
         case online

@@ -67,22 +67,37 @@ enum RealtimeVoiceAssistant {
         is not enough.
         - When they say goodbye or that they are done, say a one-sentence goodbye, then call end_conversation.
         """)
-        if setting == .mac {
+        parts.append("""
+        - Meetings: list_meetings names their recurring meetings (group sessions, journal clubs, standups); \
+        get_meeting_series lists one series' sessions by date, each with its talk's title and source_id; \
+        open_source reads a session's transcript and notes, so you can talk about it or quiz them on it.
+        - Everything else in ForeverLM is yours to read too: a notebook's sources and notes, Pages, cards, \
+        courses, highlights, ideas, open questions, past chats, canvases and more. Call find_app_tools with a few \
+        words for what you need, then use_app_tool with the name and arguments it gave. Never tell the learner \
+        you cannot reach something before you have looked this way. These tools only read.
+        - Work you hand off: start_background_task gives a task to a typed chat that runs in the background with \
+        every tool ForeverLM's chat has. It can pull up and read sources, search the literature (and the web, with \
+        deep_research for a researched report), write Pages and notes, make cards, and change the plan or the \
+        calendar, and it comes back with its conclusion. Use it when the learner wants something worked through or \
+        done that is more than a quick look, and for any change to their things. Write task as a whole instruction \
+        a colleague who never heard this conversation could act on: what to do, the sources, notebooks, meetings, \
+        days and names it is about (with source_ids you found), and what to come back with. Say the task back in \
+        one sentence and start it once they agree; it runs on their chat model and stops at $3. Then carry on \
+        talking. When it ends, a note from ForeverLM tells you: say so at a natural pause, give its conclusion in \
+        a sentence or two and offer to go through it. check_background_tasks says how each is doing and reads a \
+        finished one's conclusion; stop_background_task stops one. Each is also a chat under their chats.
+        - A custom podcast, an audio overview, over a notebook's sources is made with make_audio_overview, not a \
+        background task. Pick the notebook they mean (ask if it is unclear), and pass what they want it to think \
+        through as focus, in their words. Its sources are the notebook's own: if the ones they name are not in it, \
+        say so. The first call only prices it: say the price in words and wait for a clear yes before calling again \
+        with the same arguments and confirm_cost true. Once it has started, say it is being written and will be in \
+        the notebook when it is ready, then carry on; it takes a few minutes.
+        """)
+        if setting != .mac {
             parts.append("""
-            - Meetings: list_meetings names their recurring meetings (group sessions, journal clubs, standups); \
-            get_meeting_series lists one series' sessions by date, each with its talk's title and source_id; \
-            open_source reads a session's transcript and notes, so you can talk about it or quiz them on it.
-            - Everything else in ForeverLM is yours to read too: a notebook's sources and notes, Pages, cards, \
-            courses, highlights, ideas, open questions, past chats, canvases and more. Call find_app_tools with a few \
-            words for what you need, then use_app_tool with the name and arguments it gave. Never tell the learner \
-            you cannot reach something before you have looked this way. These tools only read; if the learner wants \
-            something changed, say they can ask for it in a typed chat.
-            - The one thing you can make: a custom podcast, an audio overview, over a notebook's sources, with \
-            make_audio_overview. Pick the notebook they mean (ask if it is unclear), and pass what they want it to think \
-            through as focus, in their words. Its sources are the notebook's own: if the ones they name are not in it, \
-            say so. The first call only prices it: say the price in words and wait for a clear yes before calling again \
-            with the same arguments and confirm_cost true. Once it has started, say it is being written and will be in \
-            the notebook when it is ready, then carry on; it takes a few minutes.
+            - Meetings, find_app_tools, use_app_tool, make_audio_overview and the background tasks reach the \
+            learner's Mac: it does that work. If one says the Mac cannot be reached, tell them in a sentence that \
+            ForeverLM has to be open on their Mac for it; everything else here still works.
             """)
         }
         if setting != .mac {
@@ -389,5 +404,217 @@ enum RealtimeVoiceLibrarySearch {
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.dateFormat = "EEEE d MMMM yyyy"
         return formatter
+    }
+}
+
+/// The assistant's reach past its own picture, the same by name on the Mac
+/// and the iPhone (product owner, 2026-11-08: "make sure the iphone also has
+/// all that functionality"): meetings by series, every read tool in the app,
+/// a notebook's audio overview, and background tasks, which are typed chats
+/// with every tool the chat has. The Mac answers them itself
+/// (`MacRealtimeAssistant`); the iPhone asks the learner's Mac for them
+/// through the gateway (`MobileRealtimeAssistant`, `MacVoiceRelayTools`).
+enum RealtimeVoiceReach {
+    static var toolDefinitions: [[String: Any]] {
+        [
+            RealtimeVoiceAssistant.function("list_meetings", "The learner's recurring meetings (series), with their group_id and how many sessions each has."),
+            RealtimeVoiceAssistant.function(
+                "get_meeting_series",
+                "One meeting series' sessions, newest first: each session's day, its talk's title and its source_id for open_source.",
+                properties: ["group_id": ["type": "string", "description": "The group_id from list_meetings."]],
+                required: ["group_id"]
+            ),
+            RealtimeVoiceAssistant.function(
+                "make_audio_overview",
+                "Starts a custom podcast (an audio overview) over a notebook's sources, written in the background and narrated with the learner's voice. The first call only prices it; call again with confirm_cost true once the learner has said yes to that price.",
+                properties: [
+                    "notebook_id": ["type": "string", "description": "The notebook it is written from and filed in, from the notebooks you know or list_notebooks."],
+                    "source_ids": ["type": "array", "items": ["type": "string"], "description": "Only these of the notebook's own sources. Leave out for the sources ticked in the notebook."],
+                    "focus": ["type": "string", "description": "What it should be about or the question it should think through, in the learner's words."],
+                    "format": ["type": "string", "enum": ["deep_dive", "brief", "critique"], "description": "deep_dive (the default), brief (about two minutes) or critique."],
+                    "length": ["type": "string", "enum": ["shorter", "default", "longer"], "description": "For deep_dive and critique only."],
+                    "confirm_cost": ["type": "boolean", "description": "True only after the learner has heard the price and said yes."],
+                ],
+                required: ["notebook_id"]
+            ),
+            RealtimeVoiceAssistant.function(
+                "find_app_tools",
+                "Finds ForeverLM's other read tools by what they do: notebooks and their sources, Pages, cards, courses, highlights, ideas, open questions, past chats, canvases and more. Says how to call each.",
+                properties: ["query": ["type": "string", "description": "A few words for what you need, like \"notebook sources\" or \"due cards\"."]],
+                required: ["query"]
+            ),
+            RealtimeVoiceAssistant.function(
+                "use_app_tool",
+                "Runs one tool find_app_tools named, with the arguments its parameters ask for.",
+                properties: [
+                    "name": ["type": "string", "description": "The tool's exact name from find_app_tools."],
+                    "arguments": ["type": "object", "description": "The tool's arguments, as its parameters describe. {} when it takes none."],
+                ],
+                required: ["name"]
+            ),
+            RealtimeVoiceAssistant.function(
+                "start_background_task",
+                "Hands a task to a typed chat that runs in the background with every tool ForeverLM's chat has: it can pull up and read sources, search the literature (and the web, with deep_research), write Pages and notes, make cards, and change the plan or the calendar. It works it through and comes to a conclusion, and a note tells you when it is done. Say the task back in one sentence and start it once the learner agrees.",
+                properties: [
+                    "task": ["type": "string", "description": "The whole instruction, as a colleague who never heard this conversation would need it: what to do, the sources, notebooks, meetings, days and names it is about, and what to come back with."],
+                    "title": ["type": "string", "description": "A short name for it, a few words, which becomes the chat's title."],
+                    "source_ids": ["type": "array", "items": ["type": "string"], "description": "Sources to hand it in full, from search_library or open_source. Optional: it can find sources itself."],
+                    "deep_research": ["type": "boolean", "description": "True for a researched report that searches the web and the literature, written as a Page. Slower and costs more."],
+                ],
+                required: ["task", "title"]
+            ),
+            RealtimeVoiceAssistant.function(
+                "check_background_tasks",
+                "How the background tasks started in voice are doing, newest first, with each finished one's conclusion. Pass task_id for one.",
+                properties: ["task_id": ["type": "string", "description": "The task_id start_background_task gave. Leave out for all."]]
+            ),
+            RealtimeVoiceAssistant.function(
+                "stop_background_task",
+                "Stops a background task that is still running. What it already did stays, and its chat keeps the reply so far.",
+                properties: ["task_id": ["type": "string", "description": "The task_id start_background_task gave."]],
+                required: ["task_id"]
+            ),
+        ]
+    }
+
+    /// Output a borrowed tool hands the conversation at most. A realtime
+    /// event is capped near 200 KB (`RealtimeVoiceSession.maximumMessageBytes`),
+    /// and a long listing read out of a voice call is no use anyway.
+    static let appToolOutputBudget = 50_000
+
+    /// The most an audio overview started by voice may spend: the default
+    /// ceiling of work an assistant starts, never raised by voice.
+    static let audioOverviewSpendCeilingUSD = 3.0
+
+    static func capped(_ text: String) -> String {
+        guard text.count > appToolOutputBudget else { return text }
+        return String(text.prefix(appToolOutputBudget))
+            + "\n… (cut here: the answer was longer. Ask the tool for less, with a narrower filter or a limit, for anything further.)"
+    }
+
+    /// Why `use_app_tool` will not run a tool, or nil when it may: voice runs
+    /// reads only, and an audio overview has its own tool.
+    static func useAppToolRefusal(_ name: String, isReadOnly: Bool) -> String? {
+        if name == "generate_audio_overview" {
+            return #"{"error":"Use make_audio_overview for an audio overview."}"#
+        }
+        guard isReadOnly else {
+            return #"{"error":"That tool changes things, and voice only reads. Hand the change to start_background_task instead."}"#
+        }
+        return nil
+    }
+
+    /// `make_audio_overview`'s arguments as `generate_audio_overview`
+    /// takes them: only the recipe and the learner's yes. The spend ceiling
+    /// is never raised by voice, so a run stays under the operation's
+    /// default, and the audio is always narrated. `approvingCeiling` names
+    /// that ceiling with the yes, as the gateway's `/web/call` requires of a
+    /// confirmed call (the iPhone's route).
+    static func audioOverviewArguments(_ arguments: [String: Any], approvingCeiling: Bool = false) -> [String: Any] {
+        var forwarded: [String: Any] = [:]
+        for key in ["notebook_id", "focus", "format", "length"] {
+            if let value = (arguments[key] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty {
+                forwarded[key] = value
+            }
+        }
+        let sourceIDs = ((arguments["source_ids"] as? [Any]) ?? []).compactMap { $0 as? String }
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }
+        if !sourceIDs.isEmpty { forwarded["source_ids"] = sourceIDs }
+        if (arguments["confirm_cost"] as? Bool) == true {
+            forwarded["confirm_cost"] = true
+            if approvingCeiling { forwarded["approved_spend_usd"] = audioOverviewSpendCeilingUSD }
+        }
+        return forwarded
+    }
+
+    // MARK: Meetings
+
+    /// `get_meeting_group` cut to what a voice conversation needs: the whole
+    /// listing carries every artifact's link (over 100k characters for a
+    /// weekly series), while a session is found by its day and talk. Anything
+    /// that is not a listing (an error) passes through as it is.
+    static func meetingSeries(fromGroupListing raw: String, groupID: String, calendar: Calendar = .current) -> String {
+        guard let object = (try? JSONSerialization.jsonObject(with: Data(raw.utf8))) as? [String: Any] else {
+            return raw
+        }
+        let sessions = (object["sessions"] as? [[String: Any]]) ?? []
+        let rows = sessions.map { meetingSessionRow($0, calendar: calendar) }
+        var payload: [String: Any] = ["series": object["title"] as? String ?? groupID, "sessions": rows]
+        if rows.isEmpty { payload["note"] = "This series has no sessions yet." }
+        let data = (try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])) ?? Data()
+        return String(data: data, encoding: .utf8) ?? raw
+    }
+
+    /// One session as voice says it: its day, its talk (the title its notes
+    /// or recording carry, without the date and kind it repeats), and the
+    /// source_id to open.
+    static func meetingSessionRow(_ session: [String: Any], calendar: Calendar = .current) -> [String: Any] {
+        var row: [String: Any] = ["source_id": session["source_id"] as? String ?? ""]
+        if let seconds = (session["date_added"] as? NSNumber)?.doubleValue {
+            row["date"] = RealtimeVoiceLibrarySearch.dayFormatter(calendar: calendar)
+                .string(from: Date(timeIntervalSinceReferenceDate: seconds))
+        }
+        let artifactTitles = ((session["artifacts"] as? [[String: Any]]) ?? []).compactMap { $0["title"] as? String }
+        let talk = artifactTitles.lazy.map(talkTitle).first { !$0.isEmpty }
+        row["title"] = talk ?? (session["title"] as? String ?? "")
+        if let state = session["state"] as? String, state != "ready" { row["state"] = state }
+        return row
+    }
+
+    /// "2026-10-25 - [Notes] - JC: The Rise of X - A. Speaker" → "JC: The Rise of X - A. Speaker".
+    static func talkTitle(_ artifactTitle: String) -> String {
+        var parts = artifactTitle.components(separatedBy: " - ")
+        if let first = parts.first, first.range(of: #"^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}$"#, options: .regularExpression) != nil {
+            parts.removeFirst()
+        }
+        if let first = parts.first, first.hasPrefix("["), first.hasSuffix("]") {
+            parts.removeFirst()
+        }
+        return parts.joined(separator: " - ").trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    // MARK: Background tasks
+
+    /// What voice is told when a background task ends: nothing while it runs
+    /// or after voice itself stopped it.
+    static func backgroundTaskNotice(
+        taskID: String,
+        title: String,
+        state: String,
+        conclusion: String?,
+        failure: String?,
+        stoppedByVoice: Bool
+    ) -> String? {
+        let named = "The background task \u{201C}\(title)\u{201D} (\(taskID))"
+        switch state {
+        case "finished":
+            return """
+            \(named) has finished. When there is a natural pause, tell the learner in a sentence or two what it \
+            concluded, and offer to go through it. It is also a chat under their chats. Its conclusion:
+
+            \(conclusion ?? "")
+            """
+        case "failed":
+            return "\(named) failed: \(failure ?? "no reason given"). Tell the learner in one sentence, in plain words."
+        case "stopped":
+            return stoppedByVoice ? nil : "\(named) was stopped before it finished. Tell the learner in one sentence."
+        default:
+            return nil
+        }
+    }
+
+    /// One task out of `check_background_tasks`' answer for one task_id
+    /// (`{"task": {...}}`), or nil when the answer is not that.
+    static func backgroundTaskRow(fromCheckAnswer text: String) -> [String: Any]? {
+        guard let object = (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String: Any] else { return nil }
+        return object["task"] as? [String: Any]
+    }
+
+    /// The task_id in `start_background_task`'s answer, when it started one.
+    static func startedTaskID(fromStartAnswer text: String) -> String? {
+        guard let object = (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String: Any],
+              let id = object["task_id"] as? String, !id.isEmpty else { return nil }
+        return id
     }
 }

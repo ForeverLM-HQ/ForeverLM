@@ -10,11 +10,16 @@ import OSLog
 /// own tools it reaches every other read tool the chat has (`find_app_tools`,
 /// `use_app_tool`), so a notebook, a meeting or a Page is never out of reach
 /// by voice (product owner, 2026-11-08: "it needs to be able to access
-/// everything in voice mode"). Read only: a tool that changes anything is
-/// refused, as before — with one exception, a Notebook's audio overview
-/// (`make_audio_overview`), which voice can start once the learner has said
-/// yes to its price out loud (product owner, 2026-11-08: "i have to be able
-/// to fire that off in voice mode too").
+/// everything in voice mode"). Voice itself only reads: a tool that changes
+/// anything is refused. Two ways reach further. A Notebook's audio overview
+/// (`make_audio_overview`) starts once the learner has said yes to its price
+/// out loud (product owner, 2026-11-08: "i have to be able to fire that off
+/// in voice mode too"). Anything else is handed to a background task
+/// (`start_background_task`, `VoiceBackgroundTasks`): a typed chat with every
+/// tool the chat has, which runs on while the conversation goes on and comes
+/// back with its conclusion (product owner, 2026-11-08: "or just in general
+/// do stuff in teh background yes; like pull up sources etc and come to its
+/// conclusion").
 enum MacRealtimeAssistant {
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "RealtimeAssistant")
 
@@ -55,6 +60,16 @@ enum MacRealtimeAssistant {
 
     final class Toolbox: RealtimeVoiceToolbox, @unchecked Sendable {
         private let opened = RealtimeVoiceOpenedSources()
+        private let noticeLock = NSLock()
+        private var noticeHandler: (@Sendable (String) -> Void)?
+
+        func setNoticeHandler(_ handler: @escaping @Sendable (String) -> Void) {
+            noticeLock.withLock { noticeHandler = handler }
+        }
+
+        private var notify: (@Sendable (String) -> Void)? {
+            noticeLock.withLock { noticeHandler }
+        }
 
         var toolDefinitions: [[String: Any]] {
             let query = ["type": "string", "description": "A few words: title words, an author, a topic."]
@@ -88,42 +103,7 @@ enum MacRealtimeAssistant {
                 RealtimeVoiceAssistant.function("get_schedule", "Sources the learner placed on days in their Schedule, with what is done."),
                 RealtimeVoiceAssistant.function("get_goals", "The learner's goals and notebooks."),
                 RealtimeVoiceAssistant.function("get_recent_work", "What the learner did today and yesterday, and their latest chats."),
-                RealtimeVoiceAssistant.function("list_meetings", "The learner's recurring meetings (series), with their group_id and how many sessions each has."),
-                RealtimeVoiceAssistant.function(
-                    "get_meeting_series",
-                    "One meeting series' sessions, newest first: each session's day, its talk's title and its source_id for open_source.",
-                    properties: ["group_id": ["type": "string", "description": "The group_id from list_meetings."]],
-                    required: ["group_id"]
-                ),
-                RealtimeVoiceAssistant.function(
-                    "make_audio_overview",
-                    "Starts a custom podcast (an audio overview) over a notebook's sources, written in the background and narrated with the learner's voice. The first call only prices it; call again with confirm_cost true once the learner has said yes to that price.",
-                    properties: [
-                        "notebook_id": ["type": "string", "description": "The notebook it is written from and filed in, from the notebooks you know or list_notebooks."],
-                        "source_ids": ["type": "array", "items": ["type": "string"], "description": "Only these of the notebook's own sources. Leave out for the sources ticked in the notebook."],
-                        "focus": ["type": "string", "description": "What it should be about or the question it should think through, in the learner's words."],
-                        "format": ["type": "string", "enum": ["deep_dive", "brief", "critique"], "description": "deep_dive (the default), brief (about two minutes) or critique."],
-                        "length": ["type": "string", "enum": ["shorter", "default", "longer"], "description": "For deep_dive and critique only."],
-                        "confirm_cost": ["type": "boolean", "description": "True only after the learner has heard the price and said yes."],
-                    ],
-                    required: ["notebook_id"]
-                ),
-                RealtimeVoiceAssistant.function(
-                    "find_app_tools",
-                    "Finds ForeverLM's other read tools by what they do: notebooks and their sources, Pages, cards, courses, highlights, ideas, open questions, past chats, canvases and more. Says how to call each.",
-                    properties: ["query": ["type": "string", "description": "A few words for what you need, like \"notebook sources\" or \"due cards\"."]],
-                    required: ["query"]
-                ),
-                RealtimeVoiceAssistant.function(
-                    "use_app_tool",
-                    "Runs one tool find_app_tools named, with the arguments its parameters ask for.",
-                    properties: [
-                        "name": ["type": "string", "description": "The tool's exact name from find_app_tools."],
-                        "arguments": ["type": "object", "description": "The tool's arguments, as its parameters describe. {} when it takes none."],
-                    ],
-                    required: ["name"]
-                ),
-            ]
+            ] + RealtimeVoiceReach.toolDefinitions
         }
 
         func run(name: String, argumentsJSON: String) async -> String {
@@ -151,11 +131,21 @@ enum MacRealtimeAssistant {
             case "get_meeting_series":
                 return await meetingSeries((arguments["group_id"] as? String) ?? "")
             case "make_audio_overview":
-                return await mcp("generate_audio_overview", Self.audioOverviewArguments(arguments))
+                return await mcp("generate_audio_overview", RealtimeVoiceReach.audioOverviewArguments(arguments))
             case "find_app_tools":
                 return Self.findAppTools((arguments["query"] as? String) ?? "")
             case "use_app_tool":
                 return await useAppTool(name: (arguments["name"] as? String) ?? "", arguments: arguments["arguments"])
+            case "start_background_task":
+                let request = VoiceBackgroundTasks.Request(arguments)
+                let notify = notify
+                return await MainActor.run { VoiceBackgroundTasks.shared.start(request, notify: notify) }
+            case "check_background_tasks":
+                let id = (arguments["task_id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+                return await MainActor.run { VoiceBackgroundTasks.shared.check(id?.isEmpty == false ? id : nil) }
+            case "stop_background_task":
+                let id = ((arguments["task_id"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                return await MainActor.run { VoiceBackgroundTasks.shared.stop(id) }
             default:
                 return #"{"error":"Unknown tool."}"#
             }
@@ -220,48 +210,10 @@ enum MacRealtimeAssistant {
             return title.isEmpty ? id : title
         }
 
-        /// `get_meeting_group` cut to what a voice conversation needs: the
-        /// whole listing carries every artifact's link (over 100k characters
-        /// for a weekly series), while a session is found by its day and talk.
+        /// `get_meeting_group` cut to what a voice conversation needs
+        /// (`RealtimeVoiceReach.meetingSeries`).
         private func meetingSeries(_ groupID: String) async -> String {
-            let raw = await mcp("get_meeting_group", ["group_id": groupID])
-            guard let object = (try? JSONSerialization.jsonObject(with: Data(raw.utf8))) as? [String: Any] else {
-                return raw
-            }
-            let sessions = (object["sessions"] as? [[String: Any]]) ?? []
-            let rows = sessions.map { Self.meetingSessionRow($0) }
-            var payload: [String: Any] = ["series": object["title"] as? String ?? groupID, "sessions": rows]
-            if rows.isEmpty { payload["note"] = "This series has no sessions yet." }
-            let data = (try? JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])) ?? Data()
-            return String(data: data, encoding: .utf8) ?? raw
-        }
-
-        /// One session as voice says it: its day, its talk (the title its
-        /// notes or recording carry, without the date and kind it repeats),
-        /// and the source_id to open.
-        static func meetingSessionRow(_ session: [String: Any], calendar: Calendar = .current) -> [String: Any] {
-            var row: [String: Any] = ["source_id": session["source_id"] as? String ?? ""]
-            if let seconds = (session["date_added"] as? NSNumber)?.doubleValue {
-                row["date"] = RealtimeVoiceLibrarySearch.dayFormatter(calendar: calendar)
-                    .string(from: Date(timeIntervalSinceReferenceDate: seconds))
-            }
-            let artifactTitles = ((session["artifacts"] as? [[String: Any]]) ?? []).compactMap { $0["title"] as? String }
-            let talk = artifactTitles.lazy.map(Self.talkTitle).first { !$0.isEmpty }
-            row["title"] = talk ?? (session["title"] as? String ?? "")
-            if let state = session["state"] as? String, state != "ready" { row["state"] = state }
-            return row
-        }
-
-        /// "2026-10-25 - [Notes] - JC: The Rise of X - A. Speaker" → "JC: The Rise of X - A. Speaker".
-        static func talkTitle(_ artifactTitle: String) -> String {
-            var parts = artifactTitle.components(separatedBy: " - ")
-            if let first = parts.first, first.range(of: #"^\d{4}[-/.]\d{1,2}[-/.]\d{1,2}$"#, options: .regularExpression) != nil {
-                parts.removeFirst()
-            }
-            if let first = parts.first, first.hasPrefix("["), first.hasSuffix("]") {
-                parts.removeFirst()
-            }
-            return parts.joined(separator: " - ").trimmingCharacters(in: .whitespacesAndNewlines)
+            RealtimeVoiceReach.meetingSeries(fromGroupListing: await mcp("get_meeting_group", ["group_id": groupID]), groupID: groupID)
         }
 
         // MARK: The rest of the app
@@ -273,30 +225,6 @@ enum MacRealtimeAssistant {
             "get_plan", "get_calendar_events", "get_schedule",
             "list_meeting_groups", "get_meeting_group", "get_mcp_status",
         ]
-
-        /// `make_audio_overview`'s arguments as `generate_audio_overview`
-        /// takes them: only the recipe and the learner's yes. The spend
-        /// ceiling is never raised by voice, so a run stays under the
-        /// operation's default, and the audio is always narrated.
-        static func audioOverviewArguments(_ arguments: [String: Any]) -> [String: Any] {
-            var forwarded: [String: Any] = [:]
-            for key in ["notebook_id", "focus", "format", "length"] {
-                if let value = (arguments[key] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty {
-                    forwarded[key] = value
-                }
-            }
-            let sourceIDs = ((arguments["source_ids"] as? [Any]) ?? []).compactMap { $0 as? String }
-                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                .filter { !$0.isEmpty }
-            if !sourceIDs.isEmpty { forwarded["source_ids"] = sourceIDs }
-            if (arguments["confirm_cost"] as? Bool) == true { forwarded["confirm_cost"] = true }
-            return forwarded
-        }
-
-        /// Output a borrowed tool hands the conversation at most. A realtime
-        /// event is capped near 200 KB (`RealtimeVoiceSession.maximumMessageBytes`),
-        /// and a long listing read out of a voice call is no use anyway.
-        static let appToolOutputBudget = 50_000
 
         static func appToolCatalog() -> [ReviewSessionManager.AppToolDefinition] {
             MCPToolRegistry.shared.tools
@@ -329,11 +257,8 @@ enum MacRealtimeAssistant {
             guard MCPToolRegistry.shared.tools.contains(where: { $0.name == name }) else {
                 return #"{"error":"No tool by that name. Call find_app_tools first and use a name it gave."}"#
             }
-            if name == "generate_audio_overview" {
-                return #"{"error":"Use make_audio_overview for an audio overview."}"#
-            }
-            guard MCPToolRegistry.isReadOnlyTool(name) else {
-                return #"{"error":"Voice mode only reads, and that tool changes things. Tell the learner they can ask for it in a typed chat."}"#
+            if let refusal = RealtimeVoiceReach.useAppToolRefusal(name, isReadOnly: MCPToolRegistry.isReadOnlyTool(name)) {
+                return refusal
             }
             let arguments: [String: Any]
             if let object = raw as? [String: Any] {
@@ -347,9 +272,7 @@ enum MacRealtimeAssistant {
                 arguments = [:]
             }
             let text = await mcp(name, arguments)
-            guard text.count > Self.appToolOutputBudget else { return text }
-            return String(text.prefix(Self.appToolOutputBudget))
-                + "\n… (cut here: the answer was longer. Ask the tool for less, with a narrower filter or a limit, for anything further.)"
+            return RealtimeVoiceReach.capped(text)
         }
 
         private func openSource(_ id: String) async -> String {
@@ -370,6 +293,293 @@ enum MacRealtimeAssistant {
                 text: text,
                 reviewGuide: nil
             ))
+        }
+    }
+}
+
+/// Work voice hands off (`start_background_task`): each task is an ordinary
+/// chat, started the way a scheduled task's run is (`ScheduledTaskRunner`),
+/// with the same manager, the whole app tool surface, the chat's model,
+/// persistence and cost ledger, so it lands in the learner's chats where they
+/// can read it, continue it or delete it. It runs while ForeverLM is open,
+/// whether or not the voice call goes on, and is listed as running work
+/// (`MCPRunningWork`), where the Background work list, `list_running_ai_work`
+/// and `cancel_ai_work` see and stop it. Like any work an assistant starts,
+/// it stops at the default spend ceiling.
+///
+/// The chat runs on the Chat model (Deep Research on its own route): the
+/// learner asked for it and waits on its answer, so it is not unattended work
+/// on a Background route. No backup model takes over a failure; the failure
+/// is what voice says.
+@MainActor
+final class VoiceBackgroundTasks {
+    static let shared = VoiceBackgroundTasks()
+
+    /// Background chats running at once. More would compete for the same rate
+    /// limits and balance, as `ScheduledTaskRunner` runs its tasks one by one.
+    static let maximumRunning = 3
+    /// A conclusion as voice reads it at most; the whole reply is in the chat.
+    static let conclusionBudget = 12_000
+    static let workTool = "voice_task"
+
+    /// Model-only context on the task's opening message (`contextualContent`):
+    /// never shown in the chat, never stored as the learner's words.
+    static let handoffNote = """
+    This request was handed over from a voice conversation. The learner is not watching this chat while it runs, \
+    so do the whole task now with your tools without asking them anything first: where something is unclear, make \
+    the sensible choice and say which you made. Change their library, notes, plan or calendar only as far as the \
+    request asks. End with your conclusion in a few short paragraphs of plain prose that read well aloud: what you \
+    found or did, where it is (name any Page you wrote), and anything left for them to decide.
+    """
+
+    struct Request {
+        var task: String
+        var title: String
+        var sourceIDs: [String]
+        var deepResearch: Bool
+
+        init(task: String, title: String, sourceIDs: [String] = [], deepResearch: Bool = false) {
+            self.task = task
+            self.title = title
+            self.sourceIDs = sourceIDs
+            self.deepResearch = deepResearch
+        }
+
+        /// From the voice tool's arguments: the words trimmed, an empty title
+        /// taken from the task's opening words.
+        init(_ arguments: [String: Any]) {
+            let task = ((arguments["task"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            var title = ((arguments["title"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            if title.isEmpty {
+                let words = task.split(whereSeparator: \.isWhitespace).prefix(6).joined(separator: " ")
+                title = words.isEmpty ? "Voice task" : words
+            }
+            var seen: Set<String> = []
+            let sourceIDs = ((arguments["source_ids"] as? [Any]) ?? []).compactMap { $0 as? String }
+                .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                .filter { !$0.isEmpty && seen.insert($0).inserted }
+            self.init(
+                task: task,
+                title: String(title.prefix(80)),
+                sourceIDs: sourceIDs,
+                deepResearch: (arguments["deep_research"] as? Bool) == true
+            )
+        }
+    }
+
+    enum State: String {
+        case running, finished, failed, stopped
+    }
+
+    struct Record {
+        let id: String
+        let title: String
+        let deepResearch: Bool
+        let startedAt: Date
+        var state: State = .running
+        var workID: String?
+        var sessionID: String?
+        var conclusion: String?
+        var failure: String?
+        var finishedAt: Date?
+        /// Stopped by `stop_background_task`, so voice need not be told.
+        var stoppedByVoice = false
+    }
+
+    private(set) var records: [String: Record] = [:]
+    private var managers: [String: ReviewSessionManager] = [:]
+
+    private init() {}
+
+    var runningCount: Int { records.values.filter { $0.state == .running }.count }
+
+    /// Starts one task. The answer is the tool's: its task_id, or why not.
+    func start(_ request: Request, notify: (@Sendable (String) -> Void)?) -> String {
+        guard !request.task.isEmpty else {
+            return Self.json(["error": "Say what the task is: task is empty."])
+        }
+        guard runningCount < Self.maximumRunning else {
+            return Self.json(["error": "\(Self.maximumRunning) background tasks are already running. Wait for one to finish, or stop one with stop_background_task."])
+        }
+        let id = "voice-task-" + UUID().uuidString.prefix(8).lowercased()
+        let manager = StudioAssistantSession.makeManager()
+        manager.modelOverride = nil
+        managers[id] = manager
+        records[id] = Record(id: id, title: request.title, deepResearch: request.deepResearch, startedAt: Date())
+
+        let articles = request.sourceIDs.isEmpty ? [] : (ScheduledTaskRunner.shared.articleProvider?(request.sourceIDs) ?? [])
+        let missing = request.sourceIDs.count - articles.count
+        let mode: ReviewSessionManager.InitialPromptMode = request.deepResearch ? .deepResearch : .assistant
+        let note = Self.handoffNote
+        let workID = MCPRunningWork.shared.startBackground(
+            tool: Self.workTool,
+            about: request.title,
+            spendLimitUSD: MCPRunningWork.defaultSpendLimitUSD
+        ) { [request] in
+            await withTaskCancellationHandler {
+                await manager.sendMessage(
+                    request.task,
+                    topic: request.title,
+                    articles: articles,
+                    initialMode: mode,
+                    contextualContent: note
+                )
+            } onCancel: {
+                Task { @MainActor in manager.stopGeneration() }
+            }
+            let cancelled = Task.isCancelled
+            await VoiceBackgroundTasks.shared.finish(id, cancelled: cancelled, notify: notify)
+        }
+        records[id]?.workID = workID
+
+        var answer: [String: Any] = [
+            "task_id": id,
+            "title": request.title,
+            "state": State.running.rawValue,
+            "note": "Started. It runs on the learner's chat model and stops at $\(Self.dollars(MCPRunningWork.defaultSpendLimitUSD)). Carry on with the learner; a note will tell you when it is done.",
+        ]
+        if missing > 0 {
+            answer["sources_not_found"] = "\(missing) of the source_ids were not found; it will look for what it needs itself."
+        }
+        return Self.json(answer)
+    }
+
+    func check(_ id: String?, now: Date = Date()) -> String {
+        if let id {
+            guard let record = records[id] else {
+                return Self.json(["error": "No background task by that id. Leave task_id out to list them all."])
+            }
+            return Self.json(["task": Self.row(record, now: now)])
+        }
+        let rows = records.values.sorted { $0.startedAt > $1.startedAt }.map { Self.row($0, now: now) }
+        if rows.isEmpty {
+            return Self.json(["tasks": [], "note": "No background task has been started by voice since ForeverLM opened."])
+        }
+        return Self.json(["tasks": rows])
+    }
+
+    func stop(_ id: String) -> String {
+        guard var record = records[id] else {
+            return Self.json(["error": "No background task by that id. check_background_tasks lists them."])
+        }
+        guard record.state == .running else {
+            return Self.json(["task_id": id, "state": record.state.rawValue, "note": "It is not running any more."])
+        }
+        record.stoppedByVoice = true
+        records[id] = record
+        if let workID = record.workID {
+            _ = MCPRunningWork.shared.stop(workID, by: .learner)
+        } else {
+            managers[id]?.stopGeneration()
+        }
+        return Self.json(["task_id": id, "state": "stopping", "note": "Stopping. What it already did stays, and its chat keeps the reply so far."])
+    }
+
+    /// The task's chat answered, failed or was stopped: its record says how,
+    /// and voice hears it if the call that started it is still on.
+    private func finish(_ id: String, cancelled: Bool, notify: (@Sendable (String) -> Void)?) {
+        guard var record = records[id] else { return }
+        let manager = managers.removeValue(forKey: id)
+        record.sessionID = manager?.currentSessionID
+        record.finishedAt = Date()
+        let failure = (manager?.errorMessage ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        if cancelled || record.stoppedByVoice {
+            record.state = .stopped
+        } else if !failure.isEmpty {
+            record.state = .failed
+            record.failure = failure
+        } else if let conclusion = manager.flatMap({ Self.conclusion(from: $0.chatMessages) }) {
+            record.state = .finished
+            record.conclusion = conclusion
+        } else {
+            record.state = .failed
+            record.failure = "The chat ended without a reply."
+        }
+        records[id] = record
+        if let notice = Self.notice(for: record) { notify?(notice) }
+    }
+
+    /// The chat's last reply as voice reads it, cut to `conclusionBudget`.
+    static func conclusion(from messages: [ReviewSessionManager.Message]) -> String? {
+        guard let last = messages.last(where: { $0.role == .assistant }),
+              let text = ReviewSessionManager.displayableMessageContent(role: .assistant, content: last.content)?
+                .trimmingCharacters(in: .whitespacesAndNewlines),
+              !text.isEmpty else { return nil }
+        guard text.count > conclusionBudget else { return text }
+        return String(text.prefix(conclusionBudget)) + "\n… (cut here; the whole reply is in the chat.)"
+    }
+
+    /// What voice is told when a task ends (`RealtimeVoiceReach.backgroundTaskNotice`).
+    static func notice(for record: Record) -> String? {
+        RealtimeVoiceReach.backgroundTaskNotice(
+            taskID: record.id,
+            title: record.title,
+            state: record.state.rawValue,
+            conclusion: record.conclusion,
+            failure: record.failure,
+            stoppedByVoice: record.stoppedByVoice
+        )
+    }
+
+    static func row(_ record: Record, now: Date) -> [String: Any] {
+        var row: [String: Any] = [
+            "task_id": record.id,
+            "title": record.title,
+            "state": record.state.rawValue,
+            "minutes_since_start": max(0, Int(now.timeIntervalSince(record.startedAt) / 60)),
+        ]
+        if record.deepResearch { row["deep_research"] = true }
+        if let sessionID = record.sessionID { row["chat_id"] = sessionID }
+        if let conclusion = record.conclusion { row["conclusion"] = conclusion }
+        if let failure = record.failure { row["error"] = failure }
+        return row
+    }
+
+    private static func dollars(_ amount: Double) -> String {
+        amount.rounded() == amount ? String(Int(amount)) : String(format: "%.2f", amount)
+    }
+
+    private static func json(_ object: [String: Any]) -> String {
+        let data = (try? JSONSerialization.data(withJSONObject: object, options: [.sortedKeys])) ?? Data()
+        return String(data: data, encoding: .utf8) ?? "{}"
+    }
+}
+
+/// What the iPhone's voice mode asks this Mac for (`MobileRealtimeAssistant`),
+/// through the gateway's `POST /web/call`, which lets these names through
+/// along with the read tools (`workers/mcp-gateway/src/web-desktop.ts`): the
+/// iPhone has no app tools of its own, so it finds read tools here and hands
+/// background tasks to this Mac (product owner, 2026-11-08: "make sure the
+/// iphone also has all that functionality"). They are answered before the
+/// registry (`MCPProtocolHandler.handleToolsCall`), never listed in
+/// `tools/list`, and not in the public contract: the gateway's `/mcp` refuses
+/// a name outside that contract, so no connected assistant reaches them.
+enum MacVoiceRelayTools {
+    static let names: Set<String> = [
+        "voice_find_app_tools",
+        "voice_start_background_task",
+        "voice_check_background_tasks",
+        "voice_stop_background_task",
+    ]
+
+    /// The tool's answer, or nil for a name that is not one of these.
+    static func call(_ name: String, arguments: [String: Any]) async -> String? {
+        switch name {
+        case "voice_find_app_tools":
+            return MacRealtimeAssistant.Toolbox.findAppTools((arguments["query"] as? String) ?? "")
+        case "voice_start_background_task":
+            let request = VoiceBackgroundTasks.Request(arguments)
+            // The iPhone asks after it with voice_check_background_tasks; this
+            // Mac has no way to speak into a call on the phone.
+            return await MainActor.run { VoiceBackgroundTasks.shared.start(request, notify: nil) }
+        case "voice_check_background_tasks":
+            let id = (arguments["task_id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+            return await MainActor.run { VoiceBackgroundTasks.shared.check(id?.isEmpty == false ? id : nil) }
+        case "voice_stop_background_task":
+            let id = ((arguments["task_id"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            return await MainActor.run { VoiceBackgroundTasks.shared.stop(id) }
+        default:
+            return nil
         }
     }
 }

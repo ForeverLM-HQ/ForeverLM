@@ -1,3 +1,4 @@
+import CloudKit
 import EventKit
 import Foundation
 import OSLog
@@ -6,10 +7,18 @@ import os
 /// The voice assistant on the iPhone and in CarPlay (`RealtimeVoiceAssistant`):
 /// what it knows when it starts, read from the phone's own replica of the
 /// library, and the tools it looks further with. Everything is read on the
-/// device. The one write is a card's grade in a spoken card review
+/// device. The one write here is a card's grade in a spoken card review
 /// (`grade_card`, `MobileRealtimeCardTools`), recorded exactly as the phone's
-/// card review records a Forgot or Remembered; nothing else a misheard word
-/// says can change the library.
+/// card review records a Forgot or Remembered.
+///
+/// The rest of its reach is the Mac's, as voice on the Mac has it
+/// (`RealtimeVoiceReach`; product owner, 2026-11-08: "make sure the iphone
+/// also has all that functionality"): meetings by series, every read tool in
+/// the app, a notebook's audio overview, and background tasks, the typed
+/// chats with every tool that do work and come back with a conclusion. The
+/// phone has none of those tools, so it asks the learner's Mac through the
+/// gateway's `/web/call` (`MobileVoiceMac`), the way notebook Share does; with
+/// ForeverLM closed on the Mac, voice says so and the rest still works.
 ///
 /// What it reads:
 /// - the quarter plan Page (`PlanQuarter`, from the Space store);
@@ -93,7 +102,7 @@ enum MobileRealtimeAssistant {
                     description: "Today's review cards (spaced repetition), each with its question and answer, for a card review out loud when the learner asks for their review or their cards. Ask one card's question at a time, let them answer, say plainly whether they had it and the answer in a sentence, then call grade_card before the next."
                 ),
                 RealtimeVoiceCardReview.gradeCardTool,
-            ]
+            ] + RealtimeVoiceReach.toolDefinitions
         }
 
         func run(name: String, argumentsJSON: String) async -> String {
@@ -116,6 +125,35 @@ enum MobileRealtimeAssistant {
                 return await goalsText()
             case "get_recent_work":
                 return await recentText(now: Date())
+            case "list_meetings":
+                return await MobileVoiceMac.call("list_meeting_groups", [:])
+            case "get_meeting_series":
+                let groupID = ((arguments["group_id"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                return RealtimeVoiceReach.meetingSeries(
+                    fromGroupListing: await MobileVoiceMac.call("get_meeting_group", ["group_id": groupID]),
+                    groupID: groupID
+                )
+            case "make_audio_overview":
+                return await MobileVoiceMac.call(
+                    "generate_audio_overview",
+                    RealtimeVoiceReach.audioOverviewArguments(arguments, approvingCeiling: true)
+                )
+            case "find_app_tools":
+                return await MobileVoiceMac.call("voice_find_app_tools", ["query": (arguments["query"] as? String) ?? ""])
+            case "use_app_tool":
+                return await useAppTool(name: (arguments["name"] as? String) ?? "", arguments: arguments["arguments"])
+            case "start_background_task":
+                return await startBackgroundTask(arguments)
+            case "check_background_tasks":
+                var forwarded: [String: Any] = [:]
+                if let id = (arguments["task_id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !id.isEmpty {
+                    forwarded["task_id"] = id
+                }
+                return await MobileVoiceMac.call("voice_check_background_tasks", forwarded)
+            case "stop_background_task":
+                let id = ((arguments["task_id"] as? String) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+                tasks.markStoppedByVoice(id)
+                return await MobileVoiceMac.call("voice_stop_background_task", ["task_id": id])
             default:
                 return await cards.run(name: name, argumentsJSON: argumentsJSON, onlyNew: false)
                     ?? #"{"error":"Unknown tool."}"#
@@ -123,6 +161,52 @@ enum MobileRealtimeAssistant {
         }
 
         func openedSourceIDs() async -> [String] { opened.ids }
+
+        func setNoticeHandler(_ handler: @escaping @Sendable (String) -> Void) {
+            tasks.setNoticeHandler(handler)
+        }
+
+        // MARK: The Mac's reach
+
+        private let tasks = MobileVoiceBackgroundTaskWatch()
+
+        /// A read tool of the Mac's that find_app_tools named. The gateway
+        /// lets only reads through; this says so before asking.
+        private func useAppTool(name rawName: String, arguments raw: Any?) async -> String {
+            let name = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !name.isEmpty else {
+                return #"{"error":"No tool by that name. Call find_app_tools first and use a name it gave."}"#
+            }
+            if let refusal = RealtimeVoiceReach.useAppToolRefusal(name, isReadOnly: true) { return refusal }
+            let arguments: [String: Any]
+            if let object = raw as? [String: Any] {
+                arguments = object
+            } else if let text = raw as? String, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                guard let object = (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String: Any] else {
+                    return #"{"error":"arguments must be a JSON object."}"#
+                }
+                arguments = object
+            } else {
+                arguments = [:]
+            }
+            return RealtimeVoiceReach.capped(await MobileVoiceMac.call(name, arguments))
+        }
+
+        /// Hands the task to the Mac, then watches it there so voice hears
+        /// when it ends (the Mac cannot speak into a call on the phone).
+        private func startBackgroundTask(_ arguments: [String: Any]) async -> String {
+            var forwarded: [String: Any] = [:]
+            for key in ["task", "title"] {
+                if let value = arguments[key] as? String { forwarded[key] = value }
+            }
+            if let ids = arguments["source_ids"] as? [Any] { forwarded["source_ids"] = ids.compactMap { $0 as? String } }
+            if let deep = arguments["deep_research"] as? Bool { forwarded["deep_research"] = deep }
+            let answer = await MobileVoiceMac.call("voice_start_background_task", forwarded)
+            if let id = RealtimeVoiceReach.startedTaskID(fromStartAnswer: answer) {
+                tasks.watch(id)
+            }
+            return answer
+        }
 
         // MARK: Cards
 
@@ -264,6 +348,124 @@ enum MobileRealtimeAssistant {
             }
             return lines.joined(separator: "\n")
         }
+    }
+}
+
+/// Voice mode's calls to the learner's Mac, through the gateway's
+/// `POST /web/call` (`MobileMacRelay`), authorized like notebook Share's: the
+/// phone's Sign in with Apple session, and the iCloud account the Mac must
+/// sync with. Every answer is text the realtime model reads, a refusal
+/// included, so voice can say plainly why the Mac was not asked.
+enum MobileVoiceMac {
+    /// Past the relay's own minute, so its "still working" answer arrives.
+    static let timeout: TimeInterval = 75
+
+    static func call(_ name: String, _ arguments: [String: Any]) async -> String {
+        guard let token = ManagedAI.requestSessionToken else {
+            return error("Reaching the learner's Mac needs Sign in with Apple on this iPhone. Tell them it is under Settings.")
+        }
+        guard let container = MobileMacSearch.relayContainer,
+              let user = try? await CKContainer(identifier: container).userRecordID().recordName else {
+            return error("iCloud could not be reached on this iPhone, so the Mac could not be asked.")
+        }
+        let request = MobileMacRelay.toolRequest(token: token, iCloudUser: user, name: name, arguments: arguments, timeout: timeout)
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            return answer(status: (response as? HTTPURLResponse)?.statusCode ?? 0, body: data)
+        } catch {
+            return self.error("The Mac could not be reached from this iPhone right now (\(error.localizedDescription)).")
+        }
+    }
+
+    /// The Mac's own text, or why it was not asked, as the model reads it.
+    static func answer(status: Int, body: Data) -> String {
+        let payload = (try? JSONSerialization.jsonObject(with: body)) as? [String: Any]
+        if status == 200, let text = payload?["text"] as? String {
+            return text
+        }
+        if status == 401 {
+            return error("The iPhone's Apple sign-in has lapsed, so the Mac could not be asked. Tell the learner to sign in with Apple again in Settings.")
+        }
+        switch payload?["error"] as? String {
+        case "mac_offline":
+            return error("ForeverLM is not open on the learner's Mac, so the Mac cannot do this right now.")
+        case "mac_busy":
+            return error("The learner's Mac did not answer in time. It may be busy; try once more in a moment.")
+        case "mac_still_working":
+            return error("The Mac took this and is still working on it; ask again in a minute.")
+        case "tool_not_allowed":
+            return error("The Mac cannot be asked for that tool from the iPhone.")
+        case let account? where status == 409:
+            return error(MobileMacRelay.MacLine.account(account))
+        default:
+            let detail = (payload?["error_description"] as? String).map { " (\($0))" } ?? ""
+            return error("The Mac could not be reached from this iPhone\(detail).")
+        }
+    }
+
+    private static func error(_ message: String) -> String {
+        let data = (try? JSONSerialization.data(withJSONObject: ["error": message])) ?? Data()
+        return String(data: data, encoding: .utf8) ?? #"{"error":"The Mac could not be asked."}"#
+    }
+}
+
+/// Background tasks voice handed to the Mac from this call, asked after
+/// every so often while they run so voice hears when each ends: the Mac has
+/// no way to speak into a call on the phone. Watching stops when a task ends,
+/// after `longestWatch`, or once the call is gone (no handler is waiting).
+final class MobileVoiceBackgroundTaskWatch: @unchecked Sendable {
+    static let interval: Duration = .seconds(20)
+    static let longestWatch: TimeInterval = 90 * 60
+
+    private let lock = NSLock()
+    private var handler: (@Sendable (String) -> Void)?
+    private var stoppedByVoice: Set<String> = []
+    private var watching: [String: Task<Void, Never>] = [:]
+
+    deinit {
+        for task in watching.values { task.cancel() }
+    }
+
+    func setNoticeHandler(_ handler: @escaping @Sendable (String) -> Void) {
+        lock.withLock { self.handler = handler }
+    }
+
+    func markStoppedByVoice(_ id: String) {
+        _ = lock.withLock { stoppedByVoice.insert(id) }
+    }
+
+    func watch(_ id: String) {
+        let task = Task { [weak self] in
+            let started = Date()
+            while !Task.isCancelled, Date().timeIntervalSince(started) < Self.longestWatch {
+                try? await Task.sleep(for: Self.interval)
+                guard !Task.isCancelled, self != nil else { return }
+                let answer = await MobileVoiceMac.call("voice_check_background_tasks", ["task_id": id])
+                // An unreachable Mac is asked again next time; the task goes
+                // on there either way.
+                guard let row = RealtimeVoiceReach.backgroundTaskRow(fromCheckAnswer: answer),
+                      let state = row["state"] as? String, state != "running" else { continue }
+                self?.ended(id: id, row: row, state: state)
+                return
+            }
+        }
+        lock.withLock { watching[id] = task }
+    }
+
+    private func ended(id: String, row: [String: Any], state: String) {
+        let (handler, stopped) = lock.withLock { () -> ((@Sendable (String) -> Void)?, Bool) in
+            watching[id] = nil
+            return (self.handler, stoppedByVoice.contains(id))
+        }
+        guard let notice = RealtimeVoiceReach.backgroundTaskNotice(
+            taskID: id,
+            title: row["title"] as? String ?? "",
+            state: state,
+            conclusion: row["conclusion"] as? String,
+            failure: row["error"] as? String,
+            stoppedByVoice: stopped
+        ) else { return }
+        handler?(notice)
     }
 }
 
