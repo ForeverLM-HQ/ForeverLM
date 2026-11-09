@@ -8,6 +8,16 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 - **A new Home on the iPhone, built around what you do on it.** Today's cards come first, with **Review** to tap through them, pictures and all, and **By Voice** to go through them out loud. Under them, **Voice**: one voice mode for the car, the gym and everything else. Talk about anything or name a source, and type instead whenever you can't talk; every voice conversation now has a field for that. Your notebooks follow as cover cards, two to a row, with **+** and **See All**, and your library (**All Sources**, **To Read**, **Follow Up**, **Spaces**) is a row at the foot. The top bar is gone: Settings is the gear beside Search.
 
+## 0.206.0 (build 286) — 2026-11-08
+
+**Highlights:**
+- **Voice mode is one click away and works in the background**: start it from the strip, ask it to research or write, keep talking, and hear what it found.
+- **Split your chats and windows your way**: several chats in one pane, tabs that drag between windows, and the strip's icons in your own order.
+- **Nudge me back on track** notices when you drift from a bout's goal, and **live meetings** are transcribed on your Mac as they happen.
+- **Papers go further**: a figure mentioned in the text opens that figure, a journal's supplementary PDF joins the paper, and animations play right in the chat.
+
+- **Production release.** Everything in the betas 0.200.0 to 0.205.0 below, now for every Mac: it is the first production build since 0.199.0 (build 279).
+
 ## 0.205.0 (build 285) — 2026-11-08
 
 **Highlights:**
