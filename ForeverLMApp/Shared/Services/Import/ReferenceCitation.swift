@@ -82,6 +82,9 @@ extension PDFReferenceEntries {
     struct CitationGroup: Sendable {
         let numbers: [Int]
         let bounds: CGRect
+        /// The one number the link's own characters print ("7" of "6,7",
+        /// each linked on its own); nil for a link over several ("5–7").
+        let linked: Int?
     }
 
     /// The citation a link sits in. A link covers a superscript's digits, or
@@ -164,10 +167,12 @@ extension PDFReferenceEntries {
         while last > first, let character = scalar(last), ReferenceCitation.isSeparator(character) { last -= 1 }
         let run = text.substring(with: NSRange(location: first, length: last - first + 1))
         guard let numbers = ReferenceCitation.numbers(in: run) else { return nil }
+        let linked = ReferenceCitation.numbers(in: text.substring(with: NSRange(location: low, length: high - low + 1)))
+            .flatMap { $0.count == 1 ? $0.first : nil }
         let group = (first...last).reduce(CGRect.null) { union, position in
             boxes[position].isNull ? union : union.union(boxes[position])
         }
-        return CitationGroup(numbers: numbers, bounds: group)
+        return CitationGroup(numbers: numbers, bounds: group, linked: linked)
     }
 
     /// Where the entry numbered `number` starts, for a number no link lands
@@ -176,6 +181,11 @@ extension PDFReferenceEntries {
     /// number, over the pages a list can reach in a few entries. A line that
     /// begins with the number only counts at the margin the known entry
     /// starts at, when it sits on the same page.
+    ///
+    /// The line is the page's, not the text's: Nature sets its numbers in a
+    /// column of their own, which PDFKit reads as one run ("3. 4. 5. 6."),
+    /// so "4." there follows a space, not a line break. A number inside a
+    /// line of the text counts when nothing sits just left of it on the page.
     nonisolated static func numberedLanding(
         for number: Int,
         anchors: [Int: Landing],
@@ -192,8 +202,17 @@ extension PDFReferenceEntries {
             ? Array(start.pageIndex...(start.pageIndex + reach))
             : Array(((start.pageIndex - reach)...start.pageIndex).reversed())
         guard let pattern = try? NSRegularExpression(
-            pattern: #"^[ \t]*[\[(]?(\#(number))[.\])](?!\d)"#, options: [.anchorsMatchLines]
+            pattern: #"(?:^|(?<=[ \t]))[ \t]*[\[(]?(\#(number))[.\])](?!\d)"#, options: [.anchorsMatchLines]
         ) else { return nil }
+        // Whether the glyph at `index` begins a line on the page: no glyph on
+        // its line sits just left of it.
+        func beginsLine(_ index: Int, boxes: [CGRect]) -> Bool {
+            let box = boxes[index]
+            return !boxes.contains { other in
+                !other.isNull && abs(other.midY - box.midY) <= max(other.height / 2, 1)
+                    && other.maxX > box.minX - columnGutter && other.minX < box.minX - 0.1
+            }
+        }
         for pageIndex in pageIndexes {
             guard pageIndex >= 0, let page = document.page(at: pageIndex), let string = page.string else { continue }
             let boxes: [CGRect]
@@ -206,8 +225,15 @@ extension PDFReferenceEntries {
             let text = string as NSString
             guard boxes.count == text.length else { continue }
             var candidates = pattern.matches(in: string, range: NSRange(location: 0, length: text.length))
+                .filter { match in
+                    let location = match.range(at: 1).location
+                    guard !boxes[location].isNull else { return false }
+                    let lineStart = match.range.location == 0
+                        || text.character(at: match.range.location - 1) == 0x0A
+                        || text.character(at: match.range.location - 1) == 0x0D
+                    return lineStart || beginsLine(location, boxes: boxes)
+                }
                 .map { $0.range(at: 1).location }
-                .filter { boxes[$0].isNull == false }
             if pageIndex == start.pageIndex, let origin = landingCharacter(at: start.point, boxes: boxes) {
                 // On the known entry's own page the wanted one lies beyond it
                 // (or before it, searching back), never on the other side, and

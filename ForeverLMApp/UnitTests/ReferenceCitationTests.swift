@@ -114,6 +114,21 @@ struct RangeCitationEntriesTests {
         #expect(cited.last?.pieces.first?.pageIndex == 2)
     }
 
+    @Test("Each number of a list linked on its own shows the entry its own link lands on")
+    func eachNumberItsOwnLanding() async throws {
+        // "6,7" with each number linked: the 7's link is entry 7's, though
+        // the run it sits in begins with 6. The entries print no numbers, so
+        // only the links can tell them apart.
+        let paper = try Self.paper(citation: "6,7", style: .endpoints, numbered: false)
+        for key in ["first", "last"] {
+            let cited = await PDFReferenceEntries(.bytes(paper.data))
+                .entries(for: .init(pageIndex: 0, bounds: try #require(paper.links[key])))
+            #expect(cited.map(\.number) == [6, 7])
+            #expect(cited.first?.text.hasPrefix("Hart-Wells") == true)
+            #expect(cited.last?.text.hasPrefix("Kim, S.") == true)
+        }
+    }
+
     @Test("A single number is the one entry its link lands on, with no number of its own")
     func singleNumber() async throws {
         let paper = try Self.paper(citation: "5", style: .firstOnly)
@@ -149,12 +164,14 @@ struct RangeCitationEntriesTests {
     /// Page 0: a sentence with a superscript citation (or a bracketed one set
     /// in the body's size) linked as `style` says. Then the reference list,
     /// entries 1 to 9 with hanging indents, of which only the numbers the
-    /// links land on have a destination.
+    /// links land on have a destination. Unless `numbered`, the entries print
+    /// no numbers.
     static func paper(
         citation: String,
         style: LinkStyle,
         bracketed: Bool = false,
-        breakAfterSix: Bool = false
+        breakAfterSix: Bool = false,
+        numbered: Bool = true
     ) throws -> Paper {
         let data = NSMutableData()
         let consumer = try #require(CGDataConsumer(data: data as CFMutableData))
@@ -235,7 +252,8 @@ struct RangeCitationEntriesTests {
                 context.addDestination("bib\(entry.number)" as CFString, at: CGPoint(x: 70, y: baseline + 10))
             }
             for (index, line) in entry.lines.enumerated() {
-                draw(index == 0 ? "\(entry.number). \(line)" : line, body, x: index == 0 ? 72 : 84, baseline: baseline)
+                let text = index == 0 && numbered ? "\(entry.number). \(line)" : line
+                draw(text, body, x: index == 0 ? 72 : 84, baseline: baseline)
                 baseline -= 12
             }
             baseline -= 4

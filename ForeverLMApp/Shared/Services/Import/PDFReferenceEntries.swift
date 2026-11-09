@@ -110,10 +110,15 @@ actor PDFReferenceEntries {
         guard let group = Self.citationGroup(around: link.bounds, on: page, boxes: boxes), group.numbers.count > 1 else {
             return single()
         }
+        // Each link lands on the number it prints itself: "7" of "6,7" on
+        // entry 7. Its group reads out to the whole run, whose first number
+        // is every link's, so it names the entry only for a link that prints
+        // more than one number ("3–5" linked as one, landing on 3).
         var anchors: [Int: Landing] = [:]
         for target in targets[link.pageIndex] ?? [] where target.bounds.insetBy(dx: -1, dy: -1).intersects(group.bounds) {
-            if let own = Self.citationGroup(around: target.bounds, on: page, boxes: boxes), let first = own.numbers.first {
-                anchors[first] = anchors[first] ?? target.landing
+            guard let own = Self.citationGroup(around: target.bounds, on: page, boxes: boxes) else { continue }
+            if let number = own.linked ?? own.numbers.first {
+                anchors[number] = anchors[number] ?? target.landing
             }
         }
         guard !anchors.isEmpty else { return single() }
