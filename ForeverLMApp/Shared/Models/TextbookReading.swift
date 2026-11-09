@@ -10,7 +10,7 @@ import Foundation
 ///
 /// Every layer is the learner's own words or the learner's own records:
 /// - `aboutYou`, the account's standing description of their background
-///   (Settings › General › About you), written once and read by every course;
+///   (asked by Add Textbook; `account.about_you` over MCP), written once and read by every course;
 /// - `focus`, what they want from this one course;
 /// - the Notebooks the course is linked to, whose instructions, research
 ///   questions and Goals say what the course is for.
@@ -103,7 +103,7 @@ extension CourseLearnerContext {
 /// one member's background (teams-design.md).
 enum LearnerProfile {
     /// Synced: the learner's background, the same on every Mac and for every
-    /// course. Settings › General › About you; `account.about_you` over MCP.
+    /// course. Asked by Add Textbook; `account.about_you` over MCP.
     static let aboutYouPreferenceKey = "account.aboutYou"
     /// Synced, one row per course (`course.focus.<courseID>`), so focusing two
     /// courses on two Macs never collides.

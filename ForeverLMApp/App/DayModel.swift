@@ -153,7 +153,7 @@ final class DayModel {
     }
 
     /// The hours the Day pane's clock draws: the learner's day window
-    /// (Settings › General › Day), widened to hold every event of the
+    /// (Settings › Chat › Day), widened to hold every event of the
     /// calendar. The log is not on the clock (its own view, Activity), so it
     /// widens nothing.
     func hourRange(dayStart: Int, dayEnd: Int) -> ClosedRange<Int> {

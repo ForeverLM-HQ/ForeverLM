@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import ForeverLM
 
-/// Settings › General › Memory review over MCP: the reader says what the pane shows, the
+/// Settings › Background › Memory review over MCP: the reader says what the pane shows, the
 /// writer goes through the pane's own entry points, and the two tools are
 /// registered.
 @Suite("Memory review settings MCP tools", .serialized)
@@ -15,7 +15,7 @@ struct MemoryReviewSettingsMCPTests {
         return (MCPDataStore(dbPath: root.appendingPathComponent("knowledge.db").path), root)
     }
 
-    @Test("get_memory_review_settings and set_memory_review_settings are Settings › General › Memory review")
+    @Test("get_memory_review_settings and set_memory_review_settings are Settings › Background › Memory review")
     func settingsToolsDriveTheMemoryPane() async throws {
         let (store, root) = try makeStore()
         defer { try? FileManager.default.removeItem(at: root) }

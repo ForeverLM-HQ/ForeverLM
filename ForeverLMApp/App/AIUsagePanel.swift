@@ -628,7 +628,7 @@ struct AIActivitySettingsSection: View {
     private static func offSwitch(for task: String?) -> (row: SettingsRowID, help: String)? {
         switch task {
         case "card_drafting":
-            return (.memoryDraftCards, "Settings › General › Memory › Draft cards from what you finish")
+            return (.memoryDraftCards, "Settings › Background › Memory review › Draft cards from what you finish")
         case "meeting_transcription":
             return (.driveTranscribeRecordings, "Plugins › Google Drive › Transcribe recordings Google didn't")
         case "notebook_cover":

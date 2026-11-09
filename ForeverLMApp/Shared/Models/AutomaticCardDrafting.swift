@@ -12,7 +12,7 @@ import Foundation
 
 // MARK: Settings
 
-/// The card settings of Settings › General › Memory review, and whether review
+/// The card settings of Settings › Background › Memory review, and whether review
 /// questions are written ahead of time, each synced
 /// (`SyncedPreferenceKeys.synced`) and read and written over MCP
 /// (`get_memory_review_settings` / `set_memory_review_settings`).

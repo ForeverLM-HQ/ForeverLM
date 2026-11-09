@@ -1,7 +1,7 @@
 import AppKit
 import SwiftUI
 
-/// Settings › General › Quick assistant: the shortcut that brings up the
+/// Settings › Chat › Quick assistant: the shortcut that brings up the
 /// quick assistant over any app. This Mac's own; `set_app_setting`'s
 /// `quick_assistant.shortcut` writes the same value.
 struct QuickAssistantSettingsSection: View {

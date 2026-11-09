@@ -1527,7 +1527,7 @@ enum MobileMemoryReviewScope {
 }
 
 /// What the phone deals today's cards by from the account's Memory review
-/// settings (the Mac's Settings › General › Memory review): the day's minutes
+/// settings (the Mac's Settings › Background › Memory review): the day's minutes
 /// (`MemoryReviewBudget`) and its new cards (`memory.new_cards_per_day`). Each
 /// is a synced row the phone fetches from CloudKit on every load and
 /// foreground; the phone hydrates no synced preference, so these are what it

@@ -749,6 +749,14 @@ struct StudioNavigationRail: View {
                 planDay: DayModel.shared.planTheDayAsk,
                 cardsToCheckDetail: vm.cardsToCheckDetail
             )
+            // MCP's state and Settings, one click each beside the account
+            // (product owner, 2026-11-08: "why not put settings and mcp
+            // status also here in the bottom left as icons"). The account
+            // menu keeps its rows for both.
+            if showsMCPStatusLight {
+                railMCPButton
+            }
+            railSettingsButton
             accountMenuButton(compact: true)
                 .padding(.bottom, 8)
         }
@@ -1799,23 +1807,54 @@ struct StudioNavigationRail: View {
         }
     }
 
+    // MARK: - MCP and Settings
+
+    /// MCP on the strip: its glyph with the status light on its corner, at
+    /// all times, so how assistants reach this Mac is seen without opening
+    /// anything; a click opens MCP settings (Billing while MCP is locked).
+    private var railMCPButton: some View {
+        Button {
+            onOpenSettings(account.isMCPLocked ? .aiBilling : .mcp)
+        } label: {
+            RailGlyph(systemImage: "point.3.connected.trianglepath.dotted")
+                .overlay(alignment: .bottomTrailing) {
+                    mcpStatusLight
+                        .scaleEffect(0.8)
+                        .offset(x: -8, y: -6)
+                }
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.hoverWash(cornerRadius: 7, inset: 0))
+        .railTooltip(mcpStatusLightLabel)
+        .accessibilityLabel(mcpStatusLightLabel)
+        .accessibilityIdentifier("studio.navigation.mcp")
+    }
+
+    /// Settings on the strip, opening on the AI models.
+    private var railSettingsButton: some View {
+        Button {
+            onOpenSettings(nil)
+        } label: {
+            RailGlyph(systemImage: "gearshape")
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.hoverWash(cornerRadius: 7, inset: 0))
+        .railTooltip("Settings")
+        .accessibilityLabel("Settings")
+        .accessibilityIdentifier("studio.navigation.settings")
+    }
+
     // MARK: - Account
 
-    /// The account control. In the icon rail (`compact`)
-    /// it is the avatar alone, with the MCP status light on its corner while
-    /// the connection needs attention; the menu it opens is the same.
+    /// The account control. In the icon rail (`compact`) it is the avatar
+    /// alone, under the MCP and Settings icons; the menu it opens is the same.
     private func accountMenuButton(compact: Bool = false) -> some View {
         Button {
             showsAccountMenu.toggle()
         } label: {
             if compact {
+                // The strip's MCP icon carries the status light beside it.
                 accountAvatar(size: 24)
-                    .overlay(alignment: .bottomTrailing) {
-                        if showsMCPStatusLightOnButton {
-                            mcpStatusLight
-                                .offset(x: 2, y: 2)
-                        }
-                    }
                     .frame(width: 36, height: 32)
                     .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
             } else {

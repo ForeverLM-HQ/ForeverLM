@@ -1,13 +1,13 @@
 import Foundation
 
-// MARK: - Settings › General › Memory review over MCP
+// MARK: - Settings › Background › Memory review over MCP
 //
 // Every setting the pane holds is readable and writable from a chat
 // (product owner, 2026-09-11: "setting any of the settings needs to be possible
 // via MCP as well"), through the exact entry points the pane's own controls
 // call, so the UI and MCP cannot accept different values:
 //
-// - `get_memory_review_settings` is Settings › General › Memory review as JSON: the daily
+// - `get_memory_review_settings` is Settings › Background › Memory review as JSON: the daily
 //   budget, the day's new cards, background card drafting and its corner
 //   card, review questions written ahead of time, the "Have today's review
 //   ready" switch, this Mac's hour, and what this Mac last did about each.

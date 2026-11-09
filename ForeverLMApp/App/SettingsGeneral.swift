@@ -1,79 +1,62 @@
 import SwiftUI
 
-/// Settings → General: your name, about you, the day's hours, the quick
-/// assistant's shortcut, the daily memory review, and beta releases. Was Appearance and Memory until 2026-09-24, when
-/// Settings was cut to what a learner actually changes; the thinking-mark
-/// speed and the crown switch went with it and stay reachable through
-/// `set_app_setting`.
-struct GeneralSettingsDetailView: View {
-    /// Synced: the name every client shows, edited as a draft and saved on
-    /// Return or when the field loses focus, so typing is not a sync per key.
+// Settings has no General pane since 2026-11-08 (product owner: "these
+// 'general' settings don't make much sense to me", "please distribute that
+// among other settings", "the main page that should open is an ai models
+// page"). Its sections live where they belong instead:
+// - Your name: Data & Privacy, the account's pane (`SettingsNameSection`).
+// - Day, Quick assistant, Think first: Chat (`SettingsDaySection`,
+//   `QuickAssistantSettingsSection`, `SettingsThinkFirstSection`).
+// - Memory review: Background, whose AI drafts the cards and readies the
+//   day's review (`SettingsMemoryReviewSection`).
+// - Beta releases: the Settings sidebar's footer, under the version
+//   (`SettingsBetaReleasesToggle`).
+// About you left Settings the same day ("remove this 'about you'"); Add
+// Textbook asks for it where it is used, and `account.about_you` sets it over MCP.
+
+/// Every picker and field on the right edge of a row is this wide, so the
+/// controls line up down a pane instead of each ending where it likes.
+enum SettingsLayout {
+    static let controlWidth: CGFloat = 150
+
+    static var rowDivider: some View {
+        Divider().padding(.vertical, 12)
+    }
+}
+
+/// Your name, the one every client shows: edited as a draft and saved on
+/// Return or when the field loses focus, so typing is not a sync per key.
+struct SettingsNameSection: View {
     @SyncedStorage(wrappedValue: "", MacAccountUser.displayNamePreferenceKey)
     private var savedDisplayName: String
     @State private var displayNameDraft = ""
     @FocusState private var displayNameFocused: Bool
-    /// Synced: where the learner is coming from, which every course tailors
-    /// to (docs/textbook-readings-design.md). A draft saved when the field
-    /// loses focus, like the name.
-    @SyncedStorage(wrappedValue: "", LearnerProfile.aboutYouPreferenceKey)
-    private var savedAboutYou: String
-    @State private var aboutYouDraft = ""
-    @FocusState private var aboutYouFocused: Bool
-    /// This Mac's: the card and the notification ask on this Mac.
-    @AppStorage(PlanTheDay.settingKey)
-    private var suggestPlanningTheDay = true
-    @AppStorage(PlanTheDay.forcedKey)
-    private var forcePlanningTheDay = false
-    /// Synced: the learner's day is the same on every Mac.
-    @AppStorage(PlannerDayHours.startKey)
-    private var dayStartHour: Int = PlannerDayHours.defaultStart
-    @AppStorage(PlannerDayHours.endKey)
-    private var dayEndHour: Int = PlannerDayHours.defaultEnd
 
-    @SyncedStorage(wrappedValue: MemoryReviewBudget.defaultMinutes, MemoryReviewBudget.preferenceKey)
-    private var budgetMinutes: Int
-    @SyncedStorage(wrappedValue: false, DailyReviewPreparation.enabledKey)
-    private var prepareDaily: Bool
-    @AppStorage(DailyReviewPreparation.hourKey)
-    private var readyHour: Int = DailyReviewPreparation.defaultHour
-    /// Synced: the day's new cards, background drafting, and the corner card.
-    @SyncedStorage(wrappedValue: MemoryCardQueue.defaultNewPerDay, MemoryCardSettings.newCardsPerDayKey)
-    private var newCardsPerDay: Int
-    @SyncedStorage(wrappedValue: false, MemoryCardSettings.autoDraftKey)
-    private var autoDraftsCards: Bool
-    @SyncedStorage(wrappedValue: true, MemoryCardSettings.draftNudgesKey)
-    private var showsDraftNudges: Bool
-    /// Synced: Think first's level for the library (`ThinkFirst`), so the
-    /// picker follows another Mac, the web or MCP.
-    @SyncedStorage(wrappedValue: ThinkFirstLevel.off, ThinkFirst.levelKey)
-    private var thinkFirstLevel: ThinkFirstLevel
-    /// Synced: signed up for beta releases (`BetaReleases`), so the switch
-    /// follows another Mac or MCP.
-    @SyncedStorage(wrappedValue: false, BetaReleases.preferenceKey)
-    private var betaReleasesSignedUp: Bool
-    /// macOS's answer about ForeverLM's notifications: read when the pane
-    /// appears and each time the app comes forward, since the learner may
-    /// have just changed it in System Settings. Nil until it has been read.
-    @State private var notificationPermission: NotificationPermission?
-    @State private var isRequestingNotifications = false
-
-    /// The one line about notifications, and the card it sits in.
-    private var notificationNote: NotificationSettingsNote? {
-        NotificationSettingsNote.placement(
-            permission: notificationPermission,
-            preparesDailyReview: prepareDaily
-        )
-    }
-
-    /// The end hours the picker offers: after the chosen start, so the two
-    /// pickers cannot be set into a day that ends before it begins.
-    private var endHourChoices: [Int] {
-        Array(max(PlannerDayHours.endHours.lowerBound, PlannerDayHours.clampStart(dayStartHour) + 1)...PlannerDayHours.endHours.upperBound)
-    }
-
-    /// "06:00" for a start, "24:00" reads as "Midnight" for the day's end.
-    private static func hourLabel(_ hour: Int) -> String {
-        hour == 24 ? "Midnight" : DayPlan.clockString(minute: hour * 60)
+    var body: some View {
+        SettingsSection(title: "You") {
+            SettingsCard {
+                SettingsRow("Name") {
+                    TextField("Name", text: $displayNameDraft, prompt: Text(MacAccountUser.resolvedFullName(saved: savedDisplayName) ?? "Your name"))
+                        .labelsHidden()
+                        .textFieldStyle(.roundedBorder)
+                        .frame(width: 240)
+                        .focused($displayNameFocused)
+                        .onSubmit(commitDisplayName)
+                        .accessibilityIdentifier("settings.general.displayName")
+                }
+                .onAppear { displayNameDraft = MacAccountUser.resolvedFullName(saved: savedDisplayName) ?? "" }
+                .onChange(of: savedDisplayName) { _, saved in
+                    // A rename from the web or a chat lands in the field
+                    // unless the learner is typing in it.
+                    guard !displayNameFocused else { return }
+                    displayNameDraft = MacAccountUser.resolvedFullName(saved: saved) ?? ""
+                }
+                .onChange(of: displayNameFocused) { _, focused in
+                    if !focused { commitDisplayName() }
+                }
+                .onDisappear(perform: commitDisplayName)
+            }
+        }
     }
 
     /// Saves the draft, or puts the current name back when the draft is blank
@@ -87,254 +70,249 @@ struct GeneralSettingsDetailView: View {
             displayNameDraft = shown
         }
     }
+}
 
-    /// Saves the draft, or puts the saved words back when it is too long.
-    private func commitAboutYou() {
-        guard aboutYouDraft.trimmingCharacters(in: .whitespacesAndNewlines) != LearnerProfile.aboutYou else { return }
-        if !LearnerProfile.setAboutYou(aboutYouDraft) {
-            aboutYouDraft = LearnerProfile.aboutYou
-        }
+/// The day's hours and the morning's ask to plan it, which opens the
+/// planning chat.
+struct SettingsDaySection: View {
+    /// This Mac's: the card and the notification ask on this Mac.
+    @AppStorage(PlanTheDay.settingKey)
+    private var suggestPlanningTheDay = true
+    @AppStorage(PlanTheDay.forcedKey)
+    private var forcePlanningTheDay = false
+    /// Synced: the learner's day is the same on every Mac.
+    @AppStorage(PlannerDayHours.startKey)
+    private var dayStartHour: Int = PlannerDayHours.defaultStart
+    @AppStorage(PlannerDayHours.endKey)
+    private var dayEndHour: Int = PlannerDayHours.defaultEnd
+
+    /// The end hours the picker offers: after the chosen start, so the two
+    /// pickers cannot be set into a day that ends before it begins.
+    private var endHourChoices: [Int] {
+        Array(max(PlannerDayHours.endHours.lowerBound, PlannerDayHours.clampStart(dayStartHour) + 1)...PlannerDayHours.endHours.upperBound)
     }
 
-    /// Every picker and field on the right edge of a row is this wide, so the
-    /// controls line up down the page instead of each ending where it likes.
-    private static let controlWidth: CGFloat = 150
-
-    private var rowDivider: some View {
-        Divider().padding(.vertical, 12)
+    /// "06:00" for a start, "24:00" reads as "Midnight" for the day's end.
+    private static func hourLabel(_ hour: Int) -> String {
+        hour == 24 ? "Midnight" : DayPlan.clockString(minute: hour * 60)
     }
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 28) {
-                SettingsSection(title: "You") {
-                    SettingsCard {
-                        SettingsRow("Name") {
-                            TextField("Name", text: $displayNameDraft, prompt: Text(MacAccountUser.resolvedFullName(saved: savedDisplayName) ?? "Your name"))
-                                .labelsHidden()
-                                .textFieldStyle(.roundedBorder)
-                                .frame(width: 240)
-                                .focused($displayNameFocused)
-                                .onSubmit(commitDisplayName)
-                                .accessibilityIdentifier("settings.general.displayName")
+        SettingsSection(title: "Day") {
+            SettingsCard {
+                SettingsRow("Day starts at") {
+                    Picker("Day starts at", selection: $dayStartHour) {
+                        ForEach(Array(PlannerDayHours.startHours), id: \.self) { hour in
+                            Text(Self.hourLabel(hour)).tag(hour)
                         }
-                        .onAppear { displayNameDraft = MacAccountUser.resolvedFullName(saved: savedDisplayName) ?? "" }
-                        .onChange(of: savedDisplayName) { _, saved in
-                            // A rename from the web or a chat lands in the field
-                            // unless the learner is typing in it.
-                            guard !displayNameFocused else { return }
-                            displayNameDraft = MacAccountUser.resolvedFullName(saved: saved) ?? ""
-                        }
-                        .onChange(of: displayNameFocused) { _, focused in
-                            if !focused { commitDisplayName() }
-                        }
-                        .onDisappear(perform: commitDisplayName)
-
-                        rowDivider
-
-                        VStack(alignment: .leading, spacing: 8) {
-                            SettingsRow("About you", detail: "Courses are tailored to it.") { EmptyView() }
-                            TextField(
-                                "About you",
-                                text: $aboutYouDraft,
-                                prompt: Text("Where you're coming from: your background, what you know well, what's new to you"),
-                                axis: .vertical
-                            )
-                            .labelsHidden()
-                            .textFieldStyle(.roundedBorder)
-                            .lineLimit(3...8)
-                            .focused($aboutYouFocused)
-                            .accessibilityIdentifier("settings.general.aboutYou")
-                        }
-                        .onAppear { aboutYouDraft = LearnerProfile.aboutYou }
-                        .onChange(of: savedAboutYou) { _, _ in
-                            // Words written on another Mac or by a chat land here
-                            // unless the learner is typing in the field.
-                            guard !aboutYouFocused else { return }
-                            aboutYouDraft = LearnerProfile.aboutYou
-                        }
-                        .onChange(of: aboutYouFocused) { _, focused in
-                            if !focused { commitAboutYou() }
-                        }
-                        .onDisappear(perform: commitAboutYou)
+                    }
+                    .labelsHidden()
+                    .frame(width: SettingsLayout.controlWidth, alignment: .trailing)
+                    .accessibilityIdentifier("settings.general.dayStart")
+                    .onChange(of: dayStartHour) { _, start in
+                        // The end follows a start moved past it.
+                        if dayEndHour <= start { dayEndHour = min(PlannerDayHours.endHours.upperBound, start + 1) }
                     }
                 }
 
-                SettingsSection(title: "Day") {
-                    SettingsCard {
-                        SettingsRow("Day starts at") {
-                            Picker("Day starts at", selection: $dayStartHour) {
-                                ForEach(Array(PlannerDayHours.startHours), id: \.self) { hour in
-                                    Text(Self.hourLabel(hour)).tag(hour)
-                                }
-                            }
-                            .labelsHidden()
-                            .frame(width: Self.controlWidth, alignment: .trailing)
-                            .accessibilityIdentifier("settings.general.dayStart")
-                            .onChange(of: dayStartHour) { _, start in
-                                // The end follows a start moved past it.
-                                if dayEndHour <= start { dayEndHour = min(PlannerDayHours.endHours.upperBound, start + 1) }
-                            }
-                        }
+                SettingsLayout.rowDivider
 
-                        rowDivider
-
-                        SettingsRow("Day ends at") {
-                            Picker("Day ends at", selection: $dayEndHour) {
-                                ForEach(endHourChoices, id: \.self) { hour in
-                                    Text(Self.hourLabel(hour)).tag(hour)
-                                }
-                            }
-                            .labelsHidden()
-                            .frame(width: Self.controlWidth, alignment: .trailing)
-                            .accessibilityIdentifier("settings.general.dayEnd")
-                        }
-
-                        rowDivider
-
-                        SettingsRow("Ask each morning to plan the day", detail: "When nothing is planned yet.") {
-                            Toggle("Ask each morning to plan the day when nothing is planned", isOn: $suggestPlanningTheDay)
-                                .labelsHidden()
-                                .toggleStyle(.switch)
-                                .accessibilityIdentifier("settings.general.suggestPlanningTheDay")
-                        }
-
-                        rowDivider
-
-                        SettingsRow("Make me plan", detail: "Open the planning chat, and keep asking until the day is planned.") {
-                            Toggle("Make me plan: open the planning chat, and keep asking until the day is planned", isOn: $forcePlanningTheDay)
-                                .labelsHidden()
-                                .toggleStyle(.switch)
-                                .disabled(!suggestPlanningTheDay)
-                                .accessibilityIdentifier("settings.general.forcePlanningTheDay")
+                SettingsRow("Day ends at") {
+                    Picker("Day ends at", selection: $dayEndHour) {
+                        ForEach(endHourChoices, id: \.self) { hour in
+                            Text(Self.hourLabel(hour)).tag(hour)
                         }
                     }
+                    .labelsHidden()
+                    .frame(width: SettingsLayout.controlWidth, alignment: .trailing)
+                    .accessibilityIdentifier("settings.general.dayEnd")
                 }
 
-                QuickAssistantSettingsSection()
+                SettingsLayout.rowDivider
 
-                SettingsSection(title: "Memory review") {
-                    SettingsCard {
-                        SettingsRow("Time each day") {
-                            Picker("Time each day", selection: $budgetMinutes) {
-                                ForEach(Self.budgetChoices(including: budgetMinutes), id: \.self) { minutes in
-                                    Text(MemoryReviewBudget.label(minutes)).tag(minutes)
-                                }
-                            }
-                            .labelsHidden()
-                            .frame(width: Self.controlWidth, alignment: .trailing)
-                            .accessibilityIdentifier("settings.memory.budget")
-                        }
+                SettingsRow("Ask each morning to plan the day", detail: "When nothing is planned yet.") {
+                    Toggle("Ask each morning to plan the day when nothing is planned", isOn: $suggestPlanningTheDay)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .accessibilityIdentifier("settings.general.suggestPlanningTheDay")
+                }
 
-                        rowDivider
+                SettingsLayout.rowDivider
 
-                        SettingsRow("New cards each day") {
-                            Picker("New cards each day", selection: newCardsPerDayBinding) {
-                                ForEach(Self.newCardChoices(including: newCardsPerDay), id: \.self) { count in
-                                    Text("\(count)").tag(count)
-                                }
-                            }
-                            .labelsHidden()
-                            .frame(width: Self.controlWidth, alignment: .trailing)
-                            .accessibilityIdentifier("settings.memory.newCardsPerDay")
-                        }
+                SettingsRow("Make me plan", detail: "Open the planning chat, and keep asking until the day is planned.") {
+                    Toggle("Make me plan: open the planning chat, and keep asking until the day is planned", isOn: $forcePlanningTheDay)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .disabled(!suggestPlanningTheDay)
+                        .accessibilityIdentifier("settings.general.forcePlanningTheDay")
+                }
+            }
+        }
+    }
+}
 
-                        rowDivider
+/// Think first's level for the library (`ThinkFirst`), synced so the picker
+/// follows another Mac, the web or MCP.
+struct SettingsThinkFirstSection: View {
+    @SyncedStorage(wrappedValue: ThinkFirstLevel.off, ThinkFirst.levelKey)
+    private var thinkFirstLevel: ThinkFirstLevel
 
-                        SettingsRow("Draft cards from what you finish", detail: "Uses AI, within your daily background limit.") {
-                            Toggle("Draft cards from what you finish", isOn: autoDraftsCardsBinding)
-                                .labelsHidden()
-                                .toggleStyle(.switch)
-                                .accessibilityIdentifier("settings.memory.autoDraftCards")
-                        }
-                        .settingsFocusRow(.memoryDraftCards)
-
-                        rowDivider
-
-                        SettingsRow("Say when drafted cards wait") {
-                            Toggle("Say when drafted cards wait", isOn: showsDraftNudgesBinding)
-                                .labelsHidden()
-                                .toggleStyle(.switch)
-                                .accessibilityIdentifier("settings.memory.draftNudges")
-                        }
-
-                        rowDivider
-
-                        SettingsRow("Have today's review ready") {
-                            Toggle("Have today's review ready", isOn: $prepareDaily)
-                                .labelsHidden()
-                                .toggleStyle(.switch)
-                                .accessibilityIdentifier("settings.memory.prepareDaily")
-                                .onChange(of: prepareDaily) { _, enabled in
-                                    didChangePrepareDaily(to: enabled)
-                                }
-                        }
-
-                        if let note = notificationNote, note.card == .memoryReview {
-                            notificationNoteRow(note.permission)
-                        }
-
-                        if prepareDaily {
-                            rowDivider
-
-                            SettingsRow("Ready by") {
-                                Picker("Ready by", selection: $readyHour) {
-                                    ForEach(0..<24, id: \.self) { value in
-                                        Text(DailyReviewPreparation.hourLabel(value)).tag(value)
-                                    }
-                                }
-                                .labelsHidden()
-                                .frame(width: Self.controlWidth, alignment: .trailing)
-                                .accessibilityIdentifier("settings.memory.hour")
-                                .onChange(of: readyHour) { _, _ in
-                                    MemoryReviewPreparationRunner.shared.scheduleRefresh()
-                                    // The reminder moves to the new hour, and
-                                    // only while that morning holds a card.
-                                    Task { await MemoryReviewPreparationRunner.shared.refreshReminder() }
-                                }
-                            }
+    var body: some View {
+        SettingsSection(title: "Think first") {
+            SettingsCard {
+                SettingsRow(
+                    "Ask for your own line first",
+                    detail: "Before a source's gist, a report or Find directions; Also Chat adds a notebook's chat."
+                ) {
+                    Picker("Ask for your own line first", selection: $thinkFirstLevel) {
+                        ForEach(ThinkFirstLevel.allCases, id: \.self) { level in
+                            Text(level.title).tag(level)
                         }
                     }
+                    .labelsHidden()
+                    .frame(width: SettingsLayout.controlWidth, alignment: .trailing)
+                    .accessibilityIdentifier("settings.general.thinkFirst")
                 }
+            }
+        }
+    }
+}
 
-                SettingsSection(title: "Think first") {
-                    SettingsCard {
-                        SettingsRow(
-                            "Ask for your own line first",
-                            detail: "Before a source's gist, a report or Find directions; Also Chat adds a notebook's chat."
-                        ) {
-                            Picker("Ask for your own line first", selection: $thinkFirstLevel) {
-                                ForEach(ThinkFirstLevel.allCases, id: \.self) { level in
-                                    Text(level.title).tag(level)
-                                }
-                            }
-                            .labelsHidden()
-                            .frame(width: Self.controlWidth, alignment: .trailing)
-                            .accessibilityIdentifier("settings.general.thinkFirst")
+/// Signed up for beta releases (`BetaReleases`), synced so the switch follows
+/// another Mac or MCP; `AppUpdateController` sees the change and checks the
+/// feed again. A small switch under the version in Settings' sidebar.
+struct SettingsBetaReleasesToggle: View {
+    @SyncedStorage(wrappedValue: false, BetaReleases.preferenceKey)
+    private var betaReleasesSignedUp: Bool
+
+    var body: some View {
+        Toggle("Beta releases", isOn: Binding(
+            get: { betaReleasesSignedUp },
+            set: { BetaReleases.setSignedUp($0) }
+        ))
+        .toggleStyle(.switch)
+        .controlSize(.mini)
+        .font(.system(size: 10))
+        .foregroundStyle(.secondary)
+        .help("Early builds and beta features, such as the Canvas, on every Mac you use")
+        .accessibilityIdentifier("settings.general.betaReleases")
+    }
+}
+
+/// The daily memory review: its length, the day's new cards, background card
+/// drafting and today's review readied ahead.
+struct SettingsMemoryReviewSection: View {
+    @SyncedStorage(wrappedValue: MemoryReviewBudget.defaultMinutes, MemoryReviewBudget.preferenceKey)
+    private var budgetMinutes: Int
+    @SyncedStorage(wrappedValue: false, DailyReviewPreparation.enabledKey)
+    private var prepareDaily: Bool
+    @AppStorage(DailyReviewPreparation.hourKey)
+    private var readyHour: Int = DailyReviewPreparation.defaultHour
+    /// Synced: the day's new cards, background drafting, and the corner card.
+    @SyncedStorage(wrappedValue: MemoryCardQueue.defaultNewPerDay, MemoryCardSettings.newCardsPerDayKey)
+    private var newCardsPerDay: Int
+    @SyncedStorage(wrappedValue: false, MemoryCardSettings.autoDraftKey)
+    private var autoDraftsCards: Bool
+    @SyncedStorage(wrappedValue: true, MemoryCardSettings.draftNudgesKey)
+    private var showsDraftNudges: Bool
+    /// macOS's answer about ForeverLM's notifications: read when the section
+    /// appears and each time the app comes forward, since the learner may
+    /// have just changed it in System Settings. Nil until it has been read.
+    @State private var notificationPermission: NotificationPermission?
+    @State private var isRequestingNotifications = false
+
+    /// The one line about notifications, and the card it sits in.
+    private var notificationNote: NotificationSettingsNote? {
+        NotificationSettingsNote.placement(
+            permission: notificationPermission,
+            preparesDailyReview: prepareDaily
+        )
+    }
+
+    var body: some View {
+        SettingsSection(title: "Memory review") {
+            SettingsCard {
+                SettingsRow("Time each day") {
+                    Picker("Time each day", selection: $budgetMinutes) {
+                        ForEach(Self.budgetChoices(including: budgetMinutes), id: \.self) { minutes in
+                            Text(MemoryReviewBudget.label(minutes)).tag(minutes)
                         }
                     }
+                    .labelsHidden()
+                    .frame(width: SettingsLayout.controlWidth, alignment: .trailing)
+                    .accessibilityIdentifier("settings.memory.budget")
                 }
 
-                SettingsSection(title: "Updates") {
-                    SettingsCard {
-                        SettingsRow(
-                            "Get beta releases",
-                            detail: "Early builds and beta features, such as the Canvas, on every Mac you use."
-                        ) {
-                            Toggle("Get beta releases", isOn: betaReleasesBinding)
-                                .labelsHidden()
-                                .toggleStyle(.switch)
-                                .accessibilityIdentifier("settings.general.betaReleases")
+                SettingsLayout.rowDivider
+
+                SettingsRow("New cards each day") {
+                    Picker("New cards each day", selection: newCardsPerDayBinding) {
+                        ForEach(Self.newCardChoices(including: newCardsPerDay), id: \.self) { count in
+                            Text("\(count)").tag(count)
+                        }
+                    }
+                    .labelsHidden()
+                    .frame(width: SettingsLayout.controlWidth, alignment: .trailing)
+                    .accessibilityIdentifier("settings.memory.newCardsPerDay")
+                }
+
+                SettingsLayout.rowDivider
+
+                SettingsRow("Draft cards from what you finish", detail: "Uses AI, within your daily background limit.") {
+                    Toggle("Draft cards from what you finish", isOn: autoDraftsCardsBinding)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .accessibilityIdentifier("settings.memory.autoDraftCards")
+                }
+                .settingsFocusRow(.memoryDraftCards)
+
+                SettingsLayout.rowDivider
+
+                SettingsRow("Say when drafted cards wait") {
+                    Toggle("Say when drafted cards wait", isOn: showsDraftNudgesBinding)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .accessibilityIdentifier("settings.memory.draftNudges")
+                }
+
+                SettingsLayout.rowDivider
+
+                SettingsRow("Have today's review ready") {
+                    Toggle("Have today's review ready", isOn: $prepareDaily)
+                        .labelsHidden()
+                        .toggleStyle(.switch)
+                        .accessibilityIdentifier("settings.memory.prepareDaily")
+                        .onChange(of: prepareDaily) { _, enabled in
+                            didChangePrepareDaily(to: enabled)
+                        }
+                }
+
+                if let note = notificationNote, note.card == .memoryReview {
+                    notificationNoteRow(note.permission)
+                }
+
+                if prepareDaily {
+                    SettingsLayout.rowDivider
+
+                    SettingsRow("Ready by") {
+                        Picker("Ready by", selection: $readyHour) {
+                            ForEach(0..<24, id: \.self) { value in
+                                Text(DailyReviewPreparation.hourLabel(value)).tag(value)
+                            }
+                        }
+                        .labelsHidden()
+                        .frame(width: SettingsLayout.controlWidth, alignment: .trailing)
+                        .accessibilityIdentifier("settings.memory.hour")
+                        .onChange(of: readyHour) { _, _ in
+                            MemoryReviewPreparationRunner.shared.scheduleRefresh()
+                            // The reminder moves to the new hour, and
+                            // only while that morning holds a card.
+                            Task { await MemoryReviewPreparationRunner.shared.refreshReminder() }
                         }
                     }
                 }
             }
-            .padding(24)
-            .frame(maxWidth: 760, alignment: .leading)
         }
-        .background(Color(nsColor: .windowBackgroundColor))
-        .settingsFocusHost(pane: .general)
-        .navigationTitle("General")
         .task { await refreshNotificationPermission() }
         .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
             Task { await refreshNotificationPermission() }
@@ -361,15 +339,6 @@ struct GeneralSettingsDetailView: View {
                 MemoryCardSettings.setAutoDraftsCards($0)
                 Task(priority: .utility) { await AppModelBridge.studio?.refreshCardsToCheckBanner() }
             }
-        )
-    }
-
-    /// Written through `BetaReleases`, which `set_app_setting` uses too;
-    /// `AppUpdateController` sees the change and checks the feed again.
-    private var betaReleasesBinding: Binding<Bool> {
-        Binding(
-            get: { betaReleasesSignedUp },
-            set: { BetaReleases.setSignedUp($0) }
         )
     }
 
@@ -467,7 +436,7 @@ struct GeneralSettingsDetailView: View {
 }
 
 /// One setting in a card: the name (and a quiet line under it) on the left,
-/// its control on the right edge. Every General row draws this way, so a
+/// its control on the right edge. Every such row draws this way, so a
 /// switch, a picker and a field all sit in the same column.
 struct SettingsRow<Control: View>: View {
     let title: String
@@ -510,7 +479,7 @@ enum SettingsRowID: String {
     /// The Settings pane the row is in; nil for a row on a plugin's page.
     var pane: SettingsPane? {
         switch self {
-        case .memoryDraftCards: .general
+        case .memoryDraftCards: .aiBackgroundModels
         case .imagesQuizPictures, .imagesNotebookCovers: .aiImages
         case .driveTranscribeRecordings, .youTubeFormatTranscripts: nil
         }
@@ -641,7 +610,7 @@ private struct SettingsFocusRow: ViewModifier {
     }
 }
 
-#Preview("General settings") {
-    GeneralSettingsDetailView()
+#Preview("Memory review settings") {
+    ScrollView { SettingsMemoryReviewSection().padding(24) }
         .frame(width: 620, height: 520)
 }

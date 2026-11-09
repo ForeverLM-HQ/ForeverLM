@@ -67,11 +67,24 @@ struct ChatModelsSettingsDetailView: View {
                         BackgroundFreeModelNote(blocker: freeBlocker)
                     }
                 }
+                // What was Settings › General, under the models it goes with
+                // (product owner, 2026-11-08): the day, the quick assistant
+                // and Think first are the chat's; the memory review's cards
+                // are drafted and its day readied by background work.
+                switch pane {
+                case .chat:
+                    SettingsDaySection()
+                    QuickAssistantSettingsSection()
+                    SettingsThinkFirstSection()
+                case .background:
+                    SettingsMemoryReviewSection()
+                }
             }
             .padding(24)
             .frame(maxWidth: 900, alignment: .leading)
         }
         .background(Color(nsColor: .windowBackgroundColor))
+        .settingsFocusHost(pane: pane == .chat ? .aiChatModels : .aiBackgroundModels)
         .navigationTitle(pane == .chat ? "Chat" : "Background")
         .onAppear {
             adoptPendingRequest()

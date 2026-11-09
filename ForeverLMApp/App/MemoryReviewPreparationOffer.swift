@@ -54,7 +54,7 @@ struct MemoryReviewPreparationOffer: View {
             }
             .buttonStyle(.plain)
             .foregroundStyle(Color.accentColor)
-            .help("Plan today's review at \(hourLabel) each morning on a Mac that is open, with its first question waiting. One planning call and one opening message a day, billed to your OpenRouter key. Settings › General changes the hour or turns it off.")
+            .help("Plan today's review at \(hourLabel) each morning on a Mac that is open, with its first question waiting. One planning call and one opening message a day, billed to your OpenRouter key. Settings › Background › Memory review changes the hour or turns it off.")
             .accessibilityIdentifier("mac.chatMemoryPrepareOffer.accept")
 
             Spacer(minLength: 0)
@@ -72,7 +72,7 @@ struct MemoryReviewPreparationOffer: View {
             Image(systemName: "checkmark.circle")
                 .font(.caption)
                 .foregroundStyle(.secondary)
-            Text("Ready by \(hourLabel) each morning from now on. Settings › General changes the hour.")
+            Text("Ready by \(hourLabel) each morning from now on. Settings › Background changes the hour.")
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .lineLimit(2)

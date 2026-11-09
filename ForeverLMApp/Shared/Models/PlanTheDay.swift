@@ -17,7 +17,7 @@ import Foundation
 /// the clock it says whether the question stands. `DayModel` asks it on every
 /// tick of its clock.
 enum PlanTheDay {
-    /// Settings › General › Day. On until the learner switches it off,
+    /// Settings › Chat › Day. On until the learner switches it off,
     /// from the pane, from the card's or the notification's Don't Ask Again,
     /// or over MCP. Device-local, like the reading review: the question is
     /// asked on this Mac.
@@ -31,7 +31,7 @@ enum PlanTheDay {
         UserDefaults.standard.set(enabled, forKey: settingKey)
     }
 
-    /// Settings › General › Day, under the switch above: Make Me Plan. Off
+    /// Settings › Chat › Day, under the switch above: Make Me Plan. Off
     /// until the learner turns it on (product owner, 2026-10-15: "give me the
     /// option to FORCE myself to plan my day if it hasn't been planned yet …
     /// now it's just a notification nudge"). While the day is unplanned the
@@ -75,7 +75,7 @@ enum PlanTheDay {
     }
 
     /// Whether `nowMinute` is in the morning of the learner's day: from the
-    /// hour their day starts (Settings › General › Day) until
+    /// hour their day starts (Settings › Chat › Day) until
     /// `morningEndMinute`.
     static func isMorning(nowMinute: Int, dayHours: ClosedRange<Int>) -> Bool {
         nowMinute >= dayHours.lowerBound * 60 && nowMinute < morningEndMinute(dayHours: dayHours)

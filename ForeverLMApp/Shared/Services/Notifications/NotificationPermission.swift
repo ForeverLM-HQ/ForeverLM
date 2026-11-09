@@ -13,7 +13,7 @@ import UserNotifications
 /// them. On the product owner's, from at least 2026-09-20 to 2026-09-27, neither
 /// ForeverLM nor ForeverLM Dev posted a single notification while every
 /// switch read as on. So the answer is now said where the switches that need
-/// it are, in Settings › General (`NotificationSettingsNote`), and over MCP in
+/// it are, in Settings › Background › Memory review (`NotificationSettingsNote`), and over MCP in
 /// `get_day_settings` (`notifications_status`). Undoing a
 /// refusal stays the learner's, in System Settings; the app only opens the
 /// right page.
@@ -84,7 +84,7 @@ enum NotificationPermission: String, Equatable, Sendable {
     }
 }
 
-/// The one line Settings › General draws about macOS's answer, and the card
+/// The one line Settings › Background › Memory review draws about macOS's answer, and the card
 /// it sits in: an orange "macOS has ForeverLM's notifications turned off."
 /// with Open System Settings, or Allow Notifications on a Mac never asked.
 ///

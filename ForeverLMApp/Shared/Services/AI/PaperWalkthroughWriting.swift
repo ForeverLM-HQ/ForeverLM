@@ -656,7 +656,7 @@ enum PaperWalkthroughWriting {
     }
 
     /// The learner's own words about where they are coming from (Settings ›
-    /// General › About you, `LearnerProfile.aboutYou` on the Mac), for the
+    /// About you, `LearnerProfile.aboutYou` on the Mac), for the
     /// writer to pitch the walk to; nil when they have said nothing, and
     /// the writer then writes for a newcomer to the field
     /// (`Prompts.walkthroughWriter`, "Pitch it to the learner"). One line,

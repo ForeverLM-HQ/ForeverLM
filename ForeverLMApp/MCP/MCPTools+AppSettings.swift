@@ -189,8 +189,8 @@ extension MCPDataStore {
     /// caller never concludes a pane is unreachable.
     static let dedicatedSettingsTools: [[String: String]] = [
         ["pane": "Sources › Search & AI", "read": "get_source_settings", "write": "set_source_settings"],
-        ["pane": "General › Day", "read": "get_day_settings", "write": "set_day_settings"],
-        ["pane": "General › Memory review", "read": "get_memory_review_settings", "write": "set_memory_review_settings"],
+        ["pane": "Chat › Day", "read": "get_day_settings", "write": "set_day_settings"],
+        ["pane": "Background › Memory review", "read": "get_memory_review_settings", "write": "set_memory_review_settings"],
         ["pane": "Background › Models (Text-only, Multimodal, Tasks), a card's ⋯ for its host; Data & Privacy", "read": "get_ai_task_settings", "write": "set_ai_task_settings"],
         ["pane": "Chat › Models (which models the chat picker offers)", "read": "get_ai_task_settings", "write": "set_chat_model_offered"],
         ["pane": "AI Usage › API keys", "read": "get_own_router_key", "write": "set_own_router_key"],
@@ -281,14 +281,14 @@ extension MCPDataStore {
         (lhs as? NSObject)?.isEqual(rhs) ?? false
     }
 
-    // MARK: - General › Your name
+    // MARK: - Data & Privacy › Your name
 
     @MainActor
     private static func accountSettingEntries() -> [AppSettingEntry] {
         [
             AppSettingEntry(
                 id: "account.display_name",
-                pane: "General › Your name",
+                pane: "Data & Privacy › Your name",
                 title: "Name",
                 detail: "The name the account button, the account menu and the chat greeting show, on every Mac and the web. It starts as the Apple Account name. A blank name, or one longer than \(MacAccountUser.maximumDisplayNameLength) characters, is refused. Ask the learner before renaming them.",
                 reach: .account,
@@ -304,7 +304,7 @@ extension MCPDataStore {
             ),
             AppSettingEntry(
                 id: "account.about_you",
-                pane: "General › About you",
+                pane: "Add Textbook › About you",
                 title: "About you",
                 detail: "Where the learner is coming from, in their own words: their background, what they know well, what is new to them. Every course tailors to it: the readings add_textbook_to_course chooses leave out what this says they already know. Up to \(LearnerProfile.maximumAboutYouLength) characters; an empty string clears it. Write the learner's words, or words they approved, never a guess about them.",
                 reach: .account,
@@ -320,7 +320,7 @@ extension MCPDataStore {
             ),
             AppSettingEntry(
                 id: "think_first.level",
-                pane: "General › Think first",
+                pane: "Chat › Think first",
                 title: "Ask for your own line first",
                 detail: "Think first for the whole library: before ForeverLM shows what it wrote about the learner's material, it asks for the learner's own line, keeps it in their words and shows the two side by side, never graded. off (the default); summariesAndStudio asks before a source's gist in the Reader's Levels, a Studio report and Find directions; alsoChat also asks for a guess before a question in a notebook's chat. Skip is one click and costs nothing. A notebook may have its own level (update_notebook think_first; get_notebook shows it). Ask the learner before changing it.",
                 reach: .account,
@@ -351,7 +351,7 @@ extension MCPDataStore {
             ),
             AppSettingEntry(
                 id: "account.show_comp_crown",
-                pane: "General › Your name (the crown has no pane)",
+                pane: "Data & Privacy › Your name (the crown has no pane)",
                 title: "Show the crown by your name",
                 detail: "Whether an account whose AI usage ForeverLM pays for shows it: the crown in the web's account footer and the Mac account menu's \"Usage is paid for\" row (the Mac's account button carries no crown since 2026-10-06). On by default; off hides both on every client, for screenshots and recordings. It shows nothing on an account that pays for itself either way, and AI Usage still says who pays.",
                 reach: .account,
@@ -373,7 +373,7 @@ extension MCPDataStore {
             ),
             AppSettingEntry(
                 id: "updates.beta_releases",
-                pane: "General › Updates",
+                pane: "Settings sidebar › Beta releases",
                 title: "Get beta releases",
                 detail: "Whether the learner's Macs are offered beta builds: releases published to the update feed's beta channel before they reach everyone. It also shows the features still in beta, the Canvas and the Atlas for now, with their MCP tools; while it is off they are hidden. Off by default; it follows the account to the learner's other Macs, and a Mac checks for updates as soon as it changes. Turning it off never downgrades: a Mac on a beta stays on it until a production release passes it. Ask the learner before signing them up.",
                 reach: .account,
@@ -541,14 +541,14 @@ extension MCPDataStore {
     // MARK: - Quick assistant
 
     /// The shortcut that brings up the quick assistant over any app
-    /// (docs/quick-assistant-design.md): the value Settings › General ›
+    /// (docs/quick-assistant-design.md): the value Settings › Chat ›
     /// Quick assistant records, written through the same `choose`.
     @MainActor
     private static func quickAssistantSettingEntries() -> [AppSettingEntry] {
         [
             AppSettingEntry(
                 id: "quick_assistant.shortcut",
-                pane: "General › Quick assistant",
+                pane: "Chat › Quick assistant",
                 title: "Shortcut",
                 detail: "The keys that bring up ForeverLM's quick assistant over any app: a bar that listens, sends what was said to a new ForeverLM chat with every app tool, and shows the answer above it. Modifiers and one key joined by +, such as ctrl+option+space (the default; ctrl+option+shift+space in ForeverLM Dev) or cmd+shift+k; ctrl, option or cmd must be held unless the key is f1–f20. off turns it off. Pick keys no other app on this Mac uses: macOS does not stop two apps taking the same ones. This Mac only; it never syncs.",
                 reach: .thisMac,
@@ -603,7 +603,7 @@ extension MCPDataStore {
     // MARK: - Memory review layout
 
     /// Cards or conversation for the day's memory review. It sits in the
-    /// review chat's ⋯ menu, not Settings › General › Memory review, whose own pair
+    /// review chat's ⋯ menu, not Settings › Background › Memory review, whose own pair
     /// (`get_memory_review_settings`) covers what the review asks about.
     @MainActor
     private static func memoryReviewLayoutSettingEntries() -> [AppSettingEntry] {
@@ -1125,7 +1125,9 @@ extension MCPDataStore {
     /// panes. The plugins' ids are the ones they had as Settings panes, so the
     /// tool's contract is unchanged; they open the Plugins place.
     static let settingsPaneIDs: [(id: String, target: SettingsPaneTarget)] = [
-        ("general", .pane(.general)), ("chat", .pane(.aiChatModels)), ("voice", .pane(.aiTextToSpeech)),
+        // "general" stays in the published enum; the pane went on 2026-11-08
+        // and Settings opens on Chat in its place.
+        ("general", .pane(.aiChatModels)), ("chat", .pane(.aiChatModels)), ("voice", .pane(.aiTextToSpeech)),
         ("images", .pane(.aiImages)), ("videos", .pane(.aiVideos)), ("background", .pane(.aiBackgroundModels)),
         ("billing", .pane(.aiBilling)), ("ai_usage", .pane(.aiUsage)), ("data_privacy", .pane(.dataPrivacy)),
         ("team_general", .pane(.teamGeneral)), ("team_members", .pane(.teamMembers)),

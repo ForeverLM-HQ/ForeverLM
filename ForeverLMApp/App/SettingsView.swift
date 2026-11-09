@@ -6,8 +6,6 @@ import UniformTypeIdentifiers
 import EventKit
 
 enum SettingsPane: Hashable {
-    /// Your name, the day's hours, the memory review.
-    case general
     /// The data story, iCloud sync, and the learner's teams.
     case dataPrivacy
     /// The open team's own settings, scoped to the active library the way
@@ -81,7 +79,9 @@ struct SettingsView: View {
 
     init(initialPane: SettingsPane? = nil) {
         scope = SettingsScope(pane: initialPane)
-        _selection = State(initialValue: initialPane ?? .general)
+        // Settings opens on the AI models (product owner, 2026-11-08: "the main
+        // page that should open is an ai models page").
+        _selection = State(initialValue: initialPane ?? .aiChatModels)
     }
 
     var body: some View {
@@ -125,8 +125,6 @@ struct SettingsView: View {
     @ViewBuilder
     private func paneView(for pane: SettingsPane) -> some View {
         switch pane {
-        case .general:
-            GeneralSettingsDetailView()
         case .dataPrivacy:
             DataPrivacySettingsDetailView()
         case .teamGeneral:
@@ -188,20 +186,47 @@ enum SettingsSearchCatalog {
     static func items() -> [SettingsSearchItem] {
         [
             SettingsSearchItem(
-                id: "general",
-                title: "General",
-                subtitle: "App",
-                keywords: ["name", "your name", "rename", "display name", "day", "hours", "start", "end", "plan the day", "notification"],
-                destination: .general,
-                icon: "gearshape.fill",
+                id: "name",
+                title: "Your name",
+                subtitle: "Data & Privacy",
+                keywords: ["name", "your name", "rename", "display name", "you", "profile"],
+                destination: .dataPrivacy,
+                icon: "person.crop.circle.fill",
                 tint: .gray
+            ),
+            SettingsSearchItem(
+                id: "day",
+                title: "Day",
+                subtitle: "Chat",
+                keywords: ["day", "hours", "start", "end", "plan the day", "make me plan", "planning", "morning"],
+                destination: .aiChatModels,
+                icon: "sun.max.fill",
+                tint: .yellow
+            ),
+            SettingsSearchItem(
+                id: "quick-assistant",
+                title: "Quick assistant",
+                subtitle: "Chat",
+                keywords: ["quick assistant", "shortcut", "hotkey", "keyboard", "spotlight"],
+                destination: .aiChatModels,
+                icon: "command",
+                tint: .blue
+            ),
+            SettingsSearchItem(
+                id: "think-first",
+                title: "Think first",
+                subtitle: "Chat",
+                keywords: ["think first", "own line", "guess", "before the gist"],
+                destination: .aiChatModels,
+                icon: "lightbulb.fill",
+                tint: .yellow
             ),
             SettingsSearchItem(
                 id: "memory",
                 title: "Memory review",
-                subtitle: "General",
-                keywords: ["memory", "review", "today's review", "prepare", "ready", "morning", "reminder", "daily", "minutes", "how long"],
-                destination: .general,
+                subtitle: "Background",
+                keywords: ["memory", "review", "cards", "new cards", "draft cards", "today's review", "prepare", "ready", "morning", "reminder", "notification", "daily", "minutes", "how long"],
+                destination: .aiBackgroundModels,
                 icon: MemoryReviewSession.sidebarIcon,
                 tint: .pink
             ),
@@ -416,11 +441,6 @@ private struct SettingsSidebar: View {
     @ViewBuilder
     private var personalGroups: some View {
         Group {
-            groupHeader("App")
-            row(.general, icon: "gearshape.fill", title: "General", tint: .gray)
-        }
-
-        Group {
             groupHeader("AI Models")
             row(.aiChatModels, icon: "bubble.left.and.bubble.right.fill", title: "Chat", tint: .blue)
             row(.aiTextToSpeech, icon: "speaker.wave.2.fill", title: "Voice", tint: .indigo)
@@ -505,6 +525,11 @@ private struct SettingsSidebar: View {
                 }
             }
             Spacer(minLength: 0)
+            // Beta releases sit with the version they change, since General
+            // went (2026-11-08); the team scope has no say in updates.
+            if scope == .personal {
+                SettingsBetaReleasesToggle()
+            }
         }
         .padding(.horizontal, 12)
         .padding(.vertical, 10)

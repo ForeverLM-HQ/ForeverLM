@@ -9,7 +9,7 @@ import UserNotifications
 /// gone in seconds, or never shown on a Mac that refuses ForeverLM's
 /// notifications. The banner and Plan in Chat open the chat that plans the day
 /// into the Mac's Calendar and answer the card; Don't Ask Again switches the
-/// question off on this Mac, the same switch as Settings › General › Day.
+/// question off on this Mac, the same switch as Settings › Chat › Day.
 ///
 /// Delivered immediately rather than scheduled: the day's clock
 /// (`DayModel`) decides the moment, so nothing is ever pending to cancel.

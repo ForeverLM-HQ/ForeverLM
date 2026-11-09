@@ -215,8 +215,10 @@ struct ContentView: View {
                 let showsPairingCode =
                     url.pathComponents.dropFirst(2).first?.lowercased() == "pairing"
                 pane = showsPairingCode ? .mcpPairing : .mcp
-            case "general", "appearance", "memory":
-                pane = .general
+            case "general", "appearance", "chat":
+                pane = .aiChatModels
+            case "memory", "background":
+                pane = .aiBackgroundModels
             default:
                 pane = nil
             }

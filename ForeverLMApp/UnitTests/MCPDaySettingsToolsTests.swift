@@ -4,7 +4,7 @@ import Testing
 
 #if os(macOS)
 
-/// `get_day_settings` / `set_day_settings`: Settings › General › Day — the
+/// `get_day_settings` / `set_day_settings`: Settings › Chat › Day — the
 /// hours of the learner's day, "Plan your day?", and macOS's answer about the
 /// notifications — readable and writable from a chat so the pane is never the
 /// only place they can be changed. See docs/planner-design.md.

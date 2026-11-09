@@ -53,7 +53,7 @@ enum MemoryCardQueue {
     /// The daily allowance of new cards when the learner has set none
     /// (`memory.new_cards_per_day`).
     static let defaultNewPerDay = 10
-    /// The learner's allowance, Settings › General › Memory review: synced
+    /// The learner's allowance, Settings › Background › Memory review: synced
     /// (`SyncedPreferenceKeys.synced`), a statement about the learner's day.
     /// It also sets how many sources ForeverLM drafts cards from in the
     /// background each day (`AutomaticCardDrafting.dailySourceLimit`).

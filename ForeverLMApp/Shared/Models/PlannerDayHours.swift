@@ -5,7 +5,7 @@ import Foundation
 /// "between midnight and 6 a.m. we don't need to show in the app but I want
 /// to be able to set that somewhere"). Two synced preferences — the day is
 /// the learner's, so the window follows the account to the other Mac — read
-/// by the clock, Settings › General › Planner, and
+/// by the clock, Settings › Chat › Day, and
 /// `get_planner_settings` / `set_planner_settings`.
 ///
 /// The window is where the clock *starts and stops drawing*, never a rule

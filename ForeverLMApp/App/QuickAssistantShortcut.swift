@@ -8,7 +8,7 @@ import os
 // The product owner, 2026-10-02, of Claude's Caps Lock voice bar: "when you hit caps
 // lock, claude becomes a helpful assistant … make it an assistant that can do
 // one off stuff". Caps Lock is Claude's on his Mac and ⌥Space is ChatGPT's, so
-// the quick assistant takes a shortcut the learner picks (Settings › General ›
+// the quick assistant takes a shortcut the learner picks (Settings › Chat ›
 // Quick assistant), ⌃⌥Space until they do (⌃⌥⇧Space in a development build).
 // docs/quick-assistant-design.md.
 

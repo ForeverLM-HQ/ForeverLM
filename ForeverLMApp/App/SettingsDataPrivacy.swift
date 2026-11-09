@@ -26,6 +26,9 @@ struct DataPrivacySettingsDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 24) {
+                // Your name, the account's, since General went (2026-11-08).
+                SettingsNameSection()
+
                 SettingsSection(title: "Your library") {
                     SettingsCard {
                         DataPrivacyFactRow(

@@ -528,7 +528,7 @@ struct DayClock: Sendable {
     let now: Date
     /// Minutes after local midnight, now.
     let nowMinute: Int
-    /// The hours the learner's day runs (`PlannerDayHours`, Settings › General › Day).
+    /// The hours the learner's day runs (`PlannerDayHours`, Settings › Chat › Day).
     let dayHours: ClosedRange<Int>
     let calendar: Calendar
 
@@ -623,9 +623,9 @@ struct DayClock: Sendable {
     }
 }
 
-// MARK: - Settings › General › Day
+// MARK: - Settings › Chat › Day
 
-/// Settings › General › Day, readable and writable from a chat so the pane is
+/// Settings › Chat › Day, readable and writable from a chat so the pane is
 /// never the only place it can be changed (`get_day_settings` /
 /// `set_day_settings`): the hours the learner's day runs (synced) and the
 /// device-local "Plan your day?" switch. macOS's answer about ForeverLM's
