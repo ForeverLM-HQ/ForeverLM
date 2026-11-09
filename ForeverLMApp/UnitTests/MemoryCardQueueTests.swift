@@ -41,7 +41,8 @@ struct MemoryCardQueueTests {
             deadlines: [],
             calendar: calendar
         )
-        #expect(tomorrow.entries.map(\.id) == ["kept-last-night", "kept-today"])
+        // Tomorrow, the card kept today is the one kept yesterday, so it leads.
+        #expect(tomorrow.entries.map(\.id) == ["kept-today", "kept-last-night"])
     }
 
     @Test("Due cards come most overdue first, then new cards oldest kept first")
@@ -79,6 +80,82 @@ struct MemoryCardQueueTests {
         #expect(today.newCount == 2)
         #expect(today.dueLeftOver == 0)
         #expect(today.newLeftOver == 0)
+    }
+
+    @Test("Cards kept yesterday come before the due cards, take the allowance first, and fit the minutes before them")
+    func keptYesterdayLeads() throws {
+        let calendar = try losAngeles()
+        let now = try local(calendar, 9, 30, 10)
+        let (overdue, overdueReview) = dueCard("overdue", dueAt: now.addingTimeInterval(-6 * day))
+        let (justDue, justDueReview) = dueCard("just-due", dueAt: now.addingTimeInterval(-3_600))
+        let lastMorning = card("yesterday-morning", keptAt: try local(calendar, 9, 29, 8))
+        let lastNight = card("yesterday-night", keptAt: try local(calendar, 9, 29, 23, 50))
+        let olderNew = card("older-new", keptAt: now.addingTimeInterval(-5 * day))
+        let keptToday = card("kept-today", keptAt: try local(calendar, 9, 30, 8))
+        let items = [olderNew, justDue, lastNight, keptToday, overdue, lastMorning]
+        let attempts = [overdueReview, justDueReview]
+
+        func queue(newPerDay: Int) -> MemoryCardQueue.Today {
+            MemoryCardQueue.today(
+                items: items,
+                attempts: attempts,
+                now: now,
+                budgetMinutes: nil,
+                newPerDay: newPerDay,
+                deadlines: [],
+                calendar: calendar
+            )
+        }
+
+        let roomy = queue(newPerDay: 10)
+        #expect(roomy.entries.map(\.id) == [
+            "yesterday-morning", "yesterday-night", "overdue", "just-due", "older-new",
+        ])
+        #expect(roomy.entries.map(\.bucket) == [.new, .new, .due, .due, .new])
+        #expect(roomy.newCount == 3)
+
+        // Two a day: yesterday's cards take both, the older new card waits.
+        let two = queue(newPerDay: 2)
+        #expect(two.entries.map(\.id) == ["yesterday-morning", "yesterday-night", "overdue", "just-due"])
+        #expect(two.newLeftOver == 1)
+
+        // One a day: the earlier of yesterday's cards.
+        let one = queue(newPerDay: 1)
+        #expect(one.entries.map(\.id) == ["yesterday-morning", "overdue", "just-due"])
+        #expect(one.newLeftOver == 2)
+
+        // Ten due cards fill five minutes on their own; yesterday's two go
+        // first (a minute each), and four due cards wait for tomorrow.
+        let manyDue = (0..<10).map { index in
+            dueCard(String(format: "due-%02d", index), dueAt: now.addingTimeInterval(-Double(index + 1) * 3_600))
+        }
+        let crowded = MemoryCardQueue.today(
+            items: manyDue.map(\.0) + [lastMorning, lastNight, olderNew],
+            attempts: manyDue.map(\.1),
+            now: now,
+            budgetMinutes: MemoryReviewBudget.minimumMinutes,
+            newPerDay: 10,
+            deadlines: [],
+            calendar: calendar
+        )
+        #expect(crowded.entries.prefix(2).map(\.id) == ["yesterday-morning", "yesterday-night"])
+        #expect(crowded.dueCount == 6)
+        #expect(crowded.dueLeftOver == 4)
+        #expect(crowded.newLeftOver == 1)
+
+        // Tomorrow, they are older new cards like any other, and today's is first.
+        let tomorrow = MemoryCardQueue.today(
+            items: items,
+            attempts: attempts,
+            now: try local(calendar, 10, 1, 10),
+            budgetMinutes: nil,
+            newPerDay: 10,
+            deadlines: [],
+            calendar: calendar
+        )
+        #expect(tomorrow.entries.map(\.id) == [
+            "kept-today", "overdue", "just-due", "older-new", "yesterday-morning", "yesterday-night",
+        ])
     }
 
     @Test("A notebook needed within 36 hours puts its due and new cards first, the soonest notebook first")

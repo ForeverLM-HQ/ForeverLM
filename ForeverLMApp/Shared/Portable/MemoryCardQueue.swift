@@ -37,10 +37,16 @@ struct MemoryCardDeadline: Equatable, Sendable {
 ///   notebook first; within a notebook, due cards most overdue first, then new
 ///   cards oldest kept first. New cards here are not held to the daily
 ///   allowance: the notebook is needed before tomorrow's allowance comes.
-/// - **(b) Due cards**, most overdue first.
-/// - **(c) New cards**, oldest kept first, up to the day's allowance:
+/// - **(b) Cards kept yesterday**, new today, oldest kept first: their first
+///   recall is the one that matters most, and a due card loses little by
+///   waiting a day (product owner, 2026-11-09: "cards we added yesterday
+///   should be the priority in the review"). They come ahead of the due cards
+///   so the day's minutes never crowd them out, and they use the allowance.
+/// - **(c) Due cards**, most overdue first.
+/// - **(d) The other new cards**, oldest kept first, up to the day's allowance:
 ///   `newPerDay`, less the new cards already introduced today (their first
-///   graded attempt fell today, wherever it was made) and the new cards in (a).
+///   graded attempt fell today, wherever it was made), the new cards in (a)
+///   and those in (b).
 ///   An item born with its first graded attempt, a `.discovery` (a walkthrough
 ///   or course-quiz miss kept at once, a voice or assistant first review), was
 ///   never a new card dealt from the allowance, so it does not use it up.
@@ -246,9 +252,20 @@ enum MemoryCardQueue {
             .map(\.entry)
         let deadlineNewCount = orderedDeadlineCards.reduce(0) { $0 + ($1.isNew ? 1 : 0) }
         let newAllowance = max(0, max(0, newPerDay) - newIntroducedToday - deadlineNewCount)
+        // Kept yesterday: first eligible at the start of today. The allowance
+        // goes to them first, then to the older new cards.
+        let orderedNewCards = newCards.sorted(by: isOlderKept)
+        func isKeptYesterday(_ entry: Entry) -> Bool {
+            MemoryTutorScheduler.firstEligibleAt(createdAt: entry.item.createdAt, calendar: calendar) >= startOfToday
+        }
+        let keptYesterday = orderedNewCards.filter(isKeptYesterday)
+        let keptBefore = orderedNewCards.filter { !isKeptYesterday($0) }
+        let dealtKeptYesterday = Array(keptYesterday.prefix(newAllowance))
+        let dealtKeptBefore = Array(keptBefore.prefix(max(0, newAllowance - dealtKeptYesterday.count)))
         let ordered = orderedDeadlineCards
+            + dealtKeptYesterday
             + dueCards.sorted(by: isMoreOverdue)
-            + Array(newCards.sorted(by: isOlderKept).prefix(newAllowance))
+            + dealtKeptBefore
 
         var entries: [Entry] = []
         if let budgetMinutes {
