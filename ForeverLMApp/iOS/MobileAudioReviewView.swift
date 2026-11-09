@@ -132,20 +132,11 @@ struct MobileAudioReviewView: View {
                 MobileNotebookHomeView { route in open(route) }
             }
         }
-        // No title: the brand is the app's icon, and a large "ForeverLM" over the list only moved
-        // the notebooks down (the product owner, 2026-10-11: it "looks ugly"). The bar holds Settings
-        // and, in Home's own toolbar, +; voice is Home's first row of tiles (`MobileHomeModes`).
+        // No top bar: the brand is the app's icon (a large "ForeverLM" title "looks ugly", 2026-10-11),
+        // and a bar of Settings and + only wasted the top of the screen (2026-11-09). Settings is
+        // beside Search at the foot, + by Notebooks (`MobileNotebookHomeView`).
         .navigationTitle("")
-        .navigationBarTitleDisplayMode(.inline)
-        .toolbar {
-            ToolbarItem(placement: .topBarLeading) {
-                NavigationLink(value: MobileShellRoute.settings) {
-                    Image(systemName: "gearshape")
-                }
-                .accessibilityLabel("Settings")
-                .accessibilityIdentifier("home.settings")
-            }
-        }
+        .toolbar(.hidden, for: .navigationBar)
     }
 
     @ViewBuilder
@@ -525,9 +516,10 @@ struct MobileVoiceSessionCover: View {
             onToggleMute: realtime.toggleMicrophoneMuted,
             onEnd: end,
             onDismissError: { realtime.errorMessage = nil },
-            accessory: realtime.opening == .gym
-                ? AnyView(MobileGymQuestionField(controller: realtime))
-                : nil
+            // Every voice conversation can be typed to as well (product owner,
+            // 2026-11-09: one voice mode, "in the gym, I should be able to just
+            // type my answers if I want to").
+            accessory: AnyView(MobileVoiceTypeField(controller: realtime))
         )
     }
 
@@ -558,10 +550,11 @@ struct MobileVoiceSessionCover: View {
     }
 }
 
-/// Gym mode's question field (product owner, 2026-11-08): the learner cannot
-/// talk at the gym, so a follow-up question is typed here. It is asked once
-/// the part ForeverLM is saying ends, then the walk-through goes on.
-private struct MobileGymQuestionField: View {
+/// The voice conversation's typing field, in every voice conversation since
+/// 2026-11-09 (gym mode's question field first, 2026-11-08): a question or an
+/// answer typed where talking does not suit, as at the gym. It is said to
+/// ForeverLM once the part it is saying ends, so nothing is cut off.
+private struct MobileVoiceTypeField: View {
     @ObservedObject var controller: RealtimeVoiceController
     @State private var question = ""
     @FocusState private var isFocused: Bool
@@ -574,14 +567,14 @@ private struct MobileGymQuestionField: View {
         VStack(spacing: 6) {
             if controller.waitingQuestionCount > 0 {
                 Text(controller.waitingQuestionCount == 1
-                     ? "Your question is next, after this part."
-                     : "\(controller.waitingQuestionCount) questions are next, after this part.")
+                     ? "Yours is next, after this part."
+                     : "\(controller.waitingQuestionCount) of yours are next, after this part.")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
-                    .accessibilityIdentifier("voice.gym.waiting")
+                    .accessibilityIdentifier("voice.type.waiting")
             }
             HStack(alignment: .bottom, spacing: 8) {
-                TextField("Ask a question…", text: $question, axis: .vertical)
+                TextField("Type instead…", text: $question, axis: .vertical)
                     .lineLimit(1...4)
                     .focused($isFocused)
                     .submitLabel(.send)
@@ -589,7 +582,7 @@ private struct MobileGymQuestionField: View {
                     .padding(.horizontal, 14)
                     .padding(.vertical, 10)
                     .background(Color.primary.opacity(0.06), in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                    .accessibilityIdentifier("voice.gym.question")
+                    .accessibilityIdentifier("voice.type.field")
                 Button(action: send) {
                     Image(systemName: "arrow.up.circle.fill")
                         .font(.system(size: 32))
@@ -597,8 +590,8 @@ private struct MobileGymQuestionField: View {
                 }
                 .buttonStyle(.plain)
                 .disabled(!canSend)
-                .accessibilityLabel("Send question")
-                .accessibilityIdentifier("voice.gym.send")
+                .accessibilityLabel("Send")
+                .accessibilityIdentifier("voice.type.send")
             }
         }
         .frame(maxWidth: 640)

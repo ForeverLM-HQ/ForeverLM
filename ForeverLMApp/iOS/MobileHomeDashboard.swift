@@ -5,9 +5,11 @@ import SwiftUI
 /// via voice mode or via tapping the flashcards and looking at the images", "voice
 /// mode to chat with particular sources in the car", and papers "a bit less
 /// prominently displayed"; the old Home "looks terrible", make it look like
-/// NotebookLM's). From the top: today's cards, with Review and By Voice; the three
-/// ways to talk (Voice, Drive, Gym); the notebooks as cover cards, two to a row;
-/// and the library as a quiet row of chips at the foot.
+/// NotebookLM's; "we shouldn't really have separate modes for voice and drive and
+/// gym"; the settings and plus buttons at the top waste space). From the top: the
+/// day's date; today's cards, with Review and By Voice; Voice, the one voice mode,
+/// talked or typed to; the notebooks as cover cards, two to a row, with + and See
+/// All; and the library as a quiet row of chips at the foot.
 ///
 /// It draws only what it is handed, so Home (`MobileNotebookHomeView`) and the
 /// DEBUG harness (`MobileHomeHarness`) draw the same screen. Its sections are
@@ -29,17 +31,18 @@ struct MobileHomeDashboard<NotebookMenu: View>: View {
 
     var body: some View {
         Group {
+            Text(Date.now.formatted(.dateTime.weekday(.wide).day().month(.wide)))
+                .font(.subheadline.weight(.medium))
+                .foregroundStyle(.secondary)
+                .modifier(MobileHomeRow(top: MobileDesign.Spacing.small, bottom: 0))
+
             if let cards {
                 MobileHomeReviewCard(cards: cards, open: actions.open, reviewByVoice: actions.reviewByVoice)
                     .modifier(MobileHomeRow(top: MobileDesign.Spacing.small))
             }
 
-            MobileHomeModes(
-                talk: actions.talk,
-                drive: { actions.pickSource(.talk) },
-                gym: { actions.pickSource(.gym) }
-            )
-            .modifier(MobileHomeRow(top: MobileDesign.Spacing.large))
+            MobileHomeVoiceCard(talk: actions.talk)
+                .modifier(MobileHomeRow(top: MobileDesign.Spacing.small))
 
             notebooksHeader
                 .modifier(MobileHomeRow(top: MobileDesign.Spacing.xLarge, bottom: 0))
@@ -57,11 +60,22 @@ struct MobileHomeDashboard<NotebookMenu: View>: View {
         HStack(alignment: .firstTextBaseline) {
             MobileHomeSectionHeader("Notebooks")
             Spacer(minLength: 0)
+            Button(action: actions.newNotebook) {
+                Image(systemName: "plus")
+                    .font(.subheadline.weight(.semibold))
+                    .foregroundStyle(.secondary)
+                    .frame(width: 32, height: 32)
+                    .background(MobileHomeMetrics.fill, in: Circle())
+            }
+            .buttonStyle(MobileHomePressStyle())
+            .accessibilityLabel("New notebook")
+            .accessibilityIdentifier("home.newNotebook")
             if hasMoreNotebooks {
                 Button("See All") { actions.open(.notebooks(.all)) }
                     .font(.subheadline)
                     .foregroundStyle(.secondary)
                     .buttonStyle(.plain)
+                    .padding(.leading, MobileDesign.Spacing.small)
                     .accessibilityIdentifier("home.allNotebooks")
             }
         }
@@ -116,21 +130,16 @@ struct MobileHomeActions {
     let open: (MobileShellRoute) -> Void
     /// Review by Voice over every notebook.
     let reviewByVoice: () -> Void
-    /// Voice mode with no source: the assistant.
+    /// Voice mode: the assistant, which finds and opens a source the learner
+    /// names ("let's talk about the oocytes paper"), hands free, and takes
+    /// typed questions and answers too.
     let talk: () -> Void
-    /// Drive or Gym: shows the picker of sources (`MobileVoiceSourcePicker`),
-    /// which Home presents.
-    let pickSource: (RealtimeVoiceOpening) -> Void
     let newNotebook: () -> Void
     /// The Spaces chip's menu: a new page, and today's daily note.
     var newPage: (() -> Void)? = nil
     var dailyNote: (() -> Void)? = nil
     /// A card's ▶: the notebook's audio overview, by its source id.
     var playOverview: (String) -> Void = { _ in }
-}
-
-extension RealtimeVoiceOpening: Identifiable {
-    var id: String { rawValue }
 }
 
 /// A row of Home's plain list with nothing of the list's own: no separator, no
@@ -275,60 +284,45 @@ struct MobileHomePillStyle: ButtonStyle {
     }
 }
 
-// MARK: - Talk
+// MARK: - Voice
 
-/// The three ways to talk: Voice (anything, the assistant), Drive (one source, out
-/// loud, hands free) and Gym (one source walked through like a podcast, the
-/// questions typed).
-struct MobileHomeModes: View {
+/// Voice, the one voice mode (product owner, 2026-11-09: voice, the car and the
+/// gym "are really all the same"): talk about anything, a source by its name, or
+/// today's cards, hands free in the car; at the gym, type instead (the voice
+/// screen's field, `MobileVoiceTypeField`). One wide card, its waveform the dark
+/// round button.
+struct MobileHomeVoiceCard: View {
     let talk: () -> Void
-    let drive: () -> Void
-    let gym: () -> Void
 
     var body: some View {
-        HStack(spacing: MobileDesign.Spacing.medium) {
-            MobileHomeModeTile(systemImage: "waveform", title: "Voice", caption: "Ask anything", action: talk)
-                .accessibilityIdentifier("home.voice")
-            MobileHomeModeTile(systemImage: "car.fill", title: "Drive", caption: "Talk through a source", action: drive)
-                .accessibilityIdentifier("home.drive")
-            MobileHomeModeTile(systemImage: "figure.strengthtraining.traditional", title: "Gym", caption: "Listen, type questions", action: gym)
-                .accessibilityIdentifier("home.gym")
-        }
-    }
-}
-
-struct MobileHomeModeTile: View {
-    let systemImage: String
-    let title: String
-    let caption: String
-    let action: () -> Void
-
-    var body: some View {
-        Button(action: action) {
-            VStack(alignment: .leading, spacing: 0) {
-                Image(systemName: systemImage)
-                    .font(.system(size: 19, weight: .semibold))
-                    .foregroundStyle(.primary)
-                    .frame(width: 40, height: 40)
-                    .background(Color(uiColor: .systemBackground), in: Circle())
-                Spacer(minLength: MobileDesign.Spacing.large)
-                Text(title)
-                    .font(.headline)
-                    .foregroundStyle(.primary)
-                Text(caption)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(2, reservesSpace: true)
-                    .multilineTextAlignment(.leading)
+        Button(action: talk) {
+            HStack(spacing: MobileDesign.Spacing.large) {
+                Image(systemName: "waveform")
+                    .font(.system(size: 22, weight: .semibold))
+                    .foregroundStyle(Color(uiColor: .systemBackground))
+                    .frame(width: 52, height: 52)
+                    .background(Color.primary, in: Circle())
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Voice")
+                        .font(.headline)
+                        .foregroundStyle(.primary)
+                    Text("Talk about anything or name a source. Type when you can’t talk.")
+                        .font(.subheadline)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .multilineTextAlignment(.leading)
+                }
+                Spacer(minLength: 0)
             }
-            .padding(14)
-            .frame(maxWidth: .infinity, minHeight: 136, alignment: .topLeading)
-            .background(MobileHomeMetrics.fill, in: RoundedRectangle(cornerRadius: MobileHomeMetrics.tileRadius, style: .continuous))
-            .contentShape(RoundedRectangle(cornerRadius: MobileHomeMetrics.tileRadius, style: .continuous))
+            .padding(MobileDesign.Spacing.large)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(MobileHomeMetrics.fill, in: RoundedRectangle(cornerRadius: MobileHomeMetrics.cardRadius, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: MobileHomeMetrics.cardRadius, style: .continuous))
         }
         .buttonStyle(MobileHomePressStyle())
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(title), \(caption)")
+        .accessibilityLabel("Voice. Talk about anything or name a source; type when you can’t talk.")
+        .accessibilityIdentifier("home.voice")
     }
 }
 
@@ -415,100 +409,5 @@ struct MobileHomeLibraryChips: View {
         }
         .buttonStyle(MobileHomePressStyle())
         .accessibilityIdentifier(id)
-    }
-}
-
-// MARK: - The voice picker
-
-/// Drive and Gym's sheet: which source to talk about. Newest first, searched by
-/// its words; a tap closes the sheet and starts the voice.
-struct MobileVoiceSourcePicker: View {
-    let opening: RealtimeVoiceOpening
-    let sources: [MobileCloudSource]
-    let choose: (MobileCloudSource) -> Void
-
-    @Environment(\.dismiss) private var dismiss
-    @State private var query = ""
-
-    private static let shownWithoutSearch = 60
-
-    private var shown: [MobileCloudSource] {
-        let terms = MobileSourceListSearch.terms(in: query)
-        if terms.isEmpty {
-            return Array(sources.sorted { $0.dateAdded > $1.dateAdded }.prefix(Self.shownWithoutSearch))
-        }
-        return MobileSourceListSearch.filter(sources, query: query) { _ in nil }
-    }
-
-    private var title: String { opening == .gym ? "Gym" : "Drive" }
-
-    private var explanation: String {
-        opening == .gym
-            ? "ForeverLM walks you through it like a podcast. Type a question whenever you have one."
-            : "Talk it through out loud, hands free."
-    }
-
-    var body: some View {
-        NavigationStack {
-            List {
-                Section {
-                    ForEach(shown) { source in
-                        Button { choose(source) } label: { MobileVoiceSourceRow(source: source) }
-                            .buttonStyle(.plain)
-                    }
-                } header: {
-                    Text(explanation)
-                        .font(.subheadline)
-                        .foregroundStyle(.secondary)
-                        .textCase(nil)
-                        .padding(.bottom, MobileDesign.Spacing.xSmall)
-                }
-            }
-            .listStyle(.plain)
-            .overlay {
-                if shown.isEmpty {
-                    ContentUnavailableView.search(text: query)
-                }
-            }
-            .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .always), prompt: "Search your sources")
-            .navigationTitle(title)
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-            }
-        }
-        .presentationDragIndicator(.visible)
-    }
-}
-
-struct MobileVoiceSourceRow: View {
-    let source: MobileCloudSource
-
-    var body: some View {
-        HStack(spacing: MobileDesign.Spacing.medium) {
-            Image(systemName: MobileSourceTypeStyle.icon(for: source.sourceType))
-                .font(.body.weight(.medium))
-                .foregroundStyle(MobileSourceTypeStyle.color(for: source.sourceType))
-                .frame(width: 40, height: 40)
-                .background(MobileSourceTypeStyle.color(for: source.sourceType).opacity(0.12),
-                            in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            VStack(alignment: .leading, spacing: 2) {
-                Text(source.title)
-                    .font(.body)
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-                if let line = source.citationSubtitle ?? source.subtitle, !line.isEmpty {
-                    Text(line)
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                        .lineLimit(1)
-                }
-            }
-            Spacer(minLength: 0)
-        }
-        .padding(.vertical, 4)
-        .contentShape(Rectangle())
     }
 }

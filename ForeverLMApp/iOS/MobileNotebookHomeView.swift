@@ -23,15 +23,16 @@ enum MobileHomeSearchScope: String, CaseIterable, Hashable {
 }
 
 /// Home (since 2026-11-09, `MobileHomeDashboard`): today's cards with Review
-/// and By Voice, the three ways to talk (Voice, Drive, Gym), the notebooks at
+/// and By Voice, Voice, the notebooks at
 /// hand as cover cards — pinned first, then the ones last worked in — with See
 /// All for the Notebooks screen (`MobileNotebooksScreen`, collections and all),
 /// and the library as a row of chips at the foot. A running bout and today's
 /// plan sit above it while there is one; courses under it.
 ///
 /// Search finds notebooks, or sources across the library — by their words
-/// first and by meaning when the words find little. New notebook is the
-/// toolbar's +, Settings the shell's (`homeRoot`).
+/// first and by meaning when the words find little. Home has no top bar: New
+/// notebook is the + by Notebooks, Settings the gear beside Search at the foot
+/// (`MobileHomeBottomBar`).
 struct MobileNotebookHomeView: View {
     /// Pushes a route on the shell's stack: a notebook just made opens at once.
     let open: (MobileShellRoute) -> Void
@@ -52,8 +53,6 @@ struct MobileNotebookHomeView: View {
     @Environment(MobileSpaceStore.self) private var spaceStore
     /// New Page or Daily Notes from the Spaces chip's menu could not make its page.
     @State private var spaceFailure: String?
-    /// Drive or Gym's picker of sources, while it is up.
-    @State private var voicePicker: RealtimeVoiceOpening?
     /// Today's cards as the Memory screen counts them (practice included);
     /// nil until read.
     @State private var cardCounts: MemoryCardDayCounts?
@@ -116,17 +115,7 @@ struct MobileNotebookHomeView: View {
             reviewedSourceIDs = await MobileCloudSourceCatalog.shared.currentReviewedSourceIDs()
             cardCounts = await vm.cardReviewRead(scope: .allNotebooks).counts
         }
-        .sheet(item: $voicePicker) { opening in
-            MobileVoiceSourcePicker(opening: opening, sources: MobileSourceListing.listed(vm.allSources)) { source in
-                voicePicker = nil
-                Task { await MobileRealtimeVoice.start(source: source, notebook: nil, opening: opening) }
-            }
-        }
-        .toolbar {
-            ToolbarItem(placement: .topBarTrailing) {
-                newNotebookButton
-            }
-        }
+
         .sheet(item: $editor) { destination in
             MobileNotebookEditorSheet(mode: destination.mode)
         }
@@ -211,7 +200,6 @@ struct MobileNotebookHomeView: View {
                 talk: {
                     Task { await MobileRealtimeVoice.startAssistant(setting: .phone) }
                 },
-                pickSource: { voicePicker = $0 },
                 newNotebook: createNotebook,
                 newPage: {
                     openSpacePage { try await spaceStore.createPage(title: "", markdown: "", spaceID: nil, parentID: nil) }
@@ -353,19 +341,6 @@ struct MobileNotebookHomeView: View {
             guard let id = await vm.createNotebook() else { return }
             open(.notebook(id))
         }
-    }
-
-    /// New notebook, the toolbar's +, which opens the notebook it made. It
-    /// floated as an accent capsule over the list until 2026-10-06.
-    private var newNotebookButton: some View {
-        Button {
-            createNotebook()
-        } label: {
-            Image(systemName: "plus")
-        }
-        .disabled(vm.isMutatingLibrary)
-        .accessibilityLabel("New notebook")
-        .accessibilityIdentifier("home.newNotebook")
     }
 
     // MARK: - Search
@@ -765,9 +740,28 @@ private struct MobileHomeHidesDisclosure: ViewModifier {
 struct MobileHomeBottomBar: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
-            content.toolbar { DefaultToolbarItem(kind: .search, placement: .bottomBar) }
+            content.toolbar {
+                DefaultToolbarItem(kind: .search, placement: .bottomBar)
+                ToolbarSpacer(.fixed, placement: .bottomBar)
+                ToolbarItem(placement: .bottomBar) { MobileHomeSettingsLink() }
+            }
         } else {
-            content
+            content.toolbar {
+                ToolbarItem(placement: .bottomBar) { MobileHomeSettingsLink() }
+            }
         }
+    }
+}
+
+/// Settings, the gear beside Search at Home's foot: Home has no top bar
+/// (product owner, 2026-11-09: the settings and plus buttons at the top waste
+/// space).
+struct MobileHomeSettingsLink: View {
+    var body: some View {
+        NavigationLink(value: MobileShellRoute.settings) {
+            Image(systemName: "gearshape")
+        }
+        .accessibilityLabel("Settings")
+        .accessibilityIdentifier("home.settings")
     }
 }

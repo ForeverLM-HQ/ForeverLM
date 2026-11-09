@@ -251,7 +251,7 @@ final class RealtimeVoiceController: ObservableObject {
         ))
     }
 
-    /// A question the learner typed (gym mode). It is asked at once when
+    /// A question or an answer the learner typed (the iPhone's typing field). It is asked at once when
     /// ForeverLM is quiet, or after the part it is saying ends, so a part is
     /// never cut off mid-sentence. It is saved in the chat as typed.
     func ask(_ question: String) {

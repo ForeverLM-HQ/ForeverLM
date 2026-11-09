@@ -179,7 +179,7 @@ struct VoiceSessionSurface: View {
     let onEnd: () -> Void
     let onDismissError: (() -> Void)?
     /// Drawn just above the controls while the conversation is not failed:
-    /// gym mode's question field on the iPhone.
+    /// the typing field on the iPhone.
     let accessory: AnyView?
 
     init(
