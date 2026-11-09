@@ -138,9 +138,14 @@ struct PaperReferenceParserTests {
         Allio R, Donega S, Galtier N. 2017. Large variation in the ratio of mitochondrial to nuclear mutation rate. Mol Biol Evol 34:2762.
         Arbeithuber B, Hester J, Makova KD. 2020. Age-related accumulation of de novo mutations. PLOS Biology 18:e3000745.
         Bergstrom CT, Pritchard J. 1998. Germline bottlenecks and the maintenance of mitochondrial DNA. Genetics 149:2135.
+        Schmidt-Nielsen K. 1970. Energy metabolism, body size, and the problems of scaling. FedProc. 29:1524–1532.
         """
         let entries = PaperReferenceParser.entries(inPaperText: text)
-        #expect(entries.map(\.label) == ["Albamonte 2008", "Allen 2013", "Allio 2017", "Arbeithuber 2020", "Bergstrom 1998"])
+        #expect(entries.map(\.label) == [
+            "Albamonte 2008", "Allen 2013", "Allio 2017", "Arbeithuber 2020", "Bergstrom 1998", "Schmidt-Nielsen 1970",
+        ])
+        // A lone author's comma-less name ends at the initials, not at the title's first comma.
+        #expect(PaperReferenceParser.authorYearLabel(of: "Harman D. 1956. Aging: a theory based on free radical and radiation chemistry. J Gerontol. 11(3):298–300.") == "Harman 1956")
     }
 
     @Test("A PubMed Central entry ends at its catalog tags, and an inline Acknowledgments heading ends the last entry")
@@ -376,6 +381,49 @@ struct PaperReferenceLinkingTests {
         #expect(PaperReferenceLinkService.needsCatalog(unasked))
     }
 
+    @Test("OpenAlex is searched by the printed title, and a record PubMed alone indexes links to PubMed")
+    func pubMedOnlyRecord() async throws {
+        let entry = "Schmidt-Nielsen K. 1970. Energy metabolism, body size, and the problems of scaling. FedProc. 29:1524–1532."
+        #expect(PaperReferenceLinkService.openAlexSearchText(of: entry) == "Energy metabolism, body size, and the problems of scaling")
+        // OpenAlex's record for it, as the API returns it (2026-11-08): no DOI, PubMed as the
+        // "source", a title that leaves out "the", and the volume and first page.
+        let json = """
+        {"id":"https://openalex.org/W2406999319","doi":null,"title":"Energy metabolism, body size, and problems of scaling.",
+         "publication_year":1970,"ids":{"openalex":"https://openalex.org/W2406999319","pmid":"https://pubmed.ncbi.nlm.nih.gov/5459901"},
+         "primary_location":{"source":{"display_name":"PubMed","type":"repository"}},
+         "authorships":[{"author":{"display_name":"Knut Schmidt‐Nielsen"}}],
+         "biblio":{"volume":"29","issue":"4","first_page":"1524","last_page":"32"}}
+        """
+        let work = try #require(try JSONSerialization.jsonObject(with: Data(json.utf8)) as? [String: Any])
+        #expect(SlideCitationService.parseOpenAlexWork(work) == nil, "a slide's citation still needs a DOI")
+        let parsed = try #require(ReferenceCatalogClient.parseOpenAlexReferenceWork(work))
+        #expect(parsed.doi.isEmpty)
+        #expect(parsed.pubMedID == "5459901")
+        #expect(parsed.journal == nil, "PubMed is where OpenAlex found it, not its journal")
+
+        let searched = SearchedFor()
+        let catalogs = PaperReferenceCatalogs(
+            recordForDOI: { _ in .answered(nil) },
+            crossrefCandidates: { _ in .answered([]) },
+            openAlexCandidates: { text in await searched.note(text); return .answered([parsed]) }
+        )
+        let (done, answered) = await PaperReferenceLinkService.resolved(PaperLinkHarness.initial(entry), catalogs: catalogs)
+        #expect(answered)
+        #expect(await searched.texts == ["Energy metabolism, body size, and the problems of scaling"])
+        #expect(done.origin == .catalog)
+        #expect(done.doi == nil)
+        #expect(done.url == "https://pubmed.ncbi.nlm.nih.gov/5459901/")
+        #expect(done.year == "1970")
+
+        // Two PubMed ids that both fit settle nothing, like two DOIs.
+        let other = SlideCitationService.ResolvedPaper(
+            doi: "", title: parsed.title, journal: nil, year: "1970", authors: "Knut Schmidt-Nielsen",
+            volume: "29", firstPage: "1524", pubMedID: "1"
+        )
+        #expect(PaperReferenceCatalogMatch.accepted(entry: entry, among: [parsed, other]) == nil)
+        #expect(PaperReferenceCatalogMatch.accepted(entry: entry, among: [parsed, parsed])?.pubMedID == "5459901")
+    }
+
     @Test("Candidates are made for linked entries, and the rest are handed to the model as text")
     func candidates() {
         var linked = PaperReference(sourceID: "paper", ordinal: 1, label: "1", text: "Lee K. A paper. Cell 2019.")
@@ -390,6 +438,11 @@ struct PaperReferenceLinkingTests {
         #expect(read.unlinkedText == "Cho Y. Another. Nature 2020.")
         #expect(read.entryCount == 2)
     }
+}
+
+private actor SearchedFor {
+    private(set) var texts: [String] = []
+    func note(_ text: String) { texts.append(text) }
 }
 
 private enum PaperLinkHarness {
@@ -509,6 +562,31 @@ struct PaperReferenceStorageTests {
         #expect(stored[0].url == "https://doi.org/10.1002/ana.51", "same number, same words: the catalog's answer is kept")
         #expect(stored[1].text.hasPrefix("Another third"))
         #expect(stored[2].text.hasPrefix("Authored by an assistant"))
+    }
+
+    @Test("A new read relabels an entry it finds again, and asks the catalogs again about one left without a link")
+    func replaceRelabelsAndReasks() throws {
+        let (store, root) = try store("paper-references-relabel")
+        defer { try? FileManager.default.removeItem(at: root) }
+        try addPaper(store, "p")
+        let text = "Schmidt-Nielsen K. 1970. Energy metabolism, body size, and the problems of scaling. FedProc. 29:1524–1532."
+        var unlinked = PaperReference(sourceID: "p", ordinal: 1, label: "metabolism 1970", text: text)
+        unlinked.catalogCheckedAt = Date()
+        var linked = PaperReference(sourceID: "p", ordinal: 2, label: "Pickett 2018", text: "Pickett SJ. Phenotypic heterogeneity in disease. Ann 2018.")
+        linked.doi = "10.1002/ana.51"; linked.url = "https://doi.org/10.1002/ana.51"; linked.origin = .catalog
+        linked.catalogCheckedAt = Date()
+        try store.replacePaperReferenceList(sourceID: "p", entries: [unlinked, linked])
+
+        try store.replacePaperReferenceList(sourceID: "p", entries: [
+            PaperReference(sourceID: "p", ordinal: 1, label: "Schmidt-Nielsen 1970", text: text),
+            PaperReference(sourceID: "p", ordinal: 2, label: "Pickett 2018", text: linked.text),
+        ])
+        let stored = try store.loadPaperReferences(sourceID: "p")
+        #expect(stored[0].label == "Schmidt-Nielsen 1970")
+        #expect(stored[0].catalogCheckedAt == nil)
+        #expect(PaperReferenceLinkService.needsCatalog(stored[0]))
+        #expect(stored[1].url == "https://doi.org/10.1002/ana.51")
+        #expect(stored[1].catalogCheckedAt != nil, "a link found is not asked for again")
     }
 
     @Test("An assistant's save merges into the stored entry, replaces the list on request, and marks the read finished by the agent")
@@ -903,6 +981,9 @@ struct PaperReferenceSummaryTests {
              "Brenner, 1999", "Theoretical biology in the third millennium"),
             ("12. Wenz T. PGC-1α activation as a therapeutic approach in mitochondrial disease. IUBMB Life (2009) 61:1051–62.",
              "Wenz, 2009", "PGC-1α activation as a therapeutic approach in mitochondrial disease"),
+            // A lone author with no comma, whose title holds the entry's first comma.
+            ("Schmidt-Nielsen K. 1970. Energy metabolism, body size, and the problems of scaling. FedProc. 29:1524–1532.",
+             "Schmidt-Nielsen, 1970", "Energy metabolism, body size, and the problems of scaling"),
         ]
         for (text, byline, title) in cases {
             let summary = PaperReferenceSummary(entryText: text, stored: nil)
@@ -941,8 +1022,8 @@ struct PaperReferenceRequeueTests {
         """)
     }
 
-    @Test("A paper an older parser found no list in is queued once for this one; a list, or an assistant's, is left alone")
-    func requeuesEmptyReads() throws {
+    @Test("A paper an older parser read is queued once for this one, with or without a list; an assistant's is left alone")
+    func requeuesOlderReads() throws {
         let (store, root) = try store("paper-references-requeue")
         defer { try? FileManager.default.removeItem(at: root) }
         for id in ["empty-old", "empty-new", "listed", "agent"] { try addPaper(store, id, path: "Papers/\(id).pdf") }
@@ -951,14 +1032,16 @@ struct PaperReferenceRequeueTests {
             INSERT INTO paper_reference_reads (source_id, state, enqueued_at, parser_version, entry_count, authored_by) VALUES
                 ('empty-old', 'read', 0, 1, 0, 'app'),
                 ('empty-new', 'read', 0, \(PaperReferenceParser.version), 0, 'app'),
-                ('listed', 'read', 0, 1, 1, 'app'),
+                ('listed', 'read', 0, 2, 1, 'app'),
                 ('agent', 'read', 0, 1, 0, 'agent');
         """)
-        #expect(try store.requeueEmptyPaperReferenceReads() == 1)
-        #expect(try store.paperReferenceReadCandidates(limit: 10).map(\.sourceID) == ["empty-old"])
-        // The read it gets stamps this version, so it is not queued again.
-        try store.finishPaperReferenceRead(sourceID: "empty-old", pdfPath: nil, failure: nil, authoredBy: "app")
-        #expect(try store.requeueEmptyPaperReferenceReads() == 0)
+        #expect(try store.requeueOlderPaperReferenceReads() == 2)
+        #expect(Set(try store.paperReferenceReadCandidates(limit: 10).map(\.sourceID)) == ["empty-old", "listed"])
+        // The read each gets stamps this version, so neither is queued again.
+        for id in ["empty-old", "listed"] {
+            try store.finishPaperReferenceRead(sourceID: id, pdfPath: nil, failure: nil, authoredBy: "app")
+        }
+        #expect(try store.requeueOlderPaperReferenceReads() == 0)
     }
 
     @Test("A paper whose PDF arrives from another Mac is queued for its reference list")

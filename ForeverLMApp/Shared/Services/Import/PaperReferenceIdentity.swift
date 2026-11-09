@@ -17,6 +17,11 @@ enum PaperReferenceIdentity {
         "https://doi.org/\(doi)"
     }
 
+    /// The PubMed address of a PubMed id.
+    static func url(forPubMedID id: String) -> String {
+        "https://pubmed.ncbi.nlm.nih.gov/\(id)/"
+    }
+
     /// A DOI as stored, bare, from any form an agent or a catalog hands one over in: a doi.org
     /// address, a `doi:` prefix, or the bare `10.…/…`. Nil when it is not a DOI.
     static func normalizedDOI(_ raw: String?) -> String? {
@@ -42,7 +47,7 @@ enum PaperReferenceIdentity {
             return ("https://arxiv.org/abs/\(id)", nil, .printedURL)
         }
         if let id = firstMatch(of: #"(?:PMID|PubMed):?\s*(\d{5,9})"#, in: text) {
-            return ("https://pubmed.ncbi.nlm.nih.gov/\(id)/", nil, .printedURL)
+            return (url(forPubMedID: id), nil, .printedURL)
         }
         if var address = firstMatch(of: #"(https?://[^\s<>\"]+)"#, in: text) {
             while let last = address.last, ".,;:)]".contains(last) { address.removeLast() }
@@ -105,7 +110,8 @@ enum PaperReferenceIdentity {
 /// A catalog's best match for a whole entry is only a candidate: a search always returns
 /// something. A record is accepted when the entry prints it — its title letter for letter, or
 /// its volume and first page beside its first author — the year agrees, and the first author is
-/// printed too; and only when exactly one DOI is accepted. Anything looser puts a wrong link
+/// printed too; and only when exactly one DOI (or, for a record with none, one PubMed id) is
+/// accepted. Anything looser puts a wrong link
 /// on a citation, which reads as a fact.
 enum PaperReferenceCatalogMatch {
 
@@ -115,9 +121,9 @@ enum PaperReferenceCatalogMatch {
         among records: [SlideCitationService.ResolvedPaper]
     ) -> SlideCitationService.ResolvedPaper? {
         let matching = records.filter { accepts($0, entry: entry) }
-        let byDOI = Dictionary(grouping: matching, by: { $0.doi.lowercased() })
-        guard byDOI.count == 1 else { return nil }
-        return byDOI.values.first?.first
+        let byIdentity = Dictionary(grouping: matching, by: \.identityKey)
+        guard byIdentity.count == 1 else { return nil }
+        return byIdentity.values.first?.first
     }
 
     static func accepts(_ record: SlideCitationService.ResolvedPaper, entry: String) -> Bool {

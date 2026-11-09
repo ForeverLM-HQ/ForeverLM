@@ -213,19 +213,25 @@ struct PaperReferenceSummary: Equatable, Sendable {
     /// The first author's surname: before the first comma ("Hsu, P.", "Vyas S, …",
     /// "J. Abramson, …", "Justas Dauparas, …"), less a leading entry number.
     static func firstSurname(in text: String) -> String? {
-        var head = text.replacingOccurrences(of: #"^\s*[\[(]?\d{1,4}[.\])]?\s*"#, with: "", options: .regularExpression)
-        if let comma = head.firstIndex(of: ",") {
-            head = String(head[..<comma])
-        } else if let stop = head.range(of: #"\p{L}{2,}\s\p{Lu}{1,3}\.\s"#, options: .regularExpression) {
-            // One author and no comma: "Wenz T. PGC-1α activation …".
-            head = String(head[..<head.index(before: stop.upperBound)])
-        } else {
-            return nil
-        }
-        head = PaperReferenceSummary.firstName(in: head)
-        guard head.count <= 60, let surname = SlideCitationService.surname(inAuthorEntry: head),
+        guard let head = firstAuthorHead(in: text).map(PaperReferenceSummary.firstName(in:)),
+              head.count <= 60, let surname = SlideCitationService.surname(inAuthorEntry: head),
               surname.first?.isLetter == true else { return nil }
         return surname
+    }
+
+    /// The words that open an entry up to where its first author's name ends, less a leading
+    /// entry number: up to the first comma, or, for a lone author printed with no comma, up to
+    /// the initials, when they come first ("Wenz T. PGC-1α activation …"; "Schmidt-Nielsen K.
+    /// 1970. Energy metabolism, body size, …", whose first comma falls inside the title). Nil
+    /// when the entry prints neither.
+    static func firstAuthorHead(in text: String) -> String? {
+        let head = text.replacingOccurrences(of: #"^\s*[\[(]?\d{1,4}[.\])]?\s*"#, with: "", options: .regularExpression)
+        let comma = head.firstIndex(of: ",")
+        if let stop = head.range(of: #"\p{L}{2,}\s\p{Lu}{1,3}\.\s"#, options: .regularExpression),
+           comma.map({ stop.upperBound <= $0 }) ?? true {
+            return String(head[..<head.index(before: stop.upperBound)])
+        }
+        return comma.map { String(head[..<$0]) }
     }
 
     /// The first of names a list joins with "and" or "&" before any comma ("C. D. Allis and

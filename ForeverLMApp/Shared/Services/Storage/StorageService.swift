@@ -1759,9 +1759,9 @@ actor StorageService {
     }
 
     @discardableResult
-    func requeueEmptyPaperReferenceReads() throws -> Int {
+    func requeueOlderPaperReferenceReads() throws -> Int {
         try ensureStoreExists()
-        return try knowledgeStore().requeueEmptyPaperReferenceReads()
+        return try knowledgeStore().requeueOlderPaperReferenceReads()
     }
 
     func paperReferenceReadQueueCount() throws -> Int {

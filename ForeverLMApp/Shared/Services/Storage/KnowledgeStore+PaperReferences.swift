@@ -154,17 +154,17 @@ extension KnowledgeStore {
         ])
     }
 
-    /// Papers an older parser read and found no list in, queued to be read again by this one.
-    /// A read the app made only (an assistant's saved list is its own), and only once per
-    /// parser version: the read stamps the version it was made with.
+    /// Papers an older parser read, queued to be read again by this one: the list it found, or
+    /// found none, is read afresh, and its entries a catalog left without a link are asked again
+    /// (`replacePaperReferenceList`). A read the app made only (an assistant's saved list is its
+    /// own), and only once per parser version: the read stamps the version it was made with.
     @discardableResult
-    func requeueEmptyPaperReferenceReads() throws -> Int {
+    func requeueOlderPaperReferenceReads() throws -> Int {
         try execute("""
             UPDATE paper_reference_reads SET
                 state = 'queued', attempt_count = 0, last_error = NULL, enqueued_at = ?
-            WHERE state = 'read' AND entry_count = 0 AND parser_version < ?
+            WHERE state = 'read' AND parser_version < ?
               AND COALESCE(authored_by, 'app') = 'app'
-              AND NOT EXISTS (SELECT 1 FROM paper_references r WHERE r.source_id = paper_reference_reads.source_id)
         """, [.real(Date().timeIntervalSinceReferenceDate), .integer(Int64(PaperReferenceParser.version))])
         return Int(try scalarInteger("SELECT changes()", []) ?? 0)
     }
@@ -319,6 +319,19 @@ extension KnowledgeStore {
                 if let stored = existing[entry.ordinal] {
                     if stored.origin == .agent { continue }
                     if PaperReferenceIdentity.leadKey(of: stored.text) == PaperReferenceIdentity.leadKey(of: entry.text) {
+                        // The same entry: a link it found is kept, under the label this read
+                        // gives it; one it did not is asked of the catalogs again, since a
+                        // new read is a new parser or a catalog that was down.
+                        var kept = stored
+                        kept.label = entry.label
+                        if !stored.isLinked {
+                            kept.text = entry.text
+                            kept.catalogCheckedAt = nil
+                        }
+                        if kept != stored {
+                            kept.updatedAt = entry.updatedAt
+                            try upsertPaperReference(kept)
+                        }
                         continue
                     }
                 }

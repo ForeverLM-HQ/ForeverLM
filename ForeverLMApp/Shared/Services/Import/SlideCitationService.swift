@@ -1522,7 +1522,12 @@ actor SlideCitationService {
 
     /// A candidate record from a scholarly lookup.
     struct ResolvedPaper: Sendable, Equatable {
+        /// Empty only for a record known by its PubMed id alone (`pubMedID`): OpenAlex holds
+        /// many papers from before DOIs so ("Fed Proc" 1970), and only a reference list asks
+        /// for those (`ReferenceCatalogClient.parseOpenAlexReferenceWork`).
         let doi: String
+        /// The PubMed id of a record that has no DOI.
+        let pubMedID: String?
         /// Plain text: a catalog's `K<sup>+</sup>` arrives as `K⁺`.
         let title: String
         let journal: String?
@@ -1539,9 +1544,11 @@ actor SlideCitationService {
 
         init(
             doi: String, title: String, journal: String?, year: String?, authors: String? = nil,
-            volume: String? = nil, firstPage: String? = nil, journalAliases: [String] = []
+            volume: String? = nil, firstPage: String? = nil, journalAliases: [String] = [],
+            pubMedID: String? = nil
         ) {
             self.doi = doi
+            self.pubMedID = pubMedID
             self.title = title.decodingTitleMarkup()
             self.journal = journal
             self.year = year
@@ -1549,6 +1556,11 @@ actor SlideCitationService {
             self.volume = volume
             self.firstPage = firstPage
             self.journalAliases = journalAliases
+        }
+
+        /// What tells two records apart: the DOI, else the PubMed id.
+        var identityKey: String {
+            doi.isEmpty ? "pmid:\(pubMedID ?? "")" : doi.lowercased()
         }
     }
 

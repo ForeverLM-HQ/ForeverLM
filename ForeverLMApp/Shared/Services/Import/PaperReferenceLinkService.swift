@@ -20,7 +20,9 @@ struct PaperReferenceCatalogs: Sendable {
     var recordForDOI: @Sendable (String) async -> ReferenceCatalogAnswer<SlideCitationService.ResolvedPaper?>
     /// Crossref's best matches for a whole reference entry.
     var crossrefCandidates: @Sendable (String) async -> ReferenceCatalogAnswer<[SlideCitationService.ResolvedPaper]>
-    /// OpenAlex's best matches, asked only when Crossref held no accepted record.
+    /// OpenAlex's best matches for the entry's printed title (its search reads titles and
+    /// abstracts, so a whole entry, authors and pages and all, finds nothing), asked only when
+    /// Crossref held no accepted record.
     var openAlexCandidates: @Sendable (String) async -> ReferenceCatalogAnswer<[SlideCitationService.ResolvedPaper]>
 
     static let live = PaperReferenceCatalogs(
@@ -115,8 +117,41 @@ enum ReferenceCatalogClient {
                   let results = json["results"] as? [[String: Any]] else {
                 return .unavailable("OpenAlex answered with something that is not a search result")
             }
-            return .answered(results.compactMap(SlideCitationService.parseOpenAlexWork))
+            return .answered(results.compactMap(parseOpenAlexReferenceWork))
         }
+    }
+
+    /// An OpenAlex work as a record a reference entry can name: one with a DOI as
+    /// `SlideCitationService.parseOpenAlexWork` reads it, else one PubMed indexes (an article
+    /// from before DOIs, "Fed Proc" 1970), with its PubMed id and no DOI. Its venue is left out
+    /// when OpenAlex names PubMed itself, a repository, as where the work is.
+    static func parseOpenAlexReferenceWork(_ work: [String: Any]) -> SlideCitationService.ResolvedPaper? {
+        if let record = SlideCitationService.parseOpenAlexWork(work) { return record }
+        guard let title = work["title"] as? String, !title.isEmpty,
+              let pmidAddress = (work["ids"] as? [String: Any])?["pmid"] as? String,
+              let pmid = pmidAddress.split(separator: "/").last.map(String.init),
+              !pmid.isEmpty, pmid.allSatisfy(\.isNumber) else { return nil }
+        let source = (work["primary_location"] as? [String: Any])?["source"] as? [String: Any]
+        let journal = (source?["type"] as? String) == "repository" ? nil : source?["display_name"] as? String
+        let authors = (work["authorships"] as? [[String: Any]])?
+            .compactMap { ($0["author"] as? [String: Any])?["display_name"] as? String }
+            .joined(separator: "; ")
+        let biblio = work["biblio"] as? [String: Any]
+        return SlideCitationService.ResolvedPaper(
+            doi: "",
+            title: title,
+            journal: journal,
+            year: (work["publication_year"] as? Int).map(String.init),
+            authors: nonBlank(authors),
+            volume: nonBlank(biblio?["volume"] as? String),
+            firstPage: nonBlank(biblio?["first_page"] as? String),
+            pubMedID: pmid
+        )
+    }
+
+    private static func nonBlank(_ value: String?) -> String? {
+        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
+        return trimmed
     }
 
     private enum Fetched {
@@ -223,7 +258,10 @@ actor PaperReferenceLinkService {
         let pdfPath = article.localFilePath.map { StorageService.relativeSourcePath($0) }
 
         var readCount = 0
-        if force || state == nil || state?.entryCount == 0 {
+        let readByOlderParser = state.map {
+            $0.parserVersion < PaperReferenceParser.version && ($0.authoredBy ?? "app") == "app"
+        } ?? false
+        if force || state == nil || state?.entryCount == 0 || readByOlderParser {
             guard let text = await readText(article) else {
                 try await storage.finishPaperReferenceRead(
                     sourceID: sourceID, pdfPath: pdfPath, failure: nil, authoredBy: "app"
@@ -339,7 +377,7 @@ actor PaperReferenceLinkService {
             return (reference, false)
         case .answered(let pool):
             var match = PaperReferenceCatalogMatch.accepted(entry: reference.text, among: pool)
-            if match == nil, case .answered(let more) = await catalogs.openAlexCandidates(search) {
+            if match == nil, case .answered(let more) = await catalogs.openAlexCandidates(Self.openAlexSearchText(of: reference.text)) {
                 match = PaperReferenceCatalogMatch.accepted(entry: reference.text, among: more)
             }
             if let match { apply(match, to: &reference) }
@@ -349,11 +387,21 @@ actor PaperReferenceLinkService {
         }
     }
 
-    /// A catalog record as the entry's link and description.
+    /// What OpenAlex is searched for: the title the entry prints, else the entry.
+    static func openAlexSearchText(of entry: String) -> String {
+        PaperReferenceSummary.printedTitle(in: entry) ?? PaperReferenceIdentity.searchText(of: entry)
+    }
+
+    /// A catalog record as the entry's link and description: its DOI, else its PubMed page.
     static func apply(_ record: SlideCitationService.ResolvedPaper, to reference: inout PaperReference) {
-        let doi = record.doi.lowercased()
-        reference.doi = doi
-        reference.url = PaperReferenceIdentity.url(forDOI: doi)
+        if record.doi.isEmpty, let pmid = record.pubMedID {
+            reference.doi = nil
+            reference.url = PaperReferenceIdentity.url(forPubMedID: pmid)
+        } else {
+            let doi = record.doi.lowercased()
+            reference.doi = doi
+            reference.url = PaperReferenceIdentity.url(forDOI: doi)
+        }
         reference.origin = .catalog
         fillMetadata(of: &reference, from: record)
     }
@@ -391,9 +439,9 @@ actor PaperReferenceLinkService {
         isDraining = true
         defer { isDraining = false }
 
-        // A paper the parser of an older version found no list in is read again by this one.
+        // A paper the parser of an older version read is read again by this one.
         do {
-            try await storage.requeueEmptyPaperReferenceReads()
+            try await storage.requeueOlderPaperReferenceReads()
         } catch {
             referenceLinkLogger.error("Could not queue empty reference reads again: \(error.localizedDescription, privacy: .public)")
         }

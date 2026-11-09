@@ -23,7 +23,12 @@ enum PaperReferenceParser {
     /// 2 (2026-11-08): initials-first authors, a year set against a journal's full stop, an
     /// author list broken after initials, notes under a numbered entry, a list resumed past
     /// another column's headings. A paper version 1 found no list in is read again.
-    static let version = 2
+    /// 3 (2026-11-08): a lone author printed with no comma is labelled by that author, not by a
+    /// word before the first comma of the title ("Schmidt-Nielsen K. 1970. Energy metabolism,
+    /// …" was "metabolism 1970"); OpenAlex is searched by the printed title and a record PubMed
+    /// alone indexes links to PubMed. Every list the app read under an older version is read
+    /// again, and its entries left without a link are asked of the catalogs again.
+    static let version = 3
 
     struct Entry: Equatable, Sendable {
         /// The citation number of a numbered list; the position of an author-year one.
@@ -545,8 +550,8 @@ enum PaperReferenceParser {
     /// "Smith 2019" (or "Smith 2019a") for an author-year entry: its first author's surname and
     /// the first year it prints. Nil for an entry that prints no year.
     static func authorYearLabel(of text: String) -> String? {
-        guard let comma = text.firstIndex(of: ","), let year = yearExpression,
-              let surname = SlideCitationService.surname(inAuthorEntry: PaperReferenceSummary.firstName(in: String(text[..<comma]))),
+        guard let head = PaperReferenceSummary.firstAuthorHead(in: text), let year = yearExpression,
+              let surname = SlideCitationService.surname(inAuthorEntry: PaperReferenceSummary.firstName(in: head)),
               surname.count <= 40 else { return nil }
         let range = NSRange(text.startIndex..., in: text)
         guard let match = year.firstMatch(in: text, range: range),
