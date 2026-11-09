@@ -4,7 +4,7 @@ import Testing
 
 /// The app reads its own appcast to learn whether a build Sparkle resumed is
 /// still the newest. These pin what "newest for this Mac" means against the
-/// feed shape `generate_appcast` writes for releases.foreverlm.com.
+/// feed shape `generate_appcast` writes for foreverlm.com/releases/.
 @Suite("Appcast Feed")
 struct AppcastFeedTests {
 
@@ -20,21 +20,21 @@ struct AppcastFeedTests {
                 <sparkle:version>80</sparkle:version>
                 <sparkle:shortVersionString>0.31.0</sparkle:shortVersionString>
                 <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-                <enclosure url="https://releases.foreverlm.com/ForeverLM-0.31.0-build80-universal.dmg" length="38162781" type="application/octet-stream" sparkle:edSignature="G4C8"/>
+                <enclosure url="https://foreverlm.com/releases/ForeverLM-0.31.0-build80-universal.dmg" length="38162781" type="application/octet-stream" sparkle:edSignature="G4C8"/>
             </item>
             <item>
                 <title>0.30.0</title>
                 <sparkle:version>79</sparkle:version>
                 <sparkle:shortVersionString>0.30.0</sparkle:shortVersionString>
                 <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-                <enclosure url="https://releases.foreverlm.com/ForeverLM-0.30.0-build79-universal.dmg" length="38165016" type="application/octet-stream" sparkle:edSignature="L5Rw"/>
+                <enclosure url="https://foreverlm.com/releases/ForeverLM-0.30.0-build79-universal.dmg" length="38165016" type="application/octet-stream" sparkle:edSignature="L5Rw"/>
             </item>
             <item>
                 <title>0.29.0</title>
                 <sparkle:version>78</sparkle:version>
                 <sparkle:shortVersionString>0.29.0</sparkle:shortVersionString>
                 <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
-                <enclosure url="https://releases.foreverlm.com/ForeverLM-0.29.0-build78-universal.dmg" length="38113255" type="application/octet-stream" sparkle:edSignature="Alyq"/>
+                <enclosure url="https://foreverlm.com/releases/ForeverLM-0.29.0-build78-universal.dmg" length="38113255" type="application/octet-stream" sparkle:edSignature="Alyq"/>
             </item>
         </channel>
     </rss>
@@ -129,37 +129,6 @@ struct AppcastFeedTests {
         let items = AppcastFeed.items(in: data)
         #expect(items.map(\.version) == ["77", "80"])
         #expect(items.first?.displayVersion == "0.28.0")
-    }
-
-    @Test("The feed is tried at SUFeedURL first, then at the fallback, each once")
-    func feedAddressesInOrder() {
-        let primary = "https://releases.foreverlm.com/appcast.xml"
-        let fallback = "https://foreverlm.com/releases/appcast.xml"
-        #expect(AppcastFeed.feedURLs(info: ["SUFeedURL": primary, AppcastFeed.fallbackFeedInfoKey: fallback]).map(\.absoluteString) == [primary, fallback])
-        #expect(AppcastFeed.feedURLs(info: ["SUFeedURL": primary]).map(\.absoluteString) == [primary])
-        #expect(AppcastFeed.feedURLs(info: ["SUFeedURL": primary, AppcastFeed.fallbackFeedInfoKey: primary]).count == 1)
-        #expect(AppcastFeed.feedURLs(info: nil).isEmpty)
-    }
-
-    @Test("The app's own Info.plist names a fallback feed on another host")
-    func bundledFallbackFeed() throws {
-        let plist = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("App/Info.plist")
-        let info = try #require(try PropertyListSerialization.propertyList(from: Data(contentsOf: plist), format: nil) as? [String: Any])
-        let urls = AppcastFeed.feedURLs(info: info)
-        #expect(urls.count == 2)
-        #expect(urls.first?.host != urls.last?.host)
-    }
-
-    @Test("Only a feed that could not be downloaded or parsed moves the check to the fallback")
-    func unreadableFeedErrors() {
-        #expect(AppcastFeed.isUnreadableFeed(NSError(domain: "SUSparkleErrorDomain", code: 1002)))
-        #expect(AppcastFeed.isUnreadableFeed(NSError(domain: "SUSparkleErrorDomain", code: 1000)))
-        // No update, a failed archive download, or a network error Sparkle did not wrap: not the feed's address.
-        #expect(!AppcastFeed.isUnreadableFeed(NSError(domain: "SUSparkleErrorDomain", code: 1001)))
-        #expect(!AppcastFeed.isUnreadableFeed(NSError(domain: "SUSparkleErrorDomain", code: 2001)))
-        #expect(!AppcastFeed.isUnreadableFeed(NSError(domain: NSURLErrorDomain, code: NSURLErrorNetworkConnectionLost)))
     }
 
     @Test("A feed that is not RSS, or is empty, offers nothing rather than throwing")

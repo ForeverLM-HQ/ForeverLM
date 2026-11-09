@@ -111,22 +111,14 @@ enum RunningBuildChannel {
     }
 
     /// Reads the feed the app updates from and keeps its answer for the
-    /// running build, then calls `completion` on the main queue. The fallback
-    /// address is read when `SUFeedURL` cannot be (`AppcastFeed.feedURLs`).
-    /// A feed that cannot be read at either, or that does not list the build,
-    /// leaves the stored answer as it was.
+    /// running build, then calls `completion` on the main queue. A feed that
+    /// cannot be read, or that does not list the build, leaves the stored
+    /// answer as it was.
     static func refresh(timeout: TimeInterval = 8, completion: (() -> Void)? = nil) {
         let build = runningBuild
-        let feeds = AppcastFeed.feedURLs(info: Bundle.main.infoDictionary)
-        guard !build.isEmpty, !feeds.isEmpty else {
-            completion.map { DispatchQueue.main.async(execute: $0) }
-            return
-        }
-        read(feeds[...], build: build, timeout: timeout, completion: completion)
-    }
-
-    private static func read(_ feeds: ArraySlice<URL>, build: String, timeout: TimeInterval, completion: (() -> Void)?) {
-        guard let url = feeds.first else {
+        guard !build.isEmpty,
+              let string = Bundle.main.object(forInfoDictionaryKey: "SUFeedURL") as? String,
+              let url = URL(string: string) else {
             completion.map { DispatchQueue.main.async(execute: $0) }
             return
         }
@@ -135,7 +127,7 @@ enum RunningBuildChannel {
         URLSession.shared.dataTask(with: request) { data, response, error in
             guard let data, error == nil, (response as? HTTPURLResponse).map({ 200..<300 ~= $0.statusCode }) ?? true,
                   !AppcastFeed.items(in: data).isEmpty else {
-                read(feeds.dropFirst(), build: build, timeout: timeout, completion: completion)
+                completion.map { DispatchQueue.main.async(execute: $0) }
                 return
             }
             let answer = AppcastFeed.isBeta(build: build, in: data)
@@ -454,16 +446,6 @@ final class AppUpdateController: NSObject, ObservableObject {
     /// has ended. Sparkle refuses a new check while the old session is open, so
     /// the request waits for `didFinishUpdateCycle`.
     private var pendingRecheck: (userInitiated: Bool, delay: TimeInterval)?
-    /// Whether Sparkle reads the fallback feed (`AppcastFeed.fallbackFeedInfoKey`)
-    /// instead of `SUFeedURL`. Set when the feed in use cannot be read, and
-    /// cleared when the fallback cannot either, so the next check tries the
-    /// primary again: a laptop carried off the network that blocks one of
-    /// them finds its way back. Kept for this process only.
-    private var readsFallbackFeed = false
-    /// Whether the cycle under way already moved feeds, so its end does not
-    /// move them again: a user-initiated check's failure is reported to the
-    /// user driver first and to `didFinishUpdateCycle` after.
-    private var switchedFeedThisCycle = false
     /// The feed is small and the answer must be current, so nothing is cached
     /// and nothing waits long: a feed that does not answer leaves the resumed
     /// build shown as before.
@@ -505,9 +487,6 @@ final class AppUpdateController: NSObject, ObservableObject {
             }
             driver.onStaleResumedUpdate = { [weak self] item, newest, state in
                 self?.recordStaleResumedUpdate(item, supersededBy: newest, state: state)
-            }
-            driver.retriesUnreadableFeed = { [weak self] error in
-                self?.switchFeedAfterFailure(error, userInitiated: true) ?? false
             }
             driver.newestPublishedVersion = { [weak self] completion in
                 guard let self else {
@@ -946,45 +925,10 @@ extension AppUpdateController: SPUUpdaterDelegate, SPUStandardUserDriverDelegate
 
     @objc(updater:didFinishUpdateCycleForUpdateCheck:error:)
     func updater(_ updater: SPUUpdater, didFinishUpdateCycleFor updateCheck: SPUUpdateCheck, error: Error?) {
-        if let error {
-            // A check whose error Sparkle shows was switched already, before
-            // the error could appear (`retriesUnreadableFeed`); this catches
-            // the silent checks, which show nothing.
-            if !switchedFeedThisCycle {
-                switchFeedAfterFailure(error, userInitiated: updateCheck == .updates)
-            }
-            if !showRelaunchIfInstalledCopyIsNewer() {
-                setPhase(.idle)
-            }
+        if error != nil, !showRelaunchIfInstalledCopyIsNewer() {
+            setPhase(.idle)
         }
-        switchedFeedThisCycle = false
         runPendingRecheckIfNeeded()
-    }
-
-    /// Which feed Sparkle reads; nil is `SUFeedURL`. See `readsFallbackFeed`.
-    @objc(feedURLStringForUpdater:)
-    func feedURLString(for updater: SPUUpdater) -> String? {
-        readsFallbackFeed ? Bundle.main.object(forInfoDictionaryKey: AppcastFeed.fallbackFeedInfoKey) as? String : nil
-    }
-
-    /// After a check failed because its feed could not be read: from the
-    /// primary, move to the fallback and check again at once, and report true
-    /// (the failure is handled); from the fallback, go back to the primary for
-    /// the next check and report false (both failed, so the error stands).
-    @discardableResult
-    private func switchFeedAfterFailure(_ error: Error, userInitiated: Bool) -> Bool {
-        guard AppcastFeed.isUnreadableFeed(error),
-              Bundle.main.object(forInfoDictionaryKey: AppcastFeed.fallbackFeedInfoKey) is String else { return false }
-        switchedFeedThisCycle = true
-        if readsFallbackFeed {
-            Self.logger.error("The fallback update feed could not be read either: \(error.localizedDescription, privacy: .public)")
-            readsFallbackFeed = false
-            return false
-        }
-        Self.logger.notice("The update feed could not be read (\(error.localizedDescription, privacy: .public)); checking the fallback feed")
-        readsFallbackFeed = true
-        pendingRecheck = (userInitiated: userInitiated, delay: 0.2)
-        return true
     }
 
     @objc(updater:willDownloadUpdate:withRequest:)

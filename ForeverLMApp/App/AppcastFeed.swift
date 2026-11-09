@@ -134,35 +134,6 @@ enum AppcastFeed {
             }
     }
 
-    // MARK: - Addresses
-
-    /// The Info.plist key naming the feed to read when `SUFeedURL` cannot be
-    /// read. Company firewalls have blocked releases.foreverlm.com by host
-    /// (Palo Alto URL filtering, 2026-10-19, "insufficient-content") while
-    /// letting foreverlm.com through, so the fallback is the same bucket under
-    /// foreverlm.com/releases/, whose feed points every download there too.
-    static let fallbackFeedInfoKey = "ForeverLMUpdateFallbackFeedURL"
-
-    /// The feed addresses in the order to try them: `SUFeedURL`, then the
-    /// fallback. Either may be missing; neither is listed twice.
-    static func feedURLs(info: [String: Any]?) -> [URL] {
-        var urls: [URL] = []
-        for key in ["SUFeedURL", fallbackFeedInfoKey] {
-            guard let string = info?[key] as? String, let url = URL(string: string), !urls.contains(url) else { continue }
-            urls.append(url)
-        }
-        return urls
-    }
-
-    /// Whether a Sparkle check failed because the feed itself could not be
-    /// downloaded (`SUAppcastError`) or was not a feed (`SUAppcastParseError`,
-    /// what a filter's block page turns into): the failures another address
-    /// for the same feed can mend. Anything later in the cycle cannot.
-    static func isUnreadableFeed(_ error: Error) -> Bool {
-        let error = error as NSError
-        return error.domain == "SUSparkleErrorDomain" && (error.code == 1000 || error.code == 1002)
-    }
-
     // MARK: - Parsing
 
     private final class FeedDelegate: NSObject, XMLParserDelegate {
