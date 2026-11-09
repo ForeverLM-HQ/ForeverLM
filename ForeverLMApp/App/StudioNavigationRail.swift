@@ -354,6 +354,74 @@ enum StudioStripFooterItem: String, CaseIterable, Identifiable, Sendable {
     case account
 
     var id: String { rawValue }
+
+    /// Its name in Show in Sidebar and its Hide item.
+    var title: String {
+        switch self {
+        case .voice: return "Voice"
+        case .work: return "AI App Work"
+        case .aiUsage: return "AI Usage"
+        case .day: return "Day"
+        case .notifications: return "Notifications"
+        case .mcp: return "MCP"
+        case .settings: return "Settings"
+        case .account: return "Account"
+        }
+    }
+
+    /// Its glyph in Show in Sidebar: the strip's own where it draws a
+    /// symbol, a near one where it draws a logo or the avatar.
+    var systemImage: String {
+        switch self {
+        case .voice: return "waveform"
+        case .work: return "sparkles"
+        case .aiUsage: return "chart.bar"
+        case .day: return "calendar"
+        case .notifications: return "bell"
+        case .mcp: return "point.3.connected.trianglepath.dotted"
+        case .settings: return "gearshape"
+        case .account: return "person.crop.circle"
+        }
+    }
+}
+
+/// Which of the strip's bottom icons the learner has hidden (product owner,
+/// 2026-11-08: "i also need the ability to hide these if i want to"). Follows
+/// the account, like the hidden rows (`StudioRailHiddenItems`). Every icon is
+/// shown until the learner hides it; a hidden one comes back from Show in
+/// Sidebar, on the ⋯ and on every remaining icon's menu; the ⋯ is always
+/// drawn, so the way back never leaves with the icons. Settings stays ⌘,
+/// away with its icon hidden.
+struct StudioStripFooterHiddenItems: Equatable {
+    static let storageKey = "studio.navigation.hiddenFooterItems.v1"
+
+    var items: Set<StudioStripFooterItem>
+
+    init(_ items: Set<StudioStripFooterItem> = []) {
+        self.items = items
+    }
+
+    /// Decodes the comma-separated raw values, dropping a name this build
+    /// does not know.
+    init(storage: String) {
+        items = Set(
+            storage.split(separator: ",")
+                .compactMap { StudioStripFooterItem(rawValue: String($0).trimmingCharacters(in: .whitespaces)) }
+        )
+    }
+
+    /// Sorted so equal sets encode identically.
+    var storage: String {
+        items.map(\.rawValue).sorted().joined(separator: ",")
+    }
+
+    func contains(_ item: StudioStripFooterItem) -> Bool { items.contains(item) }
+
+    func setting(_ item: StudioStripFooterItem, hidden: Bool) -> StudioStripFooterHiddenItems {
+        var copy = self
+        if hidden { copy.items.insert(item) } else { copy.items.remove(item) }
+        return copy
+    }
 }
 
 /// One icon of the strip the learner can drag to another place in its own
@@ -552,6 +620,7 @@ struct StudioNavigationRail: View {
     private var hiddenRailItems: StudioRailHiddenItems { StudioRailHiddenItems(storage: hiddenRailItemsStorage) }
     @SyncedStorage(wrappedValue: "", StudioRailShortcuts.storageKey) private var railShortcutsStorage: String
     private var railShortcuts: StudioRailShortcuts { StudioRailShortcuts(storage: railShortcutsStorage) }
+    @SyncedStorage(wrappedValue: "", StudioStripFooterHiddenItems.storageKey) private var hiddenFooterItemsStorage: String
     /// A Space place is being dragged over the strip, which keeps it at the
     /// end of its shortcuts unless it is over one of them.
     @State private var shortcutDropIsTargeted = false
@@ -885,6 +954,17 @@ struct StudioNavigationRail: View {
             ForEach(footerEntries) { entry in
                 if case .footer(let item) = entry {
                     footerStripButton(item)
+                        .contextMenu {
+                            Button {
+                                hiddenFooterItemsStorage = StudioStripFooterHiddenItems(storage: hiddenFooterItemsStorage)
+                                    .setting(item, hidden: true)
+                                    .storage
+                            } label: {
+                                Label("Hide \(item.title)", systemImage: "eye.slash")
+                            }
+                            .accessibilityIdentifier("studio.navigation.hide.\(item.rawValue)")
+                            RailItemVisibilityMenu()
+                        }
                         .opacity(entry == dragged ? 0.35 : 1)
                         .onDrag {
                             StudioDragVisibility.shared.begin(stripEntry: entry)
@@ -926,10 +1006,12 @@ struct StudioNavigationRail: View {
         return StudioStripOrder(storage: stripTopOrderStorage).arranged(shown)
     }
 
-    /// The footer's icons, MCP's only while its light is shown, in the
-    /// order the learner dragged them into.
+    /// The footer's icons the learner has not hidden, MCP's only while its
+    /// light is shown, in the order the learner dragged them into.
     private var stripFooterEntries: [StudioStripEntry] {
+        let hidden = StudioStripFooterHiddenItems(storage: hiddenFooterItemsStorage)
         let shown = StudioStripFooterItem.allCases
+            .filter { !hidden.contains($0) }
             .filter { $0 != .mcp || showsMCPStatusLight }
             .map(StudioStripEntry.footer)
         return StudioStripOrder(storage: stripFooterOrderStorage).arranged(shown)
@@ -2967,18 +3049,21 @@ private struct RailMoreButton: View {
 }
 
 /// Show in Sidebar: one checkmark per hideable rail row, then one per place
-/// the strip can keep as a shortcut (`StudioRailShortcuts`). It sits on every
-/// hideable row's menu, every shortcut's, the ⋯'s and the Notebooks header's,
-/// so a row that has been hidden is always one right-click away from coming
-/// back.
+/// the strip can keep as a shortcut (`StudioRailShortcuts`), then one per
+/// bottom icon (`StudioStripFooterHiddenItems`). It sits on every hideable
+/// row's menu, every shortcut's, every bottom icon's, the ⋯'s and the
+/// Notebooks header's, so anything hidden is always one right-click away
+/// from coming back.
 private struct RailItemVisibilityMenu: View {
     @Environment(StudioViewModel.self) private var vm
     @SyncedStorage(wrappedValue: "", StudioRailHiddenItems.storageKey) private var hiddenRailItemsStorage: String
     @SyncedStorage(wrappedValue: "", StudioRailShortcuts.storageKey) private var railShortcutsStorage: String
+    @SyncedStorage(wrappedValue: "", StudioStripFooterHiddenItems.storageKey) private var hiddenFooterItemsStorage: String
 
     var body: some View {
         let hidden = StudioRailHiddenItems(storage: hiddenRailItemsStorage)
         let shortcuts = StudioRailShortcuts(storage: railShortcutsStorage)
+        let hiddenFooter = StudioStripFooterHiddenItems(storage: hiddenFooterItemsStorage)
         Menu {
             ForEach(StudioRailItem.allCases) { item in
                 Toggle(isOn: Binding(
@@ -3003,6 +3088,19 @@ private struct RailItemVisibilityMenu: View {
                     }
                 )) {
                     Label(shortcut.title, systemImage: shortcut.systemImage)
+                }
+            }
+            Divider()
+            ForEach(StudioStripFooterItem.allCases) { item in
+                Toggle(isOn: Binding(
+                    get: { !hiddenFooter.contains(item) },
+                    set: { shown in
+                        hiddenFooterItemsStorage = StudioStripFooterHiddenItems(storage: hiddenFooterItemsStorage)
+                            .setting(item, hidden: !shown)
+                            .storage
+                    }
+                )) {
+                    Label(item.title, systemImage: item.systemImage)
                 }
             }
         } label: {

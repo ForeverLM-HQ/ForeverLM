@@ -1033,6 +1033,7 @@ The Setting record keys (§3.5.3): one record per key, account scope in Library 
 | `studio.navigation.shortcuts.v1` | string | account | `set_app_setting` window.rail_shortcuts | The places kept on the icon strip (StudioRailShortcuts). |
 | `studio.navigation.stripOrder.v1` | string | account | `set_app_setting` window.rail_order | The order the learner dragged the icon strip's top icons into, rows and kept places (StudioStripOrder). |
 | `studio.navigation.stripFooterOrder.v1` | string | account | `set_app_setting` window.rail_footer_order | The order the learner dragged the icon strip's bottom icons into (StudioStripOrder). |
+| `studio.navigation.hiddenFooterItems.v1` | string | account | `set_app_setting` window.rail_footer_hidden_items | The icon strip's bottom icons the learner hid (StudioStripFooterHiddenItems). |
 | `studio.navigation.chatsExpanded.v1` | bool | account | `set_app_setting` window.rail_chats_expanded | Whether the rail's Chats fold is open. |
 | `studio.navigation.hiddenChatsExpanded.v1` | bool | account | `set_app_setting` window.rail_hidden_chats_expanded | Whether the rail's Hidden chats fold is open. |
 | `youtube.autoImportEnabled` | bool | account | `set_connector_auto_import` enabled | Whether the YouTube plugin imports on its own. |

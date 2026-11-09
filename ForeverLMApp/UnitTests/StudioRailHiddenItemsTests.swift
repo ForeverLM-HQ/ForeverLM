@@ -397,4 +397,34 @@ struct StudioRailShortcutsTests {
         #expect(throws: (any Error).self) { try MCPDataStore.railShortcutsStorage(fromJSON: #"["trash"]"#) }
         #expect(throws: (any Error).self) { try MCPDataStore.railShortcutsStorage(fromJSON: "pages") }
     }
+
+    @Test("Every bottom icon shows until the learner hides it; a hidden one round-trips through its stored form")
+    func footerHiddenRoundTrip() {
+        #expect(StudioStripFooterHiddenItems(storage: "").items.isEmpty)
+        let hidden = StudioStripFooterHiddenItems()
+            .setting(.voice, hidden: true)
+            .setting(.mcp, hidden: true)
+            .setting(.account, hidden: true)
+        #expect(hidden.storage == "account,mcp,voice")
+        #expect(StudioStripFooterHiddenItems(storage: hidden.storage) == hidden)
+        #expect(hidden.setting(.mcp, hidden: false).storage == "account,voice")
+        #expect(StudioStripFooterHiddenItems(storage: "voice, gone ,day").items == [.voice, .day], "an unknown name drops out")
+    }
+
+    @Test("Every bottom icon has a name and a glyph for Show in Sidebar")
+    func footerItemsNamed() {
+        #expect(Set(StudioStripFooterItem.allCases.map(\.title)).count == StudioStripFooterItem.allCases.count)
+        #expect(StudioStripFooterItem.allCases.allSatisfy { !$0.systemImage.isEmpty })
+    }
+
+    @Test("Over MCP the hidden bottom icons are a JSON array of icon ids, refused when one is unknown")
+    @MainActor
+    func footerHiddenMCPRoundTrip() throws {
+        let storage = try MCPDataStore.stripFooterHiddenStorage(fromJSON: #"["voice","settings"]"#)
+        #expect(storage == "settings,voice")
+        #expect(MCPDataStore.stripFooterHiddenJSON(storage) == #"["settings","voice"]"#)
+        #expect(MCPDataStore.stripFooterHiddenJSON("") == "[]")
+        #expect(throws: (any Error).self) { try MCPDataStore.stripFooterHiddenStorage(fromJSON: #"["memory"]"#) }
+        #expect(throws: (any Error).self) { try MCPDataStore.stripFooterHiddenStorage(fromJSON: "voice") }
+    }
 }

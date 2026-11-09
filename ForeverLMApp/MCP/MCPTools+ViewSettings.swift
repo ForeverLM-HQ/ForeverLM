@@ -150,6 +150,31 @@ extension MCPDataStore {
         return StudioRailShortcuts(shortcuts).storage
     }
 
+    /// The strip's hidden bottom icons as a JSON array of icon ids.
+    static func stripFooterHiddenJSON(_ storage: String) -> String {
+        let ids = StudioStripFooterHiddenItems(storage: storage).storage
+            .split(separator: ",").map(String.init)
+        guard let data = try? JSONSerialization.data(withJSONObject: ids), let text = String(data: data, encoding: .utf8) else { return "[]" }
+        return text
+    }
+
+    /// A JSON array of bottom icon ids in the comma-separated form the strip reads, refused
+    /// when an id is not one of the bottom icons.
+    static func stripFooterHiddenStorage(fromJSON text: String) throws -> String {
+        let known = StudioStripFooterItem.allCases.map(\.rawValue).joined(separator: ", ")
+        guard let ids = (try? JSONSerialization.jsonObject(with: Data(text.utf8))) as? [String] else {
+            throw MCPError.invalidInput("window.rail_footer_hidden_items takes a JSON array of icon ids as text: \(known).")
+        }
+        var items = Set<StudioStripFooterItem>()
+        for id in ids {
+            guard let item = StudioStripFooterItem(rawValue: id.trimmingCharacters(in: .whitespaces)) else {
+                throw MCPError.invalidInput("window.rail_footer_hidden_items has no icon ‘\(id)’; the icons are \(known).")
+            }
+            items.insert(item)
+        }
+        return StudioStripFooterHiddenItems(items).storage
+    }
+
     /// One group of the strip's order as a JSON array of icon ids, in order.
     static func stripOrderJSON(_ storage: String) -> String {
         let ids = StudioStripOrder(storage: storage).keys
@@ -354,6 +379,16 @@ extension MCPDataStore {
                         try Self.stripOrderStorage(fromJSON: text, footer: false, setting: "window.rail_order"),
                         forKey: StudioStripOrder.topStorageKey
                     )
+                }
+            ),
+            AppSettingEntry(
+                id: "window.rail_footer_hidden_items", pane: "Navigation rail (no pane)", title: "Hidden icon strip footer icons",
+                detail: "The icon strip's bottom icons the learner hid, as a JSON array of icon ids (\(StudioStripFooterItem.allCases.map(\.rawValue).joined(separator: ", "))). [] shows every icon.",
+                reach: .account, kind: .text, preferenceKeys: [StudioStripFooterHiddenItems.storageKey],
+                read: { Self.stripFooterHiddenJSON(UserDefaults.standard.string(forKey: StudioStripFooterHiddenItems.storageKey) ?? "") },
+                write: { value in
+                    let text = try AppSettingEntry.string(value, "window.rail_footer_hidden_items")
+                    PreferenceStore.set(try Self.stripFooterHiddenStorage(fromJSON: text), forKey: StudioStripFooterHiddenItems.storageKey)
                 }
             ),
             AppSettingEntry(

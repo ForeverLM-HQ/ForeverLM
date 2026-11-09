@@ -210,6 +210,9 @@ enum SyncedPreferenceKeys {
         // The order the learner dragged the strip's icons into (2026-11-08).
         StudioStripOrder.topStorageKey,
         StudioStripOrder.footerStorageKey,
+        // The strip's bottom icons the learner hid (2026-11-08): the same act
+        // as hiding a row there.
+        StudioStripFooterHiddenItems.storageKey,
         "studio.navigation.chatsExpanded.v1",
         "studio.navigation.hiddenChatsExpanded.v1",
         "studio.navigation.expandedProjectIDs.v1",
