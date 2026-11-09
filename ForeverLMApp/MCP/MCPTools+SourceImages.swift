@@ -357,10 +357,9 @@ extension MCPDataStore {
         let sourceID = article.id
         // Indexing the captions when none are on file is free and is what
         // makes the crop possible at all; it explains nothing and spends nothing.
-        var figures = (try? await notebookFileStorage.paperFigures(sourceID: sourceID)) ?? []
-        if figures.isEmpty {
-            figures = (try? await paperFigureIndexer.prepareStructure(sourceID: sourceID)) ?? []
-        }
+        // An index built under older rules is read again, so an Extended Data
+        // figure the old rules skipped is still cropped to its figure.
+        let figures = (try? await paperFigureIndexer.figuresForReading(sourceID: sourceID)) ?? []
         guard let path = article.resolvedFileLocation else {
             return .failure(SourceImageCatalog.Failure.fileUnavailable.message)
         }

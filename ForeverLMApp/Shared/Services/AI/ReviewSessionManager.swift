@@ -7697,6 +7697,7 @@ final class ReviewSessionManager {
             : "This paper's labelled figures are: \(available)."
         return "Error: \(requested) was not found. \(inventory) "
             + "A supplementary figure (Figure S-something) is printed in a separate file that this paper does not include, "
+            + "and Extended Data figures missing from that list are missing from this copy of the PDF (a main-text-only file or an accepted manuscript), "
             + "and a graphical abstract or other unlabelled display item is never indexed by label even though it is in the PDF. "
             + "Do not search the web for it: call show_source_image with this source_id and query set to the caption words, "
             + "for example \"graphical abstract\", or page set to a PDF page. That shows the picture from this paper itself, "
@@ -7847,10 +7848,11 @@ final class ReviewSessionManager {
             // figure came back as an uncropped page. The structural half comes
             // first: the printed captions say which figures the paper has and
             // where each sits, with no model call.
-            var figures = try await storage.paperFigures(sourceID: sourceID)
-            if figures.isEmpty {
-                figures = try await paperFigureIndexer.prepareStructure(sourceID: sourceID)
-            }
+            // An index built under older rules is read again here too: one
+            // from before Extended Data counted listed only the main figures,
+            // and "Extended Data Figure 1" was refused on a paper that prints
+            // it (2026-11-08).
+            var figures = try await paperFigureIndexer.figuresForReading(sourceID: sourceID)
             let requestedPanel = ((arguments["panel_label"] as? String) ?? "")
                 .trimmingCharacters(in: .whitespacesAndNewlines)
             // Show the figure before explaining it. The vision reading takes
@@ -8082,10 +8084,9 @@ final class ReviewSessionManager {
         //
         // Indexing the captions when none are on file is free and is what makes
         // the crop possible at all; it explains nothing and spends nothing.
-        var figures = (try? await storage.paperFigures(sourceID: sourceID)) ?? []
-        if figures.isEmpty {
-            figures = (try? await paperFigureIndexer.prepareStructure(sourceID: sourceID)) ?? []
-        }
+        // An index built under older rules is read again, so an Extended Data
+        // figure the old rules skipped is still cropped to its figure.
+        let figures = (try? await paperFigureIndexer.figuresForReading(sourceID: sourceID)) ?? []
         let listing = await Task.detached(priority: .userInitiated) { () -> Result<[SourceImageEntry], SourceImageCatalog.Failure> in
             guard let path = article.resolvedFileLocation else { return .failure(.fileUnavailable) }
             do {
