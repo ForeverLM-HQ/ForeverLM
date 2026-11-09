@@ -112,6 +112,14 @@ struct StudioSidebar: View, Equatable {
     /// anywhere (⌘F elsewhere belongs to Find in Reader); cleared and blurred by
     /// Escape or by the same shortcut again.
     @FocusState var isSourceSearchFocused: Bool
+    /// The lazy list's (`usesLazySourceList`) keyboard focus, taken by a click
+    /// on a row so ↑ ↓, Delete and Escape reach the list.
+    @FocusState var isLazySourceListFocused: Bool
+    /// Where the lazy list's ⇧-click and ⇧-arrow runs start: the row last
+    /// clicked or arrowed to without ⇧.
+    @State var lazyListAnchorSourceID: String?
+    /// The row the lazy list's arrow keys move from.
+    @State var lazyListCursorSourceID: String?
 
     /// Consolidated alert state — one active alert at a time.
     @State var activeAlert: SidebarAlertKind?

@@ -89,6 +89,48 @@ enum SidebarSourceSelection {
         return !(selection.count > 1 && selection.contains(sourceID))
     }
 
+    // MARK: The lazy list's own clicks and keys
+
+    /// What a ⌘- or ⇧-click does in a list that keeps its own selection rather
+    /// than AppKit's (the Papers tab's lazy list, `SourcesLazyList`): ⌘
+    /// toggles the row, ⇧ selects the run from `anchor` to the row in display
+    /// order, as Finder does. A plain click is the row's open
+    /// (`openSidebarArticle`), which selects it alone.
+    static func selectionAfterModifiedClick(
+        on sourceID: String,
+        selection: Set<String>,
+        anchor: String?,
+        displayOrder: [String],
+        command: Bool
+    ) -> Set<String> {
+        if command {
+            var toggled = selection
+            if toggled.contains(sourceID) { toggled.remove(sourceID) } else { toggled.insert(sourceID) }
+            return toggled
+        }
+        return range(from: anchor, to: sourceID, in: displayOrder)
+    }
+
+    /// The rows from `anchor` to `sourceID`, both included, in display order;
+    /// the row alone when the anchor is gone from the list.
+    static func range(from anchor: String?, to sourceID: String, in displayOrder: [String]) -> Set<String> {
+        guard let anchor,
+              let start = displayOrder.firstIndex(of: anchor),
+              let end = displayOrder.firstIndex(of: sourceID) else { return [sourceID] }
+        return Set(displayOrder[min(start, end)...max(start, end)])
+    }
+
+    /// The row ↑ or ↓ moves to from `current`: the first row (↓) or the last
+    /// (↑) when nothing is current, and nil at either end, where the key does
+    /// nothing.
+    static func rowAfterArrow(from current: String?, in displayOrder: [String], down: Bool) -> String? {
+        guard let current, let index = displayOrder.firstIndex(of: current) else {
+            return down ? displayOrder.first : displayOrder.last
+        }
+        let next = down ? index + 1 : index - 1
+        return displayOrder.indices.contains(next) ? displayOrder[next] : nil
+    }
+
     /// The selection Escape leaves behind, or nil when Escape has nothing to
     /// do here and should travel on to whatever else is listening for it.
     ///

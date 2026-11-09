@@ -13,6 +13,47 @@ struct SidebarSourceSelectionTests {
     private let known: Set<String> = ["a", "b", "c", "d"]
     private func isKnown(_ id: String) -> Bool { known.contains(id) }
 
+    // MARK: The lazy list's own clicks and keys
+
+    private let order = ["a", "b", "c", "d"]
+
+    @Test("a command-click in the lazy list toggles the row in and out")
+    func lazyCommandClickToggles() {
+        #expect(SidebarSourceSelection.selectionAfterModifiedClick(
+            on: "c", selection: ["a"], anchor: "a", displayOrder: order, command: true
+        ) == ["a", "c"])
+        #expect(SidebarSourceSelection.selectionAfterModifiedClick(
+            on: "a", selection: ["a", "c"], anchor: "a", displayOrder: order, command: true
+        ) == ["c"])
+    }
+
+    @Test("a shift-click in the lazy list selects the run from the anchor, either way")
+    func lazyShiftClickSelectsRun() {
+        #expect(SidebarSourceSelection.selectionAfterModifiedClick(
+            on: "d", selection: ["b"], anchor: "b", displayOrder: order, command: false
+        ) == ["b", "c", "d"])
+        #expect(SidebarSourceSelection.selectionAfterModifiedClick(
+            on: "a", selection: ["c"], anchor: "c", displayOrder: order, command: false
+        ) == ["a", "b", "c"])
+    }
+
+    @Test("a shift-click with no anchor in the list selects the row alone")
+    func lazyShiftClickWithoutAnchor() {
+        #expect(SidebarSourceSelection.selectionAfterModifiedClick(
+            on: "b", selection: [], anchor: "gone", displayOrder: order, command: false
+        ) == ["b"])
+    }
+
+    @Test("arrow keys step through the rows and stop at the ends")
+    func lazyArrowKeys() {
+        #expect(SidebarSourceSelection.rowAfterArrow(from: "b", in: order, down: true) == "c")
+        #expect(SidebarSourceSelection.rowAfterArrow(from: "b", in: order, down: false) == "a")
+        #expect(SidebarSourceSelection.rowAfterArrow(from: "d", in: order, down: true) == nil)
+        #expect(SidebarSourceSelection.rowAfterArrow(from: "a", in: order, down: false) == nil)
+        #expect(SidebarSourceSelection.rowAfterArrow(from: nil, in: order, down: true) == "a")
+        #expect(SidebarSourceSelection.rowAfterArrow(from: "gone", in: order, down: false) == "d")
+    }
+
     // MARK: Writes from the list
 
     @Test("a plain click selects the row and opens it")

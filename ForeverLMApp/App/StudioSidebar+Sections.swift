@@ -1034,6 +1034,128 @@ extension StudioSidebar {
 
     @ViewBuilder
     private var sidebarSelectableList: some View {
+        if usesLazySourceList {
+            sidebarLazyList
+        } else {
+            sidebarOutlineList
+        }
+    }
+
+    /// The tabs listed in a `ScrollView` + `LazyVStack` instead of AppKit's
+    /// outline. SwiftUI's `List` re-diffs every row whenever its content
+    /// changes and measures each row's height as it scrolls in, so a long
+    /// Papers tab stalled for a second or more at a time (product owner,
+    /// 2026-11-08: "very glitchy and slow. It needs to be super fast"). The
+    /// lazy list builds only the rows on screen and keeps its own selection:
+    /// a click opens, ⌘-click toggles, ⇧-click selects a run, ↑ ↓ move,
+    /// Delete removes, Escape collapses a multi-selection. The tabs with
+    /// collapsible groups (Books, Meetings, YouTube) keep the outline.
+    var usesLazySourceList: Bool {
+        sidebar.sidebarTab == .papers
+    }
+
+    private var sidebarLazyList: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    sidebarListContent
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+            }
+            .focusable()
+            .focused($isLazySourceListFocused)
+            .focusEffectDisabled()
+            .onKeyPress(keys: [.upArrow, .downArrow]) { press in
+                moveLazySelection(
+                    down: press.key == .downArrow,
+                    extending: press.modifiers.contains(.shift),
+                    proxy: proxy
+                )
+                return .handled
+            }
+            .onKeyPress(keys: [.delete, .deleteForward]) { _ in
+                let selection = windowState.sidebarSelectedSourceIDs
+                guard !selection.isEmpty else { return .ignored }
+                requestSourceRemoval(selection)
+                return .handled
+            }
+            .onExitCommand(perform: collapseMultiSelectionOnEscape)
+        }
+    }
+
+    /// The lazy list's rows in the order they are drawn, for ⇧-click runs and
+    /// the arrow keys. Read only when one of those happens, never in a body.
+    private var lazyListRowIDs: [String] {
+        guard sidebar.sidebarTab == .papers else {
+            return windowVM.activeTabArticles.map(\.id)
+        }
+        var ids: [String] = []
+        if isProcessingPapersExpanded { ids += windowVM.activeProcessingPapers.map(\.id) }
+        if isPapersWithoutPDFExpanded { ids += windowVM.activePapersWithoutPDF.map(\.id) }
+        ids += windowVM.activePapersWithPDF.map(\.id)
+        if isPaywalledPapersExpanded { ids += windowVM.activePaywalledPapersWithoutPDF.map(\.id) }
+        return ids
+    }
+
+    /// A click on a lazy-list row. A plain one opens the row, which selects it
+    /// alone; ⌘ and ⇧ change the selection and open nothing.
+    private func handleLazyRowClick(_ sourceID: String) {
+        guard !SidebarRowControlPress.claims(sourceID) else { return }
+        isLazySourceListFocused = true
+        let flags = NSApp.currentEvent?.modifierFlags ?? NSEvent.modifierFlags
+        let command = flags.contains(.command)
+        guard command || flags.contains(.shift) else {
+            lazyListAnchorSourceID = sourceID
+            lazyListCursorSourceID = sourceID
+            // A plain click on a row of a multi-selection collapses it to the
+            // row, as AppKit's list does on mouse-up, so the open goes ahead.
+            windowState.sidebarSelectedSourceIDs = [sourceID]
+            openSidebarArticleFromRowClick(sourceID)
+            return
+        }
+        windowState.sidebarSelectedSourceIDs = SidebarSourceSelection.selectionAfterModifiedClick(
+            on: sourceID,
+            selection: windowState.sidebarSelectedSourceIDs,
+            anchor: lazyListAnchorSourceID,
+            displayOrder: lazyListRowIDs,
+            command: command
+        )
+        lazyListCursorSourceID = sourceID
+        if command { lazyListAnchorSourceID = sourceID }
+    }
+
+    /// ↑ or ↓ in the lazy list: the next row is selected and opened, as in
+    /// AppKit's list; with ⇧ the run from the anchor grows instead.
+    private func moveLazySelection(down: Bool, extending: Bool, proxy: ScrollViewProxy) {
+        let order = lazyListRowIDs
+        let selection = windowState.sidebarSelectedSourceIDs
+        let current = lazyListCursorSourceID.flatMap { selection.contains($0) ? $0 : nil }
+            ?? (down ? order.last(where: selection.contains) : order.first(where: selection.contains))
+        guard let next = SidebarSourceSelection.rowAfterArrow(from: current, in: order, down: down) else { return }
+        lazyListCursorSourceID = next
+        if extending {
+            let anchor = lazyListAnchorSourceID ?? current ?? next
+            lazyListAnchorSourceID = anchor
+            windowState.sidebarSelectedSourceIDs = SidebarSourceSelection.range(from: anchor, to: next, in: order)
+        } else {
+            lazyListAnchorSourceID = next
+            windowState.sidebarSelectedSourceIDs = [next]
+            openSidebarArticleFromRowClick(next)
+        }
+        proxy.scrollTo(next)
+    }
+
+    /// The menu a lazy-list row's right-click shows: the selection's when the
+    /// row is part of it, the row's own otherwise, as AppKit's list decides.
+    @ViewBuilder
+    private func lazyRowContextMenu(for sourceID: String) -> some View {
+        let selection = windowState.sidebarSelectedSourceIDs
+        sidebarArticleContextMenu(for: selection.contains(sourceID) ? selection : [sourceID])
+    }
+
+    @ViewBuilder
+    private var sidebarOutlineList: some View {
         // AppKit may read a List selection binding hundreds of times while
         // answering one accessibility action query. Snapshot the visible IDs
         // once per SwiftUI evaluation instead of rebuilding/filtering the full
@@ -3219,6 +3341,12 @@ extension StudioSidebar {
             .help(sidebarArticleInteractionHelp)
             .modifier(PaperPDFDropTargetModifier(article: article))
             .modifier(sourceRowDragModifier(for: article))
+            .modifier(LazySourceRowChrome(
+                sourceID: article.id,
+                isActive: usesLazySourceList,
+                onClick: { handleLazyRowClick(article.id) },
+                menu: { lazyRowContextMenu(for: article.id) }
+            ))
     }
 
     private func sourceRowDragModifier(for article: StudioArticle) -> some ViewModifier {
@@ -3640,7 +3768,10 @@ private struct OverscrollRefresh: NSViewRepresentable {
             let center = NSPoint(x: frameInWindow.midX, y: frameInWindow.midY)
             var match: NSScrollView?
             func walk(_ view: NSView) {
-                if let scrollView = view as? NSScrollView, scrollView.documentView is NSTableView {
+                // AppKit's outline, or the lazy list's SwiftUI scroll view
+                // (`usesLazySourceList`); the innermost one wins.
+                if let scrollView = view as? NSScrollView,
+                   scrollView.documentView is NSTableView || scrollView.hasVerticalScroller {
                     let frame = scrollView.convert(scrollView.bounds, to: nil)
                     if frame.contains(center) { match = scrollView }
                 }
@@ -3666,6 +3797,57 @@ private struct OverscrollRefresh: NSViewRepresentable {
         }
 
         deinit { teardown() }
+    }
+}
+
+/// What a row of the lazy list (`usesLazySourceList`) adds to the row AppKit's
+/// list would have drawn around it: the selection's grey wash, the hairline
+/// under a full row, the click that selects, and the row's menu.
+///
+/// The menu is built only while the pointer is over the row. SwiftUI builds a
+/// `.contextMenu`'s items in the row's body, so a menu on every row would be
+/// built again for each row that scrolls in (see `sidebarOutlineList`'s note
+/// on its list-level menu); a right-click always lands on a hovered row.
+private struct LazySourceRowChrome<MenuContent: View>: ViewModifier {
+    let sourceID: String
+    let isActive: Bool
+    let onClick: () -> Void
+    @ViewBuilder let menu: () -> MenuContent
+
+    @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
+    @Environment(\.sourcesListLayout) private var sourcesListLayout
+    @State private var isHovered = false
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if isActive {
+            let isSelected = windowState?.sidebarSelectedSourceIDs.contains(sourceID) ?? false
+            content
+                .padding(.vertical, sourcesListLayout == .compact ? 1 : 5)
+                .background {
+                    RoundedRectangle(cornerRadius: 6, style: .continuous)
+                        .fill(Color.primary.opacity(isSelected ? 0.10 : 0))
+                        .padding(.horizontal, -6)
+                }
+                .overlay(alignment: .bottom) {
+                    if sourcesListLayout != .compact && !isSelected {
+                        Rectangle()
+                            .fill(Color.primary.opacity(0.08))
+                            .frame(height: 1)
+                            .padding(.leading, 46)
+                    }
+                }
+                .contentShape(Rectangle())
+                .simultaneousGesture(TapGesture(count: 1).onEnded { onClick() })
+                .onHover { isHovered = $0 }
+                .contextMenu {
+                    if isHovered { menu() }
+                }
+                .accessibilityAddTraits(isSelected ? .isSelected : [])
+                .id(sourceID)
+        } else {
+            content
+        }
     }
 }
 
