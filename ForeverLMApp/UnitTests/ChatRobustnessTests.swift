@@ -2246,10 +2246,14 @@ struct ChatRobustnessTests {
         AIService.applyOpenRouterPayloadExtras(&openWeights, provider: .openRouter)
         #expect((openWeights["provider"] as? [String: Any])?["order"] == nil)
 
-        // An OpenAI model whose endpoints were never read is not guessed at.
+        // An OpenAI model whose endpoints were never read is OpenAI's own and
+        // is pinned too; its open weights are not.
         var unread = body("openai/byok-test-unread")
         AIService.applyOpenRouterPayloadExtras(&unread, provider: .openRouter)
-        #expect((unread["provider"] as? [String: Any])?["order"] == nil)
+        #expect((unread["provider"] as? [String: Any])?["order"] as? [String] == ["openai"])
+        var unreadOSS = body("openai/gpt-oss-byok-test")
+        AIService.applyOpenRouterPayloadExtras(&unreadOSS, provider: .openRouter)
+        #expect((unreadOSS["provider"] as? [String: Any])?["order"] == nil)
 
         // Another lab's model keeps the throughput route.
         var other = body("deepseek/deepseek-v4.1-flash")

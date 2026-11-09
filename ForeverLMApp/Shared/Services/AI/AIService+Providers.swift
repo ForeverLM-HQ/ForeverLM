@@ -829,9 +829,17 @@ extension AIService {
     static func ownKeyLab(forModelSlug slug: String) -> String? {
         if slug.hasPrefix("anthropic/") { return "anthropic" }
         guard slug.hasPrefix("openai/"),
-              let tiers = OpenRouterEndpointTierCatalog.cachedTiers(slug: slug),
-              tiers.contains(where: { $0.tag == "openai" || $0.tag.hasPrefix("openai/") })
+              !slug.contains(":"),
+              !slug.hasPrefix("openai/gpt-oss"),
+              !slug.hasPrefix("openai/whisper")
         else { return nil }
+        // Endpoints already read decide; unread ones are OpenAI's own, since
+        // only its open weights (named above) run elsewhere alone. Left
+        // unpinned until the endpoints were read, GPT-6 Luna ran on Amazon
+        // Bedrock and billed OpenRouter credits (2026-11-09).
+        if let tiers = OpenRouterEndpointTierCatalog.cachedTiers(slug: slug) {
+            return tiers.contains(where: { $0.tag == "openai" || $0.tag.hasPrefix("openai/") }) ? "openai" : nil
+        }
         return "openai"
     }
 
