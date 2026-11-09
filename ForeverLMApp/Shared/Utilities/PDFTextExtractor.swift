@@ -550,7 +550,7 @@ enum PDFTextExtractor {
     }
 
     private static let figureReferenceOpeningRegex = try? NSRegularExpression(
-        pattern: #"^(?:(?:Extended\s+Data|Supplementary|Supplemental)\s+)?(?:Figure|Fig\.)\s+[A-Za-z]?\d+"#,
+        pattern: #"^(?:(?:Extended\s+Data|Supplementary(?:\s+Data)?|Supplemental|Supp\.|Appendix)\s+)?(?:Figure|Fig\.?)\s+[A-Za-z]?\d+"#,
         options: [.caseInsensitive]
     )
 

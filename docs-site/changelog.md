@@ -31,6 +31,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **On your own OpenRouter key, an OpenAI model always runs on OpenAI's endpoint**, so it spends your OpenAI credits, even before ForeverLM has read that model's endpoints.
 - **A covered account sees only the models it is covered for** when picking a model.
 - **Figures: a reference in running text ("fig. 6 A-C)") is no longer listed as a figure**, and replacing a supplement's PDF removes the old one.
+- **Supplementary figures labelled loosely are found too**: "Supp. Fig. 1", "Fig S1", "Appendix Figure S1" and "Supplementary Data Figure 1" now count as figures, so a joined supplement that prints only these can be shown and explained. A paper is read again the next time you use it.
 
 ## 0.206.0 (build 286) — 2026-11-08
 

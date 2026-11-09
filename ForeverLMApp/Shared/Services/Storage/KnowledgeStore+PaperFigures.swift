@@ -78,7 +78,11 @@ enum PaperFigureIndexContract {
     ///   capital panel letters closed like a reference ("fig. 6 A-C, …)",
     ///   "Extended Data fig. 9B-C).") is prose, not a caption. A bioRxiv
     ///   preprint had two such lines indexed as figures.
-    static let currentVersion = 9
+    /// 10 (2026-11-09): supplementary files' looser labels are captions too —
+    ///   "Supp. Fig. 1", "Supplementary Fig S1", "Fig S1:", "Appendix Figure
+    ///   S1", "Supplementary Data Figure 1". About 16 of 201 open-access
+    ///   supplements joined to library papers printed only these.
+    static let currentVersion = 10
 
     static func figureID(sourceID: String, figureLabel: String, pageIndex: Int) -> String {
         let material = "\(sourceID)\u{1F}\(pageIndex)\u{1F}\(figureLabel.lowercased())"

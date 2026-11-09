@@ -178,6 +178,25 @@ struct PDFTextExtractorTests {
         #expect(PaperFigureCaptionTitle.title(from: records[0].caption) == "Correlation matrix of metabolites associated with")
     }
 
+    @Test("A supplementary file's looser labels are captions, and its references still are not")
+    func supplementaryFileLabelsAreIndexed() {
+        // Caption lines from open-access supplements joined to library papers
+        // (2026-11-09), each printed only in this form.
+        let text = """
+        Supp. Fig. 1. Mito-transfer alters cytokine production of CD4+ T cells.
+        Supplementary Fig S2. Quality control and sensitivity analysis.
+        Fig S3: Flow cytometry analysis of uptake via side scatter intensity.
+        Appendix Figure S4: Muscle fibre cross-sections.
+        Supplementary Data Figure 5: Cluster stability and cluster number rationale.
+        Fig 6 shows the same effect in the replicative model.
+        Supp. Fig. 7a) and the interaction effects
+        """
+        let records = PDFTextExtractor.figureCaptionRecords(in: text)
+        #expect(records.map(\.label) == [
+            "Supplementary Figure 1", "Supplementary Figure S2", "Figure S3", "Appendix Figure S4", "Supplementary Figure 5",
+        ])
+    }
+
     @Test("A figure reference that opens a line is not indexed as the figure")
     func lineOpeningReferencesAreNotCaptions() {
         // Extracted page text of Nature's 2025 sleep-pressure paper, the page

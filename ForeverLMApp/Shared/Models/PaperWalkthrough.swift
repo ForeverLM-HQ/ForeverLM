@@ -2760,6 +2760,18 @@ enum PaperFigureCaptionTitle {
         // never collide in the index, and "Fig." is normalised to "Figure" as
         // it is for a main figure. Until index version 2 these lines were
         // skipped, so a Nature paper lost every Extended Data figure.
+        //
+        // Journals' supplementary files label their figures more loosely than
+        // the articles do, and a joined supplement (`PaperSupplementPDF`) is
+        // read with the same pattern. Of 201 open-access supplements fetched for
+        // the library on 2026-11-09, about 16 printed only "Supp. Fig. 1",
+        // "Supplementary Fig S1", "Fig S1:", "Appendix Figure S1" (EMBO) or
+        // "Supplementary Data Figure 1" (Nature Medicine), so their figures
+        // never reached the index. "Fig" without its period is a caption under
+        // the same test as "Figure" (what follows the number); "Supp." and
+        // "Supplementary Data" are filed as "Supplementary", which is how the
+        // article names them, and EMBO's Appendix keeps its own prefix because
+        // the article cites "Appendix Fig S1".
         guard let regex = captionOpeningRegex, let start = captionStart(in: line) else { return nil }
         let line = String(line[start...])
         let range = NSRange(line.startIndex..<line.endIndex, in: line)
@@ -2771,14 +2783,17 @@ enum PaperFigureCaptionTitle {
     }
 
     private static let captionOpeningRegex = try? NSRegularExpression(
-        pattern: #"^(?:(Extended\s+Data|Supplementary|Supplemental)\s+)?(?:Figure|Fig\.)\s+((?-i:[A-Z])?\d+(?:[.\-–]\d+)?(?-i:[A-Z])?)\b(?!\s*(?:[),;]|(?-i:[a-z]))|\s*[-–]\s*(?-i:[A-Z])\s*(?:[),;]|$)|\s+(?-i:[A-Z])\s*(?:[-–,]\s*(?-i:[A-Z])\s*)?(?:[),;]|$)).*"#,
+        pattern: #"^(?:(Extended\s+Data|Supplementary(?:\s+Data)?|Supplemental|Supp\.|Appendix)\s+)?(?:Figure|Fig\.?)\s+((?-i:[A-Z])?\d+(?:[.\-–]\d+)?(?-i:[A-Z])?)\b(?!\s*(?:[),;]|(?-i:[a-z]))|\s*[-–]\s*(?-i:[A-Z])\s*(?:[),;]|$)|\s+(?-i:[A-Z])\s*(?:[-–,]\s*(?-i:[A-Z])\s*)?(?:[),;]|$)).*"#,
         options: [.caseInsensitive]
     )
 
     /// "extended  data" → "Extended Data", "SUPPLEMENTARY" → "Supplementary":
     /// the prefix as the label prints it, whatever case the caption used.
+    /// "Supp." and "Supplementary Data" → "Supplementary".
     private static func normalizedFigurePrefix(_ raw: String) -> String {
-        raw.split(whereSeparator: { $0.isWhitespace })
+        let lowered = raw.lowercased()
+        if lowered.hasPrefix("supp.") || lowered.hasPrefix("supplementary") { return "Supplementary" }
+        return raw.split(whereSeparator: { $0.isWhitespace })
             .map { $0.prefix(1).uppercased() + $0.dropFirst().lowercased() }
             .joined(separator: " ")
     }
