@@ -788,6 +788,9 @@ extension StudioViewModel {
         guard await persistSource(articles[index], context: "Attach supplementary PDF", syncImmediately: true) else {
             throw SourceError.fetchFailed
         }
+        if let usedElsewhere = try? await storage.otherSourceUsesLocalFile(stored, excludingSourceID: articleId) {
+            PaperSupplementPDF.removeReplacedFile(storedPath: stored, usedElsewhere: usedElsewhere)
+        }
         kickSourceEmbeddingIndexing()
         return outcome
     }
@@ -3271,7 +3274,9 @@ extension StudioViewModel {
 /// (`sourcesMissingIndex`) and the synced file, which another device fetches
 /// only for a path it does not hold. The article's pages keep their numbers,
 /// so highlights, reading positions and figure ids stay where they were. No
-/// model reads the paper again: its metadata is the article's.
+/// model reads the paper again: its metadata is the article's. Once the paper
+/// points at the joined file, the file it replaced is removed unless another
+/// source keeps it (`removeReplacedFile`).
 enum PaperSupplementPDF {
     struct Outcome: Equatable, Sendable {
         /// The joined PDF, absolute.
@@ -3337,6 +3342,17 @@ enum PaperSupplementPDF {
             throw Failure.writeFailed
         }
         return Outcome(path: destination, articlePageCount: articlePageCount, addedPageCount: supplement.pageCount)
+    }
+
+    /// Remove the paper's file the joined PDF replaced, once the paper points
+    /// at the joined one. Only a file in the Papers folder that no other
+    /// source keeps is removed: the copy on another device is that device's,
+    /// and a file two rows share stays for the other. Returns whether it was
+    /// removed.
+    @discardableResult
+    static func removeReplacedFile(storedPath: String, usedElsewhere: Bool) -> Bool {
+        guard !usedElsewhere, StorageService.relativeSourcePath(storedPath).hasPrefix("Papers/") else { return false }
+        return (try? FileManager.default.removeItem(atPath: StorageService.absoluteSourcePath(storedPath))) != nil
     }
 
     /// Where the joined PDF goes: beside the paper's file, named for it with

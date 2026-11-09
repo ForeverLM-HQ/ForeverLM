@@ -1018,6 +1018,11 @@ actor StorageService {
         return try knowledgeStore().paperFigureIndexIsCurrent(sourceID: sourceID)
     }
 
+    func otherSourceUsesLocalFile(_ storedPath: String, excludingSourceID sourceID: String) throws -> Bool {
+        try ensureStoreExists()
+        return try knowledgeStore().otherSourceUsesLocalFile(storedPath, excludingSourceID: sourceID)
+    }
+
     func papersNeedingFigureIndex() throws -> [String] {
         try ensureStoreExists()
         return try knowledgeStore().papersNeedingFigureIndex()

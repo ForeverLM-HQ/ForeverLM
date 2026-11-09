@@ -2743,6 +2743,14 @@ enum PaperFigureCaptionTitle {
         // and the same label twice on one page is what the index table refuses,
         // which cost the paper its whole index.
         //
+        // Papers that print panels in capitals refer to them as ranges, and a
+        // range closes like a reference too: "fig. 6 A-C, Sup. Table 9-11)"
+        // and "Extended Data fig. 9B-C). A significant…" opened lines of a
+        // bioRxiv preprint and were indexed as Figure 6 and Extended Data
+        // Figure 9B (2026-11-09). A capital panel letter, or a range of them,
+        // followed by a bracket, comma or the line's end is a reference; a
+        // capital that begins a title ("Figure 2 – A model of…") is not.
+        //
         // A paper's Extended Data and Supplementary figures are figures too
         // ("Extended Data Fig. 1 | Correlation matrix …", "Supplementary
         // Figure 2. Sensitivity …"): Nature prints the Extended Data at the
@@ -2763,7 +2771,7 @@ enum PaperFigureCaptionTitle {
     }
 
     private static let captionOpeningRegex = try? NSRegularExpression(
-        pattern: #"^(?:(Extended\s+Data|Supplementary|Supplemental)\s+)?(?:Figure|Fig\.)\s+((?-i:[A-Z])?\d+(?:[.\-–]\d+)?(?-i:[A-Z])?)\b(?!\s*(?:[),;]|(?-i:[a-z]))).*"#,
+        pattern: #"^(?:(Extended\s+Data|Supplementary|Supplemental)\s+)?(?:Figure|Fig\.)\s+((?-i:[A-Z])?\d+(?:[.\-–]\d+)?(?-i:[A-Z])?)\b(?!\s*(?:[),;]|(?-i:[a-z]))|\s*[-–]\s*(?-i:[A-Z])\s*(?:[),;]|$)|\s+(?-i:[A-Z])\s*(?:[-–,]\s*(?-i:[A-Z])\s*)?(?:[),;]|$)).*"#,
         options: [.caseInsensitive]
     )
 

@@ -3872,6 +3872,9 @@ extension MCPDataStore {
             article.wordCount = text.split(separator: " ").count
         }
         try store.saveSource(article)
+        if let usedElsewhere = try? store.otherSourceUsesLocalFile(stored, excludingSourceID: sourceID) {
+            PaperSupplementPDF.removeReplacedFile(storedPath: stored, usedElsewhere: usedElsewhere)
+        }
         let firstAdded = outcome.articlePageCount + 1
         let lastAdded = outcome.articlePageCount + outcome.addedPageCount
         return "Joined \(outcome.addedPageCount) supplementary pages to '\(article.title)' as pages \(firstAdded)–\(lastAdded), after its \(outcome.articlePageCount) article pages (path: \(article.localFilePath ?? outcome.path)). "

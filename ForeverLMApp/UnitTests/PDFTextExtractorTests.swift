@@ -191,6 +191,9 @@ struct PDFTextExtractorTests {
         Fig. 2). However, it remains ambiguous whether the upregulation of
         Figure 2 shows the same effect in the replicative model.
         Fig. 3e–h), and it was also undetectable in a combined analysis of all
+        fig. 6 A-C, Sup. Table 9-11). This suggests that, for example, the strong
+        Extended Data fig. 9B-C). A significant positive correlation was observed
+        Fig. 4B, C) and the interaction effects
         Fig. 2 | A mitochondrial electron surplus induces sleep. a, Proton-pumping
         Figure 3. Regeneration of NAD+ by lactate dehydrogenase.
         FIGURE 3–5 Fermentation in mammals and yeast.
@@ -199,6 +202,9 @@ struct PDFTextExtractorTests {
         let records = PDFTextExtractor.figureCaptionRecords(in: text)
         #expect(records.map(\.label) == ["Figure 2", "Figure 3", "Figure 3–5", "Figure 4"])
         #expect(records.first?.caption.hasPrefix("Fig. 2 | A mitochondrial") == true)
+        // A capital that begins a title is still a caption.
+        #expect(PaperFigureCaptionTitle.label(openingLine: "Figure 5 – A model of mitochondrial import.") == "Figure 5")
+        #expect(PaperFigureCaptionTitle.label(openingLine: "Figure 4A — Financial value by validation strategy.") == "Figure 4A")
     }
 
     @Test("An entry in a list of figures is not a caption, however its title wraps")
@@ -550,6 +556,19 @@ struct PaperSupplementPDFTests {
         #expect(throws: PaperSupplementPDF.Failure.unreadableSupplement) {
             try PaperSupplementPDF.append(supplementAt: notPDF.path, toPaperAt: paper.path)
         }
+    }
+
+    @Test("The replaced file is removed only from the Papers folder, and only when no other source keeps it")
+    func replacedFileRemovalIsGuarded() throws {
+        let folder = try Self.temporaryFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let outside = folder.appendingPathComponent("paper.pdf")
+        Self.makePDF(outside, pages: ["Fig. 1 | Main figure"])
+        // Outside the content root's Papers folder: never touched.
+        #expect(!PaperSupplementPDF.removeReplacedFile(storedPath: outside.path, usedElsewhere: false))
+        #expect(FileManager.default.fileExists(atPath: outside.path))
+        // Another source keeps it: never touched, wherever it is.
+        #expect(!PaperSupplementPDF.removeReplacedFile(storedPath: "Papers/shared-copy.pdf", usedElsewhere: true))
     }
 
     @Test("A second supplement goes to its own file after the first")

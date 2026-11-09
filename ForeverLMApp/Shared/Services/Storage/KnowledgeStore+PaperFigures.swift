@@ -74,7 +74,11 @@ enum PaperFigureIndexContract {
     ///   A thesis's List of Figures held 76 rows, each a box over its contents
     ///   page, beside the real ones; a paper indexed before this is read again
     ///   on use and the rows go.
-    static let currentVersion = 8
+    /// 9 (2026-11-09): a line that opens with a figure's name and a range of
+    ///   capital panel letters closed like a reference ("fig. 6 A-C, …)",
+    ///   "Extended Data fig. 9B-C).") is prose, not a caption. A bioRxiv
+    ///   preprint had two such lines indexed as figures.
+    static let currentVersion = 9
 
     static func figureID(sourceID: String, figureLabel: String, pageIndex: Int) -> String {
         let material = "\(sourceID)\u{1F}\(pageIndex)\u{1F}\(figureLabel.lowercased())"
@@ -351,6 +355,23 @@ extension KnowledgeStore {
             isCurrent = indexed == StorageService.relativeSourcePath(current)
         }
         return isCurrent
+    }
+
+    /// Whether a source other than `sourceID` keeps `storedPath` as its file,
+    /// written relative or absolute. A file a supplement replaced is removed
+    /// only when nothing else points at it (`PaperSupplementPDF`).
+    func otherSourceUsesLocalFile(_ storedPath: String, excludingSourceID sourceID: String) throws -> Bool {
+        var used = false
+        try queryBind("""
+            SELECT 1 FROM source_projection
+            WHERE id != ? AND (local_file_path = ? OR local_file_path = ?)
+            LIMIT 1
+        """, bind: { stmt in
+            bind(stmt, 1, sourceID)
+            bind(stmt, 2, StorageService.relativeSourcePath(storedPath))
+            bind(stmt, 3, StorageService.absoluteSourcePath(storedPath))
+        }) { _ in used = true }
+        return used
     }
 
     /// The papers whose figure index is missing or was built under older
