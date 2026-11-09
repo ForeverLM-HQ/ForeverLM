@@ -6,7 +6,22 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.204.0 (build 284) — 2026-11-08
+
+**Highlights:**
+- **Drag the strip's icons into your own order,** at the top and at the bottom of the left strip.
+- **Links open in ForeverLM's Browser,** with Add to Library one click away.
+- **A figure mentioned in a paper's text opens that figure.**
+
 - **Links open in ForeverLM's Browser.** A web link you click in a Page, a published page or a PDF now opens as a tab of the Browser pane instead of your web browser, and **Add to Library** there saves the page to your library (the button the Reader and the Browser called Add to Sources). To send links, chat links included, to your own browser instead, choose it under Settings › Sources › **Links**.
+- **Drag the strip's icons into your own order.** Every icon on the left strip moves where you drag it: Home, Spaces, Memory, Library, Plugins and the places you keep there at the top, and voice, the calendar, the bell, MCP, Settings and your account at the bottom. The order follows your account to your other Macs.
+- **Settings and MCP sit on the strip.** The General pane is gone; Settings opens from the gear at the bottom left, with MCP's status beside it.
+- **A figure mentioned in a paper's text opens that figure,** and a citation of several numbers shows every entry it names, across your library.
+- **Chat scrolls without jumping:** every chat is one page now. A stream that never sends a byte times out and tries again, and the steps' thinking line keeps its size beside the reply.
+- **Pages stay loaded behind your Space,** so coming back to one is instant.
+- **A chat opening a paper beside itself opens it in its own window only.**
+- **Settings › Models:** drag Your Models by a grip; the list starts maker by maker.
+- **Library rows carry no read mark.**
 
 ## 0.203.0 (build 283) — 2026-11-08
 
