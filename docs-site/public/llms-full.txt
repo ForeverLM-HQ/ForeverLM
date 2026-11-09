@@ -6751,6 +6751,14 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **The iPhone opens on voice.** Home is ForeverLM's mark: tap it to talk about anything, name a source, or go through today's cards, which voice offers first when they are due; type instead whenever you can't talk (every voice conversation now has a field for that, so the gym is just voice). Everything else (notebooks, the library, To Read, Follow Up, Spaces, **Review Cards** to tap through them with their pictures, Memory and Settings) is in the menu at the bottom.
 - **A daily quiz reminder on the iPhone,** on by default at 7:00 (or your review hour): tap it to go through today's cards, or use its Memory Check by Voice button. iOS asks once for permission.
 
+## 0.208.0 (build 288) — 2026-11-09
+
+**Highlights:**
+- **Add a PDF to a chat and the chat works with it,** whatever its family is set to in Settings.
+
+- **A PDF or file you add to a chat is never refused as "excluded".** Dropping, uploading or picking a source in a chat adds it, even when its family is kept from AI in Settings; that switch now only keeps a family out of search, lists and discovery.
+- **A chat reads and edits a source you put in it**, as Claude or Codex does with a file you hand them: its content, pictures, levels, walkthrough and highlights open, and its text and PDF can be updated, until you remove it from the chat or quit the app.
+
 ## 0.207.0 (build 287) — 2026-11-09
 
 **Highlights:**
