@@ -659,6 +659,8 @@ extension MCPDataStore {
             "nudge_back_on_track": FocusWatch.isEnabled,
             "nudge_status": focusStatus.mcpValue,
             "nudge_note": focusStatus.summary,
+            "read_screen": FocusWatch.readsScreen,
+            "read_screen_status": !FocusWatch.readsScreen ? "off" : (FocusScreenReader.isAllowed ? "reading" : "needs_screen_recording"),
         ]
     }
 
@@ -710,13 +712,14 @@ extension MCPDataStore {
         suggestPlanningTheDay: Bool? = nil,
         forcePlanningTheDay: Bool? = nil,
         requestNotifications: Bool? = nil,
-        nudgeBackOnTrack: Bool? = nil
+        nudgeBackOnTrack: Bool? = nil,
+        readScreen: Bool? = nil
     ) async throws -> String {
         // request_notifications is the pane's Allow Notifications button, not
         // a setting: only true presses it.
         let requestsNotifications = requestNotifications == true
-        guard dayStartHour != nil || dayEndHour != nil || suggestPlanningTheDay != nil || forcePlanningTheDay != nil || nudgeBackOnTrack != nil || requestsNotifications else {
-            throw MCPError.invalidInput("Pass at least one of day_start_hour, day_end_hour, suggest_planning_the_day, force_planning_the_day, nudge_back_on_track, or request_notifications true.")
+        guard dayStartHour != nil || dayEndHour != nil || suggestPlanningTheDay != nil || forcePlanningTheDay != nil || nudgeBackOnTrack != nil || readScreen != nil || requestsNotifications else {
+            throw MCPError.invalidInput("Pass at least one of day_start_hour, day_end_hour, suggest_planning_the_day, force_planning_the_day, nudge_back_on_track, read_screen, or request_notifications true.")
         }
         if let message = await MainActor.run(body: { PlannerDayHours.validationMessage(start: dayStartHour, end: dayEndHour) }) {
             throw MCPError.invalidInput(message)
@@ -745,6 +748,12 @@ extension MCPDataStore {
                 // macOS's Accessibility prompt on the learner's Mac, as the
                 // pane's switch shows it; only they can answer it.
                 if nudgeBackOnTrack { FrontWindowReader.requestTrust() }
+            }
+            if let readScreen {
+                changed = FocusWatch.readsScreen != readScreen || changed
+                FocusWatch.setReadsScreen(readScreen)
+                // macOS's Screen Recording prompt, shown once.
+                if readScreen, !FocusScreenReader.isAllowed { FocusScreenReader.requestAccess() }
             }
             return changed
         }

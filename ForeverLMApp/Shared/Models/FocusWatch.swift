@@ -22,8 +22,11 @@ import Foundation
 ///   naming the goal, and the drift on the day's log as `.offTrack` spans
 ///   (the Activity pane, `get_day_activity`).
 /// - **Sees:** the frontmost app, its focused window's title, and the page's
-///   address in a browser, through Accessibility (`FrontWindowReader`). Never
-///   the screen's pixels.
+///   address in a browser, through Accessibility (`FrontWindowReader`). The
+///   screen itself only with Read the Window Too (`readsScreenKey`, asked for
+///   the same day: "can it monitor my mac screen?", "Yes, add screen
+///   reading"), which reads the words in the window in front
+///   (`FocusScreenReader`).
 ///
 /// Device-local and off until the learner turns it on (Settings › Chat › Day,
 /// or `set_day_settings nudge_back_on_track`): it asks macOS for
@@ -37,6 +40,20 @@ enum FocusWatch {
 
     static func setEnabled(_ enabled: Bool) {
         UserDefaults.standard.set(enabled, forKey: settingKey)
+        NotificationCenter.default.post(name: .focusWatchSettingDidChange, object: nil)
+    }
+
+    /// Read the Window Too: the judge also reads the words in the window in
+    /// front. Device-local, off until switched on; needs Screen Recording.
+    /// Does nothing while the watcher is off.
+    static let readsScreenKey = "focus.readScreen"
+
+    static var readsScreen: Bool {
+        UserDefaults.standard.bool(forKey: readsScreenKey)
+    }
+
+    static func setReadsScreen(_ reads: Bool) {
+        UserDefaults.standard.set(reads, forKey: readsScreenKey)
         NotificationCenter.default.post(name: .focusWatchSettingDidChange, object: nil)
     }
 

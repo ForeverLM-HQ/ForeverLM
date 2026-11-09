@@ -63,20 +63,28 @@ actor FocusJudge {
         return .unavailable("Needs macOS 26 or later with Apple Intelligence.")
     }
 
-    /// True when `scene` serves `goal`.
-    func isOnTrack(_ scene: FocusScene, goal: FocusGoal) async throws -> Bool {
+    /// True when `scene` serves `goal`. `readScreen`, when given, reads the
+    /// words in the window in front (`FocusScreenReader`); it is called only
+    /// when the window has not been judged under this goal, so the screen is
+    /// read once per new thing in front, not on every look.
+    func isOnTrack(
+        _ scene: FocusScene,
+        goal: FocusGoal,
+        readScreen: (@Sendable () async -> String?)? = nil
+    ) async throws -> Bool {
         if verdictsGoal != goal {
             verdicts = [:]
             verdictsGoal = goal
         }
         if let known = verdicts[scene.verdictKey] { return known }
-        let verdict = try await ask(scene: scene, goal: goal)
+        let screenText = await readScreen?()
+        let verdict = try await ask(scene: scene, goal: goal, screenText: screenText)
         if verdicts.count >= Self.verdictLimit { verdicts.removeAll() }
         verdicts[scene.verdictKey] = verdict
         return verdict
     }
 
-    private func ask(scene: FocusScene, goal: FocusGoal) async throws -> Bool {
+    private func ask(scene: FocusScene, goal: FocusGoal, screenText: String?) async throws -> Bool {
         #if canImport(FoundationModels)
         if #available(macOS 26.0, *) {
             if case .unavailable(let reason) = Self.availability() { throw JudgeError.unavailable(reason) }
@@ -85,7 +93,7 @@ actor FocusJudge {
             let session = LanguageModelSession(instructions: Self.instructions)
             do {
                 let verdict = try await session.respond(
-                    to: Prompt(Self.prompt(scene: scene, goal: goal)),
+                    to: Prompt(Self.prompt(scene: scene, goal: goal, screenText: screenText)),
                     generating: FocusVerdict.self
                 ).content
                 return verdict.onTrack
@@ -105,10 +113,16 @@ actor FocusJudge {
     Off track: social feeds, news, shopping, sport, games, entertainment, chatting or email about other things, and \
     pages or videos on unrelated topics.
     Judge by the topic, not by the site: a lecture on YouTube about the goal is on track, the YouTube home feed is not.
+    When the words in the window are given, judge by them: they say what the window is about better than its title. \
+    A chat or a mailbox is on track only when its words are about the goal.
     When you cannot tell, answer on track.
     """
 
-    static func prompt(scene: FocusScene, goal: FocusGoal) -> String {
+    /// How much of the window's words the judge reads: enough to know the
+    /// topic, little enough to keep each verdict quick.
+    static let screenTextLimit = 600
+
+    static func prompt(scene: FocusScene, goal: FocusGoal, screenText: String? = nil) -> String {
         var lines = ["Goal: \(goal.title)"]
         if !goal.context.isEmpty {
             lines.append("About the goal: \(goal.context.prefix(6).joined(separator: "; "))")
@@ -116,6 +130,8 @@ actor FocusJudge {
         lines.append("App in front: \(scene.appName)")
         if let title = scene.windowTitle { lines.append("Window title: \(String(title.prefix(200)))") }
         if let page = scene.pageText { lines.append("Page: \(page)") }
+        let words = (screenText ?? "").split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        if !words.isEmpty { lines.append("Words in the window: \(String(words.prefix(Self.screenTextLimit)))") }
         return lines.joined(separator: "\n")
     }
 }

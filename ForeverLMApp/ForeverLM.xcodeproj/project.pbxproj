@@ -1121,6 +1121,7 @@
 		87AE3763ECC68E411CB7B998 /* StorageService+WorkingNotes.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8280F12044140686BDCF0994 /* StorageService+WorkingNotes.swift */; };
 		87CE077A30E628F2B9245D59 /* StudioDiscoveryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC893B5A2F5013CE718CCCAE /* StudioDiscoveryTests.swift */; };
 		883B676075B6188E8D4EC6DB /* MobileSettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EFB75C0178C991E09C97562B /* MobileSettingsView.swift */; };
+		883CC21942D06E5980EBF578 /* FocusScreenReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4EF3969732EF9E27AEE770D4 /* FocusScreenReader.swift */; };
 		885F5D772385C42561A32C16 /* ExplainerVideo.swift in Sources */ = {isa = PBXBuildFile; fileRef = E05ADF70EBE50F414480F6A7 /* ExplainerVideo.swift */; };
 		888108F8CCFF62E9A3F068F0 /* MobileMemoryRecords.swift in Sources */ = {isa = PBXBuildFile; fileRef = 32103087FBE8506167956FF7 /* MobileMemoryRecords.swift */; };
 		88BE6C6637A20D68AB71442F /* KnowledgeStore+Cohort.swift in Sources */ = {isa = PBXBuildFile; fileRef = 35E4A1BF85AF9E39946F583E /* KnowledgeStore+Cohort.swift */; };
@@ -2704,6 +2705,7 @@
 		4E5E100087C4AB77113171EE /* KnowledgeMapResources */ = {isa = PBXFileReference; lastKnownFileType = folder; name = KnowledgeMapResources; path = App/KnowledgeMapResources; sourceTree = SOURCE_ROOT; };
 		4E648EED27EE8D4B8A69699E /* CheckForUpdatesView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CheckForUpdatesView.swift; sourceTree = "<group>"; };
 		4E9D750A59A3486F5F9ACC0B /* MCPToolActivity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MCPToolActivity.swift; sourceTree = "<group>"; };
+		4EF3969732EF9E27AEE770D4 /* FocusScreenReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FocusScreenReader.swift; sourceTree = "<group>"; };
 		4F1AC45BDC5B9D92C56F5E6E /* MobileReaderFind.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileReaderFind.swift; sourceTree = "<group>"; };
 		4F49C0079B65F35D76BC182C /* BoardNotebookTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BoardNotebookTests.swift; sourceTree = "<group>"; };
 		4F8B17B9EF3614D82BA042B9 /* MemoryReviewActivityDevice.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MemoryReviewActivityDevice.swift; sourceTree = "<group>"; };
@@ -5372,6 +5374,7 @@
 				ABE763CE82E67434831ED31D /* FilePanel.swift */,
 				6D83FE843C7606A37226ABA9 /* FirstRunFreshStart.swift */,
 				FAA78C7C7D23DFC4E053019D /* FocusJudge.swift */,
+				4EF3969732EF9E27AEE770D4 /* FocusScreenReader.swift */,
 				191940E7B2829E20F5AA79FF /* FocusWatcher.swift */,
 				3951B68B1E8ECE3A1713A1BC /* ForeverLMApp.swift */,
 				F62FEB945921C74B6AE61CFC /* ForeverLMDevelopment.entitlements */,
@@ -7769,6 +7772,7 @@
 				3B9022785F37839055F4987D /* FirstRunFreshStart.swift in Sources */,
 				49D99F8FD7BD2EF3F9A5A339 /* FlashcardDeck.swift in Sources */,
 				2D391854A4BCCA36F8CF7B84 /* FocusJudge.swift in Sources */,
+				883CC21942D06E5980EBF578 /* FocusScreenReader.swift in Sources */,
 				EEF832099E2E9047D9A56465 /* FocusWatch.swift in Sources */,
 				0D2C97FED784E7755D9A36B3 /* FocusWatcher.swift in Sources */,
 				40AC3AD864E7CAAB0BF2E9BE /* FollowUpList.swift in Sources */,

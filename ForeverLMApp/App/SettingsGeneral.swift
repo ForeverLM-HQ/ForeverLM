@@ -84,6 +84,8 @@ struct SettingsDaySection: View {
     /// This Mac's: it watches this Mac's screen.
     @AppStorage(FocusWatch.settingKey)
     private var nudgesBackOnTrack = false
+    @AppStorage(FocusWatch.readsScreenKey)
+    private var readsWindowToo = false
     private var focusWatcher: FocusWatcher { FocusWatcher.shared }
     /// Synced: the learner's day is the same on every Mac.
     @AppStorage(PlannerDayHours.startKey)
@@ -173,6 +175,30 @@ struct SettingsDaySection: View {
                         .font(.system(size: 11))
                         .frame(maxWidth: .infinity, alignment: .trailing)
                         .accessibilityIdentifier("settings.general.nudgeBackOnTrack.accessibility")
+                }
+
+                SettingsLayout.rowDivider
+
+                SettingsRow("Read the window too", detail: "Its words are read on this Mac and kept nowhere; needs Screen Recording.") {
+                    Toggle("Read the words in the window in front too", isOn: Binding(
+                        get: { readsWindowToo },
+                        set: { on in
+                            FocusWatch.setReadsScreen(on)
+                            // macOS's prompt, shown once.
+                            if on, !FocusScreenReader.isAllowed { FocusScreenReader.requestAccess() }
+                        }
+                    ))
+                    .labelsHidden()
+                    .toggleStyle(.switch)
+                    .disabled(!nudgesBackOnTrack)
+                    .accessibilityIdentifier("settings.general.nudgeReadsScreen")
+                }
+                if nudgesBackOnTrack, readsWindowToo, focusWatcher.screenReadingBlocked, let url = FocusScreenReader.systemSettingsURL {
+                    Button("Allow Screen Recording…") { NSWorkspace.shared.open(url) }
+                        .buttonStyle(.hoverWash)
+                        .font(.system(size: 11))
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                        .accessibilityIdentifier("settings.general.nudgeReadsScreen.screenRecording")
                 }
             }
         }

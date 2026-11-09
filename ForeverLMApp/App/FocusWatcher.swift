@@ -66,6 +66,9 @@ final class FocusWatcher {
     /// The last thing the judge could not answer, said once in the log; a
     /// failed look changes nothing on the clock.
     @ObservationIgnored private(set) var lastJudgeError: String?
+    /// Read the Window Too is on but macOS has not granted Screen Recording:
+    /// windows are judged by their titles until the learner grants it.
+    private(set) var screenReadingBlocked = false
 
     @ObservationIgnored private var tracker = FocusDriftTracker()
     @ObservationIgnored private var goal: FocusGoal?
@@ -141,6 +144,8 @@ final class FocusWatcher {
 
     private func lookOnce() async {
         let now = Date()
+        let blocked = FocusWatch.isEnabled && FocusWatch.readsScreen && !FocusScreenReader.isAllowed
+        if screenReadingBlocked != blocked { screenReadingBlocked = blocked }
         guard FocusWatch.isEnabled else {
             stopWatching(status: .off, at: now)
             return
@@ -172,6 +177,7 @@ final class FocusWatcher {
         guard let front = NSWorkspace.shared.frontmostApplication else { return }
         observeWindows(of: front)
         let scene: FocusScene
+        var readScreen: (@Sendable () async -> String?)?
         if front.processIdentifier == ProcessInfo.processInfo.processIdentifier {
             // ForeverLM itself is the work, except a page in its own Browser.
             guard let page = Self.inAppBrowserScene() else {
@@ -186,6 +192,9 @@ final class FocusWatcher {
             scene = await Task.detached(priority: .utility) {
                 FrontWindowReader.scene(pid: pid, appName: name, bundleID: bundleID)
             }.value
+            if FocusWatch.readsScreen, !blocked, !FocusScreenReader.neverReadBundleIDs.contains(bundleID) {
+                readScreen = { await FocusScreenReader.words(inFrontWindowOf: pid) }
+            }
         }
         if allowances.allows(scene, for: current) {
             apply(tracker.observe(onTrack: true, scene: scene, at: now))
@@ -193,7 +202,7 @@ final class FocusWatcher {
         }
         let onTrack: Bool
         do {
-            onTrack = try await judge.isOnTrack(scene, goal: current)
+            onTrack = try await judge.isOnTrack(scene, goal: current, readScreen: readScreen)
             lastJudgeError = nil
         } catch {
             // No verdict: the clock stands as it was. Said once per error.

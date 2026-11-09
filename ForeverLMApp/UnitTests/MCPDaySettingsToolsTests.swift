@@ -21,7 +21,7 @@ struct MCPDaySettingsToolsTests {
     /// Restores the defaults the tools write, whatever a test did.
     private func restoringDefaults<T>(_ body: () async throws -> T) async throws -> T {
         let defaults = UserDefaults.standard
-        let keys = [PlannerDayHours.startKey, PlannerDayHours.endKey, PlanTheDay.settingKey, PlanTheDay.forcedKey, FocusWatch.settingKey]
+        let keys = [PlannerDayHours.startKey, PlannerDayHours.endKey, PlanTheDay.settingKey, PlanTheDay.forcedKey, FocusWatch.settingKey, FocusWatch.readsScreenKey]
         let prior = keys.map { ($0, defaults.object(forKey: $0)) }
         defer {
             for (key, value) in prior {
@@ -42,7 +42,7 @@ struct MCPDaySettingsToolsTests {
         let set = try #require(byName["set_day_settings"])
         #expect((set.inputSchema["required"] as? [String]) == [])
         let properties = try #require(set.inputSchema["properties"] as? [String: Any])
-        #expect(Set(properties.keys) == ["day_start_hour", "day_end_hour", "suggest_planning_the_day", "force_planning_the_day", "request_notifications", "nudge_back_on_track"])
+        #expect(Set(properties.keys) == ["day_start_hour", "day_end_hour", "suggest_planning_the_day", "force_planning_the_day", "request_notifications", "nudge_back_on_track", "read_screen"])
         #expect(get.description.contains("nudge_back_on_track"))
         #expect(set.description.contains("request_notifications"))
     }
@@ -136,6 +136,14 @@ struct MCPDaySettingsToolsTests {
             #expect(nudging["nudge_back_on_track"] as? Bool == false && nudging["changed"] as? Bool == true)
             #expect(nudging["nudge_status"] as? String == "off")
             #expect(!FocusWatch.isEnabled)
+
+            // Read the Window Too is off until switched on, and off says so.
+            // (Switching it on shows macOS's Screen Recording prompt.)
+            #expect(read["read_screen"] as? Bool == false && read["read_screen_status"] as? String == "off")
+            UserDefaults.standard.set(true, forKey: FocusWatch.readsScreenKey)
+            let reading = try payload(try await store.setDaySettings(dayStartHour: nil, dayEndHour: nil, readScreen: false))
+            #expect(reading["read_screen"] as? Bool == false && reading["changed"] as? Bool == true)
+            #expect(!FocusWatch.readsScreen)
         }
     }
 
