@@ -2,11 +2,13 @@
 
 Connect your AI assistant to your private ForeverLM library.
 
-This plugin adds the official remote ForeverLM MCP server, plus four skills (a
+This plugin adds the official remote ForeverLM MCP server, plus five skills (a
 one-time Zotero or Paperpile library migration, a chat
 export that brings a conversation held elsewhere into ForeverLM as a chat, an
-AI cost review that proposes cheaper model settings from your usage ledger, and
-a walkthrough writer that weaves recall questions into a source's explanation), so an
+AI cost review that proposes cheaper model settings from your usage ledger,
+a walkthrough writer that weaves recall questions into a source's explanation, and
+a figure coverage check that finds the papers whose Extended Data or supplementary
+figures are missing from their PDF), so an
 assistant can:
 
 - Retrieve and search your sources (articles, books, papers, podcasts, videos)
@@ -99,7 +101,7 @@ and no local MCP server. It declares one remote MCP server,
 their arguments go there, and ForeverLM's servers pass them to your own library: the
 ForeverLM app on your Mac, or ForeverLM's always-on host that reads your library from
 your iCloud account. A tool that reads Slack, Linear, GitHub or Notion calls that
-service only for a workspace you connected in ForeverLM. The four skills are
+service only for a workspace you connected in ForeverLM. The five skills are
 instructions to the assistant and run no code of their own.
 
 ## Links
@@ -112,7 +114,7 @@ instructions to the assistant and run no code of their own.
 
 ## Status
 
-One package, versioned 1.0.7, serves every provider:
+One package, versioned 1.0.8, serves every provider:
 
 - **Claude Code and Cowork:** installable from this marketplace today; submission to
   Anthropic's plugin directory is in progress.
