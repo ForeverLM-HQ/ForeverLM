@@ -2805,6 +2805,28 @@ struct CrossWindowStudioDropTests {
         #expect(destination.readerArticleID == "source-on-left-display")
     }
 
+    @Test("A chat opening a paper beside itself opens it in the chat's window only, not in the key window too")
+    func sourceBesideChatStaysInTheChatsWindow() async {
+        let vm = makeViewModel()
+        let paper = makeArticle(url: "/tmp/oocyte-paper.pdf", title: "Oocytes keep ROS low", sourceType: .paper)
+        vm.articles = [paper]
+        // The key window still renders the app-wide selection: it has never
+        // chosen a source of its own.
+        let keyWindow = vm.activeWindowState
+        let chatWindow = StudioWindowState(snapshot: .init(
+            centerTabGroups: ["chat*|reader|tasks|notepad|notebooks"],
+            navigationRailVisible: true
+        ))
+
+        let opened = await vm.openSourceBesideChat(paper.id, beside: .chat, in: chatWindow)
+
+        #expect(opened)
+        #expect(chatWindow.readerArticleID == paper.id)
+        #expect(chatWindow.centerTabGroups.groups.map(\.activeTab) == [.chat, .reader])
+        #expect(keyWindow !== chatWindow)
+        #expect(keyWindow.readerArticleID != paper.id)
+    }
+
     @Test("The Docs index and a doc reveal name the window they were asked in, so another window's Doc stays open")
     func docsIndexAndRevealStayInTheirWindow() {
         let leftDisplay = StudioWindowState(snapshot: .init(

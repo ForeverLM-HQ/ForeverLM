@@ -262,6 +262,16 @@ extension StudioViewModel {
         revealReader(beside: companion, in: destination)
         clearReaderSurfaces(keeping: companion, in: destination)
 
+        // The source opens in `destination` alone (product owner, 2026-11-08:
+        // a chat pointing at a figure opened the paper in both windows —
+        // "should just do it in one window"). Moving the app-wide selection
+        // pins every window but the key one (`pinWindowsFollowingTheGlobalSelection`),
+        // so when the key window is not `destination` it must be pinned to
+        // what it shows first, or its Reader follows the selection over.
+        let active = activeWindowState
+        if destination !== active {
+            active.pinReaderSelection(to: selectedArticleId)
+        }
         // Publish both reader and sidebar selection before any content fetch so
         // the click responds immediately even when the source lives in iCloud.
         selectedArticleId = article.id
