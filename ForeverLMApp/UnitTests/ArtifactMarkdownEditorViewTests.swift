@@ -70,14 +70,19 @@ struct ArtifactMarkdownEditorViewTests {
         let capped = ArtifactMarkdownEditorView.Coordinator.startupScript(
             markdown: "", fontSize: 15, pageMaxWidth: 1040
         )
-        #expect(capped.hasPrefix("window.foreverLMArtifactEditor.setPageWidth(1040.0);"))
+        #expect(capped.hasPrefix("window.foreverLMArtifactEditor.setPageWidth(1040.0, false);"))
         let setIndex = capped.range(of: "setPageWidth(")!.lowerBound
         let createIndex = capped.range(of: "create(")!.lowerBound
         #expect(setIndex < createIndex)
 
         #expect(
             ArtifactMarkdownEditorView.Coordinator.pageWidthScript(nil)
-                == "window.foreverLMArtifactEditor.setPageWidth(null);"
+                == "window.foreverLMArtifactEditor.setPageWidth(null, false);"
+        )
+        // The Docs pane keeps the width, so its page's edges drag.
+        #expect(
+            ArtifactMarkdownEditorView.Coordinator.pageWidthScript(812, adjustable: true)
+                == "window.foreverLMArtifactEditor.setPageWidth(812.0, true);"
         )
     }
 
@@ -187,13 +192,22 @@ struct ArtifactMarkdownEditorViewTests {
         #expect(!ArtifactMarkdownEditorView.Coordinator.pageNeedsAttachments(host: [:], pageTokens: []))
     }
 
-    @Test("Page widths: standard is the stylesheet's 760, full has no cap, and the stored raw values are stable")
+    @Test("Page widths: standard is the stylesheet's 760, 0 fills the pane, and a dragged width is kept to the point")
     func pageWidthChoices() {
-        #expect(ArtifactPageWidth.standard.maxWidth == 760)
-        #expect(ArtifactPageWidth.wide.maxWidth! > 760)
-        #expect(ArtifactPageWidth.full.maxWidth == nil)
-        #expect(ArtifactPageWidth.allCases.map(\.rawValue) == ["standard", "wide", "full"])
-        #expect(ArtifactPageWidth(rawValue: "narrow") == nil)
+        #expect(ArtifactPageWidth.maxWidth(ArtifactPageWidth.standard) == 760)
+        #expect(ArtifactPageWidth.maxWidth(ArtifactPageWidth.full) == nil)
+        #expect(ArtifactPageWidth.presets.map(\.title) == ["Standard", "Wide", "Full Width"])
+        #expect(ArtifactPageWidth.presets[1].width > 760)
+        // A dragged width goes back and forth unchanged, so the editor is not
+        // sent the width it just drew.
+        #expect(ArtifactPageWidth.stored(912) == 912)
+        #expect(ArtifactPageWidth.maxWidth(ArtifactPageWidth.stored(912)) == 912)
+        #expect(ArtifactPageWidth.stored(nil) == ArtifactPageWidth.full)
+        // Nothing narrower than the editor's own floor.
+        #expect(ArtifactPageWidth.maxWidth(120) == 400)
+        #expect(ArtifactPageWidth.stored(120) == 400)
+        #expect(ArtifactPageWidth.maxWidth(-5) == nil)
+        #expect(ArtifactPageWidth.maxWidth(.nan) == nil)
     }
 
     @Test("The title's inset follows the page width the reader chose")

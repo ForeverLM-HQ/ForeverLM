@@ -484,36 +484,48 @@ enum ArtifactOutlineFolds {
 /// revision-safe artifact persistence remains the source of truth.
 /// How wide the page is drawn in the Docs pane. The prose column is capped at
 /// a readable line by default and centred, which on a wide pane leaves most of
-/// the width blank; a reader who wants the doc broader picks a wider cap, or
-/// lets the page fill the pane. One setting for every doc — it is a fact about
-/// the reader and the pane, not about a document — and it follows the account
-/// like the other display preferences (`SyncedPreferenceKeys`).
-enum ArtifactPageWidth: String, CaseIterable, Identifiable {
-    case standard
-    case wide
-    case full
+/// the width blank. The reader drags the column's edges to any width, or picks
+/// one of the `presets` in the page's menu (product owner, 2026-11-08: "allow me
+/// to adjust the width that the text takes up on a page"); dragged out to the
+/// pane's edges, the page fills the pane. One setting for every doc — it is a
+/// fact about the reader and the pane, not about a document — and it follows
+/// the account like the other display preferences (`SyncedPreferenceKeys`).
+///
+/// Stored as the column's width in points, `0` for a page that fills the pane.
+enum ArtifactPageWidth {
+    static let key = "notepad.pageColumnWidth"
 
-    static let key = "notepad.pageWidth"
+    /// A readable line at the page's type size, and the stylesheet's default.
+    static let standard: Double = 760
+    /// The narrowest column a drag leaves (`pageWidthMinimum` in the editor).
+    static let minimum: Double = 400
+    /// The stored value of a page that fills the pane.
+    static let full: Double = 0
 
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .standard: "Standard"
-        case .wide: "Wide"
-        case .full: "Full Width"
-        }
+    struct Preset: Identifiable, Equatable {
+        let title: String
+        let width: Double
+        var id: Double { width }
     }
 
-    /// The prose column's cap in points, or `nil` when the page fills the pane.
-    /// The editor's stylesheet defaults to the standard cap, and the host mirrors
-    /// the same number when it lays the title on the page's left edge.
-    var maxWidth: CGFloat? {
-        switch self {
-        case .standard: 760
-        case .wide: 1040
-        case .full: nil
-        }
+    static let presets: [Preset] = [
+        Preset(title: "Standard", width: standard),
+        Preset(title: "Wide", width: 1040),
+        Preset(title: "Full Width", width: full),
+    ]
+
+    /// The prose column's cap in points for a stored width, or `nil` when the
+    /// page fills the pane. The host mirrors the same number when it lays the
+    /// title on the page's left edge.
+    static func maxWidth(_ stored: Double) -> CGFloat? {
+        guard stored.isFinite, stored > 0 else { return nil }
+        return CGFloat(max(minimum, stored.rounded()))
+    }
+
+    /// What to store for a cap the editor reports (`nil`: fills the pane).
+    static func stored(_ maxWidth: CGFloat?) -> Double {
+        guard let maxWidth, maxWidth.isFinite, maxWidth > 0 else { return full }
+        return max(minimum, Double(maxWidth).rounded())
     }
 }
 
@@ -751,6 +763,11 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
     @Binding var formatRequest: ArtifactFormatRequest?
     /// The prose column's cap in points; `nil` lets the page fill the pane.
     let pageMaxWidth: CGFloat?
+    /// The reader dragged the page's edges: the new cap (`nil`: fills the
+    /// pane), and whether the drag is over. The editor has drawn it already;
+    /// the host follows it with the title while it moves and keeps the last.
+    /// A host that passes none keeps the edges still.
+    var onPageWidthChange: ((CGFloat?, Bool) -> Void)? = nil
     /// Off, the page reads without a caret: a team Doc, whose changes go
     /// through a member's private draft rather than the shared copy.
     var isEditable = true
@@ -869,6 +886,7 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
         )
         coordinator.foldDocumentID = foldDocumentID
         coordinator.notesGraph = notesGraph
+        coordinator.onPageWidthChange = onPageWidthChange
         return coordinator
     }
 
@@ -915,6 +933,7 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
 
     func updateNSView(_ webView: WKWebView, context: Context) {
         context.coordinator.onImageFiles = onImageFiles
+        context.coordinator.onPageWidthChange = onPageWidthChange
         context.coordinator.onCommentAnchorClicked = onCommentAnchorClicked
         context.coordinator.onCommentAnchorsDetached = onCommentAnchorsDetached
         context.coordinator.onAIEditWritten = onAIEditWritten
@@ -1063,6 +1082,9 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
         var onCommentAnchorClicked: (String) -> Void = { _ in }
         var onCommentAnchorsDetached: (Set<String>) -> Void = { _ in }
         var onAIEditWritten: () -> Void = {}
+        /// See `ArtifactMarkdownEditorView.onPageWidthChange`; nil keeps the
+        /// page's edges still.
+        var onPageWidthChange: ((CGFloat?, Bool) -> Void)?
         private var commentAnchors: [ArtifactCommentAnchor] = []
         private var activeCommentID: String?
         private var onRequestImageGeneration: (ArtifactImageGenerationRequest) async throws -> ArtifactGeneratedImage
@@ -1397,7 +1419,8 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             if self.pageMaxWidth != pageMaxWidth {
                 self.pageMaxWidth = pageMaxWidth
                 if isReady {
-                    webView.evaluateJavaScript(Self.pageWidthScript(pageMaxWidth))
+                    webView.evaluateJavaScript(
+                        Self.pageWidthScript(pageMaxWidth, adjustable: onPageWidthChange != nil))
                 }
             }
 
@@ -1514,6 +1537,14 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
                 if let webView = message.webView {
                     markReady(in: webView)
                 }
+            case "pageWidthChanged":
+                // The editor drew the width already; keeping it here stops the
+                // next update from sending it back a frame late, mid-drag.
+                guard let onPageWidthChange else { return }
+                let width = (payload["width"] as? NSNumber).map { CGFloat($0.doubleValue) }
+                let cap = width.flatMap { $0.isFinite && $0 > 0 ? $0 : nil }
+                pageMaxWidth = cap
+                onPageWidthChange(cap, (payload["done"] as? Bool) ?? false)
             case "foldsChanged":
                 // Keyed by the doc the editor names, not the one now open: a
                 // report from the doc just closed still belongs to that doc.
@@ -1680,7 +1711,8 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             let script = Self.startupScript(
                 markdown: latestSwiftMarkdown,
                 fontSize: fontSize,
-                pageMaxWidth: pageMaxWidth
+                pageMaxWidth: pageMaxWidth,
+                pageWidthAdjustable: onPageWidthChange != nil
             )
             webView.evaluateJavaScript(script) { [weak self] _, error in
                 if let error {
@@ -1784,7 +1816,8 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             didFail = false
             webView.evaluateJavaScript(
                 "window.foreverLMArtifactEditor.setFontSize(\(Double(fontSize)));")
-            webView.evaluateJavaScript(Self.pageWidthScript(pageMaxWidth))
+            webView.evaluateJavaScript(
+                Self.pageWidthScript(pageMaxWidth, adjustable: onPageWidthChange != nil))
             webView.evaluateJavaScript("window.foreverLMArtifactEditor.setEditable(\(isEditable));")
             webView.evaluateJavaScript(Self.slashFeaturesScript)
             webView.evaluateJavaScript(Self.joinsPastedLinesScript)
@@ -2229,9 +2262,10 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
         static func startupScript(
             markdown: String,
             fontSize: CGFloat,
-            pageMaxWidth: CGFloat?
+            pageMaxWidth: CGFloat?,
+            pageWidthAdjustable: Bool = false
         ) -> String {
-            pageWidthScript(pageMaxWidth)
+            pageWidthScript(pageMaxWidth, adjustable: pageWidthAdjustable)
                 + " window.foreverLMArtifactEditor.create(\(jsonString(markdown)), \(Double(fontSize))); true;"
         }
 
@@ -2245,10 +2279,11 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
         }
 
         /// `setPageWidth` takes the cap in CSS pixels; anything that is not a
-        /// finite positive number means the page fills the pane.
-        static func pageWidthScript(_ pageMaxWidth: CGFloat?) -> String {
+        /// finite positive number means the page fills the pane. `adjustable`
+        /// shows the page's draggable edges, for a host that keeps the width.
+        static func pageWidthScript(_ pageMaxWidth: CGFloat?, adjustable: Bool = false) -> String {
             let argument = pageMaxWidth.map { "\(Double($0))" } ?? "null"
-            return "window.foreverLMArtifactEditor.setPageWidth(\(argument));"
+            return "window.foreverLMArtifactEditor.setPageWidth(\(argument), \(adjustable));"
         }
 
         /// Whether a URL is one of the editor's own source addresses — a

@@ -2,8 +2,8 @@
   color-scheme: light dark;
   --artifact-font-size: 15px;
   /* The prose column's cap. 760px is a readable line at the page's type size;
-     the host offers wider settings (`ArtifactPageWidth`) and writes the choice
-     here, `100%` when the page is to fill the pane. */
+     the host keeps the reader's own width (`ArtifactPageWidth`, or the page's
+     edges dragged) and writes it here, `100%` when the page fills the pane. */
   --artifact-page-width: 760px;
   /* One line of prose. The page's leading is also the height a list marker
      centres itself in, so the two are one number rather than two. */
@@ -3013,6 +3013,86 @@ body.artifact-block-dragging * {
 
 .artifact-footnote-card a {
   color: AccentColor;
+}
+
+/* The page's edges (`layoutPageWidthHandles`): a strip on each side of the
+   column, inside its side padding, that drags the page narrower or wider. It
+   shows nothing until the pointer is on it, then a hairline on the column's
+   border; the contents list stays above it. */
+.artifact-page-edge {
+  position: fixed;
+  z-index: 19;
+  top: 0;
+  bottom: 0;
+  width: 12px;
+  cursor: col-resize;
+  touch-action: none;
+}
+
+.artifact-page-edge[hidden] {
+  display: none;
+}
+
+.artifact-page-edge[data-side="leading"] {
+  transform: translateX(-2px);
+}
+
+.artifact-page-edge[data-side="trailing"] {
+  transform: translateX(-10px);
+}
+
+.artifact-page-edge::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 1px;
+  background: color-mix(in srgb, CanvasText 18%, transparent);
+  content: "";
+  opacity: 0;
+  transition: opacity 120ms ease 80ms;
+}
+
+.artifact-page-edge[data-side="leading"]::after {
+  left: 2px;
+}
+
+.artifact-page-edge[data-side="trailing"]::after {
+  right: 2px;
+}
+
+.artifact-page-edge:hover::after {
+  opacity: 1;
+}
+
+.artifact-page-edge.is-dragging::after {
+  width: 2px;
+  background: AccentColor;
+  opacity: 1;
+  transition: none;
+}
+
+body.is-resizing-page,
+body.is-resizing-page * {
+  cursor: col-resize !important;
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+.artifact-page-width-label {
+  position: fixed;
+  z-index: 40;
+  padding: 3px 7px;
+  border-radius: 6px;
+  background: color-mix(in srgb, CanvasText 82%, transparent);
+  color: Canvas;
+  font: 11px/1.3 -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+  white-space: nowrap;
+}
+
+.artifact-page-width-label[hidden] {
+  display: none;
 }
 
 /* Page contents: the page's headings at its edge (Codex's "Page contents").

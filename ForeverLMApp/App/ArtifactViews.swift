@@ -1766,14 +1766,23 @@ struct ArtifactCanvas: View {
             )
         }
         .help("This Page as it reads on foreverlm.com, published or not")
+        // The page's edges drag to any width; these are the usual ones, and
+        // the menu says which the page is at, or the width it was dragged to.
         Menu {
-            Picker("Page Width", selection: $pageWidth) {
-                ForEach(ArtifactPageWidth.allCases) { width in
-                    Text(width.title).tag(width)
-                }
+            ForEach(ArtifactPageWidth.presets) { preset in
+                Toggle(preset.title, isOn: Binding(
+                    get: { ArtifactPageWidth.maxWidth(pageWidth) == ArtifactPageWidth.maxWidth(preset.width) },
+                    set: { if $0 { pageWidth = preset.width } }
+                ))
             }
-            .pickerStyle(.inline)
-            .labelsHidden()
+            if let custom = ArtifactPageWidth.maxWidth(pageWidth),
+               !ArtifactPageWidth.presets.contains(where: { ArtifactPageWidth.maxWidth($0.width) == custom }) {
+                Divider()
+                Toggle("\(Int(custom)) pt", isOn: .constant(true))
+                    .disabled(true)
+            }
+            Divider()
+            Text("Drag the page's edges for any width")
         } label: {
             Label("Page Width", systemImage: "arrow.left.and.right")
         }
@@ -3036,6 +3045,10 @@ private struct ArtifactEditor: View {
     @State private var referenceArtworkTask: Task<Void, Never>?
     /// How wide the page is drawn; the title's inset follows it.
     @SyncedStorage(ArtifactPageWidth.key) private var pageWidthPreference = ArtifactPageWidth.standard
+    /// The width the page's edges are being dragged to, stored the same way;
+    /// nil when no drag is under way. The title follows it frame by frame, and
+    /// only the drag's last width is kept, so a drag syncs once.
+    @State private var draggedPageWidth: Double?
     @State private var attachmentInsertion: ArtifactAttachmentInsertion?
     @State private var isImportingImage = false
     @State private var publicationRequestID = 0
@@ -3074,8 +3087,13 @@ private struct ArtifactEditor: View {
     private func pageInset(for width: CGFloat) -> ArtifactPageInset {
         ArtifactPageInset(
             paneWidth: width,
-            pageMaxWidth: pageWidthPreference.maxWidth
+            pageMaxWidth: pageMaxWidth
         )
+    }
+
+    /// The prose column's cap: the width being dragged to, else the kept one.
+    private var pageMaxWidth: CGFloat? {
+        ArtifactPageWidth.maxWidth(draggedPageWidth ?? pageWidthPreference)
     }
 
     /// Whether the pane can hold the page and the side panel at once.
@@ -4064,7 +4082,16 @@ private struct ArtifactEditor: View {
                 attachmentInsertion: $attachmentInsertion,
                 groundingAttachment: $groundingAttachment,
                 formatRequest: $formatting.request,
-                pageMaxWidth: pageWidthPreference.maxWidth,
+                pageMaxWidth: pageMaxWidth,
+                onPageWidthChange: { width, done in
+                    let stored = ArtifactPageWidth.stored(width)
+                    if done {
+                        pageWidthPreference = stored
+                        draggedPageWidth = nil
+                    } else {
+                        draggedPageWidth = stored
+                    }
+                },
                 isEditable: !isReadOnly,
                 foldDocumentID: artifact.id,
                 notesGraph: notesGraph.bridge,

@@ -180,9 +180,10 @@ enum SyncedPreferenceKeys {
         // Mac they happen to be at, so it follows the account like the rest of
         // the display preferences above. See `ReaderDarkMode`.
         "readerOriginalPageColors",
-        // How wide a Doc's page is drawn. A reading preference like the zoom step
-        // above, so it follows the account. See `ArtifactPageWidth`.
-        "notepad.pageWidth",
+        // How wide a Doc's page is drawn, in points (0 fills the pane). A
+        // reading preference like the zoom step above: a line's measure, the
+        // same on any display, so it follows the account. See `ArtifactPageWidth`.
+        "notepad.pageColumnWidth",
         // How a video source is laid out beside its transcript, and how much of
         // the pane the video takes. The mode is a reading preference like the
         // two above; the sizes are *fractions* of the pane (0 means auto), not

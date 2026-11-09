@@ -356,9 +356,9 @@ extension MCPDataStore {
             ),
             preferenceEntry(
                 id: "docs.page_width", pane: "Doc editor (no pane)", title: "Doc page width",
-                detail: "How wide a Doc's page is drawn: standard, wide or full width.",
-                key: ArtifactPageWidth.key, kind: .choice, absent: ArtifactPageWidth.standard.rawValue,
-                options: ArtifactPageWidth.allCases.map { ($0.rawValue, $0.title) }
+                detail: "How wide a Doc's page is drawn, in points: 760 is Standard, 1040 Wide, and 0 fills the pane (Full Width). Any width from 400 can be set; the learner drags the page's edges for the same.",
+                key: ArtifactPageWidth.key, kind: .number(min: 0, max: 4000, step: 1),
+                absent: ArtifactPageWidth.standard, integer: true
             ),
         ]
     }

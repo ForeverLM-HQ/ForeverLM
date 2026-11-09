@@ -2942,14 +2942,157 @@ function citedSourceRow(cited, status) {
 
 // The prose column's cap in CSS pixels, `Infinity` when the page fills the
 // pane. The host sets it through `setPageWidth`; until it does, the stylesheet's
-// default stands.
-function setPageWidth(width) {
-  const cap = typeof width === 'number' && Number.isFinite(width) && width > 0 ? width : Infinity
+// default stands. A host that keeps the width as the reader's own setting
+// passes `adjustable`, and the column's edges can then be dragged
+// (`pageWidthChanged`).
+let pageWidthCap = 760
+let pageWidthAdjustable = false
+
+function setPageWidth(width, adjustable) {
+  pageWidthCap = typeof width === 'number' && Number.isFinite(width) && width > 0 ? width : Infinity
+  if (typeof adjustable === 'boolean') pageWidthAdjustable = adjustable
+  applyPageWidth()
+}
+
+function applyPageWidth() {
   document.documentElement.style.setProperty(
     '--artifact-page-width',
-    Number.isFinite(cap) ? `${cap}px` : '100%'
+    Number.isFinite(pageWidthCap) ? `${pageWidthCap}px` : '100%'
   )
   scheduleContentsLayout()
+  layoutPageWidthHandles()
+}
+
+// ── The page's edges ────────────────────────────────────────────────────────
+//
+// The column's two edges drag to make the page narrower or wider (product
+// owner, 2026-11-08: "allow me to adjust the width that the text takes up on a
+// page"). The column stays centred, so either edge moves both; dragged out to
+// the pane's edges, the page fills the pane however wide it grows. Each move
+// is drawn here at once and reported as `pageWidthChanged`, the last with
+// `done`, which the host keeps; a double-click goes back to the standard width.
+
+const pageWidthStandard = 760
+const pageWidthMinimum = 400
+/// How close to the pane's edges a drag must come to fill the pane.
+const pageWidthFillSlack = 12
+let pageWidthHandles = null
+let pageWidthLabel = null
+let pageWidthDrag = null
+
+function pageWidthHandlesShown() {
+  return pageWidthAdjustable
+    && window.matchMedia('(hover: hover) and (pointer: fine)').matches
+    && window.innerWidth >= pageWidthMinimum + 2 * pageWidthFillSlack
+}
+
+function ensurePageWidthHandles() {
+  if (pageWidthHandles) return pageWidthHandles
+  pageWidthHandles = ['leading', 'trailing'].map((side) => {
+    const handle = document.createElement('div')
+    handle.className = 'artifact-page-edge'
+    handle.dataset.side = side
+    handle.title = 'Drag to change the page width. Double-click for the standard width.'
+    handle.setAttribute('role', 'separator')
+    handle.setAttribute('aria-orientation', 'vertical')
+    handle.setAttribute('aria-label', 'Page width')
+    handle.addEventListener('pointerdown', beginPageWidthDrag)
+    handle.addEventListener('dblclick', (event) => {
+      event.preventDefault()
+      commitPageWidth(pageWidthStandard)
+    })
+    document.body.append(handle)
+    return handle
+  })
+  pageWidthLabel = document.createElement('div')
+  pageWidthLabel.className = 'artifact-page-width-label'
+  pageWidthLabel.hidden = true
+  document.body.append(pageWidthLabel)
+  return pageWidthHandles
+}
+
+/// Each edge on the column's border, inside the page's side padding so it
+/// never covers the words, and clear of the pane's own edges.
+function layoutPageWidthHandles() {
+  if (!pageWidthHandlesShown()) {
+    pageWidthHandles?.forEach((handle) => { handle.hidden = true })
+    return
+  }
+  const handles = ensurePageWidthHandles()
+  const paneWidth = window.innerWidth
+  const column = Math.min(paneWidth, pageWidthCap)
+  const left = Math.max(2, (paneWidth - column) / 2)
+  const right = Math.min(paneWidth - 2, (paneWidth + column) / 2)
+  handles[0].style.left = `${Math.round(left)}px`
+  handles[1].style.left = `${Math.round(right)}px`
+  handles.forEach((handle) => {
+    handle.hidden = false
+    handle.setAttribute('aria-valuenow', String(Number.isFinite(pageWidthCap) ? Math.round(pageWidthCap) : paneWidth))
+  })
+}
+
+/// The width a pointer at `x` asks for: twice its distance from the pane's
+/// middle, the column being centred; `Infinity` once it reaches the edges.
+function pageWidthAt(x) {
+  const paneWidth = window.innerWidth
+  const width = Math.round(Math.abs(x - paneWidth / 2) * 2)
+  if (width >= paneWidth - 2 * pageWidthFillSlack) return Infinity
+  return Math.max(pageWidthMinimum, width)
+}
+
+function beginPageWidthDrag(event) {
+  if (event.button !== 0) return
+  event.preventDefault()
+  const handle = event.currentTarget
+  handle.setPointerCapture(event.pointerId)
+  pageWidthDrag = { handle, pointerId: event.pointerId, moved: false }
+  handle.classList.add('is-dragging')
+  document.body.classList.add('is-resizing-page')
+  handle.addEventListener('pointermove', movePageWidthDrag)
+  handle.addEventListener('pointerup', endPageWidthDrag)
+  handle.addEventListener('pointercancel', endPageWidthDrag)
+}
+
+function movePageWidthDrag(event) {
+  if (!pageWidthDrag || event.pointerId !== pageWidthDrag.pointerId) return
+  const width = pageWidthAt(event.clientX)
+  pageWidthDrag.moved = true
+  showPageWidthLabel(width, event.clientX, event.clientY)
+  if (width === pageWidthCap) return
+  pageWidthCap = width
+  applyPageWidth()
+  post('pageWidthChanged', { width: Number.isFinite(width) ? width : null, done: false })
+}
+
+function endPageWidthDrag(event) {
+  if (!pageWidthDrag || event.pointerId !== pageWidthDrag.pointerId) return
+  const { handle, moved } = pageWidthDrag
+  pageWidthDrag = null
+  handle.removeEventListener('pointermove', movePageWidthDrag)
+  handle.removeEventListener('pointerup', endPageWidthDrag)
+  handle.removeEventListener('pointercancel', endPageWidthDrag)
+  if (handle.hasPointerCapture(event.pointerId)) handle.releasePointerCapture(event.pointerId)
+  handle.classList.remove('is-dragging')
+  document.body.classList.remove('is-resizing-page')
+  if (pageWidthLabel) pageWidthLabel.hidden = true
+  if (moved) commitPageWidth(pageWidthCap)
+}
+
+function commitPageWidth(width) {
+  pageWidthCap = width
+  applyPageWidth()
+  post('pageWidthChanged', { width: Number.isFinite(width) ? width : null, done: true })
+}
+
+function showPageWidthLabel(width, x, y) {
+  if (!pageWidthLabel) return
+  pageWidthLabel.textContent = Number.isFinite(width) ? `${width} pt` : 'Full Width'
+  pageWidthLabel.hidden = false
+  const labelWidth = pageWidthLabel.offsetWidth
+  const onLeft = x > window.innerWidth / 2
+  const left = onLeft ? x - labelWidth - 14 : x + 14
+  pageWidthLabel.style.left = `${Math.round(Math.max(4, Math.min(window.innerWidth - labelWidth - 4, left)))}px`
+  pageWidthLabel.style.top = `${Math.round(Math.max(4, y - 12))}px`
 }
 
 /// Whether the block at `position` is part of a footnote's note.
@@ -10801,6 +10944,7 @@ document.addEventListener('scroll', () => {
 
 window.addEventListener('resize', () => {
   scheduleContentsLayout()
+  layoutPageWidthHandles()
   positionLinkPicker()
   scheduleSectionFoldRefresh()
   scheduleSelectionButtonReposition()
