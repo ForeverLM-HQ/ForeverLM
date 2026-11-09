@@ -64,6 +64,10 @@ actor PDFReferenceEntries {
     /// middle entries no link lands on, by page; they end the entry before
     /// them as a link's landing does (`entries(for:)`).
     private var derivedLandings: [Int: [CGPoint]] = [:]
+    /// Number → where the links that print it alone land, across the whole
+    /// paper, read the first time a citation names a number its own links
+    /// do not reach.
+    private var linkedLandings: [Int: [Landing]]?
 
     init(_ origin: Origin) {
         self.origin = origin
@@ -94,22 +98,26 @@ actor PDFReferenceEntries {
     /// Every entry the citation under the pointer names, in order. A
     /// citation of a range ("5–7") or a list ("1,3–5") names each number in
     /// it, though the PDF links only some of them (an endpoint, or a range's
-    /// first entry): the rest are found in the reference list by their
-    /// numbers (`ReferenceCitation`). Any other link names the one entry it
-    /// lands on.
+    /// first entry). The rest land where the paper's other citations of
+    /// them do — "4" cited alone elsewhere (product owner, 2026-11-08: "all
+    /// you have to do is find the link for those already") — and a number
+    /// cited nowhere else is found in the reference list by its number
+    /// (`ReferenceCitation`). Any other link names the one entry it lands on.
     func entries(for link: Link) -> [CitedEntry] {
         guard let document = loadedDocument() else { return [] }
         let targets = loadedTargets(in: document)
-        func single() -> [CitedEntry] {
-            guard let landing = Self.landing(of: link, in: targets),
-                  let entry = record(at: landing, in: document, targets: targets) else { return [] }
-            return [entry]
-        }
         guard let page = document.page(at: link.pageIndex) else { return [] }
         let boxes = Self.characterBoxes(on: page)
-        guard let group = Self.citationGroup(around: link.bounds, on: page, boxes: boxes), group.numbers.count > 1 else {
-            return single()
+        let group = Self.citationGroup(around: link.bounds, on: page, boxes: boxes)
+        func single() -> [CitedEntry] {
+            guard var landing = Self.landing(of: link, in: targets) else { return [] }
+            if let number = group?.linked ?? (group?.numbers.count == 1 ? group?.numbers.first : nil) {
+                landing = corrected(landing, for: number, in: document, targets: targets)
+            }
+            guard let entry = record(at: landing, in: document, targets: targets) else { return [] }
+            return [entry]
         }
+        guard let group, group.numbers.count > 1 else { return single() }
         // Each link lands on the number it prints itself: "7" of "6,7" on
         // entry 7. Its group reads out to the whole run, whose first number
         // is every link's, so it names the entry only for a link that prints
@@ -122,6 +130,19 @@ actor PDFReferenceEntries {
             }
         }
         guard !anchors.isEmpty else { return single() }
+        if group.numbers.contains(where: { anchors[$0] == nil }) {
+            if linkedLandings == nil { linkedLandings = Self.linkedLandings(in: document, targets: targets) }
+            let linked = linkedLandings ?? [:]
+            let own = anchors
+            for number in group.numbers where own[number] == nil {
+                if let landing = Self.borrowedLanding(for: number, anchors: own, linked: linked) {
+                    anchors[number] = landing
+                }
+            }
+        }
+        for (number, landing) in anchors {
+            anchors[number] = corrected(landing, for: number, in: document, targets: targets)
+        }
         // Numbers are counted on from an entry that prints its own number: a
         // list whose entries print none, or a link to a table's caption
         // ("Table 2, 3"), has no "6." to find.
@@ -136,13 +157,7 @@ actor PDFReferenceEntries {
                 derived[number] = landing
             }
         }
-        // An entry found by its number ends the one before it, and what was
-        // read before it was known may have run on into it.
-        for landing in derived.values where !(derivedLandings[landing.pageIndex] ?? []).contains(landing.point) {
-            derivedLandings[landing.pageIndex, default: []].append(landing.point)
-            entryStarts[landing.pageIndex] = nil
-            cache = cache.filter { $0.key.pageIndex != landing.pageIndex && $0.key.pageIndex != landing.pageIndex - 1 }
-        }
+        for landing in derived.values { register(landing) }
         var entries: [CitedEntry] = []
         for number in group.numbers {
             guard let landing = anchors[number] ?? derived[number],
@@ -151,6 +166,78 @@ actor PDFReferenceEntries {
             entries.append(entry)
         }
         return entries.isEmpty ? single() : entries
+    }
+
+    /// An entry found by its number ends the one before it, and what was
+    /// read before it was known may have run on into it.
+    private func register(_ landing: Landing) {
+        guard !(derivedLandings[landing.pageIndex] ?? []).contains(landing.point) else { return }
+        derivedLandings[landing.pageIndex, default: []].append(landing.point)
+        entryStarts[landing.pageIndex] = nil
+        cache = cache.filter { $0.key.pageIndex != landing.pageIndex && $0.key.pageIndex != landing.pageIndex - 1 }
+    }
+
+    /// The number an entry prints at its start: "9." or "[9]".
+    nonisolated static func printedNumber(_ entry: String) -> Int? {
+        guard let range = entry.range(of: #"^[\[(]?\d{1,3}[.\])]"#, options: .regularExpression) else { return nil }
+        return Int(entry[range].filter(\.isNumber))
+    }
+
+    /// Where the entry numbered `number` starts, when a link meant for it
+    /// lands on an entry that prints another number. Some publishers' links
+    /// land one entry off (BMC's "9" on entry 10, its destination set at
+    /// the foot of the column before); the list itself says which is 9.
+    private func corrected(_ landing: Landing, for number: Int, in document: PDFDocument, targets: [Int: [Target]]) -> Landing {
+        guard let text = record(at: landing, in: document, targets: targets)?.text,
+              let printed = Self.printedNumber(text), printed != number else { return landing }
+        var boxesByPage: [Int: [CGRect]] = [:]
+        guard let found = Self.numberedLanding(for: number, anchors: [printed: landing], in: document, boxesByPage: &boxesByPage)
+        else { return landing }
+        register(found)
+        guard let foundText = record(at: found, in: document, targets: targets)?.text,
+              Self.printedNumber(foundText) == number else { return landing }
+        return found
+    }
+
+    /// Number → where each link that prints that one number lands, over every
+    /// page with links: what a citation's unlinked numbers borrow.
+    nonisolated static func linkedLandings(in document: PDFDocument, targets: [Int: [Target]]) -> [Int: [Landing]] {
+        var linked: [Int: [Landing]] = [:]
+        for (pageIndex, pageTargets) in targets {
+            guard let page = document.page(at: pageIndex) else { continue }
+            let boxes = characterBoxes(on: page)
+            for target in pageTargets {
+                if let number = citationGroup(around: target.bounds, on: page, boxes: boxes)?.linked {
+                    linked[number, default: []].append(target.landing)
+                }
+            }
+        }
+        return linked
+    }
+
+    /// Where another link that prints `number` lands, when that is in the
+    /// citation's own reference list: on the pages between the landings of
+    /// the numbers on either side of it (or a few pages past the one known
+    /// side), and not where one of those lands. An author's affiliation
+    /// superscript prints numbers too, and lands up front. Where the paper's
+    /// links disagree, most of them win.
+    nonisolated static func borrowedLanding(for number: Int, anchors: [Int: Landing], linked: [Int: [Landing]]) -> Landing? {
+        let below = anchors.filter { $0.key < number }.max { $0.key < $1.key }?.value.pageIndex
+        let above = anchors.filter { $0.key > number }.min { $0.key < $1.key }?.value.pageIndex
+        let reach = 3
+        let pages: ClosedRange<Int>
+        switch (below, above) {
+        case let (low?, high?) where low <= high: pages = low...high
+        case let (low?, nil): pages = low...(low + reach)
+        case let (nil, high?): pages = max(0, high - reach)...high
+        default: return nil
+        }
+        let taken = Set(anchors.values)
+        var counts: [Landing: Int] = [:]
+        for landing in linked[number] ?? [] where pages.contains(landing.pageIndex) && !taken.contains(landing) {
+            counts[landing, default: 0] += 1
+        }
+        return counts.max { $0.value < $1.value || ($0.value == $1.value && $0.key.pageIndex > $1.key.pageIndex) }?.key
     }
 
     /// Where a link lands, read from the file. PDFKit reports a link to a
@@ -363,7 +450,10 @@ actor PDFReferenceEntries {
         let corner: (left: CGFloat?, top: CGFloat?)
         switch String(cString: kind) {
         case "XYZ": corner = (number(2), number(3))
-        case "FitR": corner = (number(2), number(5))
+        // A rectangle's top is its higher edge: the Royal Society writes
+        // bottom and top the other way round (`/FitR 209 227 387 198`), and
+        // the lower edge lands on the end of the entry above.
+        case "FitR": corner = (number(2), [number(3), number(5)].compactMap { $0 }.max())
         default: return nil
         }
         guard let left = corner.left, let top = corner.top else { return nil }

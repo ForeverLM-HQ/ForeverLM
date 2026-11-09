@@ -129,6 +129,45 @@ struct RangeCitationEntriesTests {
         }
     }
 
+    @Test("A range's unlinked middle lands where the paper cites it alone, though no entry prints a number")
+    func middleBorrowedFromItsOwnCitation() async throws {
+        // "5–7" links 5 and 7 only, and nothing in the list says which entry
+        // is 6; the paper's own "6", cited alone further on, lands on it.
+        let paper = try Self.paper(citation: "5–7", style: .endpoints, numbered: false, alsoCited: [6])
+        let cited = await PDFReferenceEntries(.bytes(paper.data))
+            .entries(for: .init(pageIndex: 0, bounds: try #require(paper.links["first"])))
+        #expect(cited.map(\.number) == [5, 6, 7])
+        #expect(cited.dropFirst().first?.text.hasPrefix("Hart-Wells") == true)
+    }
+
+    @Test("A link that covers its number's comma still lands on its own number")
+    func linkOverItsComma() async throws {
+        // MDPI's links over "[30,152]" take its comma.
+        let paper = try Self.paper(citation: "6,7", style: .endpoints, numbered: false, linksTakeSeparator: true)
+        let cited = await PDFReferenceEntries(.bytes(paper.data))
+            .entries(for: .init(pageIndex: 0, bounds: try #require(paper.links["last"])))
+        #expect(cited.map(\.number) == [6, 7])
+        #expect(cited.last?.text.hasPrefix("Kim, S.") == true)
+    }
+
+    @Test("A bracketed list's unlinked middle is found by its bracketed number")
+    func bracketedListMiddle() async throws {
+        let paper = try Self.paper(citation: "5–7", style: .endpoints, bracketedEntries: true)
+        let cited = await PDFReferenceEntries(.bytes(paper.data))
+            .entries(for: .init(pageIndex: 0, bounds: try #require(paper.links["first"])))
+        #expect(cited.map(\.number) == [5, 6, 7])
+        #expect(cited.dropFirst().first?.text.hasPrefix("[6] Hart-Wells") == true)
+    }
+
+    @Test("A link that lands one entry off shows the entry that prints its number")
+    func landingOneOff() async throws {
+        // BMC's link for "9" lands on entry 10; the list says which is 9.
+        let paper = try Self.paper(citation: "5", style: .firstOnly, landsOneEntryLate: true)
+        let cited = await PDFReferenceEntries(.bytes(paper.data))
+            .entries(for: .init(pageIndex: 0, bounds: try #require(paper.links["first"])))
+        #expect(cited.map { $0.text.prefix(12) } == ["5. Michikawa"])
+    }
+
     @Test("A single number is the one entry its link lands on, with no number of its own")
     func singleNumber() async throws {
         let paper = try Self.paper(citation: "5", style: .firstOnly)
@@ -165,13 +204,21 @@ struct RangeCitationEntriesTests {
     /// in the body's size) linked as `style` says. Then the reference list,
     /// entries 1 to 9 with hanging indents, of which only the numbers the
     /// links land on have a destination. Unless `numbered`, the entries print
-    /// no numbers.
+    /// no numbers; with `bracketedEntries` they print "[5]". `alsoCited` adds
+    /// a citation of each number alone, linked, on a line of its own, and
+    /// `linksTakeSeparator` stretches each endpoint's link over the comma or
+    /// dash between them. With `landsOneEntryLate`, each link lands on the
+    /// entry after its own.
     static func paper(
         citation: String,
         style: LinkStyle,
         bracketed: Bool = false,
         breakAfterSix: Bool = false,
-        numbered: Bool = true
+        numbered: Bool = true,
+        bracketedEntries: Bool = false,
+        alsoCited: [Int] = [],
+        linksTakeSeparator: Bool = false,
+        landsOneEntryLate: Bool = false
     ) throws -> Paper {
         let data = NSMutableData()
         let consumer = try #require(CGDataConsumer(data: data as CFMutableData))
@@ -216,12 +263,14 @@ struct RangeCitationEntriesTests {
         func rect(_ from: Int, _ to: Int) -> CGRect { spans[from...to].map(\.rect).reduce(CGRect.null) { $0.union($1) } }
         var firstEnd = 0
         while firstEnd + 1 < spans.count, isDigit(firstEnd + 1) { firstEnd += 1 }
+        let firstLinkEnd = linksTakeSeparator ? min(firstEnd + 1, spans.count - 1) : firstEnd
         var lastStart = spans.count - 1
         while lastStart > 0, isDigit(lastStart - 1) { lastStart -= 1 }
+        let lastLinkStart = linksTakeSeparator ? max(lastStart - 1, 0) : lastStart
         switch style {
         case .endpoints:
-            links["first"] = rect(0, firstEnd)
-            links["last"] = rect(lastStart, spans.count - 1)
+            links["first"] = rect(0, firstLinkEnd)
+            links["last"] = rect(lastLinkStart, spans.count - 1)
             context.setDestination("bib\(cited.first!)" as CFString, for: links["first"]!)
             context.setDestination("bib\(cited.last!)" as CFString, for: links["last"]!)
         case .wholeRange:
@@ -231,10 +280,21 @@ struct RangeCitationEntriesTests {
             links["first"] = rect(0, firstEnd)
             context.setDestination("bib\(cited.first!)" as CFString, for: links["first"]!)
         }
+        var alsoBaseline: CGFloat = 660
+        for number in alsoCited {
+            let lead = "As shown before"
+            draw(lead, body, x: 72, baseline: alsoBaseline)
+            let x = 72 + width(lead, body)
+            draw("\(number)", small, x: x, baseline: alsoBaseline + 5)
+            let rect = CGRect(x: x, y: alsoBaseline + 4, width: width("\(number)", small), height: 7)
+            context.setDestination("bib\(number)" as CFString, for: rect)
+            draw(" in a second experiment.", body, x: x + width("\(number)", small) + 1, baseline: alsoBaseline)
+            alsoBaseline -= 24
+        }
         context.endPDFPage()
 
         context.beginPDFPage(nil)
-        let landed = style == .endpoints ? [cited.first!, cited.last!] : [cited.first!]
+        let landed = (style == .endpoints ? [cited.first!, cited.last!] : [cited.first!]) + alsoCited
         let references: [(number: Int, lines: [String])] = [
             (1, ["Smith, A. and Lee, B. (2020). Segmenting the shapes of", "mitochondrial networks. Nat. Methods 17, 101-109."]),
             (2, ["Jones, C. (2021). Live imaging of organelle dynamics.", "Cell 7, 1-9."]),
@@ -248,11 +308,12 @@ struct RangeCitationEntriesTests {
         ]
         var baseline: CGFloat = 700
         for entry in references {
-            if landed.contains(entry.number) {
-                context.addDestination("bib\(entry.number)" as CFString, at: CGPoint(x: 70, y: baseline + 10))
+            if landed.contains(entry.number - (landsOneEntryLate ? 1 : 0)) {
+                context.addDestination("bib\(entry.number - (landsOneEntryLate ? 1 : 0))" as CFString, at: CGPoint(x: 70, y: baseline + 10))
             }
             for (index, line) in entry.lines.enumerated() {
-                let text = index == 0 && numbered ? "\(entry.number). \(line)" : line
+                let label = bracketedEntries ? "[\(entry.number)]" : "\(entry.number)."
+                let text = index == 0 && numbered ? "\(label) \(line)" : line
                 draw(text, body, x: index == 0 ? 72 : 84, baseline: baseline)
                 baseline -= 12
             }

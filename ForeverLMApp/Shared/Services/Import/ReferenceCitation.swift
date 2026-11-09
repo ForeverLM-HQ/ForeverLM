@@ -167,7 +167,14 @@ extension PDFReferenceEntries {
         while last > first, let character = scalar(last), ReferenceCitation.isSeparator(character) { last -= 1 }
         let run = text.substring(with: NSRange(location: first, length: last - first + 1))
         guard let numbers = ReferenceCitation.numbers(in: run) else { return nil }
-        let linked = ReferenceCitation.numbers(in: text.substring(with: NSRange(location: low, length: high - low + 1)))
+        // MDPI's link over "30" of "[30,152]" covers its comma too.
+        var ownFirst = low
+        var ownLast = high
+        while ownFirst < ownLast, let character = scalar(ownFirst),
+              ReferenceCitation.isSeparator(character) || ReferenceCitation.isSpacing(character) { ownFirst += 1 }
+        while ownLast > ownFirst, let character = scalar(ownLast),
+              ReferenceCitation.isSeparator(character) || ReferenceCitation.isSpacing(character) { ownLast -= 1 }
+        let linked = ReferenceCitation.numbers(in: text.substring(with: NSRange(location: ownFirst, length: ownLast - ownFirst + 1)))
             .flatMap { $0.count == 1 ? $0.first : nil }
         let group = (first...last).reduce(CGRect.null) { union, position in
             boxes[position].isNull ? union : union.union(boxes[position])
@@ -224,16 +231,20 @@ extension PDFReferenceEntries {
             }
             let text = string as NSString
             guard boxes.count == text.length else { continue }
+            // Each candidate is the entry's first glyph: the bracket of
+            // "[122]", where an entry starts (`landingCharacter`), not its digit.
             var candidates = pattern.matches(in: string, range: NSRange(location: 0, length: text.length))
-                .filter { match in
-                    let location = match.range(at: 1).location
-                    guard !boxes[location].isNull else { return false }
+                .compactMap { match -> Int? in
+                    var location = match.range.location
+                    while location < match.range(at: 1).location, text.character(at: location) == 0x20 || text.character(at: location) == 0x09 {
+                        location += 1
+                    }
+                    guard !boxes[location].isNull else { return nil }
                     let lineStart = match.range.location == 0
                         || text.character(at: match.range.location - 1) == 0x0A
                         || text.character(at: match.range.location - 1) == 0x0D
-                    return lineStart || beginsLine(location, boxes: boxes)
+                    return lineStart || beginsLine(location, boxes: boxes) ? location : nil
                 }
-                .map { $0.range(at: 1).location }
             if pageIndex == start.pageIndex, let origin = landingCharacter(at: start.point, boxes: boxes) {
                 // On the known entry's own page the wanted one lies beyond it
                 // (or before it, searching back), never on the other side, and
