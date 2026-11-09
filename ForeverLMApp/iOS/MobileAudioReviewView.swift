@@ -674,65 +674,6 @@ private struct MobileSessionBanner: View {
     }
 }
 
-/// Today's plan on the home screen. This is the only place the phone displays a
-/// plan: there is no Schedule pane, and planning itself happens in the
-/// conversation through the Schedule voice tools, exactly as on the Mac.
-///
-/// Each row opens its source. The leading circle is the only hand-driven
-/// completion in the UI — opening a source records activity, never completion —
-/// and the row's long-press menu quizzes that one source. Since 2026-10-06
-/// the calendar glyph is grey and no row carries an accent quiz button
-/// (the product owner: "cleaner and fewer buttons and bells and whistles").
-struct MobileTodayPlanCard: View {
-    let items: [MobileScheduledCatalogItem]
-    let maxRows: Int
-    let onMarkDone: (MobileScheduledCatalogItem) -> Void
-    let onQuiz: (MobileScheduledCatalogItem) -> Void
-
-    private var visibleItems: [MobileScheduledCatalogItem] {
-        Array(items.prefix(maxRows))
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: MobileDesign.Spacing.small) {
-            HStack(spacing: MobileDesign.Spacing.small) {
-                Image(systemName: "calendar")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .accessibilityHidden(true)
-                Text("Today")
-                    .font(.headline)
-                Spacer(minLength: 0)
-                Text(items.count == 1 ? "1 source" : "\(items.count) sources")
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-            }
-
-            VStack(spacing: 0) {
-                ForEach(visibleItems) { item in
-                    if item.id != visibleItems.first?.id {
-                        Divider()
-                    }
-                    MobileTodayPlanRow(
-                        item: item,
-                        onMarkDone: { onMarkDone(item) },
-                        onQuiz: { onQuiz(item) }
-                    )
-                }
-            }
-
-            if items.count > maxRows {
-                Text("+\(items.count - maxRows) more")
-                    .font(.footnote)
-                    .foregroundStyle(.tertiary)
-            }
-        }
-        .padding(MobileDesign.Spacing.medium)
-        .mobileFloatingSurface()
-        .accessibilityIdentifier("home.todayPlan")
-    }
-}
-
 /// One pending item on today's plan. The circle is a sibling of the source
 /// link rather than nested inside it, so each gets its own tap; Quiz Me is
 /// the row's long-press menu and a VoiceOver action.

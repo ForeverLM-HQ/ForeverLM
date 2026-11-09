@@ -6,7 +6,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
-- **A new Home on the iPhone, built around what you do on it.** Today's cards come first, with **Review** to tap through them, pictures and all, and **By Voice** to go through them out loud. Under them, **Voice**: one voice mode for the car, the gym and everything else. Talk about anything or name a source, and type instead whenever you can't talk; every voice conversation now has a field for that. Your three latest notebooks follow as a short list, with **+** and **See All**, and your library (**All Sources**, **To Read**, **Follow Up**, **Spaces**) is a row at the foot. The top bar is gone: Settings is the gear beside Search.
+- **The iPhone opens on voice.** Home is one large voice button: talk about anything, name a source, or ask it to go through today's cards, and type instead whenever you can't talk (every voice conversation now has a field for that, so the gym is just voice). Under it, a quiet pill with today's card count opens the card review, pictures and all. Everything else (notebooks, the library, To Read, Follow Up, Spaces, Memory, Settings) is in the menu at the bottom.
 
 ## 0.206.0 (build 286) — 2026-11-08
 
