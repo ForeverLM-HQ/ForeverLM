@@ -157,25 +157,19 @@ enum KnowledgeRollbackCopy {
         return String(format: "%.1f GB", max(tenths, 0.1))
     }
 
-    /// The copy a launch takes, or nil. Below 154 every generation takes one before migration 154;
-    /// generation 2 takes `knowledge.pre-v2.db` in its place, and so at a store's first generation-2
-    /// launch at any version. A store newer than this build is refused by `createSchema` anyway.
-    static func kindToTake(_ state: StoreState, generation: SyncGeneration, schemaVersion: Int32) -> Kind? {
+    /// The copy a launch takes, or nil: `knowledge.pre-v2.db`, at the first launch of a store whose
+    /// activation has recorded none, at any version. A store newer than this build is refused by
+    /// `createSchema` anyway.
+    static func kindToTake(_ state: StoreState, schemaVersion: Int32) -> Kind? {
         guard state.holdsLibrary, state.userVersion > 0, state.userVersion <= schemaVersion else { return nil }
-        switch generation {
-        case .two:
-            return state.activation == .notRecorded ? .beforeGeneration2 : nil
-        case .one:
-            return state.userVersion < 154 ? .beforeSchema154 : nil
-        }
+        return state.activation == .notRecorded ? .beforeGeneration2 : nil
     }
 
     /// Whether any copy could be owed at `userVersion`, before anything else about the store is read:
-    /// none is to a brand-new store, or to one generation 1 finds at 154 or newer, so their opens
-    /// cost one version read.
-    static func copyMayBeDue(atVersion userVersion: Int32, generation: SyncGeneration, schemaVersion: Int32) -> Bool {
+    /// none is to a brand-new store, so its open costs one version read.
+    static func copyMayBeDue(atVersion userVersion: Int32, schemaVersion: Int32) -> Bool {
         let anyLibrary = StoreState(userVersion: userVersion, holdsLibrary: true, activation: .notRecorded)
-        return kindToTake(anyLibrary, generation: generation, schemaVersion: schemaVersion) != nil
+        return kindToTake(anyLibrary, schemaVersion: schemaVersion) != nil
     }
 
     // MARK: - Taking the copy
@@ -589,7 +583,7 @@ extension KnowledgeStore {
         do {
             var version: Int32 = 0
             try query("PRAGMA user_version") { version = sqlite3_column_int($0, 0) }
-            guard KnowledgeRollbackCopy.copyMayBeDue(atVersion: version, generation: syncGeneration, schemaVersion: Self.schemaVersion) else {
+            guard KnowledgeRollbackCopy.copyMayBeDue(atVersion: version, schemaVersion: Self.schemaVersion) else {
                 return true
             }
             state = try rollbackCopyStoreState(userVersion: version)
@@ -602,7 +596,7 @@ extension KnowledgeStore {
         // A copy an earlier launch took whose journal never got to record it, and which the store has been
         // migrated past since (and whose check has not failed), is the store as the last generation-1 build left it: replacing it would copy a
         // store at today's schema, which no rollback build reads. It stays, and the journal records it (F29).
-        if syncGeneration == .two, state.activation == .notRecorded,
+        if state.activation == .notRecorded,
            let held = KnowledgeRollbackCopy.recorded(.beforeGeneration2, in: storeDirectory), held.quickCheck == nil || held.passedQuickCheck,
            held.userVersion < state.userVersion,
            FileManager.default.fileExists(atPath: storeDirectory.appendingPathComponent(held.fileName).path) {
@@ -610,7 +604,7 @@ extension KnowledgeStore {
         }
         // An empty store has nothing to roll back, and decides nothing for the launch.
         guard state.holdsLibrary else { return true }
-        guard let kind = KnowledgeRollbackCopy.kindToTake(state, generation: syncGeneration, schemaVersion: Self.schemaVersion) else {
+        guard let kind = KnowledgeRollbackCopy.kindToTake(state, schemaVersion: Self.schemaVersion) else {
             KnowledgeStoreOpening.recordCopyDecision(.settled, forDatabaseAt: dbPath)
             return true
         }
@@ -650,12 +644,7 @@ extension KnowledgeStore {
         case .settled:
             return true
         case .waitingForRoom(let space):
-            if syncGeneration == .two {
-                throw KnowledgeStoreError.noRoomForRollbackCopy(bytesToFree: space.bytesToFree)
-            }
-            upgradeWaitingForSpace = space
-            LibraryUpgradeSpace.record(space)
-            return false
+            throw KnowledgeStoreError.noRoomForRollbackCopy(bytesToFree: space.bytesToFree)
         }
     }
 
@@ -673,7 +662,7 @@ extension KnowledgeStore {
         var activation = KnowledgeRollbackCopy.StoreState.Activation.notRecorded
         // Only generation 2 reads the journal. One that cannot be read names no copy, so the launch
         // takes a fresh one, and the migration's probe refuses the table's shape.
-        if syncGeneration == .two, tables.contains("ck_activation") {
+        if tables.contains("ck_activation") {
             try? query("SELECT clone_path, activated_at FROM ck_activation WHERE id = 1") { statement in
                 if sqlite3_column_type(statement, 1) != SQLITE_NULL {
                     activation = .activated

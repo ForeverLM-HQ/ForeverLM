@@ -3701,19 +3701,12 @@ struct ScheduleChatNavigationTests {
         }
     }
 
-    /// Runs `body` with the notebook rows in a throwaway defaults suite, so no
-    /// test writes the learner's (or a neighbour's) `UserDefaults.standard`,
-    /// and under generation 1, whose rows these are (the test host runs
-    /// generation 2, where the ticks are the member's NotebookState).
-    private func withNotebookDefaults(_ body: (UserDefaults) throws -> Void) throws {
-        let suiteName = "NotebookChatSelectionVM.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        try ForeverLMRuntimeIdentity.$pinnedSyncGeneration.withValue(.one) {
-            try NotebookChatSelection.$overrideDefaults.withValue(NotebookChatSelection.DefaultsOverride(defaults: defaults)) {
-                try body(defaults)
-            }
-        }
+    /// Runs `body` on a notebook state of its own (`NotebookStateStore.override`),
+    /// so no test writes the learner's (or a neighbour's) ticks, and hands it
+    /// the box to seed and assert on.
+    private func withNotebookState(_ body: (NotebookStateStore.Box) throws -> Void) throws {
+        let box = NotebookStateStore.Box()
+        try NotebookStateStore.$override.withValue(box) { try body(box) }
     }
 
     @Test("a new chat in a notebook reads only its ticked sources")
@@ -3789,23 +3782,22 @@ struct ScheduleChatNavigationTests {
 
     @Test("ticking a context notebook puts its sources, and those it gains later, into the chats and the count; unticking one of them leaves it out alone")
     func tickingAContextNotebookReadsItsSources() throws {
-        try withNotebookDefaults { defaults in
+        try withNotebookState { box in
             let vm = makeViewModel()
             vm.notebookChatExclusions = [:]
             vm.notebookChatContextNotebooks = [:]
             let main = notebook("notebook-1", sourceIDs: ["source-a"], related: ["notebook-2"])
             vm.learningGoals = [main, notebook("notebook-2", sourceIDs: ["source-r", "source-s"])]
             vm.articles = readableArticles(["source-a", "source-r", "source-s", "source-later"])
-            let contextKey = NotebookChatContext.preferenceKey(notebookID: "notebook-1")
 
             vm.setNotebookContextNotebooks(["notebook-2"], inChat: true, notebookID: "notebook-1")
-            #expect(defaults.stringArray(forKey: contextKey) == ["notebook-2"])
+            #expect(box.snapshot.contextNotebooks["notebook-1"] == Set(["notebook-2"]))
             #expect(vm.notebookChatSourceIDs(main) == ["source-a", "source-r", "source-s"])
             #expect(vm.notebookChatTally(main).total == 3)
             #expect(vm.notebookContextNotebookTally("notebook-2", in: main).map { [$0.inChat, $0.total] } == [2, 2])
 
             vm.setNotebookSources(["source-s"], inChat: false, through: "notebook-2", notebookID: "notebook-1")
-            #expect(defaults.stringArray(forKey: NotebookChatSelection.preferenceKey(notebookID: "notebook-1")) == ["source-s"])
+            #expect(box.snapshot.excluded["notebook-1"] == Set(["source-s"]))
             #expect(vm.notebookChatSourceIDs(main) == ["source-a", "source-r"])
             #expect(vm.notebookContextNotebookTally("notebook-2", in: main).map { [$0.inChat, $0.total] } == [1, 2], "the group reads mixed")
 
@@ -3816,35 +3808,34 @@ struct ScheduleChatNavigationTests {
             #expect(vm.notebookChatTally(main).inChat == 3 && vm.notebookChatTally(main).total == 4)
 
             // Unticked as a group, it leaves the chats and keeps its boxes.
-            let exclusionKey = NotebookChatSelection.preferenceKey(notebookID: "notebook-1")
             vm.setNotebookContextNotebooks(["notebook-2"], inChat: false, notebookID: "notebook-1")
-            #expect(defaults.object(forKey: contextKey) == nil)
+            #expect(box.snapshot.contextNotebooks["notebook-1"] == nil)
             #expect(vm.notebookChatSourceIDs(main) == ["source-a"])
-            #expect(defaults.stringArray(forKey: exclusionKey) == ["source-s"])
+            #expect(box.snapshot.excluded["notebook-1"] == Set(["source-s"]))
 
             // Its box puts it back as it was left, source-s still unticked and
             // the group mixed; the box again, while it is in, ticks all of it.
             vm.setNotebookContextNotebooks(["notebook-2"], inChat: true, notebookID: "notebook-1")
-            #expect(defaults.stringArray(forKey: contextKey) == ["notebook-2"])
-            #expect(defaults.stringArray(forKey: exclusionKey) == ["source-s"])
+            #expect(box.snapshot.contextNotebooks["notebook-1"] == Set(["notebook-2"]))
+            #expect(box.snapshot.excluded["notebook-1"] == Set(["source-s"]))
             #expect(vm.notebookChatSourceIDs(main) == ["source-a", "source-r", "source-later"])
             #expect(vm.notebookContextNotebookTally("notebook-2", in: main).map { [$0.inChat, $0.total] } == [2, 3])
             vm.setNotebookContextNotebooks(["notebook-2"], inChat: true, notebookID: "notebook-1")
-            #expect(defaults.object(forKey: exclusionKey) == nil)
+            #expect(box.snapshot.excluded["notebook-1"] == nil)
             #expect(vm.notebookChatSourceIDs(main) == ["source-a", "source-r", "source-s", "source-later"])
 
             // A source ticked inside the group while it is out puts the group
             // in with that source alone.
             vm.setNotebookContextNotebooks(["notebook-2"], inChat: false, notebookID: "notebook-1")
             vm.setNotebookSources(["source-later"], inChat: true, through: "notebook-2", notebookID: "notebook-1")
-            #expect(defaults.stringArray(forKey: contextKey) == ["notebook-2"])
+            #expect(box.snapshot.contextNotebooks["notebook-1"] == Set(["notebook-2"]))
             #expect(vm.notebookChatSourceIDs(main) == ["source-a", "source-later"])
         }
     }
 
     @Test("Add a Notebook to Context links and puts it in at once, as it was left; Take Out of Context unlinks it and drops it alone from the row")
     func addAndTakeOutContextNotebook() async throws {
-        try await withNotebookDefaultsAsync { defaults in
+        try await withNotebookStateAsync { box in
             let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("NotebookContext_\(UUID().uuidString)")
             try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: tmp) }
@@ -3870,16 +3861,14 @@ struct ScheduleChatNavigationTests {
             let main = try await make("Main", [sources[0].id])
             let other = try await make("Other", [sources[1].id])
             await vm.loadLearningGoals()
-            let contextKey = NotebookChatContext.preferenceKey(notebookID: main.id)
-            let exclusionKey = NotebookChatSelection.preferenceKey(notebookID: main.id)
             // A notebook another device linked and put in, whose link this
             // Mac has not heard of yet.
-            defaults.set(["elsewhere"], forKey: contextKey)
+            box.snapshot.contextNotebooks[main.id] = Set(["elsewhere"])
             vm.notebookChatContextNotebooks = [main.id: ["elsewhere"]]
 
             await vm.addContextNotebook(other.id, to: main.id)
             #expect(vm.notebook(id: main.id)?.relatedNotebookIDs == [other.id])
-            #expect(defaults.stringArray(forKey: contextKey) == ["elsewhere", other.id].sorted(), "the other device's choice stays")
+            #expect(box.snapshot.contextNotebooks[main.id] == Set(["elsewhere", other.id]), "the other device's choice stays")
             #expect(vm.notebookChatSourceIDs(try #require(vm.notebook(id: main.id))) == [sources[0].id, sources[1].id])
 
             // Unticked while in, taken out by its box and added again: Add puts
@@ -3887,23 +3876,23 @@ struct ScheduleChatNavigationTests {
             vm.setNotebookSources([sources[1].id], inChat: false, through: other.id, notebookID: main.id)
             vm.setNotebookContextNotebooks([other.id], inChat: false, notebookID: main.id)
             await vm.addContextNotebook(other.id, to: main.id)
-            #expect(defaults.stringArray(forKey: contextKey) == ["elsewhere", other.id].sorted())
-            #expect(defaults.stringArray(forKey: exclusionKey) == [sources[1].id])
+            #expect(box.snapshot.contextNotebooks[main.id] == Set(["elsewhere", other.id]))
+            #expect(box.snapshot.excluded[main.id] == Set([sources[1].id]))
             let linkedMain = try #require(vm.notebook(id: main.id))
             #expect(vm.notebookChatSourceIDs(linkedMain) == [sources[0].id])
             #expect(vm.notebookContextNotebookTally(other.id, in: linkedMain).map { [$0.inChat, $0.total] } == [0, 1])
 
             await vm.takeContextNotebookOut(other.id, of: main.id)
             #expect(vm.notebook(id: main.id)?.relatedNotebookIDs?.isEmpty != false)
-            #expect(defaults.stringArray(forKey: contextKey) == ["elsewhere"], "only the notebook unlinked here leaves the row")
+            #expect(box.snapshot.contextNotebooks[main.id] == Set(["elsewhere"]), "only the notebook unlinked here leaves the row")
             #expect(vm.notebookChatContextNotebooks[main.id] == ["elsewhere"])
-            #expect(defaults.object(forKey: exclusionKey) == nil, "the unticks only it held go with it")
+            #expect(box.snapshot.excluded[main.id] == nil, "the unticks only it held go with it")
             #expect(vm.notebookChatSourceIDs(try #require(vm.notebook(id: main.id))) == [sources[0].id])
 
             // Linked again from the inspector's list of every notebook, or by
             // an assistant: linking alone puts nothing in.
             #expect(await vm.setRelatedNotebooks([other.id], notebookID: main.id))
-            #expect(defaults.stringArray(forKey: contextKey) == ["elsewhere"])
+            #expect(box.snapshot.contextNotebooks[main.id] == Set(["elsewhere"]))
             #expect(vm.notebookChatSourceIDs(try #require(vm.notebook(id: main.id))) == [sources[0].id])
         }
     }
@@ -3946,137 +3935,38 @@ struct ScheduleChatNavigationTests {
 
     @Test("ticking every box again drops the notebook's row; ids outside the pool are never stored")
     func setNotebookSourcesWritesAndDropsTheRow() throws {
-        try withNotebookDefaults { defaults in
+        try withNotebookState { box in
             let vm = makeViewModel()
             vm.notebookChatExclusions = [:]
             vm.learningGoals = [notebook("notebook-1", sourceIDs: ["source-a", "source-b", "source-c"])]
-            let key = NotebookChatSelection.preferenceKey(notebookID: "notebook-1")
 
             vm.setNotebookSources(["source-c", "source-a", "not-in-pool"], inChat: false, notebookID: "notebook-1")
-            #expect(defaults.stringArray(forKey: key) == ["source-a", "source-c"])
+            #expect(box.snapshot.excluded["notebook-1"] == Set(["source-a", "source-c"]))
             #expect(vm.notebookChatExclusions["notebook-1"] == ["source-a", "source-c"])
             #expect(!vm.isNotebookSourceInChat("source-a", notebookID: "notebook-1"))
             #expect(vm.isNotebookSourceInChat("source-b", notebookID: "notebook-1"))
 
             vm.setNotebookSources(["source-a"], inChat: true, notebookID: "notebook-1")
-            #expect(defaults.stringArray(forKey: key) == ["source-c"])
+            #expect(box.snapshot.excluded["notebook-1"] == Set(["source-c"]))
 
             vm.setAllNotebookSourcesInChat(false, notebookID: "notebook-1")
-            #expect(defaults.stringArray(forKey: key) == ["source-a", "source-b", "source-c"])
+            #expect(box.snapshot.excluded["notebook-1"] == Set(["source-a", "source-b", "source-c"]))
 
             vm.setAllNotebookSourcesInChat(true, notebookID: "notebook-1")
-            #expect(defaults.object(forKey: key) == nil, "everything ticked is the default and has no row")
+            #expect(box.snapshot.excluded["notebook-1"] == nil, "everything ticked is the default and has no row")
             #expect(vm.notebookChatExclusions["notebook-1"] == nil)
         }
     }
 
-    /// `withNotebookDefaults` for an async body.
-    private func withNotebookDefaultsAsync(_ body: (UserDefaults) async throws -> Void) async throws {
-        let suiteName = "NotebookChatSelectionVM.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        try await ForeverLMRuntimeIdentity.$pinnedSyncGeneration.withValue(.one) {
-            try await NotebookChatSelection.$overrideDefaults.withValue(NotebookChatSelection.DefaultsOverride(defaults: defaults)) {
-                try await body(defaults)
-            }
-        }
-    }
-
-    @Test("a source added back to a notebook on another device arrives ticked; an untick made after its add, or arriving alone, stands")
-    func inboundNotebookArrivalsAreTicked() async throws {
-        try await withNotebookDefaultsAsync { defaults in
-            let vm = makeViewModel()
-            let now = Date()
-            let rejected = LearningGoalItemReviewState.rejected.rawValue
-            // notebook-1: the phone (an older build) added b back, after it had
-            // been unticked and then removed; its row still unticks b. This
-            // Mac saw the removal, which came after the row was written.
-            var p1Before = notebook("notebook-1", sourceIDs: ["source-a", "source-b"])
-            p1Before.items[1].reviewState = rejected
-            p1Before.updatedAt = now.addingTimeInterval(600)
-            var p1After = notebook("notebook-1", sourceIDs: ["source-a", "source-b"])
-            p1After.updatedAt = now.addingTimeInterval(3_600)
-            // notebook-2: the phone added d an hour ago and then unticked it,
-            // before this Mac heard of either.
-            let p2Before = notebook("notebook-2", sourceIDs: ["source-c"])
-            var p2After = notebook("notebook-2", sourceIDs: ["source-c", "source-d"])
-            p2After.items[1].addedAt = now.addingTimeInterval(-3_600)
-            // notebook-3: renamed, and f unticked on another device; nothing joined.
-            let p3Before = notebook("notebook-3", sourceIDs: ["source-e", "source-f"])
-            var p3After = p3Before
-            p3After.title = "Renamed"
-            p3After.updatedAt = now.addingTimeInterval(3_600)
-            // notebook-4: this Mac last saw h removed, an hour ago; then, with
-            // the Mac asleep, the phone added h back, unticked it (the row,
-            // written now), and edited the notebook again an hour from now.
-            var p4Before = notebook("notebook-4", sourceIDs: ["source-g", "source-h"])
-            p4Before.items[1].reviewState = rejected
-            p4Before.updatedAt = now.addingTimeInterval(-3_600)
-            var p4After = notebook("notebook-4", sourceIDs: ["source-g", "source-h"])
-            p4After.updatedAt = now.addingTimeInterval(3_600)
-
-            let rows = ["notebook-1": ["source-b"], "notebook-2": ["source-d"], "notebook-3": ["source-f"], "notebook-4": ["source-h"]]
-            for (notebookID, excluded) in rows {
-                let key = NotebookChatSelection.preferenceKey(notebookID: notebookID)
-                defaults.set(excluded, forKey: key)
-                // The store's copy, dated now, as the row's last write.
-                try await vm.storage.writePreference(key: key, valuePlistXML: try #require(PreferenceStore.encodePlist(excluded)))
-            }
-            vm.notebookChatExclusions = [:]
-            vm.learningGoals = [p1After, p2After, p3After, p4After]
-
-            await vm.tickNotebookArrivalsFromSync(before: [p1Before, p2Before, p3Before, p4Before])
-
-            #expect(defaults.object(forKey: NotebookChatSelection.preferenceKey(notebookID: "notebook-1")) == nil,
-                    "b's untick was older than its return, so b arrives ticked")
-            #expect(vm.isNotebookSourceInChat("source-b", notebookID: "notebook-1"))
-            #expect(defaults.stringArray(forKey: NotebookChatSelection.preferenceKey(notebookID: "notebook-2")) == ["source-d"],
-                    "d was unticked after it joined")
-            #expect(defaults.stringArray(forKey: NotebookChatSelection.preferenceKey(notebookID: "notebook-3")) == ["source-f"],
-                    "an untick that arrives with no new member is never undone")
-            #expect(defaults.stringArray(forKey: NotebookChatSelection.preferenceKey(notebookID: "notebook-4")) == ["source-h"],
-                    "h was unticked after it came back; the later edit does not make the untick look older than the add")
-            #expect(vm.notebookChatExclusions == ["notebook-2": ["source-d"], "notebook-3": ["source-f"], "notebook-4": ["source-h"]])
-        }
-    }
-
-    @Test("an inbound add is found even when a local reload read it from the store before the sync refresh ran")
-    func inboundNotebookArrivalsSurviveAnEarlierLocalReload() async throws {
-        try await withNotebookDefaultsAsync { defaults in
-            let vm = makeViewModel()
-            let now = Date()
-            let key = NotebookChatSelection.preferenceKey(notebookID: "notebook-1")
-            // b was unticked, then removed on an older phone; the removal is
-            // what this Mac's last inbound refresh left.
-            defaults.set(["source-b"], forKey: key)
-            try await vm.storage.writePreference(key: key, valuePlistXML: try #require(PreferenceStore.encodePlist(["source-b"])))
-            var before = notebook("notebook-1", sourceIDs: ["source-a", "source-b"])
-            before.items[1].reviewState = LearningGoalItemReviewState.rejected.rawValue
-            before.updatedAt = now.addingTimeInterval(600)
-            var after = notebook("notebook-1", sourceIDs: ["source-a", "source-b"])
-            after.updatedAt = now.addingTimeInterval(3_600)
-            vm.notebookChatExclusions = ["notebook-1": ["source-b"]]
-            vm.notebookSyncBaseline = [before]
-            // The phone added b back, and one of the local reloads read the
-            // new membership from the store before the sync refresh did.
-            vm.learningGoals = [after]
-
-            await vm.noteInboundNotebooks([after], inMemory: vm.learningGoals)
-
-            #expect(defaults.object(forKey: key) == nil, "diffed against the last inbound refresh, b is new, and arrives ticked")
-            #expect(vm.notebookSyncBaseline == [after], "the next inbound change is diffed against this one")
-
-            // The same refresh again brings nothing.
-            vm.notebookChatExclusions = ["notebook-1": ["source-b"]]
-            defaults.set(["source-b"], forKey: key)
-            await vm.noteInboundNotebooks([after], inMemory: vm.learningGoals)
-            #expect(defaults.stringArray(forKey: key) == ["source-b"])
-        }
+    /// `withNotebookState` for an async body.
+    private func withNotebookStateAsync(_ body: (NotebookStateStore.Box) async throws -> Void) async throws {
+        let box = NotebookStateStore.Box()
+        try await NotebookStateStore.$override.withValue(box) { try await body(box) }
     }
 
     @Test("a source scheduled into a notebook from its Sources arrives ticked")
     func scheduledNotebookSourceArrivesTicked() async throws {
-        try await withNotebookDefaultsAsync { defaults in
+        try await withNotebookStateAsync { box in
             let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("NotebookScheduleTick_\(UUID().uuidString)")
             try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
             defer { try? FileManager.default.removeItem(at: tmp) }
@@ -4098,14 +3988,13 @@ struct ScheduleChatNavigationTests {
             )
             await vm.loadLearningGoals()
             // Left unticked from when it last left the notebook.
-            let key = NotebookChatSelection.preferenceKey(notebookID: notebook.id)
-            defaults.set([source.id], forKey: key)
+            box.snapshot.excluded[notebook.id] = Set([source.id])
             vm.notebookChatExclusions = [notebook.id: [source.id]]
 
             await vm.addSourcesToNotebookSchedule(goalID: notebook.id, sourceIDs: [source.id], plannedFor: monday)
 
             #expect(vm.notebook(id: notebook.id)?.approvedSourceIDs == [source.id])
-            #expect(defaults.object(forKey: key) == nil)
+            #expect(box.snapshot.excluded[notebook.id] == nil)
             #expect(vm.isNotebookSourceInChat(source.id, notebookID: notebook.id))
         }
     }

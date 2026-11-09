@@ -187,7 +187,7 @@ struct DocSharingMCPTests {
             .appendingPathComponent("doc_sharing_mcp_test_\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
         // Generation 1's teams (zones of the old container); a space needs a running sync coordinator.
-        let store = MCPDataStore(dbPath: tmpDir.appendingPathComponent("knowledge.db").path, syncGeneration: .one)
+        let store = MCPDataStore(dbPath: tmpDir.appendingPathComponent("knowledge.db").path)
         _ = try store.knowledgeStore()
         return (store, tmpDir.path)
     }

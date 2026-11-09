@@ -12,8 +12,6 @@
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>ForeverLMAppIdentifierPrefix</key>
 	<string>$(AppIdentifierPrefix)</string>
-	<key>ForeverLMSyncGeneration</key>
-	<string>$(FOREVERLM_SYNC_GENERATION)</string>
 	<key>ForeverLMCloudKitEnvironment</key>
 	<string>$(FOREVERLM_CLOUDKIT_ENVIRONMENT)</string>
 	<key>ForeverLMLibraryContainer</key>

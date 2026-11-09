@@ -171,23 +171,21 @@ struct ImageGenerationSettingsDetailView: View {
                 }
                 // Generation 1 has no cover to write, so it neither shows nor
                 // syncs the switch (schema v2 D40, D53).
-                if ForeverLMRuntimeIdentity.syncGeneration == .two {
-                    SettingsSection(title: "Notebooks") {
-                        SettingsCard {
-                            Toggle(isOn: $drawsNotebookCovers) {
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text("Draw notebook covers")
-                                        .font(.headline)
-                                    Text("A notebook you make gets a small emoji-style picture of its subject in place of its emoji, drawn once on the model above when it has a name, and every notebook without one gets one once. Off, a notebook keeps its emoji unless you choose Draw Cover With in its menu.")
-                                        .font(.subheadline)
-                                        .foregroundStyle(.secondary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
+                SettingsSection(title: "Notebooks") {
+                    SettingsCard {
+                        Toggle(isOn: $drawsNotebookCovers) {
+                            VStack(alignment: .leading, spacing: 3) {
+                                Text("Draw notebook covers")
+                                    .font(.headline)
+                                Text("A notebook you make gets a small emoji-style picture of its subject in place of its emoji, drawn once on the model above when it has a name, and every notebook without one gets one once. Off, a notebook keeps its emoji unless you choose Draw Cover With in its menu.")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
-                            .toggleStyle(.switch)
                         }
-                        .settingsFocusRow(.imagesNotebookCovers)
+                        .toggleStyle(.switch)
                     }
+                    .settingsFocusRow(.imagesNotebookCovers)
                 }
             }
             .padding(24)

@@ -229,13 +229,11 @@ extension MCPDataStore {
                 sourcesNote += " \(sourcesNotShared.count) source\(sourcesNotShared.count == 1 ? "" : "s") could not be copied, and the lecture items that needed them were left out; see sources_not_shared."
             }
         }
-        if store.syncGeneration == .two {
-            // Generation 2's team is a space: one notebook is edited in place, so nothing follows a copy,
-            // and a notebook shared into a space this account owns moves there (§9.4, D21).
-            detail += kind == .notebook && team.role == .owner
-                ? " This team is a space you own, so the notebook moves into it once your Mac runs the move; it keeps its id and everything in it."
-                : " What is filed under the original later does not follow the copy."
-        }
+        // Generation 2's team is a space: one notebook is edited in place, so nothing follows a copy,
+        // and a notebook shared into a space this account owns moves there (§9.4, D21).
+        detail += kind == .notebook && team.role == .owner
+            ? " This team is a space you own, so the notebook moves into it once your Mac runs the move; it keeps its id and everything in it."
+            : " What is filed under the original later does not follow the copy."
         return try jsonString([
             "team_id": team.id,
             "team_name": team.name,

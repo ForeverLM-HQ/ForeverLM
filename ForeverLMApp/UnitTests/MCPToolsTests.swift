@@ -1053,12 +1053,12 @@ struct MCPAuthScopeTests {
 struct MCPDataStoreTests {
 
     /// Create a temporary DB with the required schema and return the store + path.
-    private func makeStore(syncGeneration: SyncGeneration = ForeverLMRuntimeIdentity.syncGeneration) throws -> (MCPDataStore, String) {
+    private func makeStore() throws -> (MCPDataStore, String) {
         let tmpDir = FileManager.default.temporaryDirectory
             .appendingPathComponent("mcp_test_\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
         let dbPath = tmpDir.appendingPathComponent("knowledge.db").path
-        let store = MCPDataStore(dbPath: dbPath, syncGeneration: syncGeneration)
+        let store = MCPDataStore(dbPath: dbPath)
 
         // Install the real schema by opening the store against the fresh, empty
         // file: createSchema takes its full creation path and stamps
@@ -1283,7 +1283,7 @@ struct MCPDataStoreTests {
         // Generation 2 names a placement by its source (`pl:<source id>`, §3.5.21), so the
         // digest-named orphan is no clash to adopt: the live source gets its own row.
         let placements = try kstore.scheduledSourceID(forSource: "src-reimported")
-        #expect(placements == (kstore.syncGeneration == .two ? "pl:src-reimported" : placementID))
+        #expect(placements == "pl:src-reimported")
     }
 
 
@@ -4797,12 +4797,8 @@ struct MCPDataStoreTests {
         try embed("unread-cars", [1: 1])
         try embed("not-in-pool", [0: 1])
         try insertSource(dbPath: dbPath, id: "stamped-read", title: "Stamped", content: "Already finished elsewhere.")
-        // Generation 2 keeps the read stamp in the member's reading state, not on the source row.
-        if ks.syncGeneration == .two {
-            try ks.writeReadingPlace(sourceID: "stamped-read", readAt: .some(now))
-        } else {
-            try ks.exec("UPDATE sources SET read_at = \(now.timeIntervalSinceReferenceDate) WHERE id = 'stamped-read'")
-        }
+        // The read stamp lives in the member's reading state, not on the source row.
+        try ks.writeReadingPlace(sourceID: "stamped-read", readAt: .some(now))
         try embed("stamped-read", [0: 1])
 
         let picks = try StorageService.readNextSuggestions(
@@ -5601,11 +5597,6 @@ struct MCPDataStoreTests {
         // days off the other Macs, and the read stamp travels with the source.
         #expect(try scalarString(dbPath: dbPath, "SELECT operation FROM sync_changes WHERE entity_type = 'scheduledSource' AND logical_key = '\(placementID)'") == "delete")
         #expect(try scalarInt(dbPath: dbPath, "SELECT COUNT(*) FROM sync_changes WHERE entity_type = 'scheduledSource' AND operation = 'delete'") == 2)
-        // Under generation 2 the stamp is the ReadingState's, which the outbox sends once the store
-        // is activated, not a source change in this queue.
-        if knowledge.syncGeneration == .one {
-            #expect(try scalarInt(dbPath: dbPath, "SELECT COUNT(*) FROM sync_changes WHERE entity_type = 'source' AND logical_key IN \(ids) AND operation = 'save'") == 2)
-        }
         // And the sources are still in the library.
         #expect(try scalarInt(dbPath: dbPath, "SELECT COUNT(*) FROM sources WHERE id IN \(ids)") == 2)
     }
@@ -6161,7 +6152,7 @@ struct MCPDataStoreTests {
         let suite = "foreverlm-test-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
         let store = activated
-            ? MCPDataStore(dbPath: dbPath, cardStateDefaults: defaults, syncGeneration: .two)
+            ? MCPDataStore(dbPath: dbPath, cardStateDefaults: defaults)
             : MCPDataStore(dbPath: dbPath, cardStateDefaults: defaults)
         let knowledge = try store.knowledgeStore()
         if activated {
@@ -10845,12 +10836,6 @@ struct MCPDataStoreTests {
         let reloaded = try #require(try knowledge.loadSourceForSync(video.id))
         #expect(reloaded.readAt == nil)
         #expect(VideoWatchProgress.isUnwatchedMarker(reloaded.readingPositionLocator))
-        // Generation 1 queues the mark as a source change. Under generation 2 it is the video's
-        // ReadingState row, which the outbox triggers send once the store is activated (the
-        // reading-state suites pin that), so a store that never activated queues nothing.
-        if knowledge.syncGeneration == .one {
-            #expect(try knowledge.hasPendingTutorOnlySyncChange(entity: .source, logicalKey: video.id))
-        }
 
         let again = try parseJSON(try store.setSourceRead(sourceID: video.id, read: false))
         #expect(again["status"] as? String == "unchanged")
@@ -12875,20 +12860,11 @@ struct MCPDataStoreTests {
 
     // MARK: Notebook chat checkboxes
 
-    /// Runs `body` with the notebook rows in a throwaway defaults suite
-    /// (`NotebookChatSelection.overrideDefaults`), never the shared standard
-    /// defaults, and hands it the suite to assert on.
-    private func withNotebookSelectionDefaults(_ body: (UserDefaults) async throws -> Void) async throws {
-        let suiteName = "NotebookChatSelectionMCP.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        // Generation 1's rows: the test host runs generation 2, where the same ticks live in the
-        // member's NotebookState.
-        try await ForeverLMRuntimeIdentity.$pinnedSyncGeneration.withValue(.one) {
-            try await NotebookChatSelection.$overrideDefaults.withValue(NotebookChatSelection.DefaultsOverride(defaults: defaults)) {
-                try await body(defaults)
-            }
-        }
+    /// Runs `body` on a notebook state of its own (`NotebookStateStore.override`),
+    /// never the learner's, and hands it the box to seed and assert on.
+    private func withNotebookSelectionState(_ body: (NotebookStateStore.Box) async throws -> Void) async throws {
+        let box = NotebookStateStore.Box()
+        try await NotebookStateStore.$override.withValue(box) { try await body(box) }
     }
 
     /// A Notebook holding three readable sources, in study order.
@@ -12913,9 +12889,8 @@ struct MCPDataStoreTests {
         let (store, tmpPath) = try makeStore()
         defer { cleanup(tmpPath) }
         let goal = try makeSelectionNotebook(store: store, tmpPath: tmpPath)
-        let key = NotebookChatSelection.preferenceKey(notebookID: goal.id)
 
-        try await withNotebookSelectionDefaults { defaults in
+        try await withNotebookSelectionState { box in
             let excluded = try parseJSON(
                 try await store.setNotebookSourceSelection(notebookID: goal.id, sourceIDs: ["src-2"], mode: "exclude")
             )
@@ -12923,7 +12898,7 @@ struct MCPDataStoreTests {
             #expect(excluded["in_chat_count"] as? Int == 2)
             #expect(excluded["in_chat_source_ids"] as? [String] == ["src-1", "src-3"])
             #expect(excluded["excluded_source_ids"] as? [String] == ["src-2"])
-            #expect(defaults.stringArray(forKey: key) == ["src-2"])
+            #expect(box.snapshot.excluded[goal.id] == Set(["src-2"]))
 
             let listed = try parseJSON(try store.listNotebookSources(notebookID: goal.id))
             #expect(listed["source_count"] as? Int == 3)
@@ -12940,7 +12915,7 @@ struct MCPDataStoreTests {
                 try await store.setNotebookSourceSelection(notebookID: goal.id, sourceIDs: ["src-3"], mode: "only")
             )
             #expect(only["in_chat_source_ids"] as? [String] == ["src-3"])
-            #expect(defaults.stringArray(forKey: key) == ["src-1", "src-2"])
+            #expect(box.snapshot.excluded[goal.id] == Set(["src-1", "src-2"]))
 
             let included = try parseJSON(
                 try await store.setNotebookSourceSelection(notebookID: goal.id, sourceIDs: ["src-1"], mode: "include")
@@ -12948,13 +12923,13 @@ struct MCPDataStoreTests {
             #expect(included["in_chat_source_ids"] as? [String] == ["src-1", "src-3"])
 
             _ = try await store.setNotebookSourceSelection(notebookID: goal.id, sourceIDs: [], mode: "none")
-            #expect(defaults.stringArray(forKey: key) == ["src-1", "src-2", "src-3"])
+            #expect(box.snapshot.excluded[goal.id] == Set(["src-1", "src-2", "src-3"]))
 
             let all = try parseJSON(
                 try await store.setNotebookSourceSelection(notebookID: goal.id, sourceIDs: [], mode: "all")
             )
             #expect(all["in_chat_count"] as? Int == 3)
-            #expect(defaults.object(forKey: key) == nil, "everything ticked is the default and has no row")
+            #expect(box.snapshot.excluded[goal.id] == nil, "everything ticked is the default and has no row")
 
             let reloaded = try #require(try store.knowledgeStore().loadLearningGoal(goal.id))
             #expect(reloaded.approvedSourceIDs == ["src-1", "src-2", "src-3"], "membership is untouched")
@@ -12966,9 +12941,8 @@ struct MCPDataStoreTests {
         let (store, tmpPath) = try makeStore()
         defer { cleanup(tmpPath) }
         let goal = try makeSelectionNotebook(store: store, tmpPath: tmpPath)
-        let key = NotebookChatSelection.preferenceKey(notebookID: goal.id)
 
-        try await withNotebookSelectionDefaults { defaults in
+        try await withNotebookSelectionState { box in
             do {
                 _ = try await store.setNotebookSourceSelection(notebookID: goal.id, sourceIDs: ["src-1", "elsewhere"], mode: "exclude")
                 Issue.record("a source outside the Notebook was unticked")
@@ -12987,7 +12961,7 @@ struct MCPDataStoreTests {
             } catch let error as MCPError {
                 #expect(error.localizedDescription.contains("mode must be"))
             }
-            #expect(defaults.object(forKey: key) == nil, "a refusal writes nothing")
+            #expect(box.snapshot.excluded[goal.id] == nil, "a refusal writes nothing")
         }
     }
 
@@ -12996,28 +12970,26 @@ struct MCPDataStoreTests {
         let (store, tmpPath) = try makeStore()
         defer { cleanup(tmpPath) }
         let goal = try makeSelectionNotebook(store: store, tmpPath: tmpPath)
-        let key = NotebookChatSelection.preferenceKey(notebookID: goal.id)
 
-        try await withNotebookSelectionDefaults { defaults in
+        try await withNotebookSelectionState { box in
             _ = try await store.setNotebookSourceSelection(notebookID: goal.id, sourceIDs: ["src-1"], mode: "exclude")
-            #expect(defaults.stringArray(forKey: key) == ["src-1"])
+            #expect(box.snapshot.excluded[goal.id] == Set(["src-1"]))
 
             _ = try store.deleteNotebook(notebookID: goal.id)
 
-            #expect(defaults.object(forKey: key) == nil)
+            #expect(box.snapshot.excluded[goal.id] == nil)
         }
     }
 
     @Test("split_notebook that empties its parent hands the parent's unticked boxes to the heir and drops the parent's row")
     func splitNotebookHandsChatSelectionToTheHeir() async throws {
-        let (store, tmpPath) = try makeStore(syncGeneration: .one) // generation 1's hand-over of the preference rows; NotebookMergeSplitTests pin generation 2's
+        let (store, tmpPath) = try makeStore()
         defer { cleanup(tmpPath) }
         let goal = try makeSelectionNotebook(store: store, tmpPath: tmpPath)
-        let parentKey = NotebookChatSelection.preferenceKey(notebookID: goal.id)
 
-        try await withNotebookSelectionDefaults { defaults in
+        try await withNotebookSelectionState { box in
             _ = try await store.setNotebookSourceSelection(notebookID: goal.id, sourceIDs: ["src-2", "src-3"], mode: "exclude")
-            #expect(defaults.stringArray(forKey: parentKey) == ["src-2", "src-3"])
+            #expect(box.snapshot.excluded[goal.id] == Set(["src-2", "src-3"]))
 
             let split = try parseJSON(try store.splitNotebook(
                 notebookID: goal.id,
@@ -13031,10 +13003,10 @@ struct MCPDataStoreTests {
             let children = try #require(split["child_notebooks"] as? [[String: Any]])
             let otherID = try #require(children.compactMap { $0["notebook_id"] as? String }.first { $0 != heirID })
 
-            #expect(defaults.stringArray(forKey: NotebookChatSelection.preferenceKey(notebookID: heirID)) == ["src-2"])
-            #expect(defaults.object(forKey: NotebookChatSelection.preferenceKey(notebookID: otherID)) == nil,
+            #expect(box.snapshot.excluded[heirID] == Set(["src-2"]))
+            #expect(box.snapshot.excluded[otherID] == nil,
                     "a child that is not the heir starts with every box ticked")
-            #expect(defaults.object(forKey: parentKey) == nil)
+            #expect(box.snapshot.excluded[goal.id] == nil)
             #expect(try store.notebookChatSourceIDs(
                 goal: try #require(try store.knowledgeStore().loadLearningGoal(heirID)),
                 store: store.knowledgeStore()
@@ -13075,9 +13047,8 @@ struct MCPDataStoreTests {
         defer { cleanup(tmpPath) }
         let goal = try makeSelectionNotebook(store: store, tmpPath: tmpPath)
         let context = try makeContextNotebook(store: store, tmpPath: tmpPath, for: goal)
-        let contextKey = NotebookChatContext.preferenceKey(notebookID: goal.id)
 
-        try await withNotebookSelectionDefaults { defaults in
+        try await withNotebookSelectionState { box in
             var listed = try parseJSON(try store.listNotebookSources(notebookID: goal.id))
             var sources = try #require(listed["sources"] as? [[String: Any]])
             #expect(sources.compactMap { $0["id"] as? String } == ["src-1", "src-2", "src-3", "src-4", "src-5"],
@@ -13096,7 +13067,7 @@ struct MCPDataStoreTests {
                 notebookID: goal.id, sourceIDs: [], contextNotebookIDs: [context.id], mode: "include"
             ))
             #expect(putIn["in_chat_source_ids"] as? [String] == ["src-1", "src-2", "src-3", "src-4", "src-5"])
-            #expect(defaults.stringArray(forKey: contextKey) == [context.id])
+            #expect(box.snapshot.contextNotebooks[goal.id] == Set([context.id]))
 
             _ = try await store.setNotebookSourceSelection(notebookID: goal.id, sourceIDs: ["src-5"], mode: "exclude")
             listed = try parseJSON(try store.listNotebookSources(notebookID: goal.id))
@@ -13110,8 +13081,8 @@ struct MCPDataStoreTests {
                 notebookID: goal.id, sourceIDs: [], contextNotebookIDs: [context.id], mode: "exclude"
             ))
             #expect(out["in_chat_source_ids"] as? [String] == ["src-1", "src-2", "src-3"])
-            #expect(defaults.object(forKey: contextKey) == nil)
-            #expect(defaults.stringArray(forKey: NotebookChatSelection.preferenceKey(notebookID: goal.id)) == ["src-5"],
+            #expect(box.snapshot.contextNotebooks[goal.id] == nil)
+            #expect(box.snapshot.excluded[goal.id] == Set(["src-5"]),
                     "its sources' boxes are kept for when it comes back")
 
             // Put back in, it comes as it was left: src-5 still unticked.
@@ -13119,13 +13090,13 @@ struct MCPDataStoreTests {
                 notebookID: goal.id, sourceIDs: [], contextNotebookIDs: [context.id], mode: "include"
             ))
             #expect(back["in_chat_source_ids"] as? [String] == ["src-1", "src-2", "src-3", "src-4"])
-            #expect(defaults.stringArray(forKey: NotebookChatSelection.preferenceKey(notebookID: goal.id)) == ["src-5"])
+            #expect(box.snapshot.excluded[goal.id] == Set(["src-5"]))
             // Included again while it is in, every source of it is ticked, as its box does.
             let whole = try parseJSON(try await store.setNotebookSourceSelection(
                 notebookID: goal.id, sourceIDs: [], contextNotebookIDs: [context.id], mode: "include"
             ))
             #expect(whole["in_chat_source_ids"] as? [String] == ["src-1", "src-2", "src-3", "src-4", "src-5"])
-            #expect(defaults.object(forKey: NotebookChatSelection.preferenceKey(notebookID: goal.id)) == nil)
+            #expect(box.snapshot.excluded[goal.id] == nil)
             _ = try await store.setNotebookSourceSelection(
                 notebookID: goal.id, sourceIDs: [], contextNotebookIDs: [context.id], mode: "exclude"
             )
@@ -13133,11 +13104,11 @@ struct MCPDataStoreTests {
             let one = try parseJSON(try await store.setNotebookSourceSelection(notebookID: goal.id, sourceIDs: ["src-4"], mode: "include"))
             #expect(one["in_chat_source_ids"] as? [String] == ["src-1", "src-2", "src-3", "src-4"],
                     "ticking a source of a context notebook out of the chats puts it in with that source alone")
-            #expect(defaults.stringArray(forKey: contextKey) == [context.id])
+            #expect(box.snapshot.contextNotebooks[goal.id] == Set([context.id]))
 
             let only = try parseJSON(try await store.setNotebookSourceSelection(notebookID: goal.id, sourceIDs: ["src-1"], mode: "only"))
             #expect(only["in_chat_source_ids"] as? [String] == ["src-1"])
-            #expect(defaults.object(forKey: contextKey) == nil, "only takes every context notebook it does not name out")
+            #expect(box.snapshot.contextNotebooks[goal.id] == nil, "only takes every context notebook it does not name out")
 
             do {
                 _ = try await store.setNotebookSourceSelection(notebookID: goal.id, sourceIDs: [], contextNotebookIDs: ["not-linked"], mode: "include")
@@ -13155,7 +13126,7 @@ struct MCPDataStoreTests {
         let goal = try makeSelectionNotebook(store: store, tmpPath: tmpPath)
         let context = try makeContextNotebook(store: store, tmpPath: tmpPath, for: goal)
 
-        try await withNotebookSelectionDefaults { _ in
+        try await withNotebookSelectionState { _ in
             let before = try await store.getNotebookContext(
                 notebookID: goal.id, maxSourceChars: nil, includeEmergentState: true, includeSourceContent: true
             )
@@ -13183,38 +13154,37 @@ struct MCPDataStoreTests {
         defer { cleanup(tmpPath) }
         let goal = try makeSelectionNotebook(store: store, tmpPath: tmpPath)
         let context = try makeContextNotebook(store: store, tmpPath: tmpPath, for: goal, linked: false)
-        let contextKey = NotebookChatContext.preferenceKey(notebookID: goal.id)
 
-        try await withNotebookSelectionDefaults { defaults in
+        try await withNotebookSelectionState { box in
             _ = try await store.updateNotebook(
                 notebookID: goal.id, title: nil, description: nil, topic: nil, endDateString: nil,
                 openEnded: nil, dailyTarget: nil, discover: nil, relatedNotebookIDs: [context.id]
             )
             let linked = try #require(try store.knowledgeStore().loadLearningGoal(goal.id))
             #expect(linked.relatedNotebookIDs == [context.id])
-            #expect(defaults.object(forKey: contextKey) == nil)
+            #expect(box.snapshot.contextNotebooks[goal.id] == nil)
             #expect(try store.notebookChatSourceIDs(goal: linked, store: store.knowledgeStore()) == ["src-1", "src-2", "src-3"])
 
             _ = try await store.setNotebookSourceSelection(notebookID: goal.id, sourceIDs: [], contextNotebookIDs: [context.id], mode: "include")
-            #expect(defaults.stringArray(forKey: contextKey) == [context.id])
+            #expect(box.snapshot.contextNotebooks[goal.id] == Set([context.id]))
 
             // Another device linked and put in a notebook this Mac has not
             // heard of yet: a box write here keeps it.
-            defaults.set([context.id, "elsewhere"].sorted(), forKey: contextKey)
+            box.snapshot.contextNotebooks[goal.id] = Set([context.id, "elsewhere"])
             _ = try await store.setNotebookSourceSelection(notebookID: goal.id, sourceIDs: ["src-1"], mode: "exclude")
-            #expect(defaults.stringArray(forKey: contextKey) == [context.id, "elsewhere"].sorted())
+            #expect(box.snapshot.contextNotebooks[goal.id] == Set([context.id, "elsewhere"]))
 
             _ = try await store.updateNotebook(
                 notebookID: goal.id, title: nil, description: nil, topic: nil, endDateString: nil,
                 openEnded: nil, dailyTarget: nil, discover: nil, relatedNotebookIDs: []
             )
-            #expect(defaults.stringArray(forKey: contextKey) == ["elsewhere"], "unlinked here, it leaves the row, and nothing else does")
+            #expect(box.snapshot.contextNotebooks[goal.id] == Set(["elsewhere"]), "unlinked here, it leaves the row, and nothing else does")
         }
     }
 
     @Test("merge_notebooks keeps the context notebooks the merged Notebook's chats read, for the survivor")
     func mergeNotebooksCarriesContextNotebooks() async throws {
-        let (store, tmpPath) = try makeStore(syncGeneration: .one) // generation 1's hand-over of the preference rows; NotebookMergeSplitTests pin generation 2's
+        let (store, tmpPath) = try makeStore()
         defer { cleanup(tmpPath) }
         let survivor = try makeSelectionNotebook(store: store, tmpPath: tmpPath)
         let merged = try store.knowledgeStore().createCompanionGoal(
@@ -13228,13 +13198,13 @@ struct MCPDataStoreTests {
         )
         let context = try makeContextNotebook(store: store, tmpPath: tmpPath, for: merged)
 
-        try await withNotebookSelectionDefaults { defaults in
+        try await withNotebookSelectionState { defaults in
             _ = try await store.setNotebookSourceSelection(notebookID: merged.id, sourceIDs: [], contextNotebookIDs: [context.id], mode: "include")
             _ = try store.mergeNotebooks(notebookIDs: [survivor.id, merged.id], title: nil, mergeNotes: true)
 
             #expect(try store.knowledgeStore().loadLearningGoal(survivor.id)?.relatedNotebookIDs == [context.id])
-            #expect(defaults.stringArray(forKey: NotebookChatContext.preferenceKey(notebookID: survivor.id)) == [context.id])
-            #expect(defaults.object(forKey: NotebookChatContext.preferenceKey(notebookID: merged.id)) == nil)
+            #expect(defaults.snapshot.contextNotebooks[survivor.id] == Set([context.id]))
+            #expect(defaults.snapshot.contextNotebooks[merged.id] == nil)
         }
     }
 
@@ -14665,7 +14635,7 @@ struct MCPToolContractTests {
             #expect(row != nil && (row?["retired"] as? Bool == true || SettingsCatalogTests.mcp(row ?? [:]) != nil),
                     "\(key) is a Setting with no MCP route in the catalog")
         }
-        for prefix in SyncedPreferenceKeys.syncedPrefixes(for: .two) where !records.contains(prefix) {
+        for prefix in SyncedPreferenceKeys.liveSyncedPrefixes where !records.contains(prefix) {
             let routed = (catalog.families[prefix] ?? []).allSatisfy { $0["retired"] as? Bool == true || SettingsCatalogTests.mcp($0) != nil }
                 && catalog.families[prefix] != nil
             #expect(routed || catalog.leftOut[prefix] != nil, "\(prefix) is a Setting family with no MCP route and not left out to its own writer")

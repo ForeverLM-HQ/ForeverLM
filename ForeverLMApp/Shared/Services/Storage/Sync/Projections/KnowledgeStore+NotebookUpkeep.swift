@@ -8,7 +8,6 @@ extension KnowledgeStore {
     /// Entry's order key follows the study order the write left. Runs inside the writer's
     /// transaction; generation 1 writes exactly what build 177 does (D40).
     func keepNotebookRowsForGeneration2(goalIDs: [String]) throws {
-        guard syncGeneration == .two else { return }
         try LearningGoalEntityKind.classifyUnclassified(self)
         let now = Date().timeIntervalSinceReferenceDate
         for goalID in Set(goalIDs).sorted() {

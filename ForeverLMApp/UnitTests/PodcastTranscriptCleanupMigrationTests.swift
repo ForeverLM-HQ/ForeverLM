@@ -488,7 +488,7 @@ struct PodcastTranscriptFormattingQueueTests {
     func migrationFrom171() throws {
         let root = try Schema154Fixture.temporaryRoot("podcast-formatting-171")
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         try store.saveSource(Self.episode(id: "queued-before"))
         try store.saveTranscript("queued-before", Self.raw)
         try store.clearAllPendingSyncChanges()
@@ -501,7 +501,7 @@ struct PodcastTranscriptFormattingQueueTests {
         #expect(try !store.holdsPodcastTranscriptFormattingColumns())
 
         Schema154Fixture.newLaunch(root)
-        let migrated = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let migrated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
 
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
         #expect(KnowledgeStore.schemaVersion == 174)

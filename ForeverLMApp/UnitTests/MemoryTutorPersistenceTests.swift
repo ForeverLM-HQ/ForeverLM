@@ -1563,7 +1563,7 @@ struct MemoryTutorCloudKitTests {
 
     @Test("Source payload carries canonical published DOI identity for Mac and phone")
     func sourcePayloadCarriesPublishedDOIIdentity() throws {
-        let sender = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let sender = try KnowledgeStore(inMemory: true)
         var paper = StudioArticle(
             url: "https://doi.org/10.1000/publisher-version",
             title: "Publisher identity",
@@ -1597,7 +1597,7 @@ struct MemoryTutorCloudKitTests {
         let phoneReadableIdentity = try #require(raw["sourceIdentity"] as? [String: Any])
         #expect(phoneReadableIdentity["publishedDOI"] as? String == "10.1000/publisher-version")
 
-        let receiver = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let receiver = try KnowledgeStore(inMemory: true)
         _ = try CloudKitRecordMapper.apply(record: record, to: receiver)
         var receivedPublishedDOI: String?
         try receiver.queryBind(
@@ -1611,7 +1611,7 @@ struct MemoryTutorCloudKitTests {
 
     @Test("Memory item payload preserves fields, anchors, and remaps source identity")
     func itemRoundTripRemapsSource() throws {
-        let sender = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let sender = try KnowledgeStore(inMemory: true)
         var senderSource = StudioArticle(url: "https://example.com/portable", title: "Portable")
         senderSource.normalizedURL = URLNormalizer.normalize(senderSource.url)
         try sender.saveSource(senderSource)
@@ -1630,7 +1630,7 @@ struct MemoryTutorCloudKitTests {
         #expect(outbound.item == item)
         #expect(outbound.sourceIdentities.map(\.sourceID) == [senderSource.id])
 
-        let receiver = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let receiver = try KnowledgeStore(inMemory: true)
         var receiverSource = StudioArticle(url: senderSource.url, title: "Portable local copy")
         receiverSource.normalizedURL = senderSource.normalizedURL
         try receiver.saveSource(receiverSource)
@@ -1645,7 +1645,7 @@ struct MemoryTutorCloudKitTests {
 
     @Test("Inbound deterministic Schedule placement replaces and tombstones a legacy random ID")
     func deterministicSchedulePlacementConvergesLegacyRandomID() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         var source = StudioArticle(
             url: "https://example.com/legacy-schedule-placement",
             title: "Legacy Schedule placement",
@@ -1738,7 +1738,7 @@ struct MemoryTutorCloudKitTests {
             return payload
         }
 
-        let removalStore = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let removalStore = try KnowledgeStore(inMemory: true)
         let stalePhone = try installBase(removalStore, sourceID: "schedule-removal-source")
         try removalStore.removeSourceFromGoal(
             sourceID: stalePhone.placement.sourceID,
@@ -1772,7 +1772,7 @@ struct MemoryTutorCloudKitTests {
             forSource: stalePhone.placement.sourceID
         )?.completedAt == phoneCompletion.placement.completedAt)
 
-        let reviewStore = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let reviewStore = try KnowledgeStore(inMemory: true)
         let staleLocal = try installBase(reviewStore, sourceID: "schedule-review-source")
         let reviewedAt = Date(timeIntervalSinceReferenceDate: 3_000)
         try reviewStore.recordScheduledSourceReview(
@@ -1810,8 +1810,8 @@ struct MemoryTutorCloudKitTests {
 
     @Test("Listening depth crosses devices and keeps the furthest point reached")
     func scheduleSyncPreservesListeningDepth() throws {
-        let sender = try KnowledgeStore(inMemory: true, syncGeneration: .one)
-        let receiver = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let sender = try KnowledgeStore(inMemory: true)
+        let receiver = try KnowledgeStore(inMemory: true)
         var remoteSource = StudioArticle(
             url: "https://example.com/depth-sync",
             title: "Remote depth source",
@@ -1899,7 +1899,7 @@ struct MemoryTutorCloudKitTests {
             return (try #require(try store.loadLearningGoal(goal.id)), first, removed)
         }
 
-        let removalStore = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let removalStore = try KnowledgeStore(inMemory: true)
         let (stalePhoneGoal, first, removed) = try installGoal(
             removalStore,
             prefix: "goal-removal"
@@ -1930,7 +1930,7 @@ struct MemoryTutorCloudKitTests {
         #expect(removalMerged.items.first { $0.sourceID == first.id }?.quizCount == 1)
         #expect(removalMerged.items.first { $0.sourceID == first.id }?.completedAt != nil)
 
-        let reviewStore = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let reviewStore = try KnowledgeStore(inMemory: true)
         let (staleServerGoal, reviewed, serverRemoved) = try installGoal(
             reviewStore,
             prefix: "goal-review"
@@ -1961,8 +1961,8 @@ struct MemoryTutorCloudKitTests {
     @Test("Inbound divergent curriculum archives the local loser and adopts the server winner")
     func inboundMemoryItemArchivesDivergentCurriculum() throws {
         let url = "https://example.com/immutable-memory-sync"
-        let sender = try KnowledgeStore(inMemory: true, syncGeneration: .one)
-        let receiver = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let sender = try KnowledgeStore(inMemory: true)
+        let receiver = try KnowledgeStore(inMemory: true)
         var remoteSource = StudioArticle(url: url, title: "Remote", id: "remote-immutable-source")
         remoteSource.normalizedURL = URLNormalizer.normalize(url)
         var localSource = StudioArticle(url: url, title: "Local", id: "local-immutable-source")
@@ -2132,8 +2132,8 @@ struct MemoryTutorCloudKitTests {
         )
         defer { try? FileManager.default.removeItem(at: directory) }
 
-        let inboundStore = try KnowledgeStore(storeDirectory: directory, syncGeneration: .one)
-        let localStore = try KnowledgeStore(storeDirectory: directory, syncGeneration: .one)
+        let inboundStore = try KnowledgeStore(storeDirectory: directory)
+        let localStore = try KnowledgeStore(storeDirectory: directory)
         var source = StudioArticle(
             url: "https://example.com/memory-adoption-lock",
             title: "Memory adoption lock",
@@ -2235,7 +2235,7 @@ struct MemoryTutorCloudKitTests {
 
     @Test("Learning goal gap-only source relationships remap and round trip")
     func learningGoalGapSourceIdentityRoundTrip() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let url = "https://example.com/gap-only-source"
         var localSource = StudioArticle(
             url: url,
@@ -2290,7 +2290,7 @@ struct MemoryTutorCloudKitTests {
 
     @Test("Item arriving before Source retains identity and reconciles when Source appears")
     func itemBeforeSourceReconcilesLater() throws {
-        let sender = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let sender = try KnowledgeStore(inMemory: true)
         var remoteSource = StudioArticle(url: "https://example.com/later-source", title: "Later")
         remoteSource.normalizedURL = URLNormalizer.normalize(remoteSource.url)
         try sender.saveSource(remoteSource)
@@ -2301,7 +2301,7 @@ struct MemoryTutorCloudKitTests {
         })
         let itemRecord = try #require(try CloudKitRecordMapper.makeRecord(for: change, store: sender))
 
-        let receiver = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let receiver = try KnowledgeStore(inMemory: true)
         _ = try CloudKitRecordMapper.apply(record: itemRecord, to: receiver)
         #expect(try receiver.loadMemoryItem(item.id)?.sources.first?.sourceID == remoteSource.id)
 
@@ -2324,7 +2324,7 @@ struct MemoryTutorCloudKitTests {
     @Test("Item arriving before Source reconciles by published DOI alone")
     func itemBeforeSourceReconcilesByPublishedDOI() throws {
         let publishedDOI = "10.1000/published-only"
-        let itemSender = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let itemSender = try KnowledgeStore(inMemory: true)
         let remotePaper = StudioArticle(
             url: "https://remote.example/preprint",
             title: "Remote paper",
@@ -2350,7 +2350,7 @@ struct MemoryTutorCloudKitTests {
 
         // Another device independently holds the same published work under a
         // different source ID and URL. publishedDOI is the only shared identity.
-        let sourceSender = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let sourceSender = try KnowledgeStore(inMemory: true)
         let localPaper = StudioArticle(
             url: "https://publisher.example/final",
             title: "Local publisher copy",
@@ -2372,7 +2372,7 @@ struct MemoryTutorCloudKitTests {
             try CloudKitRecordMapper.makeRecord(for: sourceChange, store: sourceSender)
         )
 
-        let receiver = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let receiver = try KnowledgeStore(inMemory: true)
         _ = try CloudKitRecordMapper.apply(record: itemRecord, to: receiver)
         #expect(try receiver.loadMemoryItem(item.id)?.sources.first?.sourceID == remotePaper.id)
 
@@ -2384,7 +2384,7 @@ struct MemoryTutorCloudKitTests {
 
     @Test("Duplicate portable identity never steals an existing exact memory or Schedule relationship")
     func exactSourceRelationshipSurvivesDuplicateIdentityResave() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let url = "https://example.com/shared-portable-identity"
         let normalizedURL = URLNormalizer.normalize(url)
         var original = StudioArticle(
@@ -2425,7 +2425,7 @@ struct MemoryTutorCloudKitTests {
 
     @Test("Repeated Source arrival reconciles anchors through portable identity indexes")
     func sourceReconciliationIsIndexedAtScale() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let anchorCount = 10_000
         let arrivingSourceCount = 250
         try store.exec("BEGIN IMMEDIATE")
@@ -2534,7 +2534,7 @@ struct MemoryTutorCloudKitTests {
 
     @Test("Immutable attempt may arrive before its item and rebuilds schedule later")
     func attemptThenItemRoundTrip() throws {
-        let sender = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let sender = try KnowledgeStore(inMemory: true)
         let item = makeMemoryItem()
         let attempt = makeMemoryAttempt()
         try sender.saveMemoryItem(item)
@@ -2577,7 +2577,7 @@ struct MemoryTutorCloudKitTests {
             .immutableCurriculumFingerprint(item))
         #expect(CloudKitRecordMapper.inboundApplicationPriority(for: itemRecord) < CloudKitRecordMapper.inboundApplicationPriority(for: attemptRecord))
 
-        let receiver = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let receiver = try KnowledgeStore(inMemory: true)
         _ = try CloudKitRecordMapper.apply(record: attemptRecord, to: receiver)
         #expect(try receiver.loadMemoryAttempt(attempt.id) == attempt)
         #expect(try receiver.loadMemorySchedule(memoryItemID: item.id) == nil)
@@ -2592,7 +2592,7 @@ struct MemoryTutorCloudKitTests {
 
     @Test("Outbound attempts fail closed until their parent curriculum is available")
     func outboundAttemptRequiresParentCurriculumFingerprint() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let item = makeMemoryItem(id: "outbound-parent-barrier")
         let attempt = makeMemoryAttempt(
             id: "outbound-parent-barrier-attempt",
@@ -2633,7 +2633,7 @@ struct MemoryTutorCloudKitTests {
         let fingerprintB = MemoryTutorIdentity.immutableCurriculumFingerprint(itemB)
         #expect(fingerprintA != fingerprintB)
 
-        let senderB = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let senderB = try KnowledgeStore(inMemory: true)
         let attemptB = makeMemoryAttempt(
             id: "fingerprint-attempt-b",
             itemID: itemB.id,
@@ -2666,7 +2666,7 @@ struct MemoryTutorCloudKitTests {
         // Server B attempt arrives while the local, unacknowledged A parent is
         // present. Direct persistence fails closed; the engine retains the full
         // record in conflict storage until B's parent arrives.
-        let localA = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let localA = try KnowledgeStore(inMemory: true)
         let attemptA = makeMemoryAttempt(
             id: "fingerprint-attempt-a",
             itemID: itemA.id,
@@ -2737,12 +2737,12 @@ struct MemoryTutorCloudKitTests {
         // B attempt arrives first on a fresh device, then the wrong A parent.
         // The attempt stays inert while parentless and is moved to the durable
         // conflict payload—not B evidence scheduled under A—when A appears.
-        let parentless = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let parentless = try KnowledgeStore(inMemory: true)
         _ = try CloudKitRecordMapper.apply(record: attemptBRecord, to: parentless)
         #expect(try parentless.loadMemoryAttempt(attemptB.id) == attemptB)
         #expect(try parentless.loadMemorySchedule(memoryItemID: itemB.id) == nil)
 
-        let senderA = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let senderA = try KnowledgeStore(inMemory: true)
         try senderA.saveMemoryItem(itemA)
         let itemAChange = try #require(try senderA.pendingSyncChanges().first {
             $0.entity == .memoryItem
@@ -2770,7 +2770,7 @@ struct MemoryTutorCloudKitTests {
         let attemptedAt = Date(timeIntervalSinceReferenceDate: 8_000)
 
         // Session first: a later attempt must match the already-present exchange.
-        let sessionFirst = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let sessionFirst = try KnowledgeStore(inMemory: true)
         try sessionFirst.saveMemoryItem(item)
         try sessionFirst.createReviewSession(
             id: "session-first",
@@ -2876,7 +2876,7 @@ struct MemoryTutorCloudKitTests {
 
         // Attempt first: absence is permitted; the later aggregate performs the
         // same parity check before either session or exchange commits.
-        let attemptFirst = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let attemptFirst = try KnowledgeStore(inMemory: true)
         try attemptFirst.saveMemoryItem(item)
         try attemptFirst.saveMemoryAttemptRecord(
             CloudKitMemoryAttemptPayload(attempt: attemptFirstValue)
@@ -2885,7 +2885,7 @@ struct MemoryTutorCloudKitTests {
         #expect(try attemptFirst.loadMemoryAttempt(attemptFirstValue.id) == attemptFirstValue)
         #expect(try attemptFirst.loadReviewSessionForSync("attempt-first")?.exchanges.count == 1)
 
-        let attemptFirstMismatch = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let attemptFirstMismatch = try KnowledgeStore(inMemory: true)
         try attemptFirstMismatch.saveMemoryItem(item)
         try attemptFirstMismatch.saveMemoryAttemptRecord(
             CloudKitMemoryAttemptPayload(attempt: attemptFirstValue)
@@ -2918,7 +2918,7 @@ struct MemoryTutorCloudKitTests {
             )
         }
 
-        let itemDeleted = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let itemDeleted = try KnowledgeStore(inMemory: true)
         try installParentTombstone(itemDeleted, entity: .memoryItem, key: "memory-item-1")
         let orphanItemAttempt = makeMemoryAttempt(id: "late-after-item")
         #expect(throws: (any Error).self) {
@@ -2939,7 +2939,7 @@ struct MemoryTutorCloudKitTests {
             logicalKey: orphanItemAttempt.id
         )?.isDeleted == true)
 
-        let sessionDeleted = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let sessionDeleted = try KnowledgeStore(inMemory: true)
         let liveItem = makeMemoryItem()
         try sessionDeleted.saveMemoryItem(liveItem)
         try sessionDeleted.clearAllPendingSyncChanges()
@@ -2979,7 +2979,7 @@ struct MemoryTutorCloudKitTests {
 
     @Test("A conflicted curriculum quarantines existing evidence and rejects future attempts")
     func curriculumConflictSuppressesDependentAttempts() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let source = StudioArticle(
             url: "https://example.com/conflicted-item-source",
             title: "Conflicted item source",
@@ -3091,7 +3091,7 @@ struct MemoryTutorCloudKitTests {
 
     @Test("ScheduledSource arriving before Source reconciles through portable identity")
     func scheduledSourceBeforeSourceReconciles() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let url = "https://example.com/schedule-before-source"
         let normalizedURL = URLNormalizer.normalize(url)
         let remoteSourceID = "phone-schedule-source"
@@ -3150,7 +3150,7 @@ struct MemoryTutorCloudKitTests {
 
     @Test("Failed-only memory evidence does not advance reviewed source completion")
     func failedAttemptIsNotReviewedSource() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let item = makeMemoryItem(id: "failed-only-item", sourceID: "failed-only-source")
         try store.saveMemoryItem(item)
         let failed = MemoryAttempt(
@@ -3176,7 +3176,7 @@ struct MemoryTutorCloudKitTests {
 
     @Test("Legacy review aggregates count only successfully graded memory anchors")
     func legacyReviewAggregatesIgnoreFailedMemoryAttempts() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let sourceIDs = ["aggregate-graded", "aggregate-failed", "aggregate-failed-only"]
         for sourceID in sourceIDs {
             var source = StudioArticle(
@@ -3285,7 +3285,7 @@ struct MemoryTutorCloudKitTests {
 
     @Test("Bootstrap and orphan cleanup include both memory record types")
     func bootstrapAndOrphanCleanup() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let item = makeMemoryItem()
         let attempt = makeMemoryAttempt()
         try store.saveMemoryItem(item)
@@ -3378,7 +3378,7 @@ struct MemoryGroundingTextTests {
 
     @Test("The store grounds a Memory item in a quote read off the page")
     func storeValidatesAgainstThePage() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         var article = StudioArticle(url: "https://example.com/cristae", title: "Individual cristae", sourceType: .article, discoveryOrigin: .manual, id: "cristae")
         article.normalizedURL = URLNormalizer.normalize(article.url)
         article.content = "Impairment of cristae structure through deletion of MICOS-\ncomplex components or Opa1 diminished this intramitochondrial\nheterogeneity of DΨm."

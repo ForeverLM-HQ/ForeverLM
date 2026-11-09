@@ -142,7 +142,7 @@ struct MemorySchema161MigrationTests {
     func generation1RecordsAsBefore() throws {
         let root = try Schema154Fixture.temporaryRoot("161-generation1")
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         var article = StudioArticle(url: "https://example.org/memory/1", title: "A paper", sourceType: .article)
         #expect(try store.insertSourceIfNew(&article))
 

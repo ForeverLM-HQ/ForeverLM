@@ -100,7 +100,7 @@ struct ArtifactSchema159MigrationTests {
     func generation1DeckSyncsAsBefore() throws {
         let root = try Schema154Fixture.temporaryRoot("159-gen1-deck")
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         let deckID = MemoryCard.draftDeckIDPrefix + "src-a"
         try store.saveArtifactRecord(ArtifactRecord(
             id: deckID, title: "Cards to check", homeNotebookID: nil, linkedNotebookIDs: [], kind: .flashcards,

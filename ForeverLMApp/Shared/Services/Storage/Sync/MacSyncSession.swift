@@ -174,9 +174,9 @@ actor MacSyncSession {
     nonisolated(unsafe) private static var startedOnce = false
 
     /// The Dev-only rehearsal override (`FOREVERLM_REHEARSAL_SEED_LOCAL`, WP28 step 1): honoured only on an
-    /// isolated Development instance, like the generation override, never on the shared Dev store.
+    /// isolated Development instance, never on the shared Dev store.
     static var rehearsalSeedLocal: Bool {
-        ForeverLMRuntimeIdentity.honoursSyncGenerationOverride && ProcessInfo.processInfo.environment["FOREVERLM_REHEARSAL_SEED_LOCAL"] == "1"
+        ForeverLMRuntimeIdentity.isIsolatedDevelopmentInstance && ProcessInfo.processInfo.environment["FOREVERLM_REHEARSAL_SEED_LOCAL"] == "1"
     }
 
     /// Whether this build syncs at all: a library container to sync with, and not the First Run app. The
@@ -184,7 +184,7 @@ actor MacSyncSession {
     /// database by account, not by bundle, so syncing there would download the seeded Dev library into
     /// what is meant to be a stranger's first launch.
     static var isEnabled: Bool {
-        ForeverLMRuntimeIdentity.syncGeneration == .two && ForeverLMRuntimeIdentity.libraryContainerIdentifier != nil
+        ForeverLMRuntimeIdentity.libraryContainerIdentifier != nil
             && !ForeverLMRuntimeIdentity.isFirstRun
     }
 

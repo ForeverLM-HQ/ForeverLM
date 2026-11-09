@@ -172,9 +172,7 @@ extension MCPDataStore {
             + backgroundAISettingEntries()
             + voiceSettingEntries()
             + imageSettingEntries()
-            // Generation 1 has no notebook cover to draw, so the switch is
-            // neither listed nor synced there (schema v2 D40, D53).
-            + (ForeverLMRuntimeIdentity.syncGeneration == .two ? notebookCoverSettingEntries() : [])
+            + notebookCoverSettingEntries()
             + videoSettingEntries()
             + sourceAndPluginSettingEntries()
             + webLinkSettingEntries()
@@ -1100,9 +1098,6 @@ extension MCPDataStore {
     /// The buttons of Settings › iCloud's move, on the same model the pane uses (`ICloudMigrationModel`).
     @MainActor
     private static func runICloudMoveAction(_ action: String) async throws -> String {
-        guard ForeverLMRuntimeIdentity.syncGeneration == .two else {
-            throw MCPError.invalidInput("This build syncs with the old iCloud container; the new iCloud store's buttons do not exist.")
-        }
         let model = ICloudMigrationModel.shared
         await model.refresh()
         switch action {

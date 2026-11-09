@@ -175,7 +175,7 @@ struct SyncSchema154MigrationTests {
 
         // Generation 1's copy is `knowledge.pre-154.db`; generation 2's is `knowledge.pre-v2.db` (`KnowledgeCloneBeforeMigrationTests`).
         #expect(throws: (any Error).self) {
-            _ = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+            _ = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         }
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == 153)
         #expect(Schema154Fixture.perMemberRows(at: root) == rowsBefore)

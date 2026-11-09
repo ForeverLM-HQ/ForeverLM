@@ -35,9 +35,8 @@ struct PreferenceSyncTests {
     func listeningPositionFollowsTheAccount() throws {
         let key = ListeningPositionSync.preferenceKey(sourceID: "src_abc")
         #expect(key == "listen.position.src_abc")
-        #expect(SyncedPreferenceKeys.isSynced(key, for: .one))
         // Under generation 2 the position is the source's ReadingState, not a preference row.
-        #expect(!SyncedPreferenceKeys.isSynced(key, for: .two))
+        #expect(!SyncedPreferenceKeys.isSynced(key))
         #expect(ListeningPositionSync.sourceID(fromPreferenceKey: key) == "src_abc")
         #expect(ListeningPositionSync.sourceID(fromPreferenceKey: "listen.position.") == nil)
         #expect(ListeningPositionSync.sourceID(fromPreferenceKey: "macos.tts.speed") == nil)
@@ -149,18 +148,15 @@ struct PreferenceSyncTests {
         #expect(SyncedPreferenceKeys.isSynced("studio.integrationTabsUnpinnedByDefault"))
         // The rail's order and pins travel with the account: as preference rows under generation 1, and
         // as the member's NotebookState (`sidebarKey`, `pinned`) under generation 2, which no row names.
-        #expect(SyncedPreferenceKeys.isSynced("studio.projectOrder", for: .one))
-        #expect(SyncedPreferenceKeys.isSynced(NotebookPins.preferenceKey, for: .one))
-        #expect(!SyncedPreferenceKeys.isSynced("studio.projectOrder", for: .two))
-        #expect(!SyncedPreferenceKeys.isSynced(NotebookPins.preferenceKey, for: .two))
+        #expect(!SyncedPreferenceKeys.isSynced("studio.projectOrder"))
+        #expect(!SyncedPreferenceKeys.isSynced(NotebookPins.preferenceKey))
         // A hand-arranged chat rail is work, not a window position: it has to
         // reach the other Mac like the Notebook and Course orders beside it.
         #expect(SyncedPreferenceKeys.isSynced(StudioViewModel.chatOrderPreferenceKey))
         #expect(SyncedPreferenceKeys.isSynced("studio.workspaceView.left-monitor"))
         #expect(SyncedPreferenceKeys.isSynced("studio.showMCPStatusLight"))
         // Signing up for beta releases on one Mac signs up the account's other Macs.
-        #expect(SyncedPreferenceKeys.isSynced(BetaReleases.preferenceKey, for: .one))
-        #expect(SyncedPreferenceKeys.isSynced(BetaReleases.preferenceKey, for: .two))
+        #expect(SyncedPreferenceKeys.isSynced(BetaReleases.preferenceKey))
         #expect(SyncedPreferenceKeys.isSynced("aiTask.chat.model"))
         #expect(SyncedPreferenceKeys.isSynced("aiBackground.model.OpenRouter"))
         #expect(SyncedPreferenceKeys.isSynced("aiRoute.background.multimodal"))
@@ -173,8 +169,7 @@ struct PreferenceSyncTests {
         // notebooks they put into a notebook's chats: as preference rows under generation 1, as fields of
         // the member's NotebookState under generation 2.
         for key in [NotebookChatSelection.preferenceKey(notebookID: "p1"), NotebookChatContext.preferenceKey(notebookID: "p1")] {
-            #expect(SyncedPreferenceKeys.isSynced(key, for: .one))
-            #expect(!SyncedPreferenceKeys.isSynced(key, for: .two))
+            #expect(!SyncedPreferenceKeys.isSynced(key))
         }
         // The memory review's daily time budget sizes the review wherever it is
         // planned, so the phone and both Macs have to agree on it.
@@ -352,11 +347,10 @@ struct PreferenceSyncTests {
             NotebookPins.preferenceKey,
             "studio.expandedPanel",
         ] {
-            #expect(SyncedPreferenceKeys.isSynced(key, for: .one), "\(key) should follow the account")
             // Under generation 2 the fold and the pins are fields of the member's NotebookState; the
             // rest are still Settings.
             let isRecordField = ["studio.navigation.expandedProjectIDs.v1", NotebookPins.preferenceKey].contains(key)
-            #expect(SyncedPreferenceKeys.isSynced(key, for: .two) == !isRecordField, "\(key) under generation 2")
+            #expect(SyncedPreferenceKeys.isSynced(key) == !isRecordField, "\(key) under generation 2")
         }
         // The pixel widths stay local, which is what makes the fractions above a
         // deliberate distinction rather than an inconsistency.

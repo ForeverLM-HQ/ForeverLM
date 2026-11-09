@@ -5,32 +5,36 @@ import Testing
 // Collections of notebooks (docs/notebooks-design.md, "Collections"): the
 // rows' rules (`NotebookCollections`), the Mac's writes
 // (`StudioViewModel+NotebookCollections`) and the two MCP tools. Every test
-// that writes binds its own defaults suite, never the standard defaults the
-// Dev build and parallel suites share, and a sync generation: the rows these
-// tests read back are generation 1's, so they pin it (the test host runs
-// generation 2), and the generation-2 tests pin `.two` beside their own
-// NotebookState.
+// that writes binds its own defaults suite and its own NotebookState, never
+// the standard defaults or the state the Dev build and parallel suites share:
+// a collection's name is a Setting, and a notebook's memberships are a field
+// of the member's NotebookState.
 
-private func withCollectionDefaults<T>(generation: SyncGeneration = .one, _ body: (UserDefaults) throws -> T) throws -> T {
+private func withCollectionDefaults<T>(_ body: (UserDefaults) throws -> T) throws -> T {
     let suiteName = "NotebookCollectionsTests.\(UUID().uuidString)"
     let defaults = try #require(UserDefaults(suiteName: suiteName))
     defer { defaults.removePersistentDomain(forName: suiteName) }
-    return try ForeverLMRuntimeIdentity.$pinnedSyncGeneration.withValue(generation) {
+    return try NotebookStateStore.$override.withValue(NotebookStateStore.Box()) {
         try NotebookCollectionRows.$overrideDefaults.withValue(NotebookCollectionRows.DefaultsOverride(defaults: defaults)) {
             try body(defaults)
         }
     }
 }
 
-private func withCollectionDefaults(generation: SyncGeneration = .one, _ body: (UserDefaults) async throws -> Void) async throws {
+private func withCollectionDefaults(_ body: (UserDefaults) async throws -> Void) async throws {
     let suiteName = "NotebookCollectionsMCP.\(UUID().uuidString)"
     let defaults = try #require(UserDefaults(suiteName: suiteName))
     defer { defaults.removePersistentDomain(forName: suiteName) }
-    try await ForeverLMRuntimeIdentity.$pinnedSyncGeneration.withValue(generation) {
+    try await NotebookStateStore.$override.withValue(NotebookStateStore.Box()) {
         try await NotebookCollectionRows.$overrideDefaults.withValue(NotebookCollectionRows.DefaultsOverride(defaults: defaults)) {
             try await body(defaults)
         }
     }
+}
+
+/// The collections the bound NotebookState files a notebook in.
+private func memberships(_ notebookID: String) -> Set<String> {
+    NotebookStateStore.current().collections[notebookID] ?? []
 }
 
 @Suite("Notebook collections: the rows")
@@ -152,18 +156,15 @@ struct NotebookCollectionsRowTests {
         #expect(NotebookCollections.cleanedName("🧬 Mitochondria") == "🧬 Mitochondria")
     }
 
-    @Test("Both prefixes follow the account; a device-local key under neither does not")
+    @Test("A collection's name follows the account as a Setting; a membership row and a device-local key do not")
     func rowsSync() {
         let name = NotebookCollections.nameKey(collectionID: "nbc-1")
         let membership = NotebookCollections.membershipKey(notebookID: "p1")
-        #expect(SyncedPreferenceKeys.isSynced(name, for: .one))
-        #expect(SyncedPreferenceKeys.isSynced(membership, for: .one))
-        #expect(!SyncedPreferenceKeys.isSynced(NotebookRecency.preferenceKey, for: .one))
-        // Under generation 2 the name is still a Setting, and the membership is a field of the
-        // member's NotebookState: no preference row follows the account.
-        #expect(SyncedPreferenceKeys.isSynced(name, for: .two))
-        #expect(!SyncedPreferenceKeys.isSynced(membership, for: .two))
-        #expect(!SyncedPreferenceKeys.isSynced(NotebookRecency.preferenceKey, for: .two))
+        // The name is a Setting, and the membership is a field of the member's NotebookState:
+        // no preference row follows the account.
+        #expect(SyncedPreferenceKeys.isSynced(name))
+        #expect(!SyncedPreferenceKeys.isSynced(membership))
+        #expect(!SyncedPreferenceKeys.isSynced(NotebookRecency.preferenceKey))
     }
 
     @Test("The Mac's writes: an empty membership removes the row, a merge and a hand-over carry it")
@@ -172,22 +173,17 @@ struct NotebookCollectionsRowTests {
             NotebookCollectionRows.writeName("Aging", collectionID: "nbc-a")
             NotebookCollectionRows.writeMembership(["nbc-a"], notebookID: "p1")
             #expect(defaults.string(forKey: "notebookCollection.nbc-a") == "Aging")
-            #expect(defaults.stringArray(forKey: "notebook.collections.p1") == ["nbc-a"])
+            #expect(memberships("p1") == ["nbc-a"])
             #expect(NotebookCollectionRows.read().contains("p1", in: "nbc-a"))
 
             NotebookCollectionRows.writeMembership([], notebookID: "p1")
-            #expect(defaults.object(forKey: "notebook.collections.p1") == nil)
+            #expect(memberships("p1").isEmpty)
 
             NotebookCollectionRows.writeMembership(["nbc-a"], notebookID: "merged")
             NotebookCollectionRows.writeMembership(["nbc-b"], notebookID: "survivor")
             NotebookCollectionRows.merge("merged", into: "survivor")
-            #expect(defaults.stringArray(forKey: "notebook.collections.survivor") == ["nbc-a", "nbc-b"])
-            #expect(defaults.object(forKey: "notebook.collections.merged") == nil)
-
-            NotebookCollectionRows.writeMembership(["nbc-a"], notebookID: "parent")
-            NotebookCollectionRows.handOver(fromParent: "parent", toHeir: "heir")
-            #expect(defaults.stringArray(forKey: "notebook.collections.heir") == ["nbc-a"])
-            #expect(defaults.object(forKey: "notebook.collections.parent") == nil)
+            #expect(memberships("survivor") == ["nbc-a", "nbc-b"])
+            #expect(memberships("merged").isEmpty)
 
             NotebookCollectionRows.writeName(nil, collectionID: "nbc-a")
             #expect(defaults.object(forKey: "notebookCollection.nbc-a") == nil)
@@ -231,16 +227,16 @@ struct NotebookCollectionsViewModelTests {
             let aging = try #require(vm.createNotebookCollection(named: " ⏳ Aging ", adding: ["bio", "shelved"]))
             #expect(aging.name == "⏳ Aging")
             #expect(defaults.string(forKey: NotebookCollections.nameKey(collectionID: aging.id)) == "⏳ Aging")
-            #expect(defaults.stringArray(forKey: "notebook.collections.bio") == [aging.id])
+            #expect(memberships("bio") == [aging.id])
             #expect(vm.orderedNotebookCollections == [aging])
             #expect(vm.notebookCollectionCounts[aging.id] == 1, "the chip counts active notebooks only")
 
             vm.setNotebook("neuro", inCollection: aging.id, isMember: true)
             #expect(vm.notebookCollections.notebookIDs(["bio", "neuro"], in: aging.id) == ["bio", "neuro"])
             vm.setNotebook("bio", inCollection: aging.id, isMember: false)
-            #expect(defaults.object(forKey: "notebook.collections.bio") == nil, "a notebook in none has no row")
+            #expect(memberships("bio").isEmpty, "a notebook in none is in no collection")
             vm.setNotebook("bio", inCollection: "nbc-unknown", isMember: true)
-            #expect(defaults.object(forKey: "notebook.collections.bio") == nil, "a collection gone since takes nothing")
+            #expect(memberships("bio").isEmpty, "a collection gone since takes nothing")
 
             vm.renameNotebookCollection(aging.id, to: "Longevity")
             #expect(vm.notebookCollections.collection(aging.id)?.name == "Longevity")
@@ -250,8 +246,8 @@ struct NotebookCollectionsViewModelTests {
             vm.deleteNotebookCollection(aging.id)
             #expect(vm.notebookCollections.isEmpty)
             #expect(defaults.object(forKey: NotebookCollections.nameKey(collectionID: aging.id)) == nil)
-            #expect(defaults.object(forKey: "notebook.collections.neuro") == nil)
-            #expect(defaults.object(forKey: "notebook.collections.shelved") == nil)
+            #expect(memberships("neuro").isEmpty)
+            #expect(memberships("shelved").isEmpty)
             #expect(vm.learningGoals.count == 3, "deleting a collection leaves its notebooks alone")
         }
     }
@@ -265,12 +261,12 @@ struct NotebookCollectionsViewModelTests {
             let second = try #require(vm.createNotebookCollection(named: "Second", adding: ["a", "b"]))
 
             vm.mergeNotebookCollections("a", into: "b")
-            #expect(defaults.stringArray(forKey: "notebook.collections.b") == [first.id, second.id].sorted())
-            #expect(defaults.object(forKey: "notebook.collections.a") == nil)
+            #expect(memberships("b") == [first.id, second.id])
+            #expect(memberships("a").isEmpty)
             #expect(vm.notebookCollections.collections(ofNotebook: "b").map(\.id) == [first.id, second.id])
 
             vm.forgetNotebookCollections(of: "b")
-            #expect(defaults.object(forKey: "notebook.collections.b") == nil)
+            #expect(memberships("b").isEmpty)
             #expect(vm.notebookCollections.collections(ofNotebook: "b").isEmpty)
             #expect(vm.orderedNotebookCollections.count == 2, "the collections stay, empty")
         }
@@ -282,7 +278,7 @@ struct NotebookCollectionsViewModelTests {
             let vm = makeViewModel()
             vm.learningGoals = [notebook("bio", in: vm)]
             defaults.set("From the phone", forKey: "notebookCollection.nbc-phone")
-            defaults.set(["nbc-phone"], forKey: "notebook.collections.bio")
+            NotebookStateStore.setCollections(["nbc-phone"], notebookID: "bio")
             #expect(vm.notebookCollections.isEmpty)
             vm.notebookCollections = NotebookCollectionRows.read()
             #expect(vm.notebookCollections.contains("bio", in: "nbc-phone"))
@@ -334,7 +330,7 @@ struct NotebookCollectionsMCPTests {
             #expect(id.hasPrefix("nbc-"))
             #expect(collection["name"] as? String == "🔬 Science")
             #expect(collection["notebook_ids"] as? [String] == [bio.id])
-            #expect(defaults.stringArray(forKey: NotebookCollections.membershipKey(notebookID: bio.id)) == [id])
+            #expect(memberships(bio.id) == [id])
 
             let added = try parseJSON(try await store.updateNotebookCollection(
                 action: "add_notebooks", collectionID: id, name: nil, notebookIDs: [aging.id]
@@ -343,7 +339,7 @@ struct NotebookCollectionsMCPTests {
             #expect(addedRow["notebook_ids"] as? [String] == [aging.id, bio.id], "listed by title")
 
             _ = try await store.updateNotebookCollection(action: "remove_notebooks", collectionID: id, name: nil, notebookIDs: [bio.id])
-            #expect(defaults.object(forKey: NotebookCollections.membershipKey(notebookID: bio.id)) == nil)
+            #expect(memberships(bio.id).isEmpty)
 
             _ = try await store.updateNotebookCollection(action: "rename", collectionID: id, name: "Labs", notebookIDs: nil)
             let listed = try parseJSON(try store.listNotebookCollections())
@@ -357,7 +353,7 @@ struct NotebookCollectionsMCPTests {
             ))
             #expect(deleted["deleted"] as? Bool == true)
             #expect(defaults.object(forKey: NotebookCollections.nameKey(collectionID: id)) == nil)
-            #expect(defaults.object(forKey: NotebookCollections.membershipKey(notebookID: aging.id)) == nil)
+            #expect(memberships(aging.id).isEmpty)
             let empty = try parseJSON(try store.listNotebookCollections())
             #expect((empty["collections"] as? [[String: Any]])?.isEmpty == true)
             #expect(try store.knowledgeStore().loadLearningGoal(aging.id) != nil, "the Notebook stays")
@@ -395,19 +391,19 @@ struct NotebookCollectionsMCPTests {
     }
 }
 
-// MARK: - Generation 2 (schema v2 §3.5.20, WP8)
+// MARK: - NotebookState (schema v2 §3.5.20, WP8)
 
 extension NotebookCollectionsViewModelTests {
-    @Test("Under generation 2 a toggle writes the member's NotebookState.collections, the name stays a Setting, and a deleted collection is read past")
-    func generation2() throws {
-        try withCollectionDefaults(generation: .two) { defaults in
+    @Test("A toggle writes the member's NotebookState.collections, the name stays a Setting, and a deleted collection is read past")
+    func notebookState() throws {
+        try withCollectionDefaults { defaults in
             let box = NotebookStateStore.Box()
             try NotebookStateStore.$override.withValue(box) {
                 let vm = makeViewModel()
                 vm.learningGoals = [notebook("bio", in: vm), notebook("neuro", in: vm)]
                 let aging = try #require(vm.createNotebookCollection(named: "Aging", adding: ["bio"]))
                 #expect(box.snapshot.collections["bio"] == [aging.id])
-                #expect(defaults.object(forKey: "notebook.collections.bio") == nil, "no preference row under generation 2")
+                #expect(memberships("bio").isEmpty, "no preference row")
                 #expect(defaults.string(forKey: NotebookCollections.nameKey(collectionID: aging.id)) == "Aging")
                 vm.setNotebook("neuro", inCollection: aging.id, isMember: true)
                 #expect(box.snapshot.collections["neuro"] == [aging.id])
@@ -422,12 +418,12 @@ extension NotebookCollectionsViewModelTests {
 }
 
 extension NotebookCollectionsMCPTests {
-    @Test("Under generation 2 update_notebook_collection files notebooks into the member's NotebookState")
-    func generation2() async throws {
+    @Test("update_notebook_collection files notebooks into the member's NotebookState")
+    func notebookState() async throws {
         let (store, path) = try makeStore()
         defer { try? FileManager.default.removeItem(atPath: path) }
         let bio = try notebook("Bioelectricity", store: store)
-        try await withCollectionDefaults(generation: .two) { defaults in
+        try await withCollectionDefaults { defaults in
             let box = NotebookStateStore.Box()
             try await NotebookStateStore.$override.withValue(box) {
                 let created = try parseJSON(try await store.updateNotebookCollection(
@@ -435,7 +431,7 @@ extension NotebookCollectionsMCPTests {
                 ))
                 let id = try #require((created["collection"] as? [String: Any])?["id"] as? String)
                 #expect(box.snapshot.collections[bio.id] == [id])
-                #expect(defaults.object(forKey: NotebookCollections.membershipKey(notebookID: bio.id)) == nil)
+                #expect(memberships(bio.id).isEmpty)
                 #expect(try store.listNotebookCollections().contains(bio.id))
             }
         }

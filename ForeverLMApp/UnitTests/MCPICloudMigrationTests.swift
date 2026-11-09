@@ -33,11 +33,4 @@ struct MCPICloudMigrationTests {
         #expect(MCPDataStore.settingsPaneIDs.contains { $0.id == "data_privacy" })
         #expect(!MCPDataStore.settingsActionIDs.contains { ($0["action"] ?? "").contains("remove_old") }, "no chat action deletes the old container")
     }
-
-    @Test("A move action under generation 1 is refused: there is no new iCloud store")
-    func refusedUnderGeneration1() async throws {
-        guard ForeverLMRuntimeIdentity.syncGeneration == .one else { return }
-        let store = MCPDataStore()
-        await #expect(throws: MCPError.self) { _ = try await store.runSettingsAction(action: "confirm_this_mac_holds_my_library") }
-    }
 }

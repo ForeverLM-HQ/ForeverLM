@@ -48,14 +48,4 @@ struct NotebookStateSidebarTests {
         #expect(Set(pending.keys) == ["NotebookState:ns:nb-a"])
         #expect(F.savedFields(pending["NotebookState:ns:nb-a"])?["pinned"] == .bool(false))
     }
-
-    @Test("Generation 1 writes no NotebookState for the rail")
-    func generationOneWritesNothing() throws {
-        let (root, store) = try F.makeStore("sidebar-g1", generation: .one)
-        defer { try? FileManager.default.removeItem(at: root) }
-        try store.setNotebookSidebarOrder(["nb-a"])
-        try store.setNotebookPinned(["nb-a"])
-        try store.setNotebookExpanded(["nb-a"])
-        #expect(try F.count(store, "SELECT COUNT(*) FROM notebook_states") == 0)
-    }
 }

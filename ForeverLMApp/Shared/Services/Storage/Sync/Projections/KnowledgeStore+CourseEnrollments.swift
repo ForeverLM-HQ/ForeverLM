@@ -17,7 +17,6 @@ extension KnowledgeStore {
     /// is none (an explicit act, §3.5.12); a blank focus clears it and keeps the Enrollment. Opening a
     /// course writes nothing. Generation 2 only.
     func setCourseFocus(courseID: String, focus: String) throws {
-        guard syncGeneration == .two else { return }
         let text = focus.trimmingCharacters(in: .whitespacesAndNewlines)
         try inDerivationTransaction { store in
             let held = try CourseEnrollmentRow.load(courseID, connection: store)
@@ -50,9 +49,6 @@ enum CourseEnrollmentStore {
         var focus: [String: String]
         init(_ focus: [String: String] = [:]) { self.focus = focus }
     }
-
-    /// Whether the surfaces read this store: generation 2, or a test that bound one.
-    static var isActive: Bool { override != nil || ForeverLMRuntimeIdentity.syncGeneration == .two }
 
     static func focus(courseID: String) -> String {
         if let override { return override.focus[courseID] ?? "" }

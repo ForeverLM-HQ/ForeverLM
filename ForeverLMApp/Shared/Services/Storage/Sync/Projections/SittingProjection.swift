@@ -168,7 +168,7 @@ struct SittingProjection: RecordProjection {
             )
         }
         // A bout names its sources by wire id on the record (§4.3), whichever copy it was run on.
-        if let store = connection as? KnowledgeStore, store.syncGeneration == .two, var found = bout {
+        if let store = connection as? KnowledgeStore, var found = bout {
             found.sourceIDs = try found.sourceIDs.map { try store.personalStateSourceKey($0) }
             bout = found
         }

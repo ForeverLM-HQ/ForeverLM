@@ -407,7 +407,7 @@ struct BookFileStorageTests {
 @Suite("Schema 169 migration", .serialized)
 struct BookFileMigrationTests {
     private func makeReleasedLibrary(at root: URL, extraBooks: Int = 0) throws {
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         try store.execForTesting("""
             INSERT INTO books (id, title) VALUES ('split', 'Split'), ('epub', 'Epub');
             INSERT INTO sources (id, date_added, state, source_type, status) VALUES
@@ -449,7 +449,7 @@ struct BookFileMigrationTests {
 
     private func reopen(_ root: URL) throws -> KnowledgeStore {
         Schema154Fixture.newLaunch(root)
-        return try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        return try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
     }
 
     @Test("Adds the page columns, queues every split book of the learner's own by id, reads no file, publishes nothing")
@@ -635,13 +635,13 @@ struct BookImportFinishQueueTests {
     func migrationFrom170() throws {
         let root = try Schema154Fixture.temporaryRoot("book-import-finish-170")
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         try store.clearAllPendingSyncChanges()
         // A store as schema 170 left it: everything but the queue.
         try store.execForTesting("DROP TABLE book_import_finish_queue; PRAGMA user_version = 170;")
 
         Schema154Fixture.newLaunch(root)
-        let migrated = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let migrated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
 
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
         #expect(KnowledgeStore.schemaVersion == 174)
@@ -654,7 +654,7 @@ struct BookImportFinishQueueTests {
     func queueKeepsABookUntilFinished() throws {
         let root = try Schema154Fixture.temporaryRoot("book-import-finish-queue")
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         try store.clearAllPendingSyncChanges()
 
         try store.enqueueBookImportFinish(bookID: "older", bookFilePath: "/tmp/Books/Older/Older.pdf", wholeBookSourceID: nil, kind: nil)
@@ -954,13 +954,13 @@ struct BookFileIdentityTests {
     func migrationFrom172() throws {
         let root = try Schema154Fixture.temporaryRoot("book-file-digests-172")
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         try store.clearAllPendingSyncChanges()
         // A store as schema 172 left it: everything but the record.
         try store.execForTesting("DROP TABLE book_file_digests; PRAGMA user_version = 172;")
 
         Schema154Fixture.newLaunch(root)
-        let migrated = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let migrated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
 
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
         #expect(KnowledgeStore.schemaVersion == 174)

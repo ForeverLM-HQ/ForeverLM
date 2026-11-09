@@ -2,12 +2,11 @@ import Foundation
 import Testing
 @testable import ForeverLM
 
-/// Runs `body` on generation 1's preference rows in a defaults suite of its own: the test host runs
-/// generation 2, where a notebook's ticks live in the member's NotebookState.
-private func withGenerationOneRows<T>(_ defaults: UserDefaults, _ body: () async throws -> T) async rethrows -> T {
-    try await ForeverLMRuntimeIdentity.$pinnedSyncGeneration.withValue(.one) {
-        try await NotebookChatSelection.$overrideDefaults.withValue(NotebookChatSelection.DefaultsOverride(defaults: defaults), operation: body)
-    }
+/// Runs `body` on a notebook state of its own (`NotebookStateStore.override`) and hands it the box
+/// to seed and assert on.
+private func withNotebookState<T>(_ body: (NotebookStateStore.Box) async throws -> T) async throws -> T {
+    let box = NotebookStateStore.Box()
+    return try await NotebookStateStore.$override.withValue(box) { try await body(box) }
 }
 
 // MARK: - MCP: notebook_id on the import tools
@@ -254,28 +253,24 @@ extension MCPDataStoreTests {
         let backID = try #require(sourceID(at: "https://example.org/back", in: knowledge))
         _ = try knowledge.addCompanionSeedSources(goalID: notebook.id, sourceIDs: [keptID])
 
-        let suiteName = "NotebookImportTicks.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let key = NotebookChatSelection.preferenceKey(notebookID: notebook.id)
-        try await withGenerationOneRows(defaults) { () async throws in
+        try await withNotebookState { box in
             // `kept` unticked on purpose; `back` unticked before it left the
             // Notebook on another Mac, a removal that left its box behind.
-            defaults.set([backID, keptID].sorted(), forKey: key)
+            box.snapshot.excluded[notebook.id] = Set([backID, keptID])
             let outcome = await registry.callToolDetailed(name: "add_notebook_sources", arguments: [
                 "notebook_id": notebook.id, "source_ids": [backID],
             ])
             #expect(!outcome.isError, "\(outcome.text)")
             #expect(outcome.text.hasPrefix("Added 1 source to Notebook ‘Ticks’"))
             #expect(Set(try approved(notebook.id, in: knowledge)) == [keptID, backID])
-            #expect(defaults.stringArray(forKey: key) == [keptID], "the source that came back is ticked; the deliberate untick stands")
+            #expect(box.snapshot.excluded[notebook.id] == Set([keptID]), "the source that came back is ticked; the deliberate untick stands")
 
             // Once there, adding it again changes nothing.
             let again = await registry.callToolDetailed(name: "add_notebook_sources", arguments: [
                 "notebook_id": notebook.id, "source_ids": [backID],
             ])
             #expect(again.text.contains("Skipped 1 already in the Notebook."))
-            #expect(defaults.stringArray(forKey: key) == [keptID])
+            #expect(box.snapshot.excluded[notebook.id] == Set([keptID]))
         }
     }
 
@@ -292,13 +287,9 @@ extension MCPDataStoreTests {
         let chatID = "chat-ticks"
         try knowledge.createReviewSession(id: chatID, topic: "Chat", sourceIDs: [], startedAt: Date(), goalID: notebook.id)
 
-        let suiteName = "NotebookImportTicks.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let key = NotebookChatSelection.preferenceKey(notebookID: notebook.id)
-        try await withGenerationOneRows(defaults) { () async throws in
+        try await withNotebookState { box in
             // Both boxes were left unticked when the sources last left the Notebook.
-            defaults.set([plannedID, reviewedID].sorted(), forKey: key)
+            box.snapshot.excluded[notebook.id] = Set([plannedID, reviewedID])
             let review = await registry.callToolDetailed(
                 name: "start_review_session",
                 arguments: ["topic": "Reviewed", "source_ids": [reviewedID]],
@@ -308,14 +299,14 @@ extension MCPDataStoreTests {
             #expect(try approved(notebook.id, in: knowledge) == [reviewedID])
             // The row keeps only boxes of sources the Notebook holds, so the
             // planned source's stale one goes too (NotebookChatSelection.updated).
-            #expect(!(defaults.stringArray(forKey: key) ?? []).contains(reviewedID), "the reviewed source came back ticked")
+            #expect(!(box.snapshot.excluded[notebook.id] ?? []).contains(reviewedID), "the reviewed source came back ticked")
 
             let day = await registry.callToolDetailed(name: "assign_sources_to_day", arguments: [
                 "goal_id": notebook.id, "source_ids": [plannedID], "date": "today",
             ])
             #expect(!day.isError, "\(day.text)")
             #expect(Set(try approved(notebook.id, in: knowledge)) == [reviewedID, plannedID])
-            #expect(defaults.stringArray(forKey: key) == nil, "the planned source came back ticked too")
+            #expect(box.snapshot.excluded[notebook.id] == nil, "the planned source came back ticked too")
         }
     }
 
@@ -613,7 +604,7 @@ struct NotebookTeamImportTests {
         let dir = FileManager.default.temporaryDirectory.appendingPathComponent("mcp_nb_team_\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         // Generation 1's teams (zones of the old container); a space needs a running sync coordinator.
-        let store = MCPDataStore(dbPath: dir.appendingPathComponent("knowledge.db").path, syncGeneration: .one)
+        let store = MCPDataStore(dbPath: dir.appendingPathComponent("knowledge.db").path)
         return (store, try store.knowledgeStore(), dir.path)
     }
 
@@ -938,36 +929,30 @@ struct NotebookAppAddTests {
         let b = try notebook("B", sources: [], in: knowledge)
         try knowledge.setRelatedNotebooks(notebookID: a.id, relatedNotebookIDs: [b.id])
 
-        let suiteName = "NotebookAppAddTests.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        let keyA = NotebookChatSelection.preferenceKey(notebookID: a.id)
-        let keyB = NotebookChatSelection.preferenceKey(notebookID: b.id)
-        let contextKeyA = NotebookChatContext.preferenceKey(notebookID: a.id)
-        await withGenerationOneRows(defaults) {
+        await withNotebookState { box in
             let vm = StudioViewModel(storageService: store.notebookFileStorage)
             await vm.loadLearningGoals()
             // y is unticked in A on purpose. w, x and z were unticked before
             // they left these pools on another Mac: removals that left boxes
             // behind.
-            defaults.set(["src-w", "src-x", "src-y"], forKey: keyA)
-            defaults.set(["src-z"], forKey: keyB)
+            box.snapshot.excluded[a.id] = Set(["src-w", "src-x", "src-y"])
+            box.snapshot.excluded[b.id] = Set(["src-z"])
             vm.notebookChatExclusions = [a.id: ["src-w", "src-x", "src-y"], b.id: ["src-z"]]
 
             // B is only linked to A: what arrives in B is not A's chats' to tick.
             await vm.addSourcesToNotebookContext(["src-x", "src-z"], notebookID: b.id, announce: false)
             #expect(vm.notebookChatExclusions[b.id] == nil, "both arrived in B ticked")
-            #expect(defaults.object(forKey: keyB) == nil)
+            #expect(box.snapshot.excluded[b.id] == nil)
             #expect(vm.notebookChatExclusions[a.id] == ["src-w", "src-x", "src-y"], "B is not in A's context")
 
             // Put into A's context, B's arrivals reach A's chats ticked: w's
             // old untick does not outlive its return. y joins B too, but A
             // showed it already: still unticked there.
-            defaults.set([b.id], forKey: contextKeyA)
+            box.snapshot.contextNotebooks[a.id] = Set([b.id])
             vm.notebookChatContextNotebooks = [a.id: [b.id]]
             await vm.addSourcesToNotebookContext(["src-w", "src-y"], notebookID: b.id, announce: false)
             #expect(vm.notebookChatExclusions[a.id] == ["src-x", "src-y"], "w arrived in A's chats through B; y keeps its box")
-            #expect(defaults.stringArray(forKey: keyA) == ["src-x", "src-y"])
+            #expect(box.snapshot.excluded[a.id] == Set(["src-x", "src-y"]))
         }
     }
 

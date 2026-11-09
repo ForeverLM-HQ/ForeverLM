@@ -3303,7 +3303,7 @@ extension KnowledgeStore {
 
         // Recreate the view to pick up schema changes (e.g. removed repos table)
         try exec("DROP VIEW IF EXISTS source_projection")
-        try exec(Self.sourceProjectionViewSQL(sourceColumnNames: try tableColumnNames("sources"), readingStates: syncGeneration == .two))
+        try exec(Self.sourceProjectionViewSQL(sourceColumnNames: try tableColumnNames("sources")))
 
         // Indexes for common queries
         try exec("CREATE INDEX IF NOT EXISTS idx_sources_state ON sources(state)")
@@ -6550,7 +6550,7 @@ extension KnowledgeStore {
     /// projection until the new one commits. The common path — stored definition
     /// already matches — stays read-only.
     func reconcileSourceProjectionView() throws {
-        let expected = Self.sourceProjectionViewSQL(sourceColumnNames: try tableColumnNames("sources"), readingStates: syncGeneration == .two)
+        let expected = Self.sourceProjectionViewSQL(sourceColumnNames: try tableColumnNames("sources"))
 
         func storedDefinition() throws -> String? {
             var stored: String?
@@ -6609,12 +6609,13 @@ extension KnowledgeStore {
     /// first-row-wins callers already saw, because the `(source_id, group_id)`
     /// primary key made SQLite emit the lowest `group_id` first anyway.
     ///
-    /// With `readingStates` (a generation-2 store, schema v2 §3.5.18, §4.3) the
-    /// reading columns come from the member's `reading_states` row on the
-    /// source's wire id, never from `sources`, and a hidden or visible mark
+    /// With `readingStates` (schema v2 §3.5.18, §4.3), which every store's view
+    /// has, the reading columns come from the member's `reading_states` row on
+    /// the source's wire id, never from `sources`, and a hidden or visible mark
     /// counts whether it names the row's own id or its wire id, so a team copy
-    /// and the personal copy read one state. Generation 1's view is unchanged.
-    static func sourceProjectionViewSQL(sourceColumnNames: Set<String>, readingStates: Bool = false) -> String {
+    /// and the personal copy read one state. Only a test building a library of
+    /// an old schema passes `false`.
+    static func sourceProjectionViewSQL(sourceColumnNames: Set<String>, readingStates: Bool = true) -> String {
         let sourcePublicURLProjection = sourceColumnNames.contains("public_url")
             ? "s.public_url"
             : "NULL AS public_url"

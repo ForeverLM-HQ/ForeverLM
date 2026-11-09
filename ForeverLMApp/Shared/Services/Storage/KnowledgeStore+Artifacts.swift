@@ -711,10 +711,8 @@ extension KnowledgeStore {
         }
         // Its other satellites' pointers (schema 159) have no key to cascade on; generation 1 writes
         // none, and a store held below 154 has no such table.
-        if syncGeneration == .two {
-            try execBind("DELETE FROM artifact_files WHERE artifact_id = ?") { statement in
-                bind(statement, 1, artifactID)
-            }
+        try execBind("DELETE FROM artifact_files WHERE artifact_id = ?") { statement in
+            bind(statement, 1, artifactID)
         }
         try markRecordDeleted(entity: .artifact, logicalKey: artifactID)
         // An audio overview's script and audio live on a carrier source whose

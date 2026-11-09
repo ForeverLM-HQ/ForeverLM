@@ -7466,8 +7466,6 @@ final class MCPDataStore {
     /// concurrent per-request Tasks.
     private let storeLock = NSLock()
     private var cachedStore: KnowledgeStore?
-    /// The generation the overridden store runs (tests); the build's otherwise.
-    private let syncGeneration: SyncGeneration
     let notebookFileStorage: StorageService
     private let operationGate = MCPKnowledgeStoreOperationGate()
     /// Built on first use and shared by every picture tool call, so a figure
@@ -7507,20 +7505,15 @@ final class MCPDataStore {
         sourceEmbeddingProvider: SourceEmbeddingProvider? = nil,
         explainerBackend: ExplainerModelBackend? = nil,
         libraryFitJudge: LibraryFitJudge? = nil,
-        cardStateDefaults: UserDefaults = .standard,
-        syncGeneration: SyncGeneration = ForeverLMRuntimeIdentity.syncGeneration
+        cardStateDefaults: UserDefaults = .standard
     ) {
-        self.syncGeneration = syncGeneration
         self.dbPathOverride = dbPath
         self.sourceEmbeddingProvider = sourceEmbeddingProvider
         self.explainerBackend = explainerBackend
         self.libraryFitJudge = libraryFitJudge
         self.cardStateDefaults = cardStateDefaults
         if let dbPath {
-            self.notebookFileStorage = StorageService(
-                storeRoot: URL(fileURLWithPath: dbPath).deletingLastPathComponent(),
-                syncGeneration: syncGeneration
-            )
+            self.notebookFileStorage = StorageService(storeRoot: URL(fileURLWithPath: dbPath).deletingLastPathComponent())
         } else {
             self.notebookFileStorage = StorageService()
         }
@@ -7576,10 +7569,7 @@ final class MCPDataStore {
         if let cachedStore {
             return cachedStore
         }
-        let store = try KnowledgeStore(
-            storeDirectory: URL(fileURLWithPath: knowledgeDBPath).deletingLastPathComponent(),
-            syncGeneration: syncGeneration
-        )
+        let store = try KnowledgeStore(storeDirectory: URL(fileURLWithPath: knowledgeDBPath).deletingLastPathComponent())
         cachedStore = store
         return store
     }

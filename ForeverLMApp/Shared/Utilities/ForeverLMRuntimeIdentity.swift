@@ -208,57 +208,14 @@ enum ForeverLMRuntimeIdentity {
     }
 }
 
-/// Which CloudKit sync this build runs (D40, docs/cloudkit-schema-design.md §13.2). Every build is
-/// generation 2, the schema-v2 sync on `libraryContainerIdentifier`: generation 1's container stayed
-/// with the old Apple team, and no build is entitled to it. What is left of generation 1 is the store's
-/// own behaviour behind `.one`, which a test pins (`pinnedSyncGeneration`), until WP30 deletes it.
-enum SyncGeneration: Int, Sendable, Equatable {
-    case one = 1
-    case two = 2
-
-    /// A build setting's value: "1" or "2", nothing else.
-    init?(setting: String) {
-        guard let number = Int(setting.trimmingCharacters(in: .whitespacesAndNewlines)) else { return nil }
-        self.init(rawValue: number)
-    }
-}
-
 extension ForeverLMRuntimeIdentity {
-    static let syncGenerationInfoKey = "ForeverLMSyncGeneration"
     static let libraryContainerInfoKey = "ForeverLMLibraryContainer"
-    /// The Dev-only override, honoured on an isolated Development instance alone.
-    static let syncGenerationOverrideKey = "FOREVERLM_SYNC_GENERATION"
 
-    /// This build's generation: the `FOREVERLM_SYNC_GENERATION` build setting of its configuration,
-    /// which `project.yml` sets to 2 on every configuration of both apps and Info.plist carries as
-    /// `ForeverLMSyncGeneration`. A bundle without a readable value is generation 2 as well: no build
-    /// can sync generation 1, whose container stayed with the old Apple team.
-    static var syncGeneration: SyncGeneration { pinnedSyncGeneration ?? configuredSyncGeneration }
-
-    /// A test's own generation, bound for the task that runs it: the Mac test host is a Debug build and
-    /// so runs generation 2, and a test of what generation 1 still does (the preference rows a
-    /// notebook's ticks and collections live in) binds `.one` around its body. Nothing in the app binds
-    /// it, so a launch always reads its configuration.
-    @TaskLocal static var pinnedSyncGeneration: SyncGeneration?
-
-    private static let configuredSyncGeneration: SyncGeneration = resolveSyncGeneration(
-        configured: infoString(syncGenerationInfoKey),
-        override: ProcessInfo.processInfo.environment[syncGenerationOverrideKey],
-        overrideAllowed: honoursSyncGenerationOverride
-    )
-
-    static func resolveSyncGeneration(configured: String?, override: String?, overrideAllowed: Bool) -> SyncGeneration {
-        if overrideAllowed, let override, let generation = SyncGeneration(setting: override) {
-            return generation
-        }
-        return configured.flatMap(SyncGeneration.init(setting:)) ?? .two
-    }
-
-    /// Whether the Dev-only override may choose the generation: only a Development build (Debug and
-    /// FirstRun sign for CloudKit's Development environment) whose data folder is its own, never one
-    /// of the three profile folders, so one agent's test can never activate the store every Dev
-    /// build opens. A launch with `FOREVERLM_DATA_FOLDER_NAME` set (`isolatedFolderName`) has such a folder.
-    static var honoursSyncGenerationOverride: Bool {
+    /// Whether this is a Development build (Debug and FirstRun sign for CloudKit's Development
+    /// environment) whose data folder is its own, never one of the three profile folders, so one
+    /// agent's test can never touch the store every Dev build opens. A launch with
+    /// `FOREVERLM_DATA_FOLDER_NAME` set (`isolatedFolderName`) has such a folder.
+    static var isIsolatedDevelopmentInstance: Bool {
         #if os(macOS) && FOREVERLM_DEVELOPMENT
         let ownFolder = applicationSupportRootURL.standardizedFileURL.resolvingSymlinksInPath()
         let profileFolders = [false, true].flatMap { isDevelopment in

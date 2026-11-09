@@ -196,7 +196,6 @@ extension KnowledgeStore {
     /// only. Returns the sources it handled.
     @discardableResult
     func runSourceFilesBackfill(limit: Int = 50) throws -> Int {
-        guard syncGeneration == .two else { return 0 }
         var queued: [(id: Int64, source: String)] = []
         // A source that failed five times waits for a later build rather than holding the queue up.
         try query("SELECT id, target FROM ck_backfill_queue WHERE kind = ? AND attempts < 5 ORDER BY attempts, id LIMIT ?", [
@@ -716,7 +715,6 @@ extension KnowledgeStore {
     /// Under the apply guard, so nothing is sent back. Generation 2 only. Returns the sources it handled.
     @discardableResult
     func adoptSyncedSources(limit: Int = 50) throws -> Int {
-        guard syncGeneration == .two else { return 0 }
         return try replica.apply { _ in
             var handled = 0
             try execute("""
@@ -847,7 +845,6 @@ extension KnowledgeStore {
     /// source has its pointers. Generation 2 only. Returns the sources it queued.
     @discardableResult
     func queueUnpublishedSourceFiles(limit: Int = 200) throws -> Int {
-        guard syncGeneration == .two else { return 0 }
         var ids: [String] = []
         try query("""
             SELECT s.id FROM sources s
@@ -889,7 +886,6 @@ extension KnowledgeStore {
     /// left as it was, so a change made while its publish was in flight was dropped with the row, and its
     /// pointer named the text from before the change on every other device.
     func queueSourceFilesRefresh(sourceID: String) throws {
-        guard syncGeneration == .two else { return }
         try execute("""
             INSERT INTO ck_backfill_queue (kind, target, enqueued_at) VALUES (?, ?, ?)
             ON CONFLICT(kind, target) DO UPDATE SET enqueued_at = excluded.enqueued_at, attempts = 0, last_error = NULL
@@ -901,7 +897,7 @@ extension KnowledgeStore {
     /// is left to the sweep (`queueUnpublishedSourceFiles`), which publishes every body at once, and a text
     /// still owed its clean-up waits for the clean-up's write, which queues it.
     func queuePublishedSourceFilesRefresh(sourceID: String) throws {
-        guard syncGeneration == .two, try scalarInteger("""
+        guard try scalarInteger("""
             SELECT EXISTS (SELECT 1 FROM source_files WHERE source_id = ?)
                AND NOT EXISTS (SELECT 1 FROM canonical_content_cleanup_queue WHERE source_id = ?)
         """, [.text(sourceID), .text(sourceID)]) == 1 else { return }

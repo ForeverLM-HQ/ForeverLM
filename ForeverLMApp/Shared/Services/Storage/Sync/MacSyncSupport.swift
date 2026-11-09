@@ -6,7 +6,7 @@ import Security
 // MARK: - What a Mac's sync session needs to decide and say (docs/cloudkit-schema-design.md §13.3 to §13.6)
 
 /// Whether a Mac may start syncing, and what it holds, from its activation's journal (§13.3 step 3, §13.4
-/// step 1, §13.5). Pure, so the cases are pinned by `SyncGenerationSwitchTests` without a store.
+/// step 1, §13.5). Pure: it reads no store.
 enum CutoverReadiness: Equatable, Sendable {
     /// What the Mac holds for the seed: a library it may seed or reconcile, none, or a library of a store
     /// that never synced, which seeds at once only for a brand-new account.

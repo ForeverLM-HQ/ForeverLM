@@ -243,9 +243,9 @@ struct ICloudMigrationStateTests {
 
     private static func activatedStore(_ name: String) async throws -> (root: URL, store: KnowledgeStore) {
         let root = try Schema154Fixture.temporaryRoot(name)
-        try Schema154Fixture.makeLibrary(at: root, version: 153, generation: .one)
+        try Schema154Fixture.makeLibrary(at: root, version: 153)
         Schema154Fixture.newLaunch(root)
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .two, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         try store.executeScript(OutboxTestProjections.tablesSQL)
         await KnowledgeRollbackCopy.queuedChecksForTesting()
         var activation = GenerationActivation(store: store)
@@ -293,8 +293,8 @@ struct ICloudMigrationStateTests {
     func snapshotUnderGeneration1() throws {
         let root = try Schema154Fixture.temporaryRoot("migration-snapshot-g1")
         defer { try? FileManager.default.removeItem(at: root) }
-        try Schema154Fixture.makeLibrary(at: root, version: nil, generation: .one)
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        try Schema154Fixture.makeLibrary(at: root, version: nil)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         #expect(try store.migrationSnapshot(deviceID: nil) == ICloudMigrationSnapshot())
     }
 }

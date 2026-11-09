@@ -131,7 +131,7 @@ extension StorageService {
         team.updatedAt = Date()
         try store.saveTeam(team)
         // Generation 2 carries the code in the family space's root (§3.5.1).
-        if store.syncGeneration == .two { try await setFamilyPlanCodeInSpace(teamID: teamID, code: team.familyPlanCode) }
+        try await setFamilyPlanCodeInSpace(teamID: teamID, code: team.familyPlanCode)
         scheduleImmediateCloudKitSyncForTeams()
         NotificationCenter.default.post(name: .cloudKitSyncStoreDidChange, object: nil)
         return team

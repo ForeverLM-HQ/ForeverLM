@@ -32,7 +32,7 @@ final class MigrationImportRig: @unchecked Sendable {
         senderRoot = FileManager.default.temporaryDirectory.appendingPathComponent("ImportSender-\(UUID().uuidString)", isDirectory: true)
         sender = try KnowledgeStore(
             storeDirectory: senderRoot.appendingPathComponent(".appdata", isDirectory: true),
-            contentDirectory: senderRoot.appendingPathComponent("Content", isDirectory: true), syncGeneration: .one, freeSpace: Schema154Fixture.roomy
+            contentDirectory: senderRoot.appendingPathComponent("Content", isDirectory: true), freeSpace: Schema154Fixture.roomy
         )
         (root, store) = try N.makeStore("import")
         try N.prepareReplica(store)

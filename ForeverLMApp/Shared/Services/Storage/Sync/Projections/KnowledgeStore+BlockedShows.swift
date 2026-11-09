@@ -17,7 +17,6 @@ extension KnowledgeStore {
     /// `SourceDiscovery.podcastShowKey`): a show newly blocked is a row, a show unblocked loses its row,
     /// and a show still blocked keeps its row and its time. Generation 2 only.
     func setBlockedPodcastShows(_ names: [String], at date: Date = Date()) throws {
-        guard syncGeneration == .two else { return }
         try inDerivationTransaction { store in
             let held = try store.blockedPodcastShowNames()
             let wanted = Dictionary(names.map { (SourceDiscovery.podcastShowKey($0), $0) }, uniquingKeysWith: { first, _ in first })
@@ -47,13 +46,11 @@ enum BlockedShowsSync {
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "BlockedShowsSync")
 
     static func mirror(_ names: Set<String>) {
-        guard ForeverLMRuntimeIdentity.syncGeneration == .two else { return }
         let list = names.sorted()
         enqueue { try $0.setBlockedPodcastShows(list) }
     }
 
     static func reload() {
-        guard ForeverLMRuntimeIdentity.syncGeneration == .two else { return }
         enqueue { store in
             let names = try store.blockedPodcastShowNames()
             let defaults = UserDefaults.standard

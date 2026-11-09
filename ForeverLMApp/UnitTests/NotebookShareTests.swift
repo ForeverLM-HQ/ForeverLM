@@ -16,7 +16,7 @@ struct NotebookShareTests {
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         // Generation 1's teams: zones of the old container, made locally here. Under generation 2 a
         // team is a space and needs a running sync coordinator (SpaceTestFixture covers those).
-        return (StorageService(storeRoot: root, syncGeneration: .one), root)
+        return (StorageService(storeRoot: root), root)
     }
 
     private static func readySource(id: String, url: String, title: String, file: URL? = nil) -> StudioArticle {

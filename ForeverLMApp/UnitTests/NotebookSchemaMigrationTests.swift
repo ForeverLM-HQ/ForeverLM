@@ -76,7 +76,7 @@ struct NotebookSchemaMigrationTests {
         #expect(Self.count(root, "SELECT COUNT(*) FROM sqlite_master WHERE name = 'idx_project_files_project'") == 1)
 
         Schema154Fixture.newLaunch(root)
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
 
         #expect(Self.count(root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
         Self.expectNewNames(root)
@@ -121,7 +121,7 @@ struct NotebookSchemaMigrationTests {
         try Self.seedOldNames(at: root, notebookID: library.notebookID, withOutbox: false)
 
         Schema154Fixture.newLaunch(root)
-        let waiting = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: { _ in 1_500_000_000 })
+        let waiting = try KnowledgeStore(storeDirectory: root, freeSpace: { _ in 1_500_000_000 })
         #expect(waiting.upgradeWaitingForSpace != nil)
         #expect(Self.count(root, "PRAGMA user_version") == 153)
         Self.expectNewNames(root)
@@ -130,11 +130,11 @@ struct NotebookSchemaMigrationTests {
 
         // A second launch, still short of room, has nothing left to rename.
         Schema154Fixture.newLaunch(root)
-        _ = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: { _ in 1_500_000_000 })
+        _ = try KnowledgeStore(storeDirectory: root, freeSpace: { _ in 1_500_000_000 })
         #expect(Self.count(root, "PRAGMA user_version") == 153)
 
         Schema154Fixture.newLaunch(root)
-        let later = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let later = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         #expect(Self.count(root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
         Self.expectNewNames(root)
         #expect(Self.count(root, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx\\_%project%' ESCAPE '\\' AND name NOT LIKE '%unprojected%'") == 0)
@@ -152,7 +152,7 @@ struct NotebookSchemaMigrationTests {
             VALUES ('task-1', '\(library.notebookID)', 'Read the methods', 1.0, 1.0);
         """)
         Schema154Fixture.newLaunch(root)
-        _ = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        _ = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         #expect(Self.count(root, "SELECT COUNT(*) FROM notebook_tasks") == 1)
         #expect(Self.count(root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
         Self.expectNewNames(root)
@@ -169,7 +169,7 @@ struct NotebookSchemaMigrationTests {
         )
         Schema154Fixture.newLaunch(root)
         #expect(throws: (any Error).self) {
-            _ = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+            _ = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         }
         #expect(Self.count(root, "PRAGMA user_version") == Int(Schema154Fixture.versionBeforeNotebookNames))
         #expect(Self.tableExists(root, "project_tasks"))

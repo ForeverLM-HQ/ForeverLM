@@ -428,7 +428,7 @@ extension KnowledgeStore {
 
             try replaceReviewSessionSources(sessionID: newSessionID, sourceIDs: sourceIDs)
             // A fork holds the original's answers, so it keeps its kind: a review's stays private.
-            try keepChatShapeForGeneration2(sessionID: newSessionID, kind: syncGeneration == .two ? try chatKind(sessionID: sessionID) : nil)
+            try keepChatShapeForGeneration2(sessionID: newSessionID, kind: try chatKind(sessionID: sessionID))
             try markRecordChanged(entity: .reviewSession, logicalKey: newSessionID)
             try exec("COMMIT")
         } catch {

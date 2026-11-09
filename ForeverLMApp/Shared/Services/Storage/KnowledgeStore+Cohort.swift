@@ -478,7 +478,7 @@ extension KnowledgeStore {
         let ids = Array(Set(sourceIDs))
         guard !ids.isEmpty else { return [:] }
         let placeholders = Array(repeating: "?", count: ids.count).joined(separator: ", ")
-        let live = syncGeneration == .two ? "AND COALESCE(g.merged_into, '') = '' AND COALESCE(g.moved_to, '') = ''" : ""
+        let live = "AND COALESCE(g.merged_into, '') = '' AND COALESCE(g.moved_to, '') = ''"
         var result: [String: [MemoryUnderstandingProbe.Notebook]] = [:]
         try queryBind("""
             SELECT DISTINCT i.source_id, g.id, g.title, g.kind, g.end_at, g.parent_notebook_id

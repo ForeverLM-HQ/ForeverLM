@@ -6,9 +6,6 @@ import Foundation
 /// `reading_states` row, on its wire id; under generation 1 the `sources` columns stay their only truth
 /// and nothing here runs (D40: no dual write; the activation derives the rows at T0).
 extension KnowledgeStore {
-    /// Whether the reading state lives in `reading_states`: a generation-2 store.
-    var keepsReadingStates: Bool { syncGeneration == .two }
-
     /// The id a source's per-member rows are keyed by under generation 2: its wire id (a team copy's
     /// is its personal copy's id), or the id itself for a source this store does not hold.
     func readingStateKey(sourceID: String) throws -> String {
@@ -124,10 +121,10 @@ extension KnowledgeStore {
         return result
     }
 
-    /// A per-member key for a walk or an Understanding document: a source's wire id under generation
-    /// 2 (an animation's id stays its own), the caller's id under generation 1.
+    /// A per-member key for a walk or an Understanding document: a source's wire id (an animation's
+    /// id stays its own).
     func perMemberKey(_ subjectID: String) throws -> String {
-        keepsReadingStates ? try readingStateKey(sourceID: subjectID) : subjectID
+        try readingStateKey(sourceID: subjectID)
     }
 }
 
@@ -161,14 +158,12 @@ extension KnowledgeStore {
     /// The narration's resume point under generation 2; nil under generation 1, where it is the
     /// `listen.position.*` row.
     func loadListenPosition(sourceID: String) throws -> ArticleSpeechPlaybackPosition? {
-        guard keepsReadingStates else { return nil }
         return ListenPositionCodec.position(try loadReadingState(sourceID: sourceID)?.listen)
     }
 
     /// Saves (or, with nil, forgets) the narration's resume point under generation 2. An older save
     /// arriving late never replaces a newer one, as `ListeningPositionSync.newest` decides today.
     func saveListenPosition(_ position: ArticleSpeechPlaybackPosition?, sourceID: String) throws {
-        guard keepsReadingStates else { return }
         try updateReadingState(sourceID: sourceID) { row in
             guard let position else {
                 row.listen = nil

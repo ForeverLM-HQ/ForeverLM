@@ -35,19 +35,16 @@ struct KnowledgeCloneBeforeMigrationTests {
     @Test("Which copy a launch takes")
     func decision() {
         typealias State = KnowledgeRollbackCopy.StoreState
-        func kind(_ version: Int32, _ library: Bool, _ activation: State.Activation, _ generation: SyncGeneration) -> KnowledgeRollbackCopy.Kind? {
-            KnowledgeRollbackCopy.kindToTake(State(userVersion: version, holdsLibrary: library, activation: activation), generation: generation, schemaVersion: 154)
+        func kind(_ version: Int32, _ library: Bool, _ activation: State.Activation) -> KnowledgeRollbackCopy.Kind? {
+            KnowledgeRollbackCopy.kindToTake(State(userVersion: version, holdsLibrary: library, activation: activation), schemaVersion: 154)
         }
-        #expect(kind(150, true, .notRecorded, .one) == .beforeSchema154)
-        #expect(kind(153, true, .notRecorded, .one) == .beforeSchema154)
-        #expect(kind(154, true, .notRecorded, .one) == nil)
-        #expect(kind(153, true, .notRecorded, .two) == .beforeGeneration2, "one copy per launch: pre-v2 in place of pre-154")
-        #expect(kind(154, true, .notRecorded, .two) == .beforeGeneration2)
-        #expect(kind(154, true, .copyRecorded("knowledge.pre-v2.db"), .two) == nil)
-        #expect(kind(154, true, .activated, .two) == nil)
-        #expect(kind(153, false, .notRecorded, .one) == nil)
-        #expect(kind(0, false, .notRecorded, .two) == nil)
-        #expect(kind(155, true, .notRecorded, .two) == nil, "a store newer than the build is refused, not copied")
+        #expect(kind(153, true, .notRecorded) == .beforeGeneration2)
+        #expect(kind(154, true, .notRecorded) == .beforeGeneration2)
+        #expect(kind(154, true, .copyRecorded("knowledge.pre-v2.db")) == nil)
+        #expect(kind(154, true, .activated) == nil)
+        #expect(kind(153, false, .notRecorded) == nil)
+        #expect(kind(0, false, .notRecorded) == nil)
+        #expect(kind(155, true, .notRecorded) == nil, "a store newer than the build is refused, not copied")
     }
 
     @Test("A clean checkpoint clones the store, its WAL's commits included")
@@ -172,7 +169,7 @@ struct KnowledgeCloneBeforeMigrationTests {
         let root = try Schema154Fixture.temporaryRoot("gen1-\(version)")
         defer { try? FileManager.default.removeItem(at: root) }
         try Schema154Fixture.makeLibrary(at: root, version: version)
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         #expect(store.rollbackCopy?.kind == .beforeSchema154)
         #expect(store.rollbackCopy?.userVersion == version)
         #expect(Self.copyCount(root, .beforeSchema154, "PRAGMA user_version") == Int(version))
@@ -181,10 +178,10 @@ struct KnowledgeCloneBeforeMigrationTests {
         let checked = await store.rollbackCopyCheck?.value
         #expect(checked?.passedQuickCheck == true)
         #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("knowledge.pre-v2.db").path))
-        let again = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let again = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         #expect(again.rollbackCopy == nil && again.rollbackCopyCheck == nil, "the launch's other opens take none")
         Schema154Fixture.newLaunch(root)
-        let reopened = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let reopened = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         #expect(reopened.rollbackCopy == nil, "a store at 154 takes no copy under generation 1")
         #expect(KnowledgeRollbackCopy.checksQueuedForTesting(in: root) == 1)
     }
@@ -194,7 +191,7 @@ struct KnowledgeCloneBeforeMigrationTests {
         let root = try Schema154Fixture.temporaryRoot("gen2-\(version)")
         defer { try? FileManager.default.removeItem(at: root) }
         try Schema154Fixture.makeLibrary(at: root, version: version)
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .two, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         #expect(store.rollbackCopy?.kind == .beforeGeneration2)
         #expect(store.rollbackCopy?.userVersion == version, "the store as the last generation-1 build left it")
         #expect(Self.copyCount(root, .beforeGeneration2, "PRAGMA user_version") == Int(version))
@@ -204,7 +201,7 @@ struct KnowledgeCloneBeforeMigrationTests {
         // activation records it, WP4c), and copy nothing: the copy stays the store before the launch's
         // migrations.
         let takenAt = try #require(KnowledgeRollbackCopy.recorded(.beforeGeneration2, in: root)?.takenAt)
-        let again = try KnowledgeStore(storeDirectory: root, syncGeneration: .two, freeSpace: Schema154Fixture.roomy)
+        let again = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         #expect(again.rollbackCopy == nil)
         #expect(Self.copyCount(root, .beforeGeneration2, "PRAGMA user_version") == Int(version))
         #expect(KnowledgeRollbackCopy.recorded(.beforeGeneration2, in: root)?.takenAt == takenAt)
@@ -220,7 +217,7 @@ struct KnowledgeCloneBeforeMigrationTests {
         try Data("not a database".utf8).write(to: stale)
         try Data("junk".utf8).write(to: URL(fileURLWithPath: stale.path + "-wal"))
 
-        let first = try KnowledgeStore(storeDirectory: root, syncGeneration: .two, freeSpace: Schema154Fixture.roomy)
+        let first = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         #expect(first.rollbackCopy?.userVersion == 153)
         #expect(Self.copyCount(root, .beforeGeneration2, "SELECT COUNT(*) FROM sources") == 3)
         #expect(!FileManager.default.fileExists(atPath: stale.path + "-wal"))
@@ -229,18 +226,18 @@ struct KnowledgeCloneBeforeMigrationTests {
         // before the activation's journal got to it): the copy is still the store as generation 1 left it
         // and the next launch keeps it, since a copy of the migrated store is no rollback (F29).
         Schema154Fixture.newLaunch(root)
-        let second = try KnowledgeStore(storeDirectory: root, syncGeneration: .two, freeSpace: Schema154Fixture.roomy)
+        let second = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         #expect(second.rollbackCopy == nil)
         #expect(KnowledgeRollbackCopy.recorded(.beforeGeneration2, in: root)?.userVersion == 153)
         #expect(Self.copyCount(root, .beforeGeneration2, "PRAGMA user_version") == 153)
 
         try second.execForTesting("INSERT INTO ck_activation (id, clone_path, clone_user_version) VALUES (1, 'knowledge.pre-v2.db', \(KnowledgeStore.schemaVersion))")
         Schema154Fixture.newLaunch(root)
-        let recorded = try KnowledgeStore(storeDirectory: root, syncGeneration: .two, freeSpace: Schema154Fixture.roomy)
+        let recorded = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         #expect(recorded.rollbackCopy == nil)
         try recorded.execForTesting("UPDATE ck_activation SET activated_at = 1")
         Schema154Fixture.newLaunch(root)
-        let activated = try KnowledgeStore(storeDirectory: root, syncGeneration: .two, freeSpace: Schema154Fixture.roomy)
+        let activated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         #expect(activated.rollbackCopy == nil)
     }
 
@@ -254,7 +251,7 @@ struct KnowledgeCloneBeforeMigrationTests {
         var takenAt: Date?
         for attempt in 0..<5 {
             #expect(throws: (any Error).self, "attempt \(attempt)") {
-                _ = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+                _ = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
             }
             let copy = try #require(KnowledgeRollbackCopy.recorded(.beforeSchema154, in: root))
             takenAt = takenAt ?? copy.takenAt
@@ -276,7 +273,7 @@ struct KnowledgeCloneBeforeMigrationTests {
             #expect(store.rollbackCopy == nil)
             try Schema154Fixture.restoreReleasedShape(store, version: 153)
         }
-        let migrated = try KnowledgeStore(storeDirectory: root, syncGeneration: .two, freeSpace: Schema154Fixture.roomy)
+        let migrated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         #expect(migrated.rollbackCopy == nil && migrated.rollbackCopyFailure == nil)
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
         #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("knowledge.pre-v2.db").path))
@@ -290,7 +287,7 @@ struct KnowledgeCloneBeforeMigrationTests {
         let opens = Opens()
         DispatchQueue.concurrentPerform(iterations: 6) { _ in
             do {
-                let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+                let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
                 opens.record(store.rollbackCopy)
             } catch {
                 opens.fail()
@@ -321,7 +318,7 @@ struct KnowledgeCloneBeforeMigrationTests {
         """)
         let databaseBytes = ((try FileManager.default.attributesOfItem(atPath: root.appendingPathComponent("knowledge.db").path))[.size] as? NSNumber)?.int64Value ?? 0
 
-        let waiting = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: { _ in 1_500_000_000 })
+        let waiting = try KnowledgeStore(storeDirectory: root, freeSpace: { _ in 1_500_000_000 })
         #expect(waiting.rollbackCopy == nil)
         #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("knowledge.pre-154.db").path))
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == 153, "every step below 154 ran")
@@ -357,13 +354,13 @@ struct KnowledgeCloneBeforeMigrationTests {
         #expect(try Schema154Fixture.count(waiting, "SELECT COUNT(*) FROM hidden_sources WHERE source_id = '\(library.sourceIDs[1])'") == 0)
 
         // The rest of the launch keeps its first open's decision, whatever the disk says now.
-        let sameLaunch = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let sameLaunch = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         #expect(sameLaunch.rollbackCopy == nil)
         #expect(sameLaunch.upgradeWaitingForSpace == space)
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == 153)
 
         Schema154Fixture.newLaunch(root)
-        let later = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let later = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         #expect(later.rollbackCopy?.userVersion == 153, "the copy is the store as the launch before left it")
         #expect(later.upgradeWaitingForSpace == nil)
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
@@ -377,7 +374,7 @@ struct KnowledgeCloneBeforeMigrationTests {
         defer { try? FileManager.default.removeItem(at: root) }
         try Schema154Fixture.makeLibrary(at: root, version: 153)
         do {
-            _ = try KnowledgeStore(storeDirectory: root, syncGeneration: .two, freeSpace: { _ in 1_000_000_000 })
+            _ = try KnowledgeStore(storeDirectory: root, freeSpace: { _ in 1_000_000_000 })
             Issue.record("generation 2 opened a store it could not copy")
         } catch KnowledgeStoreError.noRoomForRollbackCopy(let bytesToFree) {
             #expect(bytesToFree > 0)
@@ -387,7 +384,7 @@ struct KnowledgeCloneBeforeMigrationTests {
         #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("knowledge.pre-v2.db").path))
         // A retry in the same launch follows the launch's decision.
         #expect(throws: KnowledgeStoreError.self) {
-            _ = try KnowledgeStore(storeDirectory: root, syncGeneration: .two, freeSpace: Schema154Fixture.roomy)
+            _ = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         }
         #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("knowledge.pre-v2.db").path))
     }
@@ -408,7 +405,7 @@ struct KnowledgeCloneBeforeMigrationTests {
 
         try Data(repeating: 1, count: 4096).write(to: staging)
         try Data(repeating: 2, count: 512).write(to: URL(fileURLWithPath: staging.path + "-journal"))
-        _ = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: { _ in 1_000_000_000 })
+        _ = try KnowledgeStore(storeDirectory: root, freeSpace: { _ in 1_000_000_000 })
         #expect(!FileManager.default.fileExists(atPath: staging.path))
         #expect(!FileManager.default.fileExists(atPath: staging.path + "-journal"))
     }

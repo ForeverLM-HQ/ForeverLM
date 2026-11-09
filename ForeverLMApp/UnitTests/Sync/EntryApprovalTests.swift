@@ -164,20 +164,6 @@ struct EntryApprovalTests {
         #expect(try F.pending(store).isEmpty, "the derived study order sends nothing back")
     }
 
-    @Test("Under generation 1 an item is written without a key and nothing is queued")
-    func generation1() throws {
-        let (root, store) = try F.makeStore("b2-gen1", generation: .one)
-        defer { try? FileManager.default.removeItem(at: root) }
-        try F.addNotebook(store, "nb-1", classify: false)
-        try store.keepNotebookRowsForGeneration2(goalIDs: ["nb-1"])
-        try F.addSource(store, "src-a")
-        try F.file(store, "src-a", into: "nb-1")
-        #expect(try F.count(store, "SELECT COUNT(*) FROM learning_goal_items WHERE order_key IS NOT NULL") == 0)
-        #expect(try F.count(store, "SELECT COUNT(*) FROM learning_goals WHERE entity_kind IS NOT NULL") == 0)
-        #expect(try F.count(store, "SELECT COUNT(*) FROM ck_outbox_fields") == 0)
-        #expect(try F.count(store, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger'") == 0)
-    }
-
     @Test("The generation-1 sequence is each row's rank in key order, and a derivation that changes nothing writes nothing")
     func sequenceIsTheRank() throws {
         let (root, store) = try F.makeStore("b2-sequence")

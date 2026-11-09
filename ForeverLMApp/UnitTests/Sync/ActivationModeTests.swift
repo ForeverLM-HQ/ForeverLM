@@ -97,7 +97,7 @@ struct ActivationModeTests {
 
         func perform<T: Sendable>(_ body: @Sendable (KnowledgeStore) throws -> T) async throws -> T {
             try await inner.perform { store in
-                let other = try KnowledgeStore(storeDirectory: self.root, syncGeneration: .two, freeSpace: Schema154Fixture.roomy)
+                let other = try KnowledgeStore(storeDirectory: self.root, freeSpace: Schema154Fixture.roomy)
                 GenerationActivationRunner.holdIfActivationMayBeFull(other)
                 let held = KnowledgeStoreWriteGate.isHeld(databaseAt: other.dbPath)
                 let refusedWrite = held && (try? other.exec("CREATE TABLE IF NOT EXISTS app_write_probe (x INTEGER)")) == nil
@@ -249,8 +249,8 @@ struct ActivationModeTests {
         let root = try Schema154Fixture.temporaryRoot("write-gate")
         defer { try? FileManager.default.removeItem(at: root) }
         Schema154Fixture.newLaunch(root)
-        let activation = try KnowledgeStore(storeDirectory: root, syncGeneration: .two, freeSpace: Schema154Fixture.roomy)
-        let app = try KnowledgeStore(storeDirectory: root, syncGeneration: .two, freeSpace: Schema154Fixture.roomy)
+        let activation = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+        let app = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         let path = activation.dbPath
         KnowledgeStoreWriteGate.hold(databaseAt: path)
         defer { KnowledgeStoreWriteGate.release(databaseAt: path) }
@@ -258,7 +258,7 @@ struct ActivationModeTests {
         try KnowledgeStoreWriteGate.allowingWrites(on: activation) {
             try activation.exec("CREATE TABLE step_first (x INTEGER)")
             // A store the app opens now holds the path again.
-            let late = try KnowledgeStore(storeDirectory: root, syncGeneration: .two, freeSpace: Schema154Fixture.roomy)
+            let late = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
             KnowledgeStoreWriteGate.hold(databaseAt: path)
             try activation.exec("CREATE TABLE step_after_hold (x INTEGER)")
             #expect(throws: (any Error).self) { try app.exec("CREATE TABLE app_write (x INTEGER)") }
@@ -280,7 +280,7 @@ struct ActivationModeTests {
         // The runner decides (here it fails at once, as an activation that throws does) and releases the path.
         KnowledgeStoreWriteGate.release(databaseAt: rig.receiver.dbPath)
 
-        let later = try KnowledgeStore(storeDirectory: rig.receiverRoot, syncGeneration: .two, freeSpace: Schema154Fixture.roomy)
+        let later = try KnowledgeStore(storeDirectory: rig.receiverRoot, freeSpace: Schema154Fixture.roomy)
         GenerationActivationRunner.holdIfActivationMayBeFull(later)
         #expect(!KnowledgeStoreWriteGate.isHeld(databaseAt: rig.receiver.dbPath))
         try later.exec("CREATE TABLE IF NOT EXISTS written_after_the_decision (x INTEGER)")

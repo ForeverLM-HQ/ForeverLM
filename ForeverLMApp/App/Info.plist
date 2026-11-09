@@ -18,8 +18,6 @@
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>ForeverLMAppIdentifierPrefix</key>
 	<string>$(AppIdentifierPrefix)</string>
-	<key>ForeverLMSyncGeneration</key>
-	<string>$(FOREVERLM_SYNC_GENERATION)</string>
 	<key>ForeverLMLibraryContainer</key>
 	<string>$(FOREVERLM_CLOUDKIT_CONTAINER)</string>
 	<key>CFBundleInfoDictionaryVersion</key>

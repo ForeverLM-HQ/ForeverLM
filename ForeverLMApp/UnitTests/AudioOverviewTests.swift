@@ -645,9 +645,6 @@ struct AudioOverviewTests {
     func writersLeaveContextNotebooksOut() async throws {
         let (storage, root) = makeTemporaryStorage()
         defer { try? FileManager.default.removeItem(at: root) }
-        let suiteName = "AudioOverviewContextNotebooks.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
         let a = try await seedSource(storage, url: "https://journal.example/a", title: "A", content: "Text of A.")
         let lent = try await seedSource(storage, url: "https://journal.example/lent", title: "Lent", content: "Text of the context notebook's source.")
         let notebook = try await makeNotebook(storage, title: "N", sourceIDs: [a.id])
@@ -657,7 +654,7 @@ struct AudioOverviewTests {
         let linked = try #require(try await storage.loadLearningGoal(notebook.id))
         let contextNotebooks = NotebookChatSelection.contextNotebooks(of: linked) { $0 == related.id ? [lent.id] : nil }
 
-        try await NotebookChatSelection.$overrideDefaults.withValue(NotebookChatSelection.DefaultsOverride(defaults: defaults)) { () async throws -> Void in
+        try await NotebookStateStore.$override.withValue(NotebookStateStore.Box()) { () async throws -> Void in
             #expect(NotebookChatContext.chatSourceIDs(
                 own: linked.approvedSourceIDs,
                 linked: contextNotebooks,

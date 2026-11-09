@@ -6,14 +6,8 @@ import Testing
 
 @Suite("Notebook File Persistence")
 struct NotebookFilePersistenceTests {
-    @Test("Merging a Notebook moves its workspace files into the survivor, keeping both copies of a shared name", arguments: [SyncGeneration.one, SyncGeneration.two])
-    func mergingNotebooksMovesWorkspaceFiles(generation: SyncGeneration) async throws {
-        try await ForeverLMRuntimeIdentity.$pinnedSyncGeneration.withValue(generation) {
-            try await mergeMovesWorkspaceFiles(generation: generation)
-        }
-    }
-
-    private func mergeMovesWorkspaceFiles(generation: SyncGeneration) async throws {
+    @Test("Merging a Notebook moves its workspace files into the survivor, keeping both copies of a shared name")
+    func mergingNotebooksMovesWorkspaceFiles() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("NotebookMergeFilesTests_\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
@@ -66,18 +60,10 @@ struct NotebookFilePersistenceTests {
         let adopted = try await storage.notebookMarkdownFile(notebookID: survivor.id, relativePath: "From Mitochondria/Notes.md")
         #expect(adopted.markdown == "Merged notes")
         #expect(!FileManager.default.fileExists(atPath: mergedWorkspace.path))
-        switch generation {
-        case .one:
-            // Generation 1 deletes the merged notebook, so it has no workspace to resolve.
-            await #expect(throws: (any Error).self) {
-                _ = try await storage.notebookWorkspaceURL(notebookID: merged.id, createIfNeeded: false)
-            }
-        case .two:
-            // Generation 2 keeps the merged notebook as a redirect row (schema v2 5.2), so its path still
-            // resolves, and nothing is there: its files all moved.
-            let stub = try await storage.notebookWorkspaceURL(notebookID: merged.id, createIfNeeded: false)
-            #expect(!FileManager.default.fileExists(atPath: stub.path))
-        }
+        // The merged notebook stays as a redirect row (schema v2 5.2), so its path still resolves,
+        // and nothing is there: its files all moved.
+        let stub = try await storage.notebookWorkspaceURL(notebookID: merged.id, createIfNeeded: false)
+        #expect(!FileManager.default.fileExists(atPath: stub.path))
     }
 
     @Test("Markdown artifacts can be created and revision-safely edited")

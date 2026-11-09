@@ -345,8 +345,8 @@ enum Schema154Fixture {
     /// notebook holding the first source and one workspace file; at `version` in the released
     /// shape when given one (154 to 162 drop only the later steps' DDL), else at the current schema.
     @discardableResult
-    static func makeLibrary(at root: URL, version: Int32?, sourceCount: Int = 3, generation: SyncGeneration = .one) throws -> Library {
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: generation, freeSpace: roomy)
+    static func makeLibrary(at root: URL, version: Int32?, sourceCount: Int = 3) throws -> Library {
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: roomy)
         var sourceIDs: [String] = []
         for index in 0..<sourceCount {
             var article = StudioArticle(url: "https://example.org/schema154/\(index)", title: "Paper \(index)", sourceType: .article)

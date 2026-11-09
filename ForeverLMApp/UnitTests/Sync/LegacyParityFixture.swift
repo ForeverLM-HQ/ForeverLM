@@ -30,8 +30,7 @@ enum LegacyParityFixture {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("WP15c-\(name)-\(UUID().uuidString)", isDirectory: true)
         let store = try KnowledgeStore(
             storeDirectory: root.appendingPathComponent(".appdata", isDirectory: true),
-            contentDirectory: root.appendingPathComponent("Content", isDirectory: true),
-            syncGeneration: .one, freeSpace: { _ in 1_000_000_000_000 }
+            contentDirectory: root.appendingPathComponent("Content", isDirectory: true), freeSpace: { _ in 1_000_000_000_000 }
         )
         return (root, store)
     }

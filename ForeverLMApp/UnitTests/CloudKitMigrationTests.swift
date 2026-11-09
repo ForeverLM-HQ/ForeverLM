@@ -131,7 +131,7 @@ struct CloudKitMigrationTests {
 
     @Test("An accepted delete dequeues even when its metadata is gone")
     func acceptedDeleteClearsQueueWithoutMetadata() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let source = makeCloudKitArticle(
             url: "https://example.com/retired",
             title: "Retired source"
@@ -157,7 +157,7 @@ struct CloudKitMigrationTests {
 
     @Test("Pending sync status names user-visible records")
     func pendingSyncStatusNamesRecords() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let source = makeCloudKitArticle(
             url: "https://example.com/mitochondria",
             title: "Mitochondrial therapeutics"
@@ -185,7 +185,7 @@ struct CloudKitMigrationTests {
 
     @Test("Pending sync status includes the oldest and newest work")
     func pendingSyncStatusIncludesQueueEnds() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         for index in 0..<25 {
             let article = makeCloudKitArticle(
                 url: "https://example.com/queue-\(index)",
@@ -577,7 +577,7 @@ struct CloudKitMigrationTests {
 
         // First prove that the fixture's identity envelopes are the payloads
         // authored by the real Mac mapper, rather than hand-maintained lookalikes.
-        let sender = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let sender = try KnowledgeStore(inMemory: true)
         var urlSource = StudioArticle(
             url: "https://www.example.com/identity/article?utm_source=fixture",
             title: "Portable URL identity",
@@ -634,7 +634,7 @@ struct CloudKitMigrationTests {
         // The receiving Mac already knows the same works under independent
         // primary keys. The first matches by normalized URL; the second has a
         // different URL and DOI, so publishedDOI is its only shared identity.
-        let receiver = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let receiver = try KnowledgeStore(inMemory: true)
         var receiverURLSource = StudioArticle(
             url: "https://example.com/identity/article",
             title: "Receiver URL copy",
@@ -705,7 +705,7 @@ struct CloudKitMigrationTests {
 
     @Test("Inbound ready source without readable text is queued locally, not republished")
     func inboundTextlessReadySourceIsRequeued() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         var remote = makeCloudKitArticle(
             url: "https://example.com/textless",
             title: "Textless Source"
@@ -731,7 +731,7 @@ struct CloudKitMigrationTests {
 
     @Test("Inbound CloudKit sources are applied before courses that reference them")
     func inboundSourcesSortBeforeCourses() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let courseID = "course-1"
         let source = makeCloudKitArticle(
             url: "https://youtube.com/watch?v=lecture-1",
@@ -785,7 +785,7 @@ struct CloudKitMigrationTests {
 
     @Test("Inbound source metadata cannot erase local video watch progress")
     func inboundSourcePreservesLocalVideoWatchProgress() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         var local = makeCloudKitArticle(
             url: "https://youtube.com/watch?v=lecture-progress",
             title: "Lecture"
@@ -831,7 +831,7 @@ struct CloudKitMigrationTests {
 
     @Test("A Mark as Not Watched from another Mac replaces this Mac's watched progress")
     func inboundNotWatchedBeatsLocalHighWaterMark() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let local = makeWatchedVideo("unwatch-inbound")
         try store.saveSource(local)
 
@@ -858,7 +858,7 @@ struct CloudKitMigrationTests {
 
     @Test("This Mac's Mark as Not Watched survives a copy from before it, read stamp included")
     func localNotWatchedSurvivesStaleInbound() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let local = makeWatchedVideo("unwatch-local", readAt: Date(timeIntervalSinceNow: -86_400))
         try store.saveSource(local)
         let mark = try store.setVideoWatched(sourceID: local.id, watched: false)
@@ -885,7 +885,7 @@ struct CloudKitMigrationTests {
 
     @Test("A progress conflict keeps the Mark as Not Watched the server holds")
     func progressConflictKeepsServerNotWatched() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         var local = makeWatchedVideo("unwatch-conflict", readAt: Date(timeIntervalSinceNow: -86_400))
         local.readingPositionLocator = nil
         try store.saveSource(local)
@@ -922,7 +922,7 @@ struct CloudKitMigrationTests {
 
     @Test("A reader's write from before a Mark as Not Watched cannot undo it")
     func staleReaderWriteCannotUndoNotWatched() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let video = makeWatchedVideo("unwatch-stale-write")
         try store.saveSource(video)
         let watched = try #require(VideoWatchProgress(encoded: video.readingPositionLocator))
@@ -953,7 +953,7 @@ struct CloudKitMigrationTests {
 
     @Test("A full save of a copy taken before Mark as Not Watched keeps the mark")
     func staleFullSaveCannotUndoNotWatched() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let before = makeWatchedVideo("unwatch-full-save", readAt: Date(timeIntervalSinceNow: -86_400))
         try store.saveSource(before)
         let mark = try store.setVideoWatched(sourceID: before.id, watched: false)
@@ -977,7 +977,7 @@ struct CloudKitMigrationTests {
 
     @Test("Marking a video watched or not watched is a progress-only synced write")
     func videoWatchedMarksAreProgressOnlyWrites() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         var video = makeWatchedVideo("unwatch-queue")
         video.readingPositionLocator = nil
         try store.saveSource(video)
@@ -1019,7 +1019,7 @@ struct CloudKitMigrationTests {
 
     @Test("Inbound source without a file path cannot erase a local attachment")
     func inboundSourcePreservesLocalFilePath() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         var local = StudioArticle(
             url: "https://pubmed.ncbi.nlm.nih.gov/39933528/",
             title: "Impact of physical activity",
@@ -1079,7 +1079,7 @@ struct CloudKitMigrationTests {
         )
         record[.bookCoverAsset] = CKAsset(fileURL: incomingCover)
 
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         _ = try CloudKitRecordMapper.apply(
             record: record,
             to: store,
@@ -1110,7 +1110,7 @@ struct CloudKitMigrationTests {
         // The path a sending Mac recorded; its bytes never reached this device.
         let absentCover = root.appendingPathComponent("cover.jpg").path
 
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         try store.saveBookMetadata(
             groupName: "coverless-book",
             title: "Coverless Book",
@@ -1143,7 +1143,7 @@ struct CloudKitMigrationTests {
         ))
         try png.write(to: cover)
 
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         try store.saveBookMetadata(
             groupName: "covered-book",
             title: "Covered Book",
@@ -1175,7 +1175,7 @@ struct CloudKitMigrationTests {
         ))
         try png.write(to: cover)
 
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         try store.saveBookMetadata(
             groupName: "deferred-book",
             title: "Deferred Book",
@@ -1237,7 +1237,7 @@ struct CloudKitMigrationTests {
         ))
         try png.write(to: cover)
 
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         try store.saveBookMetadata(
             groupName: "republished-book",
             title: "Republished Book",
@@ -1285,7 +1285,7 @@ struct CloudKitMigrationTests {
         // Unique per run so the assertion counts only this test's files: the asset
         // directory is the shared user temp dir and outlives any one process.
         let groupName = "asset-reuse-\(UUID().uuidString)"
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         try store.saveBookMetadata(
             groupName: groupName,
             title: "Asset Reuse Book",
@@ -1331,7 +1331,7 @@ struct CloudKitMigrationTests {
         )).write(to: cover)
 
         let groupName = "ckasset-reuse-\(UUID().uuidString)"
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         try store.saveBookMetadata(
             groupName: groupName,
             title: "CKAsset Reuse Book",
@@ -1392,7 +1392,7 @@ struct CloudKitMigrationTests {
 
     @Test("Leaving the queue clears staged digests, whichever exit the record takes")
     func queueExitsClearStagedAssetDigests() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let digests = [CKRecord.FieldKey.sourcePDFAsset: "f:pdf:2:0:/q.pdf"]
         let future = Date().addingTimeInterval(3600)
 
@@ -1428,7 +1428,7 @@ struct CloudKitMigrationTests {
 
     @Test("Repairing orphans leaves a queued record's in-flight staging alone")
     func repairingOrphansSparesQueuedRecords() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let digests = [CKRecord.FieldKey.sourcePDFAsset: "f:pdf:3:0:/live.pdf"]
 
         // A record still in the queue is a save that may be in the air right
@@ -1456,7 +1456,7 @@ struct CloudKitMigrationTests {
 
     @Test("Repeated staging of one payload is counted so a stall can be told from a flight")
     func stalledAssetStagingSeparatesAbandonedFromInFlight() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let recordName = CloudKitRecordMapper.recordName(for: .source, logicalKey: "src-stall")
         let digests = [CKRecord.FieldKey.sourcePDFAsset: "f:pdf:2:0:/a.pdf"]
         // Anything staged is "older than" a cutoff in the future, which is how
@@ -1498,7 +1498,7 @@ struct CloudKitMigrationTests {
 
     @Test("A visibly failed save resets the staging history it accumulated")
     func clearingStagedDigestsResetsStalledStagingHistory() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let recordName = CloudKitRecordMapper.recordName(for: .source, logicalKey: "src-fail")
         let digests = [CKRecord.FieldKey.sourcePDFAsset: "f:pdf:2:0:/b.pdf"]
         let future = Date().addingTimeInterval(3600)
@@ -1562,7 +1562,7 @@ struct CloudKitMigrationTests {
 
     @Test("Invalidating one asset field leaves the record's other assets alone")
     func invalidatingOneAssetDigestKeepsSiblingFieldsAcknowledged() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let recordName = CloudKitRecordMapper.recordName(for: .source, logicalKey: "src-1")
         try store.stageAssetDigests(
             [
@@ -1586,7 +1586,7 @@ struct CloudKitMigrationTests {
 
     @Test("A book that has no cover at all still clears the server asset")
     func bookWithoutCoverPathClearsServerCoverAsset() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         try store.saveBookMetadata(
             groupName: "never-covered-book",
             title: "Never Covered Book",
@@ -1641,7 +1641,7 @@ struct CloudKitMigrationTests {
 
         let applied = try CloudKitRecordMapper.apply(
             record: record,
-            to: KnowledgeStore(inMemory: true, syncGeneration: .one),
+            to: KnowledgeStore(inMemory: true),
             sourceContentRoot: contentRoot,
             durableImportRoot: durableImportRoot
         )
@@ -1649,7 +1649,7 @@ struct CloudKitMigrationTests {
         // Re-apply against a retained store below: the first call proves the
         // filesystem operation is independently replay-safe after a partial
         // sync attempt, while the second verifies the canonical SQLite result.
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         _ = try CloudKitRecordMapper.apply(
             record: record,
             to: store,
@@ -1725,7 +1725,7 @@ struct CloudKitMigrationTests {
             )
         )
         record[.sourcePDFAsset] = CKAsset(fileURL: incomingEPUB)
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let contentRoot = root.appendingPathComponent("Content", isDirectory: true)
 
         let applied = try CloudKitRecordMapper.apply(
@@ -1784,7 +1784,7 @@ struct CloudKitMigrationTests {
             id: "narrated-source"
         )
         remote.state = .ready
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let contentRoot = root.appendingPathComponent("Content", isDirectory: true)
 
         // A full fetch installs the source with its content.
@@ -1862,7 +1862,7 @@ struct CloudKitMigrationTests {
         )
         record[.sourceReaderHTMLAsset] = CKAsset(fileURL: incomingHTML)
         record[.sourceContentAsset] = CKAsset(fileURL: incomingText)
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let contentRoot = root.appendingPathComponent("Content", isDirectory: true)
 
         let applied = try CloudKitRecordMapper.apply(
@@ -1941,7 +1941,7 @@ struct CloudKitMigrationTests {
             withJSONObject: payloadObject
         ) as NSData
         record.encryptedValues[.userModificationDate] = Date() as NSDate
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
 
         _ = try CloudKitRecordMapper.apply(record: record, to: store)
 
@@ -2000,7 +2000,7 @@ struct CloudKitMigrationTests {
             )
         )
         record[.sourcePDFAsset] = CKAsset(fileURL: incomingPDF)
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
 
         _ = try CloudKitRecordMapper.apply(
             record: record,
@@ -2060,7 +2060,7 @@ struct CloudKitMigrationTests {
             payload: CloudKitSourcePayload(article: remote)
         )
         record[.sourcePDFAsset] = CKAsset(fileURL: incomingPDF)
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let contentRoot = root.appendingPathComponent("Content", isDirectory: true)
         let durableImportRoot = root.appendingPathComponent(
             ".appdata/.web-pdf-imports",
@@ -2242,7 +2242,7 @@ struct CloudKitMigrationTests {
     /// The candidate query behind the recovery read.
     @Test("Recorded source PDF paths list every type that publishes an original")
     func recordedSourcePDFPathsCoverPublishingTypes() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         var paper = StudioArticle(
             url: "https://example.com/recorded-paper",
             title: "Recorded Paper",
@@ -2282,7 +2282,7 @@ struct CloudKitMigrationTests {
     /// with the PDF. Missing bytes are absent knowledge, not a detach.
     @Test("A Mac without the bytes leaves the server's PDF asset alone")
     func outboundSourceWithoutLocalPDFPreservesServerAsset() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         var paper = StudioArticle(
             url: "https://example.com/preserved-paper",
             title: "Preserved Paper",
@@ -2374,7 +2374,7 @@ struct CloudKitMigrationTests {
         )
         record[.sourcePDFAsset] = CKAsset(fileURL: incomingPDF)
 
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let contentRoot = root.appendingPathComponent("Content", isDirectory: true)
         let durableImportRoot = root.appendingPathComponent(
             ".appdata/.web-pdf-imports",
@@ -2424,7 +2424,7 @@ struct CloudKitMigrationTests {
                 webFileKind: "pdf"
             )
         )
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let durableImportRoot = root.appendingPathComponent(
             ".appdata/.web-pdf-imports",
             isDirectory: true
@@ -2566,7 +2566,7 @@ struct CloudKitMigrationTests {
             )
         )
         record[.sourcePDFAsset] = CKAsset(fileURL: malformedPDF)
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let notificationProbe = CloudKitConflictNotificationProbe()
         let notificationToken = NotificationCenter.default.addObserver(
             forName: .cloudKitSyncConflictDidOccur,
@@ -2605,7 +2605,7 @@ struct CloudKitMigrationTests {
 
     @Test("Inbound source with a file path may replace a local path")
     func inboundSourceAcceptsRemoteFilePath() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         var local = StudioArticle(
             url: "https://example.com/paper",
             title: "A Paper",
@@ -2637,7 +2637,7 @@ struct CloudKitMigrationTests {
 
     @Test("Inbound ready paper without an LLM attestation is demoted and republished")
     func inboundUnattestedPaperCannotRemainReady() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         var remote = StudioArticle(
             url: "https://example.com/paper",
             title: "A Paper",
@@ -2664,7 +2664,7 @@ struct CloudKitMigrationTests {
 
     @Test("Attestation-less paper already demoted is applied without republishing")
     func inboundUnattestedPaperInSafeStateIsNotRepublished() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         var remote = StudioArticle(
             url: "https://example.com/demoted-paper",
             title: "A Demoted Paper",
@@ -2693,7 +2693,7 @@ struct CloudKitMigrationTests {
 
     @Test("A dismissed source the server still calls active is archived and republished")
     func inboundActiveDismissedSourceIsArchivedAndRepublished() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         var remote = StudioArticle(
             url: "https://example.com/dismissed-episode",
             title: "A Dismissed Episode",
@@ -2721,7 +2721,7 @@ struct CloudKitMigrationTests {
 
     @Test("A dismissed source the server already calls archived is not republished")
     func inboundArchivedDismissedSourceDoesNotRepublish() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         var remote = StudioArticle(
             url: "https://example.com/dismissed-episode",
             title: "A Dismissed Episode",
@@ -2753,7 +2753,7 @@ struct CloudKitMigrationTests {
 
     @Test("A refused save leaves the pending queue and comes back when re-armed")
     func refusedSaveQuarantineLeavesAndRejoinsThePendingQueue() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let article = makeCloudKitArticle(
             url: "https://example.com/refused-save",
             title: "Refused Save"
@@ -2793,7 +2793,7 @@ struct CloudKitMigrationTests {
 
     @Test("Re-arming leaves divergence quarantines alone")
     func requeueRejectedSavesIgnoresOtherQuarantines() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let article = makeCloudKitArticle(
             url: "https://example.com/divergent",
             title: "Divergent"
@@ -2833,7 +2833,7 @@ struct CloudKitMigrationTests {
 
     @Test("A refused delete is re-armed as a delete")
     func refusedDeleteRearmsAsDelete() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let article = makeCloudKitArticle(
             url: "https://example.com/refused-delete",
             title: "Refused Delete"
@@ -2889,7 +2889,7 @@ struct CloudKitMigrationTests {
 
     @Test("Sync issue status names the rejected item and error")
     func syncIssueStatusNamesRejectedItemAndError() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let article = makeCloudKitArticle(
             url: "https://example.com/rejected-item",
             title: "Rejected item"
@@ -2922,7 +2922,7 @@ struct CloudKitMigrationTests {
 
     @Test("Version-zero paper payload with complete metadata is grandfathered once")
     func legacyInboundPaperWithCompleteMetadataIsGrandfathered() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         var remote = StudioArticle(
             url: "https://example.com/legacy-paper",
             title: "A Legacy Paper",
@@ -2945,7 +2945,7 @@ struct CloudKitMigrationTests {
 
     @Test("Incomplete inbound paper cannot erase richer local metadata or attestation")
     func inboundPaperPreservesCompletedLocalMetadata() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let sourceID = "completed-paper"
         var local = StudioArticle(
             url: "https://example.com/completed-paper",
@@ -2995,7 +2995,7 @@ struct CloudKitMigrationTests {
 
     @Test("Older inbound paper payload preserves an existing local LLM attestation")
     func inboundUnattestedPaperPreservesLocalAttestation() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let sourceID = "attested-paper"
         var local = StudioArticle(
             url: "https://example.com/paper",
@@ -3039,7 +3039,7 @@ struct CloudKitMigrationTests {
 
     @Test("Outbound source payload includes video watch progress")
     func outboundSourceIncludesVideoWatchProgress() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         var article = makeCloudKitArticle(
             url: "https://youtube.com/watch?v=outbound-progress",
             title: "Lecture"
@@ -3074,7 +3074,7 @@ struct CloudKitMigrationTests {
 
     @Test("Outbound paper payload declares its version and carries the LLM attestation")
     func outboundPaperIncludesPayloadVersionAndAttestation() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         var paper = StudioArticle(
             url: "https://example.com/attested-paper",
             title: "Attested Paper",
@@ -3117,7 +3117,7 @@ struct CloudKitMigrationTests {
         context.endPDFPage()
         context.closePDF()
 
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         var paper = StudioArticle(
             url: pdfURL.path,
             title: "Thumbnail Paper",
@@ -3148,7 +3148,7 @@ struct CloudKitMigrationTests {
 
     @Test("Outbound paper sync separates raw extraction from canonical content")
     func outboundPaperSeparatesRawAndCanonicalAssets() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let raw = "Publisher furniture\n\nExtracted paper text"
         var paper = StudioArticle(
             url: "https://example.com/pending-paper",
@@ -3177,7 +3177,7 @@ struct CloudKitMigrationTests {
 
     @Test("Outbound article sync separates raw extraction from canonical content")
     func outboundArticleSeparatesRawAndCanonicalAssets() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let raw = "Site header\n\nArticle body\n\nRelated stories"
         let clean = "Article body"
         var article = StudioArticle(
@@ -3231,7 +3231,7 @@ struct CloudKitMigrationTests {
         <img src="data:image/png;base64,AAAA"><p>Illustrated text.</p></body></html>
         """.write(to: articleURL, atomically: true, encoding: .utf8)
 
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         var article = StudioArticle(
             url: "https://example.com/archive-reader",
             title: "Archive",
@@ -3254,7 +3254,7 @@ struct CloudKitMigrationTests {
 
     @Test("Archived article backfill is bounded to the local-storage cutover")
     func archivedArticleBackfillIsBoundedToCutover() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let cutover = Date(timeIntervalSinceReferenceDate: 808_718_400)
         var historical = StudioArticle(
             url: "https://example.com/historical-archive",
@@ -3283,7 +3283,7 @@ struct CloudKitMigrationTests {
 
     @Test("Outbound source sync carries source-bound listenable content")
     func outboundSourceCarriesListenableContent() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         // A clean-up commit queues Listen only for an automatic-audio kind
         // (2026-09-24); this test is about what the prepared narration syncs.
         store.automaticAudioSourceTypes = { ["article"] }
@@ -3356,7 +3356,7 @@ struct CloudKitMigrationTests {
 
     @Test("Unchanged content assets are not re-uploaded on a later save")
     func unchangedAssetsAreOmittedFromLaterSaves() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         var article = StudioArticle(
             url: "https://example.com/asset-gating",
             title: "Asset Gating",
@@ -3384,7 +3384,7 @@ struct CloudKitMigrationTests {
 
     @Test("Edited content re-uploads its asset")
     func editedContentReuploadsAsset() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         var article = StudioArticle(
             url: "https://example.com/asset-edit",
             title: "Asset Edit",
@@ -3407,7 +3407,7 @@ struct CloudKitMigrationTests {
 
     @Test("A failed save re-uploads its assets on the next attempt")
     func failedSaveReuploadsAssets() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         var article = StudioArticle(
             url: "https://example.com/asset-retry",
             title: "Asset Retry",
@@ -3429,7 +3429,7 @@ struct CloudKitMigrationTests {
 
     @Test("Removed content clears the asset the server still holds")
     func removedContentClearsServerAsset() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         var article = StudioArticle(
             url: "https://example.com/asset-cleared",
             title: "Asset Cleared",
@@ -3457,7 +3457,7 @@ struct CloudKitMigrationTests {
 
     @Test("Sent CloudKit snapshots do not clear newer pending edits")
     func sentSnapshotPreservesNewerPendingEdit() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let sentAt = Date(timeIntervalSinceReferenceDate: 100)
         let editedAt = Date(timeIntervalSinceReferenceDate: 200)
 
@@ -3493,7 +3493,7 @@ struct CloudKitMigrationTests {
 
     @Test("Recent CloudKit changes are prioritized ahead of migration backlog")
     func recentPendingChangesComeFirst() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         try store.requeueSyncChange(
             entity: .source,
             logicalKey: "old-migration-source",
@@ -3515,7 +3515,7 @@ struct CloudKitMigrationTests {
 
     @Test("enqueueMissingSyncableRecords backfills existing rows once")
     func enqueueMissingSyncableRecordsBackfillsExistingRows() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         var article = makeCloudKitArticle(url: "https://example.com/source", title: "Source")
         _ = try store.insertSourceIfNew(&article)
         try store.saveBookMetadata(
@@ -3570,7 +3570,7 @@ struct CloudKitMigrationTests {
     @Test("A review session too large for one record ships its payload as an asset")
     func oversizedReviewSessionPayloadTravelsAsAsset() throws {
         CloudKitRecordMapper.resetStagedAssetCacheForTesting()
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let sessionID = "memory-2026-09-08"
         // 2026-09-08: a briefing over 166 sources plus the day's exchanges made
         // an encoded payload past CloudKit's 1 MB record cap.
@@ -3621,7 +3621,7 @@ struct CloudKitMigrationTests {
 
     @Test("enqueueMissingSyncableRecords preserves source record age")
     func enqueueMissingSyncableRecordsPreservesSourceRecordAge() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let sourceDate = Date(timeIntervalSinceReferenceDate: 42)
         let fallbackDate = Date(timeIntervalSinceReferenceDate: 9_999)
         var article = makeCloudKitArticle(url: "https://example.com/old-source", title: "Old Source")
@@ -3641,8 +3641,8 @@ struct CloudKitMigrationTests {
 
     @Test("A hidden doc and a hidden chat travel as records of their own")
     func hiddenDocAndChatRoundTrip() throws {
-        let sender = try KnowledgeStore(inMemory: true, syncGeneration: .one)
-        let receiver = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let sender = try KnowledgeStore(inMemory: true)
+        let receiver = try KnowledgeStore(inMemory: true)
         let doc = ArtifactRecord(
             id: "doc-1", title: "Mito notes", homeNotebookID: nil, linkedNotebookIDs: [],
             createdAt: Date(), updatedAt: Date()
@@ -3696,7 +3696,7 @@ struct CloudKitMigrationTests {
 
     @Test("A hidden chat's hide leaves with the chat, tombstone included")
     func hiddenChatDeleteTakesTheHide() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         try store.createReviewSession(id: "chat-1", topic: "Uncouplers", sourceIDs: [])
         try store.setReviewSessionHidden("chat-1", hidden: true)
         try store.clearAllPendingSyncChanges()
@@ -3714,7 +3714,7 @@ struct CloudKitMigrationTests {
 
     @Test("enqueueMissingSyncableRecords preserves visibility record age")
     func enqueueMissingSyncableRecordsPreservesVisibilityRecordAge() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let hiddenDate = Date(timeIntervalSinceReferenceDate: 123)
         let fallbackDate = Date(timeIntervalSinceReferenceDate: 9_999)
         let article = makeCloudKitArticle(url: "https://example.com/hidden-source", title: "Hidden Source")
@@ -3736,7 +3736,7 @@ struct CloudKitMigrationTests {
 
     @Test("CloudKit environment rebase queues live records and carries deletions over")
     func cloudKitEnvironmentRebaseQueuesLiveRecords() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let article = makeCloudKitArticle(
             url: "https://example.com/production-publish",
             title: "Publish me"
@@ -3825,7 +3825,7 @@ struct CloudKitMigrationTests {
 
     @Test("A rename from another Mac survives a local reading-progress save")
     func inboundSourceRenameSurvivesLocalReadingProgress() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         var article = StudioArticle(
             url: "https://research.contrary.com/report/progress-conflict",
             title: "Reading Time",
@@ -3872,7 +3872,7 @@ struct CloudKitMigrationTests {
 
     @Test("A local edit still outranks an inbound source record")
     func pendingSourceEditKeepsEditorialScope() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         var article = StudioArticle(
             url: "https://example.com/editorial-scope",
             title: "Original title",

@@ -250,14 +250,6 @@ enum NotebookChatContext {
         )
     }
 
-    /// The context notebooks a notebook's heir or survivor keeps putting in:
-    /// those in `carried` it still links to, beside its own, sorted. A split
-    /// hands the emptied parent's choice to the heir that took its links; a
-    /// merge hands the merged notebook's to the survivor that took them.
-    static func carried(_ carried: Set<String>, into current: Set<String>, links: [String]) -> [String] {
-        current.union(carried.intersection(links)).sorted()
-    }
-
     private static func orderedUnique(_ ids: [String]) -> [String] {
         var seen = Set<String>()
         return ids.filter { seen.insert($0).inserted }

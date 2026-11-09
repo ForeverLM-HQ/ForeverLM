@@ -440,7 +440,7 @@ final class RehearsalRun: @unchecked Sendable {
         let store = try report.step("open") {
             try KnowledgeStore(
                 storeDirectory: directory, contentDirectory: contentRoot, legacyContentDirectories: [],
-                startupPreferenceSnapshot: [:], syncGeneration: .two
+                startupPreferenceSnapshot: [:]
             )
         }
         GenerationActivationRunner.holdIfActivationMayBeFull(store)

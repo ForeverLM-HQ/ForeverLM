@@ -292,13 +292,6 @@ extension KnowledgeStore {
         notebookFilesTable,
     ]
 
-    /// The per-member tables a source's delete took with it through `ON DELETE CASCADE` until schema
-    /// 154, each keyed by `source_id`.
-    static let perMemberSourceTables = [
-        "source_highlights", "hidden_sources", "hidden_podcast_episodes",
-        "visible_podcast_episode_overrides", "visible_youtube_video_overrides", "source_understanding",
-    ]
-
     func createPerMemberTable(_ table: PerMemberTable) throws {
         try exec(table.createStatement)
         for index in table.indexes {
@@ -436,36 +429,17 @@ extension KnowledgeStore {
         }
     }
 
-    // MARK: - Generation 1's delete paths without the cascades
+    // MARK: - A deleted notebook's files
 
-    /// Removes a deleted source's per-member rows under generation 1, as the `ON DELETE CASCADE` keys
-    /// schema 154 dropped did on every build before it, so generation 1 behaves as it always has.
-    /// Generation 2 keeps them: per-member state outlives the content it is about (D18), and the
-    /// member's records of it stay in their `Library`.
-    func removePerMemberRowsOfDeletedSource(_ sourceID: String) throws {
-        guard syncGeneration == .one else { return }
-        for table in Self.perMemberSourceTables {
-            try execBind("DELETE FROM \(table) WHERE source_id = ?") { statement in
-                bind(statement, 1, sourceID)
-            }
-        }
-    }
-
-    /// The same for a deleted notebook's files: generation 1 removes them as the cascade did;
-    /// generation 2 leaves them unfiled, as it leaves the notebook's Docs (§5.2).
+    /// A deleted notebook's files stay, unfiled, as its Docs do (§5.2).
     func releaseFilesOfDeletedNotebook(_ notebookID: String) throws {
-        let sql = syncGeneration == .one
-            ? "DELETE FROM notebook_files WHERE notebook_id = ?"
-            : "UPDATE notebook_files SET notebook_id = NULL WHERE notebook_id = ?"
-        try execBind(sql) { statement in
+        try execBind("UPDATE notebook_files SET notebook_id = NULL WHERE notebook_id = ?") { statement in
             bind(statement, 1, notebookID)
         }
-        // Generation 2 deletes the notebook's Notes Doc with it (§5.2): its body pointer goes, and the
-        // record with it (WP11).
-        if syncGeneration == .two {
-            try execBind("DELETE FROM artifact_files WHERE artifact_id = ?") { statement in
-                bind(statement, 1, NotesDoc.id(notebookID: notebookID))
-            }
+        // The notebook's Notes Doc is deleted with it (§5.2): its body pointer goes, and the record
+        // with it (WP11).
+        try execBind("DELETE FROM artifact_files WHERE artifact_id = ?") { statement in
+            bind(statement, 1, NotesDoc.id(notebookID: notebookID))
         }
     }
 

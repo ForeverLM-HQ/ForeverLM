@@ -32,7 +32,6 @@ extension KnowledgeStore {
     /// (`OrderKeyPlanner`), so a drag of one notebook sends one NotebookState. A notebook the list does
     /// not name keeps its key. Generation 2 only.
     func setNotebookSidebarOrder(_ order: [String]) throws {
-        guard syncGeneration == .two else { return }
         try inDerivationTransaction { store in
             var rows: [String: NotebookStateRow] = [:]
             for id in order where rows[id] == nil {
@@ -51,13 +50,11 @@ extension KnowledgeStore {
     /// Pins exactly `pinned`: a notebook it names is `pinned`, one pinned before and not named is not.
     /// Only rows that change are written. Generation 2 only.
     func setNotebookPinned(_ pinned: Set<String>) throws {
-        guard syncGeneration == .two else { return }
         try setNotebookFlag("pinned", members: pinned) { $0.pinned = $1 }
     }
 
     /// Folds open exactly `expanded` in the rail. Generation 2 only.
     func setNotebookExpanded(_ expanded: Set<String>) throws {
-        guard syncGeneration == .two else { return }
         try setNotebookFlag("expanded", members: expanded) { $0.expanded = $1 }
     }
 
@@ -92,23 +89,19 @@ enum NotebookSidebarSync {
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "NotebookSidebarSync")
 
     static func setOrder(_ order: [String]) {
-        guard ForeverLMRuntimeIdentity.syncGeneration == .two else { return }
         enqueue { try $0.setNotebookSidebarOrder(order) }
     }
 
     static func setPinned(_ ids: [String]) {
-        guard ForeverLMRuntimeIdentity.syncGeneration == .two else { return }
         let pinned = Set(ids)
         enqueue { try $0.setNotebookPinned(pinned) }
     }
 
     static func setExpanded(_ ids: Set<String>) {
-        guard ForeverLMRuntimeIdentity.syncGeneration == .two else { return }
         enqueue { try $0.setNotebookExpanded(ids) }
     }
 
     static func reload() {
-        guard ForeverLMRuntimeIdentity.syncGeneration == .two else { return }
         enqueue { store in
             let state = try store.notebookSidebarState()
             let defaults = UserDefaults.standard

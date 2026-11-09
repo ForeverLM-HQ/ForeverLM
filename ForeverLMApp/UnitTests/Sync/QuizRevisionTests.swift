@@ -69,18 +69,6 @@ struct QuizRevisionTests {
         #expect(try F.pending(store).isEmpty)
     }
 
-    @Test("Under generation 1 a quiz's revision stays 1 whatever its questions do")
-    func generation1CountsNothing() throws {
-        let (root, store) = try F.makeStore("quiz-gen1", generation: .one)
-        defer { try? FileManager.default.removeItem(at: root) }
-        try store.execute("INSERT INTO courses (id, title) VALUES ('crs-1', 'Systems Biology')")
-        try store.saveCourseQuiz(Self.quiz(["What is a motif?"]))
-        try store.saveCourseQuiz(Self.quiz(["What is a motif?", "Why?"]))
-        #expect(try Self.revision(store) == 1)
-        #expect(try F.count(store, "SELECT COUNT(*) FROM ck_outbox_fields") == 0)
-        #expect(try F.count(store, "SELECT COUNT(*) FROM courses WHERE created_at IS NOT NULL") == 0, "generation 1 fills no v2 column")
-    }
-
     @Test("The drawing is the quiz's picture satellite, and an assistant's quiz is the learner's")
     func pictureAndAuthor() throws {
         let (root, store) = try F.makeStore("quiz-picture")

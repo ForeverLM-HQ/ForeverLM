@@ -655,13 +655,11 @@ extension KnowledgeStore {
         // that source, which gains the new keys, never a second one, and the caller's article becomes it.
         // Generation 1 mints as it always has.
         var importKeys: [String] = []
-        if syncGeneration == .two {
-            importKeys = workKeys(for: article, hashingFile: true)
-            if let existingID = try sourceID(forWorkKeys: importKeys, teamID: article.teamID) {
-                try addWorkKeys(importKeys, to: existingID)
-                if let existing = try loadSourceWithoutContent(existingID) { article = existing }
-                return false
-            }
+        importKeys = workKeys(for: article, hashingFile: true)
+        if let existingID = try sourceID(forWorkKeys: importKeys, teamID: article.teamID) {
+            try addWorkKeys(importKeys, to: existingID)
+            if let existing = try loadSourceWithoutContent(existingID) { article = existing }
+            return false
         }
 
         if sourceExistsByNormalizedURL(normalizedURL) != nil || sourceExistsByURL(article.url) != nil {

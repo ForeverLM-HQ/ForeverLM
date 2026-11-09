@@ -4224,22 +4224,9 @@ extension StudioViewModel {
             // read stay in for the survivor, which took its links, and a
             // notebook whose chats read it read the survivor.
             notebookChatExclusions[notebookID] = nil
-            if ForeverLMRuntimeIdentity.syncGeneration == .two {
-                // Generation 2's merge job unioned the member's NotebookState
-                // sets into the survivor's in the store (schema v2 §5.2).
-                NotebookStateStore.reload()
-            } else {
-                let rewritten = NotebookChatSelection.merged(
-                    notebookID,
-                    into: survivorID,
-                    survivorLinks: notebook(id: survivorID)?.relatedNotebookIDs ?? []
-                )
-                for (id, contextIDs) in rewritten {
-                    notebookChatContextNotebooks[id] = contextIDs.isEmpty ? nil : contextIDs
-                }
-                // Its collections go to the survivor.
-                mergeNotebookCollections(notebookID, into: survivorID)
-            }
+            // Generation 2's merge job unioned the member's NotebookState
+            // sets into the survivor's in the store (schema v2 §5.2).
+            NotebookStateStore.reload()
             await loadNotebookTasks(notebookID: survivorID)
             scheduledSources = try await storage.loadScheduledSources()
             moveNotebookInEveryWindow(notebookID, to: survivorID)

@@ -65,7 +65,7 @@ struct NotebookSuggestedQuestionsTests {
 
     @Test("The row is a synced preference, left out of the settings catalog's set_app_setting")
     func rowSyncs() {
-        #expect(SyncedPreferenceKeys.isSynced("notebook.questions.nb", for: .two))
+        #expect(SyncedPreferenceKeys.isSynced("notebook.questions.nb"))
         #expect(SyncedPreferenceKeys.isSetting("notebook.questions.nb"))
     }
 

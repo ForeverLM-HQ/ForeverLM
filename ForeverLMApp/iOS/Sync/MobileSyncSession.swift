@@ -28,7 +28,7 @@ actor MobileSyncSession {
 
     /// Whether this build syncs at all: generation 2 and a library container its entitlements grant.
     static var isEnabled: Bool {
-        ForeverLMRuntimeIdentity.syncGeneration == .two && ForeverLMRuntimeIdentity.libraryContainerIdentifier != nil
+        ForeverLMRuntimeIdentity.libraryContainerIdentifier != nil
     }
 
     nonisolated let containerIdentifier: String

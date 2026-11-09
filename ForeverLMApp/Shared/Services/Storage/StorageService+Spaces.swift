@@ -11,11 +11,6 @@ import OSLog
 /// under the original afterwards does not follow (§9.4: one notebook is edited in place, so there is
 /// no follow-on). Moving a notebook into a space the learner owns is WP15b's `SpaceMoveJob`.
 extension StorageService {
-    /// Whether this library runs generation 2's sync.
-    var runsSpaces: Bool {
-        (try? notebookFilesKnowledgeStore().syncGeneration) == .two
-    }
-
     /// This account as a space's root names its owner.
     private func spaceOwner(_ coordinator: SyncCoordinator) async throws -> SyncPerson {
         SyncPerson(user: try await coordinator.transport.userRecordName(), name: coordinator.shares.accountName ?? "")
@@ -114,7 +109,6 @@ extension StorageService {
     func keepTeamCopiesForGeneration2() {
         do {
             let store = try notebookFilesKnowledgeStore()
-            guard store.syncGeneration == .two else { return }
             for (teamID, zoneKey) in try store.teamZoneKeys().sorted(by: { $0.key < $1.key }) {
                 try store.inDerivationTransaction { try SpaceRows.adopt(teamID: teamID, zoneKey: zoneKey, connection: $0) }
             }

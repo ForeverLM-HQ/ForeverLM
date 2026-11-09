@@ -151,9 +151,7 @@ struct SettingsCatalogTests {
             if row["origin"] as? String == "spec" {
                 #expect(!SyncedPreferenceKeys.isSynced(key), "\(key) syncs now; drop its origin spec in the catalog")
             } else if SyncedPreferenceKeys.generation2OnlyKeys.contains(key) {
-                // A Setting of a generation-2 feature syncs there and nowhere else (D40).
-                #expect(SyncedPreferenceKeys.isSynced(key, for: .two) && !SyncedPreferenceKeys.isSynced(key, for: .one),
-                        "\(key) is a generation-2 Setting but does not sync only there")
+                #expect(SyncedPreferenceKeys.isSynced(key), "\(key) is in the catalog but does not sync")
             } else {
                 #expect(SyncedPreferenceKeys.synced.contains(key) && SyncedPreferenceKeys.isSynced(key), "\(key) is in the catalog but does not sync")
             }
@@ -193,7 +191,7 @@ struct SettingsCatalogTests {
         let row = try #require(catalog.keys[key], "\(key) is not in the catalog's keys")
         #expect(row["type"] as? String == "bool")
         #expect(Self.mcp(row)?["setting"] as? String == "images.draw_notebook_covers")
-        #expect(SyncedPreferenceKeys.isSetting(key) == SyncedPreferenceKeys.isSynced(key, for: .two))
+        #expect(SyncedPreferenceKeys.isSetting(key) == SyncedPreferenceKeys.isSynced(key))
 
         let marker = try #require(catalog.leftOut[NotebookCoverBackfillMarker.keyPrefix], "the marker prefix is not under leftOut")
         #expect(marker["type"] as? String == "dict")
@@ -203,7 +201,7 @@ struct SettingsCatalogTests {
         #expect(catalog.row(for: example) == nil, "the marker is no catalog key or family")
         // Only the backfill writes it, beside the engine: never a preference row, never a Setting
         // the Setting projection would bring into user_preferences.
-        #expect(!SyncedPreferenceKeys.isSynced(example, for: .one) && !SyncedPreferenceKeys.isSynced(example, for: .two))
+        #expect(!SyncedPreferenceKeys.isSynced(example))
         #expect(!SyncedPreferenceKeys.isSetting(example))
         await #expect(throws: MCPError.self) {
             _ = try await MCPDataStore().setAppSetting(settingID: example, value: ["state": "done"])
@@ -265,10 +263,7 @@ struct SettingsCatalogTests {
         for (name, row, isKey) in catalog.rows {
             guard let mcp = Self.mcp(row), mcp["tool"] as? String == "set_app_setting", let id = mcp["setting"] as? String else { continue }
             guard let entry = byID[id] else {
-                // A generation-2 Setting's entry is listed under generation 2 only (D40).
-                let generation2Only = isKey && SyncedPreferenceKeys.generation2OnlyKeys.contains(name)
-                    && ForeverLMRuntimeIdentity.syncGeneration == .one
-                #expect(Self.providerDependentSettings.contains(id) || generation2Only,
+                #expect(Self.providerDependentSettings.contains(id),
                         "the catalog routes \(name) to \(id), which set_app_setting does not have")
                 continue
             }

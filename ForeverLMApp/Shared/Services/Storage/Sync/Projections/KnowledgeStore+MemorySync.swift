@@ -199,7 +199,6 @@ extension KnowledgeStore {
     /// activation is done. Before that, the activation's derivations take everything from generation-1
     /// truth, so recording here too would count it twice.
     func recordsMemoryForGeneration2() throws -> Bool {
-        guard syncGeneration == .two else { return false }
         return try isActivatedForGeneration2()
     }
 

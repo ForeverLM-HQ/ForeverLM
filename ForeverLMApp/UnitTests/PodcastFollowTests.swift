@@ -177,7 +177,7 @@ struct BlockedPodcastShowTests {
     @Test("The blocked list syncs as import-blocked marks, not as a preference row")
     func blockedListIsAMarkNotAPreference() {
         let key = SourceDiscovery.blockedPodcastShowsPreferenceKey
-        #expect(!SyncedPreferenceKeys.isSynced(key, for: .two))
+        #expect(!SyncedPreferenceKeys.isSynced(key))
         #expect(SyncedPreferenceKeys.generation2MovedKeys.contains(key))
     }
 }

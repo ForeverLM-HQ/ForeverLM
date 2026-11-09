@@ -227,8 +227,7 @@ extension KnowledgeStore {
             }
         }
         // Generation 2 keeps reading values in reading_states only; a new source's go there once.
-        let seedsReadingState = try keepsReadingStates
-            && scalarInteger("SELECT EXISTS(SELECT 1 FROM sources WHERE id = ?)", [.text(article.id)]) != 1
+        let seedsReadingState = try scalarInteger("SELECT EXISTS(SELECT 1 FROM sources WHERE id = ?)", [.text(article.id)]) != 1
         let hasPublicURLColumn = try tableColumnNames("sources").contains("public_url")
         if hasPublicURLColumn {
             try execBind("""
@@ -724,7 +723,7 @@ extension KnowledgeStore {
         // Generation 2: a hide the store already holds keeps its date. `hidden_at` feeds
         // `Mark(hidden).at`, so dating it again sent the Mark to every device on each save of a
         // hidden source, though nothing was hidden again.
-        let hideIsStored = try pendingHiddenAt == nil && syncGeneration == .two && sourceHideIsStored(article.id)
+        let hideIsStored = try pendingHiddenAt == nil && sourceHideIsStored(article.id)
         let shouldHideSource = (article.isHidden || pendingHiddenAt != nil) && !hideIsStored
         if shouldHideSource {
             try writeSourceHidden(article.id, hidden: true, hiddenAt: pendingHiddenAt ?? Date())
@@ -746,13 +745,11 @@ extension KnowledgeStore {
         _ = try reconcileMemoryItemSourceAnchors(forSourceID: article.id)
         _ = try reconcileScheduledSourcePlacements(forSourceID: article.id)
         // Generation 2 keeps the source's work keys with every save; they only ever add (§4.2).
-        if syncGeneration == .two {
-            try addWorkKeys(workKeys(for: article, hashingFile: false), to: article.id)
-            // A show, channel or playlist first met after the activation gets its Collection now: the
-            // activation's derivations ran once, and the Source names it by id (§4.4).
-            try deriveSourceCollections(onlySource: article.id)
-            try derivePlaylistCollections(onlySource: article.id)
-        }
+        try addWorkKeys(workKeys(for: article, hashingFile: false), to: article.id)
+        // A show, channel or playlist first met after the activation gets its Collection now: the
+        // activation's derivations ran once, and the Source names it by id (§4.4).
+        try deriveSourceCollections(onlySource: article.id)
+        try derivePlaylistCollections(onlySource: article.id)
         try markRecordChanged(entity: .source, logicalKey: article.id)
         return keptStored
     }
@@ -760,7 +757,7 @@ extension KnowledgeStore {
     /// The copy `persistSourceRows` writes: under generation 2, a copy read from the store merged over
     /// the row as it is stored now; otherwise the copy itself.
     private func writtenOverStoredRow(_ copy: StudioArticle) throws -> (article: StudioArticle, keptStored: Bool) {
-        guard syncGeneration == .two, copy.edits.isTracking,
+        guard copy.edits.isTracking,
               let stored = try loadSourceWithoutContent(copy.id),
               let written = copy.written(over: stored) else {
             return (copy, false)
@@ -1241,19 +1238,8 @@ extension KnowledgeStore {
     }
 
     func updateSourceReadingPosition(sourceID: String, page: Int?) throws {
-        if keepsReadingStates {
-            try writeReadingPlace(sourceID: sourceID, page: .some(page))
-            return
-        }
-        try execBind("""
-            UPDATE sources
-            SET reading_position_page = ?
-            WHERE id = ?
-        """) { stmt in
-            bind(stmt, 1, page)
-            bind(stmt, 2, sourceID)
-        }
-        try markSourceProgressChanged(sourceID: sourceID)
+        try writeReadingPlace(sourceID: sourceID, page: .some(page))
+        return
     }
 
     /// A video's progress is joined with what is stored rather than written
@@ -1282,19 +1268,8 @@ extension KnowledgeStore {
     }
 
     private func writeSourceReadingLocator(sourceID: String, locator: String?) throws {
-        if keepsReadingStates {
-            try writeReadingPlace(sourceID: sourceID, macLocator: .some(locator))
-            return
-        }
-        try execBind("""
-            UPDATE sources
-            SET reading_position_locator = ?
-            WHERE id = ?
-        """) { stmt in
-            bind(stmt, 1, locator)
-            bind(stmt, 2, sourceID)
-        }
-        try markSourceProgressChanged(sourceID: sourceID)
+        try writeReadingPlace(sourceID: sourceID, macLocator: .some(locator))
+        return
     }
 
     /// Mark as Watched and Mark as Not Watched (the Sources sidebar, the
@@ -1343,23 +1318,8 @@ extension KnowledgeStore {
                 }
                 next = (VideoWatchProgress.notWatched(from: current, at: date).encoded, nil)
             }
-            if keepsReadingStates {
-                try writeReadingPlace(sourceID: sourceID, macLocator: .some(next.locator), readAt: .some(next.readAt), at: date)
-                if !watched { try updateReadingState(sourceID: sourceID) { self.resetReadingProgress(&$0) } }
-                try exec("COMMIT")
-                return VideoWatchedMark(locator: next.locator, readAt: next.readAt, changed: true)
-            }
-            try execBind("""
-                UPDATE sources
-                SET reading_position_locator = ?1,
-                    read_at = ?2
-                WHERE id = ?3
-            """) { stmt in
-                bind(stmt, 1, next.locator)
-                bind(stmt, 2, next.readAt?.timeIntervalSinceReferenceDate)
-                bind(stmt, 3, sourceID)
-            }
-            try markSourceProgressChanged(sourceID: sourceID, at: date)
+            try writeReadingPlace(sourceID: sourceID, macLocator: .some(next.locator), readAt: .some(next.readAt), at: date)
+            if !watched { try updateReadingState(sourceID: sourceID) { self.resetReadingProgress(&$0) } }
             try exec("COMMIT")
             return VideoWatchedMark(locator: next.locator, readAt: next.readAt, changed: true)
         } catch {
@@ -1369,71 +1329,25 @@ extension KnowledgeStore {
     }
 
     func loadSourceReadingLocator(sourceID: String) throws -> String? {
-        if keepsReadingStates { return try readingMacLocator(sourceID: sourceID) }
-        var locator: String?
-        try queryBind("""
-            SELECT reading_position_locator
-            FROM sources
-            WHERE id = ?
-            LIMIT 1
-        """, bind: { stmt in
-            bind(stmt, 1, sourceID)
-        }) { stmt in
-            locator = string(stmt, 0)
-        }
-        return locator
+        return try readingMacLocator(sourceID: sourceID)
     }
 
     /// The locator and read stamp a source has now, or nil when there is no
     /// such source: the two fields a video's watched state is made of.
     func loadSourceProgress(sourceID: String) throws -> (locator: String?, readAt: Date?)? {
-        if keepsReadingStates {
-            guard try scalarInteger("SELECT EXISTS(SELECT 1 FROM sources WHERE id = ?)", [.text(sourceID)]) == 1 else { return nil }
-            let row = try loadReadingState(sourceID: sourceID)
-            return (ReadingLocatorCodec.macLocator(wire: row?.locator), row?.readAt.map(Date.init(timeIntervalSinceReferenceDate:)))
-        }
-        var progress: (locator: String?, readAt: Date?)?
-        try queryBind("""
-            SELECT reading_position_locator, read_at
-            FROM sources
-            WHERE id = ?
-            LIMIT 1
-        """, bind: { stmt in
-            bind(stmt, 1, sourceID)
-        }) { stmt in
-            progress = (string(stmt, 0), optionalDouble(stmt, 1).map(Date.init(timeIntervalSinceReferenceDate:)))
-        }
-        return progress
+        guard try scalarInteger("SELECT EXISTS(SELECT 1 FROM sources WHERE id = ?)", [.text(sourceID)]) == 1 else { return nil }
+        let row = try loadReadingState(sourceID: sourceID)
+        return (ReadingLocatorCodec.macLocator(wire: row?.locator), row?.readAt.map(Date.init(timeIntervalSinceReferenceDate:)))
     }
 
     func updateSourceReadAt(sourceID: String, readAt: Date?) throws {
-        if keepsReadingStates {
-            // Marking it unread also starts the furthest progress over (§3.5.18).
-            try updateReadingState(sourceID: sourceID) { row in
-                row.readAt = readAt?.timeIntervalSinceReferenceDate
-                if readAt == nil { self.resetReadingProgress(&row) }
-            }
-            if let readAt { try completeAssignedTasks(forSourceID: sourceID, at: readAt) }
-            return
+        // Marking it unread also starts the furthest progress over (§3.5.18).
+        try updateReadingState(sourceID: sourceID) { row in
+            row.readAt = readAt?.timeIntervalSinceReferenceDate
+            if readAt == nil { self.resetReadingProgress(&row) }
         }
-        try execBind("""
-            UPDATE sources
-            SET read_at = ?
-            WHERE id = ?
-        """) { stmt in
-            if let readAt {
-                sqlite3_bind_double(stmt, 1, readAt.timeIntervalSinceReferenceDate)
-            } else {
-                sqlite3_bind_null(stmt, 1)
-            }
-            bind(stmt, 2, sourceID)
-        }
-        try markSourceProgressChanged(sourceID: sourceID)
-        // Finishing a source finishes what was assigned for it
-        // (docs/family-design.md). Marking it unread leaves the task alone.
-        if let readAt {
-            try completeAssignedTasks(forSourceID: sourceID, at: readAt)
-        }
+        if let readAt { try completeAssignedTasks(forSourceID: sourceID, at: readAt) }
+        return
     }
 
     /// Reinstate this device's reading progress after an inbound record wrote
@@ -3811,14 +3725,10 @@ extension KnowledgeStore {
     /// so a caller deleting several sources at once — a whole meeting series —
     /// gets one atomic delete instead of one per source.
     ///
-    /// Generation 1 removes the source's highlights, hidden marks, visible
-    /// overrides and Understanding row with it, as their foreign keys did
-    /// before schema 154, and tombstones the synced ones. Generation 2 keeps
-    /// them, the learner's own state outliving the source (D18).
+    /// The source's highlights, hidden marks, visible overrides and
+    /// Understanding row stay, the learner's own state outliving the source
+    /// (D18).
     func deleteSourceRows(_ sourceId: String) throws {
-        let removesPerMemberRows = syncGeneration == .one
-        let wasHidden = try removesPerMemberRows && loadHiddenSourceForSync(sourceId) != nil
-        let highlightIDs = try removesPerMemberRows ? sourceHighlightIDs(sourceID: sourceId) : []
         var affectedGoalIds: [String] = []
         try queryBind("SELECT DISTINCT goal_id FROM learning_goal_items WHERE source_id = ?", bind: { stmt in
             bind(stmt, 1, sourceId)
@@ -3827,29 +3737,17 @@ extension KnowledgeStore {
                 affectedGoalIds.append(id)
             }
         }
-        // Generation 2 leaves the source's notebook items: their Entries stay live on the server and
-        // hide on read while the source is missing, and a re-import of the same id shows them again
+        // The source's notebook items stay: their Entries stay live on the server and hide on read
+        // while the source is missing, and a re-import of the same id shows them again
         // (schema v2 §3.5.8, §5.4). The item table has no foreign key to `sources`.
-        if syncGeneration == .one {
-            try execBind("DELETE FROM learning_goal_items WHERE source_id = ?") { stmt in
-                bind(stmt, 1, sourceId)
-            }
-        }
         for goalId in affectedGoalIds {
             try markRecordChanged(entity: .learningGoal, logicalKey: goalId)
         }
         // Its vectors, full-text row and stamps: a deleted source left in search is found by
         // keyword search and, at the next launch, by meaning.
         try dropSourceSearchRows(sourceID: sourceId)
-        for highlightID in highlightIDs {
-            try markRecordDeleted(entity: .sourceHighlight, logicalKey: highlightID)
-        }
-        try removePerMemberRowsOfDeletedSource(sourceId)
         try execBind("DELETE FROM sources WHERE id = ?") { stmt in
             bind(stmt, 1, sourceId)
-        }
-        if wasHidden {
-            try markRecordDeleted(entity: .hiddenSource, logicalKey: sourceId)
         }
         try markRecordDeleted(entity: .source, logicalKey: sourceId)
     }
@@ -4518,8 +4416,6 @@ extension KnowledgeStore {
                 entityIdPrefix: StorageService.sourceChunkEmbeddingPrefix(for: dupId),
                 model: StorageService.sourceEmbeddingModel
             )
-            // Generation 1: what the foreign keys removed before schema 154.
-            try removePerMemberRowsOfDeletedSource(dupId)
             try execBind("DELETE FROM sources WHERE id = ?") { stmt in
                 bind(stmt, 1, dupId)
             }

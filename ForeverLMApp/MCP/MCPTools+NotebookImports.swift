@@ -325,46 +325,9 @@ extension MCPDataStore {
     func tickArrivingNotebookSources(_ arrivals: [String: [String]]) async {
         let arrived = Set(arrivals.values.joined())
         guard !arrived.isEmpty else { return }
-        // Generation 2: an arrival writes a new Entry stamp, so its untick no longer matches and the
+        // An arrival writes a new Entry stamp, so its untick no longer matches and the
         // source is ticked with no write to the member's state (schema v2 §5.6); the snapshot is read
         // again.
-        if NotebookStateStore.isActive { return NotebookStateStore.reload() }
-        let rows = NotebookChatSelection.exclusionsFromDefaults().filter { !$0.value.isDisjoint(with: arrived) }
-        guard !rows.isEmpty else { return }
-        do {
-            let updates = try await withStoreGate(.shared) { () -> [(notebookID: String, excluded: [String])] in
-                let store = try knowledgeStore()
-                var updates: [(notebookID: String, excluded: [String])] = []
-                for (notebookID, excluded) in rows {
-                    guard let notebook = try store.loadLearningGoal(notebookID), notebook.isNotebook else { continue }
-                    let tick = NotebookChatSelection.arrivalsToTick(
-                        in: notebook,
-                        arrivals: arrivals,
-                        contextNotebookIDs: NotebookChatSelection.contextNotebookIDs(
-                            of: notebook,
-                            putIn: NotebookChatSelection.contextNotebookIDs(notebookID: notebookID)
-                        ),
-                        approvedOf: { (try? store.loadLearningGoal($0))?.approvedSourceIDs }
-                    )
-                    guard !tick.isEmpty else { continue }
-                    let next = NotebookChatSelection.updated(
-                        excluded,
-                        setting: tick,
-                        inChat: true,
-                        pool: try store.notebookContextSourceIDs(notebookID: notebookID)
-                    )
-                    if Set(next) != excluded { updates.append((notebookID, next)) }
-                }
-                return updates
-            }
-            guard !updates.isEmpty else { return }
-            for update in updates {
-                NotebookChatSelection.write(update.excluded, notebookID: update.notebookID)
-            }
-            await PreferenceStore.flushPendingWrites()
-        } catch {
-            // The filing stands; a box left unticked is the learner's to tick.
-            logger.error("Could not tick arriving Notebook sources: \(error.localizedDescription, privacy: .public)")
-        }
+        NotebookStateStore.reload()
     }
 }

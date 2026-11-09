@@ -105,7 +105,7 @@ struct SpaceService {
 
     /// The running coordinator's service; generation 2 only.
     static func current() throws -> SpaceService {
-        guard ForeverLMRuntimeIdentity.syncGeneration == .two, let coordinator = SyncCoordinator.current else { throw SpaceServiceError.syncNotRunning }
+        guard let coordinator = SyncCoordinator.current else { throw SpaceServiceError.syncNotRunning }
         return SpaceService(coordinator: coordinator)
     }
 

@@ -65,9 +65,7 @@ struct SpaceFollowTests {
         for key in ["space..follow.c", "space.s1.follow.", "space.s1", "uiZoomStep", "follow.col_a"] {
             #expect(SpaceFollowKey.parse(localKey: key) == nil, "\(key)")
         }
-        for generation in [SyncGeneration.one, .two] {
-            #expect(!SyncedPreferenceKeys.isSynced(local, for: generation), "no preference writer ever reads or writes it")
-        }
+        #expect(!SyncedPreferenceKeys.isSynced(local), "no preference writer ever reads or writes it")
         #expect(!SyncedPreferenceKeys.isSetting(local) && !SyncedPreferenceKeys.isSetting("follow.col_a"), "it is no Setting of the account")
     }
 
@@ -208,11 +206,6 @@ struct SpaceFollowTests {
         try store.replica.setEngineState(SpaceSync.StateScope.gone(writerZone), Data(#"{"reason":"left","at":1759000000000}"#.utf8))
         #expect(throws: SpaceFollowError.spaceGone) { try follow("s3") }
         #expect(throws: SpaceFollowError.spaceGone) { try store.clearSpaceFollow(spaceID: "s3", collectionID: "col_a") }
-
-        let (oneRoot, one) = try F.makeStore("follow-gen1", generation: .one, triggers: false)
-        defer { try? FileManager.default.removeItem(at: oneRoot) }
-        #expect(throws: SpaceFollowError.notGeneration2) { try follow(in: one) }
-        #expect(try one.spaceFollows().isEmpty)
     }
 
     @Test("A Mac runs the follows that import and name it, in spaces that have not gone")

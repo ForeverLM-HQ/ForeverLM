@@ -35,7 +35,6 @@ final class ICloudMigrationModel {
     /// Reads the store, the coordinator, late import and the removal gate. Cheap enough for each time the
     /// pane appears and after each sync; the parity report is reused for ten minutes unless `forceParity`.
     func refresh(forceParity: Bool = false) async {
-        guard ForeverLMRuntimeIdentity.syncGeneration == .two else { return }
         if work == nil { work = .refreshing }
         defer { if work == .refreshing { work = nil } }
         let storage = StorageService()

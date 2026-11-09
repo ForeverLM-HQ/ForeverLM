@@ -427,7 +427,7 @@ extension KnowledgeStore {
     /// waits for the notebook's record to be sent and for its name. Returns whether it queued one.
     @discardableResult
     func queueNotebookCover(_ notebookID: String, gates: NotebookCoverGates, now: Date = Date()) throws -> Bool {
-        guard syncGeneration == .two, gates.automatic,
+        guard gates.automatic,
               let wireID = try scalarText(
                   "SELECT wire_key FROM learning_goals WHERE id = ? AND COALESCE(entity_kind, ?) = ? AND team_id IS NULL",
                   [.text(notebookID), .text(LearningGoalEntityKind.notebook), .text(LearningGoalEntityKind.notebook)]
@@ -743,7 +743,6 @@ extension NotebookCoverService {
     /// being asked, and wakes the service, which draws it once the notebook is sent and named. Imports, a
     /// split's children and late import never call it.
     static func notebookMadeOneAtATime(_ notebookID: String, storage: StorageService) async {
-        guard ForeverLMRuntimeIdentity.syncGeneration == .two else { return }
         let gates = await NotebookCoverGates.current()
         guard gates.automatic else { return }
         await PreferenceStore.flushPendingWrites()
@@ -754,7 +753,6 @@ extension NotebookCoverService {
 
     /// The same, for a caller that holds the store (MCP).
     static func notebookMadeOneAtATime(_ notebookID: String, store: KnowledgeStore) async {
-        guard ForeverLMRuntimeIdentity.syncGeneration == .two else { return }
         let gates = await NotebookCoverGates.current()
         guard gates.automatic else { return }
         await PreferenceStore.flushPendingWrites()

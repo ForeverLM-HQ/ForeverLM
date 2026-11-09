@@ -52,8 +52,7 @@ struct SettingProjectionTests {
         }
         // Generation 1 syncs every one of the moved keys as before; generation 2 none of them.
         for key in ["studio.projectOrder", NotebookPins.preferenceKey, "studio.navigation.expandedProjectIDs.v1", "podcasts.blockedShows", "connectorHealth.readAI.state"] {
-            #expect(SyncedPreferenceKeys.isSynced(key, for: .one), "\(key) syncs under generation 1")
-            #expect(!SyncedPreferenceKeys.isSynced(key, for: .two), "\(key) is no synced preference under generation 2")
+            #expect(!SyncedPreferenceKeys.isSynced(key), "\(key) is no synced preference under generation 2")
         }
     }
 

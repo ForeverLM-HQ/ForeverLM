@@ -458,7 +458,7 @@ struct PaperReferenceStorageTests {
 
     private func store(_ name: String) throws -> (KnowledgeStore, URL) {
         let root = try Schema154Fixture.temporaryRoot(name)
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         return (store, root)
     }
 
@@ -484,7 +484,7 @@ struct PaperReferenceStorageTests {
         """)
 
         Schema154Fixture.newLaunch(root)
-        let migrated = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let migrated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
 
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
         #expect(KnowledgeStore.schemaVersion == 174)
@@ -629,7 +629,7 @@ struct PaperReferenceSyncTests {
 
     private func store(_ name: String) throws -> (KnowledgeStore, URL) {
         let root = try Schema154Fixture.temporaryRoot(name)
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         return (store, root)
     }
 
@@ -1011,7 +1011,7 @@ struct PaperReferenceRequeueTests {
 
     private func store(_ name: String) throws -> (KnowledgeStore, URL) {
         let root = try Schema154Fixture.temporaryRoot(name)
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         return (store, root)
     }
 

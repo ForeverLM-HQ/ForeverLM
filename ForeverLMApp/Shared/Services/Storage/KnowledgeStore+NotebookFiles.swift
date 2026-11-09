@@ -54,8 +54,7 @@ extension KnowledgeStore {
             var gone: [String] = []
             try query("SELECT id, notebook_id, relative_path FROM notebook_files WHERE notebook_id = ?", [.text(notebookID)]) { row in
                 guard let id = row.text(0), !onDisk.contains(id) else { return }
-                if syncGeneration == .two,
-                   let wire = NotebookFileArtifact.wireID(notebookID: row.text(1), relativePath: row.text(2)),
+                if let wire = NotebookFileArtifact.wireID(notebookID: row.text(1), relativePath: row.text(2)),
                    (try? scalarInteger(
                        "SELECT EXISTS(SELECT 1 FROM artifact_files WHERE artifact_id = ? AND file_key = ?)",
                        [.text(wire), .text(NotebookFileArtifact.incomingKey)]

@@ -204,14 +204,9 @@ actor MacNarrationLibrary {
         self.iCloudDriveAudio = iCloudDriveAudio
     }
 
-    /// Points the audio store at the working folder while the install runs generation 2 (§13.6); under
-    /// generation 1 it answers nil and the store keeps reading and writing iCloud Drive.
-    static func install(
-        library: MacNarrationLibrary = .shared,
-        generation: @escaping @Sendable () -> SyncGeneration = { ForeverLMRuntimeIdentity.syncGeneration }
-    ) {
+    /// Points the audio store at the working folder (§13.6).
+    static func install(library: MacNarrationLibrary = .shared) {
         SyncedArticleAudioStore.workingFolderProvider = {
-            guard generation() == .two else { return nil }
             library.folder.prepare()
             return SyncedArticleAudioWorkingFolder(
                 root: library.folder.root,

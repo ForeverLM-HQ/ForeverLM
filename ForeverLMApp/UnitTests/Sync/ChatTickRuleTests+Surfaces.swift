@@ -30,7 +30,6 @@ extension ChatTickRuleTests {
 
         let box = NotebookStateStore.Box()
         try await NotebookStateStore.$override.withValue(box) {
-            #expect(NotebookStateStore.isActive)
             // A link made before the rule starts unticked.
             try knowledge.setRelatedNotebooks(notebookID: a.id, relatedNotebookIDs: [b.id])
             let before = try await store.getNotebookContext(notebookID: a.id, maxSourceChars: nil, includeEmergentState: false, includeSourceContent: true)

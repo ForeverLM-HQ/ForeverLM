@@ -73,12 +73,6 @@ struct NotebookCoverTests {
         try NotebookSyncFixture.addGoal(mac.store, "goal-1", parent: "nb-1")
         #expect(try !mac.store.queueNotebookCover("goal-1", gates: NotebookCoverGates(automatic: true)))
         #expect(try C.queued(mac) == 0)
-
-        let (root, generation1) = try NotebookSyncFixture.makeStore("cover-generation-1", generation: .one)
-        defer { try? FileManager.default.removeItem(at: root) }
-        try NotebookSyncFixture.addNotebook(generation1, "nb-1", classify: false)
-        #expect(try !generation1.queueNotebookCover("nb-1", gates: NotebookCoverGates(automatic: true)))
-        #expect(try generation1.scalarInteger("SELECT COUNT(*) FROM ck_backfill_queue") == 0)
     }
 
     @Test("A queued cover pauses for the Setting and is drawn once it allows it")

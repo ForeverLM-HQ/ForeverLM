@@ -56,8 +56,6 @@ actor StorageService {
     /// and in a build not entitled to the library container.
     let cloudKitSyncCapable: Bool
     private var _knowledgeStore: KnowledgeStore?
-    /// The generation a test-only store runs; nil for the app's own store, which takes the build's.
-    private var overrideSyncGeneration: SyncGeneration?
     /// Once normal store startup proves incompatible, usage writes stay on the
     /// narrow append path instead of repeating schema/CloudKit startup work for
     /// every billed call.
@@ -120,13 +118,9 @@ actor StorageService {
             .appendingPathComponent("AI_Images", isDirectory: true)
     }
 
-    /// Test-only initializer that uses a custom store root directory. `syncGeneration` is the
-    /// generation the store under it runs: a suite of generation 1's behaviour (teams as
-    /// zones of the old container, copies that follow no space) pins `.one`, since the Debug
-    /// configuration runs generation 2.
-    init(storeRoot: URL, syncGeneration: SyncGeneration = ForeverLMRuntimeIdentity.syncGeneration) {
+    /// Test-only initializer that uses a custom store root directory.
+    init(storeRoot: URL) {
         self.overrideStoreRoot = storeRoot
-        self.overrideSyncGeneration = syncGeneration
         self.cloudKitSyncCapable = false
         self.localAppSupportRoot = storeRoot
         self.fallbackRoot = storeRoot
@@ -759,8 +753,7 @@ actor StorageService {
             legacyContentDirectories: legacyDirectories,
             startupPreferenceSnapshot: overrideStoreRoot == nil
                 ? UserDefaults.standard.dictionaryRepresentation()
-                : [:],
-            syncGeneration: overrideSyncGeneration ?? ForeverLMRuntimeIdentity.syncGeneration
+                : [:]
         )
         if overrideStoreRoot == nil {
             store.automaticAudioSourceTypes = { SourceAudioAutomation.enabledSourceTypes() }
@@ -4815,23 +4808,9 @@ actor StorageService {
             _ = try? loadNotebookFiles(notebookID: heirID)
         }
         scheduleCloudKitSync(.immediate)
-        if store.syncGeneration == .two {
-            // Generation 2's split job handed the member's NotebookState sets
-            // to the heir in the store (schema v2 §5.2); the surfaces read them again.
-            if result.heirGoalID != nil { NotebookStateStore.reload() }
-        } else if let heirID = result.heirGoalID {
-            // The parent's unticked boxes and the context notebooks its chats
-            // read go to the heir and the parent's rows go, as MCP
-            // `split_notebook` does.
-            NotebookChatSelection.handOver(
-                fromParent: sourceGoalID,
-                toHeir: heirID,
-                heirPool: try store.notebookContextSourceIDs(notebookID: heirID),
-                heirLinks: try store.relatedNotebookIDsForNotebook(notebookID: heirID)
-            )
-            // And its collections.
-            NotebookCollectionRows.handOver(fromParent: sourceGoalID, toHeir: heirID)
-        }
+        // The split job handed the member's NotebookState sets to the heir
+        // in the store (schema v2 §5.2); the surfaces read them again.
+        if result.heirGoalID != nil { NotebookStateStore.reload() }
         return result
     }
 

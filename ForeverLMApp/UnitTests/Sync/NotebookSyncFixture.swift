@@ -16,12 +16,12 @@ enum NotebookSyncFixture {
     static let openEnd = 3_124_137_600.0
 
     /// A store in a folder of its own, with the registry's triggers installed as the activation leaves
-    /// them (generation 2), or none (generation 1, or `triggers: false`).
-    static func makeStore(_ name: String, generation: SyncGeneration = .two, triggers: Bool = true) throws -> (root: URL, store: KnowledgeStore) {
+    /// them, or none (`triggers: false`).
+    static func makeStore(_ name: String, triggers: Bool = true) throws -> (root: URL, store: KnowledgeStore) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("WP8-\(name)-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: generation, freeSpace: { _ in 1_000_000_000_000 })
-        if triggers, generation == .two { try store.installOutboxTriggers(registry) }
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: { _ in 1_000_000_000_000 })
+        if triggers { try store.installOutboxTriggers(registry) }
         return (root, store)
     }
 

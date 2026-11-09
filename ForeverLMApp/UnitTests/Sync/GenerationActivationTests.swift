@@ -13,9 +13,9 @@ struct GenerationActivationTests {
     /// would: the open copies it to `knowledge.pre-v2.db` and migrates it.
     private static func generation2Store(_ name: String, version: Int32? = 153) throws -> (root: URL, store: KnowledgeStore) {
         let root = try Schema154Fixture.temporaryRoot(name)
-        try Schema154Fixture.makeLibrary(at: root, version: version, generation: .one)
+        try Schema154Fixture.makeLibrary(at: root, version: version)
         Schema154Fixture.newLaunch(root)
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .two, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         try store.executeScript(Fixture.tablesSQL)
         return (root, store)
     }
@@ -157,45 +157,12 @@ struct GenerationActivationTests {
                 try? FileManager.default.removeItem(at: twiceRoot.appendingPathComponent(side))
             }
             Schema154Fixture.newLaunch(twiceRoot)
-            let twice = try KnowledgeStore(storeDirectory: twiceRoot, syncGeneration: .two, freeSpace: Schema154Fixture.roomy)
+            let twice = try KnowledgeStore(storeDirectory: twiceRoot, freeSpace: Schema154Fixture.roomy)
 
             try step.run(once)
             try step.run(twice)
             try step.run(twice)
             #expect(try Self.dump(once) == Self.dump(twice), "\(step.id)")
-        }
-    }
-
-    @Test("Under generation 1 nothing activates, no trigger is installed, and an activated store is refused")
-    func generation1() throws {
-        let root = try Schema154Fixture.temporaryRoot("g1")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try Schema154Fixture.makeLibrary(at: root, version: nil, generation: .one)
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
-        try store.executeScript(Fixture.tablesSQL)
-        #expect(throws: GenerationActivationError.generation1) { try Self.activation(store).run(.freshNoHistory) }
-        #expect(throws: OutboxTriggerError.generation1) { try store.installOutboxTriggers(Fixture.registry) }
-        #expect(try store.scalarInteger("SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger'") == 0)
-        #expect(try store.activationJournal() == nil)
-        #expect(try store.drainReadyProjections(Fixture.registry) == 0)
-
-        // Activated by generation 2, the store is refused by the next generation-1 open.
-        Schema154Fixture.newLaunch(root)
-        let generation2 = try KnowledgeStore(storeDirectory: root, syncGeneration: .two, freeSpace: Schema154Fixture.roomy)
-        try Self.activation(generation2).run(.freshNoHistory)
-        Schema154Fixture.newLaunch(root)
-        #expect(throws: KnowledgeStoreError.self) {
-            _ = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
-        }
-        do {
-            _ = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
-        } catch KnowledgeStoreError.activatedForGeneration2 {
-            // The learner reads why.
-        } catch {
-            Issue.record("refused for another reason: \(error)")
-        }
-        #expect(throws: Never.self) {
-            _ = try KnowledgeStore(storeDirectory: root, syncGeneration: .two, freeSpace: Schema154Fixture.roomy)
         }
     }
 

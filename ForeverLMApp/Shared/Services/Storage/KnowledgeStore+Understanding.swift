@@ -250,12 +250,10 @@ extension KnowledgeStore {
             bind(stmt, 8, Self.encodeDiscussedIdeaIDs(discussed))
         }
         // Generation 2: the new body is laid out again as the ReadingState's `understanding` satellite.
-        if keepsReadingStates {
-            try execute("""
-                INSERT INTO ck_backfill_queue (kind, target, enqueued_at) VALUES (?, ?, ?)
-                ON CONFLICT(kind, target) DO UPDATE SET attempts = 0, last_error = NULL
-            """, [.text(Self.understandingBackfillKind), .text(key), .real(now.timeIntervalSinceReferenceDate)])
-        }
+        try execute("""
+            INSERT INTO ck_backfill_queue (kind, target, enqueued_at) VALUES (?, ?, ?)
+            ON CONFLICT(kind, target) DO UPDATE SET attempts = 0, last_error = NULL
+        """, [.text(Self.understandingBackfillKind), .text(key), .real(now.timeIntervalSinceReferenceDate)])
 
         return UnderstandingDocument(
             sourceID: sourceID,
@@ -338,12 +336,10 @@ extension KnowledgeStore {
             bind(stmt, 8, Self.encodeDiscussedIdeaIDs(entry?.discussedIdeaIDs ?? []))
         }
         // Generation 2: the new body travels as the ReadingState's `understanding` satellite.
-        if keepsReadingStates {
-            try execute("""
-                INSERT INTO ck_backfill_queue (kind, target, enqueued_at) VALUES (?, ?, ?)
-                ON CONFLICT(kind, target) DO UPDATE SET attempts = 0, last_error = NULL
-            """, [.text(Self.understandingBackfillKind), .text(key), .real(now.timeIntervalSinceReferenceDate)])
-        }
+        try execute("""
+            INSERT INTO ck_backfill_queue (kind, target, enqueued_at) VALUES (?, ?, ?)
+            ON CONFLICT(kind, target) DO UPDATE SET attempts = 0, last_error = NULL
+        """, [.text(Self.understandingBackfillKind), .text(key), .real(now.timeIntervalSinceReferenceDate)])
 
         return UnderstandingDocument(
             sourceID: sourceID,

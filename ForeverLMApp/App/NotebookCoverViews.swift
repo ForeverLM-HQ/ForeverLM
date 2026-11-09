@@ -36,7 +36,7 @@ final class NotebookCoverImages {
 
     /// The notebook's cover, by the id its row has; nil for none, and until its bytes are here.
     func picture(forNotebook rowID: String) async -> NotebookCoverPicture? {
-        guard ForeverLMRuntimeIdentity.syncGeneration == .two, let covers = NotebookCoverService.current,
+        guard let covers = NotebookCoverService.current,
               let pointer = await covers.pointer(ofRow: rowID) else { return nil }
         let hash = pointer.file.hash
         if let held = pictures[hash] { return held }
@@ -139,7 +139,7 @@ struct NotebookCoverMenuItems: View {
     let notebookID: String
 
     var body: some View {
-        if ForeverLMRuntimeIdentity.syncGeneration == .two, NotebookCoverService.current != nil {
+        if NotebookCoverService.current != nil {
             let models = GeneratedImageRedraw.offeredModels(
                 settingsChoice: MacImageGenerationSettings.model.id,
                 directory: ImageGenerationCatalog.models

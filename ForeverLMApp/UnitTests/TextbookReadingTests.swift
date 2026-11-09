@@ -219,7 +219,7 @@ struct TextbookReadingTests {
         #expect(SyncedPreferenceKeys.isSynced(LearnerProfile.aboutYouPreferenceKey))
         // A course's focus is the member's Enrollment record (§3.5.12), no preference row.
         let focusKey = LearnerProfile.courseFocusPreferenceKey(courseID: "course")
-        #expect(!SyncedPreferenceKeys.isSynced(focusKey, for: .two))
+        #expect(!SyncedPreferenceKeys.isSynced(focusKey))
         let before = LearnerProfile.aboutYou
         #expect(!LearnerProfile.setAboutYou(String(repeating: "a", count: LearnerProfile.maximumAboutYouLength + 1)))
         #expect(LearnerProfile.aboutYou == before)

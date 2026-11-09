@@ -136,7 +136,7 @@ struct CardProjection: RecordProjection {
         }
         guard item != nil || state != nil else { return nil }
         var rows = CardRows(item: item, state: state)
-        if let store = connection as? KnowledgeStore, store.syncGeneration == .two {
+        if let store = connection as? KnowledgeStore {
             let ids = Set((item?.sources.map(\.sourceID) ?? []) + [state?.deckSourceID].compactMap { $0 })
             for source in ids {
                 let key = try store.personalStateSourceKey(source)

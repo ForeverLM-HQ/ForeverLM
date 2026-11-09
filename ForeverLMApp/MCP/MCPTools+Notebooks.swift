@@ -383,14 +383,12 @@ extension MCPDataStore {
                 )
                 // Generation 2: putting a notebook into context writes the link and this member's
                 // tick (schema v2 D52); links made before stay unticked.
-                if NotebookStateStore.isActive {
-                    let before = Set(goal.relatedNotebookIDs ?? [])
-                    context.selection = NotebookChatContext.puttingIn(
-                        (linked.relatedNotebookIDs ?? []).filter { !before.contains($0) },
-                        linked: context.linked,
-                        selection: context.selection
-                    )
-                }
+                let before = Set(goal.relatedNotebookIDs ?? [])
+                context.selection = NotebookChatContext.puttingIn(
+                    (linked.relatedNotebookIDs ?? []).filter { !before.contains($0) },
+                    linked: context.linked,
+                    selection: context.selection
+                )
                 await storeNotebookChatSelection(context, notebookID: goal.id)
             }
         }
@@ -528,23 +526,9 @@ extension MCPDataStore {
                 into: heirID,
                 mergedNotebookTitle: goal.title
             )
-            if store.syncGeneration == .two {
-                // Generation 2's split job handed the member's NotebookState
-                // sets to the heir in the store (schema v2 §5.2).
-                NotebookStateStore.reload()
-            } else {
-                // The parent's unticked boxes go to the heir, whose pool is part
-                // of the parent's, and so do the context notebooks its chats read
-                // that the heir still links to; the parent's rows go.
-                NotebookChatSelection.handOver(
-                    fromParent: goal.id,
-                    toHeir: heirID,
-                    heirPool: try store.notebookContextSourceIDs(notebookID: heirID),
-                    heirLinks: try store.relatedNotebookIDsForNotebook(notebookID: heirID)
-                )
-                // So do its collections.
-                NotebookCollectionRows.handOver(fromParent: goal.id, toHeir: heirID)
-            }
+            // Generation 2's split job handed the member's NotebookState
+            // sets to the heir in the store (schema v2 §5.2).
+            NotebookStateStore.reload()
         }
         let children = try result.childGoalIDs.map { id -> [String: Any] in
             let child = try store.loadLearningGoal(id)
@@ -598,21 +582,10 @@ extension MCPDataStore {
                 into: result.survivorGoalID,
                 mergedNotebookTitle: mergedTitles[mergedID] ?? mergedID
             )
-            // Generation 2's merge job unioned the member's NotebookState sets
-            // into the survivor's in the store (schema v2 §5.2).
-            guard store.syncGeneration != .two else { continue }
-            // Its sources arrive in the survivor ticked and its unticked row
-            // goes; the context notebooks its chats read stay in for the
-            // survivor, which took its links.
-            NotebookChatSelection.merged(
-                mergedID,
-                into: result.survivorGoalID,
-                survivorLinks: try store.relatedNotebookIDsForNotebook(notebookID: result.survivorGoalID)
-            )
-            // The survivor joins every collection it was in.
-            NotebookCollectionRows.merge(mergedID, into: result.survivorGoalID)
         }
-        if store.syncGeneration == .two { NotebookStateStore.reload() }
+        // The merge job unioned the member's NotebookState sets into the
+        // survivor's in the store (schema v2 §5.2).
+        NotebookStateStore.reload()
         let survivor = try store.loadLearningGoal(result.survivorGoalID)
         return try jsonString([
             "survivor_notebook_id": result.survivorGoalID,

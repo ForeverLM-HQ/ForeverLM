@@ -2,22 +2,15 @@ import Foundation
 
 /// Which of a notebook's sources its chats read: its own sources, and those of
 /// the context notebooks the learner put in (`NotebookChatContext`), minus
-/// the boxes the learner unticked. Stored as two synced preference rows per
-/// notebook, never on the Notebook record: the unticked sources
-/// (`notebook.chatExcluded.<notebookID>`, a sorted `[String]`) and the context
-/// notebooks put in (`notebook.chatContextNotebooks.<notebookID>`). A new
-/// source arrives ticked, an untouched notebook has no rows and reads only
+/// the boxes the learner unticked. Kept in the member's `NotebookState` record
+/// (`NotebookStateStore`, schema v2 §5.6), never on the Notebook record: a new
+/// source arrives ticked, an untouched notebook has no state and reads only
 /// its own sources, and a team's copy never carries one member's ticks
-/// (teams-design rule 7) — each member keys their own rows by the copy's id.
+/// (teams-design rule 7). An untick stores the stamps of the Entry it names,
+/// so a re-add or a re-approval from any device ticks the source again.
 ///
 /// The ticks govern new chats (and a chat not yet sent). A chat under way keeps
 /// the catalog it began with in `review_session_sources`.
-///
-/// Under generation 2 the same reads and writes go to the member's
-/// `NotebookState` record instead (`NotebookStateStore`, schema v2 §5.6): an
-/// untick stores the stamps of the Entry it names, so a re-add or a
-/// re-approval from any device ticks the source again (bug b5). Generation 1
-/// keeps the preference rows, `handOver` included (D40).
 enum NotebookChatSelection {
     static let preferenceKeyPrefix = "notebook.chatExcluded."
 
@@ -25,45 +18,25 @@ enum NotebookChatSelection {
         preferenceKeyPrefix + notebookID
     }
 
-    /// A test's own defaults, bound for the task that runs it (as
-    /// `ScreenRecordMode.overrideDefaults`). The rows otherwise live in
-    /// `UserDefaults.standard`, which every test in the process shares with
-    /// its neighbours and with the Dev build. While bound, writes go to the
-    /// suite and never to the sync rail.
-    @TaskLocal static var overrideDefaults: DefaultsOverride? = nil
-
-    /// A Sendable carrier for `overrideDefaults`; the suite is only ever
-    /// touched by the task that bound it.
-    struct DefaultsOverride: @unchecked Sendable {
-        let defaults: UserDefaults
-    }
-
-    private static var defaults: UserDefaults { overrideDefaults?.defaults ?? .standard }
-
     /// The sources one notebook's chats leave out.
     static func excluded(notebookID: String) -> Set<String> {
-        if NotebookStateStore.isActive { return NotebookStateStore.current().excluded[notebookID] ?? [] }
-        return Set(defaults.stringArray(forKey: preferenceKey(notebookID: notebookID)) ?? [])
+        NotebookStateStore.current().excluded[notebookID] ?? []
     }
 
-    /// Every notebook's unticked sources by Notebook id. The keys are built at
-    /// runtime, so one scan of the defaults finds them.
+    /// Every notebook's unticked sources by Notebook id.
     static func exclusionsFromDefaults() -> [String: Set<String>] {
-        if NotebookStateStore.isActive { return NotebookStateStore.current().excluded }
-        return rowsFromDefaults(prefix: preferenceKeyPrefix)
+        NotebookStateStore.current().excluded
     }
 
     /// The context notebooks one notebook's chats read (`NotebookChatContext`):
     /// the ids its row names, linked or not; a reader keeps them to the links.
     static func contextNotebookIDs(notebookID: String) -> Set<String> {
-        if NotebookStateStore.isActive { return NotebookStateStore.current().contextNotebooks[notebookID] ?? [] }
-        return Set(defaults.stringArray(forKey: NotebookChatContext.preferenceKey(notebookID: notebookID)) ?? [])
+        NotebookStateStore.current().contextNotebooks[notebookID] ?? []
     }
 
-    /// Every notebook's context notebooks put in, by Notebook id, in one scan.
+    /// Every notebook's context notebooks put in, by Notebook id.
     static func contextNotebooksFromDefaults() -> [String: Set<String>] {
-        if NotebookStateStore.isActive { return NotebookStateStore.current().contextNotebooks }
-        return rowsFromDefaults(prefix: NotebookChatContext.preferenceKeyPrefix)
+        NotebookStateStore.current().contextNotebooks
     }
 
     /// One notebook's two rows as read.
@@ -72,16 +45,6 @@ enum NotebookChatSelection {
             excluded: excluded(notebookID: notebookID),
             contextNotebookIDs: contextNotebookIDs(notebookID: notebookID)
         )
-    }
-
-    private static func rowsFromDefaults(prefix: String) -> [String: Set<String>] {
-        var result: [String: Set<String>] = [:]
-        for (key, value) in defaults.dictionaryRepresentation() where key.hasPrefix(prefix) {
-            let notebookID = String(key.dropFirst(prefix.count))
-            guard !notebookID.isEmpty, let ids = value as? [String], !ids.isEmpty else { continue }
-            result[notebookID] = Set(ids)
-        }
-        return result
     }
 
     /// A notebook's context notebooks as the pool reads them: one per link,
@@ -236,115 +199,19 @@ enum NotebookChatSelection {
         return tick.filter { (joinedAt[$0] ?? .distantPast) > writtenAt }
     }
 
-    /// Saves one notebook's exclusion. Empty removes the row: everything
-    /// ticked is the default.
+    /// Saves one notebook's exclusion. Empty is the default: everything ticked.
     static func write(_ excluded: [String], notebookID: String) {
-        if NotebookStateStore.isActive { return NotebookStateStore.setExcluded(Set(excluded), notebookID: notebookID) }
-        writeRow(excluded, key: preferenceKey(notebookID: notebookID))
+        NotebookStateStore.setExcluded(Set(excluded), notebookID: notebookID)
     }
 
-    /// Saves which context notebooks one notebook's chats read. Empty removes
-    /// the row: none is the default.
+    /// Saves which context notebooks one notebook's chats read. None is the default.
     static func writeContextNotebooks(_ contextNotebookIDs: [String], notebookID: String) {
-        if NotebookStateStore.isActive { return NotebookStateStore.setContextNotebooks(Set(contextNotebookIDs), notebookID: notebookID) }
-        writeRow(contextNotebookIDs, key: NotebookChatContext.preferenceKey(notebookID: notebookID))
+        NotebookStateStore.setContextNotebooks(Set(contextNotebookIDs), notebookID: notebookID)
     }
 
-    private static func writeRow(_ ids: [String], key: String) {
-        if let override = overrideDefaults {
-            if ids.isEmpty {
-                override.defaults.removeObject(forKey: key)
-            } else {
-                override.defaults.set(ids, forKey: key)
-            }
-            return
-        }
-        if ids.isEmpty {
-            PreferenceStore.remove(forKey: key)
-        } else {
-            PreferenceStore.set(ids, forKey: key)
-        }
-    }
-
-    /// Drops a deleted notebook's rows.
+    /// Drops a deleted notebook's ticks and context notebooks.
     static func forget(notebookID: String) {
         write([], notebookID: notebookID)
         writeContextNotebooks([], notebookID: notebookID)
-    }
-
-    /// A split that removes its emptied parent hands the parent's rows to its
-    /// heir, the new notebook that took the parent's chats, Docs and links
-    /// (`CompanionGoalSplitResult.heirGoalID`), and drops the parent's. The
-    /// heir's pool (`heirPool`, its linked pool after the split) is part of
-    /// the parent's: its sources and the context notebooks it took over. So no
-    /// source joins a pool here, and a box the learner left unticked in the
-    /// parent stays unticked in the heir; the row is kept to that pool. The
-    /// context notebooks the parent's chats read stay in for the heir while
-    /// it still links to them (`heirLinks`), and a notebook whose chats read
-    /// the parent read the heir instead (`repointContextNotebook`). A merge is
-    /// different: the merged notebook's sources join the survivor's pool, so
-    /// they arrive ticked and its unticked row is only forgotten
-    /// (`merged(_:into:survivorLinks:)`).
-    static func handOver(fromParent parentID: String, toHeir heirID: String, heirPool: [String], heirLinks: [String]) {
-        guard parentID != heirID else { return }
-        let carried = excluded(notebookID: parentID).intersection(heirPool).sorted()
-        if !carried.isEmpty {
-            write(carried, notebookID: heirID)
-        }
-        let context = NotebookChatContext.carried(
-            contextNotebookIDs(notebookID: parentID),
-            into: contextNotebookIDs(notebookID: heirID),
-            links: heirLinks
-        )
-        if !context.isEmpty {
-            writeContextNotebooks(context, notebookID: heirID)
-        }
-        forget(notebookID: parentID)
-        repointContextNotebook(from: parentID, to: heirID)
-    }
-
-    /// A merged notebook's rows after a merge: its unticked row goes (its
-    /// sources arrive in the survivor ticked); the context notebooks its chats
-    /// read stay in for the survivor while it links to them (`survivorLinks`,
-    /// after the merge moved the links over); and a notebook whose chats read
-    /// the merged one read the survivor instead. Returns the context rows it
-    /// wrote, by Notebook id (empty for a row removed), for a caller that
-    /// mirrors them.
-    @discardableResult
-    static func merged(_ mergedID: String, into survivorID: String, survivorLinks: [String]) -> [String: Set<String>] {
-        guard mergedID != survivorID else { return [:] }
-        var written: [String: Set<String>] = [:]
-        let current = contextNotebookIDs(notebookID: survivorID)
-        let context = NotebookChatContext.carried(
-            contextNotebookIDs(notebookID: mergedID),
-            into: current,
-            links: survivorLinks
-        )
-        if Set(context) != current {
-            writeContextNotebooks(context, notebookID: survivorID)
-            written[survivorID] = Set(context)
-        }
-        forget(notebookID: mergedID)
-        written[mergedID] = []
-        written.merge(repointContextNotebook(from: mergedID, to: survivorID)) { _, repointed in repointed }
-        return written
-    }
-
-    /// Every notebook whose chats read `oldID` as a context notebook reads
-    /// `newID` instead: a merge or a split moved the links to it, and this
-    /// member's choice follows the link. A notebook never reads itself.
-    /// Returns the rows it wrote, by Notebook id.
-    @discardableResult
-    static func repointContextNotebook(from oldID: String, to newID: String) -> [String: Set<String>] {
-        guard oldID != newID else { return [:] }
-        var written: [String: Set<String>] = [:]
-        for (notebookID, ids) in contextNotebooksFromDefaults() where ids.contains(oldID) {
-            var next = ids
-            next.remove(oldID)
-            if notebookID != newID { next.insert(newID) }
-            writeContextNotebooks(next.sorted(), notebookID: notebookID)
-            written[notebookID] = next
-        }
-        return written
     }
 }

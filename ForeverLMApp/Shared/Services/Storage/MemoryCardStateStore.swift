@@ -131,14 +131,13 @@ enum MemoryCardStateStore {
     /// rows answer, and that read is started.
     static func usesCardRecords(_ defaults: UserDefaults) -> Bool {
         if bound != nil { return true }
-        guard defaults === UserDefaults.standard, ForeverLMRuntimeIdentity.syncGeneration == .two else { return false }
+        guard defaults === UserDefaults.standard else { return false }
         return shared.isActive()
     }
 
     /// Reads the rows again: after a sync round applied Cards, a write outside `update` (a draft saved, a
     /// rewording taken out by "This asks something else"), or the activation.
     static func reload() {
-        guard bound != nil || ForeverLMRuntimeIdentity.syncGeneration == .two else { return }
         // Nothing has read the rows yet: the first read will (`isActive`).
         guard records.hasLoaded() else { return }
         records.enqueue(nil)
@@ -153,9 +152,9 @@ enum MemoryCardStateStore {
     }
 
     /// Once the first read of the rows is back, so the states read next are the rows' (an MCP tool's first
-    /// read in a launch). Generation 1 answers at once.
+    /// read in a launch).
     static func loaded(defaults: UserDefaults = .standard) async {
-        guard bound != nil || (defaults === UserDefaults.standard && ForeverLMRuntimeIdentity.syncGeneration == .two) else { return }
+        guard bound != nil || (defaults === UserDefaults.standard) else { return }
         let records = records
         _ = records.isActive()
         await records.tail()?.value

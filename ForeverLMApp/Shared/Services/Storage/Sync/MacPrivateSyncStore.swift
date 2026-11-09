@@ -109,9 +109,7 @@ final class MacPrivateSyncStore: PrivateSyncLocalStore, @unchecked Sendable {
         /// the apply so what it writes goes out, and tells the learner of a fold that lost.
         func drainReady() throws {
             try store.drainReadyProjections(registry)
-            if store.syncGeneration == .two {
-                try store.inDerivationTransaction { try SpaceRows.recordMissingIdentities(connection: $0) }
-            }
+            try store.inDerivationTransaction { try SpaceRows.recordMissingIdentities(connection: $0) }
             let notices = try store.keepNotebookStubs()
             if !notices.isEmpty {
                 let message = notices.joined(separator: " ")

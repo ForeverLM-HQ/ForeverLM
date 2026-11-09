@@ -70,7 +70,7 @@ struct MacNarrationTests {
 
         func use(_ name: String) {
             current = name
-            MacNarrationLibrary.install(library: libraries[name]!, generation: { .two })
+            MacNarrationLibrary.install(library: libraries[name]!)
         }
 
         func device(_ name: String) -> EngineTestDevice { name == "a" ? a : b }
@@ -713,7 +713,7 @@ struct MacNarrationTests {
         #expect(FileManager.default.fileExists(atPath: SyncedArticleAudioStore.manifestURL(sourceID: "src-2").path) == false)
     }
 
-    @Test("The carry waits for the whole library and for generation 2: before a complete fetch, or with no working folder, nothing is copied or noted")
+    @Test("The carry waits for the whole library: before a complete fetch nothing is copied or noted")
     func carryWaitsForTheLibrary() async throws {
         let rig = try await Rig()
         defer { rig.cleanUp() }
@@ -723,11 +723,6 @@ struct MacNarrationTests {
         #expect(try Self.carryMarker(rig.a) == nil)
 
         try rig.a.exec("UPDATE ck_zones SET last_complete_pass_at = 1 WHERE kind = 'catalog'")
-        MacNarrationLibrary.install(library: rig.library, generation: { .one })
-        #expect(await rig.library.carryFromICloudDrive() == nil, "generation 1 has no working folder to carry into")
-        let working = rig.library.folder.root.appendingPathComponent("Audio/src-1/manifest.json")
-        #expect(FileManager.default.fileExists(atPath: working.path) == false)
-
         rig.use("a")
         #expect(await rig.library.carryFromICloudDrive()?.carried == ["src-1"])
     }
@@ -772,27 +767,6 @@ struct MacNarrationTests {
         #expect(totals.satellites >= 4)
     }
 
-    // MARK: - Generation 1 and the audio store
-
-    @Test("Under generation 1 nothing changes: the audio store keeps iCloud Drive, no folder is made, and nothing is asked of the replica")
-    func generationOneLeavesItAlone() async throws {
-        let rig = try await Rig()
-        defer { rig.cleanUp() }
-        MacNarrationLibrary.install(library: rig.library, generation: { .one })
-        #expect(SyncedArticleAudioStore.workingFolder == nil)
-        #expect(SyncedArticleAudioStore.audioRootURL() == SyncedArticleAudioStore.ubiquityAudioRootURL())
-        #expect(SyncedArticleAudioStore.isUbiquitousAudioRootAvailable)
-        await SyncedArticleAudioStore.bringReplicaNarration(sourceID: "src-1")
-        let folder = await rig.library.folder
-        #expect(FileManager.default.fileExists(atPath: folder.root.path) == false, "no working folder is made")
-
-        MacNarrationLibrary.install(library: rig.library, generation: { .two })
-        #expect(SyncedArticleAudioStore.audioRootURL() == folder.root.appendingPathComponent("Audio", isDirectory: true))
-        #expect(SyncedArticleAudioStore.isUbiquitousAudioRootAvailable == false)
-        #expect(SyncedArticleAudioStore.audioRootURL() != SyncedArticleAudioStore.ubiquityAudioRootURL(),
-                "the activation still reads the iCloud Drive tree, not the working folder")
-        #expect(SyncedArticleAudioStore.ubiquityPlaybackPositionURL(sourceID: "src-1").path.hasPrefix(SyncedArticleAudioStore.ubiquityAudioRootURL().path))
-    }
 
     @Test("The names are the phone's: the voice key, the chunk role and the chunk types")
     func theNames() {

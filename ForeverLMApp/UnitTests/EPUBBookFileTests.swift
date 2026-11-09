@@ -482,7 +482,7 @@ struct EPUBBookFileMigrationTests {
     func queuesUnpackedBooks() throws {
         let root = try Schema154Fixture.temporaryRoot("epub-book-files-169")
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         try store.execForTesting("""
             INSERT INTO books (id, title) VALUES ('epub', 'Epub'), ('team-epub', 'Team'), ('pdf', 'Pdf'), ('gone', 'Gone');
             INSERT INTO sources (id, date_added, state, source_type, status) VALUES
@@ -503,7 +503,7 @@ struct EPUBBookFileMigrationTests {
         try store.execForTesting("DELETE FROM book_file_merge_queue; PRAGMA user_version = 169;")
 
         Schema154Fixture.newLaunch(root)
-        let migrated = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let migrated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
 
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
         #expect(KnowledgeStore.schemaVersion == 174)

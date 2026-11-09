@@ -52,7 +52,7 @@ enum OutboxTestProjections {
     /// `triggers` is false.
     static func makeStore(_ name: String, triggers: Bool = true) throws -> (root: URL, store: KnowledgeStore) {
         let root = try temporaryRoot(name)
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .two, freeSpace: roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: roomy)
         try store.executeScript(tablesSQL)
         if triggers { try store.installOutboxTriggers(registry) }
         return (root, store)

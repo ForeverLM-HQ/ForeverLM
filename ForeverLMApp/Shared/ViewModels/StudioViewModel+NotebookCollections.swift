@@ -16,7 +16,7 @@ import Foundation
 /// while bound, writes go to that suite and never to the sync rail.
 enum NotebookCollectionRows {
     /// A test's own defaults, bound for the task that runs it (as
-    /// `NotebookChatSelection.overrideDefaults`).
+    /// `PageSpaceRows.overrideDefaults`).
     @TaskLocal static var overrideDefaults: DefaultsOverride? = nil
 
     /// A Sendable carrier for `overrideDefaults`; the suite is only ever
@@ -30,19 +30,12 @@ enum NotebookCollectionRows {
     /// The collections the rows hold now. The keys are built at runtime, so
     /// one scan of the defaults finds them; only the two prefixes are kept.
     static func read() -> NotebookCollections {
-        if NotebookStateStore.isActive {
-            // Generation 2: memberships are the member's `NotebookState.collections`; the names stay
-            // `notebookCollection.*` Settings (schema v2 §3.5.3, §3.5.20).
-            let names = NotebookCollections(rows: defaults.dictionaryRepresentation().filter { key, _ in
-                key.hasPrefix(NotebookCollections.namePreferenceKeyPrefix)
-            }).names
-            return NotebookCollections(names: names, memberships: NotebookStateStore.current().collections)
-        }
-        let rows = defaults.dictionaryRepresentation().filter { key, _ in
+        // Generation 2: memberships are the member's `NotebookState.collections`; the names stay
+        // `notebookCollection.*` Settings (schema v2 §3.5.3, §3.5.20).
+        let names = NotebookCollections(rows: defaults.dictionaryRepresentation().filter { key, _ in
             key.hasPrefix(NotebookCollections.namePreferenceKeyPrefix)
-                || key.hasPrefix(NotebookCollections.membershipPreferenceKeyPrefix)
-        }
-        return NotebookCollections(rows: rows)
+        }).names
+        return NotebookCollections(names: names, memberships: NotebookStateStore.current().collections)
     }
 
     /// Writes a collection's name row; nil removes it.
@@ -53,8 +46,7 @@ enum NotebookCollectionRows {
     /// Writes a notebook's row; an empty list removes it, as no row means a
     /// notebook in no collection.
     static func writeMembership(_ ids: [String], notebookID: String) {
-        if NotebookStateStore.isActive { return NotebookStateStore.setCollections(Set(ids), notebookID: notebookID) }
-        write(ids.isEmpty ? nil : ids, forKey: NotebookCollections.membershipKey(notebookID: notebookID))
+        NotebookStateStore.setCollections(Set(ids), notebookID: notebookID)
     }
 
     /// Drops a deleted notebook's row.
@@ -70,13 +62,6 @@ enum NotebookCollectionRows {
             writeMembership(row, notebookID: survivorID)
         }
         forget(notebookID: mergedID)
-    }
-
-    /// A split that removes its emptied parent hands the parent's
-    /// collections to its heir, the notebook that took its chats and Docs,
-    /// as it hands over the chat boxes (`NotebookChatSelection.handOver`).
-    static func handOver(fromParent parentID: String, toHeir heirID: String) {
-        merge(parentID, into: heirID)
     }
 
     private static func write(_ value: Any?, forKey key: String) {

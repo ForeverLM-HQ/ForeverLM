@@ -3262,9 +3262,7 @@ final class ArticleSpeechService: NSObject, ObservableObject {
                 await SyncedArticleAudioStore.publishPlaybackPositionToAccount(position, sourceID: sourceID)
                 // Generation 2: the account copy is the source's ReadingState (`listen.position.*`
                 // stays on this Mac); generation 1 writes nothing here.
-                if ForeverLMRuntimeIdentity.syncGeneration == .two {
-                    try? await activityStorage.saveListenPosition(position, sourceID: sourceID)
-                }
+                try? await activityStorage.saveListenPosition(position, sourceID: sourceID)
             }
         }
     }
@@ -3272,7 +3270,6 @@ final class ArticleSpeechService: NSObject, ObservableObject {
     /// The account copy of a source's resume point under generation 2 (its ReadingState), read before
     /// playback is prepared; nil under generation 1, whose account copy `loadPlaybackPosition` reads.
     private func accountListenPosition(sourceID: String) async -> ArticleSpeechPlaybackPosition? {
-        guard ForeverLMRuntimeIdentity.syncGeneration == .two else { return nil }
         return try? await activityStorage.loadListenPosition(sourceID: sourceID)
     }
 
@@ -3281,13 +3278,11 @@ final class ArticleSpeechService: NSObject, ObservableObject {
     /// local copy stays too, so the next play still finds the resume point at the end and forgets it
     /// again, rather than this Mac forgetting while every other device resumes from it.
     private nonisolated static func clearListenPosition(sourceID: String, storage: StorageService) async {
-        if ForeverLMRuntimeIdentity.syncGeneration == .two {
-            do {
-                try await storage.saveListenPosition(nil, sourceID: sourceID)
-            } catch {
-                articleSpeechLogger.error("Could not forget the resume point of \(sourceID, privacy: .public): \(error.localizedDescription, privacy: .public)")
-                return
-            }
+        do {
+            try await storage.saveListenPosition(nil, sourceID: sourceID)
+        } catch {
+            articleSpeechLogger.error("Could not forget the resume point of \(sourceID, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            return
         }
         SyncedArticleAudioStore.clearPlaybackPosition(sourceID: sourceID)
     }

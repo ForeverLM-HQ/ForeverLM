@@ -2,24 +2,18 @@ import Foundation
 import Testing
 @testable import ForeverLM
 
-/// The notebook chat checkboxes' stored form (`NotebookChatSelection`): the
-/// unticked sources as one sorted row per notebook, no row when every box is
-/// ticked, and the context notebooks put into its chats as a second row, no
-/// row when none is. Every test that writes binds its own defaults suite,
-/// never the standard defaults the Dev build and parallel suites share, and
-/// generation 1, whose rows these are: the test host runs generation 2, where
-/// the same ticks live in the member's NotebookState (`ChatTickRuleTests`).
+/// The notebook chat checkboxes (`NotebookChatSelection`): the unticked
+/// sources and the context notebooks put into a notebook's chats, kept in the
+/// member's NotebookState. Every test that writes binds its own state
+/// (`NotebookStateStore.$override`), never the store the Dev build and
+/// parallel suites share. The tick rule itself is `ChatTickRuleTests`.
 @Suite("Notebook chat selection")
 struct NotebookChatSelectionTests {
 
-    private func withCleanDefaults(_ body: (UserDefaults) throws -> Void) throws {
-        let suiteName = "NotebookChatSelectionTests.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        try ForeverLMRuntimeIdentity.$pinnedSyncGeneration.withValue(.one) {
-            try NotebookChatSelection.$overrideDefaults.withValue(NotebookChatSelection.DefaultsOverride(defaults: defaults)) {
-                try body(defaults)
-            }
+    private func withCleanState(_ body: (NotebookStateStore.Box) throws -> Void) rethrows {
+        let box = NotebookStateStore.Box()
+        try NotebookStateStore.$override.withValue(box) {
+            try body(box)
         }
     }
 
@@ -48,43 +42,41 @@ struct NotebookChatSelectionTests {
         #expect(NotebookChatSelection.updated(Set(pool), setting: pool, inChat: true, pool: pool).isEmpty)
     }
 
-    @Test("Writing an empty exclusion removes the notebook's row")
-    func writeEmptyRemovesTheRow() throws {
-        try withCleanDefaults { defaults in
-            let key = NotebookChatSelection.preferenceKey(notebookID: "p1")
-            #expect(key == "notebook.chatExcluded.p1")
+    @Test("Writing an empty exclusion leaves the notebook with none")
+    func writeEmptyLeavesNoExclusion() {
+        withCleanState { box in
+            #expect(NotebookChatSelection.preferenceKey(notebookID: "p1") == "notebook.chatExcluded.p1")
 
             NotebookChatSelection.write(["a", "b"], notebookID: "p1")
-            #expect(defaults.stringArray(forKey: key) == ["a", "b"])
+            #expect(box.snapshot.excluded["p1"] == ["a", "b"])
             #expect(NotebookChatSelection.excluded(notebookID: "p1") == ["a", "b"])
 
             NotebookChatSelection.write([], notebookID: "p1")
-            #expect(defaults.object(forKey: key) == nil)
             #expect(NotebookChatSelection.excluded(notebookID: "p1").isEmpty)
 
             NotebookChatSelection.write(["a"], notebookID: "p1")
             NotebookChatSelection.writeContextNotebooks(["r1"], notebookID: "p1")
             NotebookChatSelection.forget(notebookID: "p1")
-            #expect(defaults.object(forKey: key) == nil)
-            #expect(defaults.object(forKey: NotebookChatContext.preferenceKey(notebookID: "p1")) == nil, "a deleted notebook's rows both go")
+            #expect(NotebookChatSelection.excluded(notebookID: "p1").isEmpty)
+            #expect(NotebookChatSelection.contextNotebookIDs(notebookID: "p1").isEmpty, "a deleted notebook's ticks and context notebooks both go")
         }
     }
 
-    @Test("The context notebooks put in are a row of their own, sorted, and none is no row")
-    func contextNotebooksRow() throws {
-        try withCleanDefaults { defaults in
-            let key = NotebookChatContext.preferenceKey(notebookID: "p1")
-            #expect(key == "notebook.chatContextNotebooks.p1")
-            #expect(NotebookChatSelection.contextNotebookIDs(notebookID: "p1").isEmpty, "no row: no context notebook is read")
+    @Test("The context notebooks put in are kept apart from the unticked sources, and none is none")
+    func contextNotebooksAreTheirOwn() {
+        withCleanState { box in
+            #expect(NotebookChatContext.preferenceKey(notebookID: "p1") == "notebook.chatContextNotebooks.p1")
+            #expect(NotebookChatSelection.contextNotebookIDs(notebookID: "p1").isEmpty, "nothing put in: no context notebook is read")
 
             NotebookChatSelection.writeContextNotebooks(["r1", "r2"], notebookID: "p1")
-            #expect(defaults.stringArray(forKey: key) == ["r1", "r2"])
+            #expect(box.snapshot.contextNotebooks["p1"] == ["r1", "r2"])
             #expect(NotebookChatSelection.selection(notebookID: "p1") == NotebookChatContext.Selection(contextNotebookIDs: ["r1", "r2"]))
-            defaults.set(["x"], forKey: NotebookChatSelection.preferenceKey(notebookID: "p2"))
-            #expect(NotebookChatSelection.contextNotebooksFromDefaults() == ["p1": ["r1", "r2"]], "the unticked rows are not read as context rows")
+            NotebookChatSelection.write(["x"], notebookID: "p2")
+            #expect(NotebookChatSelection.contextNotebooksFromDefaults().filter { !$0.value.isEmpty } == ["p1": ["r1", "r2"]],
+                    "the unticked sources are not read as context notebooks")
 
             NotebookChatSelection.writeContextNotebooks([], notebookID: "p1")
-            #expect(defaults.object(forKey: key) == nil)
+            #expect(NotebookChatSelection.contextNotebookIDs(notebookID: "p1").isEmpty)
         }
     }
 
@@ -109,68 +101,14 @@ struct NotebookChatSelectionTests {
                 "a write keeps every id the row names: D, not linked here, is passed over by the readers")
     }
 
-    @Test("A split's heir takes the emptied parent's unticked boxes and context notebooks it still has, and the parent's rows go")
-    func handOverCarriesTheParentsRowToTheHeir() throws {
-        try withCleanDefaults { defaults in
-            let parentKey = NotebookChatSelection.preferenceKey(notebookID: "parent")
-            let heirKey = NotebookChatSelection.preferenceKey(notebookID: "heir")
-            // "b" went to the heir, "c" to another child; "r" is a context
-            // notebook's source the heir now reads. The parent's chats read
-            // two context notebooks, and the heir took the link to one.
-            NotebookChatSelection.write(["b", "c", "r"], notebookID: "parent")
-            NotebookChatSelection.writeContextNotebooks(["kept", "unlinked"], notebookID: "parent")
-            // Another notebook's chats read the parent itself.
-            NotebookChatSelection.writeContextNotebooks(["other", "parent"], notebookID: "reader")
+    @Test("Every notebook's unticked sources are read at once")
+    func exclusionsReadEveryNotebook() {
+        withCleanState { _ in
+            NotebookChatSelection.write(["a"], notebookID: "p1")
+            NotebookChatSelection.write(["b", "c"], notebookID: "p2")
+            NotebookChatSelection.write([], notebookID: "p3")
 
-            NotebookChatSelection.handOver(fromParent: "parent", toHeir: "heir", heirPool: ["a", "b", "r"], heirLinks: ["kept"])
-            #expect(defaults.stringArray(forKey: heirKey) == ["b", "r"])
-            #expect(defaults.stringArray(forKey: NotebookChatContext.preferenceKey(notebookID: "heir")) == ["kept"])
-            #expect(defaults.object(forKey: parentKey) == nil)
-            #expect(defaults.object(forKey: NotebookChatContext.preferenceKey(notebookID: "parent")) == nil)
-            #expect(defaults.stringArray(forKey: NotebookChatContext.preferenceKey(notebookID: "reader")) == ["heir", "other"],
-                    "the link moved to the heir, and this learner's choice with it")
-
-            // A parent with nothing unticked in the heir's pool leaves the
-            // heir with no row, everything ticked.
-            NotebookChatSelection.write(["c"], notebookID: "parent-2")
-            NotebookChatSelection.handOver(fromParent: "parent-2", toHeir: "heir-2", heirPool: ["a"], heirLinks: [])
-            #expect(defaults.object(forKey: NotebookChatSelection.preferenceKey(notebookID: "heir-2")) == nil)
-            #expect(defaults.object(forKey: NotebookChatContext.preferenceKey(notebookID: "heir-2")) == nil)
-            #expect(defaults.object(forKey: NotebookChatSelection.preferenceKey(notebookID: "parent-2")) == nil)
-        }
-    }
-
-    @Test("A merge forgets the merged notebook's unticks, keeps the context notebooks the survivor links to, and repoints the notebooks reading it")
-    func mergedCarriesContextNotebooks() throws {
-        try withCleanDefaults { defaults in
-            NotebookChatSelection.write(["m1"], notebookID: "merged")
-            NotebookChatSelection.writeContextNotebooks(["linked", "not-linked"], notebookID: "merged")
-            NotebookChatSelection.writeContextNotebooks(["own-choice"], notebookID: "survivor")
-            NotebookChatSelection.writeContextNotebooks(["merged"], notebookID: "reader")
-            NotebookChatSelection.writeContextNotebooks(["merged", "survivor"], notebookID: "both")
-
-            let written = NotebookChatSelection.merged("merged", into: "survivor", survivorLinks: ["linked", "own-choice"])
-
-            #expect(defaults.stringArray(forKey: NotebookChatContext.preferenceKey(notebookID: "survivor")) == ["linked", "own-choice"])
-            #expect(defaults.object(forKey: NotebookChatSelection.preferenceKey(notebookID: "merged")) == nil,
-                    "its sources arrive in the survivor ticked")
-            #expect(defaults.object(forKey: NotebookChatContext.preferenceKey(notebookID: "merged")) == nil)
-            #expect(defaults.stringArray(forKey: NotebookChatContext.preferenceKey(notebookID: "reader")) == ["survivor"])
-            #expect(defaults.stringArray(forKey: NotebookChatContext.preferenceKey(notebookID: "both")) == ["survivor"])
-            #expect(written == ["survivor": ["linked", "own-choice"], "merged": [], "reader": ["survivor"], "both": ["survivor"]],
-                    "what a window mirrors")
-        }
-    }
-
-    @Test("Every notebook's row is read in one scan; an empty row counts as none")
-    func exclusionsFromDefaultsReadsEveryNotebook() throws {
-        try withCleanDefaults { defaults in
-            defaults.set(["a"], forKey: NotebookChatSelection.preferenceKey(notebookID: "p1"))
-            defaults.set(["b", "c"], forKey: NotebookChatSelection.preferenceKey(notebookID: "p2"))
-            defaults.set([String](), forKey: NotebookChatSelection.preferenceKey(notebookID: "p3"))
-            defaults.set(["x"], forKey: "notebook.somethingElse.p4")
-
-            #expect(NotebookChatSelection.exclusionsFromDefaults() == ["p1": ["a"], "p2": ["b", "c"]])
+            #expect(NotebookChatSelection.exclusionsFromDefaults().filter { !$0.value.isEmpty } == ["p1": ["a"], "p2": ["b", "c"]])
         }
     }
 
@@ -466,11 +404,5 @@ struct NotebookChatContextTests {
         #expect(NotebookChatContext.puttingIn(["r1"], linked: linked, selection: leftOver) == leftOver)
         #expect(NotebookChatContext.puttingIn(["elsewhere"], linked: linked, selection: unticked) == unticked,
                 "a notebook not linked is not put in")
-    }
-
-    @Test("A heir or survivor keeps the context notebooks it still links to beside its own")
-    func carriedKeepsLinkedOnes() {
-        #expect(NotebookChatContext.carried(["r1", "r2", "gone"], into: ["r3"], links: ["r1", "r3"]) == ["r1", "r3"])
-        #expect(NotebookChatContext.carried([], into: [], links: ["r1"]).isEmpty)
     }
 }

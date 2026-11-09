@@ -134,7 +134,7 @@ struct SourceSchema155MigrationTests {
     func generation1LeavesThemEmpty() throws {
         let root = try Schema154Fixture.temporaryRoot("155-generation1")
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         var article = StudioArticle(url: "https://doi.org/10.1038/s41586-020-2649-2", title: "A paper", sourceType: .paper)
         article.doi = "10.1038/s41586-020-2649-2"
         #expect(try store.insertSourceIfNew(&article))
@@ -152,7 +152,7 @@ struct SourceSchema155MigrationTests {
     /// A generation-1 library: three episodes of one show, a channel's video and one whose `domain` is
     /// only the host, two members of a playlist nobody follows, a course's video and a stray group.
     private static func makeGeneration1Library(at root: URL) throws {
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         for index in 1...3 {
             var episode = StudioArticle(url: "https://podcasts.example.org/huberman/\(index)", title: "Episode \(index)", sourceType: .podcast)
             episode.domain = "Huberman Lab"
@@ -202,7 +202,7 @@ struct SourceSchema155MigrationTests {
         defer { try? FileManager.default.removeItem(at: root) }
         try Self.makeGeneration1Library(at: root)
         Schema154Fixture.newLaunch(root)
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .two, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         try Self.runDerivations(store)
         let first = try Self.derived(store)
         try Self.runDerivations(store)
@@ -235,7 +235,7 @@ struct SourceSchema155MigrationTests {
         defer { try? FileManager.default.removeItem(at: root) }
         try Self.makeGeneration1Library(at: root)
         Schema154Fixture.newLaunch(root)
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .two, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         let table = try #require(PlaylistEntryProjection().tables.first)
         var entries: [String] = []
         try store.query("SELECT source_id, group_id FROM group_members ORDER BY group_id, source_id", []) { row in
@@ -253,19 +253,19 @@ struct SourceSchema155MigrationTests {
         try Self.makeGeneration1Library(at: root)
         do {
             Schema154Fixture.newLaunch(root)
-            let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .two, freeSpace: Schema154Fixture.roomy)
+            let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
             try Self.runDerivations(store)
         }
         // A generation-1 release opens the store again (it was never activated) and imports more.
         do {
             Schema154Fixture.newLaunch(root)
-            let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+            let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
             var episode = StudioArticle(url: "https://podcasts.example.org/lex/1", title: "Lex 1", sourceType: .podcast)
             episode.domain = "Lex Fridman Podcast"
             try store.saveSource(episode)
         }
         Schema154Fixture.newLaunch(root)
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .two, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         try Self.runDerivations(store)
         #expect(try SourceSyncFixture.text(store, "SELECT group_concat(external_key, '|') FROM (SELECT external_key FROM source_collections WHERE kind = 'podcastShow' ORDER BY 1)")
                 == "Huberman Lab|Lex Fridman Podcast")
@@ -306,7 +306,7 @@ struct SourceSchema155MigrationTests {
     func generation1IgnoresWorkKeys() throws {
         let root = try Schema154Fixture.temporaryRoot("155-gen1-mint")
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         let other = try SourceSyncFixture.save(store, StudioArticle(url: "https://example.org/other", title: "Other", sourceType: .article))
         // A key naming another source, as a generation-2 store would hold it: generation 1 never looks.
         try store.execForTesting("INSERT INTO source_work_keys (source_id, work_key) VALUES ('\(other.id)', 'url:\(URLNormalizer.normalize("https://example.org/paper"))')")
@@ -323,7 +323,7 @@ struct SourceSchema155MigrationTests {
         defer { try? FileManager.default.removeItem(at: root) }
         try Self.makeGeneration1Library(at: root)
         Schema154Fixture.newLaunch(root)
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .two, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         let journal = try GenerationActivation(store: store).run(.freshNoHistory)
         #expect(journal.activatedAt != nil)
         #expect(try SourceSyncFixture.count(store, "SELECT COUNT(*) FROM source_collections") == 3)

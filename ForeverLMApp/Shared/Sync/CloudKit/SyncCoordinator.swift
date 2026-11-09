@@ -123,7 +123,6 @@ actor SyncCoordinator {
     /// Checks the account, runs the bootstrap and starts the engine. Safe to call again: a device
     /// that waited (no root yet, a failed lookup) tries the bootstrap once more.
     func start() async {
-        guard ForeverLMRuntimeIdentity.syncGeneration == .two else { return }
         Self.current = self
         publish { $0.phase = .starting }
         do {

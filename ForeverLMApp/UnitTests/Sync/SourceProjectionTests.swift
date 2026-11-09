@@ -493,7 +493,7 @@ struct AppliedRemoteChangesTests {
     func viewModelTakesTheFix() async throws {
         let root = try Schema154Fixture.temporaryRoot("WP7-applied-remote-vm")
         defer { try? FileManager.default.removeItem(at: root) }
-        let storage = StorageService(storeRoot: root, syncGeneration: .two)
+        let storage = StorageService(storeRoot: root)
         let told = Told()
         try await storage.performSync { store in
             try store.installOutboxTriggers(Fixture.registry)
@@ -619,7 +619,7 @@ struct StaleSourceSaveTests {
     func generationOneWritesWhole() throws {
         let root = try Schema154Fixture.temporaryRoot("WP7-stale-copy-generation-one")
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         let article = Remote.staleArticle()
         try store.saveSource(article)
         let held = try #require(try store.loadSourceWithoutContent(article.id))

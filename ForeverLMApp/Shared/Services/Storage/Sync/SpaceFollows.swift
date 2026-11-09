@@ -48,8 +48,6 @@ enum SpaceFollowKey {
 }
 
 enum SpaceFollowError: Error, Equatable, LocalizedError {
-    /// Spaces are generation 2's; generation 1's teams copy and never follow.
-    case notGeneration2
     case unknownSpace
     /// The space went (deleted, left, purged): its rows are kept hidden, never changed.
     case spaceGone
@@ -61,7 +59,6 @@ enum SpaceFollowError: Error, Equatable, LocalizedError {
 
     var errorDescription: String? {
         switch self {
-        case .notGeneration2: return "Spaces are not on in this version of ForeverLM yet."
         case .unknownSpace: return "This Mac does not hold that space."
         case .spaceGone: return "That space is gone, so it cannot be changed."
         case .readOnly: return "You can read this space but not change it."
@@ -138,7 +135,6 @@ enum SpaceFollows {
         spaceID: String, collectionID: String, autoImport: Bool, runnerDeviceID: String?, at date: Date = Date(),
         store: KnowledgeStore
     ) throws {
-        guard store.syncGeneration == .two else { throw SpaceFollowError.notGeneration2 }
         let zoneKey = try writableZoneKey(spaceID: spaceID, connection: store)
         let replica = ReplicaStore(connection: store)
         guard let held = try replica.record(zoneKey: zoneKey, recordType: SyncRecordType.collection.rawValue, wireID: collectionID),
@@ -161,7 +157,6 @@ enum SpaceFollows {
     /// Ends the space's follow: the row goes, and the Setting is cleared to `null` for everyone (a
     /// Setting is never deleted, §3.5.3); its identity stays, so the clearing reaches the space.
     static func clear(spaceID: String, collectionID: String, store: KnowledgeStore) throws {
-        guard store.syncGeneration == .two else { throw SpaceFollowError.notGeneration2 }
         _ = try writableZoneKey(spaceID: spaceID, connection: store)
         try store.inDerivationTransaction { store in
             try store.execute("DELETE FROM user_preferences WHERE key = ?", [.text(SpaceFollowKey.localKey(spaceID: spaceID, collectionID: collectionID))])

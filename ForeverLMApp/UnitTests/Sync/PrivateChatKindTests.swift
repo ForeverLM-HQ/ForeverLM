@@ -184,17 +184,4 @@ struct PrivateChatKindTests {
         #expect(try store.generation2AppendMarksReviewed(requested: nil, sessionID: "app-review"))
         #expect(try !store.generation2AppendMarksReviewed(requested: nil, sessionID: "app-chat"))
     }
-
-    @Test("A generation-1 store writes no chat kind, context mode or review default")
-    func generation1WritesNothing() throws {
-        let (root, store) = try N.makeStore("kind-gen1", generation: .one)
-        defer { try? FileManager.default.removeItem(at: root) }
-        try F.addChat(store, "a-review", kind: .review)
-        _ = try store.importReviewChatSession(
-            id: "imported", title: "T", turns: [ReviewChatTurn(question: "Q", answer: "A", evaluation: "E")], sourceIDs: [], summary: nil,
-            overallScore: nil, modelProvider: nil, modelID: nil, chatKind: .chat, marksReviewed: true
-        )
-        #expect(try N.count(store, "SELECT COUNT(*) FROM review_sessions WHERE chat_kind IS NOT NULL OR context_mode IS NOT NULL OR marks_reviewed IS NOT NULL") == 0)
-        #expect(try N.count(store, "SELECT COUNT(*) FROM ck_outbox_fields") == 0)
-    }
 }

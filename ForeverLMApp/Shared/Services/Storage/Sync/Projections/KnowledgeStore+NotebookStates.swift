@@ -104,7 +104,6 @@ extension KnowledgeStore {
     /// re-approval ticked again is ticked with no write here. A source in no Entry of the notebook's
     /// context is not stored. Generation 2 only.
     func setNotebookChatExclusions(notebookID: String, excluded: Set<String>) throws {
-        guard syncGeneration == .two else { return }
         try inNotebookStateTransaction(notebookID) { row in
             let context = try self.notebookContextEntries(notebookID, row: row)
             let held = try self.effectiveExclusions(row, context: context)
@@ -118,20 +117,17 @@ extension KnowledgeStore {
 
     /// The context notebooks the member ticked into this notebook's chats (D52). Generation 2 only.
     func setNotebookContextNotebooks(notebookID: String, contextNotebookIDs: Set<String>) throws {
-        guard syncGeneration == .two else { return }
         try inNotebookStateTransaction(notebookID) { $0.contextNotebooks = contextNotebookIDs }
     }
 
     /// The Notebook Collections this notebook is in, for this member. Generation 2 only.
     func setNotebookCollections(notebookID: String, collectionIDs: Set<String>) throws {
-        guard syncGeneration == .two else { return }
         try inNotebookStateTransaction(notebookID) { $0.collections = collectionIDs }
     }
 
     /// Gives every untick still waiting for its Entry's stamp its pair, once the stamp can be named
     /// (the device has its server offset). Generation 2 only.
     func resolvePendingUnticks() throws {
-        guard syncGeneration == .two else { return }
         var ids: [String] = []
         try query("SELECT notebook_id FROM notebook_states WHERE excluded_json LIKE ?", [.text("%\(NotebookStateRow.pendingPair)%")]) { row in
             if let id = row.text(0) { ids.append(id) }
@@ -183,9 +179,6 @@ enum NotebookStateStore {
         var snapshot: NotebookStateSnapshot
         init(_ snapshot: NotebookStateSnapshot = NotebookStateSnapshot()) { self.snapshot = snapshot }
     }
-
-    /// Whether the surfaces read this store: generation 2, or a test that bound one.
-    static var isActive: Bool { override != nil || ForeverLMRuntimeIdentity.syncGeneration == .two }
 
     static func current() -> NotebookStateSnapshot {
         if let override { return override.snapshot }

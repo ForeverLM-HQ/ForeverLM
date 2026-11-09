@@ -348,8 +348,7 @@ struct AutomationProjection: RecordProjection {
 extension KnowledgeStore {
     /// This device's generation-2 id (`ck_clock`), the one its stamps carry; nil before it has one.
     func generation2DeviceID() throws -> String? {
-        guard syncGeneration == .two,
-              let json = try scalarText("SELECT clock_json FROM ck_clock WHERE id = 1") else { return nil }
+        guard let json = try scalarText("SELECT clock_json FROM ck_clock WHERE id = 1") else { return nil }
         return (try? JSONDecoder().decode(StampClock.self, from: Data(json.utf8)))?.deviceID
     }
 
@@ -358,7 +357,7 @@ extension KnowledgeStore {
     /// yet is taken by this one. Generation 1 runs every task on every Mac, as build 177 does, and a Mac
     /// with no device id yet runs it without taking it. Runs inside the caller's transaction.
     func scheduledTaskRunsHere(_ taskID: String) throws -> Bool {
-        guard syncGeneration == .two, let device = try generation2DeviceID() else { return true }
+        guard let device = try generation2DeviceID() else { return true }
         let runner = try scalarText("SELECT runner_device_id FROM scheduled_tasks WHERE id = ?", [.text(taskID)])
         if let runner, !runner.isEmpty { return runner == device }
         try execute("UPDATE scheduled_tasks SET runner_device_id = ? WHERE id = ?", [.text(device), .text(taskID)])
@@ -368,7 +367,6 @@ extension KnowledgeStore {
     /// A run this Mac just claimed takes the ring's next slot (§3.5.29, D42). Generation 2 only; inside the
     /// claim's transaction, before the receipts are pruned to the ring's size.
     func takeRingSlotForGeneration2(runID: String, taskID: String) throws {
-        guard syncGeneration == .two else { return }
         let slot = try AutomationRing.nextSlot(taskID: taskID, excluding: runID, connection: self)
         try execute("UPDATE scheduled_task_runs SET ring_slot = ? WHERE id = ?", [.text(slot), .text(runID)])
     }
@@ -377,7 +375,7 @@ extension KnowledgeStore {
     /// that does (§3.5.28), as the web asks for one. False when this Mac runs it (or generation 1, or no
     /// device id yet), and the caller sets the request as build 177 does. Inside the caller's transaction.
     func requestRunOnRunnerMacForGeneration2(_ taskID: String, at date: Date) throws -> Bool {
-        guard syncGeneration == .two, let device = try generation2DeviceID(),
+        guard let device = try generation2DeviceID(),
               let runner = try scalarText("SELECT runner_device_id FROM scheduled_tasks WHERE id = ?", [.text(taskID)]),
               !runner.isEmpty, runner != device else { return false }
         try MacJobRequests.request(

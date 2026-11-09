@@ -35,7 +35,7 @@ enum DevelopmentSpike {
 
     private static func isRequested(_ argument: String) -> Bool {
         ProcessInfo.processInfo.arguments.contains(argument)
-            && ProcessInfo.processInfo.environment[ForeverLMRuntimeIdentity.syncGenerationOverrideKey] == "2"
+            && ProcessInfo.processInfo.environment["FOREVERLM_SYNC_GENERATION"] == "2"
     }
 
     static func runIfRequested() {

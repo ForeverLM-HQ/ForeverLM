@@ -155,11 +155,11 @@ final class ActivationStatus: @unchecked Sendable {
 }
 
 /// Starts the things that must wait for `activated_at`: the MCP HTTP server and the relay (§13.3 step 3).
-/// Closed from the process's first instant under generation 2 and opened by the launcher once `activated_at`
+/// Closed from the process's first instant and opened by the launcher once `activated_at`
 /// is set (or the activation failed or was cancelled for good), so nothing that starts before the launcher
-/// runs can slip through an open gate (F28); open for ever under generation 1.
+/// runs can slip through an open gate (F28).
 actor GenerationActivationGate {
-    static let shared = GenerationActivationGate(isOpen: ForeverLMRuntimeIdentity.syncGeneration != .two)
+    static let shared = GenerationActivationGate(isOpen: false)
 
     private var isOpen: Bool
     private var waiters: [CheckedContinuation<Void, Never>] = []

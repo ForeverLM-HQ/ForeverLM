@@ -57,11 +57,4 @@ struct SpaceDeletePermissionTests {
         #expect(try SpaceRows.mayDelete(type: .chat, localID: "chat-new", user: "_bob", connection: writable), "made here and not sent")
         #expect(try SpaceRows.mayDelete(type: .task, localID: "task-1", user: "_bob", connection: writable), "a type the rule does not name")
     }
-
-    @Test("Under generation 1 nothing is checked")
-    func generationOne() throws {
-        let (root, store) = try F.makeStore("delete-gen1", generation: .one)
-        defer { try? FileManager.default.removeItem(at: root) }
-        try store.requireSpaceDeletion(.notebook, "nb-anything")
-    }
 }

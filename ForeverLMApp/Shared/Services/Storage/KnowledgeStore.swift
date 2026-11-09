@@ -36,16 +36,12 @@ final class KnowledgeStore: @unchecked Sendable {
     let startupPreferenceSnapshot: [String: Any]
     let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "KnowledgeStore")
     var syncTrackingSuppressionDepth = 0
-    /// The sync generation this store runs under (D40). Generation 1 behaves exactly as the builds
-    /// before schema v2; tests that exercise a generation-2 path pass `.two`.
-    let syncGeneration: SyncGeneration
     /// Once a generation-2 store's activation has finished, generation 1's change queue (`sync_changes`) is
     /// never written again: the outbox's triggers record every change, and a row left here would read as a
     /// pending old-world change at a reconcile (§13.5). Only a true answer is kept.
     private let activatedLock = NSLock()
     private var activatedCache = false
     var writesGenerationOneQueue: Bool {
-        guard syncGeneration == .two else { return true }
         activatedLock.lock()
         defer { activatedLock.unlock() }
         if !activatedCache, (try? isActivatedForGeneration2()) == true { activatedCache = true }
@@ -97,13 +93,12 @@ final class KnowledgeStore: @unchecked Sendable {
     /// database file, so a second open in this process waits for the first and finds the store current.
     /// The first open decides about the copy for the launch; later ones follow it.
     /// When the copy has no room on the disk (`freeSpace`, the volume's capacity for important usage),
-    /// generation 1 migrates the store through 153 and no further, and generation 2 refuses.
+    /// the open refuses.
     init(
         storeDirectory: URL,
         contentDirectory: URL? = nil,
         legacyContentDirectories: [URL] = [],
         startupPreferenceSnapshot: [String: Any] = [:],
-        syncGeneration: SyncGeneration = ForeverLMRuntimeIdentity.syncGeneration,
         freeSpace: (URL) throws -> Int64? = KnowledgeRollbackCopy.availableCapacity(at:)
     ) throws {
         let fm = FileManager.default
@@ -113,7 +108,6 @@ final class KnowledgeStore: @unchecked Sendable {
         self.legacyContentDirectories = legacyContentDirectories.map(\.standardizedFileURL)
         self.startupPreferenceSnapshot = startupPreferenceSnapshot
         self.currentHome = NSHomeDirectory()
-        self.syncGeneration = syncGeneration
 
         let openGate = KnowledgeStoreOpening.gate(forDatabaseAt: dbPath)
         openGate.lock()
@@ -130,13 +124,6 @@ final class KnowledgeStore: @unchecked Sendable {
 
         do {
             try pragmas()
-            // A generation-1 build never opens a store generation 2 runs on (§13.2): it would not
-            // send what the learner writes, and the triggers would record it for nobody.
-            if syncGeneration == .one, try isActivatedForGeneration2() {
-                throw KnowledgeStoreError.activatedForGeneration2
-            }
-            // Short of room for the copy, generation 1 still runs every step below 154, none of
-            // which needs one, and waits at 153 for a launch with room.
             let laysDownSchema154 = try takeRollbackCopyBeforeMigrating(storeDirectory: storeDirectory, freeSpace: freeSpace)
             try createSchema(stoppingBeforeSchema154: !laysDownSchema154)
         } catch {
@@ -150,14 +137,13 @@ final class KnowledgeStore: @unchecked Sendable {
 
     /// In-memory initializer for unit tests. Opens an empty `:memory:` database and
     /// installs the current schema.
-    init(inMemory: Bool, syncGeneration: SyncGeneration = ForeverLMRuntimeIdentity.syncGeneration) throws {
+    init(inMemory: Bool) throws {
         precondition(inMemory, "Use init(storeDirectory:) for on-disk databases")
         self.dbPath = ":memory:"
         self.contentDirectory = nil
         self.legacyContentDirectories = []
         self.startupPreferenceSnapshot = [:]
         self.currentHome = NSHomeDirectory()
-        self.syncGeneration = syncGeneration
 
         var dbPtr: OpaquePointer?
         let rc = sqlite3_open_v2(":memory:", &dbPtr, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE | SQLITE_OPEN_FULLMUTEX, nil)
@@ -443,8 +429,6 @@ enum KnowledgeStoreError: Error, LocalizedError {
     /// Generation 2 cannot start on a store it could not copy first, and the
     /// disk has no room for the copy (§13.3 step 1).
     case noRoomForRollbackCopy(bytesToFree: Int64)
-    /// A generation-1 build opened a store generation 2 runs on (§13.2).
-    case activatedForGeneration2
 
     var errorDescription: String? {
         switch self {
@@ -459,8 +443,6 @@ enum KnowledgeStoreError: Error, LocalizedError {
             return "Another source (\(existingSourceID)) already carries this identity."
         case .noRoomForRollbackCopy(let bytesToFree):
             return "Free up \(KnowledgeRollbackCopy.readableBytes(bytesToFree)) on this Mac: ForeverLM keeps a copy of your library before it moves it to the new iCloud store."
-        case .activatedForGeneration2:
-            return "This library moved to the new iCloud store. Install the current ForeverLM."
         }
     }
 }

@@ -8,7 +8,6 @@ extension KnowledgeStore {
     /// item its slot and its span, and a team's course its children's `ck_identity` rows. Runs inside the
     /// writer's transaction; generation 1 writes exactly what build 177 does (D40).
     func keepCourseRowsForGeneration2(courseIDs: [String]) throws {
-        guard syncGeneration == .two else { return }
         let zones = try teamZoneKeys()
         let now = Date().timeIntervalSinceReferenceDate
         for courseID in Set(courseIDs).sorted() {
@@ -19,7 +18,7 @@ extension KnowledgeStore {
     /// A quiz whose questions a save changed counts a new revision (§3.5.11, `QuizRevisionTests`), so a
     /// sitting of the earlier questions reads as a previous version's. Generation 2 only.
     func countQuizRevisionForGeneration2(quizID: String, questionsBefore: String?) throws {
-        guard syncGeneration == .two, let questionsBefore else { return }
+        guard let questionsBefore else { return }
         guard let after = try scalarText("SELECT questions_json FROM course_quizzes WHERE id = ?", [.text(quizID)]),
               !Self.sameQuestions(questionsBefore, after) else { return }
         try execute("UPDATE course_quizzes SET revision = revision + 1 WHERE id = ?", [.text(quizID)])

@@ -164,14 +164,12 @@ struct PageSpacesMacTests {
         return ArtifactRecord(id: id, title: id, homeNotebookID: nil, linkedNotebookIDs: [], teamID: teamID, kind: kind, createdAt: date, updatedAt: date)
     }
 
-    @Test("Both prefixes follow the account under either generation, as Settings no record took over")
+    @Test("Both prefixes follow the account, as Settings no record took over")
     func rowsSync() {
         let name = PageSpaces.nameKey(spaceID: "psp-1")
         let membership = PageSpaces.membershipKey(pageID: "doc-1")
-        for generation in [SyncGeneration.one, .two] {
-            #expect(SyncedPreferenceKeys.isSynced(name, for: generation))
-            #expect(SyncedPreferenceKeys.isSynced(membership, for: generation))
-        }
+        #expect(SyncedPreferenceKeys.isSynced(name))
+        #expect(SyncedPreferenceKeys.isSynced(membership))
         #expect(SyncedPreferenceKeys.isSetting(name))
         #expect(SyncedPreferenceKeys.isSetting(membership))
         #expect(SyncedPreferenceKeys.syncedPrefixes.contains(PageSpaces.namePreferenceKeyPrefix))
@@ -240,9 +238,7 @@ struct PageSpacesMacTests {
     @Test("A space goes to Trash and back with its pages; Delete Forever removes its rows; the trash row syncs")
     func trashLifecycle() throws {
         let trashKey = PageSpaces.trashKey(spaceID: "psp-1")
-        for generation in [SyncGeneration.one, .two] {
-            #expect(SyncedPreferenceKeys.isSynced(trashKey, for: generation))
-        }
+        #expect(SyncedPreferenceKeys.isSynced(trashKey))
         #expect(SyncedPreferenceKeys.isSetting(trashKey))
         #expect(PageSpaces.spaceID(fromNameKey: trashKey) == nil, "a trash row is never read as a space's name")
         try withSpaceDefaults { defaults in
@@ -405,12 +401,10 @@ struct PagePinsTests {
         #expect(PagePins.pageID(fromKey: "page.space.doc-1") == nil)
     }
 
-    @Test("A pin row follows the account under either generation")
+    @Test("A pin row follows the account")
     func rowsSync() {
         let key = PagePins.key(pageID: "doc-1")
-        for generation in [SyncGeneration.one, .two] {
-            #expect(SyncedPreferenceKeys.isSynced(key, for: generation))
-        }
+        #expect(SyncedPreferenceKeys.isSynced(key))
         #expect(SyncedPreferenceKeys.isSetting(key))
     }
 
@@ -529,12 +523,10 @@ struct PageParentsTests {
         #expect(PageParents.pageID(fromKey: "page.pinned.doc-2") == nil)
     }
 
-    @Test("A parent row follows the account under either generation")
+    @Test("A parent row follows the account")
     func rowsSync() {
         let key = PageParents.key(pageID: "doc-1")
-        for generation in [SyncGeneration.one, .two] {
-            #expect(SyncedPreferenceKeys.isSynced(key, for: generation))
-        }
+        #expect(SyncedPreferenceKeys.isSynced(key))
         #expect(SyncedPreferenceKeys.isSetting(key))
         #expect(!SyncedPreferenceKeys.isSynced("space.pagesExpanded"), "which subpages a list shows is this Mac's")
     }

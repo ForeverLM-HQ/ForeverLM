@@ -62,7 +62,7 @@ struct GenerationActivationRunner: Sendable {
     /// writable, as the runner left the library. The runner's own steps pass the hold
     /// (`KnowledgeStoreWriteGate.allowingWrites`), even while another store's open holds the path again.
     static func holdIfActivationMayBeFull(_ store: KnowledgeStore) {
-        guard store.syncGeneration == .two, store.dbPath != ":memory:", (try? store.isActivatedForGeneration2()) == false else { return }
+        guard store.dbPath != ":memory:", (try? store.isActivatedForGeneration2()) == false else { return }
         let journal = try? store.activationJournal()
         let mayBeFull: Bool
         if let mode = journal?.mode {

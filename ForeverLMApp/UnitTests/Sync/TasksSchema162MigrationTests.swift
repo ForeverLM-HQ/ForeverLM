@@ -133,7 +133,7 @@ struct TasksSchema162MigrationTests {
         let root = try Schema154Fixture.temporaryRoot("162-generation-1")
         defer { try? FileManager.default.removeItem(at: root) }
         let library = try Schema154Fixture.makeLibrary(at: root, version: nil)
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         try store.saveNotebookTask(NotebookTaskRecord(notebookID: library.notebookID, title: "Read the methods"))
         let task = try store.saveScheduledTask(ScheduledTask(title: "Morning brief", instruction: "Summarize yesterday"))
         _ = try store.claimScheduledTaskOccurrence(taskID: task.id, occurrenceAt: Date(timeIntervalSinceReferenceDate: 1_000))

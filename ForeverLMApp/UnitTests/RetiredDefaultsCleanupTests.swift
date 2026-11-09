@@ -158,10 +158,9 @@ struct RetiredDefaultsCleanupTests {
 
     @Test("The completion mark stays on this Mac")
     func completionMarkIsLocal() {
-        #expect(!SyncedPreferenceKeys.isSynced(RetiredDefaultsCleanup.completionKey, for: .one))
-        #expect(!SyncedPreferenceKeys.isSynced(RetiredDefaultsCleanup.completionKey, for: .two))
+        #expect(!SyncedPreferenceKeys.isSynced(RetiredDefaultsCleanup.completionKey))
         for key in Self.retiredKeys {
-            #expect(!SyncedPreferenceKeys.isSynced(key, for: .two), Comment(rawValue: key))
+            #expect(!SyncedPreferenceKeys.isSynced(key), Comment(rawValue: key))
         }
     }
 }

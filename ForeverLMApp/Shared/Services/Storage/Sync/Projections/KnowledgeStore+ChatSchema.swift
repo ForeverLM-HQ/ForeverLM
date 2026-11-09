@@ -91,7 +91,6 @@ extension KnowledgeStore {
     /// every other chat `chat`; none writes `voice`, which only the classifier gives. A site that names
     /// no kind gets the classifier's over the row (D50). Generation 1 writes nothing here (D40).
     func keepChatShapeForGeneration2(sessionID: String, kind: ChatKind?, marksReviewed: Bool? = nil) throws {
-        guard syncGeneration == .two else { return }
         let resolved = try kind ?? ChatEvidence.load(chatID: sessionID, connection: self).map(ChatKindClassifier.kind(of:)) ?? .chat
         try execute(
             "UPDATE review_sessions AS s SET chat_kind = ?, context_mode = \(ChatContextModeRule.sql), marks_reviewed = COALESCE(?, s.marks_reviewed) WHERE s.id = ?",

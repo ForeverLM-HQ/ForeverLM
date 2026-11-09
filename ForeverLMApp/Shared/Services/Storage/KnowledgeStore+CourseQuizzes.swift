@@ -60,9 +60,7 @@ extension KnowledgeStore {
         try exec("BEGIN IMMEDIATE")
         do {
             var questionsBefore: String?
-            if syncGeneration == .two {
-                questionsBefore = try scalarText("SELECT questions_json FROM course_quizzes WHERE id = ?", [.text(quiz.id)])
-            }
+            questionsBefore = try scalarText("SELECT questions_json FROM course_quizzes WHERE id = ?", [.text(quiz.id)])
             try writeCourseQuizRow(quiz)
             try countQuizRevisionForGeneration2(quizID: quiz.id, questionsBefore: questionsBefore)
             try keepCourseRowsForGeneration2(courseIDs: [quiz.courseID])

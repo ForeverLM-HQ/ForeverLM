@@ -489,7 +489,7 @@ struct StoredSoftHyphenRepairMigrationTests {
     /// (two holding soft hyphens, one the literal entity, one archived, one with no text yet)
     /// and a team's copy, plus `extraSources` papers of a few kilobytes each.
     private func makeReleasedLibrary(at root: URL, version: Int32, extraSources: Int = 0) throws {
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         try StoredText.addSource(store, "paper-shy", content: StoredText.content)
         try StoredText.addSource(store, "article-entity", type: "article", title: "An article", content: "The mito&shy;chondrion, and &shy; itself.")
         try StoredText.addSource(store, "article-clean", type: "article", title: "Clean", content: "Nothing to repair here.")
@@ -517,7 +517,7 @@ struct StoredSoftHyphenRepairMigrationTests {
 
     private func reopen(_ root: URL) throws -> KnowledgeStore {
         Schema154Fixture.newLaunch(root)
-        return try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        return try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
     }
 
     @Test("Stages every source of the learner's own library by id, reads no text, and publishes nothing", arguments: [Int32(164), Int32(165)])
@@ -582,7 +582,7 @@ struct StoredSoftHyphenRepairMigrationTests {
 @Suite("Stored soft hyphen repair")
 struct StoredSoftHyphenRepairDrainTests {
     private func makeStore() throws -> KnowledgeStore {
-        try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        try KnowledgeStore(inMemory: true)
     }
 
     @Test("Repairs a paper's text and keeps what was made from it, with the repaired text's hashes")

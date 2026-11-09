@@ -124,9 +124,7 @@ enum LearnerProfile {
     /// Under generation 2 the focus is the member's Enrollment (schema v2 §3.5.12,
     /// `CourseEnrollmentStore`); generation 1 keeps the row.
     static func courseFocus(courseID: String) -> String {
-        if CourseEnrollmentStore.isActive { return CourseEnrollmentStore.focus(courseID: courseID) }
-        return (UserDefaults.standard.string(forKey: courseFocusPreferenceKey(courseID: courseID)) ?? "")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return CourseEnrollmentStore.focus(courseID: courseID)
     }
 
     /// Saves the background, or clears it when blank. False, and nothing
@@ -151,16 +149,7 @@ enum LearnerProfile {
         let text = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard text.count <= maximumFocusLength else { return false }
         guard text != courseFocus(courseID: courseID) else { return true }
-        if CourseEnrollmentStore.isActive {
-            CourseEnrollmentStore.setFocus(text, courseID: courseID)
-            return true
-        }
-        let key = courseFocusPreferenceKey(courseID: courseID)
-        if text.isEmpty {
-            PreferenceStore.remove(forKey: key)
-        } else {
-            PreferenceStore.set(text, forKey: key)
-        }
+        CourseEnrollmentStore.setFocus(text, courseID: courseID)
         return true
     }
 }

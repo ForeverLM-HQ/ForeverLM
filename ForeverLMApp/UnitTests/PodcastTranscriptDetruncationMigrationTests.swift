@@ -42,14 +42,14 @@ struct PodcastTranscriptDetruncationMigrationTests {
     private static func makeReleasedStore(
         at root: URL,
         version: Int32,
-        generation: SyncGeneration = .one,
+        triggers: Bool = false,
         populate: (KnowledgeStore) throws -> Void
     ) throws {
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: generation, freeSpace: Schema154Fixture.roomy)
-        if generation == .two { try store.installOutboxTriggers() }
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+        if triggers { try store.installOutboxTriggers() }
         try populate(store)
         try store.clearAllPendingSyncChanges()
-        if generation == .two {
+        if triggers {
             try store.execForTesting("DELETE FROM ck_outbox_fields; DELETE FROM ck_outbox;")
         }
         try store.execForTesting("""
@@ -167,7 +167,7 @@ struct PodcastTranscriptDetruncationMigrationTests {
         let syncMetadataBefore = Self.scalar(at: root, "SELECT COUNT(*) FROM sync_metadata")
         let syncChangesBefore = Self.scalar(at: root, "SELECT COUNT(*) FROM sync_changes")
 
-        let migrated = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let migrated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         #expect(Self.scalar(at: root, "PRAGMA user_version") == "\(KnowledgeStore.schemaVersion)")
 
         #expect(Self.queuedIDs(at: root) == ["apple-ttmlless", "capped-marked", "exhausted", "hidden-ttml", "hydrated-marked"])
@@ -202,16 +202,16 @@ struct PodcastTranscriptDetruncationMigrationTests {
         #expect(try migrated.pendingSyncChanges().isEmpty)
     }
 
-    @Test("On a generation-2 store the step records nothing in the outbox")
-    func version167SendsNothingUnderGenerationTwo() throws {
+    @Test("On a store with the outbox triggers the step records nothing in the outbox")
+    func version167SendsNothingToTheOutbox() throws {
         let root = try Self.temporaryRoot("schema-v167-generation-2")
         defer { try? FileManager.default.removeItem(at: root) }
-        try Self.makeReleasedStore(at: root, version: 165, generation: .two, populate: Self.populateLibrary)
+        try Self.makeReleasedStore(at: root, version: 165, triggers: true, populate: Self.populateLibrary)
         try Self.stampReleasedState(at: root)
         #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM ck_outbox_fields") == "0")
         #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND name = 'ck_outbox_update_podcasts'") == "1")
 
-        _ = try KnowledgeStore(storeDirectory: root, syncGeneration: .two, freeSpace: Schema154Fixture.roomy)
+        _ = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         #expect(Self.scalar(at: root, "PRAGMA user_version") == "\(KnowledgeStore.schemaVersion)")
         #expect(Self.queuedIDs(at: root).count == 5)
         #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM ck_outbox_fields") == "0")
@@ -234,7 +234,7 @@ struct PodcastTranscriptDetruncationMigrationTests {
         sqlite3_close(database)
 
         #expect(throws: (any Error).self) {
-            _ = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+            _ = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         }
         #expect(Self.scalar(at: root, "PRAGMA user_version") == "165")
         #expect(Self.scalar(at: root, "SELECT content FROM source_content WHERE source_id = 'capped-marked'") == Self.transcript)
@@ -269,7 +269,7 @@ struct PodcastTranscriptDetruncationMigrationTests {
         }
 
         let started = ContinuousClock.now
-        let migrated = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let migrated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         let elapsed = started.duration(to: .now)
         // DDL on two local tables and one INSERT … SELECT by primary keys:
         // `octet_length` and a `source_content` key lookup read no text.
@@ -286,7 +286,7 @@ struct PodcastTranscriptDetruncationMigrationTests {
     func auditedEpisodeIsNotRequeued() throws {
         let root = try Self.temporaryRoot("schema-v167-audited")
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
 
         // Hydration wrote it from the whole TTML: recorded, never queued.
         try store.saveSource(Self.episode(id: "hydrated"))
@@ -370,7 +370,7 @@ struct PodcastTranscriptDetruncationMigrationTests {
     func replacedTranscriptIsPublishedAgain() throws {
         let root = try Self.temporaryRoot("transcript-replaced")
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .two, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         func republishQueued(_ id: String) throws -> Bool {
             try store.scalarInteger(
                 "SELECT COUNT(*) FROM ck_backfill_queue WHERE kind = ? AND target = ?",

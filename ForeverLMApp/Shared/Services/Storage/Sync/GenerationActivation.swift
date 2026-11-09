@@ -86,15 +86,11 @@ struct ActivationJournal: Equatable, Sendable {
 }
 
 enum GenerationActivationError: Error, LocalizedError, Equatable {
-    /// Generation 1 never activates a store (D40).
-    case generation1
     /// The journal has no mode and the caller gave none.
     case modeUndecided
 
     var errorDescription: String? {
         switch self {
-        case .generation1:
-            return "Generation 1 never moves a library to the new iCloud store."
         case .modeUndecided:
             return "The move to the new iCloud store has not decided how to run."
         }
@@ -196,7 +192,6 @@ struct GenerationActivation {
     /// the copy and the rollback build are recorded (step a). The journal then names step b. The async
     /// catch-up of a `full` activation runs between this and `finish` (`GenerationActivationRunner`).
     func start(_ decision: ActivationModeDecision?) throws -> ActivationJournal {
-        guard store.syncGeneration == .two else { throw GenerationActivationError.generation1 }
         var journal = try store.activationJournal() ?? ActivationJournal()
         if journal.activatedAt != nil { return journal }
         if journal.mode == nil {
@@ -219,7 +214,6 @@ struct GenerationActivation {
     /// The second half: step b's synchronous hook, the derivations, the triggers and `activated_at`.
     @discardableResult
     func finish(_ started: ActivationJournal) throws -> ActivationJournal {
-        guard store.syncGeneration == .two else { throw GenerationActivationError.generation1 }
         var journal = try store.activationJournal() ?? started
         if journal.activatedAt != nil { return journal }
         var step = journal.step ?? .catchUp

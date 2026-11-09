@@ -1684,15 +1684,7 @@ extension MCPDataStore {
     /// import defaulted to.
     private func appendMarksReviewed(requested: Bool?, sessionID: String, store: KnowledgeStore) throws -> Bool {
         // Generation 2 reads the chat's own `marks_reviewed`, never its kind (§3.5.13).
-        if store.syncGeneration == .two {
-            return try store.generation2AppendMarksReviewed(requested: requested, sessionID: sessionID)
-        }
-        let kind = try store.loadReviewSessionKind(sessionID: sessionID)
-        if requested == false, kind == nil {
-            try store.markImportedChatAsChat(sessionID: sessionID)
-        }
-        if let requested { return requested }
-        return kind == nil || kind == .review
+        return try store.generation2AppendMarksReviewed(requested: requested, sessionID: sessionID)
     }
 
     private static func addedSourcesSentence(count: Int, markedReviewed: Bool) -> String {

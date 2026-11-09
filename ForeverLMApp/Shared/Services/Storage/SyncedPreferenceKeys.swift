@@ -633,16 +633,11 @@ enum SyncedPreferenceKeys {
 
     /// Whether a key is a synced user preference. Exclusions win over prefix matches.
     static func isSynced(_ key: String) -> Bool {
-        isSynced(key, for: ForeverLMRuntimeIdentity.syncGeneration)
-    }
-
-    /// Whether a key is a synced user preference under a generation.
-    static func isSynced(_ key: String, for generation: SyncGeneration) -> Bool {
         if excluded[key] != nil { return false }
         if excludedPrefixes.contains(where: { key.hasPrefix($0) }) { return false }
-        if generation2OnlyKeys.contains(key) { return generation == .two }
-        if synced.contains(key) { return generation == .one || !generation2MovedKeys.contains(key) }
-        return syncedPrefixes(for: generation).contains(where: { key.hasPrefix($0) })
+        if generation2OnlyKeys.contains(key) { return true }
+        if synced.contains(key) { return !generation2MovedKeys.contains(key) }
+        return liveSyncedPrefixes.contains(where: { key.hasPrefix($0) })
     }
 
     /// The exact keys that sync under generation 2 only: Settings of features generation 1 does not
@@ -669,7 +664,7 @@ enum SyncedPreferenceKeys {
     /// writers that read them.
     static func isSetting(_ key: String) -> Bool {
         guard !recordKeys.contains(key), !recordPrefixes.contains(where: { key.hasPrefix($0) }) else { return false }
-        return isSynced(key, for: .two)
+        return isSynced(key)
     }
 
     /// The exact keys whose rows became fields of records (schema v2 §10): the sidebar's order, pins and
@@ -714,14 +709,10 @@ enum SyncedPreferenceKeys {
         "connectorHealth.",
     ]
 
-    /// The synced prefixes under a generation: generation 1's whole list; generation 2 leaves out the
-    /// prefixes that moved into records (§14.1).
-    static func syncedPrefixes(for generation: SyncGeneration) -> [String] {
-        generation == .one
-            ? syncedPrefixes
-            : syncedPrefixes.filter {
-                !notebookStatePrefixes.contains($0) && !enrollmentPrefixes.contains($0) && !readingStatePrefixes.contains($0)
-                    && !devicePrefixes.contains($0)
-            }
+    /// The prefixes that sync as preferences: the list without the prefixes that moved into records
+    /// (§14.1).
+    static let liveSyncedPrefixes: [String] = syncedPrefixes.filter {
+        !notebookStatePrefixes.contains($0) && !enrollmentPrefixes.contains($0) && !readingStatePrefixes.contains($0)
+            && !devicePrefixes.contains($0)
     }
 }

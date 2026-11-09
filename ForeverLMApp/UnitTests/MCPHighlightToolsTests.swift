@@ -1096,13 +1096,8 @@ struct MCPHighlightToolsTests {
             sessionID: sessionID, marksReviewed: false
         )
         #expect(notReviewed.contains("without marking it reviewed"))
-        // Generation 1 remembers it in the chat's kind; generation 2 reads the chat's own
-        // `marks_reviewed` and leaves the generation-1 kind column alone (§3.5.13).
-        if knowledge.syncGeneration == .two {
-            #expect(try knowledge.chatMarksReviewed(sessionID: sessionID) == false)
-        } else {
-            #expect(try knowledge.loadReviewSessionKind(sessionID: sessionID) == .chat)
-        }
+        // The chat's own `marks_reviewed` remembers it (§3.5.13).
+        #expect(try knowledge.chatMarksReviewed(sessionID: sessionID) == false)
         let later = try store.importReviewChat(
             title: "", transcript: "You: One more thing.\nAssistant: Go on.",
             sourceIDs: [after], summary: nil, overallScore: nil, modelProvider: nil, modelID: nil,

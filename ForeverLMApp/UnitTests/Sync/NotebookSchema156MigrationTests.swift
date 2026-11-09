@@ -98,28 +98,10 @@ struct NotebookSchema156MigrationTests {
         #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM sources") == 3)
     }
 
-    @Test("Under generation 1 chat ticks and collections keep their preference rows, and the prefixes stay synced")
-    func generation1KeepsPreferenceRows() throws {
+    @Test("Chat ticks and collections are NotebookState fields, so their prefixes are not synced preferences")
+    func notebookStatePrefixesAreNotSynced() {
         for prefix in SyncedPreferenceKeys.notebookStatePrefixes {
-            #expect(SyncedPreferenceKeys.syncedPrefixes(for: .one).contains(prefix))
-            #expect(!SyncedPreferenceKeys.syncedPrefixes(for: .two).contains(prefix), "\(prefix) is a NotebookState field under generation 2")
-        }
-        #expect(SyncedPreferenceKeys.syncedPrefixes(for: .one) == SyncedPreferenceKeys.syncedPrefixes)
-        guard ForeverLMRuntimeIdentity.syncGeneration == .one else { return }
-        #expect(!NotebookStateStore.isActive)
-        let suite = "NotebookSchema156.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suite))
-        defer { defaults.removePersistentDomain(forName: suite) }
-        NotebookChatSelection.$overrideDefaults.withValue(NotebookChatSelection.DefaultsOverride(defaults: defaults)) {
-            NotebookChatSelection.write(["src-b", "src-a"], notebookID: "nb-1")
-            NotebookChatSelection.writeContextNotebooks(["nb-2"], notebookID: "nb-1")
-            #expect(defaults.stringArray(forKey: "notebook.chatExcluded.nb-1") == ["src-b", "src-a"])
-            #expect(NotebookChatSelection.excluded(notebookID: "nb-1") == ["src-a", "src-b"])
-            #expect(NotebookChatSelection.contextNotebookIDs(notebookID: "nb-1") == ["nb-2"])
-        }
-        NotebookCollectionRows.$overrideDefaults.withValue(NotebookCollectionRows.DefaultsOverride(defaults: defaults)) {
-            NotebookCollectionRows.writeMembership(["nbc-1"], notebookID: "nb-1")
-            #expect(defaults.stringArray(forKey: "notebook.collections.nb-1") == ["nbc-1"])
+            #expect(!SyncedPreferenceKeys.liveSyncedPrefixes.contains(prefix), "\(prefix) is a NotebookState field")
         }
     }
 

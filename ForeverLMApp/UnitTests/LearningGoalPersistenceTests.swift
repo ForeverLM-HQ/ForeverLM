@@ -1461,7 +1461,7 @@ struct LearningGoalPersistenceTests {
     // generation 1 at the post-soak cleanup.
     @Test("Merge companion goals unions pools and deletes merged notebooks")
     func mergeCompanionGoalsUnionsPools() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let startAt = Date()
         let survivor = try store.createCompanionGoal(
             title: "Mitochondria",
@@ -1524,7 +1524,7 @@ struct LearningGoalPersistenceTests {
     // generation 1 at the post-soak cleanup.
     @Test("Merging Notebooks carries chats, Goals, tasks, Docs, planner records and links to the survivor")
     func mergeCompanionGoalsMovesEverything() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let startAt = Date()
         let survivor = try store.createCompanionGoal(
             title: "Mito Phenotyping",
@@ -1723,7 +1723,7 @@ struct LearningGoalPersistenceTests {
     // generation 1 at the post-soak cleanup.
     @Test("Merging moves everything the merged notebook held, its courses, Ideas' links and Directions included, and deletes it the ordinary way")
     func mergeLeavesNothingOnTheMergedNotebook() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let survivor = try NotebookHoldings.makeNotebook(store, title: "Mito Phenotyping", sources: ["src-a"])
         let mergee = try NotebookHoldings.makeNotebook(store, title: "Mitochondria", sources: ["src-a", "src-b"])
         let bystander = try NotebookHoldings.makeNotebook(store, title: "GDF15")
@@ -1754,7 +1754,7 @@ struct LearningGoalPersistenceTests {
     // generation 1 at the post-soak cleanup.
     @Test("A split that empties its parent moves everything else the parent held to the child that took the most sources, and deletes the parent the ordinary way")
     func splitHandsTheEmptiedParentToItsHeir() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let startAt = Date()
         let parent = try NotebookHoldings.makeNotebook(store, title: "Mitochondria", sources: ["src-a", "src-b", "src-c"])
         let bystander = try NotebookHoldings.makeNotebook(store, title: "GDF15")
@@ -1854,7 +1854,7 @@ struct LearningGoalPersistenceTests {
     // generation 1 at the post-soak cleanup.
     @Test("A team's Notebook splits into that team: the children live in its zone, and an emptied parent's deletion is queued there")
     func splitKeepsTheTeam() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         let team = try NotebookHoldings.makeTeam(store)
         let parent = try NotebookHoldings.makeNotebook(store, title: "Nexus reading", sources: ["src-a", "src-b"], teamID: team.id)
         try store.createReviewSession(id: "chat-team", topic: "Complex I", sourceIDs: [], goalID: parent.id)

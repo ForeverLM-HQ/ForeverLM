@@ -175,7 +175,7 @@ extension KnowledgeStore {
     /// writer keeps the build fields, the display name and `lastSeenDay` from then on.
     @discardableResult
     func ensureThisDeviceRow(now: Date = Date()) throws -> DeviceRow? {
-        guard syncGeneration == .two, let deviceID = try thisSyncDeviceID() else { return nil }
+        guard let deviceID = try thisSyncDeviceID() else { return nil }
         if let held = try DeviceRow.load(deviceID, connection: self) { return held }
         var rows: [String: Any] = [:]
         try query("SELECT key, value FROM user_preferences WHERE key LIKE ?", [.text(ConnectorHealthMap.prefix + "%")]) { row in
@@ -196,7 +196,6 @@ extension KnowledgeStore {
     /// Keeps this Mac's connector health on its Device row (generation 2 only); nothing while the device
     /// has no id yet.
     func saveThisDeviceConnectorHealth(_ health: [String: SyncJSON]) throws {
-        guard syncGeneration == .two else { return }
         try inDerivationTransaction { store in
             guard var row = try store.ensureThisDeviceRow() else { return }
             guard row.connectorHealth != health else { return }
@@ -216,7 +215,6 @@ enum ConnectorHealthSync {
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "ConnectorHealthSync")
 
     static func mirror(_ defaults: UserDefaults = .standard) {
-        guard ForeverLMRuntimeIdentity.syncGeneration == .two else { return }
         let health = ConnectorHealthMap.current(defaults)
         lock.lock()
         let predecessor = tail

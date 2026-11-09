@@ -212,16 +212,6 @@ enum OutboxTriggerSQL {
 
 // MARK: - Installing them
 
-enum OutboxTriggerError: Error, LocalizedError, Equatable {
-    /// Generation 1 never has an outbox trigger (D40): nothing would ever drain what it records.
-    case generation1
-
-    var errorDescription: String? {
-        switch self {
-        case .generation1: return "The outbox triggers are generation 2's; a generation-1 store never gets them."
-        }
-    }
-}
 
 extension KnowledgeStore {
     /// The projections this build runs. Each projection package adds its own here (WP7 onwards).
@@ -289,7 +279,6 @@ extension KnowledgeStore {
     /// same transaction, as the seed hands one, dated with its own time (`SeedRowReader.enqueueAll`).
     @discardableResult
     func installOutboxTriggers(_ registry: ProjectionRegistry = KnowledgeStore.projectionRegistry) throws -> String {
-        guard syncGeneration == .two else { throw OutboxTriggerError.generation1 }
         let triggers = OutboxTriggerSQL.triggers(for: registry, wireKeyedTables: Set(Self.wireKeyedTables))
         let hash = OutboxTriggerSQL.hash(triggers)
         try exec("BEGIN IMMEDIATE")
@@ -465,7 +454,6 @@ extension KnowledgeStore {
     /// back too (§5.7).
     @discardableResult
     func drainReadyProjections(_ registry: ProjectionRegistry = KnowledgeStore.projectionRegistry, limit: Int = 500) throws -> Int {
-        guard syncGeneration == .two else { return 0 }
         guard try (scalarInteger("SELECT EXISTS(SELECT 1 FROM ck_unprojected WHERE ready = 1)") ?? 0) != 0 else { return 0 }
         return try replica.apply { _ in
             try ProjectionApply(store: self, registry: registry).drainReady(limit: limit)

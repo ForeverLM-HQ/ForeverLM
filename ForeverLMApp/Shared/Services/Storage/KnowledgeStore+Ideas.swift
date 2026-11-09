@@ -287,25 +287,7 @@ extension KnowledgeStore {
     func loadSourceReviewDepths(sourceIDs: [String]) throws -> [String: MemoryReviewDepth] {
         let ids = Array(Set(sourceIDs))
         guard !ids.isEmpty else { return [:] }
-        if keepsReadingStates {
-            return try readingStateReviewDepths(sourceIDs: ids).compactMapValues(MemoryReviewDepth.init(rawValue:))
-        }
-        var result: [String: MemoryReviewDepth] = [:]
-        let placeholders = Array(repeating: "?", count: ids.count).joined(separator: ", ")
-        try queryBind("""
-            SELECT id, review_depth FROM sources
-            WHERE id IN (\(placeholders)) AND review_depth IS NOT NULL
-        """, bind: { stmt in
-            for (index, id) in ids.enumerated() {
-                bind(stmt, index + 1, id)
-            }
-        }) { stmt in
-            if let id = self.string(stmt, 0), let raw = self.string(stmt, 1),
-               let depth = MemoryReviewDepth(rawValue: raw) {
-                result[id] = depth
-            }
-        }
-        return result
+        return try readingStateReviewDepths(sourceIDs: ids).compactMapValues(MemoryReviewDepth.init(rawValue:))
     }
 
     func loadSourceReviewDepth(sourceID: String) throws -> MemoryReviewDepth? {
@@ -324,15 +306,8 @@ extension KnowledgeStore {
         guard exists else {
             throw KnowledgeStoreError.invalidData("No source \(sourceID) to set a review depth on.")
         }
-        if keepsReadingStates {
-            try updateReadingState(sourceID: sourceID) { $0.reviewDepth = depth?.rawValue }
-            return
-        }
-        try execBind("UPDATE sources SET review_depth = ? WHERE id = ?") { stmt in
-            bind(stmt, 1, depth?.rawValue)
-            bind(stmt, 2, sourceID)
-        }
-        try markRecordChanged(entity: .source, logicalKey: sourceID, at: now)
+        try updateReadingState(sourceID: sourceID) { $0.reviewDepth = depth?.rawValue }
+        return
     }
 
     /// The inbound twin: applies a synced depth without republishing.

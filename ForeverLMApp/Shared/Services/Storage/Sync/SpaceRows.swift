@@ -290,7 +290,6 @@ extension KnowledgeStore {
     /// Refuses, under generation 2, a delete of a space's Notebook, Artifact or Chat by a member who is
     /// neither the space's owner nor the record's `createdBy` (§9.2); others archive instead.
     func requireSpaceDeletion(_ type: SyncRecordType, _ localID: String) throws {
-        guard syncGeneration == .two else { return }
         let user = try replica.engineState(ReplicaStore.EngineScope.account).map { String(decoding: $0, as: UTF8.self) }
         guard try SpaceRows.mayDelete(type: type, localID: localID, user: user, connection: self) else {
             throw KnowledgeStoreError.invalidData("Only the space's owner, or whoever made it, can delete this. Archive it instead.")

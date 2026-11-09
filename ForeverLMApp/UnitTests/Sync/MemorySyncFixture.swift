@@ -14,7 +14,7 @@ enum MemorySyncFixture {
     /// held and a clock with its device id.
     static func makeStore(_ name: String, triggers: Bool = true, activated: Bool = true) throws -> (root: URL, store: KnowledgeStore) {
         let root = try Schema154Fixture.temporaryRoot("WP13-\(name)")
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .two, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         if activated {
             try store.execForTesting("INSERT INTO ck_activation (id, activated_at) VALUES (1, 1) ON CONFLICT(id) DO UPDATE SET activated_at = 1")
         }

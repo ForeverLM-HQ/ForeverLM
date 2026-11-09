@@ -37,18 +37,15 @@ extension KnowledgeStore {
     /// without a query per chapter.
     func sourceHighlights(sourceIDs: [String]) throws -> [String: [SourceHighlight]] {
         guard !sourceIDs.isEmpty else { return [:] }
-        if syncGeneration == .two {
-            // Each source's highlights on its wire id, filed under the id the caller asked by.
-            var asked: [String: [String]] = [:]
-            for sourceID in sourceIDs { asked[try personalStateSourceKey(sourceID), default: []].append(sourceID) }
-            guard asked.keys.sorted() != Set(sourceIDs).sorted() else { return try sourceHighlightRows(sourceIDs: sourceIDs) }
-            var results: [String: [SourceHighlight]] = [:]
-            for (key, highlights) in try sourceHighlightRows(sourceIDs: Array(asked.keys)) {
-                for sourceID in asked[key] ?? [] { results[sourceID] = highlights }
-            }
-            return results
+        // Each source's highlights on its wire id, filed under the id the caller asked by.
+        var asked: [String: [String]] = [:]
+        for sourceID in sourceIDs { asked[try personalStateSourceKey(sourceID), default: []].append(sourceID) }
+        guard asked.keys.sorted() != Set(sourceIDs).sorted() else { return try sourceHighlightRows(sourceIDs: sourceIDs) }
+        var results: [String: [SourceHighlight]] = [:]
+        for (key, highlights) in try sourceHighlightRows(sourceIDs: Array(asked.keys)) {
+            for sourceID in asked[key] ?? [] { results[sourceID] = highlights }
         }
-        return try sourceHighlightRows(sourceIDs: sourceIDs)
+        return results
     }
 
     /// Every mark in the library whose color says "come back to this" (blue,
@@ -74,7 +71,7 @@ extension KnowledgeStore {
         for highlight in rows {
             let key = highlight.sourceID
             if !localIDs.keys.contains(key) {
-                localIDs[key] = .some(syncGeneration == .two ? try localSourceID(forWireKey: key) : key)
+                localIDs[key] = .some(try localSourceID(forWireKey: key))
             }
             if let local = localIDs[key] ?? nil {
                 marks.append(FollowUpMark(highlight: highlight, sourceID: local))

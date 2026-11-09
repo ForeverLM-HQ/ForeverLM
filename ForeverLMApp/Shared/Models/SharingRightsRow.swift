@@ -10,7 +10,7 @@ import Foundation
 /// other devices, so the iPhone and the web do not ask again.
 enum SharingRightsRow {
     /// A test's own defaults, bound for the task that runs it (as
-    /// `NotebookChatSelection.overrideDefaults`). The row otherwise lives in
+    /// `PageSpaceRows.overrideDefaults`). The row otherwise lives in
     /// `UserDefaults.standard`, which every test shares with its neighbours
     /// and with the Dev build, and a write there would reach the learner's
     /// other devices. While bound, writes go to the suite and never to the

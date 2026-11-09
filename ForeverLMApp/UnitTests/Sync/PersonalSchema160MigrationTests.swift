@@ -45,7 +45,7 @@ struct PersonalSchema160MigrationTests {
         let counts = ["sources", "learning_goals", "learning_goal_items", "walkthrough_progress", "source_understanding", "sync_metadata"]
         let countsBefore = counts.map { Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM \($0)") }
 
-        let migrated = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let migrated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
         #expect(counts.map { Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM \($0)") } == countsBefore)
         #expect(before == "7|1000.0|deep|1" && Schema154Fixture.scalar(at: root, reading) == before, "the sources columns stay as they were")
@@ -101,13 +101,12 @@ struct PersonalSchema160MigrationTests {
     func generation1ViewIsUnchanged() throws {
         let root = try Schema154Fixture.temporaryRoot("160-view")
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         let stored = try store.scalarText("SELECT sql FROM sqlite_master WHERE type = 'view' AND name = 'source_projection'")
         let expected = KnowledgeStore.sourceProjectionViewSQL(sourceColumnNames: try store.tableColumnNames("sources"))
         #expect(stored?.trimmingCharacters(in: .whitespacesAndNewlines) == expected.trimmingCharacters(in: .whitespacesAndNewlines))
         #expect(stored?.contains("reading_states") == false)
-        #expect(SyncedPreferenceKeys.syncedPrefixes(for: .one).contains(ListeningPositionSync.preferenceKeyPrefix))
-        #expect(!SyncedPreferenceKeys.syncedPrefixes(for: .two).contains(ListeningPositionSync.preferenceKeyPrefix), "a ReadingState field under generation 2")
+        #expect(!SyncedPreferenceKeys.liveSyncedPrefixes.contains(ListeningPositionSync.preferenceKeyPrefix), "a ReadingState field under generation 2")
     }
 
     @Test("A production-sized library migrates from 159 to 160 in well under a second")
@@ -194,26 +193,5 @@ struct PersonalSchema160MigrationTests {
         #expect(after.contains("src-1=-,4,300.0,-,-,-,-"))
         #expect(after.contains("src-2=-,-,-,-,-,-,-"), "cleared, as the columns now say")
         #expect(try F.count(store, "SELECT COUNT(*) FROM ck_outbox_fields") == 0, "derivations send nothing")
-    }
-
-    @Test("Under generation 1 a position from another Mac lands in sources, and the Reader shows it")
-    func generation1PositionsStayInSources() throws {
-        let (root, store) = try F.makeStore("160-gen1", generation: .one)
-        defer { try? FileManager.default.removeItem(at: root) }
-        try F.addSource(store, "src-1")
-        // What the generation-1 mapper's inbound Source apply writes: the source saved with its position.
-        var article = try #require(try store.loadSources().first { $0.id == "src-1" })
-        article.state = .queued
-        article.readingPositionPage = 9
-        article.readAt = Date(timeIntervalSinceReferenceDate: 1_000)
-        try store.saveSource(article)
-        #expect(try store.loadSources().first { $0.id == "src-1" }?.readingPositionPage == 9, "the Reader shows it")
-        #expect(try F.text(store, "SELECT CAST(reading_position_page AS TEXT) FROM sources WHERE id = 'src-1'") == "9")
-        // Its own accessors write the sources columns too.
-        try store.updateSourceReadingLocator(sourceID: "src-1", locator: #"{"webScrollFraction":0.2}"#)
-        try store.setSourceReviewDepth(sourceID: "src-1", depth: .deep)
-        #expect(try store.loadSourceReadingLocator(sourceID: "src-1") == #"{"webScrollFraction":0.2}"#)
-        #expect(try F.text(store, "SELECT review_depth FROM sources WHERE id = 'src-1'") == "deep")
-        #expect(try F.count(store, "SELECT COUNT(*) FROM reading_states") == 0, "reading_states stays empty under generation 1")
     }
 }

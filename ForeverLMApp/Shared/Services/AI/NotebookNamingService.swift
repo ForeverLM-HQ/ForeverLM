@@ -4,7 +4,7 @@ import Foundation
 /// (`NotebookNaming`).
 enum NotebookNamingRows {
     /// A test's own defaults, bound for the task that runs it (as
-    /// `NotebookChatSelection.overrideDefaults`). While bound, writes go to
+    /// `PageSpaceRows.overrideDefaults`). While bound, writes go to
     /// the suite and never to the sync rail.
     @TaskLocal static var overrideDefaults: DefaultsOverride? = nil
 

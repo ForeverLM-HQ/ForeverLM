@@ -359,118 +359,7 @@ extension KnowledgeStore {
 
         // Generation 2: the split job, which keeps an emptied parent as a stub leading to its heir
         // (schema v2 §5.2). Generation 1 goes on as build 177 does.
-        if syncGeneration == .two {
-            return try splitNotebookUnderGeneration2(parentID: sourceGoalID, splits: normalizedSplits, keepParent: keepParent)
-        }
-
-        let now = Date()
-        var childGoalIDs: [String] = []
-        var sourcesTaken: [String: Int] = [:]
-        var shouldDeleteParent = false
-        var heirGoalID: String?
-
-        try exec("BEGIN IMMEDIATE")
-        do {
-            for split in normalizedSplits {
-                let childID = UUID().uuidString
-                let childTopic = split.topic ?? split.title
-                try execBind("""
-                    INSERT INTO learning_goals (id, title, start_at, end_at, created_at, updated_at, status, kind, topic, discovery_enabled, daily_target, parent_notebook_id, team_id)
-                    VALUES (?, ?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?)
-                """) { stmt in
-                    bind(stmt, 1, childID)
-                    bind(stmt, 2, split.title)
-                    sqlite3_bind_double(stmt, 3, parent.startAt.timeIntervalSinceReferenceDate)
-                    sqlite3_bind_double(stmt, 4, parent.endAt.timeIntervalSinceReferenceDate)
-                    sqlite3_bind_double(stmt, 5, now.timeIntervalSinceReferenceDate)
-                    sqlite3_bind_double(stmt, 6, now.timeIntervalSinceReferenceDate)
-                    bind(stmt, 7, LearningGoalRecord.companionKind)
-                    bind(stmt, 8, childTopic)
-                    sqlite3_bind_int64(stmt, 9, (parent.discoveryEnabled ?? false) ? 1 : 0)
-                    sqlite3_bind_int64(stmt, 10, Int64(max(1, parent.dailyTarget ?? 3)))
-                    // Where the parent lives: its Notebook (for a Goal) and its
-                    // team, whose zone `markRecordChanged` files the child in.
-                    bind(stmt, 11, parent.parentNotebookID)
-                    bind(stmt, 12, parent.teamID)
-                }
-
-                let splitSourceSet = Set(split.sourceIDs)
-                for sourceID in split.sourceIDs {
-                    guard let item = parentItemsBySourceID[sourceID] else { continue }
-                    try deleteCompanionGoalItem(goalID: sourceGoalID, sourceID: sourceID)
-                    let moved = reassignedCompanionGoalItem(item, goalID: childID)
-                    try saveLearningGoalItem(moved, goalID: childID)
-                    sourcesTaken[childID, default: 0] += 1
-                }
-
-                var gapIDsToMove = Set(split.gapIDs)
-                for gap in parentGaps where gapIDsToMove.contains(gap.id)
-                    || (gap.sourceID.map { splitSourceSet.contains($0) } ?? false) {
-                    gapIDsToMove.insert(gap.id)
-                }
-                for gapID in gapIDsToMove {
-                    try execBind("""
-                        UPDATE learning_goal_gaps
-                        SET goal_id = ?
-                        WHERE id = ? AND goal_id = ?
-                    """) { stmt in
-                        bind(stmt, 1, childID)
-                        bind(stmt, 2, gapID)
-                        bind(stmt, 3, sourceGoalID)
-                    }
-                }
-
-                try touchLearningGoal(childID, at: now)
-                childGoalIDs.append(childID)
-            }
-
-            // The child records are queued before anything is moved onto
-            // them, so the heir is a record the sync queue already knows.
-            for childID in childGoalIDs {
-                try markRecordChanged(entity: .learningGoal, logicalKey: childID, at: now)
-            }
-
-            let remainingSources = try learningGoalSourceIDSet(goalID: sourceGoalID)
-            shouldDeleteParent = !keepParent && remainingSources.isEmpty
-            if shouldDeleteParent {
-                // The heir is the child that took the most sources. `max(by:)`
-                // replaces its pick only on a strictly larger count, so of
-                // equals the first split listed wins.
-                let heir = childGoalIDs.max { (sourcesTaken[$0] ?? 0) < (sourcesTaken[$1] ?? 0) }
-                guard let heir else {
-                    throw KnowledgeStoreError.invalidData("Split produced no child to take the parent's place.")
-                }
-                heirGoalID = heir
-                _ = try moveNotebookContentsInTransaction(from: sourceGoalID, to: heir, at: now)
-                // The parent's own words are columns of the row about to go:
-                // its notes, Instructions, research questions, summary and
-                // repository fold into the heir by the merge rule (the heir,
-                // new, has none of its own) before the row is deleted.
-                guard let heirRecord = try loadLearningGoal(heir) else {
-                    throw KnowledgeStoreError.invalidData("Split child not found: \(heir)")
-                }
-                try foldNotebookWordsInTransaction(into: heirRecord, from: [parent], at: now)
-                try touchLearningGoal(heir, at: now)
-                try markRecordChanged(entity: .learningGoal, logicalKey: heir, at: now)
-                // The ordinary delete of the emptied row: its placements, its
-                // Directions and its CloudKit tombstone, in this transaction.
-                try deleteLearningGoalRowInTransaction(sourceGoalID, at: now)
-            } else {
-                try touchLearningGoal(sourceGoalID, at: now)
-                try markRecordChanged(entity: .learningGoal, logicalKey: sourceGoalID, at: now)
-            }
-            try keepNotebookRowsForGeneration2(goalIDs: childGoalIDs + (shouldDeleteParent ? [] : [sourceGoalID]))
-            try exec("COMMIT")
-        } catch {
-            try? exec("ROLLBACK")
-            throw error
-        }
-
-        return CompanionGoalSplitResult(
-            parentGoalID: shouldDeleteParent ? nil : sourceGoalID,
-            childGoalIDs: childGoalIDs,
-            heirGoalID: heirGoalID
-        )
+        return try splitNotebookUnderGeneration2(parentID: sourceGoalID, splits: normalizedSplits, keepParent: keepParent)
     }
 
     /// Merge Notebooks into the first notebook ID (survivor). Everything the other
@@ -520,55 +409,9 @@ extension KnowledgeStore {
         }
         // Generation 2: the merge job, which keeps each merged notebook as a stub leading to the
         // survivor (schema v2 §5.2). Generation 1 goes on as build 177 does.
-        if syncGeneration == .two {
-            let renamed = title?.trimmingCharacters(in: .whitespacesAndNewlines)
-            return try mergeNotebooksUnderGeneration2(
-                survivorID: survivorID, mergeeIDs: mergees.map(\.id), title: renamed?.isEmpty == false ? renamed : nil, mergeNotes: mergeNotes
-            )
-        }
-        let now = Date()
-
-        var moved = NotebookContentsMove()
-
-        try exec("BEGIN IMMEDIATE")
-        do {
-            for mergee in mergees {
-                moved.add(try moveNotebookContentsInTransaction(from: mergee.id, to: survivorID, at: now))
-
-                // The ordinary delete of the emptied row: what is left of its
-                // pool (a source or open question the survivor already had),
-                // its placements, its Directions and its CloudKit tombstone.
-                // Until 2026-10-02 this was a raw DELETE that skipped the
-                // Directions and left Ideas' links on the merged id.
-                try deleteLearningGoalRowInTransaction(mergee.id, at: now)
-            }
-
-            let resolvedTitle = title?.trimmingCharacters(in: .whitespacesAndNewlines)
-            let finalTitle = (resolvedTitle?.isEmpty == false ? resolvedTitle : nil) ?? survivor.title
-            try foldNotebookWordsInTransaction(
-                into: survivor,
-                from: mergees,
-                title: finalTitle,
-                mergeNotes: mergeNotes,
-                at: now
-            )
-            try touchLearningGoal(survivorID, at: now)
-            try markRecordChanged(entity: .learningGoal, logicalKey: survivorID, at: now)
-            try exec("COMMIT")
-        } catch {
-            try? exec("ROLLBACK")
-            throw error
-        }
-
-        return CompanionGoalMergeResult(
-            survivorGoalID: survivorID,
-            mergedGoalIDs: mergees.map(\.id),
-            sourcesAdded: moved.sourcesAdded,
-            gapsAdded: moved.gapsAdded,
-            chatsMoved: moved.chatsMoved,
-            childGoalsMoved: moved.childGoalsMoved,
-            tasksMoved: moved.tasksMoved,
-            docsMoved: moved.docsMoved
+        let renamed = title?.trimmingCharacters(in: .whitespacesAndNewlines)
+        return try mergeNotebooksUnderGeneration2(
+            survivorID: survivorID, mergeeIDs: mergees.map(\.id), title: renamed?.isEmpty == false ? renamed : nil, mergeNotes: mergeNotes
         )
     }
 
@@ -1718,10 +1561,9 @@ extension KnowledgeStore {
 
     func loadLearningGoals() throws -> [LearningGoalRecord] {
         var goals: [LearningGoalRecord] = []
-        // Under generation 2 a merged notebook's stub stays as a row (schema v2 §5.2): a redirect,
-        // never a notebook of its own. Generation 1 never names the column, which a store held below
-        // 154 does not have.
-        let live = syncGeneration == .two ? "WHERE COALESCE(merged_into, '') = '' AND COALESCE(moved_to, '') = ''" : ""
+        // A merged notebook's stub stays as a row (schema v2 §5.2): a redirect, never a notebook of
+        // its own.
+        let live = "WHERE COALESCE(merged_into, '') = '' AND COALESCE(moved_to, '') = ''"
         try query("""
             SELECT id, title, start_at, end_at, created_at, updated_at, status,
                    kind, topic, discovery_enabled, daily_target, last_quiz_date, last_discovery_at, notes, description, parent_notebook_id, research_questions, team_id, summary, repository, artifact_id, sort_order
@@ -2094,12 +1936,10 @@ extension KnowledgeStore {
             // Generation 2 keeps each item's order key across the rewrite, so an unchanged item
             // re-sends nothing (schema v2 §3.5.8).
             var heldOrderKeys: [String: String] = [:]
-            if syncGeneration == .two {
-                try queryBind("SELECT source_id, order_key FROM learning_goal_items WHERE goal_id = ? AND order_key IS NOT NULL", bind: { stmt in
-                    self.bind(stmt, 1, goal.id)
-                }) { stmt in
-                    if let source = self.string(stmt, 0), let key = self.string(stmt, 1) { heldOrderKeys[source] = key }
-                }
+            try queryBind("SELECT source_id, order_key FROM learning_goal_items WHERE goal_id = ? AND order_key IS NOT NULL", bind: { stmt in
+                self.bind(stmt, 1, goal.id)
+            }) { stmt in
+                if let source = self.string(stmt, 0), let key = self.string(stmt, 1) { heldOrderKeys[source] = key }
             }
             try execBind("DELETE FROM learning_goal_items WHERE goal_id = ?") { stmt in
                 bind(stmt, 1, goal.id)
@@ -2831,17 +2671,14 @@ extension KnowledgeStore {
         try saveLearningGoalItem(item, goalID: goalID, ignoreDuplicates: true)
     }
 
-    /// Under generation 2 a new item takes `orderKey`, or a key after the pool's last, so its Entry
-    /// has its place (schema v2 §3.5.8); generation 1 writes no key.
+    /// A new item takes `orderKey`, or a key after the pool's last, so its Entry has its place
+    /// (schema v2 §3.5.8).
     func saveLearningGoalItem(_ item: LearningGoalItem, goalID: String, ignoreDuplicates: Bool = false, orderKey: String? = nil) throws {
         let insertVerb = ignoreDuplicates ? "INSERT OR IGNORE" : "INSERT"
-        // Generation 1 never names the column, which a store held below 154 does not have.
-        let key = syncGeneration == .two ? try orderKey ?? EntryOrderKeys.appendedKey(goalID: goalID, connection: self) : nil
-        let keyColumn = syncGeneration == .two ? ", order_key" : ""
-        let keyValue = syncGeneration == .two ? ", ?" : ""
+        let key = try orderKey ?? EntryOrderKeys.appendedKey(goalID: goalID, connection: self)
         try execBind("""
-            \(insertVerb) INTO learning_goal_items (id, goal_id, source_id, added_at, completed_at, origin, review_state, relevance, last_quizzed_at, quiz_count, last_score, sequence\(keyColumn))
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?\(keyValue))
+            \(insertVerb) INTO learning_goal_items (id, goal_id, source_id, added_at, completed_at, origin, review_state, relevance, last_quizzed_at, quiz_count, last_score, sequence, order_key)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """) { stmt in
             bind(stmt, 1, item.id)
             bind(stmt, 2, goalID)
@@ -2859,7 +2696,7 @@ extension KnowledgeStore {
             if let quizCount = item.quizCount { sqlite3_bind_int64(stmt, 10, Int64(quizCount)) } else { sqlite3_bind_null(stmt, 10) }
             if let lastScore = item.lastScore { sqlite3_bind_double(stmt, 11, lastScore) } else { sqlite3_bind_null(stmt, 11) }
             if let sequence = item.sequence { sqlite3_bind_double(stmt, 12, sequence) } else { sqlite3_bind_null(stmt, 12) }
-            if syncGeneration == .two { bind(stmt, 13, key) }
+            bind(stmt, 13, key)
         }
     }
 
@@ -3298,41 +3135,11 @@ extension KnowledgeStore {
     /// Does not emit sync changes — callers do, after COMMIT.
     private func ensureScheduledSourcePlacement(sourceID: String, plannedAt: Date, now: Date) throws -> String {
         if let existing = try scheduledSourceID(forSource: sourceID) { return existing }
-        if syncGeneration == .two {
-            // Generation 2: the row is the Placement record's, `pl:<source wire id>` on the wire id
-            // (§3.5.21), so every Mac and copy names one placement per work.
-            let key = try personalStateSourceKey(sourceID)
-            let id = SyncIdentity.placementID(sourceID: key)
-            try insertScheduledSourcePlacement(id: id, sourceID: key, plannedAt: plannedAt, now: now)
-            return id
-        }
-        let portableSourceKey = try portableMemorySourceKey(sourceID: sourceID)
-        let id = MemoryTutorIdentity.scheduledSourcePlacementID(
-            portableSourceKey: portableSourceKey
-        )
-
-        // The id is a digest of the *portable* key — the paper's DOI or normalized
-        // URL — while the guard above asks by source_id. Re-importing a paper gives
-        // it a new source row and leaves the old placement behind, so the two
-        // disagree and the INSERT below used to fail the whole call with
-        // `UNIQUE constraint failed: scheduled_sources.id`. On 2026-09-18 that made
-        // get_source_content unable to read a paper that had just been unarchived,
-        // with 11 such orphaned placements in the production store.
-        if let owner = try scheduledSourcePlacementOwner(placementID: id) {
-            // Adopt an orphan: its source is gone, and this one is the same paper.
-            // A placement whose source is still here belongs to that source; reuse
-            // the row rather than taking it away from a live sibling.
-            if try !sourceRowExists(owner) {
-                try execBind("UPDATE scheduled_sources SET source_id = ?, updated_at = ? WHERE id = ?") { stmt in
-                    bind(stmt, 1, sourceID)
-                    sqlite3_bind_double(stmt, 2, now.timeIntervalSinceReferenceDate)
-                    bind(stmt, 3, id)
-                }
-            }
-            return id
-        }
-
-        try insertScheduledSourcePlacement(id: id, sourceID: sourceID, plannedAt: plannedAt, now: now)
+        // Generation 2: the row is the Placement record's, `pl:<source wire id>` on the wire id
+        // (§3.5.21), so every Mac and copy names one placement per work.
+        let key = try personalStateSourceKey(sourceID)
+        let id = SyncIdentity.placementID(sourceID: key)
+        try insertScheduledSourcePlacement(id: id, sourceID: key, plannedAt: plannedAt, now: now)
         return id
     }
 
@@ -3466,18 +3273,8 @@ extension KnowledgeStore {
     /// sources outside this set.
     func touchedSourceIDs() throws -> Set<String> {
         var ids = Set<String>()
-        if keepsReadingStates {
-            ids.formUnion(try readOrConsumedSourceIDs())
-            try query("SELECT source_id FROM source_activity_days") { stmt in
-                if let id = self.string(stmt, 0) { ids.insert(id) }
-            }
-            return ids
-        }
-        try query("""
-            SELECT id FROM sources WHERE read_at IS NOT NULL OR is_consumed = 1
-            UNION
-            SELECT source_id FROM source_activity_days
-        """) { stmt in
+        ids.formUnion(try readOrConsumedSourceIDs())
+        try query("SELECT source_id FROM source_activity_days") { stmt in
             if let id = self.string(stmt, 0) { ids.insert(id) }
         }
         return ids
@@ -4094,14 +3891,7 @@ extension KnowledgeStore {
 
                 var clearedReadAt: Date?
                 if let readAt = entry.readAt, readAt >= dayStart, readAt < dayEnd {
-                    if keepsReadingStates {
-                        try updateReadingState(sourceID: entry.sourceID) { $0.readAt = nil }
-                    } else {
-                        try execBind("UPDATE sources SET read_at = NULL WHERE id = ?") { stmt in
-                            bind(stmt, 1, entry.sourceID)
-                        }
-                        try markSourceProgressChanged(sourceID: entry.sourceID, at: now)
-                    }
+                    try updateReadingState(sourceID: entry.sourceID) { $0.readAt = nil }
                     clearedReadAt = readAt
                 }
                 var reopened: [String] = []
@@ -4196,17 +3986,7 @@ extension KnowledgeStore {
         }
         try markTutorStateChanged(entity: .scheduledSource, logicalKey: placementID, at: now)
 
-        if keepsReadingStates {
-            try fillReadingStateReadAt(sourceID: sourceID, at: now)
-        } else {
-            try execBind("UPDATE sources SET read_at = ? WHERE id = ? AND read_at IS NULL") { stmt in
-                sqlite3_bind_double(stmt, 1, now.timeIntervalSinceReferenceDate)
-                bind(stmt, 2, sourceID)
-            }
-            if sqlite3_changes(db) > 0 {
-                try markRecordChanged(entity: .source, logicalKey: sourceID, at: now)
-            }
-        }
+        try fillReadingStateReadAt(sourceID: sourceID, at: now)
 
         try mirrorPlacementCompletion(placementID: placementID, sourceID: sourceID, completedAt: now, now: now)
         try completeAssignedTasks(forSourceID: sourceID, at: now)
@@ -4256,7 +4036,7 @@ extension KnowledgeStore {
         }
         guard !goalIDs.isEmpty else { return }
         // Generation 2: an item's completion travels as its source's (`ReadingState.completedAt`, §10).
-        if keepsReadingStates { try fillReadingStateCompletedAt(sourceID: sourceID, at: completedAt) }
+        try fillReadingStateCompletedAt(sourceID: sourceID, at: completedAt)
 
         for goalID in goalIDs {
             // COALESCE so re-marking an already-complete item keeps the original
@@ -4393,17 +4173,7 @@ extension KnowledgeStore {
             at: recordedAt
         )
 
-        if keepsReadingStates {
-            try fillReadingStateReadAt(sourceID: sourceID, at: sourceReadAt ?? recordedAt)
-        } else {
-            try execBind("UPDATE sources SET read_at = ? WHERE id = ? AND read_at IS NULL") { stmt in
-                sqlite3_bind_double(stmt, 1, (sourceReadAt ?? recordedAt).timeIntervalSinceReferenceDate)
-                bind(stmt, 2, sourceID)
-            }
-            if sqlite3_changes(db) > 0 {
-                try markRecordChanged(entity: .source, logicalKey: sourceID, at: recordedAt)
-            }
-        }
+        try fillReadingStateReadAt(sourceID: sourceID, at: sourceReadAt ?? recordedAt)
 
         try mirrorPlacementCompletion(
             placementID: placementID,

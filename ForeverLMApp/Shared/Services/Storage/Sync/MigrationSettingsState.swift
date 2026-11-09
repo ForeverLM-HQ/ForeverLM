@@ -118,8 +118,7 @@ extension KnowledgeStore {
     /// Mac's, for telling its own claim from another Mac's.
     func migrationSnapshot(deviceID: String?, now: Date = Date()) throws -> ICloudMigrationSnapshot {
         var snapshot = ICloudMigrationSnapshot()
-        snapshot.isGeneration2 = syncGeneration == .two
-        guard snapshot.isGeneration2 else { return snapshot }
+        snapshot.isGeneration2 = true
         let journal = try activationJournal()
         snapshot.journal = journal
         snapshot.holdsLibrary = (try? rollbackCopyStoreState(userVersion: 0).holdsLibrary) ?? false

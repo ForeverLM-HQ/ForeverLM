@@ -276,19 +276,4 @@ struct TeamToSpaceMigrationTests {
                 == "shared:alice:Space-\(Self.teamID)")
         #expect(try bob.device.count("SELECT COUNT(*) FROM ck_identity WHERE zone_key = ?", [.text("shared/alice/Space-\(Self.teamID)")]) == 1)
     }
-
-    @Test("Under generation 1 a team's pool write records no identity and queues nothing")
-    func generationOneWritesNothing() throws {
-        let (root, store) = try F.makeStore("team-gen1", generation: .one)
-        defer { try? FileManager.default.removeItem(at: root) }
-        try S.addTeam(store, Self.teamID)
-        try F.addNotebook(store, "nb-team", classify: false)
-        try store.execute("UPDATE learning_goals SET team_id = ? WHERE id = 'nb-team'", [.text(Self.teamID)])
-        try S.addTeamSource(store, "src-team-0", teamID: Self.teamID, url: "https://example.org/a")
-        try F.file(store, "src-team-0", into: "nb-team")
-        try store.keepNotebookRowsForGeneration2(goalIDs: ["nb-team"])
-        #expect(try F.count(store, "SELECT COUNT(*) FROM ck_identity") == 0)
-        #expect(try F.count(store, "SELECT COUNT(*) FROM ck_outbox") == 0)
-        #expect(try F.text(store, "SELECT wire_id FROM sources WHERE id = 'src-team-0'") == nil)
-    }
 }

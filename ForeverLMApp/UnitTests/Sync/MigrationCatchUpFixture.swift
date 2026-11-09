@@ -29,12 +29,12 @@ final class MigrationCatchUpRig: @unchecked Sendable {
         senderRoot = FileManager.default.temporaryDirectory.appendingPathComponent("CatchUpSender-\(UUID().uuidString)", isDirectory: true)
         sender = try KnowledgeStore(
             storeDirectory: senderRoot.appendingPathComponent(".appdata", isDirectory: true),
-            contentDirectory: senderRoot.appendingPathComponent("Content", isDirectory: true), syncGeneration: .one, freeSpace: Schema154Fixture.roomy
+            contentDirectory: senderRoot.appendingPathComponent("Content", isDirectory: true), freeSpace: Schema154Fixture.roomy
         )
         receiverRoot = try Schema154Fixture.temporaryRoot("catchup-receiver")
-        try Schema154Fixture.makeLibrary(at: receiverRoot, version: nil, generation: .one)
+        try Schema154Fixture.makeLibrary(at: receiverRoot, version: nil)
         Schema154Fixture.newLaunch(receiverRoot)
-        receiver = try KnowledgeStore(storeDirectory: receiverRoot, syncGeneration: .two, freeSpace: Schema154Fixture.roomy)
+        receiver = try KnowledgeStore(storeDirectory: receiverRoot, freeSpace: Schema154Fixture.roomy)
         oldContainer = server.transport(user: Self.learner, container: FakeCloudKit.legacyContainer, device: "mac")
     }
 

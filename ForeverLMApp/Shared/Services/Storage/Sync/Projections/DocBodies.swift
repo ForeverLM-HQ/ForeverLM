@@ -303,7 +303,6 @@ final class DocBodyPublisher: @unchecked Sendable {
     // MARK: Which bodies are due
 
     func candidates(in store: KnowledgeStore, now: Date, forcing: Set<String>) throws -> [Candidate] {
-        guard store.syncGeneration == .two else { return [] }
         var candidates: [Candidate] = []
         var docs: [(id: String, owner: String, bodyRef: String?)] = []
         try store.query("""
@@ -479,7 +478,6 @@ final class DocBodyMaterializer: @unchecked Sendable {
     @discardableResult
     func materializeDue() async throws -> [String: Outcome] {
         let jobs = try await store.onStore { store -> [DocBodyJobs.Job] in
-            guard store.syncGeneration == .two else { return [] }
             return try DocBodyJobs.pending(connection: store)
         }
         var outcomes: [String: Outcome] = [:]
@@ -658,7 +656,7 @@ final class DocBodySync: SyncRoundHooks, @unchecked Sendable {
     /// The Doc (or a notebook's Notes Doc) closed, was published or is about to be sent somewhere: its
     /// body goes now rather than on idle. Does nothing under generation 1.
     static func requestPublish(_ artifactID: String) {
-        guard ForeverLMRuntimeIdentity.syncGeneration == .two, let sync = current else { return }
+        guard let sync = current else { return }
         Task.detached(priority: .utility) {
             _ = try? await sync.publisher.publishNow(artifactID)
         }

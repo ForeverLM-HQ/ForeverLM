@@ -104,28 +104,16 @@ extension CourseSchema157MigrationTests {
                 == "crs-1=Integral feedback,crs-elsewhere=-", "what the rows say now; the Enrollment stays")
     }
 
-    @Test("Under generation 1 a course's focus stays a synced preference row; under generation 2 it is no row")
-    func generation1KeepsFocusRows() throws {
+    @Test("A course's focus is an Enrollment field, so its prefix is not a synced preference")
+    func focusPrefixIsNotSynced() {
         let prefix = LearnerProfile.courseFocusPreferenceKeyPrefix
-        #expect(SyncedPreferenceKeys.syncedPrefixes(for: .one).contains(prefix))
-        #expect(!SyncedPreferenceKeys.syncedPrefixes(for: .two).contains(prefix), "a focus is an Enrollment field under generation 2")
-        #expect(SyncedPreferenceKeys.syncedPrefixes(for: .one) == SyncedPreferenceKeys.syncedPrefixes)
-        guard ForeverLMRuntimeIdentity.syncGeneration == .one else { return }
-        #expect(!CourseEnrollmentStore.isActive)
-        #expect(SyncedPreferenceKeys.isSynced(LearnerProfile.courseFocusPreferenceKey(courseID: "crs-1")))
-
-        // The store writes no Enrollment under generation 1.
-        let (root, store) = try F.makeStore("157-gen1-focus", generation: .one)
-        defer { try? FileManager.default.removeItem(at: root) }
-        try store.setCourseFocus(courseID: "crs-1", focus: "Anything")
-        #expect(try F.count(store, "SELECT COUNT(*) FROM course_enrollments") == 0)
+        #expect(!SyncedPreferenceKeys.liveSyncedPrefixes.contains(prefix), "a focus is an Enrollment field")
     }
 
-    @Test("Under generation 2 the learner's focus is read and written through the Enrollment store")
+    @Test("The learner's focus is read and written through the Enrollment store")
     func focusIsAnEnrollment() {
         let box = CourseEnrollmentStore.Box(["crs-1": "Motifs"])
         CourseEnrollmentStore.$override.withValue(box) {
-            #expect(CourseEnrollmentStore.isActive)
             #expect(LearnerProfile.courseFocus(courseID: "crs-1") == "Motifs")
             #expect(LearnerProfile.setCourseFocus("  Robustness  ", courseID: "crs-1"))
             #expect(box.focus["crs-1"] == "Robustness")

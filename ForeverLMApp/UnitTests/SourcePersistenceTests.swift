@@ -4638,8 +4638,7 @@ struct SourcePersistenceTests {
         // the app's storage and CloudKit connections during startup.
         let reader = try KnowledgeStore(storeDirectory: root)
         let expected = KnowledgeStore.sourceProjectionViewSQL(
-            sourceColumnNames: try writer.tableColumnNames("sources"),
-            readingStates: writer.keepsReadingStates
+            sourceColumnNames: try writer.tableColumnNames("sources")
         )
         let stale = expected.replacingOccurrences(
             of: "CREATE VIEW source_projection AS",
@@ -4893,7 +4892,7 @@ struct SourcePersistenceTests {
     /// synced, when the learner edited any other book.
     @Test("Editing one book's field leaves a book memory never loaded, and queues no deletion")
     func editingOneBookFieldLeavesOtherBooksAndQueuesNoDeletion() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         try store.saveBookMetadata(groupName: "book-edited", title: "Tidal Notes", author: "Zara Holt", coverPath: nil, kind: "Field Guide")
         // Arrived by sync: in the database, not in any view model's memory.
         try store.saveBookRecord(
@@ -4929,7 +4928,7 @@ struct SourcePersistenceTests {
 
     @Test("Setting a field of a book with no row throws and writes nothing")
     func settingFieldOfMissingBookThrows() throws {
-        let store = try KnowledgeStore(inMemory: true, syncGeneration: .one)
+        let store = try KnowledgeStore(inMemory: true)
         try store.clearAllPendingSyncChanges()
 
         #expect(throws: KnowledgeStoreError.self) {
@@ -8630,7 +8629,7 @@ struct SourceFTSRowMapMigrationTests {
 
     private static func open(_ root: URL, freeSpace: (URL) throws -> Int64? = Schema154Fixture.roomy) throws -> KnowledgeStore {
         Schema154Fixture.newLaunch(root)
-        return try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: freeSpace)
+        return try KnowledgeStore(storeDirectory: root, freeSpace: freeSpace)
     }
 
     @Test("A released library comes up at the current schema, the map empty, the record staged, every full-text row as it was", arguments: [Int32(153), Int32(163), Int32(165)])

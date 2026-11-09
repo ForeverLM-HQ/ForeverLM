@@ -165,11 +165,11 @@ struct ChatSchema158MigrationTests {
         let root = try Schema154Fixture.temporaryRoot("158-activation")
         defer { try? FileManager.default.removeItem(at: root) }
         do {
-            let legacy = try KnowledgeStore(storeDirectory: root, syncGeneration: .one, freeSpace: Schema154Fixture.roomy)
+            let legacy = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
             try Self.writeLegacyChats(legacy)
             #expect(try Schema154Fixture.count(legacy, "SELECT COUNT(*) FROM review_sessions WHERE chat_kind IS NOT NULL") == 0, "generation 1 writes none")
         }
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .two, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         for derivation in KnowledgeStore.chatActivationDerivations { try derivation.run(store) }
         let kinds = try Self.kinds(store)
         #expect(kinds["gen1-review"] == "review", "a graded chat generation 1 made after 158")
@@ -199,7 +199,7 @@ struct ChatSchema158MigrationTests {
     func derivationsAreIdempotent() throws {
         let root = try Schema154Fixture.temporaryRoot("158-twice")
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root, syncGeneration: .two, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         try Self.writeLegacyChats(store)
         try store.execForTesting("UPDATE review_sessions SET chat_kind = 'review', marks_reviewed = 0, context_mode = 'explicit' WHERE id = 'plain'")
         for derivation in KnowledgeStore.chatActivationDerivations { try derivation.run(store) }

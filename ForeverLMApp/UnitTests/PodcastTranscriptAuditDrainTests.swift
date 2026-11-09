@@ -40,7 +40,7 @@ struct PodcastTranscriptAuditDrainTests {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("PodcastTranscriptAudit-\(name)-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return (StorageService(storeRoot: root, syncGeneration: .two), root)
+        return (StorageService(storeRoot: root), root)
     }
 
     static func episode(id: String, trackID: Int64) -> StudioArticle {
@@ -341,7 +341,7 @@ struct PodcastTranscriptAuditDrainTests {
             .appendingPathComponent("PodcastTranscriptAudit-loaded-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
-        let storage = StorageService(storeRoot: root, syncGeneration: .two)
+        let storage = StorageService(storeRoot: root)
         let vm = StudioViewModel(storageService: storage, observeCloudKitChanges: false)
         // Hidden, so the app's own drain restores it as plain text with no model.
         try await Self.seed(storage, id: "loaded", trackID: 1_000_486_719_578, stored: Self.capped, ttml: Self.ttml, hidden: true)

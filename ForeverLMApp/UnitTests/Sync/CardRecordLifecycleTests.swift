@@ -36,7 +36,7 @@ struct CardRecordLifecycleTests {
     /// a clock) or, for the activation's own test, not yet.
     private static func makeStorage(_ name: String, activated: Bool = true) async throws -> (root: URL, store: KnowledgeStore, storage: StorageService) {
         let (root, store) = try F.makeStore(name, triggers: activated, activated: activated)
-        let storage = StorageService(storeRoot: root, syncGeneration: .two)
+        let storage = StorageService(storeRoot: root)
         var source = StudioArticle(url: "https://example.com/mito", title: "Mitochondria", sourceType: .article, discoveryOrigin: .manual, id: "src-1")
         source.normalizedURL = URLNormalizer.normalize(source.url)
         source.content = text

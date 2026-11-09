@@ -19,7 +19,7 @@ struct MCPTeamsToolsTests {
         let dbPath = tmpDir.appendingPathComponent("knowledge.db").path
         // Generation 1's teams (zones of the old container); under generation 2 a team is a space
         // that needs a running sync coordinator, which SpaceTestFixture's suites cover.
-        let store = MCPDataStore(dbPath: dbPath, syncGeneration: .one)
+        let store = MCPDataStore(dbPath: dbPath)
         // The real schema, exactly as production creates it.
         _ = try store.knowledgeStore()
         return (store, tmpDir.path)

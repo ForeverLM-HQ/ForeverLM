@@ -312,25 +312,10 @@ extension StudioViewModel {
     func tickArrivingNotebookSources(_ arrivals: [String: [String]]) {
         let arrived = Set(arrivals.values.joined())
         guard !arrived.isEmpty else { return }
-        // Generation 2: an arrival writes a new Entry stamp, so its untick no longer matches and the
+        // An arrival writes a new Entry stamp, so its untick no longer matches and the
         // source is ticked with no write to the member's state (schema v2 §5.6); the snapshot is read
         // again.
-        if NotebookStateStore.isActive { return NotebookStateStore.reload() }
-        let rows = notebookChatExclusions.filter { !$0.value.isDisjoint(with: arrived) }
-        for notebookID in rows.keys {
-            guard let notebook = notebook(id: notebookID) else { continue }
-            let tick = NotebookChatSelection.arrivalsToTick(
-                in: notebook,
-                arrivals: arrivals,
-                contextNotebookIDs: NotebookChatSelection.contextNotebookIDs(
-                    of: notebook,
-                    putIn: notebookChatContextNotebooks[notebookID] ?? []
-                ),
-                approvedOf: { self.notebook(id: $0)?.approvedSourceIDs }
-            )
-            guard !tick.isEmpty else { continue }
-            setNotebookSources(tick, inChat: true, notebookID: notebookID)
-        }
+        NotebookStateStore.reload()
     }
 
     /// The ids `notebookID` holds now that are not in `heldBefore`: what an
@@ -363,64 +348,10 @@ extension StudioViewModel {
         let arrivals = NotebookChatSelection.inboundArrivals(before: before, after: after ?? learningGoals)
         let arrived = Set(arrivals.values.joined().map(\.sourceID))
         guard !arrived.isEmpty else { return }
-        // Generation 2: an arrival writes a new Entry stamp, so its untick no longer matches and the
+        // An arrival writes a new Entry stamp, so its untick no longer matches and the
         // source is ticked with no write to the member's state (schema v2 §5.6); the snapshot is read
         // again.
-        if NotebookStateStore.isActive { return NotebookStateStore.reload() }
-        // Rows an assistant or another window wrote since the last reseed.
-        let stored = NotebookChatSelection.exclusionsFromDefaults()
-        if stored != notebookChatExclusions {
-            notebookChatExclusions = stored
-        }
-        let storedContexts = NotebookChatSelection.contextNotebooksFromDefaults()
-        if storedContexts != notebookChatContextNotebooks {
-            notebookChatContextNotebooks = storedContexts
-        }
-        let notebookIDs = notebookChatExclusions.filter { !$0.value.isDisjoint(with: arrived) }.keys.sorted()
-        guard !notebookIDs.isEmpty else { return }
-        // A row this Mac wrote a moment ago lands first, so its date is its own.
-        await PreferenceStore.flushPendingWrites()
-        var writtenAt: [String: Date] = [:]
-        do {
-            let keys = notebookIDs.map { NotebookChatSelection.preferenceKey(notebookID: $0) }
-            let dates = try await storage.preferenceWriteDates(keys: keys)
-            for notebookID in notebookIDs {
-                writtenAt[notebookID] = dates[NotebookChatSelection.preferenceKey(notebookID: notebookID)]
-            }
-        } catch {
-            // Without the dates every arrival reads as newer than its row:
-            // a box unticked after its source joined could be ticked again,
-            // so nothing is ticked and the boxes stay as they are.
-            logger.error("Could not read notebook chat rows for arriving sources: \(error.localizedDescription, privacy: .public)")
-            return
-        }
-        tickNotebookArrivals(arrivals, exclusionWrittenAt: writtenAt)
-    }
-
-    /// Ticks `arrivals` in every notebook whose row unticked one before it
-    /// joined; `exclusionWrittenAt` gives each row's last write by Notebook id.
-    func tickNotebookArrivals(
-        _ arrivals: [String: [NotebookChatSelection.Arrival]],
-        exclusionWrittenAt: [String: Date]
-    ) {
-        let arrived = Set(arrivals.values.joined().map(\.sourceID))
-        guard !arrived.isEmpty else { return }
-        let notebookIDs = notebookChatExclusions.filter { !$0.value.isDisjoint(with: arrived) }.keys.sorted()
-        for notebookID in notebookIDs {
-            guard let notebook = notebook(id: notebookID) else { continue }
-            let tick = NotebookChatSelection.inboundArrivalsToTick(
-                in: notebook,
-                arrivals: arrivals,
-                exclusionWrittenAt: exclusionWrittenAt[notebookID],
-                contextNotebookIDs: NotebookChatSelection.contextNotebookIDs(
-                    of: notebook,
-                    putIn: notebookChatContextNotebooks[notebookID] ?? []
-                ),
-                approvedOf: { self.notebook(id: $0)?.approvedSourceIDs }
-            )
-            guard !tick.isEmpty else { continue }
-            setNotebookSources(tick, inChat: true, notebookID: notebookID)
-        }
+        NotebookStateStore.reload()
     }
 
     /// Replaces the notebook's links to its context notebooks. Linking puts
@@ -443,7 +374,7 @@ extension StudioViewModel {
             setNotebookContextNotebooks(unlinked, inChat: false, notebookID: notebookID)
             // Generation 2: "Uses context from" writes the link and this member's tick (schema v2
             // D52); links made before stay unticked.
-            if NotebookStateStore.isActive, !linkedNow.isEmpty {
+            if !linkedNow.isEmpty {
                 setNotebookContextNotebooks(linkedNow, inChat: true, notebookID: notebookID)
             }
             return true

@@ -52,12 +52,10 @@ struct MobileNotebookTests {
         #expect(MobileNotebookChatSelection.preferenceKey(notebookID: "p1") == "notebook.chatExcluded.p1")
         // The phone's rows follow the account as preference rows under generation 1; under generation 2
         // they are fields of the member's NotebookState, never preference rows.
-        #expect(SyncedPreferenceKeys.isSynced(MobileNotebookChatSelection.preferenceKey(notebookID: "p1"), for: .one))
-        #expect(!SyncedPreferenceKeys.isSynced(MobileNotebookChatSelection.preferenceKey(notebookID: "p1"), for: .two))
+        #expect(!SyncedPreferenceKeys.isSynced(MobileNotebookChatSelection.preferenceKey(notebookID: "p1")))
         #expect(MobileNotebookChatSelection.contextNotebooksKey(notebookID: "p1") == NotebookChatContext.preferenceKey(notebookID: "p1"))
         #expect(MobileNotebookChatSelection.contextNotebooksKey(notebookID: "p1") == "notebook.chatContextNotebooks.p1")
-        #expect(SyncedPreferenceKeys.isSynced(MobileNotebookChatSelection.contextNotebooksKey(notebookID: "p1"), for: .one))
-        #expect(!SyncedPreferenceKeys.isSynced(MobileNotebookChatSelection.contextNotebooksKey(notebookID: "p1"), for: .two))
+        #expect(!SyncedPreferenceKeys.isSynced(MobileNotebookChatSelection.contextNotebooksKey(notebookID: "p1")))
     }
 
     /// The shared vectors every client runs (the web's twin in

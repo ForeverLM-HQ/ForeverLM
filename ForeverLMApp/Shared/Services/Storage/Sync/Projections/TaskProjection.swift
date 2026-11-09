@@ -439,7 +439,6 @@ extension KnowledgeStore {
     /// (only the rows out of order take new ones), and a team's row its `ck_identity` row. Runs inside the
     /// writer's transaction; generation 1 writes exactly what build 177 does (D40).
     func keepTaskRowsForGeneration2(notebookIDs: [String], taskIDs: [String]) throws {
-        guard syncGeneration == .two else { return }
         for notebook in Set(notebookIDs).sorted() {
             try TaskUpkeep.replanBoard(notebookID: notebook, connection: self)
         }

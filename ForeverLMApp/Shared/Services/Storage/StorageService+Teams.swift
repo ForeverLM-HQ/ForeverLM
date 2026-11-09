@@ -70,39 +70,11 @@ extension StorageService {
         guard !name.isEmpty else {
             throw KnowledgeStoreError.invalidData("A team needs a name.")
         }
-        if runsSpaces { return try await createTeamAsSpace(name: name) }
-        let teamID = UUID().uuidString.lowercased()
-        let home = CloudKitZoneHome(
-            scope: .privateScope,
-            zoneName: TeamRecord.zoneName(forTeamID: teamID),
-            ownerRecordName: nil
-        )
-        let now = Date()
-        let team = TeamRecord(
-            id: teamID,
-            name: name,
-            role: .owner,
-            permission: .readWrite,
-            zoneScope: .privateScope,
-            zoneName: home.zoneName,
-            zoneOwnerRecordName: nil,
-            shareRecordName: nil,
-            shareURL: nil,
-            createdAt: now,
-            joinedAt: now,
-            updatedAt: now
-        )
-
-        try notebookFilesKnowledgeStore().saveTeam(team)
-        scheduleImmediateCloudKitSyncForTeams()
-        NotificationCenter.default.post(name: .cloudKitSyncStoreDidChange, object: nil)
-        return team
+        return try await createTeamAsSpace(name: name)
     }
 
     func renameTeam(_ teamID: String, name: String) async throws {
-        if runsSpaces { return try await renameTeamAsSpace(teamID, name: name) }
-        try notebookFilesKnowledgeStore().renameTeam(teamID, name: name)
-        scheduleImmediateCloudKitSyncForTeams()
+        return try await renameTeamAsSpace(teamID, name: name)
     }
 
     /// Copy Link means anyone with the link. A share whose public permission is
@@ -111,60 +83,27 @@ extension StorageService {
     /// sheet does for "Anyone with the link · can edit" — and returns the URL.
     /// An already open share is returned as it is.
     func openTeamShareToAnyoneWithLink(_ team: TeamRecord) async throws -> URL {
-        if runsSpaces { return try await spaceInvitationLink(teamID: team.id) }
-        // A generation-1 team has no share any build can reach.
-        throw TeamError.shareUnavailable(team.name)
+        return try await spaceInvitationLink(teamID: team.id)
     }
 
     /// Re-read the roster from the share. Called after the sharing sheet
     /// closes and when a team's page opens.
     func refreshTeamMembers(teamID: String) async throws -> [TeamMemberRecord] {
-        if runsSpaces { return try await refreshSpaceMembers(teamID: teamID) }
-        // A generation-1 team's roster is the one the store holds.
-        let store = try notebookFilesKnowledgeStore()
-        guard try store.loadTeam(teamID) != nil else {
-            throw TeamError.unknownTeam(teamID)
-        }
-        return try store.loadTeamMembers(teamID: teamID)
+        return try await refreshSpaceMembers(teamID: teamID)
     }
 
     /// Leave a team someone else owns (`leaveTeamAsSpace`): leaving the space
     /// is how a participant removes themselves, and the team's copies then
     /// leave this Mac.
     func leaveTeam(_ teamID: String) async throws {
-        if runsSpaces { return try await leaveTeamAsSpace(teamID) }
-        let store = try notebookFilesKnowledgeStore()
-        guard let team = try store.loadTeam(teamID) else { throw TeamError.unknownTeam(teamID) }
-        guard team.role == .member else { throw TeamError.ownerCannotLeave }
-        try store.removeTeamLocally(teamID)
-        NotificationCenter.default.post(
-            name: .cloudKitSyncRemoteStoreDidChange,
-            object: nil,
-            userInfo: [
-                CloudKitSyncNotificationInfo.requiresFullRefreshKey: true,
-                CloudKitSyncNotificationInfo.removedTeamKey: teamID,
-            ]
-        )
+        return try await leaveTeamAsSpace(teamID)
     }
 
     /// Delete a team this account owns (`deleteTeamAsSpace`): the space goes,
     /// and with it every member's view of the team. Nothing anyone shared into it is in anyone's
     /// own library any more than it was before; originals stay where they are.
     func deleteTeam(_ teamID: String) async throws {
-        if runsSpaces { return try await deleteTeamAsSpace(teamID) }
-        let store = try notebookFilesKnowledgeStore()
-        guard let team = try store.loadTeam(teamID) else { throw TeamError.unknownTeam(teamID) }
-        guard team.role == .owner else { throw TeamError.memberCannotDelete }
-        try store.removeTeamLocally(teamID)
-        try? FileManager.default.removeItem(at: teamFilesDirectory(teamID: teamID, createIfNeeded: false))
-        NotificationCenter.default.post(
-            name: .cloudKitSyncRemoteStoreDidChange,
-            object: nil,
-            userInfo: [
-                CloudKitSyncNotificationInfo.requiresFullRefreshKey: true,
-                CloudKitSyncNotificationInfo.removedTeamKey: teamID,
-            ]
-        )
+        return try await deleteTeamAsSpace(teamID)
     }
 
     // MARK: - Sharing (copying) into a team
@@ -285,7 +224,7 @@ extension StorageService {
     ) throws -> String {
         let store = try notebookFilesKnowledgeStore()
         // Into a space this account owns, a notebook moves (D21); the move job keeps its id.
-        if store.syncGeneration == .two, try store.loadTeam(teamID)?.role == .owner {
+        if try store.loadTeam(teamID)?.role == .owner {
             try requestMoveIntoSpace(notebookID, teamID: teamID)
             return notebookID
         }
@@ -622,12 +561,7 @@ extension StorageService {
     /// (`openTeamShareToAnyoneWithLink`); a member's is the link as it
     /// stands. A team iCloud has not shared yet has no link.
     func invitationLink(for team: TeamRecord) async throws -> URL {
-        if runsSpaces { return try await spaceInvitationLink(teamID: team.id) }
-        guard let raw = team.shareURL, let url = URL(string: raw) else {
-            throw TeamError.shareUnavailable(team.name)
-        }
-        guard team.role == .owner else { return url }
-        return try await openTeamShareToAnyoneWithLink(team)
+        return try await spaceInvitationLink(teamID: team.id)
     }
 
     // MARK: - Additions follow a shared Notebook
@@ -685,19 +619,8 @@ extension StorageService {
         }
     }
 
-    private func followTeamShares(_ what: String, _ work: (KnowledgeStore) throws -> Set<String>) {
-        do {
-            let store = try notebookFilesKnowledgeStore()
-            // Generation 2 edits one notebook in place: nothing follows (§9.4; WP30 deletes this).
-            guard store.syncGeneration == .one else { return }
-            let changed = try work(store)
-            guard !changed.isEmpty else { return }
-            scheduleImmediateCloudKitSyncForTeams()
-            NotificationCenter.default.post(name: .cloudKitSyncStoreDidChange, object: nil)
-        } catch {
-            Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "Teams")
-                .error("Following team shares for \(what, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
-        }
+    private func followTeamShares(_: String, _: (KnowledgeStore) throws -> Set<String>) {
+        // A notebook is edited in place: nothing follows (§9.4).
     }
 
     // MARK: - Share requests

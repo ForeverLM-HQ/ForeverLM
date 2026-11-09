@@ -329,13 +329,11 @@ struct MemoryIdeasTests {
 @Suite("Memory ideas storage", .serialized)
 struct MemoryIdeasStorageTests {
 
-    private static func temporaryStore(
-        generation: SyncGeneration = ForeverLMRuntimeIdentity.syncGeneration
-    ) throws -> (KnowledgeStore, URL) {
+    private static func temporaryStore() throws -> (KnowledgeStore, URL) {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("foreverlm-memory-ideas-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return (try KnowledgeStore(storeDirectory: root, syncGeneration: generation), root)
+        return (try KnowledgeStore(storeDirectory: root), root)
     }
 
     private static func addSource(_ store: KnowledgeStore, id: String, type: StudioSourceType = .paper) throws {
@@ -433,7 +431,7 @@ struct MemoryIdeasStorageTests {
     /// source's own record is not touched by it.
     @Test("Under generation 2 review depth is the reading state's, and the source record queues nothing")
     func reviewDepthInReadingState() throws {
-        let (store, root) = try Self.temporaryStore(generation: .two)
+        let (store, root) = try Self.temporaryStore()
         defer { try? FileManager.default.removeItem(at: root) }
         try Self.addSource(store, id: "s1")
         try store.clearAllPendingSyncChanges()

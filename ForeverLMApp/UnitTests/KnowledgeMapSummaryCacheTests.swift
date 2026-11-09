@@ -92,8 +92,7 @@ struct KnowledgeMapSummaryCacheTests {
 
     @Test("The cache never synced, and its file sits in the profile's own folder")
     func cacheIsLocalToTheProfile() {
-        #expect(!SyncedPreferenceKeys.isSynced(KnowledgeMapSummaries.cacheKey, for: .one))
-        #expect(!SyncedPreferenceKeys.isSynced(KnowledgeMapSummaries.cacheKey, for: .two))
+        #expect(!SyncedPreferenceKeys.isSynced(KnowledgeMapSummaries.cacheKey))
         let root = ForeverLMRuntimeIdentity.applicationSupportRootURL.standardizedFileURL.path
         #expect(KnowledgeMapSummaries.cacheFileURL.standardizedFileURL.path.hasPrefix(root + "/"))
     }

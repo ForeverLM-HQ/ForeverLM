@@ -7,7 +7,6 @@ extension KnowledgeStore {
     /// so a team copy and the personal copy share one highlight list and one Schedule placement; the
     /// caller's id under generation 1, which keys every row by the local id.
     func personalStateSourceKey(_ sourceID: String) throws -> String {
-        guard syncGeneration == .two else { return sourceID }
         return try scalarText("SELECT wire_key FROM sources WHERE id = ?", [.text(sourceID)]) ?? sourceID
     }
 

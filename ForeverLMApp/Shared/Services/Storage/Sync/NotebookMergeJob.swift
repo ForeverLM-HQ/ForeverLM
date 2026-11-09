@@ -904,12 +904,11 @@ extension KnowledgeStore {
     }
 
     /// Moves on what still names a stub (`NotebookStubUpkeep`), in a transaction of its own, before each
-    /// feeder pass. Generation 2 only; nothing to do without a stub. Returns the sentences of folds that
+    /// feeder pass. Nothing to do without a stub. Returns the sentences of folds that
     /// lost since the last pass, for the learner.
     @discardableResult
     func keepNotebookStubs() throws -> [String] {
-        guard syncGeneration == .two,
-              try scalarInteger("SELECT EXISTS(SELECT 1 FROM learning_goals WHERE \(NotebookStubs.isStubSQL))") == 1
+        guard try scalarInteger("SELECT EXISTS(SELECT 1 FROM learning_goals WHERE \(NotebookStubs.isStubSQL))") == 1
         else { return [] }
         var notices: [String] = []
         try inNotebookJobTransaction { store in

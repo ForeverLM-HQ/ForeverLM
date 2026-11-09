@@ -867,7 +867,7 @@ struct SourceWordCountTests {
             .appendingPathComponent("SourceWordCountRepair-\(UUID().uuidString)")
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         defer { try? FileManager.default.removeItem(at: root) }
-        let storage = StorageService(storeRoot: root, syncGeneration: .two)
+        let storage = StorageService(storeRoot: root)
         let vm = StudioViewModel(storageService: storage, observeCloudKitChanges: false)
         var episode = makeArticle(url: "apple-podcast://episode/42", title: "Loaded", sourceType: .podcast)
         try await storage.saveSource(episode)

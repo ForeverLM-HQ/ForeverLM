@@ -70,8 +70,7 @@ struct SpaceListRowTests {
     @Test("Both prefixes follow the account, and the catalogue and the phone leave them out")
     func rowsSync() {
         for key in [SpaceLists.listKey(listID: "lst-1"), SpaceLists.itemKey(recordID: "goal-1")] {
-            #expect(SyncedPreferenceKeys.isSynced(key, for: .two))
-            #expect(SyncedPreferenceKeys.isSynced(key, for: .one))
+            #expect(SyncedPreferenceKeys.isSynced(key))
         }
     }
 }

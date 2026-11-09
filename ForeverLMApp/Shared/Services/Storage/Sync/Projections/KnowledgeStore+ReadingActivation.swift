@@ -224,7 +224,6 @@ extension KnowledgeStore {
     /// and then the bytes. Off main, at `.utility`, resumable; generation 2 only. Returns how many it laid.
     @discardableResult
     func runUnderstandingBackfill(limit: Int = 50) throws -> Int {
-        guard keepsReadingStates else { return 0 }
         var queued: [(id: Int64, key: String)] = []
         try query("SELECT id, target FROM ck_backfill_queue WHERE kind = ? AND attempts < 5 ORDER BY attempts, id LIMIT ?", [
             .text(Self.understandingBackfillKind), .integer(Int64(limit)),
@@ -281,7 +280,7 @@ extension KnowledgeStore {
     /// (the stamp clock); generation 2 only. Returns how many it read.
     @discardableResult
     func runListenFileBackfill(limit: Int = 50) throws -> Int {
-        guard keepsReadingStates, let clock = try OutboxFeeder(connection: self, registry: Self.projectionRegistry).loadClock() else { return 0 }
+        guard let clock = try OutboxFeeder(connection: self, registry: Self.projectionRegistry).loadClock() else { return 0 }
         var queued: [(id: Int64, sourceID: String)] = []
         try query("SELECT id, target FROM ck_backfill_queue WHERE kind = ? AND attempts < 50 ORDER BY attempts, id LIMIT ?", [
             .text(Self.listenFileBackfillKind), .integer(Int64(limit)),

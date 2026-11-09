@@ -293,7 +293,7 @@ extension KnowledgeStore {
     /// that holds any of `keys`: an active one before an archived one, then the smaller id. Nil under
     /// generation 1, which mints as build 177 does and never reads `source_work_keys` (D40).
     func sourceID(forWorkKeys keys: [String], teamID: String?) throws -> String? {
-        guard syncGeneration == .two, !keys.isEmpty else { return nil }
+        guard !keys.isEmpty else { return nil }
         let marks = Array(repeating: "?", count: keys.count).joined(separator: ", ")
         return try scalarText("""
             SELECT s.id FROM source_work_keys k JOIN sources s ON s.id = k.source_id
@@ -305,7 +305,6 @@ extension KnowledgeStore {
 
     /// Adds `keys` to a source's work keys; keys are only ever added (§4.2). Generation 2 only.
     func addWorkKeys(_ keys: [String], to sourceID: String) throws {
-        guard syncGeneration == .two else { return }
         for key in keys {
             try execute(
                 "INSERT INTO source_work_keys (source_id, work_key) VALUES (?, ?) ON CONFLICT(source_id, work_key) DO NOTHING",
@@ -326,7 +325,6 @@ extension KnowledgeStore {
     /// how many keys it removed; generation 2 only, and idempotent.
     @discardableResult
     func removePublishedDOIWorkKeys() throws -> Int {
-        guard syncGeneration == .two else { return 0 }
         var rows: [(id: String, url: String?, normalized: String?, doi: String?, published: String)] = []
         try query("""
             SELECT p.source_id, p.url, p.normalized_url, p.doi, p.published_doi

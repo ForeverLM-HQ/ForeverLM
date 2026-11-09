@@ -251,12 +251,6 @@ targets:
         # app reads "ForeverLM (Dev)" in the menu bar.
         FOREVERLM_BUNDLE_NAME: "ForeverLM"
         FOREVERLM_URL_SCHEME: "foreverlm"
-        # The CloudKit sync generation (D40, docs/cloudkit-schema-design.md §13.2),
-        # read at run time from App/Info.plist's ForeverLMSyncGeneration. Every
-        # configuration is 2, the schema-v2 sync: since the move to the company
-        # Technologies team (XXXXXXXXXX, 2026-10-09) no build is entitled to the old
-        # team's containers, so generation 1 has nowhere to run.
-        FOREVERLM_SYNC_GENERATION: "2"
         # The one CloudKit container every build names (docs/cloudkit-schema-design.md
         # §2.1), read at run time from App/Info.plist's ForeverLMLibraryContainer. The
         # signed environment entitlement picks its replica: Development for Debug and
@@ -849,10 +843,6 @@ targets:
         INFOPLIST_KEY_UIApplicationSceneManifest_Generation: "YES"
         INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents: "YES"
         INFOPLIST_KEY_CFBundleIconName: AppIcon
-        # The CloudKit sync generation (D40), as on the Mac, read from
-        # iOS/Info.plist's ForeverLMSyncGeneration: 2 in every configuration, the
-        # replica of the library container.
-        FOREVERLM_SYNC_GENERATION: "2"
         # The one container, as on the Mac, from iOS/Info.plist's
         # ForeverLMLibraryContainer.
         FOREVERLM_CLOUDKIT_CONTAINER: "iCloud.com.foreverlm.knowledge"

@@ -23,7 +23,6 @@ enum GenerationActivationLauncher {
     /// activation leaves the gate closed and the status `failed`; the next launch resumes it. Once per
     /// process: every window's first task calls it.
     static func runAtLaunch(storage: StorageService) async {
-        guard ForeverLMRuntimeIdentity.syncGeneration == .two else { return }
         // A unit-test host does not activate the shared Development store (the gate stays closed, so nothing
         // that waits on it starts either).
         guard !ForeverLMRuntimeIdentity.isTestHost else { return }
