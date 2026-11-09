@@ -4883,62 +4883,6 @@ struct StudioPaneFocusObserver: NSViewRepresentable {
     }
 }
 
-/// Reports every left-mouse-up the app dispatches while this view is in a
-/// window. A local monitor sees the release that ends an ordinary click; the
-/// release that ends a drag session never reaches it, which is exactly the
-/// distinction the sidebar's deferred row open relies on.
-struct MouseUpObserver: NSViewRepresentable {
-    let onMouseUp: () -> Void
-
-    func makeNSView(context: Context) -> ObserverView {
-        let view = ObserverView()
-        view.onMouseUp = onMouseUp
-        return view
-    }
-
-    func updateNSView(_ nsView: ObserverView, context: Context) {
-        nsView.onMouseUp = onMouseUp
-    }
-
-    final class ObserverView: NSView {
-        var onMouseUp: (() -> Void)?
-        private var monitor: Any?
-
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            if window == nil {
-                removeMonitor()
-            } else {
-                installMonitorIfNeeded()
-            }
-        }
-
-        deinit {
-            removeMonitor()
-        }
-
-        private func installMonitorIfNeeded() {
-            guard monitor == nil else { return }
-            monitor = NSEvent.addLocalMonitorForEvents(matching: .leftMouseUp) { [weak self] event in
-                // Let AppKit finish the click first, and never mutate SwiftUI
-                // state while a render may be tracking access.
-                Task { @MainActor [weak self] in
-                    await Task.yield()
-                    self?.onMouseUp?()
-                }
-                return event
-            }
-        }
-
-        private func removeMonitor() {
-            if let monitor {
-                NSEvent.removeMonitor(monitor)
-            }
-            monitor = nil
-        }
-    }
-}
-
 /// Label for "more actions" menus: three plain vertical dots with no circle
 /// or menu chevron, gaining a subtle highlight while the pointer is over the
 /// dots themselves. Pair with `.menuIndicator(.hidden)` on the enclosing Menu.

@@ -10,14 +10,11 @@ import Foundation
 /// live selection under the modifier instead of the payload.
 @Suite("Sidebar source selection")
 struct SidebarSourceSelectionTests {
-    private let known: Set<String> = ["a", "b", "c", "d"]
-    private func isKnown(_ id: String) -> Bool { known.contains(id) }
-
-    // MARK: The lazy list's own clicks and keys
+    // MARK: Clicks and keys
 
     private let order = ["a", "b", "c", "d"]
 
-    @Test("a command-click in the lazy list toggles the row in and out")
+    @Test("a command-click toggles the row in and out")
     func lazyCommandClickToggles() {
         #expect(SidebarSourceSelection.selectionAfterModifiedClick(
             on: "c", selection: ["a"], anchor: "a", displayOrder: order, command: true
@@ -27,7 +24,7 @@ struct SidebarSourceSelectionTests {
         ) == ["c"])
     }
 
-    @Test("a shift-click in the lazy list selects the run from the anchor, either way")
+    @Test("a shift-click selects the run from the anchor, either way")
     func lazyShiftClickSelectsRun() {
         #expect(SidebarSourceSelection.selectionAfterModifiedClick(
             on: "d", selection: ["b"], anchor: "b", displayOrder: order, command: false
@@ -52,120 +49,6 @@ struct SidebarSourceSelectionTests {
         #expect(SidebarSourceSelection.rowAfterArrow(from: "a", in: order, down: false) == nil)
         #expect(SidebarSourceSelection.rowAfterArrow(from: nil, in: order, down: true) == "a")
         #expect(SidebarSourceSelection.rowAfterArrow(from: "gone", in: order, down: false) == "d")
-    }
-
-    // MARK: Writes from the list
-
-    @Test("a plain click selects the row and opens it")
-    func plainClickSelectsAndOpens() {
-        let resolution = SidebarSourceSelection.resolve(
-            listSelection: ["b"],
-            previousSelection: ["a"],
-            usesMultiSelectModifier: false,
-            isKnownSource: isKnown
-        )
-        #expect(resolution == .init(selection: ["b"], opensSource: "b"))
-    }
-
-    @Test("a plain click on one row of a multi-selection collapses to that row")
-    func plainClickInsideMultiSelectionCollapses() {
-        let resolution = SidebarSourceSelection.resolve(
-            listSelection: ["b"],
-            previousSelection: ["a", "b", "c"],
-            usesMultiSelectModifier: false,
-            isKnownSource: isKnown
-        )
-        #expect(resolution == .init(selection: ["b"], opensSource: "b"))
-    }
-
-    @Test("a shift-click keeps every row and opens nothing")
-    func shiftClickExtendsWithoutOpening() {
-        let resolution = SidebarSourceSelection.resolve(
-            listSelection: ["a", "b", "c"],
-            previousSelection: ["a"],
-            usesMultiSelectModifier: true,
-            isKnownSource: isKnown
-        )
-        #expect(resolution == .init(selection: ["a", "b", "c"], opensSource: nil))
-    }
-
-    @Test("a command-click that toggles a row off keeps the rest and opens nothing")
-    func commandClickTogglesOff() {
-        let resolution = SidebarSourceSelection.resolve(
-            listSelection: ["a", "c"],
-            previousSelection: ["a", "b", "c"],
-            usesMultiSelectModifier: true,
-            isKnownSource: isKnown
-        )
-        #expect(resolution == .init(selection: ["a", "c"], opensSource: nil))
-    }
-
-    @Test("a command-click that leaves one row does not open it")
-    func commandClickDownToOneRowStaysSelectionOnly() {
-        let resolution = SidebarSourceSelection.resolve(
-            listSelection: ["a"],
-            previousSelection: ["a", "b"],
-            usesMultiSelectModifier: true,
-            isKnownSource: isKnown
-        )
-        #expect(resolution == .init(selection: ["a"], opensSource: nil))
-    }
-
-    @Test("a rebuilt list echoing the selection with no modifier keeps it whole")
-    func echoedMultiSelectionSurvivesWithoutModifier() {
-        // The modifier has been released, the list was rebuilt, and it writes
-        // back what this window already holds. Until 2026-09-07 this collapsed.
-        let resolution = SidebarSourceSelection.resolve(
-            listSelection: ["a", "b", "c"],
-            previousSelection: ["a", "b", "c"],
-            usesMultiSelectModifier: false,
-            isKnownSource: isKnown
-        )
-        #expect(resolution == .init(selection: ["a", "b", "c"], opensSource: nil))
-    }
-
-    @Test("an echo pruned to the visible rows keeps those rows without opening one")
-    func prunedEchoKeepsVisibleRows() {
-        let resolution = SidebarSourceSelection.resolve(
-            listSelection: ["a", "b"],
-            previousSelection: ["a", "b", "c"],
-            usesMultiSelectModifier: false,
-            isKnownSource: isKnown
-        )
-        #expect(resolution == .init(selection: ["a", "b"], opensSource: nil))
-    }
-
-    @Test("a multi-row write with one new row and no modifier is a click on that row")
-    func multiRowWriteWithOneNewRowIsTheClick() {
-        let resolution = SidebarSourceSelection.resolve(
-            listSelection: ["a", "b", "d"],
-            previousSelection: ["a", "b"],
-            usesMultiSelectModifier: false,
-            isKnownSource: isKnown
-        )
-        #expect(resolution == .init(selection: ["d"], opensSource: "d"))
-    }
-
-    @Test("a presentation identity that is not a source is ignored")
-    func unknownIdentityIsIgnored() {
-        let resolution = SidebarSourceSelection.resolve(
-            listSelection: ["Lecture 3"],
-            previousSelection: ["a"],
-            usesMultiSelectModifier: false,
-            isKnownSource: isKnown
-        )
-        #expect(resolution == nil)
-    }
-
-    @Test("unknown identities are dropped from a real multi-selection")
-    func unknownIdentitiesAreFilteredOut() {
-        let resolution = SidebarSourceSelection.resolve(
-            listSelection: ["a", "Lecture 3", "b"],
-            previousSelection: [],
-            usesMultiSelectModifier: true,
-            isKnownSource: isKnown
-        )
-        #expect(resolution == .init(selection: ["a", "b"], opensSource: nil))
     }
 
     // MARK: The row gesture

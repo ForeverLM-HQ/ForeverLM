@@ -7,56 +7,6 @@ extension StudioSidebar {
         sidebar.sidebarTab.rawValue
     }
 
-    /// The one selection binding the Sources list has. AppKit owns the
-    /// conventions on it (click, shift-range, command-toggle, drag from a
-    /// selected row); `SidebarSourceSelection` decides what this window keeps
-    /// and which write was a click that opens the source.
-    private func sidebarSelection(visibleSourceIDs: Set<String>) -> Binding<Set<String>> {
-        Binding(
-            get: {
-                let visible = windowState.sidebarSelectedSourceIDs.intersection(visibleSourceIDs)
-                if visible.isEmpty,
-                   let readerID = sidebarReaderSourceID,
-                   visibleSourceIDs.contains(readerID) {
-                    // A rebuilt list lands on the row the Reader shows.
-                    return [readerID]
-                }
-                return visible
-            },
-            set: { newSelection in
-                if newSelection.isEmpty {
-                    if isSpuriousListDeselection() { return }
-                    closeReaderForListDeselection()
-                    return
-                }
-                guard let resolution = SidebarSourceSelection.resolve(
-                    listSelection: newSelection,
-                    previousSelection: windowState.sidebarSelectedSourceIDs,
-                    usesMultiSelectModifier: isSourceMultiSelectModifierActive(),
-                    isKnownSource: { vm.articlesById[$0] != nil }
-                ) else { return }
-                // A press on a row's own control (its notebook +, its read
-                // state) belongs to the control: the row is neither selected
-                // nor opened under it.
-                if let sourceID = resolution.opensSource, SidebarRowControlPress.claims(sourceID) { return }
-                if isSidebarSelectionFromMousePress, let sourceID = resolution.opensSource {
-                    // AppKit writes the selection on mouse-down, which can
-                    // come before the control under the pointer notes its
-                    // press. So a plain click's selection waits for mouse-up
-                    // with its open, and the claim is asked again then
-                    // (`completeDeferredSidebarOpenOnMouseUp`); a drag keeps
-                    // it at once (`keepDeferredSidebarSelectionForDrag`).
-                    deferredSidebarSelection = resolution.selection
-                    deferredSidebarOpenSourceID = sourceID
-                    return
-                }
-                windowState.sidebarSelectedSourceIDs = resolution.selection
-                guard let sourceID = resolution.opensSource else { return }
-                openSidebarArticleFromSingleClick(sourceID)
-            }
-        )
-    }
-
     /// Escape leaves a multi-selection the way a click cannot: without opening
     /// anything. Anything else is left for the next responder.
     private func collapseMultiSelectionOnEscape() {
@@ -65,29 +15,6 @@ extension StudioSidebar {
             readerSourceID: sidebarReaderSourceID
         ) else { return }
         windowState.sidebarSelectedSourceIDs = collapsed
-    }
-
-    /// The user clicked past every row. This is the only path that closes the reader off a
-    /// selection change: pruning empties the same set when a tab or search filters the open
-    /// source out of view, and that must leave what is being read alone.
-    private func closeReaderForListDeselection() {
-        vm.closeReader(in: windowState)
-    }
-
-    /// Whether an empty selection pushed back by the List should be ignored.
-    ///
-    /// Recreating the sidebar — expanding the sources panel from its collapsed
-    /// rail, or swapping between the single- and multi-select Lists — builds a
-    /// fresh List. If the selected source has no row at that moment (its
-    /// disclosure group starts collapsed, book chapters never get rows), AppKit
-    /// cannot represent the
-    /// selection and SwiftUI writes an empty selection back through the binding.
-    /// Treating that as a user deselection closed the reader. Only accept an
-    /// empty selection when the selected source has a row the user could
-    /// actually have deselected.
-    private func isSpuriousListDeselection() -> Bool {
-        guard let id = sidebarReaderSourceID ?? windowState.sidebarSelectedSourceIDs.first else { return false }
-        return !selectionHasVisibleRow(id)
     }
 
     private func selectionHasVisibleRow(_ id: String) -> Bool {
@@ -126,11 +53,11 @@ extension StudioSidebar {
     /// Scroll the list to the source another panel just selected — following a
     /// chat citation, say. The view model has already switched to the owning tab,
     /// expanded the parent group, and grown pagination so the row exists; all that
-    /// is left is bringing it on screen, where the List's own selection highlight
+    /// is left is bringing it on screen, where the row's selection wash
     /// makes it stand out.
     ///
     /// Driven by `.task(id:)` rather than `onChange` because switching tabs rebuilds
-    /// the List (`.id(sidebarListIdentity)`), and a freshly created view never sees
+    /// the list (`.id(sidebarListIdentity)`), and a freshly created view never sees
     /// the change that created it.
     private func revealRequestedSource(using proxy: ScrollViewProxy) async {
         guard let request = vm.sidebarRevealRequest,
@@ -1032,26 +959,17 @@ extension StudioSidebar {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
-    @ViewBuilder
+    /// The Sources list: a `ScrollView` + `LazyVStack`, not SwiftUI's `List`.
+    /// `List` re-diffed every row whenever its content changed and measured
+    /// each row's height as it scrolled in, so a long tab stalled for a second
+    /// or more at a time (product owner, 2026-11-08: "very glitchy and slow. It
+    /// needs to be super fast"). The lazy list builds only the rows on screen
+    /// and keeps its own selection: a click opens, ⌘-click toggles, ⇧-click
+    /// selects a run, ↑ ↓ move, Delete removes, Escape collapses a
+    /// multi-selection. A series or playlist folds open as rows of the same
+    /// list (`lazyGroupHeader`), so a long one stays lazy too.
     private var sidebarSelectableList: some View {
-        if usesLazySourceList {
-            sidebarLazyList
-        } else {
-            sidebarOutlineList
-        }
-    }
-
-    /// The tabs listed in a `ScrollView` + `LazyVStack` instead of AppKit's
-    /// outline. SwiftUI's `List` re-diffs every row whenever its content
-    /// changes and measures each row's height as it scrolls in, so a long
-    /// Papers tab stalled for a second or more at a time (product owner,
-    /// 2026-11-08: "very glitchy and slow. It needs to be super fast"). The
-    /// lazy list builds only the rows on screen and keeps its own selection:
-    /// a click opens, ⌘-click toggles, ⇧-click selects a run, ↑ ↓ move,
-    /// Delete removes, Escape collapses a multi-selection. The tabs with
-    /// collapsible groups (Books, Meetings, YouTube) keep the outline.
-    var usesLazySourceList: Bool {
-        sidebar.sidebarTab == .papers
+        sidebarLazyList
     }
 
     private var sidebarLazyList: some View {
@@ -1084,21 +1002,86 @@ extension StudioSidebar {
         }
     }
 
-    /// The lazy list's rows in the order they are drawn, for ⇧-click runs and
-    /// the arrow keys. Read only when one of those happens, never in a body.
+    /// The list's selectable rows in the order they are drawn, for ⇧-click
+    /// runs and the arrow keys: what `sidebarArticlesSections` lays out, read
+    /// only when one of those happens, never in a body. A book's row stands
+    /// for the chapter it selects (`bookRowSelectionID`); a folded series or
+    /// playlist has none.
     private var lazyListRowIDs: [String] {
-        guard sidebar.sidebarTab == .papers else {
+        switch sidebar.sidebarTab {
+        case .papers:
+            var ids: [String] = []
+            if isProcessingPapersExpanded { ids += windowVM.activeProcessingPapers.map(\.id) }
+            if isPapersWithoutPDFExpanded { ids += windowVM.activePapersWithoutPDF.map(\.id) }
+            ids += windowVM.activePapersWithPDF.map(\.id)
+            if isPaywalledPapersExpanded { ids += windowVM.activePaywalledPapersWithoutPDF.map(\.id) }
+            return ids
+        case .podcasts:
+            return windowVM.activeProcessingPodcasts.map(\.id) + windowVM.activePodcastsNotProcessing.map(\.id)
+        case .books:
+            let grouped = Dictionary(grouping: windowVM.activeTabArticles, by: \.parentGroup)
+            return (grouped[nil] ?? []).map(\.id) + windowVM.filteredBookGroupNames.map { groupName in
+                bookRowSelectionID(groupName: groupName, items: grouped[groupName] ?? [])
+            }
+        case .meetings:
+            if windowVM.listsMeetingsByDate { return windowVM.activeTabArticles.map(\.id) }
+            let grouped = Dictionary(grouping: windowVM.activeTabArticles, by: \.parentGroup)
+            return windowVM.filteredMeetingGroupNames
+                .filter { sidebar.expandedGroups.contains($0) }
+                .flatMap { (grouped[$0] ?? []).sorted { $0.dateAdded > $1.dateAdded }.map(\.id) }
+        case .videos:
+            let processing = windowVM.activeProcessingVideos
+            let processingIDs = Set(processing.map(\.id))
+            let listed = windowVM.activeTabArticles.filter { !processingIDs.contains($0.id) }
+            let grouped = Dictionary(grouping: listed, by: \.parentGroup)
+            let inPlaylists = windowVM.filteredVideoPlaylistGroupNames
+                .filter { sidebar.expandedGroups.contains($0) }
+                .flatMap { (grouped[$0] ?? []).map(\.id) }
+            let flat = windowVM.inWindow { vm in listed.filter { vm.isFlatVideoRow($0) } }.map(\.id)
+            return processing.map(\.id) + inPlaylists + flat
+        default:
             return windowVM.activeTabArticles.map(\.id)
         }
-        var ids: [String] = []
-        if isProcessingPapersExpanded { ids += windowVM.activeProcessingPapers.map(\.id) }
-        if isPapersWithoutPDFExpanded { ids += windowVM.activePapersWithoutPDF.map(\.id) }
-        ids += windowVM.activePapersWithPDF.map(\.id)
-        if isPaywalledPapersExpanded { ids += windowVM.activePaywalledPapersWithoutPDF.map(\.id) }
-        return ids
     }
 
-    /// A click on a lazy-list row. A plain one opens the row, which selects it
+    /// The chapter a book's row selects and opens: the one the book would
+    /// resume. A search or metadata filter can match a book's own record while
+    /// none of its chapters match, so the unfiltered chapters come before the
+    /// group's name, which opens nothing.
+    private func bookRowSelectionID(groupName: String, items: [StudioArticle]) -> String {
+        vm.resumeBookChapter(for: groupName)?.id
+            ?? items.first?.id
+            ?? vm.bookSourceArticles(for: groupName).first?.id
+            ?? groupName
+    }
+
+    /// A series' or playlist's row in the list: a chevron, its label, a click
+    /// anywhere on it folding it open or shut. Its rows follow it as rows of
+    /// the same lazy list rather than inside a `DisclosureGroup`, whose content
+    /// is built whole the moment it opens.
+    private func lazyGroupHeader(groupName: String, items: [StudioArticle], itemCount: Int) -> some View {
+        let isExpanded = sidebarGroupExpansionBinding(groupName: groupName, items: items)
+        return HStack(spacing: 4) {
+            Image(systemName: "chevron.right")
+                .zoomedSystemFont(size: 10, weight: .semibold)
+                .rotationEffect(.degrees(isExpanded.wrappedValue ? 90 : 0))
+                .foregroundStyle(.secondary)
+                .frame(width: 12)
+                .accessibilityHidden(true)
+            expandableGroupLabel(groupName: groupName, itemCount: itemCount)
+        }
+        .padding(.vertical, 4)
+        .contentShape(Rectangle())
+        .onTapGesture {
+            withAnimation(.easeOut(duration: 0.15)) { isExpanded.wrappedValue.toggle() }
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityAction(named: isExpanded.wrappedValue ? "Collapse" : "Expand") {
+            isExpanded.wrappedValue.toggle()
+        }
+    }
+
+    /// A click on a row. A plain one opens the row, which selects it
     /// alone; ⌘ and ⇧ change the selection and open nothing.
     private func handleLazyRowClick(_ sourceID: String) {
         guard !SidebarRowControlPress.claims(sourceID) else { return }
@@ -1109,7 +1092,7 @@ extension StudioSidebar {
             lazyListAnchorSourceID = sourceID
             lazyListCursorSourceID = sourceID
             // A plain click on a row of a multi-selection collapses it to the
-            // row, as AppKit's list does on mouse-up, so the open goes ahead.
+            // row, as a Mac list does on mouse-up, so the open goes ahead.
             windowState.sidebarSelectedSourceIDs = [sourceID]
             openSidebarArticleFromRowClick(sourceID)
             return
@@ -1125,8 +1108,8 @@ extension StudioSidebar {
         if command { lazyListAnchorSourceID = sourceID }
     }
 
-    /// ↑ or ↓ in the lazy list: the next row is selected and opened, as in
-    /// AppKit's list; with ⇧ the run from the anchor grows instead.
+    /// ↑ or ↓ in the list: the next row is selected and opened, as in a Mac
+    /// list; with ⇧ the run from the anchor grows instead.
     private func moveLazySelection(down: Bool, extending: Bool, proxy: ScrollViewProxy) {
         let order = lazyListRowIDs
         let selection = windowState.sidebarSelectedSourceIDs
@@ -1146,43 +1129,24 @@ extension StudioSidebar {
         proxy.scrollTo(next)
     }
 
-    /// The menu a lazy-list row's right-click shows: the selection's when the
-    /// row is part of it, the row's own otherwise, as AppKit's list decides.
+    /// The menu a row's right-click shows: the selection's when the row is part
+    /// of it, the row's own otherwise, as a Mac list decides.
     @ViewBuilder
     private func lazyRowContextMenu(for sourceID: String) -> some View {
         let selection = windowState.sidebarSelectedSourceIDs
         sidebarArticleContextMenu(for: selection.contains(sourceID) ? selection : [sourceID])
     }
 
-    @ViewBuilder
-    private var sidebarOutlineList: some View {
-        // AppKit may read a List selection binding hundreds of times while
-        // answering one accessibility action query. Snapshot the visible IDs
-        // once per SwiftUI evaluation instead of rebuilding/filtering the full
-        // sidebar array inside every binding read.
-        let visibleSourceIDs = windowVM.visibleSidebarSourceIDs
-        // One List, bound to a set, whatever the keyboard is doing. Swapping
-        // in a single-selection List when shift went up is what used to throw
-        // a multi-selection away before it could be dragged anywhere.
-        List(selection: sidebarSelection(visibleSourceIDs: visibleSourceIDs)) {
-            sidebarListContent
-        }
-        .contextMenu(forSelectionType: String.self) { selectedIDs in
-            sidebarArticleContextMenu(for: selectedIDs)
-        }
-        .onExitCommand(perform: collapseMultiSelectionOnEscape)
-    }
-
-    /// A List-level context menu is constructed when AppKit actually requests a
-    /// menu. Attaching the full nested menu to every row makes SwiftUI evaluate
-    /// it while measuring automatic row heights, multiplying the work by every
-    /// visible source and turning ordinary layout into a main-thread stall.
+    /// The menu for a right-click on `selectedIDs`, built only for the row under
+    /// the pointer (`LazySourceRowChrome`): SwiftUI builds a `.contextMenu`'s
+    /// items in the row's body, and every row building this one would multiply
+    /// the work by every row that scrolls in.
     @ViewBuilder
     private func sidebarArticleContextMenu(for selectedIDs: Set<String>) -> some View {
         let orderedIDs = windowVM.inWindow { $0.sourceIDsInCurrentDisplayOrder(selectedIDs) }
-        // A Books-tab row stands for its book. Its tag is the chapter the book
-        // would resume, which is what List hands over here, so the menu is the
-        // book's — or, for several covers, the actions that fit all of them.
+        // A Books-tab row stands for its book. It selects the chapter the book
+        // would resume, which is what arrives here, so the menu is the book's —
+        // or, for several covers, the actions that fit all of them.
         let bookTargets = sidebar.sidebarTab == .books
             ? vm.sidebarRemovalTargets(for: selectedIDs, expandingBooks: true)
             : StudioViewModel.SidebarRemovalTargets()
@@ -1377,8 +1341,6 @@ extension StudioSidebar {
                     .onDrop(of: [.fileURL, .pdf], isTargeted: $isUploadPapersButtonDropTargeted) { providers in
                         handlePaperFileDrop(providers)
                     }
-                    // A button, not a source: no separator under it.
-                    .listRowSeparator(.hidden)
                 }
             }
 
@@ -1392,8 +1354,6 @@ extension StudioSidebar {
                         isWorking: isGoogleDriveWorking,
                         reconnect: startGoogleDriveMeetingImport
                     )
-                    .listRowInsets(EdgeInsets())
-                    .listRowSeparator(.hidden)
                 }
             }
 
@@ -1607,8 +1567,6 @@ extension StudioSidebar {
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 36)
-        .listRowBackground(Color.clear)
-        .listRowSeparator(.hidden)
     }
 
     /// The Meetings tab's primary action, filling its row where it has room.
@@ -2001,9 +1959,6 @@ extension StudioSidebar {
                         ForEach(processingVideos) { article in
                             articleRow(article)
                         }
-                        .onDelete { offsets in
-                            requestSourceRemoval(Set(offsets.map { processingVideos[$0].id }))
-                        }
                     } header: {
                         HStack(spacing: 6) {
                             ProgressView()
@@ -2027,28 +1982,15 @@ extension StudioSidebar {
                     let items = grouped[groupName] ?? []
                     let itemCount = items.count
                     if sidebar.sidebarTab == .books {
-                        let itemIds = Set(items.map(\.id))
-                        // A book cover stands in for all of its chapters. Give
-                        // List the concrete chapter the book should resume so
-                        // native selection opens a real source instead of using
-                        // the enclosing ForEach's group-name identity. A search
-                        // or metadata filter can match a book's own record while
-                        // none of its chapters match, so fall back to the
-                        // unfiltered chapter list before that identity: a row
-                        // tagged with a group name can never open anything.
-                        let selectionID = vm.resumeBookChapter(for: groupName)?.id
-                            ?? items.first?.id
-                            ?? vm.bookSourceArticles(for: groupName).first?.id
-                            ?? groupName
+                        // A book cover stands in for all of its chapters: it
+                        // selects and opens the one the book would resume, and
+                        // shows selected while any of them is.
+                        let selectionID = bookRowSelectionID(groupName: groupName, items: items)
                         courseOrBookGroupLabel(groupName: groupName, itemCount: itemCount)
-                        .tag(selectionID)
                         .contentShape(Rectangle())
                         .onDrop(of: [.studioArticle, .studioGroup] + supportedBookImportDropTypes, isTargeted: nil) { providers in
                             handleGroupedCollectionDrop(providers, groupName: groupName)
                         }
-                        .simultaneousGesture(TapGesture(count: 1).onEnded {
-                            openBookGroupFromRowClick(selectionID)
-                        })
                         .simultaneousGesture(TapGesture(count: 2).onEnded {
                             openBookGroupFromDoubleClick(selectionID)
                         })
@@ -2066,30 +2008,35 @@ extension StudioSidebar {
                                 for: StudioGroupTransfer(groupName: groupName, sourceIDs: sourceIDs)
                             )
                         }
-                        .listRowBackground(!windowState.sidebarSelectedSourceIDs.isDisjoint(with: itemIds) ? Color.accentColor.opacity(0.14) : Color.clear)
+                        // The label carries the book's own menu.
+                        .modifier(LazySourceRowChrome(
+                            highlightIDs: Set(items.map(\.id)).union([selectionID]),
+                            rowID: selectionID,
+                            onClick: { handleLazyRowClick(selectionID) },
+                            menu: nil as (() -> EmptyView)?
+                        ))
                     } else {
-                        DisclosureGroup(isExpanded: sidebarGroupExpansionBinding(
-                            groupName: groupName,
-                            items: items
-                        )) {
-                            if sidebar.sidebarTab == .meetings {
-                                ForEach(items.sorted { $0.dateAdded > $1.dateAdded }) { article in
-                                    meetingSessionRow(article, groupName: groupName)
+                        lazyGroupHeader(groupName: groupName, items: items, itemCount: itemCount)
+                        if sidebar.expandedGroups.contains(groupName) {
+                            Group {
+                                if sidebar.sidebarTab == .meetings {
+                                    ForEach(items.sorted { $0.dateAdded > $1.dateAdded }) { article in
+                                        meetingSessionRow(article, groupName: groupName)
+                                    }
+                                } else {
+                                    ForEach(items) { article in
+                                        groupedCollectionArticleRow(article, groupName: groupName)
+                                    }
                                 }
-                            } else {
-                                ForEach(items) { article in
-                                    groupedCollectionArticleRow(article, groupName: groupName)
+                                if itemCount == 0 {
+                                    Text("Drag sources here")
+                                        .font(.caption)
+                                        .foregroundStyle(.tertiary)
+                                        .frame(maxWidth: .infinity, alignment: .center)
+                                        .padding(.vertical, 8)
                                 }
                             }
-                            if itemCount == 0 {
-                                Text("Drag sources here")
-                                    .font(.caption)
-                                    .foregroundStyle(.tertiary)
-                                    .frame(maxWidth: .infinity, alignment: .center)
-                                    .padding(.vertical, 8)
-                            }
-                        } label: {
-                            expandableGroupLabel(groupName: groupName, itemCount: itemCount)
+                            .padding(.leading, 16)
                         }
                     }
                 }
@@ -2109,9 +2056,6 @@ extension StudioSidebar {
                         ForEach(processing) { article in
                             articleRow(article)
                         }
-                        .onDelete { offsets in
-                            requestSourceRemoval(Set(offsets.map { processing[$0].id }))
-                        }
                     } header: {
                         HStack(spacing: 6) {
                             ProgressView()
@@ -2129,9 +2073,6 @@ extension StudioSidebar {
                     Section {
                         ForEach(available) { article in
                             articleRow(article)
-                        }
-                        .onDelete { offsets in
-                            requestSourceRemoval(Set(offsets.map { available[$0].id }))
                         }
                     }
                 }
@@ -2197,9 +2138,6 @@ extension StudioSidebar {
                             ForEach(withoutPDF) { article in
                                 articleRow(article)
                             }
-                            .onDelete { offsets in
-                                requestSourceRemoval(Set(offsets.map { withoutPDF[$0].id }))
-                            }
 
                             if windowVM.hasMorePapersWithoutPDF {
                                 showMorePapersButton(
@@ -2246,9 +2184,6 @@ extension StudioSidebar {
                         ForEach(withPDF) { article in
                             articleRow(article)
                         }
-                        .onDelete { offsets in
-                            requestSourceRemoval(Set(offsets.map { withPDF[$0].id }))
-                        }
 
                         if windowVM.hasMorePapersWithPDF {
                             showMorePapersButton(
@@ -2264,9 +2199,6 @@ extension StudioSidebar {
                         if isPaywalledPapersExpanded {
                             ForEach(paywalled) { article in
                                 articleRow(article)
-                            }
-                            .onDelete { offsets in
-                                requestSourceRemoval(Set(offsets.map { paywalled[$0].id }))
                             }
 
                             if windowVM.hasMorePaywalledPapersWithoutPDF {
@@ -2313,9 +2245,6 @@ extension StudioSidebar {
                 Section {
                     ForEach(activeItems) { article in
                         articleRow(article)
-                    }
-                    .onDelete { offsets in
-                        requestSourceRemoval(Set(offsets.map { activeItems[$0].id }))
                     }
                 }
             }
@@ -2835,9 +2764,9 @@ extension StudioSidebar {
 
     /// The whole-group actions of a playlist, meeting-group or book row.
     /// Shared by the row's own right-click menu and, on the Books tab, by the
-    /// List's selection menu: a book row is tagged with its resume chapter, so
-    /// without this a right-click there could surface chapter actions instead
-    /// of Hide Book and Remove Book.
+    /// selection's menu: a book row selects its resume chapter, so without
+    /// this a right-click on several covers could surface chapter actions
+    /// instead of Hide Book and Remove Book.
     @ViewBuilder
     private func groupContextMenuItems(groupName: String, itemCount: Int) -> some View {
         NotebookMenuSection(
@@ -3205,11 +3134,7 @@ extension StudioSidebar {
     /// session has no place among its series' sessions to be dropped into.
     ///
     /// The files are a row of their own *beside* the session row, opened by the
-    /// session row's own chevron, never a `DisclosureGroup` nested inside the
-    /// series' `DisclosureGroup`. With one session open, folding its series
-    /// made the List's outline drop the wrong rows: the session stayed, and
-    /// the next two series below it vanished instead. One outline level is
-    /// all the List gets here.
+    /// session row's own chevron, so the list stays one flat run of rows.
     @ViewBuilder
     private func meetingSessionRow(
         _ article: StudioArticle,
@@ -3228,9 +3153,8 @@ extension StudioSidebar {
                 groupedCollectionArticleRow(article, groupName: groupName)
             }
         }
-        // Padding and an overlay rather than an HStack, so the row's selection
-        // tag stays on the List row itself. Every session keeps the chevron's
-        // room, so sessions with files and without line up.
+        // Padding and an overlay rather than an HStack: every session keeps the
+        // chevron's room, so sessions with files and without line up.
         .padding(.leading, MeetingSessionChevron.width)
         .overlay(alignment: .leading) {
             if !artifacts.isEmpty {
@@ -3272,17 +3196,6 @@ extension StudioSidebar {
         }
 
         return ArticleRow(article: displayArticle, metadataVisibility: metadataVisibility)
-            .tag(article.id)
-            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                Button(role: .destructive) {
-                    requestSourceRemoval([article.id])
-                } label: {
-                    Label("Remove", systemImage: "trash")
-                }
-            }
-            .simultaneousGesture(TapGesture(count: 1).onEnded {
-                openSidebarArticleFromRowClick(article.id)
-            })
             .simultaneousGesture(TapGesture(count: 2).onEnded {
                 openSidebarArticleFromDoubleClick(article.id)
             })
@@ -3308,9 +3221,15 @@ extension StudioSidebar {
                     )
                 }
             ))
+            .modifier(LazySourceRowChrome(
+                highlightIDs: [article.id],
+                rowID: article.id,
+                onClick: { handleLazyRowClick(article.id) },
+                menu: { lazyRowContextMenu(for: article.id) }
+            ))
     }
 
-    /// A source's row: its selection tag, the swipe to remove, click-to-open,
+    /// A source's row: its selection and click-to-open (`LazySourceRowChrome`),
     /// the paper PDF drop target, and the drag that carries it to a chat, a
     /// Notebook or another window. A source's explainer, when it has one, is an
     /// ordinary source in storage but has no row in the sidebar at all
@@ -3322,17 +3241,6 @@ extension StudioSidebar {
             metadataVisibility: metadataVisibility,
             showsMeetingSeries: showsMeetingSeries
         )
-            .tag(article.id)
-            .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                Button(role: .destructive) {
-                    requestSourceRemoval([article.id])
-                } label: {
-                    Label("Remove", systemImage: "trash")
-                }
-            }
-            .simultaneousGesture(TapGesture(count: 1).onEnded {
-                openSidebarArticleFromRowClick(article.id)
-            })
             .simultaneousGesture(TapGesture(count: 2).onEnded {
                 openSidebarArticleFromDoubleClick(article.id)
             })
@@ -3342,8 +3250,8 @@ extension StudioSidebar {
             .modifier(PaperPDFDropTargetModifier(article: article))
             .modifier(sourceRowDragModifier(for: article))
             .modifier(LazySourceRowChrome(
-                sourceID: article.id,
-                isActive: usesLazySourceList,
+                highlightIDs: [article.id],
+                rowID: article.id,
                 onClick: { handleLazyRowClick(article.id) },
                 menu: { lazyRowContextMenu(for: article.id) }
             ))
@@ -3399,63 +3307,8 @@ extension StudioSidebar {
         vm.showToast("Generating \(outcome.queued.count) \(noun) of \(plan.title)")
     }
 
-    /// Whether the List selection change being handled came from the mouse
-    /// pressing a row. The binding setter runs synchronously inside AppKit's
-    /// handling of that event, so the current event is the press itself. Arrow
-    /// keys and programmatic writes arrive under some other event, or none.
-    private var isSidebarSelectionFromMousePress: Bool {
-        switch NSApp.currentEvent?.type {
-        case .leftMouseDown, .leftMouseDragged: true
-        default: false
-        }
-    }
-
-    /// The press that selected a row ended without becoming a drag: open now.
-    /// The row's own tap gesture usually fires for the same mouse-up and is
-    /// coalesced by `openSidebarArticle`; this path covers the presses that
-    /// gesture never sees, such as the row's vertical inset.
-    ///
-    /// The selection the press made waits here too, and both stand down when
-    /// the press turned out to be a row control's (`SidebarRowControlPress`):
-    /// its note may land after AppKit's mouse-down selection write, never
-    /// after the mouse-up.
-    func completeDeferredSidebarOpenOnMouseUp() {
-        guard let sourceID = deferredSidebarOpenSourceID else { return }
-        let selection = deferredSidebarSelection
-        deferredSidebarOpenSourceID = nil
-        deferredSidebarSelection = nil
-        guard !SidebarRowControlPress.claims(sourceID) else { return }
-        if let selection { windowState.sidebarSelectedSourceIDs = selection }
-        guard !dragVisibility.isDragging else { return }
-        openSidebarArticleFromSingleClick(sourceID)
-    }
-
-    /// The press that became a drag is not a click: it must not open the row
-    /// on mouse-up. The selection it made stays, as it does in every macOS
-    /// list, unless the press was a row control's; a multi-selection it
-    /// started from stays whole (AppKit leaves it so on mouse-down).
-    func keepDeferredSidebarSelectionForDrag() {
-        let sourceID = deferredSidebarOpenSourceID
-        let selection = deferredSidebarSelection
-        deferredSidebarOpenSourceID = nil
-        deferredSidebarSelection = nil
-        guard let sourceID, let selection, !SidebarRowControlPress.claims(sourceID) else { return }
-        windowState.sidebarSelectedSourceIDs = selection
-    }
-
-    /// List selection is navigation on the first click in every center layout.
-    /// Shift-click stays selection-only for the explicit multi-select path.
-    private func openSidebarArticleFromSingleClick(_ sourceID: String) {
-        guard vm.opensSidebarSourcesOnSingleClick else { return }
-        openSidebarArticle(sourceID)
-    }
-
-    /// Treat the visible row as the authoritative click target. AppKit may send
-    /// the row gesture without updating native List selection when the pointer is
-    /// over row whitespace, an embedded control, an already-selected row, or a
-    /// newly inserted row. Opening here makes the visual hit area and the actual
-    /// selection area identical; `openSidebarArticle` coalesces the ordinary List
-    /// callback when AppKit sends both.
+    /// A plain click or an arrow key opens the row when the Library opens
+    /// sources on a single click.
     private func openSidebarArticleFromRowClick(_ sourceID: String) {
         guard vm.opensSidebarSourcesOnSingleClick else { return }
         openSidebarArticle(sourceID)
@@ -3467,25 +3320,14 @@ extension StudioSidebar {
         openSidebarArticle(sourceID)
     }
 
-    /// A book cover is a click target like any other row: opening it opens the
-    /// chapter the row is tagged with. Gating this on the cover already being
-    /// selected left the click dead whenever AppKit sent the row gesture without
-    /// updating native List selection — over row whitespace, a newly inserted
-    /// row — because the selection binding, the only other opener, never ran.
-    /// `openSidebarArticle` coalesces the duplicate when AppKit sends both.
-    private func openBookGroupFromRowClick(_ resumeSourceID: String) {
-        guard vm.opensSidebarSourcesOnSingleClick else { return }
-        openSidebarArticle(resumeSourceID)
-    }
-
     private func openBookGroupFromDoubleClick(_ resumeSourceID: String) {
         guard !vm.opensSidebarSourcesOnSingleClick else { return }
         openSidebarArticle(resumeSourceID)
     }
 
     private func openSidebarArticle(_ sourceID: String) {
-        // The row's tap gesture, and the deferred mouse-up open, also see a
-        // click on a control inside the row; that click was the control's.
+        // The row's tap gesture also sees a click on a control inside the
+        // row; that click was the control's.
         guard !SidebarRowControlPress.claims(sourceID) else { return }
         // A click that extended or toggled the selection is selection, not
         // navigation: opening here would write one row back over it.
@@ -3510,8 +3352,6 @@ extension StudioSidebar {
 
     /// What a drag that starts on this row picks up: the whole selection, in
     /// display order, when the row is part of one; otherwise the row alone.
-    /// AppKit has already made a row outside the selection the selection on
-    /// mouse-down, so the highlight matches what is being dragged either way.
     private func sourceIDsForArticleDrag(startingWith article: StudioArticle) -> [String] {
         SidebarSourceSelection.dragSourceIDs(
             startingWith: article.id,
@@ -3623,10 +3463,10 @@ private struct SourceSearchField: View {
 
 // MARK: - Pull-to-refresh
 
-/// Fires refresh callbacks when the user reaches or pulls past the top of the List
+/// Fires refresh callbacks when the user reaches or pulls past the top of the list
 /// that this view backs. SwiftUI's `.refreshable` has no scroll-driven trigger on
 /// macOS, so we observe the underlying `NSScrollView`'s clip-view bounds. The view
-/// is invisible and sits behind the List, so it never intercepts clicks; it just
+/// is invisible and sits behind the list, so it never intercepts clicks; it just
 /// locates the scroll view and watches it.
 ///
 /// A deliberate pull (fingers on the trackpad, gesture phase, no momentum) fires
@@ -3759,7 +3599,7 @@ private struct OverscrollRefresh: NSViewRepresentable {
         }
 
         /// Finds the table-backed scroll view whose frame contains this (invisible)
-        /// backing view's center — i.e. the List we're behind, ignoring any other
+        /// backing view's center — i.e. the list we're behind, ignoring any other
         /// scroll views elsewhere in the window.
         private func locateScrollView() -> NSScrollView? {
             guard let root = window?.contentView else { return nil }
@@ -3768,10 +3608,8 @@ private struct OverscrollRefresh: NSViewRepresentable {
             let center = NSPoint(x: frameInWindow.midX, y: frameInWindow.midY)
             var match: NSScrollView?
             func walk(_ view: NSView) {
-                // AppKit's outline, or the lazy list's SwiftUI scroll view
-                // (`usesLazySourceList`); the innermost one wins.
-                if let scrollView = view as? NSScrollView,
-                   scrollView.documentView is NSTableView || scrollView.hasVerticalScroller {
+                // The list's vertical scroll view; the innermost one wins.
+                if let scrollView = view as? NSScrollView, scrollView.hasVerticalScroller {
                     let frame = scrollView.convert(scrollView.bounds, to: nil)
                     if frame.contains(center) { match = scrollView }
                 }
@@ -3800,54 +3638,51 @@ private struct OverscrollRefresh: NSViewRepresentable {
     }
 }
 
-/// What a row of the lazy list (`usesLazySourceList`) adds to the row AppKit's
-/// list would have drawn around it: the selection's grey wash, the hairline
-/// under a full row, the click that selects, and the row's menu.
+/// What a row of the Sources list adds around the row itself: the
+/// selection's grey wash, the hairline under a full row, the click that
+/// selects and opens, and the row's menu.
 ///
-/// The menu is built only while the pointer is over the row. SwiftUI builds a
+/// `highlightIDs` are the sources whose selection lights the row (a book's
+/// row lights for any of its chapters); `rowID` is the one a click selects.
+/// The menu is built only while the pointer is over the row: SwiftUI builds a
 /// `.contextMenu`'s items in the row's body, so a menu on every row would be
-/// built again for each row that scrolls in (see `sidebarOutlineList`'s note
-/// on its list-level menu); a right-click always lands on a hovered row.
+/// built again for each row that scrolls in, and a right-click always lands
+/// on a hovered row. A row whose own label carries its menu passes none.
 private struct LazySourceRowChrome<MenuContent: View>: ViewModifier {
-    let sourceID: String
-    let isActive: Bool
+    let highlightIDs: Set<String>
+    let rowID: String
     let onClick: () -> Void
-    @ViewBuilder let menu: () -> MenuContent
+    let menu: (() -> MenuContent)?
 
     @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
     @Environment(\.sourcesListLayout) private var sourcesListLayout
     @State private var isHovered = false
 
-    @ViewBuilder
     func body(content: Content) -> some View {
-        if isActive {
-            let isSelected = windowState?.sidebarSelectedSourceIDs.contains(sourceID) ?? false
-            content
-                .padding(.vertical, sourcesListLayout == .compact ? 1 : 5)
-                .background {
-                    RoundedRectangle(cornerRadius: 6, style: .continuous)
-                        .fill(Color.primary.opacity(isSelected ? 0.10 : 0))
-                        .padding(.horizontal, -6)
+        let isSelected = !(windowState?.sidebarSelectedSourceIDs.isDisjoint(with: highlightIDs) ?? true)
+        return content
+            .padding(.vertical, sourcesListLayout == .compact ? 1 : 5)
+            .background {
+                RoundedRectangle(cornerRadius: 6, style: .continuous)
+                    .fill(Color.primary.opacity(isSelected ? 0.10 : 0))
+                    .padding(.horizontal, -6)
+            }
+            .overlay(alignment: .bottom) {
+                if sourcesListLayout != .compact && !isSelected {
+                    Rectangle()
+                        .fill(Color.primary.opacity(0.08))
+                        .frame(height: 1)
+                        .padding(.leading, 46)
                 }
-                .overlay(alignment: .bottom) {
-                    if sourcesListLayout != .compact && !isSelected {
-                        Rectangle()
-                            .fill(Color.primary.opacity(0.08))
-                            .frame(height: 1)
-                            .padding(.leading, 46)
-                    }
-                }
-                .contentShape(Rectangle())
-                .simultaneousGesture(TapGesture(count: 1).onEnded { onClick() })
-                .onHover { isHovered = $0 }
-                .contextMenu {
-                    if isHovered { menu() }
-                }
-                .accessibilityAddTraits(isSelected ? .isSelected : [])
-                .id(sourceID)
-        } else {
-            content
-        }
+            }
+            .contentShape(Rectangle())
+            .simultaneousGesture(TapGesture(count: 1).onEnded { onClick() })
+            .onHover { isHovered = $0 }
+            .contextMenu {
+                if isHovered, let menu { menu() }
+            }
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
+            .id(rowID)
     }
 }
 
@@ -3869,8 +3704,8 @@ private struct SourceGroupRowHover<Content: View>: View {
 /// Indents a session's artifacts under it and hangs a hairline rail down the
 /// left, so the files read as parts of the meeting above rather than siblings.
 /// The chevron that shows or hides a meeting session's files. The session row
-/// draws it itself (see `meetingSessionRow`) instead of nesting a
-/// `DisclosureGroup`, so it looks like the List's own outline triangle.
+/// draws it itself (see `meetingSessionRow`), like a series' own chevron
+/// (`lazyGroupHeader`).
 private struct MeetingSessionChevron: View {
     static let width: CGFloat = 16
 

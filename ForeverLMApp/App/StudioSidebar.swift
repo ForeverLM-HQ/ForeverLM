@@ -94,31 +94,20 @@ struct StudioSidebar: View, Equatable {
     /// The source type whose hidden shows, groups and sources hang in a
     /// popover from its tab, opened by the tab's Show Hidden menu item.
     @State var hiddenItemsPopoverTab: StudioSidebarTab?
-    /// Coalesces the native List selection callback and the row's explicit tap
-    /// action. AppKit normally delivers both for one click, but controls, row
-    /// whitespace, and newly inserted rows can occasionally deliver only the tap.
+    /// The source an open is under way for, so a click and the row's own
+    /// gesture answering the same press start one open, not two.
     @State var pendingSidebarOpenSourceID: String?
-    /// The source whose row was just pressed. AppKit selects a List row on
-    /// mouse-down, before it can know whether the press is a click or the start
-    /// of a drag, so opening on the selection change opened every source that
-    /// was merely dragged toward the chat. The open now waits for mouse-up; a
-    /// drag beginning first cancels it. Keyboard selection still opens at once.
-    @State var deferredSidebarOpenSourceID: String?
-    /// The selection that press made, written with the open on mouse-up (or
-    /// at once when the press becomes a drag), so a press that was a row
-    /// control's selects nothing (`SidebarRowControlPress`).
-    @State var deferredSidebarSelection: Set<String>?
     /// Focused by ⌘F while keyboard focus is in the sources column, or ⇧⌘F from
     /// anywhere (⌘F elsewhere belongs to Find in Reader); cleared and blurred by
     /// Escape or by the same shortcut again.
     @FocusState var isSourceSearchFocused: Bool
-    /// The lazy list's (`usesLazySourceList`) keyboard focus, taken by a click
-    /// on a row so ↑ ↓, Delete and Escape reach the list.
+    /// The Sources list's keyboard focus, taken by a click on a row so ↑ ↓,
+    /// Delete and Escape reach the list.
     @FocusState var isLazySourceListFocused: Bool
-    /// Where the lazy list's ⇧-click and ⇧-arrow runs start: the row last
+    /// Where the list's ⇧-click and ⇧-arrow runs start: the row last
     /// clicked or arrowed to without ⇧.
     @State var lazyListAnchorSourceID: String?
-    /// The row the lazy list's arrow keys move from.
+    /// The row the list's arrow keys move from.
     @State var lazyListCursorSourceID: String?
 
     /// Consolidated alert state — one active alert at a time.
@@ -405,7 +394,7 @@ struct StudioSidebar: View, Equatable {
         // the overlay+offset composition paints, the ignoresSafeArea one does
         // not.
         // On the band's chrome (`studioBandOverlay`): when the search row is
-        // hidden the List sits flush against the top safe area, so its rows
+        // hidden the list sits flush against the top safe area, so its rows
         // scroll up under the titlebar band and would otherwise bleed through
         // the source-type icons.
         .studioBandOverlay {
@@ -422,15 +411,6 @@ struct StudioSidebar: View, Equatable {
                     isSourceSearchFocused = true
                 }
             }
-        }
-        .background(
-            MouseUpObserver { completeDeferredSidebarOpenOnMouseUp() }
-        )
-        .onChange(of: dragVisibility.isDragging) { _, isDragging in
-            // The press that became a drag is not a click: it must not open
-            // the row on mouse-up. The selection it made stays, as it does in
-            // every macOS list; a multi-selection it started from stays whole.
-            if isDragging { keepDeferredSidebarSelectionForDrag() }
         }
         .task {
             async let drive: Void = refreshGoogleDriveConnectionState()
