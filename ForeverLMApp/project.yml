@@ -361,6 +361,10 @@ targets:
       - Shared/Models/SharingRightsAffirmation.swift
       - Shared/Models/NotebookShareLine.swift
       - iOS/MobileNotebookHomeView.swift
+      # Home's screen, drawn from what it is handed, and its DEBUG harness
+      # (`-foreverlm-uitest-home`).
+      - iOS/MobileHomeDashboard.swift
+      - iOS/MobileHomeHarness.swift
       # Home's To Read: what was saved and is still waiting, newest saved
       # first, by the rule the Mac's Library scope shares (`ToReadList`).
       - Shared/Models/ToReadList.swift

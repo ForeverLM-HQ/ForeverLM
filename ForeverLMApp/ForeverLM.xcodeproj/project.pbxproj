@@ -216,6 +216,7 @@
 		19406FB9B824A370289D3EE3 /* AIProviderErrorText.swift in Sources */ = {isa = PBXBuildFile; fileRef = D3F0FA8DCF234EB0B1C1000A /* AIProviderErrorText.swift */; };
 		1942BF3C46F71629489CFE89 /* ChatReplySideChatTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 611814BFEB0B89D994943A87 /* ChatReplySideChatTests.swift */; };
 		195134A2BEACD0ED1DB653CF /* MemoryCardDeck.swift in Sources */ = {isa = PBXBuildFile; fileRef = 71EE5CDC2E5292E60E614D29 /* MemoryCardDeck.swift */; };
+		197B25D5F07EAAB7E47832D5 /* MobileHomeHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = 340F456A09702BC9814A8F73 /* MobileHomeHarness.swift */; };
 		197D5DDD83B10F36EDF91D51 /* MemoryReviewRequest.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6991469932C2EB7620E35147 /* MemoryReviewRequest.swift */; };
 		199DFCD960C7BDD587BA9506 /* ScheduledTaskTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = AFD60B144C7E3F5B32595BF9 /* ScheduledTaskTests.swift */; };
 		19B1A1FBBF85A35EC11873A2 /* MigrationRefreshTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 157C29B8FCD592BCFD73DFC5 /* MigrationRefreshTests.swift */; };
@@ -341,6 +342,7 @@
 		2964FBF5916E121F8E68F52E /* MaintenanceService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8A2FB108DF828A715EC21836 /* MaintenanceService.swift */; };
 		2975030279E88D2E112651D5 /* ReferenceCitation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1BA390D9C4DB2CD7BE394A1E /* ReferenceCitation.swift */; };
 		298B9169A46598837D9EEDB9 /* NotificationPermissionTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E968C4E92DA6FA8549926F6C /* NotificationPermissionTests.swift */; };
+		298C9D4FF876260FC14D8C9F /* MobileHomeDashboard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4ACCBF121AAA9C7D92A3E11F /* MobileHomeDashboard.swift */; };
 		29905D4E339EFD8AD378FBA8 /* MobileShareSheetView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 66B003F06C48912B474E6562 /* MobileShareSheetView.swift */; };
 		2997C4B48708DF8B1D5FB9E6 /* ArticleSpeechVoicePreviewRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = AF4F2E5CC70413DA1E48C5B0 /* ArticleSpeechVoicePreviewRepository.swift */; };
 		29A578BD2D04E50F4546F845 /* DocBodyMergeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A189908C706AF30CCB404076 /* DocBodyMergeTests.swift */; };
@@ -2503,6 +2505,7 @@
 		33AD11F5A57D07FE9582AFDE /* SpaceBoardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceBoardView.swift; sourceTree = "<group>"; };
 		33C89404D03AE3D869AF3B77 /* ReviewChatSideChatPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReviewChatSideChatPopover.swift; sourceTree = "<group>"; };
 		33E204806B74A85F4DF06868 /* CutoverReconcile.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CutoverReconcile.swift; sourceTree = "<group>"; };
+		340F456A09702BC9814A8F73 /* MobileHomeHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileHomeHarness.swift; sourceTree = "<group>"; };
 		342CCB4AF54E86316A134E0B /* MCPTools+PageVersions.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "MCPTools+PageVersions.swift"; sourceTree = "<group>"; };
 		345C8E0879968B8E9CC23FEA /* StudioViewModel+NotebookCollections.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StudioViewModel+NotebookCollections.swift"; sourceTree = "<group>"; };
 		346130504F6E16693C92CA29 /* MobileNotebookStudioTab.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileNotebookStudioTab.swift; sourceTree = "<group>"; };
@@ -2669,6 +2672,7 @@
 		4A3C1963CB6A8616BDF63B74 /* XPostThreadTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XPostThreadTests.swift; sourceTree = "<group>"; };
 		4A3E5C86438733DCE2827950 /* Prompts+Sensemaking.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "Prompts+Sensemaking.swift"; sourceTree = "<group>"; };
 		4AAF9C3F96FF42A4DA0686B0 /* MaintenanceFixture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MaintenanceFixture.swift; sourceTree = "<group>"; };
+		4ACCBF121AAA9C7D92A3E11F /* MobileHomeDashboard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileHomeDashboard.swift; sourceTree = "<group>"; };
 		4B10ADD5B3BACED0650F077D /* ArticleChromeRefilterService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ArticleChromeRefilterService.swift; sourceTree = "<group>"; };
 		4B2B7ACCA96B458230939199 /* SpaceSyncTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpaceSyncTests.swift; sourceTree = "<group>"; };
 		4B388A6C15389C1F47BAD98D /* StudioViewModel+SpaceLists.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "StudioViewModel+SpaceLists.swift"; sourceTree = "<group>"; };
@@ -4965,6 +4969,8 @@
 				49F097D752A85C1627206ECA /* MobileExplainerGenerator.swift */,
 				206B9702D644F4B7BD083517 /* MobileExplainerViews.swift */,
 				CD7B8C2BCD88F6CBC7261E58 /* MobileFollowUpScreen.swift */,
+				4ACCBF121AAA9C7D92A3E11F /* MobileHomeDashboard.swift */,
+				340F456A09702BC9814A8F73 /* MobileHomeHarness.swift */,
 				962B9124682ACB98D424477F /* MobileKeychainService.swift */,
 				1409F53EEF7BE67B2DCF61D3 /* MobileLearningBoutStore.swift */,
 				F89DF476E2718567879F9FE0 /* MobileLearningBoutTimer.swift */,
@@ -7286,6 +7292,8 @@
 				3B224DAD19E94F115358C2F0 /* MobileExplainerViews.swift in Sources */,
 				2BDE98216B07A69B9D658668 /* MobileFollowUpScreen.swift in Sources */,
 				5294E0CE992D62C7E9D648FA /* MobileHighlightRecords.swift in Sources */,
+				298C9D4FF876260FC14D8C9F /* MobileHomeDashboard.swift in Sources */,
+				197B25D5F07EAAB7E47832D5 /* MobileHomeHarness.swift in Sources */,
 				B407A7AE935A689160F76F0D /* MobileKeychainService.swift in Sources */,
 				1F9A3184F8409F119C01E30C /* MobileLearningBoutStore.swift in Sources */,
 				13EAAB5F48D300E7669E29CD /* MobileLearningBoutTimer.swift in Sources */,

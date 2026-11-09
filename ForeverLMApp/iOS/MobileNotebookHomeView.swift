@@ -22,25 +22,16 @@ enum MobileHomeSearchScope: String, CaseIterable, Hashable {
     }
 }
 
-/// Home: the Mac's compact rail as one list (docs/notebooks-design.md,
-/// "iPhone" and "A compact rail"), the library, the Space and Memory one row each above
-/// it, and what is due today. The product owner, 2026-10-03, of a rail
-/// listing ~52 notebooks: "is it even still good design to have all these
-/// notebooks in the left sidebar as well?" So Home lists the notebooks at
-/// hand — **Pinned**, **Recent** (the last six worked in, and the notebook
-/// last opened here when it is neither) — then **All notebooks** and
-/// **Uncategorized** (once a collection exists) and **Collections**, which
-/// push the Notebooks screen (`MobileNotebooksScreen`) with every notebook,
-/// or the ones they name, in Grid or List.
+/// Home (since 2026-11-09, `MobileHomeDashboard`): today's cards with Review
+/// and By Voice, the three ways to talk (Voice, Drive, Gym), the notebooks at
+/// hand as cover cards — pinned first, then the ones last worked in — with See
+/// All for the Notebooks screen (`MobileNotebooksScreen`, collections and all),
+/// and the library as a row of chips at the foot. A running bout and today's
+/// plan sit above it while there is one; courses under it.
 ///
-/// A notebook row opens the notebook; its menu and its trailing swipe play
-/// the notebook's audio overview or talk in it, and its menu has Pin. Since
-/// 2026-10-06 the rows draw no round button, the links no count and no
-/// accent square (the product owner: "cleaner and fewer buttons and bells and
-/// whistles"). Search finds notebooks, or sources across the library — by
-/// their words first and by meaning when the words find little. New
-/// notebook is the toolbar's +; voice and Settings are the toolbar's too
-/// (the shell's `homeRoot`).
+/// Search finds notebooks, or sources across the library — by their words
+/// first and by meaning when the words find little. New notebook is the
+/// toolbar's +, Settings the shell's (`homeRoot`).
 struct MobileNotebookHomeView: View {
     /// Pushes a route on the shell's stack: a notebook just made opens at once.
     let open: (MobileShellRoute) -> Void
@@ -59,8 +50,13 @@ struct MobileNotebookHomeView: View {
     @StateObject private var menus = MobileNotebookMenuState()
     /// The Space, whose row shows once the phone's pages can open here (generation 2).
     @Environment(MobileSpaceStore.self) private var spaceStore
-    /// New Page or Daily Notes from the Spaces row's menu could not make its page.
+    /// New Page or Daily Notes from the Spaces chip's menu could not make its page.
     @State private var spaceFailure: String?
+    /// Drive or Gym's picker of sources, while it is up.
+    @State private var voicePicker: RealtimeVoiceOpening?
+    /// Today's cards as the Memory screen counts them (practice included);
+    /// nil until read.
+    @State private var cardCounts: MemoryCardDayCounts?
     @State private var query = ""
     @State private var scope: MobileHomeSearchScope = .library
     /// The meaning ranking's answer for the query it was run on.
@@ -96,9 +92,8 @@ struct MobileNotebookHomeView: View {
             if isSearching {
                 searchResults
             } else {
-                placesSection
                 todaySection
-                notebookSections
+                dashboard
                 coursesSection
             }
         }
@@ -119,6 +114,13 @@ struct MobileNotebookHomeView: View {
         .task(id: semanticKey) { await rankByMeaningIfNeeded() }
         .task(id: vm.memoryCardsRevision) {
             reviewedSourceIDs = await MobileCloudSourceCatalog.shared.currentReviewedSourceIDs()
+            cardCounts = await vm.cardReviewRead(scope: .allNotebooks).counts
+        }
+        .sheet(item: $voicePicker) { opening in
+            MobileVoiceSourcePicker(opening: opening, sources: MobileSourceListing.listed(vm.allSources)) { source in
+                voicePicker = nil
+                Task { await MobileRealtimeVoice.start(source: source, notebook: nil, opening: opening) }
+            }
         }
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
@@ -147,9 +149,8 @@ struct MobileNotebookHomeView: View {
 
     // MARK: - Sections
 
-    /// The bout's clock while one runs, Memory in one line while cards wait
-    /// ("6 due · 4 new", the widget's count), and today's plan when anything
-    /// is planned.
+    /// The bout's clock while one runs, and today's plan when anything is
+    /// planned: above the dashboard, while there is one.
     @ViewBuilder
     private var todaySection: some View {
         Section {
@@ -157,18 +158,6 @@ struct MobileNotebookHomeView: View {
                 MobileLearningBoutCard(timer: boutTimer)
                     .listRowInsets(EdgeInsets())
                     .listRowBackground(Color.clear)
-            }
-
-            // The Mac's Memory strip: a tap opens Memory, whose Start Review
-            // starts. Drawn only while something is due, new or to check
-            // (the Mac's since 2026-10-06); the Memory row at the
-            // top is the way in otherwise.
-            if let line = vm.memoryTodayLine {
-                MobileMemoryStrip(line: line) {
-                    open(.memory)
-                }
-                .listRowInsets(EdgeInsets())
-                .listRowBackground(Color.clear)
             }
 
             if !todayPendingItems.isEmpty {
@@ -204,179 +193,87 @@ struct MobileNotebookHomeView: View {
         }
     }
 
-    /// The rail: Pinned, Recent, All notebooks and Uncategorized, and the
-    /// collections (`NotebookRail`); or, with no notebooks yet, why.
-    @ViewBuilder
-    private var notebookSections: some View {
-        if vm.notebooks.isEmpty {
-            Section {
-                // An empty list during the first sync is a pass still running,
-                // not an account without notebooks.
-                if let status = vm.syncStatus {
-                    ContentUnavailableView {
-                        Label("Syncing your library", systemImage: "arrow.triangle.2.circlepath")
-                    } description: {
-                        Text("\(status.stepText). Notebooks appear here as they arrive.")
-                    }
-                    .accessibilityIdentifier("notebooks.syncing")
-                } else {
-                    ContentUnavailableView {
-                        Label("No Notebooks", systemImage: MobileNotebookGlyph.symbolName)
-                    } description: {
-                        Text("Make one with +.")
-                    }
+    /// The dashboard (`MobileHomeDashboard`) over this phone's library.
+    private var dashboard: some View {
+        let shown = homeNotebooks
+        return MobileHomeDashboard(
+            cards: homeCardCounts,
+            notebooks: shown.items,
+            hasMoreNotebooks: shown.hasMore,
+            isSyncing: vm.notebooks.isEmpty && vm.syncStatus != nil,
+            showsSpaces: spaceStore.isAvailable,
+            columns: usesGallery ? 3 : 2,
+            actions: MobileHomeActions(
+                open: open,
+                reviewByVoice: {
+                    Task { await MobileRealtimeVoice.startCardReview(scope: .allNotebooks, scopeTitle: "All notebooks") }
+                },
+                talk: {
+                    Task { await MobileRealtimeVoice.startAssistant(setting: .phone) }
+                },
+                pickSource: { voicePicker = $0 },
+                newNotebook: createNotebook,
+                newPage: {
+                    openSpacePage { try await spaceStore.createPage(title: "", markdown: "", spaceID: nil, parentID: nil) }
+                },
+                dailyNote: {
+                    openSpacePage { try await spaceStore.ensureDailyNote(dayKey: DailyNote.dayKey(for: Date())) }
+                },
+                playOverview: { sourceID in
+                    Task { await vm.toggleTextToSpeech(sourceID: sourceID) }
                 }
-            } header: {
-                MobileHomeSectionHeader("Notebooks")
-            }
-        } else {
-            let recency = self.recency
-            let rail = MobileNotebookRailRules.rail(
-                notebooks: vm.notebooks,
-                pinnedIDs: railStore.pinnedIDs,
-                order: railStore.notebookOrder,
-                recency: recency,
-                collections: collectionStore.state,
-                lastOpenedID: lastOpenedID.isEmpty ? nil : lastOpenedID
             )
-            let byID = Dictionary(vm.notebooks.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-
-            if !rail.pinnedIDs.isEmpty {
-                Section {
-                    notebooks(rail.pinnedIDs.compactMap { byID[$0] }, recency: recency)
-                } header: {
-                    MobileHomeSectionHeader("Pinned")
-                }
-                .accessibilityIdentifier("home.pinned")
-            }
-
-            // The open notebook's row ends Recent.
-            let recent = (rail.recentIDs + [rail.openNotebookID].compactMap { $0 }).compactMap { byID[$0] }
-            if !recent.isEmpty {
-                Section {
-                    notebooks(recent, recency: recency)
-                } header: {
-                    MobileHomeSectionHeader("Recent")
-                }
-                .accessibilityIdentifier("home.recent")
-            }
-
-            // No counts beside them (2026-10-06, the Mac rail's): the screen
-            // they open lists the notebooks.
-            Section {
-                NavigationLink(value: MobileShellRoute.notebooks(.all)) {
-                    MobileHomeLinkLabel(
-                        systemImage: MobileNotebookGlyph.symbolName,
-                        title: "All notebooks"
-                    )
-                }
-                .accessibilityIdentifier("home.allNotebooks")
-                // Before a collection exists Uncategorized is every notebook.
-                if !collectionStore.state.isEmpty {
-                    NavigationLink(value: MobileShellRoute.notebooks(.uncategorized)) {
-                        MobileHomeLinkLabel(
-                            systemImage: MobileNotebookGlyph.uncategorizedSymbolName,
-                            title: "Uncategorized"
-                        )
-                    }
-                    .accessibilityIdentifier("home.uncategorized")
-                }
-            }
-
-            if !rail.collections.isEmpty {
-                Section {
-                    collectionsContent(recency: recency)
-                } header: {
-                    MobileHomeSectionHeader("Collections")
-                }
-                .accessibilityIdentifier("home.collections")
-            }
+        ) { notebook in
+            MobileNotebookMenuItems(notebook: notebook, menus: menus)
         }
     }
 
-    /// Notebooks as Home draws them: rows on a phone, the Mac's gallery on
-    /// a roomy screen (`usesGallery`).
-    @ViewBuilder
-    private func notebooks(_ notebooks: [MobileCloudNotebook], recency: NotebookRecency) -> some View {
-        if usesGallery {
-            LazyVGrid(
-                columns: [GridItem(
-                    .adaptive(
-                        minimum: MobileNotebookColumnLayout.galleryCardMinimumWidth,
-                        maximum: MobileNotebookColumnLayout.galleryCardMaximumWidth
-                    ),
-                    spacing: MobileNotebookColumnLayout.galleryCardSpacing,
-                    alignment: .top
-                )],
-                alignment: .leading,
-                spacing: MobileNotebookColumnLayout.galleryCardSpacing
-            ) {
-                ForEach(notebooks) { notebook in
-                    notebookCard(notebook, recency: recency)
-                }
-            }
-            .listRowInsets(EdgeInsets())
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-        } else {
-            ForEach(notebooks) { notebook in
-                notebookRow(notebook, recency: recency)
-            }
+    /// Today's cards as the Memory screen reads them, or, until that read
+    /// lands, the widget's count; nil while nothing has synced.
+    private var homeCardCounts: MemoryCardDayCounts? {
+        guard !vm.allSources.isEmpty else { return nil }
+        if let cardCounts {
+            return MemoryCardDayCounts(due: cardCounts.due, new: cardCounts.new, practice: cardCounts.practice, toCheck: vm.cardsToCheckTotal)
         }
+        return MemoryCardDayCounts(today: vm.todayMemoryCards, practice: 0, toCheck: vm.cardsToCheckTotal)
     }
 
-    /// A card per collection, by name, each with the notebooks it holds in
-    /// Recent's order; a tap pushes the Notebooks screen showing them. A
-    /// phone lists them; a roomy screen draws the gallery.
-    @ViewBuilder
-    private func collectionsContent(recency: NotebookRecency) -> some View {
-        let ordered = NotebooksHomeSort.recent.ordered(vm.notebooks, recency: recency).map(\.id)
-        let summaries = collectionStore.state.summaries(of: ordered)
-        if usesGallery {
-            LazyVGrid(
-                columns: [GridItem(
-                    .adaptive(
-                        minimum: MobileNotebookColumnLayout.galleryCardMinimumWidth,
-                        maximum: MobileNotebookColumnLayout.galleryCardMaximumWidth
-                    ),
-                    spacing: MobileNotebookColumnLayout.galleryCardSpacing,
-                    alignment: .top
-                )],
-                alignment: .leading,
-                spacing: MobileNotebookColumnLayout.galleryCardSpacing
-            ) {
-                ForEach(summaries) { summary in
-                    MobileNotebookCollectionCard(summary: summary, previewIcons: previewIcons(summary), isGallery: true) {
-                        open(.notebooks(.collection(summary.id)))
-                    }
-                    .contextMenu { MobileCollectionMenuItems(collection: summary.collection, menus: menus) }
-                }
-            }
-            .listRowInsets(EdgeInsets())
-            .listRowBackground(Color.clear)
-            .listRowSeparator(.hidden)
-        } else {
-            ForEach(summaries) { summary in
-                MobileNotebookCollectionCard(summary: summary, previewIcons: previewIcons(summary), isGallery: false) {
-                    open(.notebooks(.collection(summary.id)))
-                }
-                .contextMenu { MobileCollectionMenuItems(collection: summary.collection, menus: menus) }
-            }
+    /// The notebooks on Home: the pinned ones, then the ones last worked in
+    /// (the rail's order), then the rest by recency, up to a row or two of
+    /// cards; See All lists every one.
+    private var homeNotebooks: (items: [MobileHomeNotebookItem], hasMore: Bool) {
+        let recency = self.recency
+        let rail = MobileNotebookRailRules.rail(
+            notebooks: vm.notebooks,
+            pinnedIDs: railStore.pinnedIDs,
+            order: railStore.notebookOrder,
+            recency: recency,
+            collections: collectionStore.state,
+            lastOpenedID: lastOpenedID.isEmpty ? nil : lastOpenedID
+        )
+        let byID = Dictionary(vm.notebooks.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        var seen = Set<String>()
+        let ordered = (rail.pinnedIDs + rail.recentIDs + [rail.openNotebookID].compactMap { $0 } + orderedNotebooks.map(\.id))
+            .filter { seen.insert($0).inserted }
+            .compactMap { byID[$0] }
+        let limit = usesGallery ? 6 : 4
+        let items = ordered.prefix(limit).map { notebook in
+            let overview = vm.audioOverviews(inNotebook: notebook.id).first
+            return MobileHomeNotebookItem(
+                notebook: notebook,
+                sourceCount: vm.notebookSourceCount(in: notebook),
+                lastActivity: recency.lastWorkedAt(notebook.id, updatedAt: notebook.updatedAt),
+                overviewSourceID: overview?.carrier.id,
+                overviewIsPlaying: overview.map { vm.currentItem?.id == $0.carrier.id && vm.isPlaying } ?? false,
+                isPreparingOverview: overview.map { vm.isPreparingAudio(sourceID: $0.carrier.id) } ?? false
+            )
         }
-    }
-
-    /// The emojis of the first few notebooks a collection holds.
-    private func previewIcons(_ summary: NotebookCollectionSummary) -> [MobileNotebookCollectionCard.PreviewIcon] {
-        summary.notebookIDs.prefix(MobileNotebookCollectionCard.previewLimit).compactMap { notebookID in
-            vm.notebooks.first { $0.id == notebookID }.map {
-                MobileNotebookCollectionCard.PreviewIcon(id: $0.id, icon: NotebookTitle($0.title).displayIcon)
-            }
-        }
+        return (items, ordered.count > items.count)
     }
 
     /// A screen in regular width and height (an iPad, an iPhone Duo opened)
-    /// shows the notebooks as the Mac's gallery
-    /// (`MobileNotebookColumnLayout.usesGallery`); a phone keeps the list.
+    /// draws three notebook cards to a row (`MobileNotebookColumnLayout.usesGallery`);
+    /// a phone two.
     private var usesGallery: Bool {
         MobileNotebookColumnLayout.usesGallery(
             isRegularWidth: horizontalSizeClass == .regular,
@@ -409,62 +306,6 @@ struct MobileNotebookHomeView: View {
             }
             .accessibilityIdentifier("home.courses")
         }
-    }
-
-    /// The places that are not a notebook, first on Home so none of them waits
-    /// under the notebooks: the whole library, the Space, and Memory (the way
-    /// in while the strip below is not drawn: nothing due, new or to check).
-    /// No count under Library (2026-10-06): the screen it opens counts.
-    private var placesSection: some View {
-        Section {
-            NavigationLink(value: MobileShellRoute.library) {
-                MobileHomeLinkLabel(systemImage: "books.vertical", title: "Library")
-            }
-            .accessibilityIdentifier("home.sources")
-            NavigationLink(value: MobileShellRoute.toRead) {
-                MobileHomeLinkLabel(systemImage: "bookmark", title: "To Read")
-            }
-            .accessibilityIdentifier("home.toRead")
-            NavigationLink(value: MobileShellRoute.followUp) {
-                MobileHomeLinkLabel(systemImage: "flag", title: "Follow up")
-            }
-            .accessibilityIdentifier("home.followUp")
-            if spaceStore.isAvailable {
-                spaceRow
-            }
-            NavigationLink(value: MobileShellRoute.memory) {
-                MobileHomeLinkLabel(systemImage: MemoryReviewSession.sidebarIcon, title: "Memory")
-            }
-            .accessibilityIdentifier("home.memoryRow")
-        }
-        .listSectionSpacing(MobileDesign.Spacing.medium)
-    }
-
-    /// The Mac rail's **Spaces** row (docs/docs-design.md, "The Space"): the
-    /// learner's pages, sites and spaces. A phone pushes the Space; a screen
-    /// with the room opens it as a split view over Home, so the row is a
-    /// button there. Its menu makes a page, or opens today's daily note (the
-    /// Mac's Daily Notes, ⇧⌘D), without a row of its own on Home.
-    @ViewBuilder
-    private var spaceRow: some View {
-        let label = MobileHomeLinkLabel(systemImage: "square.on.square", title: "Spaces")
-        Group {
-            if MobileSpaceLayout.usesSplitView(isRegularWidth: horizontalSizeClass == .regular,
-                                               isRegularHeight: verticalSizeClass == .regular) {
-                Button { open(.space(nil)) } label: { label.contentShape(Rectangle()) }
-            } else {
-                NavigationLink(value: MobileShellRoute.space(nil)) { label }
-            }
-        }
-        .contextMenu {
-            Button("New Page", systemImage: "square.and.pencil") {
-                openSpacePage { try await spaceStore.createPage(title: "", markdown: "", spaceID: nil, parentID: nil) }
-            }
-            Button("Daily Notes", systemImage: "calendar") {
-                openSpacePage { try await spaceStore.ensureDailyNote(dayKey: DailyNote.dayKey(for: Date())) }
-            }
-        }
-        .accessibilityIdentifier("home.space")
     }
 
     /// Makes or finds a page of the Space and opens it.
@@ -503,27 +344,6 @@ struct MobileNotebookHomeView: View {
                 .tint(.accentColor)
             }
         }
-    }
-
-    /// One notebook in the gallery: the row's data and actions on the Mac's
-    /// card, ▶ in its corner while it has an audio overview, as the Mac's
-    /// card draws it.
-    private func notebookCard(_ notebook: MobileCloudNotebook, recency: NotebookRecency) -> some View {
-        let overview = vm.audioOverviews(inNotebook: notebook.id).first
-        return MobileNotebookGalleryCard(
-            notebook: notebook,
-            sourceCount: vm.notebookSourceCount(in: notebook),
-            lastActivity: recency.lastWorkedAt(notebook.id, updatedAt: notebook.updatedAt),
-            overviewIsPlaying: overview.map { vm.currentItem?.id == $0.carrier.id && vm.isPlaying } ?? false,
-            hasOverview: overview != nil,
-            isPreparingOverview: overview.map { vm.isPreparingAudio(sourceID: $0.carrier.id) } ?? false,
-            onOpen: { open(.notebook(notebook.id)) },
-            onPlay: {
-                guard let overview else { return }
-                Task { await vm.toggleTextToSpeech(sourceID: overview.carrier.id) }
-            }
-        )
-        .contextMenu { MobileNotebookMenuItems(notebook: notebook, menus: menus) }
     }
 
     /// New notebook: made at once, with no form, and opened; ForeverLM names
@@ -683,31 +503,6 @@ private struct MobileCourseHomeRow: View {
     }
 }
 
-/// A row of Home that opens a list or a screen — All notebooks,
-/// Uncategorized, Memory, Library: its glyph in grey and its title. Until
-/// 2026-10-06 the glyph sat on a soft accent square and a count or a line
-/// went with it (the product owner: "cleaner and fewer buttons and bells and
-/// whistles"; "Lists are monochrome", docs/ui-design.md).
-private struct MobileHomeLinkLabel: View {
-    let systemImage: String
-    let title: String
-
-    var body: some View {
-        HStack(spacing: 14) {
-            Image(systemName: systemImage)
-                .font(.title3)
-                .foregroundStyle(.secondary)
-                .frame(width: 48, height: 40)
-                .accessibilityHidden(true)
-            Text(title)
-                .font(.body)
-                .foregroundStyle(.primary)
-            Spacer(minLength: 0)
-        }
-        .padding(.vertical, 2)
-    }
-}
-
 /// One chip in the Notebooks screen's filter row: its name in grey, and in
 /// the primary colour on a neutral capsule while it is the filter, as the
 /// Mac's chips are since 2026-10-06 ("Lists are monochrome",
@@ -833,155 +628,6 @@ private struct MobileNotebookCardPlayButton: View {
     }
 }
 
-/// One collection in Home's Collections, the Mac's
-/// `NotebookCollectionCard`: a stack of notebook cards in the collection's
-/// own soft colour (`NotebookTint`, from its id) with its emoji (a leading
-/// emoji in its name, else the one its words choose), its name, how many
-/// notebooks it holds and the emojis of the first few. A phone draws it as a
-/// row, an iPad as a gallery card; a tap pushes the Notebooks screen showing
-/// its notebooks.
-struct MobileNotebookCollectionCard: View {
-    /// One notebook's emoji in the card's preview.
-    struct PreviewIcon: Identifiable, Equatable {
-        let id: String
-        let icon: String
-    }
-
-    /// How many notebooks' emojis the card shows.
-    static let previewLimit = 4
-
-    let summary: NotebookCollectionSummary
-    let previewIcons: [PreviewIcon]
-    let isGallery: Bool
-    let onOpen: () -> Void
-
-    private static let cornerRadius: CGFloat = 16
-
-    private var countLine: String {
-        switch summary.notebookIDs.count {
-        case 0: return "No notebooks"
-        case 1: return "1 notebook"
-        case let count: return "\(count) notebooks"
-        }
-    }
-
-    var body: some View {
-        let title = NotebookTitle(summary.collection.name)
-        let name = title.text.isEmpty ? "Untitled collection" : title.text
-        Button(action: onOpen) {
-            if isGallery {
-                gallery(title: title, name: name)
-            } else {
-                row(title: title, name: name)
-            }
-        }
-        .buttonStyle(.plain)
-        .accessibilityLabel("\(name), \(countLine)")
-        .accessibilityIdentifier("home.collections.card")
-    }
-
-    private func row(title: NotebookTitle, name: String) -> some View {
-        let tint = NotebookTint.color(for: summary.id)
-        let square = RoundedRectangle(cornerRadius: 10, style: .continuous)
-        return HStack(alignment: .center, spacing: 12) {
-            Text(title.displayIcon)
-                .font(.title3)
-                .frame(width: MobileDesign.Metrics.compactArtworkSize, height: MobileDesign.Metrics.compactArtworkSize)
-                .background(tint, in: square)
-                // A second card behind it: a collection is a stack.
-                .background(alignment: .top) {
-                    square.fill(tint.opacity(0.55))
-                        .padding(.horizontal, 5)
-                        .offset(y: -4)
-                }
-                .padding(.top, 4)
-                .accessibilityHidden(true)
-
-            VStack(alignment: .leading, spacing: 4) {
-                Text(name)
-                    .font(.body)
-                    .foregroundStyle(.primary)
-                    .lineLimit(2)
-                Text(countLine)
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-            }
-
-            Spacer(minLength: 0)
-            preview
-        }
-        .padding(.vertical, MobileDesign.Spacing.xSmall)
-        .contentShape(Rectangle())
-    }
-
-    private func gallery(title: NotebookTitle, name: String) -> some View {
-        let tint = NotebookTint.color(for: summary.id)
-        let shape = RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
-        return VStack(alignment: .leading, spacing: 0) {
-            Text(title.displayIcon)
-                .font(.system(size: 34))
-                .accessibilityHidden(true)
-
-            Spacer(minLength: MobileDesign.Spacing.medium)
-
-            Text(name)
-                .font(.headline)
-                .foregroundStyle(.primary)
-                .lineLimit(3)
-                .multilineTextAlignment(.leading)
-                .frame(maxWidth: .infinity, alignment: .leading)
-
-            HStack(spacing: 8) {
-                Text(countLine)
-                    .lineLimit(1)
-                Spacer(minLength: 0)
-                preview
-            }
-            .font(.footnote)
-            .foregroundStyle(.secondary)
-            .padding(.top, MobileDesign.Spacing.xSmall)
-        }
-        .padding(MobileDesign.Spacing.large)
-        .frame(maxWidth: .infinity, minHeight: 176, alignment: .topLeading)
-        .background(tint, in: shape)
-        // Two cards peek out above it, so a collection reads as a stack.
-        .background(alignment: .top) {
-            ZStack(alignment: .top) {
-                shape.fill(tint.opacity(0.35))
-                    .padding(.horizontal, 22)
-                    .offset(y: -12)
-                shape.fill(tint.opacity(0.65))
-                    .padding(.horizontal, 11)
-                    .offset(y: -6)
-            }
-            .accessibilityHidden(true)
-        }
-        .padding(.top, 12)
-        .contentShape(shape)
-        .contentShape(.hoverEffect, shape)
-        .hoverEffect(.highlight)
-    }
-
-    /// The first few notebooks' emojis, each on its own notebook's colour,
-    /// overlapping as a stack does. A cover keeps the colour: its circle
-    /// holds it inset, as the Mac's stack does.
-    private var preview: some View {
-        HStack(spacing: -6) {
-            ForEach(previewIcons) { item in
-                MobileNotebookIconView(notebookID: item.id, size: 24, cornerRadius: nil) {
-                    Text(item.icon)
-                        .font(.caption)
-                        .frame(width: 24, height: 24)
-                }
-                .background(NotebookTint.color(for: item.id), in: Circle())
-                .overlay(Circle().strokeBorder(Color(uiColor: .systemBackground), lineWidth: 1.5))
-            }
-        }
-        .accessibilityHidden(true)
-    }
-}
-
 extension NotebookTint {
     /// The notebook's tint as a colour that follows light and dark mode.
     static func color(for notebookID: String) -> Color {
@@ -1044,17 +690,13 @@ struct MobileNotebookGalleryCard: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
 
                 if isCompact {
-                    // Too narrow to share a line with the round button: the
-                    // line sits above the button's row.
+                    // The round button sits in the top-right corner, beside the
+                    // emoji, so every card's name rests on its foot.
                     Text(MobileNotebookCard.line(notebook: notebook, sourceCount: sourceCount, lastActivity: lastActivity))
                         .font(.caption)
                         .foregroundStyle(.secondary)
-                        .lineLimit(2)
+                        .lineLimit(1)
                         .padding(.top, 2)
-                    if hasOverview {
-                        Color.clear
-                            .frame(height: MobileDesign.Metrics.minimumTouchTarget - MobileDesign.Spacing.small)
-                    }
                 } else {
                     Text(MobileNotebookCard.line(notebook: notebook, sourceCount: sourceCount, lastActivity: lastActivity))
                         .font(.footnote)
@@ -1066,7 +708,7 @@ struct MobileNotebookGalleryCard: View {
                 }
             }
             .padding(isCompact ? MobileDesign.Spacing.medium : MobileDesign.Spacing.large)
-            .frame(maxWidth: .infinity, minHeight: isCompact ? 150 : 176, alignment: .topLeading)
+            .frame(maxWidth: .infinity, minHeight: isCompact ? 132 : 176, alignment: .topLeading)
             .background(NotebookTint.color(for: notebook.id), in: shape)
             .contentShape(shape)
             .contentShape(.hoverEffect, shape)
@@ -1074,14 +716,14 @@ struct MobileNotebookGalleryCard: View {
         .buttonStyle(.plain)
         .hoverEffect(.highlight)
         .accessibilityIdentifier("browser.notebookRow")
-        .overlay(alignment: .bottomTrailing) {
+        .overlay(alignment: isCompact ? .topTrailing : .bottomTrailing) {
             if hasOverview {
                 MobileNotebookCardPlayButton(
                     overviewIsPlaying: overviewIsPlaying,
                     isPreparingOverview: isPreparingOverview,
                     onPlay: onPlay
                 )
-                .padding(MobileDesign.Spacing.small)
+                .padding(isCompact ? MobileDesign.Spacing.xSmall : MobileDesign.Spacing.small)
             }
         }
     }
@@ -1120,7 +762,7 @@ private struct MobileHomeHidesDisclosure: ViewModifier {
 }
 
 /// iOS 26 draws Search as a bar at the bottom; earlier systems keep Search in the navigation bar.
-private struct MobileHomeBottomBar: ViewModifier {
+struct MobileHomeBottomBar: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 26.0, *) {
             content.toolbar { DefaultToolbarItem(kind: .search, placement: .bottomBar) }

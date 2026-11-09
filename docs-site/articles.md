@@ -44,7 +44,7 @@ ForeverLM reads any CSV with a link column, any bookmarks HTML file (the format 
 **To Read** is the one list of what you saved and have not finished, newest first, under **Today**, **Yesterday**, **This Week** and **Earlier**. It holds web pages, papers and X posts you saved one at a time, from every browser's reading list, the share sheet, a bookmark import or a link you added. Podcasts, YouTube, books, courses and meetings are not in it: they arrive by the dozen and have their own tabs.
 
 - **Mac:** the **Library** is one list. An unread source has its title in black (white in dark mode), and a read one is grey with a closed book at its end; click the mark to switch it. Each row also shows how many passages wait to be followed up (a flag) and how many cards it has kept, so a source with neither left to do reads quietest.
-- **iPhone and iPad:** **To Read** is the row under **Library** on Home. Tap a row to read it, or swipe it right to mark it read.
+- **iPhone and iPad:** **To Read** is a chip in the **Library** row at the foot of Home. Tap a row to read it, or swipe it right to mark it read.
 
 A source drops off the list when you finish it, mark it read, hide it or remove it. One you have only started stays on it.
 

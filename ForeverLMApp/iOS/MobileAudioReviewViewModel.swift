@@ -3765,15 +3765,6 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
             .map { MobileShareNotebook(id: $0.id, title: $0.title) }
     }
 
-    /// Home's Memory strip: today's cards, "6 due · 4 new" — what the widget
-    /// counts (`saveDay`) and the card review deals — and the cards to check,
-    /// "· 9 to check"; nil while nothing waits, or while nothing has synced
-    /// yet and no card is known to be waiting, when Home draws no strip, as
-    /// the Mac's home does since 2026-10-06.
-    var memoryTodayLine: String? {
-        allSources.isEmpty ? nil : MobileCardReviewCopy.homeLine(todayMemoryCards, toCheck: cardsToCheckTotal)
-    }
-
     /// The chats filed under a notebook, newest first.
     func notebookChats(in notebookID: String) -> [MobileNotebookChatSummary] {
         notebookChatsByNotebookID[notebookID] ?? []

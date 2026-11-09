@@ -70,6 +70,12 @@ actor MobileSyncSession {
     /// iCloud: making the container before then traps.
     @MainActor @discardableResult
     static func startIfEnabled() async -> MobileSyncSession? {
+#if DEBUG
+        // Home's preview draws a sample library and never syncs: the unsigned Simulator build it runs
+        // in has no iCloud, and CloudKit traps rather than throws on a container it will not serve.
+        // (`isEnabled` stays as it is: the scene configuration reads it.)
+        if MobileHomeHarness.isEnabled { return nil }
+#endif
         guard isEnabled, !ForeverLMRuntimeIdentity.isHostingUnitTests,
               let container = ForeverLMRuntimeIdentity.libraryContainerIdentifier else { return nil }
         if let current { return current }

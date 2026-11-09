@@ -253,14 +253,6 @@ enum MobileCardReviewError: LocalizedError, Equatable {
 // MARK: - The screen's words and scope
 
 enum MobileCardReviewCopy {
-    /// Home's Memory strip: what waits, "6 due · 4 new · 9 to check", as the
-    /// Mac's Notebooks home strip says it (`MemoryCardDayCounts.line`), or nil
-    /// while nothing is due, new or to check, when Home draws no strip (the
-    /// Mac's since 2026-10-06; it said "Nothing due today" before).
-    static func homeLine(_ today: MemoryCardQueue.Today, toCheck: Int = 0) -> String? {
-        MemoryCardDayCounts(today: today, practice: 0, toCheck: toCheck).line
-    }
-
     /// What the scope control calls `scope`: "All notebooks", or the
     /// notebook's name ("Notebook" when it has none).
     static func scopeTitle(_ scope: MemoryReviewScope, notebooks: [MobileCloudNotebook]) -> String {

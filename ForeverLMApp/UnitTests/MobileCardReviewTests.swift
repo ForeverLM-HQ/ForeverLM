@@ -347,10 +347,8 @@ struct MobileCardReviewTests {
 
     // MARK: - Words and scope
 
-    @Test("Home, the scope control and a round's end say what the Mac's Memory pane says")
+    @Test("The scope control says what the Mac's Memory pane says")
     func copy() {
-        #expect(MobileCardReviewCopy.homeLine(.empty) == nil, "Home draws no strip while nothing waits")
-        #expect(MobileCardReviewCopy.homeLine(.empty, toCheck: 9) == "9 to check")
         let notebooks = [
             MobileCloudNotebook(id: "p1", title: "Mitochondria", instructions: nil, sourceIDs: [], isArchived: false, updatedAt: .distantPast),
             MobileCloudNotebook(id: "p2", title: "  ", instructions: nil, sourceIDs: [], isArchived: true, updatedAt: .distantPast),

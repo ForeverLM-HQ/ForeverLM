@@ -30,6 +30,8 @@ struct ForeverLMMobileApp: App {
                     pageEditorPreview
                 } else if showsSpacePreview {
                     spacePreview
+                } else if showsHomePreview {
+                    homePreview
                 } else if account.showsWall {
                     // Sign in with Apple comes before everything else, same as the
                     // Mac: it is the identity managed AI meters against, and the
@@ -90,7 +92,7 @@ struct ForeverLMMobileApp: App {
                 // the same reason: it reads the private database, and building
                 // a CKContainer before there is an account to resolve it
                 // against traps the process rather than throwing.
-                guard account.hasAccountAccess == true else { return }
+                guard account.hasAccountAccess == true, !showsPreview else { return }
                 MobileLearningBoutTimer.shared.start()
             }
             .task(id: account.hasAccountAccess) {
@@ -107,8 +109,10 @@ struct ForeverLMMobileApp: App {
                 // Nothing here belongs to a signed-out device anyway; the
                 // catalog is the user's own private database. So wait for the
                 // gate to answer, and let the wall's `didSignIn` handler cover
-                // the populated-list case this was originally written for.
-                guard account.hasAccountAccess == true else { return }
+                // the populated-list case this was originally written for. A
+                // DEBUG preview draws a sample library and never syncs: an
+                // unsigned Simulator build has no iCloud to build one against.
+                guard account.hasAccountAccess == true, !showsPreview else { return }
                 // The sync (docs/cloudkit-schema-design.md §2.3), beside the catalog below.
                 if MobileSyncSession.isEnabled {
                     Task { await MobileSyncSession.startIfEnabled() }
@@ -239,6 +243,31 @@ struct ForeverLMMobileApp: App {
         MobileSpaceHarness.isEnabled
 #else
         false
+#endif
+    }
+
+    /// Whether a DEBUG preview stands in for the app (`-foreverlm-uitest-*`).
+    private var showsPreview: Bool {
+        showsVoiceSurfacePreview || showsPageEditorPreview || showsSpacePreview || showsHomePreview
+    }
+
+    /// Home over a sample library, for a Simulator screenshot without signing
+    /// in (`MobileHomeHarness`, DEBUG only).
+    private var showsHomePreview: Bool {
+#if DEBUG
+        MobileHomeHarness.isEnabled
+#else
+        false
+#endif
+    }
+
+    @ViewBuilder
+    private var homePreview: some View {
+#if DEBUG
+        MobileHomeHarnessView()
+            .environmentObject(viewModel)
+#else
+        EmptyView()
 #endif
     }
 
