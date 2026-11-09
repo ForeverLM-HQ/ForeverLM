@@ -62,28 +62,67 @@ enum MobileHomeMetrics {
     static let margin: CGFloat = 20
     /// The quiet fill Home's secondary controls sit on.
     static let fill = Color.primary.opacity(0.06)
-    static let voiceButtonSize: CGFloat = 176
+    static let voiceMarkWidth: CGFloat = 270
 }
 
 // MARK: - Voice
 
-/// The voice button: a dark circle with the waveform, on a soft halo. A tap
-/// starts voice mode.
+/// The voice button: ForeverLM's mark, the iridescent infinity, large on a soft
+/// glow in its own colours that breathes slowly (still under Reduce Motion)
+/// (product owner, 2026-11-09: "make the voice icon nicer and use the foreverlm
+/// logo for it"). A tap starts voice mode.
 struct MobileHomeVoiceButton: View {
     let talk: () -> Void
 
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.colorScheme) private var colorScheme
+    @State private var breathes = false
+
+    /// The mark's own lilac, aqua and peach.
+    private static let glow: [Color] = [
+        Color(red: 0.78, green: 0.70, blue: 0.98),
+        Color(red: 0.58, green: 0.88, blue: 0.93),
+        Color(red: 0.99, green: 0.85, blue: 0.72),
+    ]
+
     var body: some View {
         Button(action: talk) {
-            Image(systemName: "waveform")
-                .font(.system(size: 60, weight: .semibold))
-                .foregroundStyle(Color(uiColor: .systemBackground))
-                .frame(width: MobileHomeMetrics.voiceButtonSize, height: MobileHomeMetrics.voiceButtonSize)
-                .background(Color.primary, in: Circle())
-                .padding(22)
-                .background(MobileHomeMetrics.fill, in: Circle())
-                .contentShape(Circle())
+            ZStack {
+                ZStack {
+                    Circle()
+                        .fill(Self.glow[0].opacity(0.55))
+                        .frame(width: 210, height: 210)
+                        .offset(x: -48, y: 8)
+                    Circle()
+                        .fill(Self.glow[1].opacity(0.45))
+                        .frame(width: 190, height: 190)
+                        .offset(x: 52, y: -10)
+                    Circle()
+                        .fill(Self.glow[2].opacity(0.40))
+                        .frame(width: 160, height: 160)
+                        .offset(x: 10, y: 40)
+                }
+                .blur(radius: 46)
+                .scaleEffect(breathes ? 1.08 : 0.94)
+                // On black the light glow turns to haze: a quieter one there.
+                .opacity((breathes ? 1 : 0.8) * (colorScheme == .dark ? 0.38 : 1))
+
+                Image("BrandMark")
+                    .resizable()
+                    .interpolation(.high)
+                    .scaledToFit()
+                    .frame(width: MobileHomeMetrics.voiceMarkWidth)
+                    .scaleEffect(breathes ? 1.025 : 0.985)
+                    .shadow(color: Self.glow[0].opacity(0.35), radius: 22, y: 10)
+            }
+            .frame(width: MobileHomeMetrics.voiceMarkWidth + 60, height: MobileHomeMetrics.voiceMarkWidth * 0.75)
+            .contentShape(Rectangle())
         }
         .buttonStyle(MobileHomePressStyle())
+        .onAppear {
+            guard !reduceMotion else { return }
+            withAnimation(.easeInOut(duration: 3.4).repeatForever(autoreverses: true)) { breathes = true }
+        }
         .accessibilityLabel("Talk to ForeverLM")
         .accessibilityHint("Talk, or type when you can't. Ask about a source by name, or go through today's cards.")
         .accessibilityIdentifier("home.voice")
