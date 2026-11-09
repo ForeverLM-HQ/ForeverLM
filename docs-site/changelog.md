@@ -6,6 +6,16 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+## 0.206.0 (build 286) — 2026-11-08
+
+**Highlights:**
+- **Voice mode is one click away and works in the background**: start it from the strip, ask it to research or write, keep talking, and hear what it found.
+- **Split your chats and windows your way**: several chats in one pane, tabs that drag between windows, and the strip's icons in your own order.
+- **Nudge me back on track** notices when you drift from a bout's goal, and **live meetings** are transcribed on your Mac as they happen.
+- **Papers go further**: a figure mentioned in the text opens that figure, a journal's supplementary PDF joins the paper, and animations play right in the chat.
+
+- **Production release.** Everything in the betas 0.200.0 to 0.205.0 below, now for every Mac: it is the first production build since 0.199.0 (build 279).
+
 ## 0.205.0 (build 285) — 2026-11-08
 
 **Highlights:**
