@@ -3095,6 +3095,9 @@ private struct ArtifactEditor: View {
     @State private var paneWidth: CGFloat = 0
     @State private var findState = ReaderFindState()
     @FocusState private var titleFocused: Bool
+    /// False while Pages is kept mounted behind another tab of its pane
+    /// (`StudioKeptPaneTabs`): the page stays loaded, unseen.
+    @Environment(\.studioPaneTabIsShown) private var paneTabIsShown
 
     /// Mirrors the page geometry in `artifact-editor.css` so the title starts on
     /// the same left edge as the prose beneath it: a column capped at the page
@@ -3189,7 +3192,23 @@ private struct ArtifactEditor: View {
         )
     }
 
+    // Put behind another tab of its pane, the page stays mounted, so the
+    // leaving that `onDisappear` answers happens here: the draft and title are
+    // saved now, the title gives up the keyboard, and the body is published as
+    // a closed Doc's is. Outside `editorBody`, whose chain is already as long
+    // as the type checker takes in reasonable time.
     var body: some View {
+        editorBody.onChange(of: paneTabIsShown) { _, shown in
+            guard !shown else { return }
+            titleFocused = false
+            editorDraft.cancelAutosave()
+            save(draft)
+            saveTitle()
+            DocBodySync.requestPublish(artifact.id)
+        }
+    }
+
+    private var editorBody: some View {
         HStack(spacing: 0) {
             if chrome.sidePanel == nil || sidePanelFitsBesidePage {
                 // The column's width is read in layout, so it reaches the rows

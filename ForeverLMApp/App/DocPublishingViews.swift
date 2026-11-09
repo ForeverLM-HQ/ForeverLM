@@ -276,6 +276,9 @@ struct ArtifactPageWebView: NSViewRepresentable {
     var findState: ReaderFindState? = nil
     var findRevision: Int = 0
 
+    /// False while Pages is kept mounted behind another tab of its pane.
+    @Environment(\.studioPaneTabIsShown) private var paneTabIsShown
+
     static let editMessageHandlerName = "foreverLMPage"
     /// The address a page is rendered under, so its relative links resolve
     /// against the site; the handler listens to this origin only.
@@ -299,6 +302,7 @@ struct ArtifactPageWebView: NSViewRepresentable {
     }
 
     func updateNSView(_ webView: WKWebView, context: Context) {
+        StudioKeptPaneTabs.apply(isShown: paneTabIsShown, to: webView)
         context.coordinator.parent = self
         context.coordinator.load(html, into: webView)
         context.coordinator.applyEditing(to: webView)
