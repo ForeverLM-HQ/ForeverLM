@@ -2369,6 +2369,54 @@ private struct StudioPaneGroupIDKey: EnvironmentKey {
     static let defaultValue: UUID? = nil
 }
 
+/// Whether the tab a surface is drawn for is the one its pane shows. False
+/// only for a tab kept mounted behind another (`StudioKeptPaneTabs`).
+private struct StudioPaneTabIsShownKey: EnvironmentKey {
+    static let defaultValue = true
+}
+
+/// The places a pane keeps mounted, hidden, while another of its tabs shows,
+/// so coming back to one is instant. Pages first (product owner, 2026-11-08:
+/// "if i go from pages to space and then back to pages; pages has to reload
+/// for quite a bit"): rebuilt, it re-read the library, re-asked the published
+/// statuses, re-read the page from disk and sent it to a fresh editor. A
+/// place joins once it is safe hidden: no work that must stop when it is not
+/// seen, and every AppKit view it hosts hiding itself and giving up the key
+/// focus (`StudioKeptPaneTabs.apply`).
+enum StudioKeptPaneTabs {
+    static let places: Set<StudioCenterTab> = [.notepad]
+
+    /// Hides an AppKit view of a kept tab while its tab is behind another,
+    /// and takes the keyboard from it: an invisible web view holding the
+    /// first responder would take the typing meant for the tab in front.
+    @MainActor
+    static func apply(isShown: Bool, to view: NSView) {
+        let hidden = !isShown
+        guard view.isHidden != hidden else { return }
+        if hidden, let window = view.window,
+           let responder = window.firstResponder as? NSView,
+           responder === view || responder.isDescendant(of: view) {
+            window.makeFirstResponder(nil)
+        }
+        view.isHidden = hidden
+    }
+}
+
+/// A pane tab kept mounted behind the one in front: not drawn, not hit, not
+/// read by VoiceOver, and its controls' keyboard shortcuts off.
+private struct StudioKeptPaneTabVisibility: ViewModifier {
+    let isShown: Bool
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(isShown ? 1 : 0)
+            .allowsHitTesting(isShown)
+            .disabled(!isShown)
+            .accessibilityHidden(!isShown)
+            .zIndex(isShown ? 1 : 0)
+    }
+}
+
 extension EnvironmentValues {
     var studioTitlebarBandHeight: CGFloat? {
         get { self[StudioTitlebarBandHeightKey.self] }
@@ -2385,6 +2433,13 @@ extension EnvironmentValues {
     var studioPaneGroupID: UUID? {
         get { self[StudioPaneGroupIDKey.self] }
         set { self[StudioPaneGroupIDKey.self] = newValue }
+    }
+
+    /// False while this surface's tab is kept mounted behind another tab of
+    /// its pane (`StudioKeptPaneTabs`): what it shows is not on screen.
+    var studioPaneTabIsShown: Bool {
+        get { self[StudioPaneTabIsShownKey.self] }
+        set { self[StudioPaneTabIsShownKey.self] = newValue }
     }
 
     var studioCenterPaneHeaderLeadingInset: CGFloat {
@@ -3115,6 +3170,9 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
     /// does not say which copy moves.
     @State private var draggingFromGroupID: UUID?
     @State private var dropTarget: StudioCenterTabDropTarget?
+    /// The kept places (`StudioKeptPaneTabs`) each pane has shown, by pane:
+    /// they stay mounted behind its other tabs.
+    @State private var keptPaneTabs: [UUID: Set<StudioCenterTab>] = [:]
     /// The pane a sidebar destination is being dragged over, by slot.
     @State private var replaceTarget: Int?
     private let dragVisibility = StudioDragVisibility.shared
@@ -3268,8 +3326,27 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
                     strip(for: group, at: index)
                         .frame(height: StudioPanelChrome.headerHeight)
                 }
-                tabContent(group.activeTab)
-                    .environment(\.studioPaneGroupID, group.id)
+                // The tab in front, and behind it each kept place this pane
+                // has shown (`StudioKeptPaneTabs`), keyed by tab so a switch
+                // hides one and shows the other instead of rebuilding either.
+                ZStack {
+                    ForEach(mountedTabs(of: group), id: \.self) { tab in
+                        let isShown = tab == group.activeTab
+                        tabContent(tab)
+                            .environment(\.studioPaneGroupID, group.id)
+                            .environment(\.studioPaneTabIsShown, isShown)
+                            .modifier(StudioKeptPaneTabVisibility(isShown: isShown))
+                    }
+                }
+                .onChange(of: group.activeTab, initial: true) { _, tab in
+                    guard StudioKeptPaneTabs.places.contains(tab) else { return }
+                    keptPaneTabs[group.id, default: []].insert(tab)
+                }
+                // A kept tab closed from the strip goes: it unmounts, and its
+                // surface saves on the way out as any closed tab does.
+                .onChange(of: group.openTabs) { _, open in
+                    keptPaneTabs[group.id]?.formIntersection(open)
+                }
             }
         } corner: { corner in
             StudioPaneSwapControl(
@@ -3315,6 +3392,14 @@ struct StudioCenterTabGroupsView<TabContent: View>: View {
         // The pane clicked in last is where a sidebar click opens what is not
         // open yet (`StudioCenterTabGroups.activating`).
         .background(StudioPaneFocusObserver { windowState.focusedGroupID = group.id })
+    }
+
+    /// What `group` mounts, in strip order: the tab in front, and each kept
+    /// place it has shown in this run that is still in its strip. A kept place
+    /// restored into the strip at launch waits until it is first shown.
+    private func mountedTabs(of group: StudioCenterTabGroups.Group) -> [StudioCenterTab] {
+        let kept = keptPaneTabs[group.id] ?? []
+        return group.openTabs.filter { $0 == group.activeTab || kept.contains($0) }
     }
 
     private func replacePane(at index: Int, with destination: StudioPaneDropDestination) {
