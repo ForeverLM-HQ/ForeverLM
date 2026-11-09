@@ -72,7 +72,7 @@ extension MCPDataStore {
             throw MCPError.notFound("No library source answers to \(sourceID). Pass a source_id as list_sources or a search returns it.")
         }
         let excluded = try await storage.knowledgeSearchExcludedSourceIDs(includeArchived: true)
-        guard !excluded.contains(sourceID) else {
+        guard !KnowledgeStore.isBlockedFromOpening(sourceID, excluded: excluded) else {
             throw MCPError.invalidInput("Source is excluded from knowledge search and AI in ForeverLM Settings. Include its source family there before reading it.")
         }
         var state = try await storage.sourceLevelsState(sourceID: sourceID)

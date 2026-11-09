@@ -100,7 +100,7 @@ extension MCPDataStore {
             return .notFound
         }
         let excluded = try await notebookFileStorage.knowledgeSearchExcludedSourceIDs(includeArchived: true)
-        guard !excluded.contains(resolvedID) else { return .excluded }
+        guard !KnowledgeStore.isBlockedFromOpening(resolvedID, excluded: excluded) else { return .excluded }
         guard let article = try await notebookFileStorage.loadPersistedSources(ids: [resolvedID]).first else {
             return .notFound
         }

@@ -395,6 +395,7 @@ extension StudioViewModel {
     /// out of what search and discovery surface on their own.
     func addSourceToContext(_ articleId: String, explicit: Bool = false) {
         guard let article = articlesById[articleId], explicit || isSourceIncludedInKnowledge(article) else { return }
+        if explicit { ChatNamedSources.shared.grant([articleId]) }
         guard !contextSourceIds.contains(articleId) else { return }
         contextSourceIds.append(articleId)
         fetchContextContentIfNeeded(for: articleId)
@@ -407,6 +408,7 @@ extension StudioViewModel {
             guard let article = articlesById[id] else { return false }
             return explicit || isSourceIncludedInKnowledge(article)
         }
+        if explicit { ChatNamedSources.shared.grant(ids) }
         for id in ids where !contextSourceIds.contains(id) {
             contextSourceIds.append(id)
         }
@@ -462,6 +464,7 @@ extension StudioViewModel {
     /// Remove a source from the chat context.
     func removeSourceFromContext(_ articleId: String) {
         contextSourceIds.removeAll { $0 == articleId }
+        ChatNamedSources.shared.revoke(articleId)
     }
 
     /// Toggle a source in/out of chat context.

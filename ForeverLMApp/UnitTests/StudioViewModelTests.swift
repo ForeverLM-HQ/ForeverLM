@@ -10978,6 +10978,17 @@ struct SourceContextManagementTests {
         #expect(vm.contextSourceIds.contains(a.id))
     }
 
+    @Test("a source named in a chat opens by id even when its family is kept from AI")
+    func namedSourceOpensDespiteKeptFamily() {
+        let id = "named-\(UUID().uuidString)"
+        let excluded: Set<String> = [id]
+        #expect(KnowledgeStore.isBlockedFromOpening(id, excluded: excluded))
+        ChatNamedSources.shared.grant([id])
+        #expect(!KnowledgeStore.isBlockedFromOpening(id, excluded: excluded))
+        ChatNamedSources.shared.revoke(id)
+        #expect(KnowledgeStore.isBlockedFromOpening(id, excluded: excluded))
+    }
+
     @Test("addSourceToContext does not duplicate")
     func addSourceNoDuplicate() {
         let vm = makeViewModel()
