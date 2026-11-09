@@ -7,8 +7,11 @@ import SwiftUI
 /// pill (a field to type into, and a round button that talks), and everything
 /// else in a side drawer the Home slides over. It stays what it was before for
 /// a voice interface (2026-11-09: "mostly a voice interface … the other things
-/// … tucked away"): the ForeverLM mark in the middle still starts a call, and
-/// so does the round button while the field is empty.
+/// … tucked away"): the round button starts a call while the field is empty,
+/// and so does the drawer's Voice pill. The middle is left empty, as ChatGPT's
+/// is: the ForeverLM mark is the voice screen's (`VoiceSessionSurface`), not
+/// Home's (product owner, 2026-11-09: "let's not have that logo so prominently,
+/// except when we go into voice mode").
 ///
 /// The drawer holds what Home's old menu held, laid out as ChatGPT's sidebar:
 /// the title with a search circle, one row per place (notebooks, the library,
@@ -24,7 +27,7 @@ struct MobileHomeDashboard<Top: View>: View {
     /// The notebooks worked in last, newest first, for the drawer's list.
     var recents: [MobileHomeRecent] = []
     let actions: MobileHomeActions
-    /// What sits above the mark while it matters: a running bout.
+    /// What sits under the menu button while it matters: a running bout.
     @ViewBuilder let top: () -> Top
 
     @State private var drawerIsOpen = false
@@ -33,8 +36,13 @@ struct MobileHomeDashboard<Top: View>: View {
     @FocusState private var composerIsFocused: Bool
 
     var body: some View {
+        // Home and the drawer are laid out inside the safe area, and only what
+        // is painted behind them runs to the screen's edges. The whole screen
+        // ignored the safe area before and padded itself by the reader's insets,
+        // which are zero for a reader that ignores it: the menu button sat under
+        // the clock, and the composer on the home indicator. The shell keeps
+        // both above its playback bar (`MobileShellBarClearance`).
         GeometryReader { proxy in
-            let insets = proxy.safeAreaInsets
             let drawerWidth = min(proxy.size.width * MobileHomeMetrics.drawerShare, MobileHomeMetrics.drawerMaxWidth)
             let progress = drawerProgress(width: drawerWidth)
             ZStack(alignment: .leading) {
@@ -44,36 +52,35 @@ struct MobileHomeDashboard<Top: View>: View {
                     open: go,
                     talk: { close(); actions.talk() }
                 )
-                .padding(.top, insets.top)
-                .padding(.bottom, insets.bottom)
                 .frame(width: drawerWidth, height: proxy.size.height, alignment: .top)
-                .background(Color(uiColor: .systemBackground))
                 .allowsHitTesting(drawerIsOpen)
                 .accessibilityHidden(!drawerIsOpen)
 
                 home
-                    .padding(.top, insets.top)
-                    .padding(.bottom, insets.bottom)
                     .frame(width: proxy.size.width, height: proxy.size.height)
-                    .background(Color(uiColor: .systemBackground))
+                    .background {
+                        // Home's sheet: the whole screen, its corners rounding as it slides over.
+                        RoundedRectangle(cornerRadius: MobileHomeMetrics.slidCorner * progress, style: .continuous)
+                            .fill(Color(uiColor: .systemBackground))
+                            .shadow(color: .black.opacity(0.14 * progress), radius: 24)
+                            .ignoresSafeArea()
+                    }
                     .overlay {
                         // While the drawer is out, Home is one big "close".
                         if drawerIsOpen {
                             Color.clear
                                 .contentShape(Rectangle())
                                 .onTapGesture(perform: close)
+                                .ignoresSafeArea()
                                 .accessibilityHidden(true)
                         }
                     }
-                    .clipShape(RoundedRectangle(cornerRadius: MobileHomeMetrics.slidCorner * progress, style: .continuous))
-                    .shadow(color: .black.opacity(0.14 * progress), radius: 24)
                     .offset(x: drawerWidth * progress)
             }
             .frame(width: proxy.size.width, height: proxy.size.height, alignment: .leading)
-            .background(Color(uiColor: .systemBackground))
+            .background(Color(uiColor: .systemBackground), ignoresSafeAreaEdges: .all)
             .simultaneousGesture(drawerDrag(width: drawerWidth))
         }
-        .ignoresSafeArea(.container)
     }
 
     // MARK: - Home
@@ -94,17 +101,11 @@ struct MobileHomeDashboard<Top: View>: View {
                 .padding(.top, MobileDesign.Spacing.small)
 
             Spacer(minLength: MobileDesign.Spacing.medium)
-            if !composerIsFocused {
-                MobileHomeVoiceButton(talk: actions.talk, markWidth: MobileHomeMetrics.voiceMarkWidth)
-                    .transition(.opacity)
-                Spacer(minLength: MobileDesign.Spacing.medium)
-            }
 
             suggestions
             composer
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .animation(.easeOut(duration: 0.2), value: composerIsFocused)
     }
 
     /// Three ways in, each a place Home can open, in ChatGPT's suggestion rows:
@@ -237,8 +238,6 @@ struct MobileHomeActions {
 
 enum MobileHomeMetrics {
     static let margin: CGFloat = 20
-    /// The mark Home keeps in its middle.
-    static let voiceMarkWidth: CGFloat = 210
     /// The drawer's width: most of the screen, as ChatGPT's, and no wider on an iPad.
     static let drawerShare: CGFloat = 0.8
     static let drawerMaxWidth: CGFloat = 360
@@ -451,72 +450,6 @@ struct MobileHomeDrawer: View {
             .padding(.top, MobileDesign.Spacing.small)
             .padding(.bottom, MobileDesign.Spacing.small)
         }
-    }
-}
-
-// MARK: - Voice
-
-/// The mark in Home's middle: ForeverLM's iridescent infinity on a soft glow
-/// in its own colours that breathes slowly (still under Reduce Motion)
-/// (product owner, 2026-11-09: "make the voice icon nicer and use the foreverlm
-/// logo for it"). A tap starts voice mode.
-struct MobileHomeVoiceButton: View {
-    let talk: () -> Void
-    var markWidth: CGFloat = 270
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.colorScheme) private var colorScheme
-    @State private var breathes = false
-
-    /// The mark's own lilac, aqua and peach.
-    private static let glow: [Color] = [
-        Color(red: 0.78, green: 0.70, blue: 0.98),
-        Color(red: 0.58, green: 0.88, blue: 0.93),
-        Color(red: 0.99, green: 0.85, blue: 0.72),
-    ]
-
-    var body: some View {
-        Button(action: talk) {
-            ZStack {
-                ZStack {
-                    Circle()
-                        .fill(Self.glow[0].opacity(0.55))
-                        .frame(width: 210, height: 210)
-                        .offset(x: -48, y: 8)
-                    Circle()
-                        .fill(Self.glow[1].opacity(0.45))
-                        .frame(width: 190, height: 190)
-                        .offset(x: 52, y: -10)
-                    Circle()
-                        .fill(Self.glow[2].opacity(0.40))
-                        .frame(width: 160, height: 160)
-                        .offset(x: 10, y: 40)
-                }
-                .blur(radius: 46)
-                // The glow was drawn for a 270-point mark.
-                .scaleEffect((breathes ? 1.08 : 0.94) * markWidth / 270)
-                // On black the light glow turns to haze: a quieter one there.
-                .opacity((breathes ? 1 : 0.8) * (colorScheme == .dark ? 0.38 : 1))
-
-                Image("BrandMark")
-                    .resizable()
-                    .interpolation(.high)
-                    .scaledToFit()
-                    .frame(width: markWidth)
-                    .scaleEffect(breathes ? 1.025 : 0.985)
-                    .shadow(color: Self.glow[0].opacity(0.35), radius: 22, y: 10)
-            }
-            .frame(width: markWidth + 60, height: markWidth * 0.75)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(MobileHomePressStyle())
-        .onAppear {
-            guard !reduceMotion else { return }
-            withAnimation(.easeInOut(duration: 3.4).repeatForever(autoreverses: true)) { breathes = true }
-        }
-        .accessibilityLabel("Talk to ForeverLM")
-        .accessibilityHint("Talk, or type when you can't. Ask about a source by name, or go through today's cards.")
-        .accessibilityIdentifier("home.voice")
     }
 }
 

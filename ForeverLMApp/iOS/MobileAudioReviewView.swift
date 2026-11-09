@@ -23,6 +23,9 @@ struct MobileAudioReviewView: View {
     @State private var voiceCoverIsOnScreen = false
     /// The Space as a split view over Home, on a screen with the room for one.
     @State private var spaceCover: MobileSpaceCoverRequest?
+    /// Where the bar under the stack starts on screen, for the stack's screens to end above it
+    /// (`MobileShellBarClearance`).
+    @State private var bottomBarTop: CGFloat?
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.verticalSizeClass) private var verticalSizeClass
 
@@ -32,10 +35,13 @@ struct MobileAudioReviewView: View {
     var body: some View {
         NavigationStack(path: $path) {
             homeRoot
+                .modifier(MobileShellBarClearance())
                 .navigationDestination(for: MobileShellRoute.self) { route in
                     destination(route)
+                        .modifier(MobileShellBarClearance())
                 }
         }
+        .environment(\.mobileShellBarTop, bottomBarTop)
         // The Space's screens push on this stack, and read the notebooks for a row's notebook and a
         // page's `[[` and `@`.
         .environment(MobileSpaceStore.shared)
@@ -79,6 +85,7 @@ struct MobileAudioReviewView: View {
                 }
                 MobileCompactPlaybackBar()
             }
+            .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY } action: { bottomBarTop = $0 }
         }
         .fullScreenCover(isPresented: voiceCoverBinding) {
             MobileVoiceSessionCover(isEnding: $isEndingVoiceSession)
@@ -391,6 +398,47 @@ struct MobileAudioReviewView: View {
                 .accessibilityIdentifier("voice.syncProgress")
         }
         .animation(.default, value: status.phase)
+    }
+}
+
+// MARK: - Clearing the shell's bar
+
+private struct MobileShellBarTopKey: EnvironmentKey {
+    static let defaultValue: CGFloat? = nil
+}
+
+extension EnvironmentValues {
+    /// The top edge on screen of the bar the shell keeps under its stack (the
+    /// session banner and the playback bar), nil before it is measured.
+    var mobileShellBarTop: CGFloat? {
+        get { self[MobileShellBarTopKey.self] }
+        set { self[MobileShellBarTopKey.self] = newValue }
+    }
+}
+
+/// Ends a screen of the shell's stack above the shell's bar. The bar is a
+/// safe-area inset on the NavigationStack, and the stack does not hand that
+/// inset on to the screens it shows (iOS 26.5: Home's composer and a list's
+/// last row both sat under the bar while something played). So each screen
+/// measures how far the bar reaches into its own safe area and adds that much
+/// to it. Where the system does hand the inset on, the screen already ends at
+/// the bar, the overlap is zero and nothing is added.
+struct MobileShellBarClearance: ViewModifier {
+    @Environment(\.mobileShellBarTop) private var barTop
+    /// The bottom of the safe area the stack gave this screen, on screen.
+    @State private var safeBottom: CGFloat = 0
+
+    func body(content: Content) -> some View {
+        ZStack {
+            content
+                .safeAreaPadding(.bottom, max(0, safeBottom - (barTop ?? safeBottom)))
+            // Measured beside the screen rather than on it, so the answer does
+            // not move with the padding it decides.
+            Color.clear
+                .onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).maxY } action: { safeBottom = $0 }
+                .allowsHitTesting(false)
+                .accessibilityHidden(true)
+        }
     }
 }
 

@@ -13,10 +13,10 @@ enum MobileNotebookGlyph {
 
 /// Home, drawn as ChatGPT's app draws its own (product owner, 2026-11-09:
 /// "copy the design from the ChatGPT app", "essentially, be the same"): a
-/// composer pill and three suggestion rows, the ForeverLM mark that starts a
-/// call, and a side drawer for every other place (`MobileHomeDashboard`). A
-/// running bout sits at the top while there is one. Voice reaches the rest by
-/// itself: it opens a source the learner names, and offers today's cards first.
+/// composer pill whose round button starts a call, three suggestion rows, and
+/// a side drawer for every other place (`MobileHomeDashboard`). A running bout
+/// sits at the top while there is one. Voice reaches the rest by itself: it
+/// opens a source the learner names, and offers today's cards first.
 struct MobileNotebookHomeView: View {
     /// Pushes a route on the shell's stack.
     let open: (MobileShellRoute) -> Void
