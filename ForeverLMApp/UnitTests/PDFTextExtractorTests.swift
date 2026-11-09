@@ -474,3 +474,89 @@ struct PDFTextExtractorTests {
         #expect(await PaperFigureImageSweeper.sweep(roots: [root.path]) == 0)
     }
 }
+
+@Suite("Paper supplementary PDF")
+struct PaperSupplementPDFTests {
+    /// A PDF whose pages each print one paragraph, long enough that two pages
+    /// are told apart by their text.
+    private static func makePDF(_ url: URL, pages: [String]) {
+        var box = CGRect(x: 0, y: 0, width: 612, height: 792)
+        guard let context = CGContext(url as CFURL, mediaBox: &box, nil) else { return }
+        let filler = " — a page with enough words on it to be told apart from any other page of the paper by its text alone."
+        for text in pages {
+            context.beginPDFPage(nil)
+            let attributed = NSAttributedString(string: text + filler, attributes: [
+                NSAttributedString.Key(kCTFontAttributeName as String): CTFontCreateWithName("Helvetica" as CFString, 10, nil),
+            ])
+            let frame = CTFramesetterCreateFrame(
+                CTFramesetterCreateWithAttributedString(attributed),
+                CFRange(location: 0, length: 0),
+                CGPath(rect: CGRect(x: 40, y: 40, width: 530, height: 700), transform: nil),
+                nil
+            )
+            CTFrameDraw(frame, context)
+            context.endPDFPage()
+        }
+        context.closePDF()
+    }
+
+    private static func temporaryFolder() throws -> URL {
+        let folder = FileManager.default.temporaryDirectory.appendingPathComponent("SupplementTests-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        return folder
+    }
+
+    @Test("A supplement's pages follow the article's in a new file, the paper's own file untouched")
+    func appendsAfterTheArticle() throws {
+        let folder = try Self.temporaryFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let paper = folder.appendingPathComponent("10.1038_example.pdf")
+        Self.makePDF(paper, pages: ["Fig. 1 | Main figure one", "Fig. 2 | Main figure two", "References"])
+        let supplement = folder.appendingPathComponent("supplement.pdf")
+        Self.makePDF(supplement, pages: ["Supplementary Fig. 1 | A supplementary figure", "Supplementary Fig. 2 | Another"])
+
+        let outcome = try PaperSupplementPDF.append(supplementAt: supplement.path, toPaperAt: paper.path)
+
+        #expect(outcome.articlePageCount == 3)
+        #expect(outcome.addedPageCount == 2)
+        #expect(outcome.path == folder.appendingPathComponent("10.1038_example-with-supplement.pdf").path)
+        let joined = try #require(PDFDocument(url: URL(fileURLWithPath: outcome.path)))
+        #expect(joined.pageCount == 5)
+        #expect(joined.page(at: 0)?.string?.contains("Main figure one") == true)
+        #expect(joined.page(at: 3)?.string?.contains("Supplementary Fig. 1") == true)
+        #expect(PDFDocument(url: paper)?.pageCount == 3)
+        let staged = try FileManager.default.contentsOfDirectory(atPath: folder.path).filter { $0.contains("incoming") }
+        #expect(staged.isEmpty)
+    }
+
+    @Test("The same supplement twice, or the article as its own supplement, is refused")
+    func refusesWhatThePaperAlreadyHolds() throws {
+        let folder = try Self.temporaryFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let paper = folder.appendingPathComponent("paper.pdf")
+        Self.makePDF(paper, pages: ["Fig. 1 | Main figure", "Discussion"])
+        let supplement = folder.appendingPathComponent("supplement.pdf")
+        Self.makePDF(supplement, pages: ["Supplementary Fig. 1 | A supplementary figure"])
+        let joined = try PaperSupplementPDF.append(supplementAt: supplement.path, toPaperAt: paper.path)
+
+        #expect(throws: PaperSupplementPDF.Failure.alreadyAttached) {
+            try PaperSupplementPDF.append(supplementAt: supplement.path, toPaperAt: joined.path)
+        }
+        #expect(throws: PaperSupplementPDF.Failure.alreadyAttached) {
+            try PaperSupplementPDF.append(supplementAt: paper.path, toPaperAt: paper.path)
+        }
+        let notPDF = folder.appendingPathComponent("notes.pdf")
+        try "not a pdf".write(to: notPDF, atomically: true, encoding: .utf8)
+        #expect(throws: PaperSupplementPDF.Failure.unreadableSupplement) {
+            try PaperSupplementPDF.append(supplementAt: notPDF.path, toPaperAt: paper.path)
+        }
+    }
+
+    @Test("A second supplement goes to its own file after the first")
+    func namesEachJoinedFile() {
+        #expect(PaperSupplementPDF.destinationPath(for: "/p/x.pdf") { _ in false } == "/p/x-with-supplement.pdf")
+        #expect(PaperSupplementPDF.destinationPath(for: "/p/x-with-supplement.pdf") { _ in false } == "/p/x-with-supplement-2.pdf")
+        #expect(PaperSupplementPDF.destinationPath(for: "/p/x-with-supplement-2.pdf") { $0 == "/p/x-with-supplement.pdf" }
+            == "/p/x-with-supplement-3.pdf")
+    }
+}

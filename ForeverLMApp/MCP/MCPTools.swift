@@ -3728,6 +3728,19 @@ final class MCPToolRegistry: @unchecked Sendable {
                 ]
             ),
             MCPToolDef(
+                name: "attach_supplementary_pdf",
+                description: "Join a journal's supplementary PDF to a paper that already has its own PDF: the supplement's pages are appended after the article's, so its figures (\"Supplementary Figure 2\", \"Figure S3\", or Extended Data a journal ships separately) join the paper's figure index and inspect_paper_figure, show_source_image, the Reader and search reach them. The article's pages keep their numbers and the paper keeps its metadata: no model runs and nothing is billed. Pass file_path for a PDF on the Mac or pdf_url for the journal's supplementary file. Never pass the article itself or a different paper's PDF; to replace a paper's own PDF use attach_pdf_to_paper. A supplement already joined to the paper is refused.",
+                inputSchema: [
+                    "type": "object",
+                    "properties": [
+                        "source_id": ["type": "string", "description": "Paper source ID"],
+                        "file_path": ["type": "string", "description": "Absolute local path to the supplementary PDF."],
+                        "pdf_url": ["type": "string", "description": "HTTP(S) URL of the supplementary PDF to download and join."],
+                    ],
+                    "required": ["source_id"],
+                ]
+            ),
+            MCPToolDef(
                 name: "attach_pdf_to_paper",
                 description: "Attach a local PDF file or download a remote PDF URL to a paper source, copying it into ForeverLM's synced Papers folder, extracting text, running AI paper metadata extraction, and clearing paywall/error state. A Slack file's download_url from read_slack_channel is accepted as pdf_url; ForeverLM fetches it as the learner.",
                 inputSchema: [
@@ -5568,6 +5581,7 @@ final class MCPToolRegistry: @unchecked Sendable {
         "import_paper_from_url",
         "attach_text_file_to_source",
         "attach_pdf_to_paper",
+        "attach_supplementary_pdf",
         "download_papers_needing_attention",
         "recheck_paywalled_papers",
         "follow_youtube_liked_videos",
@@ -7031,6 +7045,12 @@ final class MCPToolRegistry: @unchecked Sendable {
                 return try store.attachTextFileToSource(
                     sourceID: arguments["source_id"] as? String ?? "",
                     filePath: arguments["file_path"] as? String ?? ""
+                )
+            case "attach_supplementary_pdf":
+                return try await store.attachSupplementaryPDF(
+                    sourceID: arguments["source_id"] as? String ?? "",
+                    filePath: arguments["file_path"] as? String,
+                    pdfURL: arguments["pdf_url"] as? String
                 )
             case "attach_pdf_to_paper":
                 return try await store.attachPDFToPaper(

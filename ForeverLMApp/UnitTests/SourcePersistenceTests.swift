@@ -1690,6 +1690,42 @@ struct SourcePersistenceTests {
         #expect(try store.paperFigures(sourceID: paper.id).isEmpty)
     }
 
+    @Test("A figure index is current only for the PDF the paper has now")
+    func paperFigureIndexCurrencyFollowsThePDF() throws {
+        // A supplement joined to a paper moves it to a new file. Its index,
+        // built from the old file, no longer names every figure, so the
+        // figure tools must read it again rather than take it as stored.
+        let store = try makeInMemoryStore()
+        var paper = StudioArticle(
+            url: "https://example.com/supplemented-paper",
+            title: "Supplemented Paper",
+            sourceType: .paper,
+            author: "Ada Researcher",
+            journal: "Nature",
+            publishedYear: "2026"
+        )
+        paper.localFilePath = "Papers/supplemented-paper.pdf"
+        installPreparedPaperText(on: &paper)
+        let completedMetadata = paper.completePaperMetadataExtractionAfterLLM()
+        #expect(completedMetadata)
+        paper.state = .ready
+        try store.saveSource(paper)
+        let candidate = try #require(try store.nextPaperFigureIndexCandidate())
+        try store.replacePaperFigureIndex(
+            sourceID: paper.id,
+            pdfPath: candidate.pdfPath,
+            pageCount: 8,
+            figures: [],
+            indexVersion: PaperFigureIndexContract.currentVersion
+        )
+        #expect(try store.paperFigureIndexIsCurrent(sourceID: paper.id))
+
+        var joined = try #require(try store.loadSources().first { $0.id == paper.id })
+        joined.localFilePath = "Papers/supplemented-paper-with-supplement.pdf"
+        try store.saveSource(joined)
+        #expect(try !store.paperFigureIndexIsCurrent(sourceID: paper.id))
+    }
+
     @Test("Paper figure preparation selects only the explicitly requested source")
     func paperFigurePreparationSelectsRequestedSource() throws {
         let store = try makeInMemoryStore()

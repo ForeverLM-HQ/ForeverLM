@@ -52,6 +52,7 @@ const openWorld = new Set([
   "add_companion_sources",
   "add_sources",
   "attach_pdf_to_paper",
+  "attach_supplementary_pdf",
   "create_x_post",
   "download_papers_needing_attention",
   "extract_article_metadata",

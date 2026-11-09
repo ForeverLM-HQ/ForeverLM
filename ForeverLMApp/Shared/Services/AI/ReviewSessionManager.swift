@@ -305,6 +305,7 @@ final class ReviewSessionManager {
                 case "get_notion_database": return "Read Notion database"
                 case "query_notion_database": return "Queried Notion database"
                 case "attach_pdf_to_paper": return "Attached PDF to paper"
+                case "attach_supplementary_pdf": return "Added supplementary PDF to paper"
                 case "import_paper_from_url": return "Imported paper"
 
                 // Notebooks

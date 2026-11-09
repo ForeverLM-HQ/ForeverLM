@@ -330,18 +330,26 @@ extension KnowledgeStore {
         try enqueuePaperFigureIndexIfNeeded(sourceID: sourceID, pdfPath: pdfPath, force: force)
     }
 
-    /// Whether the paper's figure index was built under the current rules, so
-    /// it can be read as stored rather than read out of the PDF again.
+    /// Whether the paper's figure index was built under the current rules
+    /// from the PDF the paper has now, so it can be read as stored rather than
+    /// read out of the PDF again. A paper whose PDF changed — a supplement
+    /// joined to it (`PaperSupplementPDF`), another copy attached — is read
+    /// again: its index names the old file's figures.
     func paperFigureIndexIsCurrent(sourceID: String) throws -> Bool {
         var isCurrent = false
         try queryBind("""
-            SELECT 1 FROM paper_figure_index_state
-            WHERE source_id = ? AND index_version >= ?
+            SELECT st.pdf_path, p.local_file_path
+            FROM paper_figure_index_state st
+            JOIN \(Self.figureIndexableSourcesSQL) p ON p.source_id = st.source_id
+            WHERE st.source_id = ? AND st.index_version >= ?
             LIMIT 1
         """, bind: { stmt in
             bind(stmt, 1, sourceID)
             sqlite3_bind_int(stmt, 2, Int32(PaperFigureIndexContract.currentVersion))
-        }) { _ in isCurrent = true }
+        }) { stmt in
+            guard let indexed = self.string(stmt, 0), let current = self.string(stmt, 1) else { return }
+            isCurrent = indexed == StorageService.relativeSourcePath(current)
+        }
         return isCurrent
     }
 

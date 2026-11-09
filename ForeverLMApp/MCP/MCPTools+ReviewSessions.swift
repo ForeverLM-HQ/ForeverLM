@@ -3816,6 +3816,68 @@ extension MCPDataStore {
         return try await finishAttachingPDF(article: &article, sourceID: sourceID, destination: destination, attachedFrom: attachedFrom, namesID: false)
     }
 
+    /// attach_supplementary_pdf: the journal's supplementary file joined after
+    /// the paper's own pages (`PaperSupplementPDF`). No model runs: the paper
+    /// keeps its metadata, and its figure index is read again from the joined
+    /// file the next time anything asks for a figure.
+    func attachSupplementaryPDF(sourceID: String, filePath: String?, pdfURL: String?) async throws -> String {
+        let store = try knowledgeStore()
+        guard var article = try store.loadSourceForSync(sourceID) else {
+            throw MCPError.notFound("Source not found: \(sourceID)")
+        }
+        guard article.sourceType == .paper else {
+            throw MCPError.invalidInput("attach_supplementary_pdf requires a paper source.")
+        }
+        guard let stored = Self.nilIfBlank(article.localFilePath ?? ""),
+              FileManager.default.fileExists(atPath: StorageService.absoluteSourcePath(stored)) else {
+            throw MCPError.invalidInput("'\(article.title)' has no PDF of its own on this Mac yet. Attach the article first with attach_pdf_to_paper.")
+        }
+        guard let input = Self.nilIfBlank(pdfURL ?? "") ?? Self.nilIfBlank(filePath ?? "") else {
+            throw MCPError.invalidInput("attach_supplementary_pdf requires file_path or pdf_url.")
+        }
+
+        let supplementPath: String
+        var staged: URL?
+        defer { if let staged { try? FileManager.default.removeItem(at: staged) } }
+        if let remoteURL = Self.httpURLString(input) {
+            let download = FileManager.default.temporaryDirectory
+                .appendingPathComponent("supplement-\(UUID().uuidString).pdf")
+            staged = download
+            try await downloadPaperPDFForImport(from: remoteURL, sourceURL: article.url, to: download, paperHasPDF: true)
+            supplementPath = download.path
+        } else {
+            let sourceURL = try validateClientProvidedPath(input)
+            guard FileManager.default.fileExists(atPath: sourceURL.path) else {
+                throw MCPError.invalidInput("File not found: \(input)")
+            }
+            supplementPath = sourceURL.path
+        }
+
+        let outcome: PaperSupplementPDF.Outcome
+        do {
+            outcome = try PaperSupplementPDF.append(
+                supplementAt: supplementPath,
+                toPaperAt: StorageService.absoluteSourcePath(stored)
+            )
+        } catch let failure as PaperSupplementPDF.Failure {
+            throw MCPError.invalidInput(failure.localizedDescription)
+        }
+        let destination = URL(fileURLWithPath: outcome.path)
+        article.localFilePath = relativeSourceContentPath(destination) ?? StorageService.relativeSourcePath(outcome.path)
+        // A paper that keeps its text keeps the supplement's too.
+        if article.content != nil,
+           let text = try? SourceService.shared.extractTextFromPDF(at: outcome.path),
+           !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            article.content = text
+            article.wordCount = text.split(separator: " ").count
+        }
+        try store.saveSource(article)
+        let firstAdded = outcome.articlePageCount + 1
+        let lastAdded = outcome.articlePageCount + outcome.addedPageCount
+        return "Joined \(outcome.addedPageCount) supplementary pages to '\(article.title)' as pages \(firstAdded)–\(lastAdded), after its \(outcome.articlePageCount) article pages (path: \(article.localFilePath ?? outcome.path)). "
+            + "Call show_source_image with this source_id to list its figures, supplementary ones included."
+    }
+
     /// Whether a PDF that arrives for `article` should be attached to it rather
     /// than refused as a duplicate: a paper the library lists but cannot read —
     /// paywalled, or with no PDF on disk — is not really there yet.

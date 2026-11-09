@@ -1126,8 +1126,14 @@ extension StudioSidebar {
             && (article.hasPaywallMarker || article.state == .error)
         let canAttachPaperPDF = st == .paper
             && (article.hasPaywallMarker || article.state == .error)
+        // A paper with its own PDF can take the journal's supplementary file
+        // after its pages. Read off the stored path, never the disk: this menu
+        // is built with the row.
+        let canAddSupplement = st == .paper && !canAttachPaperPDF
+            && (article.localFilePath?.lowercased().hasSuffix(".pdf") ?? false)
         let hasSourceActions = canAttachArticleText
             || canAttachPaperPDF
+            || canAddSupplement
             || st == .video
             || st == .meeting
             || st == .podcast
@@ -1256,6 +1262,27 @@ extension StudioSidebar {
             } label: {
                 Label("Attach PDF from URL…", systemImage: "link.badge.plus")
             }
+        }
+
+        if canAddSupplement {
+            Button {
+                Task {
+                    let urls = await FilePanel.open { panel in
+                        panel.allowedContentTypes = [.pdf]
+                        panel.message = "Select the journal's supplementary PDF for this paper"
+                    }
+                    guard let url = urls.first else { return }
+                    do {
+                        let outcome = try await vm.attachSupplementaryPDF(to: article.id, pdfURL: url)
+                        vm.showToast("Supplement added as pages \(outcome.articlePageCount + 1)–\(outcome.articlePageCount + outcome.addedPageCount)")
+                    } catch {
+                        vm.showToast("Could not add supplement: \(error.localizedDescription)")
+                    }
+                }
+            } label: {
+                Label("Add Supplementary PDF…", systemImage: "doc.on.doc")
+            }
+            .help("Appends the journal's supplementary file after this paper's pages, so its figures can be shown and explained.")
         }
 
         // Keyed off the recording link rather than the source type: a Zoom

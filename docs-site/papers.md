@@ -114,6 +114,12 @@ When an AI assistant runs the bulk PDF download over MCP, papers that fail in a 
 
 The same applies when an AI assistant imports a single paper by URL or DOI (`import_paper_from_url`): if the publisher blocks the PDF, the paper is still added, marked paywalled, with the title, authors, venue, year, and DOI the landing page and Crossref provide. It appears in the Papers tab with the paywall recovery options, ready for you to attach the PDF, and a later paywall recheck can pick up a free copy. Only transient failures, such as a network error or a 404, leave nothing behind.
 
+## Supplementary figures and Extended Data
+
+A paper's text often points at figures printed outside the article: "Extended Data Fig. 3", "Supplementary Fig. 2", "Fig. S4". Nature prints Extended Data at the back of the article's own PDF, so those figures are there whenever the paper's PDF is the journal's full version. Supplementary figures, and the Extended Data some journals ship separately, come as their own file on the journal's site.
+
+To give a paper its supplementary file, download it, then choose **Add Supplementary PDF…** from the paper's right-click menu. Its pages are added after the article's own pages in the paper's PDF, so the Reader shows them, search finds their text, and chat can show and explain their figures the way it does the main ones. The article's pages keep their numbers and the paper keeps its title and authors; nothing is billed. An AI assistant can do the same with `attach_supplementary_pdf`, from a file on your Mac or the journal's link.
+
 ## Tips
 
 - **Search one field only:** the sources search reads a paper's title, authors, journal, year, DOI and address, and also finds papers whose text contains the words. To search titles alone, start the query with `title:` — `title:reverse electron transport` lists only papers with that phrase in the title. `author:`, `journal:`, `year:`, `doi:` and `site:` work the same way, in every sources tab.

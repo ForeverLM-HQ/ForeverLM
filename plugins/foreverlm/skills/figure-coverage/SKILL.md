@@ -8,7 +8,7 @@ description: Go through the learner's ForeverLM papers and find which ones refer
 A paper's text often points at figures that are not in the main article: "Extended Data Fig. 3", "Supplementary Fig. 2", "Fig. S4". Whether the learner can look at one depends on the PDF ForeverLM holds for that paper.
 
 - **Extended Data** (Nature and its sister journals) is printed at the back of the journal's own article PDF. A copy without it is a main-text-only file or an accepted manuscript, and the journal's PDF of the same article fixes that.
-- **Supplementary figures** are almost always a separate file on the journal's site. ForeverLM keeps one PDF per paper, so these stay out of reach unless the publisher appended them to the article PDF, as some preprints do.
+- **Supplementary figures** are almost always a separate file on the journal's site. `attach_supplementary_pdf` joins that file to the paper: its pages follow the article's own in the paper's PDF, and its figures are indexed like the main ones.
 
 ForeverLM indexes the figure captions printed in each paper's PDF, Extended Data and Supplementary included. That index is free to read and runs no model. This skill compares what each paper mentions with what its PDF prints.
 
@@ -30,11 +30,11 @@ ForeverLM indexes the figure captions printed in each paper's PDF, Extended Data
    One check before calling something missing: if the snippets show only a reference list or another paper's figures ("see Extended Data Fig. 2 of ref. 14"), the paper does not need them.
 5. **Report** before changing anything:
    - Counts for each group, Extended Data and Supplementary separately.
-   - A table of the papers that still need figures: title, journal, DOI if known, which figures are missing, and where they would come from (the journal's article PDF for Extended Data, the journal's supplementary file for Supplementary).
+   - A table of the papers that still need figures: title, journal, DOI if known, which figures are missing, and where they would come from (the journal's article PDF for Extended Data printed in it, the journal's supplementary file otherwise).
    - Papers that appear twice in the library. `find_duplicate_papers` names them; the learner may want to keep the copy that has the figures.
 
 ## Getting the missing figures
 
 - **Extended Data missing:** offer to replace the paper's PDF with the journal's article PDF. Find its URL from the DOI (for a Nature-family article, `https://www.nature.com/articles/<article id>.pdf`). Call `attach_pdf_to_paper` with `pdf_url` only after the learner approves, one paper at a time. It replaces the stored PDF and runs the paper metadata model again, which is billed to the learner. Then call `show_source_image` again to confirm the Extended Data labels are now listed. A paywalled download fails: name the paper and let the learner download the PDF, then pass its `file_path`.
-- **Supplementary missing:** list them. Do not replace the article PDF with a supplementary file: the paper would lose its own text. Do not search the web for them unless the learner asks.
+- **Supplementary missing, or Extended Data shipped as a separate file:** offer to join the journal's supplementary PDF to the paper with `attach_supplementary_pdf`, passing `file_path` for a file the learner downloaded or `pdf_url` for the journal's link to the file (the article's page lists it under Supplementary information). Ask first, and find the link from the article's own page only when the learner asks you to. It runs no model and costs nothing; the article's pages keep their numbers. Afterwards, `show_source_image` lists the new figures. Never pass the article itself, and never use `attach_pdf_to_paper` for a supplement: that replaces the article and the paper loses its own text.
 - Never look for a figure on the web when it is already in the paper's PDF. `show_source_image` with `query` set to the label, or `inspect_paper_figure` for an explanation, shows it from the learner's own copy.

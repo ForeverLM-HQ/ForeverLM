@@ -6,6 +6,9 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **A paper takes its supplementary file.** Choose **Add Supplementary PDF…** on a paper's right-click menu, or ask an assistant (`attach_supplementary_pdf`): the journal's supplementary PDF is added after the article's pages, so "Supplementary Fig. 2" and "Fig. S4" can be shown and explained like the paper's own figures, and search reads their captions. Nothing is billed, and the article's pages keep their numbers.
+- **"Extended Data Figure 1 was not found" on a paper that prints it.** A paper whose figure index predated Extended Data listed only its main figures, and the figure tools kept using that index. They now read an out-of-date index again, and a paper whose PDF changed, before answering.
+
 - **Links open in ForeverLM's Browser.** A web link you click in a Page, a published page or a PDF now opens as a tab of the Browser pane instead of your web browser, and **Add to Library** there saves the page to your library (the button the Reader and the Browser called Add to Sources). To send links, chat links included, to your own browser instead, choose it under Settings › Sources › **Links**.
 
 ## 0.203.0 (build 283) — 2026-11-08

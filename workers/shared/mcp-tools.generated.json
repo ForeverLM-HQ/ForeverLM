@@ -862,6 +862,31 @@
     "readOnlyHint" : false
   },
   {
+    "description" : "Join a journal's supplementary PDF to a paper that already has its own PDF: the supplement's pages are appended after the article's, so its figures (\"Supplementary Figure 2\", \"Figure S3\", or Extended Data a journal ships separately) join the paper's figure index and inspect_paper_figure, show_source_image, the Reader and search reach them. The article's pages keep their numbers and the paper keeps its metadata: no model runs and nothing is billed. Pass file_path for a PDF on the Mac or pdf_url for the journal's supplementary file. Never pass the article itself or a different paper's PDF; to replace a paper's own PDF use attach_pdf_to_paper. A supplement already joined to the paper is refused.",
+    "inputSchema" : {
+      "properties" : {
+        "file_path" : {
+          "description" : "Absolute local path to the supplementary PDF.",
+          "type" : "string"
+        },
+        "pdf_url" : {
+          "description" : "HTTP(S) URL of the supplementary PDF to download and join.",
+          "type" : "string"
+        },
+        "source_id" : {
+          "description" : "Paper source ID",
+          "type" : "string"
+        }
+      },
+      "required" : [
+        "source_id"
+      ],
+      "type" : "object"
+    },
+    "name" : "attach_supplementary_pdf",
+    "readOnlyHint" : false
+  },
+  {
     "description" : "Attach a local text, Markdown, or HTML file to an article/manual source, copying it into ForeverLM's synced Articles folder and storing extracted text.",
     "inputSchema" : {
       "properties" : {
