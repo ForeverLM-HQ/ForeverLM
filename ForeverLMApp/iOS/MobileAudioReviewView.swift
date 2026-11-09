@@ -132,9 +132,8 @@ struct MobileAudioReviewView: View {
                 MobileNotebookHomeView { route in open(route) }
             }
         }
-        // No top bar: the brand is the app's icon (a large "ForeverLM" title "looks ugly", 2026-10-11),
-        // and a bar of Settings and + only wasted the top of the screen (2026-11-09). Settings is
-        // beside Search at the foot, + by Notebooks (`MobileNotebookHomeView`).
+        // No navigation bar: Home draws ChatGPT's own, a round menu button that opens the drawer
+        // holding Settings and every other place (`MobileHomeDashboard`, 2026-11-09).
         .navigationTitle("")
         .toolbar(.hidden, for: .navigationBar)
     }

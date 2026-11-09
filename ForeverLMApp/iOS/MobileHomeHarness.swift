@@ -20,7 +20,12 @@ struct MobileHomeHarnessView: View {
         NavigationStack(path: $path) {
             MobileHomeDashboard(
                 showsSpaces: true,
-                actions: MobileHomeActions(open: { path.append($0) }, talk: {})
+                recents: [
+                    MobileHomeRecent(id: "n1", title: "Mitochondrial disease programs"),
+                    MobileHomeRecent(id: "n2", title: "Power analysis"),
+                    MobileHomeRecent(id: "n3", title: "Bioelectricity"),
+                ],
+                actions: MobileHomeActions(open: { path.append($0) }, talk: {}, send: { _ in })
             ) {
                 EmptyView()
             }

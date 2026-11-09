@@ -11,11 +11,11 @@ enum MobileNotebookGlyph {
     static let uncategorizedSymbolName = "tray"
 }
 
-/// Home, a voice interface (product owner, 2026-11-09: "can it just be mostly a
-/// voice interface? And then the other things we might want to do are a bit more
-/// like tucked away in the app, just on an as needed basis"): the voice button in
-/// the middle and everything else in the menu at the foot (`MobileHomeDashboard`).
-/// A running bout sits at the top while there is one. Voice reaches the rest by
+/// Home, drawn as ChatGPT's app draws its own (product owner, 2026-11-09:
+/// "copy the design from the ChatGPT app", "essentially, be the same"): a
+/// composer pill and three suggestion rows, the ForeverLM mark that starts a
+/// call, and a side drawer for every other place (`MobileHomeDashboard`). A
+/// running bout sits at the top while there is one. Voice reaches the rest by
 /// itself: it opens a source the learner names, and offers today's cards first.
 struct MobileNotebookHomeView: View {
     /// Pushes a route on the shell's stack.
@@ -26,13 +26,34 @@ struct MobileNotebookHomeView: View {
     @ObservedObject private var boutTimer = MobileLearningBoutTimer.shared
     /// The Space, whose menu item shows once the phone's pages can open here (generation 2).
     @Environment(MobileSpaceStore.self) private var spaceStore
+    @ObservedObject private var railStore = MobileNotebookRailStore.shared
+
+    /// The five notebooks worked in last, as the Notebooks screen's Recent
+    /// order reads them, for the drawer's list under its rule.
+    private var recents: [MobileHomeRecent] {
+        let recency = MobileNotebookRailRules.recency(opened: railStore.opened, lastChatAt: vm.lastNotebookChatAt)
+        return vm.notebooks
+            .sorted {
+                recency.lastWorkedAt($0.id, updatedAt: $0.updatedAt) > recency.lastWorkedAt($1.id, updatedAt: $1.updatedAt)
+            }
+            .prefix(5)
+            .map { MobileHomeRecent(id: $0.id, title: NotebookTitle($0.title).text) }
+    }
 
     var body: some View {
         MobileHomeDashboard(
             showsSpaces: spaceStore.isAvailable,
+            recents: recents,
             actions: MobileHomeActions(
                 open: open,
-                talk: { Task { await MobileRealtimeVoice.startAssistant(setting: .phone) } }
+                talk: { Task { await MobileRealtimeVoice.startAssistant(setting: .phone) } },
+                send: { text in
+                    // The call is the chat: start the assistant, then ask what was typed.
+                    Task {
+                        await MobileRealtimeVoice.startAssistant(setting: .phone)
+                        MobileRealtimeVoice.controller.ask(text)
+                    }
+                }
             )
         ) {
             if let bout = boutTimer.bout, bout.phase().isLive {
