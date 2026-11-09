@@ -436,7 +436,16 @@ function drawUser(block, entry) {
 
 function drawWork(part, previous) {
   const wrapper = previous?.element ?? element("div", "work");
-  wrapper.replaceChildren();
+  // The fold redraws while the turn works; the cards of the pages it wrote
+  // stay put while they are the same, so an animation playing in one is not
+  // reloaded by every step.
+  const pagesJSON = part.pages?.length ? JSON.stringify(part.pages) : null;
+  const kept = wrapper.querySelector(":scope > .page-cards");
+  const keepsCards = Boolean(kept && pagesJSON && kept.dataset.pagesJson === pagesJSON);
+  for (const child of [...wrapper.children]) {
+    if (!(keepsCards && child === kept)) child.remove();
+  }
+  const add = (node) => (keepsCards ? wrapper.insertBefore(node, kept) : wrapper.append(node));
   wrapper.dataset.partId = part.id;
   const choice = foldChoices.get(part.id);
   const expanded = choice ?? part.opensWhileLive;
@@ -457,7 +466,7 @@ function drawWork(part, previous) {
       drawWork(part, { element: wrapper });
     });
   });
-  wrapper.append(line);
+  add(line);
   if (expanded) {
     const steps = element("div", "work-steps");
     let card = null;
@@ -482,15 +491,19 @@ function drawWork(part, previous) {
       card.append(row);
       if (part.preview && index === part.previewStep) card.append(browserPreview(part));
     }
-    wrapper.append(steps);
+    add(steps);
   } else if (part.preview && (!part.settled || part.running)) {
     // Folded while the turn still runs: the learner watches the chat work
     // in the Browser without opening the steps.
-    wrapper.append(browserPreview(part));
+    add(browserPreview(part));
   }
-  if (part.settled) wrapper.append(element("div", "work-rule"));
-  (part.setup ?? []).forEach((need, index) => wrapper.append(setupCard(need, index, part.id)));
-  if (part.pages?.length) wrapper.append(pageCards(part.pages));
+  if (part.settled) add(element("div", "work-rule"));
+  (part.setup ?? []).forEach((need, index) => add(setupCard(need, index, part.id)));
+  if (pagesJSON && !keepsCards) {
+    const cards = pageCards(part.pages);
+    cards.dataset.pagesJson = pagesJSON;
+    wrapper.append(cards);
+  }
   return { kind: "work", element: wrapper, json: JSON.stringify(part) };
 }
 
@@ -528,10 +541,15 @@ function setupCard(need, index, partID) {
   return card;
 }
 
-/// The Pages a reply wrote, a card each: its title, "Page", and Open.
+/// The Pages a reply wrote, a card each: its title, "Page", and Open. An
+/// animation the reply saved plays in its card instead (`animationCard`).
 function pageCards(pages) {
   const list = element("div", "page-cards");
   for (const page of pages) {
+    if (page.kind === "animation" && page.url) {
+      list.append(animationCard(page));
+      continue;
+    }
     const card = element("button", "page-card");
     card.type = "button";
     card.title = `Open ${page.title}`;
@@ -547,6 +565,42 @@ function pageCards(pages) {
     list.append(card);
   }
   return list;
+}
+
+/// An animation a reply saved (`save_animation`), playing in a frame from its
+/// library address, which the app serves under the card player's policy:
+/// scripts run, sandboxed, and nothing loads from the network. Under it, its
+/// title with Enlarge (a sheet) and Open (the Animations pane).
+function animationCard(page) {
+  const card = element("div", "animation-card");
+  const frame = document.createElement("iframe");
+  frame.className = "animation-card-frame";
+  frame.src = page.url;
+  frame.title = page.title;
+  frame.loading = "lazy";
+  frame.setAttribute("sandbox", "allow-scripts");
+  const row = element("div", "animation-card-row");
+  const glyph = element("span", "page-card-glyph");
+  glyph.innerHTML = icons.play;
+  const words = element("span", "page-card-words");
+  words.append(element("span", "page-card-title", page.title), element("span", "page-card-kind", "Animation"));
+  const enlarge = element("button", "page-card-open", "Enlarge");
+  enlarge.type = "button";
+  enlarge.title = "Play the animation larger";
+  enlarge.addEventListener("click", (event) => {
+    event.preventDefault();
+    sendAction("enlargeAnimation", null, { pageID: page.id, title: page.title });
+  });
+  const open = element("button", "page-card-open", "Open");
+  open.type = "button";
+  open.title = `Open ${page.title} in Animations`;
+  open.addEventListener("click", (event) => {
+    event.preventDefault();
+    sendAction("openPage", null, { pageID: page.id });
+  });
+  row.append(glyph, words, enlarge, open);
+  card.append(frame, row);
+  return card;
 }
 
 /// A part that is not prose or steps: Pages, a walk's resume row, a memory

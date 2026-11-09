@@ -160,6 +160,10 @@ struct ChatTranscriptPage: NSViewRepresentable {
     struct PageCard: Encodable, Equatable {
         let id: String
         let title: String
+        /// `animation` for an animation `save_animation` saved, which the card
+        /// plays in a frame at `url`; nil for a page.
+        var kind: String?
+        var url: String?
     }
 
     /// A plugin a failed step needed (`ChatPluginSetupCard`).
@@ -261,6 +265,8 @@ struct ChatTranscriptPage: NSViewRepresentable {
         /// A walk's resume row.
         case resumeWalk(sourceID: String)
         case openPage(id: String)
+        /// An animation card's Enlarge: the animation played in a sheet.
+        case enlargeAnimation(id: String, title: String)
         /// A saved-cards card's Open: the deck, over where it was drawn.
         case openSavedCards(blockID: UUID, partID: UUID, rect: CGRect, view: NSView)
         /// A plugin card's button, by its place among its steps' needs.
@@ -293,9 +299,17 @@ struct ChatTranscriptPage: NSViewRepresentable {
         })
     }
 
-    /// Pages as their cards, each by its title as it stands now.
+    /// Pages as their cards, each by its title as it stands now; an
+    /// animation's carries the library address its frame plays.
     static func pageCards(_ pages: [ChatWrittenPage], title: (ChatWrittenPage) -> String) -> [PageCard] {
-        pages.map { PageCard(id: $0.id, title: title($0)) }
+        pages.map { page in
+            PageCard(
+                id: page.id,
+                title: title(page),
+                kind: page.kind == .animation ? page.kind.rawValue : nil,
+                url: page.animationURL?.absoluteString
+            )
+        }
     }
 
     /// A reply's steps as the page's fold draws them, with the newest
@@ -464,6 +478,11 @@ struct ChatTranscriptPage: NSViewRepresentable {
         }
         contentController.addUserScript(ChatMarkdownView.configurationScript)
         configuration.userContentController = contentController
+        // An animation a reply saved plays in its card's frame from its
+        // library address, under the card player's policy: scripts run in a
+        // sandbox of their own, nothing loads from the network
+        // (`LocalSiteServing.cardContentSecurityPolicy`).
+        LocalSiteSchemeHandler.installCardPlayer(on: configuration)
         SharedWebKit.applySharedProcessPool(to: configuration)
         SharedWebKit.disableSystemWritingTools(on: configuration)
         let webView = PageWebView(frame: .zero, configuration: configuration)
@@ -723,6 +742,10 @@ struct ChatTranscriptPage: NSViewRepresentable {
                 if let id = body["pageID"] as? String, !id.isEmpty {
                     parent.onAction(.openPage(id: id))
                 }
+            case "enlargeAnimation":
+                if let id = body["pageID"] as? String, !id.isEmpty {
+                    parent.onAction(.enlargeAnimation(id: id, title: body["title"] as? String ?? ""))
+                }
             case "openSavedCards":
                 guard let blockID, let view,
                       let partID = (body["partID"] as? String).flatMap(UUID.init(uuidString:)),
@@ -804,7 +827,11 @@ struct ChatTranscriptPage: NSViewRepresentable {
             // address would carry whatever its program put there off the Mac,
             // and a link its script clicks is the same thing.
             if navigationAction.targetFrame?.isMainFrame == false {
-                decisionHandler(navigationAction.request.url?.scheme?.lowercased() == "about" ? .allow : .cancel)
+                // An animation card's frame loads its animation from the
+                // library and moves within it; nothing else.
+                let url = navigationAction.request.url
+                let isAnimation = url.flatMap(LinkedPage.localSiteID(from:)) != nil
+                decisionHandler(url?.scheme?.lowercased() == "about" || isAnimation ? .allow : .cancel)
                 return
             }
             if navigationAction.request.url == ChatTranscriptPage.templateURL {

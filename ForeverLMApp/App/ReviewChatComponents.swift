@@ -2976,8 +2976,69 @@ struct ReviewChatPageCards: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             ForEach(pages, id: \.id) { page in
-                ReviewChatPageCard(page: page)
+                if let url = page.animationURL {
+                    ReviewChatAnimationCard(page: page, url: url)
+                } else {
+                    ReviewChatPageCard(page: page)
+                }
             }
+        }
+    }
+}
+
+/// An animation the reply saved, playing in the chat from its library
+/// address under the card player's policy, with its title, Enlarge and Open
+/// (into the Animations pane) under it (product owner, 2026-11-08: "make sure
+/// they can be rendered from a chat also").
+private struct ReviewChatAnimationCard: View {
+    @Environment(StudioViewModel.self) private var vm
+    @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
+
+    let page: ChatWrittenPage
+    let url: URL
+    @State private var isEnlarged = false
+
+    private static let shape = RoundedRectangle(cornerRadius: 12, style: .continuous)
+
+    private var title: String {
+        let current = vm.artifacts.first(where: { $0.id == page.id })?.title
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        if let current, !current.isEmpty { return current }
+        return page.title.isEmpty ? "Animation" : page.title
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            WalkthroughHostedAnimationWebView(url: url, restrictsNetwork: true)
+                .frame(height: 400)
+                .clipShape(Self.shape)
+                .overlay(Self.shape.strokeBorder(Color.primary.opacity(0.08), lineWidth: 0.5))
+            HStack(spacing: 8) {
+                Image(systemName: ArtifactKind.animation.symbolName)
+                    .foregroundStyle(.secondary)
+                Text(title)
+                    .font(.callout.weight(.medium))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer(minLength: 12)
+                Button { isEnlarged = true } label: {
+                    Label("Enlarge", systemImage: "arrow.up.left.and.arrow.down.right")
+                        .font(.caption)
+                }
+                .buttonStyle(.hoverWash)
+                .help("Play the animation larger")
+                Button("Open") { vm.revealArtifact(page.id, in: windowState) }
+                    .font(.caption.weight(.medium))
+                    .buttonStyle(.hoverWash)
+                    .help("Open \(title) in Animations")
+            }
+            .textSelection(.disabled)
+        }
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("Animation \(title)")
+        .accessibilityIdentifier("mac.chatAnimationCard")
+        .sheet(isPresented: $isEnlarged) {
+            WalkthroughAnimationSheet(title: title, content: .hosted(url: url), restrictsNetwork: true)
         }
     }
 }

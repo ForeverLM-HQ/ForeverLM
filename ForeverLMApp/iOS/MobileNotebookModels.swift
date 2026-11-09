@@ -1766,14 +1766,16 @@ enum MobileChatTranscriptTurns {
 
     /// A tutor line as the model reads it back in a continued chat: without
     /// the lines the Mac stores at a reply's head for the pages its steps
-    /// wrote, `[Title](foreverlm://doc/<id>?card=page)` (`ChatWrittenPage`),
+    /// wrote, `[Title](foreverlm://doc/<id>?card=page)` or an animation's
+    /// `?card=animation` (`ChatWrittenPage`),
     /// and the cards it saved (`ChatSavedCards`), which the model never
     /// wrote. The transcript still shows them, as links. The Mac's own rule
     /// (`ReviewSessionManager.storedProse`): prose parts trimmed, joined by a
     /// blank line. A reply with neither line is returned as it was.
     static func modelLine(_ text: String) -> String {
         // Most replies hold neither.
-        guard text.contains("card=page") || text.contains("://\(ChatSavedCards.host)?") else { return text }
+        guard text.contains("card=page") || text.contains("card=animation")
+            || text.contains("://\(ChatSavedCards.host)?") else { return text }
         return ChatSavedCards.prose(of: withoutWrittenPageLines(text))
     }
 
@@ -1796,7 +1798,8 @@ enum MobileChatTranscriptTurns {
         return parts.joined(separator: "\n\n")
     }
 
-    /// A line that is exactly `[title](foreverlm://doc/<id>?card=page)`, in
+    /// A line that is exactly `[title](foreverlm://doc/<id>?card=page)` (or
+    /// `card=animation`), in
     /// the product scheme or the running build's: `ChatWrittenPage`'s
     /// grammar, which the iPhone does not compile.
     private static func isWrittenPageLine(_ line: Substring) -> Bool {
@@ -1812,7 +1815,7 @@ enum MobileChatTranscriptTurns {
               let id = url.pathComponents.dropFirst().first?.removingPercentEncoding,
               !id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return false }
         return URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?
-            .contains { $0.name == "card" && $0.value == "page" } == true
+            .contains { $0.name == "card" && ($0.value == "page" || $0.value == "animation") } == true
     }
 }
 

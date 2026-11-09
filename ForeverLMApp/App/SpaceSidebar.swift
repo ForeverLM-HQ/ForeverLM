@@ -68,6 +68,12 @@ enum SpaceDestination: Hashable, Sendable {
     case chats
     case pages
     case sites
+    /// Every animation (`ArtifactKind.animation`), the moving explanations a
+    /// chat or an assistant drew from sources and saved with save_animation
+    /// (docs/animations-design.md). A place of its own since 2026-11-08
+    /// (product owner: "make sure they do have their own space"); each opens
+    /// in the Animations pane.
+    case animations
     /// The learner's canvases (`KnowledgeMapCanvas`): a beta place, listed
     /// only where the Canvas shows (`BetaFeatures`) and in My Library.
     case canvases
@@ -84,7 +90,7 @@ enum SpaceDestination: Hashable, Sendable {
     case list(String)
 
     /// The places listed under New page, in the sidebar's order.
-    static let places: [SpaceDestination] = [.all, .notebooks, .board, .plan, .pages, .sites, .canvases, .images, .drive]
+    static let places: [SpaceDestination] = [.all, .notebooks, .board, .plan, .pages, .sites, .animations, .canvases, .images, .drive]
 
     /// The places this Mac lists: Canvases only where canvases are listed
     /// (`StudioViewModel.listsCanvases`).
@@ -107,6 +113,7 @@ enum SpaceDestination: Hashable, Sendable {
         case "plan": self = .plan
         case "pages": self = .pages
         case "sites": self = .sites
+        case "animations": self = .animations
         case "canvases": self = .canvases
         case "images": self = .images
         case "drive": self = .drive
@@ -134,6 +141,7 @@ enum SpaceDestination: Hashable, Sendable {
         case .chats: return "chats"
         case .pages: return "pages"
         case .sites: return "sites"
+        case .animations: return "animations"
         case .canvases: return "canvases"
         case .images: return "images"
         case .drive: return "drive"
@@ -171,6 +179,7 @@ enum SpaceDestination: Hashable, Sendable {
         case .chats: return "Home"
         case .pages: return "Pages"
         case .sites: return "Sites"
+        case .animations: return "Animations"
         case .canvases: return "Canvases"
         case .images: return "Images"
         case .drive: return "Google Drive"
@@ -189,6 +198,7 @@ enum SpaceDestination: Hashable, Sendable {
         case .chats: return "house"
         case .pages: return "doc.text"
         case .sites: return "globe"
+        case .animations: return ArtifactKind.animation.symbolName
         case .canvases: return KnowledgeMap.symbolName
         case .images: return "photo"
         case .drive: return "externaldrive"
@@ -230,7 +240,11 @@ enum SpaceDestination: Hashable, Sendable {
     static func listing(_ artifact: ArtifactRecord) -> SpaceDestination {
         if artifact.isArchived { return .trash }
         if artifact.linkedKind == .googleDoc { return .drive }
-        return artifact.section == .sites ? .sites : .pages
+        switch artifact.section {
+        case .sites: return .sites
+        case .animations: return .animations
+        default: return .pages
+        }
     }
 
     /// The place a canvas is listed under: Trash while it is there, else

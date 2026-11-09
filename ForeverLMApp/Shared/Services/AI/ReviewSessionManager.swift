@@ -9152,7 +9152,7 @@ final class ReviewSessionManager {
                                 detail: page.title,
                                 state: .succeeded,
                                 resultPreview: nil,
-                                customTitle: "Page",
+                                customTitle: page.kind == .animation ? "Animation" : "Page",
                                 writtenPage: page
                             )
                         ))
@@ -12204,7 +12204,7 @@ final class ReviewSessionManager {
                 } else if let removed = ChatWrittenPage.removedID(toolName: activity.toolName, result: trimmed) {
                     dropWrittenPage(removed)
                 }
-            case ChatWrittenPage.deleteToolName:
+            case ChatWrittenPage.deleteToolName, ChatWrittenPage.deleteAnimationToolName:
                 if let removed = ChatWrittenPage.removedID(toolName: activity.toolName, result: trimmed) {
                     dropWrittenPage(removed)
                 }

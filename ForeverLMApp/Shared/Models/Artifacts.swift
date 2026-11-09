@@ -653,37 +653,53 @@ enum StudioEntityLink: Equatable, Hashable, Sendable {
 /// A page a chat's tool wrote — made, saved, edited or renamed with
 /// `create_doc`, `write_doc`, `edit_doc` or `update_doc` — drawn under the
 /// reply's "Worked for" line as a card that opens it (docs/chat-design.md,
-/// "Pages a chat writes").
+/// "Pages a chat writes"). An animation `save_animation` saved is drawn the
+/// same way, as a card that plays it in the chat (product owner, 2026-11-08:
+/// "make sure they can be rendered from a chat also";
+/// docs/animations-design.md).
 ///
 /// Tool rows are never stored, so the reply keeps one line per page at its
-/// head, `[Title](foreverlm://doc/<id>?card=page)`, the way the cards a call
-/// saved keep theirs (`ChatSavedCards`), and a reopened chat splits the line
-/// back into the card. The address is an ordinary page link, so the iPhone,
-/// Web Studio and MCP transcripts read the line as a link to the page; the
-/// query keeps it apart from a page link the reply wrote in its own words,
-/// which stays prose.
+/// head, `[Title](foreverlm://doc/<id>?card=page)` (`card=animation` for an
+/// animation), the way the cards a call saved keep theirs
+/// (`ChatSavedCards`), and a reopened chat splits the line back into the
+/// card. The address is an ordinary page link, so the iPhone, Web Studio and
+/// MCP transcripts read the line as a link to the record; the query keeps it
+/// apart from a page link the reply wrote in its own words, which stays
+/// prose.
 struct ChatWrittenPage: Equatable, Hashable, Sendable {
+    /// What the card is of: a Markdown page, or an animation, which plays in
+    /// its card.
+    enum Kind: String, Sendable {
+        case page
+        case animation
+    }
+
     let id: String
     /// The title the tool reported, which the line carries; the card shows
     /// the page's title as it is now when the library holds it.
     var title: String
+    var kind: Kind
 
     /// The calls whose result names the page they wrote.
-    static let toolNames: Set<String> = ["create_doc", "write_doc", "edit_doc", "update_doc"]
+    static let toolNames: Set<String> = ["create_doc", "write_doc", "edit_doc", "update_doc", animationToolName]
+    /// The call that saves an animation; its result's `doc` is the record.
+    static let animationToolName = "save_animation"
     /// The tool name a reopened chat's card row carries: there was no step
     /// behind it, only the line.
     static let cardRowName = "chat_page_card"
     static let markerName = "card"
-    static let markerValue = "page"
+    static let markerValue = Kind.page.rawValue
 
-    init(id: String, title: String) {
+    init(id: String, title: String, kind: Kind = .page) {
         self.id = id
         self.title = title
+        self.kind = kind
     }
 
-    /// The page one of `toolNames` wrote, read from its result's `doc`. Nil
-    /// for any other tool, a result naming no page, and a record that is not
-    /// an ordinary page (a site, an animation, an audio overview) or that the
+    /// The page one of `toolNames` wrote, read from its result's `doc`: a
+    /// Markdown page from a page tool, an animation from `save_animation`.
+    /// Nil for any other tool, a result naming no page, a record of another
+    /// kind than its tool writes (a site, an audio overview), or one that the
     /// call moved to the Trash or hid.
     static func parse(toolName: String, result: String) -> ChatWrittenPage? {
         guard toolNames.contains(toolName),
@@ -692,25 +708,35 @@ struct ChatWrittenPage: Equatable, Hashable, Sendable {
               let doc = object["doc"] as? [String: Any],
               let id = (doc["id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
               !id.isEmpty,
-              (doc["kind"] as? String ?? "markdown") == "markdown",
               doc["is_archived"] as? Bool != true,
               doc["is_hidden"] as? Bool != true else { return nil }
+        let kind: Kind = toolName == animationToolName ? .animation : .page
+        let recordKind = doc["kind"] as? String ?? "markdown"
+        guard recordKind == (kind == .animation ? ArtifactKind.animation.rawValue : "markdown") else { return nil }
         let title = (doc["title"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        return ChatWrittenPage(id: id, title: title)
+        return ChatWrittenPage(id: id, title: title, kind: kind)
     }
 
     /// The Docs pane's Move to Trash, as a call.
     static let deleteToolName = "delete_doc"
+    /// The Animations pane's Remove, as a call; its result names the
+    /// animation by `animation_id`.
+    static let deleteAnimationToolName = "delete_animation"
 
     /// The page a call put away, which the turn's cards then drop: a
-    /// `delete_doc` that moved it to the Trash, or one of `toolNames` whose
-    /// result names it moved to the Trash or hidden. A card would open a page
-    /// the same turn took away. Nil for any other call or result.
+    /// `delete_doc` that moved it to the Trash, a `delete_animation` that
+    /// removed it, or one of `toolNames` whose result names it moved to the
+    /// Trash or hidden. A card would open a page the same turn took away. Nil
+    /// for any other call or result.
     static func removedID(toolName: String, result: String) -> String? {
-        guard toolName == deleteToolName || toolNames.contains(toolName),
+        guard toolName == deleteToolName || toolName == deleteAnimationToolName || toolNames.contains(toolName),
               let data = result.data(using: .utf8),
-              let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any],
-              let doc = object["doc"] as? [String: Any],
+              let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return nil }
+        if toolName == deleteAnimationToolName {
+            let id = (object["animation_id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return object["status"] as? String == "deleted" && !id.isEmpty ? id : nil
+        }
+        guard let doc = object["doc"] as? [String: Any],
               let id = (doc["id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
               !id.isEmpty else { return nil }
         if toolName == deleteToolName { return id }
@@ -729,13 +755,20 @@ struct ChatWrittenPage: Equatable, Hashable, Sendable {
         return pages
     }
 
+    /// Where an animation's card plays it: its page in the library,
+    /// `foreverlm-site://<id>/`. Nil for a Markdown page.
+    var animationURL: URL? {
+        kind == .animation ? LinkedPage.localSiteURL(artifactID: id) : nil
+    }
+
     // MARK: The stored line
 
-    /// `foreverlm://doc/<id>?card=page`. The id is percent-encoded down to
-    /// letters, digits and `-._~`, so none can end the Markdown link early.
+    /// `foreverlm://doc/<id>?card=page`, or `card=animation`. The id is
+    /// percent-encoded down to letters, digits and `-._~`, so none can end the
+    /// Markdown link early.
     var destination: String {
         let encoded = id.addingPercentEncoding(withAllowedCharacters: Self.encodable) ?? id
-        return "\(StudioEntityLink.productScheme)://doc/\(encoded)?\(Self.markerName)=\(Self.markerValue)"
+        return "\(StudioEntityLink.productScheme)://doc/\(encoded)?\(Self.markerName)=\(kind.rawValue)"
     }
 
     var markdownLine: String {
@@ -743,7 +776,8 @@ struct ChatWrittenPage: Equatable, Hashable, Sendable {
             .replacingOccurrences(of: "\\", with: "\\\\")
             .replacingOccurrences(of: "[", with: "\\[")
             .replacingOccurrences(of: "]", with: "\\]")
-        return "[\(text.isEmpty ? "Page" : text)](\(destination))"
+        let fallback = kind == .animation ? "Animation" : "Page"
+        return "[\(text.isEmpty ? fallback : text)](\(destination))"
     }
 
     /// The reply as it is stored: a line per page first, where the cards
@@ -766,7 +800,7 @@ struct ChatWrittenPage: Equatable, Hashable, Sendable {
     /// trimmed and never empty.
     static func split(_ text: String) -> [Part] {
         // Runs on every stored reply a chat reopens; most hold no page line.
-        guard text.contains("\(markerName)=\(markerValue)") else {
+        guard text.contains("\(markerName)=\(Kind.page.rawValue)") || text.contains("\(markerName)=\(Kind.animation.rawValue)") else {
             let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
             return trimmed.isEmpty ? [] : [.text(trimmed)]
         }
@@ -798,7 +832,8 @@ struct ChatWrittenPage: Equatable, Hashable, Sendable {
         }.joined(separator: "\n\n")
     }
 
-    /// The page a line names when it is exactly `[title](foreverlm://doc/<id>?card=page)`.
+    /// The page a line names when it is exactly `[title](foreverlm://doc/<id>?card=page)`,
+    /// or an animation's, `?card=animation`.
     private static func pageLine(_ line: Substring) -> ChatWrittenPage? {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
         // The last "](" ends the text: a title's own brackets are escaped,
@@ -809,13 +844,13 @@ struct ChatWrittenPage: Equatable, Hashable, Sendable {
         guard !destination.contains(where: \.isWhitespace),
               let url = URL(string: String(destination)),
               case .doc(let id)? = StudioEntityLink.parse(url),
-              URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?
-                .contains(where: { $0.name == markerName && $0.value == markerValue }) == true else { return nil }
+              let kind = URLComponents(url: url, resolvingAgainstBaseURL: false)?.queryItems?
+                .first(where: { $0.name == markerName }).flatMap({ $0.value }).flatMap(Kind.init(rawValue:)) else { return nil }
         let title = trimmed[trimmed.index(after: trimmed.startIndex)..<middle.lowerBound]
             .replacingOccurrences(of: "\\[", with: "[")
             .replacingOccurrences(of: "\\]", with: "]")
             .replacingOccurrences(of: "\\\\", with: "\\")
-        return ChatWrittenPage(id: id, title: title)
+        return ChatWrittenPage(id: id, title: title, kind: kind)
     }
 
     private static let encodable: CharacterSet = {

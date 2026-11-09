@@ -3500,6 +3500,12 @@ private struct InternalReviewPanelContent: View {
             Task { await startWalkthroughPlayback(sourceID: sourceID) }
         case .openPage(let id):
             vm.revealArtifact(id, in: windowState)
+        case .enlargeAnimation(let id, let title):
+            expandedWalkthroughAnimation = WalkthroughEnlargedAnimation(
+                id: id,
+                title: vm.artifacts.first { $0.id == id }?.title ?? title,
+                content: .hosted(url: LinkedPage.localSiteURL(artifactID: id))
+            )
         case .openSavedCards(let blockID, let partID, let rect, let view):
             guard let block = block(blockID) else { return }
             let saved = ReviewChatAnswerLayout.items(block.answerMessages).lazy.compactMap { item -> ChatSavedCards? in

@@ -19,13 +19,15 @@ struct SpaceTests {
         #expect(SpaceDestination(key: "team:") == .all)
     }
 
-    @Test("The sidebar lists ChatGPT's places in its order, Canvases after Sites, and no Chats (Home's), and no Ideas")
+    @Test("The sidebar lists ChatGPT's places in its order, Animations after Sites, then Canvases, and no Chats (Home's), and no Ideas")
     func placesAreChatGPTsOrder() {
-        #expect(SpaceDestination.places == [.all, .notebooks, .board, .plan, .pages, .sites, .canvases, .images, .drive])
-        #expect(SpaceDestination.places(listsCanvases: false) == [.all, .notebooks, .board, .plan, .pages, .sites, .images, .drive])
-        #expect(SpaceDestination.sidebarPlaces(listsCanvases: true) == [.notebooks, .board, .plan, .pages, .sites, .canvases, .images, .drive],
+        #expect(SpaceDestination.places == [.all, .notebooks, .board, .plan, .pages, .sites, .animations, .canvases, .images, .drive])
+        #expect(SpaceDestination.places(listsCanvases: false) == [.all, .notebooks, .board, .plan, .pages, .sites, .animations, .images, .drive])
+        #expect(SpaceDestination.sidebarPlaces(listsCanvases: true) == [.notebooks, .board, .plan, .pages, .sites, .animations, .canvases, .images, .drive],
                 "All is the landing list, not a sidebar row")
-        #expect(SpaceDestination.sidebarPlaces(listsCanvases: false) == [.notebooks, .board, .plan, .pages, .sites, .images, .drive])
+        #expect(SpaceDestination.sidebarPlaces(listsCanvases: false) == [.notebooks, .board, .plan, .pages, .sites, .animations, .images, .drive])
+        // A window that remembered Animations opens on it again.
+        #expect(SpaceDestination(key: SpaceDestination.animations.key) == .animations)
         #expect(SpaceDestination.chats.openableKind == nil, "Home's list is no pane of the Space")
         // A window that remembered the Chats place opens on All: chats are Home's.
         #expect(SpaceDestination(key: "chats") == .all)
@@ -52,9 +54,15 @@ struct SpaceTests {
             id: "t", title: "Old", homeNotebookID: nil, linkedNotebookIDs: [],
             archivedAt: now, createdAt: now, updatedAt: now
         )
+        let animation = ArtifactRecord(
+            id: "a", title: "Seahorse trace", homeNotebookID: nil, linkedNotebookIDs: [],
+            linkedURL: "foreverlm-site://a/", kind: .animation,
+            createdAt: now, updatedAt: now
+        )
         #expect(SpaceDestination.listing(page) == .pages)
         #expect(SpaceDestination.listing(googleDoc) == .drive)
         #expect(SpaceDestination.listing(trashed) == .trash)
+        #expect(SpaceDestination.listing(animation) == .animations)
     }
 
     @Test("Recents keep the latest opening first, once, within capacity, across launches")
@@ -180,6 +188,23 @@ struct SpaceTests {
 @MainActor
 @Suite("Notebooks in the Space")
 struct SpaceNotebooksTests {
+    @Test("An animation is a Space item of its own kind, listed under Animations (product owner, 2026-11-08: \"make sure they do have their own space\")")
+    func animationsHaveAPlace() {
+        let vm = makeViewModel()
+        let now = Date()
+        vm.artifacts = [
+            ArtifactRecord(
+                id: "anim-1", title: "Seahorse trace", homeNotebookID: nil, linkedNotebookIDs: [],
+                linkedURL: "foreverlm-site://anim-1/", teamID: vm.activeTeamID, kind: .animation,
+                createdAt: now, updatedAt: now
+            ),
+            ArtifactRecord(id: "page-1", title: "Notes", homeNotebookID: nil, linkedNotebookIDs: [], teamID: vm.activeTeamID, createdAt: now, updatedAt: now),
+        ]
+        let items = SpaceCatalog.items(vm: vm, images: [])
+        #expect(items.first { $0.id == "anim-1" }?.kind == .animation)
+        #expect(items.first { $0.id == "page-1" }?.kind == .page)
+    }
+
     private func makeViewModel() -> StudioViewModel {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("SpaceNotebooksTests_\(UUID().uuidString)", isDirectory: true)

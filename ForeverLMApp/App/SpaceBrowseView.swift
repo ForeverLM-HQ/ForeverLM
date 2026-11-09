@@ -9,7 +9,7 @@ import SwiftUI
 /// while it is in Trash, which Trash alone lists.
 struct SpaceItem: Identifiable {
     enum Kind: Equatable {
-        case page, googleDoc, site, reading, canvas, goalList, ideaList, image, notebook, course, chat, space
+        case page, googleDoc, site, animation, reading, canvas, goalList, ideaList, image, notebook, course, chat, space
     }
 
     /// The record's id, or `image:<image id>` for a picture.
@@ -201,18 +201,20 @@ enum SpaceCatalog {
         items.reserveCapacity(vm.artifacts.count + images.count)
         for artifact in vm.artifacts {
             // A member's draft opens through Edit on the team copy; an audio
-            // overview and an animation are their notebook's; a card deck is
-            // a source's private drafts.
+            // overview is its notebook's; a card deck is a source's private
+            // drafts. An animation is listed, in a place of its own
+            // (`SpaceDestination.animations`).
             guard !TeamContentIdentity.isDraftArtifactID(artifact.id),
                   !vm.isAudioOverview(artifact),
-                  !artifact.isCardDeck,
-                  artifact.section != .animations else { continue }
+                  !artifact.isCardDeck else { continue }
             // A reading a notebook holds is listed there alone; in Trash it
             // is listed so it can be restored.
             if !artifact.isArchived, vm.isListedOnlyInItsNotebook(artifact) { continue }
             let kind: SpaceItem.Kind
             if artifact.linkedKind == .googleDoc {
                 kind = .googleDoc
+            } else if artifact.section == .animations {
+                kind = .animation
             } else if artifact.section == .sites {
                 kind = .site
             } else if artifact.isMnemonicReading {
@@ -671,6 +673,7 @@ struct SpaceBrowseView: View {
         case .chats: return item.kind == .chat
         case .pages: return item.kind == .page || item.kind == .reading
         case .sites: return item.kind == .site
+        case .animations: return item.kind == .animation
         case .canvases: return item.kind == .canvas
         case .images: return item.kind == .image
         case .drive: return item.kind == .googleDoc
@@ -1282,6 +1285,15 @@ struct SpaceBrowseView: View {
             if !vm.isActiveLibraryReadOnly {
                 SpaceDarkPillButton(title: ArtifactSection.sites.linkActionTitle, systemImage: nil, image: nil) { onLink(.sites) }
                     .accessibilityIdentifier("space.linkSite")
+            }
+        // An animation is drawn in a chat, so the one next step opens one
+        // with the request typed, as the Animations pane's button does.
+        case .animations:
+            if !vm.isActiveLibraryReadOnly {
+                SpaceDarkPillButton(title: ArtifactSection.animations.linkActionTitle, systemImage: nil, image: nil) {
+                    vm.requestAnimationChat()
+                }
+                .accessibilityIdentifier("space.animate")
             }
         case .all, .space:
             if !vm.isActiveLibraryReadOnly {
@@ -1898,8 +1910,16 @@ struct SpaceBrowseView: View {
                         }
                     }
                     SpacePagePinItem(artifact: artifact)
-                    Button("Move to Trash", systemImage: "trash", role: .destructive) {
-                        Task { await vm.moveArtifactToTrash(artifact.id) }
+                    if item.kind == .animation {
+                        // An animation has no Trash, as in the Animations
+                        // pane: it is deleted, after the question.
+                        Button("Delete…", systemImage: "trash", role: .destructive) {
+                            deletingForever = [artifact.id]
+                        }
+                    } else {
+                        Button("Move to Trash", systemImage: "trash", role: .destructive) {
+                            Task { await vm.moveArtifactToTrash(artifact.id) }
+                        }
                     }
                 }
                 if SpacePageSharingItems.applies(to: artifact) {
@@ -2055,6 +2075,13 @@ struct SpaceBrowseView: View {
                     emptyLine(systemImage: SpaceDestination.sites.symbolName, "No sites yet")
                     if !vm.isActiveLibraryReadOnly {
                         SpaceDarkPillButton(title: ArtifactSection.sites.linkActionTitle, systemImage: nil, image: nil) { onLink(.sites) }
+                    }
+                case .animations:
+                    emptyLine(systemImage: SpaceDestination.animations.symbolName, "No animations yet")
+                    if !vm.isActiveLibraryReadOnly {
+                        SpaceDarkPillButton(title: ArtifactSection.animations.linkActionTitle, systemImage: nil, image: nil) {
+                            vm.requestAnimationChat()
+                        }
                     }
                 case .canvases:
                     emptyLine(systemImage: KnowledgeMap.symbolName, "No canvases yet")
@@ -2394,7 +2421,8 @@ private struct SpaceItemPicture: View {
                     let loader = loadExcerpt
                     previews.requestExcerpt(for: previewKey, title: item.title) { try await loader(id) }
                 } else if let request = ArtifactsHomePane.previewRequest(
-                    kind: item.kind == .site ? .site : .doc,
+                    // An animation's page is photographed as a site's is.
+                    kind: item.kind == .site || item.kind == .animation ? .site : .doc,
                     linkedURL: artifact.linkedURL,
                     linkedKind: artifact.linkedKind
                 ) {
@@ -2485,6 +2513,7 @@ enum SpaceKindStyle {
         case .page: return Color(red: 0.03, green: 0.54, blue: 0.93)
         case .googleDoc: return Color(red: 0.26, green: 0.52, blue: 0.96)
         case .site: return .teal
+        case .animation: return .pink
         case .reading: return .purple
         case .canvas: return .orange
         case .goalList: return .green
@@ -2501,6 +2530,7 @@ enum SpaceKindStyle {
         case .page: return "doc.text.fill"
         case .googleDoc: return "doc.richtext"
         case .site: return "globe"
+        case .animation: return ArtifactKind.animation.symbolName
         case .reading: return "text.book.closed.fill"
         case .canvas: return "rectangle.3.group.fill"
         case .goalList: return "target"

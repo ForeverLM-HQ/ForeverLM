@@ -6337,6 +6337,35 @@ struct ChatWrittenPageTests {
         #expect(ChatWrittenPage.split("[a page](https://example.com/doc/1?card=page)") == [.text("[a page](https://example.com/doc/1?card=page)")])
     }
 
+    static let savedAnimation = #"{"status":"saved","animation_id":"anim-1","site_id":"anim-1","url":"foreverlm-site://anim-1/","doc":{"id":"anim-1","title":"Seahorse trace","kind":"animation","is_archived":false,"is_hidden":false},"message":"Saved."}"#
+
+    @Test("An animation save_animation saved is a card that plays it, stored as its own line (product owner, 2026-11-08: \"make sure they can be rendered from a chat also\")")
+    func anAnimationIsACardThatPlays() {
+        let animation = ChatWrittenPage.parse(toolName: "save_animation", result: Self.savedAnimation)
+        #expect(animation == ChatWrittenPage(id: "anim-1", title: "Seahorse trace", kind: .animation))
+        #expect(animation?.animationURL == LinkedPage.localSiteURL(artifactID: "anim-1"))
+        // A page tool naming an animation, or save_animation naming a page, is no card.
+        #expect(ChatWrittenPage.parse(toolName: "update_doc", result: Self.savedAnimation) == nil)
+        #expect(ChatWrittenPage.parse(toolName: "save_animation", result: Self.created) == nil)
+        #expect(ChatWrittenPage.parse(toolName: "create_doc", result: Self.created)?.animationURL == nil)
+
+        // Stored as `card=animation`, and split back into the same card.
+        let page = ChatWrittenPage(id: "doc-1", title: "Notes")
+        let stored = ChatWrittenPage.storing("I made an animation.", with: [page, animation!])
+        #expect(stored.contains("[Seahorse trace](foreverlm://doc/anim-1?card=animation)"))
+        #expect(ChatWrittenPage.split(stored) == [.page(page), .page(animation!), .text("I made an animation.")])
+        #expect(ChatWrittenPage.prose(of: "[Seahorse trace](foreverlm://doc/anim-1?card=animation)\n\nDone.") == "Done.")
+        // A card value no build draws stays prose.
+        let unknown = "[Seahorse trace](foreverlm://doc/anim-1?card=film)"
+        #expect(ChatWrittenPage.split(unknown) == [.text(unknown)])
+
+        // delete_animation in the same turn takes the card away.
+        let deleted = #"{"status":"deleted","animation_id":"anim-1","message":"Removed."}"#
+        #expect(ChatWrittenPage.removedID(toolName: "delete_animation", result: deleted) == "anim-1")
+        #expect(ChatWrittenPage.removedID(toolName: "delete_animation", result: "Error: No animation of yours is named anim-1.") == nil)
+        #expect(ChatWrittenPage.removedID(toolName: "save_animation", result: Self.savedAnimation) == nil)
+    }
+
     private static let config = AITaskConfig(provider: .openRouter, apiKey: "test-key", model: "z-ai/glm-5.3-flash")
 
     @Test("A page a turn wrote is a card under its work, stored at the head of its reply, and a card again when the chat reopens")

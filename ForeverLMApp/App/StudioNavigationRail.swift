@@ -176,7 +176,7 @@ enum StudioRailShortcut: Hashable, Identifiable, Sendable {
     /// The Space places a shortcut can be. All is the Space itself (its
     /// row), Trash is a place to visit rarely, and a team's, a space's or a
     /// list's place is an item the Space sidebar pins.
-    private static let places: Set<SpaceDestination> = [.notebooks, .board, .plan, .pages, .sites, .canvases, .images, .drive]
+    private static let places: Set<SpaceDestination> = [.notebooks, .board, .plan, .pages, .sites, .animations, .canvases, .images, .drive]
 
     /// Every shortcut this Mac offers, in the Space sidebar's order:
     /// Notebooks, Courses, then the rest; Canvases only where canvases are

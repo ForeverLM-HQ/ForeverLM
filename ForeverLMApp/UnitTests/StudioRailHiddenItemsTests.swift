@@ -155,7 +155,7 @@ struct BetaFeaturesCanvasGateTests {
     @Test("A production Mac's Space lists no Canvases place; a beta Mac's lists it after Sites")
     func spacePlace() {
         #expect(!SpaceDestination.places(listsCanvases: false).contains(.canvases))
-        #expect(SpaceDestination.places(listsCanvases: true) == [.all, .notebooks, .board, .plan, .pages, .sites, .canvases, .images, .drive])
+        #expect(SpaceDestination.places(listsCanvases: true) == [.all, .notebooks, .board, .plan, .pages, .sites, .animations, .canvases, .images, .drive])
     }
 
     @Test("A layout showing the Canvas or the Atlas shows another tab instead, the Space first, and nothing else moves")
@@ -243,7 +243,7 @@ struct StudioRailShortcutsTests {
     @Test("The places offered follow the Space sidebar: Notebooks, Courses, then the rest; Canvases only where listed")
     func offeredPlaces() {
         #expect(StudioRailShortcut.offered(listsCanvases: true).map(\.key)
-            == ["notebooks", "courses", "board", "plan", "pages", "sites", "canvases", "images", "drive"])
+            == ["notebooks", "courses", "board", "plan", "pages", "sites", "animations", "canvases", "images", "drive"])
         #expect(!StudioRailShortcut.offered(listsCanvases: false).contains(.place(.canvases)))
         let kept = StudioRailShortcuts([.place(.canvases), .place(.images)])
         #expect(kept.shown(listsCanvases: false) == [.place(.images)], "a kept Canvases waits where canvases are not listed")
