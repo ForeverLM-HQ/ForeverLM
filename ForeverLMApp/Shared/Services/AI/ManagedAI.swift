@@ -1815,9 +1815,12 @@ extension URLSession {
     }
 
     /// `bytes(for:)` under the same rule, for the streaming chat path.
-    func foreverLMBytes(for request: URLRequest) async throws -> (URLSession.AsyncBytes, URLResponse) {
+    func foreverLMBytes(
+        for request: URLRequest,
+        delegate: (any URLSessionTaskDelegate)? = nil
+    ) async throws -> (URLSession.AsyncBytes, URLResponse) {
         do {
-            return try await bytes(for: request)
+            return try await bytes(for: request, delegate: delegate)
         } catch {
             throw ManagedAI.namingUnreachableService(error)
         }

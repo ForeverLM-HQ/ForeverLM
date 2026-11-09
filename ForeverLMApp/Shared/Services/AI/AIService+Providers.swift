@@ -246,6 +246,8 @@ extension AIService {
         usageProvider: String? = nil,
         usageModel: String? = nil,
         usageOperation: String = "stream_chat",
+        firstByteLimit: Duration = AIService.streamFirstByteLimit,
+        errorBodyReadLimit: Duration = AIService.errorBodyReadLimit,
         onEvent: ([String: Any]) throws -> String?,
         onDelta: (String) -> Void
     ) async throws {
@@ -264,6 +266,8 @@ extension AIService {
                 usageProvider: usageProvider,
                 usageModel: usageModel,
                 usageOperation: usageOperation,
+                firstByteLimit: firstByteLimit,
+                errorBodyReadLimit: errorBodyReadLimit,
                 onEvent: onEvent,
                 onDelta: onDelta
             )
@@ -280,20 +284,22 @@ extension AIService {
         usageProvider: String?,
         usageModel: String?,
         usageOperation: String,
+        firstByteLimit: Duration,
+        errorBodyReadLimit: Duration,
         onEvent: ([String: Any]) throws -> String?,
         onDelta: (String) -> Void
     ) async throws {
-        let (bytes, response) = try await session.foreverLMBytes(for: request)
+        let (bytes, response) = try await bytesWithFirstByteDeadline(for: request, limit: firstByteLimit)
         let dataTask = bytes.task
         registry.attach(inFlightID) { dataTask.cancel() }
 
         if let http = response as? HTTPURLResponse,
            !(200...299).contains(http.statusCode) {
-            var body = ""
-            for try await line in bytes.sseLines {
-                body += line
-                if body.count > 4_000 { break }
-            }
+            let body = try await readErrorBody(
+                bytes,
+                dataTask: dataTask,
+                limit: errorBodyReadLimit
+            )
             let data = Data(body.utf8)
             throw httpFailureError(
                 label: "AI provider stream request failed",
@@ -363,6 +369,96 @@ extension AIService {
                 fallbackReport: usageReport
             )
         }
+    }
+
+    /// How long a stream may take to send its first byte. On 2026-11-08
+    /// OpenRouter answered a chat with a 408 after 29 s and then held the body
+    /// open; the chat read "Thinking" for eleven minutes until Stop. URLSession
+    /// hands over a response only with its first body byte (headers alone,
+    /// 200 or 408, never come back from `bytes(for:)`, nor reach a task
+    /// delegate), and the AI session has no idle deadline by design, so a
+    /// stream that never starts is invisible without this limit. A healthy
+    /// stream is expected to start within seconds (OpenRouter writes comment
+    /// lines while the model works; not measured here), so two minutes of
+    /// nothing is taken as a dead request. It fails as a timeout, which the
+    /// chat retries.
+    static let streamFirstByteLimit: Duration = .seconds(120)
+
+    /// How long a failed stream may take to deliver its error message once it
+    /// has begun. The status is the failure; the body only words it.
+    static let errorBodyReadLimit: Duration = .seconds(5)
+
+    /// `foreverLMBytes`, cancelled when not even the first byte has arrived
+    /// within `limit` (`streamFirstByteLimit`). A cancellation that was not
+    /// this deadline's — the learner's Stop — is rethrown as it came.
+    private func bytesWithFirstByteDeadline(
+        for request: URLRequest,
+        limit: Duration
+    ) async throws -> (URLSession.AsyncBytes, URLResponse) {
+        let capture = StreamFirstByteDeadline()
+        let deadline = Task {
+            try? await Task.sleep(for: limit)
+            guard !Task.isCancelled else { return }
+            capture.expire()
+        }
+        defer { deadline.cancel() }
+        let result: (URLSession.AsyncBytes, URLResponse)
+        do {
+            result = try await session.foreverLMBytes(for: request, delegate: capture)
+        } catch {
+            guard capture.hasExpired else { throw error }
+            throw Self.firstByteTimeout(limit)
+        }
+        // The deadline may have fired between the first byte and here; the
+        // request it cancelled is then as dead as one that never started.
+        guard capture.markStarted() else { throw Self.firstByteTimeout(limit) }
+        return result
+    }
+
+    private static func firstByteTimeout(_ limit: Duration) -> AIError {
+        let seconds = Int(limit.components.seconds)
+        aiProvidersLogger.error("AI stream sent nothing in \(seconds, privacy: .public) s; cancelled as timed out")
+        // "timed out" is what `isTransient` reads, so the chat retries it.
+        return AIError.apiError(
+            "The AI provider sent nothing back in \(seconds) seconds, so the request timed out. Try again."
+        )
+    }
+
+    /// The first 4,000 characters of a failed stream's body, or whatever of it
+    /// arrived within `limit`. When the limit runs out the request is cancelled
+    /// and the partial body returned, so the caller still fails with the
+    /// status — which is what lets a 408 or 5xx be retried. A cancellation
+    /// that was not this deadline's (the learner's Stop) is rethrown.
+    private func readErrorBody(
+        _ bytes: URLSession.AsyncBytes,
+        dataTask: URLSessionDataTask,
+        limit: Duration
+    ) async throws -> String {
+        let deadline = Task {
+            do {
+                try await Task.sleep(for: limit)
+            } catch {
+                return false
+            }
+            dataTask.cancel()
+            return true
+        }
+        var body = ""
+        do {
+            for try await line in bytes.sseLines {
+                body += line
+                if body.count > 4_000 { break }
+            }
+        } catch {
+            deadline.cancel()
+            guard await deadline.value else { throw error }
+            aiProvidersLogger.notice(
+                "AI stream error body unfinished after \(limit, privacy: .public); reporting the status alone"
+            )
+            return body
+        }
+        deadline.cancel()
+        return body
     }
 
     func processSSEEvent(
@@ -1302,4 +1398,43 @@ extension AIService {
         }
     }
 
+}
+
+/// Holds a stream's request from its creation so a deadline can cancel it
+/// before `bytes(for:)` returns — the only point at which the caller would
+/// otherwise get a handle on it. Once the first byte is in, it no longer cancels.
+private final class StreamFirstByteDeadline: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    private let lock = NSLock()
+    private var task: URLSessionTask?
+    private var expired = false
+    private var started = false
+
+    func urlSession(_ session: URLSession, didCreateTask task: URLSessionTask) {
+        let cancelNow = lock.withLock {
+            self.task = task
+            return expired
+        }
+        if cancelNow { task.cancel() }
+    }
+
+    /// Cancels the request unless its first byte has already arrived.
+    func expire() {
+        let toCancel: URLSessionTask? = lock.withLock {
+            guard !started else { return nil }
+            expired = true
+            return task
+        }
+        toCancel?.cancel()
+    }
+
+    var hasExpired: Bool { lock.withLock { expired } }
+
+    /// Records that the first byte arrived; false when the deadline won.
+    func markStarted() -> Bool {
+        lock.withLock {
+            guard !expired else { return false }
+            started = true
+            return true
+        }
+    }
 }

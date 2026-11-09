@@ -7833,3 +7833,181 @@ struct ChatTranscriptPageTests {
         #expect(user.isFindMatch == true)
     }
 }
+
+/// A provider that answered a chat with a 408 and then held the body open sent
+/// the chat into eleven minutes of "Thinking" (2026-11-08): URLSession hands
+/// over no response until its first body byte, and the AI session has no idle
+/// deadline. A stream now fails as timed out when nothing arrives in time, and
+/// an error body that never ends is reported by its status.
+@Suite("A stream that stalls", .serialized)
+struct StalledErrorBodyStreamTests {
+    @Test("A stream that sends nothing fails as a retryable timeout once the first-byte limit runs out", .timeLimit(.minutes(1)))
+    func silentStreamTimesOut() async throws {
+        StalledErrorBodyURLProtocol.reset(reply: .nothing)
+        let service = AIService(session: StalledErrorBodyURLProtocol.mockSession())
+        let request = URLRequest(url: URL(string: "https://router.example.test/v1/chat/completions")!)
+
+        let started = ContinuousClock.now
+        let error = await #expect(throws: AIError.self) {
+            try await service.streamSSE(
+                request: request,
+                firstByteLimit: .milliseconds(200),
+                onEvent: { _ in nil },
+                onDelta: { _ in }
+            )
+        }
+        #expect(ContinuousClock.now - started < .seconds(10))
+        guard case .apiError(let message)? = error else {
+            Issue.record("Expected a timeout, got \(String(describing: error))")
+            return
+        }
+        #expect(message.contains("timed out"))
+        // The chat retries a timeout; that is what ends the endless "Thinking".
+        #expect(AITransientErrorClassifier.isTransient(AIError.apiError(message)))
+        // The held request was cancelled, not left open on the connection.
+        try await StalledErrorBodyURLProtocol.waitUntilStopped()
+    }
+
+    @Test("Stopping a stream that has sent nothing reads as a stop, not a timeout", .timeLimit(.minutes(1)))
+    func stoppingASilentStreamIsNotATimeout() async throws {
+        StalledErrorBodyURLProtocol.reset(reply: .nothing)
+        let service = AIService(session: StalledErrorBodyURLProtocol.mockSession())
+        let request = URLRequest(url: URL(string: "https://router.example.test/v1/chat/completions")!)
+
+        let turn = Task {
+            try await service.streamSSE(
+                request: request,
+                firstByteLimit: .seconds(30),
+                onEvent: { _ in nil },
+                onDelta: { _ in }
+            )
+        }
+        try await StalledErrorBodyURLProtocol.waitUntilStarted()
+        turn.cancel()
+        do {
+            try await turn.value
+            Issue.record("A stopped stream returned as if it had answered")
+        } catch {
+            #expect(!error.localizedDescription.contains("timed out"))
+        }
+    }
+
+    @Test("A 408 whose body never ends fails with its status once the read limit runs out", .timeLimit(.minutes(1)))
+    func stalledErrorBodyFailsWithItsStatus() async throws {
+        StalledErrorBodyURLProtocol.reset(reply: .heldBody)
+        let service = AIService(session: StalledErrorBodyURLProtocol.mockSession())
+        var request = URLRequest(url: URL(string: "https://router.example.test/v1/chat/completions")!)
+        request.httpMethod = "POST"
+
+        let started = ContinuousClock.now
+        do {
+            try await service.streamSSE(
+                request: request,
+                errorBodyReadLimit: .milliseconds(200),
+                onEvent: { _ in nil },
+                onDelta: { _ in }
+            )
+            Issue.record("A 408 stream returned as if it had answered")
+        } catch let error as AIError {
+            guard case .httpError(let status, let message, _) = error else {
+                Issue.record("Expected the HTTP status, got \(error)")
+                return
+            }
+            #expect(status == 408)
+            #expect(message.contains("(408)"))
+            // A 408 is retried, which is the whole point of failing promptly.
+            #expect(AITransientErrorClassifier.isTransient(error))
+        }
+        #expect(ContinuousClock.now - started < .seconds(10))
+        // The held request was cancelled, not left open on the connection.
+        try await StalledErrorBodyURLProtocol.waitUntilStopped()
+    }
+
+    @Test("An error body that arrives in time is still read as the provider's message", .timeLimit(.minutes(1)))
+    func finishedErrorBodyKeepsTheProvidersMessage() async throws {
+        StalledErrorBodyURLProtocol.reset(reply: .body(#"{"error":{"message":"Upstream model took too long"}}"#))
+        let service = AIService(session: StalledErrorBodyURLProtocol.mockSession())
+        let request = URLRequest(url: URL(string: "https://router.example.test/v1/chat/completions")!)
+
+        let error = await #expect(throws: AIError.self) {
+            try await service.streamSSE(
+                request: request,
+                errorBodyReadLimit: .seconds(5),
+                onEvent: { _ in nil },
+                onDelta: { _ in }
+            )
+        }
+        guard case .httpError(let status, let message, _)? = error else {
+            Issue.record("Expected the HTTP status, got \(String(describing: error))")
+            return
+        }
+        #expect(status == 408)
+        #expect(message.contains("Upstream model took too long"))
+    }
+}
+
+/// Stands in for a provider that stalls: it says nothing at all, or answers
+/// with a 408 whose body it holds open, or a 408 with a body it finishes.
+private final class StalledErrorBodyURLProtocol: URLProtocol {
+    enum Reply {
+        case nothing
+        case heldBody
+        case body(String)
+    }
+
+    private static let lock = NSLock()
+    nonisolated(unsafe) private static var reply = Reply.nothing
+    nonisolated(unsafe) private static var started = 0
+    nonisolated(unsafe) private static var stopped = 0
+
+    static func mockSession() -> URLSession {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [StalledErrorBodyURLProtocol.self]
+        configuration.timeoutIntervalForRequest = 0
+        return URLSession(configuration: configuration)
+    }
+
+    static func reset(reply: Reply) {
+        lock.withLock { self.reply = reply; started = 0; stopped = 0 }
+    }
+
+    static func waitUntilStarted() async throws {
+        while lock.withLock({ started }) == 0 {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+    }
+
+    static func waitUntilStopped() async throws {
+        while lock.withLock({ stopped }) == 0 {
+            try await Task.sleep(for: .milliseconds(10))
+        }
+    }
+
+    override class func canInit(with request: URLRequest) -> Bool { true }
+
+    override class func canonicalRequest(for request: URLRequest) -> URLRequest { request }
+
+    override func startLoading() {
+        let reply = Self.lock.withLock {
+            Self.started += 1
+            return Self.reply
+        }
+        if case .nothing = reply { return }
+        guard let url = request.url,
+              let response = HTTPURLResponse(
+                url: url, statusCode: 408, httpVersion: "HTTP/1.1",
+                headerFields: ["Content-Type": "application/json"]
+              ) else {
+            client?.urlProtocol(self, didFailWithError: URLError(.badURL))
+            return
+        }
+        client?.urlProtocol(self, didReceive: response, cacheStoragePolicy: .notAllowed)
+        guard case .body(let body) = reply else { return }
+        client?.urlProtocol(self, didLoad: Data(body.utf8))
+        client?.urlProtocolDidFinishLoading(self)
+    }
+
+    override func stopLoading() {
+        Self.lock.withLock { Self.stopped += 1 }
+    }
+}
