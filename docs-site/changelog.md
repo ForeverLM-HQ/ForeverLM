@@ -12,6 +12,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **The iPhone Reader's bottom bar fits the screen.** Its first and last buttons were cut off at the edges. Text size is now one button whose Smaller and Larger stay open while you tap them, and Share is in the ⋯ menu at the top.
 - **The iPhone's Library is named Library and lists what you added last** under its types. In every list the titles start on one line whatever the source's type, and a row under a Papers or Articles heading no longer repeats the type.
 - **A notebook's tab bar stays at the foot of the iPhone's screen.** On Sources the search field sat under it and pushed it up; the field is now at the top of the list.
+- **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
 ## 0.210.0 (build 290) — 2026-11-10
