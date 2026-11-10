@@ -222,34 +222,6 @@ final class CloudArticleTTSRoutingTests: XCTestCase {
 }
 
 final class MobileCloudMutationServiceTests: XCTestCase {
-    func testProductionShapedMacSourcePayloadsExposePortableURLAndDOIIdentity() throws {
-        let fixture = try crossSurfaceFixture()
-        let sourceRecords = try XCTUnwrap(fixture["records"] as? [[String: Any]])
-            .filter { ($0["recordType"] as? String) == "Source" }
-        XCTAssertEqual(sourceRecords.count, 2)
-
-        var sources: [String: MobileCloudSource] = [:]
-        for record in sourceRecords {
-            let payload = try XCTUnwrap(record["payload"] as? [String: Any])
-            let data = try JSONSerialization.data(withJSONObject: payload, options: [.sortedKeys])
-            let decoded = MobileCloudSourceCatalog.sourceFromCloudKitPayloadForTesting(data)
-            let source = try XCTUnwrap(decoded)
-            sources[source.id] = source
-        }
-
-        let urlSource = try XCTUnwrap(sources["sender-url-source"])
-        XCTAssertEqual(urlSource.normalizedURL, "example.com/identity/article")
-        XCTAssertEqual(
-            urlSource.url,
-            "https://www.example.com/identity/article?utm_source=fixture"
-        )
-
-        let paper = try XCTUnwrap(sources["sender-published-paper"])
-        XCTAssertEqual(paper.doi, "10.1000/preprint-42")
-        XCTAssertEqual(paper.publishedDOI, "10.1000/published-42")
-        XCTAssertEqual(paper.normalizedURL, "preprints.example.org/manuscript/42")
-    }
-
     // MARK: - Context notebooks (Add a Notebook to Context, Take Out of Context)
 
     // MARK: - A notebook is open-ended
@@ -394,20 +366,6 @@ final class MobileCloudMutationServiceTests: XCTestCase {
         let script = "foreverlm://explainer/abc-123"
         XCTAssertFalse(MobileTextToSpeechNarrationPolicy.requiresMacPreparedNarration(sourceType: "article", url: script))
         XCTAssertFalse(MobileTextToSpeechNarrationPolicy.mayHaveMacPreparedNarration(sourceType: "article", url: script))
-    }
-
-    private func crossSurfaceFixture() throws -> [String: Any] {
-        let bundle = Bundle(for: MobileCloudMutationServiceTests.self)
-        let url = try XCTUnwrap(
-            bundle.url(
-                forResource: "cross-surface-cloudkit-roundtrip-v1",
-                withExtension: "json"
-            )
-        )
-        let data = try Data(contentsOf: url)
-        return try XCTUnwrap(
-            JSONSerialization.jsonObject(with: data) as? [String: Any]
-        )
     }
 
     private func mobileSource(id: String, url: String) -> MobileCloudSource {

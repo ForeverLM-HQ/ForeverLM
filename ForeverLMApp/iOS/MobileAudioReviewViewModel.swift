@@ -382,69 +382,9 @@ struct MobileSourceSyncDiagnostic: Equatable {
 actor MobileCloudSourceCatalog {
     static let shared = MobileCloudSourceCatalog()
 
-    private static let sourceRecordType = "Source"
-    private static let sourceHighlightRecordType = "SourceHighlight"
-    private static let artifactRecordType = "Artifact"
-    private static let learningGoalRecordType = "LearningGoal"
-    private static let scheduledSourceRecordType = "ScheduledSource"
-    private static let memoryItemRecordType = "MemoryItem"
-    private static let memoryAttemptRecordType = "MemoryAttempt"
-    private static let reviewSessionRecordType = "ReviewSession"
-    /// The ideas a memory review is graded against. Written by whichever
-    /// device extracted them; read here so the phone grades with the same
-    /// ids the Mac does.
-    private static let sourceIdeaRecordType = "SourceIdea"
-    // Display-shaping records riding the same zone: book/course metadata for
-    // grouped lists, and the hidden sets the visibility rule reads.
-    private static let bookRecordType = "Book"
-    private static let courseRecordType = "Course"
-    private static let hiddenPodcastShowRecordType = "HiddenPodcastShow"
-    private static let hiddenYouTubeChannelRecordType = "HiddenYouTubeChannel"
-    private static let meetingGroupRecordType = "MeetingGroup"
-    /// A doc the learner hid on a Mac (schema 114): its artifact's id. Read
-    /// so a notebook's page leaves a hidden audio overview out, as the Mac does.
-    private static let hiddenArtifactRecordType = "HiddenArtifact"
-    /// A chat the learner hid on a Mac (schema 114): its session's id. Read so
-    /// a notebook's Chat tab leaves it out, as the Mac's lists do.
-    private static let hiddenReviewSessionRecordType = "HiddenReviewSession"
-    private static let sourcePayloadField = "payload"
-    /// Where a payload travels once it outgrows the inline field: the Mac and
-    /// `MobileReviewSessionRecorder` both move a ReviewSession past
-    /// `inlinePayloadByteLimit` into this CKAsset and clear `payload`. A fetch
-    /// that asks for `payload` alone gets such a record back empty.
-    private static let payloadAssetField = "payloadAsset"
-    private static let knowledgeZone = CKRecordZone.ID(zoneName: "Knowledge")
     private static let syncLogger = Logger(subsystem: "com.foreverlm.mobile", category: "SourceCatalogSync")
-    /// The record types whose payloads this catalog fetches and parses. Adding
-    /// a type here is all a new record type needs: the next load fetches the
-    /// already-indexed records of that type by ID and starts collecting its
-    /// deltas — no cache invalidation, no zone re-walk.
-    private static let collectedRecordTypes: [String] = [
-        sourceRecordType, sourceHighlightRecordType, artifactRecordType, learningGoalRecordType, scheduledSourceRecordType, bookRecordType,
-        courseRecordType, hiddenPodcastShowRecordType, hiddenYouTubeChannelRecordType,
-        meetingGroupRecordType, memoryItemRecordType, memoryAttemptRecordType,
-        reviewSessionRecordType, sourceIdeaRecordType, hiddenArtifactRecordType,
-        hiddenReviewSessionRecordType,
-    ]
-    /// The record types the library screens actually render. A long walk
-    /// fetches these between pages so the list fills while the zone is still
-    /// being paged, instead of staying empty until the last page lands.
-    private static let displayRecordTypes: Set<String> = [
-        sourceRecordType, bookRecordType, courseRecordType,
-        hiddenPodcastShowRecordType, hiddenYouTubeChannelRecordType,
-        scheduledSourceRecordType, learningGoalRecordType,
-    ]
     private static let cacheTTL: TimeInterval = 90
-    private static let recordFetchBatchSize = 100
-    /// Version 1 repairs mirrors whose previously checkpointed CloudKit token
-    /// skipped records after a partial fetch. Version 2 reconciles the move to
-    /// the explicit Production environment and prunes Development-only rows.
-    /// Audits are resumable; the existing library stays visible throughout.
-    private static let requiredIndexAuditVersion = 2
-    fileprivate static let dateEpochCutoff: TimeInterval = 1_000_000_000
 
-    private let dateFormatter = ISO8601DateFormatter()
-    private let payloadDecoder: JSONDecoder
     private var cachedSources: [MobileCloudSource] = []
     private var cachedNotebooks: [MobileCloudNotebook] = []
     private var cachedCollections: MobileCatalogCollections = .empty
@@ -455,17 +395,6 @@ actor MobileCloudSourceCatalog {
     /// flight, remember it and run one more delta before releasing waiters.
     private var forcedRefreshRequested = false
     private var lastDecodedSourceCount: Int?
-    /// The on-disk zone mirror (raw payloads + change token), memoized.
-    private var mirrorState: PersistedZoneMirror?
-    /// Any durable-store failure discovered during the first mirror read. Keep
-    /// it so `performLoad` can fail loudly instead of silently treating a
-    /// corrupt/unavailable database as an empty catalog and re-walking iCloud.
-    private var mirrorLoadError: Error?
-    /// Opened lazily on this actor, never from the main-actor view-model init.
-    private var mirrorStore: MobileZoneMirrorStore?
-    /// Rows parsed from the mirror, rebuilt lazily after a cold load and kept
-    /// in step with the mirror during a sync.
-    private var assembledState: AssembledCatalog?
     /// What the replica's index gave on the last load (`MobileReadModels`): the phone's library.
     private var replicaSnapshot: MobileReadModels.Snapshot?
     /// The member's cards and the answers about them, decoded from the Card and Sitting
@@ -477,7 +406,7 @@ actor MobileCloudSourceCatalog {
     /// Moves with every replica load, so a decode that began before one never outlives it.
     private var replicaMemoryEpoch = 0
     /// The usage ledger's cache under generation 2, in a file of its own beside where the mirror was.
-    private var usageStore: MobileZoneMirrorStore?
+    private var usageStore: MobileUsageHistoryStore?
 
     /// The replica's query layer once the session runs (`MobileSyncSession`); nil when it cannot start.
     private let replicaProjection: @Sendable () async -> MobileProjection?
@@ -487,13 +416,6 @@ actor MobileCloudSourceCatalog {
          ideas: MobileSourceIdeaStore = .shared) {
         replicaProjection = projection
         ideaStore = ideas
-        payloadDecoder = Self.makePayloadDecoder()
-    }
-
-    private static func makePayloadDecoder() -> JSONDecoder {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .deferredToDate
-        return decoder
     }
 
     func loadSources(forceRefresh: Bool = false) async throws -> [MobileCloudSource] {
@@ -567,11 +489,9 @@ actor MobileCloudSourceCatalog {
     }
 
     /// A file of the usage cache's own beside the replica, kept in the zone mirror's table shape.
-    private func usageHistoryStore() throws -> MobileZoneMirrorStore {
+    private func usageHistoryStore() throws -> MobileUsageHistoryStore {
         if let usageStore { return usageStore }
-        let store = try MobileZoneMirrorStore(
-            databaseURL: Self.mirrorDatabaseURL().deletingLastPathComponent().appendingPathComponent("usage.db")
-        )
+        let store = try MobileUsageHistoryStore(databaseURL: Self.usageDatabaseURL())
         usageStore = store
         return store
     }
@@ -610,9 +530,6 @@ actor MobileCloudSourceCatalog {
     /// The load (§13.6, WP19b): the replica's index, read through `MobileReadModels` into the rows the
     /// screens already take; the session's rounds keep the replica current.
     private func performReplicaLoad() async throws -> [MobileCloudSource] {
-        mirrorStore = nil
-        mirrorState = nil
-        assembledState = nil
         guard let projection = await replicaProjection() else {
             throw MobileCloudSourceCatalogError.replicaUnavailable
         }
@@ -644,57 +561,6 @@ actor MobileCloudSourceCatalog {
             .filter(isAvailableInMobileLibrary)
             .filter { includingArchived || !$0.isArchived }
             .filter { !MobileSourceVisibility.isHidden($0, collections: snapshot.collections) }
-    }
-
-    private static func collections(from catalog: AssembledCatalog) -> MobileCatalogCollections {
-        MobileCatalogCollections(
-            booksByID: Dictionary(
-                catalog.booksByRecordName.values.map { ($0.id, $0) },
-                uniquingKeysWith: { first, _ in first }
-            ),
-            coursesByID: Dictionary(
-                catalog.coursesByRecordName.values.map { ($0.id, $0) },
-                uniquingKeysWith: { first, _ in first }
-            ),
-            hiddenPodcastShowNames: Set(catalog.hiddenPodcastShowsByRecordName.values),
-            hiddenYouTubeChannelNames: Set(catalog.hiddenYouTubeChannelsByRecordName.values),
-            hiddenMeetingGroupIDs: Set(
-                catalog.meetingGroupsByRecordName.values.filter(\.isHidden).map(\.id)
-            )
-        )
-    }
-
-    /// A Notebook payload can arrive before or after the Source payloads it
-    /// references. Keep not-yet-delivered IDs so the UI can truthfully report
-    /// sync progress, but remove IDs whose delivered Source is archived or
-    /// hidden. Those are known-unavailable rows, not a sync lag, and counting
-    /// them as "not synced" made complete Notebooks look permanently partial.
-    /// Each notebook carries its context notebooks, in link order, from their
-    /// own records, archived ones included as the Mac's pool counts them
-    /// (`MobileNotebookCatalog`); what its chats read of them is the member's
-    /// rows', never the catalog's.
-    private static func notebooks(
-        from catalog: AssembledCatalog,
-        collections: MobileCatalogCollections
-    ) -> [MobileCloudNotebook] {
-        let sourcesByID = Dictionary(
-            catalog.sourcesByRecordName.values.map { ($0.id, $0) },
-            uniquingKeysWith: { first, _ in first }
-        )
-        let allNotebooksByID = Dictionary(
-            catalog.notebooksByRecordName.values.map { ($0.id, $0) },
-            uniquingKeysWith: { first, _ in first }
-        )
-        let isListed: (String) -> Bool = { sourceID in
-            guard let source = sourcesByID[sourceID] else { return true }
-            return !source.isArchived
-                && isAvailableInMobileLibrary(source)
-                && !MobileSourceVisibility.isHidden(source, collections: collections)
-        }
-        return catalog.notebooksByRecordName.values
-            .filter { !$0.isArchived }
-            .map { MobileNotebookCatalog.notebook($0, records: allNotebooksByID, isListed: isListed) }
-            .sorted { $0.updatedAt > $1.updatedAt }
     }
 
     /// The decoded sources exactly as far as the current (possibly still
@@ -768,19 +634,6 @@ actor MobileCloudSourceCatalog {
         }.sorted {
             if $0.discussedAt != $1.discussedAt { return $0.discussedAt > $1.discussedAt }
             return $0.sourceID < $1.sourceID
-        }
-    }
-
-    /// Activity days keyed by the placement's *resolved* source id. The rows
-    /// carry their own `sourceID`, but only the placement has been through
-    /// identity reconciliation, so reading them this way keeps the history of a
-    /// source that was deduplicated after the activity was recorded.
-    private static func activityDaysBySourceID(
-        _ catalog: AssembledCatalog
-    ) -> [String: [SourceActivityDay]] {
-        catalog.scheduledSourcesByRecordName.values.reduce(into: [:]) { result, placement in
-            guard !placement.activityDays.isEmpty else { return }
-            result[placement.sourceID, default: []].append(contentsOf: placement.activityDays)
         }
     }
 
@@ -1021,23 +874,6 @@ actor MobileCloudSourceCatalog {
         }
     }
 
-    func currentMemoryItems() async -> [MemoryItem] {
-        await memoryInputs().items
-            .filter { $0.status == .active }
-            .sorted { lhs, rhs in
-                if lhs.updatedAt != rhs.updatedAt { return lhs.updatedAt > rhs.updatedAt }
-                return lhs.id < rhs.id
-            }
-    }
-
-    func currentMemoryAttempts() async -> [MemoryAttempt] {
-        await memoryInputs().attempts
-            .sorted { lhs, rhs in
-                if lhs.attemptedAt != rhs.attemptedAt { return lhs.attemptedAt < rhs.attemptedAt }
-                return lhs.id < rhs.id
-            }
-    }
-
     /// The synced items the phone may ask: active, and anchored only on library
     /// sources it has (`MobileMemoryReviewScope.eligibleItems`).
     private func reviewableMemoryItems(
@@ -1259,27 +1095,6 @@ actor MobileCloudSourceCatalog {
         )
     }
 
-    /// The day-named review chats the Memory screen's history grid reads:
-    /// the earlier days with a chat to open, and the days the learner wrote
-    /// in (`MobileMemoryHistoryDays`). Local only.
-    /// One of a notebook's two tick rows by its preference key
-    /// (`notebook.chatExcluded.<id>`, `notebook.chatContextNotebooks.<id>`), read from this member's
-    /// NotebookState in the last snapshot (§5.6, D52); nil when the row would be empty.
-    func currentChatSelectionRow(key: String) -> [String]? {
-        let excludedPrefix = MobileNotebookChatSelection.preferenceKey(notebookID: "")
-        let contextPrefix = MobileNotebookChatSelection.contextNotebooksKey(notebookID: "")
-        let row: Set<String>?
-        if key.hasPrefix(excludedPrefix) {
-            row = replicaSnapshot?.selections[String(key.dropFirst(excludedPrefix.count))]?.excluded
-        } else if key.hasPrefix(contextPrefix) {
-            row = replicaSnapshot?.selections[String(key.dropFirst(contextPrefix.count))]?.contextNotebookIDs
-        } else {
-            row = nil
-        }
-        guard let row, !row.isEmpty else { return nil }
-        return row.sorted()
-    }
-
     func currentMemoryReviewChatDays(now: Date = Date()) -> MobileMemoryHistoryDays.Days {
         return MobileMemoryHistoryDays.days(of: replicaSnapshot?.memoryChats ?? [], now: now)
     }
@@ -1294,30 +1109,6 @@ actor MobileCloudSourceCatalog {
             memberSourceIDs: members,
             goalParents: inputs.goalParents
         )
-    }
-
-    func currentDueMemoryItems(
-        now: Date = Date(),
-        limit: Int = 12,
-        restrictToSourceIDs: Set<String>? = nil
-    ) async -> [DueMemoryItem] {
-        let inputs = await memoryInputs()
-        return dueMemoryItems(
-            reviewableMemoryItems(in: inputs, restrictToSourceIDs: restrictToSourceIDs),
-            attempts: inputs.attempts,
-            now: now,
-            limit: limit
-        )
-    }
-
-    /// Each Goal's notebook (`parentNotebookID`), so a thing filed under a Goal
-    /// nested in a notebook is the notebook's.
-    private static func goalParents(in catalog: AssembledCatalog) -> [String: String] {
-        var parents: [String: String] = [:]
-        for goal in catalog.goalsByRecordName.values {
-            if let parent = goal.parentNotebookID, !parent.isEmpty { parents[goal.id] = parent }
-        }
-        return parents
     }
 
     private func dueMemoryItems(
@@ -1350,40 +1141,6 @@ actor MobileCloudSourceCatalog {
         )
     }
 
-    /// Rehydrate an app-selected review identity exactly, even when a hard
-    /// attempt has already moved its derived due date into the future. This is
-    /// used for voice reconnect/resume; selection happened earlier and must not
-    /// be silently replaced by a freshly recomputed top-N queue.
-    func currentMemoryReviewItems(
-        ids: [String],
-        now: Date = Date(),
-        restrictToSourceIDs: Set<String>? = nil
-    ) async -> [DueMemoryItem] {
-        let inputs = await memoryInputs()
-        let itemsByID = Dictionary(
-            reviewableMemoryItems(in: inputs, restrictToSourceIDs: restrictToSourceIDs).map { ($0.id, $0) },
-            uniquingKeysWith: { first, _ in first }
-        )
-        let attemptsByItemID = Dictionary(grouping: inputs.attempts) {
-            $0.memoryItemID
-        }
-        return ids.compactMap { id in
-            guard let item = itemsByID[id] else { return nil }
-            let schedule = MemoryTutorScheduler.schedule(
-                item: item,
-                attempts: attemptsByItemID[id] ?? []
-            )
-            return DueMemoryItem(
-                item: item,
-                schedule: schedule,
-                daysOverdue: max(
-                    0,
-                    Int(now.timeIntervalSince(schedule.dueAt) / MemoryTutorScheduler.secondsPerDay)
-                )
-            )
-        }
-    }
-
     /// Resolve a bounded set of already-synced source identities without a
     /// network refresh. MemoryItem anchors remain authoritative; this supplies
     /// portable URL metadata for an atomic phone-authored session payload.
@@ -1403,27 +1160,6 @@ actor MobileCloudSourceCatalog {
             uniquingKeysWith: { first, _ in first }
         )
         return ids.compactMap { byID[$0] }
-    }
-
-    /// Bounded activation lookup for an already-selected memory item. Unlike
-    /// `currentSources(ids:)`, this reapplies the live library visibility rules
-    /// so a queued multi-anchor item cannot load partial or newly hidden scope.
-    func currentAvailableSources(ids: [String]) -> [MobileCloudSource] {
-        let held = replicaSnapshot?.sources ?? []
-        let collections = replicaSnapshot?.collections ?? .empty
-        let byID = Dictionary(
-            held.map { ($0.id, $0) },
-            uniquingKeysWith: { first, _ in first }
-        )
-        return ids.compactMap { sourceID in
-            guard let source = byID[sourceID],
-                  !source.isArchived,
-                  Self.isAvailableInMobileLibrary(source),
-                  !MobileSourceVisibility.isHidden(source, collections: collections) else {
-                return nil
-            }
-            return source
-        }
     }
 
     func memoryStruggleProjection(
@@ -1535,80 +1271,17 @@ actor MobileCloudSourceCatalog {
         )
     }
 
-    /// Static because decoding a payload needs no CloudKit: the testing entry
-    /// point below reaches it without constructing the catalog's container.
-    private static func source(
-        fromPayloadData payloadData: Data,
-        decoder: JSONDecoder,
-        dateFormatter: ISO8601DateFormatter
-    ) -> MobileCloudSource? {
-        if let payload = try? decoder.decode(MobileCloudSourcePayload.self, from: payloadData) {
-            return MobileCloudSource(
-                id: payload.article.id,
-                title: payload.article.title,
-                subtitle: MobileCloudSource.subtitle(fromDomain: payload.article.domain),
-                sourceType: canonicalSourceType(payload.article.sourceType),
-                dateAdded: payload.article.dateAdded ?? .distantPast,
-                hasAudio: false,
-                isArchived: payload.article.status == "archived",
-                state: payload.article.state,
-                author: payload.article.author,
-                journal: payload.article.journal,
-                publishedYear: payload.article.publishedYear,
-                wordCount: payload.article.wordCount,
-                parentGroup: payload.article.parentGroup,
-                courseSortIndex: payload.article.courseSortIndex,
-                isHidden: payload.article.isHidden,
-                isPaywalled: payload.article.isPaywalled,
-                visiblePodcastEpisodeOverride: payload.visiblePodcastEpisodeOverride ?? false,
-                visibleYouTubeVideoOverride: payload.visibleYouTubeVideoOverride ?? false,
-                artworkURL: payload.article.artworkURL,
-                url: payload.article.url,
-                localFilePath: payload.article.localFilePath,
-                sourceReviewGuide: MobileSourceReviewGuidePayloadParser.reviewGuide(from: payloadData),
-                listenableCharacterCount: payload.listenableContentMetadata?.characterCount,
-                paperFigures: MobilePaperFigurePayloadParser.figures(from: payloadData),
-                walkthroughDeck: MobileWalkthroughPayloadParser.deck(from: payloadData),
-                readAt: payload.article.readAt,
-                readingPositionLocator: payload.article.readingPositionLocator,
-                normalizedURL: payload.sourceIdentity?.normalizedURL
-                    ?? payload.article.normalizedURL,
-                doi: payload.sourceIdentity?.doi ?? payload.article.doi,
-                publishedDOI: payload.sourceIdentity?.publishedDOI
-                    ?? payload.article.publishedDOI
-            )
-        }
-
-        return fallbackSource(from: payloadData, dateFormatter: dateFormatter)
-    }
-
-    #if DEBUG
-    /// Exercises the exact production catalog decoder from the iOS unit target.
-    /// Keeping the fixture entry point here prevents tests from maintaining a
-    /// second, subtly different interpretation of the Mac CloudKit envelope.
-    /// Static so a test never touches `shared`: its init constructs a
-    /// CKContainer, which traps in a test host built without code signing,
-    /// since that host carries no iCloud entitlement.
-    static func sourceFromCloudKitPayloadForTesting(_ payloadData: Data) -> MobileCloudSource? {
-        source(
-            fromPayloadData: payloadData,
-            decoder: makePayloadDecoder(),
-            dateFormatter: ISO8601DateFormatter()
-        )
-    }
-    #endif
-
-
     // MARK: - Persistence
 
-    private static func mirrorDatabaseURL() throws -> URL {
+    /// The usage cache's file, in the folder the phone's catalog has always used, per CloudKit
+    /// environment.
+    private static func usageDatabaseURL() throws -> URL {
         let applicationSupport = try FileManager.default.url(
             for: .applicationSupportDirectory,
             in: .userDomainMask,
             appropriateFor: nil,
             create: true
         )
-        // The mirror and its change token, per CloudKit environment (see above).
         var directory = applicationSupport
             .appendingPathComponent("ForeverLM", isDirectory: true)
             .appendingPathComponent(MobileCloudKitEnvironment.current.scopedName("MobileCatalog"), isDirectory: true)
@@ -1616,504 +1289,14 @@ actor MobileCloudSourceCatalog {
         var values = URLResourceValues()
         values.isExcludedFromBackup = true
         try? directory.setResourceValues(values)
-        return directory.appendingPathComponent("knowledge.db")
-    }
-
-    private static func fallbackSource(
-        from payloadData: Data,
-        dateFormatter: ISO8601DateFormatter
-    ) -> MobileCloudSource? {
-        guard let object = try? JSONSerialization.jsonObject(with: payloadData, options: []) as? [String: Any],
-              let article = object["article"] as? [String: Any],
-              let id = article["id"] as? String,
-              let title = article["title"] as? String else {
-            return nil
-        }
-
-        let domain = article["domain"] as? String
-        let sourceType = (article["sourceType"] as? String) ?? "article"
-        let status = (article["status"] as? String) ?? "active"
-        let state = (article["state"] as? String) ?? "ready"
-        let parsedType = canonicalSourceType(sourceType)
-        let author = article["author"] as? String
-        let journal = article["journal"] as? String
-        let publishedYear = article["publishedYear"] as? String
-        let sourceIdentity = object["sourceIdentity"] as? [String: Any]
-        let listenableMetadata = object["listenableContentMetadata"] as? [String: Any]
-
-        let dateAdded: Date
-        if let seconds = article["dateAdded"] as? Double {
-            dateAdded = Self.decodeDate(from: seconds)
-        } else if let seconds = article["dateAdded"] as? Int {
-            dateAdded = Self.decodeDate(from: TimeInterval(seconds))
-        } else if let timestamp = article["dateAdded"] as? String,
-                  let parsed = dateFormatter.date(from: timestamp) {
-            dateAdded = parsed
-        } else if let timestamp = article["dateAdded"] as? String,
-                  let seconds = Double(timestamp) {
-            dateAdded = Self.decodeDate(from: seconds)
-        } else {
-            dateAdded = .distantPast
-        }
-
-        return MobileCloudSource(
-            id: id,
-            title: title,
-            subtitle: MobileCloudSource.subtitle(fromDomain: domain),
-            sourceType: parsedType,
-            dateAdded: dateAdded,
-            hasAudio: false,
-            isArchived: status == "archived",
-            state: state,
-            author: author,
-            journal: journal,
-            publishedYear: publishedYear,
-            wordCount: article["wordCount"] as? Int,
-            parentGroup: (article["parentGroup"] as? String).flatMap { $0.isEmpty ? nil : $0 },
-            courseSortIndex: article["courseSortIndex"] as? Int,
-            isHidden: (article["isHidden"] as? Bool) ?? false,
-            isPaywalled: MobilePaywallShelf.isPaywalled(
-                column: article["isPaywalled"] as? Bool,
-                errorMessage: article["errorMessage"] as? String
-            ),
-            visiblePodcastEpisodeOverride: (object["visiblePodcastEpisodeOverride"] as? Bool) ?? false,
-            visibleYouTubeVideoOverride: (object["visibleYouTubeVideoOverride"] as? Bool) ?? false,
-            artworkURL: article["artworkURL"] as? String,
-            url: article["url"] as? String,
-            localFilePath: article["localFilePath"] as? String,
-            sourceReviewGuide: MobileSourceReviewGuidePayloadParser.reviewGuide(from: payloadData),
-            listenableCharacterCount: listenableMetadata?["characterCount"] as? Int,
-            paperFigures: MobilePaperFigurePayloadParser.figures(from: payloadData),
-            walkthroughDeck: MobileWalkthroughPayloadParser.deck(from: payloadData),
-            readAt: Self.decodeFlexibleDate(article["readAt"]),
-            readingPositionLocator: article["readingPositionLocator"] as? String,
-            normalizedURL: sourceIdentity?["normalizedURL"] as? String
-                ?? article["normalizedURL"] as? String,
-            doi: sourceIdentity?["doi"] as? String
-                ?? article["doi"] as? String,
-            publishedDOI: sourceIdentity?["publishedDOI"] as? String
-                ?? article["publishedDOI"] as? String
-        )
-    }
-
-    private static func decodeDate(from seconds: TimeInterval) -> Date {
-        if seconds > dateEpochCutoff {
-            return Date(timeIntervalSince1970: seconds)
-        }
-        return Date(timeIntervalSinceReferenceDate: seconds)
-    }
-
-    private static func decodeFlexibleDate(_ value: Any?) -> Date? {
-        if let number = value as? NSNumber {
-            return decodeDate(from: number.doubleValue)
-        }
-        if let string = value as? String {
-            if let date = ISO8601DateFormatter().date(from: string) { return date }
-            if let seconds = Double(string) { return decodeDate(from: seconds) }
-        }
-        return nil
-    }
-
-    // MARK: - Collection payload parses
-    //
-    // Tolerant JSONSerialization on purpose, like the Notebook parse: the Mac's
-    // JSONEncoder authors these, historic payloads may predate fields, and one
-    // odd record must never fail the batch. Older Book/Course payloads carried
-    // only `name` (which doubled as the id), so both parses fall back to it.
-
-    private static func trimmedNonEmpty(_ value: Any?) -> String? {
-        guard let trimmed = (value as? String)?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !trimmed.isEmpty else {
-            return nil
-        }
-        return trimmed
-    }
-
-    private static func book(fromPayloadData data: Data) -> MobileCloudBook? {
-        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return nil
-        }
-        let name = trimmedNonEmpty(object["name"])
-        guard let id = trimmedNonEmpty(object["id"]) ?? name else { return nil }
-        return MobileCloudBook(
-            id: id,
-            title: trimmedNonEmpty(object["title"]) ?? name ?? id,
-            author: trimmedNonEmpty(object["author"])
-        )
-    }
-
-    private static func course(fromPayloadData data: Data) -> MobileCloudCourse? {
-        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return nil
-        }
-        let name = trimmedNonEmpty(object["name"])
-        guard let id = trimmedNonEmpty(object["id"]) ?? name else { return nil }
-        return MobileCloudCourse(
-            id: id,
-            title: trimmedNonEmpty(object["title"]) ?? name ?? id,
-            institution: trimmedNonEmpty(object["institution"]),
-            isHidden: (object["isHidden"] as? Bool) ?? false,
-            lectures: courseLectures(from: object["lectures"]),
-            lectureItems: courseLectureItems(from: object["lectureItems"]),
-            quizzes: courseQuizzes(fromPayloadData: data)
-        )
-    }
-
-    private struct CourseQuizzesEnvelope: Decodable {
-        let quizzes: [CourseQuiz]?
-    }
-
-    /// The course's quizzes, decoded as the Mac encodes them
-    /// (`CloudKitCoursePayload.quizzes`, `JSONEncoder` defaults). A course
-    /// from a build that carried none, or a quiz this build cannot read, leaves
-    /// the course without quizzes rather than without its outline.
-    private static func courseQuizzes(fromPayloadData data: Data) -> [CourseQuiz] {
-        do {
-            return try JSONDecoder().decode(CourseQuizzesEnvelope.self, from: data).quizzes ?? []
-        } catch {
-            syncLogger.error("Course quizzes could not be decoded: \(error.localizedDescription, privacy: .public)")
-            return []
-        }
-    }
-
-    /// The course outline the Mac syncs on the Course record. Membership lives
-    /// here rather than on the member sources, so a course with no readable
-    /// outline is a course the phone cannot group.
-    private static func courseLectures(from value: Any?) -> [MobileCourseLecture] {
-        guard let rows = value as? [[String: Any]] else { return [] }
-        return rows.compactMap { row in
-            guard let id = trimmedNonEmpty(row["id"]),
-                  let number = (row["number"] as? NSNumber)?.intValue else { return nil }
-            return MobileCourseLecture(id: id, number: number, title: trimmedNonEmpty(row["title"]))
-        }
-    }
-
-    /// Items pointing at a source unit rather than a whole source are dropped:
-    /// the phone's lists only open whole sources.
-    private static func courseLectureItems(from value: Any?) -> [MobileCourseLectureItem] {
-        guard let rows = value as? [[String: Any]] else { return [] }
-        return rows.compactMap { row in
-            guard let id = trimmedNonEmpty(row["id"]),
-                  let lectureID = trimmedNonEmpty(row["lectureId"]),
-                  let sourceID = trimmedNonEmpty(row["sourceId"]) else { return nil }
-            return MobileCourseLectureItem(
-                id: id,
-                lectureID: lectureID,
-                sourceID: sourceID,
-                role: trimmedNonEmpty(row["role"]) ?? "other",
-                sortIndex: (row["sortIndex"] as? NSNumber)?.intValue ?? 0
-            )
-        }
-    }
-
-    private static func hiddenPodcastShowName(fromPayloadData data: Data) -> String? {
-        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return nil
-        }
-        return trimmedNonEmpty(object["showName"])
-    }
-
-    private static func hiddenYouTubeChannelName(fromPayloadData data: Data) -> String? {
-        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return nil
-        }
-        return trimmedNonEmpty(object["channelName"])
-    }
-
-    /// The Mac's `CloudKitHiddenArtifactPayload`: `{artifactID, hiddenAt}`.
-    private static func hiddenArtifactID(fromPayloadData data: Data) -> String? {
-        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return nil
-        }
-        return trimmedNonEmpty(object["artifactID"])
-    }
-
-    /// `CloudKitHiddenReviewSessionPayload.sessionID`.
-    private static func hiddenReviewSessionID(fromPayloadData data: Data) -> String? {
-        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return nil
-        }
-        return trimmedNonEmpty(object["sessionID"])
-    }
-
-    private static func meetingGroup(fromPayloadData data: Data) -> MeetingGroupVisibility? {
-        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let id = trimmedNonEmpty(object["id"]) else {
-            return nil
-        }
-        return MeetingGroupVisibility(id: id, isHidden: (object["isHidden"] as? Bool) ?? false)
-    }
-
-    private static func describe(_ error: Error) -> String {
-        if let ckError = error as? CKError {
-            return "CloudKit \(ckError.code.rawValue) (\(ckError.code)): \(ckError.localizedDescription)"
-        }
-        return error.localizedDescription
-    }
-
-}
-
-/// One zone record as the walk last saw it: the record type for every record
-/// in the zone, plus the raw payload bytes for the types this catalog
-/// collects (index-only types carry nil). Persisting bytes instead of parsed
-/// rows is what frees app updates from re-walking the zone: a new build
-/// re-parses locally, and the change token stays valid.
-private struct PersistedZoneRecord: Codable {
-    let type: String
-    var payload: Data?
-}
-
-/// The catalog's on-disk state: a mirror of the Knowledge zone — record
-/// names and types, raw payloads for collected types, and the change token
-/// that produced them. Lives in Application Support — Xcode rebuilds preserve
-/// it, while losing app data costs one slow full pass and never knowledge data.
-///
-/// Migration invariant, the reverse of the parsed-row cache this replaced:
-/// this shape must almost never change. Parsed rows live only in memory
-/// (`AssembledCatalog`), so payload-shape churn — new fields, changed parse
-/// rules — needs no version bump and keeps the token. A record type newly
-/// collected catches up from the name index by ID fetch (`collectedRecordTypes`),
-/// not by a re-walk. Only a change to THIS struct still costs a full pass:
-/// non-Optional fields are required keys, so an old file fails to decode and
-/// falls back to a fresh mirror. Keep additions Optional unless a stale value
-/// is genuinely unsafe.
-private struct PersistedZoneMirror: Codable {
-    var recordsByName: [String: PersistedZoneRecord] = [:]
-    /// Record names the zone walk has delivered but whose payloads are not yet
-    /// fetched. Non-empty exactly when a sync was interrupted mid-drain; the
-    /// change token below is only meaningful together with this list.
-    var pendingRecordNames: [String] = []
-    /// The record types whose payloads this mirror has been collecting. A
-    /// build that starts collecting a new type diffs against this, fetches
-    /// the already-indexed records of that type by ID, and moves on — seconds
-    /// of catch-up instead of a minutes-long re-walk.
-    var collectedRecordTypes: [String] = []
-    /// Records scanned so far by the walk in progress. Persisted so a resumed
-    /// walk's progress line keeps climbing instead of restarting at zero;
-    /// reset when the walk's last page lands.
-    var walkScannedCount: Int = 0
-    /// True while the walk in progress started from scratch (nil token) —
-    /// kept across interruptions so only genuine full passes update
-    /// `lastFullWalkScannedCount` below.
-    var walkIsFullPass: Bool = false
-    /// Total records the last completed from-scratch walk scanned — the
-    /// denominator that turns the next full walk's spinner into a real bar.
-    var lastFullWalkScannedCount: Int?
-    /// True once any pass has completed end to end (walk + drain). The "first
-    /// sync" UI treatment keys off this rather than the change token: interim
-    /// tokens land with the very first checkpoint, so a first pass resumed
-    /// after an interruption still counts as the first sync.
-    var hasCompletedInitialSync: Bool = false
-    /// Optional for backward decoding. A versioned full name/payload audit can
-    /// heal a bad-but-decodable CloudKit token without deleting this mirror.
-    var indexAuditVersion: Int?
-    /// Persisted so an interrupted reconciliation resumes from its checkpoint
-    /// rather than repeatedly restarting the full zone walk.
-    var indexAuditInProgress: Bool?
-    /// Identifies the audit implementation that owns an in-progress token, so
-    /// an app update can safely restart an older audit with its own invariants.
-    var indexAuditTargetVersion: Int?
-    /// Record names observed during the resumable nil-token audit. The final
-    /// page uses this to prune records belonging only to a previously selected
-    /// CloudKit environment without hiding the existing catalog mid-walk.
-    var indexAuditSeenRecordNames: [String]?
-    /// Migration-only copy of the previous parsed-row cache. Optional so
-    /// existing SQLite mirrors keep decoding. It keeps the old library usable
-    /// while the raw payloads hydrate by record ID, then is cleared.
-    var legacyCatalogData: Data?
-    /// `CKServerChangeToken` is NSSecureCoding rather than Codable, so it rides
-    /// along archived.
-    private var changeTokenData: Data?
-
-    var changeToken: CKServerChangeToken? {
-        get {
-            guard let changeTokenData else { return nil }
-            return try? NSKeyedUnarchiver.unarchivedObject(
-                ofClass: CKServerChangeToken.self,
-                from: changeTokenData
-            )
-        }
-        set {
-            changeTokenData = newValue.flatMap {
-                try? NSKeyedArchiver.archivedData(withRootObject: $0, requiringSecureCoding: true)
-            }
-        }
+        return directory.appendingPathComponent("usage.db")
     }
 }
 
-/// Decoder for the parsed-row cache written by builds immediately before the
-/// durable raw mirror. These types are migration-only: they preserve the last
-/// visible catalog and its change token while the original payloads hydrate.
-private struct LegacyPersistedCatalog: Decodable {
-    var sourcesByRecordName: [String: LegacyPersistedSource]
-    var notebooksByRecordName: [String: LegacyPersistedNotebook]
-    var booksByRecordName: [String: LegacyPersistedBook]
-    var coursesByRecordName: [String: LegacyPersistedCourse]
-    var hiddenPodcastShowsByRecordName: [String: String]
-    var meetingGroupsByRecordName: [String: LegacyPersistedMeetingGroup]
-    var pendingRecordNames: [String]
-    private var changeTokenData: Data?
-
-    var changeToken: CKServerChangeToken? {
-        guard let changeTokenData else { return nil }
-        return try? NSKeyedUnarchiver.unarchivedObject(
-            ofClass: CKServerChangeToken.self,
-            from: changeTokenData
-        )
-    }
-
-    var assembledCatalog: AssembledCatalog {
-        var catalog = AssembledCatalog()
-        for (name, source) in sourcesByRecordName {
-            catalog.sourcesByRecordName[name] = source.source
-        }
-        for (name, notebook) in notebooksByRecordName {
-            catalog.notebooksByRecordName[name] = notebook.notebook
-        }
-        for (name, persistedBook) in booksByRecordName {
-            var book = persistedBook.book
-            book.recordName = name
-            catalog.booksByRecordName[name] = book
-        }
-        for (name, course) in coursesByRecordName {
-            catalog.coursesByRecordName[name] = course.course
-        }
-        catalog.hiddenPodcastShowsByRecordName = hiddenPodcastShowsByRecordName
-        catalog.meetingGroupsByRecordName = meetingGroupsByRecordName.mapValues(\.visibility)
-        return catalog
-    }
-
-    func fillMissingRows(
-        in catalog: inout AssembledCatalog,
-        recordsByName: [String: PersistedZoneRecord]
-    ) {
-        for (name, source) in sourcesByRecordName
-        where recordsByName[name]?.payload == nil {
-            catalog.sourcesByRecordName[name] = source.source
-        }
-        for (name, notebook) in notebooksByRecordName
-        where recordsByName[name]?.payload == nil {
-            catalog.notebooksByRecordName[name] = notebook.notebook
-        }
-        for (name, persistedBook) in booksByRecordName
-        where recordsByName[name]?.payload == nil {
-            var book = persistedBook.book
-            book.recordName = name
-            catalog.booksByRecordName[name] = book
-        }
-        for (name, course) in coursesByRecordName
-        where recordsByName[name]?.payload == nil {
-            catalog.coursesByRecordName[name] = course.course
-        }
-        for (name, showName) in hiddenPodcastShowsByRecordName
-        where recordsByName[name]?.payload == nil {
-            catalog.hiddenPodcastShowsByRecordName[name] = showName
-        }
-        for (name, group) in meetingGroupsByRecordName
-        where recordsByName[name]?.payload == nil {
-            catalog.meetingGroupsByRecordName[name] = group.visibility
-        }
-    }
-}
-
-private struct LegacyPersistedSource: Decodable {
-    let id: String
-    let title: String
-    let subtitle: String?
-    let sourceType: String
-    let dateAdded: Date
-    let hasAudio: Bool
-    let isArchived: Bool
-    let author: String?
-    let journal: String?
-    let publishedYear: String?
-    let parentGroup: String?
-    let courseSortIndex: Int?
-    let isHidden: Bool
-    let visiblePodcastEpisodeOverride: Bool
-    let artworkURL: String?
-    let url: String?
-    let localFilePath: String?
-
-    var source: MobileCloudSource {
-        MobileCloudSource(
-            id: id,
-            title: title,
-            subtitle: subtitle,
-            sourceType: sourceType,
-            dateAdded: dateAdded,
-            hasAudio: hasAudio,
-            isArchived: isArchived,
-            author: author,
-            journal: journal,
-            publishedYear: publishedYear,
-            parentGroup: parentGroup,
-            courseSortIndex: courseSortIndex,
-            isHidden: isHidden,
-            visiblePodcastEpisodeOverride: visiblePodcastEpisodeOverride,
-            artworkURL: artworkURL,
-            url: url,
-            localFilePath: localFilePath
-        )
-    }
-}
-
-private struct LegacyPersistedNotebook: Decodable {
-    let id: String
-    let title: String
-    let instructions: String?
-    let sourceIDs: [String]
-    let isArchived: Bool
-    let updatedAt: Date
-
-    var notebook: MobileCloudNotebook {
-        MobileCloudNotebook(
-            id: id,
-            title: title,
-            instructions: instructions,
-            sourceIDs: sourceIDs,
-            isArchived: isArchived,
-            updatedAt: updatedAt
-        )
-    }
-}
-
-private struct LegacyPersistedBook: Decodable {
-    let id: String
-    let title: String
-    let author: String?
-
-    var book: MobileCloudBook {
-        MobileCloudBook(id: id, title: title, author: author)
-    }
-}
-
-private struct LegacyPersistedCourse: Decodable {
-    let id: String
-    let title: String
-    let institution: String?
-    let isHidden: Bool
-
-    var course: MobileCloudCourse {
-        MobileCloudCourse(id: id, title: title, institution: institution, isHidden: isHidden)
-    }
-}
-
-private struct LegacyPersistedMeetingGroup: Decodable {
-    let id: String
-    let isHidden: Bool
-
-    var visibility: MeetingGroupVisibility {
-        MeetingGroupVisibility(id: id, isHidden: isHidden)
-    }
-}
-
-/// Durable, non-purgeable storage for the iPhone's CloudKit zone cursor and
-/// raw-payload mirror. The whole Codable snapshot is one SQLite row so each
-/// checkpoint is atomic: the token can never advance without the pending names
-/// and payloads delivered with it. The database lives in Application Support,
-/// which Xcode app rebuilds preserve; only uninstalling the app removes it.
-private final class MobileZoneMirrorStore {
+/// The usage ledger's cache on this phone, one SQLite file in Application Support (which Xcode app
+/// rebuilds preserve; only uninstalling the app removes it). A file written before keeps the old
+/// zone mirror's table (version 1), unread.
+private final class MobileUsageHistoryStore {
     private static let schemaVersion: Int32 = 2
     private static let transientDestructor = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
 
@@ -2130,7 +1313,7 @@ private final class MobileZoneMirrorStore {
         guard result == SQLITE_OK, let opened else {
             let message = opened.map { String(cString: sqlite3_errmsg($0)) } ?? "could not open database"
             if let opened { sqlite3_close(opened) }
-            throw MobileZoneMirrorStoreError.sqlite(message)
+            throw MobileUsageHistoryStoreError.sqlite(message)
         }
         database = opened
 
@@ -2149,83 +1332,8 @@ private final class MobileZoneMirrorStore {
         }
     }
 
-    func load() throws -> PersistedZoneMirror? {
-        guard let database else { throw MobileZoneMirrorStoreError.closed }
-        var statement: OpaquePointer?
-        guard sqlite3_prepare_v2(
-            database,
-            "SELECT state FROM mobile_cloud_zone_mirror WHERE id = 1",
-            -1,
-            &statement,
-            nil
-        ) == SQLITE_OK else {
-            throw sqliteError()
-        }
-        defer { sqlite3_finalize(statement) }
-
-        let result = sqlite3_step(statement)
-        if result == SQLITE_DONE {
-            return nil
-        }
-        guard result == SQLITE_ROW else {
-            throw sqliteError()
-        }
-        let byteCount = Int(sqlite3_column_bytes(statement, 0))
-        guard byteCount > 0, let bytes = sqlite3_column_blob(statement, 0) else {
-            throw MobileZoneMirrorStoreError.invalidSnapshot
-        }
-        let data = Data(bytes: bytes, count: byteCount)
-        do {
-            return try JSONDecoder().decode(PersistedZoneMirror.self, from: data)
-        } catch {
-            throw MobileZoneMirrorStoreError.decode(error.localizedDescription)
-        }
-    }
-
-    func save(_ state: PersistedZoneMirror) throws {
-        guard let database else { throw MobileZoneMirrorStoreError.closed }
-        let data: Data
-        do {
-            data = try JSONEncoder().encode(state)
-        } catch {
-            throw MobileZoneMirrorStoreError.encode(error.localizedDescription)
-        }
-
-        try execute("BEGIN IMMEDIATE")
-        do {
-            var statement: OpaquePointer?
-            guard sqlite3_prepare_v2(
-                database,
-                "INSERT INTO mobile_cloud_zone_mirror (id, state) VALUES (1, ?) " +
-                    "ON CONFLICT(id) DO UPDATE SET state = excluded.state",
-                -1,
-                &statement,
-                nil
-            ) == SQLITE_OK else {
-                throw sqliteError()
-            }
-            defer { sqlite3_finalize(statement) }
-
-            let bindResult = data.withUnsafeBytes { bytes in
-                sqlite3_bind_blob(
-                    statement,
-                    1,
-                    bytes.baseAddress,
-                    Int32(bytes.count),
-                    Self.transientDestructor
-                )
-            }
-            guard bindResult == SQLITE_OK else { throw sqliteError() }
-            guard sqlite3_step(statement) == SQLITE_DONE else { throw sqliteError() }
-            try execute("COMMIT")
-        } catch {
-            try? execute("ROLLBACK")
-            throw error
-        }
-    }
-
     func loadUsageHistorySnapshot() throws -> MobileUsageHistorySnapshot? {
-        guard let database else { throw MobileZoneMirrorStoreError.closed }
+        guard let database else { throw MobileUsageHistoryStoreError.closed }
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(
             database,
@@ -2243,7 +1351,7 @@ private final class MobileZoneMirrorStore {
         guard result == SQLITE_ROW else { throw sqliteError() }
         let byteCount = Int(sqlite3_column_bytes(statement, 0))
         guard byteCount > 0, let bytes = sqlite3_column_blob(statement, 0) else {
-            throw MobileZoneMirrorStoreError.invalidSnapshot
+            throw MobileUsageHistoryStoreError.invalidSnapshot
         }
         do {
             return try JSONDecoder().decode(
@@ -2251,17 +1359,17 @@ private final class MobileZoneMirrorStore {
                 from: Data(bytes: bytes, count: byteCount)
             )
         } catch {
-            throw MobileZoneMirrorStoreError.decode(error.localizedDescription)
+            throw MobileUsageHistoryStoreError.decode(error.localizedDescription)
         }
     }
 
     func saveUsageHistorySnapshot(_ snapshot: MobileUsageHistorySnapshot) throws {
-        guard let database else { throw MobileZoneMirrorStoreError.closed }
+        guard let database else { throw MobileUsageHistoryStoreError.closed }
         let data: Data
         do {
             data = try JSONEncoder().encode(snapshot)
         } catch {
-            throw MobileZoneMirrorStoreError.encode(error.localizedDescription)
+            throw MobileUsageHistoryStoreError.encode(error.localizedDescription)
         }
 
         try execute("BEGIN IMMEDIATE")
@@ -2297,7 +1405,7 @@ private final class MobileZoneMirrorStore {
     }
 
     private func migrateIfNeeded() throws {
-        guard let database else { throw MobileZoneMirrorStoreError.closed }
+        guard let database else { throw MobileUsageHistoryStoreError.closed }
         var statement: OpaquePointer?
         guard sqlite3_prepare_v2(database, "PRAGMA user_version", -1, &statement, nil) == SQLITE_OK else {
             throw sqliteError()
@@ -2307,19 +1415,12 @@ private final class MobileZoneMirrorStore {
         let version = sqlite3_column_int(statement, 0)
 
         guard version <= Self.schemaVersion else {
-            throw MobileZoneMirrorStoreError.unsupportedSchema(version)
+            throw MobileUsageHistoryStoreError.unsupportedSchema(version)
         }
         guard version < Self.schemaVersion else { return }
 
         try execute("BEGIN IMMEDIATE")
         do {
-            if version < 1 {
-                try execute(
-                    "CREATE TABLE IF NOT EXISTS mobile_cloud_zone_mirror (" +
-                        "id INTEGER PRIMARY KEY CHECK (id = 1), " +
-                        "state BLOB NOT NULL)"
-                )
-            }
             if version < 2 {
                 try execute(
                     "CREATE TABLE IF NOT EXISTS mobile_usage_history_cache (" +
@@ -2336,23 +1437,23 @@ private final class MobileZoneMirrorStore {
     }
 
     private func execute(_ sql: String) throws {
-        guard let database else { throw MobileZoneMirrorStoreError.closed }
+        guard let database else { throw MobileUsageHistoryStoreError.closed }
         var errorMessage: UnsafeMutablePointer<CChar>?
         let result = sqlite3_exec(database, sql, nil, nil, &errorMessage)
         guard result == SQLITE_OK else {
             let message = errorMessage.map { String(cString: $0) } ?? String(cString: sqlite3_errmsg(database))
             sqlite3_free(errorMessage)
-            throw MobileZoneMirrorStoreError.sqlite(message)
+            throw MobileUsageHistoryStoreError.sqlite(message)
         }
     }
 
-    private func sqliteError() -> MobileZoneMirrorStoreError {
+    private func sqliteError() -> MobileUsageHistoryStoreError {
         guard let database else { return .closed }
         return .sqlite(String(cString: sqlite3_errmsg(database)))
     }
 }
 
-private enum MobileZoneMirrorStoreError: LocalizedError {
+private enum MobileUsageHistoryStoreError: LocalizedError {
     case closed
     case sqlite(String)
     case encode(String)
@@ -2378,152 +1479,6 @@ private enum MobileZoneMirrorStoreError: LocalizedError {
     }
 }
 
-/// The rows every consumer reads, parsed from the mirror's raw payloads.
-/// In-memory only and deliberately not Codable: its shape can churn freely
-/// with the product without ever invalidating the synced mirror on disk.
-private struct AssembledCatalog {
-    var sourcesByRecordName: [String: MobileCloudSource] = [:]
-    var sourceHighlightsByRecordName: [String: SourceHighlight] = [:]
-    var rawSourceHighlightsByRecordName: [String: SourceHighlight] = [:]
-    var sourceHighlightIdentitiesByRecordName: [String: MobileMemorySourceIdentity] = [:]
-    var artifactsByRecordName: [String: MobileCloudArtifactProjection] = [:]
-    /// The same records as a notebook's Studio lists them (Docs above all);
-    /// archived ones are absent.
-    var notebookArtifactsByRecordName: [String: MobileCloudArtifact] = [:]
-    /// Hidden docs' artifact ids, by their HiddenArtifact record's name; an
-    /// unhide arrives as that record's deletion.
-    var hiddenArtifactIDsByRecordName: [String: String] = [:]
-    /// Hidden chats' session ids, by their HiddenReviewSession record's name.
-    var hiddenReviewSessionIDsByRecordName: [String: String] = [:]
-    var notebooksByRecordName: [String: MobileCloudNotebook] = [:]
-    var rawNotebooksByRecordName: [String: MobileCloudNotebook] = [:]
-    var notebookSourceIdentitiesByRecordName: [String: [MobileMemorySourceIdentity]] = [:]
-    var goalsByRecordName: [String: MobileCloudGoal] = [:]
-    var scheduledSourcesByRecordName: [String: MobileCloudScheduledSource] = [:]
-    var rawScheduledSourcesByRecordName: [String: MobileCloudScheduledSource] = [:]
-    var memoryItemsByRecordName: [String: MemoryItem] = [:]
-    var rawMemoryItemsByRecordName: [String: MemoryItem] = [:]
-    var memoryItemSourceIdentitiesByRecordName: [String: [MobileMemorySourceIdentity]] = [:]
-    var memoryAttemptsByRecordName: [String: MemoryAttempt] = [:]
-    var rawMemoryAttemptsByRecordName: [String: MobileCloudMemoryAttemptPayload] = [:]
-    var reviewSessionsByRecordName: [String: MobileCloudReviewSessionProjection] = [:]
-    var sourceIdeasByRecordName: [String: SourceIdea] = [:]
-    var booksByRecordName: [String: MobileCloudBook] = [:]
-    var coursesByRecordName: [String: MobileCloudCourse] = [:]
-    /// Record name → hidden show name (`CloudKitHiddenPodcastShowPayload.showName`).
-    var hiddenPodcastShowsByRecordName: [String: String] = [:]
-    var hiddenYouTubeChannelsByRecordName: [String: String] = [:]
-    var meetingGroupsByRecordName: [String: MeetingGroupVisibility] = [:]
-
-    mutating func removeRecord(named name: String) {
-        sourcesByRecordName.removeValue(forKey: name)
-        sourceIdeasByRecordName.removeValue(forKey: name)
-        sourceHighlightsByRecordName.removeValue(forKey: name)
-        rawSourceHighlightsByRecordName.removeValue(forKey: name)
-        sourceHighlightIdentitiesByRecordName.removeValue(forKey: name)
-        artifactsByRecordName.removeValue(forKey: name)
-        notebookArtifactsByRecordName.removeValue(forKey: name)
-        hiddenArtifactIDsByRecordName.removeValue(forKey: name)
-        hiddenReviewSessionIDsByRecordName.removeValue(forKey: name)
-        notebooksByRecordName.removeValue(forKey: name)
-        rawNotebooksByRecordName.removeValue(forKey: name)
-        notebookSourceIdentitiesByRecordName.removeValue(forKey: name)
-        goalsByRecordName.removeValue(forKey: name)
-        scheduledSourcesByRecordName.removeValue(forKey: name)
-        rawScheduledSourcesByRecordName.removeValue(forKey: name)
-        memoryItemsByRecordName.removeValue(forKey: name)
-        rawMemoryItemsByRecordName.removeValue(forKey: name)
-        memoryItemSourceIdentitiesByRecordName.removeValue(forKey: name)
-        memoryAttemptsByRecordName.removeValue(forKey: name)
-        rawMemoryAttemptsByRecordName.removeValue(forKey: name)
-        reviewSessionsByRecordName.removeValue(forKey: name)
-        booksByRecordName.removeValue(forKey: name)
-        coursesByRecordName.removeValue(forKey: name)
-        hiddenPodcastShowsByRecordName.removeValue(forKey: name)
-        hiddenYouTubeChannelsByRecordName.removeValue(forKey: name)
-        meetingGroupsByRecordName.removeValue(forKey: name)
-    }
-
-    /// Resolve portable MemoryItem and Schedule relationships after all
-    /// currently known Source payloads have been parsed. Delivery order is
-    /// arbitrary, so this is a projection over the assembled mirror rather
-    /// than an apply-time assumption. Exact IDs win; URL/DOI only reconcile a
-    /// missing device-local ID.
-    mutating func reconcilePortableSourceIdentities() {
-        let sources = Array(sourcesByRecordName.values)
-        let identityIndex = MobileMemorySourceIdentityResolver.Index(
-            sources: sources,
-            normalizeURL: MobileSourceURL.normalize
-        )
-        for recordName in memoryItemsByRecordName.keys.sorted() {
-            guard let item = rawMemoryItemsByRecordName[recordName]
-                ?? memoryItemsByRecordName[recordName] else { continue }
-            memoryItemsByRecordName[recordName] = identityIndex.remap(
-                item: item,
-                identities: memoryItemSourceIdentitiesByRecordName[recordName] ?? []
-            )
-        }
-        for recordName in sourceHighlightsByRecordName.keys.sorted() {
-            guard let highlight = rawSourceHighlightsByRecordName[recordName]
-                    ?? sourceHighlightsByRecordName[recordName] else { continue }
-            let resolvedSourceID = identityIndex.resolvedSourceID(
-                highlight.sourceID,
-                identity: sourceHighlightIdentitiesByRecordName[recordName]
-            )
-            guard resolvedSourceID != highlight.sourceID else { continue }
-            sourceHighlightsByRecordName[recordName] = SourceHighlight(
-                id: highlight.id,
-                sourceID: resolvedSourceID,
-                quote: highlight.quote,
-                note: highlight.note,
-                color: highlight.color,
-                anchor: highlight.anchor,
-                pdfAnchor: highlight.pdfAnchor,
-                imageAnchors: highlight.imageAnchors,
-                chatSessionID: highlight.chatSessionID,
-                references: highlight.references,
-                publicationUpdate: highlight.publicationUpdate,
-                publicationUpdateAt: highlight.publicationUpdateAt,
-                createdAt: highlight.createdAt,
-                updatedAt: highlight.updatedAt
-            )
-        }
-        memoryAttemptsByRecordName = MobileMemoryAttemptCurriculumProjection.compatibleAttempts(
-            items: Array(memoryItemsByRecordName.values),
-            envelopesByRecordName: rawMemoryAttemptsByRecordName
-        )
-        for recordName in notebooksByRecordName.keys.sorted() {
-            guard let notebook = rawNotebooksByRecordName[recordName]
-                ?? notebooksByRecordName[recordName] else { continue }
-            notebooksByRecordName[recordName] = MobileNotebookSourceIdentityResolver.remap(
-                notebook: notebook,
-                identities: notebookSourceIdentitiesByRecordName[recordName] ?? [],
-                identityIndex: identityIndex
-            )
-        }
-        for recordName in scheduledSourcesByRecordName.keys.sorted() {
-            guard let placement = rawScheduledSourcesByRecordName[recordName]
-                ?? scheduledSourcesByRecordName[recordName] else { continue }
-            let resolvedSourceID = identityIndex.resolvedSourceID(
-                placement.sourceID,
-                identity: placement.sourceIdentity
-            )
-            guard resolvedSourceID != placement.sourceID else { continue }
-            scheduledSourcesByRecordName[recordName] = MobileCloudScheduledSource(
-                id: placement.id,
-                sourceID: resolvedSourceID,
-                sourceIdentity: placement.sourceIdentity,
-                plannedAt: placement.plannedAt,
-                completedAt: placement.completedAt,
-                goalIDs: placement.goalIDs,
-                updatedAt: placement.updatedAt,
-                activityDays: placement.activityDays,
-                isAutomatic: placement.isAutomatic
-            )
-        }
-    }
-}
-
 /// An audio overview the Mac saved for a notebook (docs/explainer-design.md,
 /// "Audio overviews"): its Artifact, read from the synced record, and the id
 /// of the carrier source its script and audio live on.
@@ -2545,290 +1500,6 @@ struct MobileAudioOverviewListing: Identifiable, Equatable {
     let id: String
     let title: String
     let carrier: MobileCloudSource
-}
-
-/// CloudKitRecordMapper is not compiled into the iOS target, so mobile mirrors
-/// the small envelope shapes it needs while reusing canonical portable models
-/// where the iOS target includes them.
-private struct MobileCloudArtifactPayload: Decodable {
-    let artifact: MobileCloudArtifactProjection
-}
-
-private struct MobileCloudSourceHighlightPayload: Decodable {
-    let highlight: SourceHighlight
-    let sourceIdentity: MobileMemorySourceIdentity?
-
-    private enum CodingKeys: String, CodingKey {
-        case highlight
-        case sourceIdentity
-    }
-
-    init(from decoder: Decoder) throws {
-        let values = try decoder.container(keyedBy: CodingKeys.self)
-        highlight = try values.decode(SourceHighlight.self, forKey: .highlight)
-        sourceIdentity = try values.decodeIfPresent(
-            MobileMemorySourceIdentity.self,
-            forKey: .sourceIdentity
-        )
-    }
-}
-
-private struct MobileCloudArtifactProjection: Decodable {
-    let id: String
-    let homeNotebookID: String?
-    let linkedNotebookIDs: [String]
-    /// What the record is — the Mac's `ArtifactKind` raw value — nil for a
-    /// Doc or a linked page. Read so a notebook can list its audio overviews.
-    let kind: String?
-    let title: String?
-    let createdAt: Date?
-    /// When the learner archived it; nil while it is current.
-    let archivedAt: Date?
-
-    private enum CodingKeys: String, CodingKey {
-        case id
-        case homeNotebookID
-        case linkedNotebookIDs
-        case kind
-        case title
-        case createdAt
-        case archivedAt
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(String.self, forKey: .id)
-        homeNotebookID = try container.decodeIfPresent(String.self, forKey: .homeNotebookID)
-        linkedNotebookIDs = try container.decodeIfPresent([String].self, forKey: .linkedNotebookIDs) ?? []
-        // The fields a listing reads never refuse the record: a value this
-        // build cannot read is left out, and the record still links its Notebooks.
-        kind = (try? container.decodeIfPresent(String.self, forKey: .kind)) ?? nil
-        title = (try? container.decodeIfPresent(String.self, forKey: .title)) ?? nil
-        createdAt = (try? container.decodeIfPresent(Date.self, forKey: .createdAt)) ?? nil
-        archivedAt = (try? container.decodeIfPresent(Date.self, forKey: .archivedAt)) ?? nil
-    }
-}
-
-private struct MobileCloudMemoryItemPayload: Decodable {
-    let payloadVersion: Int
-    let item: MemoryItem
-    let sourceIdentities: [MobileMemorySourceIdentity]
-
-    private enum CodingKeys: String, CodingKey {
-        case payloadVersion
-        case item
-        case sourceIdentities
-    }
-
-    init(from decoder: Decoder) throws {
-        let values = try decoder.container(keyedBy: CodingKeys.self)
-        payloadVersion = try values.decodeIfPresent(Int.self, forKey: .payloadVersion) ?? 0
-        item = try values.decode(MemoryItem.self, forKey: .item)
-        sourceIdentities = try values.decodeIfPresent(
-            [MobileMemorySourceIdentity].self,
-            forKey: .sourceIdentities
-        ) ?? []
-    }
-}
-
-/// Minimal whole-source review history needed to bootstrap concept memories on
-/// a phone upgraded from the legacy review rail. The full transcript stays in
-/// its canonical ReviewSession record; this projection only derives the same
-/// per-source dates/counts/scores as the Mac scheduler.
-private struct MobileCloudReviewSessionProjection: Decodable {
-    let id: String
-    /// The chat's title, as the Mac stores it. What a chat is called when it
-    /// enters the memory review as material of its own (`ReviewableChat`).
-    let topic: String?
-    let startedAt: Date
-    let endedAt: Date?
-    let status: String
-    let overallScore: Double?
-    let sourceIDs: [String]
-    let cardIDs: [String]
-    let goalID: String?
-    let exchanges: [MobileCloudReviewExchangeProjection]
-    let sourceIdentities: [MobileMemorySourceIdentity]
-    /// `ReviewSessionKind`; nil from a client older than schema 89.
-    let kind: String?
-    /// The model the chat's last reply ran on; what a continued chat's model
-    /// chip starts on when the learner offers it.
-    let modelID: String?
-
-    /// A memory review, by kind or by the day-named id older records carry.
-    var isMemoryReview: Bool {
-        kind == ReviewSessionKind.memory.rawValue || MemoryReviewSession.isMemorySession(id)
-    }
-
-    /// When the learner last wrote in this session: the latest answered
-    /// exchange with a message of theirs, else the session's end when they
-    /// wrote at all. The chat evidence on its sources dates from this.
-    var lastLearnerTurnAt: Date? {
-        let spoken = exchanges.filter { !($0.userAnswer ?? "").trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-        guard !spoken.isEmpty else { return nil }
-        return spoken.compactMap(\.answeredAt).max() ?? endedAt ?? startedAt
-    }
-
-    /// The exchanges as a read-only transcript reads them
-    /// (`MobileChatTranscriptTurns`).
-    var transcriptExchanges: [MobileChatTranscriptTurns.Exchange] {
-        exchanges.map {
-            MobileChatTranscriptTurns.Exchange(
-                sequenceNumber: $0.sequenceNumber,
-                question: $0.question,
-                userAnswer: $0.userAnswer,
-                evaluation: $0.evaluation
-            )
-        }
-    }
-
-    /// The exchanges as the portable chat rules read them.
-    var reviewableExchanges: [ReviewableChat.Exchange] {
-        exchanges.map {
-            ReviewableChat.Exchange(
-                sequenceNumber: $0.sequenceNumber,
-                question: $0.question,
-                userAnswer: $0.userAnswer,
-                evaluation: $0.evaluation,
-                score: $0.score,
-                ideaCoverage: $0.ideaCoverage,
-                answeredAt: $0.answeredAt
-            )
-        }
-    }
-
-    /// What would make this session a chat worth recalling. The phone does
-    /// not sync scheduled-task runs, so a task's chat is not told apart here.
-    var reviewableChatSummary: ReviewableChat.Summary {
-        ReviewableChat.summary(
-            title: topic ?? "Chat",
-            kind: kind,
-            hasCardIDs: !cardIDs.isEmpty,
-            overallScore: overallScore,
-            exchanges: reviewableExchanges,
-            startedAt: startedAt,
-            endedAt: endedAt
-        )
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case id
-        case topic
-        case startedAt
-        case endedAt
-        case status
-        case overallScore
-        case sourceIDs
-        case cardIDs
-        case goalID
-        case exchanges
-        case sourceIdentities
-        case kind
-        case modelID
-    }
-
-    init(from decoder: Decoder) throws {
-        let values = try decoder.container(keyedBy: CodingKeys.self)
-        kind = try values.decodeIfPresent(String.self, forKey: .kind)
-        modelID = try values.decodeIfPresent(String.self, forKey: .modelID)
-        id = try values.decode(String.self, forKey: .id)
-        topic = try values.decodeIfPresent(String.self, forKey: .topic)
-        startedAt = try values.decode(Date.self, forKey: .startedAt)
-        endedAt = try values.decodeIfPresent(Date.self, forKey: .endedAt)
-        status = try values.decode(String.self, forKey: .status)
-        overallScore = try values.decodeIfPresent(Double.self, forKey: .overallScore)
-        sourceIDs = try values.decodeIfPresent([String].self, forKey: .sourceIDs) ?? []
-        cardIDs = try values.decodeIfPresent([String].self, forKey: .cardIDs) ?? []
-        goalID = try values.decodeIfPresent(String.self, forKey: .goalID)
-        exchanges = try values.decodeIfPresent(
-            [MobileCloudReviewExchangeProjection].self,
-            forKey: .exchanges
-        ) ?? []
-        sourceIdentities = try values.decodeIfPresent(
-            [MobileMemorySourceIdentity].self,
-            forKey: .sourceIdentities
-        ) ?? []
-    }
-}
-
-private struct MobileCloudReviewExchangeProjection: Decodable {
-    let sourceRefs: [String]
-    let sequenceNumber: Int
-    /// The turn's words, for a chat that enters the review as material:
-    /// the tutor's question or opening, the learner's message, the reply.
-    let question: String
-    let userAnswer: String?
-    let evaluation: String?
-    let score: Double?
-    /// The memory review's grade of this exchange, when it was a contour.
-    let ideaCoverage: String?
-    let questionVerdict: String?
-    let answeredAt: Date?
-
-    private enum CodingKeys: String, CodingKey {
-        case sourceRefs, sequenceNumber, question, userAnswer, evaluation, score
-        case ideaCoverage, questionVerdict, answeredAt
-    }
-
-    init(from decoder: Decoder) throws {
-        let values = try decoder.container(keyedBy: CodingKeys.self)
-        sourceRefs = try values.decodeIfPresent([String].self, forKey: .sourceRefs) ?? []
-        sequenceNumber = try values.decodeIfPresent(Int.self, forKey: .sequenceNumber) ?? 0
-        question = try values.decodeIfPresent(String.self, forKey: .question) ?? ""
-        userAnswer = try values.decodeIfPresent(String.self, forKey: .userAnswer)
-        evaluation = try values.decodeIfPresent(String.self, forKey: .evaluation)
-        score = try values.decodeIfPresent(Double.self, forKey: .score)
-        ideaCoverage = try values.decodeIfPresent(String.self, forKey: .ideaCoverage)
-        questionVerdict = try values.decodeIfPresent(String.self, forKey: .questionVerdict)
-        answeredAt = try values.decodeIfPresent(Date.self, forKey: .answeredAt)
-    }
-}
-
-/// The synced idea record: `CloudKitSourceIdeaPayload` as the phone reads it.
-private struct MobileCloudSourceIdeaPayload: Decodable {
-    let idea: SourceIdea
-}
-
-private struct MeetingGroupVisibility {
-    let id: String
-    let isHidden: Bool
-}
-
-/// Reads a synced record's JSON payload in either form it travels in: the
-/// encrypted inline `payload` field, or — once a payload outgrows
-/// `inlinePayloadByteLimit` — the `payloadAsset` CKAsset the writer moved it
-/// into with the inline field cleared. The Mac's
-/// `CloudKitRecordMapper.payloadData(from:)` and `MobileReviewSessionRecorder`
-/// read the same two places; the catalog sync did not read the asset until
-/// 2026-09-10, so an oversized review arrived "without its catalog payload".
-enum MobileCloudRecordPayload {
-    /// A record's payload, its keys as this build names them (`RetiredNotebookWording`).
-    static func data(from record: CKRecord, payloadField: String, assetField: String) -> Data? {
-        storedData(from: record, payloadField: payloadField, assetField: assetField)
-            .map(RetiredNotebookWording.currentPayload)
-    }
-
-    private static func storedData(from record: CKRecord, payloadField: String, assetField: String) -> Data? {
-        if let data = record.encryptedValues[payloadField] as? Data {
-            return data
-        }
-        if let data = record.encryptedValues[payloadField] as? NSData {
-            return data as Data
-        }
-        if let data = record[payloadField] as? Data {
-            return data
-        }
-        if let data = record[payloadField] as? NSData {
-            return data as Data
-        }
-        if let asset = record[assetField] as? CKAsset,
-           let url = asset.fileURL,
-           let data = try? Data(contentsOf: url),
-           !data.isEmpty {
-            return data
-        }
-        return nil
-    }
 }
 
 private enum MobileCloudSourceCatalogError: LocalizedError {
@@ -2944,135 +1615,6 @@ enum MobileCloudSourceTextError: LocalizedError {
         case .sourceStillProcessing:
             return "This source is still preparing readable text."
         }
-    }
-}
-
-private struct MobileCloudSourcePayload: Decodable {
-    let article: MobileCloudSourceArticle
-    let listenableContentMetadata: SourceListenableContentMetadata?
-    /// Optional on payloads from older Macs. This is the canonical source-row
-    /// identity and carries paper `published_doi`, which is not a StudioArticle field.
-    let sourceIdentity: MobileMemorySourceIdentity?
-    /// Root-level sibling of `article` in `CloudKitSourcePayload`: this episode
-    /// stays visible even when its show is hidden.
-    let visiblePodcastEpisodeOverride: Bool?
-    /// Root-level sibling of `article`: this video stays visible when its channel is hidden.
-    let visibleYouTubeVideoOverride: Bool?
-}
-
-private struct MobileCloudSourceArticle: Decodable {
-    let id: String
-    let title: String
-    let domain: String?
-    let sourceType: String
-    let status: String
-    let state: String
-    let dateAdded: Date?
-    let author: String?
-    let journal: String?
-    let publishedYear: String?
-    let wordCount: Int?
-    let parentGroup: String?
-    let courseSortIndex: Int?
-    let isHidden: Bool
-    let isPaywalled: Bool
-    let artworkURL: String?
-    let url: String?
-    let localFilePath: String?
-    let readAt: Date?
-    let readingPositionLocator: String?
-    let normalizedURL: String?
-    let doi: String?
-    let publishedDOI: String?
-
-    enum CodingKeys: String, CodingKey {
-        case id
-        case title
-        case domain
-        case sourceType
-        case status
-        case state
-        case dateAdded
-        case author
-        case journal
-        case publishedYear
-        case wordCount
-        case parentGroup
-        case courseSortIndex
-        case isHidden
-        case isPaywalled
-        case errorMessage
-        case artworkURL
-        case url
-        case localFilePath
-        case readAt
-        case readingPositionLocator
-        case normalizedURL
-        case doi
-        case publishedDOI
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        id = try container.decode(String.self, forKey: .id)
-        title = try container.decode(String.self, forKey: .title)
-        domain = try container.decodeIfPresent(String.self, forKey: .domain)
-        sourceType = canonicalSourceType((try container.decodeIfPresent(String.self, forKey: .sourceType)) ?? "article")
-        status = (try container.decodeIfPresent(String.self, forKey: .status)) ?? "active"
-        state = (try container.decodeIfPresent(String.self, forKey: .state)) ?? "ready"
-        author = try container.decodeIfPresent(String.self, forKey: .author)
-        journal = try container.decodeIfPresent(String.self, forKey: .journal)
-        publishedYear = try container.decodeIfPresent(String.self, forKey: .publishedYear)
-        wordCount = try container.decodeIfPresent(Int.self, forKey: .wordCount)
-        artworkURL = try container.decodeIfPresent(String.self, forKey: .artworkURL)
-        url = try container.decodeIfPresent(String.self, forKey: .url)
-        localFilePath = try container.decodeIfPresent(String.self, forKey: .localFilePath)
-        normalizedURL = try container.decodeIfPresent(String.self, forKey: .normalizedURL)
-        doi = try container.decodeIfPresent(String.self, forKey: .doi)
-        publishedDOI = try container.decodeIfPresent(String.self, forKey: .publishedDOI)
-        readingPositionLocator = (try? container.decodeIfPresent(String.self, forKey: .readingPositionLocator)) ?? nil
-        if let seconds = try? container.decode(Double.self, forKey: .readAt) {
-            readAt = Self.decodedDate(from: seconds)
-        } else if let seconds = try? container.decode(Int.self, forKey: .readAt) {
-            readAt = Self.decodedDate(from: TimeInterval(seconds))
-        } else if let iso = try? container.decodeIfPresent(String.self, forKey: .readAt) {
-            readAt = ISO8601DateFormatter().date(from: iso)
-                ?? Double(iso).map(Self.decodedDate(from:))
-        } else {
-            readAt = nil
-        }
-        let rawParentGroup = ((try? container.decodeIfPresent(String.self, forKey: .parentGroup)) ?? nil)?
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        parentGroup = (rawParentGroup?.isEmpty ?? true) ? nil : rawParentGroup
-        courseSortIndex = (try? container.decodeIfPresent(Int.self, forKey: .courseSortIndex)) ?? nil
-        isHidden = ((try? container.decodeIfPresent(Bool.self, forKey: .isHidden)) ?? nil) ?? false
-        isPaywalled = MobilePaywallShelf.isPaywalled(
-            column: (try? container.decodeIfPresent(Bool.self, forKey: .isPaywalled)) ?? nil,
-            errorMessage: (try? container.decodeIfPresent(String.self, forKey: .errorMessage)) ?? nil
-        )
-
-        if let seconds = try? container.decode(Double.self, forKey: .dateAdded) {
-            dateAdded = Self.decodedDate(from: seconds)
-        } else if let seconds = try? container.decode(Int.self, forKey: .dateAdded) {
-            dateAdded = Self.decodedDate(from: TimeInterval(seconds))
-        } else if let iso = try? container.decodeIfPresent(String.self, forKey: .dateAdded) {
-            if let parsed = ISO8601DateFormatter().date(from: iso) {
-                dateAdded = parsed
-            } else if let seconds = Double(iso) {
-                dateAdded = Self.decodedDate(from: seconds)
-            } else {
-                dateAdded = nil
-            }
-        } else {
-            dateAdded = nil
-        }
-    }
-
-    private static func decodedDate(from seconds: TimeInterval) -> Date {
-        if seconds > MobileCloudSourceCatalog.dateEpochCutoff {
-            return Date(timeIntervalSince1970: seconds)
-        }
-        return Date(timeIntervalSinceReferenceDate: seconds)
     }
 }
 

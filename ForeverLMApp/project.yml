@@ -1025,8 +1025,6 @@ targets:
       - iOSUnitTests
       # The in-memory CloudKit the phone's sync suites run on, the same one the Mac's suites use.
       - UnitTests/Support/FakeCloudKit.swift
-      - path: UnitTests/Fixtures/cross-surface-cloudkit-roundtrip-v1.json
-        buildPhase: resources
       - path: ../schema/vectors
         type: folder
         buildPhase: resources
