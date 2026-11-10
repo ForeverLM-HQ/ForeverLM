@@ -1506,7 +1506,31 @@ private struct InternalReviewPanelContent: View {
         } else if let notebook = notebookGuideNotebook {
             notebookGuide(notebook)
         } else {
+            homeOffers
+        }
+    }
+
+    /// How many saved sources Home's empty chat lists under the composer.
+    static let homeToReadLimit = 6
+
+    /// Home's empty chat, outside a notebook or a canvas: what the learner
+    /// saved and has not finished, newest first, in place of the suggestions
+    /// (product owner, 2026-11-09: "it just opens cleanly and it shows basically
+    /// a list of recent things we added to the reading list"). With nothing
+    /// waiting, the suggestions as before.
+    @ViewBuilder
+    private var homeOffers: some View {
+        let waiting = vm.toReadSources()
+        if waiting.isEmpty {
             idleSuggestions
+        } else {
+            HomeToReadList(
+                sources: Array(waiting.prefix(Self.homeToReadLimit)),
+                totalCount: waiting.count,
+                // As the Read next suggestion opens its source.
+                open: { sourceID in Task { await vm.openSourceInReader(sourceID) } },
+                showAll: windowState.map { state in { vm.openLibraryRecent(in: state) } }
+            )
         }
     }
 
@@ -9741,6 +9765,130 @@ private struct ReviewChatTranscriptPageHost: View {
             // that card's conversation.
             guard request != nil, let last = ReviewChatTranscriptBlock.grouping(messages).last else { return }
             requestScroll(to: last.id.uuidString, .bottom, animated: true)
+        }
+    }
+}
+
+
+// MARK: - Home's To Read list
+
+/// What the learner saved and has not finished, under Home's composer: a
+/// quiet head, then one row a source with its kind's glyph, its title and
+/// where and when it was saved, newest first, as the suggestions' rows are
+/// drawn (monochrome, no card). A row opens the source in the Reader; the
+/// foot opens the Library on Recent, every kind newest added first.
+struct HomeToReadList: View {
+    let sources: [StudioArticle]
+    /// Everything waiting, of which `sources` is the newest.
+    let totalCount: Int
+    let open: (String) -> Void
+    /// Nil where the chat has no window to open the Library in.
+    let showAll: (() -> Void)?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("To read")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(.tertiary)
+                .padding(.leading, 10)
+                .padding(.bottom, 4)
+                .accessibilityAddTraits(.isHeader)
+            ForEach(sources) { source in
+                HomeToReadRow(source: source) { open(source.id) }
+            }
+            if let showAll {
+                Button(action: showAll) {
+                    Text(totalCount > sources.count
+                         ? "All \(totalCount) in the Library"
+                         : "Everything you've added")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .padding(.leading, 10)
+                        .padding(.vertical, 6)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.hoverWash)
+                .help("Open the Library on Recent: every source, newest added first")
+                .accessibilityIdentifier("home.toRead.showAll")
+            }
+        }
+        .padding(.horizontal, StudioDesign.Spacing.small)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("To read")
+        .accessibilityIdentifier("home.toRead")
+    }
+}
+
+private struct HomeToReadRow: View {
+    let source: StudioArticle
+    let open: () -> Void
+    @State private var isHovered = false
+
+    var body: some View {
+        Button(action: open) {
+            HStack(spacing: 10) {
+                Image(systemName: Self.glyph(source.sourceType))
+                    .zoomedSystemFont(size: 12, weight: .regular)
+                    .foregroundStyle(.secondary)
+                    .frame(width: 18)
+                Text(source.title.isEmpty ? source.url : source.title)
+                    .font(.system(size: 13))
+                    .foregroundStyle(isHovered ? Color.primary : Color.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                Spacer(minLength: 8)
+                Text(detail)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.tertiary)
+                    .lineLimit(1)
+                    .layoutPriority(-1)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 7)
+            .background(
+                Color.primary.opacity(isHovered ? 0.05 : 0),
+                in: RoundedRectangle(cornerRadius: 8, style: .continuous)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { isHovered = $0 }
+        .help(source.title)
+        .accessibilityIdentifier("home.toRead.row")
+    }
+
+    /// Where it came from and when it was saved: a paper's journal, else the
+    /// site, then the day ("Today", "Yesterday", or the date).
+    private var detail: String {
+        var parts: [String] = []
+        if source.sourceType == .paper, let journal = source.journal, !journal.isEmpty,
+           journal != StudioArticle.unknownPaperJournal {
+            parts.append(journal)
+        } else if !source.domain.isEmpty {
+            parts.append(source.domain.hasPrefix("www.") ? String(source.domain.dropFirst(4)) : source.domain)
+        }
+        let calendar = Calendar.current
+        if calendar.isDateInToday(source.dateAdded) {
+            parts.append("Today")
+        } else if calendar.isDateInYesterday(source.dateAdded) {
+            parts.append("Yesterday")
+        } else {
+            parts.append(source.dateAdded.formatted(.dateTime.month(.abbreviated).day()))
+        }
+        return parts.joined(separator: " · ")
+    }
+
+    static func glyph(_ type: StudioSourceType) -> String {
+        switch type {
+        case .article, .unclassified: return "doc.richtext"
+        case .paper: return "doc.text.magnifyingglass"
+        case .podcast: return "headphones"
+        case .book: return "book.closed"
+        case .course: return "graduationcap"
+        case .meeting: return "person.2.wave.2"
+        case .video: return "play.rectangle"
+        case .xPost: return "bubble.left"
+        case .manual: return "link"
         }
     }
 }

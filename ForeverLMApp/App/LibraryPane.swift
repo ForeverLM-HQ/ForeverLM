@@ -130,7 +130,7 @@ struct LibraryBulkBar: View {
     }
 
     private func bar(_ selection: Set<String>) -> some View {
-        let inBooks = sidebar.sidebarTab == .books
+        let inBooks = sidebar.sidebarTab == .books && !sidebar.showsRecent
         let readToggle = LibraryBulkAction.readToggle(
             readStates: vm.libraryBulkReadStates(for: selection, inBooksTab: inBooks)
         )

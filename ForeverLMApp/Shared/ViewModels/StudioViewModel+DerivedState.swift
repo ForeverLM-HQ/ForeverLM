@@ -4699,3 +4699,60 @@ extension StudioViewModel {
         reviewSessionsRevealRequestID = UUID()
     }
 }
+
+// MARK: - To Read and Recent
+
+extension StudioViewModel {
+    /// What the learner saved and has not finished, newest saved first: the
+    /// rule `ToReadList` keeps for the iPhone's To Read screen, read from the
+    /// Mac's sources. Home's empty chat lists it (product owner, 2026-11-09: "it
+    /// just opens cleanly and it shows basically a list of recent things we
+    /// added to the reading list"), whatever the kind: an article, a paper, an
+    /// X post or pasted text ("Doesn't matter if it's article, paper, etc.").
+    func toReadSources() -> [StudioArticle] {
+        // The kind test first: it is a set lookup, and it drops the feeds'
+        // thousands of episodes before the hidden-show and recording tests.
+        let visible = articles.filter {
+            ToReadList.savedSourceTypes.contains($0.sourceType.rawValue) && isVisibleInRecordingMode($0)
+        }
+        let byID = Dictionary(visible.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
+        let candidates = visible.map { article in
+            ToReadCandidate(
+                id: article.id,
+                sourceType: article.sourceType.rawValue,
+                dateAdded: article.dateAdded,
+                isFinished: article.readAt != nil,
+                isPutAway: article.status == .archived || isSourceHidden(article),
+                isPaywalled: article.isPaywalled,
+                belongsToGroup: article.parentGroup != nil,
+                isSpokenScript: GeneratedExplainer.isSpokenScriptURL(article.url)
+            )
+        }
+        return ToReadList.waiting(candidates).compactMap { byID[$0.id] }
+    }
+
+    /// The Library's Recent view: every kind in one list, newest added first,
+    /// not split into podcasts, books and the rest (product owner, 2026-11-09:
+    /// "not grouped by podcast, book, etc., but basically by date added").
+    /// Hidden and archived sources stay off it, as they do off every tab. A
+    /// book's chapters and a course's lessons stand under their book or course,
+    /// which have rows of their own in their tabs, so they are left out rather
+    /// than listed thirty at a time. `query` is the Library's search.
+    func recentlyAddedSources(matching query: String) -> [StudioArticle] {
+        let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        return articles
+            .filter { article in
+                article.status == .active
+                    && !isSourceHidden(article)
+                    && isVisibleInRecordingMode(article)
+                    && !GeneratedExplainer.isSpokenScriptURL(article.url)
+                    && article.sourceType != .course
+                    && !(article.sourceType == .book && article.parentGroup != nil)
+                    && (trimmed.isEmpty || sourceMatchesSearch(article, query: trimmed))
+            }
+            .sorted { lhs, rhs in
+                if lhs.dateAdded != rhs.dateAdded { return lhs.dateAdded > rhs.dateAdded }
+                return lhs.id < rhs.id
+            }
+    }
+}

@@ -300,7 +300,7 @@ struct StudioSidebar: View, Equatable {
         })
         let targets = vm.sidebarRemovalTargets(
             for: existingIDs,
-            expandingBooks: sidebar.sidebarTab == .books
+            expandingBooks: sidebar.sidebarTab == .books && !sidebar.showsRecent
         )
         guard !targets.isEmpty else { return }
         pendingRemoval = targets

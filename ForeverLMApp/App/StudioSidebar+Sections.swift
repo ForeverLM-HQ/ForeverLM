@@ -4,7 +4,7 @@ import AppKit
 
 extension StudioSidebar {
     private var sidebarListIdentity: String {
-        sidebar.sidebarTab.rawValue
+        sidebar.showsRecent ? "recent" : sidebar.sidebarTab.rawValue
     }
 
     /// Escape leaves a multi-selection the way a click cannot: without opening
@@ -134,6 +134,7 @@ extension StudioSidebar {
                         availableWidth: proxy.size.width
                     )
                 HStack(spacing: 2) {
+                    recentTabButton(showLabel: showLabels, isChip: false, inTitlebarBand: true)
                     ForEach(presentation.visible, id: \.self) { tab in
                         sidebarTabButton(
                             tab: tab,
@@ -180,6 +181,7 @@ extension StudioSidebar {
                             availableWidth: proxy.size.width
                         )
                     HStack(spacing: 0) {
+                        recentTabButton(showLabel: showLabels, isChip: false)
                         ForEach(presentation.visible, id: \.self) { tab in
                             sidebarTabButton(
                                 tab: tab,
@@ -207,6 +209,7 @@ extension StudioSidebar {
     private var wideSourceTabBar: some View {
         ScrollView(.horizontal, showsIndicators: false) {
             HStack(spacing: 2) {
+                recentTabButton(showLabel: true, isChip: true)
                 ForEach(vm.visibleTabs, id: \.self) { tab in
                     sidebarTabButton(
                         tab: tab,
@@ -286,8 +289,9 @@ extension StudioSidebar {
         availableWidth: CGFloat
     ) -> (visible: [StudioSidebarTab], overflow: [StudioSidebarTab]) {
         let all = vm.visibleTabs
-        let collapseWidth = StudioDesign.Metrics.chromeButtonWidth + 4
         let comfortable = max(StudioDesign.Metrics.comfortableSourceTabWidth, 30)
+        // Recent leads the row and takes one tab's room.
+        let collapseWidth = StudioDesign.Metrics.chromeButtonWidth + 4 + comfortable
         // The ⋯ menu appears only when some type has no room, so its width is
         // reserved only once every pinned type no longer fits without it.
         let capacityWithoutMenu = max(1, Int((availableWidth - collapseWidth) / comfortable))
@@ -379,7 +383,7 @@ extension StudioSidebar {
         fitScale: CGFloat = 1
     ) -> some View {
         let cornerRadius: CGFloat = isChip ? 7 : 6
-        let isSelected = sidebar.sidebarTab == tab
+        let isSelected = sidebar.sidebarTab == tab && !sidebar.showsRecent
         Button {
             activateSidebarTab(tab)
         } label: {
@@ -494,7 +498,60 @@ extension StudioSidebar {
         }
     }
 
+    /// Recent, ahead of the kinds: every source in one list, newest added
+    /// first, whatever its kind (product owner, 2026-11-09: "not grouped by
+    /// podcast, book, etc., but basically by date added"). Drawn as the kinds'
+    /// own tabs are, a clock for a glyph.
+    private func recentTabButton(showLabel: Bool, isChip: Bool, inTitlebarBand: Bool = false) -> some View {
+        let cornerRadius: CGFloat = isChip ? 7 : 6
+        let isSelected = sidebar.showsRecent
+        return Button {
+            guard !sidebar.showsRecent else { return }
+            sidebar.recentDisplayLimit = 60
+            windowState.sidebarSelectedSourceIDs = []
+            sidebar.showsRecent = true
+            SourceSearchShortcutRouter.shared.noteSourcesInteraction()
+        } label: {
+            Group {
+                if isChip {
+                    HStack(spacing: 5) {
+                        Image(systemName: "clock")
+                            .zoomedSystemFont(size: 12)
+                        Text("Recent")
+                            .zoomedSystemFont(size: 12, weight: isSelected ? .medium : .regular)
+                    }
+                } else {
+                    VStack(spacing: 2) {
+                        Image(systemName: "clock")
+                            .zoomedSystemFont(size: 14 * sourceTabIconSize.scale)
+                        if showLabel {
+                            Text("Recent")
+                                .zoomedSystemFont(size: 9)
+                                .lineLimit(1)
+                        }
+                    }
+                }
+            }
+            .frame(maxWidth: isChip ? nil : CGFloat.infinity)
+            .padding(.horizontal, isChip ? 10 : 0)
+            .padding(.vertical, inTitlebarBand ? 5 : 6)
+            .foregroundStyle(isSelected ? Color.primary : Color.secondary)
+            .background(
+                Color.primary.opacity(isSelected ? 0.07 : 0),
+                in: RoundedRectangle(cornerRadius: cornerRadius)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.hoverWash(cornerRadius: cornerRadius, inset: 0))
+        .help("Recent: everything you've added, newest first")
+        .accessibilityLabel("Recent")
+        .accessibilityValue(isSelected ? "Selected" : "Not selected")
+        .accessibilityAddTraits(isSelected ? .isSelected : [])
+        .accessibilityIdentifier("library.tab.recent")
+    }
+
     private func activateSidebarTab(_ tab: StudioSidebarTab) {
+        sidebar.showsRecent = false
         windowVM.inWindow { $0.switchTab(to: tab) }
         SourceSearchShortcutRouter.shared.noteSourcesInteraction()
     }
@@ -976,7 +1033,11 @@ extension StudioSidebar {
         ScrollViewReader { proxy in
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
-                    sidebarListContent
+                    if sidebar.showsRecent {
+                        recentListContent
+                    } else {
+                        sidebarListContent
+                    }
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
@@ -1008,6 +1069,9 @@ extension StudioSidebar {
     /// for the chapter it selects (`bookRowSelectionID`); a folded series or
     /// playlist has none.
     private var lazyListRowIDs: [String] {
+        if sidebar.showsRecent {
+            return recentListArticles.map(\.id)
+        }
         switch sidebar.sidebarTab {
         case .papers:
             var ids: [String] = []
@@ -1147,7 +1211,7 @@ extension StudioSidebar {
         // A Books-tab row stands for its book. It selects the chapter the book
         // would resume, which is what arrives here, so the menu is the book's —
         // or, for several covers, the actions that fit all of them.
-        let bookTargets = sidebar.sidebarTab == .books
+        let bookTargets = sidebar.sidebarTab == .books && !sidebar.showsRecent
             ? vm.sidebarRemovalTargets(for: selectedIDs, expandingBooks: true)
             : StudioViewModel.SidebarRemovalTargets()
         if bookTargets.bookGroups.count > 1 {
@@ -1175,6 +1239,56 @@ extension StudioSidebar {
         } else if let articleID = orderedIDs.first,
            let article = vm.articlesById[articleID] {
             articleContextMenu(article, selectedArticleIDs: selectedIDs)
+        }
+    }
+
+    /// Recent's rows as drawn: every kind newest added first, searched by the
+    /// Library's search, up to `recentDisplayLimit`.
+    private var recentListArticles: [StudioArticle] {
+        Array(vm.recentlyAddedSources(matching: sidebar.searchText).prefix(sidebar.recentDisplayLimit))
+    }
+
+    /// The Recent list: the sources under Today, Yesterday, This Week and
+    /// Earlier, as the iPhone's To Read heads them (`ToReadList.sections`),
+    /// each row the kinds' own row with its menu, drag and selection.
+    @ViewBuilder
+    private var recentListContent: some View {
+        let all = vm.recentlyAddedSources(matching: sidebar.searchText)
+        let shown = Array(all.prefix(sidebar.recentDisplayLimit))
+        if shown.isEmpty {
+            Text(sidebar.searchText.isEmpty ? "Nothing added yet." : "No sources match.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 24)
+        } else {
+            ForEach(ToReadList.sections(shown, dateAdded: \.dateAdded, now: Date()), id: \.section) { group in
+                Text(group.section.title)
+                    .zoomedSystemFont(size: 11, weight: .semibold)
+                    .foregroundStyle(.secondary)
+                    .padding(.top, group.section == .today ? 4 : 14)
+                    .padding(.bottom, 4)
+                    .accessibilityAddTraits(.isHeader)
+                ForEach(group.items) { article in
+                    articleRow(article)
+                }
+            }
+            if all.count > shown.count {
+                Button {
+                    sidebar.recentDisplayLimit += 60
+                } label: {
+                    HStack {
+                        Spacer()
+                        Text("Show More (\(all.count - shown.count) remaining)")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                    .padding(.vertical, 6)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.hoverWash)
+            }
         }
     }
 

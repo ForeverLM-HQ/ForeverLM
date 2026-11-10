@@ -182,6 +182,19 @@ final class StudioReadingProgressStore {
 @MainActor
 final class StudioSidebarStore {
     var sidebarTab: StudioSidebarTab = .articles
+    /// The Library shows Recent — every kind in one list, newest added first
+    /// (`StudioViewModel.recentlyAddedSources`) — in place of `sidebarTab`'s
+    /// list. Picking a kind's tab turns it off. Remembered on this Mac, so a
+    /// Library left on Recent opens on it again.
+    var showsRecent: Bool = UserDefaults.standard.bool(forKey: StudioSidebarStore.showsRecentPreferenceKey) {
+        didSet {
+            guard showsRecent != oldValue else { return }
+            UserDefaults.standard.set(showsRecent, forKey: Self.showsRecentPreferenceKey)
+        }
+    }
+    static let showsRecentPreferenceKey = "library.showsRecent.v1"
+    /// How many rows Recent draws before its Show More.
+    var recentDisplayLimit: Int = 60
     /// The query every source list filters on. While the learner types it trails
     /// `searchFieldText` by a short pause (`SourceSearchField` commits it),
     /// so the whole-library filter runs once per pause rather than once per

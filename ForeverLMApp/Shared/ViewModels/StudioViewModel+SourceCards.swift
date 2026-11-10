@@ -64,6 +64,14 @@ extension StudioViewModel {
         openLibraryView(in: windowState)
     }
 
+    /// The Library in `windowState` on Recent, every kind newest added
+    /// first: Home's "Everything you've added" under its To Read list.
+    func openLibraryRecent(in windowState: StudioWindowState) {
+        windowState.sidebarStore.showsRecent = true
+        windowState.sidebarStore.recentDisplayLimit = 60
+        openLibraryView(in: windowState)
+    }
+
     /// The first `SourceCardList.batchSize` of `rows`, the Library's No Cards
     /// list as it stands, for the head's **Make Cards for N**: one Auto
     /// request over them gives four cards each, so the drafter can link the
