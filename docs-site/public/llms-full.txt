@@ -6744,9 +6744,30 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **On the iPhone, a page shared on its own shows among your pages** and can be edited there when the share allows; sharing, Stop Sharing and Remove from My Library are on the Mac.
 - **The iPhone opens on voice.** Home is ForeverLM's mark: tap it to talk about anything, name a source, or go through today's cards, which voice offers first when they are due; type instead whenever you can't talk (every voice conversation now has a field for that, so the gym is just voice). Everything else (notebooks, the library, To Read, Follow Up, Spaces, **Review Cards** to tap through them with their pictures, Memory and Settings) is in the menu at the bottom.
-- **No grip beside a Page's blocks.** The handle that appeared to the left of the block under the pointer is gone, and with it dragging a block; the block's menu still opens with ⌥⌘/.
 - **A daily quiz reminder on the iPhone,** on by default at 7:00 (or your review hour): tap it to go through today's cards, or use its Memory Check by Voice button. iOS asks once for permission.
+
+## 0.210.0 (build 290) — 2026-11-10
+
+**Highlights:**
+- **Sharing a page works end to end**, with Stop Sharing and Remove from My Library.
+- **What you highlight on a Page shows in the chat beside it.**
+- **Older versions' compatibility code is gone**, and the library drops four unused tables.
+
+- **Sharing a page works for the people you share it with.** Share… moves the page, with its comments, into a shared space of its own in iCloud, so everyone you invite edits the one page in place. It stays in your library and appears in theirs as one of their pages. **Stop Sharing** in the page's menu brings it back to your library alone. Someone a page was shared with sees **Remove from My Library** where you see Move to Trash, and a read-only invitation opens the page read-only.
+- **No grip beside a Page's blocks.** The handle that appeared to the left of the block under the pointer is gone, and with it dragging a block; the block's menu still opens with ⌥⌘/.
+- **What you highlight on a Page shows in the chat beside it.**
+- **The speed you pick from the chat bar carries into the next chat.**
+- **Claude shows its thinking on OpenRouter.** The effort you pick reaches the model in the form OpenRouter expects.
+- **A source picked with /source shows that it is in the chat**, and its popup no longer jumps.
+- **A chat tool call no longer fails on a mis-shaped argument or a shortened source id.**
+- **Notifications lists unread chats only**, never running ones.
+- **A new window opens on the Space**, not on the last notebook.
+- **The team or family library on screen syncs first**; the others follow by when this Mac last opened them.
+- **Compatibility code for older versions is gone**, with about 10,000 lines nothing used. If Google Drive, YouTube or X was connected before accounts could be added one by one, connect it again once in Plugins. A quiz score recorded under a lecture's video, from before quizzes were stored, shows as not taken until you retake it.
+- **Your library drops four unused tables** (schema 176). Nothing you made is in them.
+- **MCP: `list_learning_goals` and `add_companion_sources` are retired.** `list_notebooks` and `list_goals`, and `add_notebook_sources` and `add_goal_sources`, do the same work.
 
 ## 0.209.0 (build 289) — 2026-11-09
 
