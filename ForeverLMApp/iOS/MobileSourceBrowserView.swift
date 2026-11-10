@@ -1016,10 +1016,14 @@ struct MobileSourceIconTile: View {
 struct MobileSourceRowThumbnail: View {
     let source: MobileCloudSource
     var isActive: Bool = false
+    /// Off under a type's own heading, where every row's artwork is one shape
+    /// already and the column's spare width is better spent on the title (a
+    /// notebook's Sources column on an iPad has little).
+    var sitsInSlot = true
 
     var body: some View {
         artwork
-            .frame(width: MobileThumbnailLayout.slotWidth)
+            .frame(width: sitsInSlot ? MobileThumbnailLayout.slotWidth : nil)
     }
 
     @ViewBuilder
@@ -1909,7 +1913,7 @@ struct MobileBrowserSourceRow: View {
 
     var body: some View {
         HStack(alignment: .center, spacing: 12) {
-            MobileSourceRowThumbnail(source: source, isActive: isActive)
+            MobileSourceRowThumbnail(source: source, isActive: isActive, sitsInSlot: subtitleStyle != .citationUnderTypeHeading)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(displayTitle ?? source.title)

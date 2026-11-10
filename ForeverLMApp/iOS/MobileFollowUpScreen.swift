@@ -59,7 +59,7 @@ struct MobileFollowUpScreen: View {
                 .accessibilityIdentifier("followUp.list")
             }
         }
-        .navigationTitle("Follow up")
+        .navigationTitle("Follow Up")
         .navigationBarTitleDisplayMode(.large)
         .task { await load(forceRefresh: false) }
         .refreshable { await load(forceRefresh: true) }

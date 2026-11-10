@@ -328,7 +328,8 @@ struct MobileNotebookCoverTests {
                         "\(file.lastPathComponent):\(index + 1) draws a notebook's emoji without its cover")
             }
         }
-        #expect(surfaces >= 8, "the cards, the list, the gallery, the collection previews, the context groups, the chat tab and the pickers")
+        // Six since Home became a composer and a menu (2026-11-09): its notebook cards and collection previews went with it.
+        #expect(surfaces >= 6, "the list, the gallery, the context groups, the chat tab and the pickers")
     }
 
     @Test("A tile a place puts behind a notebook's emoji is the icon's plate, so a cover never sits on one; a collection's stack keeps its circles' colours")
@@ -355,6 +356,6 @@ struct MobileNotebookCoverTests {
                 #expect(tiles.isEmpty, "\(file.lastPathComponent):\(index + 1) draws \(tiles) round the icon, so a cover would sit on it: pass the tile as `plate:`")
             }
         }
-        #expect(calls >= 8, "the cards, the list, the gallery, the collection previews, the context groups, the chat tab and the pickers")
+        #expect(calls >= 6, "the list, the gallery, the context groups, the chat tab and the pickers")
     }
 }

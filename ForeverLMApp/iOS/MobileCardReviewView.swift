@@ -595,7 +595,9 @@ struct MobileCardAttemptComposer: View {
                     focus.wrappedValue = false
                     check()
                 } label: {
-                    MobileCircularActionLabel(systemImage: "arrow.up", isProminent: canCheck)
+                    // The chat composers' disc, in the text's colour: this one was the
+                    // only blue send button left in the app.
+                    MobileComposerDiscLabel(systemImage: "arrow.up")
                 }
                 .buttonStyle(.plain)
                 .disabled(!canCheck || isListening)
