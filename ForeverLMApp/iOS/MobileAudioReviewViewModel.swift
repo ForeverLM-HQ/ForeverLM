@@ -1901,6 +1901,14 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     /// reports both as not playing, but only buffering should auto-resume when
     /// a longer contiguous prefix or the final composition arrives.
     private var openingPlaybackRanDry = false
+    /// The longest prefix generated so far that is not in the player yet.
+    /// Swapping the player's item is audible (a short dropout), and a paper
+    /// arrives as dozens of pieces, so while sound is playing a longer prefix
+    /// waits here until the playhead nears the end of the one it has.
+    private var deferredOpeningExtension: MobileAudioItem?
+    /// How many seconds of listening must be left in the playing prefix for a
+    /// longer one to wait. Long enough to assemble and install the next one.
+    private static let openingExtensionLeadSeconds: TimeInterval = 20
     /// A read request that arrived while TTS was already preparing audio. This
     /// closes the CarPlay race where generate_source_audio could be running and
     /// a later "listen now" request was previously ignored.
@@ -6007,6 +6015,15 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
               currentItem?.id == item.id,
               !MobileRealtimeVoice.controller.isActive else { return false }
 
+        // Sound is playing and there is plenty of it left: keep this prefix for
+        // later instead of interrupting the listener once per generated piece.
+        // A paused or dried-up player is silent, so it takes the swap at once.
+        if isPlaying, !openingPlaybackRanDry, !openingPrefixIsRunningLow {
+            deferredOpeningExtension = item
+            return true
+        }
+        deferredOpeningExtension = nil
+
         do {
             let urls = try await Task.detached(priority: .userInitiated) {
                 try SyncedArticleAudioStore.chunkURLs(for: item.manifest)
@@ -6053,6 +6070,27 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
         }
     }
 
+    /// True when the playing prefix has less than the lead left at the current
+    /// speed, so a longer one should go in now.
+    private var openingPrefixIsRunningLow: Bool {
+        duration - currentTime <= Self.openingExtensionLeadSeconds * Double(max(speed, 0.5))
+    }
+
+    /// Installs the waiting longer prefix once the playhead nears the end of
+    /// the playing one, or the moment the player stops making sound.
+    private func installDeferredOpeningExtensionIfDue() {
+        guard let waiting = deferredOpeningExtension else { return }
+        guard openingPlaybackSourceID == waiting.id, currentItem?.id == waiting.id else {
+            deferredOpeningExtension = nil
+            return
+        }
+        guard !isPlaying || openingPlaybackRanDry || openingPrefixIsRunningLow else { return }
+        deferredOpeningExtension = nil
+        Task { [weak self] in
+            _ = await self?.extendOpeningPlayback(waiting)
+        }
+    }
+
     private func installOpeningEndObserver(for playerItem: AVPlayerItem) {
         removeEndObserver()
         endObserver = NotificationCenter.default.addObserver(
@@ -6067,6 +6105,7 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
                 self.isPlaying = false
                 self.currentTime = self.duration
                 self.openingPlaybackRanDry = true
+                self.installDeferredOpeningExtensionIfDue()
                 // The bar was saying "Playing"; it is not. Say what it is
                 // waiting for, so the silence reads as a gap, not a stop. A
                 // download's banner reads its own counts and needs no text.
@@ -6345,6 +6384,7 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
             Task { @MainActor in
                 guard let self else { return }
                 self.currentTime = time.seconds.isFinite ? time.seconds : 0
+                self.installDeferredOpeningExtensionIfDue()
                 if self.isPlaying {
                     self.persistPlaybackPosition(force: false)
                     if self.openingPlaybackSourceID == nil,
