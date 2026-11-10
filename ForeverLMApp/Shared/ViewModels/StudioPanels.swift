@@ -1293,10 +1293,9 @@ final class StudioWindowState: Identifiable {
             notebookChats = snapshot.notebookChats ?? [:]
         } else {
             // A brand-new window holds no notebook: the template it starts
-            // from is a layout, never a notebook. The notebook it opens in
-            // — the one last worked in, or the Space — is chosen when its
-            // window registers (`StudioWorkspaceWindowCoordinator.register`,
-            // `StudioViewModel.openNotebookOrSpaceInNewWindow`).
+            // from is a layout, never a notebook. It shows the Space, set
+            // when its window registers (`StudioWorkspaceWindowCoordinator.register`,
+            // `StudioViewModel.showSpaceInNewWindow`).
             centerTabGroups = storedGroups.withoutShowing(unoffered)
             navigationRailVisible = storedNavigation
         }

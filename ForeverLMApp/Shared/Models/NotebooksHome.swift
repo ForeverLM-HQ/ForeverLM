@@ -1,33 +1,16 @@
 import Foundation
 
-// MARK: - The notebook last worked in
+// MARK: - Where a window opens
 //
-// Every Studio window opens in the notebook the learner was last working in
-// (decisions v5, 1; docs/notebooks-design.md, "Every window opens in a
-// notebook"): a window restored at launch comes back holding its own, and a
-// window that opens on its own — ⌘N, the Window menu, a second window for a
-// link that names no notebook, the first window of a launch with nothing to
-// restore — opens the last one, or shows the Space when there is none. The
-// stamps (`NotebookRecency`) and the iPhone's Home's rules the Mac shares —
-// its sorts, filter, Grid | List and the rail's sections — are in
-// NotebooksHomeRules.swift.
-
-/// Which notebook a Studio window that opens on its own opens in.
-enum NotebookLaunch {
-    /// The notebook last worked in on this Mac, while the open library holds
-    /// it as an active notebook (`activeNotebookIDs`); nil — the Space — when
-    /// no notebook was worked in here yet, or the last one was deleted,
-    /// archived, merged away or belongs to another library. Before the
-    /// library's notebooks are read (`activeNotebookIDs` nil, a launch's
-    /// first window) the last one opens, the way a restored window's does:
-    /// once they are read, a notebook the library does not hold closes and
-    /// the window shows the Space, never a spinner.
-    static func notebookForNewWindow(recency: NotebookRecency, activeNotebookIDs: Set<String>?) -> String? {
-        guard let last = recency.mostRecent else { return nil }
-        guard let activeNotebookIDs else { return last }
-        return activeNotebookIDs.contains(last) ? last : nil
-    }
-}
+// A window restored at launch comes back holding its own notebook. A window
+// that opens on its own — ⌘N, the Window menu, a second window for a link that
+// names no notebook, the first window of a launch with nothing to restore —
+// shows the Space, never a notebook picked for the learner: the last one worked
+// in can be a crowded place to land (product owner, 2026-11-10: "i don't want
+// it by default to open this busy busy notebook"). The stamps
+// (`NotebookRecency`) still order the rail's Recent, and the iPhone's Home's
+// rules the Mac shares — its sorts, filter, Grid | List and the rail's
+// sections — are in NotebooksHomeRules.swift.
 
 /// A notebook record as the shared Home rules (the iPhone's, and the sorts the
 /// Mac's recents use) read it.

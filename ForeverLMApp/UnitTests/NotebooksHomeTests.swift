@@ -134,22 +134,6 @@ struct NotebookRecencyTests {
         #expect(!SyncedPreferenceKeys.isSynced(NotebookRecency.preferenceKey))
         #expect(SyncedPreferenceKeys.excluded[NotebookRecency.preferenceKey] != nil)
     }
-
-    @Test("A new window opens the notebook last worked in; deleted, archived, another library's or none: the Space")
-    func newWindowChoice() {
-        let recency = NotebookRecency(stamps: ["bio": at(10), "neuro": at(20)])
-        #expect(NotebookLaunch.notebookForNewWindow(recency: recency, activeNotebookIDs: ["bio", "neuro"]) == "neuro")
-        // The last one deleted (or archived, merged away, another library's):
-        // the Space, not the notebook worked in before it.
-        #expect(NotebookLaunch.notebookForNewWindow(recency: recency, activeNotebookIDs: ["bio"]) == nil)
-        // Nothing worked in on this Mac yet, or no notebook at all.
-        #expect(NotebookLaunch.notebookForNewWindow(recency: NotebookRecency(), activeNotebookIDs: ["bio"]) == nil)
-        #expect(NotebookLaunch.notebookForNewWindow(recency: recency, activeNotebookIDs: []) == nil)
-        // Before the library's notebooks are read: the last one, which closes
-        // onto the Space once they are, if it is gone.
-        #expect(NotebookLaunch.notebookForNewWindow(recency: recency, activeNotebookIDs: nil) == "neuro")
-        #expect(NotebookLaunch.notebookForNewWindow(recency: NotebookRecency(), activeNotebookIDs: nil) == nil)
-    }
 }
 
 // MARK: - The notebooks' order, cards and the View menu
@@ -542,8 +526,8 @@ struct NotebooksHomeRoutingTests {
         return window
     }
 
-    @Test("A brand-new window opens the notebook last worked in, and the Space when there is none")
-    func newWindowOpensTheLastNotebook() {
+    @Test("A brand-new window opens on the Space, however recently a notebook was worked in")
+    func newWindowOpensTheSpace() {
         let restore = capturingSharedDefaults()
         defer { restore() }
         let vm = makeViewModel()
@@ -553,54 +537,36 @@ struct NotebooksHomeRoutingTests {
         vm.noteNotebookWork("neuro", at: at(20))
 
         let first = window()
-        vm.openNotebookOrSpaceInNewWindow(first)
-        #expect(first.NotebookID == "neuro")
-
-        // The last one deleted: the Space, never the one before it.
-        vm.learningGoals = inLibrary(vm, [notebook("bio")])
-        let second = window()
         let template = templateValues()
-        vm.openNotebookOrSpaceInNewWindow(second)
-        #expect(second.notebook == nil)
-        #expect(vm.visibleCenterTabs(in: second).contains(.artifacts))
-        #expect(second.spaceDestinationKey == SpaceDestination.all.key, "its All list, where every notebook is")
+        vm.showSpaceInNewWindow(first)
+        #expect(first.notebook == nil)
+        #expect(vm.visibleCenterTabs(in: first).contains(.artifacts))
+        #expect(first.spaceDestinationKey == SpaceDestination.all.key, "its All list, where every notebook is")
         #expect(templateValues() == template, "the window's own snapshot, never the layout template")
-
-        // No notebook worked in yet: the Space too.
-        let fresh = makeViewModel()
-        fresh.learningGoals = inLibrary(fresh, [notebook("bio")])
-        fresh.hasLoadedLearningGoalsOnce = true
-        let third = window()
-        fresh.openNotebookOrSpaceInNewWindow(third)
-        #expect(third.notebook == nil)
-        #expect(fresh.visibleCenterTabs(in: third).contains(.artifacts))
 
         // A window already holding a notebook (a link named one) keeps it.
         let named = window()
         named.NotebookID = "bio"
-        vm.openNotebookOrSpaceInNewWindow(named)
+        vm.showSpaceInNewWindow(named)
         #expect(named.NotebookID == "bio")
     }
 
-    @Test("Before the library is read a new window opens the last notebook; once read, one that is gone gives way to the Space")
-    func launchWindowWaitsForTheLibrary() {
+    @Test("A window restored holding a notebook the library turns out not to hold gives way to the Space")
+    func restoredWindowWaitsForTheLibrary() {
         let restore = capturingSharedDefaults()
         defer { restore() }
         let vm = makeViewModel()
         vm.hasLoadedLearningGoalsOnce = false
-        vm.notebookRecency = NotebookRecency(stamps: ["gone": at(10)])
-        let launch = window()
-        StudioWindowRegistry.shared.register(launch)
-        defer { StudioWindowRegistry.shared.unregister(launch) }
-
-        vm.openNotebookOrSpaceInNewWindow(launch)
-        #expect(launch.NotebookID == "gone")
+        let restored = window()
+        restored.NotebookID = "gone"
+        StudioWindowRegistry.shared.register(restored)
+        defer { StudioWindowRegistry.shared.unregister(restored) }
 
         vm.learningGoals = inLibrary(vm, [notebook("bio")])
         vm.hasLoadedLearningGoalsOnce = true
         vm.closeNotebooksMissingFromLibrary()
-        #expect(launch.notebook == nil)
-        #expect(vm.visibleCenterTabs(in: launch).contains(.artifacts), "the Space, never a spinner")
+        #expect(restored.notebook == nil)
+        #expect(vm.visibleCenterTabs(in: restored).contains(.artifacts), "the Space, never a spinner")
     }
 
     @Test("Opening a notebook stamps it, an archived one opened to be read does not, and a test's view model writes no defaults")
@@ -616,7 +582,6 @@ struct NotebooksHomeRoutingTests {
         #expect(vm.notebookRecency.stamp("shelved") == nil)
         vm.openNotebook("bio", in: target, startsNotebookChat: false)
         #expect(vm.notebookRecency.mostRecent == "bio")
-        #expect(vm.notebookForNewWindow() == "bio")
         #expect(UserDefaults.standard.object(forKey: NotebookRecency.preferenceKey).map { String(describing: $0) } == stored)
     }
 

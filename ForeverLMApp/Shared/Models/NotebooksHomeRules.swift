@@ -27,10 +27,9 @@ protocol NotebookHomeListing {
 
 /// When this Mac last worked in each notebook: opened it in a window, sent a
 /// message in a chat of it, or added a source to it. The latest of the three
-/// is the notebook's stamp; the latest stamp is the notebook a new window
-/// opens in (`NotebookLaunch`), and the Notebooks home's Recent order reads
-/// them too (`NotebooksHomeSort`). The iPhone keeps its own under the same
-/// key, a notebook opened there, which Home reads with the end of each
+/// is the notebook's stamp; the rail's Recent order and the Space's
+/// notebook dates read them (`NotebooksHomeSort`). The iPhone keeps its own
+/// under the same key, a notebook opened there, which Home reads with the end of each
 /// notebook's latest chat (`MobileNotebookRailRules.recency`).
 ///
 /// Device-local and never synced (`preferenceKey` is declared in

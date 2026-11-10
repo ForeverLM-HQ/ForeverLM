@@ -3,11 +3,10 @@ import Foundation
 // MARK: - Every window in a notebook, the Space as home, the full-window Library
 //
 // Shell stage 3 (docs/notebooks-design.md, "Every window opens in a
-// notebook", "The full-window Library"). The product owner, 2026-10-01: "at any given
-// time, I'm probably will be working in a notebook" — so a window opens in the
-// notebook last worked in, the Space is where a window with none is (the
-// Notebooks home went on 2026-10-09), and the whole library stays manageable
-// in a view of its own.
+// notebook", "The full-window Library"). A window restored at launch holds its
+// notebook; a window that opens on its own shows the Space (2026-11-10, after
+// opening the last notebook by default proved unpleasant). The whole library
+// stays manageable in a view of its own.
 
 extension StudioViewModel {
 
@@ -29,35 +28,18 @@ extension StudioViewModel {
         recency.save(to: notebookRecencyDefaults)
     }
 
-    /// The notebook a window that opens on its own opens in
-    /// (`NotebookLaunch`): the one last worked in on this Mac while the open
-    /// library holds it, else nil for the Space. Before the
-    /// library's notebooks are read, the last one, which closes onto the
-    /// Space if it turns out to be gone (`closeNotebooksMissingFromLibrary`).
-    func notebookForNewWindow() -> String? {
-        NotebookLaunch.notebookForNewWindow(
-            recency: notebookRecency,
-            activeNotebookIDs: hasLoadedLearningGoalsOnce ? Set(notebooks.map(\.id)) : nil
-        )
-    }
-
     /// A brand-new Studio window — ⌘N, the Window menu, a second window for
     /// a link that names no notebook, the first window of a launch with no
-    /// scene to restore — opens in the notebook last worked in, or shows the
-    /// Space when there is none (decisions v5, 1). The window
-    /// coordinator calls this as the window registers, before anything asked
-    /// of the new window runs in it, so a source sent there opens in the
-    /// notebook's panes. A window restored with its own snapshot, or
-    /// rebuilt from a saved workspace, never comes here: it comes back as it
-    /// was. Writes nothing synced: the window's scene snapshot, and the
-    /// notebook's stamp.
-    func openNotebookOrSpaceInNewWindow(_ window: StudioWindowState) {
+    /// scene to restore — shows the Space, never a notebook chosen for the
+    /// learner (product owner, 2026-11-10: "i don't want it by default to open
+    /// this busy busy notebook"). The window coordinator calls this as the
+    /// window registers, before anything asked of the new window runs in it.
+    /// A window restored with its own snapshot, or rebuilt from a saved
+    /// workspace, never comes here: it comes back as it was, its notebook
+    /// included. Writes nothing synced: the window's scene snapshot.
+    func showSpaceInNewWindow(_ window: StudioWindowState) {
         guard window.notebook == nil, window.memoryReviewFocus == nil else { return }
-        if let notebookID = notebookForNewWindow() {
-            openNotebook(notebookID, in: window)
-        } else {
-            presentSpace(in: window)
-        }
+        presentSpace(in: window)
     }
 
     // MARK: The Space is home

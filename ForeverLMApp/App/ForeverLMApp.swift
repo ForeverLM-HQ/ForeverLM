@@ -444,8 +444,8 @@ struct ForeverLMApp: App {
     @State private var studioViewModel = StudioViewModel(
         storageService: StorageService(),
         usesStudioWindowRegistry: true,
-        // The notebook last worked in on this Mac, which a new window opens
-        // in: this app's own defaults, never synced. A UI test run starts
+        // When this Mac last worked in each notebook, which orders the rail's
+        // Recent: this app's own defaults, never synced. A UI test run starts
         // from none, on the Space.
         notebookRecencyDefaults: UITestConfiguration.isUITesting ? nil : .standard
     )
@@ -1249,13 +1249,12 @@ private struct StudioWindowRoot: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(StudioViewModel.self) private var vm
 
-    /// A scene with no snapshot of its own is a brand-new window: it opens in
-    /// the notebook last worked in, or on the Space (decisions v5, 1). A
-    /// restored scene comes back as it was, its notebook included.
+    /// A scene with no snapshot of its own is a brand-new window: it opens on
+    /// the Space. A restored scene comes back as it was, its notebook included.
     private var opensNewWindow: (@MainActor (StudioWindowState) -> Void)? {
         guard encodedSnapshot.isEmpty else { return nil }
         let vm = vm
-        return { state in vm.openNotebookOrSpaceInNewWindow(state) }
+        return { state in vm.showSpaceInNewWindow(state) }
     }
 
     var body: some View {
@@ -1505,10 +1504,10 @@ final class StudioWorkspaceWindowCoordinator {
     init() {}
 
     /// `opensNewWindow` is what a brand-new window — a scene with no snapshot
-    /// of its own — opens in: run here, unless the window is taking a saved
+    /// of its own — opens on (the Space): run here, unless the window is taking a saved
     /// one from the last session or a named workspace, and before anything
     /// asked of the window (`performInNextRegisteredWindow`) runs, so a
-    /// source sent to a new window opens in the notebook it opens in.
+    /// source sent to a new window finds it ready.
     func register(
         state: StudioWindowState,
         window: NSWindow,
