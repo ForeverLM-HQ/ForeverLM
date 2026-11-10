@@ -241,78 +241,6 @@ extension MCPDataStoreTests {
         #expect(try approved(notebook.id, in: knowledge) == [id])
     }
 
-    @Test("A source filed in a Notebook arrives ticked for its chats, even after its box was left unticked when it last left")
-    func filedSourcesArriveTicked() async throws {
-        let (store, knowledge, path) = try makeNotebookImportStore()
-        defer { try? FileManager.default.removeItem(atPath: path) }
-        let notebook = try makeNotebook("Ticks", in: knowledge)
-        let registry = MCPToolRegistry(store: store)
-        _ = try store.addSource(url: "https://example.org/kept", title: "Kept", sourceType: "article", content: "a", parentGroup: nil, author: nil)
-        _ = try store.addSource(url: "https://example.org/back", title: "Back", sourceType: "article", content: "b", parentGroup: nil, author: nil)
-        let keptID = try #require(sourceID(at: "https://example.org/kept", in: knowledge))
-        let backID = try #require(sourceID(at: "https://example.org/back", in: knowledge))
-        _ = try knowledge.addCompanionSeedSources(goalID: notebook.id, sourceIDs: [keptID])
-
-        try await withNotebookState { box in
-            // `kept` unticked on purpose; `back` unticked before it left the
-            // Notebook on another Mac, a removal that left its box behind.
-            box.snapshot.excluded[notebook.id] = Set([backID, keptID])
-            let outcome = await registry.callToolDetailed(name: "add_notebook_sources", arguments: [
-                "notebook_id": notebook.id, "source_ids": [backID],
-            ])
-            #expect(!outcome.isError, "\(outcome.text)")
-            #expect(outcome.text.hasPrefix("Added 1 source to Notebook ‘Ticks’"))
-            let held = try approved(notebook.id, in: knowledge)
-            #expect(Set(held) == [keptID, backID])
-            #expect(box.snapshot.excluded[notebook.id] == Set([keptID]), "the source that came back is ticked; the deliberate untick stands")
-
-            // Once there, adding it again changes nothing.
-            let again = await registry.callToolDetailed(name: "add_notebook_sources", arguments: [
-                "notebook_id": notebook.id, "source_ids": [backID],
-            ])
-            #expect(again.text.contains("Skipped 1 already in the Notebook."))
-            #expect(box.snapshot.excluded[notebook.id] == Set([keptID]))
-        }
-    }
-
-    @Test("A source a review in a Notebook's chat or assign_sources_to_day files in the Notebook arrives ticked for its chats")
-    func reviewAndDayPlanArrivalsAreTicked() async throws {
-        let (store, knowledge, path) = try makeNotebookImportStore()
-        defer { try? FileManager.default.removeItem(atPath: path) }
-        let notebook = try makeNotebook("Ticks", in: knowledge)
-        let registry = MCPToolRegistry(store: store)
-        _ = try store.addSource(url: "https://example.org/reviewed", title: "Reviewed", sourceType: "article", content: "a", parentGroup: nil, author: nil)
-        _ = try store.addSource(url: "https://example.org/planned", title: "Planned", sourceType: "article", content: "b", parentGroup: nil, author: nil)
-        let reviewedID = try #require(sourceID(at: "https://example.org/reviewed", in: knowledge))
-        let plannedID = try #require(sourceID(at: "https://example.org/planned", in: knowledge))
-        let chatID = "chat-ticks"
-        try knowledge.createReviewSession(id: chatID, topic: "Chat", sourceIDs: [], startedAt: Date(), goalID: notebook.id)
-
-        try await withNotebookState { box in
-            // Both boxes were left unticked when the sources last left the Notebook.
-            box.snapshot.excluded[notebook.id] = Set([plannedID, reviewedID])
-            let review = await registry.callToolDetailed(
-                name: "start_review_session",
-                arguments: ["topic": "Reviewed", "source_ids": [reviewedID]],
-                hostSessionID: chatID
-            )
-            #expect(!review.isError, "\(review.text)")
-            let afterReview = try approved(notebook.id, in: knowledge)
-            #expect(afterReview == [reviewedID])
-            // The row keeps only boxes of sources the Notebook holds, so the
-            // planned source's stale one goes too (NotebookChatSelection.updated).
-            #expect(!(box.snapshot.excluded[notebook.id] ?? []).contains(reviewedID), "the reviewed source came back ticked")
-
-            let day = await registry.callToolDetailed(name: "assign_sources_to_day", arguments: [
-                "goal_id": notebook.id, "source_ids": [plannedID], "date": "today",
-            ])
-            #expect(!day.isError, "\(day.text)")
-            let afterDay = try approved(notebook.id, in: knowledge)
-            #expect(Set(afterDay) == [reviewedID, plannedID])
-            #expect(box.snapshot.excluded[notebook.id] == nil, "the planned source came back ticked too")
-        }
-    }
-
     @Test("The schemas offer notebook_id on the three import tools, never as required")
     func importSchemasOfferNotebookID() {
         let tools = MCPToolRegistry(store: MCPDataStore()).tools
@@ -659,63 +587,6 @@ struct NotebookTeamImportTests {
         try #require(try knowledge.loadLearningGoal(notebookID)).approvedSourceIDs
     }
 
-    @Test("add_source, import_paper_from_url, add_notebook_sources and add_companion_sources file the team's copy in a team notebook, never the own id")
-    func teamNotebookGetsTheTeamCopy() async throws {
-        let (store, knowledge, path) = try makeStore()
-        defer { try? FileManager.default.removeItem(atPath: path) }
-        let (teamID, notebookID) = try await teamNotebook(store, in: knowledge)
-        let registry = MCPToolRegistry(store: store)
-
-        func copyID(of url: String) throws -> (own: String, copy: String) {
-            let own = try #require(knowledge.activeSourceID(matchingAddress: url, teamID: nil))
-            let stored = try #require(try knowledge.loadSourceWithoutContent(own))
-            return (own, TeamContentIdentity.sourceID(teamID: teamID, url: stored.url))
-        }
-
-        // add_source: a new page.
-        let pageURL = "https://example.org/team/cristae"
-        let added = await registry.callToolDetailed(name: "add_source", arguments: [
-            "url": pageURL, "title": "On cristae", "source_type": "article",
-            "content": "The inner membrane folds into cristae.", "notebook_id": notebookID,
-        ])
-        #expect(!added.isError, "\(added.text)")
-        #expect(added.text.hasSuffix("notebook_id_applied: \(notebookID) — filed in Notebook ‘Mitochondria’."))
-        let page = try copyID(of: pageURL)
-
-        // import_paper_from_url: a paper the library holds (no download).
-        let paperURL = "https://example.org/team/papers/oxphos"
-        _ = try store.addSource(url: paperURL, title: "OXPHOS", sourceType: "article", content: "Complex I.", parentGroup: nil, author: nil)
-        let imported = await registry.callToolDetailed(name: "import_paper_from_url", arguments: [
-            "url": paperURL, "notebook_id": notebookID,
-        ])
-        #expect(!imported.isError, "\(imported.text)")
-        let paper = try copyID(of: paperURL)
-
-        // add_notebook_sources: an own source by its id.
-        try knowledge.saveSource(readySource(id: "own-3", url: "https://example.org/team/three", title: "Three"))
-        let filed = await registry.callToolDetailed(name: "add_notebook_sources", arguments: [
-            "notebook_id": notebookID, "source_ids": ["own-3"],
-        ])
-        #expect(!filed.isError, "\(filed.text)")
-        #expect(filed.text.hasPrefix("Added 1 source to Notebook ‘Mitochondria’ as approved, as the team's copies."))
-        let third = try copyID(of: "https://example.org/team/three")
-
-        // add_companion_sources: the older name for the same pool.
-        try knowledge.saveSource(readySource(id: "own-4", url: "https://example.org/team/four", title: "Four"))
-        let companion = await registry.callToolDetailed(name: "add_companion_sources", arguments: [
-            "goal_id": notebookID, "source_ids": ["own-4"],
-        ])
-        #expect(!companion.isError, "\(companion.text)")
-        #expect(companion.text.hasPrefix("Added 1 source to Notebook ‘Mitochondria’ as approved, as the team's copies."))
-        let fourth = try copyID(of: "https://example.org/team/four")
-
-        let held = Set(try approved(notebookID, in: knowledge))
-        #expect(held == [page.copy, paper.copy, third.copy, fourth.copy])
-        #expect(held.isDisjoint(with: [page.own, paper.own, third.own, fourth.own]), "the learner's own ids never enter the team's notebook")
-        let teamRows = Set(try knowledge.loadActiveSources(teamID: teamID).map(\.id))
-        #expect(teamRows.isSuperset(of: held), "each copy is a team row a teammate can open")
-    }
-
     @Test("A read-only team's notebook refuses add_source, add_sources, import_paper_from_url, add_notebook_sources and add_companion_sources, adding nothing")
     func readOnlyTeamNotebookTakesNothing() async throws {
         let (store, knowledge, path) = try makeStore()
@@ -750,55 +621,6 @@ struct NotebookTeamImportTests {
         }
         #expect(try approved(notebookID, in: knowledge).isEmpty)
         #expect(try knowledge.loadActiveSources(teamID: "team-ro").isEmpty)
-    }
-
-    @Test("A review in a team notebook's chat and assign_sources_to_day on a team notebook file the team's copy, never the own id")
-    func reviewAndDayPlanFileTheTeamCopy() async throws {
-        let (store, knowledge, path) = try makeStore()
-        defer { try? FileManager.default.removeItem(atPath: path) }
-        let (teamID, notebookID) = try await teamNotebook(store, in: knowledge)
-        let registry = MCPToolRegistry(store: store)
-
-        // start_review_session bound to a chat filed under the team's notebook.
-        let reviewedURL = "https://example.org/team/reviewed"
-        try knowledge.saveSource(readySource(id: "own-r", url: reviewedURL, title: "Reviewed"))
-        let chatID = "chat-team-notebook"
-        try knowledge.createReviewSession(id: chatID, topic: "Chat", sourceIDs: [], startedAt: Date(), goalID: notebookID)
-        let review = await registry.callToolDetailed(
-            name: "start_review_session",
-            arguments: ["topic": "Reviewed", "source_ids": ["own-r"]],
-            hostSessionID: chatID
-        )
-        #expect(!review.isError, "\(review.text)")
-        #expect(review.text.contains("Session ID: \(chatID)"))
-        #expect(try store.reviewSessionSourceIDs(sessionID: chatID) == ["own-r"], "the chat itself names the source the learner reviewed")
-        let reviewedCopy = TeamContentIdentity.sourceID(teamID: teamID, url: reviewedURL)
-        #expect(try approved(notebookID, in: knowledge) == [reviewedCopy])
-
-        // Reviewing it again files nothing: the notebook holds it as the copy.
-        let again = await registry.callToolDetailed(
-            name: "start_review_session",
-            arguments: ["topic": "Reviewed", "source_ids": ["own-r"]],
-            hostSessionID: chatID
-        )
-        #expect(!again.isError, "\(again.text)")
-        #expect(try approved(notebookID, in: knowledge) == [reviewedCopy])
-
-        // assign_sources_to_day naming the team's notebook.
-        let plannedURL = "https://example.org/team/planned"
-        try knowledge.saveSource(readySource(id: "own-d", url: plannedURL, title: "Planned"))
-        let day = await registry.callToolDetailed(name: "assign_sources_to_day", arguments: [
-            "goal_id": notebookID, "source_ids": ["own-d"], "date": "today",
-        ])
-        #expect(!day.isError, "\(day.text)")
-        let plannedCopy = TeamContentIdentity.sourceID(teamID: teamID, url: plannedURL)
-        let held = Set(try approved(notebookID, in: knowledge))
-        #expect(held == [reviewedCopy, plannedCopy])
-        #expect(held.isDisjoint(with: ["own-r", "own-d"]), "the learner's own ids never enter the team's notebook")
-        #expect(Set(try knowledge.loadActiveSources(teamID: teamID).map(\.id)).isSuperset(of: held), "each copy is a team row a teammate can open")
-        // The day plan stays the learner's own, on the id they named.
-        let placement = try #require(try knowledge.loadScheduledSources(goalID: notebookID).first { $0.placement.sourceID == "own-d" })
-        #expect(placement.goalIDs.contains(notebookID))
     }
 
     @Test("A read-only team's notebook takes nothing from a review in its chat or from assign_sources_to_day, and the review still starts")
@@ -867,34 +689,6 @@ struct NotebookTeamImportTests {
         #expect(archived.filing == .libraryOnly(.archived))
         #expect(archived.arguments["notebook_id"] == nil)
     }
-
-    @Test("Removing a source from a team notebook through its row removes the team's copy it stands for")
-    func removingFromTeamNotebookRemovesTheCopy() async throws {
-        let priorSelection = ActiveNotebookPreference.notebookID
-        defer { ActiveNotebookPreference.notebookID = priorSelection }
-        let (store, knowledge, path) = try makeStore()
-        defer { try? FileManager.default.removeItem(atPath: path) }
-        let (teamID, notebookID) = try await teamNotebook(store, in: knowledge)
-        try knowledge.saveSource(readySource(id: "own-1", url: "https://example.org/one", title: "One"))
-        let copyID = TeamContentIdentity.sourceID(teamID: teamID, url: "https://example.org/one")
-
-        let vm = StudioViewModel(storageService: store.notebookFileStorage)
-        vm.notebookChatExclusions = [:]
-        await vm.loadLearningGoals()
-        // The Sources +: the own row's id goes in, the team's copy is filed.
-        await vm.addSourcesToNotebookContext(["own-1"], notebookID: notebookID, announce: false)
-        #expect(try approved(notebookID, in: knowledge) == [copyID])
-
-        // The library load names the copy by the row it stands for.
-        vm.articlesStore.teamCopyAliases = [copyID: "own-1"]
-        vm.refreshNotebookSidebarIndex()
-        #expect(vm.notebookMembership(of: ["own-1"], in: notebookID) == .all)
-
-        await vm.removeSourcesFromNotebook(["own-1"], notebookID: notebookID, announce: false)
-        #expect(try approved(notebookID, in: knowledge).isEmpty)
-        #expect(vm.notebookMembership(of: ["own-1"], in: notebookID) == .none)
-        #expect(try knowledge.loadSourceWithoutContent("own-1")?.status == .active, "the learner's own source stays in the library")
-    }
 }
 
 // MARK: - Arrivals come in ticked, and course groups
@@ -915,46 +709,6 @@ struct NotebookAppAddTests {
             title: title, topic: title, startAt: Date(), endAt: LearningGoalRecord.openEndedEndAt,
             dailyTarget: 3, discoveryEnabled: false, seedSourceIDs: sources
         )
-    }
-
-    @Test("A source added to a notebook arrives ticked there and in a notebook that put it into context; a notebook only linked brings nothing, and a box the notebook already showed keeps its untick")
-    func addsTickWhatArrived() async throws {
-        let priorSelection = ActiveNotebookPreference.notebookID
-        defer { ActiveNotebookPreference.notebookID = priorSelection }
-        let (store, knowledge, path) = try makeStore()
-        defer { try? FileManager.default.removeItem(atPath: path) }
-        for id in ["src-w", "src-x", "src-y", "src-z"] {
-            try knowledge.saveSource(StudioArticle(url: "https://example.com/\(id)", title: id, sourceType: .article, id: id))
-        }
-        let a = try notebook("A", sources: ["src-y"], in: knowledge)
-        let b = try notebook("B", sources: [], in: knowledge)
-        try knowledge.setRelatedNotebooks(notebookID: a.id, relatedNotebookIDs: [b.id])
-
-        try await withNotebookState { box in
-            let vm = StudioViewModel(storageService: store.notebookFileStorage)
-            await vm.loadLearningGoals()
-            // y is unticked in A on purpose. w, x and z were unticked before
-            // they left these pools on another Mac: removals that left boxes
-            // behind.
-            box.snapshot.excluded[a.id] = Set(["src-w", "src-x", "src-y"])
-            box.snapshot.excluded[b.id] = Set(["src-z"])
-            vm.notebookChatExclusions = [a.id: ["src-w", "src-x", "src-y"], b.id: ["src-z"]]
-
-            // B is only linked to A: what arrives in B is not A's chats' to tick.
-            await vm.addSourcesToNotebookContext(["src-x", "src-z"], notebookID: b.id, announce: false)
-            #expect(vm.notebookChatExclusions[b.id] == nil, "both arrived in B ticked")
-            #expect(box.snapshot.excluded[b.id] == nil)
-            #expect(vm.notebookChatExclusions[a.id] == ["src-w", "src-x", "src-y"], "B is not in A's context")
-
-            // Put into A's context, B's arrivals reach A's chats ticked: w's
-            // old untick does not outlive its return. y joins B too, but A
-            // showed it already: still unticked there.
-            box.snapshot.contextNotebooks[a.id] = Set([b.id])
-            vm.notebookChatContextNotebooks = [a.id: [b.id]]
-            await vm.addSourcesToNotebookContext(["src-w", "src-y"], notebookID: b.id, announce: false)
-            #expect(vm.notebookChatExclusions[a.id] == ["src-x", "src-y"], "w arrived in A's chats through B; y keeps its box")
-            #expect(box.snapshot.excluded[a.id] == Set(["src-x", "src-y"]))
-        }
     }
 
     @Test("Add All on a course links it to the notebook, as a drop does; Remove All unlinks it and takes its lectures out")

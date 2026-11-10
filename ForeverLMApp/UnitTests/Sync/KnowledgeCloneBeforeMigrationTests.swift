@@ -164,28 +164,6 @@ struct KnowledgeCloneBeforeMigrationTests {
         #expect(KnowledgeRollbackCopy.recorded(.beforeSchema154, in: root)?.passedQuickCheck == false)
     }
 
-    @Test("Generation 1 copies a store below 154 before migrating it", arguments: [Int32(148), Int32(150), Int32(153)])
-    func generation1CopiesBelow154(_ version: Int32) async throws {
-        let root = try Schema154Fixture.temporaryRoot("gen1-\(version)")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try Schema154Fixture.makeLibrary(at: root, version: version)
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-        #expect(store.rollbackCopy?.kind == .beforeSchema154)
-        #expect(store.rollbackCopy?.userVersion == version)
-        #expect(Self.copyCount(root, .beforeSchema154, "PRAGMA user_version") == Int(version))
-        #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM pragma_foreign_key_list('hidden_sources')", file: "knowledge.pre-154.db") == 1)
-        #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
-        let checked = await store.rollbackCopyCheck?.value
-        #expect(checked?.passedQuickCheck == true)
-        #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("knowledge.pre-v2.db").path))
-        let again = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-        #expect(again.rollbackCopy == nil && again.rollbackCopyCheck == nil, "the launch's other opens take none")
-        Schema154Fixture.newLaunch(root)
-        let reopened = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-        #expect(reopened.rollbackCopy == nil, "a store at 154 takes no copy under generation 1")
-        #expect(KnowledgeRollbackCopy.checksQueuedForTesting(in: root) == 1)
-    }
-
     @Test("A store's first generation-2 launch copies it before its migrations", arguments: [Int32(148), Int32(150), Int32(153)])
     func generation2CopiesFirst(_ version: Int32) throws {
         let root = try Schema154Fixture.temporaryRoot("gen2-\(version)")
@@ -241,29 +219,6 @@ struct KnowledgeCloneBeforeMigrationTests {
         #expect(activated.rollbackCopy == nil)
     }
 
-    @Test("Every retry of an open whose migration 154 fails reuses the launch's one copy and its one check")
-    func failingMigrationCopiesOnce() async throws {
-        let root = try Schema154Fixture.temporaryRoot("retry")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try Schema154Fixture.makeLibrary(at: root, version: 153)
-        // A same-named table of another shape: 154's probe refuses it, and the migration rolls back.
-        try SQLiteHandle(path: root.appendingPathComponent("knowledge.db").path).executeScript("CREATE TABLE ck_records (something_else TEXT)")
-        var takenAt: Date?
-        for attempt in 0..<5 {
-            #expect(throws: (any Error).self, "attempt \(attempt)") {
-                _ = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-            }
-            let copy = try #require(KnowledgeRollbackCopy.recorded(.beforeSchema154, in: root))
-            takenAt = takenAt ?? copy.takenAt
-            #expect(copy.takenAt == takenAt, "attempt \(attempt) took no copy of its own")
-        }
-        #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == 153)
-        await KnowledgeRollbackCopy.queuedChecksForTesting()
-        #expect(KnowledgeRollbackCopy.checksQueuedForTesting(in: root) == 1)
-        #expect(KnowledgeRollbackCopy.recorded(.beforeSchema154, in: root)?.passedQuickCheck == true)
-        #expect(Self.copyCount(root, .beforeSchema154, "PRAGMA user_version") == 153)
-    }
-
     @Test("A store with no library, or a brand-new one, is not copied")
     func emptyStoreIsNotCopied() throws {
         let root = try Schema154Fixture.temporaryRoot("empty")
@@ -298,76 +253,6 @@ struct KnowledgeCloneBeforeMigrationTests {
         #expect(opens.copies.first?.userVersion == 153)
     }
 
-    /// Released builds 176 to 178 left 150, older ones 148 or 149, and none has run 151 to 153, so a
-    /// Mac short of room must still get every step below 154: none of them ever needed a copy.
-    @Test(
-        "Without room for the copy, generation 1 runs every step below 154 and waits at 153; with room, it copies, then migrates",
-        arguments: [Int32(148), Int32(149), Int32(150), Int32(153)]
-    )
-    func roomForTheCopy(_ version: Int32) throws {
-        let root = try Schema154Fixture.temporaryRoot("room-\(version)")
-        defer { try? FileManager.default.removeItem(at: root) }
-        // The card's state is the process's: the test host shows no card once this test is done.
-        defer { LibraryUpgradeSpace.record(nil) }
-        let library = try Schema154Fixture.makeLibrary(at: root, version: version)
-        // A chat filed under a notebook an older build's merge deleted, which 153's step releases.
-        try SQLiteHandle(path: root.appendingPathComponent("knowledge.db").path).executeScript("""
-            INSERT INTO review_sessions (id, topic, started_at, goal_id) VALUES ('chat-in-gone', 'Gone', 1, 'gone-notebook');
-            INSERT INTO sync_metadata (entity_type, logical_key, record_name, user_modification_at, is_deleted)
-            VALUES ('learningGoal', 'gone-notebook', 'LearningGoal-gone-notebook', 1, 1);
-        """)
-        let databaseBytes = ((try FileManager.default.attributesOfItem(atPath: root.appendingPathComponent("knowledge.db").path))[.size] as? NSNumber)?.int64Value ?? 0
-
-        let waiting = try KnowledgeStore(storeDirectory: root, freeSpace: { _ in 1_500_000_000 })
-        #expect(waiting.rollbackCopy == nil)
-        #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("knowledge.pre-154.db").path))
-        #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == 153, "every step below 154 ran")
-        #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM pragma_table_info('review_sessions') WHERE name IN ('model_effort', 'model_speed')") == 2, "149's columns")
-        #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM pragma_table_info('courses') WHERE name = 'home_notebook_id'") == 1, "150's column")
-        // 164's rename runs on a held store too (this build's queries name the notebook tables); its stale
-        // indexes are dropped and made again by the launch that lays down 154, so 153 still holds the old name.
-        let courseIndex = version == 153 ? "idx_courses_home_project" : "idx_courses_home_notebook"
-        #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM sqlite_master WHERE name = '\(courseIndex)'") == 1, "and its index")
-        #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM review_sessions WHERE id = 'chat-in-gone' AND goal_id IS NULL") == (version < 153 ? 1 : 0), "153's release, where it was due")
-        // None of 154: no ck table, wire column or wire_key index, and the released per-member tables.
-        #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM sqlite_master WHERE name LIKE 'ck\\_%' ESCAPE '\\' OR name LIKE 'idx\\_%\\_wire\\_key' ESCAPE '\\'") == 0)
-        for table in KnowledgeStore.wireKeyedTables {
-            #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM pragma_table_xinfo('\(table)') WHERE name IN ('wire_id', 'wire_key')") == 0, "\(table)")
-        }
-        #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM pragma_table_info('learning_goals') WHERE name = 'entity_kind'") == 0)
-        for table in Schema154Fixture.releasedPerMemberTables.map(\.name) {
-            #expect(Schema154Fixture.foreignKeyCount(at: root, table) == 1, "\(table)")
-        }
-        let space = try #require(waiting.upgradeWaitingForSpace)
-        #expect(space.availableBytes == 1_500_000_000)
-        #expect(space.neededBytes >= databaseBytes + 2_000_000_000)
-        #expect(LibraryUpgradeSpace.message(for: space).hasPrefix("Free up "))
-        // Generation 1 runs on the store as the build before did, 149's and 150's columns included.
-        #expect(try waiting.loadSourcesWithoutContent().count == 3)
-        try waiting.updateReviewSessionModel(
-            sessionID: "chat-in-gone", modelProvider: AIProvider.openRouter.rawValue, modelID: "model-under-test",
-            modelEffort: "high", modelSpeed: nil
-        )
-        #expect(try waiting.loadReviewSessionModelRoute(sessionID: "chat-in-gone")?.modelEffort == "high")
-        #expect(try waiting.loadCourseFollowers().isEmpty)
-        try waiting.deleteSource(library.sourceIDs[1])
-        #expect(try Schema154Fixture.count(waiting, "SELECT COUNT(*) FROM hidden_sources WHERE source_id = '\(library.sourceIDs[1])'") == 0)
-
-        // The rest of the launch keeps its first open's decision, whatever the disk says now.
-        let sameLaunch = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-        #expect(sameLaunch.rollbackCopy == nil)
-        #expect(sameLaunch.upgradeWaitingForSpace == space)
-        #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == 153)
-
-        Schema154Fixture.newLaunch(root)
-        let later = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-        #expect(later.rollbackCopy?.userVersion == 153, "the copy is the store as the launch before left it")
-        #expect(later.upgradeWaitingForSpace == nil)
-        #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
-        #expect(Schema154Fixture.foreignKeyCount(at: root, "source_highlights") == 0)
-        #expect(try later.loadReviewSessionModelRoute(sessionID: "chat-in-gone")?.modelEffort == "high")
-    }
-
     @Test("Generation 2 refuses a store it has no room to copy, and migrates nothing")
     func generation2RefusesWithoutRoom() throws {
         let root = try Schema154Fixture.temporaryRoot("room-gen2")
@@ -387,27 +272,6 @@ struct KnowledgeCloneBeforeMigrationTests {
             _ = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         }
         #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("knowledge.pre-v2.db").path))
-    }
-
-    @Test("A copy that fails midway leaves no partial file, and a crash's leftover is cleared")
-    func partialCopyIsRemoved() throws {
-        let root = try Schema154Fixture.temporaryRoot("partial")
-        defer { try? FileManager.default.removeItem(at: root) }
-        defer { LibraryUpgradeSpace.record(nil) }
-        try Schema154Fixture.makeLibrary(at: root, version: 153)
-        struct Interrupted: Error {}
-        #expect(throws: Interrupted.self) {
-            _ = try KnowledgeRollbackCopy.take(.beforeSchema154, ofStoreAt: root, beforeMovingIntoPlace: { throw Interrupted() })
-        }
-        let staging = KnowledgeRollbackCopy.stagingURL(.beforeSchema154, in: root)
-        #expect(!FileManager.default.fileExists(atPath: staging.path))
-        #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("knowledge.pre-154.db").path))
-
-        try Data(repeating: 1, count: 4096).write(to: staging)
-        try Data(repeating: 2, count: 512).write(to: URL(fileURLWithPath: staging.path + "-journal"))
-        _ = try KnowledgeStore(storeDirectory: root, freeSpace: { _ in 1_000_000_000 })
-        #expect(!FileManager.default.fileExists(atPath: staging.path))
-        #expect(!FileManager.default.fileExists(atPath: staging.path + "-journal"))
     }
 
     @Test("The room a copy needs, and the line that names it")

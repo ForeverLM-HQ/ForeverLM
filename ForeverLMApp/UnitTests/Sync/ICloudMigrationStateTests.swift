@@ -234,13 +234,4 @@ struct ICloudMigrationStateTests {
         try store.writeActivationJournal(journal)
         #expect(try store.migrationSnapshot(deviceID: nil).rollbackCopy == .none)
     }
-
-    @Test("Under generation 1 the snapshot is empty and reads nothing")
-    func snapshotUnderGeneration1() throws {
-        let root = try Schema154Fixture.temporaryRoot("migration-snapshot-g1")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try Schema154Fixture.makeLibrary(at: root, version: nil)
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-        #expect(try store.migrationSnapshot(deviceID: nil) == ICloudMigrationSnapshot())
-    }
 }

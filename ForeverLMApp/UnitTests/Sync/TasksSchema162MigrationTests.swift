@@ -127,21 +127,6 @@ struct TasksSchema162MigrationTests {
         #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM sources") == 3)
     }
 
-    @Test("Under generation 1 a task, a share request and a scheduled run write none of 162's columns")
-    func generationOneWritesNothingNew() throws {
-        let root = try Schema154Fixture.temporaryRoot("162-generation-1")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let library = try Schema154Fixture.makeLibrary(at: root, version: nil)
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-        try store.saveNotebookTask(NotebookTaskRecord(notebookID: library.notebookID, title: "Read the methods"))
-        let task = try store.saveScheduledTask(ScheduledTask(title: "Morning brief", instruction: "Summarize yesterday"))
-        _ = try store.claimScheduledTaskOccurrence(taskID: task.id, occurrenceAt: Date(timeIntervalSinceReferenceDate: 1_000))
-        try store.requestScheduledTaskRunNow(task.id)
-        #expect(Self.filledCount(root) == 0)
-        #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM scheduled_tasks WHERE run_now_requested_at IS NOT NULL") == 1,
-                "Run now sets the request, as build 177 does")
-    }
-
     @Test("A production-sized library migrates from the step before to 162 in well under a second")
     func scale() throws {
         let root = try Schema154Fixture.temporaryRoot("162-scale")

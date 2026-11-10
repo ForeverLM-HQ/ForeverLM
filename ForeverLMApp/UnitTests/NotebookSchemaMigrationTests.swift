@@ -109,39 +109,6 @@ struct NotebookSchemaMigrationTests {
         }
     }
 
-    @Test(
-        "A store held at 153 for want of room still gets the notebook names, and its later launch with room finishes the indexes",
-        arguments: [Int32(150), Int32(153)]
-    )
-    func heldBelow154(_ version: Int32) throws {
-        let root = try Schema154Fixture.temporaryRoot("notebook-names-held-\(version)")
-        defer { try? FileManager.default.removeItem(at: root) }
-        defer { LibraryUpgradeSpace.record(nil) }
-        let library = try Schema154Fixture.makeLibrary(at: root, version: version)
-        try Self.seedOldNames(at: root, notebookID: library.notebookID, withOutbox: false)
-
-        Schema154Fixture.newLaunch(root)
-        let waiting = try KnowledgeStore(storeDirectory: root, freeSpace: { _ in 1_500_000_000 })
-        #expect(waiting.upgradeWaitingForSpace != nil)
-        #expect(Self.count(root, "PRAGMA user_version") == 153)
-        Self.expectNewNames(root)
-        #expect(try waiting.loadNotebookTasks(notebookID: library.notebookID).map(\.id) == ["task-1"])
-        #expect(Self.count(root, "SELECT COUNT(*) FROM idea_links WHERE kind = 'notebook'") == 1)
-
-        // A second launch, still short of room, has nothing left to rename.
-        Schema154Fixture.newLaunch(root)
-        _ = try KnowledgeStore(storeDirectory: root, freeSpace: { _ in 1_500_000_000 })
-        #expect(Self.count(root, "PRAGMA user_version") == 153)
-
-        Schema154Fixture.newLaunch(root)
-        let later = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-        #expect(Self.count(root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
-        Self.expectNewNames(root)
-        #expect(Self.count(root, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name LIKE 'idx\\_%project%' ESCAPE '\\' AND name NOT LIKE '%unprojected%'") == 0)
-        #expect(Self.count(root, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'idx_notebook_tasks_notebook'") == 1)
-        #expect(try later.loadNotebookTasks(notebookID: library.notebookID).map(\.id) == ["task-1"])
-    }
-
     @Test("A current store is left as it is, and opens again without a second rename")
     func currentStoreIsUntouched() throws {
         let root = try Schema154Fixture.temporaryRoot("notebook-names-current")

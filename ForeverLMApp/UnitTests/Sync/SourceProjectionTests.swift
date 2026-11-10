@@ -614,19 +614,4 @@ struct StaleSourceSaveTests {
         #expect(try Fixture.count(store, "SELECT COUNT(*) FROM hidden_sources WHERE source_id = ? AND hidden_at = ?",
                                   [.text(key), .real(hiddenAt.timeIntervalSinceReferenceDate)]) == 1)
     }
-
-    @Test("Generation 1 still writes the whole copy")
-    func generationOneWritesWhole() throws {
-        let root = try Schema154Fixture.temporaryRoot("WP7-stale-copy-generation-one")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-        let article = Remote.staleArticle()
-        try store.saveSource(article)
-        let held = try #require(try store.loadSourceWithoutContent(article.id))
-        try store.execForTesting("UPDATE articles SET title = 'Fixed elsewhere' WHERE source_id = '\(article.id)'")
-
-        try store.saveSource(held)
-
-        #expect(try Fixture.text(store, "SELECT title FROM articles WHERE source_id = ?", [.text(article.id)]) == Remote.staleTitle)
-    }
 }

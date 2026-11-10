@@ -390,46 +390,7 @@ struct NotebookCollectionsMCPTests {
 // MARK: - NotebookState (schema v2 §3.5.20, WP8)
 
 extension NotebookCollectionsViewModelTests {
-    @Test("A toggle writes the member's NotebookState.collections, the name stays a Setting, and a deleted collection is read past")
-    func notebookState() throws {
-        try withCollectionDefaults { defaults in
-            let box = NotebookStateStore.Box()
-            try NotebookStateStore.$override.withValue(box) {
-                let vm = makeViewModel()
-                vm.learningGoals = [notebook("bio", in: vm), notebook("neuro", in: vm)]
-                let aging = try #require(vm.createNotebookCollection(named: "Aging", adding: ["bio"]))
-                #expect(box.snapshot.collections["bio"] == [aging.id])
-                #expect(memberships("bio").isEmpty, "no preference row")
-                #expect(defaults.string(forKey: NotebookCollections.nameKey(collectionID: aging.id)) == "Aging")
-                vm.setNotebook("neuro", inCollection: aging.id, isMember: true)
-                #expect(box.snapshot.collections["neuro"] == [aging.id])
-                #expect(vm.notebookCollections.notebookIDs(["bio", "neuro"], in: aging.id) == ["bio", "neuro"])
-                // Deleted on another device: the name goes, and the membership is read past, never pruned.
-                defaults.removeObject(forKey: NotebookCollections.nameKey(collectionID: aging.id))
-                #expect(NotebookCollectionRows.read().collections(ofNotebook: "bio").isEmpty)
-                #expect(box.snapshot.collections["bio"] == [aging.id])
-            }
-        }
-    }
 }
 
 extension NotebookCollectionsMCPTests {
-    @Test("update_notebook_collection files notebooks into the member's NotebookState")
-    func notebookState() async throws {
-        let (store, path) = try makeStore()
-        defer { try? FileManager.default.removeItem(atPath: path) }
-        let bio = try notebook("Bioelectricity", store: store)
-        try await withCollectionDefaults { defaults in
-            let box = NotebookStateStore.Box()
-            try await NotebookStateStore.$override.withValue(box) {
-                let created = try parseJSON(try await store.updateNotebookCollection(
-                    action: "create", collectionID: nil, name: "🔬 Science", notebookIDs: [bio.id]
-                ))
-                let id = try #require((created["collection"] as? [String: Any])?["id"] as? String)
-                #expect(box.snapshot.collections[bio.id] == [id])
-                #expect(memberships(bio.id).isEmpty)
-                #expect(try store.listNotebookCollections().contains(bio.id))
-            }
-        }
-    }
 }

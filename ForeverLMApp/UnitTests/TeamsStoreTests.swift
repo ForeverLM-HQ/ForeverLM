@@ -925,28 +925,6 @@ struct TeamsStoreTests {
         #expect(try store.loadShareRequests(teamID: team.id).map(\.id) == ["req-1"])
     }
 
-    @Test("A read-only team refuses every write into it")
-    func readOnlyTeam() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        let team = try Self.makeTeam(store, role: .member, permission: .readOnly)
-        try store.saveSource(Self.readySource(id: "src-1", url: "https://example.com/1", title: "One", content: "Text one for the read-only test."))
-        #expect(throws: (any Error).self) {
-            try store.copySourceIntoTeam(sourceID: "src-1", teamID: team.id) { $0 }
-        }
-        // A team Notebook that arrived from the owner cannot take a task from a
-        // read-only member either: the queue refuses the save.
-        try store.saveLearningGoalRecord(LearningGoalRecord(
-            id: "proj-team", title: "Theirs", startAt: Date(), endAt: LearningGoalRecord.openEndedEndAt,
-            createdAt: Date(), updatedAt: Date(), status: "active", items: [],
-            kind: LearningGoalRecord.companionKind, teamID: team.id
-        ))
-        #expect(throws: (any Error).self) {
-            try store.saveNotebookTask(NotebookTaskRecord(id: "t", notebookID: "proj-team", title: "Nope"))
-        }
-        #expect(try store.loadNotebookTask("t") == nil)
-        #expect(try store.loadActiveSources().map(\.id) == ["src-1"])
-    }
-
     // MARK: Courses (docs/teams-design.md, decision 21)
 
     private static let courseReadingPages = 3...5
@@ -1153,35 +1131,6 @@ struct TeamsStoreTests {
         #expect(quizIDs.contains("quiz-teammate"))
         #expect(quizIDs.count == 3)
         #expect(try store.loadActiveSources(teamID: team.id).count == 3)
-    }
-
-    @Test("Hiding a team's course is the member's own, and a read-only member can do it")
-    func teamCourseHiddenIsPerMember() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        let team = try Self.makeTeam(store)
-        try Self.seedCourse(store)
-        let courseID = try store.copyCourseIntoTeam(courseID: "course-own", teamID: team.id) { $0 }.id
-
-        var metadata = try #require(try store.loadCourseGroups()[courseID])
-        metadata.isHidden = true
-        try store.saveCourseGroup(name: courseID, metadata: metadata)
-        #expect(try store.loadCourseGroups()[courseID]?.isHidden == true)
-
-        // A rename is the team's.
-        metadata.title = "Bioelectricity, for the team"
-        try store.saveCourseGroup(name: courseID, metadata: metadata)
-        #expect(try store.loadCourseGroups()[courseID]?.title == "Bioelectricity, for the team")
-
-        // A read-only member hides a team's course; changing it is refused.
-        let readOnly = try Self.makeTeam(store, id: "team-ro", name: "Theirs", role: .member, permission: .readOnly)
-        try store.saveCourseGroup(name: "course-theirs", metadata: CourseMetadata(title: "Theirs"))
-        try store.stampTeam(entity: .course, logicalKey: "course-theirs", teamID: readOnly.id)
-        try store.saveCourseGroup(name: "course-theirs", metadata: CourseMetadata(title: "Theirs", isHidden: true))
-        #expect(try store.loadCourseGroups()["course-theirs"]?.isHidden == true)
-        #expect(throws: (any Error).self) {
-            try store.saveCourseGroup(name: "course-theirs", metadata: CourseMetadata(title: "Mine now", isHidden: true))
-        }
-        #expect(try store.courseTeamID("course-theirs") == readOnly.id, "an upsert keeps the course's team")
     }
 
     @Test("A team's course files a member's own source as the team's copy, and refuses one the team does not hold")

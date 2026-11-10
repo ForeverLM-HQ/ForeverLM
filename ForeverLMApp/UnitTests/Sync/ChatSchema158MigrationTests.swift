@@ -160,41 +160,6 @@ struct ChatSchema158MigrationTests {
         return kinds
     }
 
-    @Test("The activation classifies every legacy chat by the classifier, and a chat generation 1 made after 158 too")
-    func activationClassifies() throws {
-        let root = try Schema154Fixture.temporaryRoot("158-activation")
-        defer { try? FileManager.default.removeItem(at: root) }
-        do {
-            let legacy = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-            try Self.writeLegacyChats(legacy)
-            #expect(try Schema154Fixture.count(legacy, "SELECT COUNT(*) FROM review_sessions WHERE chat_kind IS NOT NULL") == 0, "generation 1 writes none")
-        }
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-        for derivation in KnowledgeStore.chatActivationDerivations { try derivation.run(store) }
-        let kinds = try Self.kinds(store)
-        #expect(kinds["gen1-review"] == "review", "a graded chat generation 1 made after 158")
-        #expect(kinds["ios-live-1"] == "voice")
-        #expect(kinds["quiz"] == "quizSitting")
-        #expect(kinds["walk-named"] == "walkthrough" && kinds["walk-step"] == "walkthrough")
-        #expect(kinds["old-review"] == "review", "a scored review from before kinds")
-        #expect(kinds["team-copy"] == "transcript")
-        #expect(kinds["memory-2026-10-01"] == "memory")
-        #expect(kinds["plain"] == "chat" && kinds["kept-chat"] == "chat")
-        for id in ["ios-live-1", "walk-named", "old-review", "memory-2026-10-01"] {
-            #expect(ChatKind(rawValue: kinds[id] ?? "")?.isPrivate == true, "\(id) never goes into a space")
-        }
-
-        // marksReviewed by today's rule: an unset kind or a review marks; a chat or a memory review does not.
-        func marks(_ id: String) throws -> Int { try Schema154Fixture.count(store, "SELECT COALESCE(marks_reviewed, -1) FROM review_sessions WHERE id = '\(id)'") }
-        #expect(try marks("plain") == 1 && marks("ios-live-1") == 1)
-        #expect(try marks("kept-chat") == 0 && marks("memory-2026-10-01") == 0)
-        // Under generation 2 an append with session_id and no mark_reviewed marks exactly when it is true.
-        #expect(try store.generation2AppendMarksReviewed(requested: nil, sessionID: "plain"))
-        #expect(try !store.generation2AppendMarksReviewed(requested: nil, sessionID: "kept-chat"))
-        #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM review_sessions WHERE context_mode IS NULL") == 0)
-        #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM review_sessions WHERE id = 'plain' AND context_mode = 'none'") == 1)
-    }
-
     @Test("Each derivation run twice gives one result, keeps what a generation-2 site wrote, and takes a row added since")
     func derivationsAreIdempotent() throws {
         let root = try Schema154Fixture.temporaryRoot("158-twice")

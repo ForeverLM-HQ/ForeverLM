@@ -271,7 +271,7 @@ struct Schema150MigrationTests {
 
         let migrated = try KnowledgeStore(storeDirectory: root)
         #expect(F.scalar(at: root, "PRAGMA user_version") == "\(KnowledgeStore.schemaVersion)")
-        #expect(KnowledgeStore.schemaVersion == 174)
+        #expect(KnowledgeStore.schemaVersion == 175)
         #expect(F.scalar(at: root, Self.homeColumn) == "1")
         #expect(F.scalar(at: root, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'idx_courses_home_notebook'") == "1")
 

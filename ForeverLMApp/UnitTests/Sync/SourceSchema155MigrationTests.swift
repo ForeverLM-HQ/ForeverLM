@@ -130,21 +130,6 @@ struct SourceSchema155MigrationTests {
         #expect(visible == 6_000, "sources stay visible")
     }
 
-    @Test("Under generation 1 imports leave every 155 table empty")
-    func generation1LeavesThemEmpty() throws {
-        let root = try Schema154Fixture.temporaryRoot("155-generation1")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-        var article = StudioArticle(url: "https://doi.org/10.1038/s41586-020-2649-2", title: "A paper", sourceType: .paper)
-        article.doi = "10.1038/s41586-020-2649-2"
-        #expect(try store.insertSourceIfNew(&article))
-        var episode = StudioArticle(url: "https://podcasts.example.org/ep/1", title: "Episode 1", sourceType: .podcast)
-        episode.domain = "A Show"
-        #expect(try store.insertSourceIfNew(&episode))
-        #expect(try Self.emptyCounts(store).values.allSatisfy { $0 == 0 })
-        #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger'") == 0)
-    }
-
     // MARK: The activation's derivations (§13.3 step 3c)
 
     private static let playlistGroup = "playlist_youtube.com/playlist?list=UU8kGsMa0LygSX9nkBcBH1Sg"
@@ -299,21 +284,6 @@ struct SourceSchema155MigrationTests {
         #expect(try SourceSyncFixture.text(store, "SELECT local_id FROM ck_identity WHERE zone_key = ? AND record_type = 'Source' AND wire_id = ?",
                                            [.text(zone), .text(personal.id)]) == copy.id)
         #expect(try SourceSyncFixture.count(store, "SELECT COUNT(*) FROM ck_identity WHERE local_id = ?", [.text(personal.id)]) == 0, "the personal copy needs no mapping")
-    }
-
-    @Test("Under generation 1 an import mints as on build 177 and never reads source_work_keys")
-    func generation1IgnoresWorkKeys() throws {
-        let root = try Schema154Fixture.temporaryRoot("155-gen1-mint")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-        let other = try SourceSyncFixture.save(store, StudioArticle(url: "https://example.org/other", title: "Other", sourceType: .article))
-        // A key naming another source, as a generation-2 store would hold it: generation 1 never looks.
-        try store.execForTesting("INSERT INTO source_work_keys (source_id, work_key) VALUES ('\(other.id)', 'url:\(URLNormalizer.normalize("https://example.org/paper"))')")
-        var article = StudioArticle(url: "https://example.org/paper", title: "Paper", sourceType: .article)
-        #expect(try store.insertSourceIfNew(&article))
-        #expect(article.id == SourceIdentity.stableID(for: "https://example.org/paper"))
-        #expect(try SourceSyncFixture.count(store, "SELECT COUNT(*) FROM sources") == 2)
-        #expect(try SourceSyncFixture.count(store, "SELECT COUNT(*) FROM source_work_keys WHERE source_id = ?", [.text(article.id)]) == 0, "and writes none")
     }
 
     @Test("The whole activation runs on a real library: derivations, then the Source, Collection and Entry triggers")

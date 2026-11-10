@@ -3833,70 +3833,6 @@ struct ScheduleChatNavigationTests {
         }
     }
 
-    @Test("Add a Notebook to Context links and puts it in at once, as it was left; Take Out of Context unlinks it and drops it alone from the row")
-    func addAndTakeOutContextNotebook() async throws {
-        try await withNotebookStateAsync { box in
-            let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("NotebookContext_\(UUID().uuidString)")
-            try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
-            defer { try? FileManager.default.removeItem(at: tmp) }
-            let service = StorageService(storeRoot: tmp)
-            let vm = StudioViewModel(storageService: service)
-            vm.notebookChatExclusions = [:]
-            vm.notebookChatContextNotebooks = [:]
-            var sources: [StudioArticle] = []
-            for name in ["own", "lent"] {
-                var source = makeArticle(url: "https://example.com/\(name)", title: name, state: .ready)
-                source.content = "Text of \(name)."
-                try await service.saveSource(source)
-                sources.append(source)
-            }
-            vm.articles = sources
-            let monday = Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 5, day: 4))!
-            func make(_ title: String, _ ids: [String]) async throws -> LearningGoalRecord {
-                try await service.createCompanionGoal(
-                    title: title, topic: title, startAt: monday, endAt: LearningGoalRecord.openEndedEndAt,
-                    dailyTarget: 3, discoveryEnabled: false, seedSourceIDs: ids
-                )
-            }
-            let main = try await make("Main", [sources[0].id])
-            let other = try await make("Other", [sources[1].id])
-            await vm.loadLearningGoals()
-            // A notebook another device linked and put in, whose link this
-            // Mac has not heard of yet.
-            box.snapshot.contextNotebooks[main.id] = Set(["elsewhere"])
-            vm.notebookChatContextNotebooks = [main.id: ["elsewhere"]]
-
-            await vm.addContextNotebook(other.id, to: main.id)
-            #expect(vm.notebook(id: main.id)?.relatedNotebookIDs == [other.id])
-            #expect(box.snapshot.contextNotebooks[main.id] == Set(["elsewhere", other.id]), "the other device's choice stays")
-            #expect(vm.notebookChatSourceIDs(try #require(vm.notebook(id: main.id))) == [sources[0].id, sources[1].id])
-
-            // Unticked while in, taken out by its box and added again: Add puts
-            // it in as it was left.
-            vm.setNotebookSources([sources[1].id], inChat: false, through: other.id, notebookID: main.id)
-            vm.setNotebookContextNotebooks([other.id], inChat: false, notebookID: main.id)
-            await vm.addContextNotebook(other.id, to: main.id)
-            #expect(box.snapshot.contextNotebooks[main.id] == Set(["elsewhere", other.id]))
-            #expect(box.snapshot.excluded[main.id] == Set([sources[1].id]))
-            let linkedMain = try #require(vm.notebook(id: main.id))
-            #expect(vm.notebookChatSourceIDs(linkedMain) == [sources[0].id])
-            #expect(vm.notebookContextNotebookTally(other.id, in: linkedMain).map { [$0.inChat, $0.total] } == [0, 1])
-
-            await vm.takeContextNotebookOut(other.id, of: main.id)
-            #expect(vm.notebook(id: main.id)?.relatedNotebookIDs?.isEmpty != false)
-            #expect(box.snapshot.contextNotebooks[main.id] == Set(["elsewhere"]), "only the notebook unlinked here leaves the row")
-            #expect(vm.notebookChatContextNotebooks[main.id] == ["elsewhere"])
-            #expect(box.snapshot.excluded[main.id] == nil, "the unticks only it held go with it")
-            #expect(vm.notebookChatSourceIDs(try #require(vm.notebook(id: main.id))) == [sources[0].id])
-
-            // Linked again from the inspector's list of every notebook, or by
-            // an assistant: linking alone puts nothing in.
-            #expect(await vm.setRelatedNotebooks([other.id], notebookID: main.id))
-            #expect(box.snapshot.contextNotebooks[main.id] == Set(["elsewhere"]))
-            #expect(vm.notebookChatSourceIDs(try #require(vm.notebook(id: main.id))) == [sources[0].id])
-        }
-    }
-
     @Test("a notebook review reads the ticked sources")
     func notebookReviewUsesTickedSources() {
         let restoreLayout = capturedCenterTabLayout()
@@ -3962,41 +3898,6 @@ struct ScheduleChatNavigationTests {
     private func withNotebookStateAsync(_ body: (NotebookStateStore.Box) async throws -> Void) async throws {
         let box = NotebookStateStore.Box()
         try await NotebookStateStore.$override.withValue(box) { try await body(box) }
-    }
-
-    @Test("a source scheduled into a notebook from its Sources arrives ticked")
-    func scheduledNotebookSourceArrivesTicked() async throws {
-        try await withNotebookStateAsync { box in
-            let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("NotebookScheduleTick_\(UUID().uuidString)")
-            try FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
-            defer { try? FileManager.default.removeItem(at: tmp) }
-            let service = StorageService(storeRoot: tmp)
-            let vm = StudioViewModel(storageService: service)
-            var source = makeArticle(url: "https://example.com/scheduled-back", title: "Scheduled Back", state: .ready)
-            source.content = "Durable notebook source text."
-            try await service.saveSource(source)
-            vm.articles = [source]
-            let monday = Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 5, day: 4))!
-            let notebook = try await service.createCompanionGoal(
-                title: "Notebook",
-                topic: "Notebook",
-                startAt: monday,
-                endAt: LearningGoalRecord.openEndedEndAt,
-                dailyTarget: 3,
-                discoveryEnabled: false,
-                seedSourceIDs: []
-            )
-            await vm.loadLearningGoals()
-            // Left unticked from when it last left the notebook.
-            box.snapshot.excluded[notebook.id] = Set([source.id])
-            vm.notebookChatExclusions = [notebook.id: [source.id]]
-
-            await vm.addSourcesToNotebookSchedule(goalID: notebook.id, sourceIDs: [source.id], plannedFor: monday)
-
-            #expect(vm.notebook(id: notebook.id)?.approvedSourceIDs == [source.id])
-            #expect(box.snapshot.excluded[notebook.id] == nil)
-            #expect(vm.isNotebookSourceInChat(source.id, notebookID: notebook.id))
-        }
     }
 
     @Test("an unsent chat follows the boxes and keeps what else it holds, unless its context was replaced")

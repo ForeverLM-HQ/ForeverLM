@@ -7529,7 +7529,7 @@ struct YouTubeTranscriptCheckMigrationTests {
         var version: Int32 = 0
         try migrated.query("PRAGMA user_version") { statement in version = sqlite3_column_int(statement, 0) }
         #expect(version == KnowledgeStore.schemaVersion)
-        #expect(KnowledgeStore.schemaVersion == 174)
+        #expect(KnowledgeStore.schemaVersion == 175)
         // The library is whole while the checks wait, the transcript untouched.
         #expect(Set(try migrated.loadSources().map(\.id)) == ["yt-lecture", "yt-queued", "vimeo", "yt-team", "article"])
         #expect(try migrated.loadSourceContent("yt-lecture")?.hasPrefix("[0:00] So hello again.") == true)
@@ -8169,34 +8169,6 @@ struct SourceFTSRowMapMigrationTests {
         #expect(try SourceFTSRowTests.matches(store, "mitochondria") == library.sourceIDs.dropFirst().sorted())
         #expect(try SourceFTSRowTests.mapIsExact(store))
         #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM source_fts_row_backfill") == 0)
-    }
-
-    @Test("A store an older build held at 153 for want of room gains the map and the staged record, so its full-text writes work while it waits")
-    func heldAt153() throws {
-        let root = try Schema154Fixture.temporaryRoot("fts-rows-held")
-        defer { try? FileManager.default.removeItem(at: root) }
-        defer { LibraryUpgradeSpace.record(nil) }
-        let library = try Self.makeReleasedLibrary(at: root, version: 153)
-        let tight: (URL) throws -> Int64? = { _ in 1_500_000_000 }
-
-        let waiting = try Self.open(root, freeSpace: tight)
-        #expect(waiting.upgradeWaitingForSpace != nil)
-        #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == 153)
-        #expect(try Schema154Fixture.count(waiting, "SELECT COUNT(*) FROM source_fts_row_backfill") == 1)
-        try waiting.deleteSourceFTS(sourceID: library.sourceIDs[0])
-        try waiting.replaceSourceFTS(sourceID: library.sourceIDs[1], title: "A paper", author: "", body: "oxphos")
-        #expect(try SourceFTSRowTests.rows(waiting) == library.sourceIDs.dropFirst().sorted())
-        #expect(try SourceFTSRowTests.mapIsExact(waiting))
-
-        // Held again, it keeps what it has; given room, it comes up at the current schema whole.
-        _ = try Self.open(root, freeSpace: tight)
-        #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == 153)
-        #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM source_fts_rows") == library.sourceIDs.count - 1)
-        let later = try Self.open(root)
-        #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
-        try later.deleteSourceFTS(sourceID: library.sourceIDs[1])
-        #expect(try SourceFTSRowTests.rows(later) == library.sourceIDs.dropFirst(2).sorted())
-        #expect(try SourceFTSRowTests.mapIsExact(later))
     }
 
     @Test("A same-named table of another shape rolls the migration back and leaves the released library as it was")

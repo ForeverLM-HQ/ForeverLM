@@ -59,7 +59,10 @@ struct SyncSchema154MigrationTests {
         let names = "SELECT group_concat(name, ',') FROM (SELECT name FROM sqlite_master WHERE name NOT LIKE 'sqlite\\_%' ESCAPE '\\' ORDER BY name)"
         let fresh = Set((Schema154Fixture.scalar(at: freshRoot, names) ?? "").split(separator: ",").map(String.init))
         // A released store says project; the fresh one says notebook (164), so compare by the current name.
+        // A released store also has generation 1's tables, which 175 drops and a fresh store never makes.
+        let generation1 = Set(KnowledgeStore.generation1Tables + ["idx_sync_metadata_zone", "idx_sync_conflicts_detected"])
         let fixture = Set((Schema154Fixture.scalar(at: root, names) ?? "").split(separator: ",").map(String.init).map(Schema154Fixture.currentName))
+            .subtracting(generation1)
         #expect(!fixture.isEmpty && fixture.isSubset(of: fresh))
         // 155's tables (WP7) and their indexes come after 154 and go with it.
         let schema155 = Set(KnowledgeStore.sourceSyncTables.map(\.name) + ["idx_source_work_keys_key"])
@@ -153,37 +156,6 @@ struct SyncSchema154MigrationTests {
         let notebookColumns = "SELECT group_concat(name, ',') FROM (SELECT name FROM pragma_table_info('learning_goals') WHERE name IN ('entity_kind', 'merged_into', 'fold_kind', 'moving_to', 'moved_to') ORDER BY name)"
         #expect(Schema154Fixture.scalar(at: freshRoot, notebookColumns) == "entity_kind,fold_kind,merged_into,moved_to,moving_to")
         #expect(Schema154Fixture.scalar(at: migratedRoot, notebookColumns) == "entity_kind,fold_kind,merged_into,moved_to,moving_to")
-    }
-
-    @Test(
-        "A failing statement rolls all of 154 back, before the rebuild or after it",
-        arguments: [
-            "CREATE TABLE ck_records (something_else TEXT)",
-            "CREATE TABLE ck_activation (id INTEGER PRIMARY KEY)",
-        ]
-    )
-    func rollback(_ plant: String) throws {
-        let root = try Schema154Fixture.temporaryRoot("rollback")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try Schema154Fixture.makeLibrary(at: root, version: 153)
-        let rowsBefore = Schema154Fixture.perMemberRows(at: root)
-        var database: OpaquePointer?
-        #expect(sqlite3_open(root.appendingPathComponent("knowledge.db").path, &database) == SQLITE_OK)
-        #expect(sqlite3_exec(database, plant, nil, nil, nil) == SQLITE_OK)
-        sqlite3_close(database)
-
-        // Generation 1's copy is `knowledge.pre-154.db`; generation 2's is `knowledge.pre-v2.db` (`KnowledgeCloneBeforeMigrationTests`).
-        #expect(throws: (any Error).self) {
-            _ = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-        }
-        #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == 153)
-        #expect(Schema154Fixture.perMemberRows(at: root) == rowsBefore)
-        for table in Self.perMemberTables {
-            #expect(Schema154Fixture.foreignKeyCount(at: root, table) == 1, "\(table) keeps its key")
-        }
-        #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM pragma_table_xinfo('sources') WHERE name IN ('wire_id', 'wire_key')") == 0)
-        #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM sqlite_master WHERE name LIKE 'ck\\_%' ESCAPE '\\'") == 1, "only the planted table")
-        #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("knowledge.pre-154.db").path), "the copy was taken first")
     }
 
     @Test("A production-sized library migrates to 154 in well under a second")

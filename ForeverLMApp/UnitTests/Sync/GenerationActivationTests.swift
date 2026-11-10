@@ -77,9 +77,11 @@ struct GenerationActivationTests {
 
     @Test("A fresh store has none of generation 1's tables")
     func freshStoreHasNoGeneration1Tables() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        #expect(try Schema154Fixture.count(store, Self.generation1TableCount) == 0)
-        #expect(try store.scalarInteger("PRAGMA user_version") == Int64(KnowledgeStore.schemaVersion))
+        let root = try Schema154Fixture.temporaryRoot("175-fresh")
+        defer { try? FileManager.default.removeItem(at: root) }
+        _ = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+        #expect(Schema154Fixture.count(at: root, Self.generation1TableCount) == 0)
+        #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
     }
 
     @Test("Schema 175 records a synced library's history as a deferred journal, then drops generation 1's tables")

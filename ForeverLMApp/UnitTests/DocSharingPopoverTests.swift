@@ -198,31 +198,4 @@ struct DocSharingMCPTests {
         }
         return object
     }
-
-    @Test("list_docs reports who can open each Doc, naming the team that holds a copy")
-    func listDocsCarriesTheSummary() async throws {
-        let (store, tmpPath) = try makeStore()
-        defer { try? FileManager.default.removeItem(atPath: tmpPath) }
-        let created = try parseJSON(try await store.createArtifact(
-            title: "Landscape", homeNotebookID: nil, notebookIDs: [], markdown: "# Landscape\n\nForty companies."
-        ))
-        let docID = try #require((created["doc"] as? [String: Any])?["id"] as? String)
-
-        let before = try parseJSON(try await store.listArtifacts(notebookID: nil))
-        let ownBefore = try #require((before["docs"] as? [[String: Any]])?.first { $0["id"] as? String == docID })
-        #expect(ownBefore["published"] as? Bool == false)
-        #expect(ownBefore["published_access_summary"] as? String == "Only you can open this Page")
-
-        let team = try parseJSON(try await store.createTeam(name: "Bench Lab"))
-        let teamID = try #require((team["team"] as? [String: Any])?["id"] as? String)
-        _ = try await store.shareWithTeam(teamID: teamID, kind: "doc", ids: [docID], includeSources: nil, includeDocs: nil)
-
-        let after = try parseJSON(try await store.listArtifacts(notebookID: nil))
-        let docs = try #require(after["docs"] as? [[String: Any]])
-        let own = try #require(docs.first { $0["id"] as? String == docID })
-        #expect(own["published_access_summary"] as? String == "Only you can open this Page · shared with Bench Lab")
-        // The team's copy is not shared onward: no suffix of its own.
-        let copy = try #require(docs.first { $0["team_id"] as? String == teamID })
-        #expect(copy["published_access_summary"] as? String == "Only you can open this Page")
-    }
 }

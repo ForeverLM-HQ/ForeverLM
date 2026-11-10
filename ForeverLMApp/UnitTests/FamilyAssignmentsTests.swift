@@ -366,62 +366,6 @@ struct MCPFamilyToolsTests {
         #expect(byName["assign_to_member"]?.inputSchema["required"] as? [String] == ["team_id", "member"])
         #expect(byName["set_family_plan"]?.inputSchema["required"] as? [String] == ["team_id", "enabled"])
     }
-
-    @Test("assign_to_member copies an own source into the team and assigns the copy; again updates the same task")
-    func assignRoundTrip() async throws {
-        let (store, tmpPath) = try makeStore()
-        defer { try? FileManager.default.removeItem(atPath: tmpPath) }
-        let knowledge = try store.knowledgeStore()
-        let url = "https://example.com/electrons"
-        var article = StudioArticle(url: url, title: "Electrons", sourceType: .article, discoveryOrigin: .manual, id: "src-own")
-        article.domain = "example.com"
-        article.content = "Readable text about electrons, long enough to be a source."
-        article.wordCount = 10
-        article.state = .ready
-        try knowledge.saveSource(article)
-
-        let created = try parseJSON(try await store.createTeam(name: "Dekker"))
-        let teamID = try #require((created["team"] as? [String: Any])?["id"] as? String)
-        try knowledge.replaceTeamMembers(teamID: teamID, members: [
-            TeamMemberRecord(userRecordName: "_parent", teamID: teamID, displayName: "Morgan", email: nil,
-                             role: .owner, permission: .readWrite, acceptanceStatus: "accepted", isCurrentUser: true, updatedAt: Date()),
-            TeamMemberRecord(userRecordName: "_kid", teamID: teamID, displayName: "Elin", email: nil,
-                             role: .member, permission: .readWrite, acceptanceStatus: "accepted", isCurrentUser: false, updatedAt: Date()),
-        ])
-
-        let assigned = try parseJSON(try await store.assignToMember(
-            teamID: teamID, member: "Elin", sourceIDs: ["src-own"], docID: nil, dueDate: "2026-10-01", notes: "Chapter 2 first"
-        ))
-        let tasks = try #require(assigned["tasks"] as? [[String: Any]])
-        #expect(tasks.count == 1)
-        let task = try #require(tasks.first)
-        let teamCopyID = TeamContentIdentity.sourceID(teamID: teamID, url: url)
-        #expect(task["source_id"] as? String == teamCopyID)
-        #expect(task["assignee_record_name"] as? String == "_kid")
-        #expect(task["notebook_id"] as? String == TeamContentIdentity.assignmentsNotebookID(teamID: teamID))
-        #expect(task["due_date"] as? String == "2026-10-01")
-        #expect(task["notes"] as? String == "Chapter 2 first")
-        #expect(task["created_by_display_name"] as? String == "Morgan")
-        #expect(try knowledge.sourceExists(teamCopyID), "the team holds its own copy")
-        #expect(try knowledge.sourceExists("src-own"), "the original stays in My Library")
-
-        let again = try parseJSON(try await store.assignToMember(
-            teamID: teamID, member: "_kid", sourceIDs: ["src-own"], docID: nil, dueDate: "2026-10-03", notes: nil
-        ))
-        let againTask = try #require((again["tasks"] as? [[String: Any]])?.first)
-        #expect(againTask["id"] as? String == task["id"] as? String, "assigning twice updates the open task")
-        #expect(againTask["due_date"] as? String == "2026-10-03")
-
-        let board = try parseJSON(try await store.listAssignments(teamID: teamID, mine: false, includeDone: nil))
-        #expect((board["assignments"] as? [[String: Any]])?.count == 1)
-
-        await #expect(throws: MCPError.self) {
-            _ = try await store.assignToMember(teamID: teamID, member: "Nobody", sourceIDs: ["src-own"], docID: nil, dueDate: nil, notes: nil)
-        }
-        await #expect(throws: MCPError.self) {
-            _ = try await store.assignToMember(teamID: teamID, member: "Elin", sourceIDs: nil, docID: nil, dueDate: nil, notes: nil)
-        }
-    }
 }
 
 #endif

@@ -51,10 +51,6 @@ struct PersonalSchema160MigrationTests {
         #expect(before == "7|1000.0|deep|1" && Schema154Fixture.scalar(at: root, reading) == before, "the sources columns stay as they were")
         #expect(try Schema154Fixture.count(migrated, "SELECT COUNT(*) FROM reading_states") == 0, "nothing filled before the activation")
         #expect(try Schema154Fixture.count(migrated, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger'") == 0)
-        // Generation 1's Reader still reads the position from the sources columns.
-        var page: Int32 = -1
-        try migrated.query("SELECT reading_position_page FROM source_projection WHERE id = '\(library.sourceIDs[0])'") { page = sqlite3_column_int($0, 0) }
-        #expect(page == 7)
     }
 
     @Test("A migrated store and a fresh one hold the same 160 table")
@@ -94,18 +90,6 @@ struct PersonalSchema160MigrationTests {
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(Schema154Fixture.versionBeforeReadingSchema))
         #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM pragma_table_info('reading_states') WHERE name = 'wire_id'") == 0, "nothing of 160 stays")
         #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM sources") == 3)
-    }
-
-    @Test("Under generation 1 the source view reads the sources columns, never reading_states")
-    func generation1ViewIsUnchanged() throws {
-        let root = try Schema154Fixture.temporaryRoot("160-view")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-        let stored = try store.scalarText("SELECT sql FROM sqlite_master WHERE type = 'view' AND name = 'source_projection'")
-        let expected = KnowledgeStore.sourceProjectionViewSQL(sourceColumnNames: try store.tableColumnNames("sources"))
-        #expect(stored?.trimmingCharacters(in: .whitespacesAndNewlines) == expected.trimmingCharacters(in: .whitespacesAndNewlines))
-        #expect(stored?.contains("reading_states") == false)
-        #expect(!SyncedPreferenceKeys.liveSyncedPrefixes.contains(ListeningPositionSync.preferenceKeyPrefix), "a ReadingState field under generation 2")
     }
 
     @Test("A production-sized library migrates from 159 to 160 in well under a second")

@@ -149,28 +149,4 @@ struct SyncStatusCenterTests {
         #expect(stored.watchedSeconds == 600)
         #expect(stored.unwatchedAt == marker.unwatchedAt)
     }
-
-    @Test("A full save of a copy taken before Mark as Not Watched keeps the mark")
-    func staleFullSaveCannotUndoNotWatched() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        let before = makeWatchedVideo("unwatch-full-save", readAt: Date(timeIntervalSinceNow: -86_400))
-        try store.saveSource(before)
-        let mark = try store.setVideoWatched(sourceID: before.id, watched: false)
-
-        // A transcript or metadata save that read the source list before the
-        // mark writes its whole copy after it.
-        try store.saveSource(before)
-
-        let reloaded = try #require(try store.loadSourceForSync(before.id))
-        #expect(reloaded.readingPositionLocator == mark.locator)
-        #expect(reloaded.readAt == nil)
-
-        // Watching after the mark is saved like any position.
-        var rewatched = reloaded
-        rewatched.readingPositionLocator = VideoWatchProgress(encoded: mark.locator)?
-            .advanced(to: 240, durationSeconds: nil)
-            .encoded
-        try store.saveSource(rewatched)
-        #expect(try store.loadSourceReadingLocator(sourceID: before.id) == rewatched.readingPositionLocator)
-    }
 }

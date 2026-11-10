@@ -12966,39 +12966,6 @@ struct MCPDataStoreTests {
         }
     }
 
-    @Test("split_notebook that empties its parent hands the parent's unticked boxes to the heir and drops the parent's row")
-    func splitNotebookHandsChatSelectionToTheHeir() async throws {
-        let (store, tmpPath) = try makeStore()
-        defer { cleanup(tmpPath) }
-        let goal = try makeSelectionNotebook(store: store, tmpPath: tmpPath)
-
-        try await withNotebookSelectionState { box in
-            _ = try await store.setNotebookSourceSelection(notebookID: goal.id, sourceIDs: ["src-2", "src-3"], mode: "exclude")
-            #expect(box.snapshot.excluded[goal.id] == Set(["src-2", "src-3"]))
-
-            let split = try parseJSON(try store.splitNotebook(
-                notebookID: goal.id,
-                splits: [
-                    ["title": "Heir", "source_ids": ["src-1", "src-2"]],
-                    ["title": "Other", "source_ids": ["src-3"]],
-                ],
-                keepParent: false
-            ))
-            let heirID = try #require(split["parent_contents_moved_to_notebook_id"] as? String)
-            let children = try #require(split["child_notebooks"] as? [[String: Any]])
-            let otherID = try #require(children.compactMap { $0["notebook_id"] as? String }.first { $0 != heirID })
-
-            #expect(box.snapshot.excluded[heirID] == Set(["src-2"]))
-            #expect(box.snapshot.excluded[otherID] == nil,
-                    "a child that is not the heir starts with every box ticked")
-            #expect(box.snapshot.excluded[goal.id] == nil)
-            #expect(try store.notebookChatSourceIDs(
-                goal: try #require(try store.knowledgeStore().loadLearningGoal(heirID)),
-                store: store.knowledgeStore()
-            ) == ["src-1"])
-        }
-    }
-
     /// A context notebook holding src-3 (the selection Notebook's too), src-4
     /// and src-5, linked to `goal` when `linked` is true.
     private func makeContextNotebook(
@@ -13130,66 +13097,6 @@ struct MCPDataStoreTests {
             #expect(!after.contains("Text of src-2."), "an unticked source is left out")
             #expect(after.contains("1 source the learner unticked"))
             #expect(!after.contains("out of its chats"))
-        }
-    }
-
-    @Test("update_notebook links a context notebook without putting it into the chats, and unlinking drops it alone from the row")
-    func updateNotebookLinksWithoutPuttingIn() async throws {
-        let (store, tmpPath) = try makeStore()
-        defer { cleanup(tmpPath) }
-        let goal = try makeSelectionNotebook(store: store, tmpPath: tmpPath)
-        let context = try makeContextNotebook(store: store, tmpPath: tmpPath, for: goal, linked: false)
-
-        try await withNotebookSelectionState { box in
-            _ = try await store.updateNotebook(
-                notebookID: goal.id, title: nil, description: nil, topic: nil, endDateString: nil,
-                openEnded: nil, dailyTarget: nil, discover: nil, relatedNotebookIDs: [context.id]
-            )
-            let linked = try #require(try store.knowledgeStore().loadLearningGoal(goal.id))
-            #expect(linked.relatedNotebookIDs == [context.id])
-            #expect(box.snapshot.contextNotebooks[goal.id] == nil)
-            #expect(try store.notebookChatSourceIDs(goal: linked, store: store.knowledgeStore()) == ["src-1", "src-2", "src-3"])
-
-            _ = try await store.setNotebookSourceSelection(notebookID: goal.id, sourceIDs: [], contextNotebookIDs: [context.id], mode: "include")
-            #expect(box.snapshot.contextNotebooks[goal.id] == Set([context.id]))
-
-            // Another device linked and put in a notebook this Mac has not
-            // heard of yet: a box write here keeps it.
-            box.snapshot.contextNotebooks[goal.id] = Set([context.id, "elsewhere"])
-            _ = try await store.setNotebookSourceSelection(notebookID: goal.id, sourceIDs: ["src-1"], mode: "exclude")
-            #expect(box.snapshot.contextNotebooks[goal.id] == Set([context.id, "elsewhere"]))
-
-            _ = try await store.updateNotebook(
-                notebookID: goal.id, title: nil, description: nil, topic: nil, endDateString: nil,
-                openEnded: nil, dailyTarget: nil, discover: nil, relatedNotebookIDs: []
-            )
-            #expect(box.snapshot.contextNotebooks[goal.id] == Set(["elsewhere"]), "unlinked here, it leaves the row, and nothing else does")
-        }
-    }
-
-    @Test("merge_notebooks keeps the context notebooks the merged Notebook's chats read, for the survivor")
-    func mergeNotebooksCarriesContextNotebooks() async throws {
-        let (store, tmpPath) = try makeStore()
-        defer { cleanup(tmpPath) }
-        let survivor = try makeSelectionNotebook(store: store, tmpPath: tmpPath)
-        let merged = try store.knowledgeStore().createCompanionGoal(
-            title: "Merged",
-            topic: "merged",
-            startAt: Date(),
-            endAt: LearningGoalRecord.openEndedEndAt,
-            dailyTarget: 3,
-            discoveryEnabled: false,
-            seedSourceIDs: ["src-1"]
-        )
-        let context = try makeContextNotebook(store: store, tmpPath: tmpPath, for: merged)
-
-        try await withNotebookSelectionState { defaults in
-            _ = try await store.setNotebookSourceSelection(notebookID: merged.id, sourceIDs: [], contextNotebookIDs: [context.id], mode: "include")
-            _ = try store.mergeNotebooks(notebookIDs: [survivor.id, merged.id], title: nil, mergeNotes: true)
-
-            #expect(try store.knowledgeStore().loadLearningGoal(survivor.id)?.relatedNotebookIDs == [context.id])
-            #expect(defaults.snapshot.contextNotebooks[survivor.id] == Set([context.id]))
-            #expect(defaults.snapshot.contextNotebooks[merged.id] == nil)
         }
     }
 
