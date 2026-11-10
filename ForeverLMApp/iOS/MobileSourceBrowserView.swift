@@ -22,9 +22,11 @@ struct MobileSourceBrowserView: View {
             }
         }
         .listStyle(.insetGrouped)
-        .navigationTitle("Sources")
+        // "Library", as Home's drawer and the Mac call it; "Sources" is a
+        // notebook's tab.
+        .navigationTitle("Library")
         .navigationBarTitleDisplayMode(.large)
-        .searchable(text: $query, prompt: "Search sources")
+        .searchable(text: $query, prompt: "Search your library")
         .toolbar {
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Add Source", systemImage: "plus") { showsCapture = true }
@@ -94,8 +96,34 @@ struct MobileSourceBrowserView: View {
                     .accessibilityIdentifier("browser.typeRow")
                 }
             }
+
+            // What came in last, whatever its type, so the newest save is one
+            // tap from the Library instead of a type and a scroll away.
+            let recent = recentlyAdded
+            if !recent.isEmpty {
+                Section {
+                    ForEach(recent) { source in
+                        MobileBrowserSourceLink(source: source)
+                    }
+                } header: {
+                    Text("Recently Added")
+                }
+            }
         }
     }
+
+    /// The newest sources the lists browse, a chapter or a lecture left to its
+    /// book or course: forty chapters of one import are one arrival.
+    private var recentlyAdded: [MobileCloudSource] {
+        Array(
+            browsableSources
+                .filter { $0.parentGroup == nil }
+                .sorted { ($0.dateAdded, $0.id) > ($1.dateAdded, $1.id) }
+                .prefix(Self.recentlyAddedCount)
+        )
+    }
+
+    private static let recentlyAddedCount = 8
 
     /// Everything the lists actually browse: marked-paywalled sources are kept
     /// out, the way the Mac keeps them out of its paper lists. They remain in
@@ -943,7 +971,11 @@ struct MobileSourceTypeSelection: Hashable {
 private enum MobileThumbnailLayout {
     static let square = CGSize(width: 42, height: 42)
     static let bookCover = CGSize(width: 36, height: 48)
-    static let landscape = CGSize(width: 52, height: 34)
+    static let landscape = CGSize(width: 48, height: 32)
+    /// The column every row's artwork sits in, as wide as the widest shape, so
+    /// a list that mixes papers, articles and videos starts every title on
+    /// one line instead of three.
+    static let slotWidth: CGFloat = landscape.width
 
     static func artworkSize(for sourceType: String) -> CGSize {
         sourceType == "video" || sourceType == "course" ? landscape : square
@@ -985,8 +1017,13 @@ struct MobileSourceRowThumbnail: View {
     let source: MobileCloudSource
     var isActive: Bool = false
 
-    @ViewBuilder
     var body: some View {
+        artwork
+            .frame(width: MobileThumbnailLayout.slotWidth)
+    }
+
+    @ViewBuilder
+    private var artwork: some View {
         if source.sourceType == "book" {
             if source.parentGroup == nil {
                 MobileBookCoverThumbnail(recordName: nil)
@@ -1335,7 +1372,7 @@ struct MobileSourceTypeScreen: View {
                 if !shown.members.isEmpty {
                     Section {
                         ForEach(shown.members) { source in
-                            MobileBrowserSourceLink(source: source)
+                            MobileBrowserSourceLink(source: source, subtitleStyle: .citationUnderTypeHeading)
                         }
                     }
                 }
@@ -1346,7 +1383,7 @@ struct MobileSourceTypeScreen: View {
                         .listRowBackground(Color.clear)
                 }
                 ForEach(shown) { source in
-                    MobileBrowserSourceLink(source: source)
+                    MobileBrowserSourceLink(source: source, subtitleStyle: .citationUnderTypeHeading)
                 }
             }
 
@@ -1644,6 +1681,10 @@ struct MobileRelatedNotebooksPickerSheet: View {
 struct MobileBrowserSourceLink: View {
     enum SubtitleStyle {
         case citation
+        /// Under a heading that already names the type (a type's own list, a
+        /// notebook's Papers section): the citation without "· Paper" at its
+        /// end, which only pushed the journal off the line.
+        case citationUnderTypeHeading
         /// Inside a book or course the type and container repeat every row;
         /// showing just the title reads cleaner.
         case titleOnly
@@ -1940,8 +1981,8 @@ struct MobileBrowserSourceRow: View {
         switch subtitleStyle {
         case .titleOnly:
             return nil
-        case .citation:
-            var parts = [source.sourceType.capitalized]
+        case .citation, .citationUnderTypeHeading:
+            var parts = subtitleStyle == .citation ? [source.sourceType.capitalized] : []
             if let subtitle = source.citationSubtitle, !subtitle.isEmpty {
                 parts.insert(subtitle, at: 0)
             }
@@ -1950,7 +1991,7 @@ struct MobileBrowserSourceRow: View {
             if source.isPaywalled {
                 parts.append("Paywalled")
             }
-            return parts.joined(separator: " · ")
+            return parts.isEmpty ? nil : parts.joined(separator: " · ")
         }
     }
 }

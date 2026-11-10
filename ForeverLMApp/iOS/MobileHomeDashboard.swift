@@ -34,6 +34,10 @@ struct MobileHomeDashboard<Top: View>: View {
     @GestureState private var dragOffset: CGFloat = 0
     @State private var draft = ""
     @FocusState private var composerIsFocused: Bool
+    /// Home's words follow the text size the learner set in iOS Settings; they
+    /// were fixed point sizes, so Larger Text changed every screen but this one.
+    @ScaledMetric(relativeTo: .body) private var textSize: CGFloat = 18
+    @ScaledMetric(relativeTo: .body) private var glyphSize: CGFloat = 20
 
     var body: some View {
         // Home and the drawer are laid out inside the safe area, and only what
@@ -60,8 +64,14 @@ struct MobileHomeDashboard<Top: View>: View {
                     .frame(width: proxy.size.width, height: proxy.size.height)
                     .background {
                         // Home's sheet: the whole screen, its corners rounding as it slides over.
+                        // The hairline is what shows its edge in dark mode, where a
+                        // black shadow on a black drawer draws nothing.
                         RoundedRectangle(cornerRadius: MobileHomeMetrics.slidCorner * progress, style: .continuous)
                             .fill(Color(uiColor: .systemBackground))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: MobileHomeMetrics.slidCorner * progress, style: .continuous)
+                                    .strokeBorder(Color.primary.opacity(0.14 * progress), lineWidth: 0.5)
+                            }
                             .shadow(color: .black.opacity(0.14 * progress), radius: 24)
                             .ignoresSafeArea()
                     }
@@ -81,6 +91,8 @@ struct MobileHomeDashboard<Top: View>: View {
             .background(Color(uiColor: .systemBackground), ignoresSafeAreaEdges: .all)
             .simultaneousGesture(drawerDrag(width: drawerWidth))
         }
+        // Past this the drawer's one-line rows have no room left to grow into.
+        .dynamicTypeSize(...DynamicTypeSize.accessibility2)
     }
 
     // MARK: - Home
@@ -116,13 +128,14 @@ struct MobileHomeDashboard<Top: View>: View {
                 Button { go(suggestion.route) } label: {
                     HStack(spacing: MobileDesign.Spacing.large) {
                         Image(systemName: suggestion.symbol)
-                            .font(.system(size: 20))
+                            .font(.system(size: glyphSize))
                             .foregroundStyle(.secondary)
-                            .frame(width: 30)
+                            .frame(width: glyphSize * 1.5)
                         Text(suggestion.title)
-                            .font(.system(size: 18))
+                            .font(.system(size: textSize))
                             .foregroundStyle(Color.primary.opacity(0.78))
-                            .lineLimit(1)
+                            .lineLimit(2)
+                            .multilineTextAlignment(.leading)
                         Spacer(minLength: 0)
                     }
                     .frame(minHeight: 54)
@@ -143,13 +156,15 @@ struct MobileHomeDashboard<Top: View>: View {
     /// ChatGPT's composer: one capsule, the field, and one round button that
     /// talks while there is nothing typed and sends once there is.
     private var composer: some View {
-        HStack(spacing: MobileDesign.Spacing.small) {
-            TextField("Ask ForeverLM", text: $draft)
-                .font(.system(size: 18))
+        HStack(alignment: .bottom, spacing: MobileDesign.Spacing.small) {
+            // The field grows with a long question, up to five lines, as
+            // ChatGPT's does; Return starts a new line and the button sends.
+            TextField("Ask ForeverLM", text: $draft, axis: .vertical)
+                .font(.system(size: textSize))
+                .lineLimit(1...5)
                 .focused($composerIsFocused)
-                .submitLabel(.send)
-                .onSubmit(sendDraft)
                 .padding(.leading, MobileDesign.Spacing.large)
+                .padding(.vertical, 11)
                 .accessibilityIdentifier("home.composer.field")
             Button(action: { canSend ? sendDraft() : actions.talk() }) {
                 Image(systemName: canSend ? "arrow.up" : "waveform")
@@ -164,11 +179,16 @@ struct MobileHomeDashboard<Top: View>: View {
             .accessibilityIdentifier(canSend ? "home.composer.send" : "home.composer.voice")
         }
         .padding(6)
-        .background(Capsule().fill(Color(uiColor: .systemBackground)))
-        .overlay(Capsule().strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5))
+        .background(composerShape.fill(MobileHomeMetrics.raisedSurface))
+        .overlay(composerShape.strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5))
         .shadow(color: .black.opacity(0.07), radius: 10, y: 3)
         .padding(.horizontal, MobileDesign.Spacing.medium)
         .padding(.bottom, MobileDesign.Spacing.small)
+    }
+
+    /// A capsule while the field is one line, the same corners once it grows.
+    private var composerShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: MobileHomeMetrics.composerCorner, style: .continuous)
     }
 
     private func sendDraft() {
@@ -244,6 +264,14 @@ enum MobileHomeMetrics {
     /// The corner Home takes on while it is slid over.
     static let slidCorner: CGFloat = 42
     static let circle: CGFloat = 50
+    /// Half the one-line composer's height, so one line reads as a capsule.
+    static let composerCorner: CGFloat = 28
+    /// What the composer and the round buttons are filled with: the page's own
+    /// white lifted by a shadow in light mode, a raised grey in dark mode, where
+    /// a shadow shows nothing and black on black left only a hairline.
+    static let raisedSurface = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark ? .secondarySystemBackground : .systemBackground
+    })
 }
 
 /// The three rows above the composer.
@@ -299,7 +327,7 @@ struct MobileHomeCircleButton<Content: View>: View {
             content()
                 .foregroundStyle(.primary)
                 .frame(width: MobileHomeMetrics.circle, height: MobileHomeMetrics.circle)
-                .background(Circle().fill(Color(uiColor: .systemBackground)))
+                .background(Circle().fill(MobileHomeMetrics.raisedSurface))
                 .overlay(Circle().strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5))
                 .shadow(color: .black.opacity(0.07), radius: 8, y: 3)
                 .contentShape(Circle())
@@ -334,6 +362,11 @@ struct MobileHomeDrawer: View {
 
     private static let side: CGFloat = 24
 
+    @ScaledMetric(relativeTo: .title) private var titleSize: CGFloat = 28
+    @ScaledMetric(relativeTo: .body) private var placeSize: CGFloat = 19
+    @ScaledMetric(relativeTo: .body) private var placeGlyphSize: CGFloat = 22
+    @ScaledMetric(relativeTo: .body) private var recentSize: CGFloat = 18
+
     private struct Place: Identifiable {
         let title: String
         let symbol: String
@@ -361,8 +394,9 @@ struct MobileHomeDrawer: View {
         VStack(alignment: .leading, spacing: 0) {
             HStack {
                 Text("ForeverLM")
-                    .font(.system(size: 28, weight: .bold))
+                    .font(.system(size: titleSize, weight: .bold))
                     .lineLimit(1)
+                    .minimumScaleFactor(0.6)
                 Spacer(minLength: MobileDesign.Spacing.small)
                 MobileHomeCircleButton(label: "Search", identifier: "home.drawer.search", action: { open(.library) }) {
                     Image(systemName: "magnifyingglass")
@@ -379,11 +413,12 @@ struct MobileHomeDrawer: View {
                         Button { open(place.route) } label: {
                             HStack(spacing: 18) {
                                 Image(systemName: place.symbol)
-                                    .font(.system(size: 22))
-                                    .frame(width: 32)
+                                    .font(.system(size: placeGlyphSize))
+                                    .frame(width: placeGlyphSize * 1.45)
                                 Text(place.title)
-                                    .font(.system(size: 19, weight: .medium))
+                                    .font(.system(size: placeSize, weight: .medium))
                                     .lineLimit(1)
+                                    .minimumScaleFactor(0.7)
                                 Spacer(minLength: 0)
                             }
                             .foregroundStyle(.primary)
@@ -400,7 +435,7 @@ struct MobileHomeDrawer: View {
                         ForEach(recents) { recent in
                             Button { open(.notebook(recent.id)) } label: {
                                 Text(recent.title.isEmpty ? "Untitled notebook" : recent.title)
-                                    .font(.system(size: 18))
+                                    .font(.system(size: recentSize))
                                     .foregroundStyle(.primary)
                                     .lineLimit(1)
                                     .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
@@ -411,7 +446,7 @@ struct MobileHomeDrawer: View {
                         }
                         Button { open(.notebooks(.all)) } label: {
                             Text("See all…")
-                                .font(.system(size: 18))
+                                .font(.system(size: recentSize))
                                 .foregroundStyle(.secondary)
                                 .frame(maxWidth: .infinity, minHeight: 54, alignment: .leading)
                                 .contentShape(Rectangle())
@@ -428,13 +463,14 @@ struct MobileHomeDrawer: View {
                 Button(action: talk) {
                     HStack(spacing: 10) {
                         Image(systemName: "waveform")
-                            .font(.system(size: 19, weight: .semibold))
+                            .font(.system(size: placeSize, weight: .semibold))
                         Text("Voice")
-                            .font(.system(size: 19, weight: .semibold))
+                            .font(.system(size: placeSize, weight: .semibold))
+                            .lineLimit(1)
                     }
                     .foregroundStyle(Color(uiColor: .systemBackground))
                     .padding(.horizontal, 26)
-                    .frame(height: 56)
+                    .frame(minHeight: 56)
                     .background(Capsule().fill(Color.primary))
                     .contentShape(Capsule())
                 }

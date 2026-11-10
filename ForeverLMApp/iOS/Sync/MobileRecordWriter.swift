@@ -76,7 +76,10 @@ final class MobileRecordWriter: @unchecked Sendable {
 
     /// The writer of the session this process runs; nil when the session cannot start.
     static func current() async -> MobileRecordWriter? {
-        await MobileSyncSession.startIfEnabled()?.writer
+#if DEBUG
+        if let preview = MobileAppHarness.backend { return preview.writer }
+#endif
+        return await MobileSyncSession.startIfEnabled()?.writer
     }
 
     /// `current()`, or the refusal a screen shows when the session could not start.

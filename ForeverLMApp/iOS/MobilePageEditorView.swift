@@ -661,7 +661,9 @@ enum MobilePageEditorTouch {
     static let stylesheet = #"""
     html { -webkit-text-size-adjust: 100%; }
     body { -webkit-tap-highlight-color: transparent; }
-    .milkdown .editor a { -webkit-touch-callout: none; }
+    /* A link in the app's blue. The bundle's `LinkText` is the Mac's link
+       colour on a Mac and 1995's #0000EE in an iPhone's web view. */
+    .milkdown .editor a { -webkit-touch-callout: none; color: AccentColor; }
 
     /* The phone's own caret, with its loupe and handles, rather than the
        page's drawn one beside it. */

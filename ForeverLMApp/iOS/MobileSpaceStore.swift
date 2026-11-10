@@ -58,6 +58,9 @@ final class MobileSpaceStore {
 
     /// The running session's writer and satellites.
     nonisolated static let sessionBackend: Connect = {
+#if DEBUG
+        if let preview = MobileAppHarness.backend { return Backend(writer: preview.writer, satellites: preview.satellites) }
+#endif
         guard let session = await MobileSyncSession.startIfEnabled() else { return nil }
         return Backend(writer: session.writer, satellites: session.satellites)
     }

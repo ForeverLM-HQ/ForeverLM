@@ -32,6 +32,8 @@ struct ForeverLMMobileApp: App {
                     spacePreview
                 } else if showsHomePreview {
                     homePreview
+                } else if showsAppPreview {
+                    appPreview
                 } else if account.showsWall {
                     // Sign in with Apple comes before everything else, same as the
                     // Mac: it is the identity managed AI meters against, and the
@@ -250,7 +252,28 @@ struct ForeverLMMobileApp: App {
 
     /// Whether a DEBUG preview stands in for the app (`-foreverlm-uitest-*`).
     private var showsPreview: Bool {
-        showsVoiceSurfacePreview || showsPageEditorPreview || showsSpacePreview || showsHomePreview
+        showsVoiceSurfacePreview || showsPageEditorPreview || showsSpacePreview || showsHomePreview || showsAppPreview
+    }
+
+    /// The whole app over a sample library, for a Simulator check of every
+    /// screen without signing in (`MobileAppHarness`, DEBUG only).
+    private var showsAppPreview: Bool {
+#if DEBUG
+        MobileAppHarness.isEnabled
+#else
+        false
+#endif
+    }
+
+    @ViewBuilder
+    private var appPreview: some View {
+#if DEBUG
+        MobileAppHarnessView()
+            .environmentObject(viewModel)
+            .environment(account)
+#else
+        EmptyView()
+#endif
     }
 
     /// Home over a sample library, for a Simulator screenshot without signing

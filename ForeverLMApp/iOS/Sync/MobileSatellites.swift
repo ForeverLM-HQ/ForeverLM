@@ -141,7 +141,10 @@ actor MobileSatellites {
 
     /// The running session's satellites; nil when the session cannot start.
     static func current() async -> MobileSatellites? {
-        await MobileSyncSession.startIfEnabled()?.satellites
+#if DEBUG
+        if let preview = MobileAppHarness.backend { return preview.satellites }
+#endif
+        return await MobileSyncSession.startIfEnabled()?.satellites
     }
 
     // MARK: - Finding a satellite

@@ -254,6 +254,54 @@ struct MobileNotebookTabBar: View {
     }
 }
 
+/// A search field a screen draws itself, where the system's would land in the
+/// wrong place: a magnifier, the words, and a clear button once there are any.
+struct MobileInlineSearchField: View {
+    @Binding var text: String
+    let prompt: String
+
+    @FocusState private var isFocused: Bool
+
+    var body: some View {
+        HStack(spacing: MobileDesign.Spacing.medium) {
+            HStack(spacing: MobileDesign.Spacing.small) {
+                Image(systemName: "magnifyingglass")
+                    .foregroundStyle(.secondary)
+                    .accessibilityHidden(true)
+                TextField(prompt, text: $text)
+                    .focused($isFocused)
+                    .submitLabel(.search)
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                    .accessibilityIdentifier("inlineSearch.field")
+                if !text.isEmpty {
+                    Button {
+                        text = ""
+                    } label: {
+                        Image(systemName: "xmark.circle.fill")
+                            .foregroundStyle(.secondary)
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Clear search")
+                    .accessibilityIdentifier("inlineSearch.clear")
+                }
+            }
+            .padding(.horizontal, MobileDesign.Spacing.medium)
+            .frame(minHeight: MobileDesign.Metrics.minimumTouchTarget)
+            .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
+
+            if isFocused {
+                Button("Cancel") {
+                    text = ""
+                    isFocused = false
+                }
+                .accessibilityIdentifier("inlineSearch.cancel")
+            }
+        }
+        .animation(.default, value: isFocused)
+    }
+}
+
 // MARK: - Chat checkboxes
 
 /// One row's box for the notebook's chat.
@@ -845,7 +893,7 @@ struct MobileNotebookSourcesTab: View {
                     ForEach(MobileSourceTypeGrouping.groups(for: sources), id: \.label) { group in
                         Section {
                             ForEach(group.sources) { source in
-                                row(source, board: board)
+                                row(source, board: board, underTypeHeading: true)
                             }
                         } header: {
                             sectionHeader(group.label)
@@ -859,7 +907,16 @@ struct MobileNotebookSourcesTab: View {
             }
         }
         .listStyle(.insetGrouped)
-        .searchable(text: $query, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search your library")
+        // The search field is the tab's own, pinned over the list. The system's
+        // (`.searchable`) lands at the foot of the screen on iOS 26, under the
+        // notebook's tab bar, which pushed the bar up on this tab alone: Sources,
+        // Chat and Studio jumped as one moved between them.
+        .safeAreaInset(edge: .top, spacing: 0) {
+            MobileInlineSearchField(text: $query, prompt: "Search your library")
+                .padding(.horizontal, 20)
+                .padding(.bottom, MobileDesign.Spacing.small)
+                .background(Color(uiColor: .systemGroupedBackground))
+        }
         .task(id: query) {
             await library.rankByMeaningIfNeeded(query: query, in: libraryCandidates, groupTitle: vm.collections.groupTitle(of:))
         }
@@ -975,10 +1032,11 @@ struct MobileNotebookSourcesTab: View {
         Task { await selection.setAll(inChat: inChat, in: notebook) }
     }
 
-    private func row(_ source: MobileCloudSource, board: MobileNotebookChatBoard?) -> some View {
+    private func row(_ source: MobileCloudSource, board: MobileNotebookChatBoard?, underTypeHeading: Bool = false) -> some View {
         let isInChat = board?.isInChat(source.id) ?? false
         return MobileBrowserSourceLink(
             source: source,
+            subtitleStyle: underTypeHeading ? .citationUnderTypeHeading : .citation,
             notebook: notebook,
             chatTick: MobileSourceChatTick(
                 isOn: isInChat,
