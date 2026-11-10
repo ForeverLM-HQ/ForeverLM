@@ -748,7 +748,6 @@ actor MacSyncSession {
         let pending: @Sendable () async -> Int = { await coordinator.engine.pendingCount }
         var environment = CutoverSeedEnvironment(
             transport: coordinator.transport, store: store, registry: store.registry, blobs: blobs, writer: writer, deviceID: deviceID,
-            oldContainer: nil,
             send: { try await coordinator.sendNow() }, pendingCount: pending,
             holdsLibrary: { [weak self] in await self?.holds ?? false }
         )
@@ -873,9 +872,7 @@ struct SessionLibraryClaimer: LibraryClaiming {
         try await session.runDeferredCatchUpForClaim(readsOldZones: readsOldZones)
     }
 
-    /// `baseNamesOldZones` follows the journal's `fresh_reason` in the seeder (a `knowledgeMissing` base names
-    /// no old zone, R6-m9), the same fact the flow derives it from.
-    func claimOrReconcile(baseNamesOldZones: Bool) async throws -> LibraryClaimOutcome {
+    func claimOrReconcile() async throws -> LibraryClaimOutcome {
         await session.claimOrReconcile()
     }
 }

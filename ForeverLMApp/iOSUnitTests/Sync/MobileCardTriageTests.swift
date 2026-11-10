@@ -299,9 +299,7 @@ struct MobileCardTriageTests {
         #expect(try MobileCardEditWriter.rewording(listing, front: " New Q? ", wording: "Q?") == "New Q?")
         #expect(try MobileCardEditWriter.rewording(listing, front: "Q?", wording: "Mine?") == nil, "back to the kept front")
         #expect(throws: MobileCardEditWriter.Refusal.unchanged) { try MobileCardEditWriter.rewording(listing, front: "Mine?", wording: "Mine?") }
-        let legacy = MemoryCardListing(itemID: "c2", face: MemoryCard(cardID: "c2", front: "Q?", back: "A.", origin: .legacy),
-                                       sourceIDs: ["src1"], schedule: listing.schedule)
-        #expect(MobileCardEditWriter.revisedFace(legacy, edit: nil, wording: "Mine?", newID: "n").origin == .walkthrough)
-        #expect(MobileCardEditWriter.revisedFace(legacy, edit: nil, wording: "Mine?", newID: "n").front == "Mine?")
+        #expect(MobileCardEditWriter.revisedFace(listing, edit: nil, wording: "Mine?", newID: "n").origin == .drafted)
+        #expect(MobileCardEditWriter.revisedFace(listing, edit: nil, wording: "Mine?", newID: "n").front == "Mine?")
     }
 }

@@ -483,13 +483,11 @@ struct MCPAuthScopeTests {
         // workspace without a name falls back to its URL key.
         #expect(MCPDataStore.linearConnection(in: [
             "connected": true,
-            "organization": ["id": "org_1", "name": "Bench Lab", "url_key": "benchlab"],
-            "user": ["name": "Robin Vale"],
+            "workspaces": [["id": "org_1", "name": "Bench Lab", "url_key": "benchlab", "user": ["name": "Robin Vale"]]],
         ]) == .connected(workspaces: [.init(id: "org_1", name: "Bench Lab", urlKey: "benchlab", user: "Robin Vale")]))
         #expect(MCPDataStore.linearConnection(in: [
             "connected": true,
-            "organization": ["id": "org_1", "name": NSNull(), "url_key": "benchlab"],
-            "user": ["name": " "],
+            "workspaces": [["id": "org_1", "name": NSNull(), "url_key": "benchlab", "user": ["name": " "]]],
         ]) == .connected(workspaces: [.init(id: "org_1", name: nil, urlKey: "benchlab", user: nil)]))
         // Several workspaces arrive as a list, each its own grant, in order.
         let twoLinear = MCPDataStore.linearConnection(in: [
@@ -671,10 +669,9 @@ struct MCPAuthScopeTests {
         #expect(MCPDataStore.notionConnection(in: ["error": "x"]) == nil)
         #expect(MCPDataStore.notionConnection(in: [
             "connected": true,
-            "workspace": ["id": "ws", "name": "Bench Lab", "icon": NSNull()],
-            "user": ["id": "u", "name": "Robin Vale"],
+            "workspaces": [["id": "ws", "name": "Bench Lab", "icon": NSNull(), "user": ["id": "u", "name": "Robin Vale"]]],
         ]) == .connected(workspaces: [.init(id: "ws", name: "Bench Lab", user: "Robin Vale")]))
-        #expect(MCPDataStore.notionConnection(in: ["connected": true, "workspace": ["id": "ws", "name": ""]])
+        #expect(MCPDataStore.notionConnection(in: ["connected": true, "workspaces": [["id": "ws", "name": ""]]])
             == .connected(workspaces: [.init(id: "ws", name: nil, user: nil)]))
         // Several workspaces arrive as a list, each its own grant, in order.
         let twoNotion = MCPDataStore.notionConnection(in: [

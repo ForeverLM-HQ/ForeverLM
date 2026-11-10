@@ -2,21 +2,18 @@ import Foundation
 
 // MARK: - Who seeds (docs/cloudkit-schema-design.md §13.4 step 1, §13.5)
 
-/// What the personal root says about the seed (`seed`, `seedClaim`, `legacyBase`, §3.5.1).
+/// What the personal root says about the seed (`seed`, `seedClaim`, §3.5.1).
 struct CutoverRootState: Equatable, Sendable {
     var state: String?
     var metadataCompleteAt: Int64?
     var claimDevice: String?
     var claimLeaseUntil: Int64?
-    /// The shared late-import base is on the root (P0 ran).
-    var hasBase: Bool
 
-    init(state: String? = nil, metadataCompleteAt: Int64? = nil, claimDevice: String? = nil, claimLeaseUntil: Int64? = nil, hasBase: Bool = false) {
+    init(state: String? = nil, metadataCompleteAt: Int64? = nil, claimDevice: String? = nil, claimLeaseUntil: Int64? = nil) {
         self.state = state
         self.metadataCompleteAt = metadataCompleteAt
         self.claimDevice = claimDevice
         self.claimLeaseUntil = claimLeaseUntil
-        self.hasBase = hasBase
     }
 
     init(root: SyncEnvelope) {
@@ -26,7 +23,6 @@ struct CutoverRootState: Equatable, Sendable {
         let claim = root.fields["seedClaim"]?.objectValue
         claimDevice = claim?["device"]?.stringValue
         claimLeaseUntil = claim?["leaseUntil"]?.int64Value
-        hasBase = !(root.fields[MigrationBaseBuilder.Wire.baseField]?.objectValue ?? [:]).isEmpty
     }
 
     func claimIsLive(at now: Int64) -> Bool {
@@ -46,10 +42,9 @@ enum CutoverClaimDecision: Equatable, Sendable {
     case claim
     /// Another Mac's claim is live and the metadata is not complete: wait and look again.
     case wait(holder: String, leaseUntil: Int64)
-    /// `seeding` with an expired claim that is not this Mac's: take it over. Without a base on the root the
-    /// old holder lapsed before P0, so this Mac publishes its own snapshot; with one it refreshes its own
-    /// catch-up, runs an import pass from the shared base, reconciles and continues from its own cursor.
-    case takeOver(hasBase: Bool)
+    /// `seeding` with an expired claim that is not this Mac's: take it over, reconciling against whatever the
+    /// old holder already sent, and continue from this Mac's own cursor.
+    case takeOver
     /// The seed's metadata is complete (or the seed is): this Mac reconciles at once, and runs its own
     /// cursor for satellites when it can take the claim.
     case secondMac
@@ -65,7 +60,7 @@ enum CutoverClaimDecision: Equatable, Sendable {
             if root.claimIsLive(at: now), let holder = root.claimDevice, let until = root.claimLeaseUntil {
                 return .wait(holder: holder, leaseUntil: until)
             }
-            return .takeOver(hasBase: root.hasBase)
+            return .takeOver
         default:
             // A root with no seed state (a build that never wrote one): another device is still making it.
             return .wait(holder: "", leaseUntil: now)

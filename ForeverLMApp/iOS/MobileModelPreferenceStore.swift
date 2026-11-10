@@ -279,8 +279,6 @@ actor MobileModelPreferenceStore {
         let model: String
         if let selected = try await fetchPreference(perProviderKey) as? String {
             model = selected
-        } else if let legacy = try await fetchPreference("aiBackground.model") as? String {
-            model = legacy
         } else {
             model = defaultModel(for: provider)
         }

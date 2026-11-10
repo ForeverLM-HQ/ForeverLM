@@ -99,11 +99,6 @@ actor StorageService {
     
     init() {
         LegacyIdentityAdoption.adoptIfNeeded()
-        ReadingListChooserAdoption.adoptIfNeeded()
-        // After the rename adopter, never before: on a Mac still carrying the
-        // retired FeynmanLM folder, the cache to adopt only reaches its
-        // per-profile path once that move has happened.
-        SharedDerivedCacheAdoption.adoptOnce()
         self.overrideStoreRoot = nil
         self.cloudKitSyncCapable = CloudRuntimeAvailability.hasICloudContainerEntitlement
         self.localAppSupportRoot = ForeverLMRuntimeIdentity.applicationSupportRootURL
@@ -256,67 +251,30 @@ actor StorageService {
     /// the transport iOS has always used. So content is local, CloudKit moves
     /// the bytes, and a directory conflict has nowhere to happen.
     ///
-    /// Historical roots — container, iCloud Drive, `~/Documents`, and numbered
-    /// forks — remain searchable so a file left there stays readable. New
-    /// writes land here.
+    /// New writes land here. The private container's root stays readable
+    /// because it holds the `Audio/` folder the phone reads.
     static let libraryRootPath: String = localContentRootPath
 
-    /// Every content root this app writes to, or ever has, current first. A
-    /// stored relative path is tried against each, which is what lets a KB
-    /// survive moving between the private container, iCloud Drive, and local
-    /// storage — including files this Mac wrote under a since-changed
-    /// configuration. Resolving by root beats rewriting path segments: a root
-    /// that is added here is searched everywhere, with nothing to keep in sync.
+    /// Every content root this app reads files from, current first. A stored
+    /// relative path is tried against each, which is what lets a KB survive
+    /// moving between the private container and local storage. Resolving by root
+    /// beats rewriting path segments: a root that is added here is searched
+    /// everywhere, with nothing to keep in sync.
     ///
-    /// Only the first entry is written to. Everything below it is read-only, so
-    /// a source stays readable wherever an earlier configuration or an iCloud
-    /// Drive fork left it.
-    static let knownContentRoots: [String] = {
-        let home = contentHomeDirectory
-        let appSupport = applicationSupportPath
-        // The retired FeynmanLM container's roots are gone: it holds an empty
-        // `Documents` with no `ForeverLM` or `FeynmanLM` folder under it, so
-        // searching them is a stat that can only ever miss.
-        //
-        // The CloudDocs entries stay. Those are not tied to the retired
-        // container — they are where an iCloud Drive fork or a manual move can
-        // still put a file, under either product name.
-        //
-        // `~/Documents` itself is deliberately absent. With "Desktop & Documents
-        // Folders" syncing on — the macOS default — it is the same folder as
-        // `com~apple~CloudDocs/Documents`, which is already listed; with it off
-        // it is a plain local folder that iCloud never forked. Either way the
-        // entry could only find what the CloudDocs spelling already finds, and
-        // unlike that spelling every path lookup under `~/Documents` is gated by
-        // TCC, so the first miss raised the "access files in your Documents
-        // folder" prompt on every launch of a differently signed build.
-        if ForeverLMRuntimeIdentity.isDevelopment {
-            return [
-                libraryRootPath,
-                localContentRootPath,
-                ubiquityContentRootPath,
-                cloudDocsContentRootPath,
-            ]
-        }
-
-        let retired = LegacyIdentityAdoption.retiredProductFolderName
-        return [
-            libraryRootPath,
-            localContentRootPath,
-            ubiquityContentRootPath,
-            (appSupport as NSString).appendingPathComponent("\(retired)/Content"),
-            (home as NSString).appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs/Documents/ForeverLM"),
-            (home as NSString).appendingPathComponent("Library/Mobile Documents/com~apple~CloudDocs/Documents/\(retired)"),
-        ]
-    }()
+    /// Only the first entry is written to. The private container's root stays
+    /// because it still holds the `Audio/` folder the phone reads.
+    static let knownContentRoots: [String] = [
+        libraryRootPath,
+        localContentRootPath,
+        ubiquityContentRootPath,
+    ]
 
     /// The two shapes `normalizedRelativeSourcePath` recognizes, compiled once.
     /// `String.range(of:options: .regularExpression)` builds a fresh
     /// `NSRegularExpression` on every call, which is what put ICU's compiler
     /// in the transcript's scroll path (see `contentHomeDirectory`).
     private static let libraryRootFolderNamePattern: NSRegularExpression = {
-        let retired = NSRegularExpression.escapedPattern(for: LegacyIdentityAdoption.retiredProductFolderName)
-        return try! NSRegularExpression(pattern: "^(ForeverLM First Run|ForeverLM Dev|ForeverLM|\(retired))(?: [0-9]+)?$")
+        try! NSRegularExpression(pattern: "^(ForeverLM First Run|ForeverLM Dev|ForeverLM)(?: [0-9]+)?$")
     }()
     private static let strayConflictNumberPattern = try! NSRegularExpression(pattern: #"^ [0-9]+$"#)
 
@@ -508,95 +466,16 @@ actor StorageService {
         return (libraryRootPath as NSString).appendingPathComponent(normalizedRelativeSourcePath(path))
     }
 
-    /// Every directory on this Mac that can hold a ForeverLM content root: the
-    /// app's iCloud Documents folder and iCloud Drive proper. Content has historically
-    /// been written under both — `locateLocalPath` already swaps between them for
-    /// the canonical folder — so a conflict fork can appear beside either.
-    private static var contentRootParents: [URL] {
-        // Only synced locations can fork, so the local content root is absent here
-        // by design. So is `~/Documents`: when "Desktop & Documents Folders"
-        // syncing is on it is the CloudDocs `Documents` listed below, and when it
-        // is off it is not synced and cannot fork. Listing it added nothing and
-        // cost a TCC prompt — `contentsOfDirectory` on `~/Documents` is what
-        // raised "would like to access files in your Documents folder" on the
-        // first `knowledgeStore()` of every launch, and the grant never stuck
-        // because every Dev binary shares `com.foreverlm.dev` while ad-hoc test
-        // builds carry a different code signature each time.
-        let home = contentHomeDirectory
-        // The retired container is not scanned: its `Documents` is empty, so it
-        // has no folder that iCloud could have forked in the first place.
-        return [
-            "Library/Mobile Documents/\(ForeverLMRuntimeIdentity.iCloudDocumentsFolderName)/Documents",
-            "Library/Mobile Documents/com~apple~CloudDocs/Documents",
-        ].map {
-            URL(fileURLWithPath: (home as NSString).appendingPathComponent($0), isDirectory: true)
-        }
-    }
-
-    private static let numberedConflictRootsLock = NSLock()
-    nonisolated(unsafe) private static var cachedNumberedConflictRoots: [URL]?
-
-    /// Numbered iCloud conflict folders ("ForeverLM 2", "ForeverLM 3", …) sitting
-    /// beside any content root. iCloud creates one of these when two devices
-    /// disagree about a directory, and the files inside are the real content, not
-    /// a discardable copy — the macOS 27 upgrade (2026-07-20) forked this KB into
-    /// `com~apple~CloudDocs/Documents/ForeverLM 2`, which is where ~370 paper PDFs
-    /// and ~340 archived articles ended up.
-    ///
-    /// Discovered once per session and cached: this enumerates directories, while
-    /// callers resolve one path per source and there are hundreds of them. A fork
-    /// that appears later is picked up on the next launch; one that disappears
-    /// merely yields a miss, because every candidate is stat'd before it is used.
-    /// Newest-numbered first, so the most recent fork wins when several exist.
-    static var numberedConflictRoots: [URL] {
-        #if DEBUG
-        if ProcessInfo.processInfo.arguments.contains("--run-podcast-cleanup") {
-            return []
-        }
-        #endif
-        numberedConflictRootsLock.lock()
-        defer { numberedConflictRootsLock.unlock() }
-        if let cached = cachedNumberedConflictRoots { return cached }
-
-        let roots = contentRootParents
-            .flatMap { parent -> [URL] in
-                guard let children = try? FileManager.default.contentsOfDirectory(
-                    at: parent,
-                    includingPropertiesForKeys: [.isDirectoryKey],
-                    options: [.skipsHiddenFiles]
-                ) else { return [] }
-                return children.filter { url in
-                    guard url.lastPathComponent.range(of: #"^(ForeverLM|FeynmanLM) [0-9]+$"#, options: .regularExpression) != nil else {
-                        return false
-                    }
-                    return (try? url.resourceValues(forKeys: [.isDirectoryKey]))?.isDirectory == true
-                }
-            }
-            .sorted { $0.lastPathComponent.localizedStandardCompare($1.lastPathComponent) == .orderedDescending }
-
-        cachedNumberedConflictRoots = roots
-        return roots
-    }
-
-    /// Candidate paths for source files that live in an iCloud conflict fork.
-    /// This is a read-time compatibility helper only; new writes continue to use
-    /// `ForeverLM/`.
-    static func legacyNumberedAbsoluteSourcePaths(forRelativePath path: String) -> [String] {
-        guard !path.hasPrefix("/"), !path.contains("://") else { return [] }
-        let relativePath = normalizedRelativeSourcePath(path)
-        return numberedConflictRoots.map { $0.appendingPathComponent(relativePath).path }
-    }
-
     // MARK: - Source file location (single source of truth)
 
     /// Every place a stored source path could point to on this Mac, most likely
-    /// first. Pure string work apart from the cached fork discovery.
+    /// first. Pure string work.
     ///
     /// This is deliberately the ONLY list of relocation rules in the app. It used
     /// to be three: `StudioArticle.locateLocalPath` knew about re-homing, the
     /// simulator prefix, container swaps and the Knowledge→ForeverLM rename;
     /// `SourceService.resolveLocalFileURL` knew about `file://`, `~`, iCloud
-    /// placeholders and conflict forks; `reconcileLocalFiles` had a third partial
+    /// placeholders; `reconcileLocalFiles` had a third partial
     /// copy. Each was missing rules the others had, so the app could open a file
     /// it simultaneously reported as missing — which is exactly how an iCloud
     /// conflict fork turned into "222 papers need attention" while every PDF sat
@@ -630,18 +509,14 @@ actor StorageService {
             add((home as NSString).appendingPathComponent(String(input[range.lowerBound...])))
         }
 
-        // Anything under a content root — the private container, iCloud Drive,
-        // local storage, a historical folder name, or an iCloud conflict fork —
-        // reduces to the same relative path. Resolve that relative path against
-        // every root we know of, then against every fork.
+        // Anything under a content root — the private container or local
+        // storage — reduces to the same relative path. Resolve that relative
+        // path against every root we know of.
         let relative = relativeSourcePath(input)
         let relativeForm = relative.hasPrefix("/") ? nil : relative
         if let relativeForm {
             for root in knownContentRoots {
                 add((root as NSString).appendingPathComponent(relativeForm))
-            }
-            for forkPath in legacyNumberedAbsoluteSourcePaths(forRelativePath: relativeForm) {
-                add(forkPath)
             }
         }
 
@@ -654,8 +529,8 @@ actor StorageService {
     }
 
     /// Where a stored source path's file actually is, or nil when no candidate
-    /// exists. A file that iCloud has not downloaded yet counts as present: the
-    /// CloudDocs form leaves a `.name.ext.icloud` placeholder beside it,
+    /// exists. A file that iCloud has not downloaded yet counts as present: an
+    /// evicted file can leave a `.name.ext.icloud` placeholder beside it,
     /// and treating that as absent is what makes the app offer to re-download a
     /// paper it already has.
     ///
@@ -720,15 +595,9 @@ actor StorageService {
     private func knowledgeStore() throws -> KnowledgeStore {
         if let _knowledgeStore { return _knowledgeStore }
         try ensureStoreExists()
-        // A test-only override is already the complete storage universe for
-        // that instance. Resolving the fallback iCloud roots here is unrelated,
-        // can contend with parallel tests, and can block on CloudDocs while an
-        // isolated temporary database is being exercised.
-        let legacyDirectories = overrideStoreRoot == nil ? Self.legacyICloudContentRoots : []
         let store = try KnowledgeStore(
             storeDirectory: storeRoot,
             contentDirectory: contentRoot,
-            legacyContentDirectories: legacyDirectories,
             startupPreferenceSnapshot: overrideStoreRoot == nil
                 ? UserDefaults.standard.dictionaryRepresentation()
                 : [:]
@@ -2495,28 +2364,6 @@ actor StorageService {
             } catch {
                 logger.error("Book folder adoption failed: \(error.localizedDescription, privacy: .public)")
             }
-        }
-    }
-
-    /// Historical content roots (iCloud Drive and numbered-fork folders): not
-    /// homes anything is written to, only places a stored file may still be read from.
-    static var legacyICloudContentRoots: [URL] {
-        #if DEBUG
-        // The transcript maintenance runner needs only SQLite. Avoid touching
-        // historical CloudDocs roots, which can block while an evicted parent
-        // downloads metadata and are unrelated to this bounded backfill.
-        if ProcessInfo.processInfo.arguments.contains("--run-podcast-cleanup") {
-            return []
-        }
-        #endif
-        let localRoots: Set<String> = [libraryRootPath, localContentRootPath]
-        let named = knownContentRoots
-            .filter { !localRoots.contains($0) }
-            .map { URL(fileURLWithPath: $0, isDirectory: true) }
-        var seen = Set<String>()
-        return (named + numberedConflictRoots).filter {
-            seen.insert($0.standardizedFileURL.path).inserted
-                && FileManager.default.fileExists(atPath: $0.path)
         }
     }
 
@@ -4783,8 +4630,8 @@ actor StorageService {
             // Resolve through the app's single list of relocation rules rather
             // than a local existence check. This pass decides whether to archive
             // a source, so a rule it doesn't know about is a source it would
-            // wrongly declare gone — a file sitting in an iCloud conflict fork,
-            // or one iCloud hasn't downloaded yet, is present.
+            // wrongly declare gone — a file iCloud hasn't downloaded yet is
+            // present.
             if let located = Self.locateSourceFile(filePath) {
                 if !fm.fileExists(atPath: located) {
                     try? fm.startDownloadingUbiquitousItem(at: URL(fileURLWithPath: located))

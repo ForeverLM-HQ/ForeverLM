@@ -83,9 +83,7 @@ enum MemoryCardStateStore {
     }
 
     /// "Always ask it this way" on a kept card, or off again: written in its
-    /// deck's row, so every device asks it the same way. An item from before
-    /// cards that has no row yet gets one that still says draft, so it keeps
-    /// its place in To Check until the learner goes through it.
+    /// deck's row, so every device asks it the same way.
     @MainActor
     @discardableResult
     static func setAlwaysAsk(
@@ -93,13 +91,12 @@ enum MemoryCardStateStore {
         cardID: String,
         memoryItemID: String,
         deckID: String,
-        isFromBeforeCards: Bool,
         at now: Date = Date(),
         defaults: UserDefaults = .standard
     ) -> MemoryCardDeckState {
         update(deckID: deckID, defaults: defaults) { row in
             var state = row.cards[cardID] ?? MemoryCardState(
-                status: isFromBeforeCards ? .draft : .kept,
+                status: .kept,
                 memoryItemID: memoryItemID,
                 updatedAt: now
             )

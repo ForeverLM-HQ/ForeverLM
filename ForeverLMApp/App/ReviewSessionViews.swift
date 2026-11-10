@@ -675,24 +675,6 @@ private enum ReviewTranscriptPresentation {
             let answer = exchange.learnerAnswer?.trimmingCharacters(in: .whitespacesAndNewlines)
             let evaluation = exchange.evaluation?.trimmingCharacters(in: .whitespacesAndNewlines)
 
-            // Before per-turn persistence, MCP exports were saved as one learner
-            // answer under a synthetic heading. Expand those immutable rows only
-            // for presentation so existing reviews immediately become readable.
-            if question == "Review transcript", let answer, !answer.isEmpty {
-                let legacyMessages = ReviewTranscriptParser.messages(from: answer)
-                if !legacyMessages.isEmpty {
-                    result.append(contentsOf: legacyMessages.enumerated().map { index, message in
-                        ReviewTranscriptPresentationMessage(
-                            id: "\(exchange.id)-legacy-\(index)",
-                            role: message.role == .assistant ? .assistant : .learner,
-                            text: message.text,
-                            score: nil
-                        )
-                    })
-                    continue
-                }
-            }
-
             if question == "Exported chat transcript", let answer, !answer.isEmpty {
                 result.append(
                     ReviewTranscriptPresentationMessage(

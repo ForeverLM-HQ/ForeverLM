@@ -1530,7 +1530,6 @@ extension KnowledgeStore {
                 }
                 try createOrValidateExportedMemoryTranscript(
                     sessionID: sessionID,
-                    transcript: exportedTranscript,
                     turns: exportedTranscriptTurns ?? [],
                     knowledgeNote: transcriptKnowledgeNote,
                     sourceRefs: sourceRefs.sorted(),
@@ -2223,59 +2222,13 @@ extension KnowledgeStore {
 
     private func createOrValidateExportedMemoryTranscript(
         sessionID: String,
-        transcript: String,
         turns rawTurns: [ReviewChatTurn],
         knowledgeNote: String?,
         sourceRefs: [String],
         recordedAt: Date,
         allowInsert: Bool = true
     ) throws {
-        let normalizedTranscript = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         let sourceRefsJSON = jsonString(from: sourceRefs)
-        let legacyExchangeID = "\(sessionID)::memory-export"
-        var legacy: (
-            sessionID: String,
-            transcript: String?,
-            evaluation: String?,
-            sourceRefsJSON: String,
-            knowledgeNote: String?
-        )?
-        try queryBind("""
-            SELECT session_id, user_answer, evaluation, source_refs,
-                   knowledge_note
-            FROM review_exchanges
-            WHERE id = ?
-            LIMIT 1
-        """, bind: { statement in
-            bind(statement, 1, legacyExchangeID)
-        }) { statement in
-            guard
-                let storedSessionID = self.string(statement, 0),
-                let storedSourceRefs = self.string(statement, 3)
-            else { return }
-            legacy = (
-                storedSessionID,
-                self.string(statement, 1),
-                self.string(statement, 2),
-                storedSourceRefs,
-                self.string(statement, 4)
-            )
-        }
-        // Reviews saved by earlier builds used one opaque `Review transcript`
-        // exchange. Accept that exact durable row on replay; the transcript UI
-        // expands its role-labelled contents without mutating user data.
-        if let legacy {
-            guard legacy.sessionID == sessionID,
-                  legacy.transcript == normalizedTranscript,
-                  legacy.evaluation == "",
-                  legacy.sourceRefsJSON == sourceRefsJSON,
-                  legacy.knowledgeNote == knowledgeNote else {
-                throw KnowledgeStoreError.invalidData(
-                    "The exported memory transcript already contains different immutable content."
-                )
-            }
-            return
-        }
 
         let turns = rawTurns.filter { turn in
             let question = turn.question?.trimmingCharacters(in: .whitespacesAndNewlines)

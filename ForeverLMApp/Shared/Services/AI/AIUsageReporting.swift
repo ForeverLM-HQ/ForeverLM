@@ -851,7 +851,7 @@ struct AIUsageModelUse: Sendable, Equatable {
 
 /// One item beneath a task row, such as a podcast episode beneath Transcript
 /// Formatting. Its stable key is produced by SQLite from type + deterministic
-/// ID, with title-only attribution explicitly marked as legacy.
+/// ID, with title-only attribution kept apart as such.
 struct AIUsageSubjectActivitySummary: Identifiable, Sendable, Equatable {
     let key: String
     let subjectID: String?

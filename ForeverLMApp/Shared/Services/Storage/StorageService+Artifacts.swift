@@ -1356,18 +1356,10 @@ extension StorageService {
     }
 
     private func artifactDocumentURL(artifactID: String) throws -> URL {
-        let canonical = try canonicalArtifactDocumentURL(
+        try canonicalArtifactDocumentURL(
             artifactID: artifactID,
             createDirectoryIfNeeded: false
         )
-        if Self.artifactFileOrPlaceholderExists(canonical) { return canonical }
-
-        let relative = "\(Self.artifactDirectoryName)/\(artifactID)/\(Self.artifactDocumentName)"
-        for root in Self.legacyICloudContentRoots {
-            let candidate = root.appendingPathComponent(relative, isDirectory: false)
-            if Self.artifactFileOrPlaceholderExists(candidate) { return candidate }
-        }
-        return canonical
     }
 
     private func canonicalArtifactDocumentURL(
@@ -1378,14 +1370,6 @@ extension StorageService {
             artifactID: artifactID,
             createIfNeeded: createDirectoryIfNeeded
         ).appendingPathComponent(Self.artifactDocumentName)
-    }
-
-    private static func artifactFileOrPlaceholderExists(_ url: URL) -> Bool {
-        let fileManager = FileManager.default
-        if fileManager.fileExists(atPath: url.path) { return true }
-        let placeholder = url.deletingLastPathComponent()
-            .appendingPathComponent(".\(url.lastPathComponent).icloud")
-        return fileManager.fileExists(atPath: placeholder.path)
     }
 
     enum ArtifactReadiness: Equatable {

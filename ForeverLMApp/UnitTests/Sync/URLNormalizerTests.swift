@@ -53,11 +53,10 @@ struct URLNormalizerTests {
 
     @Test func storedPathsUnderRenamedRootFoldersResolveToTheLibrary() {
         let expected = (StorageService.libraryRootPath as NSString).appendingPathComponent("Papers/attention.pdf")
-        // A numbered iCloud fork of the current folder, the Dev folder, the
-        // retired product's folder, and the stray " 4/" a previous normalizer left.
+        // A numbered iCloud fork of the current folder, the Dev folder, and the
+        // stray " 4/" a previous normalizer left.
         #expect(StorageService.absoluteSourcePath("ForeverLM 2/Papers/attention.pdf") == expected)
         #expect(StorageService.absoluteSourcePath("ForeverLM Dev/Papers/attention.pdf") == expected)
-        #expect(StorageService.absoluteSourcePath("\(LegacyIdentityAdoption.retiredProductFolderName) 3/Papers/attention.pdf") == expected)
         #expect(StorageService.absoluteSourcePath(" 4/Papers/attention.pdf") == expected)
         // A folder that merely starts with the name is not a root.
         #expect(StorageService.absoluteSourcePath("ForeverLM Notes/attention.pdf")

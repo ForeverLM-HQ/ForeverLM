@@ -6,9 +6,8 @@ import WebKit
 /// A per-device, non-evictable mirror of archived article HTML and images.
 ///
 /// New canonical archives live in local Application Support and travel between
-/// devices through the source's CloudKit reader asset. Historical archives may
-/// still be found in an iCloud Documents root (including conflict forks), where
-/// Optimize Mac Storage can leave dataless placeholders. In either case the
+/// devices through the source's CloudKit reader asset. Optimize Mac Storage can
+/// leave dataless placeholders for a file in an iCloud root. In either case the
 /// reader copies the archive into this separate local cache before WebKit opens
 /// it, so rendering never faults an iCloud file on the main actor.
 actor ArticleArchiveCache {
@@ -182,8 +181,7 @@ actor ArticleArchiveCache {
             }
 
             let canonicalHTML = sourceDirectory.appendingPathComponent("article.html")
-            let legacyPlaceholder = sourceDirectory.appendingPathComponent(".article.html.icloud")
-            guard isRecordedFile(canonicalHTML) || isRecordedFile(legacyPlaceholder) else {
+            guard isRecordedFile(canonicalHTML) else {
                 continue
             }
 
@@ -199,12 +197,6 @@ actor ArticleArchiveCache {
             }
 
             do {
-                if !isRecordedFile(canonicalHTML), isRecordedFile(legacyPlaceholder) {
-                    try await materializeLegacyPlaceholder(
-                        legacyPlaceholder,
-                        expectedHTML: canonicalHTML
-                    )
-                }
                 _ = try await prepare(
                     canonicalHTMLPath: canonicalHTML.path,
                     sourceID: sourceID
@@ -280,16 +272,6 @@ actor ArticleArchiveCache {
                     group.addTask { try await Self.materialize(url) }
                 }
             }
-        }
-    }
-
-    private func materializeLegacyPlaceholder(
-        _ placeholder: URL,
-        expectedHTML: URL
-    ) async throws {
-        try await Self.materialize(placeholder)
-        guard isRecordedFile(expectedHTML) else {
-            throw Failure.archiveMissing
         }
     }
 

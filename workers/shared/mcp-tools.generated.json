@@ -17,31 +17,6 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Legacy: add sources from the library to a companion record (a Notebook or a Goal) as approved seeds. Prefer add_notebook_sources for a Notebook and add_goal_sources for a timebound Goal, which check the kind of record they are given. Different from review_suggested_sources, which only approves sources ForeverLM already discovered. Find source IDs with search_sources_semantic (pass exclude_notebook_id so sources already in the goal never come back) or list_sources first. Sources already in the goal are skipped.",
-    "inputSchema" : {
-      "properties" : {
-        "goal_id" : {
-          "description" : "Companion goal ID.",
-          "type" : "string"
-        },
-        "source_ids" : {
-          "description" : "Library source IDs to add as approved seeds.",
-          "items" : {
-            "type" : "string"
-          },
-          "type" : "array"
-        }
-      },
-      "required" : [
-        "goal_id",
-        "source_ids"
-      ],
-      "type" : "object"
-    },
-    "name" : "add_companion_sources",
-    "readOnlyHint" : false
-  },
-  {
     "description" : "Give the questions of a course's quizzes already written the pictures that make their points clear, without rewriting a question: ids, scores and Memory items stay. The slides of every lecture video the quizzes cover are captured first when they never were (capture_slides, default true; it reads the video and takes a while for a long course). Then one model call per quiz, on the learner's Lecture Quiz Writing route, picks for each question the lecture slide or the reading figure (printed on the reading's pages) that helps and whether it is shown with the question or held for the answer. Drawing is off by default: draw false adds only those source pictures. With draw true, the picker may instead brief a new picture where no slide or figure shows the point, up to 12 a quiz, and ForeverLM draws the briefs on the learner's image model. That paid route is refused until the learner has seen the request count, selected model and published maximum cost and explicitly agrees; then repeat it with confirm_drawings true and approved_spend_usd. A question no picture helps gets none, and a question with a picture keeps it unless replace is true. choose false skips the picks and only draws pictures already briefed, with the same confirmation. For a quiz you wrote yourself you can instead look at frames and pages with show_source_image, or draw with generate_image or keep a picture made elsewhere with save_image, and pin it with set_course_quiz_picture. Returns, quiz by quiz, how many questions got a picture and how many were drawn. cancel_ai_work stops a run; the pictures already chosen and drawn stay. Paid assistant work has a $3 per-operation ceiling by default. To continue beyond it, show the learner the estimate, obtain explicit approval, and pass that total as approved_spend_usd.",
     "inputSchema" : {
       "properties" : {
@@ -2059,7 +2034,7 @@
           "type" : "string"
         },
         "goal_id" : {
-          "description" : "Companion goal ID from list_learning_goals. Omit to get a menu of all active goals.",
+          "description" : "Companion goal ID: a Notebook from list_notebooks or a Goal from list_goals. Omit to get a menu of all active goals.",
           "type" : "string"
         },
         "start_session" : {
@@ -2080,7 +2055,7 @@
     "inputSchema" : {
       "properties" : {
         "goal_id" : {
-          "description" : "Companion goal ID from list_learning_goals. Omit to get a menu of all active goals.",
+          "description" : "Companion goal ID: a Notebook from list_notebooks or a Goal from list_goals. Omit to get a menu of all active goals.",
           "type" : "string"
         },
         "start_session" : {
@@ -5873,7 +5848,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "List the learner's Memory cards in ForeverLM. status to_check (the default) lists the cards waiting in Memory's To Check: drafts not yet kept or skipped (kind draft, offered until kept or skipped) and the Memory items from before cards, offered once (kind from_before, kept already), each with card_id, source_id, source_title, front, back, why, optional front_images/back_images, quote, origin and kept_by_default; sources lists every source the card stands on, its own first, each with source_id, source_title and the quote it stands on there (a card often stands on several). status kept lists the kept cards, each with card_id, item_id, ask (the wording to ask: the learner's own rewording when there is one), back, why, optional images, source_ids, sources (each with its quote) and where its schedule stands (new, due, or scheduled with next_due_at). status all lists both. notebook_id narrows to one Notebook's cards (those on its sources) and source_id to the cards that stand on that source, whichever it is of theirs. With to_check or all, drafting says what Make Cards and draft_cards drafted lately for those sources: each run's state and, once done, the card ids it added, the cards it did not find in their source (not_grounded) and the sources it read as excerpts (sampled). Reads only: keep or skip cards with triage_cards.",
+    "description" : "List the learner's Memory cards in ForeverLM. status to_check (the default) lists the cards waiting in Memory's To Check: drafts not yet kept or skipped (kind draft, offered until kept or skipped) each with card_id, source_id, source_title, front, back, why, optional front_images/back_images, quote, origin and kept_by_default; sources lists every source the card stands on, its own first, each with source_id, source_title and the quote it stands on there (a card often stands on several). status kept lists the kept cards, each with card_id, item_id, ask (the wording to ask: the learner's own rewording when there is one), back, why, optional images, source_ids, sources (each with its quote) and where its schedule stands (new, due, or scheduled with next_due_at). status all lists both. notebook_id narrows to one Notebook's cards (those on its sources) and source_id to the cards that stand on that source, whichever it is of theirs. With to_check or all, drafting says what Make Cards and draft_cards drafted lately for those sources: each run's state and, once done, the card ids it added, the cards it did not find in their source (not_grounded) and the sources it read as excerpts (sampled). Reads only: keep or skip cards with triage_cards.",
     "inputSchema" : {
       "properties" : {
         "limit" : {
@@ -6241,23 +6216,6 @@
       "type" : "object"
     },
     "name" : "list_images",
-    "readOnlyHint" : true
-  },
-  {
-    "description" : "Legacy combined listing of Notebooks and Goals. Prefer list_notebooks for Notebooks and list_goals for timebound Goals.",
-    "inputSchema" : {
-      "properties" : {
-        "include_completed" : {
-          "description" : "Include records explicitly marked done or archived. Defaults to false.",
-          "type" : "boolean"
-        }
-      },
-      "required" : [
-
-      ],
-      "type" : "object"
-    },
-    "name" : "list_learning_goals",
     "readOnlyHint" : true
   },
   {
@@ -8356,7 +8314,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Approve or reject sources that ForeverLM discovered for a Learning Companion goal. Approved sources enter the daily quiz rotation; rejected sources are tombstoned and never suggested again. Use after daily_quiz or list_learning_goals surfaces pending suggestions.",
+    "description" : "Approve or reject sources that ForeverLM discovered for a Learning Companion goal. Approved sources enter the daily quiz rotation; rejected sources are tombstoned and never suggested again. Use after daily_quiz, list_notebooks or list_goals surfaces pending suggestions.",
     "inputSchema" : {
       "properties" : {
         "approve" : {
@@ -11425,7 +11383,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Go through the learner's cards to check, as Memory's To Check does, and only on the learner's word: each decision is theirs. action keep makes a card a Memory card, first asked the day after it is kept; keep with front, back, why, front_images or back_images keeps it with those changes (Edit, then Keep). Image arrays replace that face's pictures and [] removes them. also_from (draft cards only) chooses the other sources the card is kept on, replacing the ones it was drafted with: [] keeps it on its own source alone, and a list keeps it on each source named with its quote, copied word for word from that source's text (a source whose text does not print its quote refuses the keep). A kept card stands on those sources for good; changing them later means starting the card over. For a card from before cards (kind from_before), which is kept already, a new front alone rewords it, and a new back, why or image list starts it over as a new card. action skip drops a draft for good, so its seed is never drafted again, and retires a card from before cards, never asked again. decisions name cards by the card_id list_cards returned; keep_source_ids and skip_source_ids keep or skip every card to check on those sources at once. Returns what was kept (with item_id), skipped, refused (with why) and not found (decided already, expired, or not a card to check), and how many cards still wait.",
+    "description" : "Go through the learner's cards to check, as Memory's To Check does, and only on the learner's word: each decision is theirs. action keep makes a card a Memory card, first asked the day after it is kept; keep with front, back, why, front_images or back_images keeps it with those changes (Edit, then Keep). Image arrays replace that face's pictures and [] removes them. also_from (draft cards only) chooses the other sources the card is kept on, replacing the ones it was drafted with: [] keeps it on its own source alone, and a list keeps it on each source named with its quote, copied word for word from that source's text (a source whose text does not print its quote refuses the keep). A kept card stands on those sources for good; changing them later means starting the card over. action skip drops a draft for good, so its seed is never drafted again. decisions name cards by the card_id list_cards returned; keep_source_ids and skip_source_ids keep or skip every card to check on those sources at once. Returns what was kept (with item_id), skipped, refused (with why) and not found (decided already, expired, or not a card to check), and how many cards still wait.",
     "inputSchema" : {
       "properties" : {
         "decisions" : {

@@ -2898,23 +2898,12 @@ final class MCPToolRegistry: @unchecked Sendable {
                 ]
             ),
             MCPToolDef(
-                name: "list_learning_goals",
-                description: "Legacy combined listing of Notebooks and Goals. Prefer list_notebooks for Notebooks and list_goals for timebound Goals.",
-                inputSchema: [
-                    "type": "object",
-                    "properties": [
-                        "include_completed": ["type": "boolean", "description": "Include records explicitly marked done or archived. Defaults to false."],
-                    ],
-                    "required": [] as [String],
-                ]
-            ),
-            MCPToolDef(
                 name: "daily_review",
                 description: "Get today's chat-first daily review plan for a Learning Companion goal — merges open gaps, spaced-repetition due sources, deadline-paced new/review blend, and in-progress reading into one Review Chat session. Does not write to Schedule. With no goal_id, returns a menu of active goals. Pass start_session=false for a read-only briefing (plan + rationale, no session); default starts a linked review session with source content for a live chat review, then call end_review_session when done.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
-                        "goal_id": ["type": "string", "description": "Companion goal ID from list_learning_goals. Omit to get a menu of all active goals."],
+                        "goal_id": ["type": "string", "description": "Companion goal ID: a Notebook from list_notebooks or a Goal from list_goals. Omit to get a menu of all active goals."],
                         "start_session": ["type": "boolean", "description": "Defaults to true: starts a linked review session and loads source content. Pass false for a read-only morning briefing."],
                     ],
                     "required": [] as [String],
@@ -2926,7 +2915,7 @@ final class MCPToolRegistry: @unchecked Sendable {
                 inputSchema: [
                     "type": "object",
                     "properties": [
-                        "goal_id": ["type": "string", "description": "Companion goal ID from list_learning_goals. Omit to get a menu of all active goals."],
+                        "goal_id": ["type": "string", "description": "Companion goal ID: a Notebook from list_notebooks or a Goal from list_goals. Omit to get a menu of all active goals."],
                         "date": ["type": "string", "description": "Optional date in YYYY-MM-DD. Leave it out for today."],
                         "start_session": ["type": "boolean", "description": "Defaults to true: starts a linked session and loads source content. Pass false for a read-only briefing — no session, no items marked served, no full content."],
                     ],
@@ -3017,7 +3006,7 @@ final class MCPToolRegistry: @unchecked Sendable {
             ),
             MCPToolDef(
                 name: "list_cards",
-                description: "List the learner's Memory cards in ForeverLM. status to_check (the default) lists the cards waiting in Memory's To Check: drafts not yet kept or skipped (kind draft, offered until kept or skipped) and the Memory items from before cards, offered once (kind from_before, kept already), each with card_id, source_id, source_title, front, back, why, optional front_images/back_images, quote, origin and kept_by_default; sources lists every source the card stands on, its own first, each with source_id, source_title and the quote it stands on there (a card often stands on several). status kept lists the kept cards, each with card_id, item_id, ask (the wording to ask: the learner's own rewording when there is one), back, why, optional images, source_ids, sources (each with its quote) and where its schedule stands (new, due, or scheduled with next_due_at). status all lists both. notebook_id narrows to one Notebook's cards (those on its sources) and source_id to the cards that stand on that source, whichever it is of theirs. With to_check or all, drafting says what Make Cards and draft_cards drafted lately for those sources: each run's state and, once done, the card ids it added, the cards it did not find in their source (not_grounded) and the sources it read as excerpts (sampled). Reads only: keep or skip cards with triage_cards.",
+                description: "List the learner's Memory cards in ForeverLM. status to_check (the default) lists the cards waiting in Memory's To Check: drafts not yet kept or skipped (kind draft, offered until kept or skipped) each with card_id, source_id, source_title, front, back, why, optional front_images/back_images, quote, origin and kept_by_default; sources lists every source the card stands on, its own first, each with source_id, source_title and the quote it stands on there (a card often stands on several). status kept lists the kept cards, each with card_id, item_id, ask (the wording to ask: the learner's own rewording when there is one), back, why, optional images, source_ids, sources (each with its quote) and where its schedule stands (new, due, or scheduled with next_due_at). status all lists both. notebook_id narrows to one Notebook's cards (those on its sources) and source_id to the cards that stand on that source, whichever it is of theirs. With to_check or all, drafting says what Make Cards and draft_cards drafted lately for those sources: each run's state and, once done, the card ids it added, the cards it did not find in their source (not_grounded) and the sources it read as excerpts (sampled). Reads only: keep or skip cards with triage_cards.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -3063,7 +3052,7 @@ final class MCPToolRegistry: @unchecked Sendable {
             ),
             MCPToolDef(
                 name: "triage_cards",
-                description: "Go through the learner's cards to check, as Memory's To Check does, and only on the learner's word: each decision is theirs. action keep makes a card a Memory card, first asked the day after it is kept; keep with front, back, why, front_images or back_images keeps it with those changes (Edit, then Keep). Image arrays replace that face's pictures and [] removes them. also_from (draft cards only) chooses the other sources the card is kept on, replacing the ones it was drafted with: [] keeps it on its own source alone, and a list keeps it on each source named with its quote, copied word for word from that source's text (a source whose text does not print its quote refuses the keep). A kept card stands on those sources for good; changing them later means starting the card over. For a card from before cards (kind from_before), which is kept already, a new front alone rewords it, and a new back, why or image list starts it over as a new card. action skip drops a draft for good, so its seed is never drafted again, and retires a card from before cards, never asked again. decisions name cards by the card_id list_cards returned; keep_source_ids and skip_source_ids keep or skip every card to check on those sources at once. Returns what was kept (with item_id), skipped, refused (with why) and not found (decided already, expired, or not a card to check), and how many cards still wait.",
+                description: "Go through the learner's cards to check, as Memory's To Check does, and only on the learner's word: each decision is theirs. action keep makes a card a Memory card, first asked the day after it is kept; keep with front, back, why, front_images or back_images keeps it with those changes (Edit, then Keep). Image arrays replace that face's pictures and [] removes them. also_from (draft cards only) chooses the other sources the card is kept on, replacing the ones it was drafted with: [] keeps it on its own source alone, and a list keeps it on each source named with its quote, copied word for word from that source's text (a source whose text does not print its quote refuses the keep). A kept card stands on those sources for good; changing them later means starting the card over. action skip drops a draft for good, so its seed is never drafted again. decisions name cards by the card_id list_cards returned; keep_source_ids and skip_source_ids keep or skip every card to check on those sources at once. Returns what was kept (with item_id), skipped, refused (with why) and not found (decided already, expired, or not a card to check), and how many cards still wait.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -3243,7 +3232,7 @@ final class MCPToolRegistry: @unchecked Sendable {
             ),
             MCPToolDef(
                 name: "review_suggested_sources",
-                description: "Approve or reject sources that ForeverLM discovered for a Learning Companion goal. Approved sources enter the daily quiz rotation; rejected sources are tombstoned and never suggested again. Use after daily_quiz or list_learning_goals surfaces pending suggestions.",
+                description: "Approve or reject sources that ForeverLM discovered for a Learning Companion goal. Approved sources enter the daily quiz rotation; rejected sources are tombstoned and never suggested again. Use after daily_quiz, list_notebooks or list_goals surfaces pending suggestions.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -3252,18 +3241,6 @@ final class MCPToolRegistry: @unchecked Sendable {
                         "reject": ["type": "array", "items": ["type": "string"], "description": "Source IDs to reject (tombstoned)."],
                     ],
                     "required": ["goal_id"],
-                ]
-            ),
-            MCPToolDef(
-                name: "add_companion_sources",
-                description: "Legacy: add sources from the library to a companion record (a Notebook or a Goal) as approved seeds. Prefer add_notebook_sources for a Notebook and add_goal_sources for a timebound Goal, which check the kind of record they are given. Different from review_suggested_sources, which only approves sources ForeverLM already discovered. Find source IDs with search_sources_semantic (pass exclude_notebook_id so sources already in the goal never come back) or list_sources first. Sources already in the goal are skipped.",
-                inputSchema: [
-                    "type": "object",
-                    "properties": [
-                        "goal_id": ["type": "string", "description": "Companion goal ID."],
-                        "source_ids": ["type": "array", "items": ["type": "string"], "description": "Library source IDs to add as approved seeds."],
-                    ],
-                    "required": ["goal_id", "source_ids"],
                 ]
             ),
             MCPToolDef(
@@ -5289,7 +5266,7 @@ final class MCPToolRegistry: @unchecked Sendable {
         "get_calendar_events", "get_day_activity",
         "list_doc_chats", "list_doc_comments",
         "list_open_questions",
-        "get_schedule", "get_today_sources", "list_learning_goals", "list_goals",
+        "get_schedule", "get_today_sources", "list_goals",
         "get_goal",
         "list_ideas",
         "find_directions", "list_directions", "search_literature",
@@ -5532,8 +5509,7 @@ final class MCPToolRegistry: @unchecked Sendable {
         "clear_schedule_day",
         // Activity the app recorded goes for good, on every device.
         "forget_source_activity",
-        // A skipped draft is never offered again, and a card from before
-        // cards that is skipped is retired, never asked again.
+        // A skipped draft is never offered again.
         "triage_cards",
         // Starting a card over retires it and restarts its schedule, and a
         // retired card is never asked again.
@@ -6662,8 +6638,6 @@ final class MCPToolRegistry: @unchecked Sendable {
                     notebookID: arguments["notebook_id"] as? String,
                     artifactID: arguments["artifact_id"] as? String
                 )
-            case "list_learning_goals":
-                return try store.listCompanionLearningGoals(includeCompleted: arguments["include_completed"] as? Bool ?? false)
             case "list_goals":
                 return try store.listNotebookGoals(
                     notebookID: arguments["notebook_id"] as? String,
@@ -6921,11 +6895,6 @@ final class MCPToolRegistry: @unchecked Sendable {
                     goalID: arguments["goal_id"] as? String ?? "",
                     approve: arguments["approve"] as? [String] ?? [],
                     reject: arguments["reject"] as? [String] ?? []
-                )
-            case "add_companion_sources":
-                return try await store.addCompanionSeedSources(
-                    goalID: arguments["goal_id"] as? String ?? "",
-                    sourceIDs: arguments["source_ids"] as? [String] ?? []
                 )
             case "search_sources_semantic":
                 return try await store.searchSourcesSemantic(

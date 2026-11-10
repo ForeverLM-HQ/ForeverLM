@@ -8,8 +8,7 @@ import Foundation
 // whose kept item is the Card's own id; under generation 1 a private Artifact,
 // whose kept item is `MemoryTutorIdentity.cardItemID` of the deck card) until
 // the learner goes through them — Keep, Edit, Skip — in the Memory pane's To
-// Check, and the items from before cards are offered there once. Everything
-// here is pure (Foundation only): which cards wait, in what order, and what a
+// Check. Everything here is pure (Foundation only): which cards wait, in what order, and what a
 // decision writes; storage reads the decks and the state rows, and the Memory
 // pane and the MCP tools ask the same rules.
 
@@ -28,35 +27,29 @@ struct MemoryCardToCheck: Equatable, Identifiable, Sendable {
         /// Drafted from a source — by ForeverLM or an assistant — and neither
         /// kept nor skipped yet.
         case draft
-        /// A Memory item from before cards, read as a card
-        /// (`MemoryCard.legacyFace`). It is kept already, and offered once to
-        /// keep or skip.
-        case legacy
     }
 
     let kind: Kind
-    /// What Keep makes the item from: the draft's face, or the face an item
-    /// from before cards reads as.
+    /// What Keep makes the item from: the draft's face.
     let face: MemoryCard
     /// The deck whose `cards.state.<deckID>` row records the decision.
     let deckID: String
-    /// The source the card stands on: the deck's, or the item's first anchor.
+    /// The source the card stands on: the deck's.
     let sourceID: String
     /// The passage it quotes, which Keep checks against the source's text.
     let quote: String?
     let seed: String?
     let ideaID: String?
-    /// When it was drafted; nil for an item from before cards.
+    /// When it was drafted.
     let draftedAt: Date?
     /// The learner asked for this draft. To Check decides it like any other
     /// (since 2026-10-12); the corner card counts only the drafts not asked for.
     let isRequested: Bool
-    /// The item of a card from before cards.
+    /// The item the card is kept as, when it has one.
     let memoryItemID: String?
     /// Passages of other sources the card also stands on, beside `quote` in
     /// `sourceID`: Keep anchors the card on each of them too. Empty for a card
-    /// with one source, and for an item from before cards, whose anchors are
-    /// kept as they are.
+    /// with one source.
     var alsoFrom: [CardSourceLink] = []
 
     var id: String { face.cardID }
@@ -75,23 +68,17 @@ struct MemoryCardToCheck: Equatable, Identifiable, Sendable {
     }
     var cardID: String { face.cardID }
 
-    /// Kept unless the learner says otherwise: a requested draft, and an item
-    /// from before cards, which is kept already.
-    var isKeptByDefault: Bool { kind == .legacy || isRequested }
+    /// Kept unless the learner says otherwise: a requested draft.
+    var isKeptByDefault: Bool { isRequested }
 }
 
 /// What the learner decided about a card to check.
 enum MemoryCardTriageAction: Equatable, Sendable {
-    /// Keep it as drafted (a draft's item is made; an item from before cards
-    /// stays as it is).
+    /// Keep it as drafted: the draft's item is made.
     case keep
-    /// Edit, then Keep. A draft is kept in the learner's words. An item from
-    /// before cards is kept already, so a new front alone rewords it (its
-    /// state row) and a new back or why starts it over
-    /// (`KnowledgeStore.startMemoryCardOver`), as in All Cards.
+    /// Edit, then Keep: the draft is kept in the learner's words.
     case keepEdited(MemoryCardEdit)
-    /// Not wanted: a draft's seed is never offered again; an item from before
-    /// cards is retired, never asked again.
+    /// Not wanted: a draft's seed is never offered again.
     case skip
 }
 
@@ -123,36 +110,28 @@ struct MemoryCardTriageResult: Equatable, Sendable {
 
 enum MemoryCardTriage {
     /// The cards to check, in the order To Check lists them: a source at a
-    /// time — the source drafted for most recently first, the sources only
-    /// items from before cards wait on after them, oldest first — and within
-    /// a source its drafts in the deck's order, then its items from before.
+    /// time, the source drafted for most recently first, and within a source
+    /// its drafts in the deck's order.
     ///
     /// A draft waits until it is kept or skipped in its deck's row, or until
     /// its item exists (kept on another device whose row has not arrived);
     /// it never lapses. A draft with no quote cannot be
     /// kept and is not offered, nor is one whose seed or front belongs to a
-    /// card of its deck gone through, or offered before it. An item from
-    /// before cards (`legacyItems`, the active items with no card in their
-    /// rubric) waits until its row says it was kept or skipped.
+    /// card of its deck gone through, or offered before it.
     ///
     /// - Parameters:
     ///   - decks: the sources' draft decks, already narrowed to the sources
     ///     that may be shown.
     ///   - deckStates: the `cards.state.<deckID>` rows, by deck id.
     ///   - itemIDs: every Memory item's id, whatever its status.
-    ///   - legacyItems: items read as cards from before cards.
     static func toCheck(
         decks: [MemoryCardDraftDeck],
         deckStates: [String: MemoryCardDeckState],
-        itemIDs: Set<String>,
-        legacyItems: [MemoryItem],
-        attemptsByItemID: [String: [MemoryAttempt]]
+        itemIDs: Set<String>
     ) -> [MemoryCardToCheck] {
         struct Pile {
             var drafts: [MemoryCardToCheck] = []
-            var legacy: [MemoryCardToCheck] = []
             var newestDraft: Date = .distantPast
-            var oldestLegacy: Date = .distantFuture
         }
         var piles: [String: Pile] = [:]
 
@@ -210,61 +189,12 @@ enum MemoryCardTriage {
             }
         }
 
-        let orderedLegacy = legacyItems.sorted {
-            if $0.createdAt != $1.createdAt { return $0.createdAt < $1.createdAt }
-            return $0.id < $1.id
-        }
-        for item in orderedLegacy where item.status == .active {
-            guard MemoryCard(storedIn: item) == nil,
-                  let face = MemoryCard.legacyFace(of: item, attempts: attemptsByItemID[item.id] ?? []),
-                  let deckID = face.stateDeckID(in: item),
-                  let anchor = item.sources.min(by: {
-                      if $0.sortIndex != $1.sortIndex { return $0.sortIndex < $1.sortIndex }
-                      return $0.id < $1.id
-                  }) else { continue }
-            if let status = deckStates[deckID]?.cards[face.cardID]?.status, status != .draft { continue }
-            let entry = MemoryCardToCheck(
-                kind: .legacy,
-                face: face,
-                deckID: deckID,
-                sourceID: anchor.sourceID,
-                quote: anchor.excerpt,
-                seed: nil,
-                ideaID: item.ideaID,
-                draftedAt: nil,
-                isRequested: false,
-                memoryItemID: item.id
-            )
-            var pile = piles[anchor.sourceID] ?? Pile()
-            pile.legacy.append(entry)
-            if item.createdAt < pile.oldestLegacy { pile.oldestLegacy = item.createdAt }
-            piles[anchor.sourceID] = pile
-        }
-
         let order = piles.keys.sorted { lhs, rhs in
             let left = piles[lhs]!, right = piles[rhs]!
-            let leftDrafts = !left.drafts.isEmpty, rightDrafts = !right.drafts.isEmpty
-            if leftDrafts != rightDrafts { return leftDrafts }
-            if leftDrafts, left.newestDraft != right.newestDraft { return left.newestDraft > right.newestDraft }
-            if !leftDrafts, left.oldestLegacy != right.oldestLegacy { return left.oldestLegacy < right.oldestLegacy }
+            if left.newestDraft != right.newestDraft { return left.newestDraft > right.newestDraft }
             return lhs < rhs
         }
-        return order.flatMap { piles[$0]!.drafts + piles[$0]!.legacy }
-    }
-
-    /// The decks whose `cards.state.<deckID>` rows `toCheck` reads: the
-    /// draft decks', and for each item from before cards the deck of the
-    /// source it is first anchored on (`MemoryCard.stateDeckID`).
-    static func deckIDs(decks: [MemoryCardDraftDeck], legacyItems: [MemoryItem]) -> Set<String> {
-        var ids = Set(decks.map(\.deckID))
-        for item in legacyItems {
-            let anchor = item.sources.min {
-                if $0.sortIndex != $1.sortIndex { return $0.sortIndex < $1.sortIndex }
-                return $0.id < $1.id
-            }
-            if let anchor { ids.insert(MemoryCard.draftDeckID(sourceID: anchor.sourceID)) }
-        }
-        return ids
+        return order.flatMap { piles[$0]!.drafts }
     }
 
     /// One source's cards to check, as To Check groups them.

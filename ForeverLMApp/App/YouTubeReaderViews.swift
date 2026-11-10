@@ -1513,7 +1513,7 @@ struct YouTubeWatchPageView: NSViewRepresentable {
     /// the player out for a full browser window. Today's markup renders it into the
     /// `#full-bleed-container` band whose height YouTube caps at
     /// `--ytd-watch-flexy-max-player-height` (`calc(100vh - masthead - padding)`); the
-    /// legacy markup centres a `#player` column sized for a desktop viewport. In the
+    /// classic watch layout centres a `#player` column sized for a desktop viewport. In the
     /// reader's pane both leave the player smaller than the web view, with page background
     /// filling the difference. Pinning every wrapper in both chains to the full viewport
     /// makes the player exactly the box the reader sized the web view to.
@@ -1554,7 +1554,7 @@ struct YouTubeWatchPageView: NSViewRepresentable {
                 // 100vh (not aspect-ratio) keeps the player inside the pane even
                 // when the reader had to grant less than 16:9, letting the video
                 // letterbox instead of clipping the controls. Both watch layouts
-                // (full-bleed band and legacy #player column) are present in the
+                // (full-bleed band and classic #player column) are present in the
                 // DOM with one of them empty, so only the chain actually hosting
                 // the player is stretched — a 100vh empty sibling above it would
                 // push the video off-screen.

@@ -382,8 +382,7 @@ final class MemoryCardSessionModel: Identifiable {
             on,
             cardID: card.cardID,
             memoryItemID: card.itemID,
-            deckID: deckID,
-            isFromBeforeCards: card.isFromBeforeCards
+            deckID: deckID
         )
         sitting.setCurrentAlwaysAsk(on)
     }

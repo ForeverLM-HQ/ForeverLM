@@ -46,7 +46,6 @@ struct FakeCloudKitTests {
     func libraryContainer() {
         #expect(ForeverLMRuntimeIdentity.libraryContainerIdentifier == SyncSchema.containerIdentifier)
         #expect(FakeCloudKit.libraryContainer == SyncSchema.containerIdentifier)
-        #expect(FakeCloudKit.libraryContainer != FakeCloudKit.legacyContainer)
     }
 
     /// Since the move to the company Apple team (XXXXXXXXXX, 2026-10-09) every build names one
@@ -719,20 +718,21 @@ struct FakeCloudKitTests {
         #expect(server.recordNames(zone: "Content", owner: "_alice") == ["ct_1"])
     }
 
-    @Test("Containers and accounts are separate, and the old container's fixtures are read like any zone")
+    @Test("Containers and accounts are separate, and another container's fixtures are read like any zone")
     func containersAndAccounts() async throws {
         let server = FakeCloudKit()
         let library = try await Self.device(server)
         _ = try await library.modifyRecords(saving: [Self.record("nb_1")], in: .private)
-        let legacy = server.transport(user: "_alice", container: FakeCloudKit.legacyContainer, device: "macA-legacy")
-        #expect(try await legacy.allZones(in: .private).isEmpty)
+        let otherContainer = "iCloud.com.example.other"
+        let other = server.transport(user: "_alice", container: otherContainer, device: "macA-other")
+        #expect(try await other.allZones(in: .private).isEmpty)
 
         var old = CloudRecord(id: CloudRecordID("source-1", in: CloudZoneID("Knowledge")), recordType: "Source",
                               encryptedFields: ["payload": .bytes(Data("{}".utf8)), "userModificationDate": .date(server.now)])
         old.fields["note"] = .string("plain")
-        server.put([old], zone: "Knowledge", owner: "_alice", container: FakeCloudKit.legacyContainer)
-        #expect(try await legacy.allZones(in: .private) == [CloudZoneID("Knowledge")])
-        let read = try await legacy.zoneChanges(CloudZoneID("Knowledge"), in: .private).get().modified
+        server.put([old], zone: "Knowledge", owner: "_alice", container: otherContainer)
+        #expect(try await other.allZones(in: .private) == [CloudZoneID("Knowledge")])
+        let read = try await other.zoneChanges(CloudZoneID("Knowledge"), in: .private).get().modified
         #expect(read.first?.encryptedFields["userModificationDate"] != nil)
         #expect(read.first?.fields["note"] == .string("plain"))
         #expect(try await library.allZones(in: .private) == [Self.library])

@@ -746,7 +746,6 @@ enum ArticleSpeechAudioCache {
     /// Nothing here is authoritative: every entry can be re-billed and rewritten,
     /// which is what makes it safe for two running apps to share.
     private static func cacheDirectory() -> URL {
-        SharedDerivedCacheAdoption.adoptOnce()
         return ForeverLMRuntimeIdentity.sharedTTSAudioCacheURL
     }
 

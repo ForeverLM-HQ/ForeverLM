@@ -2144,16 +2144,6 @@ enum KeychainService {
             let taskKey = AIModelPreferenceKey.taskRoute(.chat)
             if storedRouteIsInvalid(taskKey) { return true }
             if UserDefaults.standard.object(forKey: taskKey) != nil { return false }
-            let legacyTaskProvider = UserDefaults.standard.string(forKey: "aiTask.chat.provider")
-            let legacyTaskModel = UserDefaults.standard.string(forKey: "aiTask.chat.model")
-            if legacyTaskProvider != nil || legacyTaskModel != nil {
-                guard let rawProvider = legacyTaskProvider,
-                      let model = legacyTaskModel,
-                      !model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                      let provider = AIProvider(rawValue: rawProvider),
-                      provider.canServeStoredSelection else { return true }
-                return false
-            }
             if storedRouteIsInvalid(AIModelPreferenceKey.defaultChatRoute) { return true }
             guard UserDefaults.standard.object(forKey: AIModelPreferenceKey.defaultChatRoute) == nil,
                   let raw = load(.aiProvider) else { return false }
@@ -2188,8 +2178,9 @@ enum KeychainService {
             AIModelRoutePreference(provider: provider.rawValue, model: trimmed),
             forKey: AIModelPreferenceKey.defaultChatRoute
         )
-        // Keep the legacy keys current for older builds during rollout. The
-        // atomic route above is authoritative for current builds.
+        // The per-provider model and the provider slot are the "last model per
+        // provider" store the pickers read; the atomic route above is the
+        // authoritative choice.
         setModel(trimmed, for: provider)
         aiProvider = provider
     }
@@ -2498,20 +2489,7 @@ enum KeychainService {
            route.provider == provider.rawValue {
             return route.model
         }
-        if let model = UserDefaults.standard.string(forKey: backgroundTaskModelKey(for: provider)) {
-            return model
-        }
-        // Builds before the per-provider split kept one shared value, which
-        // belonged to whichever provider was selected when it was written.
-        // Read it through rather than dropping the user's existing pick; the
-        // first explicit pick retires the old key.
-        // An absent provider meant Anthropic in those builds. Do not reinterpret
-        // a legacy Claude model as an OpenRouter slug now that the new-install
-        // default is OpenRouter.
-        if provider == (backgroundTaskProvider ?? .anthropic) {
-            return UserDefaults.standard.string(forKey: "aiBackground.model")
-        }
-        return nil
+        return UserDefaults.standard.string(forKey: backgroundTaskModelKey(for: provider))
     }
 
     static func setBackgroundTaskModel(_ model: String?, for provider: AIProvider) {

@@ -988,11 +988,11 @@ enum StudioArticleState: String, Codable {
 }
 
 /// Durable proof that a paper passed the metadata gate required for ingestion.
-/// `legacy` is written only by the one-time schema migration for papers that
-/// predate the gate and already have complete metadata. New papers can become
-/// ready only after a successful Paper Metadata LLM call writes `llm`.
+/// `predatesGate` (stored as `"legacy"`) marks papers that predate the gate and
+/// already have complete metadata. New papers can become ready only after a
+/// successful Paper Metadata LLM call writes `llm`.
 enum PaperIngestionMethod: String, Codable {
-    case legacy
+    case predatesGate = "legacy"
     case llm
     /// The learner supplied the required metadata by hand. Some scholarly
     /// documents simply do not print all of it — a repository thesis often has
@@ -1039,10 +1039,10 @@ enum PaperIngestionRecoveryAction: Equatable {
     }
 }
 
-/// Typed status flags that were historically stored as sentinel strings in
-/// `StudioArticle.errorMessage`. The raw values match those legacy strings so
+/// Typed status flags stored as sentinel strings in
+/// `StudioArticle.errorMessage`. The raw values match the stored strings, so
 /// the persisted representation (SQLite `sources.error_message`, and therefore
-/// CloudKit sync) is unchanged. These are distinct from genuine free-text error
+/// CloudKit sync) is the same. These are distinct from genuine free-text error
 /// messages: `StudioArticle.statusFlag` is non-nil only when `errorMessage`
 /// exactly equals one of these flags.
 enum SourceStatusFlag: String {
@@ -1449,8 +1449,9 @@ struct VideoPlaylistMetadata: Codable, Equatable, Hashable, Sendable {
     /// False for ordinary, manually-added playlists, which only refresh on demand.
     var autoImport: Bool
     /// How the followed item was added: "liked" for the Liked-videos feed,
-    /// "foreverlm" for the owned playlist with that name, "channel"/"playlist"
-    /// for legacy follows, or nil for an ordinary manually-added playlist group.
+    /// "foreverlm" for the owned playlist with that name, "channel" for a
+    /// followed channel's uploads, or nil for an ordinary manually-added
+    /// playlist group.
     var connectorKind: String?
 
     init(
@@ -3016,7 +3017,7 @@ struct StudioArticle: Identifiable, Codable, Equatable {
         ]
     }
 
-    /// Whether this source has been marked as paywalled, including legacy error-state markers.
+    /// Whether this source has been marked as paywalled: the `is_paywalled` flag or the `paywall` marker in `error_message`.
     var hasPaywallMarker: Bool {
         isPaywalled || statusFlag == .paywall
     }

@@ -302,18 +302,11 @@ extension MCPDataStore {
     /// Pure: the connection state a `/notion/status` payload reports. The
     /// gateway answers `connected: false` for an account with no workspace and
     /// `connected: true` with a `workspaces` list otherwise; a payload without
-    /// the field is unknown. A gateway from before workspaces were listed
-    /// describes its one workspace in `workspace` and `user`, which is read as
-    /// a list of one.
+    /// the field is unknown.
     static func notionConnection(in payload: [String: Any]) -> NotionConnection? {
         guard let connected = payload["connected"] as? Bool else { return nil }
         guard connected else { return .notConnected }
-        let legacyRow = (payload["workspace"] as? [String: Any]).map { workspace -> [String: Any] in
-            var row = workspace
-            row["user"] = payload["user"]
-            return row
-        }
-        let rows = payload["workspaces"] as? [[String: Any]] ?? legacyRow.map { [$0] } ?? []
+        let rows = payload["workspaces"] as? [[String: Any]] ?? []
         let workspaces = rows.compactMap { row -> NotionWorkspace? in
             guard let id = nonEmptyString(row["id"]) else { return nil }
             return NotionWorkspace(

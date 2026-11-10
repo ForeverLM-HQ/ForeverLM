@@ -88,15 +88,6 @@ extension KnowledgeStore {
             ("attempts", "INTEGER NOT NULL DEFAULT 0"),
             ("last_error", "TEXT"),
         ], constraints: ["UNIQUE (kind, target)"]),
-        // This Mac's view of the old zones after its catch-up (§13.3, §13.4 step 0). `field_hashes` is
-        // JSON: the old record's `waiting` flag and, per v2 record its mapping gives, the owner flag
-        // and the field hashes, as `ZoneRoot.legacyBase`'s shards hold them.
-        ReplicaSchemaTable("ck_legacy_snapshot", [
-            ("old_zone", "TEXT NOT NULL"),
-            ("record_name", "TEXT NOT NULL"),
-            ("change_tag", "TEXT"),
-            ("field_hashes", "TEXT NOT NULL"),
-        ], constraints: ["PRIMARY KEY (old_zone, record_name)"]),
         // The generation-2 activation's one-row journal (D46, §13.3 step 3). `clone_path` is relative
         // to the store's folder.
         ReplicaSchemaTable("ck_activation", [

@@ -34,8 +34,8 @@ enum MemoryReviewScope: Hashable, Sendable {
 /// notebook lists the team's copies of its sources while a card is anchored
 /// on the learner's own source at the same address; the membership resolves
 /// each copy to that source (`teamCopyAliases`, docs/teams-design.md decision
-/// 19). An item from before cards that was made with the notebook, or one of
-/// its Goals, as its goal is filed there — the filed rule.
+/// 19). A card made with the notebook, or one of its Goals, as its goal is
+/// filed there — the filed rule.
 struct MemoryCardScope: Equatable, Sendable {
     /// The notebook as homing asks it: its sources (team copies resolved to
     /// the learner's own), its Goals' Notebook, the aliases.
@@ -388,9 +388,6 @@ struct MemoryCardSitting: Equatable, Sendable {
         private(set) var variantIndex: Int?
         /// "Always ask it this way" is on: never a variant.
         private(set) var alwaysAsk: Bool
-        /// An item from before cards, which waits in To Check until the
-        /// learner goes through it: a row written for it then says draft.
-        let isFromBeforeCards: Bool
         /// The source the card is anchored on, for its chip; nil when the
         /// library no longer lists it.
         let sourceID: String?
@@ -426,7 +423,6 @@ struct MemoryCardSitting: Equatable, Sendable {
             isFirstVariedServe: Bool = false,
             variantIndex: Int? = nil,
             alwaysAsk: Bool = false,
-            isFromBeforeCards: Bool = false,
             sourceID: String? = nil,
             quote: String? = nil,
             alsoFrom: [CardSourceLink] = [],
@@ -447,7 +443,6 @@ struct MemoryCardSitting: Equatable, Sendable {
             self.isFirstVariedServe = isFirstVariedServe
             self.variantIndex = isVariant ? variantIndex : nil
             self.alwaysAsk = alwaysAsk
-            self.isFromBeforeCards = isFromBeforeCards
             self.sourceID = sourceID
             self.quote = quote
             self.alsoFrom = alsoFrom
@@ -481,11 +476,9 @@ struct MemoryCardSitting: Equatable, Sendable {
         }
 
         /// A card to check as a notebook's Practice deals it: in its drafted
-        /// words, under the item Keep makes of it. Nil for an item from
-        /// before cards, which is kept already and dealt as a kept card.
+        /// words, under the item Keep makes of it.
         static func draft(_ card: MemoryCardToCheck) -> Card? {
-            guard card.kind == .draft else { return nil }
-            return Card(
+            Card(
                 itemID: MemoryTutorIdentity.cardItemID(cardID: card.cardID),
                 prompt: card.face.front,
                 cardID: card.cardID,
@@ -551,7 +544,6 @@ struct MemoryCardSitting: Equatable, Sendable {
                 isFirstVariedServe: asked.isFirstVariedServe,
                 variantIndex: asked.variantIndex,
                 alwaysAsk: row?.alwaysAsk ?? false,
-                isFromBeforeCards: face.origin == .legacy,
                 sourceID: anchor?.sourceID,
                 quote: anchor?.excerpt,
                 alsoFrom: CardSourceLink.normalized(
@@ -819,8 +811,8 @@ struct MemoryCardDayCounts: Equatable, Sendable {
     let new: Int
     /// New cards outside today's deal that practice would take.
     let practice: Int
-    /// Cards waiting in To Check: drafts not yet kept or skipped, and the
-    /// items from before cards not yet gone through (`MemoryCardTriage`).
+    /// Cards waiting in To Check: drafts not yet kept or skipped
+    /// (`MemoryCardTriage`).
     let toCheck: Int
 
     static let zero = MemoryCardDayCounts(due: 0, new: 0, practice: 0)

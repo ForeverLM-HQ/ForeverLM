@@ -4,7 +4,7 @@ import Testing
 
 /// The ActivityLog record (docs/cloudkit-schema-design.md §3.5.24): this Mac's own day logs, the migrated
 /// `legacy22` logs, and the day's fold into `source_activity_days` and `memory_review_activity`, where a
-/// legacy log and a device log never count the same activity twice.
+/// migrated log and a device log never count the same activity twice.
 @Suite("Activity log projection")
 struct ActivityLogProjectionTests {
     private typealias F = MemorySyncFixture
@@ -40,35 +40,20 @@ struct ActivityLogProjectionTests {
         #expect(try F.pending(store)["ActivityLog:\(SyncIdentity.activityLogID(day: day, deviceID: "iphoneaa"))"] == nil, "one writer")
     }
 
-    @Test("The legacy logs hold every day's sources and old device clocks, and run twice to one result")
-    func legacyLogs() throws {
-        let (root, store) = try F.makeStore("al-legacy", triggers: false)
-        defer { try? FileManager.default.removeItem(at: root) }
-        let dayStart = try #require(DayPlan.startOfDay(F.day(Self.noon))).timeIntervalSinceReferenceDate
-        try store.execute("""
-            INSERT INTO source_activity_days (id, scheduled_source_id, source_id, day_start, first_activity_at, last_activity_at, kinds,
-                completed_kinds, max_fraction, engaged_seconds)
-            VALUES ('d-1', 'pl-1', 'src-1', ?, ?, ?, 3, 1, 0.5, 600)
-        """, [.real(dayStart), .real(Self.noon), .real(Self.noon + 600)])
-        try store.execute("""
-            INSERT INTO memory_review_activity (id, day, device_id, active_seconds, goal_seconds, updated_at)
-            VALUES (?, ?, 'old-mac', 200, 900, ?), (?, ?, 'old-phone', 100, 900, ?)
-        """, [
-            .text(MemoryReviewGoal.activityID(day: F.day(Self.noon), deviceID: "old-mac")), .text(F.day(Self.noon)), .real(Self.noon),
-            .text(MemoryReviewGoal.activityID(day: F.day(Self.noon), deviceID: "old-phone")), .text(F.day(Self.noon)), .real(Self.noon),
-        ])
-        try store.deriveLegacyActivityLogs()
-        let first = try F.text(store, "SELECT sources_json || '|' || review_by_device_json FROM activity_logs WHERE device_id = 'legacy22'")
-        try store.deriveLegacyActivityLogs()
-        #expect(try F.text(store, "SELECT sources_json || '|' || review_by_device_json FROM activity_logs WHERE device_id = 'legacy22'") == first)
-        let log = try #require(try ActivityLogProjection.loadLog(table: "activity_logs", day: F.day(Self.noon), deviceID: "legacy22", connection: store))
-        #expect(log.sources["src-1"]?["kinds"] == ["listen", "read"] && log.sources["src-1"]?["completedKinds"] == ["read"])
-        #expect(log.sources["src-1"]?["engagedSeconds"] == 600)
-        #expect(log.reviewByDevice["old-mac"]?["activeSeconds"] == 200 && log.reviewByDevice["old-phone"]?["goalSeconds"] == 900)
-        #expect(ActivityLogProjection.encodeRows(log)["reviewByDevice"]?.objectValue?.count == 2)
+    /// The migrated device's log for a day, as an earlier activation left it: written under the apply guard, so
+    /// no outbox row.
+    private static func migratedLog(_ store: KnowledgeStore, day: String, sources: [String: SyncJSON], reviewByDevice: [String: SyncJSON]) throws {
+        try store.replica.apply { _ in
+            try store.execute("""
+                INSERT INTO activity_logs (day, device_id, sources_json, review_json, review_by_device_json) VALUES (?, ?, ?, NULL, ?)
+            """, [
+                .text(day), .text(SyncIdentity.migratedHistoryDeviceID), .text(SittingProjection.text(.object(sources)) ?? "{}"),
+                .text(SittingProjection.text(.object(reviewByDevice)) ?? "{}"),
+            ])
+        }
     }
 
-    @Test("A legacy log and the device logs never count the same activity twice")
+    @Test("The migrated log and the device logs never count the same activity twice")
     func neverDoubleCounted() throws {
         let (root, store) = try F.makeStore("al-fold")
         defer { try? FileManager.default.removeItem(at: root) }
@@ -83,7 +68,12 @@ struct ActivityLogProjectionTests {
         """, [.real(dayStart), .real(Self.noon), .real(Self.noon)])
         try store.execute("INSERT INTO memory_review_activity (id, day, device_id, active_seconds, goal_seconds, updated_at) VALUES (?, ?, 'old-mac', 200, 900, ?)",
                           [.text(MemoryReviewGoal.activityID(day: day, deviceID: "old-mac")), .text(day), .real(Self.noon)])
-        try store.replica.apply { _ in try store.deriveLegacyActivityLogs() }
+        let element: SyncJSON = ["kinds": ["read"], "completedKinds": [], "notebookIDs": [], "maxFraction": 0.5, "engagedSeconds": 600,
+                                 "firstAt": .number(Double(SyncTime.milliseconds(cocoaSeconds: Self.noon))),
+                                 "lastAt": .number(Double(SyncTime.milliseconds(cocoaSeconds: Self.noon)))]
+        try Self.migratedLog(store, day: day, sources: ["src-1": element], reviewByDevice: [
+            "old-mac": ["activeSeconds": 200, "goalSeconds": 900, "at": .number(Double(SyncTime.milliseconds(cocoaSeconds: Self.noon)))],
+        ])
 
         // After it, this Mac logs 120 s more and its old review row reaches 300 s; the phone logs 60 s.
         try store.recordOwnSourceActivity(sourceID: "src-1", kind: .reading, completed: false, fraction: 0.7, engagedSeconds: 120,
@@ -91,7 +81,7 @@ struct ActivityLogProjectionTests {
         try store.recordOwnReviewActivity(MemoryReviewActivity(day: day, deviceID: "old-mac", activeSeconds: 300, goalSeconds: 900,
                                                                updatedAt: Date(timeIntervalSinceReferenceDate: Self.noon + 3_600)))
         let own = try #require(try store.loadDeviceActivityLog(day: day, deviceID: F.deviceID))
-        #expect(own.review?["seconds"] == 100, "the clock less what the legacy log holds for the same old device")
+        #expect(own.review?["seconds"] == 100, "the clock less what the migrated log holds for the same old device")
         #expect(own.sources["src-1"]?["engagedSeconds"] == 120, "only what was recorded after the activation")
 
         try F.apply(store, [try F.record(.activityLog, SyncIdentity.activityLogID(day: day, deviceID: "iphoneaa"), [
@@ -145,9 +135,9 @@ struct ActivityLogProjectionTests {
         }
     }
 
-    @Test("A legacy log whose day generation 1 recorded on a team copy folds onto the personal copy instead of failing the row id")
+    @Test("A log whose day generation 1 recorded on a team copy folds onto the personal copy instead of failing the row id")
     func teamCopysDayFoldsOntoThePersonalCopy() throws {
-        // The rehearsal on the production library parked 7 of 52 legacy logs as projectionFailed: the refold's
+        // The rehearsal on the production library parked 7 of 52 migrated logs as projectionFailed: the refold's
         // upsert on (source_id, day_start) for the personal copy met the team copy's row holding the same id.
         let (root, store) = try F.makeStore("al-team-copy")
         defer { try? FileManager.default.removeItem(at: root) }
@@ -162,12 +152,13 @@ struct ActivityLogProjectionTests {
                 completed_kinds, max_fraction, engaged_seconds)
             VALUES (?, 'pl-1', 'src-t', ?, ?, ?, 1, 0, 0.5, 600)
         """, [.text(rowID), .real(dayStart.timeIntervalSinceReferenceDate), .real(Self.noon), .real(Self.noon + 600)])
-        try store.replica.apply { _ in try store.deriveLegacyActivityLogs() }
-        let log = try #require(try ActivityLogProjection.loadLog(table: "activity_logs", day: day, deviceID: SyncIdentity.migratedHistoryDeviceID, connection: store))
-        #expect(Set(log.sources.keys) == ["src-p"], "the log names the work by its wire id")
-
-        try F.apply(store, [try F.record(.activityLog, SyncIdentity.activityLogID(day: day, deviceID: SyncIdentity.migratedHistoryDeviceID),
-                                         ActivityLogProjection.encodeRows(log))])
+        // The migrated log names the work by its wire id.
+        let element: SyncJSON = ["kinds": ["read"], "completedKinds": [], "notebookIDs": [], "maxFraction": 0.5, "engagedSeconds": 600,
+                                 "firstAt": .number(Double(SyncTime.milliseconds(cocoaSeconds: Self.noon))),
+                                 "lastAt": .number(Double(SyncTime.milliseconds(cocoaSeconds: Self.noon + 600)))]
+        try F.apply(store, [try F.record(.activityLog, SyncIdentity.activityLogID(day: day, deviceID: SyncIdentity.migratedHistoryDeviceID), [
+            "day": .string(day), "deviceID": .string(SyncIdentity.migratedHistoryDeviceID), "sources": .object(["src-p": element]),
+        ])])
         #expect(try F.count(store, "SELECT COUNT(*) FROM source_activity_days WHERE day_start = ?", [.real(dayStart.timeIntervalSinceReferenceDate)]) == 1,
                 "one row for the work's day")
         #expect(try F.text(store, "SELECT source_id FROM source_activity_days WHERE id = ?", [.text(rowID)]) == "src-p")

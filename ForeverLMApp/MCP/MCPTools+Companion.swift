@@ -472,50 +472,6 @@ extension MCPDataStore {
         """
     }
 
-    /// Add library sources to a Learning Companion goal as approved seeds — the MCP twin
-    /// of the app's own "Add sources" picker. Sources already in the goal pool
-    /// (any state) are skipped. What joins a Notebook arrives ticked in its
-    /// chat checkboxes (`tickArrivingNotebookSources`). A team's Notebook or
-    /// Goal takes the team's copies (`fileSourcesInTeamPool`).
-    func addCompanionSeedSources(goalID: String, sourceIDs: [String]) async throws -> String {
-        let goal = try requireCompanionGoal(goalID)
-        let ids = sanitizedSourceIDs(sourceIDs)
-        guard !ids.isEmpty else {
-            throw MCPError.invalidInput("Provide at least one source_id to add.")
-        }
-        try validateSourcesExist(ids)
-        let store = try knowledgeStore()
-        if goal.teamID != nil {
-            // A team's Notebook or Goal holds the team's copies
-            // (`fileSourcesInTeamPool`), and ticks what arrived itself.
-            let filing = try await fileSourcesInTeamPool(ids, in: goal)
-            let count = filing.filed.count
-            var head = "Added \(count) source\(count == 1 ? "" : "s") to \(Self.companionName(goal)) as approved\(count > 0 ? ", as the team's copies" : "")."
-            if !filing.alreadyIn.isEmpty { head += " Skipped \(filing.alreadyIn.count) already in the goal." }
-            if let notAdded = filing.notAddedSentence { head += " " + notAdded }
-            return head + "\n\n" + (try companionGoalDetail(try store.loadLearningGoal(goal.id) ?? goal))
-        }
-        // A Goal's additions reach its Notebook too.
-        let pools = [goal.id] + (goal.parentNotebookID.map { [$0] } ?? [])
-        var heldBefore: [String: Set<String>] = [:]
-        for pool in pools {
-            heldBefore[pool] = Set(try store.loadLearningGoal(pool)?.approvedSourceIDs ?? [])
-        }
-        let added = try store.addCompanionSeedSources(goalID: goal.id, sourceIDs: ids)
-        let skipped = ids.count - added
-        let refreshed = try store.loadLearningGoal(goal.id) ?? goal
-        var arrivals: [String: [String]] = [:]
-        for (pool, held) in heldBefore {
-            arrivals[pool] = (try store.loadLearningGoal(pool)?.approvedSourceIDs ?? []).filter { !held.contains($0) }
-        }
-        await tickArrivingNotebookSources(arrivals)
-        return """
-        Added \(added) source\(added == 1 ? "" : "s") to \(Self.companionName(goal)) as approved.\(skipped > 0 ? " Skipped \(skipped) already in the goal." : "")
-
-        \(try companionGoalDetail(refreshed))
-        """
-    }
-
     func dailyQuiz(goalID: String?, dateString: String?, startSession: Bool = true, hostSessionID: String? = nil) async throws -> String {
         let calendar = Calendar.current
         let now = Date()
@@ -1329,7 +1285,7 @@ extension MCPDataStore {
         }
         let approved = Set(goal.items.filter(\.isApproved).map(\.sourceID))
         guard !approved.isEmpty else {
-            return "No approved sources in \(Self.companionName(goal)) yet. Add seeds with add_companion_sources or approve discovered suggestions."
+            return "No approved sources in \(Self.companionName(goal)) yet. Add seeds with add_notebook_sources or add_goal_sources, or approve discovered suggestions."
         }
 
         let store = try knowledgeStore()

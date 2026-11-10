@@ -37,9 +37,6 @@ import Testing
 /// encryption of its first write. From a nil token, database changes come in one page.
 final class FakeCloudKit: @unchecked Sendable {
     static let libraryContainer = SyncSchema.containerIdentifier
-    /// The old Apple team's generation-1 container, which no build is entitled to: only the dormant
-    /// cutover passes' suites still serve it from the fake, until WP30 deletes them.
-    static let legacyContainer = "iCloud.com.foreverlm"
 
     /// CloudKit's limits on one request (§11.3).
     struct Limits: Sendable {

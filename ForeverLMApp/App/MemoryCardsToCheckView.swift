@@ -57,7 +57,6 @@ struct MemoryCardsToCheckView: View {
     /// otherwise the first that waits.
     @State private var selection: String?
     @State private var editing: MemoryCardToCheck?
-    @State private var confirmingSkipAll: [MemoryCardToCheck]?
     /// The other sources the learner took off a card before deciding it, by
     /// card id: the card is kept on the rest. The card's own source stays.
     @State private var droppedSources: [String: Set<String>] = [:]
@@ -212,21 +211,6 @@ struct MemoryCardsToCheckView: View {
             Button("OK") { drawFailure = nil }
         } message: {
             Text(drawFailure ?? "")
-        }
-        .alert(
-            "Skip the rest of this source's cards?",
-            isPresented: Binding(
-                get: { confirmingSkipAll != nil },
-                set: { if !$0 { confirmingSkipAll = nil } }
-            ),
-            presenting: confirmingSkipAll
-        ) { cards in
-            Button("Skip All", role: .destructive) {
-                decideAll(cards, keep: false)
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: { _ in
-            Text("Its cards from before cards are retired and never asked again.")
         }
         // The card in front is what a chat beside the pane is asked about:
         // every message from it carries the card (`ChatContextAdditions.cardFraming`).
@@ -513,16 +497,10 @@ struct MemoryCardsToCheckView: View {
         return Menu {
             Section("\(count) from this source") {
                 Button("Keep All") { decideAll(rest, keep: true) }
-                Button("Skip All") {
-                    if rest.contains(where: { $0.kind == .legacy }) {
-                        confirmingSkipAll = rest
-                    } else {
-                        decideAll(rest, keep: false)
-                    }
-                }
+                Button("Skip All") { decideAll(rest, keep: false) }
             }
             Divider()
-            if card.kind == .draft { drawPictureButton(card) }
+            drawPictureButton(card)
             Button("Copy Card ID") {
                 NSPasteboard.general.clearContents()
                 NSPasteboard.general.setString(card.cardID, forType: .string)
@@ -584,7 +562,7 @@ struct MemoryCardsToCheckView: View {
                 Button("Edit…") { editing = card }
                 Button("Skip") { decide(card, .skip) }
                 Divider()
-                if card.kind == .draft { drawPictureButton(card) }
+                drawPictureButton(card)
                 sourceMenu(card.sourceID)
                 Divider()
                 Button("Remove Source", role: .destructive) { removeSource(of: card) }
@@ -956,7 +934,7 @@ struct MemoryCardsToCheckView: View {
     /// on: unchanged when they took none off.
     private func withSourcesTakenOff(_ decision: MemoryCardTriageDecision) -> MemoryCardTriageDecision {
         let card = decision.card
-        guard card.kind == .draft, let dropped = droppedSources[card.cardID], !dropped.isEmpty else { return decision }
+        guard let dropped = droppedSources[card.cardID], !dropped.isEmpty else { return decision }
         let kept = Set(keptSourceIDs(card))
         let remaining = card.alsoFrom.filter { kept.contains($0.sourceID) }
         switch decision.action {
@@ -991,7 +969,7 @@ struct MemoryCardsToCheckView: View {
     /// K, E and S (and Return, which keeps) on the card in front, once its
     /// back shows: before that the keys are the answer's.
     private func handleKey(_ key: String) -> Bool {
-        guard editing == nil, confirmingSkipAll == nil, let card = current, opened(card) != nil else { return false }
+        guard editing == nil, let card = current, opened(card) != nil else { return false }
         switch key {
         case "k":
             decide(card, .keep)
@@ -1057,10 +1035,9 @@ struct MemoryCardsToCheckView: View {
 
 // MARK: - A card to check
 
-/// One card to check, drawn as Review draws a card: the deck's paper, that
-/// it is from before cards when it is, the front in the review's
-/// serif and its pictures. Until the learner answers, the field for the
-/// answer is all that is under the front; once they have (or said they do
+/// One card to check, drawn as Review draws a card: the deck's paper, the
+/// front in the review's serif and its pictures. Until the learner answers,
+/// the field for the answer is all that is under the front; once they have (or said they do
 /// not know), the learner's answer, the fold, the back, why it holds and
 /// Show Passage follow.
 private struct MemoryCardToCheckFace: View {
@@ -1091,16 +1068,8 @@ private struct MemoryCardToCheckFace: View {
         let open: () -> Void
     }
 
-    private var tags: [String] {
-        card.kind == .legacy ? ["From before cards"] : []
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if !tags.isEmpty {
-                MemoryCardTagLine(tags: tags)
-                    .padding(.bottom, 16)
-            }
             Text(card.face.front.foldingMathSpans())
                 .font(MemoryCardMetrics.frontFont)
                 .foregroundStyle(opened == nil ? Color.primary : Color.secondary)
@@ -1220,11 +1189,8 @@ private struct MemoryCardToCheckFace: View {
 
 // MARK: - Editing a card to check
 
-/// A card to check's front, back and why, kept in the learner's words. For a
-/// draft, Keep keeps the edited card. For a card from before cards, which is
-/// kept already, a new front alone rewords it, and a new back or why starts
-/// it over — which the sheet says before it keeps (docs/memory-design.md,
-/// "Cards: identity and Keep").
+/// A card to check's front, back and why, kept in the learner's words: Keep
+/// keeps the edited card.
 struct MemoryCardToCheckEditorSheet: View {
     let card: MemoryCardToCheck
     let keep: (MemoryCardEdit) -> Void
@@ -1233,7 +1199,6 @@ struct MemoryCardToCheckEditorSheet: View {
     @State private var front: String
     @State private var back: String
     @State private var why: String
-    @State private var confirmingStartOver = false
 
     init(card: MemoryCardToCheck, keep: @escaping (MemoryCardEdit) -> Void, cancel: @escaping () -> Void) {
         self.card = card
@@ -1254,11 +1219,6 @@ struct MemoryCardToCheckEditorSheet: View {
         )
     }
 
-    /// A card from before cards whose back or why changed is started over.
-    private var startsOver: Bool {
-        card.kind == .legacy && (edit.back != card.face.back || edit.why != card.face.why)
-    }
-
     var body: some View {
         MemoryCardEditorForm(
             front: $front,
@@ -1270,17 +1230,7 @@ struct MemoryCardToCheckEditorSheet: View {
             canSave: !edit.front.isEmpty && !edit.back.isEmpty,
             cancel: cancel
         ) {
-            if startsOver {
-                confirmingStartOver = true
-            } else {
-                keep(edit)
-            }
-        }
-        .alert("Start this card over?", isPresented: $confirmingStartOver) {
-            Button("Start Over") { keep(edit) }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("A new answer makes a new card, first asked tomorrow. Its answers so far stay with the old one.")
+            keep(edit)
         }
         .accessibilityIdentifier("memory.pane.toCheck.editor")
     }

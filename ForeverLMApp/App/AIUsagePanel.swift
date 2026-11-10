@@ -574,7 +574,7 @@ struct AIActivitySettingsSection: View {
     private func activitySummaryRow(_ summary: AIUsageTaskActivitySummary) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(summary.task.map(Self.taskLabel) ?? "Legacy AI calls")
+                Text(summary.task.map(Self.taskLabel) ?? "Earlier AI calls")
                     .font(.callout.weight(.medium))
                 Text(Self.activityCountSummary(summary))
                     .font(.caption.monospacedDigit())
@@ -737,7 +737,7 @@ struct AIActivitySettingsSection: View {
     ) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
             VStack(alignment: .leading, spacing: 2) {
-                Text(summary.subjectTitle ?? "\(task.map(Self.taskLabel) ?? "Legacy AI") activity")
+                Text(summary.subjectTitle ?? "\(task.map(Self.taskLabel) ?? "Earlier AI") activity")
                     .font(.callout)
                     .lineLimit(2)
                     .multilineTextAlignment(.leading)

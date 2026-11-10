@@ -1820,8 +1820,7 @@ extension KnowledgeStore {
                 is_hidden INTEGER NOT NULL DEFAULT 0,
                 -- YouTube plugin: which playlists auto-refresh in the background
                 -- and how they were followed: "liked", "foreverlm", or "channel"
-                -- (a channel's uploads playlist); "playlist" rows are legacy follows
-                -- kept as-is.
+                -- (a channel's uploads playlist).
                 auto_import INTEGER NOT NULL DEFAULT 0,
                 connector_kind TEXT
             )

@@ -26,10 +26,6 @@ final class KnowledgeStore: @unchecked Sendable {
     /// the database in `.appdata` and content in the sibling `Content` tree;
     /// tests normally use one directory for both.
     let contentDirectory: URL?
-    /// Historical iCloud roots remain read-only compatibility locations. Files
-    /// found here are republished through CloudKit but never moved or deleted by
-    /// database startup.
-    let legacyContentDirectories: [URL]
     /// A launch-time copy of the app's pre-SQLite preference domain. Generic
     /// stores deliberately receive an empty snapshot so temporary databases,
     /// test fixtures, and auxiliary readers cannot absorb host-machine state.
@@ -78,14 +74,12 @@ final class KnowledgeStore: @unchecked Sendable {
     init(
         storeDirectory: URL,
         contentDirectory: URL? = nil,
-        legacyContentDirectories: [URL] = [],
         startupPreferenceSnapshot: [String: Any] = [:]
     ) throws {
         let fm = FileManager.default
         try fm.createDirectory(at: storeDirectory, withIntermediateDirectories: true)
         self.dbPath = storeDirectory.appendingPathComponent("knowledge.db").path
         self.contentDirectory = (contentDirectory ?? storeDirectory).standardizedFileURL
-        self.legacyContentDirectories = legacyContentDirectories.map(\.standardizedFileURL)
         self.startupPreferenceSnapshot = startupPreferenceSnapshot
         self.currentHome = NSHomeDirectory()
 
@@ -118,7 +112,6 @@ final class KnowledgeStore: @unchecked Sendable {
         precondition(inMemory, "Use init(storeDirectory:) for on-disk databases")
         self.dbPath = ":memory:"
         self.contentDirectory = nil
-        self.legacyContentDirectories = []
         self.startupPreferenceSnapshot = [:]
         self.currentHome = NSHomeDirectory()
 

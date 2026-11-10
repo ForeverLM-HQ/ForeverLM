@@ -47,8 +47,7 @@ struct MemoryCardReviewSnapshot: Sendable {
 /// history, which its wording is chosen from.
 struct MemoryCardNotebookPractice: Sendable {
     let kept: MemoryCardDeal.NotebookPractice
-    /// Drafts only: an item from before cards waiting in To Check is kept
-    /// already, and dealt among the kept cards.
+    /// Drafts only; a kept card is dealt among `kept`.
     let drafts: [MemoryCardToCheck]
     let attemptsByItemID: [String: [MemoryAttempt]]
 
@@ -129,8 +128,6 @@ extension KnowledgeStore {
         var toCheck: [MemoryCardToCheck] = []
         if let drafts {
             toCheck = try memoryCardsToCheck(
-                cards: cards,
-                attemptsByItemID: attemptsByItemID,
                 scope: scope,
                 drafts: drafts,
                 deckState: deckState
@@ -171,8 +168,6 @@ extension KnowledgeStore {
             calendar: calendar
         )
         let toCheck = try memoryCardsToCheck(
-            cards: cards,
-            attemptsByItemID: attemptsByItemID,
             scope: scope,
             drafts: drafts,
             deckState: deckState
@@ -228,11 +223,8 @@ extension KnowledgeStore {
 
     /// The cards to check in `scope` (every notebook when nil), in To
     /// Check's order (`MemoryCardTriage.toCheck`): the drafts of the decks
-    /// whose sources may be shown, and the items from before cards among
-    /// `cards` (the items with a face, with their attempts).
+    /// whose sources may be shown.
     private func memoryCardsToCheck(
-        cards: [MemoryItem],
-        attemptsByItemID: [String: [MemoryAttempt]],
         scope: MemoryCardScope?,
         drafts: [MemoryCardDraftDeck],
         deckState: (String) -> MemoryCardDeckState?
@@ -242,19 +234,14 @@ extension KnowledgeStore {
             available.contains(deck.sourceID)
                 && (scope?.contains(anchorSourceIDs: [deck.sourceID], goalID: nil) ?? true)
         }
-        let legacy = cards.filter { item in
-            MemoryCard(storedIn: item) == nil && (scope?.contains(item) ?? true)
-        }
         var deckStates: [String: MemoryCardDeckState] = [:]
-        for deckID in MemoryCardTriage.deckIDs(decks: decks, legacyItems: legacy) {
-            if let row = deckState(deckID) { deckStates[deckID] = row }
+        for deck in decks {
+            if let row = deckState(deck.deckID) { deckStates[deck.deckID] = row }
         }
         return MemoryCardTriage.toCheck(
             decks: decks,
             deckStates: deckStates,
-            itemIDs: Set(try loadAllMemoryItemIDs()),
-            legacyItems: legacy,
-            attemptsByItemID: attemptsByItemID
+            itemIDs: Set(try loadAllMemoryItemIDs())
         )
     }
 

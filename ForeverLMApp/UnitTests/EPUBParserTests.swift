@@ -544,29 +544,6 @@ struct EPUBStructureExtractionTests {
         #expect(chapterHTML.contains("Chapter part two."))
     }
 
-    @Test("Strips legacy HTML5 doctype from combined chapter files on disk")
-    func stripsLegacyHTML5DoctypeFromCombinedChapterFiles() throws {
-        let root = URL(fileURLWithPath: NSTemporaryDirectory())
-            .appendingPathComponent("epub-repair-doctype-\(UUID().uuidString)", isDirectory: true)
-        let chaptersDir = root.appendingPathComponent("Chapters", isDirectory: true)
-        let combinedDir = chaptersDir.appendingPathComponent("ForeverLMCombinedChapters", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: root) }
-
-        try FileManager.default.createDirectory(at: combinedDir, withIntermediateDirectories: true)
-        let chapterURL = combinedDir.appendingPathComponent("02 Chapter.xhtml")
-        try """
-        <!doctype html>
-        <html xmlns="http://www.w3.org/1999/xhtml"><body><p>Chapter text.</p></body></html>
-        """.write(to: chapterURL, atomically: true, encoding: .utf8)
-
-        EPUBParser.repairLegacyCombinedChapterDoctype(in: chaptersDir.path)
-
-        let repaired = try String(contentsOf: chapterURL, encoding: .utf8)
-        #expect(!repaired.lowercased().contains("<!doctype html>"))
-        #expect(repaired.contains("Chapter text."))
-        #expect((try? XMLDocument(data: Data(repaired.utf8), options: [])) != nil)
-    }
-
     @Test("Uses NCX chapter classes without merging back matter into final chapter")
     func usesNCXChapterClassesAsImportRowsAndOtherEntriesAsBoundaries() throws {
         let root = URL(fileURLWithPath: NSTemporaryDirectory())

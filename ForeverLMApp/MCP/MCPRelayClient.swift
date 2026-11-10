@@ -931,8 +931,8 @@ actor MCPRelayClient {
             candidates.append(tunnelURL.replacingOccurrences(of: host, with: candidateHost))
             pendingHosts.append(contentsOf: [
                 Self.currentBrandHost(for: candidateHost),
-                Self.legacyHost(for: candidateHost),
-                Self.modernHost(for: candidateHost),
+                Self.mcpSubdomainHost(for: candidateHost),
+                Self.apexSubdomainHost(for: candidateHost),
             ].compactMap { $0 })
         }
 
@@ -955,7 +955,8 @@ actor MCPRelayClient {
         return nil
     }
 
-    nonisolated static func legacyHost(for host: String) -> String? {
+    /// `<id>.foreverlm.com` as `<id>.mcp.foreverlm.com`; the relay serves both.
+    nonisolated static func mcpSubdomainHost(for host: String) -> String? {
         for brandDomain in MCPBrandDomains.all {
             let suffix = ".\(brandDomain)"
             guard host.hasSuffix(suffix), !host.hasSuffix(".mcp\(suffix)") else { continue }
@@ -966,7 +967,8 @@ actor MCPRelayClient {
         return nil
     }
 
-    nonisolated static func modernHost(for host: String) -> String? {
+    /// `<id>.mcp.foreverlm.com` as `<id>.foreverlm.com`; the relay serves both.
+    nonisolated static func apexSubdomainHost(for host: String) -> String? {
         for brandDomain in MCPBrandDomains.all {
             let suffix = ".mcp.\(brandDomain)"
             guard host.hasSuffix(suffix) else { continue }

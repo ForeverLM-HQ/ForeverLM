@@ -75,7 +75,7 @@ struct AppPlanTests {
         }
     }
 
-    @Test("The paid app's state is access.app_state; access.state keeps its old values and is read only without it")
+    @Test("The paid app's state is access.app_state; access.state is not read")
     func states() throws {
         for (raw, state) in [
             ("free_days", ManagedAI.AppAccess.State.freeDays), ("paid_once", .paidOnce), ("monthly", .monthly),
@@ -87,12 +87,10 @@ struct AppPlanTests {
         // forever there; app_state is what counts.
         #expect(try decode(#"{"state":"forever","app_state":"paid_once"}"#).state == .paidOnce)
         #expect(try decode(#"{"state":"free","app_state":"locked"}"#).state == .locked)
-        // An access cached before app_state existed carries only the old state.
-        for (raw, state) in [
-            ("forever", ManagedAI.AppAccess.State.paidOnce), ("pro", .paidOnce), ("subscribed", .monthly),
-            ("free", .freeDays), ("believer_trial", .freeDays), ("comped", .comped), ("family", .family),
-        ] {
-            #expect(try decode(#"{"state":"\#(raw)"}"#).state == state, "\(raw)")
+        // An access block with only the old state says nothing about the paid
+        // app, so it reads as the free days.
+        for raw in ["forever", "pro", "subscribed", "free", "comped", "family"] {
+            #expect(try decode(#"{"state":"\#(raw)"}"#).state == .freeDays, "\(raw)")
         }
         // The response's top-level state is the paid app's too, and wins over
         // an access block that carried only the old one.

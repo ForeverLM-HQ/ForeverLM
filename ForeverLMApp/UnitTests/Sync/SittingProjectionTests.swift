@@ -139,38 +139,23 @@ struct SittingProjectionTests {
         #expect(try F.text(store, "SELECT subject FROM memory_sitting_answers WHERE answer_id = 'quiz-1'") == "qz:cq-1#q3")
     }
 
-    @Test("Migrated attempts get the same Sittings on two Macs, by chat or by day, and quiz scores one each")
-    func legacyIDsOnTwoMacs() throws {
+    @Test("Kept quiz scores get the same Sittings on two Macs, one each")
+    func quizScoreIDsOnTwoMacs() throws {
         func mac(_ name: String) throws -> (URL, KnowledgeStore) {
             let (root, store) = try F.makeStore(name, triggers: false)
-            try F.item(store, id: "item-1")
-            // Two days without a chat, one memory review chat; the same rows on both Macs.
-            try F.attempt(store, id: "att-1", item: "item-1", at: 780_000_000)
-            try F.attempt(store, id: "att-2", item: "item-1", at: 780_000_600, rating: "again")
-            try F.attempt(store, id: "att-3", item: "item-1", at: 780_200_000)
-            try F.attempt(store, id: "att-4", item: "item-1", at: 780_300_000, session: "memory-2026-09-20")
             try F.preference(store, key: "courseQuiz.score.cq-1", value: ["right": 3, "total": 4, "takenAt": 1_759_000_000.0])
             try F.preference(store, key: "lectureQuiz.score.src-9", value: ["right": 1, "total": 4, "takenAt": 1_758_000_000.0, "passedAt": 1_757_000_000.0])
             for step in KnowledgeStore.memoryActivationDerivations { try step.run(store) }
             return (root, store)
         }
-        let (rootA, a) = try mac("legacy-a")
-        let (rootB, b) = try mac("legacy-b")
+        let (rootA, a) = try mac("quiz-a")
+        let (rootB, b) = try mac("quiz-b")
         defer {
             try? FileManager.default.removeItem(at: rootA)
             try? FileManager.default.removeItem(at: rootB)
         }
-        let rows = "SELECT group_concat(sitting_id || '<' || answer_id || '>' || answer_json, char(10)) FROM (SELECT * FROM memory_sitting_answers ORDER BY answer_id)"
         let sittings = "SELECT group_concat(id || '|' || device_id || '|' || kind || '|' || COALESCE(chat_id, '') || '|' || COALESCE(result_json, ''), char(10)) FROM (SELECT * FROM memory_sittings ORDER BY id)"
-        #expect(try F.text(a, rows) == F.text(b, rows))
         #expect(try F.text(a, sittings) == F.text(b, sittings))
-
-        let day1 = SyncIdentity.migratedSittingID("day:" + F.day(780_000_000))
-        let day2 = SyncIdentity.migratedSittingID("day:" + F.day(780_200_000))
-        let chat = SyncIdentity.migratedSittingID("session:memory-2026-09-20")
-        #expect(try F.text(a, "SELECT group_concat(answer_id, ',') FROM (SELECT answer_id FROM memory_sitting_answers WHERE sitting_id = ? ORDER BY answer_id)", [.text(day1)]) == "att-1,att-2")
-        #expect(try F.text(a, "SELECT sitting_id FROM memory_sitting_answers WHERE answer_id = 'att-3'") == day2)
-        #expect(try F.text(a, "SELECT kind || '|' || chat_id || '|' || device_id FROM memory_sittings WHERE id = ?", [.text(chat)]) == "memoryReview|memory-2026-09-20|legacy22")
 
         let quiz = SyncIdentity.migratedSittingID("quiz:courseQuiz:courseQuiz.score.cq-1")
         let result = try #require(try F.text(a, "SELECT result_json FROM memory_sittings WHERE id = ?", [.text(quiz)]))
@@ -182,11 +167,9 @@ struct SittingProjectionTests {
         #expect(lectureResult["passed"] == false && lectureResult["passedAt"] == SyncJSON(SyncTime.milliseconds(Date(timeIntervalSince1970: 1_757_000_000))),
                 "a failed retake keeps the first pass")
 
-        // Run again, and after a generation-1 attempt: the history only grows, under the same ids.
-        try F.attempt(a, id: "att-5", item: "item-1", at: 780_000_900)
+        // Run again: the same Sittings under the same ids.
         for step in KnowledgeStore.memoryActivationDerivations { try step.run(a) }
-        #expect(try F.text(a, "SELECT sitting_id FROM memory_sitting_answers WHERE answer_id = 'att-5'") == day1)
-        #expect(try F.count(a, "SELECT COUNT(*) FROM memory_sitting_answers") == 5)
+        #expect(try F.count(a, "SELECT COUNT(*) FROM memory_sittings") == 2)
     }
 
     @Test("An inbound card answer schedules its card; an answer held already is never rewritten")

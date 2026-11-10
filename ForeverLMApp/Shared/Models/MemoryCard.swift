@@ -47,9 +47,6 @@ struct MemoryCardOrigin: RawRepresentable, Hashable, Sendable {
     /// draft (`WrittenCard.swift`). Its raw value is `Card.origin`'s wire
     /// word (schema `CardOrigin.manual`).
     static let manual = MemoryCardOrigin(rawValue: "manual")
-    /// An item from before cards, read as a card (`MemoryCard.legacyFace`).
-    /// Never written: such an item keeps the rubric it was made with.
-    static let legacy = MemoryCardOrigin(rawValue: "legacy")
 }
 
 /// One durable picture, or one animation, on a card face. The target is a
@@ -233,8 +230,8 @@ struct CardSourceLink: Equatable, Hashable, Sendable {
 struct MemoryCard: Equatable, Sendable, Identifiable {
     /// The card's identity. A drafted card's is minted when it is drafted (a
     /// UUID) and names its item (`MemoryTutorIdentity.cardItemID`); a card
-    /// kept when it was missed, and an item from before cards, has its item's
-    /// own id, which every device derives alike.
+    /// kept when it was missed has its item's own id, which every device
+    /// derives alike.
     let cardID: String
     /// The wording the card was kept with. The learner's own rewording, when
     /// there is one, is in the card's state (`MemoryCardState.editedFront`).
@@ -250,7 +247,7 @@ struct MemoryCard: Equatable, Sendable, Identifiable {
     /// Pictures shown with the answer, after reveal. Two or more share a row.
     let backImages: [MemoryCardImage]
     /// The draft deck the card was kept from (`draftDeckID(sourceID:)`); nil
-    /// for a card kept when it was missed and for an item from before cards.
+    /// for a card kept when it was missed.
     let deckID: String?
 
     var id: String { cardID }
@@ -368,7 +365,6 @@ struct MemoryCard: Equatable, Sendable, Identifiable {
         ideaID: String? = nil,
         at now: Date
     ) throws -> MemoryItem {
-        guard origin != .legacy else { throw MemoryCardError.legacyCard(cardID) }
         guard !cardID.isEmpty, !front.isEmpty, !back.isEmpty else {
             throw MemoryCardError.incomplete(cardID)
         }
@@ -398,8 +394,8 @@ struct MemoryCard: Equatable, Sendable, Identifiable {
     // MARK: Reading an item
 
     /// The card a kept item carries in `rubricJSON.card`, with its back from
-    /// the item's target. Nil for an item without one: an item from before
-    /// cards (read it with `legacyFace`), or a first-review target.
+    /// the item's target. Nil for an item without one, such as a first-review
+    /// target.
     init?(storedIn item: MemoryItem) {
         guard let rubric = Self.rubricObject(item.rubricJSON),
               let card = rubric[Self.cardKey] as? [String: Any],
@@ -419,64 +415,11 @@ struct MemoryCard: Equatable, Sendable, Identifiable {
         guard !self.cardID.isEmpty, !self.front.isEmpty, !self.back.isEmpty else { return nil }
     }
 
-    /// What any item shows as a card: the card it carries, or else its
-    /// reading as one (`legacyFace`). Nil when neither gives a front and a back.
+    /// What any item shows as a card: the card it carries. Nil for an item
+    /// with none. `attempts` is not read.
     static func face(of item: MemoryItem, attempts: [MemoryAttempt]) -> MemoryCard? {
-        MemoryCard(storedIn: item) ?? legacyFace(of: item, attempts: attempts)
+        MemoryCard(storedIn: item)
     }
-
-    /// An item from before cards read as one, from what its writer stored. The
-    /// walkthrough and course-quiz writer stored `"<question> — <answer>"` cut
-    /// at 1,000 characters as the target, the key points (or the answer) as
-    /// the criteria, and the question as its first attempt's prompt:
-    ///
-    /// - the front is the earliest attempt's prompt;
-    /// - the back is the target less exactly that prompt and " — ", and the
-    ///   whole target when it does not start so (a first-review target, which
-    ///   is what to recall);
-    /// - a target of exactly 1,000 characters was cut, so its back is the
-    ///   criteria instead, which the writer stored whole;
-    /// - an item no attempt has reached yet is split at its first " — ", the
-    ///   writer's own separator, and has no face when it has none.
-    ///
-    /// The card id is the item's id, and the origin `.legacy`.
-    static func legacyFace(of item: MemoryItem, attempts: [MemoryAttempt]) -> MemoryCard? {
-        let stored = criteria(in: rubricObject(item.rubricJSON) ?? [:])
-        let earliestPrompt = attempts
-            .filter { $0.memoryItemID == item.id && !$0.prompt.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
-            .min {
-                if $0.attemptedAt != $1.attemptedAt { return $0.attemptedAt < $1.attemptedAt }
-                return $0.id < $1.id
-            }?
-            .prompt
-        let front: String
-        let rest: String
-        if let earliestPrompt {
-            front = earliestPrompt
-            let prefix = earliestPrompt + legacySeparator
-            rest = item.target.hasPrefix(prefix) ? String(item.target.dropFirst(prefix.count)) : item.target
-        } else if let separator = item.target.range(of: legacySeparator) {
-            front = String(item.target[..<separator.lowerBound])
-            rest = String(item.target[separator.upperBound...])
-        } else {
-            return nil
-        }
-        let wasCut = item.target.count == legacyTargetLimit && !stored.isEmpty
-        let card = MemoryCard(
-            cardID: item.id,
-            front: front,
-            back: wasCut ? stored.joined(separator: "\n") : rest,
-            why: wasCut ? [] : stored,
-            origin: .legacy
-        )
-        guard !card.front.isEmpty, !card.back.isEmpty else { return nil }
-        return card
-    }
-
-    /// What the writer before cards put between a question and its answer.
-    static let legacySeparator = " — "
-    /// Where that writer cut its target.
-    static let legacyTargetLimit = 1_000
 
     // MARK: Rubric keys
 
@@ -506,7 +449,6 @@ enum MemoryCardError: LocalizedError, Equatable {
     case unwritable(String)
     case incomplete(String)
     case unanchored(String)
-    case legacyCard(String)
 
     var errorDescription: String? {
         switch self {
@@ -516,8 +458,6 @@ enum MemoryCardError: LocalizedError, Equatable {
             return "Card \(cardID) needs an id, a front and a back to be kept."
         case .unanchored(let cardID):
             return "Card \(cardID) quotes no passage its source prints, so it cannot be kept."
-        case .legacyCard(let cardID):
-            return "Card \(cardID) is an item from before cards; it is kept as it is, not written again."
         }
     }
 }

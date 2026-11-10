@@ -402,14 +402,13 @@ final class ReviewSessionManager {
                 case "update_learning_goal": return "Updated goal"
                 case "reorder_goals": return "Reordered goals"
                 case "get_goal": return "Read goal"
-                case "list_learning_goals", "list_goals": return "Listed goals"
+                case "list_goals": return "Listed goals"
                 case "unschedule_sources": return "Removed sources from schedule"
                 case "forget_source_activity": return "Forgot recorded activity"
                 case "assign_sources_to_day": return "Scheduled sources"
                 case "clear_schedule_day": return "Cleared day"
                 case "mark_schedule_day_done": return "Marked day done"
                 case "set_source_completion": return "Updated completion"
-                case "add_companion_sources": return "Added sources to notebook"
                 case "add_goal_sources": return "Added sources to goal"
 
                 // Directions (docs/directions-design.md)
@@ -6448,9 +6447,6 @@ final class ReviewSessionManager {
         "refresh_youtube_sources",
         // Transport plumbing: in-app chat is already inside the app.
         "get_mcp_status", "list_source_actions",
-        // The legacy combined listing beside list_notebooks and list_goals. Two
-        // names for one action mostly teaches the model to pick the wrong one.
-        "list_learning_goals",
         // A notebook's Discover for outside assistants. Chat searches the web
         // itself; a tool that runs a second model on a web search would bill
         // twice and be the feature-specific assistant chat-design rules out.

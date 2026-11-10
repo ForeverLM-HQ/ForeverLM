@@ -2177,30 +2177,6 @@ struct SourcePersistenceTests {
         // The revealed episode's hidden record is withdrawn from sync too.
     }
 
-    @Test("Podcast dedup recognizes legacy single-slash episode URLs")
-    func podcastDedupRecognizesLegacySingleSlashEpisodeURLs() throws {
-        let store = try makeInMemoryStore()
-        var legacy = StudioArticle(
-            url: "apple-podcast:/episode/1000758651501",
-            title: "He Hacked Finance And Is Now Building An AI CEO",
-            sourceType: .podcast
-        )
-        legacy.domain = "Core Memory"
-
-        try store.saveSource(legacy)
-
-        var rediscovered = StudioArticle(
-            url: "apple-podcast://episode/1000758651501",
-            title: legacy.title,
-            sourceType: .podcast
-        )
-        rediscovered.domain = legacy.domain
-
-        #expect(try store.insertSourceIfNew(&rediscovered) == false)
-        #expect(try store.loadSources().count == 1)
-        #expect(store.sourceExistsByURL(rediscovered.url)?.id == legacy.id)
-    }
-
     @Test("Private podcast dedup recognizes local UUID changes")
     func privatePodcastDedupRecognizesLocalUUIDChanges() throws {
         let store = try makeInMemoryStore()
@@ -3898,9 +3874,8 @@ struct SourcePersistenceTests {
         #expect(local.hasPrefix(NSHomeDirectory()) || local.hasPrefix("/"))
     }
 
-    /// A stored relative path has to resolve against every root the app has ever
-    /// written to, so moving between the private container, iCloud Drive and
-    /// local storage never strands a file.
+    /// A stored relative path has to resolve against every live root, so moving
+    /// between the private container and local storage never strands a file.
     @Test("stored relative paths are searched against every known content root")
     func testRelativePathsSearchAllKnownRoots() {
         let roots = StorageService.knownContentRoots
@@ -3909,15 +3884,14 @@ struct SourcePersistenceTests {
         let folder = ForeverLMRuntimeIdentity.productFolderName
         #expect(roots.contains(StorageService.libraryRootPath))
         #expect(roots.contains(StorageService.localContentRootPath))
-        #expect(roots.contains { $0.hasSuffix("com~apple~CloudDocs/Documents/\(folder)") })
         #expect(roots.contains { $0.hasSuffix("iCloud~com~foreverlm/Documents/\(folder)") })
         // The retired container is deliberately absent: it is drained and its
         // `Documents` is empty, so searching it can only ever miss.
         #expect(!roots.contains { $0.contains("iCloud~com~feynmanlm") })
-        #expect(roots.contains { $0.hasSuffix("/Documents/\(folder)") })
-        // The real `~/Documents` is not searched: it is the CloudDocs
-        // `Documents` when Desktop & Documents syncing is on and unsynced when
-        // it is off, and touching it raises the Documents-folder TCC prompt.
+        // iCloud Drive proper is not searched either: nothing lives there.
+        #expect(!roots.contains { $0.contains("com~apple~CloudDocs") })
+        // The real `~/Documents` is not searched: touching it raises the
+        // Documents-folder TCC prompt.
         let realDocuments = (NSHomeDirectory() as NSString).appendingPathComponent("Documents") + "/"
         #expect(!roots.contains { $0.hasPrefix(realDocuments) })
 
@@ -3944,10 +3918,10 @@ struct SourcePersistenceTests {
     ///
     /// The move needed no migration precisely because resolution is root-agnostic,
     /// so the invariant worth pinning is that nothing already written became
-    /// unreachable: the container and its forks stay searchable, and only new
-    /// writes land locally.
-    @Test("content is written locally while every iCloud root stays readable")
-    func testContentRootIsLocalAndLegacyRootsStayReadable() {
+    /// unreachable: the container stays searchable, and only new writes land
+    /// locally.
+    @Test("content is written locally while the container root stays readable")
+    func testContentRootIsLocalAndContainerRootStaysReadable() {
         #expect(StorageService.libraryRootPath == StorageService.localContentRootPath)
         #expect(!StorageService.libraryRootPath.contains("Mobile Documents"))
 
@@ -3957,7 +3931,7 @@ struct SourcePersistenceTests {
         #expect(StorageService.knownContentRoots.contains(StorageService.ubiquityContentRootPath))
 
         // A stored relative path resolves against the local root first and the
-        // container after it, so a new write and a legacy file both land.
+        // container after it, so a new write and an older file both land.
         let candidates = StorageService.sourceFileCandidatePaths(for: "Papers/x.pdf")
         let localCandidate = (StorageService.localContentRootPath as NSString)
             .appendingPathComponent("Papers/x.pdf")

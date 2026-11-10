@@ -37,7 +37,7 @@ struct MemoryCardTests {
         )
     }
 
-    private func legacyItem(target: String, criteria: [String], id: String = "legacy-item") -> MemoryItem {
+    private func cardlessItem(target: String, criteria: [String], id: String = "cardless-item") -> MemoryItem {
         let rubric = try! JSONSerialization.data(withJSONObject: ["criteria": criteria], options: [.sortedKeys])
         return MemoryItem(
             id: id,
@@ -47,13 +47,6 @@ struct MemoryCardTests {
             sources: [MemoryItemSource(id: "anchor-\(id)", memoryItemID: id, sourceID: "src-1", excerpt: Self.quote, sourceSHA256: "h", sortIndex: 0)],
             createdAt: Self.keptAt,
             updatedAt: Self.keptAt
-        )
-    }
-
-    private func attempt(_ id: String, on itemID: String, prompt: String, at offset: TimeInterval) -> MemoryAttempt {
-        MemoryAttempt(
-            id: id, memoryItemID: itemID, attemptType: .discovery, prompt: prompt, learnerAnswer: "I didn't have it.",
-            score: 0, scheduleRating: .again, gradeState: .graded, attemptedAt: Self.keptAt.addingTimeInterval(offset)
         )
     }
 
@@ -113,7 +106,7 @@ struct MemoryCardTests {
         let read = try #require(MemoryCard(storedIn: future))
         #expect(read.origin.rawValue == "lecture")
         #expect(read.front == "Front")
-        #expect(MemoryCard(storedIn: legacyItem(target: "Q — A", criteria: ["A"])) == nil)
+        #expect(MemoryCard(storedIn: cardlessItem(target: "Q — A", criteria: ["A"])) == nil)
     }
 
     @Test("A card face takes a saved animation by its site address, lowercased and bare, and nothing that is not one")
@@ -235,49 +228,6 @@ struct MemoryCardTests {
         #expect(FlashcardDeck.parse(deck.markdown, fallbackTitle: "Cards") == deck)
     }
 
-    @Test("An item from before cards reads as a card from what its writer stored")
-    func legacyFaces() throws {
-        // The front is the earliest attempt's prompt; the back is the target
-        // less exactly that prompt and " — ", a second dash kept.
-        let item = legacyItem(target: "What leaks? — Protons leak back through UCP1 — and no ATP is made.", criteria: ["protons leak", "no ATP"])
-        let attempts = [
-            attempt("b", on: item.id, prompt: "Reworded later", at: 2 * Self.day),
-            attempt("a", on: item.id, prompt: "What leaks?", at: Self.day),
-            attempt("z", on: "another-item", prompt: "Not this one", at: 0),
-        ]
-        let face = try #require(MemoryCard.legacyFace(of: item, attempts: attempts))
-        #expect(face.front == "What leaks?")
-        #expect(face.back == "Protons leak back through UCP1 — and no ATP is made.")
-        #expect(face.why == ["protons leak", "no ATP"])
-        #expect(face.origin == .legacy)
-        #expect(face.cardID == item.id)
-        #expect(face.deckID == nil)
-        #expect(face.stateDeckID(in: item) == "carddeck-src-1")
-        #expect(MemoryCard.face(of: item, attempts: attempts) == face)
-
-        // A target of exactly 1,000 characters was cut: the criteria are the back.
-        let cut = legacyItem(target: "Q — " + String(repeating: "a", count: 996), criteria: ["The whole answer, never cut."])
-        #expect(cut.target.count == 1_000)
-        let cutFace = try #require(MemoryCard.legacyFace(of: cut, attempts: [attempt("c", on: cut.id, prompt: "Q", at: 0)]))
-        #expect(cutFace.back == "The whole answer, never cut.")
-        #expect(cutFace.why.isEmpty)
-
-        // No attempt yet: split at the writer's first separator.
-        let unasked = try #require(MemoryCard.legacyFace(of: legacyItem(target: "Q2 — A2 — more", criteria: ["A2 — more"]), attempts: []))
-        #expect(unasked.front == "Q2")
-        #expect(unasked.back == "A2 — more")
-        #expect(unasked.why.isEmpty, "criteria that only repeat the back are no why")
-
-        // A first-review target is what to recall: it is the back whole.
-        let target = legacyItem(target: "Explain why retrieval strengthens later recall.", criteria: ["contrasts rereading"])
-        let targetFace = try #require(MemoryCard.legacyFace(of: target, attempts: [attempt("t", on: target.id, prompt: "Why does recall beat rereading?", at: 0)]))
-        #expect(targetFace.front == "Why does recall beat rereading?")
-        #expect(targetFace.back == "Explain why retrieval strengthens later recall.")
-
-        // Neither an attempt nor a separator: no front to show.
-        #expect(MemoryCard.legacyFace(of: legacyItem(target: "No separator here", criteria: []), attempts: []) == nil)
-    }
-
     // MARK: Keep, retire, start over
 
     @Test("Keep makes the item once on a verified passage, new until the day after; keeping again does nothing")
@@ -336,15 +286,11 @@ struct MemoryCardTests {
         }
     }
 
-    @Test("Keep refuses a quote its source does not print, and an item from before cards, and saves nothing")
+    @Test("Keep refuses a quote its source does not print, and saves nothing")
     func keepRefusesUngrounded() throws {
         let store = try makeStore()
         #expect(throws: KnowledgeStoreError.self) {
             try store.keepMemoryCard(self.drafted(), sourceID: "src-1", quote: "words the paper never printed", at: Self.keptAt)
-        }
-        let legacy = try #require(MemoryCard.legacyFace(of: legacyItem(target: "Q — A", criteria: ["A"]), attempts: []))
-        #expect(throws: KnowledgeStoreError.self) {
-            try store.keepMemoryCard(legacy, sourceID: "src-1", quote: Self.quote, at: Self.keptAt)
         }
         #expect(try store.loadMemoryItems().isEmpty)
     }
@@ -409,18 +355,18 @@ struct MemoryCardTests {
         #expect(try store.loadMemoryItem(new.id)?.status == .active, "a refused start over changes nothing")
         #expect(try store.loadMemoryItems(status: .active).map(\.id) == [new.id])
 
-        // An item from before cards may carry a goal; its revision keeps it,
-        // under a card id no other device has.
-        let legacy = MemoryItem(
-            id: "legacy-with-goal", kind: .concept, target: "Q — A", rubricJSON: #"{"criteria":["A"]}"#,
+        // An item may carry a goal; its revision keeps it, under a card id no
+        // other device has.
+        let withGoal = MemoryItem(
+            id: "item-with-goal", kind: .concept, target: "Q — A", rubricJSON: #"{"criteria":["A"]}"#,
             goalID: "notebook-1",
-            sources: [MemoryItemSource(id: "anchor-legacy", memoryItemID: "legacy-with-goal", sourceID: "src-1", excerpt: Self.quote, sourceSHA256: "h", sortIndex: 0)],
+            sources: [MemoryItemSource(id: "anchor-goal", memoryItemID: "item-with-goal", sourceID: "src-1", excerpt: Self.quote, sourceSHA256: "h", sortIndex: 0)],
             createdAt: Self.keptAt, updatedAt: Self.keptAt
         )
-        try store.saveMemoryItem(legacy)
-        let revisedLegacy = try store.startMemoryCardOver(memoryItemID: legacy.id, as: drafted("card-C"), at: later)
-        #expect(revisedLegacy.goalID == "notebook-1")
-        #expect(try store.loadMemoryItem(legacy.id)?.status == .retired)
+        try store.saveMemoryItem(withGoal)
+        let revisedWithGoal = try store.startMemoryCardOver(memoryItemID: withGoal.id, as: drafted("card-C"), at: later)
+        #expect(revisedWithGoal.goalID == "notebook-1")
+        #expect(try store.loadMemoryItem(withGoal.id)?.status == .retired)
     }
 
     // MARK: Pre-kept cards
@@ -835,7 +781,7 @@ struct MemoryCardTests {
 
     // MARK: Cards to check: which wait
 
-    @Test("A draft waits until it is kept or skipped, however old it is; an item from before cards waits until it is gone through")
+    @Test("A draft waits until it is kept or skipped, however old it is")
     func toCheckPile() throws {
         let now = Self.keptAt.addingTimeInterval(3 * Self.day)
         let deckID = MemoryCard.draftDeckID(sourceID: "src-1")
@@ -849,38 +795,23 @@ struct MemoryCardTests {
         var row = MemoryCardDeckState()
         row.markKept(cardID: "card-kept", memoryItemID: "item-k", at: now)
         row.markSkipped(cardID: "card-skipped", seed: "s-s", at: now)
-        let legacy = legacyItem(target: "What is an uncoupler? — A protein that lets protons leak back.", criteria: ["Protons leak back."], id: "legacy-1")
-        let attempts = ["legacy-1": [attempt("a-1", on: "legacy-1", prompt: "What is an uncoupler?", at: 60)]]
         func pile(_ states: [String: MemoryCardDeckState]) -> [MemoryCardToCheck] {
             MemoryCardTriage.toCheck(
                 decks: [deck],
                 deckStates: states,
-                itemIDs: [MemoryTutorIdentity.cardItemID(cardID: "card-elsewhere")],
-                legacyItems: [legacy],
-                attemptsByItemID: attempts
+                itemIDs: [MemoryTutorIdentity.cardItemID(cardID: "card-elsewhere")]
             )
         }
 
         let waiting = pile([deckID: row])
-        #expect(waiting.map(\.cardID) == ["card-fresh", "card-old", "legacy-1"])
-        #expect(MemoryCardTriage.summary(waiting) == "3 cards from 1 source")
+        #expect(waiting.map(\.cardID) == ["card-fresh", "card-old"])
+        #expect(MemoryCardTriage.summary(waiting) == "2 cards from 1 source")
         let fresh = try #require(waiting.first)
         #expect(fresh.kind == .draft)
         #expect(fresh.face.deckID == deckID)
         #expect(fresh.face.origin == .assistant)
         #expect(fresh.quote == Self.quote)
         #expect(!fresh.isKeptByDefault)
-        let fromBefore = try #require(waiting.last)
-        #expect(fromBefore.kind == .legacy)
-        #expect(fromBefore.isKeptByDefault)
-        #expect(fromBefore.memoryItemID == "legacy-1")
-        #expect(fromBefore.deckID == deckID)
-        #expect(fromBefore.face.front == "What is an uncoupler?")
-        #expect(fromBefore.face.back == "A protein that lets protons leak back.")
-
-        // Once gone through, the item from before cards is not offered again.
-        row.markKept(cardID: "legacy-1", memoryItemID: "legacy-1", at: now)
-        #expect(pile([deckID: row]).map(\.cardID) == ["card-fresh", "card-old"])
         #expect(MemoryCardTriage.summary([]) == nil)
     }
 
@@ -903,9 +834,7 @@ struct MemoryCardTests {
             MemoryCardTriage.toCheck(
                 decks: [deck],
                 deckStates: [deckID: row],
-                itemIDs: itemIDs,
-                legacyItems: [],
-                attemptsByItemID: [:]
+                itemIDs: itemIDs
             ).map(\.cardID)
         }
 
@@ -925,7 +854,7 @@ struct MemoryCardTests {
             draft("Asked and unticked?", seed: "s-2", requested: true, id: "asked-2"),
             draft("Drafted unasked?", seed: "s-3", id: "unasked"),
         ]))
-        let cards = MemoryCardTriage.toCheck(decks: [deck], deckStates: [:], itemIDs: [], legacyItems: [], attemptsByItemID: [:])
+        let cards = MemoryCardTriage.toCheck(decks: [deck], deckStates: [:], itemIDs: [])
         let all = MemoryCardTriage.keepAll(cards)
         #expect(all.map(\.card.cardID) == ["asked-1", "asked-2", "unasked"])
         #expect(all.map(\.action) == [.keep, .keep, .keep])
@@ -1081,33 +1010,6 @@ struct MemoryCardTests {
         )
         #expect(refused.failed.map(\.cardID) == ["card-b"])
         #expect(try await cardsToCheck(storage, defaults, at: now).map(\.cardID) == ["card-b"])
-    }
-
-    @Test("The items from before cards are offered once: Keep says they were gone through, Skip retires them")
-    func legacyItemsOfferedOnce() async throws {
-        let (storage, defaults, cleanup) = try await makeStorage()
-        defer { cleanup() }
-        let store = try await storage.notebookFilesKnowledgeStore()
-        let now = Self.keptAt.addingTimeInterval(5 * Self.day)
-        for (id, question) in [("legacy-1", "What is an uncoupler?"), ("legacy-2", "What couples respiration?")] {
-            try store.saveMemoryItem(legacyItem(target: "\(question) — The answer to \(id).", criteria: ["The answer to \(id)."], id: id))
-            _ = try store.recordMemoryAttempt(attempt("attempt-\(id)", on: id, prompt: question, at: 60))
-        }
-        let waiting = try await cardsToCheck(storage, defaults, at: now)
-        #expect(Set(waiting.map(\.cardID)) == ["legacy-1", "legacy-2"])
-        #expect(waiting.allSatisfy { $0.kind == .legacy && $0.isKeptByDefault })
-        let one = try #require(waiting.first { $0.cardID == "legacy-1" })
-        let two = try #require(waiting.first { $0.cardID == "legacy-2" })
-
-        let result = await MemoryCardTriageWriter.apply(
-            [MemoryCardTriageDecision(card: one, action: .keep), MemoryCardTriageDecision(card: two, action: .skip)],
-            storage: storage, defaults: defaults, at: now
-        )
-        #expect(result.kept.map(\.memoryItemID) == ["legacy-1"])
-        #expect(result.skipped == ["legacy-2"])
-        #expect(try await storage.loadMemoryItem("legacy-1")?.status == .active)
-        #expect(try await storage.loadMemoryItem("legacy-2")?.status == .retired)
-        #expect(try await cardsToCheck(storage, defaults, at: now).isEmpty)
     }
 
     @Test("A notebook's cards to check are those on its sources, and a deck whose source left the library is not offered")

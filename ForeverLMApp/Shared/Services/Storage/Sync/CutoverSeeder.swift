@@ -9,7 +9,6 @@ import OSLog
 enum CutoverSeedPhase: Equatable, Sendable {
     case claiming
     case waiting(holder: String)
-    case publishingBase
     case pass(SeedPass)
     case recoveringBytes
     case canary
@@ -22,8 +21,6 @@ enum CutoverSeedPhase: Equatable, Sendable {
 /// Why the seed stopped before it finished, with the cause shown (§13.4 step 2).
 enum CutoverSeedStop: Equatable, Sendable {
     case noRoot
-    /// The 64 base shards do not fit inline (P0).
-    case baseTooLarge(shard: String)
     /// The canary missed names the seeder had saved and had acknowledged: no asset is uploaded.
     case canaryMissing(count: Int)
     /// iCloud storage is full: satellites stop, metadata continues.
@@ -66,10 +63,6 @@ struct CutoverSeedEnvironment: Sendable {
     let blobs: BlobStore
     let writer: MaintenanceWriter
     let deviceID: String
-    /// The old container's identifier, named in the base's `legacyImport.container`; nil when this build
-    /// reaches no old container (the app: generation 1's stayed with the old Apple team), and the base
-    /// then names no old zone, as a `knowledgeMissing` store's does.
-    let oldContainer: String?
     /// Sends what the outbox holds through the engine.
     var send: @Sendable () async throws -> Void
     let pendingCount: @Sendable () async -> Int
@@ -98,7 +91,7 @@ struct CutoverSatelliteTotals: Equatable, Sendable {
     var bytes: Int64 = 0
 }
 
-/// The one Mac that moves the library into the new container: claims the seed, publishes the shared base,
+/// The one Mac that moves the library into the new container: claims the seed,
 /// walks the library's rows family by family, runs the canary, and uploads satellites (§13.4). It holds the
 /// claim and the maintenance lease while it works and renews both; a Mac that finds another's live claim
 /// waits, and one that finds the metadata complete reconciles instead (`CutoverReconcile`, §13.5).
@@ -145,7 +138,7 @@ actor CutoverSeeder {
         let outcome = try await seed(decision, in: library)
         // The held families go once the seed is over or no longer this Mac's; a stop that resumes keeps them.
         switch outcome {
-        case .complete, .stopped(.lostClaim), .stopped(.noRoot), .stopped(.baseTooLarge): await releaseGate()
+        case .complete, .stopped(.lostClaim), .stopped(.noRoot): await releaseGate()
         default: break
         }
         return outcome
@@ -224,26 +217,12 @@ actor CutoverSeeder {
     private func seed(_ decision: CutoverClaimDecision, in library: BlobZone) async throws -> CutoverSeedOutcome {
         let runStartedAt = env.clock().timeIntervalSinceReferenceDate
         let root = try await env.store.perform { try $0.replica.personalRoot()?.envelope }
-        var takeoverWithBase = false
-        if case .takeOver(let hasBase) = decision { takeoverWithBase = hasBase }
+        let takingOver: Bool
+        if case .takeOver = decision { takingOver = true } else { takingOver = false }
         let journal = try await env.store.perform { try CutoverJournal.read($0.connection) }
 
-        // P0: the shared base, before the first record (§13.4 step 2).
-        if !(root.map { CutoverRootState(root: $0).hasBase } ?? false) {
-            env.progress(.publishingBase)
-            let knowledgeMissing = journal.freshReason == FreshReason.knowledgeMissing.rawValue
-                || env.oldContainer == nil
-            let built = try await env.store.perform { try MigrationBaseBuilder.build(from: $0.connection, knowledgeMissing: knowledgeMissing) }
-            do {
-                let changes = try await MigrationBaseWriter(store: env.store, blobs: env.blobs).upload(built, container: env.oldContainer)
-                guard try await saveRoot(changes, in: library) else { return .stopped(.lostClaim) }
-            } catch MigrationBaseError.shardTooLarge(let shard, _) {
-                return .stopped(.baseTooLarge(shard: shard))
-            }
-        }
-
         let fallback = journal.catchUpAt ?? journal.startedAt ?? env.clock().timeIntervalSinceReferenceDate
-        let decider = try await makeDecider(takeover: takeoverWithBase)
+        let decider = try await makeDecider(takeover: takingOver)
         // An edit made while the seed runs waits for its family's pass to begin (§13.4 step 5).
         try await holdUnbegunPasses(except: nil)
         do {

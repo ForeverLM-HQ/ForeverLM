@@ -292,14 +292,11 @@ struct TimeBlock: Identifiable, Codable, Equatable, Sendable {
         return String(decoding: data, as: UTF8.self)
     }
 
-    /// Reads `sourceIDsJSON` back; a blank, or a column written by an older
-    /// build, falls back to the single `source_id` it also kept.
-    static func sourceIDs(fromJSON json: String?, legacySourceID: String?) -> [String] {
-        if let json, let data = json.data(using: .utf8),
-           let ids = try? JSONDecoder().decode([String].self, from: data), !ids.isEmpty {
-            return normalizedSourceIDs(ids)
-        }
-        return normalizedSourceIDs([legacySourceID].compactMap { $0 })
+    /// Reads `sourceIDsJSON` back; a blank or unreadable column is no sources.
+    static func sourceIDs(fromJSON json: String?) -> [String] {
+        guard let json, let data = json.data(using: .utf8),
+              let ids = try? JSONDecoder().decode([String].self, from: data) else { return [] }
+        return normalizedSourceIDs(ids)
     }
 
     /// Part of the day's plan: not deleted, and not left behind in a column

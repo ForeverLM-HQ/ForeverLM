@@ -3,71 +3,20 @@ import Foundation
 // MARK: - The activation's memory derivations (docs/cloudkit-schema-design.md §13.3 step 3c)
 
 extension KnowledgeStore {
-    /// WP13's derivations, in order: the legacy Sittings of every attempt no Sitting holds yet, one Sitting
-    /// per kept quiz score, the `legacy22` activity logs, each card's state, every draft deck's cards as
-    /// their Cards (`deriveCardDrafts`, which reads the decks' bodies and so takes its own transaction per
-    /// deck), and the items from before cards not gone through yet. Each is idempotent, bounded by the
-    /// history it reads, and reads generation-1 truth only, so it reflects every generation-1 write made
-    /// before the activation.
+    /// WP13's derivations, in order: one Sitting per kept quiz score, each card's state, and every draft
+    /// deck's cards as their Cards (`deriveCardDrafts`, which reads the decks' bodies and so takes its own
+    /// transaction per deck). Each is idempotent, bounded by the history it reads, and reads generation-1
+    /// truth only, so it reflects every generation-1 write made before the activation.
     static let memoryActivationDerivations: [ActivationDerivation] = [
-        ActivationDerivation(id: "legacySittings") { store in try store.inDerivationTransaction { try $0.deriveLegacySittings() } },
         ActivationDerivation(id: "quizScoreSittings") { store in try store.inDerivationTransaction { try $0.deriveQuizScoreSittings() } },
-        ActivationDerivation(id: "legacyActivityLogs") { store in try store.inDerivationTransaction { try $0.deriveLegacyActivityLogs() } },
         ActivationDerivation(id: "cardStates") { store in try store.inDerivationTransaction { try $0.deriveCardStates() } },
         ActivationDerivation(id: "cardDrafts") { store in try store.deriveCardDrafts() },
-        ActivationDerivation(id: "legacyCardsToCheck") { store in try store.inDerivationTransaction { try $0.deriveLegacyCardsToCheck() } },
     ]
 
     /// At most this many answers in one Sitting part, and at most this much answer JSON, so the encoded
     /// part stays under the 128 KiB a part may hold with its stamps and fields (§3.5.23).
     static let sittingPartAnswerLimit = 200
     static let sittingPartAnswerBytes = 100 * 1_024
-
-    /// Every attempt no Sitting holds yet as an answer of its migrated Sitting (§4.1, §10): grouped by its
-    /// chat (`sit:legacy:` + sha256(`session:<id>`)), else by its local day (`day:<YYYY-MM-DD>`), so every
-    /// Mac derives the same Sittings; a group past a part's limits continues in `<id>#2`, `#3`… An
-    /// attempt recorded since an earlier run (a generation-1 release in between) joins its Sitting.
-    func deriveLegacySittings() throws {
-        var attempts: [(attempt: MemoryAttempt, fingerprint: String?)] = []
-        try query("""
-            SELECT a.id, a.memory_item_id, a.session_id, a.exchange_id, a.attempt_type, a.prompt, a.learner_answer,
-                   a.feedback, a.score, a.schedule_rating, a.grade_state, a.grading_error, a.evidence_json,
-                   a.attempted_at, a.model_provider, a.model_id, a.model_metadata_json, a.parent_curriculum_fingerprint
-            FROM memory_attempts a
-            WHERE NOT EXISTS (SELECT 1 FROM memory_sitting_answers s WHERE s.answer_id = a.id)
-            ORDER BY a.attempted_at, a.id
-        """, []) { row in
-            guard let id = row.text(0), let item = row.text(1) else { return }
-            attempts.append((MemoryAttempt(
-                id: id, memoryItemID: item, sessionID: row.text(2), exchangeID: row.text(3),
-                attemptType: row.text(4).flatMap(MemoryAttemptType.init(rawValue:)) ?? .review,
-                prompt: row.text(5) ?? "", learnerAnswer: row.text(6) ?? "", feedback: row.text(7), score: row.real(8),
-                scheduleRating: row.text(9).flatMap(MemoryScheduleRating.init(rawValue:)),
-                gradeState: row.text(10).flatMap(MemoryGradeState.init(rawValue:)) ?? .pending, gradingError: row.text(11),
-                evidenceJSON: row.text(12), attemptedAt: Date(timeIntervalSinceReferenceDate: row.real(13) ?? 0),
-                modelProvider: row.text(14), modelID: row.text(15), modelMetadataJSON: row.text(16)
-            ), row.text(17)))
-        }
-        var groups: [String: [(attempt: MemoryAttempt, fingerprint: String?)]] = [:]
-        var order: [String] = []
-        for entry in attempts {
-            let key = entry.attempt.sessionID.map { "session:\($0)" } ?? "day:\(DayPlan.dateString(for: entry.attempt.attemptedAt))"
-            if groups[key] == nil { order.append(key) }
-            groups[key, default: []].append(entry)
-        }
-        for key in order.sorted() {
-            let entries = groups[key] ?? []
-            let first = SyncIdentity.migratedSittingID(key)
-            let chatID = entries.first?.attempt.sessionID
-            for entry in entries {
-                let answer = MemoryAnswerCodec.answer(for: entry.attempt, curriculumFingerprint: entry.fingerprint)
-                try appendAnswer(
-                    entry.attempt.id, answer: answer, at: entry.attempt.attemptedAt, toSittingStartingWith: first,
-                    newSitting: (device: SyncIdentity.migratedHistoryDeviceID, kind: chatID == nil ? "cards" : "memoryReview", chatID: chatID)
-                )
-            }
-        }
-    }
 
     /// Each kept quiz score (`courseQuiz.score.<quizID>`, `lectureQuiz.score.<sourceID>`) as a Sitting of its
     /// own: `sit:legacy:` + sha256(`quiz:<courseQuiz|lectureQuiz>:<preference key>`), its result the score

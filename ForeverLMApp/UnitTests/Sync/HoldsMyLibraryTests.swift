@@ -5,7 +5,7 @@ import Testing
 /// The seeder's and the catch-up's side of "This Mac holds my library" (WP16 and WP16b own the real
 /// ones): every call the flow makes, in order, and what a claim answers.
 actor FakeLibraryClaimer: LibraryClaiming {
-    enum Call: Equatable { case catchUp(readsOldZones: Bool), claim(baseNamesOldZones: Bool) }
+    enum Call: Equatable { case catchUp(readsOldZones: Bool), claim }
 
     private(set) var calls: [Call] = []
     var claimAnswers: [LibraryClaimOutcome] = [.seeding]
@@ -21,8 +21,8 @@ actor FakeLibraryClaimer: LibraryClaiming {
         if catchUpFails { throw Offline() }
     }
 
-    func claimOrReconcile(baseNamesOldZones: Bool) async throws -> LibraryClaimOutcome {
-        calls.append(.claim(baseNamesOldZones: baseNamesOldZones))
+    func claimOrReconcile() async throws -> LibraryClaimOutcome {
+        calls.append(.claim)
         return claimAnswers.isEmpty ? .notYet : claimAnswers.removeFirst()
     }
 }
@@ -68,7 +68,7 @@ struct HoldsMyLibraryTests {
         let record = InMemoryHoldsMyLibraryRecord()
         let flow = HoldsMyLibraryFlow(record: record, claimer: claimer, now: { Self.at })
         let progress = try await flow.confirm(freshReason: .noHistory)
-        #expect(await claimer.calls == [.catchUp(readsOldZones: true), .claim(baseNamesOldZones: true)])
+        #expect(await claimer.calls == [.catchUp(readsOldZones: true), .claim])
         #expect(progress == HoldsMyLibrary.Progress(catchUpDone: true, outcome: .seeding))
 
         let stored = try #require(await record.stored)
@@ -141,12 +141,12 @@ struct HoldsMyLibraryTests {
 
     // MARK: R6-m9
 
-    @Test("After Not this library, confirming reads nothing from the old zones and the base it publishes names none")
+    @Test("After Not this library, confirming reads nothing from the old zones")
     func notThisLibraryReadsNothing() async throws {
         let claimer = FakeLibraryClaimer()
         let flow = HoldsMyLibraryFlow(record: InMemoryHoldsMyLibraryRecord(), claimer: claimer, now: { Self.at })
         try await flow.confirm(freshReason: .knowledgeMissing)
-        #expect(await claimer.calls == [.catchUp(readsOldZones: false), .claim(baseNamesOldZones: false)])
+        #expect(await claimer.calls == [.catchUp(readsOldZones: false), .claim])
     }
 
     // MARK: Quits and retries
@@ -172,7 +172,7 @@ struct HoldsMyLibraryTests {
         let second = try await flow.confirm(freshReason: .noHistory)
         #expect(second.outcome == .seeding)
         #expect(await claimer.calls == [
-            .catchUp(readsOldZones: true), .catchUp(readsOldZones: true), .claim(baseNamesOldZones: true), .claim(baseNamesOldZones: true),
+            .catchUp(readsOldZones: true), .catchUp(readsOldZones: true), .claim, .claim,
         ], "the catch-up that finished is not run a third time")
 
         // A third call after the claim holds changes nothing.

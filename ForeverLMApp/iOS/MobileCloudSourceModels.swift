@@ -40,8 +40,8 @@ struct MobileCloudSource: Identifiable, Equatable, Sendable {
     var courseSortIndex: Int? = nil
     /// The Mac's per-source hidden flag (its `hidden_sources` join).
     var isHidden: Bool = false
-    /// The Mac's paywall marker: its `is_paywalled` column, or the legacy
-    /// `paywall` sentinel it still stores in `error_message`. Both fold into
+    /// The Mac's paywall marker: its `is_paywalled` column, or the
+    /// `paywall` sentinel it also stores in `error_message`. Both fold into
     /// this one flag at parse time. A marked source has neither synced text nor
     /// an attached document, so the phone can only explain why.
     var isPaywalled: Bool = false
@@ -958,17 +958,17 @@ enum MobileSourceVisibility {
 /// it stays searchable and keeps its Notebook and Schedule memberships, exactly
 /// as hiding does on the Mac. `paywalled` is what the shelf itself lists.
 enum MobilePaywallShelf {
-    /// The Mac's legacy `SourceStatusFlag.paywall` sentinel. It is stored
+    /// The Mac's `SourceStatusFlag.paywall` sentinel. It is stored
     /// verbatim in `sources.error_message`, so it rides the wire in the synced
     /// article body alongside the newer `isPaywalled` column.
-    static let legacyStatusFlag = "paywall"
+    static let paywallSentinel = "paywall"
 
     /// Folds the Mac's two paywall markers into the phone's single flag: the
-    /// `is_paywalled` column, and the `paywall` sentinel it still stores in
-    /// `error_message` for sources marked before that column existed. Only an
+    /// `is_paywalled` column, and the `paywall` sentinel it also stores in
+    /// `error_message`. Only an
     /// exact sentinel match counts — a genuine free-text error is not a paywall.
     static func isPaywalled(column: Bool?, errorMessage: String?) -> Bool {
-        (column ?? false) || errorMessage == legacyStatusFlag
+        (column ?? false) || errorMessage == paywallSentinel
     }
 
     static func browsable(_ sources: [MobileCloudSource]) -> [MobileCloudSource] {

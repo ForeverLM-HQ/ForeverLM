@@ -31,8 +31,8 @@ import Foundation
 enum MemoryPaneSection: String, CaseIterable, Identifiable, Sendable {
     /// Today's cards, the promise, Start Review, and the history grid.
     case review
-    /// The cards to check: drafts waiting to be kept or skipped, and the
-    /// items from before cards, offered once (`MemoryCardTriage`).
+    /// The cards to check: drafts waiting to be kept or skipped
+    /// (`MemoryCardTriage`).
     case toCheck
     /// Every kept card, searched and grouped.
     case allCards
@@ -658,8 +658,7 @@ extension StudioViewModel {
             on,
             cardID: card.face.cardID,
             memoryItemID: card.itemID,
-            deckID: deckID,
-            isFromBeforeCards: card.face.origin == .legacy
+            deckID: deckID
         )
         memoryCardRevision &+= 1
     }

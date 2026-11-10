@@ -587,7 +587,7 @@ struct NotebookTeamImportTests {
         try #require(try knowledge.loadLearningGoal(notebookID)).approvedSourceIDs
     }
 
-    @Test("A read-only team's notebook refuses add_source, add_sources, import_paper_from_url, add_notebook_sources and add_companion_sources, adding nothing")
+    @Test("A read-only team's notebook refuses add_source, add_sources, import_paper_from_url and add_notebook_sources, adding nothing")
     func readOnlyTeamNotebookTakesNothing() async throws {
         let (store, knowledge, path) = try makeStore()
         defer { try? FileManager.default.removeItem(atPath: path) }
@@ -608,10 +608,7 @@ struct NotebookTeamImportTests {
         let pool = await registry.callToolDetailed(name: "add_notebook_sources", arguments: [
             "notebook_id": notebookID, "source_ids": ["own-1"],
         ])
-        let companion = await registry.callToolDetailed(name: "add_companion_sources", arguments: [
-            "goal_id": notebookID, "source_ids": ["own-1"],
-        ])
-        for outcome in [single, batch, paper, pool, companion] {
+        for outcome in [single, batch, paper, pool] {
             #expect(outcome.isError, "\(outcome.text)")
             #expect(outcome.text.contains("read-only"), "\(outcome.text)")
             #expect(outcome.text.contains("Nothing was added"), "\(outcome.text)")

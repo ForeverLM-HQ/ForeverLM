@@ -236,26 +236,21 @@ extension KnowledgeStore {
         return result
     }
 
-    /// Check if a podcast episode already exists under either current or legacy URL forms.
+    /// Check if a podcast episode already exists under its canonical URL.
     func sourceExistsByPodcastTrackID(_ trackID: Int64) -> (id: String, status: SourceStatus)? {
         let canonicalURL = "apple-podcast://episode/\(trackID)"
-        let legacyURL = "apple-podcast:/episode/\(trackID)"
-        let legacyNormalizedURL = "episode/\(trackID)"
         var result: (id: String, status: SourceStatus)?
         try? queryBind("""
             SELECT s.id, s.status
             FROM podcasts p
             JOIN sources s ON s.id = p.source_id
-            WHERE (p.url IN (?, ?)
-               OR p.normalized_url IN (?, ?, ?))
+            WHERE (p.url = ?
+               OR p.normalized_url = ?)
               AND s.team_id IS NULL
             LIMIT 1
         """, bind: { stmt in
             self.bind(stmt, 1, canonicalURL)
-            self.bind(stmt, 2, legacyURL)
-            self.bind(stmt, 3, canonicalURL)
-            self.bind(stmt, 4, legacyURL)
-            self.bind(stmt, 5, legacyNormalizedURL)
+            self.bind(stmt, 2, canonicalURL)
         }) { stmt in
             if let id = self.string(stmt, 0) {
                 let statusStr = self.string(stmt, 1)

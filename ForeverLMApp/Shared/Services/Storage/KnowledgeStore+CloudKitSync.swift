@@ -1013,7 +1013,7 @@ extension KnowledgeStore {
                 WHEN subject_id IS NOT NULL AND TRIM(subject_id) <> ''
                     THEN COALESCE(NULLIF(TRIM(subject_type), ''), 'item') || char(31) || subject_id
                 WHEN subject_title IS NOT NULL AND TRIM(subject_title) <> ''
-                    THEN 'legacy-title' || char(31) || COALESCE(NULLIF(TRIM(subject_type), ''), 'item') || char(31) || subject_title
+                    THEN 'title-only' || char(31) || COALESCE(NULLIF(TRIM(subject_type), ''), 'item') || char(31) || subject_title
                 WHEN session_id IS NOT NULL AND TRIM(session_id) <> ''
                     THEN 'chat' || char(31) || session_id
                 WHEN review_sessions.id IS NOT NULL
@@ -1077,7 +1077,7 @@ extension KnowledgeStore {
 
     /// Item rows beneath one task. Deterministic source identity is preferred;
     /// title-only rows from the already-deployed source-title attribution are
-    /// kept visibly grouped as legacy data, never promoted to source identity.
+    /// kept visibly grouped as title-only data, never promoted to source identity.
     /// Chat identity falls back to activity_id because authoritative proxy
     /// rows preserve that workflow ID but do not carry the local session_id.
     /// LIMIT/OFFSET is applied in SQLite so a large grouped result never crosses
@@ -1093,7 +1093,7 @@ extension KnowledgeStore {
                 WHEN subject_id IS NOT NULL AND TRIM(subject_id) <> ''
                     THEN 'id' || char(31) || COALESCE(NULLIF(TRIM(subject_type), ''), 'item') || char(31) || subject_id
                 WHEN subject_title IS NOT NULL AND TRIM(subject_title) <> ''
-                    THEN 'legacy-title' || char(31) || COALESCE(NULLIF(TRIM(subject_type), ''), 'item') || char(31) || subject_title
+                    THEN 'title-only' || char(31) || COALESCE(NULLIF(TRIM(subject_type), ''), 'item') || char(31) || subject_title
                 WHEN session_id IS NOT NULL AND TRIM(session_id) <> ''
                     THEN 'chat' || char(31) || session_id
                 WHEN review_sessions.id IS NOT NULL

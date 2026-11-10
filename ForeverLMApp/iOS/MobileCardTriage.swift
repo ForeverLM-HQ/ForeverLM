@@ -32,11 +32,6 @@ enum MobileCardTriageWriter {
         var seen = Set<String>()
         for decision in decisions where seen.insert(decision.card.cardID).inserted {
             let card = decision.card
-            guard card.kind == .draft else {
-                // The items from before cards are gone through on the Mac (`MobileCardRecords.toCheck`).
-                fail(card, "Cards from before cards are gone through on your Mac.")
-                continue
-            }
             switch decision.action {
             case .keep, .keepEdited:
                 let face: MemoryCard?
@@ -121,8 +116,7 @@ enum MobileCardEditWriter {
     }
 
     /// The revision's face: the edit's words or, with none, the card as it is asked now, under a new
-    /// card id. A card from before cards was made by the walkthrough question writer, so its revision
-    /// says `walkthrough`.
+    /// card id.
     static func revisedFace(_ card: MemoryCardListing, edit: MemoryCardEdit?, wording: String, newID: String) -> MemoryCard {
         let face = card.face
         return MemoryCard(
@@ -130,7 +124,7 @@ enum MobileCardEditWriter {
             front: edit?.front ?? wording,
             back: edit?.back ?? face.back,
             why: edit?.why ?? face.why,
-            origin: face.origin == .legacy ? .walkthrough : face.origin,
+            origin: face.origin,
             deckID: face.deckID,
             frontImages: edit?.frontImages ?? face.frontImages,
             backImages: edit?.backImages ?? face.backImages

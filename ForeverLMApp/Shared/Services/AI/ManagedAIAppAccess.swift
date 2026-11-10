@@ -61,8 +61,7 @@ extension ManagedAI {
         /// the app itself runs in every one of them. They arrive as the response's top-level
         /// `state` and as `access.app_state`; `access.state` keeps its older
         /// values for shipped builds (a paid-once account still says
-        /// `forever` there), so it is read only when neither new field is
-        /// present, as in an access cached before they existed. Its values
+        /// `forever` there), and this build does not read it. Server values
         /// are mapped onto these (`init(serverValue:)`), and a state this
         /// build does not know reads as the free days: a missing or strange
         /// answer never locks.
@@ -92,13 +91,6 @@ extension ManagedAI {
                 case "locked": self = .locked
                 default: self = .freeDays
                 }
-            }
-
-            /// `access.state`, the older field, read only when `app_state` is
-            /// missing. There "free" means no payment, not that MCP is free,
-            /// so it reads as the free days.
-            init(legacyValue: String?) {
-                self = legacyValue == "free" ? .freeDays : State(serverValue: legacyValue)
             }
         }
 
@@ -177,8 +169,8 @@ extension ManagedAI {
         /// with the `plan_access` block of the plans sold before the lock,
         /// still decodes.
         enum CodingKeys: String, CodingKey {
-            case state, plan, founding, prices, trialing, unlocked
-            /// The paid app's state inside `access`; `state` is the older one.
+            case plan, founding, prices, trialing, unlocked
+            /// The paid app's state inside `access`.
             case appState = "app_state"
             case renewsAt = "renews_at"
             case priceCents = "price_cents"
@@ -300,7 +292,7 @@ extension ManagedAI {
 
         /// This access with what the response said at its top level filled
         /// in where the block itself was silent. The top-level `state` is the
-        /// paid app's, so it wins over a state read from `access.state`.
+        /// paid app's, so it wins over the block's own `app_state`.
         func filling(_ top: TopLevelFields?) -> AppAccess {
             guard let top else { return self }
             return AppAccess(
@@ -329,9 +321,8 @@ extension ManagedAI {
                 return AppPlan.allCases.filter(listed.contains)
             } ?? Self.paidAppPlans
             let appState = try container.decodeIfPresent(String.self, forKey: .appState)
-            let legacyState = try container.decodeIfPresent(String.self, forKey: .state)
             self.init(
-                state: appState.map { State(serverValue: $0) } ?? State(legacyValue: legacyState),
+                state: State(serverValue: appState),
                 plan: try container.decodeIfPresent(String.self, forKey: .plan),
                 founding: try container.decodeIfPresent(Bool.self, forKey: .founding) ?? false,
                 renewsAt: Self.date(try container.decodeIfPresent(String.self, forKey: .renewsAt)),

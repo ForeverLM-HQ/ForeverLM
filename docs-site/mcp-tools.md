@@ -245,8 +245,6 @@ a date with its reasoning and confirms it first.
 | `review_suggested_sources` | `goal_id`, `approve?`, `reject?` | Approve or reject the sources ForeverLM suggested for a Goal. A rejected source is never suggested again. |
 | `reorder_goals` | `goal_ids` | Put Goals in an order: those listed first, in that order, the rest after them as they already read; `[]` goes back to deadline order. |
 | `delete_learning_goal` | `goal_id` | Delete a Goal for good: its record, pool and Schedule tags. Its sources stay, and a chat started from it stays with the link cleared. To put it away instead, archive it with `update_learning_goal`. Not undoable. |
-| `list_learning_goals` | `include_completed?` | The older combined listing of notebooks and Goals; `list_notebooks` and `list_goals` replace it. |
-| `add_companion_sources` | `goal_id`, `source_ids` | The older form of `add_notebook_sources` and `add_goal_sources`, which check the kind of record they are given. |
 
 ## Teams and tasks
 

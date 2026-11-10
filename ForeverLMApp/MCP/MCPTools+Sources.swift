@@ -2077,7 +2077,7 @@ extension MCPToolRegistry {
     /// the scope belongs here too.
     static let screenRecordNarrowedToolNames: Set<String> = [
         // Notebooks and Goals
-        "list_notebooks", "list_learning_goals", "list_goals", "list_notebook_collections", "list_notebook_sources",
+        "list_notebooks", "list_goals", "list_notebook_collections", "list_notebook_sources",
         // Sources
         "list_sources", "filter_sources", "list_shows", "search_sources_semantic", "search_sources_keyword",
         "get_app_context", "get_today_sources", "list_courses", "search_source_highlights", "list_meeting_groups",

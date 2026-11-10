@@ -618,12 +618,7 @@ extension KnowledgeStore {
 
     private func artifactMarkdownReadURL(_ artifactID: String) -> URL? {
         guard let canonical = artifactMarkdownURL(artifactID) else { return nil }
-        let fileManager = FileManager.default
-        if fileManager.fileExists(atPath: canonical.path) { return canonical }
-        let relative = "Artifacts/\(artifactID)/document.md"
-        return legacyContentDirectories
-            .map { $0.appendingPathComponent(relative, isDirectory: false) }
-            .first { fileManager.fileExists(atPath: $0.path) }
+        return FileManager.default.fileExists(atPath: canonical.path) ? canonical : nil
     }
 
 }

@@ -44,7 +44,6 @@ struct MobileCardsToCheckList<Header: View>: View {
     /// phone could not write leaves it.
     @State private var gone: [Gone] = []
     @State private var editing: MemoryCardToCheck?
-    @State private var confirmingSkipAll: [MemoryCardToCheck]?
     @State private var refusal: String?
     /// Where the card in front goes once decided: Keep to the right, Skip to the left.
     @State private var exitEdge: HorizontalEdge = .trailing
@@ -131,20 +130,6 @@ struct MobileCardsToCheckList<Header: View>: View {
                 editing = nil
                 decide(card, .keepEdited(edit))
             }
-        }
-        .confirmationDialog(
-            "Skip the rest of this source's cards?",
-            isPresented: Binding(
-                get: { confirmingSkipAll != nil },
-                set: { if !$0 { confirmingSkipAll = nil } }
-            ),
-            titleVisibility: .visible,
-            presenting: confirmingSkipAll
-        ) { cards in
-            Button("Skip All", role: .destructive) { decideAll(cards, keep: false) }
-            Button("Cancel", role: .cancel) {}
-        } message: { _ in
-            Text("Its cards from before cards are retired and never asked again.")
         }
         .alert("A card stayed to check", isPresented: Binding(
             get: { refusal != nil },
@@ -260,13 +245,7 @@ struct MobileCardsToCheckList<Header: View>: View {
         return Menu {
             Section(rest.count == 1 ? "1 card from this source" : "\(rest.count) cards from this source") {
                 Button("Keep All", systemImage: "checkmark") { decideAll(rest, keep: true) }
-                Button("Skip All", systemImage: "xmark", role: .destructive) {
-                    if rest.contains(where: { $0.kind == .legacy }) {
-                        confirmingSkipAll = rest
-                    } else {
-                        decideAll(rest, keep: false)
-                    }
-                }
+                Button("Skip All", systemImage: "xmark", role: .destructive) { decideAll(rest, keep: false) }
             }
             if opens {
                 Button("Open Source", systemImage: "doc.text") { openSource(card.sourceID) }
@@ -359,17 +338,11 @@ struct MobileCardsToCheckList<Header: View>: View {
             }
     }
 
-    /// Its kind, the front in the review's serif, its pictures, the fold, the back and why it holds.
+    /// The front in the review's serif, its pictures, the fold, the back and why it holds.
     private func cardFace(_ card: MemoryCardToCheck) -> some View {
-        let tags = card.kind == .legacy ? ["From before cards"] : []
         let inset: CGFloat = horizontalSizeClass == .regular ? 34 : 24
         let shown = isOpen(card)
         return VStack(alignment: .leading, spacing: 0) {
-            if !tags.isEmpty {
-                MemoryCardTagLine(tags: tags)
-                    .accessibilityLabel(tags.map(\.capitalized).joined(separator: ", "))
-                    .padding(.bottom, MobileDesign.Spacing.medium)
-            }
             Text(card.face.front.foldingMathSpans())
                 .font(.system(size: frontSize, weight: .regular, design: .serif))
                 .foregroundStyle(shown ? Color.secondary : Color.primary)

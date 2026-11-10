@@ -5,11 +5,11 @@ import Foundation
 /// What "This Mac holds my library" asks of the seeder and the catch-up (§13.5, WP16 and WP16b).
 protocol LibraryClaiming: Sendable {
     /// The deferred catch-up, once. A `knowledgeMissing` store reads nothing from the old zones, so
-    /// `readsOldZones` is false and the base it publishes names none (R6-m9).
+    /// `readsOldZones` is false (R6-m9).
     func runDeferredCatchUp(readsOldZones: Bool) async throws
-    /// Fetches the new container's root and claims the seed with this Mac's snapshot as the base, or
-    /// reconciles as a second Mac when another Mac has seeded meanwhile (§13.4 step 1).
-    func claimOrReconcile(baseNamesOldZones: Bool) async throws -> LibraryClaimOutcome
+    /// Fetches the new container's root and claims the seed, or reconciles as a second Mac when another
+    /// Mac has seeded meanwhile (§13.4 step 1).
+    func claimOrReconcile() async throws -> LibraryClaimOutcome
 }
 
 enum LibraryClaimOutcome: Equatable, Sendable, Codable {

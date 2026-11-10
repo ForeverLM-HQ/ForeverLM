@@ -173,7 +173,7 @@ extension StudioViewModel {
     /// once its video no longer appears in the freshly fetched feed. Callers
     /// must only apply this to a feed that was read to the end — see the
     /// `isComplete` flag from `listLikedVideosFeed`. Videos in playlist groups
-    /// (legacy channel follows), videos attached to a course lecture, and
+    /// (followed channels), videos attached to a course lecture, and
     /// manually added URLs are left alone.
     ///
     /// Course lectures are scraped from public course playlists, so their rows
@@ -207,8 +207,7 @@ extension StudioViewModel {
     // MARK: - Followed items
 
     /// Video playlist groups followed through the YouTube plugin, distinct
-    /// from ordinary manually-added playlists. Legacy channel/playlist follows
-    /// may still exist in the store.
+    /// from ordinary manually-added playlists.
     var followedYouTubePluginGroupIDs: [String] {
         orderedVideoPlaylistNames(
             videoPlaylistMetadata.filter { $0.value.connectorKind != nil }.map(\.key)

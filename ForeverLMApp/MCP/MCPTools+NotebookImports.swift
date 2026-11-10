@@ -300,7 +300,7 @@ extension MCPDataStore {
         return lines.joined(separator: " ") + "\n\n" + detail
     }
 
-    /// add_companion_sources and add_goal_sources on a team's Notebook or
+    /// add_notebook_sources and add_goal_sources on a team's Notebook or
     /// Goal: library sources put on it by id are filed as add_notebook_sources
     /// files them (`fileImportedSources`), so the pool holds the team's copies
     /// of the learner's own sources, never their ids, and a team this account

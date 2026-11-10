@@ -144,35 +144,21 @@ struct LegacyIdentityAdoptionTests {
         #expect(!second.copiedAppGroupInbox)
     }
 
-    @Test("Content roots drop the drained container but keep the reachable ones")
-    func knownContentRootsDropRetiredContainerOnly() {
+    @Test("Content roots are the live ones only")
+    func knownContentRootsAreTheLiveOnes() {
         let roots = StorageService.knownContentRoots
 
-        // `~/Documents` is never a root: with Desktop & Documents syncing it is
-        // the CloudDocs `Documents` already listed, without it nothing synced
-        // there, and every lookup under it costs a TCC prompt.
+        // `~/Documents` is never a root: every lookup under it costs a TCC prompt.
         let realDocuments = (NSHomeDirectory() as NSString).appendingPathComponent("Documents") + "/"
         #expect(!roots.contains { $0.hasPrefix(realDocuments) })
 
-        if ForeverLMRuntimeIdentity.isDevelopment {
-            #expect(roots.allSatisfy { $0.contains("ForeverLM Dev") })
-            #expect(!roots.contains { $0.contains("/ForeverLM/") })
-            #expect(!roots.contains { $0.contains("FeynmanLM") })
-            #expect(roots.first == StorageService.libraryRootPath)
-            return
-        }
-
-        // The retired container is drained and its Documents is empty, so these
-        // could only ever be a stat that misses.
-        #expect(!roots.contains { $0.contains("iCloud~com~feynmanlm") })
-
-        // Everything a file can still legitimately be sitting in stays searchable:
-        // an iCloud Drive fork or manual move under either product name, and the
-        // pre-rename Application Support content directory.
-        #expect(roots.contains { $0.hasSuffix("FeynmanLM/Content") })
-        #expect(roots.contains { $0.hasSuffix("com~apple~CloudDocs/Documents/FeynmanLM") })
-        #expect(roots.contains { $0.hasSuffix("Documents/FeynmanLM") })
-        #expect(roots.first == StorageService.libraryRootPath)
+        #expect(roots == [
+            StorageService.libraryRootPath,
+            StorageService.localContentRootPath,
+            StorageService.ubiquityContentRootPath,
+        ])
+        #expect(!roots.contains { $0.contains("FeynmanLM") })
+        #expect(!roots.contains { $0.contains("com~apple~CloudDocs") })
     }
 
     @Test("A zero-byte knowledge.db does not count as a real library")

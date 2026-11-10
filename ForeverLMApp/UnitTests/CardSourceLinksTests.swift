@@ -70,7 +70,7 @@ struct CardSourceLinksTests {
         )
         let deck = MemoryCardDraftDeck(deckID: MemoryCard.draftDeckID(sourceID: "talk"), sourceID: "talk", deck: FlashcardDeck(title: "", cards: [card]))
         let waiting = MemoryCardTriage.toCheck(
-            decks: [deck], deckStates: [:], itemIDs: [], legacyItems: [], attemptsByItemID: [:]
+            decks: [deck], deckStates: [:], itemIDs: []
         )
         #expect(waiting.count == 1)
         #expect(waiting[0].sourceIDs == ["talk", "paper"])

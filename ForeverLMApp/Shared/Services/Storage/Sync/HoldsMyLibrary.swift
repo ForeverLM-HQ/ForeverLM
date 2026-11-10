@@ -156,8 +156,7 @@ protocol HoldsMyLibraryRecord: Sendable {
 }
 
 /// Confirming "This Mac holds my library": the confirmation is kept first, then the deferred catch-up
-/// runs (a `knowledgeMissing` store reads nothing from the old zones, and the base it publishes names
-/// none, R6-m9), then the claim. A quit between steps resumes at the step reached; a claim that cannot
+/// runs (a `knowledgeMissing` store reads nothing from the old zones, R6-m9), then the claim. A quit between steps resumes at the step reached; a claim that cannot
 /// be made yet (the root is being made, the claim was lost) leaves the confirmation standing and is
 /// tried again.
 struct HoldsMyLibraryFlow: Sendable {
@@ -180,7 +179,7 @@ struct HoldsMyLibraryFlow: Sendable {
             try await record.save(confirmation)
         }
         if confirmation.outcome == nil || confirmation.outcome == .notYet {
-            let outcome = try await claimer.claimOrReconcile(baseNamesOldZones: readsOldZones)
+            let outcome = try await claimer.claimOrReconcile()
             confirmation.outcome = outcome
             try await record.save(confirmation)
             Self.logger.notice("This Mac holds my library: \(String(describing: outcome), privacy: .public)")

@@ -1028,7 +1028,7 @@ extension KnowledgeStore {
             location: string(stmt, 19),
             notebookID: string(stmt, 6),
             goalID: string(stmt, 17),
-            sourceIDs: TimeBlock.sourceIDs(fromJSON: string(stmt, 14), legacySourceID: string(stmt, 13)),
+            sourceIDs: TimeBlock.sourceIDs(fromJSON: string(stmt, 14)),
             purpose: TimeBlockPurpose.parse(string(stmt, 18)),
             calendarEventID: string(stmt, 15),
             calendarEventURL: string(stmt, 16),

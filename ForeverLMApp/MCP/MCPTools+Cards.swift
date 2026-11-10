@@ -356,7 +356,7 @@ extension MCPDataStore {
             payload["to_check"] = cards.prefix(limit).map { card in
                 var entry: [String: Any] = [
                     "card_id": card.cardID,
-                    "kind": card.kind == .draft ? "draft" : "from_before",
+                    "kind": "draft",
                     "source_id": card.sourceID,
                     "source_title": titles[card.sourceID] ?? "",
                     "front": card.face.front,
@@ -372,7 +372,6 @@ extension MCPDataStore {
                 entry["sources"] = Self.cardSourcesPayload(card.links, titles: titles, excluded: excluded)
                 if let seed = card.seed { entry["seed"] = seed }
                 if let draftedAt = card.draftedAt { entry["drafted_at"] = ISO8601DateFormatter().string(from: draftedAt) }
-                if let itemID = card.memoryItemID { entry["item_id"] = itemID }
                 return entry
             }
             if let line = MemoryCardTriage.summary(cards) { payload["to_check_summary"] = line }
@@ -929,9 +928,8 @@ extension MCPDataStore {
 
     /// A kept card by the id an assistant was given: its item's id, or its
     /// card id — a drafted card's item is `MemoryTutorIdentity.cardItemID`,
-    /// and a card kept when it was missed, like an item from before cards,
-    /// has its item's own id. Refused: no id, two ids naming two cards, an id
-    /// no card answers to (a card still to check among them), an item that
+    /// and a card kept when it was missed has its item's own id. Refused: no
+    /// id, two ids naming two cards, an id no card answers to (a card still to check among them), an item that
     /// is no card (a first-review target, recorded with end_review_session),
     /// and a card anchored on a source the library no longer shows.
     private func keptCard(
@@ -1200,7 +1198,6 @@ extension MCPDataStore {
                     cardID: resultCardID,
                     memoryItemID: resultItemID,
                     deckID: deckID,
-                    isFromBeforeCards: !startsOver && face.origin == .legacy,
                     defaults: defaults
                 )
                 changes.append(alwaysAsk ? "always asked in its own words" : "its wording may vary again")

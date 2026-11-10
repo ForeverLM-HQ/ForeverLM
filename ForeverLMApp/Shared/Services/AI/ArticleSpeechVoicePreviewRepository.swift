@@ -155,7 +155,6 @@ actor ArticleSpeechVoicePreviewRepository {
     /// whichever app generated it — and the warm-up walks the whole catalog, so
     /// splitting the folder meant paying for every voice twice.
     nonisolated static func fileURL(modelID: String, voiceID: String) -> URL {
-        SharedDerivedCacheAdoption.adoptOnce()
         let fileExtension = ArticleSpeechCatalog.model(id: modelID)?
             .responseFormat.storedFileExtension ?? "mp3"
         return ForeverLMRuntimeIdentity.sharedVoicePreviewCacheURL

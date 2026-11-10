@@ -42,7 +42,7 @@ struct MobileCardReviewTests {
 
     /// Kept cards in every state a deal tells apart: due (missed two days
     /// ago), new and eligible, kept today, on another notebook's source, and
-    /// an item from before cards with no face.
+    /// an item with no face.
     private func seededStore(now: Date) throws -> (store: KnowledgeStore, due: MemoryItem, older: MemoryItem, keptToday: MemoryItem, elsewhere: MemoryItem) {
         let store = try makeStore()
         let due = try store.keepMemoryCard(drafted("due"), sourceID: "src-1", quote: "a proton gradient", at: now.addingTimeInterval(-10 * day))

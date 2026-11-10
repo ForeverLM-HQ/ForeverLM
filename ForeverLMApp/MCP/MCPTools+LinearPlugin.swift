@@ -253,18 +253,11 @@ extension MCPDataStore {
     /// Pure: the connection state a `/linear/status` payload reports. The
     /// gateway answers `connected: false` for an account with no workspace and
     /// `connected: true` with a `workspaces` list otherwise; a payload without
-    /// the field is unknown. A gateway from before workspaces were listed
-    /// describes its one workspace in `organization` and `user`, which is read
-    /// as a list of one.
+    /// the field is unknown.
     static func linearConnection(in payload: [String: Any]) -> LinearConnection? {
         guard let connected = payload["connected"] as? Bool else { return nil }
         guard connected else { return .notConnected }
-        let legacyRow = (payload["organization"] as? [String: Any]).map { organization -> [String: Any] in
-            var row = organization
-            row["user"] = payload["user"]
-            return row
-        }
-        let rows = payload["workspaces"] as? [[String: Any]] ?? legacyRow.map { [$0] } ?? []
+        let rows = payload["workspaces"] as? [[String: Any]] ?? []
         let workspaces = rows.compactMap { row -> LinearWorkspace? in
             guard let id = nonEmptyString(row["id"]) else { return nil }
             return LinearWorkspace(

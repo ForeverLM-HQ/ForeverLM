@@ -180,7 +180,7 @@ struct CardRecordLifecycleTests {
             try F.sendAll(store)
 
             #expect(await MemoryCardEditWriter.reword(listing, front: "What links respiration to ATP?", at: Self.now))
-            await MemoryCardStateStore.setAlwaysAsk(true, cardID: listing.face.cardID, memoryItemID: item.id, deckID: Self.deckID, isFromBeforeCards: false)
+            await MemoryCardStateStore.setAlwaysAsk(true, cardID: listing.face.cardID, memoryItemID: item.id, deckID: Self.deckID)
             await MemoryCardStateStore.settled()
             #expect(try Self.row(store, Self.seeded, "always_ask") == "1")
             let change = try #require(try F.pending(store)["Card:\(Self.seeded)"])
@@ -223,7 +223,8 @@ struct CardRecordLifecycleTests {
         let (root, store) = try F.makeStore("legacy")
         defer { try? FileManager.default.removeItem(at: root) }
         try F.item(store, id: "legacy-1", target: "What is an uncoupler? — A protein that lets protons leak.")
-        try store.deriveLegacyCardsToCheck()
+        // The row an activation left for it: not yet gone through, on its first anchor's deck.
+        try store.execute("INSERT INTO memory_card_states (card_id, status, deck_source_id, variants_json, always_ask) VALUES ('legacy-1', 'draft', 'src-1', '{}', 0)")
         #expect(try Self.row(store, "legacy-1", "status || '|' || deck_source_id") == "draft|src-1")
         try F.apply(store, [try F.record(.card, "legacy-1", ["status": "kept", "deckSourceID": "src-1", "origin": "concept", "alwaysAsk": true])])
         #expect(try Self.row(store, "legacy-1", "status || '|' || always_ask") == "draft|1")
@@ -233,7 +234,7 @@ struct CardRecordLifecycleTests {
 
     // MARK: The activation
 
-    @Test("The activation carries a deck's drafts and its row's states into the Card rows once, the items from before cards with them")
+    @Test("The activation carries a deck's drafts and its row's states into the Card rows once")
     func activationCarriesDecks() async throws {
         let (root, _, storage) = try await Self.makeStorage("activation", activated: false)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -254,9 +255,7 @@ struct CardRecordLifecycleTests {
         )
         let kept = try await storage.keepMemoryCard(face, sourceID: "src-1", quote: Self.quote, at: at)
         #expect(kept.id == MemoryTutorIdentity.cardItemID(cardID: "card-k"))
-        for id in ["legacy-1", "legacy-2"] {
-            try F.item(store, id: id, target: "What is \(id)? — The answer to \(id).")
-        }
+        try F.item(store, id: "legacy-1", target: "What is legacy-1? — The answer to legacy-1.")
         var deck = MemoryCardDeckState()
         deck.cards["card-k"] = MemoryCardState(status: .kept, memoryItemID: kept.id, editedFront: "Ask it this way", variants: ["Rephrased"],
                                               alwaysAsk: true, seed: "walk-step:step-1", variedAt: at, updatedAt: at)
@@ -265,9 +264,9 @@ struct CardRecordLifecycleTests {
         try F.preference(store, key: MemoryCardDeckState.preferenceKey(deckID: Self.deckID), value: deck.preferenceValue)
 
         let ids = KnowledgeStore.memoryActivationDerivations.map(\.id)
-        #expect(Array(ids.drop { $0 != "cardStates" }) == ["cardStates", "cardDrafts", "legacyCardsToCheck"])
+        #expect(Array(ids.drop { $0 != "cardStates" }) == ["cardStates", "cardDrafts"])
         func derive() throws {
-            for derivation in KnowledgeStore.memoryActivationDerivations where ["cardStates", "cardDrafts", "legacyCardsToCheck"].contains(derivation.id) {
+            for derivation in KnowledgeStore.memoryActivationDerivations where ["cardStates", "cardDrafts"].contains(derivation.id) {
                 try derivation.run(store)
             }
         }
@@ -282,7 +281,6 @@ struct CardRecordLifecycleTests {
         #expect(try Self.row(store, SyncIdentity.cardDraftID(deckSourceID: "src-1", seedKey: "walk-step:step-3")) == "draft")
         #expect(try Self.row(store, "card-u", "status || '|' || json_extract(draft_json, '$.requested')") == "draft|1")
         #expect(try Self.row(store, "legacy-1", "status || '|' || always_ask") == "draft|1")
-        #expect(try Self.row(store, "legacy-2") == "draft")
 
         // Activated: the cards read from the rows as they were.
         try store.execForTesting("INSERT INTO ck_activation (id, activated_at) VALUES (1, 1) ON CONFLICT(id) DO UPDATE SET activated_at = 1")
@@ -292,6 +290,5 @@ struct CardRecordLifecycleTests {
         #expect(state.variedAt.map(SyncTime.milliseconds) == SyncTime.milliseconds(at), "the day close does not reword it again")
         let waiting = try await Self.toCheck(storage)
         #expect(Set(waiting.filter { $0.kind == .draft }.map(\.cardID)) == [SyncIdentity.cardDraftID(deckSourceID: "src-1", seedKey: "walk-step:step-3"), "card-u"])
-        #expect(Set(waiting.filter { $0.kind == .legacy }.map(\.cardID)) == ["legacy-1", "legacy-2"])
     }
 }

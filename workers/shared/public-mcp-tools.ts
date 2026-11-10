@@ -49,7 +49,6 @@ const openWorld = new Set([
   "transcribe_meeting_recording",
   // Reaches outside the library: the live web, a provider, or a connected
   // account. create_x_post publishes to X in the learner's own name.
-  "add_companion_sources",
   "add_sources",
   "attach_pdf_to_paper",
   "attach_supplementary_pdf",

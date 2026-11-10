@@ -1075,9 +1075,9 @@ enum AsyncPDFDocumentLoader {
 
 /// Shared iCloud download helpers for reader documents. Modern iCloud eviction
 /// leaves a "dataless" file: the path still exists and reports its logical size,
-/// but `st_blocks == 0` and reading it triggers a slow on-demand fault-in. The
-/// legacy `.<name>.icloud` sidecar stub is not created in that case, so download
-/// state must be read from the file's ubiquitous resource values instead.
+/// but `st_blocks == 0` and reading it triggers a slow on-demand fault-in. No
+/// `.<name>.icloud` sidecar stub is created in that case, so download state
+/// must be read from the file's ubiquitous resource values instead.
 enum ICloudDownload {
     enum Failure: Error, Sendable, Equatable {
         case insufficientStorage

@@ -211,9 +211,6 @@ extension KnowledgeStore {
         ideaID: String? = nil,
         at now: Date = Date()
     ) throws -> MemoryItem {
-        guard card.origin != .legacy else {
-            throw KnowledgeStoreError.invalidData(MemoryCardError.legacyCard(card.cardID).localizedDescription)
-        }
         let records = try recordsMemoryForGeneration2()
         let itemID = records ? card.cardID : MemoryTutorIdentity.cardItemID(cardID: card.cardID)
         if let existing = try loadMemoryItem(itemID) {
@@ -272,9 +269,9 @@ extension KnowledgeStore {
     /// retired, keeping its attempts, and `revision` — the edited card under a
     /// new card id (`MemoryCard.cardID`, minted by the caller) — is kept as a
     /// new item on the same passages, checked again against the source's text,
-    /// with the old item's goal and idea (a card kept since cards has no goal;
-    /// an item from before cards may, and its revision's card id is new, so no
-    /// other device keeps the same item). Both happen in one transaction.
+    /// with the old item's goal and idea (a card kept since cards has no goal,
+    /// and its revision's card id is new, so no other device keeps the same
+    /// item). Both happen in one transaction.
     /// The revision is new, so its schedule starts over too. Throws, and
     /// changes nothing, when the revision reuses a kept card's id or none of
     /// the old passages is still in its source. The caller then records it in
@@ -290,9 +287,6 @@ extension KnowledgeStore {
     ) throws -> MemoryItem {
         guard let old = try loadMemoryItem(memoryItemID) else {
             throw KnowledgeStoreError.invalidData("Memory item \(memoryItemID) does not exist.")
-        }
-        guard revision.origin != .legacy else {
-            throw KnowledgeStoreError.invalidData(MemoryCardError.legacyCard(revision.cardID).localizedDescription)
         }
         let records = try recordsMemoryForGeneration2()
         let newID = records ? revision.cardID : MemoryTutorIdentity.cardItemID(cardID: revision.cardID)

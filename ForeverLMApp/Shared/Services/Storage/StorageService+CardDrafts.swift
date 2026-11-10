@@ -406,9 +406,7 @@ extension StorageService {
         let offered = MemoryCardTriage.toCheck(
             decks: decks.filter { available.contains($0.sourceID) },
             deckStates: states,
-            itemIDs: itemIDs,
-            legacyItems: [],
-            attemptsByItemID: [:]
+            itemIDs: itemIDs
         )
         let offeredByID: [String: MemoryCardToCheck] = Dictionary(
             offered.map { ($0.cardID, $0) },
@@ -467,11 +465,6 @@ extension StorageService {
 ///   checked again against the source's text; the row marks it kept with its
 ///   seed. Edit, then Keep: the same, in the learner's words.
 /// - Skip a draft: the row marks it skipped; its seed is never drafted again.
-/// - Keep an item from before cards: it is kept already, so only its row
-///   says it was gone through. Edit, then Keep: a new front alone rewords it
-///   in the row; a new back or why starts it over (`startMemoryCardOver`).
-/// - Skip an item from before cards: it is retired, never asked again, and
-///   its row marks it skipped.
 enum MemoryCardTriageWriter {
     @MainActor
     static func apply(
@@ -494,8 +487,8 @@ enum MemoryCardTriageWriter {
         var seen = Set<String>()
         for decision in decisions where seen.insert(decision.card.cardID).inserted {
             let card = decision.card
-            switch (card.kind, decision.action) {
-            case (.draft, .keep), (.draft, .keepEdited):
+            switch decision.action {
+            case .keep, .keepEdited:
                 let face: MemoryCard?
                 if case .keepEdited(let edit) = decision.action {
                     face = MemoryCardTriage.editedFace(card, edit)
@@ -527,69 +520,10 @@ enum MemoryCardTriageWriter {
                 } catch {
                     fail(card, error.localizedDescription)
                 }
-            case (.draft, .skip):
+            case .skip:
                 result.skipped.append(card.cardID)
                 let seed = card.seed
                 change(card.deckID) { $0.markSkipped(cardID: card.cardID, seed: seed, at: now) }
-            case (.legacy, .keep):
-                guard let itemID = card.memoryItemID else {
-                    fail(card, "This card's Memory item is not in the library.")
-                    continue
-                }
-                result.kept.append(MemoryCardTriageResult.Kept(cardID: card.cardID, memoryItemID: itemID))
-                change(card.deckID) { $0.markKept(cardID: card.cardID, memoryItemID: itemID, at: now) }
-            case (.legacy, .keepEdited(let edit)):
-                guard let itemID = card.memoryItemID else {
-                    fail(card, "This card's Memory item is not in the library.")
-                    continue
-                }
-                guard !edit.front.isEmpty, !edit.back.isEmpty else {
-                    fail(card, "A card needs a front and a back to be kept.")
-                    continue
-                }
-                if edit.back == card.face.back, edit.why == card.face.why {
-                    // A new front alone rewords the card: its item and its
-                    // schedule are untouched.
-                    let reworded: String? = edit.front == card.face.front ? nil : edit.front
-                    result.kept.append(MemoryCardTriageResult.Kept(cardID: card.cardID, memoryItemID: itemID))
-                    change(card.deckID) { row in
-                        row.markKept(cardID: card.cardID, memoryItemID: itemID, at: now)
-                        row.cards[card.cardID]?.editedFront = reworded
-                    }
-                } else {
-                    // A new answer starts the card over under a new card id,
-                    // as All Cards does; the writer of the items from before
-                    // cards was the walkthrough question writer.
-                    let revision = MemoryCard(
-                        cardID: UUID().uuidString.lowercased(),
-                        front: edit.front,
-                        back: edit.back,
-                        why: edit.why,
-                        origin: .walkthrough
-                    )
-                    do {
-                        let item = try await storage.startMemoryCardOver(memoryItemID: itemID, as: revision, at: now)
-                        result.kept.append(MemoryCardTriageResult.Kept(cardID: card.cardID, memoryItemID: item.id))
-                        change(card.deckID) { row in
-                            row.markKept(cardID: card.cardID, memoryItemID: itemID, at: now)
-                            row.recordStartOver(from: card.cardID, to: revision.cardID, newMemoryItemID: item.id, at: now)
-                        }
-                    } catch {
-                        fail(card, error.localizedDescription)
-                    }
-                }
-            case (.legacy, .skip):
-                guard let itemID = card.memoryItemID else {
-                    fail(card, "This card's Memory item is not in the library.")
-                    continue
-                }
-                do {
-                    try await storage.retireMemoryCard(memoryItemID: itemID, at: now)
-                    result.skipped.append(card.cardID)
-                    change(card.deckID) { $0.markSkipped(cardID: card.cardID, at: now) }
-                } catch {
-                    fail(card, error.localizedDescription)
-                }
             }
         }
 
@@ -666,9 +600,7 @@ enum MemoryCardEditWriter {
 
     /// "Start this card over?": the card retired with its answers and its
     /// revision kept under a new card id, in `edit`'s words or, with none, as
-    /// it is asked now. A card from before cards was made by the
-    /// walkthrough-question writer, which course quizzes shared, so its
-    /// revision says `walkthrough`. Returns the revision's card id and item.
+    /// it is asked now. Returns the revision's card id and item.
     @MainActor
     static func startOver(
         _ card: MemoryCardListing,
@@ -683,7 +615,7 @@ enum MemoryCardEditWriter {
             front: edit?.front ?? wording(card, defaults: defaults),
             back: edit?.back ?? face.back,
             why: edit?.why ?? face.why,
-            origin: face.origin == .legacy ? .walkthrough : face.origin,
+            origin: face.origin,
             deckID: face.deckID,
             frontImages: edit?.frontImages ?? face.frontImages,
             backImages: edit?.backImages ?? face.backImages

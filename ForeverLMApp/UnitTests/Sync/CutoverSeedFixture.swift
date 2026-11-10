@@ -51,7 +51,7 @@ enum CutoverSeedFixture {
         let server = mac.server
         var environment = CutoverSeedEnvironment(
             transport: mac.transport, store: mac.local, registry: KnowledgeStore.projectionRegistry, blobs: blobs(mac), writer: writer(mac),
-            deviceID: mac.deviceID, oldContainer: "iCloud.com.foreverlm",
+            deviceID: mac.deviceID,
             send: {
                 EngineTestDriver.follow(server)
                 try await engine.sendChanges()
@@ -72,20 +72,6 @@ enum CutoverSeedFixture {
         if library { try addLibrary(mac.store) }
         try await mac.bootstrap(.macHoldingLibrary)
         return mac
-    }
-
-    /// The shared base as the root names it: every shard the root points at, fetched and decoded.
-    static func baseEntries(_ mac: EngineTestDevice) async throws -> [String: MigrationBaseEntry] {
-        let local = mac.local
-        let key = PrivateSyncZones.key(PrivateSyncZones.content)
-        guard let content = try await local.perform({ try BlobZone.resolve(zoneKey: key, in: $0) }) else { throw CloudError(.zoneNotFound, message: key) }
-        let pointers = try await local.perform { try $0.replica.personalRoot()?.envelope.fields[MigrationBaseBuilder.Wire.baseField]?.objectValue } ?? [:]
-        var all: [String: MigrationBaseEntry] = [:]
-        for name in MigrationBaseShards.allNames {
-            guard let pointer = pointers[name], let file = FileRef(json: pointer) else { continue }
-            all.merge(try MigrationBaseShards.decode(try await blobs(mac).fetch(file, from: content))) { first, _ in first }
-        }
-        return all
     }
 
     /// The root as the server holds it.

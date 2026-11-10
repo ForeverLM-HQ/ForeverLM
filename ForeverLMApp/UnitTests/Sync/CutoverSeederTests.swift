@@ -3,7 +3,7 @@ import Foundation
 import Testing
 @testable import ForeverLM
 
-/// The cutover seed (docs/cloudkit-schema-design.md §13.4): the shared base before any record, the passes in
+/// The cutover seed (docs/cloudkit-schema-design.md §13.4): the passes in
 /// order and resumable, records dated with their migrated time, the canary, the manifest and the metadata
 /// that other Macs, the web and the hosted MCP wait for.
 @Suite("Cutover seeder", .serialized)
@@ -48,70 +48,12 @@ struct CutoverSeederTests {
         #expect(seed["counts"]?.objectValue?["records"]?.intValue == records)
     }
 
-    @Test("P0 publishes the shared base before the first record, as 64 inline shards, and names the zones and their tokens")
-    func baseBeforeAnyRecord() async throws {
-        let server = EngineTestDriver.server()
-        let mac = try await C.seeder(server, name: "seed-base")
-        try mac.store.execute("INSERT INTO ck_legacy_snapshot (old_zone, record_name, change_tag, field_hashes) VALUES ('Knowledge', 'src-s1', 'tag1', ?)",
-                              [.text(#"{"w":false,"r":{"Source:s1":{"o":true,"h":{"title":"abc"}}}}"#)])
-        try mac.store.replica.setEngineState("migration.token.private.Knowledge", Data([1, 2, 3]))
-        let outcome = try await CutoverSeeder(C.environment(mac)).run()
-        guard case .complete = outcome else { Issue.record("the seed did not finish: \(outcome)"); return }
-
-        let root = try C.root(server)
-        #expect(root.fields["legacyBase"]?.objectValue?.count == 64)
-        let imports = try #require(root.fields["legacyImport"]?.objectValue)
-        #expect(imports["container"] == .string("iCloud.com.foreverlm"))
-        #expect(imports["zones"] == .array([.string("Knowledge")]))
-        #expect(imports["tokens"]?.objectValue?["Knowledge"] == .string(Data([1, 2, 3]).base64EncodedString()))
-
-        // Every shard satellite exists before any record of Library or Catalog.
-        var newestShard = Date.distantPast
-        for name in server.recordNames(zone: "Content", owner: C.user) {
-            guard let record = server.storedRecord(name, zone: "Content", owner: C.user), let payload = record.payload,
-                  (try SyncEnvelope(storedPayload: payload)).fields["role"]?.stringValue?.hasPrefix("legacyBase.") == true else { continue }
-            newestShard = max(newestShard, record.creationDate ?? .distantPast)
-        }
-        var oldestRecord = Date.distantFuture
-        for zone in ["Library", "Catalog"] {
-            for name in server.recordNames(zone: zone, owner: C.user) where name != SyncSchema.rootRecordName {
-                if let created = server.storedRecord(name, zone: zone, owner: C.user)?.creationDate { oldestRecord = min(oldestRecord, created) }
-            }
-        }
-        #expect(newestShard < oldestRecord, "the base is on the server before the first record")
-
-        let base = try await C.baseEntries(mac)
-        #expect(Array(base.keys) == ["Knowledge/src-s1"])
-        #expect(base["Knowledge/src-s1"]?.changeTag == "tag1")
-        #expect(base["Knowledge/src-s1"]?.records["Source:s1"]?.owned == true)
-    }
-
-    /// One old record whose mapping gives `count` Marks: its shard's JSON grows about 120 bytes a Mark and
-    /// stores as a gzip several times smaller, as the product owner's base did (17,157 old records, shards of up to
-    /// 340 KB decoded and 72 KB stored).
-    static func manyMarksEntry(_ count: Int, hash: (Int) -> String) -> String {
-        var records: [String: MigrationBaseRecord] = [:]
-        for index in 0..<count {
-            records["Mark:mk-\(index)"] = MigrationBaseRecord(owned: false, hashes: [
-                "at": "14e179156ee1722b", "kind": "d479af8431cd5d53", "on": "fcbcf165908dd18a", "target": hash(index),
-            ])
-        }
-        return String(decoding: MigrationBaseEntry(records: records).json.serialized(), as: UTF8.self)
-    }
-
-    @Test("A deferred Mac whose seed stopped at P0 with its own claim lapsed resumes it: the base's limit is its stored gzip, and the seed completes from where it was")
-    func resumesItsOwnLapsedSeedWithALargeBase() async throws {
+    @Test("A deferred Mac whose own claim lapsed resumes its seed: it did not start over, and the seed completes from where it was")
+    func resumesItsOwnLapsedSeed() async throws {
         let server = EngineTestDriver.server()
         let mac = try await C.seeder(server, name: "seed-deferred-resume")
         // A `deferred` activation whose catch-up ran, as the product owner's Mac after build 184's catch-up.
         try C.activate(mac.store, mode: "deferred", catchUpAt: 700_000_000)
-        let entry = Self.manyMarksEntry(3_000) { String(format: "%016x", $0) }
-        try mac.store.execute("INSERT INTO ck_legacy_snapshot (old_zone, record_name, change_tag, field_hashes) VALUES ('Knowledge', 'src-big', 'tag1', ?)", [.text(entry)])
-        try mac.store.execute("INSERT INTO ck_legacy_snapshot (old_zone, record_name, change_tag, field_hashes) VALUES ('Knowledge', 'src-s1', 'tag2', '{\"r\":{},\"w\":false}')")
-        try mac.store.replica.setEngineState("migration.token.private.Knowledge", Data([4]))
-        let decoded = MigrationBaseShards.encode(["Knowledge/src-big": try #require(MigrationBaseEntry(json: try SyncJSON(parsing: Data(entry.utf8))))])
-        #expect(decoded.count > SyncSchema.Limits.inlineSatelliteMaxBytes, "the shard's JSON is over the inline limit")
-        #expect(try SyncGzip.compress(decoded).count <= SyncSchema.Limits.inlineSatelliteMaxBytes, "its gzip is not")
 
         // Sends went out after the earlier stop released the hold: a source edited since the activation is on the server.
         try F.addSource(mac.store, "s4")
@@ -119,7 +61,7 @@ struct CutoverSeederTests {
         try await mac.engine.sendChanges()
         #expect(try mac.serverEnvelope(.source, "s4", zone: "Catalog") != nil)
 
-        // The root as the earlier launch left it: `seeding`, no base, and this Mac's claim lapsed an hour ago.
+        // The root as the earlier launch left it: `seeding`, and this Mac's claim lapsed an hour ago.
         let library = try #require(try await mac.local.perform { try BlobZone.resolve(zoneKey: PrivateSyncZones.libraryKey, in: $0) })
         var lapse = RecordPatch(.zoneRoot, id: SyncSchema.rootRecordName)
         lapse.changes["seedClaim"] = .value(CutoverSeeder.claimValue(device: mac.deviceID, at: C.clock().addingTimeInterval(-90 * 60)))
@@ -127,7 +69,6 @@ struct CutoverSeederTests {
         #expect(lapsed == .saved)
         let before = try C.root(server)
         #expect(CutoverRootState(root: before).state == "seeding")
-        #expect(CutoverRootState(root: before).hasBase == false)
         #expect(CutoverRootState(root: before).claimIsLive(at: SyncTime.milliseconds(C.clock())) == false)
         let startedAt = try #require(try C.seedMap(server)["startedAt"]?.int64Value)
 
@@ -138,43 +79,9 @@ struct CutoverSeederTests {
         #expect(seed["state"] == .string("complete"))
         #expect(seed["startedAt"]?.int64Value == startedAt, "the seed resumed: it did not start over")
         #expect(try C.root(server).fields["seedClaim"]?.objectValue?["device"] == .string(mac.deviceID), "its own claim, taken again")
-        #expect(try C.root(server).fields["legacyBase"]?.objectValue?.count == 64)
-        let base = try await C.baseEntries(mac)
-        #expect(base["Knowledge/src-big"]?.records.count == 3_000, "the large shard is on the server, inline")
-        #expect(base["Knowledge/src-s1"]?.changeTag == "tag2")
         for id in ["s1", "s2", "s3", "s4"] { #expect(try mac.serverEnvelope(.source, id, zone: "Catalog") != nil, "\(id) is in Catalog") }
         #expect(try mac.serverEnvelope(.notebook, "nb1") != nil)
         #expect(try mac.outboxRows() == 0)
-    }
-
-    @Test("A base shard whose stored gzip is over the inline limit still stops the seed at P0, before any record")
-    func incompressibleShardStopsP0() async throws {
-        let server = EngineTestDriver.server()
-        let mac = try await C.seeder(server, name: "seed-base-too-large")
-        // Hashes that do not repeat: about half a byte of gzip per character, so 6,000 Marks store well over 256 KiB.
-        let entry = Self.manyMarksEntry(6_000) { index in
-            SyncIdentity.sha256Hex(Data("target-\(index)".utf8)) + SyncIdentity.sha256Hex(Data("again-\(index)".utf8))
-        }
-        try mac.store.execute("INSERT INTO ck_legacy_snapshot (old_zone, record_name, change_tag, field_hashes) VALUES ('Knowledge', 'src-big', 'tag1', ?)", [.text(entry)])
-        let outcome = try await CutoverSeeder(C.environment(mac)).run()
-        guard case .stopped(.baseTooLarge(let shard)) = outcome else { Issue.record("P0 did not stop: \(outcome)"); return }
-        #expect(shard == MigrationBaseShards.name(forRecordName: "src-big"))
-        #expect(try mac.serverEnvelope(.notebook, "nb1") == nil, "no record before the base")
-    }
-
-    @Test("A store whose Knowledge zone was missing publishes a base that names no old zone")
-    func knowledgeMissingBaseNamesNoZone() async throws {
-        let server = EngineTestDriver.server()
-        let mac = try await C.seeder(server, name: "seed-missing")
-        try C.activate(mac.store, mode: "fresh", freshReason: "knowledgeMissing")
-        try mac.store.execute("INSERT INTO ck_legacy_snapshot (old_zone, record_name, change_tag, field_hashes) VALUES ('Knowledge', 'src-s1', 'tag1', '{\"r\":{},\"w\":false}')")
-        try mac.store.replica.setEngineState("migration.token.private.Knowledge", Data([9]))
-        _ = try await CutoverSeeder(C.environment(mac)).run()
-        let imports = try #require(try C.root(server).fields["legacyImport"]?.objectValue)
-        #expect(imports["zones"] == .array([]))
-        #expect(imports["tokens"]?.objectValue?.isEmpty == true)
-        #expect(try await C.baseEntries(mac).isEmpty)
-        #expect(try mac.serverEnvelope(.notebook, "nb1") != nil, "the library itself is still seeded")
     }
 
     @Test("A record takes its migrated time: the row's own, else the walk's start")

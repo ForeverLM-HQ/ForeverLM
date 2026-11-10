@@ -4,9 +4,9 @@ import Testing
 @testable import ForeverLM
 
 /// Who seeds (docs/cloudkit-schema-design.md §13.4 step 1): a Mac with no library never claims, a live
-/// claim is waited for, an expired one is taken over by a compare-and-set save (before the base save the new
-/// holder publishes its own snapshot, after it the new holder becomes the importer), and a root a Mac with
-/// no library left `pending` is claimed and seeded in reconcile mode.
+/// claim is waited for, an expired one is taken over by a compare-and-set save (the new holder reconciles
+/// against what the old one sent), and a root a Mac with no library left `pending` is claimed and seeded in
+/// reconcile mode.
 @Suite("Seed takeover", .serialized)
 struct SeedTakeoverTests {
     typealias C = CutoverSeedFixture
@@ -46,31 +46,28 @@ struct SeedTakeoverTests {
         #expect(try C.root(server).fields["seedClaim"]?.objectValue?["device"] == .string("macaaaaa"))
     }
 
-    @Test("A takeover before the base save publishes its own snapshot, and seeds")
-    func takeoverBeforeTheBase() async throws {
+    @Test("A takeover before any record was sent seeds the whole library")
+    func takeoverBeforeAnyRecord() async throws {
         let server = EngineTestDriver.server()
         _ = try await C.seeder(server, name: "tb-a")   // made the root and the claim, then slept before P0
         try Self.expireClaim(server)
         let b = try EngineTestDevice(server, name: "tb-b", deviceID: "macbbbbb", user: C.user, registry: KnowledgeStore.projectionRegistry)
         try C.activate(b.store)
         try C.addLibrary(b.store)
-        try b.store.execute("INSERT INTO ck_legacy_snapshot (old_zone, record_name, change_tag, field_hashes) VALUES ('Knowledge', 'src-b', 'tagB', '{\"r\":{},\"w\":false}')")
         try await b.bootstrap(.macHoldingLibrary)
-        #expect(try C.root(server).fields["legacyBase"] == nil)
 
         let outcome = try await CutoverSeeder(C.environment(b)).run()
         guard case .complete = outcome else { Issue.record("did not finish: \(outcome)"); return }
         let root = try C.root(server)
         #expect(root.fields["seedClaim"]?.objectValue?["device"] == .string("macbbbbb"))
-        #expect(Array(try await C.baseEntries(b).keys) == ["Knowledge/src-b"], "its own snapshot is the base")
         #expect(try b.serverEnvelope(.notebook, "nb1") != nil)
     }
 
-    @Test("After the base save the new holder refreshes and imports first, then reconciles what is there and finishes the seed once")
-    func takeoverAfterTheBase() async throws {
+    @Test("After the old holder sent part of P1 the new holder reconciles what is there and finishes the seed once")
+    func takeoverAfterPartOfTheSeed() async throws {
         let server = EngineTestDriver.server()
         let a = try await C.seeder(server, name: "ta-a")
-        // A publishes its base and sends part of P1, then is killed.
+        // A sends part of P1, then is killed.
         var killed = C.environment(a)
         killed.configuration.batchSize = 1
         let engine = a.engine
@@ -81,7 +78,6 @@ struct SeedTakeoverTests {
             try await engine.sendChanges()
         }
         await #expect(throws: CloudError.self) { _ = try await CutoverSeeder(killed).run() }
-        #expect(try C.root(server).fields["legacyBase"]?.objectValue?.count == 64)
         try Self.expireClaim(server)
         let heldByA = server.recordNames(zone: "Library", owner: C.user).count + server.recordNames(zone: "Catalog", owner: C.user).count
 
@@ -94,7 +90,7 @@ struct SeedTakeoverTests {
         let outcome = try await CutoverSeeder(environment).run()
         guard case .complete = outcome else { Issue.record("did not finish: \(outcome)"); return }
         let root = try C.root(server)
-        #expect(root.fields["seedClaim"]?.objectValue?["device"] == .string("macbbbbb"), "the new holder is the importer")
+        #expect(root.fields["seedClaim"]?.objectValue?["device"] == .string("macbbbbb"), "the new holder is the seeder")
         #expect(MaintenanceLease.holder(in: root)?.device == "macbbbbb")
         #expect(try C.seedMap(server)["state"] == .string("complete"))
         for id in ["s1", "s2", "s3"] { #expect(try b.serverEnvelope(.source, id, zone: "Catalog") != nil) }

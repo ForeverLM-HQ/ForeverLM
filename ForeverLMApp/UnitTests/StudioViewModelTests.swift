@@ -13332,7 +13332,7 @@ struct LibraryURLIndexTests {
         let vm = makeViewModel()
         let paper = makeArticle(url: "/Users/someone/Library/Papers/attention.pdf", title: "Paper", sourceType: .paper)
         let page = makeArticle(url: "https://www.Example.com/story/?utm_source=x", title: "Page")
-        let episode = makeArticle(url: "apple-podcast:/episode/1000758651501", title: "Episode", sourceType: .podcast)
+        let episode = makeArticle(url: "apple-podcast://episode/1000758651501", title: "Episode", sourceType: .podcast)
         vm.articles = [paper, page, episode]
 
         for index in 0..<200 {

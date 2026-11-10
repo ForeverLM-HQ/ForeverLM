@@ -325,16 +325,16 @@ struct ApplePodcastsListeningTests {
         #expect(try store.loadDayPlan("2026-10-08")?.activities.map(\.targetID) == [letBackIn.id])
     }
 
-    @Test("A play finds its episode by the keys the import dedups on, older spellings included")
+    @Test("A play finds its episode by the keys the import dedups on")
     func playFindsItsEpisodeLikeTheImport() throws {
         let store = try KnowledgeStore(inMemory: true)
         let playedAt = moment(day: 8, 14)
 
-        // Imported before the canonical form: the row normalized to "episode/<id>".
-        var legacy = StudioArticle(url: "apple-podcast:/episode/3001", title: "Legacy Row", sourceType: .podcast, id: "source-legacy-row")
-        legacy.normalizedURL = "episode/3001"
-        legacy.domain = "Field Notes"
-        try store.saveSource(legacy)
+        // A public episode saved under its canonical URL.
+        var publicEpisode = StudioArticle(url: "apple-podcast://episode/3001", title: "Public Row", sourceType: .podcast, id: "source-public-row")
+        publicEpisode.normalizedURL = URLNormalizer.normalize(publicEpisode.url)
+        publicEpisode.domain = "Field Notes"
+        try store.saveSource(publicEpisode)
 
         // A private-feed episode first imported under another identifier: show and title find it.
         var privateEpisode = StudioArticle(
@@ -345,11 +345,11 @@ struct ApplePodcastsListeningTests {
         try store.saveSource(privateEpisode)
 
         let recorded = try store.recordExternalListening([
-            listen("apple-podcast://episode/3001", at: playedAt, title: "Legacy Row"),
+            listen("apple-podcast://episode/3001", at: playedAt, title: "Public Row"),
             listen("apple-podcast://episode/private/9f2a", at: playedAt, title: "Members Q&A"),
         ], now: moment(day: 12, 9))
 
-        #expect(Set(recorded) == [legacy.id, privateEpisode.id])
+        #expect(Set(recorded) == [publicEpisode.id, privateEpisode.id])
     }
 
     @Test("A sync pass records plays inside the window, at the moment of each play")

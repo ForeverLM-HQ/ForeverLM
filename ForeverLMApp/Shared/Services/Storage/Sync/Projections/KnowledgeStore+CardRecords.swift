@@ -474,16 +474,12 @@ extension KnowledgeStore {
     }
 
     /// "This asks something else" on a card asked in `text`: that rewording taken out on the card's Card
-    /// (its element `retired`), so every device leaves it out. A card with no row gets one: an item from
-    /// before cards as not gone through yet, any other as kept.
+    /// (its element `retired`), so every device leaves it out. A card with no row gets one, as kept.
     func retireCardRecordVariant(cardID: String, text: String, at now: Date = Date()) throws {
         try inDerivationTransaction { store in
             let held = try store.cardRecordRows(cardID: cardID).first
-            let fromBeforeCards = try store.isCardFromBeforeCards(cardID)
             let before = held.map(Self.cardState)
-            var state = before ?? MemoryCardState(
-                status: fromBeforeCards ? .draft : .kept, memoryItemID: cardID, updatedAt: now
-            )
+            var state = before ?? MemoryCardState(status: .kept, memoryItemID: cardID, updatedAt: now)
             let words = text.trimmingCharacters(in: .whitespacesAndNewlines)
             state.variants.removeAll { $0.trimmingCharacters(in: .whitespacesAndNewlines) == words }
             if !state.retiredVariants.contains(where: { $0.trimmingCharacters(in: .whitespacesAndNewlines) == words }) {
@@ -493,12 +489,6 @@ extension KnowledgeStore {
             let deck = held?.deckSource ?? item?.sources.min { ($0.sortIndex, $0.id) < ($1.sortIndex, $1.id) }?.sourceID
             try store.writeCardRecordState(id: cardID, CardStateChange(before: before, after: state), deckSourceID: deck, at: now)
         }
-    }
-
-    /// Whether `itemID` is an item from before cards: its rubric carries no card.
-    func isCardFromBeforeCards(_ itemID: String) throws -> Bool {
-        guard let item = try loadMemoryItem(itemID) else { return false }
-        return MemoryCard(storedIn: item) == nil
     }
 
     /// A draft kept here: its Card says kept at once, in the transaction after its item's, so a read of the
@@ -599,31 +589,6 @@ extension KnowledgeStore {
                     ])
                 }
             }
-        }
-    }
-
-    /// Every active item from before cards that no row says was gone through, as a row that says it is
-    /// not yet (`draft`, on its first anchor's deck): To Check offers it until it is, and a Card of it
-    /// arriving from another device (which says `kept`, since its item exists) does not take it out of
-    /// this Mac's To Check (`CardProjection.applyFields`). Idempotent.
-    func deriveLegacyCardsToCheck() throws {
-        var items: [(id: String, rubric: String, source: String?)] = []
-        try query("""
-            SELECT i.id, i.rubric_json,
-                   (SELECT a.source_id FROM memory_item_sources a WHERE a.memory_item_id = i.id ORDER BY a.sort_index, a.id LIMIT 1)
-            FROM memory_items i
-            WHERE i.status = 'active' AND NOT EXISTS (SELECT 1 FROM memory_card_states s WHERE s.card_id = i.id)
-            ORDER BY i.id
-        """, []) { row in
-            if let id = row.text(0) { items.append((id, row.text(1) ?? "{}", row.text(2))) }
-        }
-        for item in items {
-            let object = (try? JSONSerialization.jsonObject(with: Data(item.rubric.utf8))) as? [String: Any]
-            guard object?[MemoryCard.cardKey] == nil, let source = item.source else { continue }
-            try execute("""
-                INSERT INTO memory_card_states (card_id, status, deck_source_id, variants_json, always_ask) VALUES (?, 'draft', ?, '{}', 0)
-                ON CONFLICT(card_id) DO NOTHING
-            """, [.text(item.id), .text(source)])
         }
     }
 }

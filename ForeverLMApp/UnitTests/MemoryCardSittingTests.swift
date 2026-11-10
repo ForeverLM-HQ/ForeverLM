@@ -294,8 +294,8 @@ struct MemoryCardSittingTests {
         // The card names a team copy whose own twin the notebook holds.
         #expect(scope.contains(card("on-copy-2", keptAt: Date(), sourceID: "team-copy-2")))
         #expect(!scope.contains(card("elsewhere", keptAt: Date(), sourceID: "s-elsewhere")))
-        // An item from before cards made with the notebook, or one of its
-        // Goals, as its goal is filed there.
+        // A card made with the notebook, or one of its Goals, as its goal is
+        // filed there.
         #expect(scope.contains(card("goal", keptAt: Date(), sourceID: "s-elsewhere", goalID: "nb")))
         #expect(scope.contains(card("nested-goal", keptAt: Date(), sourceID: "s-elsewhere", goalID: "goal-in-nb")))
         #expect(!scope.contains(card("other-goal", keptAt: Date(), sourceID: "s-elsewhere", goalID: "other")))
@@ -415,12 +415,6 @@ struct MemoryCardSittingTests {
             )
         }
         let toKeep = draft("keep-me"), toSkip = draft("skip-me"), toEdit = draft("edit-me")
-        let legacy = MemoryCardToCheck(
-            kind: .legacy, face: MemoryCard(cardID: "legacy", front: "Q", back: "A", origin: .legacy),
-            deckID: "carddeck-src", sourceID: "src", quote: "q", seed: nil, ideaID: nil,
-            draftedAt: nil, isRequested: false, memoryItemID: "legacy"
-        )
-        #expect(MemoryCardSitting.Card.draft(legacy) == nil, "an item from before cards is kept already")
         let keepCard = try #require(MemoryCardSitting.Card.draft(toKeep))
         #expect(keepCard.itemID == MemoryTutorIdentity.cardItemID(cardID: "keep-me"), "asked under the item Keep makes of it")
         #expect(keepCard.prompt == "Front keep-me")
@@ -711,8 +705,7 @@ struct MemoryCardSittingTests {
         }
         let older = try store.keepMemoryCard(drafted("older"), sourceID: "src-1", quote: "couple respiration to ATP synthesis", at: yesterday.addingTimeInterval(-day))
         let keptToday = try store.keepMemoryCard(drafted("today"), sourceID: "src-1", quote: "Uncoupling proteins let protons leak back", at: now)
-        // An item from before cards that no attempt reached and no separator
-        // splits has no face, and is no card.
+        // An item that carries no card has no face, and is no card.
         try store.saveMemoryItem(MemoryItem(
             id: "faceless", kind: .concept, target: "A target to recall",
             rubricJSON: #"{"criteria":["recall"]}"#,

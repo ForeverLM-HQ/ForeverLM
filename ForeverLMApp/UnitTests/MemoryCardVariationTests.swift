@@ -231,13 +231,12 @@ struct MemoryCardVariationTests {
         #expect(varied.variantIndex == 0)
         #expect(varied.isFirstVariedServe)
         #expect(!varied.alwaysAsk)
-        #expect(!varied.isFromBeforeCards)
         let held = try #require(MemoryCardSitting.Card.dealt(entry, attempts: attempts) { _ in row(variants: [firstVariant], alwaysAsk: true) })
         #expect(held.prompt == front)
         #expect(held.alwaysAsk)
     }
 
-    @Test("Always ask it this way is written in the card's row; an item from before cards with no row still waits in To Check")
+    @Test("Always ask it this way is written in the card's row")
     @MainActor
     func alwaysAskRow() throws {
         let suite = "foreverlm-test-\(UUID().uuidString)"
@@ -249,24 +248,16 @@ struct MemoryCardVariationTests {
         #expect(kept.cards["card-a"]?.alwaysAsk == false)
         let on = MemoryCardStateStore.setAlwaysAsk(
             true, cardID: "card-a", memoryItemID: "item-a", deckID: "carddeck-src-1",
-            isFromBeforeCards: false, at: keptAt.addingTimeInterval(day), defaults: defaults
+            at: keptAt.addingTimeInterval(day), defaults: defaults
         )
         #expect(on.cards["card-a"]?.alwaysAsk == true)
         #expect(on.cards["card-a"]?.variants == [firstVariant], "its rewordings are kept for when it may vary again")
         #expect(on.cards["card-a"]?.updatedAt == keptAt.addingTimeInterval(day))
         let off = MemoryCardStateStore.setAlwaysAsk(
             false, cardID: "card-a", memoryItemID: "item-a", deckID: "carddeck-src-1",
-            isFromBeforeCards: false, at: keptAt.addingTimeInterval(2 * day), defaults: defaults
+            at: keptAt.addingTimeInterval(2 * day), defaults: defaults
         )
         #expect(off.cards["card-a"]?.alwaysAsk == false)
-
-        let legacy = MemoryCardStateStore.setAlwaysAsk(
-            true, cardID: "legacy-1", memoryItemID: "legacy-1", deckID: "carddeck-src-1",
-            isFromBeforeCards: true, defaults: defaults
-        )
-        #expect(legacy.cards["legacy-1"]?.status == .draft)
-        #expect(legacy.cards["legacy-1"]?.alwaysAsk == true)
-        #expect(MemoryCardStateStore.state(cardID: "legacy-1", deckID: "carddeck-src-1", defaults: defaults)?.alwaysAsk == true)
     }
 }
 

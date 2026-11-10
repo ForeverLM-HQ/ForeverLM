@@ -447,40 +447,6 @@ enum EPUBParser {
         return result
     }
 
-    /// Older imports wrote HTML5 doctype lines into combined chapter files. Remove
-    /// them in place so future loads use `loadFileURL` with correct relative paths.
-    static func repairLegacyCombinedChapterDoctype(in chaptersDir: String) {
-        let combinedDir = (chaptersDir as NSString).appendingPathComponent(combinedChaptersFolder)
-        guard FileManager.default.fileExists(atPath: combinedDir),
-              let enumerator = FileManager.default.enumerator(atPath: combinedDir) else { return }
-
-        for case let name as String in enumerator {
-            guard name.lowercased().hasSuffix(".xhtml") else { continue }
-            let path = (combinedDir as NSString).appendingPathComponent(name)
-            repairLegacyCombinedChapterDoctype(at: path)
-        }
-    }
-
-    static func repairLegacyCombinedChapterDoctype(at chapterPath: String) {
-        guard chapterPath.contains(combinedChaptersFolder),
-              chapterPath.lowercased().hasSuffix(".xhtml"),
-              var html = try? String(contentsOfFile: chapterPath, encoding: .utf8) else { return }
-
-        let trimmed = html.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.lowercased().hasPrefix("<!doctype html>") else { return }
-
-        if let newline = html.firstIndex(of: "\n") {
-            html.removeSubrange(html.startIndex...newline)
-        } else {
-            html = html.replacingOccurrences(
-                of: "<!doctype html>",
-                with: "",
-                options: [.caseInsensitive, .anchored]
-            )
-        }
-        try? html.write(toFile: chapterPath, atomically: true, encoding: .utf8)
-    }
-
     private static func combinedChapterHTML(title: String, chapterFiles: [String], combinedPath: String) -> String {
         let combinedDir = (combinedPath as NSString).deletingLastPathComponent
         let fragments = chapterFiles.compactMap { path -> String? in
