@@ -65,18 +65,6 @@ struct DayPlanTests {
         #expect(stranger.purpose == .work)
     }
 
-    @Test("The day's memory review block is drawn as a review; the closing block is work")
-    func drawnBlocksCarryTheirPurpose() throws {
-        let review = try #require(DayPlan.memoryReviewBlock(for: "2026-09-19", among: [], minutes: 15, earliestMinute: 540))
-        #expect(review.purpose == .review)
-        #expect(review.sourceIDs.isEmpty, "the one review drawn without sources: it reviews the day's memory")
-        #expect(DayPlan.isMemoryReviewTitle(review.title))
-        #expect(DayPlan.isMemoryReviewTitle("  memory review "))
-        #expect(!DayPlan.isMemoryReviewTitle("Review GDF15"))
-        let closing = try #require(DayPlan.closingBlock(for: "2026-09-19", after: [review]))
-        #expect(closing.purpose == .work)
-    }
-
     @Test("A block's location and notes give up their web links as buttons, named for the meeting service")
     func blockLinks() {
         let zoom = "https://us05web.zoom.us/j/12345678901?pwd=ExAmPlEpAsScOdEeXaMpLePaSsCoDe.1"
@@ -84,13 +72,11 @@ struct DayPlanTests {
         var block = TimeBlock(dayPlanID: "2026-09-19", startMinute: 510, endMinute: 550, title: "Weekly lab sync", location: zoom)
         #expect(block.links.map(\.label) == ["Join Zoom"])
         #expect(block.links.first?.url.absoluteString == zoom)
-        #expect(block.locationText == nil, "a link is the Join button, not a line of the editor")
         // A link the learner wrote into the notes is a button too, after the calendar's, and once.
         block.notes = "Ask about the atlas: https://www.example.org/agenda and \(zoom)"
         #expect(block.links.map(\.label) == ["Join Zoom", "Open example.org"])
-        // A room is a line, not a button; a hand-drawn block has neither.
+        // A room is not a button; a hand-drawn block has neither.
         block.location = "Room 4.12, Oxford"
-        #expect(block.locationText == "Room 4.12, Oxford")
         #expect(block.links.map(\.label) == ["Open example.org", "Join Zoom"])
         #expect(TimeBlock(dayPlanID: "2026-09-19", startMinute: 510, endMinute: 550, title: "Write").links.isEmpty)
 
@@ -115,36 +101,6 @@ struct DayPlanTests {
         #expect(DayModel.selection(afterDayChange: "2026-09-08", from: "2026-09-10", to: "2026-09-11") == "2026-09-08")
         // The clock can also move backwards (a time-zone change, a corrected clock).
         #expect(DayModel.selection(afterDayChange: "2026-09-11", from: "2026-09-11", to: "2026-09-10") == "2026-09-10")
-    }
-
-    @Test("A sitting is drawn in the block that held most of it, cut to the block, or in the free stretch between blocks that did")
-    func activityPlacements() {
-        // The product owner's 2026-09-20 clock: the TCA block at 13:15 had TCA reading beside it in the old lane and read as a failed plan.
-        let date = "2026-09-20"
-        let tca = TimeBlock(dayPlanID: date, startMinute: 795, endMinute: 870, title: "TCA cycle measurements")
-        let waypoint = TimeBlock(dayPlanID: date, startMinute: 945, endMinute: 1080, title: "Grant writing")
-        func sitting(_ id: String, _ start: Int, _ end: Int) -> DayActivitySitting {
-            DayActivitySitting(id: id, groupID: id, kind: .reading, title: id, startMinute: start, endMinute: end, spans: [])
-        }
-        let mito = sitting("mito", 779, 820)   // 12:59–13:40: 25 minutes inside the block, 16 before it
-        let chat = sitting("chat", 818, 845)   // wholly inside
-        let early = sitting("early", 920, 950) // 15:20–15:50: 5 inside the writing block, 25 in the stretch before it
-        let free = sitting("free", 648, 680)   // 10:48–11:20, no block near
-        let placed = DayPlanDetail.activityPlacements([mito, chat, early, free], blocks: [tca, waypoint], clockStartMinute: 360, clockEndMinute: 1440)
-        #expect(placed["mito"] == DayActivityPlacement(host: .block(id: tca.id), drawnStartMinute: 795, drawnEndMinute: 820))
-        #expect(placed["chat"] == DayActivityPlacement(host: .block(id: tca.id), drawnStartMinute: 818, drawnEndMinute: 845))
-        #expect(placed["early"] == DayActivityPlacement(host: .free(startMinute: 870, endMinute: 945), drawnStartMinute: 920, drawnEndMinute: 945))
-        #expect(placed["free"] == DayActivityPlacement(host: .free(startMinute: 360, endMinute: 795), drawnStartMinute: 648, drawnEndMinute: 680))
-        // A tie goes to the block: the plan's frame is the better host.
-        let tie = sitting("tie", 860, 880)
-        #expect(DayPlanDetail.activityPlacements([tie], blocks: [tca], clockStartMinute: 0, clockEndMinute: 1440)["tie"]?.blockID == tca.id)
-        // Of two blocks the one holding more of it wins, and the card is cut to that one.
-        let straddle = sitting("straddle", 860, 960)
-        #expect(DayPlanDetail.activityPlacements([straddle], blocks: [tca, waypoint], clockStartMinute: 0, clockEndMinute: 1440)["straddle"]
-            == DayActivityPlacement(host: .free(startMinute: 870, endMinute: 945), drawnStartMinute: 870, drawnEndMinute: 945))
-        // A sitting with no minutes goes where its start falls.
-        let point = sitting("point", 800, 800)
-        #expect(DayPlanDetail.activityPlacements([point], blocks: [tca], clockStartMinute: 0, clockEndMinute: 1440)["point"]?.blockID == tca.id)
     }
 
     @Test("A sitting's card counts its lines and columns")
@@ -182,12 +138,12 @@ struct DayPlanTests {
             DayActivity(id: "a", dayPlanID: "d", startMinute: 8 * 60 + 23, endMinute: 8 * 60 + 30, kind: .reading, targetID: "s", title: "S"),
             DayActivity(id: "b", dayPlanID: "d", startMinute: 16 * 60 + 45, endMinute: 16 * 60 + 50, kind: .reading, targetID: "s", title: "S"),
         ])
-        let sittings = DayPlanDetail.activitySittings(groups)
+        let sittings = groups.flatMap(\.sittings)
         #expect(DayActivityBySourceView.axisHours(sittings) == 8...17)
         #expect(DayActivityBySourceView.axisHours([]) == nil)
-        let onTheHour = DayPlanDetail.activitySittings(DayPlanDetail.activityGroups([
+        let onTheHour = DayPlanDetail.activityGroups([
             DayActivity(id: "c", dayPlanID: "d", startMinute: 9 * 60, endMinute: 9 * 60 + 5, kind: .reading, targetID: "u", title: "U"),
-        ]))
+        ]).flatMap(\.sittings)
         #expect(DayActivityBySourceView.axisHours(onTheHour) == 9...10)
         #expect(DayActivityBySourceView.labelStride(pointsPerHour: 120) == 1)
         #expect(DayActivityBySourceView.labelStride(pointsPerHour: 30) == 2)
@@ -268,9 +224,6 @@ struct DayPlanTests {
         #expect(groups[3].kind == .watching && groups[3].title == "Jared Rutter 2")
         // The two one-minute things are glances and leave the lane.
         #expect(groups.filter(\.isGlance).map(\.id) == ["source/src_50ae", "chat/chat_browser"])
-        #expect(DayPlanDetail.activitySittings(groups).map(\.id) == [
-            "source/src_59cc@883", "source/src_0837@933", "source/src_59cc@1129", "source/src_6268@1130", "chat/chat_rutter@1133", "source/src_59cc@1239",
-        ])
         #expect(DayPlanDetail.activityGroups([]).isEmpty)
         // Without the chat's sources the chat is its own thing, titled from the chat.
         let unlinked = DayPlanDetail.activityGroups(Self.september10)
@@ -350,12 +303,6 @@ struct DayPlanTests {
         ])
         #expect(detail.loggedMinutesByKind == [.reading: 100, .chat: 25])
         #expect(DayActivityText.loggedSummary(detail) == "Reading 1h 40m · Chat 25m")
-        // The lane widens the hours the clock opens on the way blocks do.
-        #expect(detail.focusHourRange() == 7...19)
-        let late = DayPlanDetail(plan: plan, blocks: [], activities: [
-            DayActivity(dayPlanID: plan.id, startMinute: 21 * 60 + 10, endMinute: 21 * 60 + 40, kind: .doc, targetID: "d", title: "D"),
-        ])
-        #expect(late.focusHourRange() == 7...22)
     }
 
     @Test("An observation continues a span within the merge gap and links back to what it saw")
@@ -399,34 +346,6 @@ struct DayPlanTests {
         let drawn = TimeBlock(dayPlanID: "2026-09-09", startMinute: 660, endMinute: 720, title: "Read", revision: 2)
         let detail = DayPlanDetail(plan: DayPlan(date: "2026-09-09", revision: 2), blocks: [left, tombstoned, drawn])
         #expect(detail.currentBlocks.map(\.id) == [drawn.id], "a day an older build redrew reads as its last column")
-    }
-
-    @Test("The day's minutes count every block not skipped, done ones once done; overdue needs an open block past its end plus grace")
-    func metricsAndOverdue() {
-        let plan = DayPlan(date: "2026-09-09")
-        var deep = TimeBlock(dayPlanID: plan.id, startMinute: 540, endMinute: 660, title: "Deep")
-        var shallow = TimeBlock(dayPlanID: plan.id, startMinute: 660, endMinute: 690, title: "Email")
-        var detail = DayPlanDetail(plan: plan, blocks: [deep, shallow])
-        #expect(detail.minutesPlanned == 150)
-        #expect(detail.minutesDone == 0)
-        deep.status = .done
-        detail = DayPlanDetail(plan: plan, blocks: [deep, shallow])
-        #expect(detail.minutesDone == 120)
-        // A skipped block leaves the plan's count.
-        shallow.status = .skipped
-        detail = DayPlanDetail(plan: plan, blocks: [deep, shallow])
-        #expect(detail.minutesPlanned == 120)
-        shallow.status = .planned
-        detail = DayPlanDetail(plan: plan, blocks: [deep, shallow])
-        // Email ended at 11:30; at 11:35 it is merely running long, at 11:45 it is overdue.
-        #expect(detail.overdueBlocks(atMinute: 695).isEmpty)
-        #expect(detail.overdueBlocks(atMinute: 705).map(\.title) == ["Email"])
-        #expect(detail.block(atMinute: 600)?.title == "Deep")
-        #expect(detail.focusHourRange() == 7...19)
-        let late = TimeBlock(dayPlanID: plan.id, startMinute: 20 * 60 + 30, endMinute: 22 * 60 + 15, title: "Late")
-        #expect(DayPlanDetail(plan: plan, blocks: [late]).focusHourRange() == 7...23)
-        // Whatever the day holds, the day itself has all of it.
-        #expect(DayPlan.dayHourRange == 0...24)
     }
 
     @Test("The clock draws the learner's day window, widened to hold whatever the day contains")
@@ -492,7 +411,6 @@ struct DayPlanTests {
         #expect(tca.openNote(nowMinute: 930, dayIsShut: false) == .runningLong(minutesOver: 60), "an hour over a one-hour block is still running long")
         #expect(tca.openNote(nowMinute: 931, dayIsShut: false) == .leftOpen(endMinute: 870), "a minute more than its own length: it did not happen")
         #expect(tca.openNote(nowMinute: 1335, dayIsShut: false)?.text == "Not closed out · ended 14:30")
-        #expect(tca.openNote(nowMinute: 1335, dayIsShut: false)?.isRunningLong == false, "a question, not an alarm")
         // Once the day is shut nothing is running: a block that has begun is left open at once, one not yet begun says nothing.
         #expect(tca.openNote(nowMinute: 850, dayIsShut: true) == .leftOpen(endMinute: 870))
         #expect(tca.openNote(nowMinute: 800, dayIsShut: true) == nil)
@@ -537,42 +455,6 @@ struct DayPlanTests {
         #expect(span.isOngoing(atMinute: 1093), "the reader writes its time every two minutes")
         #expect(!span.isOngoing(atMinute: 1094))
         #expect(!span.isOngoing(atMinute: 1070), "a span that has not begun is not going")
-    }
-
-    @Test("The free time of a day is read around a minute, forward from one, and as the nearest start for a length")
-    func freeTime() throws {
-        let date = "2026-09-19"
-        let read = TimeBlock(id: "read", dayPlanID: date, startMinute: 540, endMinute: 600, title: "Read")
-        let standup = TimeBlock(id: "standup", dayPlanID: date, startMinute: 660, endMinute: 720, title: "Standup")
-        var gone = TimeBlock(id: "gone", dayPlanID: date, startMinute: 600, endMinute: 660, title: "Deleted")
-        gone.deletedAt = Date()
-        let all = [read, standup, gone]
-
-        // Around a minute: the gap it is in; a deleted row is no wall.
-        #expect(DayPlan.freeStretch(around: 630, among: all) == 600...660)
-        #expect(DayPlan.freeStretch(around: 100, among: all) == 0...540)
-        #expect(DayPlan.freeStretch(around: 900, among: all) == 720...1440)
-        #expect(DayPlan.freeStretch(around: 570, among: all) == nil)
-        // The moment a block ends is free; the moment it starts is not.
-        #expect(DayPlan.freeStretch(around: 600, among: all) == 600...660)
-        #expect(DayPlan.freeStretch(around: 660, among: all) == nil)
-        // Forward from a minute: pushed past the block that holds it.
-        #expect(DayPlan.firstFreeStretch(from: 570, among: all) == 600...660)
-        #expect(DayPlan.firstFreeStretch(from: 630, among: all) == 630...660)
-        #expect(DayPlan.firstFreeStretch(from: 1439, among: all) == nil)
-        // A gap too small to hold the minimum block is skipped.
-        let tight = TimeBlock(id: "tight", dayPlanID: date, startMinute: 603, endMinute: 660, title: "Tight")
-        #expect(DayPlan.firstFreeStretch(from: 570, among: [read, tight, standup]) == 720...1440)
-
-        // The nearest start for a length: ties go to the earlier one.
-        #expect(DayPlan.nearestFreeStart(forDuration: 60, near: 630, among: all) == 600)
-        #expect(DayPlan.nearestFreeStart(forDuration: 30, near: 630, among: all) == 630)
-        #expect(DayPlan.nearestFreeStart(forDuration: 90, near: 630, among: all) == 720)
-        #expect(DayPlan.nearestFreeStart(forDuration: 60, near: 690, among: all) == 720)
-        // Nothing that long anywhere: nil.
-        let day = TimeBlock(id: "day", dayPlanID: date, startMinute: 0, endMinute: 1400, title: "All day")
-        #expect(DayPlan.nearestFreeStart(forDuration: 60, near: 700, among: [day]) == nil)
-        #expect(DayPlan.nearestFreeStart(forDuration: 30, near: 700, among: [day]) == 1400)
     }
 
     // MARK: - Storage
@@ -763,7 +645,7 @@ struct DayPlanTests {
         #expect(try store.loadDayPlan(date)?.plan.notes == "Ideas: revisit the atlas")
 
         try store.setDayPlanShutdown(date, at: Date())
-        #expect(try store.loadDayPlan(date)?.plan.isShutDown == true)
+        #expect(try store.loadDayPlan(date)?.plan.shutdownAt != nil)
 
         _ = try store.reviseDayPlan(date, replacing: [block.id], replacements: [
             TimeBlock(dayPlanID: date, startMinute: 480, endMinute: 660, title: "Read, longer"),

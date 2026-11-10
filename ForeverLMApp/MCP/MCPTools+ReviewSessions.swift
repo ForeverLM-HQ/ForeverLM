@@ -1,10 +1,6 @@
 import CryptoKit
 import Foundation
-import ImageIO
-import Network
 import OSLog
-import PDFKit
-import SQLite3
 
 private struct PreparedMCPMemoryReview {
     let items: [MemoryItem]
@@ -1244,7 +1240,7 @@ extension MCPDataStore {
         let withFraction = ISO8601DateFormatter()
         withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         if let date = withFraction.date(from: trimmed) { return date }
-        return ISO8601DateFormatter().date(from: trimmed)
+        return KnowledgeStore.iso8601Formatter.date(from: trimmed)
     }
 
     static func reviewSessionID(from argument: Any?) -> String {

@@ -253,10 +253,6 @@ extension StudioViewModel {
         })
     }
 
-    var hasHiddenVideoPlaylistItems: Bool {
-        !hiddenVideoPlaylistGroupNames.isEmpty
-    }
-
     func orderedVideoPlaylistNames(_ names: [String]) -> [String] {
         names.sorted { videoPlaylistDisplayName($0).localizedStandardCompare(videoPlaylistDisplayName($1)) == .orderedAscending }
     }

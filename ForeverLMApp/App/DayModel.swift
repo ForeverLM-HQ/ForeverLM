@@ -464,11 +464,6 @@ final class DayModel {
 /// back through `refresh()`, so the chip, the Today menu, an MCP call from a
 /// chat and the other Mac all republish the same way.
 extension DayModel {
-    /// The bout owed a write-up, when that is where the live one has got to.
-    var boutAwaitingWriteUp: LearningBout? {
-        guard let liveBout, liveBout.phase() == .writing else { return nil }
-        return liveBout
-    }
 
     var isBoutRunning: Bool { liveBout?.phase() == .learning }
 

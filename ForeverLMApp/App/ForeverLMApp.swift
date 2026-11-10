@@ -1241,7 +1241,7 @@ struct ForeverLMApp: App {
 /// restored independently by SwiftUI.
 private struct StudioWindowRoot: View {
     @State private var windowState = StudioWindowState()
-    @SceneStorage("studio.window.workspace.v1") private var encodedSnapshot = ""
+    @SceneStorage(StudioWindowState.sceneStorageKey) private var encodedSnapshot = ""
     @State private var hasRestoredSnapshot = false
     /// The beta sign-up (`BetaFeatures`): when it turns off, here, from MCP or
     /// on another Mac, a Canvas or Atlas pane on screen leaves the window.

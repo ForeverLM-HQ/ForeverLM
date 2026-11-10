@@ -501,7 +501,7 @@ export const CANVAS_VERSION_TOOL_NAMES: readonly string[] = [
 
 /// The tools that list the learner's lists of goals and ideas in the Space and
 /// make, rename, file, pin, fill, trash or delete one on their word
-/// (`MCPToolRegistry.spaceListToolNames`).
+/// (the Space-list tools in `MCPTools+SpaceLists.swift`).
 export const SPACE_LIST_TOOL_NAMES: readonly string[] = [
   "list_space_lists",
   "create_space_list",

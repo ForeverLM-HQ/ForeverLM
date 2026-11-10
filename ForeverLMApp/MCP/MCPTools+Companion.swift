@@ -1,8 +1,4 @@
 import Foundation
-import ImageIO
-import OSLog
-import PDFKit
-import SQLite3
 
 extension MCPDataStore {
 
@@ -380,7 +376,7 @@ extension MCPDataStore {
                 ? "No Notebooks yet. Create one with create_notebook."
                 : "No active Learning Companion goals. Create one with create_learning_goal."
         }
-        return try jsonString(["goals": headlines, "generated_at": ISO8601DateFormatter().string(from: Date())])
+        return try jsonString(["goals": headlines, "generated_at": KnowledgeStore.iso8601Formatter.string(from: Date())])
     }
 
     /// List timebound Goals. With a `notebookID`, only the Goals tagged to that
@@ -409,7 +405,7 @@ extension MCPDataStore {
         let note = goalIDs.isEmpty
             ? "Every placement is forgotten; the Goals read by deadline again."
             : "Placed \(min(goalIDs.count, order.count)) Goal\(goalIDs.count == 1 ? "" : "s") first; the rest follow in the order they already read."
-        return try jsonString(["note": note, "goals": rows, "generated_at": ISO8601DateFormatter().string(from: Date())])
+        return try jsonString(["note": note, "goals": rows, "generated_at": KnowledgeStore.iso8601Formatter.string(from: Date())])
     }
 
     func listNotebookGoals(notebookID: String?, includeCompleted: Bool = false) throws -> String {
@@ -445,7 +441,7 @@ extension MCPDataStore {
             }
             return "Notebook ‘\(scopedNotebook.title)’ has no Goals yet. Create one with create_learning_goal and notebook_id \(scopedNotebook.id)."
         }
-        return try jsonString(["goals": headlines, "generated_at": ISO8601DateFormatter().string(from: Date())])
+        return try jsonString(["goals": headlines, "generated_at": KnowledgeStore.iso8601Formatter.string(from: Date())])
     }
 
     func reviewSuggestedSources(goalID: String, approve: [String], reject: [String]) throws -> String {
@@ -672,7 +668,7 @@ extension MCPDataStore {
             "open_gaps": gapItems,
             "pending_suggestions": suggestionItems,
             "discovery_note": discoveryNote,
-            "generated_at": ISO8601DateFormatter().string(from: now),
+            "generated_at": KnowledgeStore.iso8601Formatter.string(from: now),
         ]
         if startSession, let sessionID {
             payload["session_id"] = sessionID
@@ -878,7 +874,7 @@ extension MCPDataStore {
             "memory_items": memoryItems,
             "items": refreshItems,
             "new_items": newItems,
-            "generated_at": ISO8601DateFormatter().string(from: session.startedAt),
+            "generated_at": KnowledgeStore.iso8601Formatter.string(from: session.startedAt),
             "context": contextItems,
             "instructions": Self.memoryReviewSessionInstructions,
         ]
@@ -944,7 +940,7 @@ extension MCPDataStore {
         if let struggleProjection, !struggleProjection.evidence.isEmpty {
             dict["prior_struggles"] = struggleProjection.evidence.map { attempt in
                 var evidence: [String: Any] = [
-                    "attempted_at": ISO8601DateFormatter().string(from: attempt.attemptedAt),
+                    "attempted_at": KnowledgeStore.iso8601Formatter.string(from: attempt.attemptedAt),
                     "grade_state": attempt.gradeState.rawValue,
                     "prior_question": String(attempt.prompt.prefix(1_000)),
                     "prior_learner_answer": String(attempt.learnerAnswer.prefix(1_000)),
@@ -1248,7 +1244,7 @@ extension MCPDataStore {
             "memory_items": memoryItems,
             "items": items,
             "new_items": newItemPayload,
-            "generated_at": ISO8601DateFormatter().string(from: now),
+            "generated_at": KnowledgeStore.iso8601Formatter.string(from: now),
         ]
         if let goalInfo { payload["goal"] = goalInfo }
         if startSession, let sessionID {
@@ -1366,7 +1362,7 @@ extension MCPDataStore {
             "done_today": plan.doneToday,
             "date": todayISO,
             "items": items,
-            "generated_at": ISO8601DateFormatter().string(from: now),
+            "generated_at": KnowledgeStore.iso8601Formatter.string(from: now),
         ]
         if startSession, let sessionID {
             payload["session_id"] = sessionID

@@ -174,18 +174,4 @@ extension StudioViewModel {
         let lectures = Set(result.placements.map(\.lectureID)).count
         return "\(courseTitle): \(readings) reading\(readings == 1 ? "" : "s") from \(result.bookTitle) across \(lectures) lecture\(lectures == 1 ? "" : "s")."
     }
-
-    /// Opens a reading in the Reader: the chapter, at its first page, with the
-    /// opening section's heading marked when the page carries it.
-    func openTextbookReading(_ reading: CourseTextbookReading, in windowState: StudioWindowState) {
-        let chapterID = reading.chapter.id
-        windowState.sidebarSelectedSourceIDs = [chapterID]
-        readerPoppedOut = false
-        Task {
-            await selectArticle(chapterID, in: windowState, revealingReader: true)
-            if let pages = reading.pages {
-                requestReaderPassage(reading.openingHeading, page: pages.lowerBound, for: chapterID)
-            }
-        }
-    }
 }

@@ -1433,11 +1433,6 @@ enum EmbeddingSettings {
     /// Vector dimensions produced by the model.
     static var dimensions: Int { contextualDimensions }
 
-    /// Hard token cap of the contextual model. Input beyond this is silently dropped
-    /// by the framework — a passage past the cap embeds identically no matter what
-    /// follows — so chunking must keep every chunk under it.
-    static let maximumSequenceLength = 256
-
     /// Chunk sizing, in words, derived from the token cap. English runs ~1.7 subword
     /// tokens per word, so ~120 words of body plus a title prefix lands near 215
     /// tokens: comfortably inside 256 with room for long titles.

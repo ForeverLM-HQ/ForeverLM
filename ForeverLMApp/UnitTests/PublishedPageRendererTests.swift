@@ -87,17 +87,6 @@ struct PublishedPageRendererTests {
         #expect(elapsed < .milliseconds(500), "a 40-section page took \(elapsed)")
     }
 
-    @Test("The bundle declares the renderer version its manifest was built at")
-    func rendererVersionMatchesTheManifest() async throws {
-        let manifestURL = try #require(PublishedPageRenderer.bundledManifestURL)
-        let manifest = try JSONSerialization.jsonObject(with: Data(contentsOf: manifestURL)) as? [String: Any]
-        let declared = try #require(manifest?["renderer_version"] as? Int)
-        let version = try await PublishedPageRenderer().rendererVersion()
-        #expect(version == declared)
-        let sources = try #require(manifest?["sources"] as? [String: String])
-        #expect(Set(sources.keys) == ["docs-site/website/publishing/page.ts", "docs-site/website/publishing/markdown.ts"])
-    }
-
     @Test("A bundle that throws is reported as a failure, not shown as a page")
     func brokenBundleIsAFailure() async {
         let renderer = PublishedPageRenderer(script: "throw new Error('boom')")

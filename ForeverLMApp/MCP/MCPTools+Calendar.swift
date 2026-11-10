@@ -372,7 +372,7 @@ extension MCPDataStore {
         ]
         if let owner = item.owner { payload["owner"] = owner }
         if let due = item.dueHint { payload["due"] = due }
-        if let doneAt = item.doneAt { payload["done_at"] = ISO8601DateFormatter().string(from: doneAt) }
+        if let doneAt = item.doneAt { payload["done_at"] = KnowledgeStore.iso8601Formatter.string(from: doneAt) }
         return payload
     }
 
@@ -459,7 +459,7 @@ extension MCPDataStore {
         guard let raw else { return nil }
         let withFraction = ISO8601DateFormatter()
         withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = localISO.date(from: raw) ?? withFraction.date(from: raw) ?? ISO8601DateFormatter().date(from: raw) {
+        if let date = localISO.date(from: raw) ?? withFraction.date(from: raw) ?? KnowledgeStore.iso8601Formatter.date(from: raw) {
             return date
         }
         throw MCPError.invalidInput("occurrence_date must be the ISO 8601 time get_calendar_events returned, not \"\(raw)\".")

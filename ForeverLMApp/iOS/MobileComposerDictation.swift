@@ -5,11 +5,6 @@ import os
 import Speech
 #endif
 
-private let composerDictationLogger = Logger(
-    subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM",
-    category: "ComposerDictation"
-)
-
 // Tap-to-talk dictation for the chat composer.
 //
 // One utterance per tap, unlike MobileVoiceCommandService's continuous listen

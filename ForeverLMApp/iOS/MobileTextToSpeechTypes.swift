@@ -17,7 +17,6 @@ struct MobileAudioItem: Identifiable, Equatable {
     var title: String { manifest.title }
     var subtitle: String? { manifest.subtitle }
     var createdAt: Date { manifest.createdAt }
-    var providerLabel: String { manifest.provider.capitalized }
 }
 
 /// Concrete text-to-speech generation state for the iPhone's progress surfaces.

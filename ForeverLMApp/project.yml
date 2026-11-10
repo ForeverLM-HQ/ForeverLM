@@ -609,7 +609,6 @@ targets:
       # The collections' rows and their rules, shared with the Mac and its
       # unit tests; Home's store reads and writes through them.
       - Shared/Models/NotebookCollections.swift
-      - Shared/Models/RetiredNotebookWording.swift
       # A new notebook's placeholder and the row that lets ForeverLM name it
       # (`NotebookNaming`), which the phone writes when it makes one.
       - Shared/Models/NotebookNaming.swift

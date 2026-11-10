@@ -238,14 +238,6 @@ struct StudioSidebar: View, Equatable {
         Binding(get: { if case .zoomPasscode(let id) = activeAlert { return id }; return nil }, set: { _ in })
     }
 
-    private var refreshButtonHelp: String {
-        let tabLabel = sidebar.sidebarTab.itemNoun
-        if vm.isLoadingQueue {
-            return vm.loadingStep ?? "Refreshing \(tabLabel)"
-        }
-        return "Refresh \(tabLabel)"
-    }
-
     private func alertBinding(for matches: @escaping (SidebarAlertKind) -> Bool) -> Binding<Bool> {
         Binding(
             get: { if let a = activeAlert { return matches(a) }; return false },

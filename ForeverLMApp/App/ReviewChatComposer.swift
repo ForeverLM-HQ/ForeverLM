@@ -443,10 +443,6 @@ extension NSEvent {
     var isReturnKey: Bool {
         keyCode == 36 || keyCode == 76
     }
-
-    var isTabKey: Bool {
-        keyCode == 48
-    }
 }
 
 // MARK: - Composer state the pane never reads in its body

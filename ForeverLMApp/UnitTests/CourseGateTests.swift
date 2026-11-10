@@ -260,7 +260,6 @@ struct CourseGateTests {
 
         #expect(vm.courseQuizScores[quizzes[0].id]?.label == "0 of 4 right")
         #expect(vm.isCourseQuizCompleted(quizzes[0].id))
-        #expect(vm.isCourseQuizPassed(quizzes[0].id))
         #expect(states(vm)["video-item-l2"] != .locked(quizID: quizzes[0].id))
     }
 }

@@ -371,7 +371,7 @@ extension MCPDataStore {
                 // Every source the card stands on, its own first, each with its passage.
                 entry["sources"] = Self.cardSourcesPayload(card.links, titles: titles, excluded: excluded)
                 if let seed = card.seed { entry["seed"] = seed }
-                if let draftedAt = card.draftedAt { entry["drafted_at"] = ISO8601DateFormatter().string(from: draftedAt) }
+                if let draftedAt = card.draftedAt { entry["drafted_at"] = KnowledgeStore.iso8601Formatter.string(from: draftedAt) }
                 return entry
             }
             if let line = MemoryCardTriage.summary(cards) { payload["to_check_summary"] = line }
@@ -406,7 +406,7 @@ extension MCPDataStore {
                     entry["schedule"] = "due"
                 } else {
                     entry["schedule"] = "scheduled"
-                    entry["next_due_at"] = ISO8601DateFormatter().string(from: card.schedule.dueAt)
+                    entry["next_due_at"] = KnowledgeStore.iso8601Formatter.string(from: card.schedule.dueAt)
                 }
                 return entry
             }
@@ -556,7 +556,7 @@ extension MCPDataStore {
         let coverage = try await notebookFileStorage.sourceCardCoverage()
         let inScope = SourceCardList.filter(coverage.rows, scope: .all, allowed: allowed)
         let listed = SourceCardList.filter(inScope, scope: scope == "all" ? .all : .withoutCards)
-        let dates = ISO8601DateFormatter()
+        let dates = KnowledgeStore.iso8601Formatter
         var payload: [String: Any] = [
             "scope": scope,
             "without_cards": inScope.filter { $0.state == .none }.count,
@@ -763,7 +763,7 @@ extension MCPDataStore {
         for sourceID in dealt.flatMap({ $0.card.links.map(\.sourceID) }) where titles[sourceID] == nil {
             if let source = try store.loadSourceWithoutContent(sourceID) { titles[sourceID] = source.title }
         }
-        let iso = ISO8601DateFormatter()
+        let iso = KnowledgeStore.iso8601Formatter
         let cards: [[String: Any]] = dealt.prefix(limit).map { entry, card in
             var payload: [String: Any] = [
                 "item_id": card.itemID,
@@ -859,7 +859,7 @@ extension MCPDataStore {
             at: now
         )
         let schedule = MemoryTutorScheduler.schedule(item: item, attempts: try store.loadMemoryAttempts(memoryItemID: item.id))
-        let iso = ISO8601DateFormatter()
+        let iso = KnowledgeStore.iso8601Formatter
         var payload: [String: Any] = [
             "outcome": Self.outcomeName(outcome),
             "item_id": item.id,

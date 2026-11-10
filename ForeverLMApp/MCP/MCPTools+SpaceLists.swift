@@ -74,10 +74,6 @@ extension MCPToolRegistry {
             ),
         ]
     }
-
-    static let spaceListToolNames: Set<String> = [
-        "list_space_lists", "create_space_list", "update_space_list", "delete_space_list",
-    ]
 }
 
 extension MCPDataStore {

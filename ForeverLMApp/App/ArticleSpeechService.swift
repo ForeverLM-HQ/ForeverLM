@@ -390,8 +390,8 @@ final class ArticleSpeechService: NSObject, ObservableObject {
 
     /// Reads the stored provider and voice off the main thread and adopts them.
     /// Playback re-reads storage of its own accord in `beginTextToSpeech`, so what
-    /// this really buys is chrome — the mini player, the Settings pickers and
-    /// `selectedVoiceLabel` — showing the real selection before anyone listens.
+    /// this really buys is chrome — the mini player and the Settings pickers —
+    /// showing the real selection before anyone listens.
     private func loadStoredConfiguration() {
         guard storedConfigurationTask == nil else { return }
         let epoch = configurationEpoch
@@ -481,23 +481,8 @@ final class ArticleSpeechService: NSObject, ObservableObject {
         syncedAudioContext?.model ?? MacArticleSpeechSettings.model(for: mode)
     }
 
-    /// Human-facing name for the exact model captured by this generation.
-    /// Reading Settings directly here would make the progress row lie if the
-    /// listener changes their preference while existing chunks are in flight.
-    var activeSpeechModelLabel: String {
-        ArticleSpeechCatalog.model(id: activeSpeechModel)?.name ?? activeSpeechModel
-    }
-
     var activeSpeechVoice: String {
         syncedAudioContext?.voice ?? selectedVoice
-    }
-
-    var selectedVoiceLabel: String {
-        switch mode {
-        case .openRouter, .groq, .openAI, .togetherAI, .elevenLabs, .xai, .gemini, .localQwen3:
-            return providerVoiceLabel(provider: mode, voice: selectedVoice)
-        case .apple: return MacArticleSpeechSettings.appleVoiceName(identifier: appleVoiceIdentifier)
-        }
     }
 
 }

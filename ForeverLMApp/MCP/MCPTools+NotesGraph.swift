@@ -269,7 +269,7 @@ extension MCPDataStore {
             "kind": group.kind.rawValue,
             "id": group.id,
             "title": group.title,
-            "updated_at": ISO8601DateFormatter().string(from: group.updatedAt),
+            "updated_at": KnowledgeStore.iso8601Formatter.string(from: group.updatedAt),
             "blocks": group.blocks.map(notesGraphBlockPayload),
         ]
         if let day = DailyNote.dayKey(ofID: group.id), group.kind != .idea { payload["day"] = day }
@@ -390,7 +390,7 @@ extension MCPDataStore {
             "markdown": snapshot.markdown,
             "revision": snapshot.revision,
             "total_characters": snapshot.markdown.count,
-            "updated_at": ISO8601DateFormatter().string(from: snapshot.artifact.updatedAt),
+            "updated_at": KnowledgeStore.iso8601Formatter.string(from: snapshot.artifact.updatedAt),
             "guidance": "A daily note is an ordinary Doc: append_to_daily_note adds at its end, edit_doc with this revision changes it in place, and get_linked_references with its doc_id lists what links the day.",
         ]
     }
@@ -510,7 +510,7 @@ extension MCPDataStore {
         payload["title"] = snapshot.artifact.title
         payload["markdown"] = snapshot.markdown
         payload["revision"] = snapshot.revision
-        payload["updated_at"] = ISO8601DateFormatter().string(from: snapshot.artifact.updatedAt)
+        payload["updated_at"] = KnowledgeStore.iso8601Formatter.string(from: snapshot.artifact.updatedAt)
         payload["guidance"] = "A plan is an ordinary Doc: edit_doc with its revision writes in it (keep its headings), and get_linked_references with its doc_id lists what links it. Weeks and days are planned onto the calendar with create_calendar_event, with this plan in view."
         return payload
     }

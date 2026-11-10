@@ -1061,18 +1061,6 @@ extension StudioViewModel {
         }
     }
 
-    /// Fetch a podcast transcript TTML via the Apple Podcasts API or local cache.
-    /// Returns the raw TTML content string, or nil on failure.
-    func fetchPodcastTranscript(trackId: Int64) async -> String? {
-        guard case .available(let transcript) = await Self.fetchPodcastTranscriptOffMain(
-            trackId: trackId,
-            homeDir: realHomeDirectory
-        ) else {
-            return nil
-        }
-        return transcript
-    }
-
     /// Fetches an episode's transcript and saves it readable. Its formatting
     /// is queued, not run: `config` is the Transcript Formatting model, and
     /// nil (none chosen) queues nothing.

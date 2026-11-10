@@ -32,7 +32,7 @@ extension MCPDataStore {
         }
         let focus = rawFocus.flatMap { ResearchDirection.normalizedText($0, limit: 1_000) }
         let excluded = try store.knowledgeSearchExcludedSourceIDs(includeArchived: true)
-        let formatter = ISO8601DateFormatter()
+        let formatter = KnowledgeStore.iso8601Formatter
 
         var home: [String: Any] = ["kind": homeKind.rawValue, "id": homeID]
         var homeTitle = homeID
@@ -345,7 +345,7 @@ extension MCPDataStore {
         }
         let directions = try store.loadResearchDirections(homeID: homeID, statuses: statuses)
         let excluded = try store.knowledgeSearchExcludedSourceIDs(includeArchived: true)
-        let formatter = ISO8601DateFormatter()
+        let formatter = KnowledgeStore.iso8601Formatter
         var homeTitles: [String: String?] = [:]
         func homeTitle(_ direction: ResearchDirection) throws -> String? {
             if let cached = homeTitles[direction.homeID] { return cached }

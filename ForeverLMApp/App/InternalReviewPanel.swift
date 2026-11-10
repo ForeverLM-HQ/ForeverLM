@@ -580,23 +580,6 @@ struct InternalReviewPanelContent: View {
 
     var defaultInitialPrompt: String { "" }
 
-    private var reviewSubject: String {
-        let types = Set(reviewSources.map(\.sourceType))
-        if types.count == 1 && types.contains(.book) {
-            return "these book chapter(s)"
-        }
-        if reviewSources.count == 1, let source = reviewSources.first {
-            return "this \(contextNoun(for: source.sourceType).singular)"
-        }
-        if !reviewSources.isEmpty {
-            if types.count == 1, let type = types.first {
-                return "these \(contextNoun(for: type).plural)"
-            }
-            return "these sources"
-        }
-        return ""
-    }
-
     var body: some View {
         popoverLayout
         .frame(

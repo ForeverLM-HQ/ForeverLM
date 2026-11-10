@@ -685,36 +685,6 @@ struct WebViewReader: NSViewRepresentable {
         """
     }
 
-    /// JavaScript to extract article content from the loaded page (mirrors content.js logic).
-    static let contentExtractionJS = """
-    (function() {
-        const selectors = ['article', 'main', '[role="main"]', '.post-content', '.article-content'];
-        let root = null;
-        for (const sel of selectors) {
-            const node = document.querySelector(sel);
-            if (node && node.innerText && node.innerText.length > 400) {
-                root = node;
-                break;
-            }
-        }
-        if (!root) root = document.body;
-
-        const clone = root.cloneNode(true);
-        clone.querySelectorAll('script, style, noscript, nav, footer, aside, form, .sidebar, .ad, .advertisement').forEach(n => n.remove());
-
-        const paragraphs = Array.from(clone.querySelectorAll('p, li, h1, h2, h3, h4, blockquote'))
-            .map(n => (n.textContent || '').replace(/\\s+/g, ' ').trim())
-            .filter(t => t.length > 40);
-
-        let content = paragraphs.join('\\n\\n');
-        if (content.length < 300) {
-            content = (clone.innerText || '').replace(/\\s+/g, ' ').trim();
-        }
-
-        return content.slice(0, 120000);
-    })()
-    """
-
     // MARK: - Coordinator
 
     class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler {

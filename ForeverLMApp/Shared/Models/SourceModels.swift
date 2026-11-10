@@ -69,21 +69,6 @@ enum StudioSourceType: String, Codable {
         case .manual: return "link"
         }
     }
-
-    /// Metadata fields that can be toggled for this source type in the sidebar.
-    var configurableMetadataFields: [SourceMetadataField] {
-        switch self {
-        case .article, .unclassified: return [.author, .domain, .readTime]
-        case .paper:   return [.author, .journal, .year]
-        case .podcast: return [.author, .domain, .date, .readTime]
-        case .book:    return [.author, .subtitle, .edition, .format, .kind, .readTime]
-        case .course:  return [.subtitle]
-        case .meeting: return [.domain, .date, .readTime]
-        case .video:   return [.author, .domain]
-        case .xPost:   return [.author, .domain, .readTime]
-        case .manual:  return [.author, .domain, .readTime]
-        }
-    }
 }
 
 // MARK: - Metadata Visibility

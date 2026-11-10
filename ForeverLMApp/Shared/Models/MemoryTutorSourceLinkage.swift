@@ -401,11 +401,6 @@ struct SourceConsumptionEntry: Identifiable, Equatable, Sendable {
         return max(0, lastActivityAt.timeIntervalSince(firstActivityAt))
     }
 
-    /// The kinds worth naming in a history row, consumption before commentary.
-    var orderedKinds: [SourceActivityKind] {
-        SourceActivityKind.allCases.filter { kinds.contains($0) }
-    }
-
     /// Whether the learner went through the material itself on this day, rather
     /// than only talking about it or being quizzed on it.
     var isConsumption: Bool {

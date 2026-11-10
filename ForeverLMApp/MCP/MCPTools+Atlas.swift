@@ -187,7 +187,7 @@ extension MCPDataStore {
     static func listAtlases(limit: Int) async throws -> [String: Any] {
         let studio = try AppModelBridge.requireStudio()
         let rows = try await studio.storage.loadAtlasRows(limit: limit)
-        let formatter = ISO8601DateFormatter()
+        let formatter = KnowledgeStore.iso8601Formatter
         let atlases: [[String: Any]] = rows.map { row in
             let listing = AtlasListing(row: row)
             var entry: [String: Any] = [
@@ -251,7 +251,7 @@ extension MCPDataStore {
                 ]
             },
             "source_ids": atlas.evidenceSourceIDs,
-            "updated_at": ISO8601DateFormatter().string(from: atlas.updatedAt),
+            "updated_at": KnowledgeStore.iso8601Formatter.string(from: atlas.updatedAt),
         ]
     }
 

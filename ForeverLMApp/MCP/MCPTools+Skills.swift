@@ -16,7 +16,7 @@ extension MCPDataStore {
 
     func listSkills() throws -> String {
         let skills = try knowledgeStore().loadSkills()
-        let formatter = ISO8601DateFormatter()
+        let formatter = KnowledgeStore.iso8601Formatter
         let rows: [[String: Any]] = skills.map { skill in
             [
                 "skill_id": skill.id,
@@ -52,7 +52,7 @@ extension MCPDataStore {
             let asked = skillID.isEmpty ? "/\(SkillRecord.normalizedName(name))" : skillID
             throw MCPError.notFound("No skill \(asked). Use list_skills to see the learner's skills.")
         }
-        let formatter = ISO8601DateFormatter()
+        let formatter = KnowledgeStore.iso8601Formatter
         return try jsonString([
             "skill_id": skill.id,
             "name": skill.name,

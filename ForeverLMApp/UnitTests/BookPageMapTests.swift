@@ -79,7 +79,6 @@ struct BookPageMapTests {
             "The Path to Biological Numeracy", "1) Size & Geometry", "4) Rates & Durations",
         ])
         #expect(navigation?.currentItem?.id == "size")
-        #expect(navigation?.previousItem?.id == "intro")
         #expect(navigation?.nextItem?.id == "rates")
         #expect(navigation?.positionLabel == "2 of 3")
         #expect(map.navigation(currentPage: nil)?.currentItem == nil)

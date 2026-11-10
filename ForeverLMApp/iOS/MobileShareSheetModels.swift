@@ -150,31 +150,3 @@ enum MobileSharePreview {
             .first { !$0.isEmpty }
     }
 }
-
-/// The notebook adds a drain of the share queue makes: each notebook a shared
-/// item was filed into that is still a notebook on this phone, with its
-/// captured sources in the order they were shared, each once. An item filed
-/// into a notebook gone since stays in the library, where its capture put it.
-enum MobileShareFiling {
-    struct Add: Equatable, Sendable {
-        let notebookID: String
-        let sourceIDs: [String]
-    }
-
-    static func adds(
-        _ captured: [(sourceID: String, notebookID: String)],
-        liveNotebookIDs: Set<String>
-    ) -> [Add] {
-        var order: [String] = []
-        var sourcesByNotebook: [String: [String]] = [:]
-        for item in captured where liveNotebookIDs.contains(item.notebookID) {
-            if sourcesByNotebook[item.notebookID] == nil {
-                order.append(item.notebookID)
-                sourcesByNotebook[item.notebookID] = []
-            }
-            guard sourcesByNotebook[item.notebookID]?.contains(item.sourceID) == false else { continue }
-            sourcesByNotebook[item.notebookID]?.append(item.sourceID)
-        }
-        return order.map { Add(notebookID: $0, sourceIDs: sourcesByNotebook[$0] ?? []) }
-    }
-}

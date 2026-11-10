@@ -5,7 +5,6 @@ import Testing
 struct ReaderToolbarPolicyTests {
     @Test("reader toolbar tiers move from richest to narrowest")
     func fitOrderAndWidths() {
-        #expect(ReaderToolbarDensity.fitOrder == [.expanded, .standard, .compact])
         #expect(ReaderToolbarDensity.expanded.minimumIdentityWidth
             > ReaderToolbarDensity.standard.minimumIdentityWidth)
         #expect(ReaderToolbarDensity.standard.minimumIdentityWidth

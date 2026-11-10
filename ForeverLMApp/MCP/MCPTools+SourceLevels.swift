@@ -42,8 +42,6 @@ extension MCPToolRegistry {
             ),
         ]
     }
-
-    static let sourceLevelsToolNames: Set<String> = ["get_source_levels"]
 }
 
 extension MCPDataStore {
@@ -129,7 +127,7 @@ extension MCPDataStore {
                 "message": "No levels are written for \u{201C}\(title)\u{201D} yet. Pass write_if_missing true to write them on the learner's Reading Levels model (paid), or the learner can press Write Levels in the Reader's Levels panel.",
             ]
         }
-        let iso = ISO8601DateFormatter()
+        let iso = KnowledgeStore.iso8601Formatter
         var payload: [String: Any] = [
             "source_id": sourceID,
             "title": title,

@@ -51,7 +51,6 @@ extension MobileWrite {
 /// plan the Mac follows too (`NarrationPlan`).
 typealias MobileNarrationLocal = NarrationLocal
 typealias MobileNarrationReplica = NarrationReplica
-typealias MobileNarrationAction = NarrationAction
 typealias MobileNarrationPlan = NarrationPlan
 
 /// The phone's narration under generation 2: reconciles its working folder with the replica (laying

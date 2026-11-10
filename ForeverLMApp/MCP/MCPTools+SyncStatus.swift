@@ -8,7 +8,7 @@ extension MCPDataStore {
     /// condition that stops sync without an error of its own.
     func generationTwoSyncStatus() async throws -> String {
         var payload: [String: Any] = [
-            "generated_at": ISO8601DateFormatter().string(from: Date()),
+            "generated_at": KnowledgeStore.iso8601Formatter.string(from: Date()),
             "sync_generation": 2,
             "container": ForeverLMRuntimeIdentity.libraryContainerIdentifier ?? "",
             "container_environment": CloudRuntimeAvailability.containerEnvironment.rawValue,
@@ -38,7 +38,7 @@ extension MCPDataStore {
         payload["pending_uploads"] = snapshot.pendingChanges
         payload["holds_library"] = snapshot.holdsLibrary
         payload["cutover"] = Self.cutoverName(snapshot.cutover)
-        if let last = snapshot.lastSyncedAt { payload["last_synced_at"] = ISO8601DateFormatter().string(from: last) }
+        if let last = snapshot.lastSyncedAt { payload["last_synced_at"] = KnowledgeStore.iso8601Formatter.string(from: last) }
         let status = SyncStatus(phase: snapshot.phase)
         if let notice = status.notice {
             payload["message"] = notice

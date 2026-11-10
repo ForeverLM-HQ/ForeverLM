@@ -1017,31 +1017,8 @@ extension AIService {
     }
 
     /// Moves a split system message's volatile tail out of the system message
-    /// and in front of the learner's newest message.
-    ///
-    /// A prompt is cached as a byte prefix, and the tail (clock, history digest,
-    /// notes, retry nudges) changes between turns. Left in the system message it
-    /// sits ahead of the whole conversation, so every turn rewrites the history
-    /// at the cache-write rate; measured on GPT-5.6 Sol chat, 90% of a prompt was
-    /// written and under 5% read once the learner paused for a minute. Behind the
-    /// history it stays put across the tool rounds of one turn and costs only the
-    /// newest turn on the next. Gemini needs it for a second reason: its
-    /// normalized `systemInstruction` is one immutable cache unit, so a changing
-    /// second block invalidates the cached paper even when the first block has
-    /// the explicit breakpoint (OpenRouter's documented shape is a stable cached
-    /// system instruction followed by changing context in a later user message).
-    ///
-    /// The session id is derived before this transform, while the volatile tail
-    /// is still the second system block, so it continues to key off the actual
-    /// opening learner message rather than this synthetic context message.
-    static func openRouterMessagesWithVolatileContextBeforeLatestTurn(
-        _ messages: [[String: Any]]
-    ) -> [[String: Any]] {
-        openRouterMessagesWithVolatileContext(messages).messages
-    }
-
-    /// `openRouterMessagesWithVolatileContextBeforeLatestTurn`, also saying
-    /// where the tail went, so the message just ahead of it can carry a cache
+    /// and in front of the learner's newest message, also saying where the
+    /// tail went, so the message just ahead of it can carry a cache
     /// breakpoint: that message ends the part of the conversation the next
     /// turn repeats byte for byte (nil when there was no tail to move).
     ///

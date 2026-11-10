@@ -300,15 +300,6 @@ enum RecommendedModels {
         let hosts: [OpenRouterRegionalEndpoints.Endpoint]
 
         var route: AITaskModelRoute { AITaskModelRoute(provider: .openRouter, model: model.id) }
-
-        /// The cheapest of its hosts' prices, in and out, for the row.
-        var cheapestPrice: (input: Double, output: Double)? {
-            let prices: [(Double, Double)] = hosts.compactMap { host in
-                guard let input = host.inputUSDPerMTokens, let output = host.outputUSDPerMTokens else { return nil }
-                return (input, output)
-            }
-            return prices.min { $0.0 + $0.1 < $1.0 + $1.1 }.map { (input: $0.0, output: $0.1) }
-        }
     }
 
     struct Choice: Equatable, Sendable {

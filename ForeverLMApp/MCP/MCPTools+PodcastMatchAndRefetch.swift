@@ -1,11 +1,6 @@
 // MCPDataStore: AI metadata extraction, podcast matches and source refetching.
-import CryptoKit
 import Foundation
-import ImageIO
-import Network
-import OSLog
 import PDFKit
-import SQLite3
 
 extension MCPDataStore {
     /// Run AI paper-metadata extraction for an existing paper source.
@@ -241,7 +236,7 @@ extension MCPDataStore {
             studio.setYouTubeTranscriptFallback(forPodcastShow: show, enabled: alwaysForShow)
         }
         let candidates = try await studio.findYouTubeTranscriptCandidates(for: sourceID)
-        let dates = ISO8601DateFormatter()
+        let dates = KnowledgeStore.iso8601Formatter
         var payload: [String: Any] = [
             "source_id": sourceID,
             "episode": episode.title,

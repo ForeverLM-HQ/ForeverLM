@@ -165,7 +165,6 @@ struct PluginsPlaceCodexTests {
         let all: [PluginsPlaceLocation] = [.directory, .plugin(.slack), .skills, .skill("s1"), .newSkill]
         #expect(all.map(\.tab) == [.plugins, .plugins, .skills, .skills, .skills])
         #expect(all.map(\.list) == [.directory, .directory, .skills, .skills, .skills])
-        #expect(all.map(\.isList) == [true, false, true, false, false])
         #expect(all.map(\.pluginPage) == [nil, .slack, nil, nil, nil])
     }
 

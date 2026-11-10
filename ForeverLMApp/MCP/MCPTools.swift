@@ -1,8 +1,5 @@
 import Foundation
-import ImageIO
 import OSLog
-import PDFKit
-import SQLite3
 
 // MARK: - Tool Definition
 
@@ -730,7 +727,7 @@ final class MCPToolRegistry: @unchecked Sendable {
         // through the storage actor; the drafting runs after the answer.
         "draft_cards",
         // The Canvas is the Studio's, on the main actor; the passages are
-        // searched, and the drafts saved, through the storage actor (WP-B2).
+        // searched, and the drafts saved, through the storage actor.
         "make_cards_from_canvas",
         // The sources and the reading are read, and each source's questions
         // saved, through the storage actor; the writing runs after the answer.
@@ -923,7 +920,7 @@ final class MCPToolRegistry: @unchecked Sendable {
         // Reads sources whole and spends credits on drafting their cards.
         "draft_cards",
         // Searches the sources behind the Canvas's Ideas and arrows and
-        // spends credits on drafting their cards (WP-B2).
+        // spends credits on drafting their cards.
         "make_cards_from_canvas",
         // Reads sources whole and spends credits on writing their questions.
         "generate_mnemonic_reading",

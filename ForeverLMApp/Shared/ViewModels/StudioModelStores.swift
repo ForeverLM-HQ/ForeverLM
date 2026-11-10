@@ -298,10 +298,6 @@ final class StudioSidebarStore {
     @ObservationIgnored var activeTabListingCacheKey: StudioViewModel.ActiveTabListingCacheKey?
     @ObservationIgnored var activeTabListingCache: StudioViewModel.ActiveTabListing?
 
-    /// Articles-tab origin chips memoized per tab/articles revision.
-    @ObservationIgnored var readingListOriginCountsCacheKey: StudioViewModel.ReadingListOriginCountsCacheKey?
-    @ObservationIgnored var readingListOriginCountsCache: [(origin: DiscoveryOrigin, count: Int)]?
-
     /// Every library source's normalized URL and paper DOI, each mapped to its
     /// source id, memoized per articles revision; see
     /// `StudioViewModel.librarySourceID(forURL:)`. A chat's web sources footer
@@ -321,8 +317,6 @@ final class StudioSidebarStore {
         sourcesWithoutCardsCountCacheKey = nil
         filteredBookGroupNamesCache = nil
         filteredBookGroupNamesCacheKey = nil
-        readingListOriginCountsCache = nil
-        readingListOriginCountsCacheKey = nil
         filteredPaperItemsCacheKey = nil
         filteredPaperItemsWithPDFCache = nil
         filteredPaperItemsWithoutPDFCache = nil

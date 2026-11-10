@@ -741,8 +741,8 @@ extension MCPDataStore {
             "custom_address": status.isCustomSlug,
             "restricted": status.isProtected,
             "readers": status.readers,
-            "published_at": ISO8601DateFormatter().string(from: status.publishedAt),
-            "updated_at": ISO8601DateFormatter().string(from: status.updatedAt),
+            "published_at": KnowledgeStore.iso8601Formatter.string(from: status.publishedAt),
+            "updated_at": KnowledgeStore.iso8601Formatter.string(from: status.updatedAt),
             "doc": artifactPayload(snapshot.artifact),
             "message": status.isProtected
                 ? (status.readers.isEmpty
@@ -876,7 +876,7 @@ extension MCPDataStore {
         let links = try await notebookFileStorage.artifactChatLinks(id)
         let sessions = try await notebookFileStorage.loadReviewSessionLinks()
         let sessionsByID = Dictionary(sessions.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        let formatter = ISO8601DateFormatter()
+        let formatter = KnowledgeStore.iso8601Formatter
         return try jsonString([
             "doc_id": id,
             "doc_title": snapshot.artifact.title,
@@ -997,7 +997,7 @@ extension MCPDataStore {
             "source_title": title,
             "artifact_count": entries.count,
             "artifacts": entries,
-            "generated_at": ISO8601DateFormatter().string(from: Date()),
+            "generated_at": KnowledgeStore.iso8601Formatter.string(from: Date()),
             "guidance": entries.isEmpty
                 ? "Nothing links to this source yet: no Doc is grounded on it or cites it, and no site or animation names it."
                 : "grounded means the record's own source links name the source; cited means a Doc's body references it. read_doc reads a Doc, read_site_file a site's files; an animation plays at its url.",
@@ -1036,13 +1036,13 @@ extension MCPDataStore {
             "team_id": artifact.teamID.map { $0 as Any } ?? NSNull(),
             "is_draft": artifact.isDraft,
             "is_archived": artifact.isArchived,
-            "archived_at": artifact.archivedAt.map { ISO8601DateFormatter().string(from: $0) as Any } ?? NSNull(),
+            "archived_at": artifact.archivedAt.map { KnowledgeStore.iso8601Formatter.string(from: $0) as Any } ?? NSNull(),
             "is_hidden": artifact.isHidden,
-            "hidden_at": artifact.hiddenAt.map { ISO8601DateFormatter().string(from: $0) as Any } ?? NSNull(),
+            "hidden_at": artifact.hiddenAt.map { KnowledgeStore.iso8601Formatter.string(from: $0) as Any } ?? NSNull(),
             "home_notebook_id": artifact.homeNotebookID.map { $0 as Any } ?? NSNull(),
             "notebook_ids": artifact.linkedNotebookIDs,
-            "created_at": ISO8601DateFormatter().string(from: artifact.createdAt),
-            "updated_at": ISO8601DateFormatter().string(from: artifact.updatedAt),
+            "created_at": KnowledgeStore.iso8601Formatter.string(from: artifact.createdAt),
+            "updated_at": KnowledgeStore.iso8601Formatter.string(from: artifact.updatedAt),
         ]
     }
 }

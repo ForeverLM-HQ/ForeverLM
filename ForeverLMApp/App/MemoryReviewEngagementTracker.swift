@@ -128,19 +128,6 @@ final class MemoryReviewEngagementTracker {
         return stored
     }
 
-    /// Whether today's session was ended early. Over until tomorrow.
-    var isTodayEnded: Bool {
-        if case .ended = state { return true }
-        return false
-    }
-
-    /// Whether there is a clock to show: a review on screen on a day whose
-    /// session is not over. The rail's minutes read this rather than bare
-    /// presence, so a chat reopened after the session ended shows no clock.
-    var isReviewUnderway: Bool {
-        isReviewOnScreen && MemoryReviewCommitment.clockRuns(state)
-    }
-
     /// The window gave itself over to the review. From here, leaving is
     /// ending, until the goal is met.
     func beginCommittedSession() {

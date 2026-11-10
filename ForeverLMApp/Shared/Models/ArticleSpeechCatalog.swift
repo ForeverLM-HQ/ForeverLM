@@ -337,11 +337,6 @@ enum ArticleSpeechLanguageSupport: Hashable, Sendable {
         }
     }
 
-    var isMultilingual: Bool {
-        if case .multilingual = self { return true }
-        return false
-    }
-
     var isStated: Bool {
         if case .unstated = self { return false }
         return true
@@ -2553,9 +2548,6 @@ enum SourceAudioAutomation {
             return "\(sourceCount) sources · \(total.summary)"
         }
     }
-
-    /// Alert title for the account-level paid-voice consent.
-    static let paidVoiceConsentTitle = "Allow paid voices for automatic audio?"
 
     /// The consent body: which voice, at what rate, and what the pending
     /// library would cost at that rate before anything is generated.

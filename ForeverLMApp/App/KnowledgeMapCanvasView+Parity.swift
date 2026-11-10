@@ -29,8 +29,6 @@ import WebKit
 // - `openBeside {ref}`, `popup {ref, rect}`, `navigate {direction}`,
 //   `deleteRequested {refs}`: the keys and clicks.
 
-private let canvasParityLogger = Logger(subsystem: "com.foreverlm", category: "KnowledgeMapCanvas")
-
 /// The app around a canvas: its view model (for what the model does not own: an
 /// Idea's words, opening a card beside the Canvas, the Ask tools) and the
 /// window it is in.

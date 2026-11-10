@@ -302,62 +302,6 @@ extension StudioViewModel {
         sidebarTab.itemNoun
     }
 
-    /// Per-browser breakdown of active reading list items (articles tab only).
-    var readingListOriginCounts: [(origin: DiscoveryOrigin, count: Int)] {
-        let safariEnabled = DefaultsEscapeHatch.bool(forKey: "readingListSafari", default: true)
-        let chromeEnabled = DefaultsEscapeHatch.bool(forKey: "readingListChrome", default: true)
-        let braveEnabled = DefaultsEscapeHatch.bool(forKey: "readingListBrave", default: true)
-        let key = ReadingListOriginCountsCacheKey(
-            tab: sidebarTab,
-            articlesRevision: articlesRevision,
-            safariEnabled: safariEnabled,
-            chromeEnabled: chromeEnabled,
-            braveEnabled: braveEnabled
-        )
-        if let cached = sidebarStore.readingListOriginCountsCache,
-           sidebarStore.readingListOriginCountsCacheKey == key {
-            return cached
-        }
-        let computed = computeReadingListOriginCounts(
-            safariEnabled: safariEnabled,
-            chromeEnabled: chromeEnabled,
-            braveEnabled: braveEnabled
-        )
-        sidebarStore.readingListOriginCountsCache = computed
-        sidebarStore.readingListOriginCountsCacheKey = key
-        return computed
-    }
-
-    private func computeReadingListOriginCounts(
-        safariEnabled: Bool,
-        chromeEnabled: Bool,
-        braveEnabled: Bool
-    ) -> [(origin: DiscoveryOrigin, count: Int)] {
-        // Compute counts from tab items WITHOUT the origin filter applied,
-        // so all origins remain visible in the header even when one is selected.
-        // Respect disabled browser sources so their chips don't appear.
-        let tabItems = activeArticles
-            .filter { matchesCurrentTab($0) }
-            .filter { article in
-                switch article.discoveryOrigin {
-                case .safari: return safariEnabled
-                case .chrome: return chromeEnabled
-                case .brave: return braveEnabled
-                default: return true
-                }
-            }
-        var counts: [DiscoveryOrigin: Int] = [:]
-        for article in tabItems {
-            let origin = article.discoveryOrigin ?? .manual
-            counts[origin, default: 0] += 1
-        }
-        let order: [DiscoveryOrigin] = [.safari, .chrome, .brave, .xBookmarks, .manual]
-        return order.compactMap { origin in
-            guard let count = counts[origin], count > 0 else { return nil }
-            return (origin, count)
-        }
-    }
-
     /// The explainer written about a source, when the library has one — the
     /// article-typed row whose URL names this source (explainer-design.md).
     /// The source's context menu reads this to offer Open Explainer, so it

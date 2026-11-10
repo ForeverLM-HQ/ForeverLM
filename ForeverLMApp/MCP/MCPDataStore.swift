@@ -1,6 +1,5 @@
 // MCPDataStore: direct SQLite and JSON access, with the store gate it runs under.
 import Foundation
-import ImageIO
 import OSLog
 import PDFKit
 import SQLite3
@@ -491,7 +490,7 @@ final class MCPDataStore {
 
     func appleToISO(_ appleTimestamp: Double) -> String {
         let date = Date(timeIntervalSince1970: appleTimestamp + appleEpochOffset)
-        let fmt = ISO8601DateFormatter()
+        let fmt = KnowledgeStore.iso8601Formatter
         return fmt.string(from: date)
     }
 
@@ -524,7 +523,7 @@ final class MCPDataStore {
             "status": "active",
             "server": "ForeverLM MCP",
             "protocol": "MCP Streamable HTTP",
-            "generated_at": ISO8601DateFormatter().string(from: Date()),
+            "generated_at": KnowledgeStore.iso8601Formatter.string(from: Date()),
             "tool_count": toolCount,
             "message": "ForeverLM MCP is active and responding to tool calls.",
         ]

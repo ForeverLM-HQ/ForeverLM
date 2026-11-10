@@ -41,12 +41,6 @@ enum ImageGenerationPrice: Equatable, Sendable {
         }
     }
 
-    /// The per-picture figure when OpenRouter publishes one.
-    var usdPerImage: Double? {
-        if case .perImage(let usd) = self { return usd }
-        return nil
-    }
-
     /// What `pictures` pictures that drew `imageTokens` tokens cost at this
     /// price, for a call whose response reported no charge of its own. A
     /// per-megapixel price counts each picture as the one megapixel a 1K
@@ -127,12 +121,6 @@ struct ImageGenerationModel: Identifiable, Equatable, Sendable {
     /// Whether this model can change an existing picture rather than only
     /// drawing a new one.
     var revisesPictures: Bool { maximumReferences > 0 }
-
-    /// The maker's slug prefix ("openai", "x-ai"): a stable grouping key,
-    /// where the display name OpenRouter gives a maker can change.
-    var makerSlug: String {
-        id.split(separator: "/", maxSplits: 1).first.map(String.init) ?? id
-    }
 
     /// A model known only by its id, for a stored choice read before the
     /// directory has arrived. `ManagedImageGeneration` resolves it against

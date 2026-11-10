@@ -199,10 +199,6 @@ enum ForeverLMRuntimeIdentity {
         sharedDerivedCacheURL(named: "ReadAloudVoicePreviews")
     }
 
-    static var localContentRootURL: URL {
-        applicationSupportRootURL.appendingPathComponent("Content", isDirectory: true)
-    }
-
     static var diagnosticsRootURL: URL {
         applicationSupportRootURL.appendingPathComponent("Diagnostics", isDirectory: true)
     }
@@ -210,26 +206,6 @@ enum ForeverLMRuntimeIdentity {
 
 extension ForeverLMRuntimeIdentity {
     static let libraryContainerInfoKey = "ForeverLMLibraryContainer"
-
-    /// Whether this is a Development build (Debug and FirstRun sign for CloudKit's Development
-    /// environment) whose data folder is its own, never one of the three profile folders, so one
-    /// agent's test can never touch the store every Dev build opens. A launch with
-    /// `FOREVERLM_DATA_FOLDER_NAME` set (`isolatedFolderName`) has such a folder.
-    static var isIsolatedDevelopmentInstance: Bool {
-        #if os(macOS) && FOREVERLM_DEVELOPMENT
-        let ownFolder = applicationSupportRootURL.standardizedFileURL.resolvingSymlinksInPath()
-        let profileFolders = [false, true].flatMap { isDevelopment in
-            [false, true].map { isFirstRun in
-                applicationSupportDirectoryURL
-                    .appendingPathComponent(profile(isDevelopment: isDevelopment, isFirstRun: isFirstRun).productFolderName, isDirectory: true)
-                    .standardizedFileURL.resolvingSymlinksInPath()
-            }
-        }
-        return !profileFolders.contains(ownFolder)
-        #else
-        return false
-        #endif
-    }
 
     /// The one CloudKit container the app syncs with (docs/cloudkit-schema-design.md §2.1): the
     /// `FOREVERLM_CLOUDKIT_CONTAINER` build setting, which Info.plist carries as

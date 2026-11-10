@@ -28,8 +28,6 @@ final class WalkthroughGenerationCoordinator: ObservableObject {
     /// The write itself, by source, so Cancel reaches the pipeline.
     private var tasks: [String: Task<Outcome, Never>] = [:]
 
-    var runningSourceIDs: Set<String> { Set(runs.map(\.id)) }
-
     func isGenerating(_ sourceID: String) -> Bool {
         tasks[sourceID] != nil
     }

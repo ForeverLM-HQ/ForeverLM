@@ -10,21 +10,6 @@ import OSLog
 /// a setting they turned on.
 extension StudioViewModel {
 
-    /// Sessions whose icon does not yet match what the learner asked for. This
-    /// is what the Settings button counts, so it counts what a learner would
-    /// count: rows that still look wrong, including archived ones they may yet
-    /// restore.
-    ///
-    /// Under Always Draw that includes meetings already showing a clipped
-    /// frame. Those frames are the reason someone chooses Always Draw, so a
-    /// count that called them finished would leave the setting looking inert.
-    var meetingsMissingIconCount: Int {
-        let source = MacImageGenerationSettings.effectiveSource
-        return articles.count {
-            $0.sourceType == .meeting && !Self.hasSatisfactoryIcon($0, source: source)
-        }
-    }
-
     /// Reads the stored path, the preference, and whether the picture is on this
     /// disk — nothing on the view model, so it stays off the main actor like
     /// `iconRunSummary` below.

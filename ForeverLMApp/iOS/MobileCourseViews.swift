@@ -571,8 +571,6 @@ final class MobileCourseQuizSitting: ObservableObject {
         quiz.questions.indices.contains(index) ? quiz.questions[index] : nil
     }
 
-    var rightSoFar: Int { outcomes.filter(\.isRight).count }
-
     var skippedCount: Int { outcomes.filter { $0 == .skipped }.count }
 
     /// A question waiting for an answer, or for the reply to a follow-up.

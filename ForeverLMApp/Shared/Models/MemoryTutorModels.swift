@@ -397,13 +397,6 @@ enum MemoryTutorTurnPolicy {
 /// last recall score. All functions are pure so the in-app card and the
 /// `memory_review` MCP tool compute identical due dates from the same stats.
 enum MemoryReviewScheduler {
-    /// First gap after the initial review, in days.
-    static let baseIntervalDays = ForeverLMCore.wholeSourceReviewBaseIntervalDays
-    /// How fast the interval grows per additional successful revisit.
-    static let growthFactor = ForeverLMCore.wholeSourceReviewGrowthFactor
-    /// Never push a refresh further out than this.
-    static let maxIntervalDays = ForeverLMCore.wholeSourceReviewMaximumIntervalDays
-
     /// Days to wait after the most recent review before the source is due again.
     static func intervalDays(reviewCount: Int, lastScore: Double?) -> Double {
         ForeverLMCore.wholeSourceReviewIntervalDays(

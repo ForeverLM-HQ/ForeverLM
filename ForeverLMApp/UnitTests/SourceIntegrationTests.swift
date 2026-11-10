@@ -297,15 +297,6 @@ struct PaywallToPMCTests {
         }
     }
 
-    @Test("efetch JATS XML works as fallback for known PMCID", .enabled(if: liveNetworkTestsEnabled))
-    func efetchTextFallback() async {
-        let text = await PaperService.fetchPMCFullTextViaEfetch(pmcid: Self.expectedPMCID)
-        #expect(text != nil, "efetch returned nil for \(Self.expectedPMCID)")
-        if let text {
-            #expect(text.count > 500, "efetch text suspiciously short: \(text.count) chars")
-        }
-    }
-
     // -- Step 6: End-to-end findOpenAccessAlternative --
 
     @Test("findOpenAccessAlternative finds PMC version for Nature URL", .enabled(if: liveNetworkTestsEnabled))

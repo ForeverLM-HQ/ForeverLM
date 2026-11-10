@@ -31,8 +31,6 @@ enum OutboxTriggerSQL {
     static let now = "((julianday('now') - 2451910.5) * 86400.0)"
     /// True outside an inbound apply: the guard row exists only inside one (§6.6 step 2).
     static let outsideApply = "NOT EXISTS (SELECT 1 FROM ck_apply_guard)"
-    /// Every trigger the installer makes starts with this, and replacing them drops every one of them.
-    static let namePrefix = "ck_"
 
     struct Trigger: Equatable, Sendable {
         let name: String

@@ -58,8 +58,6 @@ extension AIService {
         )
     }
 
-    static var memoryReviewConductInstructions: String { MemoryReviewTutoring.conductInstructions }
-
     // MARK: - Decoding
 
     /// Models wrap JSON in prose or fences often enough that locating the object

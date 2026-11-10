@@ -1,11 +1,5 @@
 // MCPDataStore: Review chat import, session search and session links.
-import CryptoKit
 import Foundation
-import ImageIO
-import Network
-import OSLog
-import PDFKit
-import SQLite3
 
 extension MCPDataStore {
     func getReviewSessions(topic: String?, sourceId: String? = nil) throws -> String {
@@ -650,7 +644,7 @@ extension MCPDataStore {
         }
         var lines = ["Review session links (\(links.count)):"]
         for link in links {
-            let fmt = ISO8601DateFormatter()
+            let fmt = KnowledgeStore.iso8601Formatter
             let urlText = link.url.map { "\n  \($0)" } ?? ""
             let sourceText = link.sourceIDs.isEmpty ? "" : ", sources: \(link.sourceIDs.joined(separator: ", "))"
             lines.append("- [\(link.provider.rawValue)] \(link.title) (id: \(link.id), saved: \(fmt.string(from: link.createdAt))\(sourceText))\(urlText)")

@@ -32,7 +32,7 @@ extension MCPDataStore {
                 "revision": current.revision,
                 "characters": current.markdown.count,
                 "bytes": current.markdown.utf8.count,
-                "updated_at": ISO8601DateFormatter().string(from: current.artifact.updatedAt),
+                "updated_at": KnowledgeStore.iso8601Formatter.string(from: current.artifact.updatedAt),
             ] as [String: Any],
             "version_count": versions.count,
             "versions": versions.map { version in
@@ -121,8 +121,8 @@ extension MCPDataStore {
             "restored_version": Self.docVersionRow(version, bytes: nil),
             "replaced_body_version_id": kept.map { $0.id as Any } ?? NSNull(),
             "message": kept == nil
-                ? "Restored ‘\(restored.artifact.title)’ to the version from \(ISO8601DateFormatter().string(from: version.savedAt)). The page already held that text, so no new version was kept."
-                : "Restored ‘\(restored.artifact.title)’ to the version from \(ISO8601DateFormatter().string(from: version.savedAt)). The body it replaced is kept as replaced_body_version_id; restore_doc_version with that id undoes this.",
+                ? "Restored ‘\(restored.artifact.title)’ to the version from \(KnowledgeStore.iso8601Formatter.string(from: version.savedAt)). The page already held that text, so no new version was kept."
+                : "Restored ‘\(restored.artifact.title)’ to the version from \(KnowledgeStore.iso8601Formatter.string(from: version.savedAt)). The body it replaced is kept as replaced_body_version_id; restore_doc_version with that id undoes this.",
         ]
         await finishPublishedPage(&payload, snapshot: restored, republish: publish)
         return try jsonString(payload)
@@ -161,7 +161,7 @@ extension MCPDataStore {
     private static func docVersionRow(_ version: PageVersion, bytes: Int?) -> [String: Any] {
         var row: [String: Any] = [
             "version_id": version.id,
-            "saved_at": ISO8601DateFormatter().string(from: version.savedAt),
+            "saved_at": KnowledgeStore.iso8601Formatter.string(from: version.savedAt),
             "reason": docVersionReasonName(version.reason),
             // What the app's list says beside the time.
             "summary": version.reason.summary,

@@ -333,10 +333,6 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     // session so the engine's conversation state stays intact across turns.
     private(set) var reviewBrain: any MobileReviewEngine = MobileReviewBrain()
 
-    // Current availability of Apple's on-device model, for settings UI.
-    var appleGraderAvailability: MobileAppleGraderAvailability {
-        MobileReviewGraderFactory.appleAvailability()
-    }
     lazy var reviewRecorder = MobileReviewSessionRecorder.shared
     var reviewSessionID: String?
     var reviewTopic = ""

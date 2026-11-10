@@ -76,23 +76,6 @@ enum BrowserService {
         }
     }
 
-    /// Returns which `BrowserPreference` values are actually installed on this Mac.
-    /// Always includes `.sourceOrigin` and `.systemDefault`.
-    static var installedBrowsers: [BrowserPreference] {
-        #if os(macOS)
-        var result: [BrowserPreference] = [.sourceOrigin, .systemDefault]
-        for pref in BrowserPreference.allCases where pref.bundleIdentifier != nil {
-            if let bundleID = pref.bundleIdentifier,
-               NSWorkspace.shared.urlForApplication(withBundleIdentifier: bundleID) != nil {
-                result.append(pref)
-            }
-        }
-        return result
-        #else
-        return [.sourceOrigin, .systemDefault]
-        #endif
-    }
-
     /// Open a URL using the user's preferred browser setting, with optional discovery origin.
     static func open(
         _ url: URL,

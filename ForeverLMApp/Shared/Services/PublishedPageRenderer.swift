@@ -30,11 +30,6 @@ actor PublishedPageRenderer {
         forResource: "published-page", withExtension: "js", subdirectory: "PublishedPageResources"
     ) ?? Bundle.main.url(forResource: "published-page", withExtension: "js")
 
-    /// The manifest written beside the bundle, naming what it was built from.
-    nonisolated static let bundledManifestURL: URL? = Bundle.main.url(
-        forResource: "published-page.manifest", withExtension: "json", subdirectory: "PublishedPageResources"
-    ) ?? Bundle.main.url(forResource: "published-page.manifest", withExtension: "json")
-
     /// The global the bundle defines and the function on it the site calls.
     static let globalName = "ForeverLMPublishedPage"
     static let renderFunctionName = "renderPublishedPage"
@@ -99,16 +94,6 @@ actor PublishedPageRenderer {
             throw Failure.renderFailed("the renderer returned no page")
         }
         return html
-    }
-
-    /// `RENDERER_VERSION` as the bundle declares it — the number page.ts bumps
-    /// whenever the rendering changes.
-    func rendererVersion() throws -> Int {
-        let (_, module) = try loadedModule()
-        guard let version = module.objectForKeyedSubscript(Self.versionName), version.isNumber else {
-            throw Failure.scriptFailed("\(Self.globalName).\(Self.versionName) is not a number")
-        }
-        return Int(version.toInt32())
     }
 
     /// The context with the bundle evaluated, made on first use and kept: the

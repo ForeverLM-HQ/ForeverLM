@@ -78,7 +78,6 @@ struct SourceIdea: Codable, Equatable, Sendable, Identifiable {
     /// How many ideas a source may carry. The extraction prompt asks for a
     /// number by length; this is the ceiling the store enforces.
     static let maximumPerSource = 12
-    static let minimumPerSource = 3
 }
 
 enum SourceIdeaStatus: String, Codable, Sendable {

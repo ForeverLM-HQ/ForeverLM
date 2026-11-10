@@ -24,7 +24,6 @@ struct ArticleRow: View {
     /// Book chapters carry their number inside the title ("7) Why Bacteria are Simple").
     /// Lifting it into a fixed-width gutter aligns the chapter titles into one column.
     var showsChapterNumber: Bool = false
-    var onShowDrafts: (() -> Void)? = nil
     var dragProvider: (() -> NSItemProvider)? = nil
     /// A meeting session listed among other series' sessions (the Meetings tab
     /// by date), where no series header says whose it is: the row names its

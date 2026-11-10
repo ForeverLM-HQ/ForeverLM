@@ -322,11 +322,6 @@ struct BookNavigation: Equatable {
         return items[currentIndex]
     }
 
-    var previousItem: BookNavigationItem? {
-        guard let currentIndex, items.indices.contains(currentIndex - 1) else { return nil }
-        return items[currentIndex - 1]
-    }
-
     var nextItem: BookNavigationItem? {
         guard let currentIndex, items.indices.contains(currentIndex + 1) else { return nil }
         return items[currentIndex + 1]

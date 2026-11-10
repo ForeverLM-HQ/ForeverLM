@@ -1,5 +1,4 @@
 import Foundation
-import OSLog
 
 /// MCP control surface for recurring scheduled tasks.
 ///
@@ -201,7 +200,7 @@ extension MCPDataStore {
             "queued": true,
             "task_id": id,
             "title": task.title,
-            "requested_at": ISO8601DateFormatter().string(from: requestedAt),
+            "requested_at": KnowledgeStore.iso8601Formatter.string(from: requestedAt),
             "work_id": "scheduled-\(id)",
             "note": "The run starts on an open, signed-in ForeverLM client and appears as a new chat. While it generates on this Mac, cancel_ai_work with this work_id stops it.",
         ] as [String: Any])
@@ -226,8 +225,8 @@ extension MCPDataStore {
             "time_zone": task.resolvedTimeZone.identifier,
             "enabled": task.isEnabled,
             "source_ids": task.sourceIDs,
-            "created_at": ISO8601DateFormatter().string(from: task.createdAt),
-            "updated_at": ISO8601DateFormatter().string(from: task.updatedAt),
+            "created_at": KnowledgeStore.iso8601Formatter.string(from: task.createdAt),
+            "updated_at": KnowledgeStore.iso8601Formatter.string(from: task.updatedAt),
         ]
         if let weekday = task.weekday { payload["weekday"] = weekday }
         if let dayOfMonth = task.dayOfMonth { payload["day_of_month"] = dayOfMonth }
@@ -236,17 +235,17 @@ extension MCPDataStore {
             payload["notebook_title"] = notebookTitles[notebookID] ?? "(deleted notebook)"
         }
         if let next = task.upcomingOccurrence() {
-            payload["next_run_at"] = ISO8601DateFormatter().string(from: next)
+            payload["next_run_at"] = KnowledgeStore.iso8601Formatter.string(from: next)
         }
         if let lastRunAt = task.lastRunAt {
-            payload["last_run_at"] = ISO8601DateFormatter().string(from: lastRunAt)
+            payload["last_run_at"] = KnowledgeStore.iso8601Formatter.string(from: lastRunAt)
         }
         if let status = task.lastRunStatus { payload["last_run_status"] = status.rawValue }
         if includeRuns {
             payload["runs"] = detail.runs.map { run -> [String: Any] in
                 var entry: [String: Any] = [
                     "run_id": run.id,
-                    "occurrence_at": ISO8601DateFormatter().string(from: run.occurrenceAt),
+                    "occurrence_at": KnowledgeStore.iso8601Formatter.string(from: run.occurrenceAt),
                     "status": run.status.rawValue,
                     // Which try the receipt describes, from 1; a failed run a
                     // later try may get past says when that try is due.
@@ -254,13 +253,13 @@ extension MCPDataStore {
                     "max_attempts": ScheduledTaskRetry.maximumAttempts,
                 ]
                 if task.isEnabled, run.isAwaitingRetry, let retryAt = run.retryAt {
-                    entry["retry_at"] = ISO8601DateFormatter().string(from: retryAt)
+                    entry["retry_at"] = KnowledgeStore.iso8601Formatter.string(from: retryAt)
                 }
                 if let sessionID = run.sessionID { entry["session_id"] = sessionID }
                 if let message = run.message { entry["message"] = message }
                 if let deviceName = run.deviceName { entry["device"] = deviceName }
                 if let finishedAt = run.finishedAt {
-                    entry["finished_at"] = ISO8601DateFormatter().string(from: finishedAt)
+                    entry["finished_at"] = KnowledgeStore.iso8601Formatter.string(from: finishedAt)
                 }
                 return entry
             }
@@ -278,7 +277,7 @@ extension MCPDataStore {
             "time_zone": task.resolvedTimeZone.identifier,
         ]
         if let next = task.upcomingOccurrence() {
-            payload["next_run_at"] = ISO8601DateFormatter().string(from: next)
+            payload["next_run_at"] = KnowledgeStore.iso8601Formatter.string(from: next)
         }
         if let notebookID = task.notebookID { payload["notebook_id"] = notebookID }
         if !task.sourceIDs.isEmpty { payload["source_ids"] = task.sourceIDs }

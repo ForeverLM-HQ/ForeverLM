@@ -35,7 +35,7 @@ extension MCPDataStore {
             )
         }
         let excludedSourceIDs = try store.knowledgeSearchExcludedSourceIDs(includeArchived: true)
-        let formatter = ISO8601DateFormatter()
+        let formatter = KnowledgeStore.iso8601Formatter
 
         let rows: [[String: Any]] = try ideas.map { idea in
             var payload: [String: Any] = [

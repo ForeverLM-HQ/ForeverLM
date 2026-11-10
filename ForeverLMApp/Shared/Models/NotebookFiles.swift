@@ -29,12 +29,6 @@ struct NotebookFileRecord: Identifiable, Codable, Equatable, Sendable {
         return components.dropFirst(2).map(String.init).joined(separator: "/")
     }
 
-    var notebookDirectoryPath: String? {
-        let components = notebookRelativePath.split(separator: "/", omittingEmptySubsequences: true)
-        guard components.count > 1 else { return nil }
-        return components.dropLast().map(String.init).joined(separator: "/")
-    }
-
     var sizeDescription: String {
         ByteCountFormatter.string(fromByteCount: sizeBytes, countStyle: .file)
     }

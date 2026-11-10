@@ -254,13 +254,6 @@ enum GeneratedCourseLesson {
         case lesson
         case exercises
 
-        var itemRole: CourseLectureItemRole {
-            switch self {
-            case .lesson: return .notes
-            case .exercises: return .exercise
-            }
-        }
-
         var titlePrefix: String {
             switch self {
             case .lesson: return "Lesson"

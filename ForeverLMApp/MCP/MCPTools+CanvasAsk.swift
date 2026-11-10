@@ -1,7 +1,7 @@
 #if os(macOS)
 import Foundation
 
-// MARK: - Ask the Canvas over MCP (WP-B1, docs/sensemaking-design.md)
+// MARK: - Ask the Canvas over MCP (docs/sensemaking-design.md)
 //
 // `ask_canvas` asks what the inspector's Ask asks — Bridge, Connect or Gaps —
 // of cards on the learner's Canvas, and shows the answer there as proposals

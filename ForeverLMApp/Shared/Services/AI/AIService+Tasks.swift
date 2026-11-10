@@ -1362,8 +1362,7 @@ extension AIService {
     // If attachments are built, OpenRouter takes a PDF as a `file` content part
     // (base64 data URL or plain URL) on any model, and its file-parser plugin
     // OCRs for models without native file input. That needs no upload step and
-    // no per-provider client. AnthropicFile stays in Models.swift only because
-    // it is Codable and may appear in archived state.
+    // no per-provider client.
 
     /// Returns the preferred (pinned) models for a provider. No API call needed.
     static func preferredModels(for provider: AIProvider) -> [String] {

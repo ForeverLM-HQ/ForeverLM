@@ -226,7 +226,7 @@ extension MCPDataStore {
                           MacArticleSpeechMode.selectableCases.contains(mode) else {
                         throw MCPError.invalidInput("read_aloud.provider takes one of: \(MacArticleSpeechMode.selectableCases.map(\.rawValue).joined(separator: ", ")).")
                     }
-                    // `TextToSpeechSettingsView.selectProvider`.
+                    // The same two steps as picking a provider in Settings: set it, then repair the voice it implies.
                     MacArticleSpeechSettings.provider = mode
                     _ = MacArticleSpeechSettings.repairedSelection(for: mode)
                 }

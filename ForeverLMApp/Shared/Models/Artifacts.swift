@@ -688,7 +688,6 @@ struct ChatWrittenPage: Equatable, Hashable, Sendable {
     /// behind it, only the line.
     static let cardRowName = "chat_page_card"
     static let markerName = "card"
-    static let markerValue = Kind.page.rawValue
 
     init(id: String, title: String, kind: Kind = .page) {
         self.id = id

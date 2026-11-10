@@ -312,7 +312,7 @@ extension MCPDataStore {
             "\(quiz.title) (quiz_id: \(quiz.id), kind: \(quiz.kind.rawValue), course_id: \(quiz.courseID))",
             "covers lecture_ids: \(quiz.lectureIDs.joined(separator: ", "))",
             "follows lecture_id: \(quiz.afterLectureID ?? "end of course")",
-            "written by: \(quiz.author == .assistant ? "an assistant" : "ForeverLM"), updated \(ISO8601DateFormatter().string(from: quiz.updatedAt))",
+            "written by: \(quiz.author == .assistant ? "an assistant" : "ForeverLM"), updated \(KnowledgeStore.iso8601Formatter.string(from: quiz.updatedAt))",
             "symbol: \(quiz.symbol ?? "none"); picture: \(quiz.artwork == nil ? "none" : "drawn")",
             "latest sitting: \(scoreLine)",
             "",

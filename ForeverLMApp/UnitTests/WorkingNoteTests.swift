@@ -119,7 +119,6 @@ struct WorkingNoteTests {
         let older = lines.firstIndex { $0.hasSuffix("Older entry") }
         #expect(first != nil && second != nil && older != nil)
         #expect(first! < second! && second! < older!, "newest first")
-        #expect(WorkingLog.rightNowSection(of: after) == "- NAD+ papers, touched today")
     }
 
     @Test("A Doc the learner rewrote keeps every word they wrote")

@@ -3,24 +3,6 @@ import Foundation
 // MARK: - Schema 158: what the Chat and Exchange records need (§12.7)
 
 extension KnowledgeStore {
-    /// The columns schema 158 adds (docs/cloudkit-schema-design.md §12.7), NULL on every row: DDL only,
-    /// like every step from 154 on. Generation 1 never reads or writes them; the generation-2 activation
-    /// derives the three on `review_sessions` (`chatActivationDerivations`), and from then on the chat
-    /// projections and the generation-2 creation sites keep them.
-    /// - `review_sessions.chat_kind`: `Chat.kind` (D50). Today's `kind` column keeps its generation-1
-    ///   meaning, and every generation-1 reader keeps reading it.
-    /// - `review_sessions.marks_reviewed`: whether an `import_review_chat` call with `session_id` and no
-    ///   `mark_reviewed` counts the sources it adds as reviewed (`Chat.marksReviewed`).
-    /// - `review_sessions.context_mode`: `Chat.contextMode`.
-    /// - `review_exchanges.anchor_json`, `cited_source_ids`: `Exchange.contextAnchor` and
-    ///   `Exchange.citedSourceIDs` as another device sent them (nothing on this Mac writes them yet).
-    static let chatSyncColumns: [(table: String, name: String, definition: String)] = [
-        ("review_sessions", "chat_kind", "TEXT"),
-        ("review_sessions", "marks_reviewed", "INTEGER"),
-        ("review_sessions", "context_mode", "TEXT"),
-        ("review_exchanges", "anchor_json", "TEXT"),
-        ("review_exchanges", "cited_source_ids", "TEXT"),
-    ]
 
 }
 

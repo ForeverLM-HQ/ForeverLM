@@ -224,48 +224,4 @@ struct MobileCoursePathTests {
         let noQuote = MobileCourseQuizStretch.text(for: question("q"), in: text)
         #expect(noQuote.hasPrefix("(Not available on this device"))
     }
-
-    // MARK: - Home's Courses
-
-    @Test("A course's card line counts its lecture videos as the Mac's Courses tab does, every item when it has none, in the Mac's words")
-    func cardProgressIsTheMacs() {
-        let path = MobileCoursePath.build(course: course(), sources: sources(watchedFirst: true, paperRead: true))
-        let phone = MobileCourseCardProgress(path: path, reviewedSourceIDs: [])
-        // The Mac's own count over the same items: the two lecture videos, the first watched.
-        let mac = CourseProgress(items: [
-            .init(isLectureVideo: true, isFinished: true, isStarted: true),
-            .init(isLectureVideo: false, isFinished: true, isStarted: true),
-            .init(isLectureVideo: false, isFinished: false, isStarted: false),
-            .init(isLectureVideo: true, isFinished: false, isStarted: false),
-        ])
-        #expect(phone.summary == mac.summary)
-        #expect(phone.summary == "1 of 2 lectures finished")
-        #expect(phone.fractionFinished == mac.fractionFinished)
-
-        let reviewed = MobileCourseCardProgress(path: path, reviewedSourceIDs: ["vid-2"])
-        #expect(reviewed.summary == "All 2 lectures finished", "a reviewed lecture is finished")
-        #expect(reviewed.isComplete)
-
-        var readingsOnly = course(quizzes: [])
-        readingsOnly.lectureItems = readingsOnly.lectureItems.filter { $0.role != "video" }
-        let items = MobileCourseCardProgress(path: MobileCoursePath.build(course: readingsOnly, sources: sources(paperRead: true)), reviewedSourceIDs: [])
-        #expect(items.summary == "1 of 3 items finished", "no video: every item filed under a lecture counts, a paper no video cites among them")
-    }
-
-    @Test("Home's Courses lists every course not hidden, by title, each with the notebooks that follow it")
-    func homeCourses() {
-        let hidden = MobileCloudCourse(id: "hidden", title: "A hidden course", institution: nil, isHidden: true)
-        let other = MobileCloudCourse(id: "ageing", title: "Ageing Biology", institution: "Buck", isHidden: false)
-        let following = MobileCloudNotebook(id: "nb1", title: "🧬 Mito", instructions: nil, sourceIDs: [], linkedCourseIDs: [courseID],
-                                            isArchived: false, updatedAt: Date(timeIntervalSinceReferenceDate: 0))
-        let unrelated = MobileCloudNotebook(id: "nb2", title: "Sleep", instructions: nil, sourceIDs: [], isArchived: false,
-                                            updatedAt: Date(timeIntervalSinceReferenceDate: 0))
-        let rows = MobileCoursesHome.rows(courses: [course(), hidden, other], sources: sources(), reviewedSourceIDs: [],
-                                          notebooks: [unrelated, following])
-        #expect(rows.map(\.id) == ["ageing", courseID], "hidden courses are left out; the rest by title")
-        #expect(rows.first?.notebooksLine == nil, "a course no notebook follows still shows: it lives in no notebook")
-        #expect(rows.last?.notebooks.map(\.id) == ["nb1"])
-        #expect(rows.last?.notebooksLine == "Linked to Mito")
-        #expect(rows.last?.progress.summary == "0 of 2 lectures finished")
-    }
 }

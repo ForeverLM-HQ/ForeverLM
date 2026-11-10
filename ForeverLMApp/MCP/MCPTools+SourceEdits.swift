@@ -1,11 +1,5 @@
 // MCPDataStore: Video transcripts, archive fetches, source actions and source updates.
-import CryptoKit
 import Foundation
-import ImageIO
-import Network
-import OSLog
-import PDFKit
-import SQLite3
 
 extension MCPDataStore {
     /// A download (YouTube, a Zoom recording) holds no store gate

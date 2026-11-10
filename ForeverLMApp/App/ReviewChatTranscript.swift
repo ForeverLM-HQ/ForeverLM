@@ -427,7 +427,6 @@ struct ReviewChatAsideLane<Row: View>: View {
     /// Set once the learner works the lane themselves; their choice then
     /// outranks the default for the rest of the session.
     @State private var manualExpansion: Bool?
-    @State private var isHeadingHovering = false
 
     private var isExpanded: Bool { manualExpansion ?? (isLatest || isLive) }
 

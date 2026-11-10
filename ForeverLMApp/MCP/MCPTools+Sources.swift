@@ -1,9 +1,6 @@
 import Foundation
 import ApplicationServices
-import ImageIO
-import OSLog
 import PDFKit
-import SQLite3
 
 extension MCPDataStore {
 
@@ -873,7 +870,7 @@ extension MCPDataStore {
     /// the title recovered through the library's series the way the row's is.
     func listUnconvertedZoomRecordings() async throws -> String {
         let (recordings, ignored) = try await Self.unconvertedZoomRecordings(knownTitles: try meetingSeriesTitles())
-        let formatter = ISO8601DateFormatter()
+        let formatter = KnowledgeStore.iso8601Formatter
         let rows: [[String: Any]] = recordings.map { recording in
             var row: [String: Any] = [
                 "folder_path": recording.folder.path,
@@ -1075,7 +1072,7 @@ extension MCPDataStore {
             "source_id": id,
             "title": article.title,
             "is_read": read,
-            "read_at": readAt.map { ISO8601DateFormatter().string(from: $0) as Any } ?? NSNull(),
+            "read_at": readAt.map { KnowledgeStore.iso8601Formatter.string(from: $0) as Any } ?? NSNull(),
             "message": read ? "Marked ‘\(article.title)’ as read." : "Marked ‘\(article.title)’ as unread.",
         ] as [String: Any])
     }
@@ -1104,7 +1101,7 @@ extension MCPDataStore {
             "source_id": article.id,
             "title": article.title,
             "is_watched": watched,
-            "read_at": mark.readAt.map { ISO8601DateFormatter().string(from: $0) as Any } ?? NSNull(),
+            "read_at": mark.readAt.map { KnowledgeStore.iso8601Formatter.string(from: $0) as Any } ?? NSNull(),
             "message": mark.changed
                 ? "Marked ‘\(article.title)’ as \(label)."
                 : "‘\(article.title)’ was already \(label).",
@@ -1413,7 +1410,7 @@ extension MCPDataStore {
         let isoFractional = ISO8601DateFormatter()
         isoFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         if let date = isoFractional.date(from: trimmed) { return date }
-        let iso = ISO8601DateFormatter()
+        let iso = KnowledgeStore.iso8601Formatter
         if let date = iso.date(from: trimmed) { return date }
 
         // Naive timestamps with no timezone: assume UTC. Normalize the fractional

@@ -377,7 +377,7 @@ extension MCPDataStore {
         let (items, appGenerating) = await MainActor.run {
             (SourceAudioGenerationQueue.shared.items, ArticleSpeechService.shared.backgroundGenerationSourceIDs)
         }
-        let formatter = ISO8601DateFormatter()
+        let formatter = KnowledgeStore.iso8601Formatter
         let bookTitles = Dictionary(
             try bookChapterRows().map { ($0.bookID, $0.bookTitle) },
             uniquingKeysWith: { first, _ in first }

@@ -11,19 +11,6 @@ import AppKit
 import UIKit
 #endif
 
-/// Represents a file uploaded to Anthropic's Files API.
-struct AnthropicFile: Identifiable, Codable {
-    let id: String
-    let filename: String
-    let sizeBytes: Int
-    let createdAt: String
-    
-    var sizeDescription: String {
-        let mb = Double(sizeBytes) / (1024.0 * 1024.0)
-        return String(format: "%.1f MB", mb)
-    }
-}
-
 enum AIProvider: String, CaseIterable, Codable {
     case anthropic = "Anthropic (Claude)"
     case openai = "OpenAI (GPT)"
@@ -42,12 +29,6 @@ enum AIProvider: String, CaseIterable, Codable {
     static let activeChatProviders: [AIProvider] = [
         .anthropic, .openai, .gemini, .xai, .meta, .openRouter,
     ]
-
-    /// A host that no longer appears in the chat surface (its models moved to
-    /// OpenRouter). Existing keys and usage history remain readable.
-    var isRetiredChatHost: Bool {
-        !Self.activeChatProviders.contains(self)
-    }
 
     /// Whether a selection already stored on this device naming this provider
     /// can still be carried out. A retired host — Groq, Cerebras, Together,

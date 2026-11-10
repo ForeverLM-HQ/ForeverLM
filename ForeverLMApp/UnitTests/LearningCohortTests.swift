@@ -352,82 +352,8 @@ struct CohortSessionPlanTests {
 
 // MARK: - Nudge
 
-@Suite("Cohort nudge")
-struct CohortNudgeTests {
-
-    private let now = Date(timeIntervalSinceReferenceDate: 800_000_000)
-
-    private func cohort(_ ids: [String]) -> LearningCohort {
-        LearningCohort(
-            assembledAt: now,
-            windowDays: 10,
-            sources: ids.map {
-                CohortSource(
-                    sourceID: $0, title: $0, sourceType: "paper", role: .spine,
-                    consumedAt: now, lastDiscussedAt: nil, reviewCount: 0,
-                    confidence: .complete, bridgeTo: nil, reason: "test"
-                )
-            },
-            unfinished: [],
-            droppedSpine: 0,
-            droppedSpacing: 0
-        )
-    }
-
-    @Test("The signature identifies the material, not the order it arrived in")
-    func signatureIsOrderIndependent() {
-        #expect(
-            CohortNudge.signature(for: cohort(["a", "b"]))
-            == CohortNudge.signature(for: cohort(["b", "a"]))
-        )
-        #expect(
-            CohortNudge.signature(for: cohort(["a", "b"]))
-            != CohortNudge.signature(for: cohort(["a", "c"]))
-        )
-    }
-
-    @Test("Dismissing today's material does not silence tomorrow's")
-    func dismissalIsKeyedToMaterial() {
-        let today = cohort(["a", "b"])
-        let tomorrow = cohort(["a", "b", "c"])
-        CohortNudge.restoreAll()
-        defer { CohortNudge.restoreAll() }
-
-        CohortNudge.dismiss(signature: CohortNudge.signature(for: today))
-
-        #expect(CohortNudge.decide(cohort: today) == .dismissed(signature: CohortNudge.signature(for: today)))
-        if case .offer = CohortNudge.decide(cohort: tomorrow) {} else {
-            Issue.record("A different cohort must be offered afresh")
-        }
-    }
-
-    @Test("A dismissal can always be undone")
-    func dismissalIsReversible() {
-        let today = cohort(["a"])
-        let signature = CohortNudge.signature(for: today)
-        CohortNudge.restoreAll()
-        defer { CohortNudge.restoreAll() }
-
-        CohortNudge.dismiss(signature: signature)
-        #expect(CohortNudge.isDismissed(signature: signature))
-        CohortNudge.restore(signature: signature)
-        #expect(CohortNudge.isDismissed(signature: signature) == false)
-    }
-
-    @Test("Yesterday's dismissal does not silence today")
-    func dismissalsExpireDaily() {
-        let yesterday = now.addingTimeInterval(-86_400)
-        let entries = ["old": yesterday.timeIntervalSinceReferenceDate,
-                       "today": now.timeIntervalSinceReferenceDate]
-        let pruned = CohortNudge.pruned(entries, now: now)
-        #expect(pruned["old"] == nil)
-        #expect(pruned["today"] != nil)
-    }
-
-    @Test("An empty cohort is never offered")
-    func emptyCohortIsSilent() {
-        #expect(CohortNudge.decide(cohort: cohort([])) == .nothingDue)
-    }
+@Suite("Cohort review notifications")
+struct CohortReviewNotificationTests {
 
     @Test("The daily notification is off until switched on")
     func notificationsAreOptIn() {

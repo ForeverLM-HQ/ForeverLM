@@ -30,7 +30,6 @@ struct PaperWalkthroughFigureReference: Equatable, Sendable {
 /// whose anchor fails keeps its words and loses only the scroll target, and
 /// the warnings say which, so a caller can see what the writer invented.
 enum PaperWalkthroughValidation {
-    static let minimumSteps = 2
     /// Steps that are not questions. Raised from 24 on 2026-09-21, when a
     /// figure step became one panel: a paper with five four-panel figures
     /// needs the room.

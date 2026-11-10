@@ -19,7 +19,7 @@ extension MCPDataStore {
     }
 
     private static func workingNotePayload(_ note: WorkingNote) -> [String: Any] {
-        let formatter = ISO8601DateFormatter()
+        let formatter = KnowledgeStore.iso8601Formatter
         var payload: [String: Any] = [
             "note_id": note.id,
             "kind": note.kind.rawValue,

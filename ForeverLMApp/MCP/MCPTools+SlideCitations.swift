@@ -95,7 +95,7 @@ extension MCPDataStore {
     /// One candidate, in the shape follow-up tool calls key on: `cited_paper_id` for the
     /// mutating tools, `imported_source_id` for reaching the library source it produced.
     func citedPaperPayload(_ paper: VideoCitedPaper) -> [String: Any] {
-        let iso = ISO8601DateFormatter()
+        let iso = KnowledgeStore.iso8601Formatter
         var payload: [String: Any] = [
             "cited_paper_id": paper.id,
             "source_id": paper.sourceID,

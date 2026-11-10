@@ -7,8 +7,6 @@ import SwiftUI
 /// nor a grid, which is Plugins'.
 enum MobileNotebookGlyph {
     static let symbolName = "text.book.closed"
-    /// Uncategorized's, the Mac rail's.
-    static let uncategorizedSymbolName = "tray"
 }
 
 /// Home, drawn as ChatGPT's app draws its own (product owner, 2026-11-09:

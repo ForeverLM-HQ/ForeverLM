@@ -204,13 +204,6 @@ final class SourceAudioGenerationQueue: ObservableObject {
         items.first { $0.sourceID == sourceID }
     }
 
-    /// The books with chapters still queued or generating. A book row asks this
-    /// set rather than scanning the item list itself, so the sidebar stays
-    /// cheap while a few hundred chapters are in flight.
-    var activeGroups: Set<String> {
-        Set(items.compactMap { $0.status.isActive ? $0.group : nil })
-    }
-
     /// How far a book has to go, as chapters left of chapters asked for.
     /// Counts only this queue's entries, so a chapter narrated some other day
     /// is neither remaining nor part of the total.

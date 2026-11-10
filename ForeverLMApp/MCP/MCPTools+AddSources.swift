@@ -1,11 +1,5 @@
 // MCPDataStore: Adding, batching, updating and removing sources.
-import CryptoKit
 import Foundation
-import ImageIO
-import Network
-import OSLog
-import PDFKit
-import SQLite3
 
 extension MCPDataStore {
     /// - Parameter connectorLabel: non-nil only for ingest-scoped plugin

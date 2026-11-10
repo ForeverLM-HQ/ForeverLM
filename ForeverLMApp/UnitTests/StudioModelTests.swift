@@ -1550,7 +1550,6 @@ struct MeetingIconTests {
         let mini = try #require(models.first { $0.id == "openai/gpt-image-1-mini" })
         #expect(mini.name == "GPT Image 1 Mini")
         #expect(mini.maker == "OpenAI")
-        #expect(mini.makerSlug == "openai")
         #expect(mini.detail == "Cheaper sibling of GPT Image 1.")
         #expect(mini.revisesPictures)
         #expect(mini.qualities.contains("medium"))

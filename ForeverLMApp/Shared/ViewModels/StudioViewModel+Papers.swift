@@ -782,13 +782,6 @@ extension StudioViewModel {
         return false
     }
 
-    static let ttmlDateFormatter: DateFormatter = {
-        let f = DateFormatter()
-        f.dateStyle = .medium
-        f.timeStyle = .short
-        return f
-    }()
-
     /// The real user home directory, not the sandbox container.
     /// In a sandboxed app, NSHomeDirectory() returns the container path
     /// (~/Library/Containers/com.foreverlm/Data/), not the real home.

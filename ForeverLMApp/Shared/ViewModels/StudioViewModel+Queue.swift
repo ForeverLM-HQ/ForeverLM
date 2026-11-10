@@ -2088,10 +2088,6 @@ extension StudioViewModel {
             .sorted { $0.localizedStandardCompare($1) == .orderedAscending }
     }
 
-    var hasHiddenPodcastItems: Bool {
-        !hiddenPodcastShows.isEmpty || !hiddenPodcastEpisodeIDs.isEmpty
-    }
-
     var hiddenPodcastEpisodeArticles: [StudioArticle] {
         articles
             .filter { $0.sourceType == .podcast && hiddenPodcastEpisodeIDs.contains($0.id) && !hiddenPodcastShows.contains($0.domain) }

@@ -28,7 +28,7 @@ actor PodcastFinderService {
         let applePodcastsURL: String
         let artworkURL: String?
         /// Episode store track ID extracted from the Apple Podcasts URL (the `i=` parameter).
-        /// Used by `fetchPodcastTranscript` to download the TTML transcript.
+        /// Used to download the TTML transcript.
         let storeTrackId: Int64?
     }
 

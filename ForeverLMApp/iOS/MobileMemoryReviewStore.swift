@@ -100,10 +100,6 @@ struct MobileMemoryReviewRecord: Equatable, Sendable {
     var awaitsSteer: Bool {
         MemoryReviewSourceStatus.offersSteer(currentSourceID: currentSourceID, statuses: sourceStatuses)
     }
-
-    var gradedContourCount: Int {
-        exchanges.filter { $0.ideaCoverage != nil }.count
-    }
 }
 
 enum MobileMemoryReviewStoreError: LocalizedError {

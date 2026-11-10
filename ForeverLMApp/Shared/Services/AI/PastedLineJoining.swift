@@ -27,7 +27,6 @@ enum PastedLineJoining {
         /// The lines join with nothing between them.
         case join
 
-        var removesLineEndHyphen: Bool { self == .hyphenSplit }
         var needsLineEndHyphen: Bool { self == .hyphenSplit || self == .hyphenKept }
     }
 

@@ -206,14 +206,6 @@ extension StudioViewModel {
 
     // MARK: - Followed items
 
-    /// Video playlist groups followed through the YouTube plugin, distinct
-    /// from ordinary manually-added playlists.
-    var followedYouTubePluginGroupIDs: [String] {
-        orderedVideoPlaylistNames(
-            videoPlaylistMetadata.filter { $0.value.connectorKind != nil }.map(\.key)
-        )
-    }
-
     /// The groups that carry accounts' import sources, by group id: one shared
     /// Liked-videos group, and one group per account's ForeverLM playlist.
     nonisolated static func youtubeSourceGroupKinds(accounts: [YouTubeAccount]) -> [String: String] {

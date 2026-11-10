@@ -1,8 +1,4 @@
 import Foundation
-import ImageIO
-import OSLog
-import PDFKit
-import SQLite3
 
 extension MCPDataStore {
 
@@ -156,8 +152,8 @@ extension MCPDataStore {
                     item["activity_days"] = activityDays.map { activity in
                         [
                             "date": isoDateOnly(activity.dayStart, calendar: calendar),
-                            "first_at": ISO8601DateFormatter().string(from: activity.firstActivityAt),
-                            "last_at": ISO8601DateFormatter().string(from: activity.lastActivityAt),
+                            "first_at": KnowledgeStore.iso8601Formatter.string(from: activity.firstActivityAt),
+                            "last_at": KnowledgeStore.iso8601Formatter.string(from: activity.lastActivityAt),
                             "kinds": activity.kinds.map(\.rawValue).sorted(),
                             "completed_kinds": activity.completedKinds.map(\.rawValue).sorted(),
                         ] as [String: Any]
@@ -198,7 +194,7 @@ extension MCPDataStore {
                     "percent": totalCount == 0 ? 0 : Double(completedCount) / Double(totalCount),
                 ],
                 "planning_guidance": "The schedule is one continuous calendar anchored on the live today field; current_week is always the Mon–Sun week containing today. With no goal_id this is the whole Schedule — each item lists goal_tags for the Goals and Notebooks it serves, and an item with no tags is on the Schedule for its own sake. A source appears once even if it serves several; completing it (set_source_completion or mark_schedule_day_done) marks it done for all of them at once. Goals are not week windows: assign_sources_to_day accepts any date. Use pending, non-missing items as the near-term plan; has_linked_review_session distinguishes sources with saved review chats from schedule-only reviews. Only deliberate placements appear here: opening or playing a source records activity_days, which is history, never a planned day and never a completion. An item is completed only by set_source_completion, mark_schedule_day_done, or a graded review.",
-                "generated_at": ISO8601DateFormatter().string(from: now),
+                "generated_at": KnowledgeStore.iso8601Formatter.string(from: now),
             ]
             if let filterGoalID, let scopedGoal {
                 payload["goal"] = [
@@ -515,7 +511,7 @@ extension MCPDataStore {
                 if let id = row["id"] as? String, let title = row["title"] as? String { result[id] = title }
             }
         }
-        let formatter = ISO8601DateFormatter()
+        let formatter = KnowledgeStore.iso8601Formatter
         let sources: [[String: Any]] = forgotten.map { entry in
             [
                 "source_id": entry.sourceID,

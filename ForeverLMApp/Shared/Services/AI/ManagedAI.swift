@@ -212,16 +212,6 @@ enum ManagedAI {
         /// call it neither bills nor credentials.
         var sendsDirect: Bool { true }
 
-        /// How a usage row names this router in `AIUsageEvent.provider` — the
-        /// same string as `AIProvider.shortName` for it. The iOS recorder
-        /// reads the rail off this label, which is sound there because a
-        /// routed mobile text call is recorded under the router's own name
-        /// (see `MobileModelPreferenceStore`), never a downstream maker's. The
-        /// Mac cannot use the label: its long tail records Groq or Cerebras
-        /// while travelling to openrouter.ai, so `AIUsageTracker` resolves the
-        /// rail from the endpoint instead.
-        var usageProviderName: String { "OpenRouter" }
-
         /// The transport ordinary text takes while this key is set.
         var routingMode: AITextRoutingMode { .openRouter }
 
@@ -230,15 +220,6 @@ enum ManagedAI {
 
         /// Where the learner gets one.
         var keysURL: URL { URL(string: "https://openrouter.ai/keys")! }
-
-        /// Said beside Connect, where a learner is asked to set up their own
-        /// account. The product owner (2026-09-27): say only that ForeverLM adds nothing
-        /// to token prices and that the models are theirs to choose. True
-        /// because `sendsDirect` sends these requests straight to the router,
-        /// which bills its own account.
-        var accountNote: String {
-            "ForeverLM does not upcharge for tokens. You are in control: choose the models you want on \(label), including free ones."
-        }
 
         /// What OpenRouter is, said wherever the learner sets up the key.
         var aboutNote: String {
@@ -662,31 +643,6 @@ enum ManagedAI {
         return Date() < expiry.addingTimeInterval(accountGracePeriod)
     }
 
-    // MARK: - Coverage
-
-    // Fenced to macOS: these two read `AIProvider` and `AIModelCatalog`, which live
-    // in Models.swift / AIModelDefaults.swift — files that import AppKit and pull in
-    // most of the desktop model layer. The mobile targets need the auth and routing
-    // halves of ManagedAI but have no caller for coverage, so the dependency stays
-    // behind the fence rather than dragging the Mac's model graph onto the phone.
-    // Same technique as SyncedArticleAudio.swift.
-    #if os(macOS)
-    /// Providers the proxy forwards — the app's whole chat surface. Mirrors the
-    /// worker's route table, which is the only place a provider can actually be
-    /// added: a host absent there reaches the provider unrouted and unmetered.
-    static var managedProviders: Set<AIProvider> { Set(AIProvider.activeChatProviders) }
-
-    /// Catalog entries the managed rail covers, in catalog order.
-    ///
-    /// Every model of a forwarded provider qualifies at the UI boundary. The
-    /// Worker remains authoritative: first-party media routes use a versioned
-    /// exact allowlist and OpenRouter resolves generation cost. Anything
-    /// unpriceable fails closed there.
-    static var managedCatalogEntries: [AIModelCatalogEntry] {
-        AIModelCatalog.allEntries.filter { managedProviders.contains($0.provider) }
-    }
-    #endif
-
     // MARK: - Routing
 
     /// Rewrites a provider-native request to the metered proxy.
@@ -941,8 +897,6 @@ enum ManagedAI {
         var isSet: Bool { monthlyLimitMicroUSD != nil }
         var limitUSD: Double? { monthlyLimitMicroUSD.map { Double($0) / 1_000_000 } }
         var spentThisMonthUSD: Double { Double(spentThisMonthMicroUSD) / 1_000_000 }
-        var limitCredits: Double? { monthlyLimitMicroUSD.map { Double($0) / 10_000 } }
-        var spentThisMonthCredits: Double { Double(spentThisMonthMicroUSD) / 10_000 }
 
         var isReached: Bool {
             guard let limit = monthlyLimitMicroUSD else { return false }
@@ -1053,8 +1007,6 @@ enum ManagedAI {
         /// three metering failures in a row). The balance's `disabled` is the
         /// same flag, so a later balance read can say it no longer holds.
         var isAccountDisabled: Bool { code == "account_disabled" }
-        /// The router refused the learner's own key, or the key was malformed.
-        var isOwnKeyProblem: Bool { code == "own_key_rejected" || code == "own_key_invalid" }
         /// The proxy refused the transport this client named. It means the
         /// account-wide policy moved while this client was running, so the
         /// stored policy is stale rather than the request being wrong.

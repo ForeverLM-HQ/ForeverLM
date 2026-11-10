@@ -97,10 +97,6 @@ extension StudioViewModel {
         return names
     }
 
-    func bookGroupMatchesCurrentFilters(_ groupName: String) -> Bool {
-        bookMatchesMetadataFilters(groupName) && bookMatchesSearch(groupName)
-    }
-
     func bookMatchesMetadataFilters(_ groupName: String) -> Bool {
         guard let selectedBookKind else { return true }
         return bookKinds[groupName] == selectedBookKind

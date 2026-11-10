@@ -92,13 +92,6 @@ enum OpenBlockNote: Equatable, Sendable {
             return "Not closed out · ended \(DayPlan.clockString(minute: end))"
         }
     }
-
-    /// Whether the card wears orange: only a block that may still be running
-    /// is worth an alarm; one left open is a question, not an emergency.
-    var isRunningLong: Bool {
-        if case .runningLong = self { return true }
-        return false
-    }
 }
 
 /// One block of time on one day's plan.
@@ -320,14 +313,6 @@ struct TimeBlock: Identifiable, Codable, Equatable, Sendable {
         }
     }
 
-    /// The calendar's word on where the hour is when it is not a link: a
-    /// room, an address. Nil when there is no location or it is the link the
-    /// Join button already covers.
-    var locationText: String? {
-        guard let location, !location.isEmpty, TimeBlockLink.links(in: location).isEmpty else { return nil }
-        return location
-    }
-
     /// Whether this block should have finished by `minute` and has not been
     /// closed out — the planner's "running behind" signal.
     func isOverdue(atMinute minute: Int) -> Bool {
@@ -513,12 +498,6 @@ struct DayPlan: Identifiable, Codable, Equatable, Sendable {
 
     static let minutesPerDay = 24 * 60
     static let minimumBlockMinutes = 5
-    /// The hours a day has: the outer bound of what any clock may draw.
-    /// The Mac's clock draws `PlannerDayHours` — the learner's own window,
-    /// six to midnight unless they set it — widened to hold whatever the day
-    /// contains (`DayPlanDetail.clockHourRange`). Web Studio still draws all
-    /// of this, as `DAY_PLAN_HOUR_RANGE`.
-    static let dayHourRange = 0...24
     /// A block that has run this far past its end without being closed is the
     /// signal that the day needs redrawing.
     static let overdueGraceMinutes = 10
@@ -541,145 +520,6 @@ struct DayPlan: Identifiable, Codable, Equatable, Sendable {
     /// lane and counted in the side panel instead of drawn as slivers.
     static let activityGlanceMinutes = 2
 
-    // MARK: - The closing block
-
-    /// The block every drawn day ends with: shut the day down, and draw the
-    /// next one.
-    ///
-    /// Planning tomorrow is part of today's plan rather than a card that
-    /// interrupts tomorrow (product owner, 2026-09-18: "it should be planned as
-    /// part of the daily plan at the end of the day; then in the morning we
-    /// can just get started"). This is the same habit the plan nudge was
-    /// built to teach, moved onto the clock where the rest of the day's
-    /// intentions already live: a day that ends by drawing the next one needs
-    /// nothing to ask it in the morning, which is why nothing does any more.
-    static let closingBlockTitle = "Shut down · plan tomorrow"
-    /// Long enough to carry what is left and draw the next day, short enough
-    /// that it is never the reason the day ran over.
-    static let closingBlockMinutes = 20
-
-    /// Whether a block is that closing block.
-    ///
-    /// By title, because a block has no kind — `kind` was dropped after build
-    /// 99 and nothing replaced it. The consequence is the right one: a
-    /// renamed closing block is simply the learner's own block again, and the
-    /// day draws a new one the next time it is redrawn.
-    static func isClosingBlock(_ block: TimeBlock) -> Bool {
-        block.title.trimmingCharacters(in: .whitespacesAndNewlines)
-            .compare(closingBlockTitle, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
-    }
-
-    /// The closing block for `date`, drawn after everything already on it.
-    ///
-    /// Nil when there is nothing to close (an empty day asks for nothing), when
-    /// the day already ends by planning the next one, or when the last block
-    /// runs so close to midnight that there is no room — a day drawn to the end
-    /// of the clock is not given a block that would not fit on it.
-    static func closingBlock(for date: String, after blocks: [TimeBlock], now: Date = Date()) -> TimeBlock? {
-        guard !blocks.isEmpty, !blocks.contains(where: isClosingBlock) else { return nil }
-        guard let start = blocks.map(\.endMinute).max(), start + closingBlockMinutes <= minutesPerDay else {
-            return nil
-        }
-        return TimeBlock(
-            dayPlanID: date,
-            startMinute: start,
-            endMinute: start + closingBlockMinutes,
-            title: closingBlockTitle,
-            createdAt: now,
-            updatedAt: now
-        )
-    }
-
-    // MARK: - The memory review block
-
-    /// The block every day holds for its memory review: the day's goal, on
-    /// the clock.
-    ///
-    /// The product owner (2026-09-19), right after asking for the review to be a
-    /// committed session: "that also needs to be planned on the planner every
-    /// day i think". So the fifteen minutes have a place in the day rather
-    /// than being owed to a badge. Like the closing block it is recognised by
-    /// its title, because a block has no kind; renamed, it is the learner's
-    /// own block again.
-    static let memoryReviewBlockTitle = "Memory review"
-
-    /// Whether a block is the day's memory review block.
-    static func isMemoryReviewBlock(_ block: TimeBlock) -> Bool {
-        isMemoryReviewTitle(block.title)
-    }
-
-    /// The same test on a title alone, for a block that is still being drawn:
-    /// the MCP tools let a review with this title go without sources, because
-    /// it is the one review whose material is the day's memory.
-    static func isMemoryReviewTitle(_ title: String) -> Bool {
-        title.trimmingCharacters(in: .whitespacesAndNewlines)
-            .compare(memoryReviewBlockTitle, options: [.caseInsensitive, .diacriticInsensitive]) == .orderedSame
-    }
-
-    /// The id every device gives the memory review block it draws for
-    /// `date`. Each Mac draws the block when its Planner shows the day, and
-    /// before CloudKit has carried one Mac's block to the other both see a day
-    /// without one: on 2026-09-22 that put two blocks on the clock, at 00:15
-    /// and 00:30. With one id per day the two draws are the same row, and the
-    /// sync's union by id keeps one of them.
-    static func memoryReviewBlockID(for date: String) -> String {
-        "memory-review-\(date)"
-    }
-
-    /// The memory review block for `date`, on the first free stretch of
-    /// `minutes` at or after `earliestMinute`, snapped up to the quarter hour.
-    ///
-    /// Nil when the day already holds one in any row, deleted ones included,
-    /// so a block the learner took off the day, or redrew away, is
-    /// not put back, and a block renamed away still holds the day's id — and
-    /// nil when no stretch of `minutes` is free before midnight: a day drawn
-    /// to the end of the clock is not given a block that would not fit on
-    /// it. Free means clear of every current block.
-    static func memoryReviewBlock(
-        for date: String,
-        among blocks: [TimeBlock],
-        minutes: Int,
-        earliestMinute: Int,
-        now: Date = Date()
-    ) -> TimeBlock? {
-        let id = memoryReviewBlockID(for: date)
-        guard minutes >= minimumBlockMinutes,
-              !blocks.contains(where: { $0.id == id || isMemoryReviewBlock($0) }) else { return nil }
-        guard let start = firstFreeQuarterHour(minutes: minutes, from: earliestMinute, among: blocks) else { return nil }
-        return TimeBlock(
-            id: id,
-            dayPlanID: date,
-            startMinute: start,
-            endMinute: start + minutes,
-            title: memoryReviewBlockTitle,
-            // The one review drawn with no sources: what it reviews is
-            // the day's memory, not a reading.
-            purpose: .review,
-            createdAt: now,
-            updatedAt: now
-        )
-    }
-
-    /// The first quarter hour at or after `earliestMinute` from which
-    /// `minutes` are clear of every current block, or nil when no such
-    /// stretch is left before midnight: a day drawn to the end of the clock
-    /// is not given a block that would not fit on it.
-    static func firstFreeQuarterHour(minutes: Int, from earliestMinute: Int, among blocks: [TimeBlock]) -> Int? {
-        let quarter = 15
-        var start = max(0, ((max(0, earliestMinute) + quarter - 1) / quarter) * quarter)
-        let occupied = blocks.filter(\.isCurrent).sorted { $0.startMinute < $1.startMinute }
-        while start + minutes <= minutesPerDay {
-            // The first current block that overlaps the stretch pushes the
-            // start past its own end; a stretch nothing overlaps is the one.
-            if let blocking = occupied.first(where: { $0.startMinute < start + minutes && $0.endMinute > start }) {
-                start = max(start + quarter, ((blocking.endMinute + quarter - 1) / quarter) * quarter)
-                continue
-            }
-            return start
-        }
-        return nil
-    }
-
     // MARK: - One block at a time
 
     /// No two blocks share a minute of the day (product owner, 2026-09-19:
@@ -695,7 +535,7 @@ struct DayPlan: Identifiable, Codable, Equatable, Sendable {
     /// `TimeBlock.keepsClearOfOtherBlocks`.
 
     /// The quarter hour the clock snaps to. `DayTimelineView.snapMinutes` is
-    /// this, and the memory review block lands on it too.
+    /// this.
     static let gridMinutes = 15
 
     /// The current blocks among `blocks` that share a minute with `block`,
@@ -712,41 +552,6 @@ struct DayPlan: Identifiable, Codable, Equatable, Sendable {
     static func overlapMessage(for block: TimeBlock, overlapping others: [TimeBlock]) -> String {
         let inTheWay = others.map { "‘\($0.title)’ \(clockString(minute: $0.startMinute))–\(clockString(minute: $0.endMinute))" }
         return "‘\(block.title)’ \(clockString(minute: block.startMinute))–\(clockString(minute: block.endMinute)) overlaps \(inTheWay.joined(separator: " and ")). Blocks on a day do not overlap; move or shorten one first."
-    }
-
-    /// The free stretch of the day around `minute`: from the end of the last
-    /// current block that ends at or before it to the start of the first
-    /// that starts after it, or the day's edges. Nil when `minute` is inside
-    /// a block. Every block counts here, calendar ones included: the block
-    /// being placed is the one that has to keep clear.
-    static func freeStretch(around minute: Int, among blocks: [TimeBlock], excluding excludedID: String? = nil) -> ClosedRange<Int>? {
-        let occupied = blocks.filter { $0.isCurrent && $0.id != excludedID }
-        guard !occupied.contains(where: { $0.contains(minute: minute) }) else { return nil }
-        let lower = occupied.filter { $0.endMinute <= minute }.map(\.endMinute).max() ?? 0
-        let upper = occupied.filter { $0.startMinute > minute }.map(\.startMinute).min() ?? minutesPerDay
-        guard upper - lower >= minimumBlockMinutes else { return nil }
-        return lower...upper
-    }
-
-    /// The first free stretch of at least the minimum block at or after
-    /// `minute`, pushed past any block that holds `minute`; nil when the rest
-    /// of the day is spoken for.
-    static func firstFreeStretch(from minute: Int, among blocks: [TimeBlock]) -> ClosedRange<Int>? {
-        var cursor = max(0, minute)
-        let occupied = blocks.filter(\.isCurrent).sorted { $0.startMinute < $1.startMinute }
-        while cursor <= minutesPerDay - minimumBlockMinutes {
-            if let holding = occupied.first(where: { $0.contains(minute: cursor) }) {
-                cursor = max(cursor + 1, holding.endMinute)
-                continue
-            }
-            if let stretch = freeStretch(around: cursor, among: blocks) {
-                return max(cursor, stretch.lowerBound)...stretch.upperBound
-            }
-            // Free, but too little of it: the next block's end is the next chance.
-            guard let next = occupied.first(where: { $0.startMinute >= cursor }) else { return nil }
-            cursor = next.endMinute
-        }
-        return nil
     }
 
     /// Every stretch from `start` to `end` that no current block holds, in
@@ -767,39 +572,6 @@ struct DayPlan: Identifiable, Codable, Equatable, Sendable {
         if limit - cursor >= minimumMinutes { stretches.append(cursor..<limit) }
         return stretches
     }
-
-    /// Where a block `minutes` long asked to start at `start` lands so it is
-    /// clear of every current block: `start` itself when the stretch is free,
-    /// otherwise the free start nearest to it — flush against the block in
-    /// the way on whichever side is closer, or over it into the free time
-    /// beyond. Ties go to the earlier start. Nil when no stretch of `minutes`
-    /// is free anywhere in the day. `excludedID` is the block being moved,
-    /// which does not stand in its own way.
-    static func nearestFreeStart(forDuration minutes: Int, near start: Int, among blocks: [TimeBlock], excluding excludedID: String? = nil) -> Int? {
-        let minutes = max(minimumBlockMinutes, minutes)
-        let latest = minutesPerDay - minutes
-        guard latest >= 0 else { return nil }
-        let occupied = blocks.filter { $0.isCurrent && $0.id != excludedID }
-        func isFree(_ candidate: Int) -> Bool {
-            (0...latest).contains(candidate)
-                && !occupied.contains { $0.startMinute < candidate + minutes && candidate < $0.endMinute }
-        }
-        let wanted = min(max(0, start), latest)
-        if isFree(wanted) { return wanted }
-        var candidates: Set<Int> = [0, latest]
-        for block in occupied {
-            candidates.insert(block.endMinute)
-            candidates.insert(block.startMinute - minutes)
-        }
-        return candidates
-            .filter(isFree)
-            .min { lhs, rhs in
-                let (dl, dr) = (abs(lhs - wanted), abs(rhs - wanted))
-                return dl != dr ? dl < dr : lhs < rhs
-            }
-    }
-
-    var isShutDown: Bool { shutdownAt != nil }
 
     /// How a day is named. The implementation is `PlanDate`, which the phone
     /// compiles too; these four are the names the rest of the app already uses.
@@ -1139,29 +911,6 @@ struct DayActivitySitting: Identifiable, Equatable, Sendable {
     }
 }
 
-/// Where the clock draws one sitting: inside a block, or in the free stretch
-/// between blocks, and the minutes of it that fall inside that host. See
-/// `DayPlanDetail.activityPlacements`.
-struct DayActivityPlacement: Equatable, Sendable {
-    enum Host: Equatable, Sendable {
-        case block(id: String)
-        case free(startMinute: Int, endMinute: Int)
-    }
-
-    let host: Host
-    /// The sitting cut to its host: what the card is drawn over.
-    let drawnStartMinute: Int
-    let drawnEndMinute: Int
-
-    var drawnMinutes: Int { max(0, drawnEndMinute - drawnStartMinute) }
-
-    /// The block this sitting is drawn in, nil when it stands free.
-    var blockID: String? {
-        if case .block(let id) = host { return id }
-        return nil
-    }
-}
-
 /// A day with every row it has ever held, tombstones included. Callers read
 /// the plan through `currentBlocks`.
 struct DayPlanDetail: Identifiable, Equatable, Sendable {
@@ -1272,79 +1021,6 @@ struct DayPlanDetail: Identifiable, Equatable, Sendable {
         return result
     }
 
-    /// Where a sitting is drawn on the one-column clock. Since 2026-09-20 the
-    /// log is not a lane beside the plan but is drawn inside it: a sitting
-    /// sits in the block that held most of it, cut to that block's frame, or
-    /// in the free stretch between blocks that held most of it, cut to that
-    /// stretch — so a block with nothing inside is visibly empty and a
-    /// sitting between blocks visibly unplanned, without a divider or a
-    /// legend (product owner, on the two-lane screenshot: "you might propose
-    /// redesigning this"). The card's own text still says the true times.
-    /// Pure; mirrored by `dayActivityPlacements` on the web.
-    static func activityPlacements(
-        _ sittings: [DayActivitySitting],
-        blocks: [TimeBlock],
-        clockStartMinute: Int,
-        clockEndMinute: Int
-    ) -> [String: DayActivityPlacement] {
-        let ordered = blocks.sorted { lhs, rhs in
-            if lhs.startMinute != rhs.startMinute { return lhs.startMinute < rhs.startMinute }
-            if lhs.endMinute != rhs.endMinute { return lhs.endMinute > rhs.endMinute }
-            return lhs.id < rhs.id
-        }
-        // The free stretches: the clock with every block's minutes taken out.
-        var stretches: [(start: Int, end: Int)] = []
-        var cursor = clockStartMinute
-        for block in ordered {
-            if block.startMinute > cursor { stretches.append((cursor, block.startMinute)) }
-            cursor = max(cursor, block.endMinute)
-        }
-        if clockEndMinute > cursor { stretches.append((cursor, clockEndMinute)) }
-
-        func overlap(_ start: Int, _ end: Int, with sitting: DayActivitySitting) -> Int {
-            max(0, min(end, sitting.endMinute) - max(start, sitting.startMinute))
-        }
-        var result: [String: DayActivityPlacement] = [:]
-        for sitting in sittings {
-            var bestBlock: (block: TimeBlock, minutes: Int)?
-            for block in ordered {
-                let minutes = overlap(block.startMinute, block.endMinute, with: sitting)
-                if minutes > (bestBlock?.minutes ?? 0) { bestBlock = (block, minutes) }
-            }
-            var bestStretch: (stretch: (start: Int, end: Int), minutes: Int)?
-            for stretch in stretches {
-                let minutes = overlap(stretch.start, stretch.end, with: sitting)
-                if minutes > (bestStretch?.minutes ?? 0) { bestStretch = (stretch, minutes) }
-            }
-            if let bestBlock, bestBlock.minutes >= (bestStretch?.minutes ?? 0) {
-                result[sitting.id] = DayActivityPlacement(
-                    host: .block(id: bestBlock.block.id),
-                    drawnStartMinute: max(bestBlock.block.startMinute, sitting.startMinute),
-                    drawnEndMinute: min(bestBlock.block.endMinute, sitting.endMinute)
-                )
-            } else if let bestStretch {
-                result[sitting.id] = DayActivityPlacement(
-                    host: .free(startMinute: bestStretch.stretch.start, endMinute: bestStretch.stretch.end),
-                    drawnStartMinute: max(bestStretch.stretch.start, sitting.startMinute),
-                    drawnEndMinute: min(bestStretch.stretch.end, sitting.endMinute)
-                )
-            } else {
-                // Nothing overlaps a sitting with no minutes: it goes where
-                // its start falls, a block first, then the stretch, then the
-                // clock itself.
-                let start = sitting.startMinute
-                if let block = ordered.first(where: { $0.contains(minute: start) }) {
-                    result[sitting.id] = DayActivityPlacement(host: .block(id: block.id), drawnStartMinute: start, drawnEndMinute: start)
-                } else if let stretch = stretches.first(where: { $0.start <= start && start < $0.end }) {
-                    result[sitting.id] = DayActivityPlacement(host: .free(startMinute: stretch.start, endMinute: stretch.end), drawnStartMinute: start, drawnEndMinute: start)
-                } else {
-                    result[sitting.id] = DayActivityPlacement(host: .free(startMinute: clockStartMinute, endMinute: clockEndMinute), drawnStartMinute: start, drawnEndMinute: start)
-                }
-            }
-        }
-        return result
-    }
-
     /// The minutes the log holds between `start` and `end`: what a block's
     /// footer says was inside it ("55m inside"). Every span counts, whichever
     /// thing it was on and whether or not the block named it; glances
@@ -1444,12 +1120,6 @@ struct DayPlanDetail: Identifiable, Equatable, Sendable {
         }
     }
 
-    /// The lane's cards: every sitting of every group that is more than a
-    /// glance, by start.
-    static func activitySittings(_ groups: [DayActivityGroup]) -> [DayActivitySitting] {
-        groups.filter { !$0.isGlance }.flatMap(\.sittings).sorted(by: DayActivitySitting.byStart)
-    }
-
     /// The day's plan: its current blocks, by start time.
     var currentBlocks: [TimeBlock] {
         blocks
@@ -1459,26 +1129,6 @@ struct DayPlanDetail: Identifiable, Equatable, Sendable {
                 if lhs.endMinute != rhs.endMinute { return lhs.endMinute < rhs.endMinute }
                 return lhs.createdAt < rhs.createdAt
             }
-    }
-
-    /// Minutes of the plan marked done.
-    var minutesDone: Int {
-        currentBlocks
-            .filter { $0.status == .done }
-            .reduce(0) { $0 + $1.durationMinutes }
-    }
-
-    /// Minutes drawn on the plan and not skipped, whatever their status.
-    var minutesPlanned: Int {
-        currentBlocks
-            .filter { $0.status != .skipped }
-            .reduce(0) { $0 + $1.durationMinutes }
-    }
-
-    /// Current blocks that should have ended by `minute` and are still open,
-    /// past the grace the planner gives a block that is merely running long.
-    func overdueBlocks(atMinute minute: Int) -> [TimeBlock] {
-        currentBlocks.filter { $0.isOverdue(atMinute: minute - DayPlan.overdueGraceMinutes) }
     }
 
     /// The current block that contains `minute`, if any.
@@ -1503,24 +1153,6 @@ struct DayPlanDetail: Identifiable, Equatable, Sendable {
         let window = PlannerDayHours.ordered(start: dayStart, end: dayEnd)
         var start = window.lowerBound
         var end = window.upperBound
-        for block in blocks where block.isCurrent {
-            start = min(start, block.startMinute / 60)
-            end = max(end, Int((Double(block.endMinute) / 60).rounded(.up)))
-        }
-        for activity in activities {
-            start = min(start, activity.startMinute / 60)
-            end = max(end, Int((Double(activity.endMinute) / 60).rounded(.up)))
-        }
-        return max(0, start)...min(24, max(end, start + 1))
-    }
-
-    /// The hours the day opens on: the working day, widened to hold every
-    /// block and every span of the log. The clock itself draws the learner's
-    /// day window (`clockHourRange`); this is where it is scrolled to inside
-    /// that, and the scale the log strips use.
-    func focusHourRange(defaultStart: Int = 7, defaultEnd: Int = 19) -> ClosedRange<Int> {
-        var start = defaultStart
-        var end = defaultEnd
         for block in blocks where block.isCurrent {
             start = min(start, block.startMinute / 60)
             end = max(end, Int((Double(block.endMinute) / 60).rounded(.up)))

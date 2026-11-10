@@ -349,7 +349,7 @@ extension MCPDataStore {
             "hosts": settings.hosts,
             "audio_source_id": settings.audioSourceID,
             "model": settings.model.map { $0 as Any } ?? NSNull(),
-            "made_at": ISO8601DateFormatter().string(from: settings.madeAt),
+            "made_at": KnowledgeStore.iso8601Formatter.string(from: settings.madeAt),
             "summary": settings.recipe,
             "sources": settings.sources.map {
                 ["source_id": $0.sourceID, "title": $0.title, "read_as": $0.readAs.rawValue] as [String: Any]

@@ -2280,33 +2280,6 @@ enum PaperService {
         }
     }
 
-    /// Fetch full text of a PMC article via the NCBI efetch API (JATS XML).
-    /// Works for all PMC articles (not just the open-access subset that BioC covers).
-    static func fetchPMCFullTextViaEfetch(pmcid: String) async -> String? {
-        let pmcNumber = pmcid.hasPrefix("PMC") ? pmcid : "PMC\(pmcid)"
-        let apiURL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils/efetch.fcgi?db=pmc&id=\(pmcNumber)&rettype=full&retmode=xml"
-        guard let url = URL(string: apiURL) else { return nil }
-
-        do {
-            var request = URLRequest(url: url)
-            request.timeoutInterval = 30
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else { return nil }
-            guard let xml = String(data: data, encoding: .utf8), xml.contains("<article") else { return nil }
-
-            return extractTextFromJATSXML(xml)
-        } catch {
-            return nil
-        }
-    }
-
-    /// Extract readable text from JATS XML (title, abstract, body sections).
-    private static func extractTextFromJATSXML(_ xml: String) -> String? {
-        let parser = JATSXMLParser(xml: xml)
-        let text = parser.parse()
-        return text.split(separator: " ").count >= 100 ? text : nil
-    }
-
     // MARK: - Unpaywall API
 
     /// Query the Unpaywall API for an open-access PDF URL given a DOI.
@@ -2760,76 +2733,5 @@ enum PaperService {
         if lower.contains("ssrn") { return "SSRN" }
         if lower.contains("chemrxiv") { return "ChemRxiv" }
         return "Preprint"
-    }
-}
-
-// MARK: - JATS XML Parser
-
-/// Lightweight parser that extracts readable text from NCBI JATS XML.
-/// Pulls title, abstract, and body sections without deleting nested source text.
-private final class JATSXMLParser: NSObject, XMLParserDelegate {
-    private let xmlString: String
-    private var sections: [String] = []
-    private var currentText = ""
-    private var capturing = false
-    private var depth = 0
-    // Elements whose text content we want to capture
-    private static let captureRoots: Set<String> = ["article-title", "abstract", "body"]
-
-    init(xml: String) {
-        self.xmlString = xml
-    }
-
-    func parse() -> String {
-        guard let data = xmlString.data(using: .utf8) else { return "" }
-        let parser = XMLParser(data: data)
-        parser.delegate = self
-        parser.parse()
-        return sections.joined(separator: "\n\n")
-    }
-
-    func parser(_ parser: XMLParser, didStartElement element: String, namespaceURI: String?, qualifiedName: String?, attributes: [String: String] = [:]) {
-        if Self.captureRoots.contains(element) {
-            capturing = true
-            depth = 1
-            currentText = ""
-        } else if capturing {
-            depth += 1
-            // Add whitespace for block-level elements
-            if element == "p" || element == "sec" || element == "title" {
-                if !currentText.isEmpty && !currentText.hasSuffix("\n") {
-                    currentText += "\n"
-                }
-            }
-        }
-    }
-
-    func parser(_ parser: XMLParser, foundCharacters string: String) {
-        if capturing {
-            currentText += string
-        }
-    }
-
-    func parser(_ parser: XMLParser, didEndElement element: String, namespaceURI: String?, qualifiedName: String?) {
-        if capturing {
-            if Self.captureRoots.contains(element) {
-                let trimmed = currentText
-                    .components(separatedBy: .newlines)
-                    .map { $0.trimmingCharacters(in: .whitespaces) }
-                    .filter { !$0.isEmpty }
-                    .joined(separator: "\n")
-                if !trimmed.isEmpty {
-                    sections.append(trimmed)
-                }
-                capturing = false
-                currentText = ""
-                depth = 0
-            } else {
-                depth -= 1
-                if element == "p" || element == "title" {
-                    currentText += "\n"
-                }
-            }
-        }
     }
 }

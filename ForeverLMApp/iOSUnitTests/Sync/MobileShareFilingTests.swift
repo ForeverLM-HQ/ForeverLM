@@ -51,9 +51,6 @@ struct MobileShareFilingTests {
         })
         #expect(try await Fixture.held(replica, .source, id, in: Fixture.catalog) != nil)
         #expect(try await replica.read { try $0.connection.scalarInteger("SELECT COUNT(*) FROM m_entries") } == 0)
-
-        // Generation 1's drain does the same through its own adds.
-        #expect(MobileShareFiling.adds([(sourceID: id, notebookID: "gone")], liveNotebookIDs: ["nb1"]).isEmpty)
     }
 
     @Test("The drain drops what can never become a source and what a Mac finishes, and stops on any other error so the item stays for the next drain")

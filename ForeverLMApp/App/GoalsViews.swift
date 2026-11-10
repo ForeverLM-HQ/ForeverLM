@@ -1085,10 +1085,6 @@ struct SetGoalSheet: View {
         return "\(date) · \(days) day\(days == 1 ? "" : "s")"
     }
 
-    private var taggedNotebook: LearningGoalRecord? {
-        notebookID.flatMap { vm.notebook(id: $0) }
-    }
-
     var body: some View {
         VStack(alignment: .leading, spacing: StudioDesign.Spacing.large) {
             VStack(alignment: .leading, spacing: StudioDesign.Spacing.xSmall) {

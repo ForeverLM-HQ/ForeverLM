@@ -181,23 +181,4 @@ struct MobileShareSheetTests {
         #expect(MobileSharePreview.webAddress(in: "ftp://example.com/file") == nil)
         #expect(MobileSharePreview.isWebAddress(try #require(URL(string: "file:///tmp/a.pdf"))) == false)
     }
-
-    // MARK: - Filing on the drain
-
-    @Test("A drain files each item into its notebook while it is still one, each source once")
-    func filingOnDrain() {
-        let captured: [(sourceID: String, notebookID: String)] = [
-            (sourceID: "s1", notebookID: "nb-a"),
-            (sourceID: "s2", notebookID: "gone"),
-            (sourceID: "s3", notebookID: "nb-b"),
-            (sourceID: "s1", notebookID: "nb-a"),
-            (sourceID: "s4", notebookID: "nb-a"),
-        ]
-        let adds = MobileShareFiling.adds(captured, liveNotebookIDs: ["nb-a", "nb-b"])
-        #expect(adds == [
-            MobileShareFiling.Add(notebookID: "nb-a", sourceIDs: ["s1", "s4"]),
-            MobileShareFiling.Add(notebookID: "nb-b", sourceIDs: ["s3"]),
-        ])
-        #expect(MobileShareFiling.adds(captured, liveNotebookIDs: []).isEmpty, "every notebook gone: the library only")
-    }
 }

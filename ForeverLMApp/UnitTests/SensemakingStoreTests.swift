@@ -50,8 +50,6 @@ struct SensemakingStoreTests {
         newer.contentSHA256 = "def"
         try store.saveSourceLevelsRow(newer)
         #expect(try store.sourceLevelsRow(sourceID: "s1")?.contentSHA256 == "def")
-        try store.deleteSourceLevelsRow(sourceID: "s1")
-        #expect(try store.sourceLevelsRow(sourceID: "s1") == nil)
     }
 
     @Test("Written faces round-trip, by source")

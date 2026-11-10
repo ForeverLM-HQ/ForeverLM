@@ -32,7 +32,7 @@ extension MCPDataStore {
             [
                 "id": space.id,
                 "name": space.name,
-                "trashed_at": spaces.trashedDate(space.id).map { ISO8601DateFormatter().string(from: $0) } ?? "",
+                "trashed_at": spaces.trashedDate(space.id).map { KnowledgeStore.iso8601Formatter.string(from: $0) } ?? "",
             ] as [String: Any]
         }
         return try jsonString([

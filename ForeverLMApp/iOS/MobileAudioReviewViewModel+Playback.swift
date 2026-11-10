@@ -34,28 +34,6 @@ extension MobileAudioReviewViewModel {
         return "\(elapsed) / \(total) - \(MobileAudioPlaybackSpeed.label(for: speed))"
     }
 
-    var voiceStatusText: String {
-        if isReviewActive {
-            if isChatResponding {
-                return "Grading your answer"
-            }
-            return reviewStatus ?? "review"
-        }
-        if isChatResponding {
-            return "Thinking"
-        }
-        if isSourceChatActive, let activeChatTitle {
-            return "Discussing \(activeChatTitle)"
-        }
-        if voice.isListening {
-            return "Listening for your answer"
-        }
-        if speech.isSpeaking {
-            return "Speaking"
-        }
-        return "Use Siri to control ForeverLM"
-    }
-
     /// `startAt` overrides the stored resume point. The opening-section handover
     /// uses it to continue at the exact second the listener had reached, which
     /// the saved position cannot express: that position is cleared near the end

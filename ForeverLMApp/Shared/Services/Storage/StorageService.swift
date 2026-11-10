@@ -72,12 +72,6 @@ actor StorageService {
     /// once never make two teams for it.
     var notebookShareLanes: [String: Task<Void, Never>] = [:]
 
-    #if !os(macOS) && !targetEnvironment(simulator)
-    private var requiresICloudUbiquity: Bool { true }
-    #else
-    private var requiresICloudUbiquity: Bool { false }
-    #endif
-
     // MARK: - iCloud root
 
     /// Path inside ForeverLM's iCloud Documents folder in ~/Library/Mobile Documents/ (a simulator

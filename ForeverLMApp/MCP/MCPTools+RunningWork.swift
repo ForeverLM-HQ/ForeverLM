@@ -625,7 +625,7 @@ extension MCPDataStore {
 
     private func runningAIWork() async throws -> [RunningAIWork] {
         let now = Date()
-        let formatter = ISO8601DateFormatter()
+        let formatter = KnowledgeStore.iso8601Formatter
         func seconds(since date: Date) -> Int { max(0, Int(now.timeIntervalSince(date))) }
 
         var work: [RunningAIWork] = MCPRunningWork.shared.snapshot.map { entry -> RunningAIWork in
@@ -773,7 +773,7 @@ extension MCPDataStore {
     private func listRunningAIWork() async throws -> String {
         let work = try await runningAIWork()
         var payload: [String: Any] = [
-            "generated_at": ISO8601DateFormatter().string(from: Date()),
+            "generated_at": KnowledgeStore.iso8601Formatter.string(from: Date()),
             "work": work.map(\.payload),
             "spending_count": work.filter(\.spendsMoney).count,
         ]

@@ -1,11 +1,5 @@
 // MCPDataStore: Group renames, review session edits, lectures and source types.
-import CryptoKit
 import Foundation
-import ImageIO
-import Network
-import OSLog
-import PDFKit
-import SQLite3
 
 extension MCPDataStore {
     /// Rename a course, video-playlist, or meeting group by updating its metadata title.
@@ -180,7 +174,7 @@ extension MCPDataStore {
             "title": updated.topic,
             "notebook_id": updated.goalID.map { $0 as Any } ?? NSNull(),
             "is_hidden": hiddenAt != nil,
-            "hidden_at": hiddenAt.map { ISO8601DateFormatter().string(from: $0) as Any } ?? NSNull(),
+            "hidden_at": hiddenAt.map { KnowledgeStore.iso8601Formatter.string(from: $0) as Any } ?? NSNull(),
             "is_pinned": pins.isPinned(id),
             "message": (hiddenAt == nil
                 ? placement

@@ -484,8 +484,6 @@ struct XPostThread: Sendable, Equatable {
     var subject: XThreadPost? {
         posts.first { $0.id == subjectID } ?? posts.last
     }
-
-    var isThread: Bool { posts.count > 1 }
 }
 
 // MARK: - Renderings

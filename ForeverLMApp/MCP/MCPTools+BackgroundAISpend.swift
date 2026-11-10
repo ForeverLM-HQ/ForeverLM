@@ -77,7 +77,7 @@ extension MCPDataStore {
             "queue": job.queue.rawValue,
             "queue_name": job.queue.displayName,
             "reason": job.reason,
-            "held_since": ISO8601DateFormatter().string(from: job.createdAt),
+            "held_since": KnowledgeStore.iso8601Formatter.string(from: job.createdAt),
             "source_count": job.heldSourceCount,
             "affected_source_count": job.affectedSourceCount.map { $0 as Any } ?? NSNull(),
             "priced_by_task": job.queue.task.rawValue,

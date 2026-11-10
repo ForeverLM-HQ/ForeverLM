@@ -231,7 +231,7 @@ extension MCPDataStore {
     }
 
     fileprivate static func pluginISO(_ date: Date) -> String {
-        ISO8601DateFormatter().string(from: date)
+        KnowledgeStore.iso8601Formatter.string(from: date)
     }
 
     /// One of several connected accounts: the one `requested` names by id or

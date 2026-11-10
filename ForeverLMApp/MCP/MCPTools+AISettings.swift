@@ -218,7 +218,7 @@ extension MCPDataStore {
         rows: [AIUsageTaskModelSummary],
         days: [AIUsageDailyTotal]
     ) -> [String: Any] {
-        let iso = ISO8601DateFormatter()
+        let iso = KnowledgeStore.iso8601Formatter
 
         func sum(_ cost: Double?, _ add: Double?) -> Double? {
             guard let add else { return cost }
@@ -505,7 +505,7 @@ extension MCPDataStore {
         let groups = AIModelCatalog.makerGroups
         let enabled = AIModelCatalog.enabledIDs
         let defaultID = AIModelCatalog.defaultEntry?.id
-        let iso = ISO8601DateFormatter()
+        let iso = KnowledgeStore.iso8601Formatter
         return groups.map { group in
             [
                 "maker": group.maker.rawValue,

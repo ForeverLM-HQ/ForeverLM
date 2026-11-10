@@ -37,9 +37,6 @@ enum MobileCloudKitRetry {
 
     /// A background sync keeps going through about seven seconds of backoff.
     static let syncAttempts = 4
-    /// Something the learner opened and is waiting on gives up sooner, so an
-    /// offline phone says so in about three seconds instead of spinning.
-    static let interactiveAttempts = 3
 
     /// The longest wait honoured from a retry-after hint. A throttled container
     /// can ask for tens of seconds; beyond this the call fails and the next

@@ -160,10 +160,6 @@ final class ManagedAIAccountModel {
     /// server's maximum is accepted; these are just the ones worth one tap.
     static let spendCaps = [5, 10, 20, 50, 100, 250]
 
-    /// Amounts offered to an operator account. Unpriced: a grant is the one way
-    /// balance is still added.
-    static let grantAmounts = [25, 100, 250, 500, 1_000]
-
     private let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "ManagedAI")
 
     /// Shows the proxy's refusal, noting whether it is the closed-account one.
@@ -347,9 +343,6 @@ final class ManagedAIAccountModel {
     }
 
     // MARK: - Gate validation
-
-    /// Minimum gap between activation-triggered validations. Launch always validates.
-    private static let validationInterval: TimeInterval = 15 * 60
 
     /// Asks the proxy whether the stored session is real, and re-walls the app if it says no.
     ///

@@ -12,13 +12,6 @@ enum DeepResearchMode: String, CaseIterable, Identifiable, Sendable {
         case .multiPass: return "Multi-pass"
         }
     }
-
-    var stageCount: Int {
-        switch self {
-        case .agentic: return 1
-        case .multiPass: return DeepResearchService.lenses.count
-        }
-    }
 }
 
 struct DeepResearchLens: Identifiable, Equatable, Sendable {

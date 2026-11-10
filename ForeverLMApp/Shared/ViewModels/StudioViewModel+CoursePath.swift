@@ -307,11 +307,6 @@ extension StudioViewModel {
         courseQuizScore(quizID: quizID) != nil
     }
 
-    /// Whether a sitting of the quiz has passed (`LectureQuizScore.hasPassed`).
-    func isCourseQuizPassed(_ quizID: String) -> Bool {
-        courseQuizScore(quizID: quizID)?.hasPassed == true
-    }
-
     /// The gate over a course's path.
     func courseGate(for path: CoursePath) -> CourseGate {
         // Positions are unobserved; this re-renders the page when a lecture finishes.
@@ -405,7 +400,7 @@ extension StudioViewModel {
     }
 
     /// Opens a textbook reading beside its course's page, at its first page
-    /// with the opening section's heading marked (`openTextbookReading`).
+    /// with the opening section's heading marked.
     func openCourseReading(_ reading: CourseTextbookReading, in windowState: StudioWindowState) async {
         let chapterID = reading.chapter.id
         await openCourseSource(chapterID, in: windowState)

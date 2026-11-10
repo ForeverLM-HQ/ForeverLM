@@ -15,7 +15,7 @@ import Foundation
 
 extension MCPDataStore {
 
-    private static let receiptFormatter = ISO8601DateFormatter()
+    private static let receiptFormatter = KnowledgeStore.iso8601Formatter
 
     @MainActor
     static func memoryReviewSettingsPayload() -> [String: Any] {

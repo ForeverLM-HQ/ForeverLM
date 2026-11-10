@@ -1179,8 +1179,7 @@ extension MCPDataStore {
     /// notebook, doc, chat, quiz and idea go through `StudioViewModel.open`
     /// (the link every `foreverlm://` address takes), a source through the
     /// Reader's link path, and the Space's All list through the View menu's
-    /// own entry. The Notebooks home this once showed (`notebooks_home`) is
-    /// gone, and the Space lists every notebook.
+    /// own entry. The Space lists every notebook.
     func openInApp(kind rawKind: String?, id rawID: String?, sideBySide: Bool = false) async throws -> String {
         let kind = rawKind?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() ?? ""
         guard Self.openInAppKinds.contains(kind) else {

@@ -995,7 +995,7 @@ extension MCPDataStore {
                     "name": record.name,
                     "content_type": record.contentType ?? NSNull(),
                     "size_bytes": record.sizeBytes,
-                    "modified_at": ISO8601DateFormatter().string(from: record.modifiedAt),
+                    "modified_at": KnowledgeStore.iso8601Formatter.string(from: record.modifiedAt),
                     "editable_markdown": record.isMarkdownDocument,
                 ] as [String: Any]
             },
@@ -1183,7 +1183,7 @@ extension MCPDataStore {
         sourceType: String,
         now: Date
     ) -> [String: Any] {
-        let iso = ISO8601DateFormatter()
+        let iso = KnowledgeStore.iso8601Formatter
         var payload: [String: Any] = [
             "understanding_state": derivedSourceUnderstandingState(for: item),
             "review_due": isNotebookSourceReviewDue(item: item, title: title, sourceType: sourceType, now: now),
@@ -1222,7 +1222,7 @@ extension MCPDataStore {
     }
 
     func openQuestionPayload(_ gap: LearningGoalGap) -> [String: Any] {
-        let iso = ISO8601DateFormatter()
+        let iso = KnowledgeStore.iso8601Formatter
         var payload: [String: Any] = [
             "question_id": gap.id,
             "summary": gap.summary,
@@ -1396,7 +1396,7 @@ extension MCPDataStore {
     }
 
     func notebookPayload(_ goal: LearningGoalRecord) -> [String: Any] {
-        let iso = ISO8601DateFormatter()
+        let iso = KnowledgeStore.iso8601Formatter
         var payload: [String: Any] = [
             "id": goal.id,
             "title": goal.title,

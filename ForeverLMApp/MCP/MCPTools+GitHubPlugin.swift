@@ -466,7 +466,7 @@ extension MCPDataStore {
     /// Pure: the repositories a `/github/repositories` payload lists. A row
     /// without a `full_name` is left out; every other field is optional.
     static func githubRepositoryListing(in payload: [String: Any]) -> GitHubRepositoryListing {
-        let iso = ISO8601DateFormatter()
+        let iso = KnowledgeStore.iso8601Formatter
         let repositories = (payload["repositories"] as? [[String: Any]] ?? []).compactMap { raw -> GitHubRepositorySummary? in
             guard let fullName = nonEmptyString(raw["full_name"]) else { return nil }
             return GitHubRepositorySummary(

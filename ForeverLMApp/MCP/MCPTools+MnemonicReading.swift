@@ -504,7 +504,7 @@ extension MCPDataStore {
         let (artifact, reading) = try await mnemonicReadingOrRefuse(readingID, writing: false)
         let memory = try await notebookFileStorage.mnemonicReadingMemory(for: reading.questions)
         let now = Date()
-        let iso = ISO8601DateFormatter()
+        let iso = KnowledgeStore.iso8601Formatter
         let counts = MnemonicReadingProgress.counts(of: reading, memory: memory, now: now)
         var payload: [String: Any] = [
             "reading_id": readingID,
@@ -603,7 +603,7 @@ extension MCPDataStore {
         } catch let error as KnowledgeStoreError {
             throw MCPError.invalidInput("Nothing was recorded: \(error.localizedDescription)")
         }
-        let iso = ISO8601DateFormatter()
+        let iso = KnowledgeStore.iso8601Formatter
         var payload: [String: Any] = [
             "outcome": answer.outcome.rawValue,
             "reading_id": readingID,

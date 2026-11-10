@@ -1,17 +1,12 @@
 .env
-.mcp_url
-servers/.tunnel_wrapper.sh
 __pycache__/
 *.log
 !ForeverLMApp/UnitTests/Fixtures/*.log
 .coverage
 .venv/
-# Cache files (now live in iCloud .appdata, kept here for migration)
 
 # Build artifacts
-build_dmg/
 *.dmg
-build_dmg.command
 
 # macOS metadata
 .DS_Store
@@ -60,8 +55,6 @@ default.profraw
 # Xcode export options (generated)
 ExportOptions*.plist
 
-# apple-podcast-transcript-downloader is now a git submodule
-
 # Generated secrets (contains API keys)
 Secrets.generated.swift
 
@@ -75,15 +68,10 @@ Secrets.generated.swift
 # Node modules (everywhere)
 node_modules
 
-# Article build artifacts
-articles/_site/
-articles/*/public/
-articles/*/_entry.html
-articles/*/_main.js
-Screenshot 2026-03-07 at 11.38.51 AM.png
 .git.nosync/
 
 # Local working folders: generated recordings, exports, and personal documents
 artifacts/
 output/
 tmp/
+.hop-screenshots/

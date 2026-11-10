@@ -1,11 +1,8 @@
 // MCPDataStore: Plugin inbox and paper import from a URL.
-import CryptoKit
 import Foundation
-import ImageIO
 import Network
 import OSLog
 import PDFKit
-import SQLite3
 
 extension MCPDataStore {
     func normalizedPaperImportURL(_ rawURL: String) throws -> String {

@@ -503,7 +503,7 @@ extension MCPDataStore {
     }
 
     func shareRequestPayload(_ request: ShareRequestRecord, canFulfil: Bool) -> [String: Any] {
-        let iso = ISO8601DateFormatter()
+        let iso = KnowledgeStore.iso8601Formatter
         var payload: [String: Any] = [
             "id": request.id,
             "team_id": request.teamID,
@@ -882,7 +882,7 @@ extension MCPDataStore {
     // MARK: Payloads
 
     func teamPayload(_ team: TeamRecord, members: [TeamMemberRecord]) -> [String: Any] {
-        let iso = ISO8601DateFormatter()
+        let iso = KnowledgeStore.iso8601Formatter
         var payload: [String: Any] = [
             "id": team.id,
             "name": team.name,
@@ -925,7 +925,7 @@ extension MCPDataStore {
     }
 
     func notebookTaskPayload(_ task: NotebookTaskRecord) -> [String: Any] {
-        let iso = ISO8601DateFormatter()
+        let iso = KnowledgeStore.iso8601Formatter
         var payload: [String: Any] = [
             "id": task.id,
             "notebook_id": task.notebookID,

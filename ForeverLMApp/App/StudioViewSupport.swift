@@ -107,7 +107,6 @@ extension View {
 
 enum StudioPanelChrome {
     static let headerHeight: CGFloat = 54
-    static let panelToggleBarHeight: CGFloat = 34
     static let headerHorizontalPadding: CGFloat = 16
     /// Shared target widths for the close controls that occupy a center pane's
     /// trailing chrome.

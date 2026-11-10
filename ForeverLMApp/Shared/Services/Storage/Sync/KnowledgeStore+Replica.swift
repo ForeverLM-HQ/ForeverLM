@@ -145,11 +145,6 @@ extension KnowledgeStore {
         ], constraints: ["PRIMARY KEY (job_id, record_type, wire_id)"]),
     ]
 
-    /// `wire_key` on the five tables that can hold a space copy (§4.3): the logical id every v2 join
-    /// reads, which is the row's own id while `wire_id` is NULL (every row before the generation-2
-    /// activation, and every row generation-1 code inserts), so no row drops out of a join.
-    static let wireKeyDefinition = "TEXT GENERATED ALWAYS AS (COALESCE(wire_id, id)) VIRTUAL"
-
     /// The tables that carry `wire_id` and the indexed `wire_key`.
     static let wireKeyedTables = ["sources", "learning_goals", "review_sessions", "global_artifacts", "courses"]
 
@@ -305,13 +300,6 @@ extension KnowledgeStore {
             INSERT INTO ck_identity (zone_key, record_type, wire_id, local_id) VALUES (?, ?, ?, ?)
             ON CONFLICT(zone_key, record_type, wire_id) DO UPDATE SET local_id = excluded.local_id
         """, [.text(zoneKey), .text(recordType), .text(wireID), .text(localID)])
-    }
-
-    func forgetIdentity(zoneKey: String, recordType: String, wireID: String) throws {
-        try execute(
-            "DELETE FROM ck_identity WHERE zone_key = ? AND record_type = ? AND wire_id = ?",
-            [.text(zoneKey), .text(recordType), .text(wireID)]
-        )
     }
 
     /// The local id of a record in one zone, if this store has recorded one.

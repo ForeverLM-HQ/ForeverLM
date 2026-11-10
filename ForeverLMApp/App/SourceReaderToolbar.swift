@@ -19,8 +19,6 @@ enum ReaderToolbarDensity: String, CaseIterable {
     case standard
     case compact
 
-    static let fitOrder: [Self] = [.expanded, .standard, .compact]
-
     var minimumIdentityWidth: CGFloat {
         switch self {
         case .expanded: return 180

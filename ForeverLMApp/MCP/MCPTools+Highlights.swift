@@ -1,6 +1,5 @@
 import Foundation
 import PDFKit
-import SQLite3
 
 /// Reader highlights — the passages the learner marked and the notes they wrote
 /// on them — over MCP.
@@ -545,8 +544,8 @@ extension MCPDataStore {
             "note": highlight.note,
             "color": highlight.color.rawValue,
             "color_meaning": highlight.color.meaning,
-            "created_at": ISO8601DateFormatter().string(from: highlight.createdAt),
-            "updated_at": ISO8601DateFormatter().string(from: highlight.updatedAt),
+            "created_at": KnowledgeStore.iso8601Formatter.string(from: highlight.createdAt),
+            "updated_at": KnowledgeStore.iso8601Formatter.string(from: highlight.updatedAt),
         ]
         if let pdfAnchor = highlight.pdfAnchor {
             payload["page"] = pdfAnchor.pageIndex + 1
@@ -566,7 +565,7 @@ extension MCPDataStore {
         if highlight.hasPublicationUpdate {
             payload["publication_update"] = highlight.publicationUpdate
             if let written = highlight.publicationUpdateAt {
-                payload["publication_update_at"] = ISO8601DateFormatter().string(from: written)
+                payload["publication_update_at"] = KnowledgeStore.iso8601Formatter.string(from: written)
             }
         }
         return payload
@@ -594,8 +593,8 @@ extension MCPDataStore {
             "note": row["note"] as? String ?? "",
             "color": SourceHighlightColor(storedValue: row["color"] as? String).rawValue,
             "color_meaning": SourceHighlightColor(storedValue: row["color"] as? String).meaning,
-            "created_at": ISO8601DateFormatter().string(from: highlightDate(row["created_at"])),
-            "updated_at": ISO8601DateFormatter().string(from: highlightDate(row["updated_at"])),
+            "created_at": KnowledgeStore.iso8601Formatter.string(from: highlightDate(row["created_at"])),
+            "updated_at": KnowledgeStore.iso8601Formatter.string(from: highlightDate(row["updated_at"])),
         ]
         // Page geometry is only ever present for PDFs, and `page_index` defaults
         // to 0 for every other reader, so the quads decide whether it means
@@ -623,7 +622,7 @@ extension MCPDataStore {
            !update.isEmpty {
             payload["publication_update"] = update
             if row["publication_update_at"] != nil, !(row["publication_update_at"] is NSNull) {
-                payload["publication_update_at"] = ISO8601DateFormatter().string(from: highlightDate(row["publication_update_at"]))
+                payload["publication_update_at"] = KnowledgeStore.iso8601Formatter.string(from: highlightDate(row["publication_update_at"]))
             }
         }
         return payload

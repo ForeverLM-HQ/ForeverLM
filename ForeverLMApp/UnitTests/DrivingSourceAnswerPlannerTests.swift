@@ -69,7 +69,6 @@ struct DrivingSourceAnswerPlannerTests {
         #expect(spoken.count <= DrivingSourceAnswerPlanner.maxSpokenAnswerCharacters)
         #expect(!spoken.contains("<flm_tool_call>"))
         #expect(!spoken.contains("#"))
-        #expect(DrivingSourceAnswerPlanner.isSiriDialogSized(spoken))
     }
 
 }

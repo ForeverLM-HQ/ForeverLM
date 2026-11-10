@@ -151,12 +151,6 @@ extension KnowledgeStore {
         return found
     }
 
-    func deleteSourceLevelsRow(sourceID: String) throws {
-        try execBind("DELETE FROM source_levels WHERE source_id = ?") { stmt in
-            self.bind(stmt, 1, sourceID)
-        }
-    }
-
     // MARK: Written faces
 
     func saveSourceFacesRows(_ rows: [SourceFacesRow]) throws {

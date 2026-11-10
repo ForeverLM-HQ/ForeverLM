@@ -134,9 +134,6 @@ struct StudioNavigationRail: View {
         clampedRailWidth(draggedWidthPreference ?? goldenDefault ?? defaultRailWidth)
     }
 
-    /// The rail's width with no window measurement available.
-    static var currentRailWidth: CGFloat { resolvedRailWidth(goldenDefault: nil) }
-
     private var activeSessionIDs: Set<String> {
         Self.highlightedSessionIDs(
             primary: sessionStore.activeSessionID,

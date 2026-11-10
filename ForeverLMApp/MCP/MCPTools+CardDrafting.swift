@@ -225,7 +225,7 @@ extension MCPDataStore {
     func cardDraftingRunsPayload(touching sourceIDs: Set<String>?) async -> [[String: Any]] {
         await MainActor.run {
             let coordinator = CardDraftingCoordinator.shared
-            let formatter = ISO8601DateFormatter()
+            let formatter = KnowledgeStore.iso8601Formatter
             var entries: [[String: Any]] = coordinator.runs
                 .filter { run in sourceIDs.map { !$0.isDisjoint(with: run.sourceIDs) } ?? true }
                 .map { run in

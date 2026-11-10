@@ -448,47 +448,6 @@ struct MobileVoiceSourceResolverTests {
         #expect(elapsed < 100.0)
     }
 
-    @Test("External book listening resolves exact chapter order without guessing identity")
-    func externalBookActivityResolution() throws {
-        // Typed: Xcode 27 infers `Int?` from `sequenceNumber:` otherwise, and
-        // the ids would read "chapter-Optional(1)".
-        let chapters = (1...5).map { (number: Int) in
-            ExternalActivitySourceDescriptor(
-                id: "chapter-\(number)",
-                title: "Chapter \(number)",
-                sourceType: "book",
-                parentGroupID: "book-1",
-                groupTitle: "Book XYZ",
-                sequenceNumber: number
-            )
-        }
-        #expect(try ExternalActivitySourceResolver.resolve(
-            sourceIDs: [],
-            bookTitle: "Book XYZ",
-            chapterStart: 1,
-            chapterEnd: 4,
-            catalog: chapters
-        ) == ["chapter-1", "chapter-2", "chapter-3", "chapter-4"])
-        #expect(throws: ExternalActivityResolutionError.missingChapters("Book XYZ", [6])) {
-            try ExternalActivitySourceResolver.resolve(
-                sourceIDs: [],
-                bookTitle: "Book XYZ",
-                chapterStart: 4,
-                chapterEnd: 6,
-                catalog: chapters
-            )
-        }
-        #expect(throws: ExternalActivityResolutionError.chooseOneIdentityMode) {
-            try ExternalActivitySourceResolver.resolve(
-                sourceIDs: ["chapter-1"],
-                bookTitle: "Book XYZ",
-                chapterStart: 1,
-                chapterEnd: 1,
-                catalog: chapters
-            )
-        }
-    }
-
     @Test("Mobile OpenRouter requests use the same cache contract")
     func mobileOpenRouterPromptCaching() throws {
         let route = ResolvedAITextRoute(

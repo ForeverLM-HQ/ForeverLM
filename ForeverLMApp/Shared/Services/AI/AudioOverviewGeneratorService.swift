@@ -503,11 +503,6 @@ struct AudioOverviewGeneratorService: Sendable {
         )
     }
 
-    /// The characters a condensing part's header takes beside its text
-    /// (`AudioOverviewCondensePart.userMessage`): the source's title, its
-    /// kind, the part line and the target, with room for a long title.
-    static let condensePartHeaderCharacters = NotebookSourceCondensing.partHeaderCharacters
-
     /// A source's condensing calls: its whole text in consecutive parts, each
     /// small enough for one condensing request, each asked for its share of
     /// the target (`NotebookSourceCondensing.slices`). Never a sample: every

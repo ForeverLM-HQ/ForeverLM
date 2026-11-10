@@ -98,10 +98,6 @@ enum DrivingSourceAnswerPlanner {
         return String(collapsed.prefix(maxSpokenAnswerCharacters - 1)).trimmingCharacters(in: .whitespacesAndNewlines) + "..."
     }
 
-    static func isSiriDialogSized(_ text: String) -> Bool {
-        spokenAnswer(from: text).count <= maxSpokenAnswerCharacters
-    }
-
     private static func compactRecentMessages(_ messages: [MobileSourceChatMessage]) -> [(role: String, content: String)] {
         messages.suffix(maxRecentMessages).map { message in
             let clean = message.content

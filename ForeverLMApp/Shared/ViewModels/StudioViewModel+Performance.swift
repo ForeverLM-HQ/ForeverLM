@@ -48,14 +48,6 @@ extension StudioViewModel {
         let coverageRevision: Int
     }
 
-    struct ReadingListOriginCountsCacheKey: Equatable {
-        let tab: StudioSidebarTab
-        let articlesRevision: Int
-        let safariEnabled: Bool
-        let chromeEnabled: Bool
-        let braveEnabled: Bool
-    }
-
     struct PapersWithoutPDFBadgeCacheKey: Equatable {
         let articlesRevision: Int
         let processingPaperIDs: Set<String>
@@ -144,8 +136,8 @@ extension StudioViewModel {
             tabItems = tabItems.filter { MeetingProvider.forOrigin($0.discoveryOrigin) == provider }
         }
         if sidebarTab == .books {
-            // One membership test per chapter. Asking `bookGroupMatchesCurrentFilters`
-            // per chapter re-ran the book's whole metadata and chapter scan once for
+            // One membership test per chapter. Asking per chapter whether its book
+            // matches the filters re-ran the book's whole metadata and chapter scan once for
             // every chapter it owns, on every keystroke — a 600-chapter library stalled
             // the main thread for as long as it took to type the word.
             let matchingGroups = Set(filteredBookGroupNames)

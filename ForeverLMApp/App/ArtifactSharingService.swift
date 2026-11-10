@@ -156,10 +156,6 @@ final class ForeverLMApplicationDelegate: NSObject, NSApplicationDelegate {
         }
         #endif
         #if DEBUG
-        // WP5's Development spike, only when launched for it (`--schema-v2-spike`).
-        if !isTestRun { DevelopmentSpike.runIfRequested() }
-        #endif
-        #if DEBUG
         guard ProcessInfo.processInfo.arguments.contains("--run-podcast-cleanup") else {
             return
         }

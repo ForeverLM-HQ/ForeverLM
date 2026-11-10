@@ -74,10 +74,6 @@ extension MCPToolRegistry {
             ),
         ]
     }
-
-    static let paperReferenceToolNames: Set<String> = [
-        "get_paper_references", "resolve_paper_references", "save_paper_references",
-    ]
 }
 
 extension MCPDataStore {
@@ -147,7 +143,7 @@ extension MCPDataStore {
         ]
         if let state {
             if let error = cleanedOptional(state.lastError) { payload["last_error"] = error }
-            if let readAt = state.readAt { payload["read_at"] = ISO8601DateFormatter().string(from: readAt) }
+            if let readAt = state.readAt { payload["read_at"] = KnowledgeStore.iso8601Formatter.string(from: readAt) }
             if let author = state.authoredBy { payload["authored_by"] = author }
         }
         if includeReferenceText {

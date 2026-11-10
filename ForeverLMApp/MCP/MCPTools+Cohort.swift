@@ -45,7 +45,7 @@ extension MCPDataStore {
 
         var payload: [String: Any] = [
             "window_days": cohort.windowDays,
-            "assembled_at": ISO8601DateFormatter().string(from: cohort.assembledAt),
+            "assembled_at": KnowledgeStore.iso8601Formatter.string(from: cohort.assembledAt),
             "cohort": briefs.map(Self.cohortSourcePayload),
             "recent_sessions": recentSummaries,
         ]

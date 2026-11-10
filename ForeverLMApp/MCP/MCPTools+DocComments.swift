@@ -23,7 +23,7 @@ extension MCPDataStore {
         let snapshot = try await notebookFileStorage.artifactMarkdown(artifactID)
         let threads = ArtifactCommentThread.threads(from: try await notebookFileStorage.artifactComments(artifactID))
         let shown = includeResolved ? threads : threads.filter { !$0.isResolved }
-        let formatter = ISO8601DateFormatter()
+        let formatter = KnowledgeStore.iso8601Formatter
         return try jsonString([
             "doc": artifactPayload(snapshot.artifact),
             "open_count": threads.filter { !$0.isResolved }.count,

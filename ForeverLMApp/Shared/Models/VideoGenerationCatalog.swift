@@ -63,11 +63,6 @@ struct VideoGenerationModel: Identifiable, Equatable, Sendable {
             ?? VideoGenerationCatalog.clipSeconds
     }
 
-    /// The maker's slug prefix ("google", "kwaivgi"): a stable grouping key.
-    var makerSlug: String {
-        id.split(separator: "/", maxSplits: 1).first.map(String.init) ?? id
-    }
-
     /// A model known only by its id, for a stored choice read before the
     /// directory has arrived. `ManagedVideoGeneration` resolves it against the
     /// directory before anything is filmed.

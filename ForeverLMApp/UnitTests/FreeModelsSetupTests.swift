@@ -666,9 +666,6 @@ struct RecommendedModelsTests {
         #expect(choice.chat.hosts.count == 4)
         #expect(choice.backup.model.id == glmID)
         #expect(choice.imagesBackup?.model.id == glmID)
-        let price = try #require(choice.backup.cheapestPrice)
-        #expect(price.input == 0.075)
-        #expect(price.output == 0.25)
     }
 
     @Test("Closed weights, too few US hosts that take tools, or a failed test run pass GLM over for the next open model")

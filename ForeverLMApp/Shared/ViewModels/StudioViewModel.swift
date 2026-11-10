@@ -22,7 +22,6 @@ import Darwin
 @Observable @MainActor
 class StudioViewModel {
 
-    static let queueLoadYieldStride = 25
     static let bulkYouTubeTranscriptFetchLimit = 3
     /// Apple transcript lookup is intentionally serial because its private
     /// catalog API is sensitive to bursts. Audio transcription is never part of
@@ -845,7 +844,6 @@ class StudioViewModel {
     /// the serial initial-fetch queue reads them afterwards.
     var isImportingReadLaterExport = false
     var readLaterImportStatus: String?
-    var isAccepting = false
     var errorMessage: String?
     /// Local discovery warnings stay scoped to the integration that produced
     /// them. A successful browser scan must not erase a Podcasts access error
@@ -1412,9 +1410,6 @@ class StudioViewModel {
 
     // URL input
     var urlInput: String = ""
-
-    // Inline editing
-    var editingCardId: String?
 
     /// How many items to show in the sidebar (incremented by "Show More")
     var displayLimit: Int {
@@ -2091,14 +2086,8 @@ class StudioViewModel {
     var hasSearchedSources: Bool = false
     /// Whether a semantic search is in progress.
     var isSearchingSources: Bool = false
-    /// Whether source embeddings are being generated.
-    var isEnsuringEmbeddings: Bool = false
-    /// Progress label shown while embedding sources.
-    var sourceEmbeddingProgress: String?
     /// Monotonic token that prevents stale async search phases from overwriting newer results.
     var sourceSearchGeneration = 0
-    /// Task handle for debounced search.
-    var sourceSearchTask: Task<Void, Never>?
     /// Task handle for debounced Apple Podcasts catalog search.
     var podcastCatalogSearchTask: Task<Void, Never>?
     /// Article IDs currently being backfilled for artwork.
@@ -2319,10 +2308,6 @@ class StudioViewModel {
     /// source clean-up (`PaidSourceCleanupPolicy`), not on every drain.
     var hasLoggedPaidCleanupSkip = false
     var hasCompletedInitialQueueLoad = false
-
-    /// Background auto-refresh task. Runs independently of the view lifecycle
-    /// so switching tabs (e.g. Studio → Review) doesn't stop periodic syncs.
-    var autoRefreshTask: Task<Void, Never>?
 
     /// In-flight title-fix operations, keyed by article id.
     var fixingTitleIds: Set<String> = []

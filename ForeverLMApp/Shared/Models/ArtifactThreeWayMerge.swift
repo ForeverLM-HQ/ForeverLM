@@ -83,8 +83,6 @@ enum ArtifactThreeWayMerge {
         var baseEnd: Int
         var replacement: [Substring]
 
-        var isInsertion: Bool { baseStart == baseEnd }
-
         /// Whether two hunks change the same place. Overlapping ranges do;
         /// so do ranges that merely meet, and an insertion at the edge of a
         /// change — both writers were working on the same passage, and only

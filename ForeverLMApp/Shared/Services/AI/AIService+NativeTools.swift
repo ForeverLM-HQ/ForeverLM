@@ -274,13 +274,6 @@ enum AIWebSearchDepth: Sendable {
     /// works, so it asks for more results than the plugin's default.
     case discovery
 
-    var maximumUses: Int? {
-        switch self {
-        case .standard, .discovery: return nil
-        case .deepResearch: return 12
-        }
-    }
-
     /// Results OpenRouter's web plugin returns per search, as its
     /// `max_results`. The Exa engine, which every model without a native
     /// engine falls back to, returns five by default

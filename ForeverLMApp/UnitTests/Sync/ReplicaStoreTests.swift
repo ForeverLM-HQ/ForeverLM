@@ -181,8 +181,6 @@ struct ReplicaStoreTests {
         #expect(try store.localID(forWire: "nb-1", recordType: "Notebook", preferring: ["shared/_owner/Space-a"]) == "proj_abc")
         #expect(try store.localID(forWire: "nb-1", recordType: "Notebook", preferring: ["private/Library"]) == "nb-1")
         #expect(try store.localID(forWire: "nb-1", recordType: "Notebook", preferring: ["shared/_x/Space-b"]) == "nb-1")
-        try store.forgetIdentity(zoneKey: "private/Library", recordType: "Notebook", wireID: "nb-1")
-        #expect(try store.localID(zoneKey: "private/Library", recordType: "Notebook", wireID: "nb-1") == nil)
         #expect(try store.localID(forWire: "nb-1", recordType: "Chat", preferring: []) == nil)
     }
 }

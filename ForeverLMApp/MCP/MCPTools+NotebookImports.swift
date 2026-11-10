@@ -1,5 +1,4 @@
 import Foundation
-import OSLog
 
 // MARK: - Filing an import in a Notebook
 //

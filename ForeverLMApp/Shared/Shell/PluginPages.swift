@@ -147,9 +147,6 @@ enum PluginsPlaceLocation: Hashable, Sendable {
         return nil
     }
 
-    /// The list itself rather than a page under it.
-    var isList: Bool { self == .directory || self == .skills }
-
     /// The list a page goes back to.
     var list: PluginsPlaceLocation { tab.location }
 }

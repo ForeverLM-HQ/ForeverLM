@@ -298,7 +298,7 @@ extension MCPDataStore {
         return (list ?? []) + [single].compactMap { $0 }
     }
 
-    private static let iso = ISO8601DateFormatter()
+    private static let iso = KnowledgeStore.iso8601Formatter
 
     private static let clock: DateFormatter = {
         let formatter = DateFormatter()

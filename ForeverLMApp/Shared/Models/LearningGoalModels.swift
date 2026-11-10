@@ -347,11 +347,6 @@ struct LearningGoalRecord: Identifiable, Codable, Equatable {
         Self.normalizedRepository(repository)
     }
 
-    /// The GitHub page of the linked repository, when one is set.
-    var linkedRepositoryURL: URL? {
-        linkedRepository.flatMap { URL(string: "https://github.com/\($0)") }
-    }
-
     /// The id of the artifact this Goal is for, or nil: both the never-set
     /// NULL and the explicit-unlink `""` read as no artifact.
     var linkedArtifactID: String? {

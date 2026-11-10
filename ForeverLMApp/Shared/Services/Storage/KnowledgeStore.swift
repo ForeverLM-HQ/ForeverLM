@@ -52,10 +52,6 @@ final class KnowledgeStore: @unchecked Sendable {
     var appliedRemoteChangesHandler: (@Sendable (AppliedRemoteChanges) -> Void)?
 
     #if DEBUG
-    /// Deterministic unit-test seam for proving that inbound MemoryItem conflict
-    /// decisions happen only after the SQLite write lock is acquired. Production
-    /// code never installs this closure.
-    var beforeInboundMemoryItemWriteTransactionForTesting: (() throws -> Void)?
 
     /// Deterministic unit-test seam for holding a projection-view replacement
     /// between its DROP and CREATE statements. The surrounding transaction must
@@ -304,8 +300,8 @@ final class KnowledgeStore: @unchecked Sendable {
         return try? JSONDecoder().decode([String].self, from: Data(json.utf8))
     }
 
-    /// Shared ISO-8601 formatter for `archived_at` text columns. Hoisted to a
-    /// `static let` so hot read/write paths don't allocate a formatter per row.
+    /// The shared default ISO-8601 formatter: `archived_at` text columns and the dates the MCP
+    /// tools print. A `static let`, so hot paths do not allocate a formatter per row.
     /// `ISO8601DateFormatter` is safe for concurrent formatting/parsing.
     static let iso8601Formatter = ISO8601DateFormatter()
 

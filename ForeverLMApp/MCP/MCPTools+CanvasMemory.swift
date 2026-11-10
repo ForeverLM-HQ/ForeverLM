@@ -199,7 +199,7 @@ extension MCPDataStore {
             groups["region:" + id] = refs.reduce(into: Set<String>()) { $0.formUnion(behind[$1] ?? []) }
         }
         let marks = try await studio.storage.canvasMemoryMarks(for: groups.filter { !$0.value.isEmpty })
-        let formatter = ISO8601DateFormatter()
+        let formatter = KnowledgeStore.iso8601Formatter
         func entry(_ mark: KnowledgeMapMemoryMark) -> [String: Any] {
             var entry: [String: Any] = [
                 "cards": mark.cards,

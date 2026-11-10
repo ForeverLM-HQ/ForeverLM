@@ -187,9 +187,6 @@ struct SpaceMoveHeld: Sendable {
 /// the Notes Doc `notes:<id>`), their grandchildren (Exchanges of the chats, Comments of the Docs), and
 /// the Sources the notebook's live Entries name (§5.3).
 enum SpaceMoveScan {
-    /// The types a notebook's move carries, in the order their copies are written: the notebook before
-    /// its Entries, a parent before its children (§4.4, `ck_unprojected` waits otherwise).
-    static let movedTypes: [SyncRecordType] = [.notebook, .entry, .artifact, .chat, .exchange, .comment, .task]
     static let copyOrder: [SyncRecordType] = [.notebook, .collection, .source, .entry, .artifact, .chat, .exchange, .comment, .task]
 
     static func held(in zoneKey: String, types: [SyncRecordType], _ connection: SQLiteConnection) throws -> [SpaceMoveHeld] {

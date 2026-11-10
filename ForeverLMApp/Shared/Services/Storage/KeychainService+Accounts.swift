@@ -329,12 +329,6 @@ extension KeychainService {
         set { saveManagedSessionValue(newValue, for: .managedAISessionExpiry) }
     }
 
-    /// Whether semantic source search is available. Embeddings run on-device
-    /// through Apple's `NLContextualEmbedding`, so this needs no credential at
-    /// all — it stays as a named constant rather than being inlined at the call
-    /// sites so the concept survives if the embedder ever moves off-device.
-    static var hasSourceSemanticSearch: Bool { true }
-
     // MARK: - MCP OAuth
 
     static var mcpOAuthClientID: String? {

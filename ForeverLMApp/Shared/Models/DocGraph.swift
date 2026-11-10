@@ -57,8 +57,6 @@ enum DocGraphSyntax {
 
     static func blockReference(_ blockID: String) -> String { "((\(blockID)))" }
 
-    static func blockEmbed(_ blockID: String) -> String { "{{embed: ((\(blockID)))}}" }
-
     /// How a block's text carries its id: the marker after its last word.
     static func appendingBlockID(_ blockID: String, to text: String) -> String {
         let trimmed = text.replacingOccurrences(of: #"[ \t]+$"#, with: "", options: .regularExpression)
@@ -157,15 +155,6 @@ enum WorkingLog {
     static let rightNowHeading = "## Right now"
     static let logHeading = "## Log"
     static let maximumLogLines = 200
-
-    /// The body of `## Right now`, or "" when the Doc has no such section.
-    static func rightNowSection(of markdown: String) -> String {
-        let lines = markdown.components(separatedBy: "\n")
-        guard let start = lines.firstIndex(where: { $0.trimmingCharacters(in: .whitespaces) == rightNowHeading }) else { return "" }
-        let end = lines[(start + 1)...].firstIndex { $0.hasPrefix("## ") } ?? lines.endIndex
-        let body = lines[(start + 1)..<end].joined(separator: "\n").trimmingCharacters(in: .whitespacesAndNewlines)
-        return body == "Nothing recorded yet." ? "" : body
-    }
 
     /// The Doc after a run: `## Right now` replaced by `rightNow` (kept as it
     /// was when nil or blank), and `entries` stamped with `now` and put at the

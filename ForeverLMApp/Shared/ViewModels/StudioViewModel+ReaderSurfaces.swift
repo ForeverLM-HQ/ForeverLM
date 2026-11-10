@@ -30,17 +30,6 @@ extension StudioViewModel {
         }
     }
 
-    var showNotepadInReader: Bool {
-        get { activeCenterTabs.contains(.notepad) }
-        set {
-            if newValue {
-                activateCenterTab(.notepad)
-            } else {
-                deactivateCenterTab(.notepad)
-            }
-        }
-    }
-
     /// Brings the source reader forward in its group — the old "a source takes
     /// the slot back". Sibling groups keep whatever they are showing.
     ///

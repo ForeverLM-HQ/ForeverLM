@@ -24,26 +24,8 @@ struct NotebookSchemaMigrationTests {
         #expect(groups.groups[0].activeTab == .artifacts, "the retired tab was the active one")
     }
 
-    @Test("A payload saved in iCloud before the rename reads with this build's keys, and nothing else in it changes")
-    func retiredPayloadKeys() throws {
-        let saved = Data(#"{"goal":{"id":"nb-1","parentProjectID":"nb-0","relatedProjectIDs":["nb-2"],"title":"My project notes","projection":"kept"},"artifact":{"homeProjectID":"nb-1","homeNotebookID":"nb-9"},"byID":{"project-1":1}}"#.utf8)
-        let current = RetiredNotebookWording.currentPayload(saved)
-        let object = try #require(try JSONSerialization.jsonObject(with: current) as? [String: Any])
-        let goal = try #require(object["goal"] as? [String: Any])
-        #expect(goal["parentNotebookID"] as? String == "nb-0")
-        #expect(goal["relatedNotebookIDs"] as? [String] == ["nb-2"])
-        #expect(goal["parentProjectID"] == nil)
-        #expect(goal["title"] as? String == "My project notes", "values never change")
-        #expect(goal["projection"] as? String == "kept")
-        // A key already under its current name wins over its retired twin.
-        let artifact = try #require(object["artifact"] as? [String: Any])
-        #expect(artifact["homeNotebookID"] as? String == "nb-9")
-        #expect(artifact.count == 1)
-        #expect((object["byID"] as? [String: Any])?["project-1"] as? Int == 1, "a key that is not an identifier is data")
-        let fresh = Data(#"{"goal":{"parentNotebookID":"nb-0"}}"#.utf8)
-        #expect(RetiredNotebookWording.currentPayload(fresh) == fresh, "a current payload is returned byte for byte")
-
-        // The kind values an Idea's links and a Direction's home were saved under.
+    @Test("The kind values an Idea's links and a Direction's home were saved under read as notebook")
+    func retiredKindValues() throws {
         let kinds = try JSONDecoder().decode([IdeaLinkKind].self, from: Data(#"["project","notebook","goal"]"#.utf8))
         #expect(kinds == [.notebook, .notebook, .goal])
         #expect(try JSONDecoder().decode(DirectionHomeKind.self, from: Data(#""project""#.utf8)) == .notebook)

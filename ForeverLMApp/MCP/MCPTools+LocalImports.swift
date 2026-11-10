@@ -1,11 +1,7 @@
 // MCPDataStore: Importing local PDFs and files as sources.
-import CryptoKit
 import Foundation
-import ImageIO
-import Network
 import OSLog
 import PDFKit
-import SQLite3
 
 extension MCPDataStore {
     /// A PDF on its way in as a new paper, a local file's or one

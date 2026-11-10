@@ -23,7 +23,6 @@ enum MobileDesign {
     enum Metrics {
         static let minimumTouchTarget: CGFloat = 44
         static let readableContentWidth: CGFloat = 720
-        static let compactArtworkSize: CGFloat = 44
     }
 
     static let subtleStroke = Color.primary.opacity(0.08)

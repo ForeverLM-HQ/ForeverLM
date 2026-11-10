@@ -800,13 +800,6 @@ extension KeychainService {
         UserDefaults.standard.string(forKey: "aiTask.\(task.rawValue).prompt")
     }
 
-    /// Set or clear the prompt override for a specific AI task.
-    static func setTaskPrompt(_ prompt: String?, for task: AITask) {
-        let key = "aiTask.\(task.rawValue).prompt"
-        if let prompt, !prompt.isEmpty { PreferenceStore.set(prompt, forKey: key) }
-        else { PreferenceStore.remove(forKey: key) }
-    }
-
     /// The provider and model a task will actually use: a background task's
     /// is its own or Background's (`backgroundRoute(for:)`), the chat's its own pick or
     /// the Default Model. Unlike `resolveConfig`, this answers regardless of

@@ -1,11 +1,6 @@
 // MCPDataStore: Reading views, visibility, PDF attachments and paper downloads.
-import CryptoKit
 import Foundation
-import ImageIO
-import Network
-import OSLog
 import PDFKit
-import SQLite3
 
 extension MCPDataStore {
     private func readingViewArticle(_ rawSourceID: String) throws -> StudioArticle {
