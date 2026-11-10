@@ -547,6 +547,8 @@ targets:
       # the card's chat saves in the Mac's own shape.
       - iOS/MobileWalkthroughGenerator.swift
       - Shared/Models/PaperWalkthrough.swift
+      - Shared/Models/PaperWalkthroughValidation.swift
+      - Shared/Models/PaperWalkthroughText.swift
       - Shared/Services/AI/PaperWalkthroughWriting.swift
       - Shared/Services/AI/WalkthroughStepComposer.swift
       - Shared/Utilities/SourceImageReference.swift
