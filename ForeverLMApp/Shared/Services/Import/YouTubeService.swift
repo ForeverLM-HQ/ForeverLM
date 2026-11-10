@@ -552,7 +552,7 @@ actor YouTubeService {
         /// A `UC…` channel id.
         case id(String)
         /// The name from a `/c/<name>` or `/user/<name>` address.
-        case legacyName(String)
+        case username(String)
     }
 
     struct Channel: Equatable, Sendable {
@@ -590,7 +590,7 @@ actor YouTubeService {
         }
         if first == "c" || first == "user", parts.count >= 2 {
             let name = parts[1].trimmingCharacters(in: .whitespaces)
-            return name.isEmpty ? nil : .legacyName(name)
+            return name.isEmpty ? nil : .username(name)
         }
         return nil
     }
@@ -618,7 +618,7 @@ actor YouTubeService {
         URLComponents(string: url)?.queryItems?.first { $0.name == "list" }?.value
     }
 
-    /// Resolve a pasted channel reference through the Data API. A legacy name
+    /// Resolve a pasted channel reference through the Data API. A bare channel name
     /// is tried as a username first and as a handle second, since channels
     /// have kept the same word for both.
     func resolveChannel(_ reference: ChannelReference) async throws -> Channel {
@@ -626,7 +626,7 @@ actor YouTubeService {
         switch reference {
         case .handle(let handle): lookups = [("forHandle", handle)]
         case .id(let id): lookups = [("id", id)]
-        case .legacyName(let name): lookups = [("forUsername", name), ("forHandle", name)]
+        case .username(let name): lookups = [("forUsername", name), ("forHandle", name)]
         }
         for lookup in lookups {
             var components = URLComponents(string: "https://www.googleapis.com/youtube/v3/channels")!
@@ -849,13 +849,12 @@ actor YouTubeService {
 
     /// The client that issued an account's tokens. Google refuses to refresh a
     /// token against a different client, so this is the recorded one, never
-    /// simply the current default; a connection that predates the recorded
-    /// client was issued under the learner's own Google client.
+    /// simply the current default.
     private nonisolated func refreshCredentials(accountID: String) -> GoogleOAuthCredentials? {
         GoogleOAuthCredentials(
             clientID: KeychainService.youtubeCredential(field: .clientID, accountID: accountID),
             clientSecret: KeychainService.youtubeCredential(field: .clientSecret, accountID: accountID)
-        ) ?? GoogleOAuthClient.userSuppliedGoogle
+        )
     }
 
     private func refreshAccessToken(accountID: String, refreshToken: String) async throws -> YouTubeTokenResponse {
@@ -953,8 +952,7 @@ actor YouTubeService {
     private nonisolated func register(
         channel: (id: String, title: String),
         tokens: YouTubeTokenResponse,
-        issuedBy credentials: GoogleOAuthCredentials?,
-        choicesIfNew: YouTubeImportChoices = .unchosen
+        issuedBy credentials: GoogleOAuthCredentials?
     ) -> YouTubeAccount {
         store(tokens: tokens, accountID: channel.id, issuedBy: credentials)
         Self.accountListLock.lock()
@@ -962,80 +960,10 @@ actor YouTubeService {
         let listed = YouTubeAccountList.connecting(
             id: channel.id,
             title: channel.title,
-            choicesIfNew: choicesIfNew,
             into: accounts
         )
         KeychainService.youtubeAccounts = YouTubeAccountList.encode(listed)
         return listed.first { $0.id == channel.id }!
-    }
-
-    // MARK: - Adopting the single connection
-
-    /// Whether an older build's single connection is still waiting to become
-    /// an account.
-    nonisolated var hasUnadoptedConnection: Bool {
-        KeychainService.youtubeAccessToken?.isEmpty == false
-            || KeychainService.youtubeRefreshToken?.isEmpty == false
-    }
-
-    /// Turn the single connection older builds stored into the first account,
-    /// so nobody has to reconnect, then delete its singleton keys: this is the
-    /// only place that reads them. `choices` carries what the old connection
-    /// imported (the caller reads it from the learner's old preferences).
-    /// Offline, nothing changes and the next launch tries again.
-    @discardableResult
-    func adoptSingleConnection(choices: YouTubeImportChoices) async throws -> YouTubeAccount? {
-        guard hasUnadoptedConnection else { return nil }
-        let credentials = GoogleOAuthCredentials(
-            clientID: KeychainService.youtubeClientID,
-            clientSecret: KeychainService.youtubeClientSecret
-        ) ?? GoogleOAuthClient.userSuppliedGoogle
-        var tokens = YouTubeTokenResponse(
-            accessToken: KeychainService.youtubeAccessToken,
-            refreshToken: KeychainService.youtubeRefreshToken,
-            expiresIn: nil
-        )
-        let expiry = KeychainService.youtubeTokenExpiry.flatMap { ISO8601DateFormatter().date(from: $0) }
-        let accessTokenIsFresh = (expiry?.timeIntervalSinceNow ?? 0) > 60 && tokens.accessToken?.isEmpty == false
-        if !accessTokenIsFresh {
-            guard let refreshToken = tokens.refreshToken, !refreshToken.isEmpty else {
-                Self.deleteSingleConnection()
-                return nil
-            }
-            guard let credentials else { throw YouTubeServiceError.missingClientID }
-            do {
-                let refreshed = try await requestRefresh(refreshToken: refreshToken, credentials: credentials)
-                tokens = YouTubeTokenResponse(
-                    accessToken: refreshed.accessToken,
-                    refreshToken: refreshToken,
-                    expiresIn: refreshed.expiresIn
-                )
-            } catch is GrantRevoked {
-                // Revoked before it could be named: nothing to adopt.
-                Self.deleteSingleConnection()
-                Self.notifyConnectionChanged()
-                return nil
-            }
-        }
-        guard let accessToken = tokens.accessToken, !accessToken.isEmpty else { return nil }
-        let channel = try await ownChannel(accessToken: accessToken)
-        let account = register(
-            channel: channel,
-            tokens: tokens,
-            issuedBy: credentials,
-            choicesIfNew: choices
-        )
-        Self.deleteSingleConnection()
-        Self.notifyConnectionChanged()
-        return account
-    }
-
-    private nonisolated static func deleteSingleConnection() {
-        KeychainService.youtubeAccessToken = nil
-        KeychainService.youtubeRefreshToken = nil
-        KeychainService.youtubeTokenExpiry = nil
-        KeychainService.youtubeClientID = nil
-        KeychainService.youtubeClientSecret = nil
     }
 
     private nonisolated func validateClientID(_ clientID: String) -> String? {

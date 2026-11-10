@@ -220,8 +220,8 @@ enum ProjectionApplyOutcome: Equatable, Sendable {
 /// One record type's projection into the Mac's domain tables (D32, §14.1): what it reads, how it
 /// encodes the rows into fields, and how it writes an inbound record back into them.
 ///
-/// `encodeRows(_:)` is pure, so the late import's `LegacyV2Mapping` encodes the old world's values
-/// with exactly the field encoding the outbox sends (R5-m11); `encode` loads the rows and calls it.
+/// `encodeRows(_:)` is pure, so a caller with rows in hand encodes them with exactly the field
+/// encoding the outbox sends (R5-m11); `encode` loads the rows and calls it.
 /// `apply` and `applyDeletion` run inside an apply transaction, under the guard, and must not reach
 /// past their own record: a parent that is missing is reported, never created.
 protocol RecordProjection: Sendable {

@@ -11,7 +11,7 @@ enum LearningGoalEntityKind {
     static let goal = "goal"
 
     /// The kind `LearningGoalShape` gives a row: an open-ended companion record with no parent is a
-    /// notebook; everything else (a dated Goal, a legacy schedule goal) is a Goal.
+    /// notebook; everything else (a dated Goal, an undated schedule goal) is a Goal.
     static func kind(kind: String?, parentNotebookID: String?, endAt: Double) -> String {
         LearningGoalShape.isNotebook(kind: kind, parentNotebookID: parentNotebookID, endAtReferenceSeconds: endAt) ? notebook : goal
     }

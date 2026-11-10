@@ -163,7 +163,7 @@ final class MobileSourceReaderViewModel: ObservableObject {
         if self.source?.id == source.id, isReady, !readingPaperAsText { return }
         self.source = source
         // The view model cannot see Schedule state. Report one real end reach
-        // per reader lifetime even for a legacy readAt-only source; the shared
+        // per reader lifetime even for a source with only a readAt; the shared
         // completion writer cheaply no-ops when both synced records already exist.
         didReportReadingCompletion = false
         readerBodyHTML = nil

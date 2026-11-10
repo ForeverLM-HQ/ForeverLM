@@ -763,7 +763,7 @@ extension KnowledgeStore {
     /// Token search cannot preserve punctuation-rich identity: a DOI such as
     /// `10.1038/s41586-023-06004-9` becomes several unrelated tokens. A direct lookup
     /// is both more accurate and cheaper. The NOCASE predicates match the dedicated
-    /// legacy-compatible indexes installed with the paper schema.
+    /// case-insensitive DOI indexes installed with the paper schema.
     func searchPaperDOI(
         _ doi: String,
         limit: Int,

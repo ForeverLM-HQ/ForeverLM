@@ -1062,7 +1062,7 @@ actor YouTubePlaylistService {
 
     /// Extract playlist items and an optional continuation token from ytInitialData.
     ///
-    /// Handles both markups YouTube serves. The legacy shape nests
+    /// Handles both markups YouTube serves. The classic shape nests
     /// `playlistVideoRenderer` entries inside a `playlistVideoListRenderer`
     /// wrapper with a `continuationItemRenderer` pager; the lockup shape
     /// (rolled out to playlist pages in 2026) puts `lockupViewModel` entries
@@ -1096,7 +1096,7 @@ actor YouTubePlaylistService {
 
     /// Append every playlist entry in `entries` to `items`, capturing the next
     /// continuation token when one is present. Accepts entries from either
-    /// markup, recursing into the legacy `playlistVideoListRenderer` wrapper.
+    /// markup, recursing into the classic `playlistVideoListRenderer` wrapper.
     private static func appendPlaylistEntries(
         _ entries: [[String: Any]],
         to items: inout [YouTubePlaylistItem],
@@ -1122,7 +1122,7 @@ actor YouTubePlaylistService {
     }
 
     private static func continuationToken(in entry: [String: Any]) -> String? {
-        // Legacy pager: continuationItemRenderer.continuationEndpoint.continuationCommand.token
+        // Classic pager: continuationItemRenderer.continuationEndpoint.continuationCommand.token
         if let renderer = entry["continuationItemRenderer"] as? [String: Any],
            let endpoint = renderer["continuationEndpoint"] as? [String: Any],
            let command = endpoint["continuationCommand"] as? [String: Any],
@@ -1176,7 +1176,7 @@ actor YouTubePlaylistService {
     }
 
     /// The lockup's watch endpoint carries the 0-based playlist position; the
-    /// legacy markup displayed a 1-based index, so shift to match.
+    /// classic markup displayed a 1-based index, so shift to match.
     private static func lockupPlaylistIndex(_ lockup: [String: Any]) -> Int? {
         guard let rendererContext = lockup["rendererContext"] as? [String: Any],
               let commandContext = rendererContext["commandContext"] as? [String: Any],

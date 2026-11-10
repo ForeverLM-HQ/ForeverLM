@@ -632,7 +632,6 @@ extension StudioViewModel {
     /// group. Called when the Drive tab opens, the app activates, or the learner
     /// explicitly refreshes; never from a launch-time scan or polling loop.
     func refreshConnectedGoogleDriveMeetings(silent: Bool) async {
-        _ = try? await GoogleDriveService.shared.adoptLegacyAccountIfNeeded()
         guard GoogleDriveService.shared.isSignedIn else { return }
         var folders: [(String, String)] = []
         for (groupID, metadata) in meetingMetadata {

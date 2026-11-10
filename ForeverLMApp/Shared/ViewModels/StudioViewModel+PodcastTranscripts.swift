@@ -1284,7 +1284,7 @@ extension StudioViewModel {
     }
 
     /// The Apple store track id an episode address names, or nil for a
-    /// private-feed placeholder, a legacy local row, or a web page.
+    /// private-feed placeholder, a locally added row, or a web page.
     nonisolated static func publicTrackID(inPodcastURL url: String) -> Int64? {
         guard url.hasPrefix("apple-podcast:") else { return nil }
         return url.split(separator: "/").last.flatMap { Int64($0) }

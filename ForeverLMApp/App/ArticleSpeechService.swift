@@ -1472,7 +1472,7 @@ final class ArticleSpeechService: NSObject, ObservableObject {
         }
 
         // The catalog only describes the managed OpenRouter rail. A stored
-        // legacy provider is already rejected by `configurationError`; never
+        // retired provider is already rejected by `configurationError`; never
         // answer it by silently moving the listener onto OpenRouter.
         guard provider == .openRouter else {
             return ResolvedSpeechSelection(

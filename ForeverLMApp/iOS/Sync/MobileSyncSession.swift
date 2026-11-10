@@ -91,7 +91,7 @@ actor MobileSyncSession {
                 session.writer.whenWritten { due in Task { await session.wrote(dueIn: due) } }
                 await session.coordinator.observe { status in
                     switch status.phase {
-                    case .upToDate, .stopped, .staysOnGeneration1, .waiting: Task { await session.settled(status.phase) }
+                    case .upToDate, .stopped, .waiting: Task { await session.settled(status.phase) }
                     default: break
                     }
                 }

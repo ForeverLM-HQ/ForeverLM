@@ -17,11 +17,8 @@ extension KnowledgeStore {
             ("file_ref", "TEXT NOT NULL"),
             ("local_path", "TEXT"),
         ], constraints: ["PRIMARY KEY (artifact_id, file_key)"]),
-        // Bodies the old world gave, keyed by wire id, since the catch-ups that fill it run before this
-        // Mac knows a zone's salt (§13.6, R8-1, R8-m4): a Notes Doc's notes base from the catch-up's walk
-        // (`Notebook`, the notebook's id, `notes`), which the T merge reads when `ck_text_bases` has no
-        // entry yet, and the time this Mac's seed or reconcile had a body's upload acknowledged
-        // (`sent_at`, WP16).
+        // The time this Mac's seed or reconcile had a body's upload acknowledged (`sent_at`, WP16),
+        // keyed by wire id. `base_hash` and `base_text` are no longer written.
         ReplicaSchemaTable("ck_legacy_bodies", [
             ("record_type", "TEXT NOT NULL"),
             ("wire_id", "TEXT NOT NULL"),

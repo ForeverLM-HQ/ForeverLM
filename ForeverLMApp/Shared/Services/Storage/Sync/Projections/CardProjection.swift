@@ -450,7 +450,7 @@ extension KnowledgeStore {
         var counter = 0
         _ = try envelope.apply(patch) { _, policy, _ in
             counter += 1
-            return SyncStamp(policy: policy, milliseconds: 1, counter: counter, deviceID: SyncIdentity.legacyDeviceID)
+            return SyncStamp(policy: policy, milliseconds: 1, counter: counter, deviceID: SyncIdentity.migratedHistoryDeviceID)
         }
         let reference = ProjectionRecordRef(
             zoneKey: ReplicaZone.key(database: .private, zoneName: SyncZone.library.rawValue), zone: .library,

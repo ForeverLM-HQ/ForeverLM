@@ -6542,7 +6542,7 @@ extension MobileAudioReviewViewModel {
         await beginSiriVoiceSessionIfNeeded()
         // Only the Claude grader needs a managed session. The Apple on-device grader is
         // checked when the engine begins (it fails loudly if unavailable).
-        if reviewGrader.requiresAnthropicKey, !hasAnthropicKey {
+        if reviewGrader.requiresManagedSession, !hasAnthropicKey {
             speakAndResumeListening(
                 MobileReviewError.missingAnthropicKey.errorDescription
                     ?? "Sign in with Apple to run a review.",

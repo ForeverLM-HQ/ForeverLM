@@ -101,26 +101,4 @@ struct SeedTakeoverTests {
         let total = server.recordNames(zone: "Library", owner: C.user).count + server.recordNames(zone: "Catalog", owner: C.user).count
         #expect(total > heldByA, "B uploaded what A had not reached")
     }
-
-    @Test("A root a Mac with no library left pending is claimed by the library's Mac, which seeds against what is already there")
-    func pendingRootIsClaimed() async throws {
-        let server = EngineTestDriver.server()
-        _ = server.put([], zone: "Knowledge", owner: C.user, container: FakeCloudKit.legacyContainer)
-        let empty = try EngineTestDevice(server, name: "pend-empty", deviceID: "macaaaaa", user: C.user, registry: KnowledgeStore.projectionRegistry)
-        try await empty.bootstrap(.macWithoutLibrary)
-        #expect(try C.seedMap(server)["state"] == .string("pending"))
-
-        let b = try EngineTestDevice(server, name: "pend-b", deviceID: "macbbbbb", user: C.user, registry: KnowledgeStore.projectionRegistry)
-        try C.activate(b.store)
-        try C.addLibrary(b.store)
-        try await b.bootstrap(.macHoldingLibrary)
-        try await b.sync()
-        let outcome = try await CutoverSeeder(C.environment(b)).run()
-        guard case .complete = outcome else { Issue.record("did not finish: \(outcome)"); return }
-        let seed = try C.seedMap(server)
-        #expect(seed["state"] == .string("complete"))
-        #expect(seed["startedAt"]?.int64Value != nil)
-        #expect(try C.root(server).fields["seedClaim"]?.objectValue?["device"] == .string("macbbbbb"))
-        #expect(try b.serverEnvelope(.notebook, "nb2") != nil)
-    }
 }

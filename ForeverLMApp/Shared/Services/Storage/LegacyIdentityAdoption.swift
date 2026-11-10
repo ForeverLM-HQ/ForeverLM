@@ -44,14 +44,6 @@ enum LegacyIdentityAdoption {
         var copiedAppGroupInbox = false
     }
 
-    static var isRunningAutomatedTests: Bool {
-        let process = ProcessInfo.processInfo
-        if process.environment["XCTestConfigurationFilePath"] != nil { return true }
-        if process.arguments.contains(where: { $0.contains("xctest") }) { return true }
-        if Bundle.main.bundlePath.hasSuffix(".xctest") { return true }
-        return false
-    }
-
     static func productionLocations(fileManager: FileManager = .default) -> Locations {
         let home = ProcessInfo.processInfo.environment["SIMULATOR_HOST_HOME"]
             .flatMap { $0.isEmpty ? nil : $0 }
@@ -83,7 +75,7 @@ enum LegacyIdentityAdoption {
         // run the production rename adopter could move the daily app's real
         // database into the Dev folder on first launch.
         guard !ForeverLMRuntimeIdentity.isDevelopment,
-              !isRunningAutomatedTests else { return }
+              !ForeverLMRuntimeIdentity.isTestHost else { return }
         let report = adopt(locations: productionLocations())
         if report.movedAppSupport {
             logger.notice("Adopted retired FeynmanLM Application Support into ForeverLM")
@@ -220,77 +212,5 @@ enum LegacyIdentityAdoption {
             )
             return false
         }
-    }
-}
-
-// MARK: - Retired method-name preference keys
-
-extension LegacyIdentityAdoption {
-    private static let retiredMethodKeysAdoptedMarker = "foreverlm.retiredMethodPreferenceKeysAdopted.v1"
-
-    /// Schema 98 dropped the method name from two `AITask` raw values and one
-    /// iOS grader key. Model choices live in `UserDefaults` under those raw
-    /// values, so a learner's chosen chat model would otherwise reset to the
-    /// default on the first launch of this build. Moved once, here, on both
-    /// platforms; the old keys are removed so nothing reads them again.
-    static func adoptRetiredMethodPreferenceKeysIfNeeded(
-        defaults: UserDefaults = .standard
-    ) -> Int {
-        guard !defaults.bool(forKey: retiredMethodKeysAdoptedMarker) else { return 0 }
-        var moves: [(String, String)] = [("feynman.grader.v1", "foreverlm.grader.v1")]
-        for (old, new) in [("feynman_quiz", "chat"), ("mobile_feynman_review", "mobile_review")] {
-            moves.append(("aiRoute.task.\(old)", "aiRoute.task.\(new)"))
-            for suffix in ["provider", "model", "effort", "speed"] {
-                moves.append(("aiTask.\(old).\(suffix)", "aiTask.\(new).\(suffix)"))
-            }
-        }
-        var moved = 0
-        for (old, new) in moves {
-            guard let value = defaults.object(forKey: old) else { continue }
-            if defaults.object(forKey: new) == nil {
-                defaults.set(value, forKey: new)
-                moved += 1
-            }
-            defaults.removeObject(forKey: old)
-        }
-        defaults.set(true, forKey: retiredMethodKeysAdoptedMarker)
-        return moved
-    }
-}
-
-// MARK: - Retired notebook-name preference keys
-
-extension LegacyIdentityAdoption {
-    private static let retiredNotebookKeysAdoptedMarker = "foreverlm.retiredNotebookPreferenceKeysAdopted.v1"
-
-    /// A notebook was called a project until 2026-10-04. Two device-local
-    /// preferences carried the word in their keys (which notebook this Mac's
-    /// own MCP endpoint serves, which notebook Screen record mode films), so a
-    /// learner's choice would reset on the first launch of this build. Moved
-    /// once, here; the old keys are removed so nothing reads them again. The
-    /// synced `studio.projectOrder` and `studio.navigation.expandedProjectIDs.v1`
-    /// keep their names: they are keys of the generation-2 settings catalog.
-    /// The device-local keys that carried the retired word, as `(old, new)`.
-    static let retiredNotebookPreferenceKeys: [(old: String, new: String)] = [
-        ("studio.activeMCPProjectID", "studio.activeMCPNotebookID"),
-        ("screenRecordMode.projectID", "screenRecordMode.notebookID"),
-    ]
-
-    @discardableResult
-    static func adoptRetiredNotebookPreferenceKeysIfNeeded(
-        defaults: UserDefaults = .standard
-    ) -> Int {
-        guard !defaults.bool(forKey: retiredNotebookKeysAdoptedMarker) else { return 0 }
-        var moved = 0
-        for (old, new) in retiredNotebookPreferenceKeys {
-            guard let value = defaults.object(forKey: old) else { continue }
-            if defaults.object(forKey: new) == nil {
-                defaults.set(value, forKey: new)
-                moved += 1
-            }
-            defaults.removeObject(forKey: old)
-        }
-        defaults.set(true, forKey: retiredNotebookKeysAdoptedMarker)
-        return moved
     }
 }

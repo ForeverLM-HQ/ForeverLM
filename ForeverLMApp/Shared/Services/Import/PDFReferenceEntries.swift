@@ -476,7 +476,7 @@ actor PDFReferenceEntries {
     /// the older `/Dests` dictionary.
     private struct NamedDestinations {
         private var tree: [String: CGPDFObjectRef] = [:]
-        private var legacy: CGPDFDictionaryRef?
+        private var destsDictionary: CGPDFDictionaryRef?
 
         init(catalog: CGPDFDictionaryRef) {
             var names: CGPDFDictionaryRef?
@@ -486,7 +486,7 @@ actor PDFReferenceEntries {
                 collect(root, depth: 0)
             }
             var dests: CGPDFDictionaryRef?
-            if CGPDFDictionaryGetDictionary(catalog, "Dests", &dests) { legacy = dests }
+            if CGPDFDictionaryGetDictionary(catalog, "Dests", &dests) { destsDictionary = dests }
         }
 
         private mutating func collect(_ node: CGPDFDictionaryRef, depth: Int) {
@@ -517,7 +517,7 @@ actor PDFReferenceEntries {
         func object(for name: String) -> CGPDFObjectRef? {
             if let found = tree[name] { return found }
             var object: CGPDFObjectRef?
-            guard let legacy, CGPDFDictionaryGetObject(legacy, name, &object) else { return nil }
+            guard let destsDictionary, CGPDFDictionaryGetObject(destsDictionary, name, &object) else { return nil }
             return object
         }
     }

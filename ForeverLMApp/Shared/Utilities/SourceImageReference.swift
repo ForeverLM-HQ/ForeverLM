@@ -338,7 +338,6 @@ extension SourceImageReference {
     /// `![alt](target)`, with the target free of whitespace and closing
     /// parentheses — the shape the assistant writes and the renderer reads.
     private static func markdownImagePattern() -> NSRegularExpression {
-        // swiftlint:disable:next force_try
         try! NSRegularExpression(pattern: #"!\[([^\]\n]*)\]\(<?([^)\s>]+)>?\)"#)
     }
 }

@@ -135,9 +135,7 @@ actor SyncCoordinator {
                 publish { $0.phase = .noAccount }
                 return
             }
-            // No old container to look in: it stayed with the old Apple team, so an account with no root is
-            // brand-new to this one (§2.4).
-            var bootstrap = ZoneBootstrap(transport: transport, legacyTransport: nil, store: store, client: client, deviceID: deviceID)
+            var bootstrap = ZoneBootstrap(transport: transport, store: store, client: client, deviceID: deviceID)
             bootstrap.now = { Date() }
             #if os(macOS)
             bootstrap.containerEnvironment = CloudRuntimeAvailability.containerEnvironment.rawValue
@@ -151,9 +149,6 @@ actor SyncCoordinator {
                 return
             case .waiting(let reason):
                 publish { $0.phase = .waiting(reason) }
-                return
-            case .staysOnGeneration1:
-                publish { $0.phase = .staysOnGeneration1 }
                 return
             case .updateRequired(let minimum):
                 publish { $0.phase = .updateRequired(minClientRevision: minimum) }

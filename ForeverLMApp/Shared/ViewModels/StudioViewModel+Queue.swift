@@ -339,17 +339,7 @@ extension StudioViewModel {
             logger.error("Failed to load visible podcast episode overrides: \(error.localizedDescription)")
         }
         do {
-            let storedChannels = try await hiddenYouTubeChannelsResult
-            let legacyChannels = Set(
-                UserDefaults.standard.stringArray(forKey: "youtube.hiddenChannels") ?? []
-            )
-            for channelName in legacyChannels.subtracting(storedChannels) {
-                try await storage.setYouTubeChannelHidden(channelName, hidden: true)
-            }
-            hiddenYouTubeChannels = storedChannels.union(legacyChannels)
-            if !legacyChannels.isEmpty {
-                PreferenceStore.remove(forKey: "youtube.hiddenChannels")
-            }
+            hiddenYouTubeChannels = try await hiddenYouTubeChannelsResult
         } catch {
             logger.error("Failed to load hidden YouTube channels: \(error.localizedDescription)")
         }
@@ -431,7 +421,6 @@ extension StudioViewModel {
             // about now and every quarter hour from here.
             self.startZoomTranscriptChecks()
             await self.runDeferredSourceTextReferenceRepair()
-            await self.runDeferredPaperFigureMarkdownRepair()
             await self.runDeferredSourceWordCountRepair()
             await self.runDeferredPaperFigureImageSweep()
             await self.runDeferredMemoryScheduleRebuild()

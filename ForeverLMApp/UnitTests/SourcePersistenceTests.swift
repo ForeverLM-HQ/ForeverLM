@@ -181,46 +181,6 @@ struct SourcePersistenceTests {
         #expect(try store.paperFigureIndexQueueCount() == 2)
     }
 
-    @Test("The legacy figure block is stripped only when it is unmistakably generated")
-    func legacyFigureBlockStrippingIsConservative() {
-        let generated = """
-            Body text about the assay.
-
-            ## Figures
-
-            ![Figure 1 | Response.](file:///Users/someone/Content/Papers/Figures/p/page-0003.jpg)
-
-            ![Figure 2 | Dose.](file:///Users/someone/Content/Papers/Figures/p/page-0007.jpg)
-            """
-        #expect(
-            LegacyPaperFigureMarkdown.stripping(generated) == "Body text about the assay."
-        )
-
-        // A paper with its own Figures section keeps it.
-        let authored = """
-            Body text.
-
-            ## Figures
-
-            Figure 1 is discussed at length in the supplement.
-            """
-        #expect(LegacyPaperFigureMarkdown.stripping(authored) == nil)
-
-        // Links that are not ours are left alone.
-        let remote = """
-            Body text.
-
-            ## Figures
-
-            ![Figure 1](https://example.com/figure-1.png)
-            """
-        #expect(LegacyPaperFigureMarkdown.stripping(remote) == nil)
-
-        // Nothing to do is reported as nothing to do, so the drain stays idempotent.
-        #expect(LegacyPaperFigureMarkdown.stripping("Body text only.") == nil)
-        #expect(LegacyPaperFigureMarkdown.stripping("") == nil)
-    }
-
     @Test("Ready sources require durable readable text")
     func readySourcesRequireDurableReadableText() throws {
         let store = try makeInMemoryStore()

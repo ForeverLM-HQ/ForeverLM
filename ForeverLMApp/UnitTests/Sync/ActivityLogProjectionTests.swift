@@ -163,10 +163,10 @@ struct ActivityLogProjectionTests {
             VALUES (?, 'pl-1', 'src-t', ?, ?, ?, 1, 0, 0.5, 600)
         """, [.text(rowID), .real(dayStart.timeIntervalSinceReferenceDate), .real(Self.noon), .real(Self.noon + 600)])
         try store.replica.apply { _ in try store.deriveLegacyActivityLogs() }
-        let log = try #require(try ActivityLogProjection.loadLog(table: "activity_logs", day: day, deviceID: SyncIdentity.legacyDeviceID, connection: store))
+        let log = try #require(try ActivityLogProjection.loadLog(table: "activity_logs", day: day, deviceID: SyncIdentity.migratedHistoryDeviceID, connection: store))
         #expect(Set(log.sources.keys) == ["src-p"], "the log names the work by its wire id")
 
-        try F.apply(store, [try F.record(.activityLog, SyncIdentity.activityLogID(day: day, deviceID: SyncIdentity.legacyDeviceID),
+        try F.apply(store, [try F.record(.activityLog, SyncIdentity.activityLogID(day: day, deviceID: SyncIdentity.migratedHistoryDeviceID),
                                          ActivityLogProjection.encodeRows(log))])
         #expect(try F.count(store, "SELECT COUNT(*) FROM source_activity_days WHERE day_start = ?", [.real(dayStart.timeIntervalSinceReferenceDate)]) == 1,
                 "one row for the work's day")

@@ -65,9 +65,9 @@ enum SourceReviewFilter: String, CaseIterable {
 }
 
 /// The visible completion status for a readable source. `readAt` remains the
-/// legacy whole-source consumption signal used by review intake, while the
+/// whole-source read signal used by review intake, while the
 /// Schedule activity ledger tells us whether that consumption was listening or
-/// reading. A legacy/manual completion with no activity provenance stays Read.
+/// reading. A manual completion with no activity provenance stays Read.
 ///
 /// This is the one status a source row draws. A review draws no badge of its
 /// own (product owner, 2026-09-29); the Review filter and the row's Review Sessions

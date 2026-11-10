@@ -34,25 +34,12 @@ enum GoogleOAuthClient {
         )
     }
 
-    /// The user's own client, originally created for the retired Google Drive
-    /// plugin. Kept because YouTube tokens issued under it can only refresh
-    /// against it — the keychain keys keep their historical `googleDrive` names
-    /// so existing entries keep resolving.
-    static var userSuppliedGoogle: GoogleOAuthCredentials? {
-        GoogleOAuthCredentials(
-            clientID: KeychainService.googleDriveClientID,
-            clientSecret: KeychainService.googleDriveClientSecret
-        )
-    }
-
     /// The client a *new* YouTube authorization should run against: an explicit
-    /// override (advanced/development use), else ForeverLM's own client, else
-    /// the user's Drive client, which is how YouTube worked before this app
-    /// shipped its own.
+    /// override (advanced/development use), else ForeverLM's own client.
     static func youtubeAuthorization(
         explicit: GoogleOAuthCredentials? = nil
     ) -> GoogleOAuthCredentials? {
-        explicit ?? appOwnedYouTube ?? userSuppliedGoogle
+        explicit ?? appOwnedYouTube
     }
 
     // MARK: - Google Drive
@@ -70,14 +57,6 @@ enum GoogleOAuthClient {
     static func driveAuthorization(
         explicit: GoogleOAuthCredentials? = nil
     ) -> GoogleOAuthCredentials? {
-        explicit ?? appOwnedDrive ?? userSuppliedGoogle
-    }
-
-    /// Google binds refresh tokens to the client that issued them.
-    static var driveRefresh: GoogleOAuthCredentials? {
-        GoogleOAuthCredentials(
-            clientID: KeychainService.driveClientID,
-            clientSecret: KeychainService.driveClientSecret
-        ) ?? userSuppliedGoogle
+        explicit ?? appOwnedDrive
     }
 }

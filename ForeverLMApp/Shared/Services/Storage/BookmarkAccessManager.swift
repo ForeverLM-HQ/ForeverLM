@@ -15,8 +15,8 @@ final class BookmarkAccessManager: @unchecked Sendable {
     private let logger = Logger(subsystem: "com.foreverlm", category: "BookmarkAccess")
 
     enum BookmarkKey: String, CaseIterable, Sendable {
-        /// Legacy bookmark keys remain readable so an upgrade does not revoke
-        /// access that the user previously granted.
+        /// The raw values are the keys already stored in `UserDefaults`; keep
+        /// them so a grant the user made earlier stays readable.
         case appDataLibrary = "securityBookmark_appDataLibrary"
         case safariBookmarks = "securityBookmark_safariBookmarks"
         case podcastsContainer = "securityBookmark_podcastsContainer"

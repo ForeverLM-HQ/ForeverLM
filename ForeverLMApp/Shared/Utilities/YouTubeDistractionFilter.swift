@@ -1,3 +1,4 @@
+import OSLog
 import WebKit
 
 /// ForeverLM shows YouTube one video at a time, and nothing YouTube recommends
@@ -176,7 +177,8 @@ enum YouTubeDistractionFilter {
             // itself runs off the main thread inside WebKit.
             store.compileContentRuleList(forIdentifier: identifier, encodedContentRuleList: json) { compiled, error in
                 if let error {
-                    print("[YouTubeDistractionFilter] rule compilation failed, loading unfiltered: \(error)")
+                    Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "YouTubeDistractionFilter")
+                        .error("Rule compilation failed, loading unfiltered: \(error.localizedDescription, privacy: .public)")
                 }
                 finish(with: compiled)
             }

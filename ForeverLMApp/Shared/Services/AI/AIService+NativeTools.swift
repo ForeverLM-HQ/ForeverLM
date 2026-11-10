@@ -137,7 +137,7 @@ extension AIWebCitation {
     /// URL forms one page arrives under. A provider's server-side search cites
     /// the search-result URL while `fetch_web_page` cites the URL its redirect
     /// chain landed on, and the two disagree over a trailing slash, a section
-    /// fragment or a site's legacy path — so comparing raw strings listed one
+    /// fragment or a site's trailing path — so comparing raw strings listed one
     /// page twice under the same title. An identifier the page itself carries
     /// (a DOI, a PubMed or PMC accession) beats any URL comparison; failing
     /// that, the library's own URL normalization decides, which is also what

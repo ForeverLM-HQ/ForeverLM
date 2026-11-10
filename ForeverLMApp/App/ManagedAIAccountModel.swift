@@ -94,7 +94,7 @@ final class ManagedAIAccountModel {
     var comp: ManagedAI.Comp? { balance?.comp }
 
     /// The proxy's authoritative answer to whether ForeverLM pays for this
-    /// account. This includes both configured tester comps and legacy/predefined
+    /// account. This includes both configured tester comps and predefined
     /// billing exemptions; an ordinary account with granted credits stays false.
     var usageIsComped: Bool { balance?.billingExempt == true }
 

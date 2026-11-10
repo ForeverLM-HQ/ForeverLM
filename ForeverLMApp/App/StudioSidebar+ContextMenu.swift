@@ -201,8 +201,8 @@ enum StudioOtherWindowTargets {
         from current: StudioWindowState?,
         vm: StudioViewModel
     ) {
-        // A window that has not made a local choice yet still renders the legacy
-        // global selection, and selecting into another window moves that. So the
+        // A window that has not made a local choice yet still renders the shared
+        // selection, and selecting into another window moves that. So the
         // window being acted in is pinned to what it is showing first: otherwise
         // sending a source to the *other* window would drag this window's Reader
         // along with it. It is pinned here rather than left to `selectArticle`

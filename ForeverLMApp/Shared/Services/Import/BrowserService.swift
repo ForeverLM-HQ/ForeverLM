@@ -195,7 +195,7 @@ extension BrowserService {
             .trimmingCharacters(in: CharacterSet(charactersIn: "/"))
         guard !raw.isEmpty else { return nil }
         if raw.lowercased().hasPrefix("http") { return URL(string: raw) }
-        // Legacy DOIs carry characters — angle brackets, semicolons — that the
+        // Older DOIs carry characters — angle brackets, semicolons — that the
         // strict URL parser rejects unencoded.
         guard let encoded = raw.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) else {
             return nil

@@ -94,8 +94,7 @@ extension KnowledgeStore {
     /// research questions' rows, the member's NotebookStates from the preference rows, and where each
     /// notebook id leads. Each is idempotent, bounded by the library's notebooks and their items, in its
     /// own transaction, and reads generation-1 truth only. None writes a notes base: a Notes Doc's base
-    /// is the old record's notes the catch-up's walk returns (WP16a, WP16b2, into `ck_legacy_bodies`),
-    /// never the local text (§13.6, R8-1).
+    /// is never the local text (§13.6, R8-1).
     static let notebookActivationDerivations: [ActivationDerivation] = [
         ActivationDerivation(id: "notebookEntityKinds") { store in
             try store.inDerivationTransaction { try LearningGoalEntityKind.classifyUnclassified($0) }

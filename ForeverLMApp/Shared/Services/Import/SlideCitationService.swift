@@ -187,7 +187,7 @@ actor SlideCitationService {
 
     /// One frame's read: whether it is a slide at all, and the papers on it if it is.
     struct SlideRead: Sendable {
-        /// Nil only for a legacy bare-array response or a custom prompt that omitted the
+        /// Nil only for a bare-array response or a custom prompt that omitted the
         /// verdict. Callers keep treating absence as a slide, while a deck scan asks the
         /// dedicated classifier before it writes any Non-slide mark.
         let presentationVerdict: Bool?
@@ -513,7 +513,7 @@ actor SlideCitationService {
 
     /// Read one frame without touching actor state so independent slides can overlap. The
     /// extraction response normally carries both citations and the slide verdict. Only a
-    /// custom or legacy response that omits the verdict pays for the classifier fallback.
+    /// custom or bare-array response that omits the verdict pays for the classifier fallback.
     private nonisolated static func analyzeSlide(
         _ slide: YouTubeSlideFrameContext,
         position: Int,
@@ -907,12 +907,12 @@ actor SlideCitationService {
     /// Parses the extraction reply into a frame classification and its citations.
     ///
     /// The default prompt returns both fields. Older custom prompts may return an object
-    /// without the verdict or a bare legacy array; both preserve a nil verdict so the deck
+    /// without the verdict or a bare array; both preserve a nil verdict so the deck
     /// scan can ask the dedicated compatibility classifier.
     nonisolated static func decodeReply(_ reply: String) throws -> SlideRead {
         let text = stripFences(reply)
 
-        // An object carries the classification; anything else is the legacy array shape.
+        // An object carries the classification; anything else is the bare-array shape.
         if text.first == "{",
            let start = text.firstIndex(of: "{"),
            let end = text.lastIndex(of: "}"),

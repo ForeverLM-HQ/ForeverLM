@@ -149,7 +149,7 @@ final class ReviewSessionManager {
                 case retry
                 /// Continuing an answer that hit the output-token limit.
                 case continuation
-                /// Session-level switch to the legacy text tool protocol.
+                /// Session-level switch to the text tool protocol.
                 case fallback
                 /// The memory review turning to a source: rendered as a heading
                 /// row that names it, never as an activity disclosure.
@@ -1553,7 +1553,7 @@ final class ReviewSessionManager {
     private lazy var ideaExtraction = SourceIdeaExtractionService(storage: storage, aiService: aiService)
     private var lastGenerationFailed = false
     /// Set when a provider rejects native tool definitions; the session then
-    /// uses the legacy <flm_tool_call> text protocol for its remaining turns.
+    /// uses the <flm_tool_call> text protocol for its remaining turns.
     @ObservationIgnored private var nativeToolsDisabledForSession = false
     /// The learner's skills as this chat first saw them, read at its first
     /// turn and kept for the conversation, so the catalog in the cached system
@@ -4986,7 +4986,7 @@ final class ReviewSessionManager {
     /// Native provider tool calling is the primary path: tool calls arrive as
     /// structured protocol data with an explicit stop reason, and results go back
     /// as typed tool-result turns with a stable (cacheable) system prompt. The
-    /// legacy <flm_tool_call> text protocol remains the fallback for providers
+    /// <flm_tool_call> text protocol remains the fallback for providers
     /// that reject native tool definitions.
     private func runGenerationTurn(
         isFirst: Bool,
@@ -5093,7 +5093,7 @@ final class ReviewSessionManager {
         )
     }
 
-    /// Legacy tool loop: tool calls parsed from <flm_tool_call> text blocks.
+    /// Text-protocol tool loop: tool calls parsed from <flm_tool_call> text blocks.
     private func runTextProtocolGenerationTurn(
         isFirst: Bool,
         config: AITaskConfig,
@@ -8844,7 +8844,7 @@ final class ReviewSessionManager {
         }
     }
 
-    /// Plain (role, content) projection of tool-aware turns, for legacy helpers
+    /// Plain (role, content) projection of tool-aware turns, for plain-message helpers
     /// (the terminal output-limit compaction) that speak the simple message
     /// shape. Adjacent same-role messages are merged so providers that require
     /// strict role alternation accept the result.
@@ -9717,10 +9717,10 @@ final class ReviewSessionManager {
             let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty, trimmed == value else { return nil }
             for prefix in [
-                "legacy-first-review-portable:",
-                "new-first-review-portable:",
-                "legacy-first-review:",
-                "new-first-review:",
+                MemoryFirstReviewTargetPrefix.sourceRefreshPortable,
+                MemoryFirstReviewTargetPrefix.neverReviewedPortable,
+                MemoryFirstReviewTargetPrefix.sourceRefresh,
+                MemoryFirstReviewTargetPrefix.neverReviewed,
                 "first-review:",
             ] {
                 if trimmed.hasPrefix(prefix) {
@@ -16564,6 +16564,19 @@ private final class StreamTextBatcher: @unchecked Sendable {
             self.publish(currentSequence, text)
         }
     }
+}
+
+/// The stored prefixes of a first-review target's id in a memory review's
+/// `card_ids`. The strings are what sessions already hold, so they do not change.
+enum MemoryFirstReviewTargetPrefix {
+    /// A source with earlier whole-source review history, by portable source key.
+    static let sourceRefreshPortable = "legacy-first-review-portable:"
+    /// The same, by this library's own source id (sessions made before portable keys).
+    static let sourceRefresh = "legacy-first-review:"
+    /// A consumed source never reviewed, by portable source key.
+    static let neverReviewedPortable = "new-first-review-portable:"
+    /// The same, by this library's own source id (sessions made before portable keys).
+    static let neverReviewed = "new-first-review:"
 }
 
 /// Rejects out-of-order streaming publishes on the main actor.

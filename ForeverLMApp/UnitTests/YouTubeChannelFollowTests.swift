@@ -13,8 +13,8 @@ struct YouTubeChannelFollowTests {
         #expect(YouTubeService.channelReference(from: "https://m.youtube.com/@PeterAttiaMD") == Ref.handle("PeterAttiaMD"))
         #expect(YouTubeService.channelReference(from: "https://www.youtube.com/channel/UC8kGsMa0LygSX9nkBcBH1Sg") == Ref.id("UC8kGsMa0LygSX9nkBcBH1Sg"))
         #expect(YouTubeService.channelReference(from: "UC8kGsMa0LygSX9nkBcBH1Sg") == Ref.id("UC8kGsMa0LygSX9nkBcBH1Sg"))
-        #expect(YouTubeService.channelReference(from: "https://www.youtube.com/c/PeterAttiaMD") == Ref.legacyName("PeterAttiaMD"))
-        #expect(YouTubeService.channelReference(from: "https://www.youtube.com/user/peterattiamd") == Ref.legacyName("peterattiamd"))
+        #expect(YouTubeService.channelReference(from: "https://www.youtube.com/c/PeterAttiaMD") == Ref.username("PeterAttiaMD"))
+        #expect(YouTubeService.channelReference(from: "https://www.youtube.com/user/peterattiamd") == Ref.username("peterattiamd"))
     }
 
     @Test("A video, a playlist, another site, or nothing is not a channel")

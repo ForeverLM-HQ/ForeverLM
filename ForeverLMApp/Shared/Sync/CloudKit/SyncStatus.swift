@@ -14,8 +14,6 @@ struct SyncStatus: Equatable, Sendable {
         case noAccount
         /// The root is not there yet and this device may not make it now (§2.4).
         case waiting(ZoneBootstrap.Waiting)
-        /// An iPhone whose account still has its library in the old container (§13.6).
-        case staysOnGeneration1
         /// The library's root asks for a newer build (§12.5).
         case updateRequired(minClientRevision: Int)
         case syncing

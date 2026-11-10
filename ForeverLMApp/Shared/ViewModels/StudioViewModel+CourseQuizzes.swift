@@ -31,20 +31,9 @@ extension StudioViewModel {
         return nil
     }
 
-    /// The score a quiz row shows: the stored quiz's latest sitting, or, for
-    /// a practice quiz, the sitting its lecture's on-open quiz kept before
-    /// quizzes were stored (`lectureQuiz.score.<videoID>`).
-    func courseQuizScore(quizID: String, legacyVideoSourceID: String? = nil) -> LectureQuizScore? {
-        courseQuizScores[quizID] ?? legacyVideoSourceID.flatMap { lectureQuizScores[$0] }
-    }
-
-    /// The lecture video a practice quiz's score was kept under before quizzes
-    /// were stored (`lectureQuiz.score.<videoID>`): its lecture's first video.
-    func legacyLectureQuizVideoID(for quiz: CourseQuiz) -> String? {
-        guard quiz.kind == .practice, let lectureID = quiz.lectureIDs.first else { return nil }
-        return courseLectureItems(for: lectureID).first { item in
-            item.role == .video && article(for: item).map { $0.sourceType != .paper } == true
-        }?.sourceId
+    /// The score a quiz row shows: the stored quiz's latest sitting.
+    func courseQuizScore(quizID: String) -> LectureQuizScore? {
+        courseQuizScores[quizID]
     }
 
     private var courseQuizGenerator: CourseQuizGeneratorService {
@@ -306,26 +295,14 @@ extension StudioViewModel {
         }
     }
 
-    /// Removes a quiz and the sittings its row showed: the quiz's own score
-    /// and, for a practice quiz, the one its lecture's pre-storage quiz kept
-    /// under the lecture video. A quiz written later starts with no score.
+    /// Removes a quiz and its score. A quiz written later starts with no score.
     func deleteCourseQuiz(_ id: String) async {
-        let quiz = courseQuiz(id)
         do {
             try await storage.deleteCourseQuiz(id)
             courseQuizScores[id] = nil
             courseQuizSittings[id] = nil
             courseQuizFinishedSittings[id] = nil
             PreferenceStore.remove(forKey: LectureQuizScore.preferenceKey(courseQuizID: id))
-            if let quiz, quiz.kind == .practice {
-                for lectureID in quiz.lectureIDs {
-                    for item in courseLectureItems(for: lectureID) where item.role == .video {
-                        guard let videoID = article(for: item)?.id else { continue }
-                        lectureQuizScores[videoID] = nil
-                        PreferenceStore.remove(forKey: LectureQuizScore.preferenceKey(sourceID: videoID))
-                    }
-                }
-            }
             await refreshCourseOutline()
         } catch {
             showToast("Couldn't remove the quiz: \(error.localizedDescription)")
@@ -337,11 +314,7 @@ extension StudioViewModel {
     /// quiz's first pass is kept with it, so a worse retake leaves the
     /// lectures after it open (docs/courses-design.md, "The gate").
     func recordCourseQuizScore(_ score: LectureQuizScore, quizID: String) {
-        // A practice quiz's sitting from before quizzes were stored was kept
-        // under its lecture video; its pass counts too.
-        let previous = courseQuizScores[quizID]
-            ?? courseQuiz(quizID).flatMap(legacyLectureQuizVideoID).flatMap { lectureQuizScores[$0] }
-        let kept = score.recorded(after: previous)
+        let kept = score.recorded(after: courseQuizScores[quizID])
         courseQuizScores[quizID] = kept
         PreferenceStore.set(kept.preferenceValue, forKey: LectureQuizScore.preferenceKey(courseQuizID: quizID))
     }
@@ -430,7 +403,7 @@ extension StudioViewModel {
             pendingCoursePlanningNotebookID = nil
         }
         reviewChatPanelMode = .chat
-        showAssistantOverlay = true
+        isChatTabActive = true
         pendingCoursePlanningChat = true
         reviewChatAutoStartRequestID = UUID()
         reviewChatTargetWindowID = activeWindowState.id
@@ -464,7 +437,7 @@ extension StudioViewModel {
             return
         }
         reviewChatPanelMode = .chat
-        showAssistantOverlay = true
+        isChatTabActive = true
         // The request token is set once the lines are read, by which time the
         // `inWindow` scope the row opened is gone: remember the window now.
         let targetWindowID = activeWindowState.id

@@ -661,7 +661,7 @@ struct StudioView: View {
 
     private func popOutStudioAssistant() {
         if let studioAssistantWindow {
-            vm.showAssistantOverlay = false
+            vm.isChatTabActive = false
             if studioAssistantWindow.isMiniaturized {
                 studioAssistantWindow.deminiaturize(nil)
             }
@@ -711,7 +711,7 @@ struct StudioView: View {
         }
 
         studioAssistantWindow = window
-        vm.showAssistantOverlay = false
+        vm.isChatTabActive = false
         window.makeKeyAndOrderFront(nil)
         windowState.isChatPoppedOut = true
         NSApp.activate(ignoringOtherApps: true)
@@ -1173,7 +1173,7 @@ struct StudioView: View {
                 guard shouldHandleWindowCommand(note) else { return }
                 // Reopening a closed chat also restores the navigation rail,
                 // since closing chat hid both together.
-                let wasChatClosed = !vm.showAssistantOverlay
+                let wasChatClosed = !vm.isChatTabActive
                 withAnimation(.easeInOut(duration: 0.22)) {
                     vm.handleAssistantShortcut()
                     if wasChatClosed {

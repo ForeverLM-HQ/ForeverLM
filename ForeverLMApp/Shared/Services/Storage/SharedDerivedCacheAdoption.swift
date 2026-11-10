@@ -82,7 +82,7 @@ enum SharedDerivedCacheAdoption {
     /// Production entry point. Tests call `adopt(profileCache:sharedCache:)`
     /// directly so they never touch the developer's real caches.
     static func adoptIfNeeded() {
-        guard !LegacyIdentityAdoption.isRunningAutomatedTests else { return }
+        guard !ForeverLMRuntimeIdentity.isTestHost else { return }
         var report = Report()
         for cache in caches {
             let one = adopt(

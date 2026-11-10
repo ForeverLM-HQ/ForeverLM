@@ -371,7 +371,6 @@ enum MacArticleSpeechSettings {
     static let localQwen3InstructionsDefaultsKey = "macos.tts.local_qwen3.instructions"
     // Shared with the phone, which reads and writes the same account row.
     private static let openRouterVoiceDefaultsKey = ArticleSpeechSelection.syncedVoiceKey
-    private static let legacyModeDefaultsKey = "macos.tts.mode"
     private static let confirmCostBeforeListeningDefaultsKey = "macos.tts.confirmCostBeforeListening"
     private static let appleVoiceDefaultsKey = "macos.tts.apple.voiceIdentifier"
     private static let groqVoiceDefaultsKey = "macos.tts.groq.voice"
@@ -551,23 +550,16 @@ enum MacArticleSpeechSettings {
                let mode = MacArticleSpeechMode(rawValue: raw) {
                 return mode
             }
-            if let raw = UserDefaults.standard.string(forKey: legacyModeDefaultsKey),
-               let mode = MacArticleSpeechMode(rawValue: raw) {
-                return mode
-            }
             // Product default for a setting that has never been written.
             return defaultProvider
         }
         set {
             KeychainService.save(newValue.rawValue, for: .ttsProvider)
-            UserDefaults.standard.set(newValue.rawValue, forKey: legacyModeDefaultsKey)
         }
     }
 
     static var configurationError: String? {
-        let storedRaw = KeychainService.load(.ttsProvider)
-            ?? UserDefaults.standard.string(forKey: legacyModeDefaultsKey)
-        if let storedRaw {
+        if let storedRaw = KeychainService.load(.ttsProvider) {
             guard let stored = MacArticleSpeechMode(rawValue: storedRaw) else {
                 return "The selected text-to-speech provider is invalid. Choose it again in Settings."
             }

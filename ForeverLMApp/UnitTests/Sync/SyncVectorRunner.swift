@@ -316,7 +316,7 @@ enum SyncVectorRunner {
             let input = try string(idFrom, "input")
             let derived: String
             switch try string(idFrom, "rule") {
-            case "SittingLegacyID": derived = SyncIdentity.sittingLegacyID(input)
+            case "SittingLegacyID": derived = SyncIdentity.migratedSittingID(input)
             case "SourceFileID": derived = SyncIdentity.sourceFileID(sha256Hex: input)
             case "SourceURLID": derived = SyncIdentity.sourceID(normalizedURL: input)
             case "CollectionID":

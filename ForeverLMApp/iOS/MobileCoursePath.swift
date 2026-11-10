@@ -28,9 +28,6 @@ struct MobileCoursePathRow: Identifiable, Equatable, Sendable, CourseGateStep {
     let title: String
     /// For a quiz: its lecture, the lectures it covers, or the course.
     var quizSubtitle: String? = nil
-    /// The lecture video a practice quiz's sitting was kept under before
-    /// quizzes were stored (`lectureQuiz.score.<videoID>`).
-    var legacyVideoSourceID: String? = nil
 
     var gatingQuizID: String? { quiz?.id }
 
@@ -46,12 +43,10 @@ struct MobileCoursePathRow: Identifiable, Equatable, Sendable, CourseGateStep {
         }
     }
 
-    /// The synced rows that hold this quiz's latest sitting, first the
-    /// stored quiz's own and then, for a practice quiz, its lecture video's.
+    /// The synced row that holds this quiz's latest sitting.
     var scoreKeys: [String] {
         guard let quiz else { return [] }
         return [LectureQuizScore.preferenceKey(courseQuizID: quiz.id)]
-            + [legacyVideoSourceID.map(LectureQuizScore.preferenceKey(sourceID:))].compactMap { $0 }
     }
 }
 
@@ -116,7 +111,7 @@ struct MobileCoursePath: Equatable, Sendable {
         let numberByLecture = Dictionary(lectures.map { ($0.id, $0.number) }, uniquingKeysWith: { first, _ in first })
         var blocks: [MobileCoursePathBlock] = []
 
-        func quizRow(_ quiz: CourseQuiz, lectureTitle: String?, legacyVideoSourceID: String?) -> MobileCoursePathRow {
+        func quizRow(_ quiz: CourseQuiz, lectureTitle: String?) -> MobileCoursePathRow {
             let numbers = quiz.lectureIDs.compactMap { numberByLecture[$0] }.sorted()
             let subtitle: String
             switch quiz.kind {
@@ -136,8 +131,7 @@ struct MobileCoursePath: Equatable, Sendable {
                 id: "quiz-\(quiz.id)",
                 kind: .quiz(quiz),
                 title: quiz.kind == .practice && !quiz.hasTopicTitle ? "Quiz" : quiz.title,
-                quizSubtitle: subtitle,
-                legacyVideoSourceID: legacyVideoSourceID
+                quizSubtitle: subtitle
             )
         }
 
@@ -191,8 +185,7 @@ struct MobileCoursePath: Equatable, Sendable {
             if let practice = placed.first(where: { $0.id == practiceID }) {
                 rows.append(quizRow(
                     practice,
-                    lectureTitle: lectureTitle ?? "Lecture \(lecture.number)",
-                    legacyVideoSourceID: videos.first?.source.id
+                    lectureTitle: lectureTitle ?? "Lecture \(lecture.number)"
                 ))
             }
             blocks.append(.unit(MobileCourseUnit(
@@ -201,11 +194,11 @@ struct MobileCoursePath: Equatable, Sendable {
                 rows: rows
             )))
             for quiz in placed where quiz.id != practiceID {
-                blocks.append(.milestone(quizRow(quiz, lectureTitle: nil, legacyVideoSourceID: nil)))
+                blocks.append(.milestone(quizRow(quiz, lectureTitle: nil)))
             }
         }
         for quiz in placements.atEnd {
-            blocks.append(.milestone(quizRow(quiz, lectureTitle: nil, legacyVideoSourceID: nil)))
+            blocks.append(.milestone(quizRow(quiz, lectureTitle: nil)))
         }
 
         let further = sources

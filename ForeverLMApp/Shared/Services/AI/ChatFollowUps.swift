@@ -142,20 +142,16 @@ enum ChatFollowUps {
 
     /// "Suggested questions:", "**Follow-up questions**", "### Suggested
     /// follow-up questions": a label a model writes over the block.
-    // swiftlint:disable:next force_try
     private static let labelLine = try! NSRegularExpression(
         pattern: #"^\s*(?:#{1,6}\s*)?(?:\*\*|__|\*|_)?\s*(?:suggested\s+(?:follow[- ]?up\s+)?|follow[- ]?up\s+)questions?\s*:?\s*(?:\*\*|__|\*|_)?\s*:?\s*$"#,
         options: [.caseInsensitive]
     )
     /// A code fence line, opening (with or without a language) or closing.
-    // swiftlint:disable:next force_try
     private static let fenceLine = try! NSRegularExpression(pattern: #"^\s*(?:`{3,}|~{3,})[\w-]*\s*$"#)
     /// A fence line with no language, as a closing fence is written.
-    // swiftlint:disable:next force_try
     private static let fenceClosingLine = try! NSRegularExpression(pattern: #"^\s*(?:`{3,}|~{3,})\s*$"#)
     /// The sample lines of the block's first template, "First question?" to
     /// "Third question?", in case a model still echoes them.
-    // swiftlint:disable:next force_try
     private static let placeholderLine = try! NSRegularExpression(
         pattern: #"^(?:first|second|third) question\??$"#,
         options: [.caseInsensitive]

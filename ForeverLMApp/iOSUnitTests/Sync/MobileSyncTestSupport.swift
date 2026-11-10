@@ -162,7 +162,6 @@ final class MobileTestDevice {
     let replica: MobileReplica
     let projection: MobileProjection
     let transport: CloudTransport
-    let legacy: CloudTransport
     let engine: PrivateSyncEngine
     let spaces: SpaceSync
     let deviceID: String
@@ -174,7 +173,6 @@ final class MobileTestDevice {
         replica = try MobileReplica(path: path)
         projection = MobileProjection(replica: replica)
         self.transport = transport ?? server.transport(user: user, device: name)
-        legacy = server.transport(user: user, container: FakeCloudKit.legacyContainer, device: name)
         var pacing = SyncPacerState.Configuration()
         pacing.capacity = 1_000_000
         pacing.refillPerSecond = 1_000_000
@@ -188,7 +186,7 @@ final class MobileTestDevice {
     @discardableResult
     func bootstrap() async throws -> ZoneBootstrap.Outcome {
         Self.follow(server)
-        return try await ZoneBootstrap(transport: transport, legacyTransport: legacy, store: replica, client: .phone, deviceID: deviceID).run()
+        return try await ZoneBootstrap(transport: transport, store: replica, client: .phone, deviceID: deviceID).run()
     }
 
     /// One round as the session runs it: the private engine, then the spaces, then the index sweep

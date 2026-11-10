@@ -66,7 +66,6 @@ extension MCPDataStore {
         case .starting: return "starting"
         case .noAccount: return "no_account"
         case .waiting: return "waiting"
-        case .staysOnGeneration1: return "stays_on_generation_1"
         case .updateRequired: return "update_required"
         case .syncing: return "syncing"
         case .upToDate: return "up_to_date"

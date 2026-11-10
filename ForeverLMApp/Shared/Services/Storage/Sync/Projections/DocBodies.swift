@@ -118,26 +118,16 @@ struct DocBodyTransfer: Sendable {
 
 // MARK: - The bases a T merge starts from (§6.2 step 4, §13.6, R8-m4)
 
-/// A Notes Doc's base: the `ck_text_bases` entry an acknowledged upload or an applied body wrote, else
-/// the notes of the notebook's old record that the catch-up's walk returned (`ck_legacy_bodies`, keyed
-/// by the notebook's wire id because the walk runs before this Mac knows the zone's salt). A Doc's base
-/// is `document.base.md`, as generation 1 keeps it.
+/// A Notes Doc's base: the `ck_text_bases` entry an acknowledged upload or an applied body wrote.
+/// A Doc's base is `document.base.md`, as generation 1 keeps it.
 enum NotesBase {
     static let field = "body"
-    static let legacyType = SyncRecordType.notebook.rawValue
-    static let legacyField = "notes"
 
     static func load(notebookID: String, connection: SQLiteConnection) throws -> String? {
-        if let recordName = try recordName(notebookID: notebookID, connection: connection),
-           let text = try connection.scalarText(
-               "SELECT base_text FROM ck_text_bases WHERE zone_key = ? AND record_name = ? AND field = ?",
-               [.text(PrivateSyncZones.libraryKey), .text(recordName), .text(field)]
-           ) {
-            return text
-        }
+        guard let recordName = try recordName(notebookID: notebookID, connection: connection) else { return nil }
         return try connection.scalarText(
-            "SELECT base_text FROM ck_legacy_bodies WHERE record_type = ? AND wire_id = ? AND field = ? AND base_text IS NOT NULL",
-            [.text(legacyType), .text(notebookID), .text(legacyField)]
+            "SELECT base_text FROM ck_text_bases WHERE zone_key = ? AND record_name = ? AND field = ?",
+            [.text(PrivateSyncZones.libraryKey), .text(recordName), .text(field)]
         )
     }
 

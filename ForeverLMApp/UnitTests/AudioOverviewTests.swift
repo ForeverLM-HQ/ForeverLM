@@ -761,8 +761,8 @@ struct AudioOverviewTests {
         let a = try await seedSource(storage, url: "https://journal.example/a", title: "Paper A", content: shortText)
         // Longer than extraction read before 2026-09-30: its ideas may leave the tail out.
         let line = "A sentence about the respiratory chain.\n"
-        let longText = String(repeating: line, count: SourceIdeaDrafting.legacyReadCharacters / line.count + 100)
-        #expect(longText.count > SourceIdeaDrafting.legacyReadCharacters)
+        let longText = String(repeating: line, count: SourceIdeaDrafting.singleReadCharacterLimit / line.count + 100)
+        #expect(longText.count > SourceIdeaDrafting.singleReadCharacterLimit)
         let b = try await seedSource(storage, url: "https://books.example/b", title: "Book B", content: longText)
         for (source, text) in [(a, shortText), (b, longText)] {
             let hash = SourceIdeaDrafting.contentHash(text)
@@ -789,7 +789,7 @@ struct AudioOverviewTests {
         #expect(first.text == "The whole text of A, about complex I.")
         let second = try #require(byID[b.id])
         #expect(second.ideas == nil)
-        #expect(second.text.count > SourceIdeaDrafting.legacyReadCharacters - 1)
+        #expect(second.text.count > SourceIdeaDrafting.singleReadCharacterLimit - 1)
     }
 
     // MARK: - Sync, teams, clean-up, Memory

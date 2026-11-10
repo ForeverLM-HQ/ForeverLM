@@ -1,6 +1,7 @@
 #if os(macOS)
 import AVFoundation
 import Foundation
+import OSLog
 import SwiftUI
 
 enum MacArticleSpeechVoicePreviewCache {
@@ -119,9 +120,8 @@ final class MacArticleSpeechVoicePreviewService: NSObject, ObservableObject {
             } catch {
                 guard !Task.isCancelled else { return }
                 lastError = error.localizedDescription
-                #if DEBUG
-                print("[MacArticleSpeechVoicePreviewService] Preview failed: \(error)")
-                #endif
+                Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "MacArticleSpeechVoicePreviewService")
+                    .error("Preview failed: \(error.localizedDescription)")
             }
         }
     }

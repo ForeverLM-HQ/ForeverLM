@@ -124,7 +124,6 @@ struct CourseGateTests {
         let quizzes = [quiz(lectureID: "l1"), quiz(lectureID: "l2")]
         vm.courseQuizzesByCourse[courseID] = quizzes
         vm.courseQuizScores = [:]
-        vm.lectureQuizScores = [:]
         return (videos, quizzes)
     }
 
@@ -263,24 +262,5 @@ struct CourseGateTests {
         #expect(vm.isCourseQuizCompleted(quizzes[0].id))
         #expect(vm.isCourseQuizPassed(quizzes[0].id))
         #expect(states(vm)["video-item-l2"] != .locked(quizID: quizzes[0].id))
-    }
-
-    @Test("A pass kept under the lecture video before quizzes were stored survives a worse retake")
-    func legacyPassSurvivesRetake() {
-        let vm = makeViewModel()
-        let (videos, quizzes) = makeCourse(in: vm)
-        let key = LectureQuizScore.preferenceKey(courseQuizID: quizzes[0].id)
-        defer { PreferenceStore.remove(forKey: key) }
-
-        // The practice quiz's score from before quizzes were stored, kept under
-        // its lecture video (`lectureQuiz.score.<videoID>`).
-        let passedAt = Date(timeIntervalSince1970: 100)
-        vm.lectureQuizScores[videos[0].id] = LectureQuizScore(right: 4, total: 4, takenAt: passedAt)
-        #expect(vm.legacyLectureQuizVideoID(for: quizzes[0]) == videos[0].id)
-        #expect(states(vm)["video-item-l2"] == .open)
-
-        vm.recordCourseQuizScore(LectureQuizScore(right: 0, total: 4, takenAt: Date()), quizID: quizzes[0].id)
-        #expect(vm.courseQuizScores[quizzes[0].id]?.passedAt == passedAt)
-        #expect(states(vm)["video-item-l2"] == .open, "the retake does not lock lecture 2 again")
     }
 }

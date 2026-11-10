@@ -9,8 +9,8 @@ extension AIService {
     // MARK: - HTTP failure plumbing
 
     /// Build the typed error for a non-2xx provider response: the provider's own
-    /// message when it sent one (with the status appended so logs and legacy
-    /// string checks keep working), the status code for classification, and the
+    /// message when it sent one (with the status appended so logs and string
+    /// checks keep working), the status code for classification, and the
     /// Retry-After hint for backoff.
     /// `status` overrides the response's own, for a failure reported inside a
     /// 200 (`inBodyProviderFailure`).

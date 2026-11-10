@@ -14,19 +14,15 @@ import OSLog
 /// 3. Otherwise the device makes the root, by a compare-and-set create with a fresh 32-byte salt, after
 ///    saving the three zones (idempotent). Losing the race adopts the winner's root. What the root says
 ///    depends on the client: a Mac that holds the library starts seeding and claims the seed lease and
-///    the maintenance lease in the same save; a client that holds none first looks for the old container's `Knowledge` zone,
-///    and creates the root only when the new container has no zone yet (or only the ones it made
-///    itself): `seed.state = pending` from a Mac when the old library exists, the empty complete seed
-///    for a brand-new account, and nothing at all from an iPhone with an old library (it stays on
-///    generation 1). A lookup that fails decides nothing: no root, and the caller tries again later.
+///    the maintenance lease in the same save; a client that holds none creates the root only when the
+///    new container has no zone yet (or only the ones it made itself), with the empty complete seed
+///    of a brand-new account.
 ///
 /// A device that has no server offset yet takes its first one from the root save; one that adopted a
 /// root re-saves it unchanged (a compare-and-set update that moves only the change tag) to learn it,
 /// since no stamp may be minted before it (§6.3). The stamps of a root this device creates before it
 /// knows its offset are provisional (millisecond 1), so every later writer of a field beats them.
 struct ZoneBootstrap {
-    /// Generation 1's zone in the old container.
-    static let legacyZoneName = "Knowledge"
     /// The seed lease a Mac claims with the root it creates (§13.4 step 1).
     static let seedLease: TimeInterval = 30 * 60
     /// The maintenance lease (§3.5.1): 24 hours, renewed by its holder. The seeder takes it with its
@@ -45,8 +41,6 @@ struct ZoneBootstrap {
     }
 
     enum Waiting: Equatable, Sendable {
-        /// The old container's lookup failed: nothing is decided (R5-m4).
-        case legacyLookupFailed
         /// The new container has zones but no root yet: another device is making it.
         case zonesWithoutRoot
     }
@@ -60,9 +54,6 @@ struct ZoneBootstrap {
         case purged(PurgeHandler.Event)
         /// Nothing created; try again later.
         case waiting(Waiting)
-        /// An iPhone of an account whose library is still in the old container: it stays on
-        /// generation 1 and creates nothing (§13.6).
-        case staysOnGeneration1
         /// The root asks for a newer client than this build (§12.5): nothing is sent until an update.
         case updateRequired(minClientRevision: Int)
     }
@@ -70,9 +61,6 @@ struct ZoneBootstrap {
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "ZoneBootstrap")
 
     let transport: CloudTransport
-    /// The old container, for the lookup a client holding no library makes; nil when this build no
-    /// longer lists it, which makes every account brand-new (§2.4).
-    let legacyTransport: CloudTransport?
     let store: PrivateSyncLocalStore
     let client: Client
     let deviceID: String
@@ -229,19 +217,11 @@ struct ZoneBootstrap {
             maintenance = .object(["device": .string(deviceID), "leaseUntil": SyncJSON(SyncTime.milliseconds(at.addingTimeInterval(Self.maintenanceLease)))])
         case .macWithoutLibrary, .phone:
             guard try await canCreateWithoutLibrary() else { return .waiting(.zonesWithoutRoot) }
-            switch try await oldLibraryExists() {
-            case nil:
-                return .waiting(.legacyLookupFailed)
-            case true?:
-                guard client == .macWithoutLibrary else { return .staysOnGeneration1 }
-                seed = ["state": .string("pending")]
-            case false?:
-                let ms = SyncJSON(SyncTime.milliseconds(at))
-                seed = [
-                    "state": .string("complete"), "startedAt": ms, "canaryPassedAt": ms, "metadataCompleteAt": ms, "completedAt": ms,
-                    "counts": .object(["records": SyncJSON(0), "satellites": SyncJSON(0), "bytes": SyncJSON(0)]),
-                ]
-            }
+            let ms = SyncJSON(SyncTime.milliseconds(at))
+            seed = [
+                "state": .string("complete"), "startedAt": ms, "canaryPassedAt": ms, "metadataCompleteAt": ms, "completedAt": ms,
+                "counts": .object(["records": SyncJSON(0), "satellites": SyncJSON(0), "bytes": SyncJSON(0)]),
+            ]
         }
 
         let zoneResults = try await transport.modifyZones(saving: PrivateSyncZones.all, deleting: [], in: .private)
@@ -300,17 +280,5 @@ struct ZoneBootstrap {
         guard !zones.isEmpty else { return true }
         let createdHere = try await store.perform { try $0.replica.engineState(ReplicaStore.EngineScope.zonesCreated) } != nil
         return createdHere && zones.allSatisfy { PrivateSyncZones.all.contains($0) }
-    }
-
-    /// Whether the old container holds generation 1's `Knowledge` zone: nil when the lookup failed.
-    /// A build that no longer lists the old container treats every account as brand-new.
-    private func oldLibraryExists() async throws -> Bool? {
-        guard let legacyTransport else { return false }
-        do {
-            return try await legacyTransport.allZones(in: .private).contains { $0.zoneName == Self.legacyZoneName }
-        } catch {
-            Self.logger.error("The old container's zone lookup failed: \(String(describing: error), privacy: .public)")
-            return nil
-        }
     }
 }

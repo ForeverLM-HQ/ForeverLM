@@ -18,7 +18,6 @@ final class EngineTestDevice {
     let store: KnowledgeStore
     let local: MacPrivateSyncStore
     let transport: FakeCloudKit.Transport
-    let legacy: FakeCloudKit.Transport
     let engine: PrivateSyncEngine
     let deviceID: String
 
@@ -36,7 +35,6 @@ final class EngineTestDevice {
         if let registry { try store.installOutboxTriggers(registry) }
         local = MacPrivateSyncStore.direct(store, registry: registry ?? OutboxTestProjections.registry)
         transport = server.transport(user: user, device: name)
-        legacy = server.transport(user: user, container: FakeCloudKit.legacyContainer, device: name)
         var pacing = SyncPacerState.Configuration()
         pacing.capacity = 1_000_000
         pacing.refillPerSecond = 1_000_000
@@ -53,7 +51,7 @@ final class EngineTestDevice {
     @discardableResult
     func bootstrap(_ client: ZoneBootstrap.Client = .macHoldingLibrary, salt: UInt8 = 1) async throws -> ZoneBootstrap.Outcome {
         EngineTestDriver.follow(server)
-        var bootstrap = ZoneBootstrap(transport: transport, legacyTransport: legacy, store: local, client: client, deviceID: deviceID)
+        var bootstrap = ZoneBootstrap(transport: transport, store: local, client: client, deviceID: deviceID)
         bootstrap.now = { Date().addingTimeInterval(EngineTestDevice.ahead) }
         bootstrap.makeSalt = { Data(repeating: salt, count: 32) }
         return try await bootstrap.run()

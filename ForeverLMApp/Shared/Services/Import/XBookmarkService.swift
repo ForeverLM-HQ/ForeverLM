@@ -74,16 +74,11 @@ actor XBookmarkService {
 
     // MARK: - Accounts
 
-    /// Held while an older build's single connection becomes the first
-    /// account, so two first reads cannot both write it.
-    private nonisolated static let adoptionLock = NSLock()
-
     /// The connected accounts, in the order they were connected. The X
     /// Bookmarks API requires OAuth 2.0 user context — app-only bearer tokens
     /// cannot access bookmarks — so an account is a user's tokens.
     nonisolated var accounts: [XAccount] {
-        Self.adoptLegacyConnectionIfNeeded()
-        return XAccountBook.decode(KeychainService.xAccounts)
+        XAccountBook.decode(KeychainService.xAccounts)
     }
 
     /// Whether any account is connected.
@@ -141,45 +136,6 @@ actor XBookmarkService {
         }
         KeychainService.xAccounts = XAccountBook.encode(XAccountBook.merging(account, into: accounts))
     }
-
-    /// Turns the single connection an older build stored into the first
-    /// account, with its tokens and its cursors, so nobody reconnects. Once the
-    /// singleton slots are deleted this is a cheap miss; nothing else reads them.
-    private nonisolated static func adoptLegacyConnectionIfNeeded() {
-        adoptionLock.lock()
-        defer { adoptionLock.unlock() }
-        let legacy = KeychainService.legacyXConnection()
-        let slots = [legacy.userID, legacy.username, legacy.accessToken, legacy.refreshToken,
-                     legacy.tokenExpiry, legacy.grantedScopes, legacy.clientID]
-        guard slots.contains(where: { $0 != nil }) else { return }
-
-        if let adopted = XAccountBook.adoption(of: legacy) {
-            guard let encoded = adopted.credentials.encoded(),
-                  KeychainService.saveXAccountCredentials(encoded, accountID: adopted.account.id) else {
-                // The grant could not be written yet: keep the slots, so the
-                // next read tries again instead of losing the connection.
-                return
-            }
-            let defaults = UserDefaults.standard
-            let accountID = adopted.account.id
-            if let newest = defaults.string(forKey: legacyNewestIDKey) {
-                defaults.set(newest, forKey: XAccountBook.newestIDKey(accountID: accountID))
-            }
-            let lastSync = defaults.double(forKey: legacyLastSyncKey)
-            if lastSync > 0 {
-                defaults.set(lastSync, forKey: XAccountBook.lastSyncKey(accountID: accountID))
-            }
-            let existing = XAccountBook.decode(KeychainService.xAccounts)
-            KeychainService.xAccounts = XAccountBook.encode(XAccountBook.merging(adopted.account, into: existing))
-        }
-        // The slots are spent: adopted above, or never a finished sign-in.
-        UserDefaults.standard.removeObject(forKey: legacyNewestIDKey)
-        UserDefaults.standard.removeObject(forKey: legacyLastSyncKey)
-        KeychainService.deleteLegacyXConnection()
-    }
-
-    private nonisolated static let legacyNewestIDKey = "x_bookmarks_newest_id"
-    private nonisolated static let legacyLastSyncKey = "x_bookmarks_last_sync"
 
     @MainActor private func clearAuthSession() {
         authSession = nil

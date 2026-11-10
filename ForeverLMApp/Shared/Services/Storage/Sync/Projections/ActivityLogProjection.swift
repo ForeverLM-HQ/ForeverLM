@@ -148,7 +148,7 @@ struct ActivityLogProjection: RecordProjection {
 
     func loadRows(_ record: ProjectionRecordRef, connection: SQLiteConnection) throws -> DeviceActivityLog? {
         guard let parts = Self.parts(record.wireID) else { return nil }
-        if parts.deviceID == SyncIdentity.legacyDeviceID {
+        if parts.deviceID == SyncIdentity.migratedHistoryDeviceID {
             return try Self.loadLog(table: "activity_logs", day: parts.day, deviceID: parts.deviceID, connection: connection)
         }
         // One writer: only this Mac's own log goes out.
@@ -244,7 +244,7 @@ extension KnowledgeStore {
     func recordOwnReviewActivity(_ activity: MemoryReviewActivity) throws {
         guard try recordsMemoryForGeneration2() else { return }
         let device = try MemorySyncDevice.current(self) ?? ""
-        let legacy = try ActivityLogProjection.loadLog(table: "activity_logs", day: activity.day, deviceID: SyncIdentity.legacyDeviceID, connection: self)
+        let legacy = try ActivityLogProjection.loadLog(table: "activity_logs", day: activity.day, deviceID: SyncIdentity.migratedHistoryDeviceID, connection: self)
         let baseline = legacy?.reviewByDevice[activity.deviceID]?["activeSeconds"]?.numberValue ?? 0
         var log = try loadDeviceActivityLog(day: activity.day, deviceID: device) ?? DeviceActivityLog(day: activity.day)
         log.review = [
@@ -331,7 +331,7 @@ extension KnowledgeStore {
             for (oldDevice, value) in log.reviewByDevice {
                 try upsertFoldedReviewActivity(day: day, deviceID: oldDevice, value: value, keepingMaximum: true)
             }
-            if let review = log.review, device != mine, device != SyncIdentity.legacyDeviceID {
+            if let review = log.review, device != mine, device != SyncIdentity.migratedHistoryDeviceID {
                 try upsertFoldedReviewActivity(day: day, deviceID: "al:" + device, value: [
                     "activeSeconds": review["seconds"] ?? 0, "goalSeconds": review["goalSeconds"] ?? 0, "at": review["at"] ?? 0,
                 ], keepingMaximum: false)
@@ -417,7 +417,7 @@ extension KnowledgeStore {
                 ON CONFLICT(day, device_id) DO UPDATE SET
                     sources_json = excluded.sources_json, review_by_device_json = excluded.review_by_device_json
             """, [
-                .text(day), .text(SyncIdentity.legacyDeviceID), .text(SittingProjection.text(.object(log.sources)) ?? "{}"),
+                .text(day), .text(SyncIdentity.migratedHistoryDeviceID), .text(SittingProjection.text(.object(log.sources)) ?? "{}"),
                 .text(SittingProjection.text(.object(log.reviewByDevice)) ?? "{}"),
             ])
         }

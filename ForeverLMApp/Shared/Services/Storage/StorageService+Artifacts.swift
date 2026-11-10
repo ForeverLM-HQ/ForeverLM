@@ -1538,17 +1538,14 @@ enum DocPictureLines {
     static let attachmentPrefix = "foreverlm://attachment/"
 
     /// `![description](<address> "title")`; group 2 is the address.
-    // swiftlint:disable:next force_try
     private static let picture = try! NSRegularExpression(
         pattern: #"!\[([^\]\n]*)\]\(\s*<?(foreverlm://image/[^\s)>]+)"#,
         options: [.caseInsensitive]
     )
-    // swiftlint:disable:next force_try
     private static let fencedCode = try! NSRegularExpression(
         pattern: #"^ {0,3}(`{3,}|~{3,})[^\n]*\n.*?(?:^ {0,3}\1[^\n]*$|\z)"#,
         options: [.anchorsMatchLines, .dotMatchesLineSeparators]
     )
-    // swiftlint:disable:next force_try
     private static let inlineCode = try! NSRegularExpression(pattern: #"`[^`\n]+`"#)
 
     /// Every address a picture line names, once each, in order.

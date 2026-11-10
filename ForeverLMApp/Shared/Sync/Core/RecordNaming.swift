@@ -61,13 +61,13 @@ enum RecordNaming {
 /// the same facts, so two devices that make the same thing make one record.
 enum SyncIdentity {
     /// The device id migrated history is written under (`al:<day>:legacy22`); never drawn.
-    static let legacyDeviceID = "legacy22"
+    static let migratedHistoryDeviceID = "legacy22"
 
     /// A new installation's device id: 5 random bytes as 8 base32 characters, never `legacy22`.
     static func newDeviceID() -> String {
         while true {
             let id = RecordNaming.base32(Data((0..<5).map { _ in UInt8.random(in: .min ... .max) }))
-            if id != legacyDeviceID { return id }
+            if id != migratedHistoryDeviceID { return id }
         }
     }
 
@@ -90,7 +90,7 @@ enum SyncIdentity {
 
     /// Migrated attempts: `sit:legacy:` + the first 24 hex characters of sha256 of
     /// `session:<session_id>`, or of `day:<YYYY-MM-DD>` for an attempt with no session.
-    static func sittingLegacyID(_ input: String) -> String {
+    static func migratedSittingID(_ input: String) -> String {
         "sit:legacy:" + sha256Hex(Data(input.utf8)).prefix(24)
     }
 

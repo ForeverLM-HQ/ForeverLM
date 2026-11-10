@@ -760,7 +760,7 @@ extension MCPDataStore {
         let metadata = try sourceMetadataByID(storedSourceIDs)
         let content = try sourceContentByID(storedSourceIDs, perSourceLimit: 6000)
         var memoryItems: [[String: Any]] = []
-        var legacyItems: [[String: Any]] = []
+        var refreshItems: [[String: Any]] = []
         var newItems: [[String: Any]] = []
         var seenCards = Set<String>()
         let storedSourceSet = Set(storedSourceIDs)
@@ -815,9 +815,9 @@ extension MCPDataStore {
             }
 
             let sourceID: String
-            let isLegacy: Bool
-            if cardID.hasPrefix("legacy-first-review-portable:") {
-                let portableKey = String(cardID.dropFirst("legacy-first-review-portable:".count))
+            let isRefresh: Bool
+            if cardID.hasPrefix(MemoryFirstReviewTargetPrefix.sourceRefreshPortable) {
+                let portableKey = String(cardID.dropFirst(MemoryFirstReviewTargetPrefix.sourceRefreshPortable.count))
                 guard !portableKey.isEmpty,
                       let resolved = try store.resolveMemorySourceID(
                         portableSourceKey: portableKey,
@@ -828,9 +828,9 @@ extension MCPDataStore {
                     )
                 }
                 sourceID = resolved
-                isLegacy = true
-            } else if cardID.hasPrefix("new-first-review-portable:") {
-                let portableKey = String(cardID.dropFirst("new-first-review-portable:".count))
+                isRefresh = true
+            } else if cardID.hasPrefix(MemoryFirstReviewTargetPrefix.neverReviewedPortable) {
+                let portableKey = String(cardID.dropFirst(MemoryFirstReviewTargetPrefix.neverReviewedPortable.count))
                 guard !portableKey.isEmpty,
                       let resolved = try store.resolveMemorySourceID(
                         portableSourceKey: portableKey,
@@ -841,16 +841,16 @@ extension MCPDataStore {
                     )
                 }
                 sourceID = resolved
-                isLegacy = false
-            } else if cardID.hasPrefix("legacy-first-review:") {
-                // Backwards compatibility for sessions created before portable
-                // queue identities shipped. New sessions never store local IDs.
-                sourceID = String(cardID.dropFirst("legacy-first-review:".count))
-                isLegacy = true
-            } else if cardID.hasPrefix("new-first-review:") {
-                // Backwards compatibility for pre-portable queue identities.
-                sourceID = String(cardID.dropFirst("new-first-review:".count))
-                isLegacy = false
+                isRefresh = false
+            } else if cardID.hasPrefix(MemoryFirstReviewTargetPrefix.sourceRefresh) {
+                // Sessions created before portable queue identities shipped.
+                // New sessions never store local IDs.
+                sourceID = String(cardID.dropFirst(MemoryFirstReviewTargetPrefix.sourceRefresh.count))
+                isRefresh = true
+            } else if cardID.hasPrefix(MemoryFirstReviewTargetPrefix.neverReviewed) {
+                // Pre-portable queue identities.
+                sourceID = String(cardID.dropFirst(MemoryFirstReviewTargetPrefix.neverReviewed.count))
+                isRefresh = false
             } else {
                 throw MCPError.invalidInput(
                     "The persisted memory review queue contains an unsupported target identity. Start a new review with a new operation_id."
@@ -866,7 +866,7 @@ extension MCPDataStore {
             }
             let title = source["title"] as? String ?? sourceID
             let sourceType = source["source_type"] as? String ?? "source"
-            if isLegacy {
+            if isRefresh {
                 // Classification is persisted in card_ids. Current review stats
                 // only enrich the response; they never reselect the source.
                 let stat = try store.memoryReviewStats(
@@ -884,7 +884,7 @@ extension MCPDataStore {
                     "review_count": stat?.reviewCount ?? 1,
                 ]
                 if let score = stat?.lastScore { item["last_score"] = score }
-                legacyItems.append(item)
+                refreshItems.append(item)
             } else {
                 newItems.append([
                     "source_id": sourceID,
@@ -898,7 +898,7 @@ extension MCPDataStore {
         }
 
         let firstReviewSourceIDs = Set(
-            legacyItems.compactMap { $0["source_id"] as? String }
+            refreshItems.compactMap { $0["source_id"] as? String }
                 + newItems.compactMap { $0["source_id"] as? String }
         )
         if let missing = firstReviewSourceIDs.first(where: {
@@ -916,11 +916,11 @@ extension MCPDataStore {
             "date": isoDateOnly(session.startedAt, calendar: calendar),
             "mode": "session",
             "session_id": session.id,
-            "due_count": memoryItems.count + legacyItems.count,
+            "due_count": memoryItems.count + refreshItems.count,
             "memory_item_count": memoryItems.count,
             "new_count": newItems.count,
             "memory_items": memoryItems,
-            "items": legacyItems,
+            "items": refreshItems,
             "new_items": newItems,
             "generated_at": ISO8601DateFormatter().string(from: session.startedAt),
             "context": contextItems,
@@ -1094,7 +1094,7 @@ extension MCPDataStore {
         }
         // Any active concept anchor is authoritative, even when its next
         // schedule is in the future. The source-indexed lookup prevents an
-        // anchored source from re-entering legacy/first-review intake merely
+        // anchored source from re-entering first-review intake merely
         // because that particular concept is not in today's due slice.
         let representedSourceIDs = try store.activeMemoryItemSourceIDs(
             restrictToSourceIDs: restrict
@@ -1113,18 +1113,18 @@ extension MCPDataStore {
                 && due.item.sources.allSatisfy { restrict.contains($0.sourceID) }
         }
 
-        // Existing concept memories are authoritative. The legacy source-level
-        // bucket remains only for libraries whose older reviews have not yet
+        // Existing concept memories are authoritative. The source-level refresh
+        // bucket remains only for sources whose earlier reviews have not yet
         // produced a concept trace; don't surface the same source in both.
         let allDue = MemoryReviewScheduler.dueItems(from: stats, now: now, limit: cap)
         let allNew = MemoryReviewScheduler.newItems(from: candidates, now: now, limit: cap)
         let recentActivity = try store.recentReviewSourceActivity(now: now)
-        // Legacy reviews have durable recall history but predate concept-level
-        // MemoryItems. Treat them as first-review intake, ahead of never-reviewed
+        // Source-level reviews have durable recall history but no concept-level
+        // MemoryItems yet. Treat them as first-review intake, ahead of never-reviewed
         // sources, so every surface reserves the same one intake slot when the
         // concept queue fills the daily cap. Once covered, end_review_session
         // creates their canonical concept trace just like any other intake.
-        let legacyIntake = allDue.map { item in
+        let refreshIntake = allDue.map { item in
             MemoryReviewNewItem(
                 sourceID: item.sourceID,
                 title: item.title,
@@ -1134,7 +1134,7 @@ extension MCPDataStore {
                 daysOverdue: item.daysOverdue
             )
         }
-        let firstReviewIntake = legacyIntake + allNew
+        let firstReviewIntake = refreshIntake + allNew
         let candidateSourceIDs = sanitizedSourceIDs(
             conceptDue.flatMap { $0.item.sources.map(\.sourceID) }
                 + firstReviewIntake.map(\.sourceID)
@@ -1183,15 +1183,15 @@ extension MCPDataStore {
 
         // First reviews lead: the material is freshest and the recall is weakest.
         let sessionSourceIDs = sanitizedSourceIDs(conceptPlan?.sourceIDs ?? [])
-        let legacySourceIDs = Set(allDue.map(\.sourceID))
+        let refreshSourceIDs = Set(allDue.map(\.sourceID))
         let sessionCardIDs = try conceptPlan?.targets.map { target -> String in
             if let item = target.memoryItem {
                 return mcpMemoryItemCardID(item)
             }
             let portableKey = try store.portableMemorySourceKey(sourceID: target.sourceID)
-            return legacySourceIDs.contains(target.sourceID)
-                ? "legacy-first-review-portable:\(portableKey)"
-                : "new-first-review-portable:\(portableKey)"
+            return refreshSourceIDs.contains(target.sourceID)
+                ? "\(MemoryFirstReviewTargetPrefix.sourceRefreshPortable)\(portableKey)"
+                : "\(MemoryFirstReviewTargetPrefix.neverReviewedPortable)\(portableKey)"
         } ?? []
         guard !sessionCardIDs.isEmpty,
               Set(sessionCardIDs).count == sessionCardIDs.count else {
@@ -1303,7 +1303,7 @@ extension MCPDataStore {
             payload["context"] = contextItems
             payload["instructions"] = Self.memoryReviewSessionInstructions
         } else {
-            payload["instructions"] = "Briefing only — do NOT start the review. Summarize why the concept-level `memory_items` are due without exposing their private rubric or answer evidence. Mention first-review `new_items` and any legacy source-level `items`. When the learner is ready, call memory_review again with start_session=true."
+            payload["instructions"] = "Briefing only — do NOT start the review. Summarize why the concept-level `memory_items` are due without exposing their private rubric or answer evidence. Mention first-review `new_items` and any source-level `items`. When the learner is ready, call memory_review again with start_session=true."
         }
         return try jsonString(payload)
     }

@@ -631,7 +631,7 @@ struct ReportTests {
         let shortText = "The whole text of A, about complex I.\n"
         let a = try await seedSource(storage, url: "https://journal.example/a", title: "Paper A", content: shortText)
         let line = "A sentence about the respiratory chain.\n"
-        let longText = String(repeating: line, count: SourceIdeaDrafting.legacyReadCharacters / line.count + 100)
+        let longText = String(repeating: line, count: SourceIdeaDrafting.singleReadCharacterLimit / line.count + 100)
         let b = try await seedSource(storage, url: "https://books.example/b", title: "Book B", content: longText)
         for (source, text) in [(a, shortText), (b, longText)] {
             let hash = SourceIdeaDrafting.contentHash(text)

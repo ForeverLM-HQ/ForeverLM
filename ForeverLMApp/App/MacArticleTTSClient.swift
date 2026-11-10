@@ -2,6 +2,7 @@
 import AVFoundation
 import CryptoKit
 import Foundation
+import OSLog
 
 enum MacArticleTTSClient {
     private static let maxAudioRequestAttempts = 4
@@ -600,9 +601,8 @@ enum ArticleSpeechAudioCache {
             try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
             try data.write(to: directory.appendingPathComponent("\(key).mp3"), options: .atomic)
         } catch {
-            #if DEBUG
-            print("[ArticleSpeechAudioCache] Could not save cached TTS audio: \(error)")
-            #endif
+            Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "ArticleSpeechAudioCache")
+                .error("Could not save cached TTS audio: \(error.localizedDescription)")
         }
     }
 
@@ -735,9 +735,8 @@ enum ArticleSpeechAudioCache {
                 NotificationCenter.default.post(name: statusDidChangeNotification, object: articleID)
             }
         } catch {
-            #if DEBUG
-            print("[ArticleSpeechAudioCache] Could not write article cache marker: \(error)")
-            #endif
+            Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "ArticleSpeechAudioCache")
+                .error("Could not write article cache marker: \(error.localizedDescription)")
         }
     }
 

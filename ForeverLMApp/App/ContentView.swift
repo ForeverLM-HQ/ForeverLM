@@ -130,14 +130,8 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: .mcpPendingAuthorizationsChanged)) { _ in
             mcpAuthorization.refresh()
         }
-        .onReceive(NotificationCenter.default.publisher(for: .legacyContentDidMigrate)) { _ in
-            // The migrator cleared absolute-path cache entries that pointed at
-            // removed legacy roots. Republish once so the existing debounced,
-            // off-main path warmer resolves every row under the canonical root.
-            vm.articles = vm.articles
-        }
         .onReceive(NotificationCenter.default.publisher(for: .sourceDocumentsDidInstall)) { _ in
-            // Same shape as a migration: files appeared at paths the rows
+            // Files appeared at paths the rows
             // already hold, and only the cleared path cache makes them visible.
             vm.articles = vm.articles
         }

@@ -417,21 +417,6 @@ struct PodcastTTMLDisplayParsingTests {
     }
 }
 
-@Suite("Legacy transcript repair detection")
-struct LegacyTranscriptRepairDetectionTests {
-    @Test("Recognizes the retired YouTube transcript caps")
-    func recognizesLegacyTruncatedYouTubeTranscript() {
-        let marker = StudioViewModel.legacyYouTubeTranscriptTruncationMarker
-        let capped = String(repeating: "x", count: StudioViewModel.legacyYouTubeTranscriptCharacterLimit)
-
-        #expect(StudioViewModel.isLegacyTruncatedYouTubeTranscript("captions\n\n\(marker)"))
-        #expect(StudioViewModel.isLegacyTruncatedYouTubeTranscript(capped))
-        #expect(!StudioViewModel.isLegacyTruncatedYouTubeTranscript(String(capped.dropLast())))
-        #expect(!StudioViewModel.isLegacyTruncatedYouTubeTranscript("\(marker)\n"))
-        #expect(!StudioViewModel.isLegacyTruncatedYouTubeTranscript("complete captions"))
-    }
-}
-
 // MARK: - Supplementary PDF URLs
 
 /// A PDF that belongs to a paper without being the paper — Nature's Reporting

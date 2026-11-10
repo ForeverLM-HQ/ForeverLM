@@ -9,9 +9,8 @@ import Security
 /// Supports dynamic client registration, authorization code flow, and token refresh.
 /// Tokens persist to disk so clients don't need to re-auth after app restart.
 actor MCPOAuthProvider {
-    /// The initializer restores OAuth credentials and performs a one-time legacy
-    /// file import. Keep that Keychain/file work off the caller's executor: the
-    /// first access normally comes from a main-actor SwiftUI `.task` at launch.
+    /// The initializer restores OAuth credentials from the Keychain. Keep that
+    /// Keychain work off the caller's executor: the first access normally comes from a main-actor SwiftUI `.task` at launch.
     private static let sharedTask = Task.detached(priority: .userInitiated) {
         MCPOAuthProvider()
     }
@@ -32,11 +31,7 @@ actor MCPOAuthProvider {
         let loaded = Self.loadPersistedTokens()
         accessTokens = loaded.accessTokens
         refreshTokens = loaded.refreshTokens
-        dynamicClients = loaded.legacyDynamicClients.merging(Self.loadDynamicClientsFromKeychain()) { _, keychainClient in
-            keychainClient
-        }
-        // Re-persist so a legacy oauth_tokens.json import lands in the Keychain.
-        Self.persistTokens(accessTokens: accessTokens, refreshTokens: refreshTokens, dynamicClients: dynamicClients)
+        dynamicClients = Self.loadDynamicClientsFromKeychain()
     }
 
     private let allowedRedirectHosts: Set<String> = [
@@ -63,8 +58,7 @@ actor MCPOAuthProvider {
     struct TokenInfo {
         let clientID: String
         let expires: Date
-        /// Canonical granted scope raw value. Tokens persisted before scopes
-        /// existed load as `mcp:tools` (full), matching what they were granted.
+        /// Canonical granted scope raw value.
         let scope: String
     }
 
@@ -1427,22 +1421,16 @@ actor MCPOAuthProvider {
     //
     // Access and refresh tokens are bearer secrets — anyone holding one can read
     // the entire knowledge base — so they persist to the Keychain, never to a
-    // plaintext file. Earlier builds wrote them to oauth_tokens.json in
-    // Application Support; that file is imported once on first load and deleted.
+    // plaintext file.
 
     private struct PersistedTokens: Codable {
         var accessTokens: [String: PersistedAccessToken]
         var refreshTokens: [String: PersistedRefreshToken]
-        // Present only in the legacy oauth_tokens.json shape; dynamic clients now
-        // persist solely in their own Keychain item.
-        var dynamicClients: [String: PersistedDynamicClient]?
 
         struct PersistedAccessToken: Codable {
             let clientID: String
             let expires: Date
-            // Absent in tokens persisted before scopes existed; those were all
-            // granted full access, so they decode as such.
-            let scope: String?
+            let scope: String
         }
         struct PersistedRefreshToken: Codable {
             let clientID: String
@@ -1464,17 +1452,11 @@ actor MCPOAuthProvider {
         }
     }
 
-    private static var legacyTokenFilePath: URL {
-        ForeverLMRuntimeIdentity.applicationSupportRootURL
-            .appendingPathComponent(".appdata/oauth_tokens.json")
-    }
-
     private func saveTokens() {
         Self.persistTokens(accessTokens: accessTokens, refreshTokens: refreshTokens, dynamicClients: dynamicClients)
     }
 
-    /// Nonisolated persistence core so `init` can persist a legacy import before
-    /// actor isolation is established.
+    /// Nonisolated persistence core, usable before actor isolation is established.
     private static func persistTokens(
         accessTokens: [String: TokenInfo],
         refreshTokens: [String: RefreshInfo],
@@ -1483,8 +1465,7 @@ actor MCPOAuthProvider {
         saveDynamicClientsToKeychain(dynamicClients)
         let persisted = PersistedTokens(
             accessTokens: accessTokens.mapValues { .init(clientID: $0.clientID, expires: $0.expires, scope: $0.scope) },
-            refreshTokens: refreshTokens.mapValues { .init(clientID: $0.clientID, scope: $0.scope, resource: $0.resource) },
-            dynamicClients: nil
+            refreshTokens: refreshTokens.mapValues { .init(clientID: $0.clientID, scope: $0.scope, resource: $0.resource) }
         )
         do {
             let data = try JSONEncoder().encode(persisted)
@@ -1494,47 +1475,19 @@ actor MCPOAuthProvider {
         }
     }
 
-    private static func loadPersistedTokens() -> (accessTokens: [String: TokenInfo], refreshTokens: [String: RefreshInfo], legacyDynamicClients: [String: DynamicClient]) {
-        if let raw = KeychainService.load(.mcpOAuthTokens),
-           let data = raw.data(using: .utf8),
-           let persisted = try? JSONDecoder().decode(PersistedTokens.self, from: data) {
-            return liveTokens(from: persisted)
-        }
-
-        // One-time import of the legacy plaintext token file, which is deleted so
-        // bearer secrets never linger on disk. (The caller re-persists to Keychain.)
-        let legacyURL = legacyTokenFilePath
-        guard let data = try? Data(contentsOf: legacyURL),
+    private static func loadPersistedTokens() -> (accessTokens: [String: TokenInfo], refreshTokens: [String: RefreshInfo]) {
+        guard let raw = KeychainService.load(.mcpOAuthTokens),
+              let data = raw.data(using: .utf8),
               let persisted = try? JSONDecoder().decode(PersistedTokens.self, from: data) else {
-            return ([:], [:], [:])
+            return ([:], [:])
         }
-        try? FileManager.default.removeItem(at: legacyURL)
-        return liveTokens(from: persisted)
-    }
-
-    private static func liveTokens(from persisted: PersistedTokens) -> (accessTokens: [String: TokenInfo], refreshTokens: [String: RefreshInfo], legacyDynamicClients: [String: DynamicClient]) {
         let now = Date()
         let access = persisted.accessTokens
             .filter { $0.value.expires > now }
-            .mapValues { TokenInfo(clientID: $0.clientID, expires: $0.expires, scope: $0.scope ?? MCPAuthScope.full.rawValue) }
+            .mapValues { TokenInfo(clientID: $0.clientID, expires: $0.expires, scope: $0.scope) }
         let refresh = persisted.refreshTokens
             .mapValues { RefreshInfo(clientID: $0.clientID, scope: $0.scope, resource: $0.resource) }
-        let clients = (persisted.dynamicClients ?? [:])
-            .mapValues {
-                DynamicClient(
-                    clientSecret: $0.clientSecret,
-                    redirectURIs: $0.redirectURIs,
-                    tokenEndpointAuthMethod: $0.tokenEndpointAuthMethod,
-                    clientName: $0.clientName,
-                    logoURI: $0.logoURI,
-                    lastSeenAt: $0.lastSeenAt,
-                    lastSuccessfulSyncAt: $0.lastSuccessfulSyncAt,
-                    reportedState: $0.reportedState,
-                    statusDetail: $0.statusDetail
-                )
-            }
-
-        return (access, refresh, clients)
+        return (access, refresh)
     }
 
     private static func saveDynamicClientsToKeychain(_ dynamicClients: [String: DynamicClient]) {

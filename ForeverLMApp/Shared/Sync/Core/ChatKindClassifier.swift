@@ -19,7 +19,7 @@ enum ChatKind: String, CaseIterable, Sendable {
 /// The kind of a chat recorded before generation 2 wrote kinds (D50, §10): 299 of the library's
 /// chats predate the `kind` column, and a voice session, a walkthrough's chat, a course quiz's
 /// sitting or a scored review among them must not become a shareable `chat`. One ordered rule set,
-/// used by the generation-2 activation (WP10), late import (`LegacyV2Mapping`, WP16b) and, through
+/// used by the generation-2 activation (WP10) and, through
 /// the JS twin `schema/js/chat-kind.js`, the web's and the hosted MCP's chat writers. The caller
 /// fills the evidence from what it holds, so this reads no store. Vectors:
 /// `schema/vectors/chat-kind.json`.

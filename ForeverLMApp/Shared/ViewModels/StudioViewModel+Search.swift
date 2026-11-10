@@ -27,7 +27,7 @@ struct ArtifactSourcePickerRow: Identifiable, Equatable, Sendable {
 }
 
 /// The semantic source kinds the Docs picker can narrow to. Persisted source
-/// types stay untouched; this only groups legacy/unclassified URLs with the
+/// types stay untouched; this only groups unclassified URLs with the
 /// Article row a learner already sees in the picker.
 enum ArtifactSourcePickerFilter: String, CaseIterable, Identifiable, Sendable {
     case all

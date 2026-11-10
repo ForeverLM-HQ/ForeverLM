@@ -192,7 +192,7 @@ actor GoogleDriveService {
     private var activeCallbackServer: GoogleDriveOAuthCallbackServer?
 
     nonisolated var isSignedIn: Bool {
-        hasLegacyConnection || connectedAccounts.contains(where: Self.hasStoredCredential)
+        connectedAccounts.contains(where: Self.hasStoredCredential)
     }
 
     nonisolated func isSignedIn(accountID: String?) -> Bool {
@@ -210,10 +210,9 @@ actor GoogleDriveService {
     }
 
     nonisolated var hasFolderReadAccess: Bool {
-        Self.scopeSet(from: KeychainService.googleDriveGrantedScopes).contains(Self.folderReadScope)
-            || connectedAccounts.contains { account in
-                Self.storedScopes(accountID: account.id).contains(Self.folderReadScope)
-            }
+        connectedAccounts.contains { account in
+            Self.storedScopes(accountID: account.id).contains(Self.folderReadScope)
+        }
     }
 
     nonisolated var health: GoogleDriveHealth {
@@ -242,31 +241,14 @@ actor GoogleDriveService {
     /// never stored, so a Mac with a working meeting folder still answers
     /// false here until a conversion asks for it.
     nonisolated var hasFileCreateAccess: Bool {
-        Self.scopeSet(from: KeychainService.googleDriveGrantedScopes).contains(Self.pickerScope)
-            || connectedAccounts.contains { account in
-                Self.storedScopes(accountID: account.id).contains(Self.pickerScope)
-            }
+        connectedAccounts.contains { account in
+            Self.storedScopes(accountID: account.id).contains(Self.pickerScope)
+        }
     }
 
     nonisolated var connectedAccounts: [GoogleDriveAccount] {
         Self.decodeAccounts(KeychainService.googleDriveAccounts)
             .filter(Self.hasStoredCredential)
-    }
-
-    nonisolated var hasLegacyConnection: Bool {
-        KeychainService.googleDriveAccessToken?.isEmpty == false
-            || KeychainService.googleDriveRefreshToken?.isEmpty == false
-    }
-
-    nonisolated func signOut() {
-        for account in connectedAccounts {
-            KeychainService.deleteGoogleDriveCredentials(accountID: account.id)
-        }
-        KeychainService.googleDriveAccounts = nil
-        KeychainService.googleDriveLegacyAccountID = nil
-        KeychainService.googleDriveDefaultAccountID = nil
-        Self.clearLegacyCredentials()
-        Self.notifyConnectionChanged()
     }
 
     func signOut(accountID: String) {
@@ -275,23 +257,10 @@ actor GoogleDriveService {
         KeychainService.deleteGoogleDriveCredentials(accountID: trimmed)
         let remaining = Self.removingAccount(id: trimmed, from: connectedAccounts)
         Self.storeAccounts(remaining)
-        if KeychainService.googleDriveLegacyAccountID == trimmed {
-            KeychainService.googleDriveLegacyAccountID = nil
-            Self.clearLegacyCredentials()
-        }
         if KeychainService.googleDriveDefaultAccountID == trimmed {
             KeychainService.googleDriveDefaultAccountID = remaining.first?.id
         }
         Self.notifyConnectionChanged()
-    }
-
-    nonisolated private static func clearLegacyCredentials() {
-        KeychainService.googleDriveAccessToken = nil
-        KeychainService.googleDriveRefreshToken = nil
-        KeychainService.googleDriveTokenExpiry = nil
-        KeychainService.googleDriveGrantedScopes = nil
-        KeychainService.driveClientID = nil
-        KeychainService.driveClientSecret = nil
     }
 
     nonisolated static func notifyConnectionChanged() {
@@ -386,10 +355,6 @@ actor GoogleDriveService {
     /// revoked or too-narrow grant is repaired. Cancel it with
     /// `cancelPendingConnection()`.
     func connectAccount() async throws -> GoogleDriveAccount {
-        // A pre-multi-account build may still have one unscoped grant. Resolve
-        // its Drive identity before another account is added so every old,
-        // untagged folder keeps an unambiguous owner.
-        _ = try? await adoptLegacyAccountIfNeeded()
         guard let credentials = GoogleOAuthClient.driveAuthorization() else {
             throw GoogleDriveServiceError.notConfigured
         }
@@ -583,39 +548,6 @@ actor GoogleDriveService {
             .replacingOccurrences(of: "'", with: "\\'")
     }
 
-    /// Adopt the single Drive grant written by older builds into the
-    /// account-indexed store. The legacy values stay in place for downgrade
-    /// compatibility, while this mapping gives every pre-existing untagged
-    /// folder a stable owner after more accounts are connected.
-    @discardableResult
-    func adoptLegacyAccountIfNeeded() async throws -> GoogleDriveAccount? {
-        if let accountID = KeychainService.googleDriveLegacyAccountID,
-           let account = connectedAccounts.first(where: { $0.id == accountID }) {
-            return account
-        }
-        guard hasLegacyConnection else { return nil }
-
-        let accessToken = try await legacyAccessToken()
-        let account = try await accountProfile(accessToken: accessToken)
-        let values: [(KeychainService.GoogleDriveCredentialField, String?)] = [
-            (.accessToken, KeychainService.googleDriveAccessToken),
-            (.refreshToken, KeychainService.googleDriveRefreshToken),
-            (.tokenExpiry, KeychainService.googleDriveTokenExpiry),
-            (.grantedScopes, KeychainService.googleDriveGrantedScopes),
-            (.clientID, KeychainService.driveClientID),
-            (.clientSecret, KeychainService.driveClientSecret),
-        ]
-        for (field, value) in values {
-            if let value, !value.isEmpty {
-                KeychainService.saveGoogleDriveCredential(value, field: field, accountID: account.id)
-            }
-        }
-        register(account)
-        KeychainService.googleDriveLegacyAccountID = account.id
-        Self.notifyConnectionChanged()
-        return account
-    }
-
     /// Create a Google Doc in the user's Drive from HTML and return its
     /// document id. Drive converts the upload into a Google Doc itself; the
     /// request is `GoogleDocConversion.createRequest`, so its shape is pinned
@@ -698,9 +630,6 @@ actor GoogleDriveService {
                 account.id,
                 try await accessToken(requiring: Self.pickerScope, accountID: account.id)
             )
-        }
-        if Self.scopeSet(from: KeychainService.googleDriveGrantedScopes).contains(Self.pickerScope) {
-            return (nil, try await legacyAccessToken(requiring: Self.pickerScope))
         }
         return try await authorizeFileCreateAccess()
     }
@@ -837,9 +766,7 @@ actor GoogleDriveService {
         excludingFolderIDs: Set<String> = []
     ) async throws -> [GoogleDriveFile] {
         let ownerAccountID = resolvedAccountID(accountID)
-        let legacyCanRead = Self.scopeSet(from: KeychainService.googleDriveGrantedScopes)
-            .contains(Self.folderReadScope)
-        guard ownerAccountID != nil || legacyCanRead,
+        guard ownerAccountID != nil,
               hasFolderReadAccess(accountID: ownerAccountID) else {
             throw GoogleDriveServiceError.folderAccessUpgradeRequired
         }
@@ -1278,7 +1205,7 @@ actor GoogleDriveService {
         accountID: String?
     ) -> String {
         let stamp = modifiedAt.map { String(Int($0.timeIntervalSince1970)) } ?? "current"
-        let owner = (accountID ?? "legacy").replacingOccurrences(
+        let owner = (accountID ?? "untagged").replacingOccurrences(
             of: "[^A-Za-z0-9_-]",
             with: "_",
             options: .regularExpression
@@ -1392,7 +1319,7 @@ actor GoogleDriveService {
     /// when the cached one is about to expire.
     private func accessToken(requiring scope: String, accountID: String?) async throws -> String {
         guard let accountID = resolvedAccountID(accountID) else {
-            return try await legacyAccessToken(requiring: scope)
+            throw GoogleDriveServiceError.notSignedIn
         }
         guard Self.storedScopes(accountID: accountID).contains(scope) else {
             throw scope == Self.folderReadScope
@@ -1433,42 +1360,6 @@ actor GoogleDriveService {
             }
             throw error
         }
-    }
-
-    /// The singleton grant written by pre-multi-account builds. It remains as
-    /// a downgrade-compatible fallback until it can be associated with the
-    /// Drive account returned by `/about`.
-    private func legacyAccessToken(requiring scope: String? = nil) async throws -> String {
-        if let scope,
-           !Self.scopeSet(from: KeychainService.googleDriveGrantedScopes).contains(scope) {
-            throw scope == Self.folderReadScope
-                ? GoogleDriveServiceError.folderAccessUpgradeRequired
-                : GoogleDriveServiceError.notSignedIn
-        }
-        guard hasLegacyConnection else { throw GoogleDriveServiceError.notSignedIn }
-        return try await refreshLegacyAccessTokenIfNeeded()
-    }
-
-    private func refreshLegacyAccessTokenIfNeeded() async throws -> String {
-        if let expiry = KeychainService.googleDriveTokenExpiry,
-           let expiryDate = ISO8601DateFormatter().date(from: expiry),
-           expiryDate.timeIntervalSinceNow > 60,
-           let token = KeychainService.googleDriveAccessToken,
-           !token.isEmpty {
-            return token
-        }
-        guard let refreshToken = KeychainService.googleDriveRefreshToken, !refreshToken.isEmpty else {
-            throw GoogleDriveServiceError.notSignedIn
-        }
-        guard let credentials = GoogleOAuthClient.driveRefresh else {
-            throw GoogleDriveServiceError.notConfigured
-        }
-        let tokens = try await refreshAccessToken(refreshToken, credentials: credentials)
-        storeLegacy(tokens: tokens)
-        guard let token = tokens.accessToken, !token.isEmpty else {
-            throw GoogleDriveServiceError.notSignedIn
-        }
-        return token
     }
 
     private func exchangeCodeForTokens(
@@ -1535,10 +1426,6 @@ actor GoogleDriveService {
            !requestedAccountID.isEmpty {
             return requestedAccountID
         }
-        if let legacyAccountID = KeychainService.googleDriveLegacyAccountID,
-           !legacyAccountID.isEmpty {
-            return legacyAccountID
-        }
         let accounts = connectedAccounts
         return accounts.count == 1 ? accounts[0].id : nil
     }
@@ -1547,16 +1434,13 @@ actor GoogleDriveService {
         GoogleOAuthCredentials(
             clientID: KeychainService.googleDriveCredential(field: .clientID, accountID: accountID),
             clientSecret: KeychainService.googleDriveCredential(field: .clientSecret, accountID: accountID)
-        ) ?? GoogleOAuthClient.driveRefresh ?? GoogleOAuthClient.driveAuthorization()
+        ) ?? GoogleOAuthClient.driveAuthorization()
     }
 
     private nonisolated func clearCachedAccessToken(accountID: String?) {
         if let accountID {
             KeychainService.deleteGoogleDriveCredential(field: .accessToken, accountID: accountID)
             KeychainService.deleteGoogleDriveCredential(field: .tokenExpiry, accountID: accountID)
-        } else {
-            KeychainService.googleDriveAccessToken = nil
-            KeychainService.googleDriveTokenExpiry = nil
         }
     }
 
@@ -1608,31 +1492,6 @@ actor GoogleDriveService {
                 field: .grantedScopes,
                 accountID: accountID
             )
-        }
-    }
-
-    private nonisolated func storeLegacy(
-        tokens: GoogleDriveTokenPayload,
-        issuedBy credentials: GoogleOAuthCredentials? = nil,
-        grantedScopes: Set<String>? = nil,
-        retainedRefreshToken: String? = nil
-    ) {
-        if let value = tokens.accessToken { KeychainService.googleDriveAccessToken = value }
-        if let value = tokens.refreshToken ?? retainedRefreshToken {
-            KeychainService.googleDriveRefreshToken = value
-        }
-        if let value = tokens.expiresIn {
-            KeychainService.googleDriveTokenExpiry = ISO8601DateFormatter().string(
-                from: Date().addingTimeInterval(TimeInterval(value))
-            )
-        }
-        if let credentials {
-            KeychainService.driveClientID = credentials.clientID
-            KeychainService.driveClientSecret = credentials.clientSecret
-        }
-        let scopes = grantedScopes ?? Self.scopeSet(from: tokens.scope)
-        if !scopes.isEmpty {
-            KeychainService.googleDriveGrantedScopes = scopes.sorted().joined(separator: " ")
         }
     }
 

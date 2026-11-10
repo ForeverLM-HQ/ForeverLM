@@ -63,7 +63,7 @@ extension StudioViewModel {
         if destination !== active {
             active.pinReaderSelection(to: selectedArticleId)
         }
-        // A newly registered window may still be rendering the legacy global
+        // A newly registered window may still be rendering the shared
         // selection until it makes its first local choice. Capture that source
         // before replacing it so the first explicit navigation in this pane
         // still has somewhere to go Back to.
@@ -87,7 +87,7 @@ extension StudioViewModel {
         showReaderPanel = true
         // Explicit destinations come from a Reader drop target (already on
         // screen) or an edge drop that placed Reader before selecting, unless
-        // the caller is a row clicked in that very window. Legacy navigation
+        // the caller is a row clicked in that very window. Navigation without a destination
         // continues to reveal Reader in the active window.
         if destinationWindowState == nil || revealingReader {
             clearReaderSurfaces(in: destination)
@@ -1215,7 +1215,7 @@ extension StudioViewModel {
                 images: selection.images
             )
         } else {
-            showAssistantOverlay = true
+            isChatTabActive = true
             reviewChatFocusRequestID = UUID()
         }
     }

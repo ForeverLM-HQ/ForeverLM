@@ -49,11 +49,11 @@ struct RecordNamingTests {
         #expect(SyncIdentity.sourceID(normalizedURL: "example.com/path") == "src_c074fe3957be94f706105a3fb3e1fe61d23fd5e3299f29b2d07dddcc339d7973")
         #expect(SyncIdentity.sourceFileID(sha256Hex: "2cf24dba5fb0a30e26e83b2ac5b9e29e1b161e5c1fa7425e73043362938b9824")
             == "src_28379fe3885ed21e0b7da43f8b6c6673fb2c70cfce09c2dd0a7dbd5a2a99ea53")
-        #expect(SyncIdentity.sittingLegacyID("session:7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d") == "sit:legacy:01e8315ed124fad35f53e18b")
+        #expect(SyncIdentity.migratedSittingID("session:7a1b2c3d-4e5f-4a6b-8c7d-9e0f1a2b3c4d") == "sit:legacy:01e8315ed124fad35f53e18b")
         #expect(SyncIdentity.entryID(containerID: "nb1", itemKind: "source", itemID: "src_2cd9") == "en:nb1:source:src_2cd9")
         #expect(SyncIdentity.entryID(containerID: "les1", itemKind: "source", itemID: "src_2cd9", span: 2) == "en:les1:source:src_2cd9#2")
         #expect(SyncIdentity.markID(kind: "hidden", target: "src:src_2cd9") == "mk:hidden:src:src_2cd9")
-        #expect(SyncIdentity.activityLogID(day: "2026-10-02", deviceID: SyncIdentity.legacyDeviceID) == "al:2026-10-02:legacy22")
+        #expect(SyncIdentity.activityLogID(day: "2026-10-02", deviceID: SyncIdentity.migratedHistoryDeviceID) == "al:2026-10-02:legacy22")
         #expect(SyncIdentity.contentID(owner: "src_1", role: "pdf", partHash32: "0123") == "ct:src_1:pdf:0123")
         #expect(SyncIdentity.collectionID(kind: "podcastShow", externalKey: "example.com/feed.xml").hasPrefix("col_"))
     }
@@ -63,8 +63,8 @@ struct RecordNamingTests {
         for _ in 0..<200 {
             let id = SyncIdentity.newDeviceID()
             #expect(SyncStamp.isValidDeviceID(id))
-            #expect(id != SyncIdentity.legacyDeviceID)
+            #expect(id != SyncIdentity.migratedHistoryDeviceID)
         }
-        #expect(SyncStamp.isValidDeviceID(SyncIdentity.legacyDeviceID), "legacy22 is base32, so it must be refused explicitly")
+        #expect(SyncStamp.isValidDeviceID(SyncIdentity.migratedHistoryDeviceID), "legacy22 is base32, so it must be refused explicitly")
     }
 }

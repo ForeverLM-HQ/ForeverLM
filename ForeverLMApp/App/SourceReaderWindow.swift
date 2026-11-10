@@ -1,5 +1,6 @@
 #if os(macOS)
 import AppKit
+import OSLog
 import SwiftUI
 import PDFKit
 import WebKit
@@ -1285,7 +1286,8 @@ private struct RemotePDFWindowView: View {
             try await vm.attachDownloadedPDFData(to: articleId, data: data, sourceURL: url)
             persistedPDFURL = url
         } catch {
-            print("[RemotePDFWindowView] Failed to save remote PDF for \(articleId): \(error.localizedDescription)")
+            Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "RemotePDFWindowView")
+                .error("Failed to save remote PDF for \(articleId, privacy: .public): \(error.localizedDescription)")
         }
     }
 }

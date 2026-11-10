@@ -216,8 +216,6 @@ struct PreferenceSyncTests {
         #expect(SyncedPreferenceKeys.isSynced("NSWindow Frame StudioWindow") == false)
         #expect(SyncedPreferenceKeys.isSynced("ios.reader.progress.abc123") == false)
         #expect(SyncedPreferenceKeys.isSynced("aiPricing.openRouterRemotePrices") == false)
-        // Would otherwise give one setting two rows racing over last-write-wins.
-        #expect(SyncedPreferenceKeys.isSynced("macos.tts.mode") == false)
     }
 
     @Test("An exclusion beats a synced prefix match")

@@ -66,20 +66,6 @@ struct XAccountFailure: Equatable, Sendable {
     var offersReconnect: Bool
 }
 
-/// What builds before multiple accounts stored for their one connection: the
-/// Keychain's singleton slots and the two unsuffixed sync cursors. Read once,
-/// by `XBookmarkService.adoptLegacyConnectionIfNeeded`.
-struct XLegacyConnection: Equatable, Sendable {
-    var userID: String?
-    var username: String?
-    var accessToken: String?
-    var refreshToken: String?
-    /// ISO 8601, as the old slot held it.
-    var tokenExpiry: String?
-    var grantedScopes: String?
-    var clientID: String?
-}
-
 /// The account list and the rules around it. Pure, so the tests pin them
 /// without a Keychain.
 enum XAccountBook {
@@ -113,28 +99,6 @@ enum XAccountBook {
 
     static func removing(id: String, from accounts: [XAccount]) -> [XAccount] {
         accounts.filter { $0.id != id }
-    }
-
-    // MARK: Adoption
-
-    /// The first account an older build's single connection becomes, with its
-    /// tokens. nil when the slots do not hold a finished sign-in (a token with
-    /// no user id is a sign-in that never completed).
-    static func adoption(of legacy: XLegacyConnection) -> (account: XAccount, credentials: XAccountCredentials)? {
-        guard let userID = legacy.userID?.trimmingCharacters(in: .whitespacesAndNewlines), !userID.isEmpty,
-              let accessToken = legacy.accessToken, !accessToken.isEmpty else {
-            return nil
-        }
-        let username = legacy.username?.trimmingCharacters(in: .whitespacesAndNewlines)
-        let account = XAccount(id: userID, username: username?.isEmpty == false ? username : nil)
-        let credentials = XAccountCredentials(
-            accessToken: accessToken,
-            refreshToken: legacy.refreshToken,
-            tokenExpiry: legacy.tokenExpiry.flatMap { ISO8601DateFormatter().date(from: $0) },
-            grantedScopes: legacy.grantedScopes,
-            clientID: legacy.clientID
-        )
-        return (account, credentials)
     }
 
     // MARK: Cursors

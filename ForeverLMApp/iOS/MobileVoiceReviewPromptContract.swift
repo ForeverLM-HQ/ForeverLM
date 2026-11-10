@@ -8,7 +8,7 @@ import Foundation
 /// so the macOS unit-test target can verify the exact strings the iOS-only
 /// engine sends.
 enum MobileVoiceReviewPromptContract {
-    static func legacyInstructions(sourceTitle: String, topic: String, sourceText: String) -> String {
+    static func instructions(sourceTitle: String, topic: String, sourceText: String) -> String {
         """
         You are ForeverLM's hands-free review tutor. The learner is driving, so keep every spoken line short, plain, and easy to say out loud.
 

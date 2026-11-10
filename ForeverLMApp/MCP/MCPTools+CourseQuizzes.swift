@@ -862,18 +862,7 @@ extension MCPDataStore {
         // it (`StudioViewModel.recordCourseQuizScore`): a worse retake leaves
         // the lectures after the quiz open.
         let scoreKey = LectureQuizScore.preferenceKey(courseQuizID: quiz.id)
-        var previous = UserDefaults.standard.object(forKey: scoreKey).flatMap(LectureQuizScore.init(preferenceValue:))
-        if previous == nil, quiz.kind == .practice, let lectureID = quiz.lectureIDs.first {
-            // A practice quiz's sitting from before quizzes were stored was
-            // kept under its lecture video, as `get_course` reads it.
-            let videoID = try store.loadCourseLectureItems()
-                .filter { $0.lectureId == lectureID && $0.role == .video }
-                .sorted { $0.sortIndex < $1.sortIndex }
-                .first?.sourceId
-            previous = videoID
-                .flatMap { UserDefaults.standard.object(forKey: LectureQuizScore.preferenceKey(sourceID: $0)) }
-                .flatMap(LectureQuizScore.init(preferenceValue:))
-        }
+        let previous = UserDefaults.standard.object(forKey: scoreKey).flatMap(LectureQuizScore.init(preferenceValue:))
         let score = LectureQuizScore(right: sittingScore.right, total: sittingScore.total, takenAt: now)
             .recorded(after: previous)
         PreferenceStore.set(score.preferenceValue, forKey: scoreKey)

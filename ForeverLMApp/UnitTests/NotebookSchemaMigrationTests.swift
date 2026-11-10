@@ -4,32 +4,11 @@ import Testing
 @testable import ForeverLM
 
 /// The retired word for a notebook ("project") still read where a device or an old payload kept it:
-/// preference keys move once, a saved window or tab layout still reopens, and a payload saved before
+/// a saved window or tab layout still reopens, and a payload saved before
 /// the rename reads with this build's keys. Schema 164's storage rename itself went with schema 174's
 /// floor.
 @Suite("Notebook schema migration", .serialized)
 struct NotebookSchemaMigrationTests {
-    @Test("Device-local preference keys that said project move once, and the choice survives")
-    func preferenceKeysAdopted() throws {
-        let suiteName = "foreverlm.notebook-keys.\(UUID().uuidString)"
-        let defaults = try #require(UserDefaults(suiteName: suiteName))
-        defer { defaults.removePersistentDomain(forName: suiteName) }
-        for (old, _) in LegacyIdentityAdoption.retiredNotebookPreferenceKeys {
-            defaults.set("nb-\(old.count)", forKey: old)
-        }
-        let moves = LegacyIdentityAdoption.retiredNotebookPreferenceKeys
-        #expect(LegacyIdentityAdoption.adoptRetiredNotebookPreferenceKeysIfNeeded(defaults: defaults) == moves.count)
-        for (old, new) in moves {
-            #expect(defaults.string(forKey: new) == "nb-\(old.count)", "\(new)")
-            #expect(defaults.object(forKey: old) == nil, "\(old)")
-        }
-        // Once: a later launch moves nothing, and never overwrites a newer choice.
-        defaults.set("nb-3", forKey: "studio.activeMCPNotebookID")
-        defaults.set("nb-9", forKey: "studio.activeMCPProjectID")
-        #expect(LegacyIdentityAdoption.adoptRetiredNotebookPreferenceKeysIfNeeded(defaults: defaults) == 0)
-        #expect(defaults.string(forKey: "studio.activeMCPNotebookID") == "nb-3")
-    }
-
     @Test("A window snapshot written before the rename still reopens its notebook, and a saved Projects tab shows the Space")
     func savedLayoutsStillRead() throws {
         let old = Data(#"{"projectID":"nb-7","showsChat":true,"sourcesCollapsed":false}"#.utf8)

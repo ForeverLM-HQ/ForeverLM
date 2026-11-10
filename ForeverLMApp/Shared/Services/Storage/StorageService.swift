@@ -99,8 +99,6 @@ actor StorageService {
     
     init() {
         LegacyIdentityAdoption.adoptIfNeeded()
-        _ = LegacyIdentityAdoption.adoptRetiredMethodPreferenceKeysIfNeeded()
-        _ = LegacyIdentityAdoption.adoptRetiredNotebookPreferenceKeysIfNeeded()
         ReadingListChooserAdoption.adoptIfNeeded()
         // After the rename adopter, never before: on a Mac still carrying the
         // retired FeynmanLM folder, the cache to adopt only reaches its
@@ -259,8 +257,8 @@ actor StorageService {
     /// the bytes, and a directory conflict has nowhere to happen.
     ///
     /// Historical roots — container, iCloud Drive, `~/Documents`, and numbered
-    /// forks — remain searchable only while the detached consolidator copies,
-    /// verifies, and removes their files. New writes and migrated bytes land here.
+    /// forks — remain searchable so a file left there stays readable. New
+    /// writes land here.
     static let libraryRootPath: String = localContentRootPath
 
     /// Every content root this app writes to, or ever has, current first. A
@@ -270,21 +268,19 @@ actor StorageService {
     /// configuration. Resolving by root beats rewriting path segments: a root
     /// that is added here is searched everywhere, with nothing to keep in sync.
     ///
-    /// Only the first entry is written to. Everything below it is a temporary
-    /// compatibility input for the resumable legacy-content consolidator, so a
-    /// source stays readable until its verified move finishes.
+    /// Only the first entry is written to. Everything below it is read-only, so
+    /// a source stays readable wherever an earlier configuration or an iCloud
+    /// Drive fork left it.
     static let knownContentRoots: [String] = {
         let home = contentHomeDirectory
         let appSupport = applicationSupportPath
-        // The retired FeynmanLM container's roots are gone: the consolidator
-        // drained them, `didConsolidateLegacyContent` is set, and the container
-        // holds an empty `Documents` with no `ForeverLM` or `FeynmanLM` folder
-        // under it. Searching them is a stat that can only ever miss.
+        // The retired FeynmanLM container's roots are gone: it holds an empty
+        // `Documents` with no `ForeverLM` or `FeynmanLM` folder under it, so
+        // searching them is a stat that can only ever miss.
         //
         // The CloudDocs entries stay. Those are not tied to the retired
         // container — they are where an iCloud Drive fork or a manual move can
-        // still put a file, under either product name, on a Mac this migration
-        // has not run on.
+        // still put a file, under either product name.
         //
         // `~/Documents` itself is deliberately absent. With "Desktop & Documents
         // Folders" syncing on — the macOS default — it is the same folder as
@@ -659,7 +655,7 @@ actor StorageService {
 
     /// Where a stored source path's file actually is, or nil when no candidate
     /// exists. A file that iCloud has not downloaded yet counts as present: the
-    /// legacy CloudDocs form leaves a `.name.ext.icloud` placeholder beside it,
+    /// CloudDocs form leaves a `.name.ext.icloud` placeholder beside it,
     /// and treating that as absent is what makes the app offer to re-download a
     /// paper it already has.
     ///
@@ -725,7 +721,7 @@ actor StorageService {
         if let _knowledgeStore { return _knowledgeStore }
         try ensureStoreExists()
         // A test-only override is already the complete storage universe for
-        // that instance. Resolving live legacy iCloud roots here is unrelated,
+        // that instance. Resolving the fallback iCloud roots here is unrelated,
         // can contend with parallel tests, and can block on CloudDocs while an
         // isolated temporary database is being exercised.
         let legacyDirectories = overrideStoreRoot == nil ? Self.legacyICloudContentRoots : []
@@ -888,22 +884,6 @@ actor StorageService {
             scheduleCloudKitSync()
         }
         return batch
-    }
-
-    /// Returns the sources whose text actually changed, so the caller can drop
-    /// its in-memory copies and let them reload from canonical storage.
-    func drainPaperFigureMarkdownRepairBatch(limit: Int = 50) throws -> [String] {
-        try ensureStoreExists()
-        let repaired = try knowledgeStore().drainPaperFigureMarkdownRepairBatch(limit: limit)
-        if !repaired.isEmpty {
-            scheduleCloudKitSync(.immediate)
-        }
-        return repaired
-    }
-
-    func paperFigureMarkdownRepairQueueCount() throws -> Int {
-        try ensureStoreExists()
-        return try knowledgeStore().paperFigureMarkdownRepairQueueCount()
     }
 
     // MARK: - Paper Figure Index
@@ -1569,12 +1549,7 @@ actor StorageService {
     /// readers intentionally have no equivalent API.
     func loadRawPaperContent(_ sourceID: String) -> String? {
         guard let store = try? knowledgeStore() else { return nil }
-        // A pre-v18 database may still hold its extraction in source_content
-        // until the deferred cleanup queue processes it. This ingestion-only
-        // API may use that legacy input; ordinary consumers still see only the
-        // canonical ready-source boundary.
-        return (try? store.loadPaperContentPreparation(sourceID)?.raw)
-            ?? (try? store.loadSourceContent(sourceID))
+        return try? store.loadPaperContentPreparation(sourceID)?.raw
     }
 
     /// The staged extraction of a source whose canonical cleanup has not run,
@@ -1792,16 +1767,6 @@ actor StorageService {
     func podcastTranscriptAuditInputs(sourceID: String) throws -> PodcastTranscriptAuditInputs? {
         try ensureStoreExists()
         return try knowledgeStore().podcastTranscriptAuditInputs(sourceID: sourceID)
-    }
-
-    func youTubeLegacyCapNeedsVerification(sourceID: String) throws -> Bool {
-        try ensureStoreExists()
-        return try knowledgeStore().youTubeLegacyCapNeedsVerification(sourceID: sourceID)
-    }
-
-    func markYouTubeLegacyCapVerified(sourceID: String) throws {
-        try ensureStoreExists()
-        try knowledgeStore().markYouTubeLegacyCapVerified(sourceID: sourceID)
     }
 
     /// See `KnowledgeStore.restorePodcastTranscript`. A replaced transcript is
@@ -2371,112 +2336,30 @@ actor StorageService {
         }
     }
 
-    // MARK: - Legacy Content Consolidation
+    // MARK: - Article archive mirror
 
-    /// Throttle so launch plus repeated foreground activations cannot start two
-    /// large consolidation walks. Every move is independently resumable.
-    private static let legacyConsolidationLock = NSLock()
-    private nonisolated(unsafe) static var lastLegacyConsolidationStartedAt: Date?
-    private nonisolated(unsafe) static var legacyConsolidationIsRunning = false
-    private static let legacyConsolidationThrottle: TimeInterval = 300
-    private static let legacyConsolidationDefaultsKey =
-        "StorageService.didConsolidateLegacyContent.v1"
-
-    /// Drain historical iCloud/CloudDocs/Documents trees into the canonical
-    /// local root. Audio moves to the one canonical private-container `Audio/`
-    /// directory because iPhone playback still consumes that transport.
-    ///
-    /// Completion is versioned, but a cheap root-level presence check re-arms
-    /// the worker if CloudDocs later resurrects a legacy folder. All work stays
-    /// detached from the main actor.
-    static func scheduleLegacyContentConsolidation(initialDelay: TimeInterval = 0) {
+    /// A couple of seconds after launch, build the device-local mirror of every
+    /// saved article's archive that does not have one yet, so the first open of
+    /// an older article does not wait on it. Already-mirrored archives cost one
+    /// directory-metadata check each. Detached from the main actor.
+    static func scheduleArticleArchiveWarmAfterLaunch() {
+        #if os(macOS)
         Task.detached(priority: .utility) {
-            let shouldProceed = legacyConsolidationLock.withLock { () -> Bool in
-                if legacyConsolidationIsRunning { return false }
-                if let last = lastLegacyConsolidationStartedAt,
-                   Date().timeIntervalSince(last) < legacyConsolidationThrottle {
-                    return false
-                }
-                lastLegacyConsolidationStartedAt = Date()
-                legacyConsolidationIsRunning = true
-                return true
-            }
-            guard shouldProceed else { return }
-            defer {
-                legacyConsolidationLock.withLock {
-                    legacyConsolidationIsRunning = false
-                }
-            }
-            if initialDelay > 0 {
-                do {
-                    try await Task.sleep(nanoseconds: UInt64(initialDelay * 1_000_000_000))
-                } catch {
-                    return
-                }
-            }
-
-            let roots = legacyContentRootDescriptors()
-            let defaults = UserDefaults.standard
-            let alreadyCompleted = defaults.bool(forKey: legacyConsolidationDefaultsKey)
-            let hasMigratableContent = rootsContainMigratableContent(roots)
-            guard hasMigratableContent else {
-                if !alreadyCompleted {
-                    defaults.set(true, forKey: legacyConsolidationDefaultsKey)
-                }
+            do {
+                try await Task.sleep(nanoseconds: 2_000_000_000)
+            } catch {
                 return
             }
-
-            let logger = Logger(
-                subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM",
-                category: "StorageMigration"
-            )
-            let report = LegacyContentConsolidator.consolidate(
-                roots: roots,
-                contentRoot: URL(fileURLWithPath: localContentRootPath, isDirectory: true),
-                canonicalAudioRoot: URL(
-                    fileURLWithPath: ubiquityContentRootPath,
-                    isDirectory: true
-                ).appendingPathComponent("Audio", isDirectory: true)
-            ) { progress in
-                logger.info(
-                    "Legacy content: consolidated \(progress.changedFileCount) file(s)"
-                )
-            }
-
-            if report.changedFileCount > 0 {
-                await publishLegacyContentMigration()
-            }
-            if report.isComplete && !rootsContainMigratableContent(roots) {
-                defaults.set(true, forKey: legacyConsolidationDefaultsKey)
-            }
-            if !report.failures.isEmpty {
-                logger.error(
-                    "Legacy content: \(report.failures.count) failure(s); first: \(report.failures[0], privacy: .public)"
-                )
-            } else if report.pendingDownloads > 0 {
-                logger.info(
-                    "Legacy content: requested \(report.pendingDownloads) iCloud download(s); activation will resume"
-                )
-            } else if report.changedFileCount > 0 || !report.removedRoots.isEmpty {
-                logger.info(
-                    "Legacy content complete: installed \(report.installed), deduplicated \(report.deduplicated), preserved \(report.conflictsPreserved) conflict(s), removed \(report.removedRoots.count) root(s)"
-                )
-            }
-
-            #if os(macOS)
             _ = await ArticleArchiveCache.shared.warmExistingArchives(
                 canonicalArticlesRoot: URL(
                     fileURLWithPath: localContentRootPath,
                     isDirectory: true
                 ).appendingPathComponent("Articles", isDirectory: true)
             )
-            #endif
         }
+        #endif
     }
 
-    /// NotificationCenter delivers synchronously on the posting thread. Both
-    /// notifications below feed SwiftUI `onReceive` closures, so publishing them
-    /// from the detached migration task would mutate observable UI state off-main.
     // MARK: - Book folder adoption
 
     private static let bookFolderAdoptionDefaultsKey = "StorageService.didAdoptBookFolderNames.v1"
@@ -2548,8 +2431,8 @@ actor StorageService {
 
         if report.didChangeAnything {
             StudioArticle.invalidateAllResolvedPathCaches()
-            // Observers of these are views and the view model; like the legacy
-            // consolidator's, the posts are delivered on the main thread.
+            // Observers of these are views and the view model, so the posts are
+            // delivered on the main thread.
             DispatchQueue.main.async {
                 NotificationCenter.default.post(name: .syncedArtworkDidInstall, object: nil)
                 // Rows changed underneath the view model's snapshot; this is the
@@ -2576,7 +2459,7 @@ actor StorageService {
     /// defaults flag and later launches cost one `bool(forKey:)`; an incomplete
     /// one — a folder that would not move — runs again next launch.
     static func scheduleBookFolderAdoptionAfterLaunch(storage: StorageService) {
-        guard !LegacyIdentityAdoption.isRunningAutomatedTests else { return }
+        guard !ForeverLMRuntimeIdentity.isTestHost else { return }
         guard !UserDefaults.standard.bool(forKey: bookFolderAdoptionDefaultsKey) else { return }
         Task.detached(priority: .utility) {
             let shouldProceed = bookFolderAdoptionLock.withLock { () -> Bool in
@@ -2615,20 +2498,8 @@ actor StorageService {
         }
     }
 
-    /// Keep the file walk detached, then make only this small publication hop.
-    @MainActor
-    static func publishLegacyContentMigration() {
-        StudioArticle.invalidateAllResolvedPathCaches()
-        NotificationCenter.default.post(name: .syncedArtworkDidInstall, object: nil)
-        NotificationCenter.default.post(name: .legacyContentDidMigrate, object: nil)
-    }
-
-    static func scheduleLegacyContentConsolidationAfterLaunch() {
-        scheduleLegacyContentConsolidation(initialDelay: 2)
-    }
-
-    /// Historical content roots are migration inputs, not permanent homes. They
-    /// stay in the resolver only while a verified per-file move is pending.
+    /// Historical content roots (iCloud Drive and numbered-fork folders): not
+    /// homes anything is written to, only places a stored file may still be read from.
     static var legacyICloudContentRoots: [URL] {
         #if DEBUG
         // The transcript maintenance runner needs only SQLite. Avoid touching
@@ -2647,49 +2518,6 @@ actor StorageService {
             seen.insert($0.standardizedFileURL.path).inserted
                 && FileManager.default.fileExists(atPath: $0.path)
         }
-    }
-
-    private static func legacyContentRootDescriptors() -> [LegacyContentRoot] {
-        let canonicalContainer = URL(
-            fileURLWithPath: ubiquityContentRootPath,
-            isDirectory: true
-        ).standardizedFileURL.path
-        return legacyICloudContentRoots.map { url in
-            let path = url.standardizedFileURL.path
-            let namespace: String
-            if path == canonicalContainer {
-                namespace = "Private iCloud"
-            } else if path.contains("com~apple~CloudDocs") {
-                namespace = "iCloud Drive"
-            } else if url.lastPathComponent != "ForeverLM" {
-                namespace = "Private iCloud \(url.lastPathComponent)"
-            } else {
-                namespace = "Documents"
-            }
-            return LegacyContentRoot(
-                id: namespace,
-                url: url,
-                preservesRootForCanonicalAudio: path == canonicalContainer
-            )
-        }
-    }
-
-    private static func rootsContainMigratableContent(_ roots: [LegacyContentRoot]) -> Bool {
-        let fileManager = FileManager.default
-        for root in roots {
-            guard let children = try? fileManager.contentsOfDirectory(
-                at: root.url,
-                includingPropertiesForKeys: nil
-            ) else { continue }
-            if root.preservesRootForCanonicalAudio {
-                if children.contains(where: { $0.lastPathComponent != "Audio" }) {
-                    return true
-                }
-            } else if !children.isEmpty {
-                return true
-            }
-        }
-        return false
     }
 
     /// Check whether a specific iCloud file is a placeholder (.icloud stub) and trigger
@@ -3469,11 +3297,11 @@ actor StorageService {
         try knowledgeStore().unreviewedConsumedSources(restrictToSourceIDs: restrictToSourceIDs)
     }
 
-    /// Keeps legacy-history bootstrap, candidate fetches, exclusion joins, and
+    /// Keeps source-history intake, candidate fetches, exclusion joins, and
     /// scheduling sorts on the storage actor. Both intake buckets — previously
     /// reviewed sources that are due again, and consumed-never-reviewed sources —
     /// are gathered in full and bounded together by
-    /// `MemoryReviewScheduler.firstReviewIntake`, so a large legacy backlog can
+    /// `MemoryReviewScheduler.firstReviewIntake`, so a large backlog of earlier source reviews can
     /// no longer spend the whole daily plan before recently consumed material is
     /// even considered.
     func firstReviewMemoryItems(
@@ -3487,14 +3315,14 @@ actor StorageService {
         let representedSourceIDs = try store.activeMemoryItemSourceIDs(
             restrictToSourceIDs: restrictToSourceIDs
         )
-        let legacyStats = try store.memoryReviewStats(
+        let sourceStats = try store.memoryReviewStats(
             restrictToSourceIDs: restrictToSourceIDs
         ).filter { !representedSourceIDs.contains($0.sourceID) }
         let newCandidates = try store.unreviewedConsumedSources(
             restrictToSourceIDs: restrictToSourceIDs
         ).filter { !representedSourceIDs.contains($0.sourceID) }
         return MemoryReviewScheduler.firstReviewIntake(
-            legacyStats: legacyStats,
+            sourceStats: sourceStats,
             freshCandidates: newCandidates,
             now: now,
             limit: boundedLimit

@@ -524,7 +524,7 @@ enum PreferenceStore {
             for (key, expected) in snapshot {
                 let actual = defaults.object(forKey: key)
                 if actual == nil || !plistEqual(expected, actual!) {
-                    print("[PreferenceStore] '\(key)' was written outside PreferenceStore — it will not sync. Route it through PreferenceStore.set.")
+                    persistenceLogger.error("'\(key, privacy: .public)' was written outside PreferenceStore — it will not sync. Route it through PreferenceStore.set.")
                     recordWrite(key, actual)
                 }
             }

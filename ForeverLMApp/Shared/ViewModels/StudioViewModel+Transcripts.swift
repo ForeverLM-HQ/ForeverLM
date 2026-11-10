@@ -13,66 +13,6 @@ import Darwin
 
 extension StudioViewModel {
 
-    nonisolated static let legacyYouTubeTranscriptCharacterLimit = 50_000
-    nonisolated static let legacyYouTubeTranscriptTruncationMarker = "[Transcript truncated: exceeded 2000000 characters]"
-
-    nonisolated static func isLegacyTruncatedYouTubeTranscript(_ content: String) -> Bool {
-        content.count == legacyYouTubeTranscriptCharacterLimit
-            || content.hasSuffix(legacyYouTubeTranscriptTruncationMarker)
-    }
-
-    /// How much of a fresh caption fetch a stored video transcript must hold
-    /// to count as whole. It was the podcast audit's ratio until schema 167
-    /// replaced that one with `PodcastTranscriptCompleteness`; a video's
-    /// formatted transcript and its fresh captions are not shaped alike, so it
-    /// is kept here for videos alone.
-    nonisolated static let youTubeTranscriptCompletenessFloor = 0.85
-
-    /// Re-measures one video's transcript against a fresh caption fetch, once.
-    ///
-    /// The podcast equivalent of this can be settled locally, because an episode
-    /// keeps its raw TTML and the extracted text says exactly how much of it the
-    /// canonical transcript holds. A video keeps nothing, so the only authority
-    /// on its true length is YouTube — which is why this is a measurement rather
-    /// than a length test, and why the answer is stamped: `legacy_cap_verified_at`
-    /// is what stops a video that really is 49,000 characters long from
-    /// re-fetching every time it is opened.
-    ///
-    /// A band is needed rather than the exact 50,000 the old check used, because
-    /// captions were capped *before* the formatting pass and formatting then
-    /// added punctuation and paragraph breaks. On a real library that put one
-    /// truncated lecture at 51,013 characters, ending mid-word, where exact
-    /// equality never looked.
-    func recheckLegacyCappedYouTubeTranscript(for articleId: String) async {
-        guard !contentFetchInFlight.contains(articleId),
-              !youtubeTranscriptFetchInFlight.contains(articleId),
-              let article = articles.first(where: { $0.id == articleId }),
-              YouTubeTranscriptService.isYouTubeURL(article.url),
-              let stored = article.content,
-              (try? await storage.youTubeLegacyCapNeedsVerification(sourceID: articleId)) == true
-        else { return }
-
-        // Stamped before the fetch, not after: a video whose captions have since
-        // been withdrawn would otherwise be re-fetched on every open forever.
-        // The cap is historical, so one attempt per video is the whole contract.
-        try? await storage.markYouTubeLegacyCapVerified(sourceID: articleId)
-
-        guard let (freshTranscript, _) = try? await YouTubeTranscriptService.shared
-            .fetchTranscript(from: article.url) else { return }
-        let floor = Double(freshTranscript.count) * Self.youTubeTranscriptCompletenessFloor
-        guard Double(stored.count) < floor else { return }
-
-        logger.notice(
-            """
-            Re-fetching \(article.title, privacy: .public): stored transcript holds \
-            \(stored.count) characters against \(freshTranscript.count) fresh
-            """
-        )
-        // Hand the replacement to the ordinary path so chapters, formatting and
-        // persistence stay in one place rather than being reimplemented here.
-        await fetchYouTubeTranscript(for: articleId, forceRefresh: true)
-    }
-
     /// Whether a transcript may go through the billed formatting pass.
     ///
     /// Hidden sources — a hidden podcast show or YouTube channel, or an
@@ -140,8 +80,7 @@ extension StudioViewModel {
 
         if !forceRefresh,
            let cachedTranscript = await storage.loadSourceContent(articleId),
-           !cachedTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-           !Self.isLegacyTruncatedYouTubeTranscript(cachedTranscript) {
+           !cachedTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             // Re-resolve by id: the index captured before the cache-load await may
             // now point at a different source if a concurrent refresh reordered `articles`.
             guard let idx = articles.firstIndex(where: { $0.id == articleId }) else { return }

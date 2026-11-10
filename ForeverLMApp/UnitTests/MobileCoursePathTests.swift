@@ -129,7 +129,6 @@ struct MobileCoursePathTests {
         // its row says Quiz and names the lecture beneath.
         #expect(first.rows.last?.title == "Quiz")
         #expect(first.rows.last?.quizSubtitle == "1) Isolated Mitochondria")
-        #expect(first.rows.last?.legacyVideoSourceID == "vid-1")
         #expect(path.blocks.last.map { if case .milestone = $0 { return true } else { return false } } == true)
         #expect(path.quizRows.last?.quizSubtitle == "Lectures 1–2")
         #expect(path.furtherMaterial.map(\.id) == ["extra"])
@@ -166,17 +165,6 @@ struct MobileCoursePathTests {
         #expect(gate.states["video-i5"] == .open)
         #expect(gate.nextEntryID == "video-i5")
         #expect(gate.blockingQuizID == "cp")
-    }
-
-    @Test("A practice quiz completed before quizzes were stored counts under its lecture video's key")
-    func legacyPracticeScoreCompletes() {
-        let path = MobileCoursePath.build(course: course(), sources: sources(watchedFirst: true, paperRead: true))
-        let legacy = LectureQuizScore(right: 1, total: 4, takenAt: Date(timeIntervalSinceReferenceDate: 50))
-        let progress = MobileCourseProgress(
-            scores: [LectureQuizScore.preferenceKey(sourceID: "vid-1"): legacy],
-            reviewedSourceIDs: []
-        )
-        #expect(progress.gate(for: path).states["video-i5"] == .open)
     }
 
     @Test("A quiz row says whether it passed, how many it got right, or how many questions it has")

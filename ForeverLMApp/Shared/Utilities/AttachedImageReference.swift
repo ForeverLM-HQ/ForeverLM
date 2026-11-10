@@ -84,7 +84,6 @@ struct AttachedImageReference: Hashable, Sendable {
     /// parenthesis, which the id grammar cannot contain.
     private static let markdownPattern: NSRegularExpression = {
         let url = "\(SourceImageReference.scheme)://\(SourceImageReference.host)/\(segment)/[A-Za-z0-9-]+"
-        // swiftlint:disable:next force_try
         return try! NSRegularExpression(pattern: "!\\[([^\\]\\n]*)\\]\\(\\s*(\(url))\\s*\\)")
     }()
 
@@ -315,7 +314,6 @@ enum VideoMomentFrames {
     /// same text is left alone.
     private static let markdownPattern: NSRegularExpression = {
         let url = "\(SourceImageReference.scheme)://\(SourceImageReference.host)/[^/\\s)]+/at/\\d+(?:\\?crop=[0-9.,]+)?"
-        // swiftlint:disable:next force_try
         return try! NSRegularExpression(pattern: "!\\[([^\\]\\n]*)\\]\\(\\s*(\(url))\\s*\\)")
     }()
 

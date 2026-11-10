@@ -211,54 +211,14 @@ enum KeychainService {
         /// X refresh tokens are single-use, so two Macs sharing one grant would
         /// retire each other's.
         case xAccounts = "x_accounts_v1"
-        /// The next seven are the single connection older builds stored. Only
-        /// `XBookmarkService.adoptLegacyConnectionIfNeeded` reads them, and it
-        /// deletes them once the connection is the first account.
-        case xClientId = "x_client_id"
-        case xAccessToken = "x_access_token"
-        case xRefreshToken = "x_refresh_token"
-        case xUserId = "x_user_id"
-        case xUsername = "x_username"
-        case xTokenExpiry = "x_token_expiry"
-        case xGrantedScopes = "x_granted_scopes"
-        case googleDriveClientID = "google_drive_client_id"
-        case googleDriveClientSecret = "google_drive_client_secret"
-        case googleDriveAccessToken = "google_drive_access_token"
-        case googleDriveRefreshToken = "google_drive_refresh_token"
-        case googleDriveTokenExpiry = "google_drive_token_expiry"
-        /// Space-separated OAuth scopes attached to the stored Drive grant.
-        /// Sessions created before folder traversal was fixed have only
-        /// `drive.file`; keeping the scope lets UI require a deliberate
-        /// reconnect instead of presenting an authorized-but-empty folder.
-        case googleDriveGrantedScopes = "google_drive_granted_scopes"
         case googleDriveAccounts = "google_drive_accounts_v2"
-        /// Account used by Drive links written before links carried their own
-        /// account identity. It is set when the legacy singleton grant is
-        /// adopted into the account-indexed store.
-        case googleDriveLegacyAccountID = "google_drive_legacy_account_id_v2"
         /// Account used for account-agnostic Drive actions such as creating a
         /// Google Doc. Folder and recording reads always use their tagged owner.
         case googleDriveDefaultAccountID = "google_drive_default_account_id_v2"
-        /// The single YouTube connection builds before multi-account kept
-        /// here. Only `YouTubeService.adoptSingleConnection` reads these: it
-        /// turns them into the first account and deletes them.
-        case youtubeAccessToken = "youtube_access_token"
-        case youtubeRefreshToken = "youtube_refresh_token"
-        case youtubeTokenExpiry = "youtube_token_expiry"
         case youtubeAutoImportEnabled = "youtube_auto_import_enabled"
-        /// The OAuth client that issued the single connection's tokens
-        /// (adoption-only, like the three above).
-        case youtubeClientID = "youtube_client_id"
-        case youtubeClientSecret = "youtube_client_secret"
         /// JSON array of the YouTube accounts the plugin holds; each account's
         /// grant lives in account-scoped items (`youtube_account:<id>:<field>`).
         case youtubeAccounts = "youtube_accounts_v1"
-        /// The OAuth client that issued the stored Drive tokens. Drive now signs
-        /// in against a ForeverLM-owned client; Google only
-        /// refreshes a token for its issuing client, so it is recorded here
-        /// rather than assumed to be the current default.
-        case driveClientID = "drive_client_id"
-        case driveClientSecret = "drive_client_secret"
         /// The retired Google Calendar plugin's grant, its issuing client,
         /// and the calendars the Planner drew from. Kept only so
         /// `purgeRetiredGoogleCalendarGrants` can delete what an older build
@@ -338,24 +298,10 @@ enum KeychainService {
         // was the family's key that they hold (docs/family-design.md).
         .familyDeviceKey,
         .familyAppliedKeyStamp,
-        .googleDriveClientID,
-        .googleDriveClientSecret,
-        .googleDriveAccessToken,
-        .googleDriveRefreshToken,
-        .googleDriveTokenExpiry,
-        .googleDriveGrantedScopes,
         .googleDriveAccounts,
-        .googleDriveLegacyAccountID,
         .googleDriveDefaultAccountID,
-        .youtubeAccessToken,
-        .youtubeRefreshToken,
-        .youtubeTokenExpiry,
         .youtubeAutoImportEnabled,
-        .youtubeClientID,
-        .youtubeClientSecret,
         .youtubeAccounts,
-        .driveClientID,
-        .driveClientSecret,
         .googleCalendarAccessToken,
         .googleCalendarRefreshToken,
         .googleCalendarTokenExpiry,
@@ -384,7 +330,7 @@ enum KeychainService {
     /// `managed_ai_session_*`, `apple_user_*` or `stripe_*` key to this set. The
     /// OAuth *client IDs* also stay put despite not being secret: they already ride
     /// iCloud Keychain paired with secrets that don't, and splitting a pair strands
-    /// a synced ID next to an unsynced secret (see the `youtubeClientID` note above).
+    /// a synced ID next to an unsynced secret.
     private static let preferenceBackedKeys: Set<Key> = [
         .aiProvider,
         .anthropicModel, .openAIModel, .groqModel, .cerebrasModel, .xaiModel,
@@ -596,28 +542,12 @@ enum KeychainService {
 
         #if os(macOS)
         if let value = loadUngroupedDataProtection(key) {
-            promoteLegacyIndividualValueIfNeeded(value, for: key)
-            return value
-        }
-
-        // Only a properly signed build may pay the one-time migration cost of
-        // reading an old file-based item. An ad-hoc build would be authorized by
-        // CDHash, which turns this read into a password prompt on every rebuild.
-        if sharedAccessGroup != nil, let value = loadStandard(key) {
-            promoteLegacyIndividualValueIfNeeded(value, for: key)
             return value
         }
         #endif
 
         return nil
     }
-
-    #if os(macOS)
-    private static func promoteLegacyIndividualValueIfNeeded(_ value: String, for key: Key) {
-        guard syncsAcrossDevices(key) else { return }
-        _ = saveIndividualToDataProtectionKeychain(Data(value.utf8), for: key)
-    }
-    #endif
 
     private static func baseQuery(for key: Key) -> [String: Any] {
         baseQuery(forAccount: key.rawValue)
@@ -652,17 +582,6 @@ enum KeychainService {
         ]
     }
 
-    private static func standardBaseQuery(for key: Key) -> [String: Any] {
-        standardBaseQuery(forAccount: key.rawValue)
-    }
-
-    private static func standardBaseQuery(forAccount account: String) -> [String: Any] {
-        [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: account,
-        ]
-    }
     #endif
 
     private enum KeychainAccess {
@@ -819,43 +738,6 @@ enum KeychainService {
                 return .unreadable(status)
             }
             break
-        }
-
-        if values == nil {
-            // No local vault yet — promote a vault that an older build created as
-            // an iCloud-synchronized item. From here on this device reads and
-            // writes only its local copy.
-            for query in legacySynchronizableVaultLookupQueries() {
-                if let decoded = decodeVault(matching: query) {
-                    _ = saveVault(decoded)
-                    values = decoded
-                    break
-                }
-            }
-        }
-
-        // The old file-based login keychain protects items with a code-signing
-        // ACL. That is the source of the system password dialog when people
-        // alternate between development, App Store, and direct-download
-        // builds. Pay that migration cost at most once. After the replacement
-        // has been committed to the data-protection keychain, retire the old
-        // item so an older or partially migrated launch cannot append another
-        // exact build hash to its ACL and recreate the prompt cycle.
-        // This item is ACL-guarded too, so the read is bounded: an unanswered
-        // dialog leaves the vault empty for this launch rather than freezing it.
-        // Nothing is recorded either way — the item is retired only once its
-        // contents are safely copied, so a timeout simply asks again next time.
-        if values == nil, sharedAccessGroup != nil {
-            for query in legacyStandardVaultLookupQueries() {
-                guard case .decoded(let decoded) = readPromptableVault(matching: query) else {
-                    continue
-                }
-                if saveVault(decoded) {
-                    deleteLegacyStandardVault(matching: query)
-                }
-                values = decoded
-                break
-            }
         }
 
         if let retired = loadRetiredReviewVault(allowFileBased: values == nil) {
@@ -1233,36 +1115,6 @@ enum KeychainService {
         return [vaultBaseQuery(), ungroupedDataProtectionVaultBaseQuery()]
     }
 
-    /// Older builds created the vault as an iCloud-synchronized item. These
-    /// queries find such a vault so `loadVault` can promote its contents into
-    /// the local vault. The synced item is left in place — deleting it would
-    /// propagate through iCloud Keychain and strand other Macs still running
-    /// an older build — but nothing writes to it anymore, so it goes stale and
-    /// stops carrying rotated tokens between devices.
-    private static func legacySynchronizableVaultLookupQueries() -> [[String: Any]] {
-        vaultStorageQueries().map { query in
-            var lookup = query
-            lookup[kSecAttrSynchronizable as String] = kCFBooleanTrue
-            lookup[kSecReturnData as String] = true
-            lookup[kSecMatchLimit as String] = kSecMatchLimitOne
-            return lookup
-        }
-    }
-
-    private static func legacyStandardVaultLookupQueries() -> [[String: Any]] {
-        var lookup = standardVaultBaseQuery()
-        lookup[kSecReturnData as String] = true
-        lookup[kSecMatchLimit as String] = kSecMatchLimitOne
-        return [lookup]
-    }
-
-    private static func deleteLegacyStandardVault(matching lookupQuery: [String: Any]) {
-        var deleteQuery = lookupQuery
-        deleteQuery.removeValue(forKey: kSecReturnData as String)
-        deleteQuery.removeValue(forKey: kSecMatchLimit as String)
-        SecItemDelete(deleteQuery as CFDictionary)
-    }
-
     private static func vaultBaseQuery() -> [String: Any] {
         var query = baseQuery(forAccount: vaultAccount)
         query[kSecUseDataProtectionKeychain as String] = true
@@ -1271,14 +1123,6 @@ enum KeychainService {
 
     private static func ungroupedDataProtectionVaultBaseQuery() -> [String: Any] {
         ungroupedDataProtectionBaseQuery(forAccount: vaultAccount)
-    }
-
-    private static func standardVaultBaseQuery() -> [String: Any] {
-        [
-            kSecClass as String: kSecClassGenericPassword,
-            kSecAttrService as String: service,
-            kSecAttrAccount as String: vaultAccount,
-        ]
     }
 
     private static func currentServiceQuery() -> [String: Any] {
@@ -1396,24 +1240,6 @@ enum KeychainService {
         }
         SecItemDelete(query as CFDictionary)
     }
-
-    private static func loadStandard(_ key: Key) -> String? {
-        var query = standardBaseQuery(for: key)
-        query.merge([
-            kSecReturnData as String: true,
-            kSecMatchLimit as String: kSecMatchLimitOne,
-        ]) { _, new in new }
-
-        var result: AnyObject?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
-
-        if status == errSecSuccess, let data = result as? Data,
-           let value = String(data: data, encoding: .utf8), !value.isEmpty {
-            return value
-        }
-
-        return nil
-    }
     #endif
 
     static func delete(_ key: Key) {
@@ -1433,13 +1259,6 @@ enum KeychainService {
         deleteCurrent(key)
         #if os(macOS)
         deleteUngroupedDataProtection(key)
-        if sharedAccessGroup != nil {
-            var standardQuery = standardBaseQuery(for: key)
-            if syncsAcrossDevices(key) {
-                standardQuery[kSecAttrSynchronizable as String] = kSecAttrSynchronizableAny
-            }
-            SecItemDelete(standardQuery as CFDictionary)
-        }
         #endif
     }
 
@@ -1621,7 +1440,7 @@ enum KeychainService {
     }
 
     /// Read one account-scoped synchronized item, falling back on macOS to the
-    /// ungrouped and legacy-keychain shapes older builds wrote under.
+    /// ungrouped shape ad-hoc builds write under.
     private static func loadSynchronizedAccountValue(account: String) -> String? {
         if let value = loadSynchronizedValue(matching: baseQuery(forAccount: account)) {
             return value
@@ -1631,8 +1450,7 @@ enum KeychainService {
         if let value = loadSynchronizedValue(matching: ungroupedDataProtectionBaseQuery(forAccount: account)) {
             return value
         }
-        guard sharedAccessGroup != nil else { return nil }
-        return loadSynchronizedValue(matching: standardBaseQuery(forAccount: account))
+        return nil
         #else
         return nil
         #endif
@@ -1680,8 +1498,7 @@ enum KeychainService {
         if let value = loadSynchronizedValue(matching: ungroupedDataProtectionBaseQuery(forAccount: account)) {
             return value
         }
-        guard sharedAccessGroup != nil else { return nil }
-        return loadSynchronizedValue(matching: standardBaseQuery(forAccount: account))
+        return nil
         #else
         return nil
         #endif
@@ -1744,15 +1561,6 @@ enum KeychainService {
         let ungroupedStatus = SecItemDelete(ungroupedQuery as CFDictionary)
         if ungroupedStatus != errSecSuccess, ungroupedStatus != errSecItemNotFound {
             succeeded = false
-        }
-
-        if sharedAccessGroup != nil {
-            var standardQuery = standardBaseQuery(forAccount: account)
-            standardQuery[kSecAttrSynchronizable as String] = kSecAttrSynchronizableAny
-            let standardStatus = SecItemDelete(standardQuery as CFDictionary)
-            if standardStatus != errSecSuccess, standardStatus != errSecItemNotFound {
-                succeeded = false
-            }
         }
         #endif
         return succeeded
@@ -1895,91 +1703,13 @@ enum KeychainService {
         return succeeded
     }
 
-    /// The single X connection older builds stored, for adoption as the first
-    /// account (`XBookmarkService.adoptLegacyConnectionIfNeeded`).
-    static func legacyXConnection() -> XLegacyConnection {
-        XLegacyConnection(
-            userID: load(.xUserId),
-            username: load(.xUsername),
-            accessToken: load(.xAccessToken),
-            refreshToken: load(.xRefreshToken),
-            tokenExpiry: load(.xTokenExpiry),
-            grantedScopes: load(.xGrantedScopes),
-            clientID: load(.xClientId)
-        )
-    }
-
-    static func deleteLegacyXConnection() {
-        for key: Key in [
-            .xClientId, .xAccessToken, .xRefreshToken, .xUserId, .xUsername, .xTokenExpiry, .xGrantedScopes,
-        ] {
-            delete(key)
-        }
-    }
-
     // MARK: - Google Drive OAuth
-
-    static var googleDriveClientID: String? {
-        get { load(.googleDriveClientID) }
-        set {
-            if let newValue { save(newValue, for: .googleDriveClientID) }
-            else { delete(.googleDriveClientID) }
-        }
-    }
-
-    static var googleDriveClientSecret: String? {
-        get { load(.googleDriveClientSecret) }
-        set {
-            if let newValue { save(newValue, for: .googleDriveClientSecret) }
-            else { delete(.googleDriveClientSecret) }
-        }
-    }
-
-    static var googleDriveAccessToken: String? {
-        get { load(.googleDriveAccessToken) }
-        set {
-            if let newValue { save(newValue, for: .googleDriveAccessToken) }
-            else { delete(.googleDriveAccessToken) }
-        }
-    }
-
-    static var googleDriveRefreshToken: String? {
-        get { load(.googleDriveRefreshToken) }
-        set {
-            if let newValue { save(newValue, for: .googleDriveRefreshToken) }
-            else { delete(.googleDriveRefreshToken) }
-        }
-    }
-
-    static var googleDriveTokenExpiry: String? {
-        get { load(.googleDriveTokenExpiry) }
-        set {
-            if let newValue { save(newValue, for: .googleDriveTokenExpiry) }
-            else { delete(.googleDriveTokenExpiry) }
-        }
-    }
-
-    static var googleDriveGrantedScopes: String? {
-        get { load(.googleDriveGrantedScopes) }
-        set {
-            if let newValue { save(newValue, for: .googleDriveGrantedScopes) }
-            else { delete(.googleDriveGrantedScopes) }
-        }
-    }
 
     static var googleDriveAccounts: String? {
         get { load(.googleDriveAccounts) }
         set {
             if let newValue { save(newValue, for: .googleDriveAccounts) }
             else { delete(.googleDriveAccounts) }
-        }
-    }
-
-    static var googleDriveLegacyAccountID: String? {
-        get { load(.googleDriveLegacyAccountID) }
-        set {
-            if let newValue { save(newValue, for: .googleDriveLegacyAccountID) }
-            else { delete(.googleDriveLegacyAccountID) }
         }
     }
 
@@ -1996,71 +1726,13 @@ enum KeychainService {
     // The YouTube plugin authenticates against ForeverLM's own OAuth client
     // (Secrets.youtubeOAuthClientID). Each account records whichever client
     // issued its tokens (`YouTubeCredentialField.clientID`), so connections
-    // made under the older shared-with-Drive client keep refreshing. The five
-    // singleton values below are the pre-multi-account connection; only
-    // `YouTubeService.adoptSingleConnection` reads them.
+    // made under the older shared-with-Drive client keep refreshing.
 
     static var youtubeAccounts: String? {
         get { load(.youtubeAccounts) }
         set {
             if let newValue { save(newValue, for: .youtubeAccounts) }
             else { delete(.youtubeAccounts) }
-        }
-    }
-
-    static var youtubeAccessToken: String? {
-        get { load(.youtubeAccessToken) }
-        set {
-            if let newValue { save(newValue, for: .youtubeAccessToken) }
-            else { delete(.youtubeAccessToken) }
-        }
-    }
-
-    static var youtubeRefreshToken: String? {
-        get { load(.youtubeRefreshToken) }
-        set {
-            if let newValue { save(newValue, for: .youtubeRefreshToken) }
-            else { delete(.youtubeRefreshToken) }
-        }
-    }
-
-    static var youtubeTokenExpiry: String? {
-        get { load(.youtubeTokenExpiry) }
-        set {
-            if let newValue { save(newValue, for: .youtubeTokenExpiry) }
-            else { delete(.youtubeTokenExpiry) }
-        }
-    }
-
-    static var youtubeClientID: String? {
-        get { load(.youtubeClientID) }
-        set {
-            if let newValue { save(newValue, for: .youtubeClientID) }
-            else { delete(.youtubeClientID) }
-        }
-    }
-
-    static var youtubeClientSecret: String? {
-        get { load(.youtubeClientSecret) }
-        set {
-            if let newValue { save(newValue, for: .youtubeClientSecret) }
-            else { delete(.youtubeClientSecret) }
-        }
-    }
-
-    static var driveClientID: String? {
-        get { load(.driveClientID) }
-        set {
-            if let newValue { save(newValue, for: .driveClientID) }
-            else { delete(.driveClientID) }
-        }
-    }
-
-    static var driveClientSecret: String? {
-        get { load(.driveClientSecret) }
-        set {
-            if let newValue { save(newValue, for: .driveClientSecret) }
-            else { delete(.driveClientSecret) }
         }
     }
 

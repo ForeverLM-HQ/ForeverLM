@@ -394,7 +394,7 @@ extension MCPDataStore {
         guard sessionExists else {
             if isMCPMemoryReviewSessionID(sessionID) {
                 throw MCPError.notFound(
-                    "Memory review session \(sessionID) was not found. ForeverLM will not import its transcript as an ordinary review because that would detach required concept attempts and consume legacy state. Restart memory_review and retry with its new session_id."
+                    "Memory review session \(sessionID) was not found. ForeverLM will not import its transcript as an ordinary review because that would detach required concept attempts and consume source-level review state. Restart memory_review and retry with its new session_id."
                 )
             }
             guard rawMemoryAttempts.isEmpty else {
@@ -529,7 +529,7 @@ extension MCPDataStore {
         if isMemoryReviewSession, !hasGradedMemoryEvidence {
             guard trimmedTranscript?.isEmpty != false, gaps.isEmpty else {
                 throw MCPError.invalidInput(
-                    "This memory review contains no structured memory_attempts. ForeverLM will not complete a reviewed transcript or consume its legacy/Schedule state without graded concept evidence. Submit every covered attempt, or omit transcript and gaps to close an untouched session."
+                    "This memory review contains no structured memory_attempts. ForeverLM will not complete a reviewed transcript or consume its source-level review/Schedule state without graded concept evidence. Submit every covered attempt, or omit transcript and gaps to close an untouched session."
                 )
             }
             guard try knowledgeStore().deleteReviewSessionIfNoRecordedConversation(sessionID) else {
@@ -537,11 +537,11 @@ extension MCPDataStore {
                     "This memory review has a durable queue or recorded learner conversation but no structured memory_attempts. It remains open so no review or Schedule state is consumed."
                 )
             }
-            return "Untouched memory review closed. No concept schedule, legacy review state, Schedule item, quiz count, or gap was changed."
+            return "Untouched memory review closed. No concept schedule, source-level review state, Schedule item, quiz count, or gap was changed."
         }
         if hasAnyMemoryEvidence, !hasGradedMemoryEvidence {
             throw MCPError.invalidInput(
-                "This review contains only failed memory grading evidence. It remains open so no concept, legacy, Schedule, quiz, or gap state is consumed; retry grading before completing it."
+                "This review contains only failed memory grading evidence. It remains open so no concept, source-level, Schedule, quiz, or gap state is consumed; retry grading before completing it."
             )
         }
         let reviewedMemorySourceIDs: [String]

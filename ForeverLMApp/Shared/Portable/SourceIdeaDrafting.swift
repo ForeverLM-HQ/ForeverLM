@@ -98,7 +98,7 @@ enum SourceIdeaDrafting {
     /// match its hash yet may leave its tail out, so a reader that needs the
     /// whole source (an audio overview) does not take them for it. A record of
     /// what old builds did, not a limit on reading.
-    static let legacyReadCharacters = 240_000
+    static let singleReadCharacterLimit = 240_000
 
     /// The extraction request's user message: title, type, the learner's own
     /// highlights, then the text — all of the text it is given. Nothing here

@@ -186,7 +186,7 @@ enum NotebookSourceLoader {
     /// for its whole text: taken from exactly the text stored now (the hash
     /// extraction stamps is of the text as stored, untrimmed), and from all
     /// of it. Until 2026-09-30 extraction read only the first
-    /// `SourceIdeaDrafting.legacyReadCharacters` of a longer text while
+    /// `SourceIdeaDrafting.singleReadCharacterLimit` of a longer text while
     /// hashing the whole, so a longer source's ideas may leave its tail out
     /// and are not used; it is condensed whole instead. Nil when none qualify.
     static func currentIdeas(
@@ -196,7 +196,7 @@ enum NotebookSourceLoader {
         storage: StorageService
     ) async throws -> String? {
         guard let ideas, !ideas.isEmpty,
-              storedText.count <= SourceIdeaDrafting.legacyReadCharacters,
+              storedText.count <= SourceIdeaDrafting.singleReadCharacterLimit,
               try await storage.sourceIdeaContentHash(sourceID: sourceID) == SourceIdeaDrafting.contentHash(storedText)
         else { return nil }
         return ideasText(ideas)

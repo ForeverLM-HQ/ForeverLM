@@ -54,7 +54,7 @@ actor XPostThreadService {
         guard isXHostURL(urlString),
               let components = URLComponents(string: urlString) else { return nil }
         let parts = components.path.split(separator: "/").map(String.init)
-        // /<handle>/status/<id>, /i/status/<id>, and the legacy /statuses/ form.
+        // /<handle>/status/<id>, /i/status/<id>, and the older /statuses/ form.
         guard let statusIndex = parts.firstIndex(where: { $0 == "status" || $0 == "statuses" }),
               statusIndex + 1 < parts.count else { return nil }
         let id = parts[statusIndex + 1]

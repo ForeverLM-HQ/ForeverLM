@@ -157,7 +157,7 @@ enum AppleSignInSupport {
 ///
 /// The deprecated scheme-only handoff rendered its requesting-app label as “(null)” on
 /// current macOS before Safari opened the authentication flow. Keeping construction here
-/// prevents individual OAuth integrations from drifting back to that legacy path.
+/// prevents individual OAuth integrations from drifting back to that deprecated path.
 enum WebAuthenticationSessionSupport {
     static func make(
         url: URL,

@@ -444,7 +444,7 @@ extension KnowledgeStore {
     /// `hideCourseSourcesWithoutCourse`.
     ///
     /// A book chapter's membership is never the course's. Books and courses
-    /// share the `group_members` id space, and a legacy `courses` row can carry
+    /// share the `group_members` id space, and an existing `courses` row can carry
     /// a book's own id: deleting the hidden "Molecular Biology of the Cell"
     /// course on 2026-09-27 took all 24 of that book's chapters out of it, and
     /// each one showed as a separate book with its file path for a subtitle.

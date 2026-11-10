@@ -482,7 +482,6 @@ private struct DocGraphTreeBuilder {
         return .tag(canInterruptParagraph: false)
     }
 
-    // swiftlint:disable:next force_try
     private static let tableDelimiter = try! NSRegularExpression(pattern: #"^\s{0,3}\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$"#)
 
     func isTableDelimiter(_ ref: DocGraphLineRef) -> Bool {
@@ -1032,7 +1031,6 @@ enum DocGraphText {
     static let mask: UInt16 = 1
 
     private static func regex(_ pattern: String, _ options: NSRegularExpression.Options = []) -> NSRegularExpression {
-        // swiftlint:disable:next force_try
         try! NSRegularExpression(pattern: pattern, options: options)
     }
 

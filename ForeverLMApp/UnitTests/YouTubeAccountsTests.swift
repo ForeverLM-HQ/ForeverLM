@@ -95,67 +95,6 @@ struct YouTubeAccountsTests {
         #expect(YouTubeAccountList.setting(chosen, forAccount: "UCmissing", in: listed) == listed)
     }
 
-    // MARK: - Adopting the single connection
-
-    @Test("the old connection becomes the first account with what it imported")
-    func adoptionCarriesChoices() {
-        let choices = YouTubeImportChoices(
-            source: .likedVideos,
-            foreverLMPlaylistID: nil,
-            likedPolicy: .futureOnly,
-            likedCutoff: Date(timeIntervalSince1970: 1_700_000_000)
-        )
-        let adopted = YouTubeAccountList.connecting(id: "UCzara", title: "Zara Holt Lab", choicesIfNew: choices, into: [])
-        #expect(adopted.count == 1)
-        #expect(adopted[0].choices == choices)
-    }
-
-    @Test("adopting on a second Mac never overwrites an account the first Mac already listed")
-    func adoptionKeepsAnExistingAccount() {
-        let listed = [account("UCzara", "Zara Holt Lab", source: .foreverLMPlaylist, playlistID: "PLzara")]
-        let again = YouTubeAccountList.connecting(
-            id: "UCzara",
-            title: "Zara Holt Lab",
-            choicesIfNew: YouTubeImportChoices(source: .likedVideos, foreverLMPlaylistID: nil, likedPolicy: .importExisting, likedCutoff: nil),
-            into: listed
-        )
-        #expect(again == listed)
-    }
-
-    @Test("the old preferences and followed groups are read into the first account's choices")
-    func legacyChoicesFromPreferencesAndGroups() {
-        let likedGroupID = StudioViewModel.youtubePlaylistGroupID(for: YouTubeService.likedVideosPlaylistURL)
-        let likedOnly = [likedGroupID: VideoPlaylistMetadata(
-            title: "Liked videos",
-            playlistURL: YouTubeService.likedVideosPlaylistURL,
-            autoImport: true,
-            connectorKind: YouTubeImportSource.likedVideos.connectorKind
-        )]
-        // Liked videos mirrored before the policy existed: existing and future likes.
-        let unset = StudioViewModel.legacyYouTubeChoices(groups: likedOnly, policyRaw: nil, cutoff: 0)
-        #expect(unset.source == .likedVideos)
-        #expect(unset.likedPolicy == .importExisting)
-        #expect(unset.likedCutoff == nil)
-
-        let chosen = StudioViewModel.legacyYouTubeChoices(groups: likedOnly, policyRaw: "futureOnly", cutoff: 1_700_000_000)
-        #expect(chosen.likedPolicy == .futureOnly)
-        #expect(chosen.likedCutoff == Date(timeIntervalSince1970: 1_700_000_000))
-
-        let playlist = ["playlist_x": VideoPlaylistMetadata(
-            title: "ForeverLM",
-            playlistURL: YouTubeService.playlistURL(forID: "PLzara"),
-            autoImport: true,
-            connectorKind: YouTubeImportSource.foreverLMPlaylist.connectorKind
-        )]
-        let named = StudioViewModel.legacyYouTubeChoices(groups: playlist, policyRaw: nil, cutoff: 0)
-        #expect(named.source == .foreverLMPlaylist)
-        #expect(named.foreverLMPlaylistID == "PLzara")
-        #expect(named.likedPolicy == .undecided)
-
-        let nothing = StudioViewModel.legacyYouTubeChoices(groups: [:], policyRaw: nil, cutoff: 0)
-        #expect(nothing == .unchosen)
-    }
-
     // MARK: - Which account a call means
 
     @Test("an unnamed call means the only connected account")

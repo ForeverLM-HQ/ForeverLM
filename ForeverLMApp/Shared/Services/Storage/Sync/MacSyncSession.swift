@@ -372,8 +372,8 @@ actor MacSyncSession {
             case .ready(let found):
                 holding = found
             }
-            // No old container to look in: a `fresh` library on an account with no root seeds at once (§2.4).
-            guard let client = CutoverReadiness.client(for: holding, oldLibraryExists: false) else { return }
+            // A `fresh` library on an account with no root seeds at once (§2.4).
+            let client = CutoverReadiness.client(for: holding)
             holds = client == .macHoldingLibrary
             waitsForLearner = !holds && holding != .none
             try await begin(client: client)

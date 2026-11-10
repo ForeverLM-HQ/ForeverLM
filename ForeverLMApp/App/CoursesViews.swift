@@ -839,7 +839,7 @@ struct CoursePathRow: View {
     }
 
     private func quizDetail(target: CourseQuizTarget, quiz: CourseQuiz) -> String? {
-        let score = vm.courseQuizScore(quizID: target.quizID, legacyVideoSourceID: target.legacyVideoSourceID)
+        let score = vm.courseQuizScore(quizID: target.quizID)
         let unfinished = vm.courseQuizSittings[target.quizID].flatMap { $0.isUnderWay ? $0 : nil }
         var parts: [String] = []
         // A named quiz says what kind of quiz it is on its second line, since
@@ -910,8 +910,8 @@ struct CoursePathRow: View {
                 .accessibilityLabel("Locked")
         case .open:
             if let quizScore {
-                // A legacy gate may still call a scored row open while its
-                // synced score is arriving. The mastery mark wins either way.
+                // A gate may still call a scored row open while its synced
+                // score is arriving. The mastery mark wins either way.
                 CourseQuizScoreRing(score: quizScore)
             } else if tracksCompletion {
                 Image(systemName: "circle")
@@ -929,7 +929,7 @@ struct CoursePathRow: View {
 
     private var quizScore: LectureQuizScore? {
         guard case .quiz(let target, _) = entry.kind else { return nil }
-        return vm.courseQuizScore(quizID: target.quizID, legacyVideoSourceID: target.legacyVideoSourceID)
+        return vm.courseQuizScore(quizID: target.quizID)
     }
 
     private func videoProgress(_ article: StudioArticle) -> VideoWatchProgress? {
@@ -937,7 +937,7 @@ struct CoursePathRow: View {
     }
 
     private func quizSymbol(target: CourseQuizTarget, quiz: CourseQuiz) -> String {
-        let scored = vm.courseQuizScore(quizID: target.quizID, legacyVideoSourceID: target.legacyVideoSourceID) != nil
+        let scored = vm.courseQuizScore(quizID: target.quizID) != nil
         var symbol: String
         switch quiz.kind {
         case .practice: symbol = scored ? "checklist.checked" : "checklist"
@@ -960,7 +960,7 @@ struct CoursePathRow: View {
         if let unfinished = vm.courseQuizSittings[target.quizID], unfinished.isUnderWay, unfinished.total > 0 {
             return .underWay(Double(unfinished.done) / Double(unfinished.total))
         }
-        if let score = vm.courseQuizScore(quizID: target.quizID, legacyVideoSourceID: target.legacyVideoSourceID) {
+        if let score = vm.courseQuizScore(quizID: target.quizID) {
             return .done(right: score.right, total: score.total)
         }
         return nil

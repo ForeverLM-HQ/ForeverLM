@@ -582,7 +582,7 @@ struct LectureQuizScore: Equatable, Sendable {
     var label: String { "\(right) of \(total) right" }
 
     /// The latest sitting's mastery as a bounded fraction for the course
-    /// row's trailing score ring. A malformed or legacy zero-total value is
+    /// row's trailing score ring. A malformed zero-total value is
     /// empty rather than dividing by zero, and corrupt out-of-range counts
     /// cannot overdraw the ring.
     var fractionRight: Double {

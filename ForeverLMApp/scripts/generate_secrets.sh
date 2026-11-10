@@ -78,7 +78,7 @@ esac
 
 # The YouTube plugin authenticates against a ForeverLM-owned OAuth client so
 # users never paste their own credentials. A release build without it would
-# silently fall back to the legacy bring-your-own-client path, which is exactly
+# silently fall back to the bring-your-own-client path, which is exactly
 # the confusing behaviour this client replaces — so fail the build instead.
 if [ "$REQUIRE_SHIPPING_SECRETS" = true ] && { [ -z "$YOUTUBE_OAUTH_CLIENT_ID" ] || [ -z "$YOUTUBE_OAUTH_CLIENT_SECRET" ]; }; then
     echo "[generate_secrets] Error: YOUTUBE_OAUTH_CLIENT_ID and YOUTUBE_OAUTH_CLIENT_SECRET are required for ${CONFIGURATION} builds." >&2
@@ -94,7 +94,7 @@ import Foundation
 enum Secrets {
     /// The ForeverLM-owned Google OAuth client for the YouTube plugin. Empty
     /// in Debug builds without a populated .env, which leaves the plugin on
-    /// the legacy user-supplied credentials path.
+    /// the user-supplied credentials path.
     ///
     /// This is a Google "Desktop app" client: Google documents such a secret as
     /// non-confidential, and the flow is protected by PKCE, so shipping it in

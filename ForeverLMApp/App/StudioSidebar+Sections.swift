@@ -3664,7 +3664,7 @@ private struct OverscrollRefresh: NSViewRepresentable {
             }
         }
 
-        /// Legacy mouse wheels report no phases, but they also can't rubber-band, so
+        /// Older mouse wheels report no phases, but they also can't rubber-band, so
         /// they never reach the overscroll region and the flag's state is irrelevant.
         private func trackScrollPhases(of event: NSEvent) {
             if event.momentumPhase != [] {

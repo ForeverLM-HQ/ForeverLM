@@ -47,14 +47,11 @@ enum CutoverReadiness: Equatable, Sendable {
         }
     }
 
-    /// The bootstrap client for a holding the lookup resolved: whether the old container still has a library.
-    static func client(for holding: Holding, oldLibraryExists: Bool?) -> ZoneBootstrap.Client? {
+    /// The bootstrap client for a holding.
+    static func client(for holding: Holding) -> ZoneBootstrap.Client {
         switch holding {
-        case .library: return .macHoldingLibrary
+        case .library, .libraryIfNewAccount: return .macHoldingLibrary
         case .none: return .macWithoutLibrary
-        case .libraryIfNewAccount:
-            guard let oldLibraryExists else { return nil }
-            return oldLibraryExists ? .macWithoutLibrary : .macHoldingLibrary
         }
     }
 }

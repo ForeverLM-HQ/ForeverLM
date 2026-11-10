@@ -73,14 +73,13 @@ enum YouTubeAccountList {
     static func connecting(
         id: String,
         title: String,
-        choicesIfNew: YouTubeImportChoices = .unchosen,
         into accounts: [YouTubeAccount]
     ) -> [YouTubeAccount] {
         var accounts = accounts
         if let index = accounts.firstIndex(where: { $0.id == id }) {
             accounts[index].title = title
         } else {
-            accounts.append(YouTubeAccount(id: id, title: title, choices: choicesIfNew))
+            accounts.append(YouTubeAccount(id: id, title: title, choices: .unchosen))
         }
         return accounts
     }

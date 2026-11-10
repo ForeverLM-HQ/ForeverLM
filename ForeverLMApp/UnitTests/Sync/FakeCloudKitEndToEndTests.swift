@@ -97,7 +97,7 @@ struct FakeCloudKitEndToEndTests {
         #expect(try b.count("SELECT COUNT(*) FROM learning_goals WHERE id = 'nb3'") == 0, "the audit after the expired token finds the deletion")
     }
 
-    @Test("A fresh Mac joins after the seed as a new device and never fetches the old container; it holds no library, so it never claims")
+    @Test("A fresh Mac joins after the seed as a new device; it holds no library, so it never claims")
     func freshMacJoinsAfterTheSeed() async throws {
         let server = EngineTestDriver.server()
         _ = try await Self.seededLibrary(server, name: "e2e-join")
@@ -105,31 +105,10 @@ struct FakeCloudKitEndToEndTests {
         try C.activate(fresh.store, mode: "fresh", freshReason: "noHistory")
         try await fresh.bootstrap(.macWithoutLibrary)
         try await fresh.sync()
-        #expect(fresh.legacy.calls.isEmpty, "the old container was never asked")
         #expect(try fresh.count("SELECT COUNT(*) FROM sources") == 60)
         let environment = C.environment(fresh, holdsLibrary: false)
         #expect(try await CutoverSeeder(environment).run() == .noLibrary)
         #expect(try await CutoverReconcile(environment).run() == .noLibrary)
         #expect(try C.root(server).fields["seedClaim"]?.objectValue?["device"] != .string("macbbbbb"))
-    }
-
-    @Test("A fresh Mac that starts before the seed creates a pending root, and the library's Mac claims it and seeds")
-    func freshMacBeforeTheSeed() async throws {
-        let server = EngineTestDriver.server()
-        _ = server.put([], zone: "Knowledge", owner: C.user, container: FakeCloudKit.legacyContainer)
-        let fresh = try EngineTestDevice(server, name: "e2e-early", deviceID: "macaaaaa", user: C.user, registry: KnowledgeStore.projectionRegistry)
-        try await fresh.bootstrap(.macWithoutLibrary)
-        #expect(try C.seedMap(server)["state"] == .string("pending"))
-
-        let library = try EngineTestDevice(server, name: "e2e-library", deviceID: "macbbbbb", user: C.user, registry: KnowledgeStore.projectionRegistry)
-        try C.activate(library.store)
-        try Self.productionShaped(library.store)
-        try await library.bootstrap(.macHoldingLibrary)
-        try await library.sync()
-        var environment = C.environment(library)
-        environment.configuration.batchSize = 50
-        guard case .complete = try await CutoverSeeder(environment).run() else { Issue.record("the library's Mac did not seed"); return }
-        try await fresh.sync()
-        #expect(try fresh.count("SELECT COUNT(*) FROM sources") == 60, "the early Mac gets the library by syncing")
     }
 }

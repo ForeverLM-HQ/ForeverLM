@@ -1427,10 +1427,6 @@ enum EmbeddingSettings {
     static let contextualModel = "apple-nl-contextual"
     static let contextualDimensions = 512
 
-    /// Retired: `NLEmbedding.sentenceEmbedding`. Vectors under this key are stale and
-    /// are never read — kept only so the id remains recognizable in existing DB rows.
-    static let legacySentenceModel = "apple-nl-sentence"
-
     /// Canonical model id; also the DB embedding key.
     static var modelID: String { contextualModel }
 

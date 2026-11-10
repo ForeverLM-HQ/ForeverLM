@@ -1649,7 +1649,7 @@ extension AIService {
             user: user,
             // GPT-5-class models count hidden reasoning against the same output
             // ceiling. The unified one-shot transport does not pass through the
-            // legacy OpenAI adapter that inflates this budget, so the old 600
+            // OpenAI adapter that inflates this budget, so the old 600
             // tokens could be exhausted before any of the five required lines.
             maxTokens: maxTokens,
             temperature: 0.0,

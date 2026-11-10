@@ -1594,7 +1594,6 @@ enum SourceMetadataField: String, CaseIterable, Codable, Hashable {
     case kind        // books: category (textbook, etc.)
     case subtitle    // books: subtitle; courses: code · instructors · institution
     case edition     // books only
-    case ttsCache    // legacy persisted key; audio availability is always shown
 
     var displayName: String {
         switch self {
@@ -1608,7 +1607,6 @@ enum SourceMetadataField: String, CaseIterable, Codable, Hashable {
         case .kind:     return "Category"
         case .subtitle: return "Details"
         case .edition:  return "Edition"
-        case .ttsCache: return "Text to Speech"
         }
     }
 
@@ -1624,7 +1622,6 @@ enum SourceMetadataField: String, CaseIterable, Codable, Hashable {
         case .kind:     return "tag"
         case .subtitle: return "info.circle"
         case .edition:  return "books.vertical"
-        case .ttsCache: return "speaker.wave.2"
         }
     }
 
@@ -2709,11 +2706,8 @@ struct StudioArticle: Identifiable, Codable, Equatable {
         return missing
     }
 
-    /// Recognizes an incomplete-extraction failure, including rows persisted by
-    /// the build that phrased it "did not return author, venue, and year".
+    /// Recognizes an incomplete-extraction failure.
     static let paperMetadataIncompleteMarker = "Paper Metadata AI could not find the"
-    static let legacyPaperMetadataIncompleteMarker =
-        "Paper Metadata AI did not return author, venue, and year"
 
     static func paperMetadataIncompleteMessage(missing: [String]) -> String {
         let fields = missing.isEmpty ? ["author", "venue", "year"] : missing
@@ -2735,12 +2729,10 @@ struct StudioArticle: Identifiable, Codable, Equatable {
         errorMessage = message
     }
 
-    /// Recognizes a persisted incomplete-metadata failure, whichever build's
-    /// wording wrote it.
+    /// Recognizes a persisted incomplete-metadata failure.
     var isPaperMetadataIncompleteFailure: Bool {
         guard sourceType == .paper, state == .error, let errorMessage else { return false }
         return errorMessage.contains(Self.paperMetadataIncompleteMarker)
-            || errorMessage.contains(Self.legacyPaperMetadataIncompleteMarker)
     }
 
     /// A paper an earlier build failed because the extractor left one of the
@@ -2767,12 +2759,9 @@ struct StudioArticle: Identifiable, Codable, Equatable {
         return true
     }
 
-    /// Source Content Cleanup is a named, code-owned pipeline step, so these
-    /// markers can recognize both current failures and rows persisted by older
-    /// builds without guessing at human-authored text.
+    /// Source Content Cleanup is a named, code-owned pipeline step, so this
+    /// prefix recognizes its failures without guessing at human-authored text.
     static let paperContentCleanupFailurePrefix = "Paper cleanup couldn't finish."
-    static let legacyPaperContentCleanupFailureMarker =
-        "Paper ingestion failed during Source Content Cleanup:"
 
     static func paperContentCleanupFailureMessage(_ detail: String) -> String {
         "\(paperContentCleanupFailurePrefix) This step removes headers, footers, references, and other noise so the paper sounds natural when you listen and later AI work uses fewer tokens. Error: \(detail)"
@@ -2781,7 +2770,6 @@ struct StudioArticle: Identifiable, Codable, Equatable {
     var isPaperContentCleanupFailure: Bool {
         guard sourceType == .paper, let errorMessage else { return false }
         return errorMessage.hasPrefix(Self.paperContentCleanupFailurePrefix)
-            || errorMessage.contains(Self.legacyPaperContentCleanupFailureMarker)
     }
 
     /// Whether this source stopped mid-ingestion only because the ForeverLM AI
@@ -2798,10 +2786,6 @@ struct StudioArticle: Identifiable, Codable, Equatable {
     var paperContentCleanupFailureDetail: String? {
         guard isPaperContentCleanupFailure, let errorMessage else { return nil }
         if let range = errorMessage.range(of: "Error: ") {
-            return String(errorMessage[range.upperBound...])
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        if let range = errorMessage.range(of: Self.legacyPaperContentCleanupFailureMarker) {
             return String(errorMessage[range.upperBound...])
                 .trimmingCharacters(in: .whitespacesAndNewlines)
         }
@@ -3310,11 +3294,11 @@ struct StudioArticle: Identifiable, Codable, Equatable {
         resolvedPathCacheLock.unlock()
     }
 
-    /// A legacy-root consolidation can relocate thousands of files while the
-    /// app is open. Cached values store the previously located absolute path,
-    /// so clear both polarities once the verified batch has changed anything;
-    /// subsequent UI reads remain cache-only and the off-main warmer
-    /// repopulates them against the canonical root.
+    /// A batch of file moves can relocate thousands of files while the app is
+    /// open. Cached values store the previously located absolute path, so clear
+    /// both polarities once the batch has changed anything; subsequent UI reads
+    /// remain cache-only and the off-main warmer repopulates them against the
+    /// canonical root.
     ///
     /// Sync clears it too, whenever another Mac's source files or text land.
     /// Until the warmer runs again, every local PDF answers "unknown", and the
@@ -3457,7 +3441,7 @@ struct StudioArticle: Identifiable, Codable, Equatable {
         return (path, false)  // return original if nothing found
     }
 
-    /// Legacy marker for YouTube lectures that were imported from course folders.
+    /// A YouTube lecture that was imported from a course folder.
     /// Course membership itself lives in course_lecture_items, not in discoveryOrigin.
     var isCourseLecture: Bool {
         discoveryOrigin == .localCourses && sourceType == .video
@@ -4350,7 +4334,7 @@ struct LearningGoalItem: Identifiable, Codable, Equatable {
     var addedAt: Date
     var completedAt: Date?
 
-    // Learning Companion fields (nil on legacy Schedule items).
+    // Learning Companion fields (nil on items with no companion origin).
     var origin: String?       // LearningGoalItemOrigin raw value
     var reviewState: String?  // LearningGoalItemReviewState raw value
     var relevance: Double?    // discovery's rank score, for ordering suggestions; no meaning on its own
@@ -4390,7 +4374,7 @@ struct LearningGoalItem: Identifiable, Codable, Equatable {
     var isCompleted: Bool { completedAt != nil }
 
     /// Companion items are eligible for the daily blend only once approved.
-    /// Legacy Schedule items (nil reviewState) are treated as approved.
+    /// Items with no review state are treated as approved.
     var isApproved: Bool {
         (reviewState ?? LearningGoalItemReviewState.approved.rawValue) == LearningGoalItemReviewState.approved.rawValue
     }
@@ -4432,7 +4416,7 @@ struct LearningGoalGap: Identifiable, Codable, Equatable {
 }
 
 /// Lifecycle state of a Notebook or Goal, stored in `learning_goals.status`.
-/// Legacy rows are all `active` (the column default), so `active` is also the
+/// `active` is the column default, so it is also the
 /// parse fallback for any unrecognized value.
 enum LearningGoalStatus: String, Codable, CaseIterable, Sendable {
     case active
@@ -4458,7 +4442,7 @@ struct LearningGoalRecord: Identifiable, Codable, Equatable {
     var status: String
     var items: [LearningGoalItem]
 
-    // Learning Companion fields (nil on legacy Schedules).
+    // Learning Companion fields (nil on Schedules with no companion kind).
     var kind: String?            // "companion" for proactive daily-quiz goals
     var description: String?     // a Notebook's standing Instructions (guidance for chat); a Goal's plain summary
     /// A Notebook's short description: one or two lines shown on its gallery

@@ -168,7 +168,7 @@ extension StudioViewModel {
         // the library stays out of the chat's pool.
         let visible = sourceIDs.filter { articlesById[$0] != nil }
         reviewChatPanelMode = .chat
-        showAssistantOverlay = true
+        isChatTabActive = true
         readerSelectionExplanationRequest = ReaderSelectionExplanationRequest(
             directionSearch: launch,
             sourceIDs: visible
@@ -201,7 +201,7 @@ extension StudioViewModel {
         setContextSources(sources)
         pendingReviewChatDraft = Self.directionChatDraft(direction)
         reviewChatPanelMode = .chat
-        showAssistantOverlay = true
+        isChatTabActive = true
         reviewChatResetRequestID = UUID()
         reviewChatFocusRequestID = UUID()
     }

@@ -543,7 +543,6 @@ enum SyncedPreferenceKeys {
         "CloudKitSync.didRepublishMeetingIcons.v1": "one-shot republish marker for this Mac",
         "CloudKitSync.didRepublishPaperThumbnails.v1": "one-shot republish marker for this Mac",
         "StorageService.didAdoptBookFolderNames.v1": "one-shot adoption marker",
-        "foreverlm.retiredMethodPreferenceKeysAdopted.v1": "one-shot adoption marker",
         "keychain.retiredProductFileVaultAdopted": "one-shot adoption marker",
         "retiredReminderNotificationsCleared.v1": "one-shot cleanup marker",
         RetiredQuestionCalibration.clearedKey: "one-shot cleanup marker",
@@ -602,10 +601,6 @@ enum SyncedPreferenceKeys {
 
         // Which of this Mac's preference writes knowledge.db has not confirmed.
         PreferenceWriteJournal.defaultsKey: "bookkeeping for this Mac's own unfinished writes",
-
-        // Superseded by `tts_provider`, which is synced. Keeping both would give
-        // one setting two rows racing over last-write-wins.
-        "macos.tts.mode": "legacy fallback for tts_provider",
     ]
 
     /// Prefixes that never sync.

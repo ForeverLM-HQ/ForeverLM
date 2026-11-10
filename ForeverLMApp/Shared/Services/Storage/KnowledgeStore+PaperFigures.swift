@@ -93,56 +93,6 @@ enum PaperFigureIndexContract {
     }
 }
 
-/// The `## Figures` block that PDF extraction appended to canonical text before
-/// schema 75.
-///
-/// Every line in it was an `![caption](file:///…)` link to a rendered page JPEG
-/// sitting beside the PDF. The path was absolute, so it named the one Mac that
-/// did the extraction and resolved nowhere else — not on a second Mac, not on
-/// the phone, and not for a model reading the text, which is where most of this
-/// content is actually consumed.
-///
-/// The block is removed rather than rewritten in place. Its captions are already
-/// present verbatim in the extracted page text above it, and the authoritative
-/// label-to-page index is `paper_figures`, which any paper can refill from its
-/// own PDF through the durable index queue. Reconstructing labels by parsing our
-/// own escaped alt text would be a lossy guess at data that is already stored
-/// properly elsewhere.
-enum LegacyPaperFigureMarkdown {
-    static let heading = "## Figures"
-
-    /// The content with the stale block removed, or `nil` when there is nothing
-    /// of this exact shape to remove.
-    ///
-    /// Conservative by construction: it strips only a trailing run whose every
-    /// non-empty line is one of these generated image links. Anything else after
-    /// the heading means this is not our block — a paper of its own with a
-    /// "Figures" section, or text a later cleanup pass reshaped — and it is left
-    /// untouched.
-    static func stripping(_ content: String) -> String? {
-        let lines = content.components(separatedBy: "\n")
-        guard let headingIndex = lines.lastIndex(where: {
-            $0.trimmingCharacters(in: .whitespaces) == heading
-        }) else { return nil }
-
-        var sawImageLink = false
-        for line in lines[(headingIndex + 1)...] {
-            let trimmed = line.trimmingCharacters(in: .whitespaces)
-            if trimmed.isEmpty { continue }
-            guard trimmed.hasPrefix("!["),
-                  trimmed.hasSuffix(")"),
-                  trimmed.contains("](file://") else { return nil }
-            sawImageLink = true
-        }
-        guard sawImageLink else { return nil }
-
-        let stripped = lines[..<headingIndex]
-            .joined(separator: "\n")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        return stripped == content ? nil : stripped
-    }
-}
-
 extension KnowledgeStore {
     /// Queue a paper only when its path/version is not already indexed. A fresh
     /// PDF attachment may force the same path back through indexing because the
@@ -564,83 +514,6 @@ extension KnowledgeStore {
         return result
     }
 
-    /// Strip the stale figure image links from a bounded slice of stored source
-    /// text and republish those sources.
-    ///
-    /// After launch rather than in the schema transaction: this reads and
-    /// rewrites content, which is proportional to the library. Each batch commits
-    /// on its own, so quitting midway leaves the rest durable, and re-running is
-    /// harmless — the strip is idempotent on text that no longer holds a block,
-    /// and the row leaves the queue either way.
-    ///
-    /// Returns the sources whose text actually changed.
-    func drainPaperFigureMarkdownRepairBatch(limit: Int) throws -> [String] {
-        let boundedLimit = max(1, min(limit, 100))
-        var candidates: [(sourceID: String, content: String)] = []
-        try query("""
-            SELECT q.source_id, sc.content
-            FROM paper_figure_markdown_repair_queue q
-            JOIN source_content sc ON sc.source_id = q.source_id
-            ORDER BY q.enqueued_at, q.source_id
-            LIMIT \(boundedLimit)
-        """) { stmt in
-            guard let sourceID = self.string(stmt, 0),
-                  let content = self.string(stmt, 1) else { return }
-            candidates.append((sourceID, content))
-        }
-
-        // A queued source whose content row has since gone (archived, deleted)
-        // has no repair left to do, but its queue row would otherwise block the
-        // batch window forever.
-        var orphanedIDs: [String] = []
-        try query("""
-            SELECT q.source_id
-            FROM paper_figure_markdown_repair_queue q
-            WHERE NOT EXISTS (
-                SELECT 1 FROM source_content sc WHERE sc.source_id = q.source_id
-            )
-            ORDER BY q.enqueued_at, q.source_id
-            LIMIT \(boundedLimit)
-        """) { stmt in
-            if let sourceID = self.string(stmt, 0) { orphanedIDs.append(sourceID) }
-        }
-
-        guard !candidates.isEmpty || !orphanedIDs.isEmpty else { return [] }
-
-        try exec("BEGIN IMMEDIATE")
-        var repairedIDs: [String] = []
-        do {
-            for candidate in candidates {
-                if let stripped = LegacyPaperFigureMarkdown.stripping(candidate.content) {
-                    try execBind("UPDATE source_content SET content = ? WHERE source_id = ?") { stmt in
-                        bind(stmt, 1, stripped)
-                        bind(stmt, 2, candidate.sourceID)
-                    }
-                    // The text other devices read is published again.
-                    try queueSourceFilesRefresh(sourceID: candidate.sourceID)
-                    repairedIDs.append(candidate.sourceID)
-                }
-                try execBind(
-                    "DELETE FROM paper_figure_markdown_repair_queue WHERE source_id = ?"
-                ) { stmt in
-                    bind(stmt, 1, candidate.sourceID)
-                }
-            }
-            for sourceID in orphanedIDs {
-                try execBind(
-                    "DELETE FROM paper_figure_markdown_repair_queue WHERE source_id = ?"
-                ) { stmt in
-                    bind(stmt, 1, sourceID)
-                }
-            }
-            try exec("COMMIT")
-        } catch {
-            try? exec("ROLLBACK")
-            throw error
-        }
-        return repairedIDs
-    }
-
     /// The PDF this source's figure index was built from, as a portable path.
     ///
     /// Clients render figures straight out of it, so this is the one lookup that
@@ -692,13 +565,5 @@ extension KnowledgeStore {
         """) { stmt in
             bind(stmt, 1, String(message.prefix(500)))
         }
-    }
-
-    func paperFigureMarkdownRepairQueueCount() throws -> Int {
-        var count = 0
-        try query("SELECT COUNT(*) FROM paper_figure_markdown_repair_queue") { stmt in
-            count = Int(sqlite3_column_int64(stmt, 0))
-        }
-        return count
     }
 }

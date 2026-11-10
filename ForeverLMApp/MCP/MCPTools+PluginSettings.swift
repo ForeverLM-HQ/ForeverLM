@@ -381,9 +381,6 @@ extension MCPDataStore {
     }
 
     private static func googleDriveConnectionPayload() async -> [String: Any] {
-        // What the pane does on appear: an older build's single grant becomes
-        // a named account first, so the list shows the address.
-        _ = try? await GoogleDriveService.shared.adoptLegacyAccountIfNeeded()
         let service = GoogleDriveService.shared
         let accounts = service.connectedAccounts.sorted {
             $0.displayLabel.localizedCaseInsensitiveCompare($1.displayLabel) == .orderedAscending
@@ -411,9 +408,6 @@ extension MCPDataStore {
                 ]
             },
         ]
-        if accounts.isEmpty, service.hasLegacyConnection {
-            row["legacy_connection"] = true
-        }
         if let strays = folders?.unattributed, !strays.isEmpty {
             row["folders_without_connected_account"] = strays
         }
@@ -678,19 +672,11 @@ extension MCPDataStore {
             result["message"] = "Disconnected \(account.title) from YouTube. It stops importing; followed channels and imported videos stay."
 
         case "google_drive":
-            _ = try? await GoogleDriveService.shared.adoptLegacyAccountIfNeeded()
             let service = GoogleDriveService.shared
             let accounts = service.connectedAccounts
             if accounts.isEmpty {
-                guard service.hasLegacyConnection else {
-                    result["disconnected"] = false
-                    result["message"] = "No Google Drive account is connected."
-                    break
-                }
-                // The pane's legacy-connection Disconnect.
-                service.signOut()
-                result["disconnected"] = true
-                result["message"] = "Disconnected the Google Drive account."
+                result["disconnected"] = false
+                result["message"] = "No Google Drive account is connected."
                 break
             }
             let account = try Self.pluginPick(accounts, requested: accountID, id: \.id, label: \.displayLabel, what: "Google Drive account")

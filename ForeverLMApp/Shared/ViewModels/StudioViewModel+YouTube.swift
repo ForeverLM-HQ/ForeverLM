@@ -54,10 +54,6 @@ extension StudioViewModel {
     // MARK: - Auto-import preference
 
     nonisolated static let youtubeAutoImportEnabledKey = "youtube.autoImportEnabled"
-    /// The single-connection preferences, now per account in `YouTubeImportChoices`.
-    /// Only `adoptSingleYouTubeConnection` reads them, and it removes them.
-    private nonisolated static let legacyLikedImportPolicyKey = "youtube.likedImportPolicy"
-    private nonisolated static let legacyLikedImportCutoffKey = "youtube.likedImportCutoff"
     nonisolated static let youtubeLikedTranscriptFormattingKey =
         "youtube.likedTranscriptFormattingEnabled"
 
@@ -133,62 +129,6 @@ extension StudioViewModel {
         }.value
         await reloadYouTubeAccounts()
         await reconcileYouTubeSourceGroups()
-    }
-
-    /// What the single connection of older builds imported: the source is the
-    /// one whose group is followed, the liked-import policy and cutoff are the
-    /// learner's old preferences, and a Liked feed that was already mirrored
-    /// before the policy existed counts as "existing and future likes".
-    private func legacyYouTubeChoices() -> YouTubeImportChoices {
-        let defaults = UserDefaults.standard
-        return Self.legacyYouTubeChoices(
-            groups: videoPlaylistMetadata,
-            policyRaw: defaults.string(forKey: Self.legacyLikedImportPolicyKey),
-            cutoff: defaults.double(forKey: Self.legacyLikedImportCutoffKey)
-        )
-    }
-
-    nonisolated static func legacyYouTubeChoices(
-        groups: [String: VideoPlaylistMetadata],
-        policyRaw: String?,
-        cutoff: Double
-    ) -> YouTubeImportChoices {
-        let followed = groups.values.filter { $0.autoImport }
-        let source = YouTubeImportSource.allCases.first { source in
-            followed.contains { $0.connectorKind == source.connectorKind }
-        }
-        let likedGroupID = youtubePlaylistGroupID(for: YouTubeService.likedVideosPlaylistURL)
-        let policy = policyRaw.flatMap(YouTubeLikedImportPolicy.init(rawValue:))
-            ?? (groups[likedGroupID]?.connectorKind == YouTubeImportSource.likedVideos.connectorKind
-                ? .importExisting
-                : .undecided)
-        let playlistID = followed
-            .first { $0.connectorKind == YouTubeImportSource.foreverLMPlaylist.connectorKind }
-            .flatMap { YouTubeService.playlistID(fromPlaylistURL: $0.playlistURL) }
-        return YouTubeImportChoices(
-            source: source,
-            foreverLMPlaylistID: source == .foreverLMPlaylist ? playlistID : nil,
-            likedPolicy: policy,
-            likedCutoff: cutoff > 0 ? Date(timeIntervalSince1970: cutoff) : nil
-        )
-    }
-
-    /// Once per old connection: it becomes the first account, with what it
-    /// imported, and its preferences go. Nothing else reads them afterwards.
-    func adoptSingleYouTubeConnection() async {
-        let pending = await Task.detached(priority: .utility) {
-            YouTubeService.shared.hasUnadoptedConnection
-        }.value
-        guard pending else { return }
-        do {
-            try await YouTubeService.shared.adoptSingleConnection(choices: legacyYouTubeChoices())
-            PreferenceStore.remove(forKey: Self.legacyLikedImportPolicyKey)
-            PreferenceStore.remove(forKey: Self.legacyLikedImportCutoffKey)
-        } catch {
-            // Offline or a refused request: the connection stays as it was and
-            // the next launch tries again.
-            logger.warning("YouTube connection not adopted yet: \(error.localizedDescription)")
-        }
     }
 
     /// Named only when it tells accounts apart.
@@ -1004,13 +944,11 @@ extension StudioViewModel {
 
     /// Start the post-launch YouTube auto-import loop. Safe to call once after the
     /// initial queue load; it never runs at startup and no-ops unless the user has
-    /// enabled auto-import and an account selected a YouTube source. First an older
-    /// build's single connection becomes an account; the account list then follows
-    /// every connection change.
+    /// enabled auto-import and an account selected a YouTube source. The account list
+    /// follows every connection change.
     func startYouTubeAutoImport() {
         guard youtubeAutoImportTask == nil else { return }
         youtubeAutoImportTask = Task { [weak self] in
-            await self?.adoptSingleYouTubeConnection()
             await self?.reloadYouTubeAccounts()
             await self?.runYouTubeAutoImportLoop()
         }

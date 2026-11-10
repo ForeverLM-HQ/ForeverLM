@@ -35,22 +35,6 @@ extension StudioViewModel {
 
         guard let idx = articles.firstIndex(where: { $0.id == articleId }) else { return }
 
-        if YouTubeTranscriptService.isYouTubeURL(articles[idx].url),
-           let existingContent = articles[idx].content,
-           Self.isLegacyTruncatedYouTubeTranscript(existingContent) {
-            await fetchYouTubeTranscript(for: articleId)
-            return
-        }
-
-        // A transcript the exact test above cannot recognise, because formatting
-        // moved its length off the retired 50,000-character cap, is measured
-        // against a fresh caption fetch once and then left alone.
-        if YouTubeTranscriptService.isYouTubeURL(articles[idx].url),
-           articles[idx].content != nil {
-            await recheckLegacyCappedYouTubeTranscript(for: articleId)
-            guard articles.contains(where: { $0.id == articleId }) else { return }
-        }
-
         if let existingContent = articles[idx].content,
            SourceService.googleDocsResource(from: URL(string: articles[idx].url) ?? URL(fileURLWithPath: "/")) != nil,
            SourceService.isGoogleDocsInterfaceContent(existingContent) {
@@ -139,11 +123,6 @@ extension StudioViewModel {
            !cachedContent.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             // Re-resolve by id after the await before touching `articles` again.
             guard let cachedIdx = articles.firstIndex(where: { $0.id == articleId }) else { return }
-            if YouTubeTranscriptService.isYouTubeURL(articles[cachedIdx].url),
-               Self.isLegacyTruncatedYouTubeTranscript(cachedContent) {
-                await fetchYouTubeTranscript(for: articleId)
-                return
-            }
             if SourceService.googleDocsResource(from: URL(string: articles[cachedIdx].url) ?? URL(fileURLWithPath: "/")) != nil,
                SourceService.isGoogleDocsInterfaceContent(cachedContent) {
                 await storage.clearSourceDerivedData(articleId)

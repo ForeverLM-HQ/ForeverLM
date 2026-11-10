@@ -573,7 +573,7 @@ struct MeetingRecordingReaderView: View {
         case .localFile:
             return "local:\(article.id)"
         case .googleDrive(let original, let fileID, _, let modifiedAt):
-            let accountID = GoogleDriveService.accountID(from: original.absoluteString) ?? "legacy"
+            let accountID = GoogleDriveService.accountID(from: original.absoluteString) ?? "untagged"
             return "drive:\(accountID):\(fileID):\(modifiedAt?.timeIntervalSince1970 ?? 0):\(driveRecordingRetryID)"
         }
     }

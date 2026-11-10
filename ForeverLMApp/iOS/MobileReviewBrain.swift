@@ -76,9 +76,9 @@ enum MobileReviewGrader: String, CaseIterable, Identifiable, Sendable {
         }
     }
 
-    /// Legacy property name kept for the settings call sites; cloud grading now
-    /// requires the managed Apple session, never an Anthropic key.
-    var requiresAnthropicKey: Bool { self == .claude }
+    /// Cloud grading requires the managed Apple session; the on-device grader
+    /// needs none.
+    var requiresManagedSession: Bool { self == .claude }
 }
 
 // Availability of Apple's on-device language model, expressed without exposing
@@ -206,13 +206,7 @@ actor MobileReviewBrain: MobileReviewEngine {
     }
 
     private var systemPrompt: String {
-        Self.instructions(sourceTitle: sourceTitle, topic: topic, sourceText: sourceText)
-    }
-
-    /// Internal for prompt-contract tests. The production request uses this
-    /// exact builder through `systemPrompt`.
-    static func instructions(sourceTitle: String, topic: String, sourceText: String) -> String {
-        MobileVoiceReviewPromptContract.legacyInstructions(
+        MobileVoiceReviewPromptContract.instructions(
             sourceTitle: sourceTitle,
             topic: topic,
             sourceText: sourceText

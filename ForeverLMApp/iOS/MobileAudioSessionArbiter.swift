@@ -34,8 +34,8 @@ actor MobileAudioSessionArbiter {
     }
 
     // Playback is exclusive so starting ForeverLM narration pauses any podcast
-    // or music already playing on the device. Recording keeps the legacy mixed
-    // session shape so its existing handoff behavior remains unchanged.
+    // or music already playing on the device. Recording keeps the mixed-with-others
+    // category so its existing handoff behavior remains unchanged.
     enum Intent: Sendable {
         case playback
         case record

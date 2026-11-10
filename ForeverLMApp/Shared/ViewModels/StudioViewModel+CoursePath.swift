@@ -16,8 +16,6 @@ struct CourseQuizTarget: Equatable {
     let title: String
     /// The lecture's title, the lectures covered, or the course's title.
     let subtitle: String
-    /// The lecture video a practice quiz's pre-storage score was kept under.
-    let legacyVideoSourceID: String?
 }
 
 /// One row of a course's path, in the order the course page lists it.
@@ -127,7 +125,7 @@ extension StudioViewModel {
         let courseTitle = courseDisplayName(courseID)
         var blocks: [CoursePathBlock] = []
 
-        func quizEntry(_ quiz: CourseQuiz, lectureTitle: String?, legacyVideoSourceID: String?) -> CoursePathEntry {
+        func quizEntry(_ quiz: CourseQuiz, lectureTitle: String?) -> CoursePathEntry {
             let numbers = quiz.lectureIDs.compactMap { numberByLecture[$0] }.sorted()
             let subtitle: String
             switch quiz.kind {
@@ -146,8 +144,7 @@ extension StudioViewModel {
             let target = CourseQuizTarget(
                 quizID: quiz.id,
                 title: quiz.kind == .practice && !quiz.hasTopicTitle ? "Quiz" : quiz.title,
-                subtitle: subtitle,
-                legacyVideoSourceID: legacyVideoSourceID
+                subtitle: subtitle
             )
             return CoursePathEntry(id: "quiz-\(quiz.id)", kind: .quiz(target, quiz))
         }
@@ -205,8 +202,7 @@ extension StudioViewModel {
             if let practice = placed.first(where: { $0.id == practiceID }) {
                 entries.append(quizEntry(
                     practice,
-                    lectureTitle: lectureTitle ?? "Lecture \(lecture.number)",
-                    legacyVideoSourceID: videos.first?.article.id
+                    lectureTitle: lectureTitle ?? "Lecture \(lecture.number)"
                 ))
             }
             let title = Self.stripDanglingLectureSeparators(Self.strippedLeadingLectureOrdinal(
@@ -218,11 +214,11 @@ extension StudioViewModel {
                 entries: entries
             )))
             for quiz in placed where quiz.id != practiceID {
-                blocks.append(.milestone(quizEntry(quiz, lectureTitle: nil, legacyVideoSourceID: nil)))
+                blocks.append(.milestone(quizEntry(quiz, lectureTitle: nil)))
             }
         }
         for quiz in placements.atEnd {
-            blocks.append(.milestone(quizEntry(quiz, lectureTitle: nil, legacyVideoSourceID: nil)))
+            blocks.append(.milestone(quizEntry(quiz, lectureTitle: nil)))
         }
         return CoursePath(
             courseID: courseID,
@@ -263,7 +259,7 @@ extension StudioViewModel {
         case .reading(let reading):
             return isTextbookReadingFinished(reading)
         case .quiz(let target, _):
-            return isCourseQuizCompleted(target.quizID, legacyVideoSourceID: target.legacyVideoSourceID)
+            return isCourseQuizCompleted(target.quizID)
         }
     }
 
@@ -300,20 +296,20 @@ extension StudioViewModel {
         case .reading(let reading):
             return readingProgressStore.hasProgress(for: reading.chapter.id) || reading.chapter.hasSavedReadingPosition
         case .quiz(let target, _):
-            return courseQuizScore(quizID: target.quizID, legacyVideoSourceID: target.legacyVideoSourceID) != nil
+            return courseQuizScore(quizID: target.quizID) != nil
                 || courseQuizSittings[target.quizID]?.isUnderWay == true
         }
     }
 
     /// Whether the quiz has a finished sitting. Completion opens the course;
     /// the score still says separately whether the sitting passed.
-    func isCourseQuizCompleted(_ quizID: String, legacyVideoSourceID: String? = nil) -> Bool {
-        courseQuizScore(quizID: quizID, legacyVideoSourceID: legacyVideoSourceID) != nil
+    func isCourseQuizCompleted(_ quizID: String) -> Bool {
+        courseQuizScore(quizID: quizID) != nil
     }
 
     /// Whether a sitting of the quiz has passed (`LectureQuizScore.hasPassed`).
-    func isCourseQuizPassed(_ quizID: String, legacyVideoSourceID: String? = nil) -> Bool {
-        courseQuizScore(quizID: quizID, legacyVideoSourceID: legacyVideoSourceID)?.hasPassed == true
+    func isCourseQuizPassed(_ quizID: String) -> Bool {
+        courseQuizScore(quizID: quizID)?.hasPassed == true
     }
 
     /// The gate over a course's path.

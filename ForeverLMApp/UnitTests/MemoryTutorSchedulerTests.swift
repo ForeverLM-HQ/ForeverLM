@@ -647,7 +647,7 @@ struct MemoryTutorSchedulerTests {
         let now = Date(timeIntervalSince1970: 2_000_000_000)
         // More long-overdue legacy refreshes than the whole daily cap: the shape
         // that used to consume the budget before intake was even computed.
-        let legacyStats = (0..<12).map { index in
+        let refreshStats = (0..<12).map { index in
             MemoryReviewStat(
                 sourceID: "legacy-\(index)",
                 title: "Legacy \(index)",
@@ -667,7 +667,7 @@ struct MemoryTutorSchedulerTests {
         }
 
         let intake = MemoryReviewScheduler.firstReviewIntake(
-            legacyStats: legacyStats,
+            sourceStats: refreshStats,
             freshCandidates: fresh,
             now: now,
             limit: 5
@@ -680,7 +680,7 @@ struct MemoryTutorSchedulerTests {
         #expect(intake.first?.sourceID == "fresh-0")
         // A bucket that cannot fill its share hands it to the other.
         let legacyOnly = MemoryReviewScheduler.firstReviewIntake(
-            legacyStats: legacyStats,
+            sourceStats: refreshStats,
             freshCandidates: [],
             now: now,
             limit: 5

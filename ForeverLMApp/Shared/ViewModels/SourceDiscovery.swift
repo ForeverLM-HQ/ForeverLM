@@ -321,7 +321,7 @@ enum SourceDiscovery {
     /// Apple Podcasts database layouts we can read.
     enum PodcastSchemaLayout {
         /// Transcript, enclosure, download, and description fields live directly on ZMTEPISODE.
-        case legacy
+        case flat
         /// macOS 26.x normalized the store: descriptions moved to ZMTEPISODEDESCRIPTION and
         /// enclosure/transcript/download fields moved to ZMTMEDIAENCLOSURE, both referenced
         /// from ZMTEPISODE via ZDESCRIPTIONOBJECT / ZCURRENTMEDIAENCLOSURE.
@@ -341,8 +341,8 @@ enum SourceDiscovery {
         ("ZMTPODCAST", ["Z_PK", "ZTITLE", "ZARTWORKTEMPLATEURL", "ZIMAGEURL", "ZSUBSCRIBED", "ZISIMPLICITLYFOLLOWED"])
     ]
 
-    /// ZMTEPISODE columns that only exist in the legacy layout.
-    private static let legacyEpisodeColumns = [
+    /// ZMTEPISODE columns that only exist in the flat layout.
+    private static let flatLayoutEpisodeColumns = [
         "ZTRANSCRIPTIDENTIFIER", "ZDOWNLOADDATE", "ZDOWNLOADPATH",
         "ZITEMDESCRIPTIONWITHOUTHTML", "ZITEMDESCRIPTION", "ZITUNESSUBTITLE", "ZENCLOSUREURL"
     ]
@@ -366,7 +366,7 @@ enum SourceDiscovery {
 
         init(layout: PodcastSchemaLayout) {
             switch layout {
-            case .legacy:
+            case .flat:
                 joins = ""
                 transcriptIdentifier = "e.ZTRANSCRIPTIDENTIFIER"
                 enclosureURL = "e.ZENCLOSUREURL"
@@ -423,8 +423,8 @@ enum SourceDiscovery {
             }
         }
 
-        if legacyEpisodeColumns.allSatisfy(episodeColumns.contains) {
-            return (.legacy, .ok)
+        if flatLayoutEpisodeColumns.allSatisfy(episodeColumns.contains) {
+            return (.flat, .ok)
         }
 
         var modernProblems: [String] = []

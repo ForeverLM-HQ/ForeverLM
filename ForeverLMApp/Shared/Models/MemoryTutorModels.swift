@@ -526,18 +526,18 @@ enum MemoryReviewScheduler {
     }
 
     /// The bounded first-review set for a daily queue, drawn from both intake
-    /// buckets at once: sources with legacy whole-source review history that are
+    /// buckets at once: sources with whole-source review history that are
     /// due again, and sources consumed but never reviewed at all.
     ///
     /// Both buckets are ranked in full before the cap is applied. Filling the cap
-    /// from the legacy bucket first — the shape this replaced — spent the whole
+    /// from the refresh bucket first — the shape this replaced — spent the whole
     /// day's budget on the oldest backlog whenever that backlog was larger than
     /// the cap, so a podcast finished this week could never reach the queue at
     /// all no matter how the queue was ordered afterwards. `splitDailyLimit`
     /// gives each bucket a guaranteed share and hands the unused half to the
     /// other, and the merged result leads with what was most recently consumed.
     static func firstReviewIntake(
-        legacyStats: [MemoryReviewStat],
+        sourceStats: [MemoryReviewStat],
         freshCandidates: [MemoryReviewNewCandidate],
         now: Date,
         limit: Int
@@ -546,9 +546,9 @@ enum MemoryReviewScheduler {
         guard cap > 0 else { return [] }
         // Each bucket is ranked uncapped; only the merged set is bounded.
         let refreshes = dueItems(
-            from: legacyStats,
+            from: sourceStats,
             now: now,
-            limit: legacyStats.count
+            limit: sourceStats.count
         ).map { item in
             MemoryReviewNewItem(
                 sourceID: item.sourceID,

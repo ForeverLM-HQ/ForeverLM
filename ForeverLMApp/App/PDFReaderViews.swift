@@ -1,5 +1,6 @@
 import AppKit
 import Darwin
+import OSLog
 import SwiftUI
 import PDFKit
 import UniformTypeIdentifiers
@@ -159,7 +160,8 @@ struct RemotePDFReaderView: View {
             try await vm.attachDownloadedPDFData(to: articleId, data: data, sourceURL: url)
             persistedPDFURL = url
         } catch {
-            print("[RemotePDFReaderView] Failed to save remote PDF for \(articleId): \(error.localizedDescription)")
+            Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "RemotePDFReaderView")
+                .error("Failed to save remote PDF for \(articleId, privacy: .public): \(error.localizedDescription)")
         }
     }
 }

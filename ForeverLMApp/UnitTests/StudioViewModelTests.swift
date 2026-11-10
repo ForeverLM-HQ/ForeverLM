@@ -3587,12 +3587,12 @@ struct ScheduleChatNavigationTests {
         // selection lands, not about fetching.
         vm.articles = [makeArticle(url: "https://example.com/new", title: "New", id: "new-source").with(content: "New, already read.")]
         vm.contextSourceIds = ["old-source"]
-        vm.showAssistantOverlay = true
+        vm.isChatTabActive = true
 
         await vm.openSourceInReader("new-source")
 
         #expect(vm.contextSourceIds == ["new-source"])
-        #expect(vm.showAssistantOverlay == true)
+        #expect(vm.isChatTabActive == true)
         #expect(vm.reviewChatPanelMode == .chat)
         #expect(vm.reviewChatResetRequestID != nil)
         #expect(vm.selectedArticleId == "new-source")
@@ -3603,12 +3603,12 @@ struct ScheduleChatNavigationTests {
         let vm = makeViewModel()
         vm.articles = [makeArticle(url: "https://example.com/new", title: "New", id: "new-source").with(content: "New, already read.")]
         vm.contextSourceIds = ["old-source"]
-        vm.showAssistantOverlay = false
+        vm.isChatTabActive = false
 
         await vm.openSourceInReader("new-source")
 
         #expect(vm.contextSourceIds == ["new-source"])
-        #expect(vm.showAssistantOverlay == false)
+        #expect(vm.isChatTabActive == false)
         #expect(vm.reviewChatResetRequestID == nil)
         #expect(vm.selectedArticleId == "new-source")
     }
@@ -3622,7 +3622,7 @@ struct ScheduleChatNavigationTests {
 
         #expect(vm.contextSourceIds.isEmpty)
         #expect(vm.pendingReviewChatNotebookID == nil)
-        #expect(vm.showAssistantOverlay == true)
+        #expect(vm.isChatTabActive == true)
         #expect(vm.reviewChatPanelMode == .chat)
         #expect(vm.reviewChatResetRequestID != nil)
         #expect(vm.reviewChatFocusRequestID != nil)
@@ -3660,7 +3660,7 @@ struct ScheduleChatNavigationTests {
 
         #expect(vm.contextSourceIds == ["source-a"])
         #expect(vm.pendingReviewChatNotebookID == notebook.id)
-        #expect(vm.showAssistantOverlay == true)
+        #expect(vm.isChatTabActive == true)
         #expect(vm.reviewChatPanelMode == .chat)
         #expect(vm.reviewChatResetRequestID != nil)
         #expect(vm.reviewChatFocusRequestID != nil)
@@ -3968,7 +3968,7 @@ struct ScheduleChatNavigationTests {
         defer { restoreLayout() }
         let vm = makeViewModel()
         vm.centerTabGroups = .defaultLayout
-        vm.showAssistantOverlay = false
+        vm.isChatTabActive = false
         let notebook = try #require(await vm.createNotebookContext(title: "Systems Biology"))
         let deadline = try #require(Calendar.current.date(byAdding: .day, value: 10, to: Date()))
 
@@ -3985,7 +3985,7 @@ struct ScheduleChatNavigationTests {
         #expect(created.discoveryEnabled == false)
         #expect(vm.goals(inNotebook: notebook.id).map(\.id) == [created.id])
         #expect(vm.allGoals.map(\.id) == [created.id], "a tagged Goal is in the Goals tab's list too")
-        #expect(vm.showAssistantOverlay == false)
+        #expect(vm.isChatTabActive == false)
         #expect(vm.pendingReviewChatDraft == nil)
         #expect(vm.reviewChatResetRequestID == nil)
     }
@@ -4067,11 +4067,11 @@ struct ScheduleChatNavigationTests {
         defer { restoreLayout() }
         let vm = makeViewModel()
         vm.centerTabGroups = .defaultLayout
-        vm.showAssistantOverlay = false
+        vm.isChatTabActive = false
 
         vm.requestNewScheduledTaskChat()
 
-        #expect(vm.showAssistantOverlay == true)
+        #expect(vm.isChatTabActive == true)
         #expect(vm.reviewChatPanelMode == .chat)
         #expect(vm.reviewChatResetRequestID != nil)
         // Typed but unsent, and unlinked: a task is not owned by whichever
@@ -4087,17 +4087,17 @@ struct ScheduleChatNavigationTests {
         defer { restoreLayout() }
         let vm = makeViewModel()
         vm.centerTabGroups = .defaultLayout
-        vm.showAssistantOverlay = false
+        vm.isChatTabActive = false
 
         vm.handleAssistantShortcut()
         let firstFocusRequest = vm.reviewChatFocusRequestID
 
-        #expect(vm.showAssistantOverlay == true)
+        #expect(vm.isChatTabActive == true)
         #expect(firstFocusRequest != nil)
 
         vm.handleAssistantShortcut()
 
-        #expect(vm.showAssistantOverlay == true)
+        #expect(vm.isChatTabActive == true)
         #expect(vm.reviewChatFocusRequestID != firstFocusRequest)
     }
 

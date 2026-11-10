@@ -569,7 +569,6 @@ struct ArticleSpeechContentTests {
 
         #expect(!ArticleSpeechContent.canAttemptRead(podcast))
         #expect(podcastText == nil)
-        #expect(!StudioSourceType.podcast.configurableMetadataFields.contains(.ttsCache))
     }
 
     @Test("YouTube transcripts are not eligible for generated text to speech")
@@ -847,46 +846,19 @@ struct ArticleSpeechContentTests {
         #expect(failure.hasPrefix("Source Content Cleanup paused:"))
 
         let proxyFailure = PaperContentPreparationService.articleIngestionFailureMessage(
-            for: AIError.apiError("ForeverLM AI credits are empty — top up in Settings to continue.")
+            for: AIError.apiError("Your ForeverLM AI balance is empty — top up in Settings to continue.")
         )
         #expect(proxyFailure == PaperContentPreparationService.contentCleanupCreditsPausedMessage)
 
-        // Rows paused before the prepaid balance was retired kept its wording.
-        let retiredPausedWording =
-            "Source Content Cleanup paused: your ForeverLM AI balance is empty. Top up to finish ingesting this source."
+        // A row that stored the service sentence behind the pipeline's stage
+        // prefix reads as the paused sentence too.
+        let wrappedServiceWording =
+            "Article ingestion failed during Source Content Cleanup: Your ForeverLM AI balance is empty — top up in Settings to continue."
         #expect(
-            PaperContentPreparationService.articleCreditsMessage(for: retiredPausedWording)
+            PaperContentPreparationService.articleCreditsMessage(for: wrappedServiceWording)
                 == PaperContentPreparationService.contentCleanupCreditsPausedMessage
         )
-        #expect(PaperContentPreparationService.isEmptyBalanceFailure(retiredPausedWording))
-
-        let legacy = "Article ingestion failed during Source Content Cleanup: Source Content Cleanup is not configured."
-        #expect(
-            PaperContentPreparationService.articleCreditsMessage(
-                for: legacy,
-                creditsAreEmpty: true
-            ) == PaperContentPreparationService.contentCleanupCreditsPausedMessage
-        )
-        #expect(
-            PaperContentPreparationService.articleCreditsMessage(
-                for: legacy,
-                creditsAreEmpty: false
-            ) == nil
-        )
-
-        // The rows a second Mac wrote while re-ingesting synced sources carry the
-        // older service wording. They state the balance was empty themselves, so
-        // they reclassify without consulting the live account.
-        let legacyServiceWording =
-            "Article ingestion failed during Source Content Cleanup: ForeverLM AI credits are empty — top up in Settings to continue."
-        for creditsAreEmpty in [true, false] {
-            #expect(
-                PaperContentPreparationService.articleCreditsMessage(
-                    for: legacyServiceWording,
-                    creditsAreEmpty: creditsAreEmpty
-                ) == PaperContentPreparationService.contentCleanupCreditsPausedMessage
-            )
-        }
+        #expect(PaperContentPreparationService.isEmptyBalanceFailure(wrappedServiceWording))
 
         let networkFailure = PaperContentPreparationService.articleIngestionFailureMessage(
             for: URLError(.networkConnectionLost)

@@ -556,7 +556,7 @@ struct ForeverLMApp: App {
                     _ = KnowledgeMapVoice.shared
                     #endif
                     #endif
-                    StorageService.scheduleLegacyContentConsolidationAfterLaunch()
+                    StorageService.scheduleArticleArchiveWarmAfterLaunch()
                     // Same shape, one level down: book folders that still carry a
                     // download site's tag in their name are renamed, and the rows
                     // that name them rewritten, once. Files, so not a migration.
@@ -651,12 +651,7 @@ struct ForeverLMApp: App {
                     }
                 }
                 .onChange(of: scenePhase) { _, phase in
-                    // Resume the verified one-time drain of historical iCloud
-                    // content whenever the app comes forward. A completed install
-                    // does only a root-level presence check; CloudDocs resurrecting
-                    // an old fork re-arms the same idempotent worker.
                     if phase == .active {
-                        StorageService.scheduleLegacyContentConsolidation()
                         // App activation is the primary recovery event for an MCP
                         // launch that previously reached a terminal auth or
                         // configuration error. The launcher no-ops while connected
@@ -684,7 +679,6 @@ struct ForeverLMApp: App {
                         Task(priority: .utility) {
                             await studioViewModel.runDeferredSourceTextReferenceRepair()
                             await studioViewModel.runDeferredStoredSoftHyphenRepair()
-                            await studioViewModel.runDeferredPaperFigureMarkdownRepair()
                             await studioViewModel.runDeferredSourceWordCountRepair()
                             await studioViewModel.runDeferredPaperFigureImageSweep()
                             await studioViewModel.runCanonicalContentCleanup()
@@ -1570,7 +1564,7 @@ final class StudioWorkspaceWindowCoordinator {
     /// Brings a Studio window forward after a command has sent something to it.
     /// Placing a source in a window the learner cannot see is indistinguishable
     /// from doing nothing, so the destination becomes key — which is also what
-    /// re-points the key-window registry that legacy navigation reads.
+    /// re-points the key-window registry that the shared navigation helpers read.
     ///
     /// Deliberately not `ignoringOtherApps`: this only ever runs from a menu
     /// inside ForeverLM, so the app is already frontmost, and forcing

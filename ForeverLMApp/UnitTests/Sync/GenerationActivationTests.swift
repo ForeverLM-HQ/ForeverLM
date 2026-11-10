@@ -38,10 +38,9 @@ struct GenerationActivationTests {
         #expect(try Self.activation(store).run(ActivationModeDecision(mode: .deferred, freshReason: nil, account: nil)) == journal)
     }
 
-    @Test("A fresh activation makes no network call, to either container")
+    @Test("A fresh activation makes no network call")
     func freshMakesNoNetworkCall() async throws {
         let server = FakeCloudKit()
-        _ = server.transport(user: "_learner", container: FakeCloudKit.legacyContainer, device: "mac")
         _ = server.transport(user: "_learner", container: FakeCloudKit.libraryContainer, device: "mac")
         let (root, store) = try Self.generation2Store("fresh-offline")
         defer { try? FileManager.default.removeItem(at: root) }

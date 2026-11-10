@@ -1548,7 +1548,6 @@ private struct GoogleDriveConnectionSettingsView: View {
     @State private var isSignedIn = false
     @State private var hasFolderReadAccess = false
     @State private var connectedAccounts: [GoogleDriveAccount] = []
-    @State private var hasLegacyConnection = false
     /// The account an untagged folder is read through, from the Keychain.
     @State private var defaultAccountID: String?
     @State private var isWorking = false
@@ -1571,16 +1570,9 @@ private struct GoogleDriveConnectionSettingsView: View {
                 SettingsCard {
                     HStack(spacing: 12) {
                         driveGlyph
-                        Text(hasLegacyConnection ? "Connected Google account" : "No Google account connected")
+                        Text("No Google account connected")
                             .font(.headline)
                         Spacer(minLength: 12)
-                        if hasLegacyConnection {
-                            Button("Disconnect", role: .destructive) {
-                                disconnectLegacyConnection()
-                            }
-                            .buttonStyle(.hoverWash)
-                            .disabled(isWorking)
-                        }
                     }
                 }
             }
@@ -1626,7 +1618,6 @@ private struct GoogleDriveConnectionSettingsView: View {
         }
         .onAppear {
             Task {
-                _ = try? await GoogleDriveService.shared.adoptLegacyAccountIfNeeded()
                 await refreshConnectionState()
             }
         }
@@ -1832,7 +1823,6 @@ private struct GoogleDriveConnectionSettingsView: View {
                 signedIn: GoogleDriveService.shared.isSignedIn,
                 folder: GoogleDriveService.shared.hasFolderReadAccess,
                 accounts: GoogleDriveService.shared.connectedAccounts,
-                legacy: GoogleDriveService.shared.hasLegacyConnection,
                 defaultAccountID: KeychainService.googleDriveDefaultAccountID
             )
         }.value
@@ -1842,7 +1832,6 @@ private struct GoogleDriveConnectionSettingsView: View {
         connectedAccounts = status.accounts.sorted {
             $0.displayLabel.localizedCaseInsensitiveCompare($1.displayLabel) == .orderedAscending
         }
-        hasLegacyConnection = status.legacy && connectedAccounts.isEmpty
     }
 
     private func disconnect(accountID: String) {
@@ -1857,18 +1846,6 @@ private struct GoogleDriveConnectionSettingsView: View {
         }
     }
 
-    private func disconnectLegacyConnection() {
-        guard !isWorking else { return }
-        isWorking = true
-        statusMessage = nil
-        Task { @MainActor in
-            await Task.detached(priority: .userInitiated) {
-                GoogleDriveService.shared.signOut()
-            }.value
-            await refreshConnectionState()
-            isWorking = false
-        }
-    }
 }
 
 /// Plugins › Calendar: turn the Mac's Calendar app on, choose which
@@ -2834,7 +2811,7 @@ private struct YouTubeConnectionSettingsView: View {
 
     /// Release builds ship ForeverLM's own YouTube OAuth client, so this is
     /// always true for users. It can only be false in a Debug build whose .env
-    /// carries no YouTube client and which has no legacy Drive credentials.
+    /// carries no YouTube client.
     private var canConnect: Bool {
         YouTubeService.shared.canConnect
     }

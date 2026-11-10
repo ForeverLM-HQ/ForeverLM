@@ -177,22 +177,9 @@ private enum CanonicalContentCleanupOutcome: Sendable {
 struct PaperContentPreparationService: Sendable {
     static let contentCleanupCreditsPausedMessage =
         "Source Content Cleanup paused: add your OpenRouter key in AI Usage (the sidebar's OpenRouter button) to finish ingesting this source."
-    /// The wording while the key needed a plan (until 2026-10-10). Rows that
-    /// stored it are still paused for the same reason.
-    private static let planEraContentCleanupCreditsPausedMessage =
-        "Source Content Cleanup paused: add your OpenRouter key in AI Usage (the sidebar's OpenRouter button) and choose a plan in Settings → Billing to finish ingesting this source."
-    /// The wording before the prepaid balance was retired (2026-09-25). Rows
-    /// that stored it are still paused for the same reason.
-    private static let legacyContentCleanupCreditsPausedMessage =
-        "Source Content Cleanup paused: your ForeverLM AI balance is empty. Top up to finish ingesting this source."
-
-    private static let legacyArticleConfigurationFailure =
-        "Article ingestion failed during Source Content Cleanup: Source Content Cleanup is not configured."
 
     private static let managedCreditsEmptyServiceMessage =
         "Your ForeverLM AI balance is empty — top up in Settings to continue."
-    private static let legacyManagedCreditsEmptyServiceMessage =
-        "ForeverLM AI credits are empty — top up in Settings to continue."
 
     private static let maximumBlockCharacters = 800
     private let aiService: AIService
@@ -213,10 +200,7 @@ struct PaperContentPreparationService: Sendable {
             detail = error.localizedDescription
         }
         if detail == contentCleanupCreditsPausedMessage
-            || detail == planEraContentCleanupCreditsPausedMessage
-            || detail == legacyContentCleanupCreditsPausedMessage
-            || detail == managedCreditsEmptyServiceMessage
-            || detail == legacyManagedCreditsEmptyServiceMessage {
+            || detail == managedCreditsEmptyServiceMessage {
             return contentCleanupCreditsPausedMessage
         }
         return "Article ingestion failed during Source Content Cleanup: \(detail)"
@@ -233,13 +217,8 @@ struct PaperContentPreparationService: Sendable {
         guard let storedMessage else { return false }
         let creditWordings = [
             contentCleanupCreditsPausedMessage,
-            planEraContentCleanupCreditsPausedMessage,
-            legacyContentCleanupCreditsPausedMessage,
             managedCreditsEmptyServiceMessage,
-            legacyManagedCreditsEmptyServiceMessage,
             SourceError.aiCreditsRequired.localizedDescription,
-            SourceError.planEraAICreditsRequiredMessage,
-            SourceError.legacyAICreditsRequiredMessage,
         ]
         // Ingestion wraps the service message in a stage prefix, so a failure
         // that ends in one of these sentences is the same paused state as one
@@ -262,7 +241,6 @@ struct PaperContentPreparationService: Sendable {
         let isCleanupFailure = storedMessage.hasPrefix(
             "Article ingestion failed during Source Content Cleanup:"
         ) || storedMessage.hasPrefix(StudioArticle.paperContentCleanupFailurePrefix)
-            || storedMessage.contains(StudioArticle.legacyPaperContentCleanupFailureMarker)
         guard isCleanupFailure else { return false }
         // The queue already retried it for about a day; only Retry restarts it.
         if storedMessage.contains(CanonicalContentCleanupRetry.exhaustedMarker) { return false }
@@ -274,31 +252,17 @@ struct PaperContentPreparationService: Sendable {
         return AITransientErrorClassifier.isTransient(AIError.apiError(storedMessage))
     }
 
-    /// Re-presents rows written by the affected build without rewriting synced
-    /// source records. The legacy text is reclassified only while the account is
-    /// known to be empty; once it can pay again it remains a genuine configuration
-    /// failure until the learner retries it.
-    static func articleCreditsMessage(
-        for storedMessage: String?,
-        creditsAreEmpty: Bool = AICreditEntitlement.isOutOfCredits
-    ) -> String? {
+    /// Re-presents a stored empty-balance failure as the one paused-for-your-key
+    /// sentence, without rewriting synced source records.
+    static func articleCreditsMessage(for storedMessage: String?) -> String? {
         guard let storedMessage else { return nil }
-        if storedMessage == contentCleanupCreditsPausedMessage
-            || storedMessage == legacyContentCleanupCreditsPausedMessage {
+        if storedMessage == contentCleanupCreditsPausedMessage {
             return contentCleanupCreditsPausedMessage
         }
-        // Both service wordings have shipped. Matching only the current one left
-        // the older rows showing the generic pipeline prefix, which truncates in a
-        // compact row before it reaches the part that says the balance is empty —
-        // the learner saw a stage name where the actionable reason belonged.
-        let wrappedCreditsFailures = [
-            managedCreditsEmptyServiceMessage,
-            legacyManagedCreditsEmptyServiceMessage,
-        ].map { "Article ingestion failed during Source Content Cleanup: \($0)" }
-        if wrappedCreditsFailures.contains(storedMessage) {
-            return contentCleanupCreditsPausedMessage
-        }
-        if creditsAreEmpty, storedMessage == legacyArticleConfigurationFailure {
+        // The pipeline wraps the service sentence in a stage prefix, which
+        // truncates in a compact row before it reaches the part that says the
+        // balance is empty, so the wrapped form is shown as the paused sentence.
+        if storedMessage == "Article ingestion failed during Source Content Cleanup: \(managedCreditsEmptyServiceMessage)" {
             return contentCleanupCreditsPausedMessage
         }
         return nil

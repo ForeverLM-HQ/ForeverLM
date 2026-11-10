@@ -113,7 +113,7 @@ struct SittingProjection: RecordProjection {
         let device = try MemorySyncDevice.current(connection)
         if var sitting = try Self.loadSitting(id: record.localID, connection: connection) {
             // One writer: this Mac sends its own sittings and the migrated history, never another device's.
-            guard sitting.deviceID.isEmpty || sitting.deviceID == device || sitting.deviceID == SyncIdentity.legacyDeviceID else { return nil }
+            guard sitting.deviceID.isEmpty || sitting.deviceID == device || sitting.deviceID == SyncIdentity.migratedHistoryDeviceID else { return nil }
             if sitting.deviceID.isEmpty {
                 guard let device else { return nil }
                 sitting.deviceID = device
@@ -126,7 +126,7 @@ struct SittingProjection: RecordProjection {
         if let store = connection as? KnowledgeStore,
            let held = try store.replica.record(zoneKey: record.zoneKey, recordType: SyncRecordType.sitting.rawValue, wireID: record.wireID),
            let writer = (try? SyncEnvelope(storedPayload: held.payload))?.fields["deviceID"]?.stringValue,
-           !writer.isEmpty, writer != device, writer != SyncIdentity.legacyDeviceID { return nil }
+           !writer.isEmpty, writer != device, writer != SyncIdentity.migratedHistoryDeviceID { return nil }
         bout.deviceID = device
         return .bout(bout)
     }

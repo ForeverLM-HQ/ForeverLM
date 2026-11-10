@@ -12,20 +12,18 @@ struct ZoneBootstrapTests {
     /// A device: its transports to both containers and its own replica.
     struct Device {
         let transport: FakeCloudKit.Transport
-        let legacy: FakeCloudKit.Transport
         let store: ReplicaOnlySyncStore
 
         init(_ server: FakeCloudKit, name: String, user: String = ZoneBootstrapTests.user) throws {
             transport = server.transport(user: user, device: name)
-            legacy = server.transport(user: user, container: FakeCloudKit.legacyContainer, device: name)
             let connection = try SQLiteHandle(path: ":memory:")
             store = ReplicaOnlySyncStore(connection: connection)
             try ReplicaStore(connection: connection).installSharedSchema()
         }
 
-        func bootstrap(_ client: ZoneBootstrap.Client, salt: UInt8 = 1, server: FakeCloudKit, legacy: Bool = true,
+        func bootstrap(_ client: ZoneBootstrap.Client, salt: UInt8 = 1, server: FakeCloudKit,
                        transport: CloudTransport? = nil) -> ZoneBootstrap {
-            var bootstrap = ZoneBootstrap(transport: transport ?? self.transport, legacyTransport: legacy ? self.legacy : nil,
+            var bootstrap = ZoneBootstrap(transport: transport ?? self.transport,
                                           store: store, client: client, deviceID: "macaaaaa")
             bootstrap.now = { server.now }
             bootstrap.makeSalt = { Data(repeating: salt, count: 32) }
@@ -169,7 +167,7 @@ struct ZoneBootstrapTests {
         _ = try await mac.bootstrap(.macHoldingLibrary, salt: 3, server: first).run()
         // The same Apple Account, an empty container of another team: the replica's salt names nothing there.
         let moved = second.transport(user: Self.user, container: "iCloud.com.example.company", device: "mac")
-        let outcome = try await mac.bootstrap(.macHoldingLibrary, salt: 5, server: second, legacy: false, transport: moved).run()
+        let outcome = try await mac.bootstrap(.macHoldingLibrary, salt: 5, server: second, transport: moved).run()
         #expect(outcome == .created(saltID: RecordNaming.saltID(Data(repeating: 5, count: 32))))
         #expect(try await mac.zone("Library")?.saltID == RecordNaming.saltID(Data(repeating: 5, count: 32)))
     }
@@ -184,7 +182,7 @@ struct ZoneBootstrapTests {
             try state.replica.setEngineState(ReplicaStore.EngineScope.containerBinding, nil)
             try state.replica.setEngineState(ReplicaStore.EngineScope.account, Data("_oldcontaineruser".utf8))
         }
-        let outcome = try await mac.bootstrap(.macHoldingLibrary, salt: 5, server: second, legacy: false,
+        let outcome = try await mac.bootstrap(.macHoldingLibrary, salt: 5, server: second,
                                               transport: second.transport(user: Self.user, device: "mac")).run()
         #expect(outcome == .created(saltID: RecordNaming.saltID(Data(repeating: 5, count: 32))))
     }
@@ -200,19 +198,12 @@ struct ZoneBootstrapTests {
         #expect(try await mac.bootstrap(.macHoldingLibrary, server: server).run() == .purged(.zoneDeleted(reason: .purged)))
     }
 
-    @Test("A Mac with no library writes `pending` when the old container has a Knowledge zone, and the empty complete seed when it has none")
+    @Test("A Mac with no library writes the empty complete seed and never claims the seed")
     func macWithoutLibrary() async throws {
-        let oldServer = FakeCloudKit()
-        _ = oldServer.put([], zone: "Knowledge", owner: Self.user, container: FakeCloudKit.legacyContainer)
-        let mac = try Device(oldServer, name: "mac")
-        #expect(try await mac.bootstrap(.macWithoutLibrary, server: oldServer).run() == .created(saltID: RecordNaming.saltID(Data(repeating: 1, count: 32))))
-        let pending = Self.seed(try Self.serverRoot(oldServer))
-        #expect(pending == ["state": .string("pending")])
-        #expect(try Self.serverRoot(oldServer)?.fields["seedClaim"] == nil, "a Mac holding no library never claims the seed")
-
         let newServer = FakeCloudKit()
         let fresh = try Device(newServer, name: "mac")
         _ = try await fresh.bootstrap(.macWithoutLibrary, server: newServer).run()
+        #expect(try Self.serverRoot(newServer)?.fields["seedClaim"] == nil, "a Mac holding no library never claims the seed")
         let seed = Self.seed(try Self.serverRoot(newServer))
         #expect(seed["state"] == .string("complete"))
         #expect(seed["metadataCompleteAt"]?.numberValue != nil)
@@ -220,30 +211,12 @@ struct ZoneBootstrapTests {
         #expect(seed["counts"] == .object(["records": SyncJSON(0), "satellites": SyncJSON(0), "bytes": SyncJSON(0)]))
     }
 
-    @Test("An iPhone writes only the empty complete seed, and creates nothing for an account with an old library")
+    @Test("An iPhone writes only the empty complete seed")
     func phone() async throws {
-        let oldServer = FakeCloudKit()
-        _ = oldServer.put([], zone: "Knowledge", owner: Self.user, container: FakeCloudKit.legacyContainer)
-        let phone = try Device(oldServer, name: "phone")
-        #expect(try await phone.bootstrap(.phone, server: oldServer).run() == .staysOnGeneration1)
-        #expect(oldServer.zoneNames(owner: Self.user).isEmpty)
-        #expect(try await phone.zone("Library") == nil)
-
         let newServer = FakeCloudKit()
         let fresh = try Device(newServer, name: "phone")
         _ = try await fresh.bootstrap(.phone, server: newServer).run()
         #expect(Self.seed(try Self.serverRoot(newServer))["state"] == .string("complete"))
-    }
-
-    @Test("A failed old-container lookup creates no root and is retried (R5-m4)")
-    func failedLookupRetried() async throws {
-        let server = FakeCloudKit()
-        let mac = try Device(server, name: "mac")
-        server.failNext(.allZones, container: FakeCloudKit.legacyContainer, with: CloudError(.networkFailure))
-        #expect(try await mac.bootstrap(.macWithoutLibrary, server: server).run() == .waiting(.legacyLookupFailed))
-        #expect(server.zoneNames(owner: Self.user).isEmpty)
-        #expect(!server.calls.contains { $0.operation == .modifyZones || $0.operation == .modifyRecords })
-        #expect(try await mac.bootstrap(.macWithoutLibrary, server: server).run() == .created(saltID: RecordNaming.saltID(Data(repeating: 1, count: 32))))
     }
 
     @Test("A client holding no library waits while another device's zones have no root yet, but finishes what it started itself")

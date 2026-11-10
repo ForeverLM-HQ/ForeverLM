@@ -292,8 +292,6 @@ extension MCPDataStore {
             .sorted { $0.title.localizedStandardCompare($1.title) == .orderedAscending }
         let attachedSourceIDs = Set(items.compactMap(\.sourceId))
         let unassignedSources = groupedSources.filter { !attachedSourceIDs.contains($0.id) }
-        // The latest sitting of each lecture's quiz (docs/lecture-quiz-design.md).
-        let quizScores = LectureQuizScore.scoresFromDefaults()
         // The course's stored quizzes, placed after the lecture each follows.
         let quizzes = try store.loadCourseQuizzes(courseID: courseID)
         let placements = CourseQuizPlanning.placements(quizzes: quizzes, lectureOrder: lectures.map(\.id))
@@ -304,17 +302,9 @@ extension MCPDataStore {
         // The pages a textbook reading names (docs/textbook-readings-design.md).
         let sourceUnits = try store.loadCourseSourceUnits()
         let lectureNumbers = Dictionary(lectures.map { ($0.id, $0.number) }, uniquingKeysWith: { first, _ in first })
-        // A quiz's latest sitting, or for a practice quiz the one its lecture's
-        // pre-storage quiz kept under the lecture video, as the app reads it.
+        // A quiz's latest sitting, as the app reads it.
         func score(of quiz: CourseQuiz) -> LectureQuizScore? {
-            if let stored = storedQuizScores[quiz.id] { return stored }
-            guard quiz.kind == .practice, let lectureID = quiz.lectureIDs.first else { return nil }
-            let videoID = (itemsByLecture[lectureID] ?? [])
-                .sorted { $0.sortIndex < $1.sortIndex }
-                .first { item in
-                    item.role == .video && item.sourceId.flatMap { sourcesByID[$0]?.sourceType } != .paper
-                }?.sourceId
-            return videoID.flatMap { quizScores[$0] }
+            storedQuizScores[quiz.id]
         }
         // The course's gate (docs/courses-design.md): the first written quiz on
         // the path without a finished sitting holds back what comes after it.
@@ -440,9 +430,6 @@ extension MCPDataStore {
                     }
                     if let sourceUnitID = item.sourceUnitId {
                         details.append("source_unit_id: \(sourceUnitID)")
-                    }
-                    if let score = item.sourceId.flatMap({ quizScores[$0] }) {
-                        details.append("quiz: \(score.label)")
                     }
                     lines.append("  - \(sourceTitle) (\(details.joined(separator: ", ")))")
                 }

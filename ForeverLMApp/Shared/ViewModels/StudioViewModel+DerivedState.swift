@@ -2585,7 +2585,7 @@ extension StudioViewModel {
             learningGoalLinkedSourceIds = try await storage.sourceIdsWithReviewSession()
             learningGoalEligibleSourceIds = try await storage.sourceIdsWithLinkedChatSession()
             if showSessionsPanel {
-                showAssistantOverlay = true
+                isChatTabActive = true
                 revealReviewSessionSidebar()
                 searchText = ""
             }
@@ -2877,14 +2877,14 @@ extension StudioViewModel {
         guard !item.isMissingSource else { return }
         setContextSources([item.sourceID])
         showReaderPanel = true
-        showAssistantOverlay = true
+        isChatTabActive = true
         readerPoppedOut = false
         clearReaderSurfaces()
         await selectArticle(item.sourceID)
     }
 
     func openSourceInReader(_ sourceID: String) async {
-        let shouldRefreshVisibleChat = showAssistantOverlay
+        let shouldRefreshVisibleChat = isChatTabActive
         setContextSources([sourceID])
         showReaderPanel = true
         readerPoppedOut = false
@@ -2997,7 +2997,7 @@ extension StudioViewModel {
             memoryPlan: memoryPlan
         )
         reviewChatPanelMode = .chat
-        showAssistantOverlay = true
+        isChatTabActive = true
         reviewChatAutoStartRequestID = UUID()
     }
 
@@ -3358,10 +3358,6 @@ extension StudioViewModel {
         let meetingFolderImages = Self.meetingFolderImageURLsFromDefaults()
         if meetingFolderImages != meetingFolderImageURLs {
             meetingFolderImageURLs = meetingFolderImages
-        }
-        let quizScores = LectureQuizScore.scoresFromDefaults()
-        if quizScores != lectureQuizScores {
-            lectureQuizScores = quizScores
         }
         let storedQuizScores = LectureQuizScore.scoresFromDefaults(prefix: LectureQuizScore.courseQuizPreferenceKeyPrefix)
         if storedQuizScores != courseQuizScores {
@@ -3755,8 +3751,8 @@ extension StudioViewModel {
     }
 
     /// Concept events directly change the due projection. Source events change
-    /// which grounded targets are available, while legacy review history can
-    /// make an on-demand first-review bootstrap candidate due.
+    /// which grounded targets are available, while a source's own review history can
+    /// make an on-demand first-review candidate due.
     static func cloudKitEntitiesRequireMemoryRefresh(
         _ entities: Set<CloudKitSyncEntity>
     ) -> Bool {
@@ -4257,7 +4253,7 @@ extension StudioViewModel {
     /// Open the Review Sessions panel filtered to a specific source.
     func showReviewSessionsForSource(_ sourceID: String) {
         reviewSessionFilter = .source(sourceID)
-        showAssistantOverlay = true
+        isChatTabActive = true
         revealReviewSessionSidebar()
         Task { await loadReviewSessionLinks() }
     }
@@ -4266,7 +4262,7 @@ extension StudioViewModel {
     /// (a book or course), so sessions linked to any of its items are shown.
     func showReviewSessionsForGroup(_ groupName: String) {
         reviewSessionFilter = .group(groupName)
-        showAssistantOverlay = true
+        isChatTabActive = true
         revealReviewSessionSidebar()
         Task { await loadReviewSessionLinks() }
     }
@@ -4278,12 +4274,12 @@ extension StudioViewModel {
         applyChatHome(forSessionID: sessionID, in: chatRequestOriginWindow ?? activeWindowState)
         reviewChatResumeSessionID = sessionID
         reviewChatPanelMode = .chat
-        showAssistantOverlay = true
+        isChatTabActive = true
     }
 
     func requestResetReviewChat() {
         reviewChatPanelMode = .chat
-        showAssistantOverlay = true
+        isChatTabActive = true
         reviewChatResetRequestID = UUID()
     }
 
@@ -4304,7 +4300,7 @@ extension StudioViewModel {
         pendingReviewChatNotebookID = notebook.id
         setContextSources(notebookChatSourceIDs(notebook))
         reviewChatPanelMode = .chat
-        showAssistantOverlay = true
+        isChatTabActive = true
         reviewChatResetRequestID = UUID()
         reviewChatAutoStartRequestID = UUID()
     }
@@ -4361,7 +4357,7 @@ extension StudioViewModel {
         activateCenterTab(.chat, in: window)
         inWindow(window) {
             reviewChatPanelMode = .chat
-            showAssistantOverlay = true
+            isChatTabActive = true
             if replay.resetsChat {
                 pendingReviewChatNotebookID = replay.notebookID
                 pendingReviewChatDraft = replay.draft
@@ -4450,7 +4446,7 @@ extension StudioViewModel {
             clearSourceContext()
         }
         reviewChatPanelMode = .chat
-        showAssistantOverlay = true
+        isChatTabActive = true
         reviewChatResetRequestID = UUID()
         reviewChatFocusRequestID = UUID()
     }
@@ -4478,7 +4474,7 @@ extension StudioViewModel {
             setContextSources([sourceID])
             pendingReviewChatDraft = Self.animationChatDraft(sourceTitle: displayTitle(for: article))
             reviewChatPanelMode = .chat
-            showAssistantOverlay = true
+            isChatTabActive = true
             reviewChatResetRequestID = UUID()
             reviewChatFocusRequestID = UUID()
         } else {

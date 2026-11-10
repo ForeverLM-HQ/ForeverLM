@@ -3171,16 +3171,6 @@ enum SourceError: LocalizedError, Equatable {
     case kindleConversionFailed(String)
     case googleDocsUnavailable(SourceService.GoogleDocsResource.Kind)
 
-    /// `aiCreditsRequired`'s sentence before the prepaid balance was retired
-    /// (2026-09-25). Sources that stored it are still on hold for that reason.
-    static let legacyAICreditsRequiredMessage =
-        "Saved to your library, but reading it in is on hold: top up your ForeverLM AI balance to finish ingesting it. You can open and read it now."
-
-    /// `aiCreditsRequired`'s sentence while the key needed a plan (until
-    /// 2026-10-10). Sources that stored it are still on hold for that reason.
-    static let planEraAICreditsRequiredMessage =
-        "Saved to your library, but reading it in is on hold: add your OpenRouter key in AI Usage (the sidebar's OpenRouter button) and choose a plan in Settings → Billing to finish ingesting it. You can open and read it now."
-
     var errorDescription: String? {
         switch self {
         case .invalidURL: return "Invalid source URL"

@@ -223,7 +223,7 @@ enum SourceImageCatalog {
     }
 
     /// The transcript words spoken while each slide was on screen, keyed by
-    /// slide number. A window written without an end — legacy content — closes
+    /// slide number. A window written without an end closes
     /// at the next slide's start, as the reader closes it. The segment already
     /// being spoken when a slide appears belongs to it too: a presenter puts a
     /// slide up mid-sentence, and that sentence is usually what names it.

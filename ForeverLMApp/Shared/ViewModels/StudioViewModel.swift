@@ -523,7 +523,6 @@ class StudioViewModel {
     /// The soft hyphen repair running now (schema 166), which a second caller
     /// waits for rather than skips: the launch starts sync only once it is done.
     @ObservationIgnored var storedSoftHyphenRepairTask: Task<Void, Never>?
-    @ObservationIgnored var paperFigureMarkdownRepairInFlight = false
     @ObservationIgnored var sourceWordCountRepairInFlight = false
     @ObservationIgnored var paperFigureImageSweepInFlight = false
     @ObservationIgnored var paperFigureIndexBackfillInFlight = false
@@ -2325,13 +2324,6 @@ class StudioViewModel {
     var videoPlaylistMetadata: [String: VideoPlaylistMetadata] = [:]
     var refreshingVideoPlaylistIDs: Set<String> = []
 
-    /// The latest finished sitting of each lecture's quiz, keyed by the
-    /// lecture video's source id; the quiz row under the lecture shows it
-    /// (docs/lecture-quiz-design.md). Mirrors the `lectureQuiz.score.*`
-    /// preference rows into observable state, reseeded when another Mac's
-    /// sitting arrives (`reloadSyncedPreferences`).
-    var lectureQuizScores: [String: LectureQuizScore] = LectureQuizScore.scoresFromDefaults()
-
     /// Each course's stored quizzes (schema 138), keyed by course ID, loaded
     /// with the outline (`refreshCourseOutline`).
     var courseQuizzesByCourse: [String: [CourseQuiz]] = [:]
@@ -2446,9 +2438,8 @@ class StudioViewModel {
     }
 
     /// Whether the docked Chat surface is on screen — i.e. the Chat tab is the
-    /// active tab of its center group. The legacy name remains so the existing
-    /// review-navigation call sites continue to reveal Chat consistently.
-    var showAssistantOverlay: Bool {
+    /// active tab of its center group. Setting it reveals or leaves Chat.
+    var isChatTabActive: Bool {
         get { activeCenterTabs.contains(.chat) }
         set {
             if newValue {
@@ -3052,7 +3043,7 @@ class StudioViewModel {
     ) {
         // A cross-window drag does not necessarily make the window under the
         // pointer key. The drop target therefore supplies its own scene state;
-        // menu commands and legacy call sites continue to resolve through the
+        // menu commands and the model's own call sites continue to resolve through the
         // key-window registry when no explicit destination is provided.
         let destination = destinationWindowState ?? activeWindowState
         if destination.isVoiceWorkspacePresented {
@@ -3312,7 +3303,7 @@ class StudioViewModel {
         window.centerTabGroups = layout
     }
 
-    // MARK: - Legacy surface accessors
+    // MARK: - Surface accessors
 
     // Setting one of these to `false` hides only that surface — it never
     // touches what a sibling group is showing.
@@ -4309,38 +4300,6 @@ class StudioViewModel {
             guard let count = counts[updatedArticles[index].id],
                   updatedArticles[index].wordCount != count else { continue }
             updatedArticles[index].wordCount = count
-            didChange = true
-        }
-        if didChange { articles = updatedArticles }
-    }
-
-    /// Strip the stale figure image links older PDF extraction left in stored
-    /// source text. Small batches keep SQLite available and make the work
-    /// resumable if the app closes midway through an upgrade.
-    func runDeferredPaperFigureMarkdownRepair() async {
-        guard !paperFigureMarkdownRepairInFlight else { return }
-        paperFigureMarkdownRepairInFlight = true
-        defer { paperFigureMarkdownRepairInFlight = false }
-        var repairedIDs: Set<String> = []
-        do {
-            while !Task.isCancelled {
-                let repaired = try await storage.drainPaperFigureMarkdownRepairBatch(limit: 50)
-                guard !repaired.isEmpty else { break }
-                repairedIDs.formUnion(repaired)
-                await Task.yield()
-            }
-        } catch {
-            logger.error("Deferred figure link repair paused: \(error.localizedDescription)")
-        }
-        guard !repairedIDs.isEmpty else { return }
-        // A loaded paper still holds the pre-repair extraction. Assign once:
-        // mutating `articles[index]` runs the array's didSet and rebuilds the
-        // sidebar indexes for every element touched.
-        var updatedArticles = articles
-        var didChange = false
-        for index in updatedArticles.indices
-        where repairedIDs.contains(updatedArticles[index].id) && updatedArticles[index].content != nil {
-            updatedArticles[index].content = nil
             didChange = true
         }
         if didChange { articles = updatedArticles }

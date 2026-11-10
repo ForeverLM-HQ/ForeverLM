@@ -46,40 +46,6 @@ struct XAccountsTests {
         #expect(XAccountCredentials.decode("{\"accessToken\":\"\"}") == nil)
     }
 
-    @Test("An older build's single connection becomes the first account, tokens and all")
-    func adoptionOfTheSingleConnection() throws {
-        let expiry = "2026-10-16T12:00:00Z"
-        let legacy = XLegacyConnection(
-            userID: "1001",
-            username: " robin ",
-            accessToken: "access-1",
-            refreshToken: "refresh-1",
-            tokenExpiry: expiry,
-            grantedScopes: "bookmark.read tweet.write",
-            clientID: "client-1"
-        )
-        let adopted = try #require(XAccountBook.adoption(of: legacy))
-        #expect(adopted.account == robin)
-        #expect(adopted.credentials.accessToken == "access-1")
-        #expect(adopted.credentials.refreshToken == "refresh-1")
-        #expect(adopted.credentials.grantedScopes == "bookmark.read tweet.write")
-        #expect(adopted.credentials.clientID == "client-1")
-        #expect(adopted.credentials.tokenExpiry == ISO8601DateFormatter().date(from: expiry))
-
-        // A session from before the handle was kept is adopted without one.
-        var handleless = legacy
-        handleless.username = nil
-        #expect(XAccountBook.adoption(of: handleless)?.account == XAccount(id: "1001", username: nil))
-
-        // A token with no user id is a sign-in that never finished.
-        var unfinished = legacy
-        unfinished.userID = nil
-        #expect(XAccountBook.adoption(of: unfinished) == nil)
-        var tokenless = legacy
-        tokenless.accessToken = nil
-        #expect(XAccountBook.adoption(of: tokenless) == nil)
-    }
-
     @Test("Each account has its own bookmark cursors")
     func cursorKeysArePerAccount() {
         #expect(XAccountBook.newestIDKey(accountID: "1001") == "x_bookmarks_newest_id.1001")

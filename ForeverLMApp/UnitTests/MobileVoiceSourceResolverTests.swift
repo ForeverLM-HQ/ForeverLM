@@ -578,16 +578,16 @@ struct MobileVoiceSourceResolverTests {
 
     @Test("The hands-free review quiz never ends without the learner's explicit request")
     func mobileReviewClosureRequiresLearnerRequest() throws {
-        let legacy = MobileVoiceReviewPromptContract.legacyInstructions(
+        let prompt = MobileVoiceReviewPromptContract.instructions(
             sourceTitle: "Test source",
             topic: "Test topic",
             sourceText: "Test source text"
         )
 
-        #expect(legacy.contains("complete must remain false"))
-        #expect(legacy.contains("Continue for as many turns or hours as the learner wants"))
-        #expect(legacy.contains("never say goodbye or tell the learner they are done"))
-        #expect(!legacy.contains("Run about four to six exchanges"))
+        #expect(prompt.contains("complete must remain false"))
+        #expect(prompt.contains("Continue for as many turns or hours as the learner wants"))
+        #expect(prompt.contains("never say goodbye or tell the learner they are done"))
+        #expect(!prompt.contains("Run about four to six exchanges"))
     }
 
     private func source(

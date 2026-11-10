@@ -1872,7 +1872,7 @@ final class StudioWorkspaceViewStore {
     }
 }
 
-/// Routes legacy `StudioViewModel` navigation helpers to the key Studio window.
+/// Routes `StudioViewModel` navigation helpers to the key Studio window.
 /// Views render from their own `StudioWindowState`; this registry is only the
 /// imperative bridge for commands and workflows that predate multi-window state.
 @Observable

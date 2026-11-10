@@ -57,13 +57,13 @@ extension KnowledgeStore {
         }
         for key in order.sorted() {
             let entries = groups[key] ?? []
-            let first = SyncIdentity.sittingLegacyID(key)
+            let first = SyncIdentity.migratedSittingID(key)
             let chatID = entries.first?.attempt.sessionID
             for entry in entries {
                 let answer = MemoryAnswerCodec.answer(for: entry.attempt, curriculumFingerprint: entry.fingerprint)
                 try appendAnswer(
                     entry.attempt.id, answer: answer, at: entry.attempt.attemptedAt, toSittingStartingWith: first,
-                    newSitting: (device: SyncIdentity.legacyDeviceID, kind: chatID == nil ? "cards" : "memoryReview", chatID: chatID)
+                    newSitting: (device: SyncIdentity.migratedHistoryDeviceID, kind: chatID == nil ? "cards" : "memoryReview", chatID: chatID)
                 )
             }
         }
@@ -83,8 +83,8 @@ extension KnowledgeStore {
             if let key = row.text(0), let xml = row.text(1) { rows.append((key, xml)) }
         }
         for row in rows {
-            guard let sitting = Self.quizScoreSitting(key: row.key, valuePlistXML: row.xml, deviceID: SyncIdentity.legacyDeviceID) else { continue }
-            let id = SyncIdentity.sittingLegacyID("quiz:\(sitting.kind):\(row.key)")
+            guard let sitting = Self.quizScoreSitting(key: row.key, valuePlistXML: row.xml, deviceID: SyncIdentity.migratedHistoryDeviceID) else { continue }
+            let id = SyncIdentity.migratedSittingID("quiz:\(sitting.kind):\(row.key)")
             try upsertQuizSitting(sitting, id: id)
         }
     }
@@ -173,9 +173,9 @@ extension KnowledgeStore {
             try execute("""
                 UPDATE memory_sittings SET ended_at = ?
                 WHERE id = ? AND device_id = ? AND (ended_at IS NULL OR ended_at < ?)
-            """, [.real(at.timeIntervalSinceReferenceDate), .text(sittingID), .text(SyncIdentity.legacyDeviceID), .real(at.timeIntervalSinceReferenceDate)])
+            """, [.real(at.timeIntervalSinceReferenceDate), .text(sittingID), .text(SyncIdentity.migratedHistoryDeviceID), .real(at.timeIntervalSinceReferenceDate)])
         } else {
-            let endedAt: Double? = newSitting.device == SyncIdentity.legacyDeviceID ? at.timeIntervalSinceReferenceDate : nil
+            let endedAt: Double? = newSitting.device == SyncIdentity.migratedHistoryDeviceID ? at.timeIntervalSinceReferenceDate : nil
             try execute("""
                 INSERT INTO memory_sittings (id, device_id, kind, started_at, ended_at, chat_id, part) VALUES (?, ?, ?, ?, ?, ?, 1)
             """, [.text(first), .text(newSitting.device), .text(newSitting.kind), .real(at.timeIntervalSinceReferenceDate), .real(endedAt), .text(newSitting.chatID)])

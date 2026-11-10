@@ -9,7 +9,7 @@ import Testing
 struct MacPatchOutboxTests {
     private typealias N = NotebookSyncFixture
 
-    private static func stamp(_ policy: SyncPolicy, _ ms: Int64, _ device: String = SyncIdentity.legacyDeviceID) -> SyncStamp {
+    private static func stamp(_ policy: SyncPolicy, _ ms: Int64, _ device: String = SyncIdentity.migratedHistoryDeviceID) -> SyncStamp {
         SyncStamp(policy: policy, milliseconds: ms, counter: 0, deviceID: device)
     }
 

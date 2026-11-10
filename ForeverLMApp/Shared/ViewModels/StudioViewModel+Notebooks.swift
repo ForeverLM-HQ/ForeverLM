@@ -681,7 +681,7 @@ extension StudioViewModel {
         setContextSources(goal.approvedSourceIDs)
         pendingReviewChatDraft = Self.goalChatDraft(goal)
         reviewChatPanelMode = .chat
-        showAssistantOverlay = true
+        isChatTabActive = true
         reviewChatResetRequestID = UUID()
         reviewChatFocusRequestID = UUID()
     }
