@@ -138,6 +138,20 @@ struct MobileSwitchedMemoryTests {
                    createdAt: now, updatedAt: now)
     }
 
+    /// The ids of `cards` the catalog holds, sorted. The catalog's own "every card" and "every answer"
+    /// reads were test-only and went with the dead code (2026-11-09); these read through what a screen
+    /// uses (`currentMnemonicReadingHeld`).
+    static func heldCards(_ catalog: MobileCloudSourceCatalog, _ cards: Set<String>) async -> [String] {
+        await catalog.currentMnemonicReadingHeld(itemIDs: cards).items.map(\.id).sorted()
+    }
+
+    /// The ids of the answers held about `cards`, oldest first.
+    static func heldAnswers(_ catalog: MobileCloudSourceCatalog, _ cards: Set<String>) async -> [String] {
+        await catalog.currentMnemonicReadingHeld(itemIDs: cards).attempts
+            .sorted { ($0.attemptedAt, $0.id) < ($1.attemptedAt, $1.id) }
+            .map(\.id)
+    }
+
     /// The catalog a switched phone reads, over `phone`'s replica.
     static func catalog(_ phone: MobileTestDevice, _ writer: MobileRecordWriter) -> MobileCloudSourceCatalog {
         MobileCloudSourceCatalog(projection: { phone.projection }, ideas: MobileSourceIdeaStore(writer: { writer }))
@@ -171,8 +185,8 @@ struct MobileSwitchedMemoryTests {
         let catalog = Self.catalog(phone, writer)
         _ = try await catalog.loadSources(forceRefresh: true)
 
-        #expect(await catalog.currentMemoryItems().map(\.id).sorted() == ["card1", "card2"], "the phone's own Card and the Mac's")
-        #expect(await catalog.currentMemoryAttempts().map(\.id) == ["att-mac", "att1"], "oldest answer first")
+        #expect(await Self.heldCards(catalog, ["card1", "card2"]) == ["card1", "card2"], "the phone's own Card and the Mac's")
+        #expect(await Self.heldAnswers(catalog, ["card1", "card2"]) == ["att-mac", "att1"], "oldest answer first")
         let context = try #require(await catalog.currentCardAnswerContext(memoryItemID: "card1"), "an answer can be decided on a switched phone")
         #expect(context.history.map(\.id) == ["att1"])
         #expect(context.item.target == "GDF15 binds GFRAL")
@@ -190,9 +204,6 @@ struct MobileSwitchedMemoryTests {
         #expect(await catalog.currentNotebookCardCounts(notebookID: "ghost", now: Self.now, budgetMinutes: nil, newPerDay: 5) == nil)
         let practice = try #require(await catalog.currentNotebookPractice(notebookID: "nb1", now: Self.now))
         #expect(practice.entries.map(\.item.id) == ["card1"])
-        // Card 2 was answered three days ago and is due; card 1 was answered just now.
-        let due = await catalog.currentDueMemoryItems(now: Self.now.addingTimeInterval(86_400 * 2), limit: 12).map(\.item.id)
-        #expect(due.contains("card2"))
     }
 
     @Test("An answer the phone writes joins what the catalog holds at once, and survives the next replica load")
@@ -228,7 +239,6 @@ struct MobileSwitchedMemoryTests {
         _ = try await catalog.loadSources(forceRefresh: true)
 
         #expect(await catalog.currentSources(ids: ["src1", "src2", "missing"]).map(\.id) == ["src1", "src2"])
-        #expect(await catalog.currentAvailableSources(ids: ["src1", "src2", "missing"]).map(\.id) == ["src1"], "a hidden source is not activated")
         #expect(await catalog.currentReviewedSourceIDs() == ["src1"], "a running chat reviews nothing yet")
     }
 
@@ -253,12 +263,12 @@ struct MobileSwitchedMemoryTests {
         try await MobileSyncFixture.apply(try Self.macCard("card2", source: "src1"), to: phone.replica)
         let catalog = Self.catalog(phone, writer)
         _ = try await catalog.loadSources(forceRefresh: true)
-        #expect(await catalog.currentMemoryAttempts().map(\.id) == ["att-mac"])
+        #expect(await Self.heldAnswers(catalog, ["card2"]) == ["att-mac"])
 
         phone.replica.resetDecodeCount()
         _ = try await catalog.loadSources(forceRefresh: true)
-        #expect(await catalog.currentMemoryAttempts().map(\.id) == ["att-mac"])
-        #expect(await catalog.currentMemoryItems().map(\.id) == ["card2"])
+        #expect(await Self.heldAnswers(catalog, ["card2"]) == ["att-mac"])
+        #expect(await Self.heldCards(catalog, ["card2"]) == ["card2"])
         #expect(phone.replica.decodedRecords == 0, "nothing arrived, so no card and no sitting is decoded again")
 
         // The Mac's sitting gains an answer, as a later sync round delivers it.
@@ -270,7 +280,7 @@ struct MobileSwitchedMemoryTests {
             "startedAt": SyncJSON(SyncTime.milliseconds(Self.now.addingTimeInterval(-86_400 * 3))),
             "answers": .object(["att-mac": first, "att-mac-2": second]),
         ]))], to: phone.replica)
-        #expect(await catalog.currentMemoryAttempts().map(\.id) == ["att-mac", "att-mac-2"], "the arrival is seen without waiting for a load")
+        #expect(await Self.heldAnswers(catalog, ["card2"]) == ["att-mac", "att-mac-2"], "the arrival is seen without waiting for a load")
     }
 
     @Test("An answer reads back as the attempt it was written from")

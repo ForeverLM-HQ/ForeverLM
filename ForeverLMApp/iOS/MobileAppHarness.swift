@@ -191,6 +191,13 @@ private extension MobileAppHarness {
              "Lets protons back across the membrane without making ATP, releasing heat.", 2),
         ]
 
+        static let marks: [(source: String, quote: String, note: String, color: SourceHighlightColor)] = [
+            ("harness-src-essay", "You make roughly your own body weight in ATP every day this way.",
+             "Check this number against the rotary paper.", .blue),
+            ("harness-src-mitchell", "vesicles moved from an acid bath to an alkaline one make ATP in the dark", "", .pink),
+            ("harness-src-rotary", "One full turn releases three ATP.", "", .yellow),
+        ]
+
         static func write(into writer: MobileRecordWriter) async throws {
             let now = Date()
             let device = writer.deviceID
@@ -220,6 +227,16 @@ private extension MobileAppHarness {
                         createdAt: made, updatedAt: made
                     )
                     try write.write(MobileMemoryRecords.keptCardPatch(item), in: MobileProjection.libraryKey)
+                }
+            }
+            // Marks in the Reader: two that ask for a follow-up (blue, pink) and one that only keeps.
+            try await writer.transaction { write in
+                for (index, mark) in marks.enumerated() {
+                    let made = now.addingTimeInterval(-Double(index + 1) * 5_400)
+                    try write.saveHighlight(SourceHighlight(
+                        id: "hl_harness_\(index)", sourceID: mark.source, quote: mark.quote, note: mark.note, color: mark.color,
+                        anchor: ReaderTextAnchor(exact: mark.quote), pdfAnchor: nil, createdAt: made, updatedAt: made
+                    ))
                 }
             }
             // Oldest first, so the list reads newest first as a library that grew.

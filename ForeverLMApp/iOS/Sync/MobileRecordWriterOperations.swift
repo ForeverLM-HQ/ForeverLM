@@ -43,6 +43,10 @@ enum MobileSettingCatalog {
         // A chat's pin (`ChatPins` on the Mac): Home's Pinned section on the Mac and the web. The phone
         // has no Pinned yet; it would write the row as they do.
         LeftOut(prefix: "chat.pinned.", type: "string", scopes: ["account"]),
+        // The pages of a PDF the learner turned in the Mac's reader; the phone does not read it yet.
+        LeftOut(prefix: "reader.pdfRotations.", type: "string", scopes: ["account"]),
+        // That a task was given its starting model once for the account; only the Mac's Keychain seeding writes it.
+        LeftOut(prefix: "aiSeeded.task.", type: "bool", scopes: ["account"]),
     ]
 
     static func leftOutEntry(for key: String) -> LeftOut? {

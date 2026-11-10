@@ -918,7 +918,9 @@ struct MobileCourseQuizSittingView: View {
                         isAnswerFocused = false
                         Task { await sitting.submit() }
                     } label: {
-                        MobileCircularActionLabel(systemImage: "arrow.up", isProminent: sitting.canSubmit)
+                        // The chat composers' disc, in the text's colour: this one was the
+                    // only blue send button left in the app.
+                    MobileComposerDiscLabel(systemImage: "arrow.up")
                     }
                     .buttonStyle(.plain)
                     .disabled(!sitting.canSubmit || isListening)
