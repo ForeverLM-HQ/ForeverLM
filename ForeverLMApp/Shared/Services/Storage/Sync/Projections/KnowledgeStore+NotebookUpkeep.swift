@@ -6,7 +6,7 @@ extension KnowledgeStore {
     /// After a write to notebooks' or Goals' rows, under generation 2 only: a new row gets its kind
     /// (`entity_kind`, b1), the research questions' rows follow the generation-1 array, and each
     /// Entry's order key follows the study order the write left. Runs inside the writer's
-    /// transaction; generation 1 writes exactly what build 177 does (D40).
+    /// transaction.
     func keepNotebookRowsForGeneration2(goalIDs: [String]) throws {
         try LearningGoalEntityKind.classifyUnclassified(self)
         let now = Date().timeIntervalSinceReferenceDate

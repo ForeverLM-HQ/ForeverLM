@@ -8,7 +8,7 @@ import OSLog
 /// Catalog])` coexists with plain operations on the same private database and never fetches a space
 /// zone. Debug builds only, and only when launched with `--schema-v2-spike` and
 /// `FOREVERLM_SYNC_GENERATION=2` in the environment; it never opens `knowledge.db` (its replica is
-/// a file of its own in the temporary folder) and touches nothing generation 1 reads. Its log is in
+/// a file of its own in the temporary folder) and touches nothing the app reads. Its log is in
 /// Console.app, subsystem the app's bundle id, category `SchemaV2Spike`; the last line is `SPIKE PASS`
 /// or `SPIKE FAIL: <why>`.
 ///

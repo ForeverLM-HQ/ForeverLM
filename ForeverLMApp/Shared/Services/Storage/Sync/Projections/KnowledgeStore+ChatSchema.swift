@@ -89,7 +89,7 @@ extension KnowledgeStore {
     /// review default, in the creating transaction. The kind is the creation site's: the course-quiz
     /// chat `quizSitting`, the walk's chat `walkthrough`, a memory review `memory`, a review `review`,
     /// every other chat `chat`; none writes `voice`, which only the classifier gives. A site that names
-    /// no kind gets the classifier's over the row (D50). Generation 1 writes nothing here (D40).
+    /// no kind gets the classifier's over the row (D50).
     func keepChatShapeForGeneration2(sessionID: String, kind: ChatKind?, marksReviewed: Bool? = nil) throws {
         let resolved = try kind ?? ChatEvidence.load(chatID: sessionID, connection: self).map(ChatKindClassifier.kind(of:)) ?? .chat
         try execute(

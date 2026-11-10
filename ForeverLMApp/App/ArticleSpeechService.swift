@@ -3260,8 +3260,7 @@ final class ArticleSpeechService: NSObject, ObservableObject {
             try? SyncedArticleAudioStore.savePlaybackPosition(position, sourceID: sourceID)
             if toAccount {
                 await SyncedArticleAudioStore.publishPlaybackPositionToAccount(position, sourceID: sourceID)
-                // Generation 2: the account copy is the source's ReadingState (`listen.position.*`
-                // stays on this Mac); generation 1 writes nothing here.
+                // The account copy is the source's ReadingState (`listen.position.*` stays on this Mac).
                 try? await activityStorage.saveListenPosition(position, sourceID: sourceID)
             }
         }

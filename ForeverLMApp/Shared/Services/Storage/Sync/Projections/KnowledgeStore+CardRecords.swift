@@ -546,7 +546,7 @@ extension KnowledgeStore {
 extension KnowledgeStore {
     /// Every source's draft deck as its cards' Cards, once, after `deriveCardStates` made the deck rows'
     /// states (§10: a deck's draft becomes a Card with status `draft`; the deck Artifact stays this Mac's,
-    /// unsynced, until generation 1 is deleted). A deck card goes under the id its state takes: the Memory
+    /// unsynced). A deck card goes under the id its state takes: the Memory
     /// item it was kept as (its deck row says so, or its item exists), else `card:<deckSourceID>:<seed>`
     /// for a seeded card, else its own deck id; of two deck cards under one id the first is taken. A card
     /// with no row is written with the status its deck row gives it (kept, skipped, else draft); a row that

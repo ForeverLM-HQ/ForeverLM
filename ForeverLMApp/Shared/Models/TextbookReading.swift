@@ -117,8 +117,7 @@ enum LearnerProfile {
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// Under generation 2 the focus is the member's Enrollment (schema v2 §3.5.12,
-    /// `CourseEnrollmentStore`); generation 1 keeps the row.
+    /// The focus is the member's Enrollment (schema v2 §3.5.12, `CourseEnrollmentStore`).
     static func courseFocus(courseID: String) -> String {
         return CourseEnrollmentStore.focus(courseID: courseID)
     }

@@ -6,7 +6,7 @@ extension KnowledgeStore {
     /// After a write to a course's rows, under generation 2 only: the course gets its created date,
     /// its lectures and their items their order keys (only the rows out of order take new ones), each
     /// item its slot and its span, and a team's course its children's `ck_identity` rows. Runs inside the
-    /// writer's transaction; generation 1 writes exactly what build 177 does (D40).
+    /// writer's transaction.
     func keepCourseRowsForGeneration2(courseIDs: [String]) throws {
         let zones = try teamZoneKeys()
         let now = Date().timeIntervalSinceReferenceDate

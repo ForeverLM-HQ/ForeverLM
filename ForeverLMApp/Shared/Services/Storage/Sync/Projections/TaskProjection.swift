@@ -435,9 +435,9 @@ enum TaskUpkeep {
 }
 
 extension KnowledgeStore {
-    /// After a write to a board task or a share request, under generation 2 only: the board gets its keys
-    /// (only the rows out of order take new ones), and a team's row its `ck_identity` row. Runs inside the
-    /// writer's transaction; generation 1 writes exactly what build 177 does (D40).
+    /// After a write to a board task or a share request: the board gets its keys (only the rows out of
+    /// order take new ones), and a team's row its `ck_identity` row. Runs inside the writer's
+    /// transaction.
     func keepTaskRowsForGeneration2(notebookIDs: [String], taskIDs: [String]) throws {
         for notebook in Set(notebookIDs).sorted() {
             try TaskUpkeep.replanBoard(notebookID: notebook, connection: self)

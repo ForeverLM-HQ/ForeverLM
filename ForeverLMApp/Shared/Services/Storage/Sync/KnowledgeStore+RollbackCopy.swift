@@ -42,7 +42,7 @@ enum KnowledgeRollbackCopy {
         case beforeGeneration2 = "knowledge.pre-v2.db"
 
         var fileName: String { rawValue }
-        /// Where the copy's facts are kept: never in the store (generation 1 writes no `ck_*` row).
+        /// Where the copy's facts are kept: never in the store, so the copy holds no `ck_*` row of them.
         var recordFileName: String { rawValue + ".json" }
     }
 

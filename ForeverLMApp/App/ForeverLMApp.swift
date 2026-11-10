@@ -511,8 +511,8 @@ struct ForeverLMApp: App {
         // the arrangement the last session left behind.
         StudioWorkspaceWindowCoordinator.shared.armLastSessionRestore()
         _ = AppIconImage.shared
-        // Under generation 2 a narration lives in a working folder of its own and the replica, not in iCloud
-        // Drive; set before anything reads or writes narration. Generation 1 keeps iCloud Drive.
+        // A narration lives in a working folder of its own and the replica, not in iCloud Drive; set
+        // before anything reads or writes narration.
         MacNarrationLibrary.install()
         #endif
         #if DEBUG

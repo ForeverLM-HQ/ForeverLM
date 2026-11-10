@@ -510,8 +510,8 @@ extension KnowledgeStore {
         try execBind("DELETE FROM global_artifacts WHERE id = ?") { statement in
             bind(statement, 1, artifactID)
         }
-        // Its other satellites' pointers (schema 159) have no key to cascade on; generation 1 writes
-        // none, and a store held below 154 has no such table.
+        // Its other satellites' pointers (schema 159) have no key to cascade on, and a store held
+        // below 154 has no such table.
         try execBind("DELETE FROM artifact_files WHERE artifact_id = ?") { statement in
             bind(statement, 1, artifactID)
         }

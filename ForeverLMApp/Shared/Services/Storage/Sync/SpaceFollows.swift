@@ -17,7 +17,7 @@ struct SpaceFollow: Equatable, Sendable {
 
 /// The two spellings of a space follow's key: the Setting's id in the space's zone, and the key of the
 /// `user_preferences` row the Mac keeps it in (§3.5.3 gives a space Setting no table of its own).
-/// The local key is no synced preference under either generation, so `PreferenceStore` never reads or
+/// The local key is no synced preference, so `PreferenceStore` never reads or
 /// writes it; the Setting projection feeds it, and `ck_identity` names its zone and wire id.
 enum SpaceFollowKey {
     /// The Setting's id: `follow.<collectionID>`.
@@ -70,7 +70,7 @@ enum SpaceFollowError: Error, Equatable, LocalizedError {
 
 /// A space's follows as the Mac holds them (§3.5.5, §9.9): one `user_preferences` row each, keyed by
 /// `SpaceFollowKey.localKey`, holding the Setting's value, `{autoImport, runnerDeviceID}`, as a property
-/// list. Reads work under both generations (a generation-1 store holds none); writes are generation 2's.
+/// list.
 enum SpaceFollows {
     /// The kinds of Collection that have a feed (§3.5.5 `feed`).
     static let followableKinds: Set<String> = ["podcastShow", "youtubeChannel", "playlist"]

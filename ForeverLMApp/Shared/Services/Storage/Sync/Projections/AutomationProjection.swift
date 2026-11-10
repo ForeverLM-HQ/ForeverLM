@@ -352,10 +352,10 @@ extension KnowledgeStore {
         return (try? JSONDecoder().decode(StampClock.self, from: Data(json.utf8)))?.deviceID
     }
 
-    /// Whether this Mac runs the scheduled task (`Automation.runnerDeviceID`, §3.5.29). Under generation 2
-    /// a task names the one Mac that runs it, so two Macs never answer one morning; a task no Mac runs
-    /// yet is taken by this one. Generation 1 runs every task on every Mac, as build 177 does, and a Mac
-    /// with no device id yet runs it without taking it. Runs inside the caller's transaction.
+    /// Whether this Mac runs the scheduled task (`Automation.runnerDeviceID`, §3.5.29). A task names the
+    /// one Mac that runs it, so two Macs never answer one morning; a task no Mac runs yet is taken by
+    /// this one, and a Mac with no device id yet runs it without taking it. Runs inside the caller's
+    /// transaction.
     func scheduledTaskRunsHere(_ taskID: String) throws -> Bool {
         guard let device = try generation2DeviceID() else { return true }
         let runner = try scalarText("SELECT runner_device_id FROM scheduled_tasks WHERE id = ?", [.text(taskID)])
@@ -371,9 +371,9 @@ extension KnowledgeStore {
         try execute("UPDATE scheduled_task_runs SET ring_slot = ? WHERE id = ?", [.text(slot), .text(runID)])
     }
 
-    /// Run now on a Mac that does not run the task, under generation 2: a `Job(runAutomation)` for the Mac
-    /// that does (§3.5.28), as the web asks for one. False when this Mac runs it (or generation 1, or no
-    /// device id yet), and the caller sets the request as build 177 does. Inside the caller's transaction.
+    /// Run now on a Mac that does not run the task: a `Job(runAutomation)` for the Mac that does
+    /// (§3.5.28), as the web asks for one. False when this Mac runs it (or has no device id yet), and the
+    /// caller sets the task's run-now request here. Inside the caller's transaction.
     func requestRunOnRunnerMacForGeneration2(_ taskID: String, at date: Date) throws -> Bool {
         guard let device = try generation2DeviceID(),
               let runner = try scalarText("SELECT runner_device_id FROM scheduled_tasks WHERE id = ?", [.text(taskID)]),
