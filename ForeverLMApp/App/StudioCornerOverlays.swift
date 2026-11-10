@@ -736,10 +736,11 @@ private struct CornerCardClose: View {
     }
 }
 
-/// The bell above the account: the one inbox, Codex's Activity. It lists the
-/// chats that need attention — unread ones (`ChatReadMarks`) and running
-/// ones — then teammates' requests, plugins to reconnect and every corner card
-/// that is waiting, tucked or not. `kinds` is what is waiting in this window.
+/// The bell above the account: the one inbox of notifications. It lists the
+/// unread chats (`ChatReadMarks`) — never running ones, which are activity
+/// and show in the sidebar (product owner, 2026-11-10: "activity shouldn't
+/// show under notifications") — then teammates' requests, plugins to
+/// reconnect and every corner card that is waiting, tucked or not. `kinds` is what is waiting in this window.
 /// Its dot is anything unread that is not in view already (a card still in
 /// the corner is): an unread chat, a notice only the bell holds, a tucked
 /// card. A dot, never a count.
@@ -756,7 +757,7 @@ struct NotificationCenterButton: View {
         let tray = CornerNoticeTray.shared
         let subjects = vm.inboxSubjects(planDay: planDay)
         let unread = kinds.filter { !tray.isRead($0, subject: subjects.subject($0)) }
-        let unreadChats = InboxChats.listed(vm: vm).unread
+        let unreadChats = InboxChats.listed(vm: vm)
         let lightsDot = tray.lightsBell(unread: unread, hasUnreadChats: !unreadChats.isEmpty)
         let unreadCount = unread.count + unreadChats.count
         Button { isShown.toggle() } label: {
@@ -772,8 +773,8 @@ struct NotificationCenterButton: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.hoverWash(cornerRadius: 7, inset: 0))
-        .railTooltip("Activity")
-        .accessibilityLabel("Activity")
+        .railTooltip("Notifications")
+        .accessibilityLabel("Notifications")
         .accessibilityValue(unreadCount == 0 ? "Nothing new" : "\(unreadCount) unread")
         .accessibilityIdentifier("rail.notifications")
         .popover(isPresented: $isShown, arrowEdge: .trailing) {
@@ -789,27 +790,23 @@ struct NotificationCenterButton: View {
     }
 }
 
-/// The chats the bell lists: those this Mac marks unread and those running in
-/// any window (`ChatReadMarks`), the unread first, newest first in each, of
-/// the chats the open library lists.
+/// The chats the bell lists: those this Mac marks unread (`ChatReadMarks`)
+/// and that are not still running, newest first, of the chats the open
+/// library lists. A running chat is activity, not a notification.
 enum InboxChats {
     @MainActor
-    static func listed(vm: StudioViewModel) -> (unread: [ReviewSessionRecord], running: [ReviewSessionRecord]) {
+    static func listed(vm: StudioViewModel) -> [ReviewSessionRecord] {
         let marks = ChatReadMarks.shared
         let unreadIDs = marks.unreadSessionIDs
+        guard !unreadIDs.isEmpty else { return [] }
         let runningIDs = marks.runningSessionIDs
-        guard !unreadIDs.isEmpty || !runningIDs.isEmpty else { return ([], []) }
-        let sessions = vm.reviewSessionLinks
-            .filter { unreadIDs.contains($0.id) || runningIDs.contains($0.id) }
+        return vm.reviewSessionLinks
+            .filter { unreadIDs.contains($0.id) && !runningIDs.contains($0.id) }
             .sorted { $0.createdAt > $1.createdAt }
-        return (
-            sessions.filter { unreadIDs.contains($0.id) && !runningIDs.contains($0.id) },
-            sessions.filter { runningIDs.contains($0.id) }
-        )
     }
 }
 
-/// The bell's popover, Codex's Activity: the chats that need attention, then
+/// The bell's popover, Notifications: the unread chats, then
 /// the requests, the plugins to reconnect and the cards, each with its read
 /// mark, and Mark All as Read while anything is unread. Its own view, so a
 /// mark redraws it in place.
@@ -831,14 +828,14 @@ private struct NotificationCenterList: View {
         }
         let unread = marks.filter { !$0.isRead }
         let chats = InboxChats.listed(vm: vm)
-        let isEmpty = marks.isEmpty && chats.unread.isEmpty && chats.running.isEmpty
+        let isEmpty = marks.isEmpty && chats.isEmpty
         VStack(alignment: .leading, spacing: StudioDesign.Spacing.small) {
             HStack(alignment: .firstTextBaseline, spacing: StudioDesign.Spacing.small) {
-                Text("Activity")
+                Text("Notifications")
                     .zoomedSystemFont(size: 12.5, weight: .semibold)
                     .textSelection(.disabled)
                 Spacer(minLength: 0)
-                if !unread.isEmpty || !chats.unread.isEmpty {
+                if !unread.isEmpty || !chats.isEmpty {
                     Button {
                         withAnimation(.snappy(duration: 0.2)) {
                             for mark in unread { tray.markRead(mark.kind, subject: mark.subject) }
@@ -862,13 +859,10 @@ private struct NotificationCenterList: View {
                     .textSelection(.disabled)
                     .padding(.vertical, StudioDesign.Spacing.small)
             }
-            if !chats.unread.isEmpty || !chats.running.isEmpty {
+            if !chats.isEmpty {
                 VStack(alignment: .leading, spacing: 1) {
-                    ForEach(chats.unread) { session in
-                        InboxChatRow(session: session, isRunning: false) { open(session) }
-                    }
-                    ForEach(chats.running) { session in
-                        InboxChatRow(session: session, isRunning: true) { open(session) }
+                    ForEach(chats) { session in
+                        InboxChatRow(session: session) { open(session) }
                     }
                 }
             }
@@ -923,12 +917,11 @@ private struct NotificationCenterList: View {
     }
 }
 
-/// One chat in the bell, as its sidebar row draws it: Codex's dot while it
-/// is unread, a spinner while it runs. A click opens it in this window; its
+/// One unread chat in the bell, as its sidebar row draws it: Codex's dot
+/// while it is unread. A click opens it in this window; its
 /// menu marks it read or unread.
 private struct InboxChatRow: View {
     let session: ReviewSessionRecord
-    let isRunning: Bool
     let open: () -> Void
 
     @State private var hovering = false
@@ -944,10 +937,7 @@ private struct InboxChatRow: View {
         Button(action: open) {
             HStack(spacing: 8) {
                 Group {
-                    if isRunning {
-                        ProgressView()
-                            .controlSize(.mini)
-                    } else if isUnread {
+                    if isUnread {
                         RailUnreadDot()
                     }
                 }
@@ -976,7 +966,7 @@ private struct InboxChatRow: View {
             }
         }
         .accessibilityLabel(title)
-        .accessibilityValue(isRunning ? "Running" : isUnread ? "Unread" : "")
+        .accessibilityValue(isUnread ? "Unread" : "")
         .accessibilityHint("Opens the chat in this window")
     }
 }
