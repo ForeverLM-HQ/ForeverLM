@@ -2714,63 +2714,7 @@ span.artifact-foot-activity-title {
   text-decoration: none;
 }
 
-/* ─── The block handle ──────────────────────────────────────────────────────
-   A grip in the gutter beside the block under the pointer: drag to move it,
-   click for its menu. It shows only under the pointer and goes while typing. */
-.artifact-block-handle {
-  position: fixed;
-  z-index: 29;
-  display: flex;
-  align-items: center;
-}
-
-.artifact-block-handle[hidden] { display: none; }
-
-.artifact-block-grip {
-  display: grid;
-  place-items: center;
-  width: 20px;
-  height: 22px;
-  padding: 0;
-  border: 0;
-  border-radius: 5px;
-  background: transparent;
-  color: color-mix(in srgb, CanvasText 36%, transparent);
-  cursor: grab;
-  touch-action: none;
-}
-
-.artifact-block-grip:hover,
-.artifact-block-grip[aria-expanded="true"] {
-  background: color-mix(in srgb, CanvasText 9%, transparent);
-  color: color-mix(in srgb, CanvasText 70%, transparent);
-}
-
-.artifact-block-grip:focus-visible {
-  outline: 2px solid color-mix(in srgb, AccentColor 60%, transparent);
-}
-
-body.artifact-block-dragging,
-body.artifact-block-dragging * {
-  cursor: grabbing !important;
-  user-select: none !important;
-}
-
-.artifact-block-dragging-source {
-  opacity: 0.35;
-}
-
-.artifact-block-drop-line {
-  position: fixed;
-  z-index: 30;
-  height: 2px;
-  border-radius: 1px;
-  background: AccentColor;
-  pointer-events: none;
-}
-
-.artifact-block-drop-line[hidden] { display: none; }
-
+/* ─── The block menu (⌥⌘/) ──────────────────────────────────────────────── */
 .artifact-block-menu {
   min-width: 204px;
 }

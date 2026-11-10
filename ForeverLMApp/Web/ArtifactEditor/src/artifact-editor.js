@@ -1792,7 +1792,6 @@ const slashIcons = {
   // The selection bar's marks and its type menu.
   mention: '<circle cx="8" cy="8" r="2.4"/><path d="M10.4 8v1.1a1.6 1.6 0 0 0 3.2 0V8A5.6 5.6 0 1 0 8 13.6c1.1 0 2.1-.3 3-.9"/>',
   highlight: '<path d="M9.6 2.6l3.8 3.8-5.7 5.7-3.2.6.6-3.2z"/><path d="M2.4 13.6h4.4"/>',
-  grip: '<circle cx="6" cy="3.6" r=".9" fill="currentColor"/><circle cx="10" cy="3.6" r=".9" fill="currentColor"/><circle cx="6" cy="8" r=".9" fill="currentColor"/><circle cx="10" cy="8" r=".9" fill="currentColor"/><circle cx="6" cy="12.4" r=".9" fill="currentColor"/><circle cx="10" cy="12.4" r=".9" fill="currentColor"/>',
   plus: '<path d="M8 3v10M3 8h10"/>',
   width: '<path d="M2.4 8h11.2M5 5.4L2.4 8 5 10.6M11 5.4L13.6 8 11 10.6"/>',
   columns: '<rect x="2" y="3" width="12" height="10" rx="1.6"/><path d="M6 3v10M10 3v10"/>',
@@ -4811,7 +4810,7 @@ function runSlashRow(id) {
 /// Insert +: the `/` list, opened at the caret. A `/` goes where the caret is
 /// when that is a fresh line or follows a space (where typing one would open
 /// the list); anywhere else it goes on an empty line under the block, as the
-/// block handle's Insert below does, so a word is never split by the list.
+/// block menu's Insert below does, so a word is never split by the list.
 function openInsertMenu() {
   const view = activeEditorView()
   if (!view || !isEditable) return false
@@ -5927,7 +5926,7 @@ function separatedFootnotes(parsed, doc) {
 // page is built, and the block's serializer writes it back after the block, so
 // nothing of the comment is ever text on the page. Because they are attributes
 // of the node, a block carries them through copy and paste, a drag with the
-// block handle, Duplicate and undo, and the notes graph's ids are untouched.
+// block menu, Duplicate and undo, and the notes graph's ids are untouched.
 // A block at its defaults has no comment, and a page without any serializes as
 // it always did.
 //
@@ -6115,58 +6114,20 @@ function insertTableRowBelow(view, target) {
   requestAnimationFrame(publishSelection)
 }
 
-// ── The block handle ────────────────────────────────────────────────────────
-// ChatGPT's Pages shows a grip beside the block under the pointer: press and
-// drag it to move the block (a heading takes its whole section), press and
-// release for the block's menu. The grip shows only under the pointer and goes
-// while typing ("Quiet chrome", docs/ui-design.md), so a page at rest stays as
-// bare as before. A block is a top-level block, or an item of a list: an item
-// moves among its own list's items and brings the items nested under it.
+// ── The block menu ──────────────────────────────────────────────────────────
+// A block's own menu, opened from the keyboard for the block the caret is in
+// (⌥⌘/, "Focus content controls" below). Nothing is drawn beside a block: the
+// grip that stood in the gutter under the pointer is gone (product owner,
+// 2026-11-10: "this little vertical bar before this sentence looks bad",
+// "we don't need it"). A block is a top-level block, or an item of a list; a
+// heading takes its whole section.
 //
 // The menu: Turn into, Insert below (an empty line with the `/` list open),
 // Duplicate, Copy as Markdown, Copy block reference (where the host keeps the
 // notes graph), Delete. A table's rows and columns have Crepe's own handles;
 // its menu is the same list.
 
-let blockHandle = null
-let blockHandleGrip = null
 let blockMenu = null
-let blockDropLine = null
-/// The block under the pointer: `{ from, to, node, item }`, `to` past a
-/// heading's section; null when the pointer is nowhere near one.
-let blockHandleTarget = null
-let blockHandleFrame = 0
-let blockHandlePointer = null
-let blockHandleTyping = false
-let blockDrag = null
-
-/// The block at a vertical position among the children of `parent` (a doc or a
-/// list), or null. A list item answers with the deepest item the pointer is in.
-function blockAtHeight(view, parent, parentPos, y, depth = 0) {
-  let found = null
-  parent.forEach((node, offset) => {
-    if (found) return
-    const pos = parentPos + offset
-    const element = view.nodeDOM(pos)
-    if (!(element instanceof HTMLElement)) return
-    const rect = element.getBoundingClientRect()
-    if (y < rect.top - 3 || y > rect.bottom + 6) return
-    if (node.type.name === 'bullet_list' || node.type.name === 'ordered_list') {
-      found = blockAtHeight(view, node, pos + 1, y, depth + 1)
-      return
-    }
-    if (node.type.name === 'list_item') {
-      node.forEach((child, childOffset) => {
-        if (found || (child.type.name !== 'bullet_list' && child.type.name !== 'ordered_list')) return
-        found = blockAtHeight(view, child, pos + 1 + childOffset + 1, y, depth + 1)
-      })
-      found ??= { from: pos, to: pos + node.nodeSize, node, item: true, element }
-      return
-    }
-    found = { from: pos, to: pos + node.nodeSize, node, item: false, element }
-  })
-  return found
-}
 
 /// A heading's section: the heading and what follows it, up to the next
 /// heading of the same or a higher rank (or the end of the page).
@@ -6186,154 +6147,6 @@ function headingSectionEnd(doc, target) {
   return end
 }
 
-function ensureBlockHandle() {
-  if (blockHandle) return blockHandle
-  blockHandle = document.createElement('div')
-  blockHandle.className = 'artifact-block-handle'
-  blockHandle.hidden = true
-  blockHandleGrip = document.createElement('button')
-  blockHandleGrip.type = 'button'
-  blockHandleGrip.className = 'artifact-block-grip'
-  blockHandleGrip.title = 'Drag to move, click for options'
-  blockHandleGrip.setAttribute('aria-label', 'Block options')
-  blockHandleGrip.setAttribute('aria-haspopup', 'menu')
-  blockHandleGrip.append(slashIcon('grip', 14))
-  blockHandleGrip.addEventListener('pointerdown', beginBlockPress)
-  blockHandle.append(blockHandleGrip)
-  document.body.append(blockHandle)
-  return blockHandle
-}
-
-function hideBlockHandle() {
-  if (blockHandle) blockHandle.hidden = true
-  blockHandleTarget = null
-}
-
-/// Beside the first line of the block, in the gutter to its left.
-function positionBlockHandle() {
-  const handle = blockHandle
-  const view = activeEditorView()
-  const target = blockHandleTarget
-  if (!handle || !view || !target || !isEditable) {
-    if (handle) handle.hidden = true
-    return
-  }
-  const element = view.nodeDOM(target.from)
-  if (!(element instanceof HTMLElement)) {
-    handle.hidden = true
-    return
-  }
-  const rect = element.getBoundingClientRect()
-  let center = rect.top + 14
-  try {
-    const first = target.node.type.name === 'table' ? null : view.coordsAtPos(Math.min(target.from + (target.item ? 2 : 1), target.to - 1))
-    if (first && first.top >= rect.top - 2 && first.bottom <= rect.bottom + 2) center = (first.top + first.bottom) / 2
-  } catch {
-    // An atom block (a picture, a divider): the block's top edge will do.
-  }
-  const height = 22
-  handle.style.left = `${Math.max(2, Math.round(rect.left - 26))}px`
-  handle.style.top = `${Math.round(center - height / 2)}px`
-  handle.hidden = false
-}
-
-function updateBlockHandleFromPointer() {
-  blockHandleFrame = 0
-  const pointer = blockHandlePointer
-  const view = activeEditorView()
-  if (!pointer || !view || !isEditable || blockDrag || (blockMenu && !blockMenu.hidden)) return
-  if (blockHandleTyping || pointer.buttons !== 0) {
-    hideBlockHandle()
-    return
-  }
-  const bounds = view.dom.getBoundingClientRect()
-  const insideGutter = pointer.x >= bounds.left - 44 && pointer.x <= bounds.right + 4
-  const overHandle = blockHandle && !blockHandle.hidden && blockHandle.contains(pointer.element)
-  if (overHandle) return
-  if (!insideGutter || pointer.y < bounds.top - 4 || pointer.y > bounds.bottom + 4) {
-    hideBlockHandle()
-    return
-  }
-  const next = blockAtHeight(view, view.state.doc, 0, pointer.y)
-  // Between two blocks, the handle stays with the last one it was on.
-  if (!next) return
-  // The notes keep the order of the page's numbers: nothing to drag or turn.
-  if (isFootnoteDefinition(next.node)) {
-    hideBlockHandle()
-    return
-  }
-  if (!blockHandleTarget || blockHandleTarget.from !== next.from || blockHandleTarget.to !== next.to) {
-    blockHandleTarget = { ...next, to: headingSectionEnd(view.state.doc, next) }
-  }
-  ensureBlockHandle()
-  positionBlockHandle()
-}
-
-document.addEventListener('pointermove', (event) => {
-  if (!isEditable || event.pointerType === 'touch') return
-  const moved = !blockHandlePointer || Math.abs(event.clientX - blockHandlePointer.x) + Math.abs(event.clientY - blockHandlePointer.y) > 2
-  blockHandlePointer = { x: event.clientX, y: event.clientY, buttons: event.buttons, element: event.target }
-  if (moved) blockHandleTyping = false
-  if (!blockHandleFrame) blockHandleFrame = requestAnimationFrame(updateBlockHandleFromPointer)
-}, { passive: true })
-
-document.documentElement.addEventListener('mouseleave', () => {
-  if (!blockDrag && !(blockMenu && !blockMenu.hidden)) hideBlockHandle()
-})
-
-document.addEventListener('keydown', (event) => {
-  if (event.key.length !== 1 && event.key !== 'Enter' && event.key !== 'Backspace') return
-  blockHandleTyping = true
-  if (!blockDrag && !(blockMenu && !blockMenu.hidden)) hideBlockHandle()
-}, true)
-
-window.addEventListener('scroll', () => {
-  if (blockHandleTarget && !blockDrag) positionBlockHandle()
-}, { passive: true })
-
-/// Where a block dropped at `y` would land: the boundary between the siblings
-/// of `target` nearest to it, never inside the moving range. `{ pos, y, left,
-/// right }` in the page's coordinates.
-function blockDropSlot(view, target, y) {
-  const $from = view.state.doc.resolve(target.from)
-  const parent = $from.parent
-  const start = $from.start()
-  const stops = []
-  let parentRect = null
-  parent.forEach((node, offset) => {
-    const pos = start + offset
-    const element = view.nodeDOM(pos)
-    if (!(element instanceof HTMLElement)) return
-    const rect = element.getBoundingClientRect()
-    stops.push({ pos, top: rect.top, bottom: rect.bottom, end: pos + node.nodeSize, left: rect.left, right: rect.right })
-  })
-  if (stops.length === 0) return null
-  parentRect = stops.reduce((box, stop) => ({
-    left: Math.min(box.left, stop.left),
-    right: Math.max(box.right, stop.right),
-  }), { left: Infinity, right: -Infinity })
-  const slots = stops.map((stop, index) => ({
-    pos: stop.pos,
-    y: index === 0 ? stop.top : (stops[index - 1].bottom + stop.top) / 2,
-  }))
-  const last = stops[stops.length - 1]
-  slots.push({ pos: last.end, y: last.bottom })
-  let best = null
-  for (const slot of slots) {
-    if (!best || Math.abs(slot.y - y) < Math.abs(best.y - y)) best = slot
-  }
-  return best ? { ...best, left: parentRect.left, right: parentRect.right } : null
-}
-
-function ensureBlockDropLine() {
-  if (blockDropLine) return blockDropLine
-  blockDropLine = document.createElement('div')
-  blockDropLine.className = 'artifact-block-drop-line'
-  blockDropLine.hidden = true
-  document.body.append(blockDropLine)
-  return blockDropLine
-}
-
 /// The siblings a target covers: the block, or a heading and its section.
 function blockSiblings(view, target) {
   const $from = view.state.doc.resolve(target.from)
@@ -6344,92 +6157,6 @@ function blockSiblings(view, target) {
     if (pos >= target.from && pos < target.to) siblings.push({ node, pos })
   })
   return siblings
-}
-
-function blockElements(view, target) {
-  return blockSiblings(view, target)
-    .map(({ pos }) => view.nodeDOM(pos))
-    .filter((element) => element instanceof HTMLElement)
-}
-
-function beginBlockPress(event) {
-  const target = blockHandleTarget
-  const view = activeEditorView()
-  if (event.button !== 0 || !target || !view || !isEditable) return
-  event.preventDefault()
-  closeBlockMenu()
-  const grip = event.currentTarget
-  grip.setPointerCapture(event.pointerId)
-  const press = { x: event.clientX, y: event.clientY, target, slot: null, moved: false, elements: [], scroll: 0 }
-  const frame = () => {
-    if (!blockDrag) return
-    if (blockDrag.scroll !== 0) window.scrollBy(0, blockDrag.scroll)
-    blockDrag.frame = requestAnimationFrame(frame)
-  }
-  const move = (moveEvent) => {
-    if (!press.moved && Math.abs(moveEvent.clientX - press.x) + Math.abs(moveEvent.clientY - press.y) < 5) return
-    if (!press.moved) {
-      press.moved = true
-      blockDrag = press
-      document.body.classList.add('artifact-block-dragging')
-      press.elements = blockElements(view, target)
-      for (const element of press.elements) element.classList.add('artifact-block-dragging-source')
-      press.frame = requestAnimationFrame(frame)
-    }
-    press.scroll = moveEvent.clientY < 56 ? -14 : moveEvent.clientY > window.innerHeight - 56 ? 14 : 0
-    press.pointerY = moveEvent.clientY
-    const slot = blockDropSlot(view, target, moveEvent.clientY + 0)
-    press.slot = slot
-    const line = ensureBlockDropLine()
-    if (!slot) {
-      line.hidden = true
-      return
-    }
-    line.style.left = `${Math.round(slot.left)}px`
-    line.style.width = `${Math.round(slot.right - slot.left)}px`
-    line.style.top = `${Math.round(slot.y - 1)}px`
-    line.hidden = false
-    blockHandle.style.top = `${Math.round(moveEvent.clientY - 11)}px`
-  }
-  const finish = (upEvent) => {
-    grip.removeEventListener('pointermove', move)
-    grip.removeEventListener('pointerup', finish)
-    grip.removeEventListener('pointercancel', finish)
-    try { grip.releasePointerCapture(upEvent.pointerId) } catch { /* already released */ }
-    if (!press.moved) {
-      openBlockMenu(target)
-      return
-    }
-    cancelAnimationFrame(press.frame)
-    blockDrag = null
-    document.body.classList.remove('artifact-block-dragging')
-    for (const element of press.elements) element.classList.remove('artifact-block-dragging-source')
-    if (blockDropLine) blockDropLine.hidden = true
-    if (upEvent.type === 'pointerup' && press.slot) moveBlock(view, target, press.slot.pos)
-    hideBlockHandle()
-  }
-  grip.addEventListener('pointermove', move)
-  grip.addEventListener('pointerup', finish)
-  grip.addEventListener('pointercancel', finish)
-}
-
-/// Move `target`'s range to the boundary `dropPos` among its siblings. One
-/// transaction, so one undo; the blocks keep their ids (`foreverlm-block-move`).
-function moveBlock(view, target, dropPos) {
-  if (dropPos >= target.from && dropPos <= target.to) return
-  const { state } = view
-  const content = state.doc.slice(target.from, target.to).content
-  const tr = state.tr
-  tr.delete(target.from, target.to)
-  const at = tr.mapping.map(dropPos)
-  tr.insert(at, content)
-  tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(at + 1, tr.doc.content.size)), 1))
-  tr.setMeta('foreverlm-block-move', true)
-  userHasInteracted = true
-  hasUserChanges = true
-  view.dispatch(tr.scrollIntoView())
-  view.focus()
-  requestAnimationFrame(publishSelection)
 }
 
 // The menu.
@@ -6444,7 +6171,7 @@ function ensureBlockMenu() {
   blockMenu.addEventListener('pointerdown', (event) => event.preventDefault())
   document.body.append(blockMenu)
   document.addEventListener('pointerdown', (event) => {
-    if (blockMenu.hidden || blockMenu.contains(event.target) || blockHandle?.contains(event.target)) return
+    if (blockMenu.hidden || blockMenu.contains(event.target)) return
     closeBlockMenu()
   }, true)
   document.addEventListener('keydown', (event) => {
@@ -6461,7 +6188,6 @@ function closeBlockMenu() {
   // caret, where the writer was.
   const hadFocus = Boolean(blockMenu && blockMenu.contains(document.activeElement))
   if (blockMenu) blockMenu.hidden = true
-  blockHandleGrip?.setAttribute('aria-expanded', 'false')
   if (hadFocus) activeEditorView()?.focus()
 }
 
@@ -6481,9 +6207,6 @@ function blockMenuRow(icon, title, action, { check = false } = {}) {
   }
   row.addEventListener('click', () => {
     closeBlockMenu()
-    // The block it stood by may have changed shape or place; the next move of
-    // the pointer finds the block again.
-    hideBlockHandle()
     action()
   })
   return row
@@ -6668,8 +6391,7 @@ function openBlockMenu(target, { focus = false } = {}) {
   rows.push(blockMenuSeparator(), blockMenuRow('trash', 'Delete', () => deleteBlock(view, target)))
   menu.replaceChildren(...rows)
   menu.hidden = false
-  blockHandleGrip?.setAttribute('aria-expanded', 'true')
-  placeBlockMenu(target)
+  placeBlockMenu(view, target)
   if (focus) menu.querySelector('button:not(:disabled)')?.focus({ preventScroll: true })
 }
 
@@ -6690,13 +6412,13 @@ function blockLink(pageID, blockID) {
 // ── Focus content controls ──────────────────────────────────────────────────
 // Codex's "Focus content controls" moves the keyboard from the writing to the
 // controls of the block the caret is in. Here ⌥⌘/ (⌥Ctrl/ off the Mac) opens
-// the block handle's menu for that block with its first row focused: ↑↓ move,
+// the block's menu with its first row focused: ↑↓ move,
 // Return chooses, Escape goes back to the caret. ⌘/ is left for the shortcut
 // list the app will have, as Codex has it.
 
-/// The block the caret is in, as the handle names a block: a top-level
+/// The block the caret is in, as the menu names a block: a top-level
 /// block, or the deepest item of a list at the top level; a heading takes
-/// its section. Null where the handle has nothing to offer (a footnote's note).
+/// its section. Null where the menu has nothing to offer (a footnote's note).
 function blockAtCaret(view) {
   const { selection, doc } = view.state
   const $from = selection.$from
@@ -6725,12 +6447,9 @@ function focusBlockControls() {
   if (!view || !isEditable || !editor) return false
   const target = blockAtCaret(view)
   if (!target) return false
+  if (!(view.nodeDOM(target.from) instanceof HTMLElement)) return false
   hideLinkPicker()
   hideSelectionBar()
-  blockHandleTarget = target
-  ensureBlockHandle()
-  positionBlockHandle()
-  if (!blockHandle || blockHandle.hidden) return false
   openBlockMenu(target, { focus: true })
   return true
 }
@@ -6761,11 +6480,21 @@ document.addEventListener('keydown', (event) => {
   rows[next].focus({ preventScroll: true })
 }, true)
 
-function placeBlockMenu(target) {
+/// Under the block's first line, at its leading edge; above it where the
+/// window has no room below.
+function placeBlockMenu(view, target) {
   const menu = blockMenu
-  if (!menu || menu.hidden || !blockHandle) return
+  const element = view.nodeDOM(target.from)
+  if (!menu || menu.hidden || !(element instanceof HTMLElement)) return
   const margin = 12
-  const anchor = blockHandle.getBoundingClientRect()
+  const rect = element.getBoundingClientRect()
+  let anchor = { left: rect.left, top: rect.top, bottom: Math.min(rect.bottom, rect.top + 28) }
+  try {
+    const first = target.node.type.name === 'table' ? null : view.coordsAtPos(Math.min(target.from + (target.item ? 2 : 1), target.to - 1))
+    if (first && first.top >= rect.top - 2 && first.bottom <= rect.bottom + 2) anchor = { left: rect.left, top: first.top, bottom: first.bottom }
+  } catch {
+    // An atom block (a picture, a divider): the block's top edge will do.
+  }
   const width = menu.offsetWidth
   const height = menu.offsetHeight
   const below = anchor.bottom + 4 + height <= window.innerHeight - margin

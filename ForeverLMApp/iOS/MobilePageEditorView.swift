@@ -632,8 +632,8 @@ enum MobilePageEditorAddress {
 ///
 /// - Targets a finger can hit: the selection bar, its block menu, the caret
 ///   lists (`/`, `[[`, `@`) and the link field are at least 44pt tall.
-/// - Hover-only chrome is not drawn on a touch-only device — the block handle,
-///   the hover pills over links, an unfolded section's chevron — and a `:hover`
+/// - Hover-only chrome is not drawn on a touch-only device — the hover pills
+///   over links, an unfolded section's chevron — and a `:hover`
 ///   wash does not stay on a button a finger lifted from.
 /// - A press on one of the page's controls leaves the selection and the
 ///   keyboard where they are.
@@ -726,7 +726,6 @@ enum MobilePageEditorTouch {
 
     /* Hover is the pointer's. */
     @media not all and (any-pointer: fine) {
-      .artifact-block-handle,
       .milkdown .milkdown-link-preview,
       .artifact-inapp-link-tooltip { display: none !important; }
       .artifact-heading-fold:not(.is-collapsed) { visibility: hidden; }

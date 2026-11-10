@@ -1,6 +1,6 @@
 // The controls around the writing, as Codex's Pages has them: the selection
-// bar over selected words, the block handle's Copy link and the key that
-// reaches the handle's menu from the caret.
+// bar over selected words, the block menu's Copy link and the key that
+// opens that menu from the caret.
 import { expect, test } from '@playwright/test'
 import { caretIn, clearMessages, messages, openEditor, selectBlock, settle, stored } from './editor-page.mjs'
 
@@ -12,13 +12,9 @@ async function catchCopies(page) {
   })
 }
 
-async function openHandleMenu(page, words) {
-  const block = page.locator('.ProseMirror p', { hasText: words })
-  const box = await block.boundingBox()
-  await page.mouse.move(box.x + 8, box.y + box.height / 2)
-  await page.mouse.move(box.x + 12, box.y + box.height / 2)
-  await expect(page.locator('.artifact-block-grip')).toBeVisible()
-  await page.locator('.artifact-block-grip').click()
+async function openBlockMenu(page, words) {
+  await caretIn(page, words)
+  await page.keyboard.press('Alt+Meta+Slash')
   await expect(page.locator('.artifact-block-menu')).toBeVisible()
 }
 
@@ -27,7 +23,7 @@ const menuRows = (page) => page.evaluate(() => [...document.querySelectorAll('.a
 test('Copy link gives the block an id and copies the page address with it as the anchor', async ({ page }) => {
   await openEditor(page, '# Notes\n\nFirst paragraph.\n\nSecond paragraph.\n')
   await catchCopies(page)
-  await openHandleMenu(page, 'Second paragraph')
+  await openBlockMenu(page, 'Second paragraph')
   const rows = await menuRows(page)
   expect(rows.slice(rows.indexOf('Insert below'), rows.indexOf('Insert below') + 4)).toEqual(['Insert below', 'Copy link', 'Copy as Markdown', 'Duplicate'])
   await page.locator('.artifact-block-menu button', { hasText: 'Copy link' }).click()

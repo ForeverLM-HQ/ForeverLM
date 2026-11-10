@@ -1209,19 +1209,17 @@ Return. Backspace at the start of a heading, a quote or a list item turns it
 back into plain text before it joins the line above, and Tab in a list item
 nests it.
 
-### The block handle
+### The block menu
 
-Rest the pointer on a block and a grip appears to its left, as in Codex: drag
-it to move the block (a heading takes its section with it, a list item the
-items nested under it), or click it for the block's menu: **Turn into**,
+Press **⌥⌘/** for the menu of the block the caret is in: **Turn into**,
 **Insert below**, **Copy link**, **Copy as Markdown**, **Duplicate**, **Copy
 block reference** (on the Mac) and **Delete**, with a table's width and column
-fit and a highlight's colour where they apply. **Copy link** copies the Page's
-link with that block as its anchor, `foreverlm://doc/<page>#<block>`: followed
-from a Page on the Mac, it opens the Page and scrolls to the block, which
-flashes for a moment; anywhere else it opens the Page. To reach the menu from
-the keyboard, press **⌥⌘/**: it opens for the block the caret is in, the arrow
-keys move through it, Return chooses, and Escape goes back to the caret.
+fit and a highlight's colour where they apply. The arrow keys move through it,
+Return chooses, and Escape goes back to the caret. **Copy link** copies the
+Page's link with that block as its anchor, `foreverlm://doc/<page>#<block>`:
+followed from a Page on the Mac, it opens the Page and scrolls to the block,
+which flashes for a moment; anywhere else it opens the Page. Nothing is drawn
+beside a block; to move one, cut it and paste it where it belongs.
 
 ### Tables
 
@@ -6749,6 +6747,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 ## Unreleased
 
 - **The iPhone opens on voice.** Home is ForeverLM's mark: tap it to talk about anything, name a source, or go through today's cards, which voice offers first when they are due; type instead whenever you can't talk (every voice conversation now has a field for that, so the gym is just voice). Everything else (notebooks, the library, To Read, Follow Up, Spaces, **Review Cards** to tap through them with their pictures, Memory and Settings) is in the menu at the bottom.
+- **No grip beside a Page's blocks.** The handle that appeared to the left of the block under the pointer is gone, and with it dragging a block; the block's menu still opens with ⌥⌘/.
 - **A daily quiz reminder on the iPhone,** on by default at 7:00 (or your review hour): tap it to go through today's cards, or use its Memory Check by Voice button. iOS asks once for permission.
 
 ## 0.209.0 (build 289) — 2026-11-09
