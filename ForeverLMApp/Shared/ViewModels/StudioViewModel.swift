@@ -390,6 +390,7 @@ class StudioViewModel {
     }
     @ObservationIgnored var sourceIndexingKickTask: Task<Void, Never>?
     @ObservationIgnored var cloudKitRemoteChangeTask: Task<Void, Never>?
+    @ObservationIgnored var sharedDocsObservationTask: Task<Void, Never>?
     @ObservationIgnored var iCloudFullObservationTask: Task<Void, Never>?
     @ObservationIgnored var cloudKitBackgroundSyncTask: Task<Void, Never>?
     @ObservationIgnored var cloudKitEventSyncTask: Task<Void, Never>?
@@ -1644,6 +1645,9 @@ class StudioViewModel {
     static let activeTeamPreferenceKey = "studio.activeTeamID"
     /// Every team this account owns or joined, for the switcher and the menus.
     var teams: [TeamRecord] = []
+    /// The Docs shared through a Doc space, by Doc id: the ones this account shares and the ones
+    /// shared with it (`refreshSharedDocs`). A menu reads it; nothing here touches iCloud.
+    var sharedDocs: [String: SharedDocState] = [:]
     /// The roster of each team, keyed by team id, as last read from its share.
     var teamMembersByTeamID: [String: [TeamMemberRecord]] = [:]
     /// Task boards, keyed by Notebook id, loaded when a Notebook page opens.

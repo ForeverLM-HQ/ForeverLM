@@ -74,6 +74,76 @@ enum ArtifactBody {
     }
 }
 
+// MARK: - A Doc in its Doc space (§9.1 `doc`, D5)
+
+/// A Doc shared through a Doc space lives in that space with its Comments and reads as part of My
+/// Library: on the owner's Macs and on each member's it is an ordinary `global_artifacts` row under the
+/// Doc's own id, with `team_id` null, so the record and the row say the same thing whoever edits. Its
+/// body goes into and comes from the space's own zone (`DocBodyTransfer`). The Docs of a team or family
+/// space have no rows here: their projection is not built.
+enum DocSpaces {
+    /// Whether `zoneKey` is the Doc space made for the Doc `artifactID`: a space whose root says `doc`
+    /// and names it.
+    static func holds(zoneKey: String, artifactID: String, connection: SQLiteConnection) throws -> Bool {
+        guard ProjectionZones.zone(ofKey: zoneKey)?.isSpace == true,
+              let root = try ReplicaStore(connection: connection).record(zoneKey: zoneKey, recordName: SyncSchema.rootRecordName),
+              let envelope = try? SyncEnvelope(storedPayload: root.payload)
+        else { return false }
+        return envelope.fields["kind"]?.stringValue == "doc" && envelope.fields["primaryID"]?.stringValue == artifactID
+    }
+
+    static func libraryHolds(_ type: SyncRecordType, _ wireID: String, connection: SQLiteConnection) throws -> Bool {
+        try ReplicaStore(connection: connection).record(zoneKey: PrivateSyncZones.libraryKey, recordType: type.rawValue, wireID: wireID) != nil
+    }
+
+    private static func zoneKeys(holding type: SyncRecordType, _ wireID: String, connection: SQLiteConnection) throws -> [String] {
+        var keys: [String] = []
+        try connection.query(
+            "SELECT zone_key FROM ck_records WHERE record_type = ? AND wire_id = ? ORDER BY zone_key", [.text(type.rawValue), .text(wireID)]
+        ) { row in
+            if let key = row.text(0) { keys.append(key) }
+        }
+        return keys
+    }
+
+    /// The Doc space the replica holds the Doc in; nil while `Library` holds it (a Doc that is not
+    /// shared, or one whose move has not finished: the outbox sends to `Library` first, as here).
+    /// `besideLibrary` asks whether a Doc space holds it whatever `Library` holds: the question a
+    /// deletion in `Library` asks, whose own record the replica still has while it is projected.
+    static func zoneKey(holding artifactID: String, besideLibrary: Bool = false, connection: SQLiteConnection) throws -> String? {
+        let keys = try zoneKeys(holding: .artifact, artifactID, connection: connection)
+        guard besideLibrary || !keys.contains(PrivateSyncZones.libraryKey) else { return nil }
+        return try keys.first { try holds(zoneKey: $0, artifactID: artifactID, connection: connection) }
+    }
+
+    /// The Doc space that holds a Comment of `artifactID`, whatever `Library` holds.
+    static func zoneKey(holdingComment commentID: String, of artifactID: String, connection: SQLiteConnection) throws -> String? {
+        try zoneKeys(holding: .comment, commentID, connection: connection)
+            .first { try holds(zoneKey: $0, artifactID: artifactID, connection: connection) }
+    }
+
+    /// The space a Doc's body lives in: where its record is, and for a Doc no zone holds yet (never
+    /// sent) the Doc space made for it, which is where placement sends its record
+    /// (`ZonePlacement`, `primaryOfSpace`). Nil for private `Content`.
+    static func bodyZoneKey(of artifactID: String, connection: SQLiteConnection) throws -> String? {
+        let keys = try zoneKeys(holding: .artifact, artifactID, connection: connection)
+        guard !keys.contains(PrivateSyncZones.libraryKey) else { return nil }
+        if let held = try keys.first(where: { try holds(zoneKey: $0, artifactID: artifactID, connection: connection) }) { return held }
+        guard keys.isEmpty else { return nil }
+        var made: [String] = []
+        try connection.query("SELECT zone_key FROM ck_zones WHERE primary_id = ? ORDER BY zone_key", [.text(artifactID)]) { row in
+            if let key = row.text(0) { made.append(key) }
+        }
+        return try made.first { try holds(zoneKey: $0, artifactID: artifactID, connection: connection) }
+    }
+
+    /// Whether this account may write into the space: its owner, or a member the share lets write.
+    static func canWrite(zoneKey: String, connection: SQLiteConnection) throws -> Bool {
+        guard let zone = try ReplicaStore(connection: connection).zone(key: zoneKey) else { return false }
+        return zone.database == .private || zone.permission == CloudShare.Permission.readWrite.rawValue
+    }
+}
+
 // MARK: - The rows one Artifact is encoded from
 
 struct ArtifactRows: Equatable, Sendable {
@@ -100,8 +170,9 @@ struct ArtifactRows: Equatable, Sendable {
 /// `#body` pointer. The body itself is a satellite: the field reads only the pointer, which the body
 /// publisher moves on idle once the bytes are acknowledged (D44, `DocBodyPublisher`), and an inbound
 /// pointer queues the fetch that brings the bytes and merges them (`DocBodyMaterializer`). A source's
-/// draft deck is never encoded or projected (generation 2 retires decks for Card drafts, §10); a space's
-/// Docs are the space packages' (WP15).
+/// draft deck is never encoded or projected (generation 2 retires decks for Card drafts, §10). A Doc in
+/// the Doc space made for it is projected like the learner's own (`DocSpaces`); the Docs of a team or
+/// family space stay in the replica.
 struct ArtifactProjection: RecordProjection {
     var recordType: SyncRecordType { .artifact }
 
@@ -272,8 +343,10 @@ struct ArtifactProjection: RecordProjection {
     }
 
     func apply(_ envelope: SyncEnvelope, to record: ProjectionRecordRef, connection: SQLiteConnection) throws -> ProjectionApplyOutcome {
-        // A space's Docs are the space packages' (WP15).
-        guard !record.zone.isSpace else { return .projected }
+        // Of a space's Docs, only the one a Doc space was made for has a row here (§9.1 `doc`, D5).
+        if record.zone.isSpace, try !DocSpaces.holds(zoneKey: record.zoneKey, artifactID: record.wireID, connection: connection) {
+            return .projected
+        }
         let fields = envelope.fields
         let id = record.localID
         if let notebookID = NotesDoc.notebookID(of: id) {
@@ -406,13 +479,24 @@ struct ArtifactProjection: RecordProjection {
     }
 
     func applyDeletion(_ record: ProjectionRecordRef, connection: SQLiteConnection) throws {
-        guard !record.zone.isSpace else { return }
+        // A Doc that moved between `Library` and its Doc space is deleted where it left and lives on
+        // where it went: its row stays while the replica holds the other copy (the move list says the
+        // same, but may reach a second Mac after the deletion does).
+        if record.zone.isSpace {
+            guard try DocSpaces.holds(zoneKey: record.zoneKey, artifactID: record.wireID, connection: connection),
+                  try !DocSpaces.libraryHolds(.artifact, record.wireID, connection: connection) else { return }
+        } else if try DocSpaces.zoneKey(holding: record.wireID, besideLibrary: true, connection: connection) != nil {
+            return
+        }
         if NotebookFileArtifact.notebookID(of: record.localID) != nil {
             try NotebookFileArtifact.applyDeletion(record.localID, connection: connection)
             return
         }
-        // A body edited here and not yet on the server is kept as a Recovered Doc first (§6.2).
-        try RecoveredDoc.keepPendingBody(of: record, connection: connection)
+        // A body edited here and not yet on the server is kept as a Recovered Doc first (§6.2), unless
+        // the Doc was someone else's, shared with this account: it goes whole when the share does.
+        if try ReplicaStore(connection: connection).zone(key: record.zoneKey)?.database != .shared {
+            try RecoveredDoc.keepPendingBody(of: record, connection: connection)
+        }
         let id = record.localID
         try connection.execute("DELETE FROM artifact_files WHERE artifact_id = ?", [.text(id)])
         try DocBodyJobs.forget(artifactID: id, connection: connection)

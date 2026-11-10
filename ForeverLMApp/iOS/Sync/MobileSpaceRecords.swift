@@ -134,8 +134,8 @@ enum MobileSpaceReadModel {
     static func pages(in replica: MobileReplica, ids: Set<String>? = nil) throws -> [MobileSpacePage] {
         if ids?.isEmpty == true { return [] }
         let connection = replica.connection
-        let spaceIDs = Dictionary(try MobileProjection.spaces(in: replica).map { ($0.zoneKey, $0.spaceID) }, uniquingKeysWith: { first, _ in first })
-        let keys = [libraryKey] + spaceIDs.keys.sorted()
+        let spaces = Dictionary(try MobileProjection.spaces(in: replica).map { ($0.zoneKey, $0) }, uniquingKeysWith: { first, _ in first })
+        let keys = [libraryKey] + spaces.keys.sorted()
         let marks = try MobileReadModels.Marks(in: connection)
         var notebooks = Set<String>()
         try connection.query("""
@@ -156,7 +156,12 @@ enum MobileSpaceReadModel {
             let zoneKey = row.text(1) ?? ""
             let kind = row.text(2) ?? "doc"
             guard MobileSpaceListing.isSpaceRecord(id: id, kind: kind), seen.insert(id).inserted else { return }
-            let teamID = zoneKey == libraryKey ? nil : spaceIDs[zoneKey]
+            // A Doc in the Doc space made for it (shared on its own, §9.1 `doc`, D5) is a page of this
+            // library, the learner's own or one shared with them; any other space's page is its team's.
+            let space = spaces[zoneKey]
+            let inDocSpace = space?.isDocSpace(of: id) ?? false
+            let teamID = zoneKey == libraryKey || inDocSpace ? nil : space?.spaceID
+            let writable = space.map { $0.isOwned || $0.permission == "readWrite" } ?? true
             let trashed = row.text(5) == "archived"
             let home = row.text(4).flatMap { $0.isEmpty ? nil : $0 }
             let linked = MobileReadModels.members(row.text(8))
@@ -169,10 +174,18 @@ enum MobileSpaceReadModel {
                 isDraft: row.integer(11) == 1, isTrashed: trashed, isHidden: marks.isHidden("art", id),
                 createdAt: created ?? edited ?? .distantPast, editedAt: edited ?? created ?? .distantPast, bodyRevision: row.text(10),
                 linkedURL: linkedURL, isDailyNote: teamID == nil && DailyNote.isDailyNoteID(id),
-                isEditableMarkdown: teamID == nil && linkedURL == nil && kind != MobileSpaceListing.readingKind
+                isEditableMarkdown: teamID == nil && writable && linkedURL == nil && kind != MobileSpaceListing.readingKind
             ))
         }
         return MobileSpaceListing.sorted(pages, by: .created)
+    }
+}
+
+extension MobileProjection.Space {
+    /// Whether this is the Doc space made for the page `id`: a page shared on its own lives in one, with
+    /// its comments, and reads as part of the library (§9.1 `doc`, D5).
+    func isDocSpace(of id: String) -> Bool {
+        kind == "doc" && primaryID == id
     }
 }
 
@@ -194,6 +207,20 @@ extension MobileWrite {
     func heldPage(_ id: String) throws -> (zoneKey: String, envelope: SyncEnvelope)? {
         guard let zoneKey = try pageZoneKey(id), let envelope = try held(.artifact, id, in: zoneKey) else { return nil }
         return (zoneKey, envelope)
+    }
+
+    /// Whether `zoneKey` is the Doc space made for the page `id` (§9.1 `doc`, D5).
+    func isInItsDocSpace(_ id: String, zoneKey: String) throws -> Bool {
+        try MobileProjection.spaces(in: replica).contains { $0.zoneKey == zoneKey && $0.isDocSpace(of: id) }
+    }
+
+    /// Trash is a status on the page and a delete takes its record: either would reach the owner of
+    /// a page someone shared with this account, and everyone else it is shared with.
+    private func refuseSharedWithMe(_ id: String, zoneKey: String) throws {
+        guard try MobileProjection.spaces(in: replica).contains(where: {
+            $0.zoneKey == zoneKey && !$0.isOwned && $0.isDocSpace(of: id)
+        }) else { return }
+        throw MobileSpaceError.refused("This page was shared with you, so only its owner can delete it. Remove it from your library on your Mac.")
     }
 
     private func requiredPage(_ id: String) throws -> (zoneKey: String, envelope: SyncEnvelope) {
@@ -226,7 +253,9 @@ extension MobileWrite {
     /// (`PrivateSyncEngine`), so a save over a moved body would lose one of the two texts unseen.
     mutating func writePageBody(_ id: String, body: FileRef, markdown: String, expectedRevision: String?) throws {
         let page = try requiredPage(id)
-        guard page.zoneKey == Self.libraryKey else { throw MobileSpaceError.refused("A team’s page is edited on your Mac.") }
+        guard try page.zoneKey == Self.libraryKey || isInItsDocSpace(id, zoneKey: page.zoneKey) else {
+            throw MobileSpaceError.refused("A team’s page is edited on your Mac.")
+        }
         let current = page.envelope.fields["body"].flatMap(FileRef.init(json:))?.hash
         guard current == expectedRevision else { throw MobileSpaceBodyMoved(currentRevision: current) }
         var patch = RecordPatch(.artifact, id: id)
@@ -247,6 +276,7 @@ extension MobileWrite {
     /// archive date. The record stays whole; `editedAt` moves.
     mutating func setPageTrashed(_ id: String, _ trashed: Bool) throws {
         let page = try requiredPage(id)
+        if trashed { try refuseSharedWithMe(id, zoneKey: page.zoneKey) }
         var patch = RecordPatch(.artifact, id: id)
         patch.changes["status"] = .value(.string(trashed ? "archived" : "active"))
         try write(patch, in: page.zoneKey)
@@ -256,6 +286,7 @@ extension MobileWrite {
     /// in a space only its owner or maker may (`SpaceWriteGuard`).
     mutating func deletePage(_ id: String) throws {
         let page = try requiredPage(id)
+        try refuseSharedWithMe(id, zoneKey: page.zoneKey)
         try delete(.artifact, id, in: page.zoneKey)
         for row in try rows("""
             SELECT wire_id FROM ck_records WHERE zone_key = ? AND record_type = ?
@@ -281,11 +312,13 @@ extension MobileWrite {
 }
 
 extension MobileRecordWriter {
-    /// A page's body package uploaded as its `body` satellite in the private `Content` zone, acknowledged
-    /// before anything points at it (§3.5.30 rule 2).
-    func uploadPageBody(_ package: Data, pageID: String, keeping existing: FileRef?) async throws -> FileRef {
+    /// A page's body package uploaded as its `body` satellite, acknowledged before anything points at it
+    /// (§3.5.30 rule 2): in the private `Content` zone, or, for a page that lives in a space (a Doc in
+    /// its Doc space), in that space's own zone, where everyone it is shared with reads it.
+    func uploadPageBody(_ package: Data, pageID: String, keeping existing: FileRef?, spaceZoneKey: String? = nil) async throws -> FileRef {
+        let zoneKey = spaceZoneKey ?? PrivateSyncZones.key(PrivateSyncZones.content)
         guard let blobs,
-              let zone = try await replica.perform({ try BlobZone.resolve(zoneKey: PrivateSyncZones.key(PrivateSyncZones.content), in: $0) })
+              let zone = try await replica.perform({ try BlobZone.resolve(zoneKey: zoneKey, in: $0) })
         else { throw MobileSpaceError.unavailable }
         return try await blobs.upload(package, owner: pageID, ownerType: .artifact, role: MobileSpaceBody.role, mime: MobileSpaceBody.packageMime,
                                       encoding: .identity, into: zone, keeping: existing)

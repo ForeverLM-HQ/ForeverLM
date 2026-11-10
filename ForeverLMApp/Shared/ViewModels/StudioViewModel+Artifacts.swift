@@ -392,9 +392,13 @@ extension StudioViewModel {
     /// The toast says what went, and its Undo brings back exactly that; the
     /// page menu asks first when subpages would go too (`PageTrashWording`).
     func moveArtifactToTrash(_ artifactID: String) async {
-        let going = [artifactID] + pageTree.descendantIDs(of: artifactID)
         let title = artifacts.first { $0.id == artifactID }?.title ?? ""
-        let trashed = await setArchived(going, isArchived: true)
+        guard let settled = await settleSharingBeforeTrash([artifactID] + pageTree.descendantIDs(of: artifactID)) else { return }
+        let trashed = await setArchived(settled.archive, isArchived: true)
+        if settled.left.contains(artifactID) {
+            showToast(title.isEmpty ? "Removed from your library" : "Removed \(title) from your library")
+            return
+        }
         guard trashed.contains(artifactID) else { return }
         showToast(
             PageTrashWording.toast(title: title, subpageCount: trashed.count - 1),
@@ -419,8 +423,14 @@ extension StudioViewModel {
                 going.append(id)
             }
         }
-        let trashed = await setArchived(going, isArchived: true)
-        guard !trashed.isEmpty else { return }
+        guard let settled = await settleSharingBeforeTrash(going) else { return }
+        let trashed = await setArchived(settled.archive, isArchived: true)
+        guard !trashed.isEmpty else {
+            if !settled.left.isEmpty {
+                showToast(settled.left.count == 1 ? "Removed from your library" : "Removed \(settled.left.count) items from your library")
+            }
+            return
+        }
         showToast(
             trashed.count == 1 ? "Moved to Trash" : "Moved \(trashed.count) items to Trash",
             undo: { [weak self] in

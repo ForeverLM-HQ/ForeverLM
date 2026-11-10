@@ -57,14 +57,15 @@ final class ArtifactSharingService: NSObject, @preconcurrency NSCloudSharingServ
         activeService = nil
     }
 
-    /// A Doc is shared through a Doc space of the library container (§9.1, D5).
+    /// A Doc is shared through a Doc space of the library container (§9.1, D5): the space is made and
+    /// shared, and the Doc and its Comments move into it before the sheet has its share, so whoever
+    /// joins finds the Doc there (`SharedDocs.share`).
     private static func prepareShare(
         artifactID: String,
         title: String
     ) async throws -> (share: CKShare, container: CKContainer) {
         guard let coordinator = SyncCoordinator.current else { throw SpaceServiceError.syncNotRunning }
-        let owner = SyncPerson(user: try await coordinator.transport.userRecordName(), name: coordinator.shares.accountName ?? "")
-        let space = try await SpaceService(coordinator: coordinator).docSpace(forArtifact: artifactID, title: title, owner: owner)
+        let space = try await SharedDocs.share(artifactID: artifactID, title: title, coordinator: coordinator)
         return (try await SpaceShareSheet.share(of: space.zone, in: coordinator.container), coordinator.container)
     }
 }

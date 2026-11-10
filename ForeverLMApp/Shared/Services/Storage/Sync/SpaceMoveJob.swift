@@ -345,6 +345,24 @@ actor SpaceMoveJob {
         return try await run(id)
     }
 
+    /// Share's move (§9.1 `doc`): the Doc goes into its Doc space when `Library` holds it. A Doc that
+    /// is in its space already has nothing to move, and neither has one never sent: placement sends
+    /// its first record straight into the space. Nil when nothing moved.
+    @discardableResult
+    func moveDocIfInLibrary(_ artifactID: String, into spaceID: String) async throws -> Report? {
+        guard try await store.perform({ try SpaceMoveScan.held(.artifact, artifactID, in: Self.libraryKey, $0.connection) }) != nil else {
+            return nil
+        }
+        let report = try await moveDoc(artifactID, into: spaceID)
+        // A body published while the move ran reaches the copy as a pointer alone (`reapply` carries
+        // fields): its satellites follow now. Copying is idempotent, so a body already there costs a lookup.
+        let spaceKey = try await ownedSpace(spaceID)
+        if let moved = try await store.perform({ try SpaceMoveScan.held(.artifact, artifactID, in: spaceKey, $0.connection) }) {
+            try await copySatellites(of: moved, from: Self.libraryKey, to: try await zone(spaceKey))
+        }
+        return report
+    }
+
     /// Moves a notebook back to My Library (§5.2): the `Library` stub becomes the live notebook again,
     /// every record of the notebook comes back, sources map to the learner's own by id (made only where
     /// the learner has none), and a space made for the notebook is deleted last.

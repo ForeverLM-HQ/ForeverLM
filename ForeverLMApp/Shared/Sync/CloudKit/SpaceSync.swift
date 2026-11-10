@@ -314,6 +314,20 @@ actor SpaceSync {
             try connection.query("SELECT record_name, record_type, wire_id FROM ck_records WHERE zone_key = ?", [.text(zone.zoneKey)]) {
                 rows.append(($0.text(0) ?? "", $0.text(1) ?? "", $0.text(2) ?? ""))
             }
+            #if os(macOS)
+            // Someone else's space: what it laid onto this Mac's own rows goes with it, a Doc shared
+            // with this account and its Comments (`DocSpaces`; Comments first, their Doc is their parent).
+            // An owned space that went was emptied by a move back, or deleted here with its rows.
+            if !zone.isOwned {
+                try state.replica.apply { _ in
+                    for type in [SyncRecordType.comment, .artifact] {
+                        for row in rows where row.type == type.rawValue {
+                            try state.projectDeletion(zoneKey: zone.zoneKey, recordName: row.name, type: type, wireID: row.wireID)
+                        }
+                    }
+                }
+            }
+            #endif
             try connection.executeScript("BEGIN IMMEDIATE")
             do {
                 for row in rows where row.name != SyncSchema.rootRecordName

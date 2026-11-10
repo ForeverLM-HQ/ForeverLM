@@ -215,6 +215,59 @@ struct SpaceMoveLateWriterTests {
         #expect(try F.inLibrary(mac, .comment, "cmt-late") == nil)
     }
 
+    @Test("A shared Doc moves into its space under its own row, a second Mac follows it and takes an edit made there, and the move back returns it to Library on both")
+    func docMoveRoundTrip() async throws {
+        let server = EngineTestDriver.server()
+        let mac = try await F.Mac(server, name: "doc-round-a", deviceID: "macaaaaa")
+        try await F.seed(mac)
+        let other = try await F.Mac(server, name: "doc-round-b", deviceID: "macbbbbb")
+        try await other.sync()
+        func row(_ mac: F.Mac) throws -> String? {
+            try F.text(mac, "SELECT title || '|' || COALESCE(team_id, 'mine') FROM global_artifacts WHERE id = ?", [.text(F.doc)])
+        }
+        func comments(_ mac: F.Mac) throws -> Int64 {
+            try F.count(mac, "SELECT COUNT(*) FROM artifact_comments WHERE id = ?", [.text(F.comment)])
+        }
+
+        // Share: the Doc and its Comment go into the Doc space; the row is the learner's own still.
+        try await mac.makeSpace(kind: "doc", primaryID: F.doc, id: "d1")
+        #expect(try await mac.job().moveDocIfInLibrary(F.doc, into: "d1") != nil)
+        #expect(try await mac.job().moveDocIfInLibrary(F.doc, into: "d1") == nil, "nothing is left in Library to move")
+        #expect(try row(mac) == "Cell notes|mine" && comments(mac) == 1)
+        #expect(try DocSpaces.zoneKey(holding: F.doc, connection: mac.store) == "private/Space-d1")
+
+        // The owner's second Mac meets Library's deletions and the space: its row and Comment stay.
+        try await other.sync()
+        try await other.sync()
+        #expect(try row(other) == "Cell notes|mine" && comments(other) == 1)
+        #expect(try DocSpaces.zoneKey(holding: F.doc, connection: other.store) == "private/Space-d1")
+
+        // An edit made in the space (a member's, the web's) lands on both Macs' rows.
+        var retitled = try #require(try F.inSpace(mac, .artifact, F.doc, zone: "Space-d1"))
+        try retitled.apply(RecordPatch(.artifact, id: F.doc, changes: ["title": .value("Cell notes, shared")])) { _, policy, _ in
+            SyncStamp(policy: policy, milliseconds: SyncTime.milliseconds(Date().addingTimeInterval(EngineTestDevice.ahead)), counter: 1, deviceID: "webaaaaa")
+        }
+        let name = RecordNaming.recordName(type: .artifact, id: F.doc, salt: try F.spaceSalt(mac, key: "private/Space-d1"))
+        server.put([CloudRecord(id: CloudRecordID(name, in: CloudZoneID("Space-d1")), recordType: "Artifact",
+                                encryptedFields: [CloudRecord.payloadKey: .bytes(try retitled.storedPayload())])], zone: "Space-d1", owner: F.user)
+        try await mac.sync()
+        try await other.sync()
+        #expect(try row(mac) == "Cell notes, shared|mine")
+        #expect(try row(other) == "Cell notes, shared|mine")
+
+        // Stop Sharing: the Doc and its Comment are in Library again, the space is deleted, the rows stay.
+        let back = try await mac.job().moveDocBack(F.doc, from: "d1")
+        #expect(back.spaceKept.isEmpty)
+        #expect(!server.zoneNames(owner: F.user).contains("Space-d1"))
+        #expect(try F.inLibrary(mac, .artifact, F.doc)?.fields["title"] == .string("Cell notes, shared"))
+        #expect(try F.inLibrary(mac, .comment, F.comment) != nil)
+        #expect(try row(mac) == "Cell notes, shared|mine" && comments(mac) == 1)
+        try await other.sync()
+        try await other.sync()
+        #expect(try row(other) == "Cell notes, shared|mine" && comments(other) == 1)
+        #expect(try DocSpaces.zoneKey(holding: F.doc, connection: other.store) == nil)
+    }
+
     @Test("A stale Mac's pending write for a space that a move back deleted lands on the Library record")
     func pendingWriteAfterTheMoveBack() async throws {
         let server = EngineTestDriver.server()

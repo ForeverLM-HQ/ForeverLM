@@ -67,12 +67,37 @@ enum DocBodyJobs {
 struct DocBodyTransfer: Sendable {
     var upload: @Sendable (_ body: Data, _ owner: String, _ mime: String, _ encoding: BlobStore.Encoding, _ keeping: FileRef?) async throws -> FileRef
     var fetch: @Sendable (_ file: FileRef) async throws -> Data
+    /// The same for a Doc that lives in its Doc space (`DocSpaces`): its body is a satellite of the
+    /// space's own zone, where every member reads it, named by the zone's key. Nil in a suite whose
+    /// fake keeps one store of bodies; `upload` and `fetch` then serve a space's Doc too.
+    var spaceUpload: (@Sendable (_ body: Data, _ owner: String, _ mime: String, _ encoding: BlobStore.Encoding, _ keeping: FileRef?,
+                                 _ zoneKey: String) async throws -> FileRef)? = nil
+    var spaceFetch: (@Sendable (_ file: FileRef, _ zoneKey: String) async throws -> Data)? = nil
 
-    /// The private `Content` zone, named with the library's salt. A space's Docs are WP15's.
+    /// Sends a body into the space `zoneKey` names, or into private `Content` when it names none.
+    func upload(_ body: Data, owner: String, mime: String, encoding: BlobStore.Encoding, keeping: FileRef?, zoneKey: String?) async throws -> FileRef {
+        if let zoneKey, let spaceUpload { return try await spaceUpload(body, owner, mime, encoding, keeping, zoneKey) }
+        return try await upload(body, owner, mime, encoding, keeping)
+    }
+
+    /// Brings a body from the zone its record arrived in: a space's own zone, else private `Content`.
+    func fetch(_ file: FileRef, recordZoneKey: String) async throws -> Data {
+        if let spaceFetch, ProjectionZones.zone(ofKey: recordZoneKey)?.isSpace == true { return try await spaceFetch(file, recordZoneKey) }
+        return try await fetch(file)
+    }
+
+    /// The private `Content` zone, named with the library's salt, and a Doc space's own zone for the
+    /// Doc that lives in it.
     static func blobStore(_ blobs: BlobStore, store: MacPrivateSyncStore) -> DocBodyTransfer {
         @Sendable func zone() async throws -> BlobZone {
             guard let zone = try await store.perform({ try BlobZone.resolve(zoneKey: PrivateSyncZones.key(PrivateSyncZones.content), in: $0) }) else {
                 throw CloudError(.zoneNotFound, message: "the library's root is not held yet")
+            }
+            return zone
+        }
+        @Sendable func space(_ zoneKey: String) async throws -> BlobZone {
+            guard let zone = try await store.perform({ try BlobZone.resolve(zoneKey: zoneKey, in: $0) }) else {
+                throw CloudError(.zoneNotFound, message: "the space's root is not held yet")
             }
             return zone
         }
@@ -81,7 +106,12 @@ struct DocBodyTransfer: Sendable {
                 try await blobs.upload(body, owner: owner, ownerType: .artifact, role: ArtifactBody.role, mime: mime, encoding: encoding,
                                        into: try await zone(), keeping: keeping)
             },
-            fetch: { file in try await blobs.fetch(file, from: try await zone()) }
+            fetch: { file in try await blobs.fetch(file, from: try await zone()) },
+            spaceUpload: { body, owner, mime, encoding, keeping, zoneKey in
+                try await blobs.upload(body, owner: owner, ownerType: .artifact, role: ArtifactBody.role, mime: mime, encoding: encoding,
+                                       into: try await space(zoneKey), keeping: keeping)
+            },
+            spaceFetch: { file, zoneKey in try await blobs.fetch(file, from: try await space(zoneKey)) }
         )
     }
 }
@@ -252,6 +282,8 @@ final class DocBodyPublisher: @unchecked Sendable {
         let artifactID: String
         let owner: String
         let body: Body
+        /// The Doc space the body goes into, for a Doc that lives in one (`DocSpaces.bodyZoneKey`).
+        var spaceZoneKey: String? = nil
     }
 
     /// Publishes every body due at `now`, and those in `forcing` whatever their idle time. Returns the
@@ -265,7 +297,8 @@ final class DocBodyPublisher: @unchecked Sendable {
                 let file: FileRef?
                 switch candidate.body {
                 case .doc(let package, _, _, let keeping):
-                    file = try await transfer.upload(package, candidate.owner, ArtifactBody.packageMime, .identity, keeping)
+                    file = try await transfer.upload(package, owner: candidate.owner, mime: ArtifactBody.packageMime, encoding: .identity,
+                                                     keeping: keeping, zoneKey: candidate.spaceZoneKey)
                 case .file(let data, let mime, _, let keeping):
                     file = try await transfer.upload(data, candidate.owner, mime, .identity, keeping)
                 case .notes(_, let text, let keeping):
@@ -317,8 +350,12 @@ final class DocBodyPublisher: @unchecked Sendable {
                   let package = try store.loadArtifactBodyPackageForSync(doc.id) else { continue }
             lock.withLock { revisions[doc.id] = (state.fingerprint, package.revision) }
             guard package.revision != pointer?.hash else { continue }
+            // A Doc in its Doc space sends its body there; one shared with this account read-only sends none.
+            let spaceZoneKey = try DocSpaces.bodyZoneKey(of: doc.owner, connection: store)
+            if let spaceZoneKey, try !DocSpaces.canWrite(zoneKey: spaceZoneKey, connection: store) { continue }
             candidates.append(Candidate(artifactID: doc.id, owner: doc.owner,
-                                        body: .doc(package: package.data, markdown: markdown, revision: package.revision, keeping: pointer)))
+                                        body: .doc(package: package.data, markdown: markdown, revision: package.revision, keeping: pointer),
+                                        spaceZoneKey: spaceZoneKey))
         }
 
         var notebooks: [(id: String, notes: String?, updatedAt: Double)] = []
@@ -409,9 +446,11 @@ extension ArtifactProjection {
     /// a Notes Doc the sent notes become its `ck_text_bases` entry, which wins over the catch-up's
     /// notes base from then on (§6.2 step 4, R8-m4).
     func acknowledged(_ change: OutboxChange, serverRecord: ReplicaRecord, connection: SQLiteConnection) throws {
-        guard !change.zone.isSpace, change.stamps.keys.contains(where: { $0.field == "body" }),
+        guard change.stamps.keys.contains(where: { $0.field == "body" }),
               let store = connection as? KnowledgeStore,
               let server = try? SyncEnvelope(storedPayload: serverRecord.payload) else { return }
+        // Of a space's Docs, only the one a Doc space was made for keeps its body here (`DocSpaces`).
+        if change.zone.isSpace, try !DocSpaces.holds(zoneKey: change.zoneKey, artifactID: change.wireID, connection: connection) { return }
         let file = server.fields["body"].flatMap(FileRef.init(json:))
         let stamp: String = if case .value(let stamp)? = server.stamps["body"] { stamp.rawValue } else { "" }
         if let notebookID = NotesDoc.notebookID(of: change.wireID) {
@@ -477,7 +516,7 @@ final class DocBodyMaterializer: @unchecked Sendable {
             do {
                 let pointer = try await store.onStore { try Self.pointer(job.artifactID, in: $0) }
                 var bytes: Data?
-                if let pointer { bytes = try await transfer.fetch(pointer) }
+                if let pointer { bytes = try await transfer.fetch(pointer, recordZoneKey: job.zoneKey) }
                 if let outcome = try await store.onStore({ try Self.apply(job, pointer: pointer, bytes: bytes, in: $0) }) {
                     outcomes[job.artifactID] = outcome
                 }

@@ -5,7 +5,8 @@ import Foundation
 /// body it was made on (`bodyHash`, the package revision generation 1 keeps as `anchor_revision`), so
 /// a quote detached by later edits stays reviewable. The author is a `Person`. A comment's Doc and the
 /// comment it answers must be here before it is written (their foreign keys); one deleted with its Doc
-/// on this device is deleted on the server, one gone with a Doc deleted elsewhere is not (§5.7).
+/// on this device is deleted on the server, one gone with a Doc deleted elsewhere is not (§5.7). The
+/// Comments of a Doc in its Doc space are projected like the learner's own (`DocSpaces`).
 struct CommentProjection: RecordProjection {
     struct Rows: Equatable, Sendable {
         let columns: [String: SQLiteValue]
@@ -81,9 +82,12 @@ struct CommentProjection: RecordProjection {
     }
 
     func apply(_ envelope: SyncEnvelope, to record: ProjectionRecordRef, connection: SQLiteConnection) throws -> ProjectionApplyOutcome {
-        guard !record.zone.isSpace else { return .projected }
         let fields = envelope.fields
         guard let artifactID = fields["artifactID"]?.stringValue else { return .projected }
+        // Of a space's Comments, only those of the Doc a Doc space was made for have rows here (`DocSpaces`).
+        if record.zone.isSpace, try !DocSpaces.holds(zoneKey: record.zoneKey, artifactID: artifactID, connection: connection) {
+            return .projected
+        }
         var waiting: [WaitingParent] = []
         if try connection.scalarInteger("SELECT EXISTS(SELECT 1 FROM global_artifacts WHERE id = ?)", [.text(artifactID)]) != 1 {
             waiting.append(WaitingParent(type: .artifact, wireID: artifactID))
@@ -122,7 +126,15 @@ struct CommentProjection: RecordProjection {
     }
 
     func applyDeletion(_ record: ProjectionRecordRef, connection: SQLiteConnection) throws {
-        guard !record.zone.isSpace else { return }
+        // A Comment that moved with its Doc is deleted where it left and lives on where it went
+        // (`ArtifactProjection.applyDeletion`).
+        let artifactID = try connection.scalarText("SELECT artifact_id FROM artifact_comments WHERE id = ?", [.text(record.localID)]) ?? ""
+        if record.zone.isSpace {
+            guard try DocSpaces.holds(zoneKey: record.zoneKey, artifactID: artifactID, connection: connection),
+                  try !DocSpaces.libraryHolds(.comment, record.wireID, connection: connection) else { return }
+        } else if try DocSpaces.zoneKey(holdingComment: record.wireID, of: artifactID, connection: connection) != nil {
+            return
+        }
         try connection.execute("DELETE FROM artifact_comments WHERE id = ?", [.text(record.localID)])
     }
 }

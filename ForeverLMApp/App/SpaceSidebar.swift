@@ -1342,7 +1342,7 @@ struct SpacePageRowMenuItems: View {
                 Button("Rename…", systemImage: "pencil", action: onRename)
             }
             SpacePagePinItem(artifact: artifact)
-            Button("Move to Trash", systemImage: "trash", role: .destructive) {
+            Button(vm.trashTitle(for: artifact.id), systemImage: "trash", role: .destructive) {
                 Task { await vm.moveArtifactToTrash(artifact.id) }
             }
             Divider()
@@ -1394,8 +1394,16 @@ struct SpacePageSharingItems: View {
     }
 
     var body: some View {
-        Button("Share…", systemImage: "square.and.arrow.up") {
-            ArtifactSharingService.shared.presentShare(artifactID: artifact.id, title: artifact.title)
+        // A Doc someone shared with this account is theirs to share.
+        if vm.sharedDocs[artifact.id]?.isOwner != false {
+            Button("Share…", systemImage: "square.and.arrow.up") {
+                ArtifactSharingService.shared.presentShare(artifactID: artifact.id, title: artifact.title)
+            }
+        }
+        if vm.sharedDocs[artifact.id]?.isOwner == true {
+            Button("Stop Sharing", systemImage: "person.crop.circle.badge.xmark") {
+                Task { await vm.stopSharingDoc(artifact.id) }
+            }
         }
         Menu {
             Button("Copy as Markdown", systemImage: "doc.plaintext") { copyMarkdown() }

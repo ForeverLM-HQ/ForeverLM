@@ -1917,7 +1917,7 @@ struct SpaceBrowseView: View {
                             deletingForever = [artifact.id]
                         }
                     } else {
-                        Button("Move to Trash", systemImage: "trash", role: .destructive) {
+                        Button(vm.trashTitle(for: artifact.id), systemImage: "trash", role: .destructive) {
                             Task { await vm.moveArtifactToTrash(artifact.id) }
                         }
                     }

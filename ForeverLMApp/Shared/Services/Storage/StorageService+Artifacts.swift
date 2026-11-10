@@ -664,6 +664,9 @@ extension StorageService {
         guard var artifact = try store.loadArtifact(artifactID) else {
             throw ArtifactError.unavailable(artifactID)
         }
+        // Trash is a status on the record: trashing a Doc someone shared with this account would trash
+        // it for everyone.
+        if isArchived == true { try store.requireDocNotSharedWithMe(artifactID) }
         let previousNotebookIDs = artifact.linkedNotebookIDs
         if let rawTitle {
             let title = rawTitle.trimmingCharacters(in: .whitespacesAndNewlines)

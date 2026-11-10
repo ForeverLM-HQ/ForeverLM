@@ -66,10 +66,66 @@ extension StudioViewModel {
         teams.filter(\.canEdit)
     }
 
+    /// Reads which Docs are shared through a Doc space, from this Mac's store.
+    func refreshSharedDocs() async {
+        let loaded = await storage.sharedDocStates()
+        if loaded != sharedDocs { sharedDocs = loaded }
+    }
+
+    /// **Stop Sharing** on a Doc this account shares: the Doc comes back to My Library and leaves the
+    /// library of everyone it was shared with.
+    func stopSharingDoc(_ artifactID: String) async {
+        let title = artifacts.first { $0.id == artifactID }?.title ?? ""
+        do {
+            try await storage.stopSharingDoc(artifactID)
+            await refreshSharedDocs()
+            showToast(title.isEmpty ? "Stopped sharing" : "Stopped sharing \(title)")
+        } catch {
+            logger.error("Stopping a Doc's sharing failed: \(error.localizedDescription)")
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    /// What a Doc's Move to Trash is called: Trash is a status on the Doc itself, so a Doc someone
+    /// shared with this account is removed from this library instead, for this account alone.
+    func trashTitle(for artifactID: String) -> String {
+        sharedDocs[artifactID]?.isOwner == false ? "Remove from My Library" : "Move to Trash"
+    }
+
+    /// Before Docs go to Trash: one shared with this account leaves this library and is not trashed
+    /// (trashing it would trash it for its owner and everyone else), and one this account shares stops
+    /// being shared, so it is trashed in My Library alone. Nil when a step failed; nothing is trashed then.
+    func settleSharingBeforeTrash(_ artifactIDs: [String]) async -> (archive: [String], left: [String])? {
+        var archive: [String] = []
+        var left: [String] = []
+        do {
+            for artifactID in artifactIDs {
+                switch sharedDocs[artifactID]?.isOwner {
+                case false?:
+                    try await storage.leaveSharedDoc(artifactID)
+                    left.append(artifactID)
+                case true?:
+                    try await storage.stopSharingDoc(artifactID)
+                    archive.append(artifactID)
+                case nil:
+                    archive.append(artifactID)
+                }
+            }
+        } catch {
+            logger.error("A shared Doc could not be taken out of sharing before Trash: \(error.localizedDescription)")
+            errorMessage = error.localizedDescription
+            await refreshSharedDocs()
+            return nil
+        }
+        if archive.count != artifactIDs.count || !left.isEmpty { await refreshSharedDocs() }
+        return (archive, left)
+    }
+
     func loadTeams() async {
         do {
             let loaded = try await storage.loadTeams()
             if loaded != teams { teams = loaded }
+            await refreshSharedDocs()
             await refreshShareRequests()
             // Assignments and family plans follow the teams
             // (docs/family-design.md): who can be assigned to, what is

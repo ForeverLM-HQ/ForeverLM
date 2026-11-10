@@ -161,7 +161,8 @@ final class MobileSpaceStore {
                 throw MobileSpaceError.refused(error.localizedDescription)
             }
             if encoded.revision == current?.hash { return current?.hash }
-            let file = try await writer.uploadPageBody(encoded.data, pageID: pageID, keeping: current)
+            let file = try await writer.uploadPageBody(encoded.data, pageID: pageID, keeping: current,
+                                                       spaceZoneKey: held.zoneKey == MobileProjection.libraryKey ? nil : held.zoneKey)
             backend.satellites.hold(encoded.data, as: file)
             let saved: MobileSpacePage?
             do {

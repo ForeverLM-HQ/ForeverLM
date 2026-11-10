@@ -118,6 +118,49 @@ extension StorageService {
         }
     }
 
+    // MARK: A Doc shared through its Doc space (§9.1 `doc`, D5)
+
+    /// Every Doc this Mac holds a shared Doc space for, by the Doc's id: the ones this account shares
+    /// and the ones shared with it. Empty while sync is not running.
+    func sharedDocStates() async -> [String: SharedDocState] {
+        guard let service = try? SpaceService.current(), let spaces = try? await service.list() else { return [:] }
+        var states: [String: SharedDocState] = [:]
+        for space in spaces where space.gone == nil && space.kind == "doc" && space.isShared {
+            guard let artifactID = space.primaryID else { continue }
+            states[artifactID] = SharedDocState(
+                spaceID: space.spaceID, isOwner: space.isOwned, canEdit: space.isOwned || space.permission == .readWrite,
+                ownerName: space.ownerName
+            )
+        }
+        return states
+    }
+
+    /// Stop Sharing, for the owner: the Doc and its Comments move back to My Library and the Doc space
+    /// is deleted, so it leaves every member's library (`SpaceMoveJob.moveDocBack`). A space that holds
+    /// something the move does not carry is kept, and its share is taken away instead. Does nothing for
+    /// a Doc this account does not share.
+    func stopSharingDoc(_ artifactID: String) async throws {
+        guard let coordinator = SyncCoordinator.current else { throw SpaceServiceError.syncNotRunning }
+        let service = SpaceService(coordinator: coordinator)
+        guard let space = try await service.list().first(where: {
+            $0.isOwned && $0.gone == nil && $0.kind == "doc" && $0.primaryID == artifactID
+        }) else { return }
+        let report = try await SpaceMoveJob(coordinator: coordinator).moveDocBack(artifactID, from: space.spaceID)
+        if !report.spaceKept.isEmpty { try await service.shares.stopSharing(space.zone) }
+        NotificationCenter.default.post(name: .cloudKitSyncStoreDidChange, object: nil)
+    }
+
+    /// Remove from My Library, for a member: this account leaves the Doc's share, and the Doc and its
+    /// Comments go from this Mac with the space (`SpaceSync.spaceGone`). Nobody else's copy changes.
+    func leaveSharedDoc(_ artifactID: String) async throws {
+        let service = try SpaceService.current()
+        guard let space = try await service.list().first(where: {
+            !$0.isOwned && $0.gone == nil && $0.kind == "doc" && $0.primaryID == artifactID
+        }) else { return }
+        try await service.shares.leave(space.zone)
+        NotificationCenter.default.post(name: .cloudKitSyncStoreDidChange, object: nil)
+    }
+
     /// Tells the space sync which library is on screen, so its space is walked first and the others
     /// follow by when each was last opened on this Mac (§2.2 "Fetch priority"). `openedNow` stamps
     /// the active team as opened; a launch passes false, since it only restores what was open.
@@ -148,6 +191,32 @@ extension StorageService {
             kind: "moveToSpace", target: ItemRef(.notebook, notebookID).rawValue, params: ["spaceID": .string(spaceID)],
             device: device, at: Date(), connection: store
         )
+    }
+}
+
+/// How a Doc is shared on this Mac (`StorageService.sharedDocStates`).
+struct SharedDocState: Equatable, Sendable {
+    let spaceID: String
+    /// This account shares it; false for a Doc someone shared with this account.
+    let isOwner: Bool
+    /// False for a Doc shared with this account to read only.
+    let canEdit: Bool
+    /// Who shares it, for a Doc shared with this account.
+    let ownerName: String?
+}
+
+/// Share on a Doc (§9.1 `doc`, D5, D21): the Doc's own space, shared, with the Doc and its Comments
+/// moved into it, so everyone it is shared with edits the one Doc in place.
+enum SharedDocs {
+    static func share(artifactID: String, title: String, coordinator: SyncCoordinator) async throws -> SpaceSummary {
+        let owner = SyncPerson(user: try await coordinator.transport.userRecordName(), name: coordinator.shares.accountName ?? "")
+        let service = SpaceService(coordinator: coordinator)
+        let space = try await service.docSpace(forArtifact: artifactID, title: title, owner: owner)
+        // A space whose share was taken away (Stop Sharing kept it) is shared again.
+        try await service.ensureShared(spaceID: space.spaceID, title: title)
+        try await SpaceMoveJob(coordinator: coordinator).moveDocIfInLibrary(artifactID, into: space.spaceID)
+        NotificationCenter.default.post(name: .cloudKitSyncStoreDidChange, object: nil)
+        return space
     }
 }
 

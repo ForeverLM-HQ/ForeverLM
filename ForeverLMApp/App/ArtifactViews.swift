@@ -1672,16 +1672,26 @@ struct ArtifactCanvas: View {
         Button(role: .destructive) {
             trash(artifact)
         } label: {
-            Label("Move to Trash", systemImage: "trash")
+            Label(vm.trashTitle(for: artifact.id), systemImage: "trash")
         }
         Divider()
-        Button {
-            ArtifactSharingService.shared.presentShare(
-                artifactID: artifact.id,
-                title: artifact.title
-            )
-        } label: {
-            Label("Share…", systemImage: "person.crop.circle.badge.plus")
+        // A Doc someone shared with this account is theirs to share.
+        if vm.sharedDocs[artifact.id]?.isOwner != false {
+            Button {
+                ArtifactSharingService.shared.presentShare(
+                    artifactID: artifact.id,
+                    title: artifact.title
+                )
+            } label: {
+                Label("Share…", systemImage: "person.crop.circle.badge.plus")
+            }
+        }
+        if vm.sharedDocs[artifact.id]?.isOwner == true {
+            Button {
+                Task { await vm.stopSharingDoc(artifact.id) }
+            } label: {
+                Label("Stop Sharing", systemImage: "person.crop.circle.badge.xmark")
+            }
         }
         // Copy ▸ and Download as Markdown are items of their own, as in
         // Codex: the text is the Markdown, so the one everyday export is a
@@ -3175,7 +3185,8 @@ private struct ArtifactEditor: View {
 
     /// A team Doc reads as a page here; a member edits a private draft of it
     /// (docs/teams-design.md, decision 11).
-    private var isReadOnly: Bool { artifact.teamID != nil }
+    /// So does a Doc someone shared with this account to read only (`SharedDocState`).
+    private var isReadOnly: Bool { artifact.teamID != nil || vm.sharedDocs[artifact.id]?.canEdit == false }
 
     /// The day this doc is the daily note for; nil for any other doc.
     private var dailyNoteDayKey: String? { DailyNote.dayKey(ofID: artifact.id) }

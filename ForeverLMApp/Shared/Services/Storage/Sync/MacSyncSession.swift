@@ -542,6 +542,9 @@ actor MacSyncSession {
         // One after-round chain: `setAfterRound` holds a single closure, and the move jobs run beside the
         // Job runner (WP15b's report). Nothing here waits on the cutover, which runs on a task of its own.
         await coordinator.setAfterRound { [weak self] in
+            // A body that a space's walk pointed at (a shared Doc's, `DocSpaces`) is brought in now and not
+            // a round later: the walk runs after the private fetch's own hook. One query when none waits.
+            _ = try? await docs.materializer.materializeDue()
             _ = await jobs.pass()
             _ = await moves.afterRound()
             await self?.afterRound()

@@ -3013,11 +3013,19 @@ extension StudioViewModel {
     }
 
     func startObservingCloudKitRemoteChanges() {
+        // A Doc shared or unshared on this Mac (`SharedDocs.share`, `stopSharingDoc`, `leaveSharedDoc`).
+        sharedDocsObservationTask = Task { [weak self] in
+            for await _ in NotificationCenter.default.notifications(named: .cloudKitSyncStoreDidChange) {
+                await self?.refreshSharedDocs()
+            }
+        }
         cloudKitRemoteChangeTask = Task { [weak self] in
             for await notification in NotificationCenter.default.notifications(named: .cloudKitSyncRemoteStoreDidChange) {
                 let entityRawValues = notification.userInfo?[CloudKitSyncNotificationInfo.affectedEntitiesKey] as? [String]
                 let affectedEntities = Set((entityRawValues ?? []).compactMap(CloudKitSyncEntity.init(rawValue:)))
                 let requiresFullRefresh = notification.userInfo?[CloudKitSyncNotificationInfo.requiresFullRefreshKey] as? Bool ?? false
+                // A Doc someone shared with this account arrives, or one is no longer shared.
+                await self?.refreshSharedDocs()
                 if let removedTeamID = notification.userInfo?[CloudKitSyncNotificationInfo.removedTeamKey] as? String {
                     await self?.teamWasRemoved(removedTeamID)
                 }

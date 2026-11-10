@@ -287,9 +287,19 @@ enum SpaceRows {
 }
 
 extension KnowledgeStore {
+    /// Refuses to delete or trash a Doc someone shared with this account (`DocSpaces`): either would
+    /// reach its owner and everyone it is shared with. The member removes it from their own library
+    /// instead (`StorageService.leaveSharedDoc`).
+    func requireDocNotSharedWithMe(_ artifactID: String) throws {
+        guard let zoneKey = try DocSpaces.bodyZoneKey(of: artifactID, connection: self),
+              try replica.zone(key: zoneKey)?.database == .shared else { return }
+        throw KnowledgeStoreError.invalidData("This Doc was shared with you, so only its owner can delete it. Remove it from your library instead.")
+    }
+
     /// Refuses, under generation 2, a delete of a space's Notebook, Artifact or Chat by a member who is
     /// neither the space's owner nor the record's `createdBy` (§9.2); others archive instead.
     func requireSpaceDeletion(_ type: SyncRecordType, _ localID: String) throws {
+        if type == .artifact { try requireDocNotSharedWithMe(localID) }
         let user = try replica.engineState(ReplicaStore.EngineScope.account).map { String(decoding: $0, as: UTF8.self) }
         guard try SpaceRows.mayDelete(type: type, localID: localID, user: user, connection: self) else {
             throw KnowledgeStoreError.invalidData("Only the space's owner, or whoever made it, can delete this. Archive it instead.")
