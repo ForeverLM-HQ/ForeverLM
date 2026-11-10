@@ -81,7 +81,10 @@ enum MobileOpenRouterChat {
             "max_tokens": maxTokens,
             "session_id": sessionID,
         ]
-        if let effort = route.effort { payload["reasoning_effort"] = effort }
+        // OpenRouter's unified `reasoning` object, the only effort form it
+        // maps onto Claude's thinking and the one that streams a readable
+        // summary back (see `AIService.applyReasoningEffort`).
+        if let effort = route.effort { payload["reasoning"] = ["effort": effort] }
         if jsonMode { payload["response_format"] = ["type": "json_object"] }
         if stream {
             payload["stream"] = true

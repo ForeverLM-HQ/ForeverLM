@@ -692,7 +692,7 @@ extension AIService {
         }
         if let effort,
            AIRequestOptionSupport.supportedEfforts(provider: provider, model: model).contains(effort) {
-            payload["reasoning_effort"] = effort.rawValue
+            Self.applyReasoningEffort(effort, provider: provider, to: &payload)
         }
         AIService.applyOpenRouterPayloadExtras(
             &payload,

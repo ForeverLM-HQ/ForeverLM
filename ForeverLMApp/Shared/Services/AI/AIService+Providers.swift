@@ -660,6 +660,22 @@ extension AIService {
         openAICompatibleChatEndpoint(for: provider)?.hasPrefix("https://openrouter.ai/") == true
     }
 
+    /// Put the learner's effort on a chat payload. OpenRouter takes it in its
+    /// unified `reasoning` object: that is the only form it maps onto Claude's
+    /// thinking config, and only then does it ask for a summarized trace. Sent
+    /// as the flat `reasoning_effort`, Claude (Opus 5.5 and every 4.7+ model,
+    /// whose display defaults to omitted) thought with nothing streamed back,
+    /// so a chat sat on a bare "Thinking 15s" (product owner, 2026-11-10: "it
+    /// should give some kind of output"). A first-party endpoint keeps the
+    /// OpenAI-compatible field it accepts.
+    static func applyReasoningEffort(_ effort: AIEffort, provider: AIProvider, to payload: inout [String: Any]) {
+        if routesThroughOpenRouter(provider) {
+            payload["reasoning"] = ["effort": effort.rawValue]
+        } else {
+            payload["reasoning_effort"] = effort.rawValue
+        }
+    }
+
     /// Model identifier OpenRouter expects: a vendor-qualified slug. Any other
     /// provider's id is passed through as given.
     static func openAICompatibleModelID(
@@ -1356,7 +1372,7 @@ extension AIService {
         if webSearch {
             payload["plugins"] = [Self.openRouterWebPlugin]
         }
-        // Reasoning effort travels as the OpenAI-compatible `reasoning_effort`,
+        // Reasoning effort travels as `applyReasoningEffort` writes it,
         // matching the native-tool path. Guarded by the app's own support table
         // so a model that never accepted an effort does not start receiving one
         // just because every provider now shares this adapter.
@@ -1367,7 +1383,7 @@ extension AIService {
             payload["reasoning"] = ["effort": Self.lowestReasoningEffort(model: slug)]
         } else if let effort,
            AIRequestOptionSupport.supportedEfforts(provider: provider, model: model).contains(effort) {
-            payload["reasoning_effort"] = effort.rawValue
+            Self.applyReasoningEffort(effort, provider: provider, to: &payload)
         }
         let request = try openAICompatibleRequest(
             provider: provider, apiKey: apiKey, payload: payload, speed: speed)
