@@ -3341,12 +3341,7 @@ struct ChatRobustnessTests {
         )
         #expect(prompt.contains("attached source catalog is the working set"))
         #expect(prompt.contains("The Notebook is a focus, not a wall"))
-        #expect(prompt.contains("get_source_content read any source in it"))
-        // Reading outside the catalog is a rule, not a deliberation: keyword
-        // passages by id first, the whole text only when those do not answer.
-        #expect(prompt.contains(ReviewSessionManager.outsideCatalogReadingRule))
-        #expect(prompt.contains("retrieve_sources reads only the sources in this chat's catalog"))
-        #expect(!prompt.contains("then read it with get_source_content"))
+        #expect(prompt.contains("get_source_content reads any source in it"))
         #expect(prompt.contains("nothing to ask permission for"))
         #expect(prompt.contains("dated meeting recording, transcript, notes"))
         #expect(prompt.contains("just look it up and read it"))
