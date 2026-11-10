@@ -12,7 +12,8 @@ fail() {
   exit 1
 }
 
-# Only KeychainService.resolveConfig picks a task's model. The other four
+# Only KeychainService.resolveConfig picks a task's model (KeychainService and
+# its KeychainService+<Topic>.swift extension files). The other four
 # build a config for a model that was already chosen and never pick one:
 # AIModelQualification and FreeModelsSetup test a named model,
 # AIBackgroundRetry backs a task up with a model the learner listed, and
@@ -22,13 +23,13 @@ CONSTRUCTORS=$(grep -rnE 'AITaskConfig\(' "$ROOT" \
   --exclude-dir='.build' --exclude-dir='.derived*' --exclude-dir='build' \
   --exclude-dir='UnitTests' --exclude-dir='iOSUITests' --exclude-dir='node_modules' || true)
 if [ -n "$CONSTRUCTORS" ]; then
-  OUTSIDE=$(printf '%s\n' "$CONSTRUCTORS" | grep -vE '/(Shared/Services/Storage/KeychainService|App/AIModelQualification|App/FreeModelsSetup|Shared/Services/AI/AIBackgroundRetry|App/ArtifactSharingService)\.swift:' || true)
+  OUTSIDE=$(printf '%s\n' "$CONSTRUCTORS" | grep -vE '/(Shared/Services/Storage/KeychainService(\+[A-Za-z]+)?|App/AIModelQualification|App/FreeModelsSetup|Shared/Services/AI/AIBackgroundRetry|App/ArtifactSharingService)\.swift:' || true)
   [ -z "$OUTSIDE" ] || fail "AITaskConfig may only be built by KeychainService.resolveConfig:\n$OUTSIDE"
 fi
 
 LITERALS=$(grep -rnE '(static let|let|var) (model|modelID|anthropicModel)[[:space:]]*=[[:space:]]*"[^"\\]*(gpt|claude|gemini|grok|muse|deepseek|qwen|llama|nemotron|whisper|transcribe|tts)' \
   "$ROOT/App" "$ROOT/Shared" "$ROOT/iOS" --include='*.swift' \
-  --exclude='AIModelDefaults*.swift' --exclude='KeychainService.swift' \
+  --exclude='AIModelDefaults*.swift' --exclude='KeychainService*.swift' \
   --exclude='*Catalog.swift' --exclude='*Rates.swift' --exclude='*Tests.swift' \
   --exclude='MobileReviewFoundationBrain.swift' || true)
 [ -z "$LITERALS" ] || fail "Model literals must live in defaults/catalogs and flow through task resolution:\n$LITERALS"

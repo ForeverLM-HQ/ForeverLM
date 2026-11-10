@@ -328,8 +328,7 @@ final class JournalWatchRunner {
         }
 
         let goals = (try? await storage.loadLearningGoals()) ?? []
-        let excluded = (try? await storage.journalWatchExcludedNotebookIDs()) ?? []
-        let notebooks = goals.filter { $0.isNotebook && !$0.isArchived && !excluded.contains($0.id) }
+        let notebooks = goals.filter { $0.isNotebook && !$0.isArchived }
         notebookTitles = Dictionary(uniqueKeysWithValues: notebooks.map { ($0.id, $0.title) })
         guard !notebooks.isEmpty else {
             // Nothing to match against: these articles are seen, not lost. A

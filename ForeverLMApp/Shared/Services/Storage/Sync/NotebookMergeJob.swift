@@ -420,7 +420,6 @@ enum NotebookChildren {
         ON CONFLICT(item_url, notebook_id) DO NOTHING
         """,
         "DELETE FROM journal_article_matches WHERE notebook_id = ?2",
-        "DELETE FROM journal_watch_excluded_notebooks WHERE notebook_id = ?2",
         """
         INSERT INTO notebook_related_notebook_links (notebook_id, related_notebook_id, linked_at)
         SELECT notebook_id, ?1, linked_at FROM notebook_related_notebook_links WHERE related_notebook_id = ?2 AND notebook_id <> ?1

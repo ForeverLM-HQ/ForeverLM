@@ -338,6 +338,20 @@ targets:
       - iOS/MobileKeychainService.swift
       - iOS/MobileAudioReviewView.swift
       - iOS/MobileAudioReviewViewModel.swift
+      - iOS/MobileAsyncAlert.swift
+      - iOS/MobileAudioPlaybackTypes.swift
+      - iOS/MobileAudioReviewViewModel+Catalog.swift
+      - iOS/MobileAudioReviewViewModel+Library.swift
+      - iOS/MobileAudioReviewViewModel+Narration.swift
+      - iOS/MobileAudioReviewViewModel+Playback.swift
+      - iOS/MobileAudioReviewViewModel+SourceActivity.swift
+      - iOS/MobileAudioReviewViewModel+TextToSpeech.swift
+      - iOS/MobileAudioReviewViewModel+Voice.swift
+      - iOS/MobileAutomaticAudioConstraintMatcher.swift
+      - iOS/MobileCloudSourceCatalog.swift
+      - iOS/MobileCloudSourceTextStore.swift
+      - iOS/MobileTextToSpeechTypes.swift
+      - iOS/MobileUsageHistoryStore.swift
       - iOS/MobileCloudSourceModels.swift
       # Notebooks on the phone (docs/notebooks-design.md, "iPhone"): Home, a
       # notebook's Sources · Chat · Studio, and the rules they share with the

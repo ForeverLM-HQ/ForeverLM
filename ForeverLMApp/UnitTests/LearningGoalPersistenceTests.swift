@@ -1278,7 +1278,6 @@ fileprivate struct NotebookHoldings {
             ("idea_links.target_id", "SELECT COUNT(*) FROM idea_links WHERE target_id = ?1"),
             ("research_directions.home_id", "SELECT COUNT(*) FROM research_directions WHERE home_id = ?1"),
             ("journal_article_matches.notebook_id", "SELECT COUNT(*) FROM journal_article_matches WHERE notebook_id = ?1"),
-            ("journal_watch_excluded_notebooks.notebook_id", "SELECT COUNT(*) FROM journal_watch_excluded_notebooks WHERE notebook_id = ?1"),
         ]
         var found: [String] = []
         for (name, sql) in probes {

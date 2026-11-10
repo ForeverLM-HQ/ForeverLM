@@ -30,8 +30,15 @@ extension KnowledgeStore {
     // and no mode yet activates `deferred`, and an unactivated `full` journal
     // continues as `deferred`. Nothing else is read from them; `card_meta` and
     // `card_reviews` are not theirs and stay.
-    static let schemaVersion: Int32 = 175
+    //
+    // 176: tables and a column nothing reads or writes any more are gone (2026-11-10), and a fresh store
+    // never makes them: `artifact_collaboration` (an Artifact's sharing is a Doc space now),
+    // `journal_watch_excluded_notebooks`, `paper_figure_markdown_repair_queue`, `ck_legacy_snapshot` (the old
+    // catch-up's leftovers) and `videos.legacy_cap_verified_at`. `ck_legacy_bodies`, which is still
+    // written (a Doc body's acknowledged upload), is renamed `ck_body_sends`, rows and all.
+    static let schemaVersion: Int32 = 176
     static let generation1RemovalSchemaVersion: Int32 = 175
+    static let deadObjectsRemovalSchemaVersion: Int32 = 176
     /// The oldest store this build migrates: schema 174, which every build from 2026-11-04 to build 288
     /// wrote. An older store is refused (product owner, 2026-11: old versions are no longer supported),
     /// so the steps that brought a store up to 174 are gone.
@@ -591,26 +598,6 @@ extension KnowledgeStore {
         try exec("""
             CREATE INDEX IF NOT EXISTS idx_paper_figures_source_page
             ON paper_figures(source_id, page_index)
-        """)
-
-        // Canonical text written before schema 75 ends in a `## Figures` block of
-        // `![caption](file:///…)` links to rendered page JPEGs. Those paths are
-        // absolute, so they named whichever Mac did the extraction and were dead
-        // everywhere else — including in the model context and embeddings that
-        // read this text. Stripping them is proportional to the library, so the
-        // migration only stages ids here and a bounded post-launch drain does the
-        // rewriting.
-        try exec("""
-            CREATE TABLE IF NOT EXISTS paper_figure_markdown_repair_queue (
-                source_id TEXT PRIMARY KEY REFERENCES sources(id) ON DELETE CASCADE,
-                enqueued_at REAL NOT NULL,
-                attempt_count INTEGER NOT NULL DEFAULT 0,
-                last_error TEXT
-            )
-        """)
-        try exec("""
-            CREATE INDEX IF NOT EXISTS idx_paper_figure_markdown_repair_order
-            ON paper_figure_markdown_repair_queue(attempt_count, enqueued_at)
         """)
 
         // One-time removal of the rendered page JPEGs that schema 75 stopped
@@ -1388,28 +1375,6 @@ extension KnowledgeStore {
             ON artifact_chat_links(session_id)
         """)
 
-        // A row marks a received shared hierarchy and is the routing authority:
-        // participant edits must return to the owner's shared zone and must
-        // never be published as a lookalike in the participant's private zone.
-        try exec("""
-            CREATE TABLE IF NOT EXISTS artifact_collaboration (
-                artifact_id TEXT PRIMARY KEY REFERENCES global_artifacts(id) ON DELETE CASCADE,
-                database_scope TEXT NOT NULL,
-                zone_name TEXT NOT NULL,
-                owner_name TEXT NOT NULL,
-                share_record_name TEXT,
-                permission TEXT NOT NULL,
-                is_owner INTEGER NOT NULL DEFAULT 0,
-                last_body_revision TEXT,
-                updated_at REAL NOT NULL
-            )
-        """)
-        try exec("""
-            CREATE INDEX IF NOT EXISTS idx_artifact_collaboration_zone
-            ON artifact_collaboration(database_scope, owner_name, zone_name)
-        """)
-
-
         // Durable Notebook-to-course subscriptions. A linked course contributes its
         // current sources to the Notebook immediately, and future course additions are
         // materialized into learning_goal_items by the course/source write paths.
@@ -1776,16 +1741,6 @@ extension KnowledgeStore {
             )
         """)
         try exec("CREATE INDEX IF NOT EXISTS idx_journal_article_matches_notebook ON journal_article_matches(notebook_id, state)")
-        // Notebooks the learner has switched journal suggestions off for. An
-        // exclusion list rather than an opt-in list so a Notebook created
-        // tomorrow is watched without another trip to Settings.
-        try exec("""
-            CREATE TABLE IF NOT EXISTS journal_watch_excluded_notebooks (
-                notebook_id TEXT PRIMARY KEY,
-                excluded_at REAL NOT NULL
-            )
-        """)
-
         try exec("""
             CREATE TABLE IF NOT EXISTS courses (
                 id TEXT PRIMARY KEY,
@@ -2250,14 +2205,7 @@ extension KnowledgeStore {
                 -- Safari-discovered rows, manual adds — and for liked rows until the
                 -- next feed refresh.
                 liked_at REAL,
-                video_published_at REAL,
-                -- When this video's transcript was last compared against a fresh
-                -- caption fetch, to settle whether the retired 50,000-character
-                -- import cap had truncated it. A video has no stored raw
-                -- transcript, so unlike a podcast episode the only authority on
-                -- its true length is the network — and the answer has to be
-                -- remembered, or every open would fetch again.
-                legacy_cap_verified_at REAL
+                video_published_at REAL
             )
         """)
 
@@ -2334,6 +2282,11 @@ extension KnowledgeStore {
         if !isMigration {
             try createNotebookChildrenView()
         }
+        // A store at 175 or older holds `ck_legacy_bodies`: it takes its new name first, or the
+        // creation below would make a second, empty table.
+        if isMigration && currentVersion < Self.deadObjectsRemovalSchemaVersion {
+            try renameBodySendsTable()
+        }
         // Schema 159's Artifact tables, empty (WP11).
         try createArtifactSyncTables()
         // Schema 160's reading state, empty (WP12).
@@ -2352,6 +2305,9 @@ extension KnowledgeStore {
                 // seven tables go. Set-based; no application row is read.
                 try recordGeneration1HistoryInActivationJournal()
                 try dropGeneration1Tables()
+            }
+            if currentVersion < Self.deadObjectsRemovalSchemaVersion {
+                try dropDeadSchemaObjects()
             }
             // Preparing the projection catches an older, structurally incompatible
             // table before the version stamp commits. The transaction then rolls
@@ -2422,6 +2378,40 @@ extension KnowledgeStore {
         let left = try scalarInteger("SELECT COUNT(*) FROM sqlite_master WHERE name IN (\(names))") ?? 0
         guard left == 0 else {
             throw KnowledgeStoreError.invalidData("Schema 175 left \(left) generation-1 tables.")
+        }
+    }
+
+    /// The tables the < 176 step drops, with their indexes.
+    static let deadSchemaTables = [
+        "artifact_collaboration", "journal_watch_excluded_notebooks", "paper_figure_markdown_repair_queue",
+        "ck_legacy_snapshot",
+    ]
+
+    /// The < 176 step's first half, run before the Artifact tables are created: `ck_legacy_bodies` becomes
+    /// `ck_body_sends` with its rows. Only when the old name exists and the new one does not.
+    func renameBodySendsTable() throws {
+        let hasOld = try scalarInteger("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ck_legacy_bodies')") == 1
+        let hasNew = try scalarInteger("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'ck_body_sends')") == 1
+        if hasOld && !hasNew {
+            try exec("ALTER TABLE ck_legacy_bodies RENAME TO ck_body_sends")
+        }
+    }
+
+    /// The < 176 step's second half: the dead tables and the dead column go, and none is left, or the
+    /// migration rolls back. `source_projection` was recreated above and names no dropped column.
+    func dropDeadSchemaObjects() throws {
+        for table in Self.deadSchemaTables {
+            try exec("DROP TABLE IF EXISTS \(table)")
+        }
+        if try tableColumnNames("videos").contains("legacy_cap_verified_at") {
+            try exec("ALTER TABLE videos DROP COLUMN legacy_cap_verified_at")
+        }
+        let names = (Self.deadSchemaTables + ["ck_legacy_bodies", "idx_artifact_collaboration_zone", "idx_paper_figure_markdown_repair_order"])
+            .map { "'\($0)'" }.joined(separator: ", ")
+        let left = try scalarInteger("SELECT COUNT(*) FROM sqlite_master WHERE name IN (\(names))") ?? 0
+        let column: Int64 = try tableColumnNames("videos").contains("legacy_cap_verified_at") ? 1 : 0
+        guard left + column == 0 else {
+            throw KnowledgeStoreError.invalidData("Schema 176 left \(left + column) dead schema objects.")
         }
     }
 

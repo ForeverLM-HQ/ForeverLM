@@ -472,9 +472,7 @@ extension KnowledgeStore {
                     sqlite3_bind_double(statement, 3, artifact.updatedAt.timeIntervalSinceReferenceDate)
                 }
             }
-            if try !artifactUsesSharedDatabase(artifact.id) {
-                noteStoreChanged()
-            }
+            noteStoreChanged()
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")

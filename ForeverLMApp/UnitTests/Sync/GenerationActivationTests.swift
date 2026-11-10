@@ -3,8 +3,8 @@ import Testing
 @testable import ForeverLM
 
 /// The generation-2 activation's journal and the steps every mode shares (D46, D49,
-/// docs/cloudkit-schema-design.md §13.3 step 3), and schema 175, which records generation 1's history in
-/// the journal and drops its tables. The modes' launch behaviour is `ActivationModeTests` (WP16a).
+/// docs/cloudkit-schema-design.md §13.3 step 3), schema 175, which records generation 1's history in
+/// the journal and drops its tables, and schema 176, which drops what nothing uses and renames the body-send table. The modes' launch behaviour is `ActivationModeTests` (WP16a).
 @Suite("Generation activation")
 struct GenerationActivationTests {
     private typealias Fixture = OutboxTestProjections
@@ -94,7 +94,7 @@ struct GenerationActivationTests {
         defer { try? FileManager.default.removeItem(at: root) }
         let sources = Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM sources")
         let store = try KnowledgeStore(storeDirectory: root)
-        #expect(try store.scalarInteger("PRAGMA user_version") == 175)
+        #expect(try store.scalarInteger("PRAGMA user_version") == Int64(KnowledgeStore.schemaVersion))
         #expect(try Schema154Fixture.count(store, Self.generation1TableCount) == 0)
         #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM sources") == sources, "no library row is touched")
         let journal = try #require(try store.activationJournal())
@@ -241,5 +241,78 @@ struct GenerationActivationTests {
             try store.query("SELECT '\(table)|' || \(row) FROM \"\(table)\" ORDER BY 1", []) { rows.append($0.text(0) ?? "") }
         }
         return rows
+    }
+
+    // MARK: Schema 176: the dead objects go, the body-send table is renamed
+
+    private static let deadObjectCount = """
+        SELECT COUNT(*) FROM sqlite_master WHERE name IN ('artifact_collaboration', 'idx_artifact_collaboration_zone',
+            'journal_watch_excluded_notebooks', 'paper_figure_markdown_repair_queue',
+            'idx_paper_figure_markdown_repair_order', 'ck_legacy_snapshot', 'ck_legacy_bodies')
+        """
+    private static let deadVideoColumnCount =
+        "SELECT COUNT(*) FROM pragma_table_info('videos') WHERE name = 'legacy_cap_verified_at'"
+
+    /// A library as a build at `version` (174 or 175) left it: today's store with the five dead objects
+    /// back, holding rows, and the body-send table under its old name, stamped `version`.
+    private static func schemaBefore176Library(_ name: String, version: Int32) throws -> URL {
+        let root = try Schema154Fixture.temporaryRoot(name)
+        try Schema154Fixture.makeLibrary(at: root, version: nil)
+        let store = try KnowledgeStore(storeDirectory: root)
+        if version == 174 { try Schema154Fixture.restoreGeneration1Tables(store) }
+        try store.executeScript("""
+            DROP TABLE ck_body_sends;
+            CREATE TABLE ck_legacy_bodies (record_type TEXT NOT NULL, wire_id TEXT NOT NULL, field TEXT NOT NULL,
+                base_hash TEXT, base_text TEXT, sent_at REAL, PRIMARY KEY (record_type, wire_id, field));
+            INSERT INTO ck_legacy_bodies (record_type, wire_id, field, sent_at) VALUES ('Artifact', 'doc-1', 'body', 7), ('Artifact', 'doc-2', 'body', 8);
+            INSERT INTO ck_legacy_bodies (record_type, wire_id, field, base_hash, base_text) VALUES ('Notebook', 'nb-1', 'notes', 'h', 'base');
+            CREATE TABLE artifact_collaboration (artifact_id TEXT PRIMARY KEY, database_scope TEXT NOT NULL, zone_name TEXT NOT NULL,
+                owner_name TEXT NOT NULL, share_record_name TEXT, permission TEXT NOT NULL, is_owner INTEGER NOT NULL DEFAULT 0,
+                last_body_revision TEXT, updated_at REAL NOT NULL);
+            CREATE INDEX idx_artifact_collaboration_zone ON artifact_collaboration(database_scope, owner_name, zone_name);
+            INSERT INTO artifact_collaboration (artifact_id, database_scope, zone_name, owner_name, permission, updated_at)
+            VALUES ('doc-1', 'shared', 'z', 'o', 'readWrite', 1);
+            CREATE TABLE journal_watch_excluded_notebooks (notebook_id TEXT PRIMARY KEY, excluded_at REAL NOT NULL);
+            INSERT INTO journal_watch_excluded_notebooks VALUES ('nb-1', 1);
+            CREATE TABLE paper_figure_markdown_repair_queue (source_id TEXT PRIMARY KEY, enqueued_at REAL NOT NULL,
+                attempt_count INTEGER NOT NULL DEFAULT 0, last_error TEXT);
+            CREATE INDEX idx_paper_figure_markdown_repair_order ON paper_figure_markdown_repair_queue(attempt_count, enqueued_at);
+            INSERT INTO paper_figure_markdown_repair_queue (source_id, enqueued_at) VALUES ('s-1', 1);
+            CREATE TABLE ck_legacy_snapshot (old_zone TEXT NOT NULL, record_name TEXT NOT NULL, change_tag TEXT, field_hashes TEXT,
+                PRIMARY KEY (old_zone, record_name));
+            INSERT INTO ck_legacy_snapshot (old_zone, record_name) VALUES ('Knowledge', 'Source-1');
+            ALTER TABLE videos ADD COLUMN legacy_cap_verified_at REAL;
+            INSERT INTO videos (source_id, url, legacy_cap_verified_at) SELECT id, 'https://example.org/video', 2 FROM sources LIMIT 1;
+            """)
+        try store.execForTesting("PRAGMA user_version = \(version)")
+        return root
+    }
+
+    @Test("A fresh store has none of schema 176's dead objects and holds the renamed table")
+    func freshStoreHasNoDeadObjects() throws {
+        let root = try Schema154Fixture.temporaryRoot("176-fresh")
+        defer { try? FileManager.default.removeItem(at: root) }
+        _ = try KnowledgeStore(storeDirectory: root)
+        #expect(Schema154Fixture.count(at: root, Self.deadObjectCount) == 0)
+        #expect(Schema154Fixture.count(at: root, Self.deadVideoColumnCount) == 0)
+        #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'ck_body_sends'") == 1)
+    }
+
+    @Test("Schema 176 drops the dead objects and keeps the body-send rows, from 174 and from 175", arguments: [Int32(174), Int32(175)])
+    func schema176DropsAndRenames(_ version: Int32) throws {
+        let root = try Self.schemaBefore176Library("176-from-\(version)", version: version)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let sources = Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM sources")
+        let store = try KnowledgeStore(storeDirectory: root)
+        #expect(try store.scalarInteger("PRAGMA user_version") == Int64(KnowledgeStore.schemaVersion))
+        #expect(try Schema154Fixture.count(store, Self.deadObjectCount) == 0)
+        #expect(try Schema154Fixture.count(store, Self.deadVideoColumnCount) == 0)
+        #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM videos") == 1, "the video row stays")
+        #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'ck_body_sends'") == 1)
+        #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM ck_body_sends") == 3)
+        #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM ck_body_sends WHERE record_type = 'Artifact' AND field = 'body' AND sent_at IN (7, 8)") == 2)
+        #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM ck_body_sends WHERE base_hash = 'h' AND base_text = 'base'") == 1)
+        #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM sources") == sources, "no library row is touched")
+        _ = try store.scalarInteger("SELECT COUNT(*) FROM source_projection")
     }
 }

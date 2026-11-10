@@ -19,7 +19,7 @@ extension KnowledgeStore {
         ], constraints: ["PRIMARY KEY (artifact_id, file_key)"]),
         // The time this Mac's seed or reconcile had a body's upload acknowledged (`sent_at`, WP16),
         // keyed by wire id. `base_hash` and `base_text` are no longer written.
-        ReplicaSchemaTable("ck_legacy_bodies", [
+        ReplicaSchemaTable("ck_body_sends", [
             ("record_type", "TEXT NOT NULL"),
             ("wire_id", "TEXT NOT NULL"),
             ("field", "TEXT NOT NULL"),

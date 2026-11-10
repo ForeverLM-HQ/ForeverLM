@@ -1,0 +1,1056 @@
+// Part of ReviewSessionManager: figure, picture, slide and video tools.
+
+import Foundation
+import Observation
+import PDFKit
+import os
+
+extension ReviewSessionManager {
+    /// What `inspect_paper_figure` says when the label the learner asked for is
+    /// not among the paper's indexed figures.
+    ///
+    /// Pure and static so a test can hold it to the one job it has: naming
+    /// `show_source_image` as the next step. Both branches name it now.
+    /// Listing the available labels and stopping there is what sent a request
+    /// for a supplementary figure off to a web search, when the picture the
+    /// learner ended up being shown was on page 2 of the attached PDF.
+    nonisolated static func figureLabelNotFoundMessage(requested: String, availableLabels: [String]) -> String {
+        let available = availableLabels.joined(separator: ", ")
+        let inventory = available.isEmpty
+            ? "This paper has no structurally labelled figures: its captions are not printed as \"Figure N\" lines."
+            : "This paper's labelled figures are: \(available)."
+        return "Error: \(requested) was not found. \(inventory) "
+            + "A supplementary figure (Figure S-something) is printed in a separate file that this paper does not include, "
+            + "and Extended Data figures missing from that list are missing from this copy of the PDF (a main-text-only file or an accepted manuscript), "
+            + "and a graphical abstract or other unlabelled display item is never indexed by label even though it is in the PDF. "
+            + "Do not search the web for it: call show_source_image with this source_id and query set to the caption words, "
+            + "for example \"graphical abstract\", or page set to a PDF page. That shows the picture from this paper itself, "
+            + "without a vision explanation."
+    }
+
+    /// The panel of `analysis` the learner asked for, or nil when nothing was
+    /// asked for or the label matches no panel.
+    ///
+    /// The model spells a panel every way a paper does: "a", "A", "(a)", "1a",
+    /// "Figure 1A", and a named panel "DESIGN" or "Design". The label is
+    /// matched as it is written first, then by the panel's identity
+    /// (`PaperWalkthroughValidation.panelKey`: the letter of a lettered
+    /// panel, the whole name of a named one), and last by the final run of
+    /// letters and digits, ignoring case.
+    nonisolated static func paperFigurePanel(labelled requested: String, in analysis: PaperFigureAnalysis) -> PaperFigurePanel? {
+        let wanted = Self.bareFigurePanelLabel(requested)
+        guard !wanted.isEmpty else { return nil }
+        if let exact = analysis.panels.first(where: { $0.label.caseInsensitiveCompare(requested) == .orderedSame }) {
+            return exact
+        }
+        if let same = analysis.panels.first(where: { PaperWalkthroughValidation.samePanel($0.label, requested) }) {
+            return same
+        }
+        return analysis.panels.first { Self.bareFigurePanelLabel($0.label).caseInsensitiveCompare(wanted) == .orderedSame }
+    }
+
+    /// The rectangle the transcript should crop the page to: the panel's own
+    /// when one was asked for and the vision pass measured it, otherwise the
+    /// figure's. A panel is never shown as the page.
+    nonisolated static func paperFigureCrop(analysis: PaperFigureAnalysis, panel: PaperFigurePanel?) -> PaperFigureRect? {
+        if let rect = panel?.rect, rect.isValid { return rect }
+        return analysis.figureRect
+    }
+
+    /// Where `figureLabel` (and `panelLabel` within it) sits on its page, by
+    /// the resolver the walkthrough and `focus_source_anchor` use; nil when
+    /// the paper has no PDF on this Mac or the figure cannot be placed.
+    private func paperFigureGeometry(
+        sourceID: String,
+        figures: [PaperFigureRecord],
+        figureLabel: String,
+        panelLabel: String?
+    ) async -> WalkthroughResolvedAnchor? {
+        let path = (try? await storage.paperFigureIndexTarget(sourceID: sourceID))?.pdfPath
+        guard path != nil else { return nil }
+        let resolver: WalkthroughAnchorResolver
+        if let held = walkthroughResolver, walkthroughPlayback?.sourceID == sourceID,
+           held.matches(figures: figures, pdfPath: path) {
+            resolver = held
+        } else {
+            resolver = WalkthroughAnchorResolver(figures: figures, pdfPath: path)
+        }
+        return await resolver.resolve(PaperWalkthroughAnchor(figureLabel: figureLabel, panelLabel: panelLabel))
+    }
+
+    /// Outline `figureLabel` (and `panelLabel` within it) on its page in a
+    /// Reader beside this chat, opening the paper there first. Nil when the
+    /// figure cannot be placed on its page or no Reader beside the chat can
+    /// show the paper's pages (a chat in a window of its own).
+    private func outlineFigureBesideChat(
+        _ article: StudioArticle,
+        figures: [PaperFigureRecord],
+        figureLabel: String,
+        panelLabel: String?
+    ) async -> WalkthroughResolvedAnchor? {
+        guard let resolved = await paperFigureGeometry(
+            sourceID: article.id,
+            figures: figures,
+            figureLabel: figureLabel,
+            panelLabel: panelLabel
+        ), await readerBesideChatShowsPDF(of: article) else { return nil }
+        walkthroughFocusHandler?(.outline(resolved.target, stepID: "figure-\(UUID().uuidString)", sourceID: article.id))
+        return resolved
+    }
+
+    /// What `inspect_paper_figure` says when the figure is indexed but its
+    /// vision reading was not had — `failure` is the reading's error, nil when
+    /// no model is set up to read figures. It names where the learner can
+    /// still see the figure: outlined in the Reader beside the chat when it
+    /// was pointed at before the reading was asked for, otherwise through
+    /// `show_source_image`. The caption is the paper's own text; nothing here
+    /// stands in for the reading.
+    nonisolated static func figureReadingUnavailableMessage(
+        figureLabel: String,
+        pageNumber: Int,
+        caption: String,
+        failure: String?,
+        outlinedBesideChat: Bool
+    ) -> String {
+        var text = failure.map { reason in
+            let trimmed = reason.trimmingCharacters(in: .whitespacesAndNewlines)
+            let closed = trimmed.last.map { ".!?".contains($0) } == true ? trimmed : trimmed + "."
+            return "Error: the visual reading of \(figureLabel) failed: \(closed)"
+        } ?? "Error: \(figureLabel) is indexed, but its visual understanding could not be prepared."
+        if outlinedBesideChat {
+            text += " \(figureLabel) is outlined on PDF page \(pageNumber) in the Reader beside this chat, so the learner can see it there."
+                + " Tell them its reading failed, and do not describe what the figure shows as if you had seen it."
+                + " Its printed caption, which is the paper's text rather than a reading of the picture: \(caption)"
+        } else {
+            text += " Use show_source_image for page \(pageNumber) to show the figure without an explanation."
+        }
+        return text
+    }
+
+    private nonisolated static func bareFigurePanelLabel(_ label: String) -> String {
+        var trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
+        trimmed = trimmed.trimmingCharacters(in: CharacterSet(charactersIn: "()[]."))
+        // "Figure 1A", "Fig. 1a", "1a": the panel letter is the trailing run of
+        // letters after the last digit. A bare "a" or "ii" has no digit and is
+        // returned whole.
+        if let lastDigit = trimmed.lastIndex(where: \.isNumber) {
+            let tail = trimmed[trimmed.index(after: lastDigit)...]
+            return String(tail).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        if let lastSpace = trimmed.lastIndex(of: " ") {
+            return String(trimmed[trimmed.index(after: lastSpace)...])
+        }
+        return trimmed
+    }
+
+    func inspectPaperFigure(arguments: [String: Any]) async -> AppToolResult {
+        guard let requestedID = (arguments["source_id"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !requestedID.isEmpty else {
+            return AppToolResult(
+                text: "Error: inspect_paper_figure needs a paper source_id, from the attached catalog or a search result.",
+                isError: true
+            )
+        }
+        guard let article = await librarySourceArticle(forRequestedID: requestedID) else {
+            return AppToolResult(text: Self.sourceNotInLibraryMessage(requestedID), isError: true)
+        }
+        let sourceID = article.id
+        let requested = ((arguments["figure_label"] as? String) ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !requested.isEmpty else {
+            return AppToolResult(
+                text: "Error: inspect_paper_figure needs the printed figure label.",
+                isError: true
+            )
+        }
+        do {
+            // Preparing here is the point. Nothing else in a chat builds this
+            // index — before this, the tool read a table that only a voice
+            // review ever filled, so on any paper the learner had merely opened
+            // it reported the index as "still being prepared" forever, and the
+            // figure came back as an uncropped page. The structural half comes
+            // first: the printed captions say which figures the paper has and
+            // where each sits, with no model call.
+            // An index built under older rules is read again here too: one
+            // from before Extended Data counted listed only the main figures,
+            // and "Extended Data Figure 1" was refused on a paper that prints
+            // it (2026-11-08).
+            var figures = try await paperFigureIndexer.figuresForReading(sourceID: sourceID)
+            let requestedPanel = ((arguments["panel_label"] as? String) ?? "")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            // Show the figure before explaining it. The vision reading takes
+            // seconds and can fail — on 2026-10-11 a rate-limited free model
+            // failed it, and the learner who asked to walk through a paper's
+            // figures saw nothing, though where Figure 1 sits was known all
+            // along. The paper opens beside the chat with the figure outlined
+            // now; a failed reading is still reported as a failure.
+            var outlinedEarly: WalkthroughResolvedAnchor?
+            if let indexed = PaperFigureIndexer.figure(labelled: requested, in: figures),
+               indexed.analysis?.analysisVersion != PaperFigureAnalysis.currentVersion {
+                outlinedEarly = await outlineFigureBesideChat(
+                    article,
+                    figures: figures,
+                    figureLabel: indexed.figureLabel,
+                    panelLabel: requestedPanel.isEmpty ? nil : requestedPanel
+                )
+            }
+            // Then the vision half: only the requested figure is explained,
+            // so the cost is one figure rather than the paper.
+            do {
+                figures = try await paperFigureIndexer.prepare(
+                    sourceID: sourceID,
+                    figureLabel: requested
+                )
+            } catch {
+                guard let indexed = PaperFigureIndexer.figure(labelled: requested, in: figures) else { throw error }
+                return AppToolResult(
+                    text: Self.figureReadingUnavailableMessage(
+                        figureLabel: indexed.figureLabel,
+                        pageNumber: indexed.pageNumber,
+                        caption: indexed.caption,
+                        failure: error.localizedDescription,
+                        outlinedBesideChat: outlinedEarly != nil
+                    ),
+                    isError: true
+                )
+            }
+            guard let figure = PaperFigureIndexer.figure(labelled: requested, in: figures) else {
+                // A miss here rarely means the picture does not exist. A
+                // supplementary figure ("Figure S17") is printed in a separate
+                // file the library does not hold, and an unlabelled display
+                // item — a graphical abstract, a highlights panel — is right
+                // there in this PDF but carries no "Figure N" line for the
+                // index to catch. Both are still reachable through
+                // show_source_image, so every branch says so. Naming it only
+                // when the paper had no labels at all is what sent a Figure S17
+                // miss to a web search for a figure sitting on page 2.
+                return AppToolResult(
+                    text: Self.figureLabelNotFoundMessage(
+                        requested: requested,
+                        availableLabels: figures.map(\.figureLabel)
+                    ),
+                    isError: true
+                )
+            }
+            guard let analysis = figure.analysis else {
+                return AppToolResult(
+                    text: Self.figureReadingUnavailableMessage(
+                        figureLabel: figure.figureLabel,
+                        pageNumber: figure.pageNumber,
+                        caption: figure.caption,
+                        failure: nil,
+                        outlinedBesideChat: outlinedEarly != nil
+                    ),
+                    isError: true
+                )
+            }
+            let panel = Self.paperFigurePanel(labelled: requestedPanel, in: analysis)
+            if !requestedPanel.isEmpty, panel == nil {
+                let labels = analysis.panels.map(\.label).joined(separator: ", ")
+                let inventory = labels.isEmpty
+                    ? "The vision analysis found no labelled panels in this figure."
+                    : "Its labelled panels are: \(labels)."
+                return AppToolResult(
+                    text: "Error: \(figure.figureLabel) has no panel labelled \(requestedPanel). \(inventory) "
+                        + "Call again without panel_label to show the whole figure, or with one of those labels.",
+                    isError: true
+                )
+            }
+            // The same geometry the walkthrough outlines: the analysed
+            // rectangles, grown onto any ink their edges cut through.
+            let resolved = await paperFigureGeometry(
+                sourceID: sourceID,
+                figures: figures,
+                figureLabel: figure.figureLabel,
+                panelLabel: panel?.label
+            )
+            var crop = Self.paperFigureCrop(analysis: analysis, panel: panel)
+            // A panel nothing placed is shown as the whole figure, and the
+            // figure is the page's crop, not the stored rectangle.
+            if case .figure(_, let rect?, _, _) = resolved?.target, rect.isValid,
+               panel == nil || resolved?.panel != nil || panel?.rect?.isValid != true {
+                crop = rect
+            }
+            let shownLabel = PaperWalkthroughValidation.figurePanelLabel(figure.figureLabel, panel: panel?.label)
+            // With the paper open in a Reader beside this chat, the figure is
+            // pointed at there — scrolled to and outlined on its own page —
+            // rather than copied into the reply (product owner, 2026-09-22: "better
+            // if it just highlights the relevant part of the paper"). The
+            // walkthrough's rule, and `focus_source_anchor`'s, for the same
+            // reason: the page beside the chat is the figure, with its
+            // neighbours and its caption, and a crop of it is the same
+            // figure twice, cut down.
+            var outline: WalkthroughResolvedAnchor?
+            if let resolved, await readerBesideChatShowsPDF(of: article) {
+                outline = resolved
+            }
+            let shown = outline == nil ? "The picture below is cropped to" : "The outline in the Reader is around"
+            var lines = [
+                "\(shownLabel) (PDF page \(figure.pageNumber))",
+                "Caption: \(figure.caption)",
+                "Explanation: \(panel?.explanation ?? analysis.summary)",
+            ]
+            if !analysis.visualEvidence.isEmpty {
+                lines.append("Visible evidence: " + analysis.visualEvidence.joined(separator: "; "))
+            }
+            if !analysis.panels.isEmpty {
+                lines.append("Panels: " + analysis.panels.map { "\($0.label): \($0.explanation)" }.joined(separator: " | "))
+            }
+            if let panel {
+                // Zoom is only ever as good as the rectangle the vision pass
+                // read off the ruled page. When a panel has none, the whole
+                // figure is what can honestly be shown, and the model is told
+                // so rather than left to describe a close-up that is not there.
+                lines.append(
+                    panel.rect?.isValid == true
+                        ? "\(shown) panel \(panel.label) alone."
+                        : "Panel \(panel.label) has no rectangle of its own, so \(outline == nil ? "the picture below is" : "the outline in the Reader is around") the whole \(figure.figureLabel)."
+                )
+            } else {
+                let zoomable = analysis.panels.filter { $0.rect?.isValid == true }.map(\.label)
+                if !zoomable.isEmpty {
+                    lines.append(
+                        "Each of these panels can be shown enlarged on its own: call inspect_paper_figure again with panel_label set to one of "
+                        + zoomable.joined(separator: ", ") + "."
+                    )
+                }
+            }
+            if let outline {
+                // The reading measured the figure, so the outline drawn before
+                // it moves onto the analysed rectangle or the panel asked for;
+                // one already there is left alone rather than drawn again.
+                if outline.target != outlinedEarly?.target {
+                    walkthroughFocusHandler?(.outline(outline.target, stepID: "figure-\(UUID().uuidString)", sourceID: sourceID))
+                }
+                lines.append("")
+                lines.append(
+                    "The paper is open in the Reader beside this chat, and \(shownLabel) is now outlined on its page there. "
+                    + "Do not add an image of it to the reply: refer to it as the outlined figure in the paper beside the chat."
+                )
+                return AppToolResult(text: lines.joined(separator: "\n"), isError: false)
+            }
+            // The picture travels as a portable reference — source ID, page,
+            // and the analysis crop — that every client renders from its own
+            // copy of the PDF. An absolute `file://` path to a rendered JPEG was
+            // tried before and resolved only on the Mac that produced it.
+            let reference = SourceImageReference(
+                sourceID: sourceID,
+                location: .page(figure.pageNumber),
+                crop: crop
+            )
+            lines.append("")
+            lines.append(
+                "Include this Markdown image line verbatim, on its own line, so the learner sees the figure: "
+                + reference.markdown(alt: "\(shownLabel) (page \(figure.pageNumber))")
+            )
+            return AppToolResult(text: lines.joined(separator: "\n"), isError: false)
+        } catch {
+            return AppToolResult(text: "Error: \(error.localizedDescription)", isError: true)
+        }
+    }
+
+    /// `show_source_image`: list or find the pictures in an attached source and
+    /// hand back the portable Markdown lines that render them in the transcript.
+    ///
+    /// The file walk and any PDF work happen off the main actor; only the
+    /// attached-source check and the paper-figure lookup run here.
+    func showSourceImage(arguments: [String: Any]) async -> AppToolResult {
+        guard let requestedID = (arguments["source_id"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !requestedID.isEmpty else {
+            return AppToolResult(text: "Error: show_source_image needs a source_id, from the attached catalog or a search result.", isError: true)
+        }
+        guard let article = await librarySourceArticle(forRequestedID: requestedID) else {
+            return AppToolResult(text: Self.sourceNotInLibraryMessage(requestedID), isError: true)
+        }
+        let query = (arguments["query"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines)
+        func integer(_ name: String) -> Int? {
+            if let value = arguments[name] as? Int { return value }
+            if let value = arguments[name] as? Double { return Int(value) }
+            if let value = arguments[name] as? String { return Int(value.trimmingCharacters(in: .whitespaces)) }
+            return nil
+        }
+        let page = integer("page")
+        let crop = SourceImageReference.cropArgument(arguments["crop"])
+        if arguments["crop"] != nil, crop == nil {
+            return AppToolResult(
+                text: "Error: crop must be {x, y, width, height}, each a fraction between 0 and 1 of the picture from its top-left corner, staying inside it.",
+                isError: true
+            )
+        }
+
+        // A video or recording has no file of pictures to walk; its pictures are
+        // the slide frames captured from it, and any moment of it on request.
+        if StudioViewModel.supportsSlideExtraction(article) {
+            if arguments["at"] != nil {
+                guard let seconds = SourceImageReference.timestampSeconds(arguments["at"]) else {
+                    return AppToolResult(
+                        text: "Error: at must be a time in the video — seconds (265) or a clock reading (4:25, 1:02:03).",
+                        isError: true
+                    )
+                }
+                return await showVideoMoment(article: article, seconds: seconds, crop: crop)
+            }
+            return await showVideoSlides(article: article, query: query, slide: integer("slide"), crop: crop)
+        }
+        if arguments["at"] != nil {
+            return AppToolResult(
+                text: "Error: at is for videos and recordings; \"\(article.title)\" is not one. Use query or page.",
+                isError: true
+            )
+        }
+
+        let sourceID = article.id
+        // Fetched before the detached work so the whole PDF pass — listing the
+        // pictures and cropping them to their figures — happens once, off this
+        // actor, with one open document.
+        //
+        // Indexing the captions when none are on file is free and is what makes
+        // the crop possible at all; it explains nothing and spends nothing.
+        // An index built under older rules is read again, so an Extended Data
+        // figure the old rules skipped is still cropped to its figure.
+        let figures = (try? await paperFigureIndexer.figuresForReading(sourceID: sourceID)) ?? []
+        let listing = await Task.detached(priority: .userInitiated) { () -> Result<[SourceImageEntry], SourceImageCatalog.Failure> in
+            guard let path = article.resolvedFileLocation else { return .failure(.fileUnavailable) }
+            do {
+                let found = try SourceImageCatalog.entries(
+                    sourceID: sourceID,
+                    filePath: path,
+                    query: query,
+                    page: page
+                )
+                return .success(Self.croppedToFigures(
+                    found,
+                    sourceID: sourceID,
+                    filePath: path,
+                    figures: figures,
+                    query: query ?? ""
+                ))
+            } catch let failure as SourceImageCatalog.Failure {
+                return .failure(failure)
+            } catch {
+                return .failure(.fileUnavailable)
+            }
+        }.value
+
+        switch listing {
+        case .failure(let failure):
+            return AppToolResult(text: "Error: \(failure.message)", isError: true)
+        case .success(let entries):
+            var lines = ["Pictures in \"\(article.title)\" (\(entries.count) shown):"]
+            for (index, entry) in entries.enumerated() {
+                let name = entry.caption.isEmpty ? "Unnamed picture" : entry.caption
+                lines.append("\(index + 1). \(name) — \(entry.locationDescription)")
+                if entry.caption.isEmpty, !entry.context.isEmpty {
+                    lines.append("   Text that follows it: \(entry.context)")
+                }
+                lines.append("   \(entry.markdown)")
+            }
+            if (query ?? "").isEmpty, page == nil, entries.count == SourceImageCatalog.maxEntries {
+                lines.append("Only the first \(SourceImageCatalog.maxEntries) are listed; pass query to find a specific figure.")
+            }
+            lines.append("")
+            lines.append("Include each Markdown image line verbatim, on its own line, where the picture belongs in your answer. The learner sees the original picture there and can copy or drag it out of the chat.")
+            return AppToolResult(text: lines.joined(separator: "\n"), isError: false)
+        }
+    }
+
+    /// The slide half of `show_source_image`. Slides are listed from the block
+    /// the reader's "Show slides" capture writes into the stored content; a
+    /// source whose slides were never captured is captured here first, by the
+    /// same routes the reader button and `extract_video_slides` take.
+    private func showVideoSlides(
+        article: StudioArticle,
+        query: String?,
+        slide: Int?,
+        crop: PaperFigureRect? = nil
+    ) async -> AppToolResult {
+        let content: String
+        switch await capturedSlideContent(for: article) {
+        case .failed(let failure):
+            return failure
+        case .ready(let readyContent, _, _):
+            content = readyContent
+        }
+        switch await Self.slideListing(sourceID: article.id, content: content, query: query, slide: slide) {
+        case .failure(let failure):
+            return AppToolResult(text: "Error: \(failure.message)", isError: true)
+        case .success(let found):
+            // A crop narrows one slide to the part of the screen that matters;
+            // over a listing it would be a guess about every slide at once.
+            let entries = found.count == 1 && crop != nil
+                ? found.map { entry in
+                    SourceImageEntry(
+                        reference: SourceImageReference(sourceID: entry.reference.sourceID, location: entry.reference.location, crop: crop),
+                        caption: entry.caption,
+                        context: entry.context
+                    )
+                }
+                : found
+            var lines = Self.slideListingLines(article: article, entries: entries, query: query, slide: slide)
+            // The model sees the slides it is about to show, so it can tell
+            // the learner what is on them and crop in on the part that matters.
+            var images: [AIChatImage] = []
+            if entries.count <= Self.maxPicturesPerToolResult {
+                images = await Task.detached(priority: .userInitiated) {
+                    entries.compactMap { entry in
+                        SourceImageCatalog.renderSlide(entry.reference, content: content)
+                            .map { AIChatImage(data: $0.data, mediaType: $0.mediaType) }
+                    }
+                }.value
+                if !images.isEmpty {
+                    lines.append("\(images.count == 1 ? "The slide is" : "The \(images.count) slides are") attached as \(images.count == 1 ? "an image" : "images"), in the order listed.")
+                }
+            }
+            lines.append(Self.momentGuidance(sourceID: article.id))
+            // A quiz deals these slides out one question at a time, so render
+            // the rest now: each then appears with its question, not after it.
+            ChatSourceImage.prewarmSlides(entries.map(\.reference), content: content)
+            return AppToolResult(text: lines.joined(separator: "\n"), isError: false, images: images)
+        }
+    }
+
+    /// Up to this many pictures ride along with one tool result, the ceiling
+    /// the MCP route uses; a longer listing is text the model narrows first.
+    static let maxPicturesPerToolResult = 4
+
+    /// How to reach a moment no slide covers, and how to zoom in on one.
+    nonisolated static func momentGuidance(sourceID: String) -> String {
+        "To show any other moment of the video — an animation step, a diagram being drawn, what was on screen at a time the transcript names — call show_source_image with source_id \(sourceID) and at set to that time (seconds, or 4:25). To zoom in on part of a slide or frame, call it again with crop: {x, y, width, height} as fractions of the picture from its top-left corner, for example {\"x\": 0.55, \"y\": 0.15, \"width\": 0.45, \"height\": 0.75} for the right half below a title."
+    }
+
+    /// `show_source_image` with `at`: the frame on screen at that moment,
+    /// captured from the video now — from YouTube's stream or the recording
+    /// on disk — unless this Mac already holds it, and cropped when asked.
+    private func showVideoMoment(article: StudioArticle, seconds: Int, crop: PaperFigureRect?) async -> AppToolResult {
+        let sourceID = article.id
+        let when = SlideFrameExtraction.displayTime(Double(seconds))
+        do {
+            try await Self.ensureVideoMoment(article: article, seconds: seconds, storage: storage)
+        } catch {
+            return AppToolResult(
+                text: "Error: Couldn't capture the frame at \(when) of \"\(article.title)\": \(error.localizedDescription)",
+                isError: true
+            )
+        }
+        let reference = SourceImageReference(sourceID: sourceID, location: .moment(seconds), crop: crop)
+        let rendered = await Task.detached(priority: .userInitiated) {
+            SourceImageCatalog.renderMoment(reference)
+        }.value
+        guard let rendered else {
+            return AppToolResult(
+                text: crop == nil
+                    ? "Error: The frame at \(when) of \"\(article.title)\" was captured but could not be read back."
+                    : "Error: That crop leaves the frame at \(when). Give x, y, width and height as fractions between 0 and 1.",
+                isError: true
+            )
+        }
+        let alt = "\(article.title) at \(when)" + (crop == nil ? "" : " (detail)")
+        let lines = [
+            "Frame at \(when) of \"\(article.title)\"\(crop == nil ? "" : ", cropped as asked"), attached as an image:",
+            reference.markdown(alt: alt),
+            "",
+            "Look at the picture before you show it. If only part of it matters — a diagram beside the speaker's camera, one panel of a slide — call show_source_image again with the same at and a crop, and show that line instead. If this is not the moment you wanted, try a nearby time.",
+            "Include the Markdown image line verbatim, on its own line, where the picture belongs in your answer; the learner sees the frame there. To point at the moment itself, cite [\(article.title)](foreverlm://source/\(sourceID)?t=\(seconds)).",
+        ]
+        return AppToolResult(
+            text: lines.joined(separator: "\n"),
+            isError: false,
+            images: [AIChatImage(data: rendered.data, mediaType: rendered.mediaType)]
+        )
+    }
+
+    /// `extract_video_slides`: the reader's "Show slides" button, run from the
+    /// chat. Captures the deck when the source has none and reports the one it
+    /// has otherwise, and in both cases hands back the listing — so showing a
+    /// slide afterwards is a matter of pasting a line, not of a second call.
+    func extractVideoSlides(arguments: [String: Any]) async -> AppToolResult {
+        guard let requestedID = (arguments["source_id"] as? String)?
+            .trimmingCharacters(in: .whitespacesAndNewlines),
+              !requestedID.isEmpty else {
+            return AppToolResult(text: "Error: extract_video_slides needs an attached source_id.", isError: true)
+        }
+        guard let article = await attachedArticle(forRequestedID: requestedID) else {
+            return AppToolResult(
+                text: "Error: \(requestedID) is not an attached source. Use a source_id from the attached catalog.",
+                isError: true
+            )
+        }
+        guard StudioViewModel.supportsSlideExtraction(article) else {
+            return AppToolResult(
+                text: "Error: Slides can only be captured from YouTube videos and meeting recordings; \"\(article.title)\" is a \(article.sourceType.rawValue) source.",
+                isError: true
+            )
+        }
+        let content: String
+        let summary: String
+        switch await capturedSlideContent(for: article) {
+        case .failed(let failure):
+            return failure
+        case .ready(let readyContent, let captured, let slideCount):
+            content = readyContent
+            let noun = slideCount == 1 ? "slide" : "slides"
+            summary = captured
+                ? "Captured \(slideCount) \(noun) from \"\(article.title)\"; the reader shows them beside the transcript now."
+                : "\"\(article.title)\" already had \(slideCount) \(noun) captured; nothing was re-read."
+        }
+        switch await Self.slideListing(sourceID: article.id, content: content, query: nil, slide: nil) {
+        case .failure(let failure):
+            return AppToolResult(text: "\(summary) Error: \(failure.message)", isError: true)
+        case .success(let entries):
+            let lines = [summary, ""]
+                + Self.slideListingLines(article: article, entries: entries, query: nil, slide: nil)
+            return AppToolResult(text: lines.joined(separator: "\n"), isError: false)
+        }
+    }
+
+    enum SlideCaptureOutcome {
+        case ready(content: String, captured: Bool, slideCount: Int)
+        case failed(AppToolResult)
+    }
+
+    /// The stored content of a video or recording with its slide block in
+    /// place, capturing the deck first when there is none — by the routes the
+    /// reader's "Show slides" button takes: YouTube's storyboards for a YouTube
+    /// video, the recording file (through the Drive cache when it lives there)
+    /// for a meeting. A capture is saved so the reader shows the deck too.
+    private func capturedSlideContent(for article: StudioArticle) async -> SlideCaptureOutcome {
+        let sourceID = article.id
+        let content = await storage.loadSourceContent(sourceID) ?? article.content ?? ""
+        if SlideFrameExtraction.containsSlideSection(content) {
+            return .ready(
+                content: content,
+                captured: false,
+                slideCount: YouTubeSlideContentParser.parse(content).displaySlides.count
+            )
+        }
+        guard !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return .failed(AppToolResult(
+                text: "Error: \"\(article.title)\" has no transcript yet, so its slides cannot be captured.",
+                isError: true
+            ))
+        }
+        let extraction: SlideFrameExtraction.AppendResult
+        if YouTubeTranscriptService.isYouTubeURL(article.url) {
+            extraction = await YouTubeSlideExtractionService.shared.appendingSlideContext(
+                to: content,
+                videoURL: article.url,
+                sourceID: sourceID,
+                videoTitle: article.title
+            )
+        } else if article.sourceType == .meeting {
+            let mediaURL: URL
+            do {
+                mediaURL = try await meetingRecordingURL(for: sourceID)
+            } catch {
+                return .failed(AppToolResult(
+                    text: "Error: Couldn't read the recording of \"\(article.title)\": \(error.localizedDescription)",
+                    isError: true
+                ))
+            }
+            extraction = await RecordingSlideExtractionService.shared.appendingSlideContext(
+                to: content,
+                mediaURL: mediaURL,
+                sourceID: sourceID,
+                videoTitle: article.title
+            )
+        } else {
+            return .failed(AppToolResult(
+                text: "Error: Slides can only be captured from YouTube videos and meeting recordings; \"\(article.title)\" is neither.",
+                isError: true
+            ))
+        }
+        if let message = extraction.errorMessage {
+            return .failed(AppToolResult(
+                text: "Error: Couldn't capture the slides of \"\(article.title)\": \(message)",
+                isError: true
+            ))
+        }
+        guard extraction.slideCount > 0 else {
+            return .failed(AppToolResult(
+                text: "Error: No slides could be found in the frames of \"\(article.title)\".",
+                isError: true
+            ))
+        }
+        var updated = article
+        updated.content = extraction.content
+        updated.wordCount = extraction.content.split(separator: " ").count
+        do {
+            try await storage.saveSource(updated)
+        } catch {
+            return .failed(AppToolResult(
+                text: "Error: The slides were captured but could not be saved: \(error.localizedDescription)",
+                isError: true
+            ))
+        }
+        if let index = activeArticles.firstIndex(where: { $0.id == sourceID }) {
+            activeArticles[index] = updated
+        }
+        NotificationCenter.default.post(name: .foreverLMDataDidChange, object: nil)
+        return .ready(content: extraction.content, captured: true, slideCount: extraction.slideCount)
+    }
+
+    /// Makes sure this Mac holds the frame at `seconds` of a video or
+    /// recording, capturing it when it does not: from YouTube's stream, or
+    /// from the meeting's recording. Shared by the chat and MCP routes of
+    /// `show_source_image`.
+    nonisolated static func ensureVideoMoment(article: StudioArticle, seconds: Int, storage: StorageService) async throws {
+        let sourceID = article.id
+        let alreadyCaptured = await Task.detached(priority: .userInitiated) {
+            SlideFrameExtraction.existingMomentFramePath(sourceID: sourceID, seconds: seconds) != nil
+        }.value
+        guard !alreadyCaptured else { return }
+        if YouTubeTranscriptService.isYouTubeURL(article.url) {
+            _ = try await YouTubeSlideExtractionService.shared.captureMoment(
+                videoURL: article.url,
+                sourceID: sourceID,
+                seconds: seconds
+            )
+        } else if article.sourceType == .meeting {
+            let mediaURL = try await meetingRecordingURL(for: sourceID, storage: storage)
+            _ = try await RecordingSlideExtractionService.shared.captureMoment(
+                mediaURL: mediaURL,
+                sourceID: sourceID,
+                seconds: seconds
+            )
+        } else {
+            throw SlideExtractionError.unreadableRecording
+        }
+    }
+
+    private func meetingRecordingURL(for sourceID: String) async throws -> URL {
+        try await Self.meetingRecordingURL(for: sourceID, storage: storage)
+    }
+
+    /// Where a meeting's recording is, found the way the reader finds it: the
+    /// artifact's local file when it has one, otherwise its Drive copy through
+    /// the recording cache (a download on first use).
+    nonisolated static func meetingRecordingURL(for sourceID: String, storage: StorageService) async throws -> URL {
+        let artifacts = try await storage.loadMeetingArtifacts(sourceID: sourceID)
+        guard let recording = artifacts.first(where: { $0.kind == .recording }) else {
+            throw MeetingTranscriptError.noRecording
+        }
+        if let localPath = recording.localFilePath?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !localPath.isEmpty {
+            let resolvedPath = await Task.detached(priority: .utility) {
+                StorageService.locateSourceFile(localPath) ?? StorageService.absoluteSourcePath(localPath)
+            }.value
+            return URL(fileURLWithPath: resolvedPath)
+        }
+        if let remote = recording.url?.trimmingCharacters(in: .whitespacesAndNewlines), !remote.isEmpty {
+            return try await GoogleDriveService.shared.cachedRecordingURL(
+                fileURLOrID: remote,
+                mimeType: recording.mimeType,
+                modifiedAt: recording.modifiedAt
+            )
+        }
+        throw MeetingTranscriptError.noRecording
+    }
+
+    /// The deck's entries, listed off the main actor: parsing the block and
+    /// matching the spoken words is string work over the whole transcript.
+    private static func slideListing(
+        sourceID: String,
+        content: String,
+        query: String?,
+        slide: Int?
+    ) async -> Result<[SourceImageEntry], SourceImageCatalog.Failure> {
+        await Task.detached(priority: .userInitiated) { () -> Result<[SourceImageEntry], SourceImageCatalog.Failure> in
+            do {
+                return .success(try SourceImageCatalog.slideEntries(
+                    sourceID: sourceID,
+                    content: content,
+                    query: query,
+                    slide: slide
+                ))
+            } catch let failure as SourceImageCatalog.Failure {
+                return .failure(failure)
+            } catch {
+                return .failure(.noImages)
+            }
+        }.value
+    }
+
+    /// The slide listing as the model reads it: one numbered entry per slide
+    /// with its on-screen window, the words spoken over it, and the Markdown
+    /// line that shows it, then the instruction to paste those lines verbatim.
+    nonisolated static func slideListingLines(
+        article: StudioArticle,
+        entries: [SourceImageEntry],
+        query: String?,
+        slide: Int?
+    ) -> [String] {
+        var lines = ["Slides in \"\(article.title)\" (\(entries.count) shown):"]
+        for (index, entry) in entries.enumerated() {
+            lines.append("\(index + 1). \(entry.caption)")
+            if !entry.context.isEmpty {
+                lines.append("   Spoken while on screen: \(SourceImageEntry.shortened(entry.context, limit: 220))")
+            }
+            lines.append("   \(entry.markdown)")
+        }
+        if (query ?? "").isEmpty, slide == nil, entries.count == SourceImageCatalog.maxEntries {
+            lines.append("Only the first \(SourceImageCatalog.maxEntries) are listed; pass query with words from the slide or what was said over it, or slide with a number.")
+        }
+        lines.append("")
+        lines.append("Include each Markdown image line verbatim, on its own line, where the picture belongs in your answer. The learner sees the slide there and can copy or drag it out of the chat. In a review or quiz, show one slide per question: the slide the question you are asking is about, directly above it. These lines stay valid for the rest of the chat, so a slide listed here can be shown in a later reply without calling show_source_image again. To point at the moment the slide is on screen, cite the source with that moment's start in seconds: [Title](foreverlm://source/\(article.id)?t=SECONDS).")
+        return lines
+    }
+
+    /// `generate_image`: draws a picture with the account's image model, keeps
+    /// the bytes in this device's store, and hands back the portable line that
+    /// shows it. The model is the Settings choice, never named here.
+    func generateChatImage(arguments: [String: Any]) async -> AppToolResult {
+        guard let prompt = Self.nonEmptyTrimmed(arguments["prompt"] as? String) else {
+            return AppToolResult(text: "Error: generate_image needs a prompt describing the picture.", isError: true)
+        }
+        let shape = Self.enumArgument(arguments["shape"], ImageGenerationCatalog.Shape.init(rawValue:)) ?? .square
+        let quality = Self.enumArgument(arguments["quality"], ImageGenerationCatalog.Quality.init(rawValue:)) ?? .medium
+        let revising = Self.imageID(fromArgument: arguments["revises"])
+        let title = GeneratedImageStore.cleanTitle(arguments["title"] as? String)
+        // Refused before anything is drawn, so a missing title costs nothing.
+        guard title != nil || revising != nil else {
+            return AppToolResult(text: "Error: generate_image needs a title for a new picture: two to six words naming it, as a file is named.", isError: true)
+        }
+        let model = MacImageGenerationSettings.model
+        do {
+            // A picture drawn in a Notebook's chat lives in its notebook, when
+            // the notebook takes new things (`madeThingFiling`).
+            let stored = try await ManagedImageGeneration.drawAndStore(
+                prompt: prompt,
+                title: title,
+                model: model,
+                shape: shape,
+                quality: quality,
+                revising: revising,
+                usageTask: "chat_image",
+                notebookID: madeThingNotebookID
+            )
+            guard let reference = stored.reference else {
+                throw ManagedImageGeneration.Failure.noImageReturned
+            }
+            let line = reference.markdown(alt: stored.details?.title ?? Self.generatedImageAlt(prompt))
+            let what = stored.version > 1
+                ? "Drew version \(stored.version) of the picture with \(model.name); it replaces the earlier one, and the image keeps every version."
+                : "Drew a \(shape.rawValue) picture with \(model.name)."
+            return AppToolResult(
+                text: """
+                \(what)
+                \(line)
+
+                Include the Markdown image line above verbatim, on its own line, where the picture belongs in your answer. The learner sees the picture there and can copy or drag it out of the chat. Do not repeat the prompt back; one short sentence about the picture is enough. To change this picture later, call generate_image again with revises: "\(stored.id)".
+                """,
+                isError: false
+            )
+        } catch {
+            return AppToolResult(text: "Error: \(error.localizedDescription)", isError: true)
+        }
+    }
+
+    /// The image a `revises` argument names: a bare id, or the picture's
+    /// `foreverlm://image/generated/<id>` line or address.
+    nonisolated static func imageID(fromArgument raw: Any?) -> String? {
+        guard var text = (raw as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !text.isEmpty else { return nil }
+        if let open = text.range(of: "("), let close = text.range(of: ")", range: open.upperBound..<text.endIndex) {
+            text = String(text[open.upperBound..<close.lowerBound])
+        }
+        return GeneratedImageReference(urlString: text)?.id ?? GeneratedImageReference(id: text)?.id ?? text
+    }
+
+    /// `list_generated_images`: the images this Mac holds — each once, at
+    /// its latest version — with the line that shows it again.
+    func listGeneratedImages(arguments: [String: Any]) async -> AppToolResult {
+        let query = Self.nonEmptyTrimmed(arguments["query"] as? String)
+        let limit = min(max((arguments["limit"] as? Int) ?? 20, 1), 100)
+        let loaded = await Task.detached(priority: .userInitiated) {
+            GeneratedImageStore.imageGroups()
+        }.value
+        // Screen record mode (admin only): the pictures the take may show, so
+        // a filmed chat cannot list the rest.
+        let scope = ScreenRecordScope.resolve { _ in [] }
+        let groups = scope.map { scope in
+            loaded.filter { scope.allowsImage(id: $0.imageID, createdAt: $0.updatedAt) }
+        } ?? loaded
+        let catalog = GeneratedImageStore.catalog(groups, query: query, limit: limit, forMCP: false)
+        return AppToolResult(
+            text: catalog + "\n\nTo show one again, include its Markdown image line verbatim, on its own line, where the picture belongs in your answer. To change one, call generate_image with revises set to the id in its line: the new picture becomes its next version rather than a new image.",
+            isError: false
+        )
+    }
+
+    private static func enumArgument<Value>(_ raw: Any?, _ make: (String) -> Value?) -> Value? {
+        guard let text = nonEmptyTrimmed(raw as? String) else { return nil }
+        return make(text.lowercased())
+    }
+
+    /// Alt text for a drawn picture: the opening of its prompt, capped so a
+    /// paragraph-long description does not become the caption.
+    nonisolated static func generatedImageAlt(_ prompt: String) -> String {
+        GeneratedImageStore.altText(prompt)
+    }
+
+    /// Resolves a tool's `source_id` against the attached pool, accepting the
+    /// unambiguous prefixes models sometimes shorten IDs to.
+    private func attachedArticle(forRequestedID requestedID: String) async -> StudioArticle? {
+        let attachedID: String?
+        if activeSourceIDs.contains(requestedID) {
+            attachedID = requestedID
+        } else if requestedID.count >= 8 {
+            let matches = activeSourceIDs.filter { $0.hasPrefix(requestedID) }
+            attachedID = matches.count == 1 ? matches.first : nil
+        } else {
+            attachedID = nil
+        }
+        guard let attachedID else { return nil }
+        if let loaded = activeArticles.first(where: { $0.id == attachedID }) { return loaded }
+        return try? await storage.loadPersistedSources(ids: [attachedID]).first
+    }
+
+    /// The source a picture tool was asked about: an attached one first, by
+    /// the same prefix-tolerant match, then any source the library holds under
+    /// that full ID.
+    ///
+    /// The picture tools read a source's file and nothing else, so nothing
+    /// about them needs the source's text in this chat's context. Requiring
+    /// it meant a paper that a search had just found could not have its figure
+    /// shown until the learner attached it by hand — and the model, told the
+    /// ID was "not attached", reached for a tool that moved a selection outside
+    /// the chat (since deleted), was refused again, and opened the publisher's page in the browser for a figure sitting in
+    /// the library's own PDF.
+    func librarySourceArticle(forRequestedID requestedID: String) async -> StudioArticle? {
+        if let attached = await attachedArticle(forRequestedID: requestedID) { return attached }
+        return try? await storage.loadPersistedSources(ids: [requestedID]).first
+    }
+
+    /// What the picture tools say about an ID that names nothing in the
+    /// library. Static so a test can hold it to naming the route that works.
+    nonisolated static func sourceNotInLibraryMessage(_ requestedID: String) -> String {
+        "Error: \(requestedID) is not a source in this library. Use a source_id from the attached catalog "
+            + "or from a search_sources_semantic result; a library source need not be attached to this chat."
+    }
+
+    /// Narrow a page reference to the figure printed on it.
+    ///
+    /// Two sources of geometry, in order. A figure whose vision pass has run
+    /// carries a stored rectangle, already snapped to the page's ink when it was
+    /// written. A figure that has only been *indexed* — which is free, and is
+    /// what a paper gets just by being asked about — carries only its caption,
+    /// and that is enough: `PaperFigureRectRefiner` finds the caption on the
+    /// page and takes the block of ink it belongs to. So a figure is cropped
+    /// whether or not anyone has paid to have it explained.
+    ///
+    /// Nonisolated and given its own file path: this rasterizes pages, and the
+    /// caller runs it inside the detached task that already opened the document.
+    /// Internal rather than private so a test can drive the same selection the
+    /// tool drives, on a real paper.
+    nonisolated static func croppedToFigures(
+        _ entries: [SourceImageEntry],
+        sourceID: String,
+        filePath: String,
+        figures: [PaperFigureRecord],
+        query: String
+    ) -> [SourceImageEntry] {
+        guard !figures.isEmpty,
+              entries.contains(where: { if case .page = $0.reference.location { true } else { false } })
+        else { return entries }
+        #if os(macOS)
+        guard let document = SourcePDFPages(stored: filePath).document() else { return entries }
+        let labelsPerPage = Dictionary(grouping: figures, by: \.pageIndex)
+            .mapValues { Set($0.map(\.figureLabel)).count }
+
+        // When the query names a figure this paper actually has, the answer is
+        // that figure — not every page whose text happens to contain the words.
+        // A PDF query search matches page *text*, so asking for "Figure 3" on a
+        // paper that discusses Figure 3 in its prose returns the discussion
+        // pages too, ordered by page number, and the figure itself lands
+        // somewhere down the list behind them. The model then pastes the first
+        // thing it was handed, which is a page of paragraphs.
+        if !query.isEmpty {
+            var seen = Set<String>()
+            let named = figures
+                .filter {
+                    SourceImageCatalog.textMatches($0.figureLabel, query: query)
+                        || SourceImageCatalog.textMatches($0.caption, query: query)
+                }
+                .sorted { $0.pageIndex < $1.pageIndex }
+                // A caption continued onto the next page repeats the label; the
+                // figure is on the first of them.
+                .filter { seen.insert($0.figureLabel.lowercased()).inserted }
+            if !named.isEmpty {
+                return named.compactMap { figure in
+                    guard let page = document.page(at: figure.pageIndex) else { return nil }
+                    return SourceImageEntry(
+                        reference: SourceImageReference(
+                            sourceID: sourceID,
+                            location: .page(figure.pageNumber),
+                            crop: cropFor(figure, page: page, labelsPerPage: labelsPerPage)
+                        ),
+                        caption: figure.caption,
+                        context: ""
+                    )
+                }
+            }
+        }
+
+        return entries.map { entry in
+            guard case .page(let page) = entry.reference.location, entry.reference.crop == nil else {
+                return entry
+            }
+            let onPage = figures.filter { $0.pageIndex == page - 1 }
+            let chosen: PaperFigureRecord?
+            if !query.isEmpty {
+                chosen = onPage.first {
+                    SourceImageCatalog.textMatches($0.figureLabel, query: query)
+                        || SourceImageCatalog.textMatches($0.caption, query: query)
+                }
+            } else if !entry.caption.isEmpty {
+                chosen = onPage.first { SourceImageCatalog.textMatches(entry.caption, query: $0.figureLabel) }
+            } else {
+                chosen = onPage.count == 1 ? onPage.first : nil
+            }
+            guard let chosen else { return entry }
+
+            guard let pdfPage = document.page(at: chosen.pageIndex),
+                  let crop = cropFor(chosen, page: pdfPage, labelsPerPage: labelsPerPage)
+            else { return entry }
+            return SourceImageEntry(
+                reference: SourceImageReference(sourceID: sourceID, location: .page(page), crop: crop),
+                caption: entry.caption.isEmpty ? chosen.caption : entry.caption,
+                context: entry.context
+            )
+        }
+        #else
+        return entries
+        #endif
+    }
+
+    /// A figure's crop: the one the page itself yields for free, and the
+    /// rectangle the vision pass stored only when the page yields none.
+    private nonisolated static func cropFor(
+        _ figure: PaperFigureRecord,
+        page: PDFPage,
+        labelsPerPage: [Int: Int]
+    ) -> PaperFigureRect? {
+        #if os(macOS)
+        return PaperFigureRectRefiner.displayedFigureCrop(
+            forCaption: figure.caption,
+            measured: figure.analysis?.figureRect,
+            on: page,
+            sharesPageWithOtherFigures: (labelsPerPage[figure.pageIndex] ?? 1) > 1
+        )
+        #else
+        return figure.analysis?.figureRect
+        #endif
+    }
+
+    /// Whether a Reader beside this chat shows `sourceID` as pages an outline
+    /// can be drawn on — opening it there first when none does. A figure the
+    /// tutor explains is shown in the paper, outlined, not copied into the
+    /// reply (product owner, 2026-09-22: "better if it just highlights the relevant
+    /// part of the paper"; asked whether to open the paper when it was not
+    /// open: "yes").
+    private func readerBesideChatShowsPDF(of article: StudioArticle) async -> Bool {
+        guard WalkthroughAnchorResolver.readerShowsPDF(article) else { return false }
+        return await readerBesideChatShowsOpening(article)
+    }
+}

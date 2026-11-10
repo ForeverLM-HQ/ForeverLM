@@ -213,43 +213,4 @@ extension KnowledgeStore {
         }
         try deleteArtifactCommentRecord(rootID)
     }
-
-    func loadArtifactCollaborationRecord(
-        _ artifactID: String
-    ) throws -> ArtifactCollaborationRecord? {
-        var record: ArtifactCollaborationRecord?
-        try queryBind("""
-            SELECT database_scope, zone_name, owner_name, share_record_name,
-                   permission, is_owner, last_body_revision, updated_at
-            FROM artifact_collaboration
-            WHERE artifact_id = ?
-            LIMIT 1
-        """, bind: { statement in
-            bind(statement, 1, artifactID)
-        }) { statement in
-            guard let scopeRaw = string(statement, 0),
-                  let scope = ArtifactCollaborationRecord.DatabaseScope(rawValue: scopeRaw),
-                  let zoneName = string(statement, 1),
-                  let ownerName = string(statement, 2),
-                  let permissionRaw = string(statement, 4),
-                  let permission = ArtifactCollaborationRecord.Permission(rawValue: permissionRaw)
-            else { return }
-            record = ArtifactCollaborationRecord(
-                artifactID: artifactID,
-                databaseScope: scope,
-                zoneName: zoneName,
-                ownerName: ownerName,
-                shareRecordName: string(statement, 3),
-                permission: permission,
-                isOwner: sqlite3_column_int(statement, 5) != 0,
-                lastBodyRevision: string(statement, 6),
-                updatedAt: Date(timeIntervalSinceReferenceDate: sqlite3_column_double(statement, 7))
-            )
-        }
-        return record
-    }
-
-    func artifactUsesSharedDatabase(_ artifactID: String) throws -> Bool {
-        try loadArtifactCollaborationRecord(artifactID)?.databaseScope == .shared
-    }
 }

@@ -167,7 +167,7 @@ struct CutoverSatellites: Sendable {
                     let now = clock().timeIntervalSinceReferenceDate
                     try await store.perform { state in
                         try state.connection.execute("""
-                            INSERT INTO ck_legacy_bodies (record_type, wire_id, field, sent_at) VALUES (?, ?, 'body', ?)
+                            INSERT INTO ck_body_sends (record_type, wire_id, field, sent_at) VALUES (?, ?, 'body', ?)
                             ON CONFLICT(record_type, wire_id, field) DO UPDATE SET sent_at = excluded.sent_at
                         """, [.text(SyncRecordType.artifact.rawValue), .text(artifactID), .real(now)])
                     }

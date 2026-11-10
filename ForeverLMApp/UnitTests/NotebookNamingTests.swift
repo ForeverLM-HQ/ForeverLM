@@ -377,6 +377,6 @@ struct NotebookNamingFlowTests {
         #expect(sources["NotebookFilingMenus.swift"]?.contains("vm.createNotebook(\n                    fromChat:") == true)
         // A notebook the learner makes is never named by a view itself.
         let namedCreates = sources.filter { $0.value.contains("createNotebookContext(") }.keys.sorted()
-        #expect(namedCreates == ["InternalReviewPanel.swift"], "only a chat's synthesis makes a notebook named from its own content")
+        #expect(namedCreates.isEmpty, "no view makes a notebook under a name of its own: the view model does")
     }
 }

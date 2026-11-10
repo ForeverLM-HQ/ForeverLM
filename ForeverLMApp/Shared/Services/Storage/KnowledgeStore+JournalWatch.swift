@@ -345,16 +345,6 @@ extension KnowledgeStore {
         return urls
     }
 
-    // MARK: - Notebook exclusions
-
-    func journalWatchExcludedNotebookIDs() throws -> Set<String> {
-        var ids = Set<String>()
-        try query("SELECT notebook_id FROM journal_watch_excluded_notebooks") { stmt in
-            if let id = self.string(stmt, 0) { ids.insert(id) }
-        }
-        return ids
-    }
-
     // MARK: - Library lookups
 
     /// Whether an announced article is already in the library, by URL or DOI.

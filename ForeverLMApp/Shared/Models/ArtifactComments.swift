@@ -72,28 +72,6 @@ struct ArtifactCommentRecord: Identifiable, Codable, Equatable, Sendable {
     }
 }
 
-struct ArtifactCollaborationRecord: Equatable, Sendable {
-    enum DatabaseScope: String, Sendable {
-        case privateScope = "private"
-        case shared
-    }
-
-    enum Permission: String, Sendable {
-        case readOnly
-        case readWrite
-    }
-
-    let artifactID: String
-    let databaseScope: DatabaseScope
-    let zoneName: String
-    let ownerName: String
-    let shareRecordName: String?
-    let permission: Permission
-    let isOwner: Bool
-    let lastBodyRevision: String?
-    let updatedAt: Date
-}
-
 enum ArtifactCommentError: LocalizedError, Equatable {
     case emptyBody
     case missingSelection

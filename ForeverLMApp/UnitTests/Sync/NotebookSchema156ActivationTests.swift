@@ -100,7 +100,7 @@ struct NotebookSchema156ActivationTests {
         #expect(try Self.derived(store) == first, "a second run changes nothing")
         #expect(try F.count(store, "SELECT COUNT(*) FROM ck_text_bases") == 0)
         // The table exists since 159 (the catch-up's walk fills it); the activation puts no notes base in it.
-        #expect(try F.count(store, "SELECT COUNT(*) FROM ck_legacy_bodies WHERE record_type = 'Notebook' AND field = 'notes'") == 0)
+        #expect(try F.count(store, "SELECT COUNT(*) FROM ck_body_sends WHERE record_type = 'Notebook' AND field = 'notes'") == 0)
         #expect(try F.count(store, "SELECT COUNT(*) FROM ck_outbox_fields") == 0, "derivations queue nothing")
     }
 

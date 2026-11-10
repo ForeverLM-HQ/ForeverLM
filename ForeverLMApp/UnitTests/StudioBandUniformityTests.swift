@@ -330,7 +330,7 @@ struct StudioBandUniformityTests {
     func chatTitleRowBacksItselfOnlyWithoutBand() throws {
         let file = URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("App/InternalReviewPanel.swift")
+            .appendingPathComponent("App/InternalReviewPanel+Header.swift")
         let source = try String(contentsOf: file, encoding: .utf8)
         let start = try #require(source.range(of: "private var chatTitleHeader: some View"))
         let open = try #require(source[start.upperBound...].firstIndex(of: "{"))

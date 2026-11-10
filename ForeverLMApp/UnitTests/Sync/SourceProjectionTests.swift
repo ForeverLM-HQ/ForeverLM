@@ -162,7 +162,7 @@ struct SourceProjectionTests {
         #expect(fields.keys.allSatisfy { !$0.lowercased().contains("liked") && !$0.lowercased().contains("discover") })
         try Fixture.sendAll(store)
         try store.execForTesting("""
-            UPDATE videos SET discovery_origin = 'chrome', liked_at = 1, legacy_cap_verified_at = 2 WHERE source_id = '\(video.id)';
+            UPDATE videos SET discovery_origin = 'chrome', liked_at = 1 WHERE source_id = '\(video.id)';
             UPDATE sources SET reading_position_page = 3, read_at = 4, review_depth = 'deep', is_consumed = 1 WHERE id = '\(video.id)';
         """)
         // The Source record is not written; the member's own columns feed their own records, the Marks (provenance, like).
