@@ -185,8 +185,7 @@ struct HoldsMyLibraryTests {
         let root = try Schema154Fixture.temporaryRoot("holds-library")
         defer { try? FileManager.default.removeItem(at: root) }
         try Schema154Fixture.makeLibrary(at: root, version: 174)
-        Schema154Fixture.newLaunch(root)
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root)
         #expect(try store.holdsMyLibraryConfirmation() == nil)
         let confirmation = HoldsMyLibraryConfirmation(confirmedAt: Self.at, catchUpAt: Self.at.addingTimeInterval(60), outcome: .reconciling)
         try store.writeHoldsMyLibraryConfirmation(confirmation)

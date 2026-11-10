@@ -26,7 +26,7 @@ struct SourceDeleteKeepsPersonalStateTests {
     private static func generation2Library(_ name: String) throws -> (root: URL, store: KnowledgeStore, library: Schema154Fixture.Library) {
         let root = try Schema154Fixture.temporaryRoot(name)
         let library = try Schema154Fixture.makeLibrary(at: root, version: nil)
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root)
         return (root, store, library)
     }
 

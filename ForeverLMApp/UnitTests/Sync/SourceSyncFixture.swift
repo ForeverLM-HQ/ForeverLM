@@ -15,7 +15,7 @@ enum SourceSyncFixture {
     /// activation leaves one; `triggers: false` leaves it as it is before the activation.
     static func makeStore(_ name: String, triggers: Bool = true) throws -> (root: URL, store: KnowledgeStore) {
         let root = try Schema154Fixture.temporaryRoot("WP7-\(name)")
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root)
         if triggers { try store.installOutboxTriggers(registry) }
         return (root, store)
     }

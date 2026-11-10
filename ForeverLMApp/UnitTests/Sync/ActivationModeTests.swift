@@ -15,8 +15,7 @@ struct ActivationModeTests {
         init() throws {
             root = try Schema154Fixture.temporaryRoot("activation-modes")
             try Schema154Fixture.makeLibrary(at: root, version: nil)
-            Schema154Fixture.newLaunch(root)
-            store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+            store = try KnowledgeStore(storeDirectory: root)
             try store.executeScript(OutboxTestProjections.tablesSQL)
         }
 

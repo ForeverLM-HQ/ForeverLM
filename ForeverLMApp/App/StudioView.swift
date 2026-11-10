@@ -521,13 +521,7 @@ struct StudioView: View {
             // in the bell instead.
             let tray = CornerNoticeTray.shared
             let subjects = vm.inboxSubjects(planDay: DayModel.shared.planTheDayAsk)
-            if let message = StoreUpgradeSpaceNotice.shared.visibleMessage,
-                      tray.showsInCorner(.storeUpgradeSpace, subject: subjects.subject(.storeUpgradeSpace)) {
-                StoreUpgradeSpaceCard(message: message, style: .floating)
-                    .padding(.leading, cornerCardLeadingInset)
-                    .padding(.bottom, StudioDesign.Spacing.large)
-                    .transition(.move(edge: .leading).combined(with: .opacity))
-            } else if asksToPlanTheDay, let day = DayModel.shared.planTheDayAsk,
+            if asksToPlanTheDay, let day = DayModel.shared.planTheDayAsk,
                       tray.showsInCorner(.planTheDay, subject: subjects.subject(.planTheDay)) {
                 PlanTheDayCard(day: day, style: .floating)
                     .padding(.leading, cornerCardLeadingInset)
@@ -561,7 +555,6 @@ struct StudioView: View {
                 // than over it, and under Settings, since a question that
                 // waits can wait for Settings to close.
                 .overlay(alignment: .bottomLeading) { planTheDayCard }
-                .animation(.spring(response: 0.32, dampingFraction: 0.86), value: StoreUpgradeSpaceNotice.shared.visibleMessage)
                 .animation(.spring(response: 0.32, dampingFraction: 0.86), value: DayModel.shared.planTheDayAsk)
             StudioAudiobookPlayerHost()
         }

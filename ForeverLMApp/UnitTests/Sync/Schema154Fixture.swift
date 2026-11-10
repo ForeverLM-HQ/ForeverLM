@@ -14,15 +14,6 @@ enum Schema154Fixture {
         return root
     }
 
-    /// Room enough for any copy, for opens that are not about the disk.
-    static let roomy: (URL) throws -> Int64? = { _ in 1_000_000_000_000 }
-
-    /// The next launch for the store in `root`: its next open decides about the rollback copy afresh,
-    /// as a new process would, instead of following this launch's decision (`KnowledgeStoreOpening`).
-    static func newLaunch(_ root: URL) {
-        KnowledgeStoreOpening.startNewLaunchForTesting(databaseAt: root.appendingPathComponent("knowledge.db").path)
-    }
-
     /// One value through a connection of its own, read-only. A rollback copy is opened immutable, as
     /// the app reads one, so reading it creates no side file.
     static func scalar(at root: URL, _ sql: String, file: String = "knowledge.db") -> String? {
@@ -119,7 +110,7 @@ enum Schema154Fixture {
     /// `version` is 174, else at the current schema.
     @discardableResult
     static func makeLibrary(at root: URL, version: Int32?, sourceCount: Int = 3) throws -> Library {
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: roomy)
+        let store = try KnowledgeStore(storeDirectory: root)
         var sourceIDs: [String] = []
         for index in 0..<sourceCount {
             var article = StudioArticle(url: "https://example.org/schema154/\(index)", title: "Paper \(index)", sourceType: .article)

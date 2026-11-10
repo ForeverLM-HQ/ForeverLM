@@ -40,15 +40,6 @@ final class KnowledgeStore: @unchecked Sendable {
     func noteStoreChanged() {
         NotificationCenter.default.post(name: .cloudKitSyncStoreDidChange, object: nil)
     }
-    /// The rollback copy this open took before migrating (§13.3 step 1), nil when it took none, as
-    /// every later open of the store in the launch does.
-    var rollbackCopy: KnowledgeRollbackCopy.Record?
-    /// `PRAGMA quick_check` of that copy, running on its own `.utility` queue while the store is used.
-    var rollbackCopyCheck: Task<KnowledgeRollbackCopy.Record, Never>?
-    /// Why a copy this open should have taken could not be taken.
-    var rollbackCopyFailure: String?
-    /// The room the disk lacked for that copy, when this open therefore held the store below 154.
-    var upgradeWaitingForSpace: KnowledgeRollbackCopy.SpaceCheck?
     /// The source types automatic audio is switched on for, the only kinds a
     /// change to a source's text prepares Listen for at once
     /// (`enqueueSourceListenableContentPreparation`). Empty unless the owner
@@ -82,17 +73,13 @@ final class KnowledgeStore: @unchecked Sendable {
 
     /// Initialize with a directory URL. The database file will be created at `<dir>/knowledge.db`.
     ///
-    /// Opening decides and takes the rollback copy (§13.3 step 1) and then migrates, under one gate per
-    /// database file, so a second open in this process waits for the first and finds the store current.
-    /// The first open decides about the copy for the launch; later ones follow it.
-    /// When the copy has no room on the disk (`freeSpace`, the volume's capacity for important usage),
-    /// the open refuses.
+    /// Opening migrates under one gate per database file, so a second open in this process waits for
+    /// the first and finds the store current.
     init(
         storeDirectory: URL,
         contentDirectory: URL? = nil,
         legacyContentDirectories: [URL] = [],
-        startupPreferenceSnapshot: [String: Any] = [:],
-        freeSpace: (URL) throws -> Int64? = KnowledgeRollbackCopy.availableCapacity(at:)
+        startupPreferenceSnapshot: [String: Any] = [:]
     ) throws {
         let fm = FileManager.default
         try fm.createDirectory(at: storeDirectory, withIntermediateDirectories: true)
@@ -117,8 +104,7 @@ final class KnowledgeStore: @unchecked Sendable {
 
         do {
             try pragmas()
-            let laysDownSchema154 = try takeRollbackCopyBeforeMigrating(storeDirectory: storeDirectory, freeSpace: freeSpace)
-            try createSchema(stoppingBeforeSchema154: !laysDownSchema154)
+            try createSchema()
         } catch {
             sqlite3_close(dbPtr)
             self.db = nil
@@ -417,9 +403,6 @@ enum KnowledgeStoreError: Error, LocalizedError {
     /// The identity a row was about to take is already held by another active
     /// source; the caller folds the two together rather than keeping both.
     case duplicateSourceIdentity(existingSourceID: String)
-    /// Generation 2 cannot start on a store it could not copy first, and the
-    /// disk has no room for the copy (§13.3 step 1).
-    case noRoomForRollbackCopy(bytesToFree: Int64)
 
     var errorDescription: String? {
         switch self {
@@ -432,8 +415,6 @@ enum KnowledgeStoreError: Error, LocalizedError {
             return "Source text changed while listenable content was being prepared; it will be retried."
         case .duplicateSourceIdentity(let existingSourceID):
             return "Another source (\(existingSourceID)) already carries this identity."
-        case .noRoomForRollbackCopy(let bytesToFree):
-            return "Free up \(KnowledgeRollbackCopy.readableBytes(bytesToFree)) on this Mac: ForeverLM keeps a copy of your library before it moves it to the new iCloud store."
         }
     }
 }
@@ -483,5 +464,27 @@ enum SQLiteText {
         guard let text = sqlite3_column_text(stmt, index) else { return nil }
         let count = Int(sqlite3_column_bytes(stmt, index))
         return String(decoding: UnsafeBufferPointer(start: text, count: count), as: UTF8.self)
+    }
+}
+
+/// One gate per database file: an open takes it while it reads the version and migrates, so a second
+/// open of the same store in this process waits for the first and finds the store current.
+enum KnowledgeStoreOpening {
+    private static let registryLock = NSLock()
+    nonisolated(unsafe) private static var gates: [String: NSRecursiveLock] = [:]
+
+    private static func key(_ path: String) -> String {
+        URL(fileURLWithPath: path).standardizedFileURL.resolvingSymlinksInPath().path
+    }
+
+    static func gate(forDatabaseAt path: String) -> NSRecursiveLock {
+        let key = key(path)
+        registryLock.lock()
+        defer { registryLock.unlock() }
+        if let gate = gates[key] { return gate }
+        let gate = NSRecursiveLock()
+        gate.name = "KnowledgeStoreOpening \(key)"
+        gates[key] = gate
+        return gate
     }
 }

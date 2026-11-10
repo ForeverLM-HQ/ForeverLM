@@ -41,10 +41,6 @@ struct GenerationActivationRunner: Sendable {
         let status = environment.status
         let existing = try await access.perform { try $0.activationJournal() }
         if let existing, existing.activatedAt != nil {
-            // A relaunch of an activated store: the copy the first launch's check has since passed replaces
-            // the generation-1 one, which stays only until then (F30).
-            let folder = try await access.perform { URL(fileURLWithPath: $0.dbPath).deletingLastPathComponent() }
-            GenerationActivation.removeStalePre154Copy(in: folder)
             // The triggers this build's registry generates (§6.6 step 1): nothing when they match, else
             // replaced, and the rows of a table watched for the first time queued (the Ideas, 2026-10-13).
             // Until then only the activation installed them, so a projection a later build registered

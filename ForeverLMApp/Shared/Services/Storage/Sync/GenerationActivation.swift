@@ -160,8 +160,9 @@ struct GenerationActivation {
             try store.writeActivationJournal(journal)
             Self.logger.notice("Activation started, mode \(decision.mode.rawValue, privacy: .public)")
         }
+        // Step a recorded the rollback copy a store's first generation-2 launch took. No library is
+        // copied any more (every store this build opens is past generation 1), so a journal at it moves on.
         if (journal.step ?? .recordCopy) == .recordCopy {
-            try recordCopy(&journal)
             try advance(&journal, to: .catchUp)
         }
         return journal
@@ -204,38 +205,6 @@ struct GenerationActivation {
     private func advance(_ journal: inout ActivationJournal, to step: ActivationStep) throws {
         journal.step = step
         try store.writeActivationJournal(journal)
-    }
-
-    /// Step a: the copy step 1 took, with its `user_version` read from the copy file; a store with no
-    /// library has no copy, and Settings says so. No rollback build is recorded: the generation-1 builds
-    /// that could open the copy synced a container that stayed with the old Apple team.
-    private func recordCopy(_ journal: inout ActivationJournal) throws {
-        let copy = store.rollbackCopy ?? KnowledgeRollbackCopy.recorded(.beforeGeneration2, in: storeDirectory)
-        if let copy, copy.kind == .beforeGeneration2 {
-            do {
-                journal.cloneUserVersion = try KnowledgeRollbackCopy.userVersion(ofCopyAt: storeDirectory.appendingPathComponent(copy.fileName))
-                journal.clonePath = copy.fileName
-            } catch {
-                Self.logger.error("The rollback copy cannot be read, so none is recorded: \(error.localizedDescription, privacy: .public)")
-            }
-        } else if (try? store.rollbackCopyStoreState(userVersion: 0).holdsLibrary) == true {
-            Self.logger.error("This library has no rollback copy: \(store.rollbackCopyFailure ?? "none was taken", privacy: .public)")
-        }
-        Self.removeStalePre154Copy(in: storeDirectory)
-    }
-
-    /// Deletes a `knowledge.pre-154.db` an earlier generation-1 release left, once the
-    /// `knowledge.pre-v2.db` copy's `quick_check` has passed (§13.3 step 3a). A launch whose check has
-    /// not finished leaves it to a later one.
-    static func removeStalePre154Copy(in storeDirectory: URL) {
-        guard KnowledgeRollbackCopy.recorded(.beforeGeneration2, in: storeDirectory)?.passedQuickCheck == true else { return }
-        let stale = KnowledgeRollbackCopy.Kind.beforeSchema154
-        for name in [stale.fileName, stale.recordFileName, stale.fileName + "-wal", stale.fileName + "-shm"] {
-            let url = storeDirectory.appendingPathComponent(name)
-            if FileManager.default.fileExists(atPath: url.path) {
-                try? FileManager.default.removeItem(at: url)
-            }
-        }
     }
 }
 

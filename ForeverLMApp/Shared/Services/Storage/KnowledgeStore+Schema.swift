@@ -38,10 +38,8 @@ extension KnowledgeStore {
     static let minimumMigratableSchemaVersion: Int32 = 174
 
     /// Migrates the store to `schemaVersion` from `minimumMigratableSchemaVersion` or later, or creates
-    /// it there. With `stoppingBeforeSchema154`, for a store whose open found no room for its rollback
-    /// copy (§13.3 step 1), the store stays at the version it has until a launch with room. A brand-new
-    /// store has nothing to copy and is always created whole.
-    func createSchema(stoppingBeforeSchema154: Bool = false) throws {
+    /// it there.
+    func createSchema() throws {
         var currentVersion: Int32 = 0
         try query("PRAGMA user_version") { stmt in
             currentVersion = sqlite3_column_int(stmt, 0)
@@ -73,13 +71,6 @@ extension KnowledgeStore {
                 "Knowledge database schema version \(currentVersion) is older than this build migrates (\(Self.minimumMigratableSchemaVersion)). Open it with ForeverLM 0.208.0 (build 288) or earlier first."
             )
         }
-        // Short of room for its rollback copy, the store waits at the version it has for a launch
-        // with room (§13.3 step 1).
-        if stoppingBeforeSchema154, !isFreshDatabase {
-            try reconcileSourceProjectionView()
-            return
-        }
-
         let isMigration = !isFreshDatabase
 
         var migrationNeedsRollback = false

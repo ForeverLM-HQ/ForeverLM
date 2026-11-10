@@ -173,12 +173,6 @@ actor MacSyncSession {
     private static let started = NSLock()
     nonisolated(unsafe) private static var startedOnce = false
 
-    /// The Dev-only rehearsal override (`FOREVERLM_REHEARSAL_SEED_LOCAL`, WP28 step 1): honoured only on an
-    /// isolated Development instance, never on the shared Dev store.
-    static var rehearsalSeedLocal: Bool {
-        ForeverLMRuntimeIdentity.isIsolatedDevelopmentInstance && ProcessInfo.processInfo.environment["FOREVERLM_REHEARSAL_SEED_LOCAL"] == "1"
-    }
-
     /// Whether this build syncs at all: a library container to sync with, and not the First Run app. The
     /// First Run app signs in to the same iCloud account as the Dev app, and CloudKit keys the private
     /// database by account, not by bundle, so syncing there would download the seeded Dev library into
@@ -395,7 +389,7 @@ actor MacSyncSession {
         let confirmation = try await store.onStore { try $0.holdsMyLibraryConfirmation() }
         return CutoverReadiness.decide(
             journal, hasLibrary: hasLibrary, confirmedHoldsLibrary: confirmation?.catchUpAt != nil,
-            confirmationStarted: confirmation != nil, rehearsalSeedLocal: Self.rehearsalSeedLocal
+            confirmationStarted: confirmation != nil
         )
     }
 
@@ -748,7 +742,6 @@ actor MacSyncSession {
             send: { try await coordinator.sendNow() }, pendingCount: pending,
             holdsLibrary: { [weak self] in await self?.holds ?? false }
         )
-        environment.configuration.rehearsalSeedLocal = Self.rehearsalSeedLocal
         environment.pause = { await coordinator.pacer.pause(of: .engine, writes: true) }
         environment.fetchAll = { await coordinator.syncUntilCaughtUp() }
         let satellites = CutoverSatellites(store: store, blobs: blobs, pendingCount: pending)

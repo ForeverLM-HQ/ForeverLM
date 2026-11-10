@@ -3,15 +3,14 @@ import Testing
 @testable import ForeverLM
 
 /// What Settings › iCloud shows of the move (docs/cloudkit-schema-design.md §13.3 to §13.8): the lines
-/// follow the activation's journal, the root's seed and claim, the pacer's pause and the rollback copy,
-/// and the store's own snapshot reads them from a real activated store.
+/// follow the activation's journal, the root's seed and claim, and the pacer's pause, and the store's own snapshot reads them from a real activated store.
 @Suite("iCloud migration state", .serialized)
 struct ICloudMigrationStateTests {
     private static let now = Date(timeIntervalSinceReferenceDate: 812_000_000)
 
     private static func journal(mode: ActivationMode = .full, reason: FreshReason? = nil, activated: Bool = true, catchUp: Bool = true) -> ActivationJournal {
         ActivationJournal(
-            step: activated ? .activated : .triggers, mode: mode, freshReason: reason, clonePath: "knowledge.pre-v2.db", cloneUserVersion: 153,
+            step: activated ? .activated : .triggers, mode: mode, freshReason: reason,
             activatedAt: activated ? now.timeIntervalSinceReferenceDate : nil,
             catchUpAt: ranAt(catchUp)
         )
@@ -22,7 +21,7 @@ struct ICloudMigrationStateTests {
     private static func state(
         journal: ActivationJournal? = journal(), seed: ICloudMigrationSnapshot.SeedLine = .init(phase: .complete),
         root: HoldsMyLibrary.RootState = .complete, library: Bool = true, sync: SyncStatus? = nil,
-        stop: PurgeHandler.Event? = nil, copy: ICloudMigrationSnapshot.RollbackCopyLine = .checked(userVersion: 153)
+        stop: PurgeHandler.Event? = nil
     ) -> ICloudMigrationState {
         var snapshot = ICloudMigrationSnapshot()
         snapshot.isGeneration2 = true
@@ -31,7 +30,6 @@ struct ICloudMigrationStateTests {
         snapshot.root = root
         snapshot.holdsLibrary = library
         snapshot.stop = stop
-        snapshot.rollbackCopy = copy
         return ICloudMigrationState(snapshot: snapshot, sync: sync, now: now)
     }
 
@@ -95,17 +93,6 @@ struct ICloudMigrationStateTests {
         #expect(Self.state(journal: Self.journal(mode: .fresh, reason: .knowledgeMissing)).modeLine == "The old iCloud library was not found; this Mac keeps its own")
     }
 
-    // MARK: Rollback
-
-    @Test("The rollback copy is shown")
-    func rollbackLines() {
-        #expect(Self.state().rollbackCopyLine == "Rollback copy: checked (library version 153)")
-        #expect(Self.state(copy: .checking(userVersion: 153)).rollbackCopyLine == "Rollback copy: checking")
-        #expect(Self.state(copy: .failedCheck("row 4 missing")).rollbackCopyLine == "Rollback copy: failed its check (row 4 missing)")
-        #expect(Self.state(copy: .missing).rollbackCopyLine == "Rollback copy: missing")
-        #expect(Self.state(copy: .none).rollbackCopyLine.hasPrefix("Rollback copy: none"))
-    }
-
     // MARK: The root
 
     @Test("The seed and the claim are read from the personal root, and an expired claim names no Mac")
@@ -154,15 +141,13 @@ struct ICloudMigrationStateTests {
 
     // MARK: get_sync_status
 
-    @Test("get_sync_status carries the move: mode, seed and rollback")
+    @Test("get_sync_status carries the move: mode and seed")
     func statusPayload() throws {
         let payload = try #require(Self.state(seed: .init(phase: .metadataComplete)).statusPayload())
         #expect(payload["activated"] as? Bool == true)
         #expect(payload["activation_mode"] as? String == "full")
         #expect((payload["seed"] as? [String: Any])?["phase"] as? String == "metadataComplete")
-        // The rollback is the local copy alone: no build of the old team can reach any container now.
-        #expect((payload["rollback"] as? [String: Any])?["copy"] as? String == "Rollback copy: checked (library version 153)")
-        #expect((payload["rollback"] as? [String: Any])?["build"] == nil)
+        #expect(payload["rollback"] == nil, "no rollback copy is taken any more")
         // The old library's import, byte parity and its removal are gone with generation 1.
         for key in ["old_icloud_library", "byte_parity", "remove_old_icloud_data"] {
             #expect(payload[key] == nil, "\(key)")
@@ -190,17 +175,15 @@ struct ICloudMigrationStateTests {
     private static func activatedStore(_ name: String) async throws -> (root: URL, store: KnowledgeStore) {
         let root = try Schema154Fixture.temporaryRoot(name)
         try Schema154Fixture.makeLibrary(at: root, version: 174)
-        Schema154Fixture.newLaunch(root)
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root)
         try store.executeScript(OutboxTestProjections.tablesSQL)
-        await KnowledgeRollbackCopy.queuedChecksForTesting()
         var activation = GenerationActivation(store: store)
         activation.registry = OutboxTestProjections.registry
         try activation.run(.freshNoHistory)
         return (root, store)
     }
 
-    @Test("A store's snapshot reads its journal, its rollback copy and the bytes its satellites hold")
+    @Test("A store's snapshot reads its journal and the bytes its satellites hold")
     func snapshotFromAStore() async throws {
         let (root, store) = try await Self.activatedStore("migration-snapshot")
         defer { try? FileManager.default.removeItem(at: root) }
@@ -213,7 +196,6 @@ struct ICloudMigrationStateTests {
         #expect(snapshot.isGeneration2 && snapshot.isActivated)
         #expect(snapshot.journal?.mode == .fresh && snapshot.journal?.freshReason == .noHistory)
         #expect(snapshot.holdsLibrary, "the fixture store holds a library")
-        #expect(snapshot.rollbackCopy == .checked(userVersion: 153), "the copy's quick_check passed: \(snapshot.rollbackCopy)")
         #expect(snapshot.libraryBytes == 1_234)
         #expect(snapshot.ownedSpaces.isEmpty)
         #expect(snapshot.seed.phase == .unknown && snapshot.root == .unknown, "no root has been read")
@@ -225,13 +207,5 @@ struct ICloudMigrationStateTests {
         let later = try store.migrationSnapshot(deviceID: nil, now: Self.now)
         #expect(later.confirmation?.confirmedAt == Self.now)
         #expect(later.stop == .rootMissing)
-
-        // A copy that is not on disk, and a store that took none.
-        try FileManager.default.removeItem(at: root.appendingPathComponent("knowledge.pre-v2.db"))
-        #expect(try store.migrationSnapshot(deviceID: nil).rollbackCopy == .missing)
-        var journal = try #require(try store.activationJournal())
-        journal.clonePath = nil
-        try store.writeActivationJournal(journal)
-        #expect(try store.migrationSnapshot(deviceID: nil).rollbackCopy == .none)
     }
 }

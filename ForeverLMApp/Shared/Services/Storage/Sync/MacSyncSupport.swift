@@ -29,7 +29,7 @@ enum CutoverReadiness: Equatable, Sendable {
     /// `confirmedHoldsLibrary` is the learner's "This Mac holds my library" with its catch-up done
     /// (`HoldsMyLibrary.Standing.mayClaim`); `confirmationStarted` is a confirmation whose catch-up has not
     /// finished, which waits for the flow to resume (WP16c).
-    static func decide(_ journal: CutoverJournal.Read, hasLibrary: Bool, confirmedHoldsLibrary: Bool, confirmationStarted: Bool = false, rehearsalSeedLocal: Bool = false) -> CutoverReadiness {
+    static func decide(_ journal: CutoverJournal.Read, hasLibrary: Bool, confirmedHoldsLibrary: Bool, confirmationStarted: Bool = false) -> CutoverReadiness {
         guard journal.activatedAt != nil else { return .notActivated }
         switch journal.mode {
         case "full":
@@ -41,7 +41,7 @@ enum CutoverReadiness: Equatable, Sendable {
             if confirmedHoldsLibrary { return .ready(.library) }
             if confirmationStarted { return .waitingForConfirmation }
             if journal.freshReason == FreshReason.knowledgeMissing.rawValue { return .waitingForConfirmation }
-            return .ready(rehearsalSeedLocal ? .library : .libraryIfNewAccount)
+            return .ready(.libraryIfNewAccount)
         default:
             return .notActivated
         }

@@ -66,7 +66,7 @@ struct MemoryGeneration2RecorderTests {
     func generation1() throws {
         let root = try Schema154Fixture.temporaryRoot("recorders-g1")
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root)
         let sourceID = try Self.source(store)
         let now = Date()
         try store.saveMemoryItem(Self.item(sourceID, createdAt: now.addingTimeInterval(-3 * 86_400)))

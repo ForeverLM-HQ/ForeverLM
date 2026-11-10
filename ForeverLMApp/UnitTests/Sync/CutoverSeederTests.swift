@@ -162,23 +162,19 @@ struct CutoverSeederTests {
         #expect(try mac.serverEnvelope(.notebook, "nb1") == nil, "no record before the base")
     }
 
-    @Test("A store whose Knowledge zone was missing publishes a base that names no old zone, and so does the rehearsal override")
+    @Test("A store whose Knowledge zone was missing publishes a base that names no old zone")
     func knowledgeMissingBaseNamesNoZone() async throws {
-        for rehearsal in [false, true] {
-            let server = EngineTestDriver.server()
-            let mac = try await C.seeder(server, name: "seed-missing-\(rehearsal)")
-            try C.activate(mac.store, mode: rehearsal ? "full" : "fresh", freshReason: rehearsal ? nil : "knowledgeMissing")
-            try mac.store.execute("INSERT INTO ck_legacy_snapshot (old_zone, record_name, change_tag, field_hashes) VALUES ('Knowledge', 'src-s1', 'tag1', '{\"r\":{},\"w\":false}')")
-            try mac.store.replica.setEngineState("migration.token.private.Knowledge", Data([9]))
-            var environment = C.environment(mac)
-            environment.configuration.rehearsalSeedLocal = rehearsal
-            _ = try await CutoverSeeder(environment).run()
-            let imports = try #require(try C.root(server).fields["legacyImport"]?.objectValue)
-            #expect(imports["zones"] == .array([]), "rehearsal \(rehearsal)")
-            #expect(imports["tokens"]?.objectValue?.isEmpty == true)
-            #expect(try await C.baseEntries(mac).isEmpty)
-            #expect(try mac.serverEnvelope(.notebook, "nb1") != nil, "the library itself is still seeded")
-        }
+        let server = EngineTestDriver.server()
+        let mac = try await C.seeder(server, name: "seed-missing")
+        try C.activate(mac.store, mode: "fresh", freshReason: "knowledgeMissing")
+        try mac.store.execute("INSERT INTO ck_legacy_snapshot (old_zone, record_name, change_tag, field_hashes) VALUES ('Knowledge', 'src-s1', 'tag1', '{\"r\":{},\"w\":false}')")
+        try mac.store.replica.setEngineState("migration.token.private.Knowledge", Data([9]))
+        _ = try await CutoverSeeder(C.environment(mac)).run()
+        let imports = try #require(try C.root(server).fields["legacyImport"]?.objectValue)
+        #expect(imports["zones"] == .array([]))
+        #expect(imports["tokens"]?.objectValue?.isEmpty == true)
+        #expect(try await C.baseEntries(mac).isEmpty)
+        #expect(try mac.serverEnvelope(.notebook, "nb1") != nil, "the library itself is still seeded")
     }
 
     @Test("A record takes its migrated time: the row's own, else the walk's start")

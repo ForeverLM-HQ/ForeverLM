@@ -517,7 +517,7 @@ struct BookImportFinishQueueTests {
     func queueKeepsABookUntilFinished() throws {
         let root = try Schema154Fixture.temporaryRoot("book-import-finish-queue")
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root)
 
         try store.enqueueBookImportFinish(bookID: "older", bookFilePath: "/tmp/Books/Older/Older.pdf", wholeBookSourceID: nil, kind: nil)
         try store.enqueueBookImportFinish(bookID: "book", bookFilePath: "/tmp/Books/Book/Book.pdf", wholeBookSourceID: "whole", kind: "Textbook")

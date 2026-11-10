@@ -9,13 +9,12 @@ import Testing
 struct GenerationActivationTests {
     private typealias Fixture = OutboxTestProjections
 
-    /// A library left by a generation-1 build at `version`, opened by generation 2 as the next launch
-    /// would: the open copies it to `knowledge.pre-v2.db` and migrates it.
+    /// A library at `version` with no activation yet, opened as the next launch would: the open migrates
+    /// it.
     private static func generation2Store(_ name: String, version: Int32? = 174) throws -> (root: URL, store: KnowledgeStore) {
         let root = try Schema154Fixture.temporaryRoot(name)
         try Schema154Fixture.makeLibrary(at: root, version: version)
-        Schema154Fixture.newLaunch(root)
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root)
         try store.executeScript(Fixture.tablesSQL)
         return (root, store)
     }
@@ -61,11 +60,10 @@ struct GenerationActivationTests {
     private static func schema174Library(_ name: String, extraSQL: String) throws -> URL {
         let root = try Schema154Fixture.temporaryRoot(name)
         try Schema154Fixture.makeLibrary(at: root, version: nil)
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root)
         try Schema154Fixture.restoreGeneration1Tables(store)
         try store.executeScript(extraSQL)
         try store.execForTesting("PRAGMA user_version = 174")
-        Schema154Fixture.newLaunch(root)
         return root
     }
 
@@ -79,7 +77,7 @@ struct GenerationActivationTests {
     func freshStoreHasNoGeneration1Tables() throws {
         let root = try Schema154Fixture.temporaryRoot("175-fresh")
         defer { try? FileManager.default.removeItem(at: root) }
-        _ = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+        _ = try KnowledgeStore(storeDirectory: root)
         #expect(Schema154Fixture.count(at: root, Self.generation1TableCount) == 0)
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
     }
@@ -96,7 +94,7 @@ struct GenerationActivationTests {
             """)
         defer { try? FileManager.default.removeItem(at: root) }
         let sources = Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM sources")
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root)
         #expect(try store.scalarInteger("PRAGMA user_version") == 175)
         #expect(try Schema154Fixture.count(store, Self.generation1TableCount) == 0)
         #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM sources") == sources, "no library row is touched")
@@ -120,7 +118,7 @@ struct GenerationActivationTests {
             : "INSERT OR REPLACE INTO ck_activation (id, step, mode, account, started_at) VALUES (1, 'catchUp', 'full', '_8f2c', 1);"
         let root = try Self.schema174Library("175-\(shape)", extraSQL: extra)
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root)
         #expect(try Schema154Fixture.count(store, Self.generation1TableCount) == 0)
         let journal = try store.activationJournal()
         if shape == "signedOut" {
@@ -138,21 +136,21 @@ struct GenerationActivationTests {
             VALUES ('preference', 'history.marker', 'Preference-history', X'00', 1);
             """)
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root)
         let journal = try #require(try store.activationJournal())
         #expect(journal.mode == .full && journal.step == .activated && journal.activatedAt != nil)
         #expect(try Schema154Fixture.count(store, Self.generation1TableCount) == 0)
     }
 
-    @Test("The copy step 1 took is recorded with the user_version read from the copy")
-    func copyIsRecorded() throws {
+    @Test("Opening and activating a library takes no rollback copy and records none")
+    func noCopyIsTaken() throws {
         let (root, store) = try Self.generation2Store("copy", version: 174)
         defer { try? FileManager.default.removeItem(at: root) }
         #expect(try store.scalarInteger("PRAGMA user_version") == Int64(KnowledgeStore.schemaVersion), "the store itself migrated")
-        #expect(Schema154Fixture.scalar(at: root, "PRAGMA user_version", file: "knowledge.pre-v2.db") == "153")
+        #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("knowledge.pre-v2.db").path))
         let journal = try Self.activation(store).run(.freshNoHistory)
-        #expect(journal.clonePath == "knowledge.pre-v2.db")
-        #expect(journal.cloneUserVersion == 153)
+        #expect(journal.activatedAt != nil)
+        #expect(journal.clonePath == nil && journal.cloneUserVersion == nil)
     }
 
     @Test("A Release build activates with no rollback build: none is named or recorded")
@@ -189,7 +187,6 @@ struct GenerationActivationTests {
         #expect(throws: (any Error).self) { try activation.run(ActivationModeDecision(mode: .deferred, freshReason: nil, account: nil)) }
         let stopped = try #require(try store.activationJournal())
         #expect(stopped.step == .derive("two") && stopped.activatedAt == nil)
-        #expect(stopped.clonePath == "knowledge.pre-v2.db", "the steps before it are recorded")
 
         let finished = try activation.run(.freshNoHistory)
         #expect(runs.counts == ["one": 1, "two": 2, "three": 1], "it resumed at two: \(runs.counts)")
@@ -221,8 +218,7 @@ struct GenerationActivationTests {
             for side in ["knowledge.db-wal", "knowledge.db-shm"] {
                 try? FileManager.default.removeItem(at: twiceRoot.appendingPathComponent(side))
             }
-            Schema154Fixture.newLaunch(twiceRoot)
-            let twice = try KnowledgeStore(storeDirectory: twiceRoot, freeSpace: Schema154Fixture.roomy)
+            let twice = try KnowledgeStore(storeDirectory: twiceRoot)
 
             try step.run(once)
             try step.run(twice)

@@ -55,10 +55,6 @@ struct CutoverSeedConfiguration: Sendable {
     /// Between the last record and the canary's walk (§13.4 step 2).
     var canaryPause: TimeInterval = 600
     var claimRenewInterval: TimeInterval = 600
-    /// The Dev-only rehearsal override (`FOREVERLM_REHEARSAL_SEED_LOCAL`, an isolated Development instance
-    /// only): the library is seeded as a brand-new account's although the old container holds a `Knowledge`
-    /// zone, so the base names no old zone and nothing is imported (§13.4, WP28 step 1).
-    var rehearsalSeedLocal = false
 }
 
 /// Everything the seeder reaches. The closures are the engine's: in the app the coordinator's, in the suites
@@ -235,7 +231,7 @@ actor CutoverSeeder {
         // P0: the shared base, before the first record (§13.4 step 2).
         if !(root.map { CutoverRootState(root: $0).hasBase } ?? false) {
             env.progress(.publishingBase)
-            let knowledgeMissing = journal.freshReason == FreshReason.knowledgeMissing.rawValue || env.configuration.rehearsalSeedLocal
+            let knowledgeMissing = journal.freshReason == FreshReason.knowledgeMissing.rawValue
                 || env.oldContainer == nil
             let built = try await env.store.perform { try MigrationBaseBuilder.build(from: $0.connection, knowledgeMissing: knowledgeMissing) }
             do {

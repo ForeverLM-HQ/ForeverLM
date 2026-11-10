@@ -91,7 +91,7 @@ struct PracticeIdentityTests {
 
         let generation1Root = try Schema154Fixture.temporaryRoot("practice-g1")
         defer { try? FileManager.default.removeItem(at: generation1Root) }
-        let generation1 = try KnowledgeStore(storeDirectory: generation1Root, freeSpace: Schema154Fixture.roomy)
+        let generation1 = try KnowledgeStore(storeDirectory: generation1Root)
         #expect(throws: PracticeError.generation1) { _ = try generation1.loadPractices() }
     }
 }

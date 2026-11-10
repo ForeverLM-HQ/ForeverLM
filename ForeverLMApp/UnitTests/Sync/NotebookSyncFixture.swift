@@ -20,7 +20,7 @@ enum NotebookSyncFixture {
     static func makeStore(_ name: String, triggers: Bool = true) throws -> (root: URL, store: KnowledgeStore) {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent("WP8-\(name)-\(UUID().uuidString)", isDirectory: true)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: { _ in 1_000_000_000_000 })
+        let store = try KnowledgeStore(storeDirectory: root)
         if triggers { try store.installOutboxTriggers(registry) }
         return (root, store)
     }

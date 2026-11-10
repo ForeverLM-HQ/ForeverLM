@@ -4,25 +4,10 @@ import SQLite3
 // MARK: - What Settings › iCloud shows of the move to the new iCloud store
 
 /// The store's side of Settings › iCloud (docs/cloudkit-schema-design.md §13.3 step 3, §13.4, §13.5):
-/// the activation's mode and journal, the rollback copy and the recorded rollback build, the seed's
-/// progress as the root reports it, the learner's "This Mac holds my library" confirmation, why the
+/// the activation's mode and journal, the seed's progress as the root reports it, the learner's "This Mac holds my library" confirmation, why the
 /// private database stopped, and the bytes each owned space holds. Read in one storage-actor job
 /// (`KnowledgeStore.migrationSnapshot`), never on the main actor.
 struct ICloudMigrationSnapshot: Equatable, Sendable {
-    /// The rollback copy step 1 took (§13.3 step 1), as `ck_activation` and its record on disk say.
-    enum RollbackCopyLine: Equatable, Sendable {
-        /// `quick_check` passed: "Rollback copy: checked", at library version `userVersion`.
-        case checked(userVersion: Int32)
-        /// The copy is made and its `quick_check` has not finished.
-        case checking(userVersion: Int32)
-        case failedCheck(String)
-        /// `ck_activation` names a copy that is not in the store's folder.
-        case missing
-        /// No copy was taken: an empty store has nothing to roll back, or neither a clone nor a backup
-        /// was possible. The old container still holds the synced library.
-        case none
-    }
-
     struct SeedLine: Equatable, Sendable {
         enum Phase: String, Equatable, Sendable {
             /// No root has been read yet.
@@ -52,7 +37,6 @@ struct ICloudMigrationSnapshot: Equatable, Sendable {
     var isGeneration2 = false
     var journal: ActivationJournal?
     var holdsLibrary = false
-    var rollbackCopy: RollbackCopyLine = .none
     var seed = SeedLine()
     var root: HoldsMyLibrary.RootState = .unknown
     var confirmation: HoldsMyLibraryConfirmation?
@@ -121,9 +105,7 @@ extension KnowledgeStore {
         snapshot.isGeneration2 = true
         let journal = try activationJournal()
         snapshot.journal = journal
-        snapshot.holdsLibrary = (try? rollbackCopyStoreState(userVersion: 0).holdsLibrary) ?? false
-        let storeDirectory = URL(fileURLWithPath: dbPath).deletingLastPathComponent()
-        snapshot.rollbackCopy = Self.rollbackCopyLine(journal: journal, in: storeDirectory, failure: rollbackCopyFailure)
+        snapshot.holdsLibrary = (try? holdsLibrary()) ?? false
         snapshot.confirmation = try holdsMyLibraryConfirmation()
 
         let replica = self.replica
@@ -141,20 +123,13 @@ extension KnowledgeStore {
         return snapshot
     }
 
-    static func rollbackCopyLine(journal: ActivationJournal?, in storeDirectory: URL, failure: String?) -> ICloudMigrationSnapshot.RollbackCopyLine {
-        guard let clonePath = journal?.clonePath else { return .none }
-        let kind = KnowledgeRollbackCopy.Kind.beforeGeneration2
-        guard clonePath == kind.fileName, FileManager.default.fileExists(atPath: storeDirectory.appendingPathComponent(clonePath).path) else {
-            return .missing
+    /// Whether this store holds any of a library: a source, a notebook or Goal, a chat, a Doc or a
+    /// card. A brand-new store holds none.
+    func holdsLibrary() throws -> Bool {
+        for table in ["sources", "learning_goals", "review_sessions", "global_artifacts", "memory_items"] {
+            if try scalarInteger("SELECT EXISTS(SELECT 1 FROM \(table))") == 1 { return true }
         }
-        guard let record = KnowledgeRollbackCopy.recorded(kind, in: storeDirectory) else {
-            return .checking(userVersion: journal?.cloneUserVersion ?? 0)
-        }
-        switch record.quickCheck {
-        case nil: return .checking(userVersion: record.userVersion)
-        case "ok"?: return .checked(userVersion: record.userVersion)
-        case let text?: return .failedCheck(text)
-        }
+        return false
     }
 
     private func bytesPerZone(into snapshot: inout ICloudMigrationSnapshot) throws {
@@ -235,16 +210,6 @@ struct ICloudMigrationState: Equatable, Sendable {
             return journal.freshReason == .knowledgeMissing ? "The old iCloud library was not found; this Mac keeps its own" : "Joined the new iCloud store as a new device"
         }
     }
-
-    var rollbackCopyLine: String {
-        switch snapshot.rollbackCopy {
-        case .checked(let version): return "Rollback copy: checked (library version \(version))"
-        case .checking: return "Rollback copy: checking"
-        case .failedCheck(let text): return "Rollback copy: failed its check (\(text))"
-        case .missing: return "Rollback copy: missing"
-        case .none: return "Rollback copy: none; the old iCloud library still holds your synced library"
-        }
-    }
 }
 
 // MARK: - The same state for `get_sync_status`
@@ -271,10 +236,6 @@ extension ICloudMigrationState {
             ] as [String: Any],
             "pause": pauseText ?? NSNull(),
             "private_database_stopped": snapshot.stop?.code ?? NSNull(),
-            "rollback": [
-                "copy": rollbackCopyLine,
-                "copy_library_version": journal?.cloneUserVersion.map { Int($0) } ?? NSNull(),
-            ] as [String: Any],
             "bytes": [
                 "library": snapshot.libraryBytes,
                 "owned_spaces": snapshot.ownedSpaces.map { ["name": $0.name, "bytes": $0.bytes] as [String: Any] },

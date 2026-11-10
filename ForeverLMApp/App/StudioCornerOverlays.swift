@@ -442,73 +442,6 @@ struct CardsToCheckCard: View {
     }
 }
 
-// MARK: - Room for the library update
-
-/// Whether the library update waits for disk space, for the corner card. The
-/// store open that finds no room for its rollback copy (§13.3 step 1) runs on
-/// the storage actor and records it in `LibraryUpgradeSpace`; this model reads
-/// it at first use and on every change, so the card shows whichever comes first.
-@MainActor
-@Observable
-final class StoreUpgradeSpaceNotice {
-    static let shared = StoreUpgradeSpaceNotice()
-
-    private(set) var message: String?
-    private var isDismissed = false
-    @ObservationIgnored private var observer: NSObjectProtocol?
-
-    /// The card's line, until the learner closes it for this launch.
-    var visibleMessage: String? { isDismissed ? nil : message }
-
-    private init() {
-        refresh()
-        observer = NotificationCenter.default.addObserver(forName: LibraryUpgradeSpace.didChange, object: nil, queue: .main) { _ in
-            Task { @MainActor in StoreUpgradeSpaceNotice.shared.refresh() }
-        }
-    }
-
-    func refresh() {
-        message = LibraryUpgradeSpace.current.map(LibraryUpgradeSpace.message(for:))
-    }
-
-    func dismiss() {
-        isDismissed = true
-    }
-}
-
-/// "Free up 6.2 GB on this Mac so ForeverLM can finish updating your library."
-/// The update keeps a copy of the library first, and this launch found no room
-/// for it, so the library stays as it was, fully usable, until there is. One
-/// line and a close glyph that hides it for this launch: freeing space is the
-/// learner's to do, and the next launch tries again. First of the corner cards
-/// when it shows, since it is about the library itself.
-struct StoreUpgradeSpaceCard: View {
-    let message: String
-    let style: PlanTheDayCard.Style
-
-    @Environment(\.cornerNoticeReadMark) private var readMark
-
-    var body: some View {
-        HStack(alignment: .top, spacing: StudioDesign.Spacing.small) {
-            Text(message)
-                .zoomedSystemFont(size: style.isCompact ? 12 : 12.5, weight: .medium)
-                .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.disabled)
-            Spacer(minLength: 0)
-            CornerCardClose(
-                style: style,
-                kind: .storeUpgradeSpace,
-                dismissHelp: "Hide until next launch",
-                identifier: "studio.storeUpgradeSpace.dismiss"
-            ) { StoreUpgradeSpaceNotice.shared.dismiss() }
-        }
-        .cornerCardChrome(style)
-        .cornerNoticeReadMenu(readMark)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("studio.storeUpgradeSpace")
-    }
-}
-
 // MARK: - The library's move to the new iCloud store
 
 /// The generation-2 activation's progress for Settings (docs/cloudkit-schema-design.md §13.3 step 3).
@@ -538,7 +471,7 @@ final class ActivationNotice {
 enum CornerNoticeKind: String, CaseIterable, Identifiable {
     /// Corner cards, in the order the corner shows them: one card at a time,
     /// the first that is showing.
-    case storeUpgradeSpace, planTheDay
+    case planTheDay
     /// Cards drafted in the background, and sources with none. The bell's
     /// alone (product owner, 2026-10-25: "i don't want that 'sources without
     /// cards' notification as a popup each time i build the app; it can be
@@ -555,7 +488,7 @@ enum CornerNoticeKind: String, CaseIterable, Identifiable {
     /// alone, so a notice of theirs is never "in view already".
     var isCornerCard: Bool {
         switch self {
-        case .storeUpgradeSpace, .planTheDay: return true
+        case .planTheDay: return true
         case .cardsToCheck, .shareRequests, .pluginReconnect: return false
         }
     }
@@ -576,8 +509,6 @@ enum CornerNoticeKind: String, CaseIterable, Identifiable {
         now: Date = Date()
     ) -> Set<String> {
         switch self {
-        case .storeUpgradeSpace:
-            return ["space"]
         case .planTheDay:
             return planDay.map { [$0] } ?? []
         case .cardsToCheck:
@@ -959,10 +890,6 @@ private struct NotificationCenterList: View {
     @ViewBuilder
     private func notice(_ kind: CornerNoticeKind) -> some View {
         switch kind {
-        case .storeUpgradeSpace:
-            if let message = StoreUpgradeSpaceNotice.shared.visibleMessage {
-                StoreUpgradeSpaceCard(message: message, style: .tray)
-            }
         case .planTheDay:
             if let planDay {
                 PlanTheDayCard(day: planDay, style: .tray)

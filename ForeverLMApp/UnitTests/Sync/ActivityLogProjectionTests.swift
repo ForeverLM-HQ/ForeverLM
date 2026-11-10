@@ -191,7 +191,7 @@ struct ActivityLogProjectionTests {
     func generation1() throws {
         let root = try Schema154Fixture.temporaryRoot("al-g1")
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root)
         try store.recordOwnSourceActivity(sourceID: "src-1", kind: .reading, completed: false, fraction: 0.4, engagedSeconds: 60, at: Date())
         try store.recordOwnReviewActivity(MemoryReviewActivity(day: "2026-10-04", deviceID: "x", activeSeconds: 1, goalSeconds: 1, updatedAt: Date()))
         #expect(try F.count(store, "SELECT COUNT(*) FROM device_activity_days") == 0)

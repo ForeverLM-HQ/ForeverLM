@@ -45,7 +45,7 @@ struct PodcastTranscriptDetruncationMigrationTests {
         triggers: Bool = false,
         populate: (KnowledgeStore) throws -> Void
     ) throws {
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root)
         if triggers { try store.installOutboxTriggers() }
         try populate(store)
         if triggers {
@@ -161,7 +161,7 @@ struct PodcastTranscriptDetruncationMigrationTests {
         #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM ck_outbox_fields") == "0")
         #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger' AND name = 'ck_outbox_update_podcasts'") == "1")
 
-        _ = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+        _ = try KnowledgeStore(storeDirectory: root)
         #expect(Self.scalar(at: root, "PRAGMA user_version") == "\(KnowledgeStore.schemaVersion)")
         #expect(Self.queuedIDs(at: root).count == 5)
         #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM ck_outbox_fields") == "0")
@@ -184,7 +184,7 @@ struct PodcastTranscriptDetruncationMigrationTests {
         sqlite3_close(database)
 
         #expect(throws: (any Error).self) {
-            _ = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+            _ = try KnowledgeStore(storeDirectory: root)
         }
         #expect(Self.scalar(at: root, "PRAGMA user_version") == "165")
         #expect(Self.scalar(at: root, "SELECT content FROM source_content WHERE source_id = 'capped-marked'") == Self.transcript)
@@ -197,7 +197,7 @@ struct PodcastTranscriptDetruncationMigrationTests {
     func auditedEpisodeIsNotRequeued() throws {
         let root = try Self.temporaryRoot("schema-v167-audited")
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root)
 
         // Hydration wrote it from the whole TTML: recorded, never queued.
         try store.saveSource(Self.episode(id: "hydrated"))
@@ -281,7 +281,7 @@ struct PodcastTranscriptDetruncationMigrationTests {
     func replacedTranscriptIsPublishedAgain() throws {
         let root = try Self.temporaryRoot("transcript-replaced")
         defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root)
         func republishQueued(_ id: String) throws -> Bool {
             try store.scalarInteger(
                 "SELECT COUNT(*) FROM ck_backfill_queue WHERE kind = ? AND target = ?",

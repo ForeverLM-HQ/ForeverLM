@@ -39,8 +39,6 @@ enum OutboxTestProjections {
 
     // MARK: Stores and replicas for the suites
 
-    static let roomy: (URL) throws -> Int64? = { _ in 1_000_000_000_000 }
-
     static func temporaryRoot(_ name: String) throws -> URL {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("Outbox-\(name)-\(UUID().uuidString)", isDirectory: true)
@@ -52,7 +50,7 @@ enum OutboxTestProjections {
     /// `triggers` is false.
     static func makeStore(_ name: String, triggers: Bool = true) throws -> (root: URL, store: KnowledgeStore) {
         let root = try temporaryRoot(name)
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: roomy)
+        let store = try KnowledgeStore(storeDirectory: root)
         try store.executeScript(tablesSQL)
         if triggers { try store.installOutboxTriggers(registry) }
         return (root, store)

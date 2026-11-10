@@ -458,7 +458,7 @@ struct PaperReferenceStorageTests {
 
     private func store(_ name: String) throws -> (KnowledgeStore, URL) {
         let root = try Schema154Fixture.temporaryRoot(name)
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root)
         return (store, root)
     }
 
@@ -602,7 +602,7 @@ struct PaperReferenceSyncTests {
 
     private func store(_ name: String) throws -> (KnowledgeStore, URL) {
         let root = try Schema154Fixture.temporaryRoot(name)
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root)
         return (store, root)
     }
 
@@ -984,7 +984,7 @@ struct PaperReferenceRequeueTests {
 
     private func store(_ name: String) throws -> (KnowledgeStore, URL) {
         let root = try Schema154Fixture.temporaryRoot(name)
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+        let store = try KnowledgeStore(storeDirectory: root)
         return (store, root)
     }
 

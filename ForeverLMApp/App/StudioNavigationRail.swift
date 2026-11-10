@@ -770,7 +770,6 @@ struct StudioNavigationRail: View {
         }
         .animation(.spring(response: 0.32, dampingFraction: 0.86), value: appUpdates.phase)
         .animation(.easeInOut(duration: 0.2), value: account.creditsAreEmpty)
-        .animation(.spring(response: 0.32, dampingFraction: 0.86), value: StoreUpgradeSpaceNotice.shared.visibleMessage)
         .animation(.spring(response: 0.32, dampingFraction: 0.86), value: DayModel.shared.planTheDayAsk)
         .animation(.spring(response: 0.32, dampingFraction: 0.86), value: vm.cardsToCheckPile)
         .animation(.spring(response: 0.32, dampingFraction: 0.86), value: vm.cardsToCheckIsPutOff)
@@ -1146,7 +1145,6 @@ struct StudioNavigationRail: View {
     /// chats that need attention.
     private var activeNoticeKinds: [CornerNoticeKind] {
         var kinds: [CornerNoticeKind] = []
-        if StoreUpgradeSpaceNotice.shared.visibleMessage != nil { kinds.append(.storeUpgradeSpace) }
         if asksToPlanTheDay, DayModel.shared.planTheDayAsk != nil { kinds.append(.planTheDay) }
         if vm.cardsToCheckDetail != nil,
            vm.showsCardsToCheckCard(
@@ -1429,19 +1427,12 @@ struct StudioNavigationRail: View {
             // "Plan your day?" on a morning with nothing planned, over the
             // Now chip's place, until it is answered
             // (product owner, 2026-09-28: "maybe in the bottom left? maybe better
-            // than popups"). A library update waiting for disk space comes
-            // first: one corner card at a time.
+            // than popups"). One corner card at a time.
             // A card tucked this launch, or read for what it says now, waits
             // in the bell instead.
             let tray = CornerNoticeTray.shared
             let subjects = vm.inboxSubjects(planDay: DayModel.shared.planTheDayAsk)
-            if let message = StoreUpgradeSpaceNotice.shared.visibleMessage,
-                      tray.showsInCorner(.storeUpgradeSpace, subject: subjects.subject(.storeUpgradeSpace)) {
-                StoreUpgradeSpaceCard(message: message, style: .rail)
-                    .padding(.horizontal, 10)
-                    .padding(.top, 10)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            } else if asksToPlanTheDay, let day = DayModel.shared.planTheDayAsk,
+            if asksToPlanTheDay, let day = DayModel.shared.planTheDayAsk,
                       tray.showsInCorner(.planTheDay, subject: subjects.subject(.planTheDay)) {
                 PlanTheDayCard(day: day, style: .rail)
                     .padding(.horizontal, 10)

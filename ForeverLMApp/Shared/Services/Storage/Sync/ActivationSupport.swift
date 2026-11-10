@@ -52,7 +52,7 @@ extension ActivationJournal {
 // MARK: - What the window and Settings show
 
 /// The activation's progress, process-wide: the storage actor runs the activation and the window reads
-/// it on the main actor, and either may come first (the shape of `LibraryUpgradeSpace`).
+/// it on the main actor, and either may come first.
 final class ActivationStatus: @unchecked Sendable {
     static let shared = ActivationStatus()
     static let didChange = Notification.Name("ForeverLMActivationStatusDidChange")
