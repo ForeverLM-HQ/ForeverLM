@@ -7491,15 +7491,6 @@ private struct InternalReviewPanelContent: View {
         )
     }
 
-    @MainActor
-    private func switchSummarizeChatToReview() async {
-        clearComposer()
-        pendingReaderSelection = nil
-        await manager.switchToReviewSession()
-        await vm.loadReviewSessionLinks()
-        await vm.loadLearningGoals()
-    }
-
     private func speakAssistantMessage(_ message: ReviewSessionManager.Message) {
         guard message.role == .assistant,
               let content = ReviewSessionManager.displayableMessageContent(role: message.role, content: message.content)?
@@ -7517,35 +7508,6 @@ private struct InternalReviewPanelContent: View {
             await manager.deleteMessage(message)
             await vm.loadReviewSessionLinks()
             await vm.loadLearningGoals()
-        }
-    }
-
-    private func createResearchNotebook(from message: ReviewSessionManager.Message) {
-        guard let content = ReviewSessionManager.displayableMessageContent(role: message.role, content: message.content)?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-              !content.isEmpty else { return }
-
-        let title = researchNotebookTitle(for: content)
-        let sourceIDs = manager.linkedSourceIDs.isEmpty ? reviewSources.map(\.id) : manager.linkedSourceIDs
-        let markdown = """
-        # \(title)
-
-        ## Chat Synthesis
-
-        \(content)
-        """
-
-        Task {
-            guard let notebook = await vm.createNotebookContext(title: title) else { return }
-            if let updated = await vm.replaceNotebookSynthesisFromChat(
-                notebookID: notebook.id,
-                markdown: markdown,
-                sourceIDs: sourceIDs
-            ) {
-                linkedResearchNotebookID = updated.id
-            } else {
-                linkedResearchNotebookID = notebook.id
-            }
         }
     }
 
@@ -7653,19 +7615,6 @@ private struct InternalReviewPanelContent: View {
             .replacingOccurrences(of: #"(?m)^#+\s*"#, with: "", options: .regularExpression)
             .replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    private func researchNotebookTitle(for content: String) -> String {
-        if !manager.topic.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return manager.topic.trimmingCharacters(in: .whitespacesAndNewlines)
-        }
-        let firstLine = content
-            .split(separator: "\n", omittingEmptySubsequences: true)
-            .first?
-            .description
-            .trimmingCharacters(in: CharacterSet(charactersIn: "#*` ").union(.whitespacesAndNewlines)) ?? ""
-        guard !firstLine.isEmpty else { return "Notebook" }
-        return String(firstLine.prefix(90))
     }
 
     @MainActor

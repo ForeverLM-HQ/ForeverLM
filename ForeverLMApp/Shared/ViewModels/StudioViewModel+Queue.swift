@@ -36,27 +36,6 @@ extension StudioViewModel {
         await loadQueue()
     }
 
-    /// Lightweight snapshot for surfaces like Getting Started that only need to
-    /// know what sources already exist, without triggering full discovery/startup work.
-    func loadPersistedSourcesSnapshot() async -> [StudioArticle] {
-        (try? await storage.loadSources()) ?? articles
-    }
-
-    func computeMergeResult(
-        discoveredArticles: [StudioArticle],
-        dismissedURLs: Set<String>
-    ) async -> MergeComputationResult {
-        let existingSnapshot = Self.makeMergeExistingSnapshot(from: articles)
-        let discoveredSnapshot = Self.makeMergeDiscoveredSnapshot(from: discoveredArticles)
-        return await Task.detached(priority: .userInitiated) {
-            Self.computeMergeResultOffMain(
-                discovered: discoveredSnapshot,
-                dismissedURLs: dismissedURLs,
-                existing: existingSnapshot
-            )
-        }.value
-    }
-
     nonisolated static func makeMergeExistingSnapshot(from articles: [StudioArticle]) -> MergeExistingSnapshot {
         var paperTitleDOIs: [String: [String?]] = [:]
         for paper in articles where paper.sourceType == .paper {
@@ -2023,60 +2002,6 @@ extension StudioViewModel {
             .joined(separator: " ")
     }
 
-    /// Attempt to fetch article content from archive.ph and transition out of paywall state.
-    ///
-    /// The archived text is stored before it is shown, and a paper's paid
-    /// metadata step runs only on text the store took: a failed save is shown
-    /// and the row goes back to the state it had.
-    func fetchFromArchive(articleId: String) async {
-        guard let idx = articles.firstIndex(where: { $0.id == articleId }) else { return }
-        let urlString = articles[idx].url
-        let priorState = articles[idx].state
-        articles[idx].state = .fetching
-        do {
-            let content = try await SourceService.shared.fetchArchiveContent(for: urlString)
-            guard let idx2 = articles.firstIndex(where: { $0.id == articleId }) else { return }
-            var updated = articles[idx2]
-            updated.content = content
-            updated.wordCount = content.split(separator: " ").count
-            if updated.sourceType == .paper {
-                updated.prepareForPaperMetadataExtraction()
-            } else {
-                updated.state = .ready
-                updated.errorMessage = nil
-            }
-            guard await persistSource(updated, context: "Save the archived copy", syncImmediately: true) else {
-                mutateArticle(id: articleId) { $0.state = priorState }
-                return
-            }
-            if let idx3 = articles.firstIndex(where: { $0.id == articleId }) {
-                articles[idx3] = updated
-            }
-            if updated.sourceType == .paper {
-                _ = await extractPaperMetadataWithAI(id: articleId, showToasts: true)
-            }
-        } catch {
-            guard let idx2 = articles.firstIndex(where: { $0.id == articleId }) else { return }
-            var paywalled = articles[idx2]
-            // Ready only over text the store holds (its preview); the store
-            // refuses a ready row with none.
-            var hasStoredText = false
-            if paywalled.sourceType != .paper {
-                hasStoredText = await storage.hasReadableSourceContent(paywalled.id)
-            }
-            paywalled.state = hasStoredText ? .ready : .error
-            paywalled.statusFlag = .paywall
-            paywalled.isPaywalled = true
-            guard await persistSource(paywalled, context: "Mark the source paywalled", syncImmediately: true) else {
-                mutateArticle(id: articleId) { $0.state = priorState }
-                return
-            }
-            if let idx3 = articles.firstIndex(where: { $0.id == articleId }) {
-                articles[idx3] = paywalled
-            }
-        }
-    }
-
     /// Remove all episodes from a specific podcast show, and stop importing it.
     ///
     /// The block is the point. Removal alone tombstones the episodes that exist
@@ -2303,10 +2228,6 @@ extension StudioViewModel {
                 return true
             }
             .sorted(by: sourceHiddenMenuOrder)
-    }
-
-    func hasHiddenSourceItems(for tab: StudioSidebarTab) -> Bool {
-        !hiddenSourceArticles(for: tab).isEmpty
     }
 
     var hiddenBookGroupNames: [String] {
@@ -2567,13 +2488,6 @@ extension StudioViewModel {
             // on the calendar is not something the learner can act on mid-article.
             logger.error("Failed to add read source to the schedule: \(error.localizedDescription)")
         }
-    }
-
-    /// Refresh the small pieces of published state affected after the speech
-    /// service has durably completed a source. Storage work stays on its actor;
-    /// the main actor only publishes the returned Schedule snapshot and date.
-    func reflectListeningCompletion(_ sourceID: String) async {
-        await reflectExternalActivityCompletion([sourceID])
     }
 
     func reflectExternalActivityCompletion(_ sourceIDs: [String], at completedAt: Date = Date()) async {

@@ -291,18 +291,6 @@ struct TimeBlock: Identifiable, Codable, Equatable, Sendable {
         return trimmed.isEmpty || trimmed == Self.placeholderTitle
     }
 
-    /// A block nobody has named takes its first source's title when it is
-    /// given sources, as a block drawn by dropping the source is; a name
-    /// someone chose is kept. `sourceTitle` answers for a source id.
-    func namedAfterFirstSource(_ sourceTitle: (String) -> String?) -> TimeBlock {
-        guard hasPlaceholderTitle, let first = sourceIDs.first,
-              let name = sourceTitle(first)?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !name.isEmpty else { return self }
-        var copy = self
-        copy.title = name
-        return copy
-    }
-
     /// The ids trimmed, blanks dropped, duplicates folded to their first place.
     static func normalizedSourceIDs(_ ids: [String]) -> [String] {
         SourceIDList.normalized(ids)
@@ -391,11 +379,6 @@ struct TimeBlock: Identifiable, Codable, Equatable, Sendable {
     /// Whether `minute` falls inside the block.
     func contains(minute: Int) -> Bool {
         startMinute <= minute && minute < endMinute
-    }
-
-    /// Minutes this row shares with `other`.
-    func overlapMinutes(with other: TimeBlock) -> Int {
-        max(0, min(endMinute, other.endMinute) - max(startMinute, other.startMinute))
     }
 
     /// Whether this row and `other` share any minute. Two blocks that only
@@ -620,18 +603,6 @@ struct DayPlan: Identifiable, Codable, Equatable, Sendable {
         )
     }
 
-    /// The day's closing block when a redraw's drafts run into it or past
-    /// it: the day now ends later, so the block that closes it is replaced
-    /// and drawn again after the new last hour (`closingBlock(for:after:)`
-    /// with it out of `kept`). Nil when the day has none current, or every
-    /// draft ends before it. No two blocks share a minute, and this is how a
-    /// redraw keeps the rule without asking an assistant to know that the
-    /// app draws the closing block.
-    static func displacedClosingBlock(kept: [TimeBlock], drafts: [TimeBlock]) -> TimeBlock? {
-        guard let closing = kept.first(where: { $0.isCurrent && isClosingBlock($0) }) else { return nil }
-        return drafts.contains { $0.endMinute > closing.startMinute } ? closing : nil
-    }
-
     // MARK: - The memory review block
 
     /// The block every day holds for its memory review: the day's goal, on
@@ -722,54 +693,12 @@ struct DayPlan: Identifiable, Codable, Equatable, Sendable {
         return nil
     }
 
-    /// The block for the review a stretch of reading earns (`ReadingReview`,
-    /// 2026-09-20): a review of exactly the sources the stretch was on,
-    /// titled for the first of them, on the first free quarter hour from
-    /// `earliestMinute`. Nil when nothing of `minutes` is free before
-    /// midnight. The block is an ordinary review block from here on: its
-    /// button starts the review with the sources in context, and the
-    /// learner marks it done or skips it.
-    static func readingReviewBlock(
-        for date: String,
-        sourceIDs: [String],
-        titles: [String],
-        among blocks: [TimeBlock],
-        minutes: Int,
-        earliestMinute: Int,
-        now: Date = Date()
-    ) -> TimeBlock? {
-        guard minutes >= minimumBlockMinutes, !sourceIDs.isEmpty else { return nil }
-        guard let start = firstFreeQuarterHour(minutes: minutes, from: earliestMinute, among: blocks) else { return nil }
-        return TimeBlock(
-            dayPlanID: date,
-            startMinute: start,
-            endMinute: start + minutes,
-            title: readingReviewTitle(titles: titles),
-            sourceIDs: sourceIDs,
-            purpose: .review,
-            createdAt: now,
-            updatedAt: now
-        )
-    }
-
     /// "Review: <first title>", and "+2" for the others read in the stretch.
     static func readingReviewTitle(titles: [String]) -> String {
         let first = titles.first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         var title = first.isEmpty ? "Review what you read" : "Review: \(first)"
         if titles.count > 1 { title += " +\(titles.count - 1)" }
         return title
-    }
-
-    /// The day's memory review block still to be done, or nil when there is
-    /// none current or it is already done or skipped. What the goal met marks
-    /// done — the one status change besides the learner's own hand and a
-    /// meeting's transcript, and only because the block asks for exactly the
-    /// minutes that were just spent.
-    static func memoryReviewBlockToComplete(in blocks: [TimeBlock]) -> TimeBlock? {
-        blocks
-            .filter { $0.isCurrent && $0.status == .planned && isMemoryReviewBlock($0) }
-            .sorted { $0.startMinute < $1.startMinute }
-            .first
     }
 
     // MARK: - One block at a time
@@ -889,46 +818,6 @@ struct DayPlan: Identifiable, Codable, Equatable, Sendable {
                 let (dl, dr) = (abs(lhs - wanted), abs(rhs - wanted))
                 return dl != dr ? dl < dr : lhs < rhs
             }
-    }
-
-    /// `drafts` placed into the day so none overlaps a current block among
-    /// `blocks` or another draft, in start order. A draft whose stretch is
-    /// taken moves to the first free start at or after its own that fits it
-    /// whole; when nothing that long is free, it is shortened into the first
-    /// free stretch at or after its start; when not even the minimum block is
-    /// free after it, it is dropped. A calendar draft keeps its time and is
-    /// placed first, so the rest are laid around it. Pure; the assistant's
-    /// redraw and a block drawn over a logged sitting go through here.
-    static func placedClearOfOverlaps(_ drafts: [TimeBlock], among blocks: [TimeBlock]) -> [TimeBlock] {
-        var occupied = blocks.filter(\.isCurrent)
-        var placed: [TimeBlock] = []
-        let ordered = drafts.sorted { lhs, rhs in
-            if lhs.keepsClearOfOtherBlocks != rhs.keepsClearOfOtherBlocks { return !lhs.keepsClearOfOtherBlocks }
-            return lhs.startMinute < rhs.startMinute
-        }
-        for draft in ordered {
-            var block = draft
-            if block.keepsClearOfOtherBlocks && !blocksOverlapping(block, among: occupied).isEmpty {
-                let duration = block.durationMinutes
-                let ends = occupied.map(\.endMinute).filter { $0 >= block.startMinute }.sorted()
-                let whole = ([block.startMinute] + ends).first { candidate in
-                    candidate + duration <= minutesPerDay
-                        && !occupied.contains { $0.startMinute < candidate + duration && candidate < $0.endMinute }
-                }
-                if let whole {
-                    block.startMinute = whole
-                    block.endMinute = whole + duration
-                } else if let stretch = firstFreeStretch(from: block.startMinute, among: occupied) {
-                    block.startMinute = stretch.lowerBound
-                    block.endMinute = min(stretch.upperBound, stretch.lowerBound + duration)
-                } else {
-                    continue
-                }
-            }
-            placed.append(block)
-            occupied.append(block)
-        }
-        return placed.sorted { $0.startMinute < $1.startMinute }
     }
 
     var isShutDown: Bool { shutdownAt != nil }
@@ -1335,11 +1224,6 @@ struct DayPlanDetail: Identifiable, Equatable, Sendable {
         bouts
             .filter { $0.abandonedAt == nil }
             .reduce(0) { $0 + $1.minutesLearned(now: now) }
-    }
-
-    /// Bouts that were learned but never written up: the debt the day owes.
-    func boutsAwaitingWriteUp(now: Date = Date()) -> [LearningBout] {
-        bouts.filter { $0.phase(now: now) == .writing }.sorted(by: LearningBout.byRecency)
     }
 
     /// Minutes the log holds for each kind of activity, kinds with none omitted.

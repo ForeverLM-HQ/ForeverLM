@@ -1048,54 +1048,6 @@ extension MCPDataStore {
         ] as [String: Any])
     }
 
-    /// Every workspace file is standing Notebook-native context, not an optional
-    /// global-source excerpt. Include the workspace even in a lightweight
-    /// `include_source_content=false` snapshot so external MCP assistants see
-    /// the same Notebook definition as the in-app chat.
-    func notebookMaterialContextMarkdown(notebookID: String, store: KnowledgeStore) throws -> String {
-        let records = try store.loadNotebookFiles(notebookID: notebookID)
-        guard !records.isEmpty else { return "" }
-
-        let fileManager = FileManager.default
-        for record in records {
-            let url = sourceContentRoot.appendingPathComponent(record.relativePath)
-            if fileManager.fileExists(atPath: url.path) {
-                let values = try? url.resourceValues(
-                    forKeys: [.isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey]
-                )
-                if values?.isUbiquitousItem == true,
-                   values?.ubiquitousItemDownloadingStatus == .notDownloaded {
-                    try fileManager.startDownloadingUbiquitousItem(at: url)
-                    throw MCPError.invalidInput(
-                        "Notebook file “\(record.notebookRelativePath)” is downloading from iCloud. Call get_notebook_context again when the download finishes."
-                    )
-                }
-                continue
-            }
-            let placeholder = url.deletingLastPathComponent()
-                .appendingPathComponent(".\(url.lastPathComponent).icloud")
-            if fileManager.fileExists(atPath: placeholder.path) {
-                try fileManager.startDownloadingUbiquitousItem(at: placeholder)
-                throw MCPError.invalidInput(
-                    "Notebook file “\(record.notebookRelativePath)” is downloading from iCloud. Call get_notebook_context again when the download finishes."
-                )
-            }
-            throw MCPError.invalidInput(
-                "Notebook file “\(record.notebookRelativePath)” is unavailable on this device."
-            )
-        }
-
-        do {
-            return try StorageService.renderNotebookMaterialContext(
-                records: records,
-                rootURL: sourceContentRoot,
-                maxCharacters: StorageService.notebookMaterialContextCharacterLimit
-            )
-        } catch {
-            throw MCPError.invalidInput("Could not read the Notebook files. \(error.localizedDescription)")
-        }
-    }
-
     // MARK: - Open questions (LearningGoalGap)
 
     func listOpenQuestions(notebookID: String?, includeResolved: Bool?, status: String?) throws -> String {

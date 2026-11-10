@@ -866,11 +866,6 @@ extension StudioViewModel {
         }
     }
 
-    /// Human-authored title cleanup belongs to the configured batch AI task.
-    nonisolated static func stripRedundantTitleAffixes(_ items: [YouTubePlaylistItem]) -> [YouTubePlaylistItem] {
-        items
-    }
-
     static func cleanedPlaylistLectureTitle(
         originalTitle: String,
         aiTitle: String?,
@@ -967,13 +962,6 @@ extension StudioViewModel {
             .joined(separator: " ")
     }
 
-    /// Whether a lecture title still has real topic words once its lecture
-    /// number, course name, and ordinal prefixes are stripped. Used to reject
-    /// AI-cleaned titles that collapse to a bare number like "23)".
-    static func lectureTitleContainsTopic(_ title: String, courseName: String) -> Bool {
-        !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-    }
-
     nonisolated static func playlistSourceDisplayTitle(
         originalTitle: String,
         cleanedLectureTitle: String?,
@@ -1029,14 +1017,6 @@ extension StudioViewModel {
         guard normalizedCurrent != normalizedReplacement else { return false }
 
         return false
-    }
-
-    static func deterministicPlaylistLectureTitle(from title: String, courseName: String) -> String? {
-        nil
-    }
-
-    static func stripTrailingPlaylistMetadata(_ title: String, courseName: String) -> String {
-        title
     }
 
     /// Use an LLM to match lecture videos to PDF notes within a course,

@@ -49,22 +49,6 @@ enum StudioMovableOverlay {
     }
 }
 
-private struct StudioOverlayDragHandle: View {
-    var body: some View {
-        HStack {
-            Spacer(minLength: 0)
-            Capsule()
-                .fill(Color.secondary.opacity(0.35))
-                .frame(width: 36, height: 4)
-            Spacer(minLength: 0)
-        }
-        .frame(height: 18)
-        .contentShape(Rectangle())
-        .cursor(.openHand)
-        .help("Drag to move")
-    }
-}
-
 /// Centered glass panel used by movable utility overlays.
 struct StudioCenteredOverlayChrome<Content: View>: View {
     let storageID: String

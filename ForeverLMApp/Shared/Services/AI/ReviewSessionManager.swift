@@ -13200,13 +13200,6 @@ final class ReviewSessionManager {
         return CardDraftingPictures.walkImage(picture, anchorLabel: step.anchor?.figureLabel, in: figures).map { [$0] } ?? []
     }
 
-    /// The card's Show Whole Step: every beat at once.
-    func revealAllWalkthroughBeats() {
-        guard let step = walkthroughPlayback?.currentStep,
-              let count = walkthroughPlayback?.beatCount(of: step) else { return }
-        walkthroughPlayback?.revealedBeats[step.id] = count
-    }
-
     /// The card on screen resolves its anchor for its picture without moving
     /// the Reader: a reopened chat focuses nothing until the learner asks,
     /// but the card still shows its figure. A card whose picture is a figure
@@ -17445,15 +17438,6 @@ extension ReviewSessionManager {
             await manager.addContextSources(droppedArticles)
         }
         return (manager.loadedSourceIDs, manager.sourceContext)
-    }
-
-    static func perSourceSharesForTesting(articles: [StudioArticle]) async -> [ChatContextBreakdown.SourceShare] {
-        let manager = ReviewSessionManager(storage: StorageService(storeRoot: temporaryTestingRoot()))
-        manager.activeSourceIDs = articles.map(\.id)
-        return await manager.loadSourceTextBlock(
-            for: articles,
-            budget: manager.sourceContextCharacterLimit
-        ).shares
     }
 
     static func contextBreakdownForTesting(

@@ -15,10 +15,6 @@ extension StudioViewModel {
 
     // MARK: - Lossless Display Names
 
-    nonisolated static func bookSectionTitle(_ title: String, groupName: String) -> String {
-        title.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     nonisolated static func importedBookChapterTitle(_ title: String, bookTitle: String) -> String {
         trimmedTableOfContentsRun(title.trimmingCharacters(in: .whitespacesAndNewlines))
     }
@@ -62,17 +58,6 @@ extension StudioViewModel {
     static func chapterTitle(_ filename: String) -> String {
         (filename as NSString).deletingPathExtension
             .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    /// Fast cache-only title enrichment for use during discovery scanning.
-    /// Returns the cached enriched title if available, otherwise falls back to
-    /// the plain filename-derived title without opening the PDF.
-    static func chapterTitleFromCache(filename: String, pdfPath: String) -> String {
-        chapterTitle(filename)
-    }
-
-    static func chapterTitleEnriched(filename: String, pdfPath: String) -> String {
-        chapterTitle(filename)
     }
 
     /// Extract the numeric sort key from a chapter filename for natural ordering.

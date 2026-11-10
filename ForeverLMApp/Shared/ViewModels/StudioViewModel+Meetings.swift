@@ -30,12 +30,8 @@ private enum CourseTitleParserCache {
         ("lesson", #"(?i)^\s*(\d{1,3}(?:\.\d{1,2}|[a-z]\b)?)\s*[\)_#.:\\-–—\s]"#),
     ].map { ($0.0, try! NSRegularExpression(pattern: $0.1)) }
 
-    static let numberedTitlePrefix = try! NSRegularExpression(
-        pattern: #"^\s*(\d+(?:\.\d+|[A-Za-z])?\)\s*)(.*)$"#
-    )
-
     /// A title that already opens with its own lecture ordinal. Deliberately
-    /// stricter than `leadingOrdinalRegexes`: a row decides from this whether
+    /// strict: a row decides from this whether
     /// numbering the title would repeat a number the title already carries, so
     /// "3 Body Problem" must not read as lecture 3.
     static let displayLectureOrdinalPrefixes: [NSRegularExpression] = [
@@ -48,25 +44,11 @@ private enum CourseTitleParserCache {
         #"^\s*\#(lessonLabel)s?\s*[_#.:\-–—]*\s*\d{1,3}(?:[a-z]|\.\d{1,3})?\s*(?:[\)_#.:\-–—]\s*|\s)"#,
     ].map { try! NSRegularExpression(pattern: $0, options: .caseInsensitive) }
 
-    static let leadingOrdinalRegexes: [NSRegularExpression] = [
-        #"(?i)^\s*\d{1,3}[a-z]?\)\s*"#,
-        #"(?i)^\s*(?:lecture|lec|chapter|chap|ch|session|week|class|unit|section)\s*[_#.:\\-–—]*\s*\d{1,3}(?:\.\d{1,2}|[a-z]\b)?(?:\s*(?:[_#.:\\-–—]\s*)?part\s*[_#.:\\-–—]*\s*(?:[a-z]|\d{1,2})\b|\s+[a-z]\s*(?=[\)_#.:\\-–—]))?\s*[\)_#.:\\-–—]*\s*"#,
-        #"(?i)^\s*\d{1,3}(?:\.\d{1,2}|[a-z]\b)?(?:\s*(?:[_#.:\\-–—]\s*)?part\s*[_#.:\\-–—]*\s*(?:[a-z]|\d{1,2})\b|\s+[a-z]\s*(?=[\)_#.:\\-–—]))?\s*[\)_#.:\\-–—\s]+\s*"#,
-    ].map { try! NSRegularExpression(pattern: $0) }
-
     static let leadingDanglingSeparators = try! NSRegularExpression(
         pattern: #"^[\s/\\|:;,\-–—·•]+"#
     )
     static let trailingDanglingSeparators = try! NSRegularExpression(
         pattern: #"[\s/\\|:;,\-–—·•]+$"#
-    )
-    static let courseCodeOnly = try! NSRegularExpression(
-        pattern: #"^\d{1,3}(?:\.\d{1,3})?[a-z]?$"#,
-        options: .caseInsensitive
-    )
-    static let prefixedCourseCodeOnly = try! NSRegularExpression(
-        pattern: #"^[a-z]{1,6}\s*\d{1,3}(?:\.\d{1,3})?[a-z]?$"#,
-        options: .caseInsensitive
     )
     static let nonAlphanumeric = CharacterSet.alphanumerics.inverted
 }
@@ -404,29 +386,6 @@ extension StudioViewModel {
             article.sourceType == .meeting
                 && article.parentGroup == groupName
                 && sourceMatchesSearch(article, query: query)
-        }
-    }
-
-    func createMeetingGroup(name: String, metadata: MeetingMetadata = MeetingMetadata()) async {
-        let trimmed = name.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return }
-        guard !meetingMetadata.values.contains(where: { ($0.title ?? "").caseInsensitiveCompare(trimmed) == .orderedSame }) else {
-            errorMessage = "A meeting group named \"\(trimmed)\" already exists."
-            return
-        }
-        Self.liftRemovedMeetingGroupTitle(trimmed)
-        let groupID = UUID().uuidString
-        var metadata = metadata
-        if metadata.title == nil {
-            metadata.title = trimmed
-        }
-        meetingMetadata[groupID] = metadata
-        userMeetingGroupNames.insert(groupID)
-        saveUserMeetingGroupNames()
-        do {
-            try await storage.saveMeetingGroup(name: groupID, metadata: metadata)
-        } catch {
-            logger.error("Failed to persist meeting group '\(trimmed)': \(error.localizedDescription)")
         }
     }
 
@@ -2838,22 +2797,6 @@ extension StudioViewModel {
         return await firstOrCreateLecture(in: courseName)
     }
 
-    func matchingOrCreateLecture(
-        in courseName: String,
-        title: String?,
-        preferredNumber: Int?,
-        existingArticle: StudioArticle?
-    ) async -> CourseSession? {
-        if let existingArticle,
-           let existing = existingLecture(containing: existingArticle.id, in: courseName) {
-            return existing
-        }
-        if let matched = matchingLecture(in: courseName, title: title, preferredNumber: preferredNumber, article: existingArticle) {
-            return matched
-        }
-        return await createLecture(in: courseName, title: title, number: preferredNumber)
-    }
-
     func playlistItemLecture(
         in courseName: String,
         title: String?,
@@ -3226,42 +3169,6 @@ extension StudioViewModel {
         return CourseTitleParserCache.trailingDanglingSeparators
             .stringByReplacingMatches(in: withoutLeading, range: trailingRange, withTemplate: "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    nonisolated static func stripCourseNameFromLectureTitle(_ title: String, courseName: String) -> String {
-        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        let regex = CourseTitleParserCache.numberedTitlePrefix
-        guard let match = regex.firstMatch(in: trimmed, range: NSRange(trimmed.startIndex..<trimmed.endIndex, in: trimmed)),
-              match.numberOfRanges == 3,
-              let prefixRange = Range(match.range(at: 1), in: trimmed),
-              let titleRange = Range(match.range(at: 2), in: trimmed) else {
-            return stripCoursePrefix(trimmed, courseName: courseName)
-        }
-
-        let prefix = String(trimmed[prefixRange])
-        let cleanedTitle = stripDanglingLectureSeparators(
-            stripCoursePrefix(String(trimmed[titleRange]), courseName: courseName)
-        )
-        return cleanedTitle.isEmpty ? "" : "\(prefix)\(cleanedTitle)"
-    }
-
-    nonisolated static func stripLeadingPlaylistOrdinal(_ title: String) -> String {
-        var cleaned = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        var changed = true
-        while changed {
-            changed = false
-            for regex in CourseTitleParserCache.leadingOrdinalRegexes {
-                let fullRange = NSRange(cleaned.startIndex..<cleaned.endIndex, in: cleaned)
-                if let match = regex.firstMatch(in: cleaned, range: fullRange),
-                   match.range.location == 0,
-                   let range = Range(match.range, in: cleaned) {
-                    cleaned.removeSubrange(range)
-                    cleaned = cleaned.trimmingCharacters(in: .whitespacesAndNewlines)
-                    changed = true
-                }
-            }
-        }
-        return cleaned
     }
 
     func inferredLectureItemRole(for article: StudioArticle) -> CourseLectureItemRole {
@@ -4364,32 +4271,6 @@ extension StudioViewModel {
         }
         paperDownloadStep = ""
         showToast("Extracted metadata for \(succeeded) of \(missing.count) paper\(missing.count == 1 ? "" : "s")")
-    }
-
-    func updatePaperJournal(id: String, journal: String) async {
-        guard let idx = articles.firstIndex(where: { $0.id == id }) else { return }
-        let value = journal.isEmpty ? nil : journal
-        var article = articles[idx]
-        article.journal = value
-        if await persistSource(article, context: "Save venue") {
-            if let idx2 = articles.firstIndex(where: { $0.id == id }) {
-                articles[idx2] = article
-            }
-            await completePaperIngestionAfterManualMetadata(id: id)
-        }
-    }
-
-    func updatePaperYear(id: String, year: String) async {
-        guard let idx = articles.firstIndex(where: { $0.id == id }) else { return }
-        let value = year.isEmpty ? nil : year
-        var article = articles[idx]
-        article.publishedYear = value
-        if await persistSource(article, context: "Save year") {
-            if let idx2 = articles.firstIndex(where: { $0.id == id }) {
-                articles[idx2] = article
-            }
-            await completePaperIngestionAfterManualMetadata(id: id)
-        }
     }
 
     /// `registeredTitle` is the title the paper's DOI is registered under,

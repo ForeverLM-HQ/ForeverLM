@@ -560,11 +560,6 @@ final class AutomaticSourceAudioGenerationService: ObservableObject {
         }
     }
 
-    func stopIfSelectionIsPaid() {
-        guard !Self.automaticSelectionIsAllowed else { return }
-        discardPendingWork()
-    }
-
     /// User-facing abort for the batch in flight. Deliberately leaves the
     /// per-type opt-ins and the paid consent alone: this stops what is running
     /// now, and the copy shown afterwards says the switches are still on.

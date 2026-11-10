@@ -16,8 +16,6 @@ import Foundation
 enum ChatCode {
     static let toolName = "run_code"
 
-    static func isCodeTool(_ name: String) -> Bool { name == toolName }
-
     /// Seconds a script may run when the call names no limit, and the most it
     /// may ask for. A stopped script reports that it was stopped.
     static let defaultTimeoutSeconds = 60

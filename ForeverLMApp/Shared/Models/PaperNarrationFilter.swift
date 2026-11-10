@@ -9,10 +9,4 @@ enum PaperNarrationFilter {
     /// also the stable cross-device contract for prepared article derivatives.
     static let version = 5
     static let preparationContractPrefix = "paper-narration-v5:"
-
-    /// Preserves its input. Speech adaptation is produced by the configurable
-    /// Text-to-Speech Preparation task rather than inferred from prefixes.
-    static func removingFigureCaptions(from text: String) -> String {
-        text
-    }
 }

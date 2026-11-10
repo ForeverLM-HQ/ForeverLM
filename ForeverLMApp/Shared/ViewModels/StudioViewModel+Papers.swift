@@ -210,49 +210,6 @@ extension StudioViewModel {
 
     // MARK: - Paper Version Conflict Detection
 
-    /// Detect biorxiv/medrxiv papers where multiple versions (v1, v2, v3…) are saved.
-    /// Returns groups where more than one version of the same DOI base exists.
-    static func detectPaperVersionConflicts(
-        in articles: [StudioArticle]
-    ) -> [(title: String, newerID: String, olderIDs: [String])] {
-        let papers = articles.filter { $0.sourceType == .paper }
-
-        // Extract biorxiv base DOI (strips vN suffix): 10.1101/YYYY.MM.DD.NNNNNN
-        let doiBasePattern = try? NSRegularExpression(pattern: #"(10\.\d+/\d{4}\.\d{2}\.\d{2}\.\d+)"#)
-        func baseDOI(from url: String) -> String? {
-            guard let regex = doiBasePattern else { return nil }
-            let ns = url as NSString
-            guard let match = regex.firstMatch(in: url, range: NSRange(location: 0, length: ns.length)) else { return nil }
-            return ns.substring(with: match.range(at: 1)).lowercased()
-        }
-
-        // Group papers by base DOI
-        var groups: [String: [StudioArticle]] = [:]
-        for p in papers {
-            if let base = baseDOI(from: p.url) {
-                groups[base, default: []].append(p)
-            }
-        }
-
-        // Extract numeric version from URL (vN suffix, default 1 if absent)
-        func version(of article: StudioArticle) -> Int {
-            if let m = article.url.range(of: #"v(\d+)"#, options: .regularExpression) {
-                let sub = article.url[m]
-                return Int(sub.dropFirst()) ?? 1
-            }
-            return 1
-        }
-
-        var conflicts: [(title: String, newerID: String, olderIDs: [String])] = []
-        for (_, group) in groups where group.count > 1 {
-            let sorted = group.sorted { version(of: $0) > version(of: $1) }
-            let newest = sorted[0]
-            let olderIDs = sorted.dropFirst().map { $0.id }
-            conflicts.append((title: newest.title, newerID: newest.id, olderIDs: olderIDs))
-        }
-        return conflicts
-    }
-
     /// Keep only the latest version for each paper version conflict.
     /// Removes older entries and persists.
     func fixPaperVersionConflicts() async {
@@ -762,15 +719,6 @@ extension StudioViewModel {
            host.caseInsensitiveCompare(trimmed) == .orderedSame {
             return true
         }
-        return false
-    }
-
-    /// Check if a title looks like a filename rather than a real paper title.
-    nonisolated static func titleLooksLikeFilename(_ title: String) -> Bool {
-        let lower = title.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if lower.isEmpty { return true }
-        if lower.hasSuffix(".pdf") { return true }
-        if titleLooksLikeURL(lower) { return true }
         return false
     }
 

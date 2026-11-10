@@ -303,12 +303,6 @@ extension StudioViewModel {
 
     // MARK: - Sharing into a team
 
-    /// The teams that already hold a copy of a source, for the tick marks in
-    /// the share menu.
-    func teamsHolding(sourceURL: String) async -> Set<String> {
-        (try? await storage.teamIDsHoldingSource(url: sourceURL)) ?? []
-    }
-
     func shareSources(_ sourceIDs: [String], withTeam teamID: String) async {
         guard let team = team(id: teamID) else { return }
         do {

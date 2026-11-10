@@ -796,15 +796,6 @@ extension StudioViewModel {
         pruneSelectionToVisibleSources()
     }
 
-    /// Add all current search results to chat context.
-    func addAllSearchResultsToContext() {
-        for result in sourceSearchResults {
-            if !contextSourceIds.contains(result.article.id) {
-                contextSourceIds.append(result.article.id)
-            }
-        }
-    }
-
     /// The Docs source picker's index of the library as it is now.
     ///
     /// The snapshot is taken here, on the main actor, because hidden sources, book

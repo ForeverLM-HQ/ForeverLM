@@ -551,13 +551,6 @@ extension DayModel {
         return saved
     }
 
-    @discardableResult
-    func setBreakMinutes(_ id: String, minutes: Int) async throws -> LearningBout {
-        let saved = try await storage.setLearningBoutBreakMinutes(id, minutes: minutes)
-        await refresh()
-        return saved
-    }
-
     /// Asks the Studio window in front to open the write-up sheet.
     func requestWriteUp() {
         NotificationCenter.default.post(name: .requestBoutWriteUp, object: nil)

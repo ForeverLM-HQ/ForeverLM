@@ -1166,16 +1166,6 @@ extension AIService {
         return nil
     }
 
-    /// Batch classify sources as article vs paper using a single LLM call.
-    /// Input: array of (index, url, title). Returns set of indices that are papers.
-    func batchClassifySourceTypes(
-        items: [(index: Int, url: String, title: String)],
-        config: AITaskConfig
-    ) async -> Set<Int> {
-        let classifications = await batchClassifySourceTypeMap(items: items, config: config)
-        return Set(classifications.compactMap { index, type in type == .paper ? index : nil })
-    }
-
     /// Batch classify sources as article vs paper vs book using a single LLM call.
     /// Input: array of (index, url, title). Returns classified source type keyed by original index.
     func batchClassifySourceTypeMap(
@@ -1480,10 +1470,6 @@ extension AIService {
             cleanField(raw)
         }
 
-        static func removeRedundantSuffix(_ redundantValue: String, from title: String) -> String {
-            title
-        }
-
         static func cleanAuthor(_ raw: String?) -> String? {
             cleanField(raw)
         }
@@ -1561,22 +1547,6 @@ extension AIService {
             logger.error("extractBookMetadata: book metadata extraction skipped after AI call failed: \(error.localizedDescription, privacy: .public)")
             return nil
         }
-    }
-
-    /// Extract the author(s) of a book from its title/filename using an LLM.
-    func extractBookAuthor(
-        source: AIUsageSource,
-        bookTitle: String,
-        config: AITaskConfig
-    ) async -> String? {
-        await extractBookMetadata(
-            source: source,
-            filename: bookTitle,
-            title: bookTitle,
-            author: nil,
-            firstPagesText: "",
-            config: config
-        )?.author
     }
 
     // MARK: - Paper Metadata Extraction (LLM)

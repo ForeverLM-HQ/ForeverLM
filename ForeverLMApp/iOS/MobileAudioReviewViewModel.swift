@@ -3757,20 +3757,6 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
         return scheduled
     }
 
-    func removeScheduleItems(ids: Set<String>, notebookID: String?) async -> Bool {
-        let placements = ids.compactMap { scheduledPlacement(id: $0) }
-        guard !placements.isEmpty else { return false }
-        return await performLibraryMutation {
-            for placement in placements {
-                try await MobileCloudMutationService.shared.removePlacement(
-                    placement,
-                    fromNotebookID: notebookID
-                )
-            }
-            return true
-        } ?? false
-    }
-
     /// The one hand-driven completion the phone has: today's plan card. Nothing
     /// the app merely observes ever completes a placement — opening or playing a
     /// source records activity, and a graded review completes through the review
@@ -3779,14 +3765,6 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
         guard scheduledPlacement(for: sourceID) != nil else { return false }
         return await performLibraryMutation {
             try await MobileCloudMutationService.shared.completeScheduledSource(sourceID: sourceID)
-            return true
-        } ?? false
-    }
-
-    func reopenScheduleItem(id: String) async -> Bool {
-        guard let placement = scheduledPlacement(id: id) else { return false }
-        return await performLibraryMutation {
-            try await MobileCloudMutationService.shared.reopen(placement)
             return true
         } ?? false
     }
@@ -3974,16 +3952,6 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
         guard signedIn != hasOpenAIKey || signedIn != hasAnthropicKey else { return }
         hasOpenAIKey = signedIn
         hasAnthropicKey = signedIn
-    }
-
-    func saveOpenAIKey() async {
-        apiKeyText = ""
-        await refreshManagedSignInState()
-    }
-
-    func saveAnthropicKey() async {
-        anthropicKeyText = ""
-        await refreshManagedSignInState()
     }
 
     func beginSiriVoiceSessionIfNeeded() async {
@@ -4603,14 +4571,9 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
         }
     }
 
-    /// Evaluates one draft rule against the exact pending iPhone catalog. The
-    /// same candidate contract and task route are used by the execution pass,
-    /// so Check is a genuine dry run rather than an approximate UI search.
-    /// The candidate contract both the rule preview and the execution pass hand
-    /// to the filter. One function, so Check stays a genuine dry run: the
-    /// execution pass had been omitting the word-count fallback, which asked
-    /// the model to judge "keep it short" against a length only the preview
-    /// could see.
+    /// The candidate contract the execution pass hands to the filter,
+    /// including the word-count fallback, so "keep it short" is judged
+    /// against a length the model can see.
     private func automaticAudioFilterCandidate(
         for source: MobileCloudSource
     ) -> SourceAudioAutomation.FilterCandidate {
@@ -4631,38 +4594,6 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
                     wordCount: source.wordCount,
                     contentCharacterCount: nil
                 )
-        )
-    }
-
-    func previewAutomaticAudioConstraint(
-        sourceType: String,
-        constraint: String
-    ) async throws -> SourceAudioAutomation.FilterPreview {
-        let candidates = allSources
-            .filter {
-                $0.audioAutomationKind == sourceType
-                    && !$0.hasAudio
-                    && !$0.isArchived
-                    && $0.state == "ready"
-            }
-            .map { automaticAudioFilterCandidate(for: $0) }
-        let trimmed = constraint.trimmingCharacters(in: .whitespacesAndNewlines)
-        let matchingIDs: Set<String>
-        if trimmed.isEmpty {
-            matchingIDs = Set(candidates.map(\.id))
-        } else {
-            let route = try await MobileModelPreferenceStore.shared.resolve(.automaticAudioFiltering)
-            matchingIDs = try await MobileAutomaticAudioConstraintMatcher.matchingIDs(
-                constraint: trimmed,
-                candidates: candidates,
-                route: route
-            )
-        }
-        return SourceAudioAutomation.FilterPreview(
-            constraint: trimmed,
-            matches: candidates
-                .filter { matchingIDs.contains($0.id) }
-                .sorted { $0.title.localizedCaseInsensitiveCompare($1.title) == .orderedAscending }
         )
     }
 
@@ -4853,48 +4784,6 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
             return "Automatic audio is paused but its switches could not be turned off because iCloud could not be reached. Nothing will generate in the meantime; they will be turned off once iCloud is back."
         }
         return "Automatic audio could not be turned off: \(error.localizedDescription)"
-    }
-
-    /// User-facing abort for the batch in flight. Leaves the per-type opt-ins
-    /// and the consent alone — the message shown afterwards says so.
-    func stopCurrentAutomaticAudioRun() -> Int {
-        let generated = automaticAudioProgress?.completedCount ?? 0
-        automaticSourceAudioPassRequested = false
-        automaticSourceAudioTask?.cancel()
-        automaticSourceAudioTask = nil
-        automaticAudioProgress = nil
-        return generated
-    }
-
-    /// Prices the whole pending library per type, for the consent dialog. Uses
-    /// the same eligibility the pass uses, so the quote matches what would run.
-    func automaticAudioLibraryCostPreview(
-        ratePerMillionCharacters rate: Double?
-    ) -> SourceAudioAutomation.LibraryCostPreview {
-        var backlogs: [String: SourceAudioAutomation.Backlog] = [:]
-        for type in SourceAudioAutomation.automatableSourceTypes {
-            let pending = allSources.filter {
-                $0.sourceType == type && !$0.hasAudio && !$0.isArchived && $0.state == "ready"
-            }
-            guard !pending.isEmpty else { continue }
-            let counts = pending.map { source in
-                source.listenableCharacterCount
-                    ?? SourceAudioAutomation.estimatedCharacters(
-                        wordCount: source.wordCount,
-                        contentCharacterCount: nil
-                    )
-            }
-            backlogs[type] = SourceAudioAutomation.Backlog(
-                sourceCount: pending.count,
-                characterCount: counts.contains(where: { $0 == nil })
-                    ? nil
-                    : counts.compactMap { $0 }.reduce(0, +)
-            )
-        }
-        return SourceAudioAutomation.LibraryCostPreview(
-            backlogs: backlogs,
-            ratePerMillionCharacters: rate
-        )
     }
 
     private func disableAutomaticAudioPreferences() async {

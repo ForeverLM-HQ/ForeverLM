@@ -360,15 +360,6 @@ struct MobileShareNotebookAnswer: Equatable, Sendable {
     }
 }
 
-/// The sheet's words that are the phone's own.
-enum MobileNotebookShareWords {
-    /// Under a link the Mac has not got yet; Copy Invitation Link stays to be
-    /// pressed again, and asks about the team the Mac answered with.
-    static let linkPending = "Your Mac shared it. Its link comes once iCloud has shared the team; try again in a moment."
-    /// Under a copied link that lets anyone who has it join and edit.
-    static let opensToAnyone = "Anyone with the link can join and edit."
-}
-
 private extension String {
     var nilIfEmpty: String? { isEmpty ? nil : self }
 }

@@ -170,11 +170,6 @@ extension StudioViewModel {
         notebookChatExclusions[notebookID]?.contains(sourceID) != true
     }
 
-    /// Whether the notebook's chats read `contextNotebookID`'s sources.
-    func isContextNotebookInChat(_ contextNotebookID: String, notebookID: String) -> Bool {
-        notebookChatContextNotebooks[notebookID]?.contains(contextNotebookID) == true
-    }
-
     /// A context notebook's box: nil while it is out of the notebook's chats,
     /// else its ticked sources and all it has, counting only sources a chat
     /// could read, as `notebookChatTally` does.
@@ -540,25 +535,6 @@ extension StudioViewModel {
             logger.error("Failed to create Goal: \(error.localizedDescription)")
             showToast("Could not create Goal")
             return nil
-        }
-    }
-
-    /// Link a Goal to the Doc, Site or animation it is for, or unlink it with
-    /// nil. A local write, like setting the Goal; the row reads the record
-    /// from the loaded library.
-    func setGoalArtifact(goalID: String, artifactID: String?) async {
-        do {
-            try await storage.setLearningGoalArtifact(goalID: goalID, artifactID: artifactID)
-            await loadLearningGoals()
-            if let artifactID, let record = artifacts.first(where: { $0.id == artifactID }) {
-                showToast("Goal is for \(record.title)")
-            } else if artifactID == nil {
-                showToast("Unlinked")
-            }
-        } catch {
-            errorMessage = error.localizedDescription
-            logger.error("Linking a Goal to an artifact failed: \(error.localizedDescription)")
-            showToast("Could not link the Goal")
         }
     }
 
@@ -1257,23 +1233,6 @@ extension StudioViewModel {
         return approved.filter { rows.contains(rowID($0)) }
     }
 
-    /// Replace a Notebook's defining research questions (the questions the
-    /// Notebook exists to answer, distinct from emergent open-question gaps).
-    /// Same storage API the MCP update_notebook tool uses, so chat-side and
-    /// in-app edits stay equivalent; an empty list clears the attribute.
-    func setNotebookResearchQuestions(_ questions: [String], notebookID: String) async {
-        let cleaned = questions
-            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-            .filter { !$0.isEmpty }
-        do {
-            try await storage.setLearningGoalResearchQuestions(goalID: notebookID, questions: cleaned)
-            await loadLearningGoals()
-        } catch {
-            logger.error("Failed to update Notebook research questions: \(error)")
-            showToast("Could not save research questions")
-        }
-    }
-
     /// The Notebook inspector calls the existing description field Instructions:
     /// it is the concise, user-authored guidance attached to this source context.
     func setNotebookInstructions(_ instructions: String, notebookID: String) async {
@@ -1300,16 +1259,6 @@ extension StudioViewModel {
         } catch {
             logger.error("Failed to update Notebook description: \(error)")
             showToast("Could not save description")
-        }
-    }
-
-    func setNotebookSynthesis(_ markdown: String, notebookID: String) async {
-        do {
-            try await storage.setLearningGoalNotes(goalID: notebookID, notes: markdown)
-            await loadLearningGoals()
-        } catch {
-            logger.error("Failed to update Notebook synthesis: \(error)")
-            showToast("Could not save synthesis")
         }
     }
 

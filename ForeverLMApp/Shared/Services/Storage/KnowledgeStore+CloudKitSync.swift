@@ -1466,39 +1466,6 @@ extension KnowledgeStore {
         return totals
     }
 
-    func loadAIUsageOperationSummaries(since: Date? = nil) throws -> [AIUsageOperationSummary] {
-        let predicate = "WHERE " + [
-            Self.aiUsageAccountingRowPredicate,
-            since == nil ? nil : "created_at >= ?",
-        ].compactMap { $0 }.joined(separator: " AND ")
-        var summaries: [AIUsageOperationSummary] = []
-        try queryBind("""
-            SELECT operation,
-                   COUNT(*),
-                   COALESCE(SUM(input_tokens), 0),
-                   COALESCE(SUM(output_tokens), 0),
-                   SUM(estimated_cost)
-            FROM ai_usage_events
-            \(predicate)
-            GROUP BY operation
-            ORDER BY SUM(estimated_cost) DESC
-        """, bind: { stmt in
-            if let since {
-                sqlite3_bind_double(stmt, 1, since.timeIntervalSinceReferenceDate)
-            }
-        }) { stmt in
-            guard let operation = self.string(stmt, 0) else { return }
-            summaries.append(AIUsageOperationSummary(
-                operation: operation,
-                requestCount: Int(sqlite3_column_int64(stmt, 1)),
-                inputTokens: Int(sqlite3_column_int64(stmt, 2)),
-                outputTokens: Int(sqlite3_column_int64(stmt, 3)),
-                estimatedCost: self.optionalDouble(stmt, 4)
-            ))
-        }
-        return summaries
-    }
-
 
     /// Execute raw SQL — exposed for testing only. Use targeted methods in production code.
     func execForTesting(_ sql: String) throws {

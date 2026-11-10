@@ -22,11 +22,6 @@ extension StudioViewModel {
 
     // MARK: Runs
 
-    /// Stops cards being made; the sources already drafted keep theirs.
-    func cancelMakingCards(_ runID: String) {
-        CardDraftingCoordinator.shared.cancel(runID)
-    }
-
     // MARK: Where the drafts open
 
     /// Opens To Check over `scope` in `window` where it covers neither a chat

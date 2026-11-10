@@ -546,12 +546,6 @@ extension AIService {
         return String(value)
     }
 
-    func jsonNumber(_ value: Any?) -> Double? {
-        if let number = value as? NSNumber { return number.doubleValue }
-        if let string = value as? String { return Double(string) }
-        return nil
-    }
-
     func jsonInt(_ value: Any?) -> Int? {
         if let number = value as? NSNumber { return number.intValue }
         if let string = value as? String, let parsed = Int(string) { return parsed }

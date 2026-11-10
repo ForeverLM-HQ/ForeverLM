@@ -199,12 +199,6 @@ final class BookmarkAccessManager: @unchecked Sendable {
         logger.info("=== END DIAGNOSTIC ===")
     }
 
-    /// Remove a stored bookmark.
-    func revokeAccess(for key: BookmarkKey) {
-        stopAccessing(for: key)
-        UserDefaults.standard.removeObject(forKey: key.rawValue)
-    }
-
     // MARK: - Helpers
 
     /// The real user home directory (not the sandbox container).

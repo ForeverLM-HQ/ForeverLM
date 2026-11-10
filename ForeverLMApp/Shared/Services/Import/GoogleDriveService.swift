@@ -1309,21 +1309,6 @@ actor GoogleDriveService {
         return values.isRegularFile == true && (values.fileSize ?? 0) > 0
     }
 
-    private func fileMetadata(
-        fileID: String,
-        accessToken: String,
-        accountID: String? = nil
-    ) async throws -> GoogleDriveFile {
-        var components = URLComponents(string: "https://www.googleapis.com/drive/v3/files/\(fileID)")!
-        components.queryItems = [
-            URLQueryItem(name: "fields", value: "id,name,mimeType,modifiedTime,webViewLink,shortcutDetails(targetId,targetMimeType)"),
-            URLQueryItem(name: "supportsAllDrives", value: "true"),
-        ]
-        let (data, response) = try await performGET(url: components.url!, accessToken: accessToken)
-        try Self.requireSuccess(response, data: data)
-        return try JSONDecoder.googleDrive.decode(DriveFilePayload.self, from: data).file(accountID: accountID)
-    }
-
     private func listFolderItems(folderID: String, accountID: String?) async throws -> [GoogleDriveFile] {
         try await listFiles(
             query: "'\(Self.escapedQueryLiteral(folderID))' in parents and trashed = false",

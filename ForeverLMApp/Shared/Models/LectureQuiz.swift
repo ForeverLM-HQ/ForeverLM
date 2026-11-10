@@ -103,23 +103,6 @@ struct LectureQuizTimeline {
     }
 }
 
-enum LectureQuizError: LocalizedError, Equatable {
-    case noTranscript
-    case notConfigured(String)
-    case noQuestions
-
-    var errorDescription: String? {
-        switch self {
-        case .noTranscript:
-            return "This lecture has no transcript to quiz you on yet."
-        case .notConfigured(let message):
-            return message
-        case .noQuestions:
-            return "The model returned no questions this transcript supports."
-        }
-    }
-}
-
 /// A practice quiz's pace and the transcript as its writer reads it. The
 /// answer is checked by `CourseQuizPlanning.questions`.
 enum LectureQuizPlanning {

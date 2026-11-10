@@ -1344,24 +1344,6 @@ extension StudioViewModel {
         return result
     }
 
-    func mergeSpeakerNameMappings(
-        _ primary: [String: String],
-        _ secondary: [String: String]
-    ) -> [String: String] {
-        var merged = primary
-        for (speakerID, name) in secondary where merged[speakerID] == nil {
-            merged[speakerID] = name
-        }
-
-        let duplicateNames = Dictionary(grouping: merged) { $0.value.lowercased() }
-            .filter { $0.value.count > 1 }
-            .keys
-        for duplicateName in duplicateNames {
-            merged = merged.filter { $0.value.lowercased() != duplicateName }
-        }
-        return merged
-    }
-
     func isValidInferredSpeakerName(_ name: String) -> Bool {
         PodcastSpeakerNameInference.isValidPersonName(name)
     }

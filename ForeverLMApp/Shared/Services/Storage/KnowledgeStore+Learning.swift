@@ -175,15 +175,6 @@ extension KnowledgeStore {
         return placement
     }
 
-    /// This goal's shared placements, keyed by source ID.
-    func scheduledPlacementsByGoal(goalID: String) throws -> [String: ScheduledSource] {
-        var result: [String: ScheduledSource] = [:]
-        for entry in try loadScheduledSources(goalID: goalID) {
-            result[entry.placement.sourceID] = entry.placement
-        }
-        return result
-    }
-
     /// Set a Notebook's or Goal's lifecycle state (`active` / `done` / `archived`).
     /// Kept separate from `updateCompanionGoalSettings` so marking a Goal done
     /// never rewrites its title, topic, deadline, or discovery settings.
@@ -3304,16 +3295,6 @@ extension KnowledgeStore {
     }
 
     // MARK: - Shared Schedule Placement sync
-
-    func scheduledSourceUpdatedAt(_ id: String) throws -> Date? {
-        var date: Date?
-        try queryBind("SELECT updated_at FROM scheduled_sources WHERE id = ? LIMIT 1", bind: { stmt in
-            bind(stmt, 1, id)
-        }) { stmt in
-            date = Date(timeIntervalSinceReferenceDate: sqlite3_column_double(stmt, 0))
-        }
-        return date
-    }
 
     private func mergedSourceActivityDays(
         _ existing: [SourceActivityDay],

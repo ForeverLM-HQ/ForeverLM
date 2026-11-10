@@ -2550,10 +2550,6 @@ class StudioViewModel {
         true
     }
 
-    func centerGroupIndex(of tab: StudioCenterTab) -> Int? {
-        centerTabGroups.groups.firstIndex { $0.tabs.contains(tab) }
-    }
-
     /// Closes `tab`'s tab — the × on it in a strip. With other tabs
     /// open in its pane, the pane shows the neighbouring one and `tab` stays
     /// parked there; as the pane's only tab it closes the way the pane's ×
@@ -3365,10 +3361,6 @@ class StudioViewModel {
         activateCenterTab(.reader, in: destination)
     }
 
-    func openTasksInReader() {
-        activateCenterTab(.tasks)
-    }
-
     /// The rail's Goals row. A place, like Docs: the list of what the
     /// learner is working toward, in deadline order.
     func openGoalsInReader(in destinationWindowState: StudioWindowState? = nil) {
@@ -3553,18 +3545,6 @@ class StudioViewModel {
         } else {
             openNotebookInReader(notebookID)
         }
-    }
-
-    /// Closes the docked reader column. Deselects the source as part of closing:
-    /// hiding the column reflows the sources panel, and the rebuilt sidebar List
-    /// re-publishes its selection through the selection binding — with a source
-    /// still selected, that echo lands in `selectArticle`, which force-reveals
-    /// the reader again (the close button looked dead, or hopped the selection
-    /// to a neighboring source). An empty selection has nothing to echo back.
-    func closeReaderPanel() {
-        selectedArticleIds = []
-        selectedArticleId = nil
-        showReaderPanel = false
     }
 
     /// A Notebook whose source pool should open next, set by the journals

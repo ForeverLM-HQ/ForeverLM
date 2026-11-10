@@ -384,12 +384,6 @@ extension KnowledgeStore {
         }
     }
 
-    func deleteNotebookTasks(notebookID: String) throws {
-        for task in try loadNotebookTasks(notebookID: notebookID) {
-            try deleteNotebookTask(task.id)
-        }
-    }
-
     // MARK: - Share requests
 
     private static let shareRequestColumns = """

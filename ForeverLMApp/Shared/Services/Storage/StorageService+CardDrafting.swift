@@ -416,14 +416,6 @@ extension StorageService {
     }
 }
 
-extension StorageService {
-    /// The active cards the review can deal and their whole histories, for
-    /// the day close's variation pass (`CardVariationPass`).
-    func memoryCardVariationItems() throws -> (items: [MemoryItem], attempts: [MemoryAttempt]) {
-        try notebookFilesKnowledgeStore().reviewableMemoryItems()
-    }
-}
-
 extension KnowledgeStore {
     /// How many active Memory items each source anchors: one read for the
     /// whole library. A source with none is absent.

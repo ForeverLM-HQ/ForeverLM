@@ -88,12 +88,6 @@ extension StudioViewModel {
         ReportGenerationCoordinator.shared.cancel(runID)
     }
 
-    /// The reports being written in a notebook, oldest first: its pending
-    /// rows. A view showing them observes `ReportGenerationCoordinator.shared`.
-    func reportRuns(inNotebook notebookID: String) -> [ReportGenerationCoordinator.Run] {
-        ReportGenerationCoordinator.shared.runs(inNotebook: notebookID)
-    }
-
     /// A Doc's report recipe ("Made from 6 sources · Briefing · …"), read
     /// from its body once per revision: an outputs row's menu line. Nil for
     /// a Doc that is not a report.

@@ -72,10 +72,6 @@ enum SourceIdeaExtractionFailures {
         defaults.set(entries, forKey: key)
     }
 
-    static func clearAll(defaults: UserDefaults = .standard) {
-        defaults.removeObject(forKey: key)
-    }
-
     // MARK: - Plumbing
 
     private static func entries(from defaults: UserDefaults) -> [String: [String: Any]] {

@@ -121,13 +121,6 @@ enum SeedManifestPending {
     static func remove(passKey: String, in connection: SQLiteConnection) throws {
         try connection.execute("DELETE FROM ck_manifest_pending WHERE pass_key = ?", [.text(passKey)])
     }
-
-    /// Every pass key that still has rows: a launch lists them again.
-    static func passKeys(in connection: SQLiteConnection) throws -> [String] {
-        var keys: [String] = []
-        try connection.query("SELECT DISTINCT pass_key FROM ck_manifest_pending ORDER BY pass_key", []) { keys.append($0.text(0) ?? "") }
-        return keys
-    }
 }
 
 // MARK: - Writing

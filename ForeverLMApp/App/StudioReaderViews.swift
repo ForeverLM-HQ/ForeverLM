@@ -509,48 +509,6 @@ func articleDragProvider(for article: StudioArticle, selectedArticleIds: [String
     return provider
 }
 
-/// An NSView that initiates a multi-file drag session, like dragging multiple
-/// files from Finder.  Used by the MCP context tray to drag all sources at once.
-struct MultiFileDragSource: NSViewRepresentable {
-    /// Called lazily when the drag starts — avoids writing temp files on every body evaluation.
-    let fileURLProvider: () -> [URL]
-
-    func makeNSView(context: Context) -> DragSourceView {
-        let view = DragSourceView()
-        view.fileURLProvider = fileURLProvider
-        return view
-    }
-
-    func updateNSView(_ nsView: DragSourceView, context: Context) {
-        nsView.fileURLProvider = fileURLProvider
-    }
-
-    final class DragSourceView: NSView, NSDraggingSource {
-        var fileURLProvider: (() -> [URL])?
-
-        override func mouseDown(with event: NSEvent) {
-            // Needed so mouseDragged fires on this view.
-        }
-
-        override func mouseDragged(with event: NSEvent) {
-            guard let urls = fileURLProvider?(), !urls.isEmpty else { return }
-            let items = urls.map { url -> NSDraggingItem in
-                let item = NSDraggingItem(pasteboardWriter: url as NSURL)
-                item.setDraggingFrame(self.bounds,
-                                      contents: NSImage(systemSymbolName: "doc.on.doc.fill",
-                                                        accessibilityDescription: "files"))
-                return item
-            }
-            beginDraggingSession(with: items, event: event, source: self)
-        }
-
-        func draggingSession(_ session: NSDraggingSession,
-                             sourceOperationMaskFor context: NSDraggingContext) -> NSDragOperation {
-            .copy
-        }
-    }
-}
-
 // MARK: - Tab Drop Delegate
 
 /// Handles drops on sidebar tab buttons — supports both article-to-tab moves and tab reordering.

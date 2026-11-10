@@ -2,18 +2,6 @@ import Foundation
 
 extension StorageService {
 
-    /// Today against its goal, and the streak, from every device's rows. The
-    /// goal for today is the budget as this Mac knows it now; past days keep
-    /// the goal they were worked under.
-    func memoryReviewGoalSnapshot(now: Date = Date()) throws -> MemoryReviewGoalSnapshot {
-        let rows = try cohortKnowledgeStore().loadMemoryReviewActivities()
-        return MemoryReviewProgress.snapshot(
-            rows: rows,
-            today: MemoryReviewGoal.dayKey(for: now),
-            goalSecondsNow: MemoryReviewGoal.goalSeconds(budgetMinutes: MemoryReviewBudget.minutes)
-        )
-    }
-
     func loadMemoryReviewActivities() throws -> [MemoryReviewActivity] {
         try cohortKnowledgeStore().loadMemoryReviewActivities()
     }

@@ -1,26 +1,6 @@
 import SwiftUI
 import UniformTypeIdentifiers
 
-/// Thin progress track used in notebook cards and the Notebooks overlay.
-struct NotebookProgressBar: View {
-    let value: Double
-
-    var body: some View {
-        GeometryReader { geo in
-            ZStack(alignment: .leading) {
-                Capsule()
-                    .fill(Color.secondary.opacity(0.20))
-                if value > 0 {
-                    Capsule()
-                        .fill(Color.accentColor)
-                        .frame(width: geo.size.width * min(1, max(0, value)))
-                }
-            }
-        }
-        .frame(height: 4)
-    }
-}
-
 /// Menu item that pins one active notebook to the rail's Pinned section or
 /// takes it off (`NotebookPins`). Pinning is the learner's own presentation
 /// preference (synced across their Macs), so unlike Archive it never asks

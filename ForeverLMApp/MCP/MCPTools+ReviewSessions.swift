@@ -1131,17 +1131,6 @@ extension MCPDataStore {
         }
     }
 
-    func reviewSessionIsCompleted(sessionID: String) throws -> Bool {
-        try withDB { db in
-            let rows = try query(
-                db,
-                "SELECT status FROM review_sessions WHERE id = ? LIMIT 1",
-                params: [sessionID]
-            )
-            return rows.first?["status"] as? String == "completed"
-        }
-    }
-
     /// The caller's own review session, when it has one that still exists. In-app
     /// Chat passes the session it already opened; remote MCP clients pass nil. A
     /// stale id (a session deleted while the chat was open) resolves to nil so the
@@ -1225,12 +1214,6 @@ extension MCPDataStore {
             }
         } catch {
             logger.notice("Reviewed sources not filed in the Notebook of session \(sessionID, privacy: .public): \(error.localizedDescription, privacy: .public)")
-        }
-    }
-
-    func ensureReviewSessionExists(sessionID: String) throws {
-        guard try reviewSessionExists(sessionID: sessionID) else {
-            throw MCPError.notFound("Review session not found: \(sessionID)")
         }
     }
 

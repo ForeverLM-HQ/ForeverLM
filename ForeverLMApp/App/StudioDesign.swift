@@ -52,41 +52,6 @@ enum StudioDesign {
     }
 }
 
-/// Native macOS sidebar tone for the custom, resizable navigation rail.
-/// A custom rail is required by Studio's multi-pane layout, but its background
-/// can still behave like a system sidebar across appearance and window focus.
-///
-/// The vibrancy blends *within* the window, over an opaque base. `.behindWindow`
-/// samples the desktop instead, which is what let the wallpaper's gradient wash
-/// through the rail while every other Studio panel painted flat
-/// `windowBackgroundColor` — the rail read as a hole in the window rather than a
-/// sidebar. Blending within the window keeps the sidebar's tint and its
-/// active/inactive response with nothing behind it to show through.
-struct StudioSidebarMaterial: View {
-    var body: some View {
-        Color(nsColor: .windowBackgroundColor)
-            .overlay { StudioSidebarVibrancy() }
-    }
-}
-
-private struct StudioSidebarVibrancy: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        apply(to: view)
-        return view
-    }
-
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
-        apply(to: nsView)
-    }
-
-    private func apply(to view: NSVisualEffectView) {
-        view.material = .sidebar
-        view.blendingMode = .withinWindow
-        view.state = .followsWindowActiveState
-    }
-}
-
 /// One icon-button treatment for controls that share the macOS titlebar band.
 /// The label is deliberately monochrome; accent color remains reserved for
 /// selection, status, and a primary next action.

@@ -25,23 +25,6 @@ func isSourceMultiSelectModifierActive() -> Bool {
     return flags.contains(.shift) || flags.contains(.command)
 }
 
-struct FinderFileDropTarget: NSViewRepresentable {
-    let onTargeted: (Bool) -> Void
-    let onDrop: ([URL]) -> Void
-
-    func makeNSView(context: Context) -> FinderFileDropView {
-        let view = FinderFileDropView()
-        view.onTargeted = onTargeted
-        view.onDrop = onDrop
-        return view
-    }
-
-    func updateNSView(_ nsView: FinderFileDropView, context: Context) {
-        nsView.onTargeted = onTargeted
-        nsView.onDrop = onDrop
-    }
-}
-
 final class FinderFileDropView: NSView {
     var onTargeted: ((Bool) -> Void)?
     var onDrop: (([URL]) -> Void)?
@@ -353,20 +336,6 @@ enum StudioChatHeaderClearance {
         controlTrailingInset(gutter: gutter, chromeClearance: chromeClearance)
             + controlSize
             + controlGap
-    }
-}
-
-enum StudioBottomPanelSizing {
-    static let defaultHeight: CGFloat = 168
-    static let minHeight: CGFloat = 92
-    static let maxHeight: CGFloat = 300
-    static let dragHandleHeight: CGFloat = 30
-    static let dividerHeight: CGFloat = 1
-    static let collapsedHeight: CGFloat = 42
-    static let floatingCornerRadius: CGFloat = 8
-
-    static func contentHeight(for panelHeight: CGFloat) -> CGFloat {
-        max(0, panelHeight - dragHandleHeight - dividerHeight)
     }
 }
 
@@ -2030,12 +1999,6 @@ extension View {
     /// leaving the surface no way out.
     func studioCenterTabCloseChrome(for tab: StudioCenterTab) -> some View {
         modifier(StudioCenterTabCloseChrome(tab: tab, close: nil))
-    }
-
-    /// The same close × for a pane with no center tab of its own — the
-    /// notebook slot's picture — whose × runs `close`.
-    func studioPaneCloseChrome(close: @escaping () -> Void) -> some View {
-        modifier(StudioCenterTabCloseChrome(tab: nil, close: close))
     }
 }
 
@@ -5044,23 +5007,6 @@ struct SourceDragPreview: View {
         case .video: return .red
         case .xPost: return .primary
         case .manual: return .secondary
-        }
-    }
-}
-
-enum StudioPlainTextDrop {
-    static let types: [UTType] = [.utf8PlainText, .plainText, .text]
-
-    static func loadString(from provider: NSItemProvider, completion: @escaping (String) -> Void) {
-        guard let type = types.first(where: { provider.hasItemConformingToTypeIdentifier($0.identifier) }) else {
-            return
-        }
-
-        provider.loadDataRepresentation(forTypeIdentifier: type.identifier) { data, _ in
-            guard let data,
-                  let raw = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-                  !raw.isEmpty else { return }
-            completion(raw)
         }
     }
 }

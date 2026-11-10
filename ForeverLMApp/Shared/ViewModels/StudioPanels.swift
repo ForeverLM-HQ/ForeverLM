@@ -1988,28 +1988,6 @@ enum ReviewChatPanelMode: String, CaseIterable, Codable, Hashable {
     }
 }
 
-/// How the learner wants to pay for or connect their AI tutor.
-enum AIBillingMode: String, CaseIterable, Codable, Hashable, Identifiable {
-    /// Use an existing chat subscription (Claude, ChatGPT, Gemini, Grok) via MCP.
-    /// No per-use API charges — usually the cheapest option.
-    case subscription
-    /// Use the in-app Chat panel powered by ForeverLM AI, paying the
-    /// provider per use.
-    case api
-
-    /// Persisted under this key in `UserDefaults` / `@AppStorage`.
-    static let defaultsKey = "studio.aiBillingMode"
-
-    var id: String { rawValue }
-
-    var title: String {
-        switch self {
-        case .subscription: return "Use my own AI subscription"
-        case .api: return "Pay with the API as you go"
-        }
-    }
-}
-
 // MARK: - Sidebar Tab
 
 enum StudioSidebarTab: String, CaseIterable, Codable {

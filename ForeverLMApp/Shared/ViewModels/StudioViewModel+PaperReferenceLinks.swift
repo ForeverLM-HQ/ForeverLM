@@ -61,20 +61,6 @@ extension StudioViewModel {
         return index.reference(matchingEntryText: text)
     }
 
-    /// The library source each linked entry of `index` already is, by entry number: the paper's
-    /// DOI or address matched to the library's active sources, read fresh because a source can
-    /// be added or removed after the list was made, which is why the id is not stored with it.
-    func referenceLibrarySourceIDs(in index: PaperReferenceIndex) async -> [Int: String] {
-        let addresses = index.references.compactMap(\.url)
-        guard !addresses.isEmpty else { return [:] }
-        let matches = await storage.librarySourceIDs(forReferenceURLs: addresses)
-        var byNumber: [Int: String] = [:]
-        for reference in index.references {
-            if let url = reference.url, let id = matches[url] { byNumber[reference.ordinal] = id }
-        }
-        return byNumber
-    }
-
     // MARK: Find Cited Papers
 
     /// What the stored list gives "Find Cited Papers": a candidate for every entry that names a

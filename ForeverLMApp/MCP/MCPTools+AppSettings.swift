@@ -141,18 +141,6 @@ extension AppSettingEntry {
         }
         throw MCPError.invalidInput("\(id) takes a list of strings.")
     }
-
-    /// A choice must be one the pane offers.
-    @MainActor
-    func requireOption(_ value: Any) async throws -> String {
-        let choice = try Self.string(value, id)
-        guard let options else { return choice }
-        let offered = await options().compactMap { $0["value"] as? String }
-        guard offered.contains(choice) else {
-            throw MCPError.invalidInput("\(id) takes one of: \(offered.joined(separator: ", ")).")
-        }
-        return choice
-    }
 }
 
 extension MCPDataStore {

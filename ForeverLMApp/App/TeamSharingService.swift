@@ -128,9 +128,4 @@ final class TeamSharingService: NSObject, @preconcurrency NSCloudSharingServiceD
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(url.absoluteString, forType: .string)
     }
-
-    func didAcceptTeam(_ team: TeamRecord) {
-        NotificationCenter.default.post(name: Self.teamDidJoin, object: team.id)
-        NotificationCenter.default.post(name: Self.teamRosterDidChange, object: team.id)
-    }
 }

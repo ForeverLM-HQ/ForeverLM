@@ -30,20 +30,6 @@ extension StudioViewModel {
         }
     }
 
-    /// The doc's page, or nil when it has none or the answer is not available.
-    /// Silent by design: it runs when a doc opens, and a Mac that is signed out
-    /// or offline simply shows the doc as unpublished.
-    func publishedDocStatus(_ artifactID: String) async -> PublishedDocStatus? {
-        guard ManagedAI.isSignedIn else { return nil }
-        do {
-            return try await DocPublishing.status(docID: artifactID)
-        } catch {
-            Logger(subsystem: "com.foreverlm", category: "DocPublishing")
-                .info("Published status unavailable for \(artifactID, privacy: .public): \(error.localizedDescription, privacy: .public)")
-            return nil
-        }
-    }
-
     /// Publish the stored body, or update the page it already has. The caller
     /// flushes any unsaved draft first so the page and the pane agree.
     func publishDoc(_ artifactID: String, access: DocPageAccess = .keep, slug: String? = nil) async throws -> PublishedDocStatus {

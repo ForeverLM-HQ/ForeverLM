@@ -1622,28 +1622,6 @@ extension KnowledgeStore {
         return sources
     }
 
-    private func resolveMemoryPortableSourceIdentity(
-        _ identity: CloudKitSourceIdentityPayload
-    ) throws -> String? {
-        let doiCandidates = dictUnique(
-            [identity.doi, identity.publishedDOI].compactMap { cleanIdentityValue($0) }
-        )
-        for doi in doiCandidates {
-            if let match = try sourceIDByDOI(doi) { return match }
-        }
-        if let normalizedURL = cleanIdentityValue(identity.normalizedURL),
-           let match = try sourceIDByNormalizedURL(normalizedURL) {
-            return match
-        }
-        if let url = cleanIdentityValue(identity.url) {
-            if let match = try sourceIDByNormalizedURL(URLNormalizer.normalize(url)) {
-                return match
-            }
-            return try sourceIDByURL(url)
-        }
-        return nil
-    }
-
     private func loadStoredMemorySourceIdentitiesByAnchorID(
         memoryItemID: String
     ) throws -> [String: CloudKitSourceIdentityPayload] {

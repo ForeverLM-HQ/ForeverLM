@@ -58,60 +58,7 @@ extension AIService {
         )
     }
 
-    static func cohortTutorBriefing(
-        cohort: LearningCohort,
-        briefs: [CohortSourceBrief],
-        plan: CohortSessionPlan,
-        skippedSources: [String] = [],
-        startedAt: Date? = nil,
-        budgetMinutes: Int = MemoryReviewBudget.defaultMinutes
-    ) -> String {
-        MemoryReviewTutoring.briefing(
-            cohort: cohort, briefs: briefs, plan: plan, skippedSources: skippedSources,
-            startedAt: startedAt, budgetMinutes: budgetMinutes
-        )
-    }
-
     static var memoryReviewConductInstructions: String { MemoryReviewTutoring.conductInstructions }
-
-    static func cohortCloserUserMessage(transcript: String, briefs: [CohortSourceBrief]) -> String {
-        var lines: [String] = []
-        lines.append("SOURCES DISCUSSED")
-        lines.append("")
-        for brief in briefs {
-            lines.append("### [\(brief.source.sourceID)] \(brief.source.title)")
-            if let understanding = brief.understanding, !understanding.isEmpty {
-                if brief.understandingHasLearnerEdits {
-                    lines.append("(The learner has edited this document by hand since you last wrote it.)")
-                }
-                lines.append("Current understanding document:")
-                lines.append(String(understanding.prefix(CohortSourceBrief.maxUnderstandingCharacters)))
-            } else {
-                lines.append("No understanding document yet — write the first one.")
-            }
-            // The ideas are here so the closer can say which of them the
-            // conversation reached (`discussed_idea_ids`); that set is what the
-            // next review is allowed to ask about when the chat is the only
-            // reason the source is in it.
-            if !brief.ideas.isEmpty {
-                lines.append("IDEAS (name the ones this conversation engaged; ids exactly as written):")
-                for idea in brief.ideas {
-                    lines.append("- [\(idea.id)] \(idea.statement)")
-                }
-            }
-            lines.append("")
-        }
-
-        lines.append("TRANSCRIPT")
-        lines.append(transcript)
-        lines.append("")
-        lines.append("""
-        Return JSON only:
-        {"session_summary": "...", "sources": [{"source_id": "...", \
-        "understanding_markdown": "...", "open_thread_count": 0, "discussed_idea_ids": ["..."]}]}
-        """)
-        return lines.joined(separator: "\n")
-    }
 
     // MARK: - Decoding
 

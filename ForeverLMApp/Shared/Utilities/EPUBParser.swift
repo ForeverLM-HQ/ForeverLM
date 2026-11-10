@@ -521,13 +521,6 @@ enum EPUBParser {
         return cleaned.isEmpty ? "Chapter" : String(cleaned.prefix(80))
     }
 
-    /// Extract the cover image data from an EPUB file, if available.
-    static func extractCoverImage(from epubPath: String) -> Data? {
-        guard let tempDir = try? unzipEPUB(at: epubPath) else { return nil }
-        defer { try? FileManager.default.removeItem(atPath: tempDir) }
-        return coverImage(inUnpackedBook: tempDir)
-    }
-
     /// The cover image of a book already unpacked into `bookDir`, if it names one.
     static func coverImage(inUnpackedBook bookDir: String) -> Data? {
         guard let opfRelPath = try? findOPFPath(in: bookDir),
@@ -1216,12 +1209,6 @@ enum EPUBParser {
         }
     }
 
-    /// Returns true if a title looks like an internal filename rather than a real chapter title.
-    /// E.g. "Ch0 Fm1 Endorsement", "ch03_section2", "OEBPS-003"
-    private static func looksLikeInternalName(_ title: String) -> Bool {
-        return false
-    }
-
     /// Normalize common EPUB chapter labels to the same display shape used for
     /// split PDF books: "Chapter 1 ◾ Title" -> "1) Title".
     static func normalizeChapterTitle(_ title: String) -> String {
@@ -1271,15 +1258,6 @@ enum EPUBParser {
 
     private static func chapterNumberAndTitle(from title: String) -> (number: String, title: String)? {
         nil
-    }
-
-    private static func extractClassBasedHeadingFromHTML(_ html: String) -> String? {
-        return nil
-    }
-
-    private static func uppercaseFirstCharacter(_ value: String) -> String {
-        guard let first = value.first, first.isLowercase else { return value }
-        return first.uppercased() + value.dropFirst()
     }
 
     /// Replace internal-looking titles with headings extracted from the chapter text.

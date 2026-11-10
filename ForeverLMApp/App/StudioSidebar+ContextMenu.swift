@@ -489,44 +489,6 @@ struct OtherWindowSourceMenuItem: View {
     }
 }
 
-/// Open in Other Window for a control that opens one of several sources: a
-/// submenu naming each, which sends the chosen one to the other window — the
-/// first other window by on-screen order when there are several, or a new one
-/// when this is the only window.
-struct OtherWindowSourcesMenu: View {
-    @Environment(StudioViewModel.self) private var vm
-    @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
-    @Environment(\.openWindow) private var openWindow
-    let sourceIDs: [String]
-    let title: (String) -> String
-
-    var body: some View {
-        let articles = sourceIDs.compactMap { vm.articlesById[$0] }
-        if !articles.isEmpty {
-            Menu {
-                ForEach(articles) { article in
-                    Button(title(article.id)) { send(article) }
-                }
-            } label: {
-                Label("Open in Other Window", systemImage: "macwindow.on.rectangle")
-            }
-        }
-    }
-
-    private func send(_ article: StudioArticle) {
-        if let target = StudioOtherWindowTargets.targets(excluding: windowState, vm: vm).first {
-            StudioOtherWindowTargets.open(article.id, in: target.state, from: windowState, vm: vm)
-        } else {
-            StudioOtherWindowTargets.openInNewWindow(
-                article.id,
-                from: windowState,
-                vm: vm,
-                openWindow: { openWindow(id: "studio") }
-            )
-        }
-    }
-}
-
 extension View {
     /// A right-click menu holding only Open in Other Window, for a control
     /// that opens `destination` on click and has no menu of its own. Nil adds

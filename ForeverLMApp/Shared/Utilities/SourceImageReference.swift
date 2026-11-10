@@ -122,12 +122,6 @@ struct SourceImageReference: Hashable, Sendable {
         return "![\(cleaned.isEmpty ? "Image" : cleaned)](\(urlString))"
     }
 
-    /// True when the string is exactly one image reference and nothing else, so
-    /// a transcript line made of the picture alone can be recognized as such.
-    static func isImageURL(_ urlString: String) -> Bool {
-        SourceImageReference(urlString: urlString) != nil
-    }
-
     /// A crop as a tool call gives it: an object with x, y, width and height,
     /// or the `x,y,w,h` string a reference carries, each a fraction of the
     /// picture with a top-left origin. Nil for anything else, including a

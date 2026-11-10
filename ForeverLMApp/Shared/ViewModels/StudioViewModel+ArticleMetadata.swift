@@ -205,13 +205,6 @@ extension StudioViewModel {
             .first
     }
 
-    static func normalizedBookMetadataValue(_ title: String) -> String {
-        title
-            .lowercased()
-            .replacingOccurrences(of: #"[^a-z0-9]+"#, with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     static func bookFolderName(fromStoredPath path: String) -> String? {
         let parts = path.split(separator: "/").map(String.init)
         guard let booksIndex = parts.firstIndex(of: "Books"),

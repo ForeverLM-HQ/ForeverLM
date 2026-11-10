@@ -620,11 +620,6 @@ extension StudioViewModel {
         MemoryCardEditWriter.stateDeckID(card)
     }
 
-    /// The card as it is asked now: the learner's rewording, else its front.
-    func memoryCardWording(_ card: MemoryCardListing) -> String {
-        MemoryCardEditWriter.wording(card)
-    }
-
     /// The card editor's Save. A new front alone rewords the card: the state
     /// row's edited front, the item and its schedule untouched (back to the
     /// kept front clears it). A new back or why starts the card over

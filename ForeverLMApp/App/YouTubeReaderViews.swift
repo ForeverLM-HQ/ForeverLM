@@ -1083,28 +1083,6 @@ struct YouTubeVideoReaderView: View {
         return result
     }
 
-    private func youtubeTranscriptHTML(for transcript: YouTubeTranscriptDisplayParser.Result) -> String {
-        // YouTube transcripts have no reliable speaker attribution, so we never
-        // show speaker names. When timestamps are present, keep the time rail so
-        // segments stay seekable; otherwise fall back to plain sections.
-        let hasTimestamps = transcript.segments.contains { $0.startTime != nil }
-        let layout: TranscriptDisplayLayout = hasTimestamps ? .speakerTurns : .sections
-        let count = transcript.segments.count
-        let metadata = "\(count) \(count == 1 ? "segment" : "segments")"
-
-        return TranscriptHTMLRenderer.html(
-            article: article,
-            segments: transcript.segments,
-            kicker: "YouTube transcript",
-            metadata: metadata,
-            placeholderLabel: "Video",
-            layout: layout,
-            showSpeakers: false,
-            enableTimeSelection: true,
-            colorTheme: readerTheme
-        )
-    }
-
     private var watchOnYouTubeLink: some View {
         Link(destination: URL(string: article.url) ?? URL(string: "https://youtube.com")!) {
             Label("Watch on YouTube", systemImage: "play.rectangle")

@@ -394,10 +394,6 @@ enum PaperService {
         return WebPageFetchResult(html: html, finalURL: response.url ?? url)
     }
 
-    private static func fetchWebPageHTML(at url: URL, allowedStatusCodes: ClosedRange<Int>) async throws -> String {
-        try await fetchWebPage(at: url, allowedStatusCodes: allowedStatusCodes).html
-    }
-
     /// Perform a JSON GET request, propagating transport errors (offline, timeout,
     /// TLS) so a network failure is distinguishable from a genuine "no result".
     /// Returns nil for a non-200 response or a body that is not a JSON object.

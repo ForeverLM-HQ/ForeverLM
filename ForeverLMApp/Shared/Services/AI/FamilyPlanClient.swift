@@ -136,10 +136,6 @@ enum FamilyPlanClient {
         let _: Empty = try await send("DELETE", "/v1/family/membership")
     }
 
-    static func removeMember(_ memberID: String) async throws {
-        let _: Empty = try await send("DELETE", "/v1/family/members/\(memberID)")
-    }
-
     /// Seals `openRouterKey` to the child's device key and stores the
     /// ciphertext for them.
     static func giveKey(_ openRouterKey: String, to member: Member, label: String) async throws {

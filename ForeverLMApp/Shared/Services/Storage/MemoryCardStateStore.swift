@@ -41,19 +41,6 @@ enum MemoryCardStateStore {
         load(deckID: deckID, defaults: defaults).cards[cardID]
     }
 
-    /// Every stored row, by deck id: one scan of the defaults dictionary finds
-    /// the runtime-built keys.
-    static func allDecks(defaults: UserDefaults = .standard) -> [String: MemoryCardDeckState] {
-        if usesCardRecords(defaults) { return records.decks() }
-        var decks: [String: MemoryCardDeckState] = [:]
-        for (key, value) in defaults.dictionaryRepresentation() {
-            guard let deckID = MemoryCardDeckState.deckID(fromPreferenceKey: key),
-                  let deck = MemoryCardDeckState(preferenceValue: value) else { continue }
-            decks[deckID] = deck
-        }
-        return decks
-    }
-
     /// Read, change, write over `defaults`. Returns the row as written. On the main actor, so two of the
     /// learner's actions never interleave their read and write and lose one change.
     ///

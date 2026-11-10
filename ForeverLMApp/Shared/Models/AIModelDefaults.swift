@@ -1408,11 +1408,6 @@ enum AIModelCatalog {
         let normalized = includingRequiredDefault(ids, requiredDefaultID: requiredDefaultID)
         PreferenceStore.set(normalized.sorted(), forKey: enabledIDsKey)
     }
-
-    static func enabledEntries(for provider: AIProvider) -> [AIModelCatalogEntry] {
-        let enabled = enabledIDs
-        return entries(for: provider).filter { enabled.contains($0.id) }
-    }
 }
 
 /// Embedding backend for semantic source search. ForeverLM embeds exclusively with

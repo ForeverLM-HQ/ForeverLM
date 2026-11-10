@@ -63,10 +63,6 @@ final class JournalWatchRunner {
         suggestions.reduce(0) { $0 + ($1.match.notebookID == notebookID ? 1 : 0) }
     }
 
-    func isWatching(notebookID: String) -> Bool {
-        !excludedNotebookIDs.contains(notebookID)
-    }
-
     // MARK: - Lifecycle
 
     /// Called once from Studio's launch task.
@@ -175,15 +171,6 @@ final class JournalWatchRunner {
         }
         await reload()
         armTimer()
-    }
-
-    func setNotebookWatched(_ notebookID: String, watched: Bool) async {
-        do {
-            try await storage.setJournalWatchNotebookExcluded(notebookID, excluded: !watched)
-        } catch {
-            logger.error("Could not change journal watching for Notebook: \(error.localizedDescription, privacy: .public)")
-        }
-        await reload()
     }
 
     /// Settings' "Check now": every feed, due or not.

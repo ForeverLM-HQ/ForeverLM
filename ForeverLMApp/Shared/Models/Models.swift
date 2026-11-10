@@ -2988,17 +2988,6 @@ struct StudioArticle: Identifiable, Codable, Equatable {
         articleContentPreparationForPersistence = nil
     }
 
-    /// Preserve a local attestation when merging a source payload produced by
-    /// an older device that did not yet encode this field.
-    mutating func retainPaperIngestionAttestation(from local: StudioArticle) {
-        guard sourceType == .paper,
-              id == local.id,
-              paperIngestionMethod == nil,
-              hasAttestablePaperMetadata,
-              local.hasPaperIngestionAttestation else { return }
-        paperIngestionMethod = local.paperIngestionMethod
-    }
-
     /// Whole-record CloudKit writes from an older Mac can carry a newer reading
     /// position while omitting paper fields that Mac never understood. Required
     /// paper metadata and its attestation are monotonic: an absent/placeholder

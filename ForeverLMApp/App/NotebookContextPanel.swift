@@ -3249,29 +3249,3 @@ struct MCPSettingsDetailView: View {
         NSPasteboard.general.setString(value, forType: .string)
     }
 }
-
-/// Compact chip for a source in the MCP context tray.
-struct MCPContextChip: View {
-    let article: StudioArticle
-    let onRemove: () -> Void
-
-    var body: some View {
-        HStack(spacing: 4) {
-            Button {
-                onRemove()
-            } label: {
-                Image(systemName: "xmark")
-                    .zoomedSystemFont(size: 8, weight: .bold)
-                    .foregroundStyle(.secondary)
-            }
-            .buttonStyle(.hoverWash)
-
-            Text(article.title)
-                .zoomedSystemFont(size: 10)
-                .lineLimit(1)
-        }
-        .padding(.horizontal, 8)
-        .padding(.vertical, 4)
-        .background(.purple.opacity(0.12), in: Capsule())
-    }
-}

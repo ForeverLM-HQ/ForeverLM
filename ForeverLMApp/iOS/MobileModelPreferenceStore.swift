@@ -225,14 +225,6 @@ actor MobileModelPreferenceStore {
         try await save(trimmed, forKey: key)
     }
 
-    /// Stores an optional account string. An empty value deliberately clears
-    /// settings such as an Automatic Audio rule while retaining one portable
-    /// Preference record shape across native and web clients.
-    func setOptionalString(_ value: String, forKey key: String) async throws {
-        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
-        try await save(trimmed, forKey: key)
-    }
-
     func setStringArray(_ value: [String], forKey key: String) async throws {
         try await save(value, forKey: key)
     }

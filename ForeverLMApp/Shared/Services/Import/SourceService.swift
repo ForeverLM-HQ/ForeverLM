@@ -77,11 +77,6 @@ actor SourceService {
         return content
     }
     
-    /// Clear all cached content.
-    func clearCache() {
-        cache.removeAll()
-    }
-    
     // MARK: - Web Content
     
     private func fetchWebContent(_ urlString: String) async throws -> String {
@@ -1711,10 +1706,6 @@ actor SourceService {
         text = text.trimmingCharacters(in: .whitespacesAndNewlines)
 
         return text
-    }
-
-    private nonisolated static func firstArticleBody(in html: String) -> String? {
-        nil
     }
 
     /// Footnotes a page writes inside the sentence they annotate, numbered in

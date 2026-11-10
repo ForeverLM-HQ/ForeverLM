@@ -378,11 +378,6 @@ actor OpenRouterEndpointTierCatalog {
 
     private var inFlight: [String: Task<[OpenRouterEndpointTier], Error>] = [:]
 
-    /// The lab's fast endpoint for a slug, from what has already been fetched.
-    nonisolated static func cachedFastTier(slug: String) -> OpenRouterEndpointTier? {
-        cachedTier(slug: slug, speed: .fast)
-    }
-
     /// The endpoint a speed maps to for a slug, from what has already been
     /// fetched; nil for a cold cache as much as for a tier OpenRouter lacks.
     nonisolated static func cachedTier(slug: String, speed: AISpeed) -> OpenRouterEndpointTier? {

@@ -2248,10 +2248,6 @@ actor SlideCitationService {
         exactIdentityKey(slide) == exactIdentityKey(candidate)
     }
 
-    nonisolated static func titleOverlap(_ read: String, _ candidate: String) -> Double {
-        titlesMatch(read, candidate) ? 1 : 0
-    }
-
     private nonisolated static func exactIdentityKey(_ value: String) -> String {
         value.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
             .trimmingCharacters(in: .whitespacesAndNewlines)

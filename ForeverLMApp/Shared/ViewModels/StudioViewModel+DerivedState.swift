@@ -2911,19 +2911,6 @@ extension StudioViewModel {
         await selectArticle(sourceID)
     }
 
-    func openSourceSearchResult(_ result: SourceSearchResult) {
-        if let bestMatch = result.bestMatch {
-            readerSearchBestMatches[result.article.id] = bestMatch
-        }
-        selectedArticleId = result.article.id
-        if !selectedArticleIds.isEmpty {
-            selectedArticleIds = [result.article.id]
-        }
-        showReaderPanel = true
-        readerPoppedOut = false
-        clearReaderSurfaces()
-    }
-
     func readerBestSearchMatch(for sourceId: String) -> SourceSearchBestMatch? {
         readerSearchBestMatches[sourceId]
             ?? sourceSearchResults.first { $0.article.id == sourceId }?.bestMatch
@@ -3935,15 +3922,6 @@ extension StudioViewModel {
         return chapters.last(where: \.hasSavedReadingPosition) ?? chapters.first
     }
 
-    /// Chapter paths relative to the extracted `Chapters` directory, mapped to their
-    /// archived state. Archived chapters are not held in memory, so this reads from
-    /// storage. Returns an empty map when the source has no book group, which the
-    /// reader treats as "no filter".
-    func readerChapterArchivedByRelativePath(forGroup groupID: String?) async -> [String: Bool] {
-        guard let groupID, !groupID.isEmpty else { return [:] }
-        return (try? await storage.bookChapterArchivedByRelativePath(groupID: groupID)) ?? [:]
-    }
-
     func learningGoalArticleOrder(_ lhs: StudioArticle, _ rhs: StudioArticle) -> Bool {
         let lhsGroup = lhs.parentGroup ?? ""
         let rhsGroup = rhs.parentGroup ?? ""
@@ -4276,25 +4254,6 @@ extension StudioViewModel {
         Task { await loadReviewSessionLinks() }
     }
 
-    func openLatestReviewSessionForSource(_ sourceID: String) async {
-        await loadReviewSessionLinks()
-        let sessions = reviewSessionLinks
-            .filter { !$0.isHidden && $0.sourceIDs.contains(sourceID) }
-            .sorted { $0.createdAt > $1.createdAt }
-
-        if let activeSession = sessions.first(where: { $0.status == "active" && $0.isLocalMCPSession }) {
-            requestResumeReviewSession(activeSession.id)
-            return
-        }
-
-        if let localSession = sessions.first(where: { $0.isLocalMCPSession }) {
-            requestResumeReviewSession(localSession.id)
-            return
-        }
-
-        showReviewSessionsForSource(sourceID)
-    }
-
     /// Open the Review Sessions panel filtered to an entire parent group
     /// (a book or course), so sessions linked to any of its items are shown.
     func showReviewSessionsForGroup(_ groupName: String) {
@@ -4312,12 +4271,6 @@ extension StudioViewModel {
         reviewChatResumeSessionID = sessionID
         reviewChatPanelMode = .chat
         showAssistantOverlay = true
-    }
-
-    func requestStartReviewChat() {
-        reviewChatPanelMode = .chat
-        showAssistantOverlay = true
-        reviewChatAutoStartRequestID = UUID()
     }
 
     func requestResetReviewChat() {
@@ -4492,19 +4445,6 @@ extension StudioViewModel {
         showAssistantOverlay = true
         reviewChatResetRequestID = UUID()
         reviewChatFocusRequestID = UUID()
-    }
-
-    /// Open a fresh chat with the new-goal template already typed but unsent. Goals
-    /// are created through `create_learning_goal` in conversation, so the Goals
-    /// panel's "+" hands the user off to chat rather than showing a create form.
-    func requestNewGoalChat(notebookID: String? = nil) {
-        if let notebookID, let notebook = notebook(id: notebookID) {
-            pendingReviewChatDraft = "Help me set a new outcome Goal inside the notebook \"\(notebook.title)\" (notebook_id: \(notebook.id)). Help me define the outcome and pick a realistic deadline before creating it."
-            requestBlankReviewChat(notebookID: notebook.id)
-        } else {
-            pendingReviewChatDraft = "Help me set a new outcome Goal. First help me choose or create its notebook, define the outcome, and pick a realistic deadline."
-            requestBlankReviewChat()
-        }
     }
 
     /// Open a fresh chat with the new-task template already typed but unsent.

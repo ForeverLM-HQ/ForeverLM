@@ -95,44 +95,6 @@ extension StorageService {
         return (ledger, touched)
     }
 
-    /// Today's review, for the Memory action.
-    ///
-    /// The action is never disabled, so a day with nothing due still has to
-    /// open on something: the least recently touched consumed sources, marked
-    /// `isBacklogOnly` so the tutor says nothing was due before offering them.
-    /// An empty result means the library has nothing consumed at all.
-    func assembleMemoryReviewCohort(now: Date = Date()) throws -> LearningCohort {
-        let cohort = try assembleLearningCohort(now: now)
-        guard cohort.isEmpty else { return cohort }
-
-        let store = try cohortKnowledgeStore()
-        let candidates = try store.cohortCandidates(
-            now: now,
-            minimumConfidence: CohortSelector.selectableConfidence
-        )
-        var backlog = MemoryReviewPlanning.backlogCohort(
-            candidates: candidates,
-            unfinished: try store.unfinishedUnderstandingSourceIDs(),
-            now: now
-        )
-        let day = try memoryReviewDay(now: now, excluding: Set(backlog.sources.map(\.sourceID)), store: store)
-        backlog.touched = day.touched
-        backlog.ledger = day.ledger
-        return backlog
-    }
-
-    /// How much is waiting, without building briefs or touching a single file.
-    ///
-    /// This is what the ambient count and the notification gate read, so it has
-    /// to stay cheap enough to run on every app activation: one query and a pure
-    /// selection pass, no review guides, no understanding documents, no vector
-    /// index, no disk.
-    func cohortDueCount(now: Date = Date()) throws -> Int {
-        let candidates = try cohortKnowledgeStore().cohortCandidates(now: now)
-        let selection = CohortSelector.select(candidates: candidates, now: now)
-        return selection.spine.count + selection.spacing.count
-    }
-
     /// Bridges: the only selection step whose purpose is to put two ideas in
     /// friction rather than to review either one.
     ///

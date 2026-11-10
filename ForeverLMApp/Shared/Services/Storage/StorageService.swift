@@ -157,11 +157,6 @@ actor StorageService {
         #endif
     }
 
-    private var aiImagesDirURL: URL {
-        if let overrideStoreRoot { return overrideStoreRoot.appendingPathComponent("AI_Images", isDirectory: true) }
-        return contentRoot.appendingPathComponent("AI_Images", isDirectory: true)
-    }
-
     var audioDirURL: URL {
         if let overrideStoreRoot { return overrideStoreRoot.appendingPathComponent("Audio", isDirectory: true) }
         return contentRoot.appendingPathComponent("Audio", isDirectory: true)
@@ -707,14 +702,6 @@ actor StorageService {
         try fileManager.createDirectory(at: storeRoot, withIntermediateDirectories: true)
     }
 
-    func ensureAIImagesDirectoryExists() throws {
-        try fileManager.createDirectory(at: aiImagesDirURL, withIntermediateDirectories: true)
-    }
-
-    func ensureAudioDirectoryExists() throws {
-        try fileManager.createDirectory(at: audioDirURL, withIntermediateDirectories: true)
-    }
-
     // MARK: - Knowledge Store (SQLite)
 
     /// Screen record mode's scope against this store's Notebooks (see
@@ -1236,18 +1223,6 @@ actor StorageService {
         try knowledgeStore().activePluginSourceCounts()
     }
 
-    /// Save an embedding vector for a source.
-    func saveSourceEmbedding(sourceId: String, vector: [Float]) throws {
-        let ks = try knowledgeStore()
-        try ks.saveEmbedding(entityType: .source, entityId: sourceId, vector: vector, model: Self.sourceEmbeddingModel)
-    }
-
-    /// Load the embedding vector for a source, or nil if not yet embedded.
-    func loadSourceEmbedding(sourceId: String) -> [Float]? {
-        guard let ks = try? knowledgeStore() else { return nil }
-        return try? ks.loadEmbedding(entityType: .source, entityId: sourceId, model: Self.sourceEmbeddingModel)
-    }
-
     func saveAIUsageEvent(_ event: AIUsageEvent) throws {
         if let aiUsagePrimaryFailure {
             try KnowledgeStore.appendAIUsageEventForwardCompatibly(
@@ -1304,30 +1279,10 @@ actor StorageService {
         try knowledgeStore().importManagedAIUsageEvents(rows, through: cursor)
     }
 
-    func aiUsageSummaries(
-        filter: KnowledgeStore.AIUsageEventFilter = .init()
-    ) throws -> [AIUsageSummary] {
-        try knowledgeStore().loadAIUsageSummaries(filter: filter)
-    }
-
     /// Recorded spend for one chat/review session, over rows created before
     /// `cutoff` (see KnowledgeStore.aiUsageCost for the live/persisted split).
     func aiUsageCost(sessionID: String, before cutoff: Date) throws -> KnowledgeStore.AIUsageSessionCost {
         try knowledgeStore().aiUsageCost(sessionID: sessionID, before: cutoff)
-    }
-
-    /// Individual recorded calls, newest first — the AI Usage pane pages
-    /// through the whole ledger with this rather than showing a fixed slice.
-    func aiUsageEvents(
-        filter: KnowledgeStore.AIUsageEventFilter = .init(),
-        limit: Int,
-        offset: Int = 0
-    ) throws -> [AIUsageEvent] {
-        try knowledgeStore().loadAIUsageEvents(filter: filter, limit: limit, offset: offset)
-    }
-
-    func aiUsageEventCount(filter: KnowledgeStore.AIUsageEventFilter = .init()) throws -> Int {
-        try knowledgeStore().countAIUsageEvents(filter: filter)
     }
 
     func aiUsageTaskActivities(
@@ -1385,24 +1340,6 @@ actor StorageService {
     @discardableResult
     func zeroEstimatesOpenRouterDidNotBill() throws -> Int {
         try knowledgeStore().zeroEstimatesOpenRouterDidNotBill()
-    }
-
-    func aiUsageFacets(since: Date? = nil) throws -> (providers: [String], models: [String], operations: [String], tasks: [String], platforms: [String]) {
-        try knowledgeStore().loadAIUsageFacets(since: since)
-    }
-
-    func aiUsageDailyTotals(since: Date? = nil) throws -> [AIUsageDailyTotal] {
-        try knowledgeStore().loadAIUsageDailyTotals(since: since)
-    }
-
-    func aiUsageOperationSummaries(since: Date? = nil) throws -> [AIUsageOperationSummary] {
-        try knowledgeStore().loadAIUsageOperationSummaries(since: since)
-    }
-
-    /// Return the set of source IDs that already have embeddings (single query, not N queries).
-    func embeddedSourceIds() -> Set<String> {
-        guard let ks = try? knowledgeStore() else { return [] }
-        return (try? ks.embeddedEntityIds(entityType: .source, model: Self.sourceEmbeddingModel)) ?? []
     }
 
     /// Save chunk-level embeddings for a source, replacing any older chunks for that source.
@@ -1860,15 +1797,6 @@ actor StorageService {
     func podcastTranscriptAuditInputs(sourceID: String) throws -> PodcastTranscriptAuditInputs? {
         try ensureStoreExists()
         return try knowledgeStore().podcastTranscriptAuditInputs(sourceID: sourceID)
-    }
-
-    /// Stage one episode for the completeness audit. An episode the audit
-    /// already measured, or hydration wrote from a whole TTML, is left alone.
-    /// Returns whether it was staged.
-    @discardableResult
-    func enqueuePodcastTranscriptDetruncation(sourceID: String) throws -> Bool {
-        try ensureStoreExists()
-        return try knowledgeStore().enqueuePodcastTranscriptDetruncationIfNeeded(sourceID: sourceID)
     }
 
     func youTubeLegacyCapNeedsVerification(sourceID: String) throws -> Bool {
@@ -2386,12 +2314,6 @@ actor StorageService {
             maxResults: maxResults,
             excludedSources: excludedSources
         )) ?? [:]
-    }
-
-    private func isLocalPDFBackedSource(_ article: StudioArticle) -> Bool {
-        let candidatePath = article.localFilePath ?? article.url
-        guard !candidatePath.hasPrefix("http://"), !candidatePath.hasPrefix("https://") else { return false }
-        return candidatePath.lowercased().hasSuffix(".pdf")
     }
 
     func clearSourceDerivedData(_ sourceId: String) {
@@ -3470,10 +3392,6 @@ actor StorageService {
         scheduleCloudKitSync(.immediate)
     }
 
-    private func elapsedMs(since start: Date) -> Int {
-        Int(Date().timeIntervalSince(start) * 1000)
-    }
-    
     /// Sanitize filename: stem must match [0-9a-zA-Z]{4,16}
     static func sanitizeFilename(_ filename: String) -> String {
         let url = URL(fileURLWithPath: filename)
@@ -5441,28 +5359,6 @@ actor StorageService {
         refreshTeamCopiesAwaitingText(of: articles)
         scheduleCloudKitSync()
         NotificationCenter.default.post(name: .derivedSourceWorkNeeded, object: nil)
-    }
-}
-
-// MARK: - Errors
-
-enum StorageError: LocalizedError {
-    case invalidURL(String)
-    case invalidResponse
-    case httpError(Int, String)
-    case decodingError(String)
-    case rateLimited
-    case iCloudUnavailable(String)
-    
-    var errorDescription: String? {
-        switch self {
-        case .invalidURL(let path): return "Invalid URL: \(path)"
-        case .invalidResponse: return "Invalid server response"
-        case .httpError(let code, let body): return "HTTP \(code): \(body.prefix(200))"
-        case .decodingError(let context): return "Decoding error: \(context)"
-        case .rateLimited: return "Rate limited — try again later"
-        case .iCloudUnavailable(let message): return message
-        }
     }
 }
 

@@ -2467,17 +2467,6 @@ extension KnowledgeStore {
         }
     }
 
-    /// Record that a session references specific sources.
-    func linkReviewSession(_ sessionId: String, toSourceIds sourceIds: [String]) throws {
-        for sourceId in sourceIds {
-            try execBind("INSERT OR IGNORE INTO review_session_sources (session_id, source_id) VALUES (?, ?)", {
-                self.bind($0, 1, sessionId)
-                self.bind($0, 2, sourceId)
-            })
-        }
-        noteStoreChanged()
-    }
-
     /// Sources attached to the learner's most recent ordinary chats and review
     /// sessions. Memory-check launch sessions are excluded by their non-empty
     /// `card_ids`: their source relationship is the whole planned queue, not

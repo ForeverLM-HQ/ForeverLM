@@ -921,13 +921,6 @@ extension KnowledgeStore {
         return ttml
     }
 
-    /// Recover the source id from a `<sourceID>::chunk::NNNN` embedding id. Kept here
-    /// (rather than reaching into `StorageService`) so the store layer is self-contained.
-    private static func sourceIdFromChunkEmbeddingId(_ chunkEmbeddingId: String) -> String? {
-        guard let range = chunkEmbeddingId.range(of: "::chunk::") else { return nil }
-        return String(chunkEmbeddingId[chunkEmbeddingId.startIndex..<range.lowerBound])
-    }
-
     // MARK: - Schema 168: where each full-text row is
 
     /// `source_fts_rows` holds the rowid of each source's full-text row, so `replaceSourceFTS` and

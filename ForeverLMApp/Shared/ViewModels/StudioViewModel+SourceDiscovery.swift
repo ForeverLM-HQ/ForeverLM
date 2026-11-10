@@ -349,83 +349,6 @@ extension StudioViewModel {
         }
     }
 
-    /// Check all active sources against their upstream origins.
-    /// Archive sources whose upstream has been removed.
-    func reconcileUpstreamDeletions() async {
-        // Local files (PDFs, EPUBs, books, course materials)
-        do {
-            let archivedFiles = try await storage.reconcileLocalFiles()
-            if archivedFiles > 0 {
-                logger.info("Reconciliation: archived \(archivedFiles) source(s) with missing files")
-            }
-        } catch {
-            logger.error("Reconciliation failed for local files: \(error)")
-        }
-
-        // Safari Reading List, API-synced sources can be added here later
-    }
-
-    /// Run all discovery sources. New sources are written directly to SQLite.
-    /// Returns the IDs of newly inserted sources.
-    func discoverAndPersist(onlyTab: StudioSidebarTab? = nil) async -> Set<String> {
-        var discovered = await discoverNewSourcesOffMain(onlyTab: onlyTab, showProgress: false)
-        let scannedSources = discovered
-        var insertedIds = Set<String>()
-        let promotedIds = await promoteExistingPaperSourcesFromDiscovered(discovered)
-
-        discovered = await filterAlreadyPersistedSources(discovered)
-        guard !discovered.isEmpty else {
-            reportReadingListImport(
-                trigger: "background sync",
-                scope: onlyTab,
-                warnings: discoveryWarnings(for: onlyTab),
-                scannedSources: scannedSources,
-                candidateSources: [],
-                insertedSources: [],
-                promotedCount: promotedIds.count,
-                showUserToast: false
-            )
-            return promotedIds
-        }
-
-        await classifyDiscoveredSourceTypesBeforePersistence(&discovered)
-        await enrichYouTubeMetadataBeforePersistence(&discovered)
-
-        // Extract DOIs for papers before persistence (enables DOI-based dedup)
-        for i in discovered.indices where discovered[i].sourceType == .paper && discovered[i].doi == nil {
-            discovered[i].doi = PaperService.extractDOI(from: discovered[i].url)
-        }
-
-        var insertedSources: [StudioArticle] = []
-        for i in discovered.indices {
-            do {
-                let inserted = try await storage.insertSourceIfNew(&discovered[i])
-                if inserted {
-                    insertedIds.insert(discovered[i].id)
-                    insertedSources.append(discovered[i])
-                    if discovered[i].sourceType == .book {
-                        await persistWholeBookMetadataIfNeeded(for: discovered[i])
-                    }
-                }
-            } catch {
-                logger.warning("Failed to persist discovered source \(discovered[i].url): \(error)")
-            }
-        }
-
-        reportReadingListImport(
-            trigger: "background sync",
-            scope: onlyTab,
-            warnings: discoveryWarnings(for: onlyTab),
-            scannedSources: scannedSources,
-            candidateSources: discovered,
-            insertedSources: insertedSources,
-            promotedCount: promotedIds.count,
-            showUserToast: false
-        )
-
-        return insertedIds.union(promotedIds)
-    }
-
     func startReadingListAutoSync() {
         guard readingListAutoSyncTask == nil else { return }
         readingListAutoSyncTask = Task { [weak self] in
@@ -902,22 +825,6 @@ extension StudioViewModel {
     nonisolated func stopReadingListSafariFolderAccessIfNeeded(_ input: ReadingListAutoSyncInput) async {
         guard input.shouldStopSafariFolderAccess else { return }
         BookmarkAccessManager.shared.stopAccessing(for: .safariBookmarks)
-    }
-
-    func browserReadingListModificationSnapshotOffMain() async -> [String: Date] {
-        let safariEnabled = DefaultsEscapeHatch.bool(forKey: "readingListSafari", default: true)
-        let chromeEnabled = DefaultsEscapeHatch.bool(forKey: "readingListChrome", default: true)
-        let braveEnabled = DefaultsEscapeHatch.bool(forKey: "readingListBrave", default: true)
-        let homeDir = realHomeDirectory
-
-        return await Task.detached(priority: .utility) {
-            Self.browserReadingListModificationSnapshot(
-                homeDir: homeDir,
-                safariEnabled: safariEnabled,
-                chromeEnabled: chromeEnabled,
-                braveEnabled: braveEnabled
-            )
-        }.value
     }
 
     nonisolated static func browserReadingListModificationSnapshot(

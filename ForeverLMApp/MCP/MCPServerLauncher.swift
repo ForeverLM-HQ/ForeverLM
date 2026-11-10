@@ -321,15 +321,6 @@ final class MCPServerLauncher {
         finishSuccessfulConnection(connectedURL: connectedURL, requestedURL: refreshedURL)
     }
 
-    func setExternalIssuerURL(_ issuerURL: String?) {
-        guard let issuerURL = issuerURL?.trimmingCharacters(in: .whitespacesAndNewlines),
-              !issuerURL.isEmpty else {
-            unsetenv("OAUTH_ISSUER_URL")
-            return
-        }
-        setenv("OAUTH_ISSUER_URL", issuerURL, 1)
-    }
-
     func stop() async {
         await relay.disconnect()
         await MCPGatewayAuthorizationVerifier.shared.clear()

@@ -1122,12 +1122,6 @@ extension StudioViewModel {
 
     // MARK: - Book Cover Paths
 
-    /// Scans per-book folders for covers belonging to already-loaded book groups.
-    /// File presence is not authority: this must never create or update book rows.
-    func populateBookCoverPaths() {
-        scheduleBookCoverPathPopulation()
-    }
-
     /// Pre-warm the in-memory and disk thumbnail cache for a book cover image.
     func prewarmBookCoverThumbnail(coverPath: String) {
         Task.detached(priority: .utility) {

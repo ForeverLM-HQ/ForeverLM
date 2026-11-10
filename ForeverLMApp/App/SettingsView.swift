@@ -1371,34 +1371,6 @@ struct SettingsMoreInfoButton<Content: View>: View {
     }
 }
 
-struct SettingsButtonGroup<Content: View>: View {
-    @ViewBuilder let content: () -> Content
-
-    var body: some View {
-        // The VStack matters: without a container, the background/overlay would apply to each
-        // row individually instead of wrapping the whole group in one card.
-        VStack(spacing: 0) {
-            content()
-        }
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color(nsColor: .controlBackgroundColor))
-        )
-        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
-        )
-    }
-}
-
-struct SettingsButtonDivider: View {
-    var body: some View {
-        Divider()
-            .padding(.leading, 54)
-    }
-}
-
 /// The app menu's Screen Record Mode item: the one place outside Settings that
 /// says the mode is on, so the recorded window itself carries no badge. Shown
 /// only once the proxy has confirmed this account as an admin.

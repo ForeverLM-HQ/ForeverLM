@@ -1656,17 +1656,6 @@ extension StudioViewModel {
         return withoutDuplicatePodcastSpeakerNamesOffMain(result)
     }
 
-    nonisolated static func mergePodcastSpeakerNameMappingsOffMain(
-        _ primary: [String: String],
-        _ secondary: [String: String]
-    ) -> [String: String] {
-        var merged = primary
-        for (speakerID, name) in secondary where merged[speakerID] == nil {
-            merged[speakerID] = name
-        }
-        return withoutDuplicatePodcastSpeakerNamesOffMain(merged)
-    }
-
     nonisolated static func withoutDuplicatePodcastSpeakerNamesOffMain(_ mapping: [String: String]) -> [String: String] {
         let duplicateNames = Dictionary(grouping: mapping) { $0.value.lowercased() }
             .filter { $0.value.count > 1 }

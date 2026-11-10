@@ -60,15 +60,6 @@ actor MobileSourceFileStore {
 
     // MARK: - Paper PDFs
 
-    /// The cached original document, when it has already been pulled down.
-    func cachedPDFURL(sourceID: String) -> URL? {
-        guard let url = try? Self.fileURL(kind: "SourcePDFs", sourceID: sourceID, fileExtension: "pdf"),
-              FileManager.default.fileExists(atPath: url.path) else {
-            return nil
-        }
-        return url
-    }
-
     /// Returns the local PDF: the saved-offline copy, or the source's `pdf`
     /// satellite, downloaded on first use. A page-range book chapter's satellite
     /// is its whole book's file, the same FileRef on every chapter, so it is
@@ -169,19 +160,6 @@ actor MobileSourceFileStore {
         guard !readerHTMLKnownMissing.contains(sourceID) else { return nil }
         guard let satellites = await MobileSatellites.current() else { return nil }
         return await satelliteReaderHTML(sourceID: sourceID, satellites: satellites)
-    }
-
-    func storeReaderHTML(_ html: String, sourceID: String) {
-        guard let url = try? Self.fileURL(
-            kind: "SourceReaderHTMLV1",
-            sourceID: sourceID,
-            fileExtension: "html"
-        ) else {
-            return
-        }
-        // Best effort: a failed cache write only costs the next open a fetch,
-        // which is exactly where we already were.
-        try? Data(html.utf8).write(to: url, options: .atomic)
     }
 
     // MARK: - Book covers

@@ -521,7 +521,6 @@
 		438F8F25B05DBA22EE12B270 /* ManagedModelSmokeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 49DC1F1BD0BE2F4DC6B6395E /* ManagedModelSmokeTests.swift */; };
 		43AB8401128341F7F0094099 /* KnowledgeMapLibrarySidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = E01686DDA481E33F0D3C4F62 /* KnowledgeMapLibrarySidebar.swift */; };
 		43C13FB07CE72206F77EC148 /* StudioViewModel+ZoomLocalTranscripts.swift in Sources */ = {isa = PBXBuildFile; fileRef = 863C8688D1D0605A7DE7B04E /* StudioViewModel+ZoomLocalTranscripts.swift */; };
-		43F07E43F6624296F59B88CD /* NotebookFileViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = F93069BCC45846DBE5BB6BDA /* NotebookFileViews.swift */; };
 		44229803873CDD9365A82FFA /* SharingRightsAffirmation.swift in Sources */ = {isa = PBXBuildFile; fileRef = BF04E7F164D3F81F422FE164 /* SharingRightsAffirmation.swift */; };
 		44406B3D8105687C46DE197A /* AIService+TextbookReadings.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6E0CD9FD0628DA5072AB098C /* AIService+TextbookReadings.swift */; };
 		4452AB319DC93D0C0494AEE2 /* ArtifactBodyPackage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0A695F8035C6772E13804E85 /* ArtifactBodyPackage.swift */; };
@@ -3804,7 +3803,6 @@
 		F8BEE5FD54603768BE3FB08B /* KnowledgeMapParity.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KnowledgeMapParity.swift; sourceTree = "<group>"; };
 		F91CEB384FB2CF0016FA2BA1 /* ChatPassageOriginTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ChatPassageOriginTests.swift; sourceTree = "<group>"; };
 		F92D17AC28324E7D32BFA117 /* ReaderQuestionMarkerGeometryTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderQuestionMarkerGeometryTests.swift; sourceTree = "<group>"; };
-		F93069BCC45846DBE5BB6BDA /* NotebookFileViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotebookFileViews.swift; sourceTree = "<group>"; };
 		FA2C5B9CC2CD1783497A7DF7 /* CoursePersistenceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CoursePersistenceTests.swift; sourceTree = "<group>"; };
 		FA6ED2775EAE0C990A351AF1 /* DayPlan.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DayPlan.swift; sourceTree = "<group>"; };
 		FA71D89CA3A437FDC272C3ED /* MeetingActionItemExtractor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MeetingActionItemExtractor.swift; sourceTree = "<group>"; };
@@ -5270,7 +5268,6 @@
 				EF70AD535C924C27B8258F67 /* NotebookContextPanel.swift */,
 				1280A54D4D9C0500088B308D /* NotebookCoverViews.swift */,
 				373EB3CD1DE0C04A194C734E /* NotebookDiscoverView.swift */,
-				F93069BCC45846DBE5BB6BDA /* NotebookFileViews.swift */,
 				A082CD4CEB249912DFA278B7 /* NotebookFilingMenus.swift */,
 				7FDA7B7920C87DD0AF1484AA /* NotebookJournalSuggestionsSection.swift */,
 				7A5BF92C0FA5F82B77133878 /* NotebookShareViews.swift */,
@@ -7883,7 +7880,6 @@
 				E926829CD9443A4051B616AC /* NotebookCoverViews.swift in Sources */,
 				BB6EB7BCAAFCE5C29E099161 /* NotebookDiscoverView.swift in Sources */,
 				0F3D9C797AC4CD1A3C2F8C6B /* NotebookFileArtifacts.swift in Sources */,
-				43F07E43F6624296F59B88CD /* NotebookFileViews.swift in Sources */,
 				EB51A1A9D19D02AD9366596F /* NotebookFiles.swift in Sources */,
 				E66B86CD629ABCD13A6C923F /* NotebookFilingMenus.swift in Sources */,
 				93DCDD43C4719879D9F1A9F2 /* NotebookIcon.swift in Sources */,

@@ -182,12 +182,6 @@ enum ReadingLocatorCodec {
             return nil
         }
     }
-
-    /// Whether a Mac locator string is a video's watch progress (`VideoWatchProgress`).
-    static func isVideoProgress(_ macLocator: String?) -> Bool {
-        guard let macLocator else { return false }
-        return wire(macLocator: macLocator)["t"]?.stringValue == "media"
-    }
 }
 
 // MARK: - Walks
