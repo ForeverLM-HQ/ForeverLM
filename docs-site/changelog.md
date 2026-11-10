@@ -9,6 +9,10 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **On the iPhone, a page shared on its own shows among your pages** and can be edited there when the share allows; sharing, Stop Sharing and Remove from My Library are on the Mac.
 - **The iPhone opens on voice.** Home is ForeverLM's mark: tap it to talk about anything, name a source, or go through today's cards, which voice offers first when they are due; type instead whenever you can't talk (every voice conversation now has a field for that, so the gym is just voice). Everything else (notebooks, the library, To Read, Follow Up, Spaces, **Review Cards** to tap through them with their pictures, Memory and Settings) is in the menu at the bottom.
 - **A daily quiz reminder on the iPhone,** on by default at 7:00 (or your review hour): tap it to go through today's cards, or use its Memory Check by Voice button. iOS asks once for permission.
+- **The iPhone Reader's bottom bar fits the screen.** Its first and last buttons were cut off at the edges. Text size is now one button whose Smaller and Larger stay open while you tap them, and Share is in the ⋯ menu at the top.
+- **The iPhone's Library is named Library and lists what you added last** under its types. In every list the titles start on one line whatever the source's type, and a row under a Papers or Articles heading no longer repeats the type.
+- **A notebook's tab bar stays at the foot of the iPhone's screen.** On Sources the search field sat under it and pushed it up; the field is now at the top of the list.
+- **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
 ## 0.210.0 (build 290) — 2026-11-10
 

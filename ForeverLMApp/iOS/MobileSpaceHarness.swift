@@ -173,11 +173,20 @@ final class MobileSpaceHarnessLibrary {
     let store: MobileSpaceStore
     let recents: MobileSpaceRecents
     let labSpaceID: String
+    /// What the library was made on, for the whole-app preview (`MobileAppHarness`), which adds
+    /// sources, notebooks and cards through the same writer and reads them from the same replica.
+    let writer: MobileRecordWriter
+    let satellites: MobileSatellites
+    let projection: MobileProjection
 
-    private init(store: MobileSpaceStore, recents: MobileSpaceRecents, labSpaceID: String) {
+    private init(store: MobileSpaceStore, recents: MobileSpaceRecents, labSpaceID: String,
+                 writer: MobileRecordWriter, satellites: MobileSatellites, projection: MobileProjection) {
         self.store = store
         self.recents = recents
         self.labSpaceID = labSpaceID
+        self.writer = writer
+        self.satellites = satellites
+        self.projection = projection
     }
 
     /// Eight base32 characters, as every stamp's device id is.
@@ -213,7 +222,8 @@ final class MobileSpaceHarnessLibrary {
         let clock = MobileSpaceHarnessClock()
         let writer = MobileRecordWriter(replica: replica, deviceID: deviceID, blobs: blobs, clock: { clock.now })
         let folder = FileManager.default.temporaryDirectory.appendingPathComponent("ForeverLMSpaceHarness-\(UUID().uuidString)", isDirectory: true)
-        let satellites = MobileSatellites(projection: MobileProjection(replica: replica), blobs: blobs, disk: MobileSatelliteDisk(
+        let projection = MobileProjection(replica: replica)
+        let satellites = MobileSatellites(projection: projection, blobs: blobs, disk: MobileSatelliteDisk(
             cacheRoot: folder.appendingPathComponent("cache", isDirectory: true),
             durableRoot: folder.appendingPathComponent("durable", isDirectory: true)
         ))
@@ -266,7 +276,8 @@ final class MobileSpaceHarnessLibrary {
         recents.note(krebs.id)
         MobileSpaceExpansion.expand(krebs.id)
         await store.refresh()
-        return MobileSpaceHarnessLibrary(store: store, recents: recents, labSpaceID: lab)
+        return MobileSpaceHarnessLibrary(store: store, recents: recents, labSpaceID: lab,
+                                         writer: writer, satellites: satellites, projection: projection)
     }
 
     /// A linked page another device made: a site or a Google Doc, with no text copy.

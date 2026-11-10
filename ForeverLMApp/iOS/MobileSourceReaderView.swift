@@ -8,7 +8,6 @@ struct MobileSourceReaderView: View {
 
     @StateObject private var viewModel = MobileSourceReaderViewModel()
     @EnvironmentObject private var audio: MobileAudioReviewViewModel
-    @ObservedObject private var sharing = MobileSourceShare.shared
     @ObservedObject private var offline = MobileOfflineLibrary.shared
     @Environment(\.horizontalSizeClass) private var horizontalSizeClass
     @Environment(\.scenePhase) private var scenePhase
@@ -432,22 +431,12 @@ struct MobileSourceReaderView: View {
         }
 
         ToolbarItemGroup(placement: .bottomBar) {
+            // One button for the text size, not two: with a smaller and a
+            // larger button beside the six below, the bar was wider than an
+            // iPhone and its first and last buttons were cut off at the
+            // screen's edges (seen on a 16e and a 17 Pro Max, 2026-11-10).
             if showsTextReader {
-                Button {
-                    viewModel.decreaseFontSize()
-                } label: {
-                    Image(systemName: "textformat.size.smaller")
-                }
-                .disabled(!viewModel.canDecreaseFontSize)
-                .accessibilityLabel("Smaller text")
-
-                Button {
-                    viewModel.increaseFontSize()
-                } label: {
-                    Image(systemName: "textformat.size.larger")
-                }
-                .disabled(!viewModel.canIncreaseFontSize)
-                .accessibilityLabel("Larger text")
+                textSizeToolbarControl
             }
 
             Spacer()
@@ -466,15 +455,8 @@ struct MobileSourceReaderView: View {
                 }
             }
 
-            Button {
-                let shared = readingSource
-                Task { await MobileSourceShare.shared.share(shared) }
-            } label: {
-                Label("Share", systemImage: "square.and.arrow.up")
-            }
-            .disabled(sharing.preparingSourceIDs.contains(readingSource.id))
-            .accessibilityIdentifier("reader.share")
-
+            // Share… is the first item of the ⋯ menu at the top, so it takes
+            // no place here.
             voiceToolbarControl
 
             Button {
@@ -484,6 +466,34 @@ struct MobileSourceReaderView: View {
             }
             .disabled(!viewModel.isReady)
         }
+    }
+
+    /// Text size: a menu whose two steps stay open while they are tapped, so
+    /// going up three sizes is three taps in one place.
+    private var textSizeToolbarControl: some View {
+        Menu {
+            ControlGroup {
+                Button {
+                    viewModel.decreaseFontSize()
+                } label: {
+                    Label("Smaller", systemImage: "textformat.size.smaller")
+                }
+                .disabled(!viewModel.canDecreaseFontSize)
+                .accessibilityLabel("Smaller text")
+
+                Button {
+                    viewModel.increaseFontSize()
+                } label: {
+                    Label("Larger", systemImage: "textformat.size.larger")
+                }
+                .disabled(!viewModel.canIncreaseFontSize)
+                .accessibilityLabel("Larger text")
+            }
+            .menuActionDismissBehavior(.disabled)
+        } label: {
+            Label("Text Size", systemImage: "textformat.size")
+        }
+        .accessibilityIdentifier("reader.textSize")
     }
 
     /// Voice mode, as ChatGPT has it: tap to talk about the source out loud;

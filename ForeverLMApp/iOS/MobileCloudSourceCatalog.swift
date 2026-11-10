@@ -43,10 +43,18 @@ actor MobileCloudSourceCatalog {
     private let replicaProjection: @Sendable () async -> MobileProjection?
     private let ideaStore: MobileSourceIdeaStore
 
-    init(projection: @escaping @Sendable () async -> MobileProjection? = { await MobileSyncSession.startIfEnabled()?.projection },
+    init(projection: @escaping @Sendable () async -> MobileProjection? = MobileCloudSourceCatalog.sessionProjection,
          ideas: MobileSourceIdeaStore = .shared) {
         replicaProjection = projection
         ideaStore = ideas
+    }
+
+    /// The running session's replica; under the DEBUG whole-app preview, its sample library's.
+    static let sessionProjection: @Sendable () async -> MobileProjection? = {
+#if DEBUG
+        if let preview = MobileAppHarness.backend { return preview.projection }
+#endif
+        return await MobileSyncSession.startIfEnabled()?.projection
     }
 
     func loadSources(forceRefresh: Bool = false) async throws -> [MobileCloudSource] {

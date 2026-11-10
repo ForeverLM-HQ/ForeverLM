@@ -60,8 +60,14 @@ struct MobileHomeDashboard<Top: View>: View {
                     .frame(width: proxy.size.width, height: proxy.size.height)
                     .background {
                         // Home's sheet: the whole screen, its corners rounding as it slides over.
+                        // The hairline is what shows its edge in dark mode, where a
+                        // black shadow on a black drawer draws nothing.
                         RoundedRectangle(cornerRadius: MobileHomeMetrics.slidCorner * progress, style: .continuous)
                             .fill(Color(uiColor: .systemBackground))
+                            .overlay {
+                                RoundedRectangle(cornerRadius: MobileHomeMetrics.slidCorner * progress, style: .continuous)
+                                    .strokeBorder(Color.primary.opacity(0.14 * progress), lineWidth: 0.5)
+                            }
                             .shadow(color: .black.opacity(0.14 * progress), radius: 24)
                             .ignoresSafeArea()
                     }
@@ -143,13 +149,15 @@ struct MobileHomeDashboard<Top: View>: View {
     /// ChatGPT's composer: one capsule, the field, and one round button that
     /// talks while there is nothing typed and sends once there is.
     private var composer: some View {
-        HStack(spacing: MobileDesign.Spacing.small) {
-            TextField("Ask ForeverLM", text: $draft)
+        HStack(alignment: .bottom, spacing: MobileDesign.Spacing.small) {
+            // The field grows with a long question, up to five lines, as
+            // ChatGPT's does; Return starts a new line and the button sends.
+            TextField("Ask ForeverLM", text: $draft, axis: .vertical)
                 .font(.system(size: 18))
+                .lineLimit(1...5)
                 .focused($composerIsFocused)
-                .submitLabel(.send)
-                .onSubmit(sendDraft)
                 .padding(.leading, MobileDesign.Spacing.large)
+                .padding(.vertical, 11)
                 .accessibilityIdentifier("home.composer.field")
             Button(action: { canSend ? sendDraft() : actions.talk() }) {
                 Image(systemName: canSend ? "arrow.up" : "waveform")
@@ -164,11 +172,16 @@ struct MobileHomeDashboard<Top: View>: View {
             .accessibilityIdentifier(canSend ? "home.composer.send" : "home.composer.voice")
         }
         .padding(6)
-        .background(Capsule().fill(Color(uiColor: .systemBackground)))
-        .overlay(Capsule().strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5))
+        .background(composerShape.fill(MobileHomeMetrics.raisedSurface))
+        .overlay(composerShape.strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5))
         .shadow(color: .black.opacity(0.07), radius: 10, y: 3)
         .padding(.horizontal, MobileDesign.Spacing.medium)
         .padding(.bottom, MobileDesign.Spacing.small)
+    }
+
+    /// A capsule while the field is one line, the same corners once it grows.
+    private var composerShape: RoundedRectangle {
+        RoundedRectangle(cornerRadius: MobileHomeMetrics.composerCorner, style: .continuous)
     }
 
     private func sendDraft() {
@@ -244,6 +257,14 @@ enum MobileHomeMetrics {
     /// The corner Home takes on while it is slid over.
     static let slidCorner: CGFloat = 42
     static let circle: CGFloat = 50
+    /// Half the one-line composer's height, so one line reads as a capsule.
+    static let composerCorner: CGFloat = 28
+    /// What the composer and the round buttons are filled with: the page's own
+    /// white lifted by a shadow in light mode, a raised grey in dark mode, where
+    /// a shadow shows nothing and black on black left only a hairline.
+    static let raisedSurface = Color(uiColor: UIColor { traits in
+        traits.userInterfaceStyle == .dark ? .secondarySystemBackground : .systemBackground
+    })
 }
 
 /// The three rows above the composer.
@@ -299,7 +320,7 @@ struct MobileHomeCircleButton<Content: View>: View {
             content()
                 .foregroundStyle(.primary)
                 .frame(width: MobileHomeMetrics.circle, height: MobileHomeMetrics.circle)
-                .background(Circle().fill(Color(uiColor: .systemBackground)))
+                .background(Circle().fill(MobileHomeMetrics.raisedSurface))
                 .overlay(Circle().strokeBorder(Color.primary.opacity(0.1), lineWidth: 0.5))
                 .shadow(color: .black.opacity(0.07), radius: 8, y: 3)
                 .contentShape(Circle())

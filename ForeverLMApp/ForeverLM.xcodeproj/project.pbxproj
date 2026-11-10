@@ -183,6 +183,7 @@
 		14822D3B7199C21558226315 /* MemoryCardChrome.swift in Sources */ = {isa = PBXBuildFile; fileRef = E1E025331F160B801CE71073 /* MemoryCardChrome.swift */; };
 		148779AD49459373CE95BBB6 /* StorageService+JournalWatch.swift in Sources */ = {isa = PBXBuildFile; fileRef = 878365AE2A39EC002E432C5C /* StorageService+JournalWatch.swift */; };
 		1496C77EC37B416F3D053A03 /* brave-sync-000004.log in Resources */ = {isa = PBXBuildFile; fileRef = AC121F8C76C5362EDF303F30 /* brave-sync-000004.log */; };
+		14B2C85AEE37E528157FC573 /* MobileAppHarness.swift in Sources */ = {isa = PBXBuildFile; fileRef = D985FB51A526418314341D7C /* MobileAppHarness.swift */; };
 		14BA95A8C2DD87013D9CBEF0 /* ResearchDirection.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECC952516F2EF2488515541C /* ResearchDirection.swift */; };
 		14C027D5FA418708DCCB8548 /* StudioViewModel+GeminiNotebook.swift in Sources */ = {isa = PBXBuildFile; fileRef = F75BF7CA4FF8D6234C3DAC1D /* StudioViewModel+GeminiNotebook.swift */; };
 		14E67ED660D24E6B0F4CE599 /* MobileShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 143E41503FF824177D43FA89 /* MobileShareViewController.swift */; };
@@ -3708,6 +3709,7 @@
 		D90F9D4CB046804DF1EF77AD /* AIService+CardDrafting.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "AIService+CardDrafting.swift"; sourceTree = "<group>"; };
 		D91AECDB49E72F6D304FB57F /* ReaderWebViewParkTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ReaderWebViewParkTests.swift; sourceTree = "<group>"; };
 		D96BAB5390549B6FC1FEFF80 /* StudioBandUniformityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StudioBandUniformityTests.swift; sourceTree = "<group>"; };
+		D985FB51A526418314341D7C /* MobileAppHarness.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MobileAppHarness.swift; sourceTree = "<group>"; };
 		D998AC4535E4489597AF0BB7 /* AppleCalendarService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleCalendarService.swift; sourceTree = "<group>"; };
 		D9E0DECC4194E7D733CD6790 /* CommentProjection.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CommentProjection.swift; sourceTree = "<group>"; };
 		D9E6E03407379B39EE50834F /* NotebookTasksBoardTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NotebookTasksBoardTests.swift; sourceTree = "<group>"; };
@@ -4936,6 +4938,7 @@
 				2946B8E33CD5AAF22F99F8BF /* CarPlaySceneDelegate.swift */,
 				CFC34341545D7A268775CCDD /* DrivingSourceAnswerPlanner.swift */,
 				63383E9893809428AA3B6A87 /* ForeverLMMobileApp.swift */,
+				D985FB51A526418314341D7C /* MobileAppHarness.swift */,
 				3FC2D052854E4785CC605F63 /* MobileAsyncAlert.swift */,
 				FE26FE529A1C44B640C58BB9 /* MobileAudioPlaybackTypes.swift */,
 				E4A678D7EA97563C7056FB5D /* MobileAudioReviewView.swift */,
@@ -7174,6 +7177,7 @@
 				D7D3CEF57B25C56737290B74 /* MemoryUnderstandingProbe.swift in Sources */,
 				CBB1ED876BA521E0E687A8C6 /* MnemonicReading.swift in Sources */,
 				FF90D808FD18DE54B86A8165 /* MnemonicReadingPlacement.swift in Sources */,
+				14B2C85AEE37E528157FC573 /* MobileAppHarness.swift in Sources */,
 				55CF6CDB2A7E496AC0332446 /* MobileAsyncAlert.swift in Sources */,
 				B28285E48F76BC7FB9B1A6F6 /* MobileAudioPlaybackTypes.swift in Sources */,
 				434280517064AD9004EFED4A /* MobileAudioReviewView.swift in Sources */,

@@ -373,6 +373,8 @@ targets:
       # (`-foreverlm-uitest-home`).
       - iOS/MobileHomeDashboard.swift
       - iOS/MobileHomeHarness.swift
+      # The whole app over a sample library, DEBUG only (`-foreverlm-uitest-app`).
+      - iOS/MobileAppHarness.swift
       # Home's To Read: what was saved and is still waiting, newest saved
       # first, by the rule the Mac's Library scope shares (`ToReadList`).
       - Shared/Models/ToReadList.swift
