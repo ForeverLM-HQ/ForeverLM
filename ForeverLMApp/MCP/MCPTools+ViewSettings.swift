@@ -571,6 +571,12 @@ extension MCPDataStore {
                 options: AIEffort.allCases.map { ($0.rawValue, $0.rawValue) }
             ),
             preferenceEntry(
+                id: "chat.default_speed", pane: "Chat › speed control (no pane)", title: "Default chat speed",
+                detail: "The speed last chosen from a chat's speed control; a chat with no speed of its own starts on it. Absent is standard. A model whose OpenRouter hosts have no such tier runs at standard speed, and the choice is kept for the next model that has it.",
+                key: AIModelPreferenceKey.defaultChatSpeed, kind: .choice, absent: "",
+                options: AISpeed.allCases.filter { $0 != .standard }.map { ($0.rawValue, $0.rawValue) }
+            ),
+            preferenceEntry(
                 id: "ai.text_routing_mode", pane: "AI Models (no pane)", title: "Text routing",
                 detail: "How text requests are routed. ForeverLM has one router, OpenRouter; the account's managed state sets this, and nothing else is offered.",
                 key: AIModelPreferenceKey.textRoutingMode, kind: .choice, absent: AITextRoutingMode.shippedDefault.rawValue,

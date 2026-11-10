@@ -165,4 +165,62 @@ struct ReviewGuidePreparationTests {
             #expect(KeychainService.chosenChatEffort == .low)
         }
     }
+
+    @Test("A new chat starts on the speed last chosen from the chat bar")
+    func newChatStartsOnChosenSpeed() {
+        let chatTask = AITask.chat
+        let originalProvider = KeychainService.taskProvider(chatTask)
+        let originalModel = KeychainService.taskModel(chatTask)
+        let originalEffort = KeychainService.taskEffort(chatTask)
+        let originalSpeed = KeychainService.taskSpeed(chatTask)
+        let originalChosenSpeed = KeychainService.chosenChatSpeed
+        defer {
+            KeychainService.chosenChatSpeed = originalChosenSpeed
+            KeychainService.resetChatSessionSelection()
+            if let originalProvider, let originalModel {
+                KeychainService.setTaskRoute(
+                    provider: originalProvider,
+                    model: originalModel,
+                    effort: originalEffort,
+                    speed: originalSpeed,
+                    for: chatTask
+                )
+            }
+        }
+
+        KeychainService.chosenChatSpeed = nil
+        KeychainService.resetChatSessionSelection()
+        let selection = KeychainService.resolvedSelection(for: chatTask)
+        guard let slug = AIRequestOptionSupport.openRouterSpeedSlug(
+            provider: selection.provider, model: selection.model, routingMode: KeychainService.textRoutingMode
+        ) else { return }
+        let vendor = String(slug.split(separator: "/").first ?? "")
+        func tier(_ tag: String) -> OpenRouterEndpointTier {
+            OpenRouterEndpointTier(
+                tag: tag, providerName: vendor, inputUSDPerMTokens: 1, outputUSDPerMTokens: 4,
+                cachedInputUSDPerMTokens: nil, discount: nil
+            )
+        }
+        #expect(KeychainService.taskSpeed(chatTask) == nil)
+
+        // Fast picked in one chat is where the next one starts.
+        OpenRouterEndpointTierCatalog.cache([tier(vendor), tier(vendor + "/fast")], for: slug)
+        KeychainService.chosenChatSpeed = .fast
+        #expect(KeychainService.taskSpeed(chatTask) == .fast)
+        KeychainService.resetChatSessionSelection()
+        #expect(KeychainService.taskSpeed(chatTask) == .fast)
+
+        // Standard is stored as no choice at all.
+        KeychainService.chosenChatSpeed = .standard
+        #expect(KeychainService.chosenChatSpeed == nil)
+        #expect(KeychainService.taskSpeed(chatTask) == nil)
+
+        // A model OpenRouter lists without the tier runs at standard speed,
+        // and the choice waits for a model that has it.
+        KeychainService.chosenChatSpeed = .fast
+        OpenRouterEndpointTierCatalog.cache([tier(vendor)], for: slug)
+        #expect(KeychainService.taskSpeed(chatTask) == nil)
+        #expect(KeychainService.chosenChatSpeed == .fast)
+        OpenRouterEndpointTierCatalog.clearCacheForTesting()
+    }
 }

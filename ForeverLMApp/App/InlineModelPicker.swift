@@ -913,6 +913,8 @@ struct InlineModelPicker: View {
         selectedSpeed = speed == .standard ? nil : speed
         if let task, tunesEffortAndSpeed {
             KeychainService.setTaskSpeed(speed == .standard ? nil : speed, for: task)
+            // The next chat starts on this speed too (`taskSpeed`).
+            KeychainService.chosenChatSpeed = speed
         }
     }
 

@@ -3037,11 +3037,48 @@ enum KeychainService {
         NotificationCenter.default.post(name: .aiProviderDidChange, object: nil)
     }
 
-    /// The chat's own speed, or nil for standard speed.
+    /// The chat's own speed, else the speed last chosen from the chat bar
+    /// when the chat's model offers it, else nil for standard speed.
+    ///
+    /// Like its effort, a chat's speed does not reset with each new chat: the
+    /// product owner set Fast and found every next chat back on Standard
+    /// (2026-11-10: "like next chat, it's already gone again"). A model whose
+    /// hosts OpenRouter has listed without that tier runs at standard speed;
+    /// the choice itself is kept for the next model that has it.
     static func taskSpeed(_ task: AITask) -> AISpeed? {
         if task.followsChatRoute { return taskSpeed(.chat) }
         guard task == .chat else { return nil }
-        return enabledChatSessionRoute()?.speed
+        if let own = enabledChatSessionRoute()?.speed { return own }
+        guard let chosen = chosenChatSpeed else { return nil }
+        let selection = resolvedSelection(for: .chat)
+        guard let slug = AIRequestOptionSupport.openRouterSpeedSlug(
+            provider: selection.provider,
+            model: selection.model,
+            routingMode: textRoutingMode
+        ) else { return nil }
+        // A cold cache is not "unsupported", as in the picker: the request
+        // path and the picker's own tier load settle it once OpenRouter answers.
+        if let tiers = OpenRouterEndpointTierCatalog.cachedTiers(slug: slug),
+           OpenRouterSpeedTier.tier(for: chosen, slug: slug, in: tiers) == nil {
+            return nil
+        }
+        return chosen
+    }
+
+    /// The speed last picked from a chat's speed control; nil is Standard.
+    /// It follows the account like the effort beside it. Only a learner's
+    /// pick writes it — never a restored chat's speed, nor one dropped
+    /// because a new model has no such tier.
+    static var chosenChatSpeed: AISpeed? {
+        get {
+            UserDefaults.standard.string(forKey: AIModelPreferenceKey.defaultChatSpeed)
+                .flatMap(AISpeed.init(rawValue:))
+                .flatMap { $0 == .standard ? nil : $0 }
+        }
+        set {
+            let stored = newValue == .standard ? nil : newValue
+            PreferenceStore.set(stored?.rawValue, forKey: AIModelPreferenceKey.defaultChatSpeed)
+        }
     }
 
     /// Set or clear the chat's own speed, session-scoped like its model.

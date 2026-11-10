@@ -20,8 +20,9 @@ enum SyncedPreferenceKeys {
     ///
     /// Chat-bar picks are deliberately absent: `.chat` is session-scoped,
     /// while the default chat model itself is represented by `ai_provider` plus
-    /// the provider's model key. The one chat-bar choice kept is the effort,
-    /// which every new chat starts on (`aiRoute.defaultChat.effort`).
+    /// the provider's model key. The chat-bar choices kept are the effort and
+    /// the speed, which every new chat starts on (`aiRoute.defaultChat.effort`,
+    /// `aiRoute.defaultChat.speed`).
     static let persistedModelConfiguration: Set<String> = [
         "ai_provider",
         "anthropic_model", "openai_model", "groq_model", "cerebras_model",
@@ -30,7 +31,7 @@ enum SyncedPreferenceKeys {
         "anthropic_model_explicitly_picked", "openai_model_explicitly_picked",
         "chatModels.enabledIDs", "chatModels.openRouterCustom", "chatModels.shortlist",
         "backgroundModels.shortlist.text", "backgroundModels.shortlist.images",
-        "aiRoute.defaultChat", "aiRoute.defaultChat.effort",
+        "aiRoute.defaultChat", "aiRoute.defaultChat.effort", "aiRoute.defaultChat.speed",
         "aiRoute.background", "aiRoute.background.multimodal",
         "aiRoute.docs",
         "aiRoute.textRoutingMode",
@@ -91,7 +92,7 @@ enum SyncedPreferenceKeys {
         "anthropic_model_explicitly_picked", "openai_model_explicitly_picked",
         "chatModels.enabledIDs", "chatModels.openRouterCustom", "chatModels.shortlist",
         "backgroundModels.shortlist.text", "backgroundModels.shortlist.images",
-        "aiRoute.defaultChat", "aiRoute.defaultChat.effort",
+        "aiRoute.defaultChat", "aiRoute.defaultChat.effort", "aiRoute.defaultChat.speed",
         "aiRoute.background", "aiRoute.background.multimodal",
         "aiRoute.docs",
         "aiRoute.textRoutingMode",

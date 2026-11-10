@@ -276,6 +276,9 @@ enum AIModelPreferenceKey {
     /// The effort last picked from a chat's effort control, which a chat with
     /// no effort of its own starts on (`KeychainService.chosenChatEffort`).
     static let defaultChatEffort = "aiRoute.defaultChat.effort"
+    /// The speed last picked from a chat's speed control, which a chat with
+    /// no speed of its own starts on (`KeychainService.chosenChatSpeed`).
+    static let defaultChatSpeed = "aiRoute.defaultChat.speed"
     /// Background text-only route. The unsuffixed key is retained so existing
     /// selections and older clients continue to agree on the text default.
     static let backgroundRoute = "aiRoute.background"
