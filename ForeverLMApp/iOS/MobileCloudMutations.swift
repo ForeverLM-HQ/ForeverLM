@@ -101,11 +101,6 @@ actor MobileCloudMutationService {
         try await writer.transaction { try $0.schedule(source.id, on: date, order: order, goalID: notebookID) }
     }
 
-    func reopen(_ placement: MobileCloudScheduledSource) async throws {
-        let writer = try await requiredWriter()
-        try await writer.transaction { try $0.reopenPlacement(placement.sourceID) }
-    }
-
     /// Completion is always a fact someone produced: a saved review
     /// record, or the learner checking the item off on today's plan card.
     /// Nothing the app merely observes — an open, a play — ever calls this.
@@ -171,13 +166,6 @@ actor MobileCloudMutationService {
             try write.consumePlacement(source.id, at: completedAt, order: order)
             return try write.scheduledSource(source.id)
         } ?? Self.unsavedPlacement(source: source, at: completedAt, completedAt: completedAt)
-    }
-
-    func removePlacement(_ placement: MobileCloudScheduledSource, fromNotebookID notebookID: String?) async throws {
-        let writer = try await requiredWriter()
-        // Tags come off; one left with none stays as the automatic entry on its latest activity day, or
-        // its state flips to removed (a Placement is never deleted).
-        try await writer.transaction { try $0.releasePlacement(placement.sourceID, goalIDs: notebookID.map { [$0] }) }
     }
 
     // MARK: - Source capture and deletion

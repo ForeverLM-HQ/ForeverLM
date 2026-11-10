@@ -702,25 +702,4 @@ struct PodcastSpeakerEditorSheet: View {
     }
 }
 
-extension String {
-    var htmlEscaped: String {
-        replacingOccurrences(of: "&", with: "&amp;")
-            .replacingOccurrences(of: "<", with: "&lt;")
-            .replacingOccurrences(of: ">", with: "&gt;")
-            .replacingOccurrences(of: "\"", with: "&quot;")
-            .replacingOccurrences(of: "'", with: "&#39;")
-    }
-
-    var htmlAttributeEscaped: String {
-        htmlEscaped
-    }
-
-    var htmlJavaScriptEscaped: String {
-        replacingOccurrences(of: "\\", with: "\\\\")
-            .replacingOccurrences(of: "'", with: "\\'")
-            .replacingOccurrences(of: "\n", with: "\\n")
-            .replacingOccurrences(of: "\r", with: "")
-    }
-}
-
 // MARK: - YouTube Video Reader (embed + transcript)

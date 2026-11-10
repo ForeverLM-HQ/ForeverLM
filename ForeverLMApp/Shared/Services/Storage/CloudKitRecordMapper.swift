@@ -169,12 +169,6 @@ enum CloudKitSyncOperation: String, Sendable, Equatable {
     case delete
 }
 
-enum CloudKitSyncDigestField {
-    /// Decode-only key left behind by builds that carried Markdown in the
-    /// encrypted payload. New Article bodies use the payloadAsset CKAsset.
-    static let legacyArtifactMarkdownPayload = "artifactMarkdownPayload"
-}
-
 struct CloudKitSyncPendingItem: Identifiable, Equatable, Sendable {
     let id: String
     let title: String

@@ -34,7 +34,6 @@ final class JournalWatchRunner {
     private(set) var feeds: [JournalFeed] = []
     /// Every pending suggestion, all Notebooks, newest first.
     private(set) var suggestions: [JournalArticleSuggestion] = []
-    private(set) var excludedNotebookIDs: Set<String> = []
     private(set) var isChecking = false
     private(set) var checkingFeedIDs: Set<String> = []
     private(set) var lastCheckAt: Date?
@@ -108,7 +107,6 @@ final class JournalWatchRunner {
         do {
             feeds = try await storage.loadJournalFeeds()
             suggestions = try await storage.loadPendingJournalSuggestions()
-            excludedNotebookIDs = try await storage.journalWatchExcludedNotebookIDs()
         } catch {
             logger.error("Journals could not load: \(error.localizedDescription, privacy: .public)")
         }

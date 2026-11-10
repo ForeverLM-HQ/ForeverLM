@@ -14384,6 +14384,73 @@ struct MCPToolArgumentNormalizationTests {
         #expect(normalized["source_type"] == nil)
     }
 
+    /// The bug this guards against: `"keywords": "telomere"` was cast to
+    /// `[String]`, came out nil, and the search failed as if no keyword had
+    /// been sent (2026-11-10).
+    @Test("a value in the wrong JSON shape is read as the shape the schema declares")
+    func wrongShapedValuesTakeTheDeclaredShape() {
+        let schema: [String: Any] = [
+            "type": "object",
+            "properties": [
+                "keywords": ["type": "array", "items": ["type": "string"]],
+                "source_ids": ["type": "array", "items": ["type": "string"]],
+                "rows": ["type": "array", "items": ["type": "object"]],
+                "limit": ["type": "integer"],
+                "snippets_per_source": ["type": "integer"],
+                "threshold": ["type": "number"],
+                "include_archived": ["type": "boolean"],
+                "source_id": ["type": "string"],
+                "match": ["type": "string"],
+            ] as [String: Any],
+        ]
+        let shaped = MCPToolRegistry.argumentsShaped(toSchema: schema, arguments: [
+            "keywords": "telomere, p53",
+            "source_ids": "[\"src_a\", \"src_b\"]",
+            "rows": "not a list",
+            "limit": "5",
+            "snippets_per_source": "3.0",
+            "threshold": "0.25",
+            "include_archived": "TRUE",
+            "source_id": ["src_a"],
+            "match": "all",
+            "unknown": "kept",
+        ])
+        #expect(shaped["keywords"] as? [String] == ["telomere, p53"])
+        #expect(shaped["source_ids"] as? [String] == ["src_a", "src_b"])
+        #expect(shaped["rows"] as? String == "not a list")
+        #expect(shaped["limit"] as? Int == 5)
+        #expect(shaped["snippets_per_source"] as? Int == 3)
+        #expect(shaped["threshold"] as? Double == 0.25)
+        #expect(shaped["include_archived"] as? Bool == true)
+        #expect(shaped["source_id"] as? String == "src_a")
+        #expect(shaped["match"] as? String == "all")
+        #expect(shaped["unknown"] as? String == "kept")
+    }
+
+    /// A value already in its declared shape, or one that does not say the
+    /// same thing in it, is passed on as sent.
+    @Test("well-shaped and unreadable values are left as sent")
+    func rightShapedValuesAreUntouched() {
+        let schema: [String: Any] = [
+            "properties": [
+                "keywords": ["type": "array", "items": ["type": "string"]],
+                "limit": ["type": "integer"],
+                "flag": ["type": "boolean"],
+                "source_id": ["type": "string"],
+            ] as [String: Any],
+        ]
+        let shaped = MCPToolRegistry.argumentsShaped(toSchema: schema, arguments: [
+            "keywords": ["a", "b"],
+            "limit": "many",
+            "flag": "yes",
+            "source_id": ["a", "b"],
+        ])
+        #expect(shaped["keywords"] as? [String] == ["a", "b"])
+        #expect(shaped["limit"] as? String == "many")
+        #expect(shaped["flag"] as? String == "yes")
+        #expect((shaped["source_id"] as? [String])?.count == 2)
+    }
+
     /// Mutating tools document `""` as a deliberate value ("pass instructions
     /// \"\" to clear"), so nothing may be dropped from them.
     @Test("mutating tools keep an empty string as sent")

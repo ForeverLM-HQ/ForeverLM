@@ -188,7 +188,7 @@ extension KnowledgeStore {
             .joined(separator: ", ")
         var result: [AssignedTask] = []
         try queryBind("""
-            SELECT \(columns), t.name, t.permission,
+            SELECT \(columns), t.name,
                    (SELECT title FROM source_projection WHERE id = pt.source_id),
                    (SELECT source_type FROM source_projection WHERE id = pt.source_id),
                    (SELECT title FROM global_artifacts WHERE id = pt.artifact_id)
@@ -212,10 +212,9 @@ extension KnowledgeStore {
             result.append(AssignedTask(
                 task: task,
                 teamName: teamName,
-                teamCanEdit: self.string(stmt, 18) == TeamPermission.readWrite.rawValue,
-                sourceTitle: self.string(stmt, 19),
-                sourceType: self.string(stmt, 20).flatMap(StudioSourceType.init(rawValue:)),
-                artifactTitle: self.string(stmt, 21)
+                sourceTitle: self.string(stmt, 18),
+                sourceType: self.string(stmt, 19).flatMap(StudioSourceType.init(rawValue:)),
+                artifactTitle: self.string(stmt, 20)
             ))
         }
         return result
@@ -227,7 +226,6 @@ extension KnowledgeStore {
 struct AssignedTask: Identifiable, Equatable, Sendable {
     let task: NotebookTaskRecord
     let teamName: String
-    let teamCanEdit: Bool
     let sourceTitle: String?
     let sourceType: StudioSourceType?
     let artifactTitle: String?

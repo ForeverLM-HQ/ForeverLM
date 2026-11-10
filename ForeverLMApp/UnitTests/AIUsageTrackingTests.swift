@@ -300,8 +300,6 @@ struct AIUsageTrackingTests {
         #expect(try store.countAIUsageEvents(
             filter: .init(clientPlatform: "iOS")
         ) == 0)
-        let facets = try store.loadAIUsageFacets()
-        #expect(facets.platforms == ["macOS"])
 
         // Per-session cost: the billed amount wins over the estimate, and the
         // cutoff partitions rows for the live/persisted split.
@@ -319,14 +317,6 @@ struct AIUsageTrackingTests {
         #expect(beforeRecord.eventCount == 0)
         // AI usage telemetry is intentionally local-only: syncing per-API-call
         // events clogged the CloudKit queue (see saveAIUsageEvent).
-
-        let summaries = try store.loadAIUsageSummaries()
-        #expect(summaries.count == 1)
-        #expect(summaries.first?.requestCount == 1)
-        #expect(summaries.first?.inputTokens == 10)
-        #expect(summaries.first?.outputTokens == 5)
-        #expect(summaries.first?.providerReportedCost == 0.0012)
-        #expect(summaries.first?.estimatedCost == 0.0002)
     }
 
     @Test("A direct-rail call stays in the ledger view inside server coverage")
@@ -452,11 +442,6 @@ struct AIUsageTrackingTests {
         #expect(loaded.characterCount == 2_000)
         #expect(loaded.durationSeconds == 90)
         #expect(loaded.estimatedCost == 0.04)
-
-        let summaries = try store.loadAIUsageSummaries()
-        #expect(summaries.first?.characterCount == 2_000)
-        #expect(summaries.first?.durationSeconds == 90)
-        #expect(summaries.first?.estimatedCost == 0.04)
     }
 
     @Test("Groups usage by task and stable subject identity")

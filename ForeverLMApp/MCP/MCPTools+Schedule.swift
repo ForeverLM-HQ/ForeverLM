@@ -1377,7 +1377,7 @@ extension MCPDataStore {
     ) throws -> String {
         let terms = SourceKeywordSearch.normalized(keywords)
         guard !terms.isEmpty else {
-            throw MCPError.invalidInput("keywords must contain at least one word or phrase to look for.")
+            throw MCPError.invalidInput("keywords must contain at least one word or phrase to look for, as a list: {\"keywords\": [\"telomere\", \"p53\"]}. This tool has no query argument; for a question in plain words call search_sources_semantic.")
         }
         let maximum = SourceKeywordSearch.maximumKeywords
         guard terms.count <= maximum else {
@@ -1422,11 +1422,15 @@ extension MCPDataStore {
         var namedSourceIDs: [String] = []
         for id in sourceIDs {
             let trimmed = id.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !trimmed.isEmpty, !namedSourceIDs.contains(trimmed) else { continue }
-            guard try store.sourceExists(trimmed) else {
-                throw MCPError.invalidInput("No source with id \(trimmed). Use the ids of the sources attached to this chat, or find one with list_sources or search_sources_semantic.")
+            guard !trimmed.isEmpty else { continue }
+            // The id as get_source_content takes it: exact, or cut short from
+            // the end. A 68-character id a model copied short was read by that
+            // tool and refused by this one in the same turn (2026-11-10).
+            guard let resolved = try store.resolveSourceID(forLinkToken: trimmed) else {
+                throw MCPError.invalidInput("No source with id \(trimmed). Copy the id whole from the sources attached to this chat, list_sources or search_sources_semantic. Nothing was searched; the other arguments were fine.")
             }
-            namedSourceIDs.append(trimmed)
+            guard !namedSourceIDs.contains(resolved) else { continue }
+            namedSourceIDs.append(resolved)
         }
         if !namedSourceIDs.isEmpty {
             let named = Set(namedSourceIDs)

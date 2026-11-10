@@ -176,30 +176,6 @@ struct MemoryReviewGoalTests {
         #expect(MemoryReviewProgress.streak(completedDays: [], today: "2026-09-04", calendar: utc) == 0)
     }
 
-    @Test("Today is judged by the goal in force now, past days by theirs")
-    func snapshotUsesCurrentGoalForToday() {
-        let rows = [
-            row("2026-09-03", "mac", 900, goal: 900, at: 1),
-            row("2026-09-04", "mac", 300, goal: 900, at: 2),
-            row("2026-09-04", "phone", 350, goal: 900, at: 3),
-        ]
-        // The learner lowered the budget to ten minutes today.
-        let snapshot = MemoryReviewProgress.snapshot(rows: rows, today: "2026-09-04", goalSecondsNow: 600, calendar: utc)
-        #expect(snapshot.today.activeSeconds == 650)
-        #expect(snapshot.isTodayComplete)
-        #expect(snapshot.streak == 2)
-        // With the fifteen-minute goal today would still be open, and the
-        // streak would be yesterday's one.
-        let strict = MemoryReviewProgress.snapshot(rows: rows, today: "2026-09-04", goalSecondsNow: 900, calendar: utc)
-        #expect(!strict.isTodayComplete)
-        #expect(strict.today.remainingSeconds == 250)
-        #expect(strict.streak == 1)
-        // Nothing written yet today.
-        let fresh = MemoryReviewProgress.snapshot(rows: rows, today: "2026-09-05", goalSecondsNow: 900, calendar: utc)
-        #expect(fresh.today.activeSeconds == 0)
-        #expect(fresh.streak == 0)
-    }
-
     // MARK: - The commitment
 
     /// The product owner (2026-09-19): "it should just lock me into the app for 15 mins;

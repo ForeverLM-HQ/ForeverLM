@@ -236,7 +236,6 @@ struct FamilyAssignmentsTests {
         #expect(open.map(\.id) == ["soon", "later", "undated"])
         #expect(open.first?.sourceTitle == "Beta")
         #expect(open.first?.teamName == "Dekker")
-        #expect(open.allSatisfy { $0.teamCanEdit })
 
         let withToday = try store.loadAssignedToMe(recentlyDoneSince: Calendar.current.startOfDay(for: Date()))
         #expect(withToday.map(\.id) == ["soon", "later", "undated", "done"])

@@ -20,7 +20,6 @@ final class TeamSharingService: NSObject, @preconcurrency NSCloudSharingServiceD
     /// Posted after the sharing sheet closes with the team id in `object`, and
     /// after an invitation is accepted, so Settings and the rail refresh.
     static let teamRosterDidChange = Notification.Name("TeamRosterDidChange")
-    static let teamDidJoin = Notification.Name("TeamDidJoin")
 
     func presentMembers(for team: TeamRecord) {
         let provider = NSItemProvider()

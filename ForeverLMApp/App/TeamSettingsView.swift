@@ -52,9 +52,6 @@ struct TeamSettingsSection: View {
                 if let teamID { await vm.refreshTeamMembers(teamID: teamID) }
             }
         }
-        .onReceive(NotificationCenter.default.publisher(for: TeamSharingService.teamDidJoin)) { _ in
-            Task { await vm.loadTeams() }
-        }
         .alert(
             "Leave \(teamPendingLeave?.name ?? "the team")?",
             isPresented: Binding(

@@ -157,18 +157,6 @@ struct JournalWatchStoreTests {
         #expect(try store.markJournalItemsJudged([]) == ())
     }
 
-    @Test("Notebooks are watched unless excluded, and an exclusion can be lifted")
-    func exclusions() throws {
-        let store = try makeStore()
-        #expect(try store.journalWatchExcludedNotebookIDs().isEmpty)
-        try store.setJournalWatchNotebookExcluded("p1", excluded: true)
-        try store.setJournalWatchNotebookExcluded("p1", excluded: true)
-        try store.setJournalWatchNotebookExcluded("p2", excluded: true)
-        #expect(try store.journalWatchExcludedNotebookIDs() == ["p1", "p2"])
-        try store.setJournalWatchNotebookExcluded("p1", excluded: false)
-        #expect(try store.journalWatchExcludedNotebookIDs() == ["p2"])
-    }
-
     @Test("An announced article already in the library is recognised by URL or by DOI")
     func libraryLookup() throws {
         let store = try makeStore()

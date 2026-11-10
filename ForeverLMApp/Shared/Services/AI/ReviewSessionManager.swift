@@ -1214,9 +1214,6 @@ final class ReviewSessionManager {
         }
         errorMessage = nil
     }
-    var canSwitchToReviewSession: Bool {
-        sessionActive && sessionPromptKind == .summarize && !isSearching && !isGenerating
-    }
     var canStopGeneration = false
     var canRetryLastGeneration: Bool {
         lastGenerationFailed && sessionActive && !isGenerating && !isSearching
@@ -3616,20 +3613,6 @@ final class ReviewSessionManager {
         } else {
             await sendAnswer(message, contextualContent: contextualContent, docAnchor: docAnchor)
         }
-    }
-
-    func switchToReviewSession() async {
-        guard canSwitchToReviewSession else { return }
-        sessionPromptKind = .review
-        errorMessage = nil
-        lastGenerationFailed = false
-        completedSummary = nil
-        lastAssistantQuestion = nil
-        chatMessages.append(Message(
-            role: .user,
-            content: Self.reviewSwitchInstruction
-        ))
-        await generateQuestion(isFirst: false)
     }
 
     func completeSynthesisToolCall(_ callID: UUID, message: String) {
@@ -12161,6 +12144,13 @@ final class ReviewSessionManager {
               var activity = chatMessages[index].toolActivity else { return }
         let trimmed = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
         activity.state = (result.isError || trimmed.isEmpty) ? .failed : .succeeded
+        if activity.state == .failed {
+            // The row's own words are not saved with the chat, so a failure
+            // seen in a screenshot could not be traced back to its cause
+            // (2026-11-10). At error level the line stays in the unified log
+            // for hours.
+            logger.error("Chat tool \(activity.toolName, privacy: .public) failed: \(String(trimmed.prefix(400)), privacy: .public)")
+        }
         if !result.isError {
             toolSourceTitles.harvest(toolResult: trimmed)
             if activity.toolName == "retrieve_sources" {

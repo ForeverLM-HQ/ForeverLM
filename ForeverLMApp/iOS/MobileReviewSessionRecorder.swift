@@ -110,15 +110,6 @@ struct MobileReviewSourceIdentityPayload: Codable, Equatable {
     let publishedDOI: String?
 }
 
-/// A MemoryItem record's payload as the Mac reads it (`CloudKitMemoryItemPayload`):
-/// what a voice review's memory turn and a mnemonic reading's first answer
-/// (`MobileMemoryAttemptRecorder.recordKeeping`) write.
-struct MobileMemoryItemRecordPayload: Codable {
-    let payloadVersion: Int
-    let item: MemoryItem
-    let sourceIdentities: [MobileReviewSourceIdentityPayload]
-}
-
 /// A review's and a chat's records, written through the phone's writer (`MobileRecordWriter`): the Chat
 /// and its Exchanges, and for a memory turn the card it keeps and the answer in this device's Sitting
 /// (§3.5.13, §3.5.14, §3.5.22, §3.5.23). The replica sends them.

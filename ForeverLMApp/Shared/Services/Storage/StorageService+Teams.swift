@@ -22,10 +22,6 @@ extension StorageService {
         try notebookFilesKnowledgeStore().loadTeamMembers(teamID: teamID)
     }
 
-    func teamIDsHoldingSource(url: String) throws -> Set<String> {
-        try notebookFilesKnowledgeStore().teamIDsHoldingSource(url: url)
-    }
-
     func teamsHoldingArtifact(_ artifactID: String) throws -> [TeamRecord] {
         try notebookFilesKnowledgeStore().teamsHoldingArtifact(artifactID)
     }

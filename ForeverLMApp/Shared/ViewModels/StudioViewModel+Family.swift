@@ -67,15 +67,6 @@ extension StudioViewModel {
         if loaded != assignedToMe { assignedToMe = loaded }
     }
 
-    /// Tick an assignment done, or open it again, by hand.
-    func setAssignment(_ assignment: AssignedTask, done: Bool) async {
-        guard assignment.teamCanEdit else { return }
-        var task = assignment.task
-        task.status = done ? .done : .todo
-        _ = await saveNotebookTask(task)
-        await refreshAssignedToMe()
-    }
-
     /// Open what an assignment points at. A team's copy opens only from the
     /// team's library, so that becomes the active library first; there the
     /// learner's own row at the same address is the one that opens

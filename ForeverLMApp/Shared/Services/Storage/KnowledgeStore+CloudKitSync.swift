@@ -1271,85 +1271,6 @@ extension KnowledgeStore {
          OR ai_usage_events.raw_usage_json LIKE '%"is_byok": false%')
         """
 
-    /// Distinct providers, models, operations, and tasks present in the
-    /// period — the filter menus are built from what the ledger actually
-    /// contains rather than from a hardcoded list that could drift from it.
-    /// Tasks skip NULL rows (recorded before the column existed), so the menu
-    /// never offers a blank entry.
-    func loadAIUsageFacets(since: Date? = nil) throws -> (providers: [String], models: [String], operations: [String], tasks: [String], platforms: [String]) {
-        func distinct(_ column: String) throws -> [String] {
-            var predicates = [Self.aiUsageAccountingRowPredicate, "\(column) IS NOT NULL"]
-            if since != nil { predicates.append("created_at >= ?") }
-            let predicate = "WHERE " + predicates.joined(separator: " AND ")
-            var values: [String] = []
-            try queryBind("SELECT DISTINCT \(column) FROM ai_usage_events \(predicate) ORDER BY \(column)", bind: { stmt in
-                if let since {
-                    sqlite3_bind_double(stmt, 1, since.timeIntervalSinceReferenceDate)
-                }
-            }) { stmt in
-                if let value = self.string(stmt, 0) {
-                    values.append(value)
-                }
-            }
-            return values
-        }
-        return (try distinct("provider"), try distinct("model"), try distinct("operation"), try distinct("task"), try distinct("client_platform"))
-    }
-
-    func loadAIUsageSummaries(filter: AIUsageEventFilter = .init()) throws -> [AIUsageSummary] {
-        var summaries: [AIUsageSummary] = []
-        try queryBind("""
-            SELECT provider, model, COUNT(*),
-                   COALESCE(SUM(input_tokens), 0),
-                   COALESCE(SUM(output_tokens), 0),
-                   COALESCE(SUM(cached_input_tokens), 0),
-                   COALESCE(SUM(cache_creation_input_tokens), 0),
-                   COALESCE(SUM(reasoning_tokens), 0),
-                   COALESCE(SUM(audio_input_tokens), 0),
-                   COALESCE(SUM(audio_output_tokens), 0),
-                   COALESCE(SUM(image_count), 0),
-                   COALESCE(SUM(total_tokens), 0),
-                   COALESCE(SUM(character_count), 0),
-                   COALESCE(SUM(duration_seconds), 0),
-                   SUM(provider_reported_cost),
-                   SUM(estimated_cost),
-                   SUM(CASE WHEN estimated_cost IS NULL THEN 1 ELSE 0 END),
-                   MAX(currency)
-            FROM ai_usage_events
-            \(filter.whereClause)
-            GROUP BY provider, model
-            ORDER BY created_at DESC
-        """, bind: { stmt in
-            _ = self.bindAIUsageFilter(filter, to: stmt)
-        }) { stmt in
-            guard let provider = self.string(stmt, 0),
-                  let model = self.string(stmt, 1) else {
-                return
-            }
-            summaries.append(AIUsageSummary(
-                provider: provider,
-                model: model,
-                requestCount: Int(sqlite3_column_int64(stmt, 2)),
-                inputTokens: Int(sqlite3_column_int64(stmt, 3)),
-                outputTokens: Int(sqlite3_column_int64(stmt, 4)),
-                cachedInputTokens: Int(sqlite3_column_int64(stmt, 5)),
-                cacheCreationInputTokens: Int(sqlite3_column_int64(stmt, 6)),
-                reasoningTokens: Int(sqlite3_column_int64(stmt, 7)),
-                audioInputTokens: Int(sqlite3_column_int64(stmt, 8)),
-                audioOutputTokens: Int(sqlite3_column_int64(stmt, 9)),
-                imageCount: Int(sqlite3_column_int64(stmt, 10)),
-                totalTokens: Int(sqlite3_column_int64(stmt, 11)),
-                characterCount: Int(sqlite3_column_int64(stmt, 12)),
-                durationSeconds: sqlite3_column_double(stmt, 13),
-                providerReportedCost: self.optionalDouble(stmt, 14),
-                estimatedCost: self.optionalDouble(stmt, 15),
-                unpricedCount: Int(sqlite3_column_int64(stmt, 16)),
-                currency: self.string(stmt, 17)
-            ))
-        }
-        return summaries
-    }
-
     /// One row per task and model the ledger saw in the period, with every
     /// billable token dimension summed and the cost expression the pane uses,
     /// so a cost report can say which model each feature actually ran and what
@@ -1402,8 +1323,7 @@ extension KnowledgeStore {
     /// Per-local-day spend under a full filter, priced with the same cost
     /// expression as the totals (provider-billed amount first, then the
     /// list-price estimate), so a day's figure agrees with the period total.
-    /// `loadAIUsageDailyTotals(since:)` keeps the dashboard chart's estimate
-    /// column; this one is for the usage report over MCP.
+    /// This one is for the usage report over MCP.
     func loadAIUsageDailyCosts(filter: AIUsageEventFilter = .init()) throws -> [AIUsageDailyTotal] {
         var totals: [AIUsageDailyTotal] = []
         try queryBind("""
@@ -1418,41 +1338,6 @@ extension KnowledgeStore {
             ORDER BY day ASC
         """, bind: { stmt in
             _ = self.bindAIUsageFilter(filter, to: stmt)
-        }) { stmt in
-            guard let day = self.string(stmt, 0) else { return }
-            totals.append(AIUsageDailyTotal(
-                day: day,
-                requestCount: Int(sqlite3_column_int64(stmt, 1)),
-                inputTokens: Int(sqlite3_column_int64(stmt, 2)),
-                outputTokens: Int(sqlite3_column_int64(stmt, 3)),
-                estimatedCost: self.optionalDouble(stmt, 4)
-            ))
-        }
-        return totals
-    }
-
-    func loadAIUsageDailyTotals(since: Date? = nil) throws -> [AIUsageDailyTotal] {
-        let predicate = "WHERE " + [
-            Self.aiUsageAccountingRowPredicate,
-            since == nil ? nil : "created_at >= ?",
-        ].compactMap { $0 }.joined(separator: " AND ")
-        var totals: [AIUsageDailyTotal] = []
-        // created_at is seconds since the Cocoa reference date (2001-01-01);
-        // shift by 978307200 to the unix epoch for SQLite's date functions.
-        try queryBind("""
-            SELECT strftime('%Y-%m-%d', created_at + 978307200, 'unixepoch', 'localtime') AS day,
-                   COUNT(*),
-                   COALESCE(SUM(input_tokens), 0),
-                   COALESCE(SUM(output_tokens), 0),
-                   SUM(estimated_cost)
-            FROM ai_usage_events
-            \(predicate)
-            GROUP BY day
-            ORDER BY day ASC
-        """, bind: { stmt in
-            if let since {
-                sqlite3_bind_double(stmt, 1, since.timeIntervalSinceReferenceDate)
-            }
         }) { stmt in
             guard let day = self.string(stmt, 0) else { return }
             totals.append(AIUsageDailyTotal(

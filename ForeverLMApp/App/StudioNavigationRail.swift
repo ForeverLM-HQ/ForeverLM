@@ -788,9 +788,6 @@ struct StudioNavigationRail: View {
         }
         // An accepted invitation and a roster change both happen outside the
         // view model; the switcher's list has to follow them.
-        .onReceive(NotificationCenter.default.publisher(for: TeamSharingService.teamDidJoin)) { _ in
-            Task { await vm.loadTeams() }
-        }
         .onReceive(NotificationCenter.default.publisher(for: TeamSharingService.teamRosterDidChange)) { note in
             Task {
                 await vm.loadTeams()

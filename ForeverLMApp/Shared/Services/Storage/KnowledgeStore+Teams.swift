@@ -561,17 +561,6 @@ extension KnowledgeStore {
         return activeSourceID(matchingAddress: url, teamID: teamID) ?? keyed
     }
 
-    /// Every team copy that came from a given original, by kind, so a menu can
-    /// tick the teams an item is already in.
-    func teamIDsHoldingSource(url: String) throws -> Set<String> {
-        var result = Set<String>()
-        for team in try loadTeams() {
-            let copyID = try teamSourceCopyID(teamID: team.id, url: url)
-            if try sourceExists(copyID) { result.insert(team.id) }
-        }
-        return result
-    }
-
     /// Where a team's copy of a source files inside a team's course: the
     /// course, the source's place in it and the lecture it is matched with.
     struct TeamCourseMembership: Equatable {

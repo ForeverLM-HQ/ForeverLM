@@ -5085,7 +5085,13 @@ final class MCPToolRegistry: @unchecked Sendable {
             if holdsStoreGate { await store.releaseToolOperation() }
             return ToolCallOutcome(text: "\(Self.stoppedResultPrefix) before \(name) started. Nothing was done.", isError: true)
         }
-        let normalizedArguments = Self.normalizedArguments(toolName: name, arguments: arguments)
+        let normalizedArguments = Self.normalizedArguments(
+            toolName: name,
+            arguments: Self.argumentsShaped(
+                toSchema: tools.first(where: { $0.name == name })?.inputSchema ?? [:],
+                arguments: arguments
+            )
+        )
         // A call an AI app made that sets ForeverLM's models to work draws its
         // popup in the Studio window while it runs (MCPToolActivity.swift).
         let activity = await store.beginToolActivity(name: name, arguments: normalizedArguments, access: access)
@@ -5136,6 +5142,72 @@ final class MCPToolRegistry: @unchecked Sendable {
         case "screenshot_canvas": return await store.screenshotCanvas(arguments: arguments)
         default: return await store.executeImageTool(name: name, arguments: arguments)
         }
+    }
+
+    /// An argument sent in the wrong JSON shape is read as the shape the
+    /// tool's schema declares, when the value says the same thing either way.
+    ///
+    /// Every handler reads its arguments with a typed cast
+    /// (`arguments["keywords"] as? [String] ?? []`), so a model that wrote
+    /// `"keywords": "telomere"` for a list, `"limit": "5"` for an integer or
+    /// `"include_archived": "true"` for a boolean had the value dropped without
+    /// a word: the call then failed as if the argument were missing, or ran
+    /// with the default (product owner, 2026-11-10, on a chat whose keyword
+    /// search failed mid-answer: "quite often still agents just fail in their
+    /// tasks"). Only a value whose type contradicts the schema is touched, and
+    /// only at the top level:
+    /// - a list declared, a string sent: the JSON list the string spells, or
+    ///   the string as a list of one when the list holds strings. It is never
+    ///   split on commas, which a phrase may contain.
+    /// - an integer or number declared, a numeric string sent: the number.
+    /// - a boolean declared, "true" or "false" sent: the boolean.
+    /// - a string declared, a list of exactly one string sent: that string.
+    static func argumentsShaped(toSchema schema: [String: Any], arguments: [String: Any]) -> [String: Any] {
+        guard let properties = schema["properties"] as? [String: Any], !arguments.isEmpty else { return arguments }
+        var shaped = arguments
+        for (key, value) in arguments {
+            guard let property = properties[key] as? [String: Any],
+                  let declared = property["type"] as? String else { continue }
+            switch declared {
+            case "array":
+                guard let text = value as? String else { continue }
+                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                guard !trimmed.isEmpty else { continue }
+                if trimmed.hasPrefix("["),
+                   let data = trimmed.data(using: .utf8),
+                   let list = try? JSONSerialization.jsonObject(with: data) as? [Any] {
+                    shaped[key] = list
+                } else if (property["items"] as? [String: Any])?["type"] as? String == "string" {
+                    shaped[key] = [trimmed]
+                }
+            case "integer":
+                guard let text = value as? String else { continue }
+                let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+                if let whole = Int(trimmed) {
+                    shaped[key] = whole
+                } else if let number = Double(trimmed), number.isFinite, number == number.rounded(), abs(number) < 1e15 {
+                    shaped[key] = Int(number)
+                }
+            case "number":
+                guard let text = value as? String,
+                      let number = Double(text.trimmingCharacters(in: .whitespacesAndNewlines)),
+                      number.isFinite else { continue }
+                shaped[key] = number
+            case "boolean":
+                guard let text = value as? String else { continue }
+                switch text.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() {
+                case "true": shaped[key] = true
+                case "false": shaped[key] = false
+                default: continue
+                }
+            case "string":
+                guard let list = value as? [Any], list.count == 1, let only = list[0] as? String else { continue }
+                shaped[key] = only
+            default:
+                continue
+            }
+        }
+        return shaped
     }
 
     /// An empty optional argument on a read-only tool means the same as leaving

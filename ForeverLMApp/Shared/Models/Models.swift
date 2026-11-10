@@ -938,31 +938,6 @@ struct AITaskConfig: Sendable {
 
 // AIUsageEvent lives in AIUsageReporting.swift (shared with the mobile targets).
 
-struct AIUsageSummary: Identifiable, Sendable {
-    var id: String { "\(provider)|\(model)" }
-    let provider: String
-    let model: String
-    let requestCount: Int
-    let inputTokens: Int
-    let outputTokens: Int
-    let cachedInputTokens: Int
-    let cacheCreationInputTokens: Int
-    let reasoningTokens: Int
-    let audioInputTokens: Int
-    let audioOutputTokens: Int
-    let imageCount: Int
-    let totalTokens: Int
-    let characterCount: Int
-    let durationSeconds: Double
-    let providerReportedCost: Double?
-    let estimatedCost: Double?
-    /// Events in this group with no known list price (estimatedCost stamped
-    /// nil at record time). SQL SUM skips NULLs, so without this count a group
-    /// mixing priced and unpriced events would silently show a partial total.
-    let unpricedCount: Int
-    let currency: String?
-}
-
 /// Per-local-day usage rollup for the costs dashboard chart.
 struct AIUsageDailyTotal: Identifiable, Sendable {
     var id: String { day }
@@ -995,16 +970,6 @@ struct AIUsageTaskModelSummary: Identifiable, Sendable, Equatable {
     let cost: Double?
     let unpricedCallCount: Int
     let latestAt: Date
-}
-
-/// Per-operation usage rollup ("what feature spent this") for the costs dashboard.
-struct AIUsageOperationSummary: Identifiable, Sendable {
-    var id: String { operation }
-    let operation: String
-    let requestCount: Int
-    let inputTokens: Int
-    let outputTokens: Int
-    let estimatedCost: Double?
 }
 
 enum UITestConfiguration {

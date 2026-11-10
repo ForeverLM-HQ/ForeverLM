@@ -1,6 +1,5 @@
 import CryptoKit
 import Foundation
-import ImageIO
 import UniformTypeIdentifiers
 #if canImport(PDFKit)
 import PDFKit
@@ -8,15 +7,8 @@ import PDFKit
 
 extension StorageService {
     private static let notebookDirectoryName = "Projects"
-    private static let notebookPreviewByteLimit = 256 * 1_024
     static let notebookMarkdownFileByteLimit = 2 * 1_024 * 1_024
     static let notebookMaterialContextCharacterLimit = 200_000
-    private static let notebookPreviewRowLimit = 30
-    private static let notebookPreviewColumnLimit = 40
-    private static let jupyterNotebookCellLimit = 250
-    private static let jupyterNotebookTextCharacterLimit = 100_000
-    private static let jupyterNotebookImageByteLimit = 25 * 1_024 * 1_024
-    private static let jupyterNotebookFileByteLimit = 100 * 1_024 * 1_024
     private var notebookFileManager: FileManager { FileManager.default }
 
     func notebookWorkspaceURL(notebookID: String, createIfNeeded: Bool = true) throws -> URL {
@@ -387,51 +379,8 @@ extension StorageService {
         return try reconcileNotebookFiles(notebookID: notebookID)
     }
 
-    @discardableResult
-    func removeNotebookFile(_ record: NotebookFileRecord) throws -> [NotebookFileRecord] {
-        let url = notebookFileURL(for: record)
-        guard notebookFileManager.fileExists(atPath: url.path) else {
-            return try reconcileNotebookFiles(notebookID: record.notebookID)
-        }
-        #if os(macOS)
-        _ = try notebookFileManager.trashItem(at: url, resultingItemURL: nil)
-        #else
-        try notebookFileManager.removeItem(at: url)
-        #endif
-        return try reconcileNotebookFiles(notebookID: record.notebookID)
-    }
-
     func notebookFileURL(for record: NotebookFileRecord) -> URL {
         libraryRootURL.appendingPathComponent(record.relativePath)
-    }
-
-    /// Returns a bounded, read-only preview. Formats the app understands well
-    /// enough to present better than the system does — notebooks, tables, source
-    /// text, PDFs — get a native preview; everything else goes to Quick Look.
-    /// Notebook code is never executed.
-    func notebookFilePreview(for record: NotebookFileRecord) throws -> NotebookFilePreview {
-        let url = notebookFileURL(for: record)
-        guard try prepareNotebookFileForReading(url) else {
-            return .unavailable(message: "Downloading from iCloud…")
-        }
-
-        switch record.pathExtension {
-        case "ipynb":
-            return try .notebook(parseNotebook(at: url))
-        case "csv":
-            return try .table(parseDelimitedFile(at: url, delimiter: ","))
-        case "tsv":
-            return try .table(parseDelimitedFile(at: url, delimiter: "\t"))
-        case "pdf":
-            return .pdf(url: url)
-        case "txt", "md", "markdown", "py", "r", "jl", "swift", "js", "ts",
-             "json", "yaml", "yml", "toml", "sql", "sh", "zsh", "bash", "xml",
-             "html", "css", "log":
-            let bounded = try readBoundedText(at: url)
-            return .text(content: bounded.text, isTruncated: bounded.isTruncated)
-        default:
-            return .quickLook(url: url)
-        }
     }
 
     private func notebookMarkdownFileSnapshot(
@@ -593,205 +542,5 @@ extension StorageService {
         guard notebookFileManager.fileExists(atPath: placeholder.path) else { return false }
         try notebookFileManager.startDownloadingUbiquitousItem(at: placeholder)
         return false
-    }
-
-    private func readBoundedText(at url: URL) throws -> (text: String, isTruncated: Bool) {
-        let handle = try FileHandle(forReadingFrom: url)
-        defer { try? handle.close() }
-        let data = try handle.read(upToCount: Self.notebookPreviewByteLimit + 1) ?? Data()
-        let isTruncated = data.count > Self.notebookPreviewByteLimit
-        let bounded = data.prefix(Self.notebookPreviewByteLimit)
-        let text = String(decoding: bounded, as: UTF8.self)
-        return (text, isTruncated)
-    }
-
-    private func parseDelimitedFile(at url: URL, delimiter: Character) throws -> NotebookTabularPreview {
-        let bounded = try readBoundedText(at: url)
-        let records = parseDelimitedRecords(
-            bounded.text,
-            delimiter: delimiter,
-            limit: Self.notebookPreviewRowLimit + 1
-        )
-        guard let header = records.first else {
-            return NotebookTabularPreview(columns: [], rows: [], sampledRowCount: 0, isTruncated: bounded.isTruncated)
-        }
-        let columns = header.prefix(Self.notebookPreviewColumnLimit).map(boundedTableField)
-        let rows = records.dropFirst().prefix(Self.notebookPreviewRowLimit).map {
-            $0.prefix(Self.notebookPreviewColumnLimit).map(boundedTableField)
-        }
-        return NotebookTabularPreview(
-            columns: columns,
-            rows: rows,
-            sampledRowCount: rows.count,
-            isTruncated: bounded.isTruncated
-                || records.count > Self.notebookPreviewRowLimit + 1
-                || header.count > Self.notebookPreviewColumnLimit
-        )
-    }
-
-    /// RFC 4180-style parsing for a bounded CSV/TSV sample.
-    private func parseDelimitedRecords(
-        _ text: String,
-        delimiter: Character,
-        limit: Int
-    ) -> [[String]] {
-        var records: [[String]] = []
-        var record: [String] = []
-        var field = ""
-        var isQuoted = false
-        var index = text.startIndex
-
-        while index < text.endIndex, records.count < limit {
-            let character = text[index]
-            if character == "\"" {
-                let next = text.index(after: index)
-                if isQuoted, next < text.endIndex, text[next] == "\"" {
-                    field.append("\"")
-                    index = next
-                } else {
-                    isQuoted.toggle()
-                }
-            } else if character == delimiter, !isQuoted {
-                record.append(field)
-                field = ""
-            } else if (character == "\n" || character == "\r"), !isQuoted {
-                if character == "\r" {
-                    let next = text.index(after: index)
-                    if next < text.endIndex, text[next] == "\n" {
-                        index = next
-                    }
-                }
-                record.append(field)
-                field = ""
-                records.append(record)
-                record = []
-            } else {
-                field.append(character)
-            }
-            index = text.index(after: index)
-        }
-
-        if records.count < limit, !field.isEmpty || !record.isEmpty {
-            record.append(field)
-            records.append(record)
-        }
-        return records
-    }
-
-    private func parseNotebook(at url: URL) throws -> JupyterNotebookPreview {
-        let fileSize = try url.resourceValues(forKeys: [.fileSizeKey]).fileSize ?? 0
-        guard fileSize <= Self.jupyterNotebookFileByteLimit else {
-            throw KnowledgeStoreError.invalidData("This notebook is too large to preview. Open it in an external editor.")
-        }
-        let data = try Data(contentsOf: url, options: [.mappedIfSafe])
-        guard let root = try JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let rawCells = root["cells"] as? [[String: Any]] else {
-            throw KnowledgeStoreError.invalidData("This notebook does not contain a valid cells array.")
-        }
-        let metadata = root["metadata"] as? [String: Any]
-        let kernelSpec = metadata?["kernelspec"] as? [String: Any]
-        let kernelName = kernelSpec?["display_name"] as? String
-
-        var cells: [JupyterNotebookCell] = []
-        for (cellIndex, rawCell) in rawCells.prefix(Self.jupyterNotebookCellLimit).enumerated() {
-            let kind = JupyterNotebookCell.Kind(rawValue: rawCell["cell_type"] as? String ?? "") ?? .raw
-            let source = notebookString(rawCell["source"])
-            let executionCount: String?
-            if let value = rawCell["execution_count"], !(value is NSNull) {
-                executionCount = String(describing: value)
-            } else {
-                executionCount = nil
-            }
-            let rawOutputs = rawCell["outputs"] as? [[String: Any]] ?? []
-            let outputs = rawOutputs.enumerated().compactMap { outputIndex, output in
-                notebookOutput(
-                    output,
-                    id: cellIndex * 10_000 + outputIndex
-                )
-            }
-            cells.append(
-                JupyterNotebookCell(
-                    id: cellIndex,
-                    kind: kind,
-                    source: source,
-                    executionCount: executionCount,
-                    outputs: outputs
-                )
-            )
-        }
-        return JupyterNotebookPreview(cells: cells, kernelName: kernelName)
-    }
-
-    private func notebookOutput(_ output: [String: Any], id: Int) -> JupyterNotebookOutput? {
-        if let text = output["text"] {
-            return .text(id: id, content: notebookString(text))
-        }
-        if let traceback = output["traceback"] {
-            return .text(id: id, content: notebookString(traceback))
-        }
-        guard let payload = output["data"] as? [String: Any] else { return nil }
-
-        for mime in ["image/png", "image/jpeg"] {
-            if let encoded = notebookJoinedString(payload[mime]),
-               let data = Data(base64Encoded: encoded, options: .ignoreUnknownCharacters),
-               data.count <= Self.jupyterNotebookImageByteLimit,
-               let previewData = notebookImagePreviewData(from: data) {
-                return .image(id: id, data: previewData)
-            }
-        }
-        if let text = payload["text/plain"] {
-            return .text(id: id, content: notebookString(text))
-        }
-        if payload["text/html"] != nil || payload["image/svg+xml"] != nil {
-            return .notice(id: id, message: "Rich output is available in the notebook editor.")
-        }
-        return nil
-    }
-
-    private func notebookString(_ value: Any?) -> String {
-        guard let string = notebookJoinedString(value) else { return "" }
-        guard string.count > Self.jupyterNotebookTextCharacterLimit else { return string }
-        return String(string.prefix(Self.jupyterNotebookTextCharacterLimit)) + "\n…"
-    }
-
-    private func notebookJoinedString(_ value: Any?) -> String? {
-        if let value = value as? String { return value }
-        if let lines = value as? [String] { return lines.joined() }
-        if let lines = value as? [Any] {
-            return lines.map { String(describing: $0) }.joined()
-        }
-        return nil
-    }
-
-    private func boundedTableField(_ value: String) -> String {
-        let limit = 2_000
-        guard value.count > limit else { return value }
-        return String(value.prefix(limit)) + "…"
-    }
-
-    /// Decode and downsample notebook images off-main so SwiftUI never receives
-    /// a multi-megapixel payload that could stall the main actor during display.
-    private func notebookImagePreviewData(from data: Data) -> Data? {
-        guard let source = CGImageSourceCreateWithData(data as CFData, nil) else { return nil }
-        let options: [CFString: Any] = [
-            kCGImageSourceCreateThumbnailFromImageAlways: true,
-            kCGImageSourceCreateThumbnailWithTransform: true,
-            kCGImageSourceThumbnailMaxPixelSize: 1_600,
-        ]
-        guard let image = CGImageSourceCreateThumbnailAtIndex(source, 0, options as CFDictionary) else {
-            return nil
-        }
-        let output = NSMutableData()
-        guard let destination = CGImageDestinationCreateWithData(
-            output,
-            UTType.png.identifier as CFString,
-            1,
-            nil
-        ) else {
-            return nil
-        }
-        CGImageDestinationAddImage(destination, image, nil)
-        guard CGImageDestinationFinalize(destination) else { return nil }
-        return output as Data
     }
 }

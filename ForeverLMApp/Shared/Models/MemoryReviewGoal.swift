@@ -204,30 +204,6 @@ enum MemoryReviewProgress {
         return result
     }
 
-    /// Today is judged by the goal in force now — a learner who lowers the
-    /// budget this afternoon should see the row go quiet if the new goal is
-    /// already met — and past days by the goal they had.
-    static func snapshot(
-        rows: [MemoryReviewActivity],
-        today: String,
-        goalSecondsNow: TimeInterval,
-        calendar: Calendar = .current
-    ) -> MemoryReviewGoalSnapshot {
-        let days = days(from: rows)
-        let todayProgress = MemoryReviewDayProgress(
-            day: today,
-            activeSeconds: days[today]?.activeSeconds ?? 0,
-            goalSeconds: goalSecondsNow
-        )
-        var completed = Set(days.filter { $0.value.isComplete }.map(\.key))
-        completed.remove(today)
-        if todayProgress.isComplete { completed.insert(today) }
-        return MemoryReviewGoalSnapshot(
-            today: todayProgress,
-            streak: streak(completedDays: completed, today: today, calendar: calendar)
-        )
-    }
-
     /// Consecutive completed days ending today, or ending yesterday when
     /// today is not done yet. Two misses in a row is zero.
     static func streak(completedDays: Set<String>, today: String, calendar: Calendar = .current) -> Int {

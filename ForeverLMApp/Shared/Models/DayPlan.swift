@@ -281,16 +281,6 @@ struct TimeBlock: Identifiable, Codable, Equatable, Sendable {
 
     var durationMinutes: Int { max(0, endMinute - startMinute) }
 
-    /// What a block drawn on empty time is called until someone names it:
-    /// the grid's drag and the Today menu's Add Block both draw one.
-    static let placeholderTitle = "New block"
-
-    /// The block still has the name it was drawn with, so nobody chose it.
-    var hasPlaceholderTitle: Bool {
-        let trimmed = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        return trimmed.isEmpty || trimmed == Self.placeholderTitle
-    }
-
     /// The ids trimmed, blanks dropped, duplicates folded to their first place.
     static func normalizedSourceIDs(_ ids: [String]) -> [String] {
         SourceIDList.normalized(ids)
@@ -691,14 +681,6 @@ struct DayPlan: Identifiable, Codable, Equatable, Sendable {
             return start
         }
         return nil
-    }
-
-    /// "Review: <first title>", and "+2" for the others read in the stretch.
-    static func readingReviewTitle(titles: [String]) -> String {
-        let first = titles.first?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        var title = first.isEmpty ? "Review what you read" : "Review: \(first)"
-        if titles.count > 1 { title += " +\(titles.count - 1)" }
-        return title
     }
 
     // MARK: - One block at a time

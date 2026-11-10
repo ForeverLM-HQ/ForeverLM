@@ -106,8 +106,8 @@ struct MobileScheduleRecordTests {
                                                        goals: shown.scheduleGoals).map(\.source.id) == ["srcA"])
     }
 
-    @Test("Completing marks the placement done and the source completed and read once; reopening clears both completions")
-    func completeAndReopen() async throws {
+    @Test("Completing marks the placement done and the source completed and read once")
+    func complete() async throws {
         let replica = try await Self.library()
         let writer = Fixture.writer(replica, at: Self.monday)
         try await writer.transaction { try $0.schedule("srcA", on: Self.monday, order: 0, goalID: "nb1") }
@@ -123,12 +123,6 @@ struct MobileScheduleRecordTests {
         let later = Fixture.writer(replica, at: Self.wednesday)
         try await later.transaction { try $0.completePlacement("srcA", at: Self.wednesday) }
         #expect(try await Fixture.held(replica, .placement, "pl:srcA", in: Fixture.library)?.fields["completedAt"] == done)
-
-        try await later.transaction { try $0.reopenPlacement("srcA") }
-        #expect(try await Fixture.held(replica, .placement, "pl:srcA", in: Fixture.library)?.fields["completedAt"] == .null)
-        let reopened = try #require(try await Fixture.held(replica, .readingState, "rs:srcA", in: Fixture.library))
-        #expect(reopened.fields["completedAt"] == .null)
-        #expect(reopened.fields["readAt"] == done, "it was still read")
 
         // A source not on the Schedule is left alone.
         try await later.transaction { try $0.completePlacement("srcC", at: Self.wednesday) }
@@ -235,11 +229,6 @@ struct MobileScheduleRecordTests {
 
         try await service.completeScheduledSource(sourceID: "srcC")
         #expect(try await Fixture.held(replica, .placement, "pl:srcC", in: Fixture.library)?.fields["completedAt"] != .null)
-        try await service.reopen(try #require(try await Self.snapshot(replica).placements.first { $0.sourceID == "srcC" }))
-        #expect(try await Fixture.held(replica, .placement, "pl:srcC", in: Fixture.library)?.fields["completedAt"] == .null)
-        try await service.removePlacement(try #require(try await Self.snapshot(replica).placements.first { $0.sourceID == "srcC" }), fromNotebookID: "nb1")
-        #expect(try await Fixture.held(replica, .placement, "pl:srcC", in: Fixture.library)?.fields["origin"] == .string("automatic"),
-                "its activity keeps it on the Schedule")
     }
 
 }

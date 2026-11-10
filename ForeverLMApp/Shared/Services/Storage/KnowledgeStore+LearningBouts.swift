@@ -150,17 +150,6 @@ extension KnowledgeStore {
         }
     }
 
-    /// Changes how long the earned break will be, before it starts.
-    @discardableResult
-    func setLearningBoutBreakMinutes(_ id: String, minutes: Int, now: Date = Date()) throws -> LearningBout {
-        try mutateLearningBout(id, now: now) { bout in
-            guard bout.breakStartedAt == nil else {
-                throw KnowledgeStoreError.invalidData("Bout \(id) is already on its break.")
-            }
-            bout.breakMinutes = LearningBout.clampedBreakMinutes(minutes)
-        }
-    }
-
     /// Starts the earned break. Refused without a write-up: that is the whole
     /// point of the break being earned.
     @discardableResult

@@ -214,34 +214,6 @@ extension KnowledgeStore {
         try deleteArtifactCommentRecord(rootID)
     }
 
-    func saveArtifactCollaborationRecord(_ record: ArtifactCollaborationRecord) throws {
-        try execBind("""
-            INSERT INTO artifact_collaboration (
-                artifact_id, database_scope, zone_name, owner_name,
-                share_record_name, permission, is_owner, last_body_revision, updated_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(artifact_id) DO UPDATE SET
-                database_scope = excluded.database_scope,
-                zone_name = excluded.zone_name,
-                owner_name = excluded.owner_name,
-                share_record_name = excluded.share_record_name,
-                permission = excluded.permission,
-                is_owner = excluded.is_owner,
-                last_body_revision = excluded.last_body_revision,
-                updated_at = excluded.updated_at
-        """) { statement in
-            bind(statement, 1, record.artifactID)
-            bind(statement, 2, record.databaseScope.rawValue)
-            bind(statement, 3, record.zoneName)
-            bind(statement, 4, record.ownerName)
-            bind(statement, 5, record.shareRecordName)
-            bind(statement, 6, record.permission.rawValue)
-            sqlite3_bind_int(statement, 7, record.isOwner ? 1 : 0)
-            bind(statement, 8, record.lastBodyRevision)
-            sqlite3_bind_double(statement, 9, record.updatedAt.timeIntervalSinceReferenceDate)
-        }
-    }
-
     func loadArtifactCollaborationRecord(
         _ artifactID: String
     ) throws -> ArtifactCollaborationRecord? {
@@ -275,22 +247,6 @@ extension KnowledgeStore {
             )
         }
         return record
-    }
-
-    func loadSharedArtifactCollaborationRecords() throws -> [ArtifactCollaborationRecord] {
-        var records: [ArtifactCollaborationRecord] = []
-        var ids: [String] = []
-        try query("""
-            SELECT artifact_id FROM artifact_collaboration
-            WHERE database_scope = 'shared'
-            ORDER BY artifact_id
-        """) { statement in
-            if let id = string(statement, 0) { ids.append(id) }
-        }
-        for id in ids {
-            if let record = try loadArtifactCollaborationRecord(id) { records.append(record) }
-        }
-        return records
     }
 
     func artifactUsesSharedDatabase(_ artifactID: String) throws -> Bool {

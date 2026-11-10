@@ -355,19 +355,6 @@ extension KnowledgeStore {
         return ids
     }
 
-    func setJournalWatchNotebookExcluded(_ notebookID: String, excluded: Bool, at now: Date = Date()) throws {
-        if excluded {
-            try execBind("INSERT OR IGNORE INTO journal_watch_excluded_notebooks (notebook_id, excluded_at) VALUES (?, ?)") { stmt in
-                self.bind(stmt, 1, notebookID)
-                self.bind(stmt, 2, now.timeIntervalSinceReferenceDate)
-            }
-        } else {
-            try execBind("DELETE FROM journal_watch_excluded_notebooks WHERE notebook_id = ?") { stmt in
-                self.bind(stmt, 1, notebookID)
-            }
-        }
-    }
-
     // MARK: - Library lookups
 
     /// Whether an announced article is already in the library, by URL or DOI.

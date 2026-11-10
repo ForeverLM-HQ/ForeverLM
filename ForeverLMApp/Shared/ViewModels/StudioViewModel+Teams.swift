@@ -626,13 +626,4 @@ extension StudioViewModel {
             showToast("Could not delete the task: \(error.localizedDescription)")
         }
     }
-
-    /// How many tasks a Notebook still has open, and how many of those are the
-    /// signed-in member's, for the inspector summary and the rail badge.
-    func openTaskSummary(for notebookID: String) -> (open: Int, mine: Int) {
-        let tasks = tasks(for: notebookID).filter { $0.status != .done }
-        let me = notebook(id: notebookID)?.teamID.flatMap { currentMember(of: $0)?.userRecordName }
-        let mine = me.map { id in tasks.filter { $0.assigneeRecordName == id }.count } ?? 0
-        return (tasks.count, mine)
-    }
 }

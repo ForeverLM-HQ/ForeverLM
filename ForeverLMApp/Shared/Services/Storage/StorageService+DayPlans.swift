@@ -154,13 +154,6 @@ extension StorageService {
     }
 
     @discardableResult
-    func setLearningBoutBreakMinutes(_ id: String, minutes: Int) throws -> LearningBout {
-        let saved = try notebookFilesKnowledgeStore().setLearningBoutBreakMinutes(id, minutes: minutes)
-        boutDidChange()
-        return saved
-    }
-
-    @discardableResult
     func startLearningBoutBreak(_ id: String, minutes: Int? = nil) throws -> LearningBout {
         let saved = try notebookFilesKnowledgeStore().startLearningBoutBreak(id, minutes: minutes)
         boutDidChange()

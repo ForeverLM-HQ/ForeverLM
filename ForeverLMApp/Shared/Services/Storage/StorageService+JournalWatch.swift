@@ -90,10 +90,6 @@ extension StorageService {
         try notebookFilesKnowledgeStore().journalWatchExcludedNotebookIDs()
     }
 
-    func setJournalWatchNotebookExcluded(_ notebookID: String, excluded: Bool) throws {
-        try notebookFilesKnowledgeStore().setJournalWatchNotebookExcluded(notebookID, excluded: excluded)
-    }
-
     /// Whether an announced article is already a library source, by URL or DOI.
     func journalItemExistsInLibrary(url: String, doi: String?) throws -> Bool {
         try notebookFilesKnowledgeStore().journalItemExistsInLibrary(url: url, doi: doi)

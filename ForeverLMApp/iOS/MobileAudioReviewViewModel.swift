@@ -3562,10 +3562,6 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
         scheduledSources.first { $0.sourceID == sourceID }
     }
 
-    func scheduledPlacement(id: String) -> MobileCloudScheduledSource? {
-        scheduledSources.first { $0.id == id }
-    }
-
     func createNotebook(title: String, instructions: String?, summary: String? = nil) async -> String? {
         await performLibraryMutation {
             try await MobileCloudMutationService.shared.createNotebook(
@@ -3755,18 +3751,6 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
             await tickNotebookArrivals([source.id], notebookID: notebookID)
         }
         return scheduled
-    }
-
-    /// The one hand-driven completion the phone has: today's plan card. Nothing
-    /// the app merely observes ever completes a placement — opening or playing a
-    /// source records activity, and a graded review completes through the review
-    /// flow itself.
-    func markScheduleSourceDone(sourceID: String) async -> Bool {
-        guard scheduledPlacement(for: sourceID) != nil else { return false }
-        return await performLibraryMutation {
-            try await MobileCloudMutationService.shared.completeScheduledSource(sourceID: sourceID)
-            return true
-        } ?? false
     }
 
     func captureSource(url: URL, title: String?, sourceType: String) async -> String? {

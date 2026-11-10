@@ -157,11 +157,6 @@ actor StorageService {
         #endif
     }
 
-    var audioDirURL: URL {
-        if let overrideStoreRoot { return overrideStoreRoot.appendingPathComponent("Audio", isDirectory: true) }
-        return contentRoot.appendingPathComponent("Audio", isDirectory: true)
-    }
-
     /// The working notes (`WorkingNoteStore`) of this library: one JSON file in
     /// the same directory as the knowledge database, shared by every caller in
     /// the process.

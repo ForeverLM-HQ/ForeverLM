@@ -4602,14 +4602,4 @@ extension KnowledgeStore {
         }
         try saveSource(article)
     }
-
-    func sourceIds() throws -> Set<String> {
-        var ids = Set<String>()
-        try query("SELECT id FROM sources") { stmt in
-            if let id = string(stmt, 0) {
-                ids.insert(id)
-            }
-        }
-        return ids
-    }
 }

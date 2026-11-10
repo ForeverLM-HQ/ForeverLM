@@ -182,7 +182,6 @@ struct TeamsStoreTests {
         #expect(copy.title == "The paper")
         #expect(copy.state == .ready)
         #expect(try store.loadSourceContent(copyID) == original.content)
-        #expect(try store.teamIDsHoldingSource(url: original.url) == [team.id])
 
         // Sharing again is an update, not a second copy.
         let again = try store.copySourceIntoTeam(sourceID: "src-own", teamID: team.id) { path in path }
@@ -244,7 +243,6 @@ struct TeamsStoreTests {
         #expect(copyID != TeamContentIdentity.sourceID(teamID: team.id, url: newURL))
 
         #expect(try store.teamSourceCopyID(teamID: team.id, url: newURL) == copyID)
-        #expect(try store.teamIDsHoldingSource(url: newURL) == [team.id])
         #expect(try store.copySourceIntoTeam(sourceID: "src-own", teamID: team.id) { $0 } == copyID)
         #expect(try store.loadActiveSources(teamID: team.id).map(\.id) == [copyID])
         let library = try store.loadLibrarySources()

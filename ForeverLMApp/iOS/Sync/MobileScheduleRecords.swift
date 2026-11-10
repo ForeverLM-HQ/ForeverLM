@@ -154,19 +154,6 @@ extension MobileWrite {
         try write(patch, in: Self.libraryKey)
     }
 
-    /// Opens a completed placement again, and the source's completion with it (§10).
-    mutating func reopenPlacement(_ sourceID: String) throws {
-        guard try heldPlacement(sourceID) != nil else { throw MobileRecordWriterError.refused("This Schedule item is no longer available.") }
-        var patch = placementPatch(sourceID)
-        patch.changes["completedAt"] = .value(.null)
-        try write(patch, in: Self.libraryKey)
-        if try heldCompletion(sourceID) != nil {
-            var reading = readingPatch(sourceID)
-            reading.changes["completedAt"] = .value(.null)
-            try write(reading, in: Self.libraryKey)
-        }
-    }
-
     /// Takes tags off a placement (all of them when `goalIDs` is nil). One left with no tag stays on the
     /// Schedule as the automatic entry on the source's latest activity day when it has activity, else its
     /// state is `removed` (generation 1's release, the web's `releasePlacement`).
@@ -243,12 +230,6 @@ extension MobileWrite {
         if state?.fields["readAt"].map({ $0 == .null }) ?? true { patch.changes["readAt"] = .value(at) }
         guard patch.changes.count > 2 else { return }
         try write(patch, in: Self.libraryKey)
-    }
-
-    private func heldCompletion(_ sourceID: String) throws -> SyncJSON? {
-        guard let value = try held(.readingState, SyncIdentity.readingStateID(targetID: sourceID), in: Self.libraryKey)?.fields["completedAt"],
-              value != .null else { return nil }
-        return value
     }
 
     private func placementPatch(_ sourceID: String) -> RecordPatch {
