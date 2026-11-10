@@ -235,6 +235,45 @@ enum OpenRouterRoutePreference {
     /// `only` is those endpoints, narrowed to the ones that cache when some
     /// do. A send the filters leave no host for fails and says so; it never
     /// leaves the region.
+    /// The lab whose own endpoint serves a model, going by its slug: Anthropic
+    /// for every Claude model, OpenAI for every OpenAI model but its open
+    /// weights and Whisper, which run on other hosts only. A variant slug
+    /// (`:free`, `:nitro`) names its own route. Nil for every other model.
+    static func labServingItsOwnModel(slug: String) -> String? {
+        if slug.hasPrefix("anthropic/") { return "anthropic" }
+        guard slug.hasPrefix("openai/"),
+              !slug.contains(":"),
+              !slug.hasPrefix("openai/gpt-oss"),
+              !slug.hasPrefix("openai/whisper")
+        else { return nil }
+        return "openai"
+    }
+
+    /// A Claude or GPT model on the learner's own OpenRouter key runs on its
+    /// lab's own endpoint, so the lab key the learner added to OpenRouter pays
+    /// for it. The throughput sort otherwise lands on Azure or Bedrock, where
+    /// that key does not apply and the call bills OpenRouter credits (the
+    /// product owner, 2026-11-09: "make sure that the OpenAI calls that get
+    /// done are on the OpenAI specific API key we have"). Fallbacks stay off:
+    /// a call the key cannot serve fails instead of quietly spending credits.
+    /// A region and a route that already names its endpoints win. Call it
+    /// before `applyFastestCachingRoute`, which leaves a named order alone.
+    /// The Mac's builders do the same in `AIService.pinLabModelToItsOwnEndpoint`,
+    /// which also reads the model's endpoint list; a call ForeverLM pays for is
+    /// pinned by the proxy.
+    static func applyOwnKeyLabEndpoint(to payload: inout [String: Any], regionEndpointTags: [String]? = nil) {
+        guard let model = payload["model"] as? String,
+              let lab = labServingItsOwnModel(slug: model),
+              ManagedAI.sendsOwnKeyDirect(toHost: ManagedAI.OwnKeyRouter.openRouter.host),
+              (regionEndpointTags ?? []).isEmpty
+        else { return }
+        var routing = payload["provider"] as? [String: Any] ?? [:]
+        guard routing["order"] == nil, routing["only"] == nil else { return }
+        routing["order"] = [lab]
+        routing["allow_fallbacks"] = false
+        payload["provider"] = routing
+    }
+
     static func applyFastestCachingRoute(
         to payload: inout [String: Any],
         cachingEndpointTags: [String]? = nil,

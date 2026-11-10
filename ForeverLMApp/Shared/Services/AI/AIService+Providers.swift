@@ -827,12 +827,8 @@ extension AIService {
     /// only, so an OpenAI model is named only once its endpoint list, read
     /// from the cache, shows an OpenAI endpoint. Nil for every other model.
     static func ownKeyLab(forModelSlug slug: String) -> String? {
-        if slug.hasPrefix("anthropic/") { return "anthropic" }
-        guard slug.hasPrefix("openai/"),
-              !slug.contains(":"),
-              !slug.hasPrefix("openai/gpt-oss"),
-              !slug.hasPrefix("openai/whisper")
-        else { return nil }
+        guard let lab = OpenRouterRoutePreference.labServingItsOwnModel(slug: slug) else { return nil }
+        guard lab == "openai" else { return lab }
         // Endpoints already read decide; unread ones are OpenAI's own, since
         // only its open weights (named above) run elsewhere alone. Left
         // unpinned until the endpoints were read, GPT-6 Luna ran on Amazon

@@ -94,6 +94,7 @@ enum MobileOpenRouterChat {
         }
         // A model kept to one region's hosts: the store read their endpoints
         // with the route, and refuses the route when it could not.
+        OpenRouterRoutePreference.applyOwnKeyLabEndpoint(to: &payload, regionEndpointTags: route.regionEndpointTags)
         OpenRouterRoutePreference.applyFastestCachingRoute(to: &payload, regionEndpointTags: route.regionEndpointTags)
         return try managedRequest(
             url: URL(string: "https://openrouter.ai/api/v1/chat/completions")!,

@@ -7586,6 +7586,48 @@ struct ChatRequestTurnOrderTests {
         #expect(messages.last?["role"] as? String == "user")
     }
 
+    @Test("The phone pins Claude and GPT on the learner's own OpenRouter key to their lab's endpoint, so the lab key pays")
+    func phoneOwnKeyLabModelsRunOnTheirLabEndpoint() throws {
+        defer { ManagedAI.ownKeyOverrideForTesting = nil }
+        func routing(_ route: ResolvedAITextRoute) throws -> [String: Any] {
+            let request = try MobileOpenRouterChat.request(
+                route: route,
+                system: "You prepare text to be read aloud.",
+                messages: [(role: "user", content: "Mitochondria divide by fission.")],
+                maxTokens: 256
+            )
+            let data = try #require(request.httpBody)
+            let body = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            return body["provider"] as? [String: Any] ?? [:]
+        }
+        func route(_ model: String) -> ResolvedAITextRoute {
+            ResolvedAITextRoute(task: .paperTextToSpeechPreparation, provider: "OpenRouter", model: model)
+        }
+
+        ManagedAI.ownKeyOverrideForTesting = .some(ManagedAI.OwnKey(router: .openRouter, key: "sk-or-test-key"))
+        let gpt = try routing(route("openai/gpt-5.6-luna"))
+        #expect(gpt["order"] as? [String] == ["openai"])
+        #expect(gpt["allow_fallbacks"] as? Bool == false)
+        #expect(gpt["sort"] == nil)
+        #expect(try routing(route("anthropic/claude-opus-5.5"))["order"] as? [String] == ["anthropic"])
+
+        // Open weights and other labs' models keep the throughput route.
+        for model in ["openai/gpt-oss-120b", "openai/gpt-5.6-luna:nitro", "deepseek/deepseek-v4-flash"] {
+            let other = try routing(route(model))
+            #expect(other["order"] == nil)
+            #expect(other["sort"] as? String == "throughput")
+        }
+
+        // A model kept in one region runs on that region's endpoints.
+        let confined = try routing(route("openai/gpt-5.6-luna").confined(to: ["azure/us"]))
+        #expect(confined["order"] == nil)
+        #expect(confined["only"] as? [String] == ["azure/us"])
+
+        // A call ForeverLM pays for goes through the proxy, which pins it there.
+        ManagedAI.ownKeyOverrideForTesting = .some(nil)
+        #expect(try routing(route("openai/gpt-5.6-luna"))["order"] == nil)
+    }
+
     @Test("Retry leaves the failed attempt's words out of the request")
     @MainActor func retryLeavesTheFailedAttemptOut() {
         typealias Message = ReviewSessionManager.Message
