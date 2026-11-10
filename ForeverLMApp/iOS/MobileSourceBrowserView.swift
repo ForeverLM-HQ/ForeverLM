@@ -275,6 +275,9 @@ struct MobileCompactPlaybackBar: View {
                 detail: vm.textToSpeechPreparationDetail,
                 progress: vm.textToSpeechGenerationProgress
             )
+            if let sourceID = vm.textToSpeechPreparingSourceID {
+                MobileTextToSpeechStopButton(audio: vm, sourceID: sourceID)
+            }
         }
         .padding(.horizontal, MobileDesign.Spacing.large)
         .padding(.vertical, MobileDesign.Spacing.medium)
@@ -324,6 +327,9 @@ struct MobileCompactPlaybackBar: View {
                         download: download
                     )
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    if vm.isPreparingAudio(sourceID: item.id) {
+                        MobileTextToSpeechStopButton(audio: vm, sourceID: item.id)
+                    }
                 }
             }
 
@@ -750,6 +756,30 @@ struct MobileTextToSpeechProgressIndicator: View {
         }
         .frame(width: 16, height: 16)
         .accessibilityValue("\(percent) percent")
+    }
+}
+
+/// Stops the audio being generated for one source. Shown beside the progress
+/// of a generation, so a Listen tapped by mistake, or on the wrong paper, does
+/// not have to run (and bill) to its end.
+struct MobileTextToSpeechStopButton: View {
+    @ObservedObject var audio: MobileAudioReviewViewModel
+    let sourceID: String
+
+    var body: some View {
+        Button {
+            audio.stopTextToSpeechGeneration(sourceID: sourceID)
+        } label: {
+            Image(systemName: "stop.circle.fill")
+                .font(.title3)
+                .symbolRenderingMode(.hierarchical)
+                .frame(minWidth: 44, minHeight: 32)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(.secondary)
+        .accessibilityLabel("Stop generating audio")
+        .accessibilityIdentifier("listen.stopGenerating")
     }
 }
 

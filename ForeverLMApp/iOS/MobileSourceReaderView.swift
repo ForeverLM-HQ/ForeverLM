@@ -355,6 +355,9 @@ struct MobileSourceReaderView: View {
                 download: download
             )
             .frame(maxWidth: .infinity, alignment: .leading)
+            if audio.isPreparingAudio(sourceID: sourceID) {
+                MobileTextToSpeechStopButton(audio: audio, sourceID: sourceID)
+            }
         }
         .padding(.horizontal, MobileDesign.Spacing.large)
         .padding(.vertical, MobileDesign.Spacing.medium)

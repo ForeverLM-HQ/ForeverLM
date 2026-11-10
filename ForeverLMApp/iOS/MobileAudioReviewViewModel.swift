@@ -1938,6 +1938,13 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     /// before any speech was asked for. Restarting one repeats no narration, so
     /// the automatic resume may pick it up without a speech journal.
     private var textToSpeechStoppedWhilePreparingText: Set<String> = []
+    /// Cancels the generation running for a source, keyed by source id. Present
+    /// exactly while that generation can be stopped by the listener.
+    private var stoppableTextToSpeechGenerations: [String: () -> Void] = [:]
+    /// Sources whose generation the listener stopped by hand. A stop is not an
+    /// interruption: nothing resumes it and nothing is announced. Cleared when
+    /// the listener asks for that source again.
+    private var listenerStoppedTextToSpeechSourceIDs: Set<String> = []
     private var isResumingTextToSpeechGeneration = false
     /// How many times an interrupted generation restarts itself before it waits
     /// for a deliberate Listen. A long absence can strand the same source
@@ -4445,6 +4452,57 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
             || backgroundTextToSpeechPreparingTitles[sourceID] != nil
     }
 
+    /// Stops the audio being generated for a source: no further speech requests
+    /// are sent, so nothing more is billed. The pieces already generated stay
+    /// on the phone, and asking for the source again carries on from them.
+    /// The partial audio that was playing ahead of the rest is closed with it.
+    func stopTextToSpeechGeneration(sourceID: String) {
+        guard let cancel = stoppableTextToSpeechGenerations[sourceID] else { return }
+        listenerStoppedTextToSpeechSourceIDs.insert(sourceID)
+        pendingTextToSpeechResumes[sourceID] = nil
+        textToSpeechStoppedWhilePreparingText.remove(sourceID)
+        if pendingTextToSpeechAfterPreparationSourceID == sourceID {
+            pendingTextToSpeechAfterPreparationSourceID = nil
+        }
+        cancel()
+
+        guard openingPlaybackSourceID == sourceID, currentItem?.id == sourceID else { return }
+        player.pause()
+        isPlaying = false
+        removeEndObserver()
+        player.replaceCurrentItem(with: nil)
+        openingPlaybackSourceID = nil
+        isAwaitingRemainingNarration = false
+        openingPlaybackRanDry = false
+        deferredOpeningExtension = nil
+        if backgroundOpeningPlaybackOwnerSourceID == sourceID {
+            backgroundOpeningPlaybackOwnerSourceID = nil
+        }
+        currentItem = nil
+        currentTime = 0
+        duration = 0
+        lastPlaybackPositionSaveAt = nil
+        MPNowPlayingInfoCenter.default().playbackState = .stopped
+        updateNowPlayingInfo()
+    }
+
+    /// Runs one source's generation as a task the listener can stop. The task
+    /// still ends when its caller is cancelled, as it did when it ran inline.
+    private func runStoppableTextToSpeechGeneration<Output: Sendable>(
+        sourceID: String,
+        _ work: @escaping @MainActor () async throws -> Output
+    ) async throws -> Output {
+        listenerStoppedTextToSpeechSourceIDs.remove(sourceID)
+        let task = Task { @MainActor in try await work() }
+        stoppableTextToSpeechGenerations[sourceID] = { task.cancel() }
+        defer { stoppableTextToSpeechGenerations[sourceID] = nil }
+        return try await withTaskCancellationHandler {
+            try await task.value
+        } onCancel: {
+            task.cancel()
+        }
+    }
+
     func textToSpeechGenerationProgress(sourceID: String) -> MobileTextToSpeechGenerationProgress? {
         if textToSpeechPreparingSourceID == sourceID {
             return textToSpeechGenerationProgress
@@ -4513,10 +4571,12 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
         guard let source = source(for: sourceID) else {
             throw MobileTextToSpeechPreparationError.sourceNotFound
         }
-        return try await generateBackgroundTextToSpeechAudio(
-            for: source,
-            playsOpeningWhenReady: playsOpeningWhenReady
-        )
+        return try await runStoppableTextToSpeechGeneration(sourceID: source.id) { [self] in
+            try await generateBackgroundTextToSpeechAudio(
+                for: source,
+                playsOpeningWhenReady: playsOpeningWhenReady
+            )
+        }
     }
 
     /// Starts an event-driven pass over ready sources. The task is generate-only:
@@ -5019,10 +5079,17 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
 
     private func readCloudSourceAloud(_ source: MobileCloudSource) async {
         do {
-            try await generateCloudTextToSpeechAudio(for: source, autoplay: true)
+            try await runStoppableTextToSpeechGeneration(sourceID: source.id) { [self] in
+                try await generateCloudTextToSpeechAudio(for: source, autoplay: true)
+            }
             pendingTextToSpeechResumes[source.id] = nil
             automaticTextToSpeechResumeCounts[source.id] = nil
         } catch {
+            // The listener's own Stop: nothing to resume and nothing to say.
+            if listenerStoppedTextToSpeechSourceIDs.contains(source.id) {
+                pendingTextToSpeechResumes[source.id] = nil
+                return
+            }
             recordInterruptedTextToSpeechGeneration(
                 sourceID: source.id,
                 playsOpeningWhenReady: true,
@@ -5554,6 +5621,13 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
         playsOpeningWhenReady: Bool,
         error: Error
     ) -> Bool {
+        // A cancellation is normally worth resuming, but not the one the
+        // listener asked for.
+        guard !listenerStoppedTextToSpeechSourceIDs.contains(sourceID) else {
+            pendingTextToSpeechResumes[sourceID] = nil
+            textToSpeechStoppedWhilePreparingText.remove(sourceID)
+            return false
+        }
         guard Self.isResumableTextToSpeechFailure(error) else {
             pendingTextToSpeechResumes[sourceID] = nil
             return false
