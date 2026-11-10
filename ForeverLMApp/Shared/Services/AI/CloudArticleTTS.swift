@@ -152,7 +152,12 @@ enum CloudArticleTTS {
     /// Text shorter than this is not split again: a rejection here is about the
     /// model or the content, not the size.
     private static let minimumSplitLength = 400
-    private static let requestTimeout: TimeInterval = 90
+    /// Speech endpoints may queue even a short free-model request, and larger
+    /// narration units legitimately take well over a minute. Ninety seconds
+    /// cut off healthy synthesis, then the transport loop sent the same
+    /// potentially billable request again. Give one attempt most of the
+    /// resource budget instead; an actual timeout is terminal below.
+    private static let requestTimeout: TimeInterval = 240
     /// Ceiling for one attempt end to end, covering both the wait for a usable
     /// network and the transfer. Roomy because a chunk of narration is several
     /// megabytes and a slow link that is still making progress deserves to
@@ -1064,6 +1069,7 @@ enum CloudArticleTTS {
             } catch {
                 transportAttempt += 1
                 guard shouldRetryTransport(
+                    error,
                     attempt: transportAttempt,
                     elapsed: Date().timeIntervalSince(startedAt)
                 ) else {
@@ -1088,6 +1094,18 @@ enum CloudArticleTTS {
     /// held past the point where "offline" stops being temporary.
     static func shouldRetryTransport(attempt: Int, elapsed: TimeInterval) -> Bool {
         attempt < maxTransportAttempts && elapsed < transportRetryWindow
+    }
+
+    /// A timed-out synthesis may still finish upstream and be charged. Sending
+    /// the identical text again can buy duplicate audio, so timeouts get the
+    /// longer single-attempt budget above and never enter the retry loop.
+    static func shouldRetryTransport(
+        _ error: Error,
+        attempt: Int,
+        elapsed: TimeInterval
+    ) -> Bool {
+        if (error as? URLError)?.code == .timedOut { return false }
+        return shouldRetryTransport(attempt: attempt, elapsed: elapsed)
     }
 
     /// The failure a listener sees once retries have stopped. Being offline

@@ -220,19 +220,20 @@ final class MacRealtimeVoicePlatformAudio: RealtimeVoicePlatformAudio, @unchecke
     private var microphone: MacCallMicrophoneHold?
 
     func prepare(
+        usesMicrophone: Bool,
         onPreempted: @escaping @Sendable () -> Void,
         onDevicesChanged: @escaping @Sendable () -> Void
     ) async throws {
-        guard await AVCaptureDevice.requestAccess(for: .audio) else {
+        if usesMicrophone, !(await AVCaptureDevice.requestAccess(for: .audio)) {
             throw MacRealtimeVoiceError.microphoneDenied
         }
-        let microphone = MacCallMicrophoneHold()
-        await microphone.holdDefaultMicrophone()
+        let microphone = usesMicrophone ? MacCallMicrophoneHold() : nil
+        await microphone?.holdDefaultMicrophone()
         // The call reopens on the new devices only once the new microphone is
         // held and the new speaker has settled, for the same reason.
         let watcher = MacDefaultAudioDevicesWatcher(onChange: {
             Task {
-                await microphone.holdDefaultMicrophone()
+                await microphone?.holdDefaultMicrophone()
                 onDevicesChanged()
             }
         })

@@ -560,7 +560,9 @@ struct MobileVoiceSessionCover: View {
             identifierPrefix: "voice",
             recoveryActionTitle: "Resume",
             onRecovery: { Task { await realtime.resume() } },
-            onToggleMute: realtime.toggleMicrophoneMuted,
+            // Gym mode has no local audio track at all: it is typed input with
+            // OpenAI audio replies, not a muted live microphone.
+            onToggleMute: toggleMicrophone,
             onEnd: end,
             onDismissError: { realtime.errorMessage = nil },
             // Every voice conversation can be typed to as well (product owner,
@@ -568,6 +570,11 @@ struct MobileVoiceSessionCover: View {
             // type my answers if I want to").
             accessory: AnyView(MobileVoiceTypeField(controller: realtime))
         )
+    }
+
+    private var toggleMicrophone: (() -> Void)? {
+        guard realtime.opening != .gym else { return nil }
+        return { realtime.toggleMicrophoneMuted() }
     }
 
     /// Signed out is the one voice-start failure the learner can act on, so it

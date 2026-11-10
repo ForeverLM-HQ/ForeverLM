@@ -2905,6 +2905,11 @@ struct ArticleSpeechContentTests {
         #expect(CloudArticleTTS.shouldRetryTransport(attempt: 4, elapsed: 30))
         #expect(CloudArticleTTS.shouldRetryTransport(attempt: 5, elapsed: 120))
         #expect(!CloudArticleTTS.shouldRetryTransport(attempt: 6, elapsed: 30))
+        #expect(!CloudArticleTTS.shouldRetryTransport(
+            URLError(.timedOut),
+            attempt: 1,
+            elapsed: 1
+        ))
     }
 
     /// Retrying forever is its own failure: a listener held indefinitely never
@@ -2958,6 +2963,7 @@ struct ArticleSpeechContentTests {
     func speechSessionWaitsForConnectivity() {
         let configuration = CloudArticleTTS.session.configuration
         #expect(configuration.waitsForConnectivity)
+        #expect(configuration.timeoutIntervalForRequest == 240)
         #expect(configuration.timeoutIntervalForResource == CloudArticleTTS.resourceTimeout)
     }
 
@@ -3260,6 +3266,8 @@ struct SpeechDirectoryTests {
       {"id":"canopylabs/orpheus-3b-0.1-ft","name":"Canopy Labs: Orpheus 3B","supported_voices":["tara"]},
       {"id":"google/gemini-3.1-flash-tts-preview","name":"Google: Gemini 3.1 Flash TTS Preview",
        "supported_voices":["Zephyr","Kore"]},
+      {"id":"heygen/heygen-voice-1-turbo:free","name":"HeyGen: HeyGen Voice Turbo (free)",
+       "supported_voices":["nadine","tabitha"]},
       {"id":"acme/new-voice","name":"Acme: New Voice","supported_voices":["a_b","c"]},
       {"id":"~google/gemini-latest","name":"Google: Gemini (alias)"},
       {"id":"acme/transcriber","name":"Acme: Ears","architecture":{"output_modalities":["transcription"]}}
@@ -3276,7 +3284,8 @@ struct SpeechDirectoryTests {
         let rows = try OpenRouterAudioDirectory.rows(fromDirectory: Data(Self.directory.utf8), kind: .speech)
         #expect(rows.map(\.id) == [
             "deepgram/aura-2", "fish-audio/s2.1-pro", "bytedance-seed/seed-audio-1-0",
-            "canopylabs/orpheus-3b-0.1-ft", "google/gemini-3.1-flash-tts-preview", "acme/new-voice",
+            "canopylabs/orpheus-3b-0.1-ft", "google/gemini-3.1-flash-tts-preview",
+            "heygen/heygen-voice-1-turbo:free", "acme/new-voice",
         ])
         let aura = try #require(rows.first)
         #expect(aura.maker == "Deepgram")
@@ -3311,6 +3320,12 @@ struct SpeechDirectoryTests {
         #expect(gemini.languageSupport(voice: "Kore") == ArticleSpeechCatalog.geminiLanguages)
         #expect(gemini.responseFormat == .pcm)
         #expect(gemini.maker == "Google")
+
+        // HeyGen's adapter is PCM-only. A directory-only model defaults to
+        // MP3, so this overlay is the contract that keeps a live row usable.
+        let heygen = try #require(options.first { $0.id == "heygen/heygen-voice-1-turbo:free" })
+        #expect(heygen.responseFormat == .pcm)
+        #expect(heygen.voices.map(\.id) == ["nadine", "tabitha"])
 
         // OpenRouter lists no voices for Fish Audio; the voice its model page
         // plays is the one recorded, so the model still takes a voice.
@@ -3351,6 +3366,7 @@ struct SpeechDirectoryTests {
             try Self.options().map(\.id)
         }
         #expect(ids == [
+            "heygen/heygen-voice-1-turbo:free",     // Free
             "fish-audio/s2.1-pro",                  // $15 / 1M UTF-8 bytes
             "deepgram/aura-2",                      // $30 / 1M characters
             "google/gemini-3.1-flash-tts-preview",  // tokens: no per-character rate

@@ -458,16 +458,18 @@ private struct MobileTextToSpeechSettingsControls: View {
 
     var body: some View {
         Group {
-        Picker("Model", selection: modelBinding) {
-            // Grouped by maker: the directory lists a dozen of them.
-            ForEach(offeredModelGroups, id: \.maker) { group in
-                Section(group.maker) {
-                    ForEach(group.models) { model in
-                        MobileTextToSpeechModelOptionRow(model: model)
-                            .tag(model.id)
-                    }
-                }
-            }
+        NavigationLink {
+            MobileTextToSpeechModelListView(
+                selectedModelID: textToSpeech.modelID,
+                pickTest: pickTest,
+                select: { modelBinding.wrappedValue = $0 }
+            )
+        } label: {
+            LabeledContent(
+                "Model",
+                value: ArticleSpeechCatalog.model(id: textToSpeech.modelID)?.name
+                    ?? textToSpeech.modelID
+            )
         }
         .accessibilityIdentifier("settings.readAloudModel")
 
@@ -566,17 +568,6 @@ private struct MobileTextToSpeechSettingsControls: View {
                 )
             }
         }
-    }
-
-    /// The catalog's models by maker, in the order it lists them.
-    private var offeredModelGroups: [(maker: String, models: [ArticleSpeechModelOption])] {
-        var order: [String] = []
-        var grouped: [String: [ArticleSpeechModelOption]] = [:]
-        for model in ArticleSpeechCatalog.models {
-            if grouped[model.maker] == nil { order.append(model.maker) }
-            grouped[model.maker, default: []].append(model)
-        }
-        return order.map { ($0, grouped[$0] ?? []) }
     }
 
     /// Reads OpenRouter's speech directory off the main actor (a fresh read
@@ -1028,10 +1019,8 @@ private struct MobileTextToSpeechModelOptionRow: View {
     let model: ArticleSpeechModelOption
 
     var body: some View {
-        // A compact iOS Picker flattens its option labels and only renders the
-        // first Text it finds. Keep the price in that primary label so the
-        // menu does not silently discard the rate as it did when this was a
-        // name plus caption VStack.
+        // Keep name and price in one label so every row is compact and VoiceOver
+        // reads the same cost a sighted learner sees.
         Text(optionLabel)
             .accessibilityElement(children: .ignore)
             .accessibilityLabel(optionLabel)
@@ -1044,6 +1033,63 @@ private struct MobileTextToSpeechModelOptionRow: View {
     /// shown without a price reads as free.
     private var optionLabel: String {
         "\(model.name) · \(model.priceLabel)"
+    }
+}
+
+/// A real scrolling destination for the live speech directory. A compact
+/// `Picker` becomes a menu on iPhone; once OpenRouter's list outgrew the
+/// screen, that menu stopped accepting a drag before its last models could be
+/// reached. `List` owns the scroll gesture and preserves the same grouped
+/// maker hierarchy and test-before-selecting contract.
+private struct MobileTextToSpeechModelListView: View {
+    let selectedModelID: String
+    @ObservedObject var pickTest: MobileTextToSpeechPickTest
+    let select: (String) -> Void
+
+    var body: some View {
+        List {
+            ForEach(modelGroups, id: \.maker) { group in
+                Section(group.maker) {
+                    ForEach(group.models) { model in
+                        Button {
+                            select(model.id)
+                        } label: {
+                            HStack(spacing: 12) {
+                                MobileTextToSpeechModelOptionRow(model: model)
+                                Spacer(minLength: 8)
+                                if selectedModelID == model.id {
+                                    Image(systemName: "checkmark")
+                                        .foregroundStyle(Color.accentColor)
+                                }
+                            }
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .disabled(pickTest.testing != nil)
+                    }
+                }
+            }
+        }
+        .accessibilityIdentifier("settings.readAloudModelList")
+        .navigationTitle("Model")
+        .navigationBarTitleDisplayMode(.inline)
+        .safeAreaInset(edge: .bottom) {
+            MobileTextToSpeechPickTestStatus(test: pickTest)
+                .padding(.horizontal)
+                .padding(.vertical, 8)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(.bar)
+        }
+    }
+
+    private var modelGroups: [(maker: String, models: [ArticleSpeechModelOption])] {
+        var order: [String] = []
+        var grouped: [String: [ArticleSpeechModelOption]] = [:]
+        for model in ArticleSpeechCatalog.models {
+            if grouped[model.maker] == nil { order.append(model.maker) }
+            grouped[model.maker, default: []].append(model)
+        }
+        return order.map { ($0, grouped[$0] ?? []) }
     }
 }
 

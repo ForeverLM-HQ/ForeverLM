@@ -24,6 +24,13 @@ enum MobileUITestProbe {
         ProcessInfo.processInfo.arguments.contains("-foreverlm-uitest-tts")
     }
 
+    /// Synthesizes one short, decoded sample with the first listed voice of
+    /// every model in OpenRouter's live speech directory. Explicit and
+    /// billable: only the focused XCUITest passes this argument.
+    static var wantsAllTTSModelsCheck: Bool {
+        ProcessInfo.processInfo.arguments.contains("-foreverlm-uitest-tts-all-models")
+    }
+
     /// Skips catalog work for the focused TTS transport probe.
     static var isTTSOnly: Bool {
         ProcessInfo.processInfo.arguments.contains("-foreverlm-uitest-tts-only")
@@ -67,12 +74,15 @@ struct MobileUITestProbeView: View {
 
     @MainActor
     private static func run() async -> String {
-        if MobileUITestProbe.wantsTTSCheck, MobileUITestProbe.isTTSOnly {
+        if (MobileUITestProbe.wantsTTSCheck || MobileUITestProbe.wantsAllTTSModelsCheck),
+           MobileUITestProbe.isTTSOnly {
             let signedIn = await Task.detached(priority: .userInitiated) {
                 ManagedAI.isSignedIn
             }.value
             guard signedIn else { return "fail tts not-signed-in" }
-            let tts = await ttsTransportCheck()
+            let tts = MobileUITestProbe.wantsAllTTSModelsCheck
+                ? await allTTSModelsCheck()
+                : await ttsTransportCheck()
             return tts.hasPrefix("tts=ok") ? "ok \(tts)" : "fail \(tts)"
         }
 
@@ -249,6 +259,45 @@ struct MobileUITestProbeView: View {
         } catch {
             return "tts=failed(\(error.localizedDescription.prefix(180)))"
         }
+    }
+
+    /// Runs the production pick probe against every model currently offered,
+    /// three at a time so a slow endpoint does not turn the audit into a
+    /// serial half-hour wait. The probe validates the response format and
+    /// decodes/transcodes the returned audio before it succeeds.
+    private static func allTTSModelsCheck() async -> String {
+        await OpenRouterAudioDirectory.prepare(.speech)
+        let models = ArticleSpeechCatalog.models
+        guard !models.isEmpty else { return "tts=all-empty" }
+
+        var failures: [(String, String)] = []
+        await withTaskGroup(of: (String, String?).self) { group in
+            for (index, model) in models.enumerated() {
+                if index >= 3, let result = await group.next(), let message = result.1 {
+                    failures.append((result.0, message))
+                }
+                group.addTask {
+                    do {
+                        try await CloudArticleTTS.synthesizeQualificationProbe(
+                            "ForeverLM speech model health check.",
+                            modelID: model.id,
+                            voiceID: model.defaultVoiceID ?? ""
+                        )
+                        return (model.id, nil)
+                    } catch {
+                        return (model.id, String(error.localizedDescription.prefix(120)))
+                    }
+                }
+            }
+            while let result = await group.next() {
+                if let message = result.1 { failures.append((result.0, message)) }
+            }
+        }
+        guard failures.isEmpty else {
+            let detail = failures.map { "\($0.0)=\($0.1)" }.joined(separator: ";")
+            return "tts=all-failed passed=\(models.count - failures.count)/\(models.count) \(detail)"
+        }
+        return "tts=ok models=\(models.count)/\(models.count)"
     }
 }
 #endif

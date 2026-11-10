@@ -418,11 +418,10 @@ enum RealtimeVoiceTutor {
         return sections.joined(separator: "\n\n")
     }
 
-    /// Gym mode: ForeverLM explains the source out loud in parts, the way a
-    /// good podcast host walks one listener through a paper, and answers the
-    /// questions the learner types. The learner cannot speak, so it never
-    /// quizzes. Each part ends on its own; the controller asks for the next
-    /// with `gymContinueMessage` until `finish_walkthrough` is called.
+    /// Gym mode: ForeverLM gives one uninterrupted spoken overview, the way a
+    /// good podcast host walks one listener through a paper, then answers the
+    /// questions the learner types. There is no microphone or server VAD, so
+    /// neither room noise nor hidden continuation turns can split the reply.
     static func gymInstructions(for source: RealtimeVoiceSource) -> String {
         let kind = spokenKind(source.sourceType)
         let fitsInline = source.text.count <= inlineTextBudget
@@ -441,9 +440,9 @@ enum RealtimeVoiceTutor {
         what it changes.
         - Concrete first: the actual finding, an example or the experiment itself, then the abstraction. Define every \
         technical term the first time it comes up, in plain words. Explain why, not only what.
-        - Speak in parts of about a minute: a few short spoken paragraphs that make one point, then stop. You will be \
-        asked to continue; carry on exactly where you left off, with no greeting, no recap of the part before, and no \
-        "welcome back".
+        - Give one continuous spoken walk-through of about four minutes. Complete it in this response: do not stop \
+        early, ask to continue, or split it into separate parts. Move naturally between ideas without greetings or \
+        recaps.
         - Speak the way people talk: no lists, headings, markdown, URLs, figure numbers or citation numbers read out; \
         round numbers the way a person would say them.
         - Say "the \(kind)" or use its title; never "this lecture", "the document" or "the text you provided".
@@ -451,8 +450,7 @@ enum RealtimeVoiceTutor {
         knowledge clearly labelled as such.
         - Never quiz the learner or ask them to answer out loud; they cannot.
 
-        When a typed question arrives: answer it first, directly and briefly, then say in a few words that you are \
-        going back to the \(kind), and carry on with the walk-through where it was.
+        When a typed question arrives after the walk-through: answer it directly and completely in one response.
 
         When you have covered the whole \(kind): sum up its three most important takeaways in a few sentences, say they \
         can type any question they still have, and then call \(finishWalkthroughToolName). After that, only answer the \
@@ -496,10 +494,6 @@ enum RealtimeVoiceTutor {
         case .gym: return "(The learner just started gym mode and is listening. Begin the walk-through as instructed.)"
         }
     }
-
-    /// Sent, hidden, when a gym-mode part has finished playing and no typed
-    /// question is waiting: the next part of the walk-through.
-    static let gymContinueMessage = "(Continue the walk-through with the next part.)"
 
     /// A question the learner typed in gym mode, as the model reads it.
     static func typedQuestionMessage(_ question: String) -> String {

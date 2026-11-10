@@ -149,13 +149,24 @@ enum OpenAIRealtimeWire {
     static func sessionConfiguration(
         instructions: String,
         tools: [[String: Any]],
-        voice: String
+        voice: String,
+        typedOnly: Bool = false
     ) -> [String: Any] {
         // Foundation can bridge a Swift `Double` through its binary expansion
         // when serializing an untyped dictionary, and OpenAI constrains decimal
         // precision on these fields, so they are exact decimal numbers.
         let retentionRatio = NSDecimalNumber(mantissa: 8, exponent: -1, isNegative: false)
         let vadThreshold = NSDecimalNumber(mantissa: 5, exponent: -1, isNegative: false)
+        let turnDetection: Any = typedOnly
+            ? NSNull()
+            : [
+                "type": "server_vad",
+                "threshold": vadThreshold,
+                "prefix_padding_ms": 300,
+                "silence_duration_ms": 500,
+                "create_response": true,
+                "interrupt_response": true,
+            ] as [String: Any]
         return [
             "output_modalities": ["audio"],
             "instructions": instructions,
@@ -167,14 +178,10 @@ enum OpenAIRealtimeWire {
             ] as [String: Any],
             "audio": [
                 "input": [
-                    "turn_detection": [
-                        "type": "server_vad",
-                        "threshold": vadThreshold,
-                        "prefix_padding_ms": 300,
-                        "silence_duration_ms": 500,
-                        "create_response": true,
-                        "interrupt_response": true,
-                    ] as [String: Any],
+                    // Gym mode sends text and asks for each response itself.
+                    // Explicit null matters: omitting this field restores the
+                    // server-VAD default and lets noise split spoken replies.
+                    "turn_detection": turnDetection,
                 ] as [String: Any],
                 "output": ["voice": voice],
             ] as [String: Any],

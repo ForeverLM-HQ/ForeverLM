@@ -117,6 +117,19 @@ struct RealtimeVoiceTutorTests {
         let encoded = try #require(String(data: JSONEncoder().encode(body), encoding: .utf8))
         #expect(encoded.contains(#""create_response":true"#))
         #expect(encoded.contains(#""prefix_padding_ms":300"#))
+
+        let typedOnly = OpenAIRealtimeWire.sessionConfiguration(
+            instructions: "Answer typed questions.",
+            tools: [],
+            voice: "cedar",
+            typedOnly: true
+        )
+        let typedJSON = try #require(String(
+            data: JSONSerialization.data(withJSONObject: typedOnly, options: [.sortedKeys]),
+            encoding: .utf8
+        ))
+        #expect(typedJSON.contains(#""turn_detection":null"#))
+        #expect(!typedJSON.contains("server_vad"))
     }
 
     @Test("Every source conversation can record answers; a long source adds passage search")
@@ -197,13 +210,14 @@ struct RealtimeVoiceTutorTests {
         #expect(RealtimeVoiceExchange.assistantChatTitle(firstQuestion: RealtimeVoiceTurn.spokenMark) == "Voice chat")
     }
 
-    @Test("Gym mode walks through the source in parts, never quizzes, and finishes with a tool")
+    @Test("Gym mode gives one uninterrupted walkthrough, never quizzes, and finishes with a tool")
     func gymInstructions() {
         let text = "Membrane potential falls with age. " + String(repeating: "Body text. ", count: 50)
         let gym = RealtimeVoiceTutor.instructions(for: source(text: text, guide: "Key idea: decline."), opening: .gym)
         #expect(gym.contains(text))
         #expect(gym.contains("at the gym"))
-        #expect(gym.contains("parts of about a minute"))
+        #expect(gym.contains("one continuous spoken walk-through"))
+        #expect(gym.contains("do not stop early"))
         #expect(gym.contains("Never quiz"))
         #expect(gym.contains("call \(RealtimeVoiceTutor.finishWalkthroughToolName)"))
         #expect(!gym.contains(RealtimeVoiceTutor.recordAnswerToolName), "nothing is graded in gym mode")

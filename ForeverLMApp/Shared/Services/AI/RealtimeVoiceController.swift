@@ -12,6 +12,7 @@ protocol RealtimeVoicePlatformAudio: AnyObject, Sendable {
     /// `onDevicesChanged` is called when the call should move to other audio
     /// devices that WebRTC will not move it to itself.
     func prepare(
+        usesMicrophone: Bool,
         onPreempted: @escaping @Sendable () -> Void,
         onDevicesChanged: @escaping @Sendable () -> Void
     ) async throws
@@ -113,10 +114,7 @@ final class RealtimeVoiceController: ObservableObject {
     /// A reply has begun speaking and its audio has not finished playing.
     private var speechPending = false
 
-    // Gym mode (`RealtimeVoiceOpening.gym`), for the whole conversation.
-    /// The walk-through goes on: each part that finishes asks for the next,
-    /// until the model calls `finish_walkthrough`.
-    private var continuesWalkthrough = false
+    // Typed-only Gym mode (`RealtimeVoiceOpening.gym`), for the whole conversation.
     /// Typed questions waiting for the part being spoken to finish.
     private var queuedQuestions: [String] = []
     /// How many typed questions wait, for the voice screen.
@@ -177,7 +175,6 @@ final class RealtimeVoiceController: ObservableObject {
         // Gym mode starts with the microphone off: the gym is loud and the
         // learner types instead. Every other conversation starts listening.
         isMicrophoneMuted = opening == .gym
-        continuesWalkthrough = opening == .gym
         queuedQuestions = []
         waitingQuestionCount = 0
         queuedNotices = []
@@ -278,6 +275,9 @@ final class RealtimeVoiceController: ObservableObject {
     }
 
     func toggleMicrophoneMuted() {
+        // Gym mode negotiated no microphone track; keep that contract even if
+        // a stale UI action reaches the controller.
+        guard opening != .gym else { return }
         isMicrophoneMuted.toggle()
         session?.setMicrophoneMuted(isMicrophoneMuted)
         if isMicrophoneMuted { microphoneLevel.set(0) }
@@ -312,6 +312,7 @@ final class RealtimeVoiceController: ObservableObject {
         do {
             if !hasAudio {
                 try await platformAudio.prepare(
+                    usesMicrophone: opening != .gym,
                     onPreempted: { [weak self] in
                         Task { @MainActor in await self?.end() }
                     },
@@ -345,7 +346,8 @@ final class RealtimeVoiceController: ObservableObject {
             instructions: brief.instructions,
             tools: brief.toolbox.toolDefinitions + [RealtimeVoiceTutor.endTool]
                 + (opening == .gym ? [RealtimeVoiceTutor.finishWalkthroughTool] : []),
-            voice: voice
+            voice: voice,
+            typedOnly: opening == .gym
         )
         let secret = try await ManagedAI.mintRealtimeVoiceSecret(session: configuration)
         guard lifecycle == lifecycleID else { return }
@@ -358,7 +360,11 @@ final class RealtimeVoiceController: ObservableObject {
                 level.set(self.isMicrophoneMuted ? 0 : value)
             }
         })
-        let stream = try await session.connect(secret: secret.value, microphoneMuted: isMicrophoneMuted)
+        let stream = try await session.connect(
+            secret: secret.value,
+            includesMicrophone: opening != .gym,
+            microphoneMuted: isMicrophoneMuted
+        )
         guard lifecycle == lifecycleID else {
             session.close()
             return
@@ -598,7 +604,8 @@ final class RealtimeVoiceController: ObservableObject {
                     await end()
                 } else if event == .outputAudioStopped {
                     // A part played to its end (not cut off by the learner):
-                    // gym mode asks the waiting question, or the next part.
+                    // Gym mode asks the oldest typed question. Its opening is
+                    // one complete response, not a chain of hidden turns.
                     advanceIfQuiet()
                 }
             }
@@ -664,8 +671,7 @@ final class RealtimeVoiceController: ObservableObject {
 
     /// When ForeverLM is quiet: the oldest typed question is asked (gym
     /// mode), else a note the toolbox posted is said once the learner is
-    /// quiet too, else gym mode's next part of the walk-through, until it is
-    /// finished. Otherwise the conversation waits for the learner.
+    /// quiet too. Otherwise the conversation waits for the learner.
     private func advanceIfQuiet() {
         guard phase == .live, let session, !isSpeaking, !responseInFlight, !awaitingToolReply, !endsAfterReply else {
             return
@@ -678,8 +684,6 @@ final class RealtimeVoiceController: ObservableObject {
             } else if !queuedNotices.isEmpty, !isLearnerSpeaking, !isTutorWorking {
                 let notice = queuedNotices.removeFirst()
                 try session.createMessage(role: "user", text: RealtimeVoiceTutor.appNoticeMessage(notice))
-            } else if opening == .gym, continuesWalkthrough {
-                try session.createMessage(role: "user", text: RealtimeVoiceTutor.gymContinueMessage)
             } else {
                 return
             }
@@ -701,7 +705,6 @@ final class RealtimeVoiceController: ObservableObject {
         } else if name == RealtimeVoiceTutor.finishWalkthroughToolName {
             output = #"{"ok":true}"#
             asksForReply = false
-            continuesWalkthrough = false
         } else if let toolbox = brief?.toolbox {
             isTutorWorking = true
             output = await toolbox.run(name: name, argumentsJSON: argumentsJSON)

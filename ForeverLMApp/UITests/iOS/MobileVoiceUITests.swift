@@ -60,9 +60,9 @@ final class MobileVoiceUITests: XCTestCase {
         XCTAssertTrue(library.waitForExistence(timeout: 10), "Home has no Library row at the top.")
     }
 
-    /// Compact Picker menus flatten custom option views. Keep each Text to Speech
-    /// rate in the option's primary Text so it remains visible in the menu.
-    func testTextToSpeechModelPickerShowsEveryPrice() throws {
+    /// OpenRouter's live catalog is taller than an iPhone. The model control
+    /// opens a real List whose bottom rows remain reachable by scrolling.
+    func testTextToSpeechModelListScrollsToTheEnd() throws {
         app.launch()
         try waitForHome()
         try openSettings()
@@ -76,24 +76,15 @@ final class MobileVoiceUITests: XCTestCase {
         XCTAssertTrue(picker.waitForExistence(timeout: 20), "Text to Speech model picker never appeared.")
         picker.tap()
 
-        let expectedLabels = [
-            "Sesame CSM 1B · $7/1M chars",
-            "Zonos v0.1 Transformer · $7/1M chars",
-            "Zonos v0.1 Hybrid · $7/1M chars",
-            "Grok Voice TTS 1.0 · $15/1M chars",
-            "Voxtral Mini TTS · $16/1M chars",
-            "MAI Voice 2 · $22/1M chars",
-            "Deepgram Aura 2 · $30/1M chars",
-            "Gemini 3.1 Flash TTS · $41/1M chars",
-            "MiniMax Speech 2.8 Turbo · $60/1M chars",
-            "MiniMax Speech 2.8 HD · $100/1M chars",
-        ]
-        for label in expectedLabels {
-            let option = app.descendants(matching: .any)
-                .matching(NSPredicate(format: "label == %@", label))
-                .firstMatch
-            XCTAssertTrue(option.waitForExistence(timeout: 5), "Missing priced option: \(label)")
+        let list = app.descendants(matching: .any)["settings.readAloudModelList"]
+        XCTAssertTrue(list.waitForExistence(timeout: 10), "The model control did not open its scrolling list.")
+        let bottom = app.descendants(matching: .any)
+            .matching(identifier: "settings.readAloudModel.minimax/speech-2.8-hd")
+            .firstMatch
+        for _ in 0..<20 where !bottom.exists {
+            list.swipeUp()
         }
+        XCTAssertTrue(bottom.waitForExistence(timeout: 5), "The bottom model remained unreachable after scrolling.")
     }
 
     /// A slow audio teardown used to disable the only escape hatch.
@@ -312,6 +303,23 @@ final class MobileVoiceUITests: XCTestCase {
         XCTAssertTrue(verdict.contains("bytes="), "TTS probe did not report audio bytes: \(verdict)")
         XCTAssertTrue(verdict.contains("durationMs="), "TTS probe did not decode audio: \(verdict)")
         XCTAssertTrue(verdict.contains("receipts="), "TTS probe did not receive metering receipts: \(verdict)")
+    }
+
+    /// Billable, explicit live audit: every model in the directory must return
+    /// audio that the production iPhone path can validate and decode.
+    func testEveryTextToSpeechModelEndToEnd() throws {
+        app.launchArguments = [
+            "-foreverlm-uitest-probe",
+            "-foreverlm-uitest-tts-all-models",
+            "-foreverlm-uitest-tts-only",
+        ]
+        app.launch()
+
+        let verdict = try waitForProbeVerdict(timeout: 1_800)
+        if verdict == "fail tts not-signed-in" {
+            throw XCTSkip("Simulator is not signed in to managed AI; all-model TTS audit unavailable.")
+        }
+        XCTAssertTrue(verdict.hasPrefix("ok tts=ok models="), "TTS model audit failed: \(verdict)")
     }
 
     /// Notebooks (Notebooks in code) made on the Mac reach the phone with their

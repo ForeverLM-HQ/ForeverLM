@@ -246,7 +246,7 @@ enum MacArticleTTSClient {
         url: URL,
         headers: [String: String],
         payload: [String: Any],
-        timeoutInterval: TimeInterval = 90,
+        timeoutInterval: TimeInterval = 240,
         transcodePCM: Bool = false
     ) async throws -> Data {
         let cacheKey = ArticleSpeechAudioCache.key(parts: cacheParts)
@@ -534,8 +534,7 @@ enum MacArticleTTSClient {
     private static func isRetryableNetworkError(_ error: Error) -> Bool {
         guard let urlError = error as? URLError else { return false }
         switch urlError.code {
-        case .timedOut,
-             .cannotFindHost,
+        case .cannotFindHost,
              .cannotConnectToHost,
              .networkConnectionLost,
              .dnsLookupFailed,

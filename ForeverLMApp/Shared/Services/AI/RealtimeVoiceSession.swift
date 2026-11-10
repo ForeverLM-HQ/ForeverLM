@@ -84,7 +84,11 @@ final class RealtimeVoiceSession: NSObject, @unchecked Sendable {
 
     /// Opens the call and returns its events once the data channel is open.
     /// Throws when OpenAI refuses the offer or the channel does not open.
-    func connect(secret: String, microphoneMuted: Bool) async throws -> AsyncStream<RealtimeVoiceServerEvent> {
+    func connect(
+        secret: String,
+        includesMicrophone: Bool,
+        microphoneMuted: Bool
+    ) async throws -> AsyncStream<RealtimeVoiceServerEvent> {
         let factory = Self.factory
         let configuration = RTCConfiguration()
         configuration.sdpSemantics = .unifiedPlan
@@ -92,20 +96,36 @@ final class RealtimeVoiceSession: NSObject, @unchecked Sendable {
         guard let peerConnection = factory.peerConnection(with: configuration, constraints: constraints, delegate: self) else {
             throw RealtimeVoiceSessionError.notConnected
         }
-        // WebRTC's echo canceller, noise suppressor and gain control are on by
-        // default for an audio source; said here so nobody wonders.
-        let audioConstraints = RTCMediaConstraints(
-            mandatoryConstraints: [
-                "googEchoCancellation": "true",
-                "googNoiseSuppression": "true",
-                "googAutoGainControl": "true",
-                "googHighpassFilter": "true",
-            ],
-            optionalConstraints: nil
-        )
-        let microphone = factory.audioTrack(with: factory.audioSource(with: audioConstraints), trackId: "microphone")
-        microphone.isEnabled = !microphoneMuted
-        peerConnection.add(microphone, streamIds: ["foreverlm-voice"])
+        let microphone: RTCAudioTrack?
+        if includesMicrophone {
+            // WebRTC's echo canceller, noise suppressor and gain control are on
+            // by default for an audio source; said here so nobody wonders.
+            let audioConstraints = RTCMediaConstraints(
+                mandatoryConstraints: [
+                    "googEchoCancellation": "true",
+                    "googNoiseSuppression": "true",
+                    "googAutoGainControl": "true",
+                    "googHighpassFilter": "true",
+                ],
+                optionalConstraints: nil
+            )
+            let track = factory.audioTrack(
+                with: factory.audioSource(with: audioConstraints),
+                trackId: "microphone"
+            )
+            track.isEnabled = !microphoneMuted
+            peerConnection.add(track, streamIds: ["foreverlm-voice"])
+            microphone = track
+        } else {
+            // Typed-only Gym mode receives the model's audio without opening a
+            // local capture track. A disabled microphone track still owns the
+            // input device, so receive-only negotiation is the actual no-mic
+            // contract rather than a cosmetic mute.
+            let transceiver = RTCRtpTransceiverInit()
+            transceiver.direction = .recvOnly
+            peerConnection.addTransceiver(of: .audio, init: transceiver)
+            microphone = nil
+        }
         let channelConfiguration = RTCDataChannelConfiguration()
         channelConfiguration.isOrdered = true
         guard let dataChannel = peerConnection.dataChannel(forLabel: Self.eventsChannelLabel, configuration: channelConfiguration) else {
@@ -132,7 +152,7 @@ final class RealtimeVoiceSession: NSObject, @unchecked Sendable {
             close()
             throw error
         }
-        startLevelMeter()
+        if microphone != nil { startLevelMeter() }
         Self.logger.info("Realtime voice call open")
         return stream
     }

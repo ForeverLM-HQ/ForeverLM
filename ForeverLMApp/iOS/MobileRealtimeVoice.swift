@@ -253,10 +253,11 @@ enum MobileRealtimeVoicePick {
 /// so a route change never needs the call reopened.
 final class MobileRealtimeVoicePlatformAudio: RealtimeVoicePlatformAudio, @unchecked Sendable {
     func prepare(
+        usesMicrophone: Bool,
         onPreempted: @escaping @Sendable () -> Void,
         onDevicesChanged: @escaping @Sendable () -> Void
     ) async throws {
-        guard await AVAudioApplication.requestRecordPermission() else {
+        if usesMicrophone, !(await AVAudioApplication.requestRecordPermission()) {
             throw MobileRealtimeVoiceAudioError.microphoneDenied
         }
         let arbiter = MobileAudioSessionArbiter.shared

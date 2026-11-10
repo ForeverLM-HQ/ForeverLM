@@ -1540,6 +1540,45 @@ enum ArticleSpeechCatalog {
     /// lists them; before its first read they are not offered.
     static let learnedModels: [ArticleSpeechModelOption] = [
         .init(
+            id: "heygen/heygen-voice-1-turbo:free",
+            name: "HeyGen Voice Turbo (free)",
+            detail: "39 languages · best effort",
+            maker: "HeyGen",
+            voices: [],
+            languages: .unstated,
+            // HeyGen streams 44.1 kHz mono PCM and rejects MP3 requests. This
+            // is a distinct wire contract, not a preference: its OpenRouter
+            // adapter answers `response_format: mp3` with HTTP 400.
+            responseFormat: .pcm,
+            chunkLimit: untunedChunkLimit,
+            leadChunkLimit: untunedLeadChunkLimit,
+            curatedVoiceCount: 0
+        ),
+        .init(
+            id: "heygen/heygen-voice-1-turbo",
+            name: "HeyGen Voice Turbo",
+            detail: "39 languages",
+            maker: "HeyGen",
+            voices: [],
+            languages: .unstated,
+            responseFormat: .pcm,
+            chunkLimit: untunedChunkLimit,
+            leadChunkLimit: untunedLeadChunkLimit,
+            curatedVoiceCount: 0
+        ),
+        .init(
+            id: "heygen/heygen-voice-1",
+            name: "HeyGen Voice",
+            detail: "39 languages",
+            maker: "HeyGen",
+            voices: [],
+            languages: .unstated,
+            responseFormat: .pcm,
+            chunkLimit: untunedChunkLimit,
+            leadChunkLimit: untunedLeadChunkLimit,
+            curatedVoiceCount: 0
+        ),
+        .init(
             id: "fish-audio/s1",
             name: "Fish Audio S1",
             detail: nil,
