@@ -1122,18 +1122,34 @@ struct ReviewSlashCommandPopup: View {
                                 .foregroundStyle(.secondary)
                                 .frame(width: 13)
                         }
-                        Text(suggestion.title)
-                            .font(suggestion.isLibraryRow ? .callout : .callout.monospaced())
-                            .foregroundStyle(.primary)
-                            .lineLimit(1)
-                        if let subtitle = suggestion.subtitle {
-                            Text(subtitle)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                        if suggestion.isLibraryRow {
+                            // A title over its attribution, each on a line of
+                            // its own: side by side, a long paper title left
+                            // the author one letter, and the author is often
+                            // what the query matched (`/source weissig`).
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(suggestion.title)
+                                    .font(.callout)
+                                    .foregroundStyle(.primary)
+                                    .lineLimit(1)
+                                if let subtitle = suggestion.subtitle {
+                                    Text(subtitle)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .lineLimit(1)
+                                }
+                            }
+                        } else {
+                            Text(suggestion.title)
+                                .font(.callout.monospaced())
+                                .foregroundStyle(.primary)
                                 .lineLimit(1)
-                                // A title is what the learner is scanning for; the
-                                // attribution yields to it when the row is tight.
-                                .layoutPriority(suggestion.isLibraryRow ? -1 : 0)
+                            if let subtitle = suggestion.subtitle {
+                                Text(subtitle)
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                                    .lineLimit(1)
+                            }
                         }
                         Spacer(minLength: 0)
                     }

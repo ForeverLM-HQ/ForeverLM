@@ -1306,9 +1306,6 @@ struct ReviewSlashSuggestionsOverlay: View {
     var resolveMentions: (String) async -> [ChatMention.Item] = { _ in [] }
     let onSelect: (ReviewSlashSuggestion) -> Void
 
-    /// Measured height of the popup so it can float above the composer.
-    @State private var popupHeight: CGFloat = 0
-
     /// The `@` query being typed, as a value `task(id:)` can key on.
     private var mentionQuery: String? {
         ChatMention.pendingQuery(in: composer.text)?.query
@@ -1359,17 +1356,15 @@ struct ReviewSlashSuggestionsOverlay: View {
                     mentionHeader: mentionHeader,
                     onSelect: onSelect
                 )
-                .background(
-                    GeometryReader { proxy in
-                        Color.clear
-                            .onAppear { popupHeight = proxy.size.height }
-                            .onChange(of: proxy.size.height) { _, height in popupHeight = height }
-                    }
-                )
-                .offset(y: -(popupHeight + 8))
                 .transition(.opacity)
             }
         }
+        // The popup's bottom edge sits 8 pt above the composer's top. An
+        // alignment guide places it in the same layout pass that sizes it; the
+        // offset this replaced read a measured height a frame late, so the list
+        // first drew over the composer and jumped up each time the
+        // `/source` results changed its row count.
+        .alignmentGuide(.top) { dimensions in dimensions[.bottom] + 8 }
         .animation(.easeOut(duration: 0.12), value: suggestions)
         .task(id: liveQuery) {
             guard let liveQuery,

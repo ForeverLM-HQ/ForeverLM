@@ -5097,13 +5097,18 @@ private struct InternalReviewPanelContent: View {
     }
 
     /// Which of the context row's chips are drawn: the notebook's outside its
-    /// own window, the "in context" pill when something is (in the notebook's
-    /// window only for an attached Page), the canvas's, and one for each
-    /// source open beside the chat.
+    /// own window, the "in context" pill when something is, the canvas's,
+    /// and one for each source open beside the chat.
+    ///
+    /// The pill shows in the notebook's own window too. It counts what the
+    /// chat has read in full, which the Sources column's ticks do not say:
+    /// the notebook's pool is catalog-only, so a source picked with `/source`
+    /// left no trace there and read as not added (product owner, 2026-11-10:
+    /// "this doesn't seem to add it to the context").
     private var composerContextChips: (notebook: Bool, context: Bool, onScreen: [ChatContextAdditions.OnScreen], card: ChatContextAdditions.CardOnScreen?, open: [ChatContextAdditions.OpenItem], showsAny: Bool) {
         let inOwnNotebookWindow = notebookGuideNotebook != nil
         let notebook = linkedResearchNotebook != nil && !inOwnNotebookWindow
-        let context = contextItemCount > 0 && (!inOwnNotebookWindow || !manager.contextDocs.isEmpty)
+        let context = contextItemCount > 0
         let onScreen = onScreenChipSources
         let card = onScreenCardChipCard
         let open = openItemChipItems
@@ -6331,7 +6336,7 @@ private struct InternalReviewPanelContent: View {
         if let picked = suggestion.reference {
             draft = ""
             lastInsertedDefaultPrompt = nil
-            Task { await runSlashReference(picked.command, reference: picked.reference) }
+            Task { await runSlashReference(picked.command, reference: picked.reference, title: suggestion.title) }
             return
         }
         // Something an `@` found: the `@` and its query leave the draft, the
@@ -6512,10 +6517,18 @@ private struct InternalReviewPanelContent: View {
     /// a Doc or Site id. A Site is an artifact record like a Doc — a linked
     /// page or a published Markdown doc — so both attach the same way.
     @MainActor
-    private func runSlashReference(_ command: ReviewSlashCommand, reference: String) async {
+    private func runSlashReference(_ command: ReviewSlashCommand, reference: String, title: String) async {
         switch command.kind {
         case .source:
             await addSourceTokensToChatContext([reference])
+            // Said as `/doc` says it, once the text is in: a pick that only
+            // cleared the composer read as nothing happening.
+            let ids = ReviewSlashCommandParser.sourceIDs(fromTokens: [reference]) { bookID in
+                vm.bookChapterArticlesInOrder(for: bookID).map(\.id)
+            }
+            if !ids.isEmpty, ids.contains(where: manager.loadedSourceIDs.contains) {
+                vm.showToast("Added \(title) to Chat")
+            }
         case .doc, .site:
             await addDocToChatContext(reference)
         default:
