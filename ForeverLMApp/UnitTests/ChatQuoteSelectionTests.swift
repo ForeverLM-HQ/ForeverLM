@@ -354,3 +354,39 @@ struct ChatQuoteSelectionTests {
         #expect(state?["present"] as? Bool != true || state?["shown"] as? Bool == false)
     }
 }
+
+/// A Page's highlight shows in the chat beside it as the composer's quote
+/// (`PageSelectionQuote`), without ever taking a quote the learner made.
+struct PageSelectionQuoteTests {
+    private typealias State = PageSelectionQuote.State
+
+    @Test func aHighlightBecomesTheQuote() {
+        let next = PageSelectionQuote.next(State(quote: "", mirrored: nil), highlight: "  Energy declines with age.\n")
+        #expect(next == State(quote: "Energy declines with age.", mirrored: "Energy declines with age."))
+    }
+
+    @Test func aNewHighlightReplacesTheOldOne() {
+        let shown = State(quote: "Energy declines with age.", mirrored: "Energy declines with age.")
+        let next = PageSelectionQuote.next(shown, highlight: "Mutator mice")
+        #expect(next == State(quote: "Mutator mice", mirrored: "Mutator mice"))
+    }
+
+    @Test func clearingTheHighlightTakesItsQuoteAway() {
+        let shown = State(quote: "Mutator mice", mirrored: "Mutator mice")
+        #expect(PageSelectionQuote.next(shown, highlight: nil) == State(quote: "", mirrored: nil))
+        #expect(PageSelectionQuote.next(shown, highlight: "   ") == State(quote: "", mirrored: nil))
+    }
+
+    @Test func theLearnersOwnQuoteStands() {
+        let own = State(quote: "A line quoted from the reply", mirrored: nil)
+        #expect(PageSelectionQuote.next(own, highlight: "Mutator mice") == own)
+        #expect(PageSelectionQuote.next(own, highlight: nil) == own)
+    }
+
+    @Test func afterSendingTheNextHighlightShowsAgain() {
+        // Sending empties the quote but leaves the mirror's memory behind.
+        let sent = State(quote: "", mirrored: "Mutator mice")
+        let next = PageSelectionQuote.next(sent, highlight: "Heteroplasmy")
+        #expect(next == State(quote: "Heteroplasmy", mirrored: "Heteroplasmy"))
+    }
+}

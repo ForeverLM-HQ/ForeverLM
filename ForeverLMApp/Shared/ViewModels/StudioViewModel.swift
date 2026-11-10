@@ -1893,6 +1893,22 @@ class StudioViewModel {
     /// handler; no view observes it, so it stays observation-ignored to avoid
     /// invalidating views on every selection change.
     @ObservationIgnored var activeReaderSelection: ReaderChatSelection?
+    /// The passage highlighted on a Page, which a chat beside that Page shows
+    /// as its quote (`PageSelectionQuote`). Observed only by the chat panel's
+    /// small mirror view, so a moving highlight never re-renders the pane.
+    var livePageSelection: LivePageSelection?
+
+    /// A Page's editor reporting its highlight; an empty one clears that
+    /// Page's, never another Page's.
+    func notePageSelection(_ text: String, artifactID: String) {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty {
+            if livePageSelection?.artifactID == artifactID { livePageSelection = nil }
+            return
+        }
+        let next = LivePageSelection(artifactID: artifactID, text: trimmed)
+        if livePageSelection != next { livePageSelection = next }
+    }
     /// The pictures each web reader last reported inside its selection, by
     /// source ID. Readers report their words through a text binding that
     /// predates pictures and re-reports on every change; keeping the pictures

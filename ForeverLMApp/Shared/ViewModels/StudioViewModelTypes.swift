@@ -1389,3 +1389,41 @@ enum StudioYouTubeMetadataApplicator {
         }
     }
 }
+
+/// The passage highlighted on a Page right now. A chat beside that Page shows
+/// it as the quote its next message carries, so what the writer highlights is
+/// what the chat is asked about (product owner, 2026-11-10: "stuff i highlight
+/// on a page should also be visible here in the chat").
+struct LivePageSelection: Equatable, Sendable {
+    let artifactID: String
+    let text: String
+}
+
+/// How a chat's quoted passage follows the Page highlighted beside it.
+///
+/// The chat owns at most one mirrored quote: a new highlight replaces it, and
+/// an emptied highlight takes it away. A quote the learner put there
+/// themselves (Quote in Reply, a recalled message) is theirs, and a highlight
+/// never overwrites or removes it.
+enum PageSelectionQuote {
+    struct State: Equatable {
+        var quote: String
+        /// The quote as the mirror last set it; nil when the mirror set none.
+        var mirrored: String?
+    }
+
+    /// - Parameter highlight: the highlighted text on a Page beside this chat,
+    ///   or nil when nothing is highlighted there.
+    static func next(_ state: State, highlight: String?) -> State {
+        let text = highlight?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let mirrorOwnsQuote = state.quote.isEmpty || state.quote == state.mirrored
+        guard mirrorOwnsQuote else {
+            // The learner's own quote stands; forget any stale mirror.
+            return State(quote: state.quote, mirrored: nil)
+        }
+        if text.isEmpty {
+            return State(quote: "", mirrored: nil)
+        }
+        return State(quote: text, mirrored: text)
+    }
+}

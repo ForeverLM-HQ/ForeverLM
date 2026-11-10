@@ -228,6 +228,8 @@ private struct InternalReviewPanelContent: View {
     /// The pane reads it from actions, never in its body, so typing does not
     /// re-render the transcript. See `ReviewComposerDraft`.
     @State private var composer = ReviewComposerDraft()
+    /// The quote as a Page's highlight last set it (`mirrorPageSelection`).
+    @State private var mirroredPageQuote: String?
     /// Skip was pressed and its message has not gone out yet: the footer's
     /// icon hides, so a second click cannot skip the next question too.
     @State private var isSkippingQuizQuestion = false
@@ -875,6 +877,13 @@ private struct InternalReviewPanelContent: View {
         // this pane's store by whoever asked for the new chat.
         .task(id: sessionStore.pendingNewChatHandoff?.id) {
             await handleNewChatHandoff()
+        }
+        // What the learner highlights on a Page beside this chat (or attached
+        // to it) shows as the composer's quote, and goes with the next message.
+        // A small view of its own observes the highlight, so dragging one out
+        // never re-renders this pane.
+        .background {
+            PageSelectionQuoteMirror { mirrorPageSelection($0) }
         }
         .task(id: vm.pendingChatDocAttachment?.id) {
             guard acceptsGlobalRequests else { return }
@@ -7301,6 +7310,27 @@ private struct InternalReviewPanelContent: View {
         }
     }
 
+    /// Follows a Page's highlight into the composer's quote when that Page
+    /// is open beside this chat or attached to it (`PageSelectionQuote`).
+    private func mirrorPageSelection(_ selection: LivePageSelection?) {
+        let highlight: String? = selection.flatMap { selection in
+            let besideChat = openItemsBesideChat.contains { $0.id == selection.artifactID }
+            let attached = manager.contextDocs.contains { $0.id == selection.artifactID }
+            return besideChat || attached ? selection.text : nil
+        }
+        let next = PageSelectionQuote.next(
+            PageSelectionQuote.State(quote: quotedPassage, mirrored: mirroredPageQuote),
+            highlight: highlight
+        )
+        mirroredPageQuote = next.mirrored
+        guard next.quote != quotedPassage else { return }
+        quotedPassage = next.quote
+        if !next.quote.isEmpty, draft == lastInsertedDefaultPrompt {
+            draft = ""
+            lastInsertedDefaultPrompt = nil
+        }
+    }
+
     private func quoteIntoDraft(_ passage: String) {
         let quoted = ChatQuoteDraft.adding(passage, to: quotedPassage)
         guard quoted != quotedPassage else { return }
@@ -9903,5 +9933,19 @@ private struct HomeToReadRow: View {
         case .xPost: return "bubble.left"
         case .manual: return "link"
         }
+    }
+}
+
+/// Observes the Page highlight on behalf of the chat panel, so only this
+/// empty view re-renders as a highlight is dragged out.
+private struct PageSelectionQuoteMirror: View {
+    @Environment(StudioViewModel.self) private var vm
+    let receive: (LivePageSelection?) -> Void
+
+    var body: some View {
+        Color.clear
+            .onChange(of: vm.livePageSelection, initial: true) { _, selection in
+                receive(selection)
+            }
     }
 }

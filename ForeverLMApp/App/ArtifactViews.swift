@@ -3382,6 +3382,7 @@ private struct ArtifactEditor: View {
             applyBlockReveal()
         }
         .onDisappear {
+            vm.notePageSelection("", artifactID: artifact.id)
             editorDraft.cancelAutosave()
             save(draft)
             saveTitle()
@@ -4197,6 +4198,8 @@ private struct ArtifactEditor: View {
                 onSelectionChange: { selection in
                     if selection.hasText || editorSelection.hasText { editorSelection = selection }
                     formatting.activeFormats = selection.activeFormats
+                    // A chat beside this Page shows the highlight as its quote.
+                    vm.notePageSelection(selection.hasText ? selection.text : "", artifactID: artifact.id)
                 },
                 onError: { chrome.errorMessage = $0 }
             )
