@@ -63,14 +63,6 @@ extension KnowledgeStore {
         return block
     }
 
-    func loadAllDayPlanIDs() throws -> [String] {
-        var ids: [String] = []
-        try query("SELECT id FROM day_plans") { stmt in
-            if let id = self.string(stmt, 0) { ids.append(id) }
-        }
-        return ids
-    }
-
     /// The days after `date` whose plans still hold an untouched occurrence of
     /// the calendar series `prefix` begins. Matched with `instr(… ) = 1` rather
     /// than `LIKE`: a Google series prefix ends in `_`, which `LIKE` would read
@@ -93,16 +85,6 @@ extension KnowledgeStore {
             if let day = self.string(stmt, 0) { dates.append(day) }
         }
         return dates
-    }
-
-    func hasDayPlan(_ date: String) throws -> Bool {
-        var found = false
-        try queryBind("SELECT 1 FROM day_plans WHERE id = ? LIMIT 1", bind: { stmt in
-            self.bind(stmt, 1, date)
-        }) { _ in
-            found = true
-        }
-        return found
     }
 
     // MARK: - Writes
@@ -350,7 +332,6 @@ extension KnowledgeStore {
             plan.notes = (trimmed?.isEmpty ?? true) ? nil : trimmed
             plan.updatedAt = now
             try writeDayPlanRow(plan)
-            try markRecordChanged(entity: .dayPlan, logicalKey: plan.id, at: now)
             try exec("COMMIT")
             return plan
         } catch {
@@ -368,7 +349,6 @@ extension KnowledgeStore {
             plan.shutdownAt = shutdownAt
             plan.updatedAt = now
             try writeDayPlanRow(plan)
-            try markRecordChanged(entity: .dayPlan, logicalKey: plan.id, at: now)
             try exec("COMMIT")
             return plan
         } catch {
@@ -733,7 +713,6 @@ extension KnowledgeStore {
             try execBind("DELETE FROM day_plans WHERE id = ?") { stmt in
                 self.bind(stmt, 1, date)
             }
-            try markRecordDeleted(entity: .dayPlan, logicalKey: date, at: now)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -742,110 +721,6 @@ extension KnowledgeStore {
     }
 
     // MARK: - CloudKit
-
-    /// What travels: the rows as they are stored, so the record keeps the name
-    /// each thing was seen under. Renames reach the other Macs through the
-    /// things themselves, and every device resolves the log when it reads it.
-    func loadDayPlanForSync(_ date: String) throws -> CloudKitDayPlanPayload? {
-        guard let detail = try loadDayPlanDetail(date, resolvingTitles: false) else { return nil }
-        return CloudKitDayPlanPayload(
-            plan: detail.plan,
-            blocks: detail.blocks,
-            activities: detail.activities,
-            bouts: detail.bouts
-        )
-    }
-
-    /// Applies an inbound record.
-    ///
-    /// The day's own fields are newest-wins, except `revision`, which only ever
-    /// advances, as a build that still draws columns expects. Blocks are
-    /// unioned by id and each is newest-wins, except the two marks that mean a
-    /// row left the plan — `deleted_at`, and the `superseded_in_revision` such
-    /// a build writes — which are kept once set on either side. A block this
-    /// device drew that the remote has never seen stays, so the remote list is
-    /// never taken wholesale.
-    func saveDayPlanRecord(_ payload: CloudKitDayPlanPayload) throws {
-        let incoming = payload.plan
-        guard DayPlan.isValidDateString(incoming.date) else {
-            throw KnowledgeStoreError.invalidData("Inbound day plan has no usable date.")
-        }
-        try exec("BEGIN IMMEDIATE")
-        do {
-            var plan = incoming
-            if let existing = try loadDayPlanRow(incoming.id) {
-                plan.revision = max(existing.revision, incoming.revision)
-                if existing.updatedAt > incoming.updatedAt {
-                    plan.notes = existing.notes
-                    plan.shutdownAt = existing.shutdownAt
-                    plan.updatedAt = existing.updatedAt
-                }
-                plan.createdAt = min(existing.createdAt, incoming.createdAt)
-            }
-            try writeDayPlanRow(plan)
-            for var block in payload.blocks where block.dayPlanID == plan.id {
-                if let local = try loadTimeBlock(block.id) {
-                    var merged = local.updatedAt > block.updatedAt ? local : block
-                    merged.supersededInRevision = [local.supersededInRevision, block.supersededInRevision]
-                        .compactMap { $0 }.min()
-                    merged.deletedAt = [local.deletedAt, block.deletedAt].compactMap { $0 }.min()
-                    merged.createdAt = min(local.createdAt, block.createdAt)
-                    block = merged
-                }
-                try writeTimeBlockRow(block)
-            }
-            // Log spans are unioned by id, newest-wins: one device records a
-            // span and only ever lengthens it, so the later stamp is the
-            // longer span.
-            for var activity in payload.activities where activity.dayPlanID == plan.id {
-                if let local = try loadDayActivity(activity.id) {
-                    if local.updatedAt > activity.updatedAt { activity = local }
-                    activity.createdAt = min(local.createdAt, activity.createdAt)
-                }
-                try writeDayActivityRow(activity)
-            }
-            // Bouts are unioned by id and folded by `LearningBout.merged`: the
-            // words are newest-wins, but every stamp that says something
-            // happened — ended, written up, rested — is kept once either side
-            // has it, so a stale record can never un-end a bout or take back a
-            // break the other device earned.
-            for var bout in payload.bouts where bout.dayPlanID == plan.id {
-                if let local = try loadLearningBout(bout.id) {
-                    bout = LearningBout.merged(local: local, remote: bout)
-                }
-                try writeLearningBoutRow(bout)
-            }
-            try exec("COMMIT")
-        } catch {
-            try? exec("ROLLBACK")
-            throw error
-        }
-    }
-
-    func deleteDayPlanRecord(_ date: String) throws {
-        try execBind("DELETE FROM learning_bouts WHERE day_plan_id = ?") { stmt in
-            self.bind(stmt, 1, date)
-        }
-        try execBind("DELETE FROM day_activities WHERE day_plan_id = ?") { stmt in
-            self.bind(stmt, 1, date)
-        }
-        try execBind("DELETE FROM time_blocks WHERE day_plan_id = ?") { stmt in
-            self.bind(stmt, 1, date)
-        }
-        try execBind("DELETE FROM day_plans WHERE id = ?") { stmt in
-            self.bind(stmt, 1, date)
-        }
-    }
-
-    func dayPlanSyncBackfillDate(_ date: String) throws -> Date? {
-        var value: Date?
-        try queryBind("SELECT updated_at FROM day_plans WHERE id = ? LIMIT 1", bind: { stmt in
-            self.bind(stmt, 1, date)
-        }) { stmt in
-            value = Date(timeIntervalSinceReferenceDate: sqlite3_column_double(stmt, 0))
-        }
-        return value
-    }
 
     // MARK: - Row plumbing
 
@@ -913,7 +788,6 @@ extension KnowledgeStore {
             self.bind(stmt, 1, now.timeIntervalSinceReferenceDate)
             self.bind(stmt, 2, date)
         }
-        try markRecordChanged(entity: .dayPlan, logicalKey: date, at: now)
     }
 
     /// The log, read back under the names its things carry now: a source

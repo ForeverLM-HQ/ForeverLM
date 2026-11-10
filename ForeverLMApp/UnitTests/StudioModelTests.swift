@@ -512,7 +512,6 @@ struct StudioArticlePropertyTests {
     func paperMetadataDisplayParts() {
         let article = StudioArticle(url: "/Users/me/paper.pdf", title: "Paper", sourceType: .paper)
         #expect(article.paperMetadataDisplayParts == ["Unknown authors", "Unknown venue", "Unknown year"])
-        #expect(!article.hasRequiredPaperMetadata)
     }
 
     @Test("Paper metadata display does not repeat a duplicated sole author")
@@ -704,7 +703,6 @@ struct StudioArticlePropertyTests {
             publishedYear: "2026"
         )
 
-        #expect(!article.hasRequiredPaperMetadata)
         #expect(article.hasAttestablePaperMetadata)
         #expect(article.missingRequiredPaperMetadataFields == ["venue"])
 
@@ -1771,31 +1769,6 @@ struct MeetingIconTests {
         #expect(StudioViewModel.hasSatisfactoryIcon(remote, source: .preferThumbnail, iconIsOnDisk: absent))
     }
 
-    @Test("Only a meeting icon this app wrote is uploaded as a record asset")
-    func recognizesUploadableMeetingArtwork() {
-        func source(_ type: StudioSourceType, _ artwork: String?) -> StudioArticle {
-            var article = StudioArticle(url: "meeting://g/1", title: "Journal Club", sourceType: type)
-            article.artworkURL = artwork
-            return article
-        }
-
-        let icon = MeetingIconService.relativePath(sourceID: "s1")
-        #expect(CloudKitRecordMapper.recordsLocalMeetingIcon(source(.meeting, icon)))
-        #expect(CloudKitRecordMapper.recordsLocalMeetingIcon(
-            source(.meeting, MeetingIconService.relativePath(sourceID: "s1", drawn: true))
-        ))
-
-        // A podcast cover or YouTube still is already on the network for every
-        // device; uploading it would be paying to move somebody else's file.
-        #expect(!CloudKitRecordMapper.recordsLocalMeetingIcon(source(.meeting, "https://example.com/cover.jpg")))
-        #expect(!CloudKitRecordMapper.recordsLocalMeetingIcon(source(.meeting, nil)))
-        #expect(!CloudKitRecordMapper.recordsLocalMeetingIcon(source(.meeting, "   ")))
-
-        // Papers and books carry their pictures on their own fields.
-        #expect(!CloudKitRecordMapper.recordsLocalMeetingIcon(source(.paper, icon)))
-        #expect(!CloudKitRecordMapper.recordsLocalMeetingIcon(source(.book, icon)))
-    }
-
     @Test("A run reports what it drew separately from what it found")
     func summaryNamesTheBilledWork() {
         let mixed = StudioViewModel.iconRunSummary(
@@ -2022,34 +1995,6 @@ struct VideoWatchProgressTests {
         #expect(VideoWatchProgress(positionSeconds: 240, watchedSeconds: 240, durationSeconds: nil).resumeSeconds == 240)
     }
 
-    @Test("CloudKit merge preserves the furthest watched point and remote resume position")
-    func mergedSyncLocatorPreservesWatchHighWaterMark() throws {
-        let local = try #require(
-            VideoWatchProgress(positionSeconds: 800, watchedSeconds: 900, durationSeconds: 1200).encoded
-        )
-        let remote = try #require(
-            VideoWatchProgress(positionSeconds: 120, watchedSeconds: 500, durationSeconds: 1200).encoded
-        )
-        let merged = try #require(
-            VideoWatchProgress(
-                encoded: VideoWatchProgress.mergedSyncLocator(remote: remote, local: local)
-            )
-        )
-
-        #expect(merged.positionSeconds == 120)
-        #expect(merged.watchedSeconds == 900)
-        #expect(merged.durationSeconds == 1200)
-    }
-
-    @Test("CloudKit merge does not erase local video progress with an empty remote locator")
-    func mergedSyncLocatorPreservesLocalAgainstEmptyRemote() throws {
-        let local = try #require(
-            VideoWatchProgress(positionSeconds: 300, watchedSeconds: 400, durationSeconds: 900).encoded
-        )
-
-        #expect(VideoWatchProgress.mergedSyncLocator(remote: nil, local: local) == local)
-    }
-
     // MARK: Mark as Watched / Mark as Not Watched (product owner, 2026-09-27)
 
     private static let markTime = Date(timeIntervalSinceReferenceDate: 812_345_678)
@@ -2107,33 +2052,6 @@ struct VideoWatchProgressTests {
         #expect(finished.displayLabel == "Watched")
         #expect(finished.resumeSeconds == nil)
         #expect(finished.unwatchedAt == Self.markTime)
-    }
-
-    @Test("CloudKit merge: the later Mark as Not Watched wins, verbatim, whichever side holds it")
-    func mergeHonoursNotWatchedEpoch() throws {
-        let watched = try #require(
-            VideoWatchProgress(positionSeconds: 3500, watchedSeconds: 3550, durationSeconds: 3600).encoded
-        )
-        let reset = try #require(
-            VideoWatchProgress.notWatched(from: VideoWatchProgress(encoded: watched), at: Self.markTime).encoded
-        )
-        // Another Mac marked it: this Mac's high-water mark gives way, and the
-        // answer equals the record, so nothing is republished.
-        #expect(VideoWatchProgress.mergedSyncLocator(remote: reset, local: watched) == reset)
-        // This Mac marked it: a copy from before the mark cannot bring it back,
-        // and the answer differs from the record, so the mark is republished.
-        #expect(VideoWatchProgress.mergedSyncLocator(remote: watched, local: reset) == reset)
-        // Watching after the mark on both Macs is one epoch: the higher mark,
-        // the remote position.
-        let resetProgress = try #require(VideoWatchProgress(encoded: reset))
-        let here = resetProgress.advanced(to: 600, durationSeconds: nil)
-        let there = resetProgress.advanced(to: 300, durationSeconds: nil)
-        let joined = try #require(
-            VideoWatchProgress(encoded: VideoWatchProgress.mergedSyncLocator(remote: there.encoded, local: here.encoded))
-        )
-        #expect(joined.watchedSeconds == 600)
-        #expect(joined.positionSeconds == 300)
-        #expect(joined.unwatchedAt == Self.markTime)
     }
 
     @Test("Only a video marked not watched with nothing played since is no saved position")

@@ -3292,7 +3292,6 @@ struct MCPDataStoreTests {
         #expect(saved.sourceSHA256 == expectedSHA256)
         #expect(saved.generatorVersion == SourceReviewGuide.currentVersion)
         #expect(saved.guide.contains("Strong answer"))
-        #expect(try store.knowledgeStore().hasPendingSyncChange(entity: .source, logicalKey: "review-guide-source"))
     }
 
     @Test("MCP rejects a pre-generated review guide after source content changes")
@@ -5566,13 +5565,12 @@ struct MCPDataStoreTests {
 
         // What the append path wrote for each of the seven sources on 2026-09-28.
         try store.markScheduledSourcesReviewed(["src_paper", "src_episode"])
-        let placementID = try #require(try knowledge.scheduledSourceID(forSource: "src_paper"))
+        #expect(try knowledge.scheduledSourceID(forSource: "src_paper") != nil)
         let ids = "('src_paper', 'src_episode')"
         #expect(try scalarInt(dbPath: dbPath, "SELECT COUNT(*) FROM source_projection WHERE id IN \(ids) AND read_at IS NOT NULL") == 2)
         // The tools that existed could not take it back.
         #expect(throws: MCPError.self) { try store.unscheduleSources(sourceIDs: ["src_paper"]) }
 
-        try execSQL(dbPath: dbPath, "DELETE FROM sync_changes")
         let today = DayPlan.dateString(for: Date())
         let registry = MCPToolRegistry(store: store)
         let outcome = await registry.callToolDetailed(
@@ -5593,10 +5591,6 @@ struct MCPDataStoreTests {
         #expect(try scalarInt(dbPath: dbPath, "SELECT COUNT(*) FROM scheduled_sources WHERE source_id IN \(ids)") == 0)
         #expect(try scalarInt(dbPath: dbPath, "SELECT COUNT(*) FROM source_activity_days WHERE source_id IN \(ids)") == 0)
         #expect(try scalarInt(dbPath: dbPath, "SELECT COUNT(*) FROM source_projection WHERE id IN \(ids) AND read_at IS NOT NULL") == 0)
-        // CloudKit carries it: the placement's deletion takes its activity
-        // days off the other Macs, and the read stamp travels with the source.
-        #expect(try scalarString(dbPath: dbPath, "SELECT operation FROM sync_changes WHERE entity_type = 'scheduledSource' AND logical_key = '\(placementID)'") == "delete")
-        #expect(try scalarInt(dbPath: dbPath, "SELECT COUNT(*) FROM sync_changes WHERE entity_type = 'scheduledSource' AND operation = 'delete'") == 2)
         // And the sources are still in the library.
         #expect(try scalarInt(dbPath: dbPath, "SELECT COUNT(*) FROM sources WHERE id IN \(ids)") == 2)
     }
@@ -5694,7 +5688,7 @@ struct MCPDataStoreTests {
         // pool, matching Move to Notebook in the sidebar. The external chat can
         // retain exact library citations without silently adding those sources
         // to the Notebook.
-        #expect(try knowledge.notebookContextSourceIDs(notebookID: notebook.id).isEmpty)
+        #expect(try knowledge.loadLearningGoal(notebook.id)?.approvedSourceIDs.isEmpty == true)
         #expect(try store.reviewSessionSourceIDs(sessionID: sessionID) == ["notebook-import-source"])
 
         // Later chunks keep the first import's Notebook. Repeating notebook_id is
@@ -10718,7 +10712,6 @@ struct MCPDataStoreTests {
             exchanges: [], sourceIdentities: []
         )
         try knowledge.saveReviewSessionRecord(payload)
-        let sessionSavesBefore = try knowledge.pendingSyncChanges().filter { $0.entity == .reviewSession }.count
 
         // Hide over MCP: the row is marked and dated, nothing else about the
         // chat moves, and the chat itself is not republished — hiding is the
@@ -10731,9 +10724,6 @@ struct MCPDataStoreTests {
         #expect(hidden["hidden_at"] is String)
         #expect(hidden["title"] as? String == "Uncoupler pharmacology")
         #expect((hidden["message"] as? String)?.contains("hidden from the sidebar") == true)
-        let queued = try knowledge.pendingSyncChanges()
-        #expect(queued.filter { $0.entity == .reviewSession }.count == sessionSavesBefore)
-        #expect(queued.contains { $0.entity == .hiddenReviewSession && $0.logicalKey == sessionID && $0.operation == .save })
         let hiddenLink = try #require(try knowledge.loadReviewSessionLinks().first { $0.id == sessionID })
         #expect(hiddenLink.isHidden)
         let hiddenAt = try #require(hiddenLink.hiddenAt)
@@ -10764,7 +10754,6 @@ struct MCPDataStoreTests {
         #expect(try knowledge.loadReviewSessionLinks().first { $0.id == sessionID }?.isHidden == false)
         #expect(!(try store.getReviewSessions(topic: "Uncouplers")).contains("[hidden"))
         // Showing it again tombstones the hide for the other Macs.
-        #expect(try knowledge.pendingSyncChanges().contains { $0.entity == .hiddenReviewSession && $0.logicalKey == sessionID && $0.operation == .delete })
 
         // A hide of a chat that does not exist is refused, and is_hidden alone
         // is a complete request.
@@ -10823,10 +10812,6 @@ struct MCPDataStoreTests {
         ).encoded
         video.readAt = Date(timeIntervalSinceNow: -3600)
         try knowledge.saveSource(video)
-        // The seed's own full save is pending too, and a full save rightly
-        // outranks the progress-only mark in sync_changes; clear it so the
-        // mark's row is the one asked about, as the storage suite does.
-        try knowledge.clearPendingSyncChange(entity: .source, logicalKey: video.id)
 
         // read: false is Mark as Not Watched: the progress and the read stamp go.
         let cleared = try parseJSON(try store.setSourceRead(sourceID: video.id, read: false))

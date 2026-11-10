@@ -480,7 +480,7 @@ extension KnowledgeStore {
             try execBind("DELETE FROM paper_figure_index_queue WHERE source_id = ?") { stmt in
                 bind(stmt, 1, sourceID)
             }
-            try markRecordChanged(entity: .source, logicalKey: sourceID)
+            noteStoreChanged()
             try queueSourceFilesRefresh(sourceID: sourceID)
             try exec("COMMIT")
         } catch {
@@ -526,7 +526,7 @@ extension KnowledgeStore {
             // rect this write improves is only better everywhere if the record
             // is republished.
             if updated {
-                try markRecordChanged(entity: .source, logicalKey: sourceID)
+                noteStoreChanged()
                 try queueSourceFilesRefresh(sourceID: sourceID)
             }
             try exec("COMMIT")
@@ -564,64 +564,6 @@ extension KnowledgeStore {
             ))
         }
         return result
-    }
-
-    func syncedPaperFigures(sourceID: String) throws -> [SyncedPaperFigure] {
-        try paperFigures(sourceID: sourceID).map {
-            SyncedPaperFigure(
-                id: $0.id,
-                sourceID: $0.sourceID,
-                figureLabel: $0.figureLabel,
-                pageIndex: $0.pageIndex,
-                caption: $0.caption,
-                analysis: $0.analysis
-            )
-        }
-    }
-
-    /// Replace the portable synced projection. Every column here travels, so a
-    /// receiving device needs nothing local beyond the PDF it renders from.
-    func savePaperFiguresFromSync(sourceID: String, figures: [SyncedPaperFigure]) throws {
-        try exec("BEGIN IMMEDIATE")
-        do {
-            let incomingIDs = Set(
-                figures.lazy
-                    .filter { $0.sourceID == sourceID && $0.pageIndex >= 0 }
-                    .map(\.id)
-            )
-            let existing = try paperFigures(sourceID: sourceID)
-            for figure in existing where !incomingIDs.contains(figure.id) {
-                try execBind("DELETE FROM paper_figures WHERE figure_id = ?") { stmt in
-                    bind(stmt, 1, figure.id)
-                }
-            }
-            for figure in figures where figure.sourceID == sourceID && figure.pageIndex >= 0 {
-                let analysisJSON = try figure.analysis.map {
-                    String(decoding: try JSONEncoder().encode($0), as: UTF8.self)
-                }
-                try execBind("""
-                    INSERT INTO paper_figures
-                        (figure_id, source_id, figure_label, page_index, caption, analysis_json)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                    ON CONFLICT(figure_id) DO UPDATE SET
-                        figure_label = excluded.figure_label,
-                        page_index = excluded.page_index,
-                        caption = excluded.caption,
-                        analysis_json = excluded.analysis_json
-                """) { stmt in
-                    bind(stmt, 1, figure.id)
-                    bind(stmt, 2, sourceID)
-                    bind(stmt, 3, figure.figureLabel)
-                    sqlite3_bind_int(stmt, 4, Int32(figure.pageIndex))
-                    bind(stmt, 5, figure.caption)
-                    bind(stmt, 6, analysisJSON)
-                }
-            }
-            try exec("COMMIT")
-        } catch {
-            try? exec("ROLLBACK")
-            throw error
-        }
     }
 
     /// Version-41 migration staging. This is one indexed, set-based metadata
@@ -697,15 +639,13 @@ extension KnowledgeStore {
         try exec("BEGIN IMMEDIATE")
         var repairedIDs: [String] = []
         do {
-            let now = Date()
             for candidate in candidates {
                 if let stripped = LegacyPaperFigureMarkdown.stripping(candidate.content) {
                     try execBind("UPDATE source_content SET content = ? WHERE source_id = ?") { stmt in
                         bind(stmt, 1, stripped)
                         bind(stmt, 2, candidate.sourceID)
                     }
-                    try upsertSyncSave(entity: .source, logicalKey: candidate.sourceID, at: now)
-                    // The text other devices read is published again (generation 2).
+                    // The text other devices read is published again.
                     try queueSourceFilesRefresh(sourceID: candidate.sourceID)
                     repairedIDs.append(candidate.sourceID)
                 }

@@ -277,9 +277,8 @@ enum SourceImageCatalog {
 
     // MARK: Markup
 
-    /// Every `<img>`/`<image>` tag in the body, in document order. This is the
-    /// order `EPUBParser.readerDocument` inlines them in, which is what makes
-    /// the ordinal portable to a device that only has the reader document.
+    /// Every `<img>`/`<image>` tag in the body, in document order, which is
+    /// what makes the ordinal the same on every device that holds the markup.
     static func markupImageTags(inBody body: String) -> [(tag: String, range: Range<String.Index>)] {
         guard let regex = try? NSRegularExpression(
             pattern: #"<(img|image)\b[^>]*?/?>"#,

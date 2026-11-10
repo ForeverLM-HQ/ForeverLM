@@ -3055,138 +3055,16 @@ extension StudioViewModel {
 
     static let iCloudFullToast = "Your iCloud storage is full, so sync has paused. \(ICloudStorage.fullConsequence) Free up space or upgrade your iCloud+ plan (we recommend \(ICloudStorage.recommendedPlan))."
 
-    /// Immutable tutor evidence must never be resolved by last-write-wins. The
-    /// sync engine quarantines a divergent record durably; surface that state on
-    /// launch and at the moment it is detected so the learner never mistakes a
-    /// stopped upload for successful cross-device convergence.
-    func startObservingCloudKitSyncConflicts() {
-        cloudKitConflictObservationTask?.cancel()
-        let storage = storage
-        cloudKitConflictObservationTask = Task { [weak self, storage] in
-            let notifications = NotificationCenter.default.notifications(
-                named: .cloudKitSyncConflictDidOccur
-            )
-            // A full iCloud is the other way uploads stop without a word: the
-            // engine retries it like a network blip. Say so, once per filling.
-            let fullWatcher = Task { [weak self] in
-                for await _ in NotificationCenter.default.notifications(named: .cloudKitICloudStorageDidFill) {
-                    guard !Task.isCancelled else { return }
-                    self?.showToast(Self.iCloudFullToast)
-                }
-            }
-            defer { fullWatcher.cancel() }
-
-            do {
-                let existing = try await storage.cloudKitSyncConflicts()
+    /// A full iCloud stops uploads without a word: sync retries it like a
+    /// network blip. Say so, once per filling.
+    func startObservingICloudStorageFull() {
+        iCloudFullObservationTask?.cancel()
+        iCloudFullObservationTask = Task { [weak self] in
+            for await _ in NotificationCenter.default.notifications(named: .cloudKitICloudStorageDidFill) {
                 guard !Task.isCancelled else { return }
-                // A refusal from the last run is not news yet: the engine's
-                // start re-arms every refused save and change and retries it
-                // at once (`requeueRejectedChanges`), so on 2026-09-08 the
-                // launch after a schema deploy still announced the record the
-                // same launch then saved. If iCloud refuses again the engine
-                // parks it again and the notification below says so. Only what
-                // the start cannot retry is worth saying now.
-                let standing = Self.conflictsStandingAtLaunch(existing)
-                if let newest = standing.first {
-                    self?.showToast(Self.cloudKitSyncConflictToast(
-                        entity: newest.entity,
-                        reason: newest.reason,
-                        count: standing.count
-                    ))
-                }
-            } catch {
-                guard !Task.isCancelled else { return }
-                self?.showToast(
-                    "Cloud sync conflict status could not be loaded: \(error.localizedDescription)"
-                )
-            }
-
-            for await notification in notifications {
-                guard !Task.isCancelled else { return }
-                guard let entity = (
-                    notification.userInfo?[CloudKitSyncNotificationInfo.conflictEntityKey]
-                        as? String
-                ).flatMap(CloudKitSyncEntity.init(rawValue:)),
-                      let logicalKey = notification.userInfo?[
-                        CloudKitSyncNotificationInfo.conflictLogicalKey
-                      ] as? String,
-                      let conflicts = try? await storage.cloudKitSyncConflicts(),
-                      let conflict = conflicts.first(where: {
-                        $0.entity == entity && $0.logicalKey == logicalKey
-                      }) else {
-                    // App-hosted unit tests use isolated stores in this same
-                    // process. Never turn their notifications into live UI.
-                    continue
-                }
-                guard !Task.isCancelled else { return }
-                self?.showToast(Self.cloudKitSyncConflictToast(
-                    entity: entity,
-                    reason: conflict.reason,
-                    count: conflicts.count
-                ))
+                self?.showToast(Self.iCloudFullToast)
             }
         }
-    }
-
-    /// The parked rows a launch should still announce: everything the engine's
-    /// start does not re-arm and retry on its own.
-    nonisolated static func conflictsStandingAtLaunch(_ conflicts: [CloudKitSyncConflict]) -> [CloudKitSyncConflict] {
-        conflicts.filter { !isRearmedAtEngineStart(reason: $0.reason) }
-    }
-
-    /// Whether `CloudKitSyncEngine.start` re-arms a parked row with this reason:
-    /// a save iCloud refused, or a save or delete it could not accept.
-    nonisolated static func isRearmedAtEngineStart(reason: String) -> Bool {
-        CloudKitRejectedSaveQuarantine.decodedReason(reason) != nil
-            || CloudKitRejectedChangeQuarantine.decodedReason(reason) != nil
-    }
-
-    static func cloudKitSyncConflictToast(
-        entity: CloudKitSyncEntity?,
-        reason: String,
-        count: Int
-    ) -> String {
-        let quarantinePrefix = CloudKitInboundWebPDFRetry.quarantineReasonPrefix
-        if reason.hasPrefix(quarantinePrefix) {
-            let failure = reason.dropFirst(quarantinePrefix.count)
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-            let detail = failure.isEmpty ? "" : " \(String(failure.prefix(400)))"
-            return "Cloud sync rejected an unreadable Web Studio file. Your local library is intact.\(detail)"
-        }
-        if let refusal = CloudKitRejectedSaveQuarantine.decodedReason(reason) {
-            // Nothing here is the learner's to fix — the usual cause is a record
-            // type still awaiting a Production schema deploy — so say what
-            // happened and that it retries itself, rather than asking for input.
-            let detail = refusal.message.isEmpty
-                ? ""
-                : " \(String(refusal.message.prefix(400)))"
-            let subject = count > 1
-                ? "\(count) records and parked them"
-                : "a record and parked it"
-            return "iCloud refused \(subject). Your local library is intact; ForeverLM retries on the next launch or when you tap Retry now.\(detail)"
-        }
-        if let refusal = CloudKitRejectedChangeQuarantine.decodedReason(reason) {
-            let detail = refusal.message.isEmpty
-                ? ""
-                : " \(String(refusal.message.prefix(400)))"
-            let action = refusal.operation == .delete ? "a deletion" : "a change"
-            let subject = count > 1
-                ? "\(count) changes and parked them"
-                : "\(action) and parked it"
-            return "iCloud could not accept \(subject). Your local library is intact; ForeverLM retries on the next launch or when you tap Retry now.\(detail)"
-        }
-        let recordLabel: String
-        switch entity {
-        case .memoryItem: recordLabel = "memory idea"
-        case .memoryAttempt: recordLabel = "memory attempt"
-        default: recordLabel = "learning record"
-        }
-        let trimmedReason = reason.trimmingCharacters(in: .whitespacesAndNewlines)
-        let detail = trimmedReason.isEmpty ? "" : " \(String(trimmedReason.prefix(400)))"
-        if count > 1 {
-            return "Cloud sync stopped for \(count) learning records because devices disagree about immutable evidence. Your local copies are intact.\(detail)"
-        }
-        return "Cloud sync stopped for this \(recordLabel) because devices disagree about immutable evidence. Your local copy is intact.\(detail)"
     }
 
     func startObservingDerivedSourceWork() {

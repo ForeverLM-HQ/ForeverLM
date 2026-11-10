@@ -39,8 +39,6 @@ struct SourceDeleteKeepsPersonalStateTests {
         try store.deleteSource(sourceID)
         #expect(try store.loadSourceWithoutContent(sourceID) == nil, "the source is gone")
         #expect(try Self.rows(store, of: sourceID) == Self.everyKind(1), "the learner's own rows stay")
-        #expect(try store.pendingSyncChanges().filter { $0.entity == .sourceHighlight || $0.entity == .hiddenSource }.isEmpty,
-                "nothing tombstones the rows that stayed")
     }
 
     @Test("An inbound delete through the apply keeps them too")
@@ -55,22 +53,6 @@ struct SourceDeleteKeepsPersonalStateTests {
         #expect(try store.loadSourceWithoutContent(sourceID) == nil)
         #expect(try Self.rows(store, of: sourceID) == Self.everyKind(1))
         #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM ck_apply_guard") == 0)
-    }
-
-    @Test("A local duplicate's delete keeps the duplicate's rows")
-    func duplicateDeleteKeepsRows() throws {
-        let (root, store, library) = try Self.generation2Library("duplicate")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let original = try #require(try store.loadSourceWithoutContent(library.sourceIDs[2]))
-        try store.execForTesting("""
-            INSERT INTO sources (id, date_added, state, source_type, status) VALUES ('dup-1', 1, 'ready', 'article', 'active');
-            INSERT INTO articles (source_id, url, normalized_url, title, domain)
-            SELECT 'dup-1', url, normalized_url, title, domain FROM articles WHERE source_id = '\(original.id)';
-        """)
-        try Schema154Fixture.addPerMemberRows(store, sourceID: "dup-1")
-        try store.deleteLocalDuplicate(of: original)
-        #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM sources WHERE id = 'dup-1'") == 0)
-        #expect(try Self.rows(store, of: "dup-1") == Self.everyKind(1))
     }
 
     @Test("A notebook delete leaves its files unfiled")

@@ -5057,7 +5057,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Check iCloud sync health for this Mac: how many local changes are still waiting to upload, how many records CloudKit has never acknowledged, quarantined conflicts, the container environment, whether iCloud is full, and how much of the learner's iCloud ForeverLM's PDFs, text and iCloud Drive files take up. Under the new iCloud store it also reports the library's move in `migration`: whether the library has moved and how this Mac joined, the seed's progress and the Mac moving it, why uploads pause, whether this Mac is offered This Mac holds my library, the rollback copy and the rollback build, the old iCloud library (when an older ForeverLM last wrote to it, what was kept from it or not applied, a question waiting for Apply or Keep), the byte parity report, the bytes each owned space holds, and whether Remove old iCloud data is available. Use this when the learner reports missing or stale items across devices, before concluding anything is lost. answered_by names the Mac that answered, as in get_mcp_status, and narrowed, when present, says its listings show only part of the library for now.",
+    "description" : "Check iCloud sync health for this Mac: what sync is doing now and why it waits or stopped (iCloud being full among the reasons), how many local changes are still waiting to upload, when it last synced, the container environment, whether iCloud is signed in, and in `icloud_storage` how much of the learner's iCloud ForeverLM's PDFs, text, other files and iCloud Drive files take up. `migration` reports the library's move to the new iCloud store: whether the library has moved and how this Mac joined, the seed's progress and the Mac moving it, why uploads pause, whether this Mac is offered This Mac holds my library, the rollback copy, and the bytes each owned space holds. Use this when the learner reports missing or stale items across devices, before concluding anything is lost. answered_by names the Mac that answered, as in get_mcp_status, and narrowed, when present, says its listings show only part of the library for now.",
     "inputSchema" : {
       "properties" : {
 
@@ -8404,7 +8404,7 @@
     "readOnlyHint" : false
   },
   {
-    "description" : "Press one of the Settings window's one-shot buttons: sync_icloud_now (Data & Privacy › iCloud › Sync now), prepare_memory_review_now (make today's memory review ready now), draw_missing_meeting_icons (fill in missing meeting icons — billed when drawing is on), sync_x_bookmarks (Plugins › X › Sync), clear_usage_ledger_warning (AI Usage › Activity › Clear Warning), and Data & Privacy › iCloud's confirm_this_mac_holds_my_library (This Mac holds my library; only once the learner has said this Mac's library is the one to keep), upload_library_to_icloud_again, apply_old_library_removals and keep_old_library_removals (Apply and Keep for the question an older ForeverLM's removals raise). Some have no button in the window any more; this is where they are pressed. Returns what the button did. Paid assistant work has a $3 per-operation ceiling by default. To continue beyond it, show the learner the estimate, obtain explicit approval, and pass that total as approved_spend_usd.",
+    "description" : "Press one of the Settings window's one-shot buttons: sync_icloud_now (Data & Privacy › iCloud › Sync now), prepare_memory_review_now (make today's memory review ready now), draw_missing_meeting_icons (fill in missing meeting icons — billed when drawing is on), sync_x_bookmarks (Plugins › X › Sync), clear_usage_ledger_warning (AI Usage › Activity › Clear Warning), and Data & Privacy › iCloud's confirm_this_mac_holds_my_library (This Mac holds my library; only once the learner has said this Mac's library is the one to keep), and upload_library_to_icloud_again. Some have no button in the window any more; this is where they are pressed. Returns what the button did. Paid assistant work has a $3 per-operation ceiling by default. To continue beyond it, show the learner the estimate, obtain explicit approval, and pass that total as approved_spend_usd.",
     "inputSchema" : {
       "properties" : {
         "action" : {
@@ -8414,8 +8414,6 @@
             "confirm_this_mac_holds_my_library",
             "upload_library_to_icloud_again",
             "replace_icloud_library",
-            "apply_old_library_removals",
-            "keep_old_library_removals",
             "prepare_memory_review_now",
             "draw_missing_meeting_icons",
             "sync_x_bookmarks",

@@ -111,7 +111,6 @@ extension KnowledgeStore {
             for item in items where item.sourceID == sourceID {
                 try upsertActionItem(item)
             }
-            try markRecordChanged(entity: .meetingGroup, logicalKey: groupID)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -134,18 +133,7 @@ extension KnowledgeStore {
             sqlite3_bind_double(stmt, 2, now.timeIntervalSinceReferenceDate)
             bind(stmt, 3, id)
         }
-        try markRecordChanged(entity: .meetingGroup, logicalKey: item.groupID)
         return item
-    }
-
-    /// Inbound sync: union the record's items with this Mac's by id. A tick
-    /// on either side stays; words follow the record. Items this Mac holds
-    /// for the series that the record lacks are kept, because the other Mac
-    /// may simply not have read that session yet.
-    func mergeMeetingActionItemsRecord(groupID: String, items: [MeetingActionItem]) throws {
-        for item in items where item.groupID == groupID {
-            try upsertActionItem(item)
-        }
     }
 
     func deleteMeetingActionItems(groupID: String) throws {

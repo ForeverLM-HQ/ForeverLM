@@ -1008,16 +1008,6 @@ struct VideoWatchProgress: Codable, Equatable {
         return merged.encoded
     }
 
-    /// Merge a newer CloudKit locator with the progress already on this
-    /// device. Source records also carry mutable metadata and fetched
-    /// content, so whole-record last-write-wins must not let an unrelated save
-    /// move `watchedSeconds` backwards or erase it altogether; a Mark as Not
-    /// Watched on either side is the one thing that lowers it. The remote
-    /// record owns the resume position.
-    static func mergedSyncLocator(remote: String?, local: String?) -> String? {
-        mergedLocator(owner: remote, other: local)
-    }
-
     /// What a reader's live tracker continues from: its own copy, joined with
     /// what the store now holds. A Mark as Not Watched made while the video was
     /// open (from a menu, over MCP, or on another device) supersedes the

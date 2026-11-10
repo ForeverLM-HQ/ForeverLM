@@ -40,7 +40,7 @@ struct ArtifactSchema159MigrationTests {
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(version))
         #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM sqlite_master WHERE name = 'artifact_files'") == 0)
         #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM pragma_table_info('global_artifacts') WHERE name = 'body_ref'") == 0)
-        let counts = ["sources", "learning_goals", "global_artifacts", "notebook_files", "sync_metadata"]
+        let counts = ["sources", "learning_goals", "global_artifacts", "notebook_files"]
         let before = counts.map { Schema154Fixture.rowCount(at: root, $0) }
 
         let migrated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
@@ -49,7 +49,6 @@ struct ArtifactSchema159MigrationTests {
         #expect(try Self.emptyCounts(migrated).values.allSatisfy { $0 == 0 }, "nothing filled before the activation")
         #expect(try Schema154Fixture.count(migrated, "SELECT COUNT(*) FROM global_artifacts WHERE body_ref IS NOT NULL") == 0)
         #expect(try Schema154Fixture.count(migrated, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger'") == 0)
-        #expect(try migrated.pendingSyncChanges().isEmpty, "a schema-only migration republishes nothing")
     }
 
     @Test("A migrated store and a fresh one hold the same 159 tables and body pointer")
@@ -107,13 +106,10 @@ struct ArtifactSchema159MigrationTests {
             sourceIDs: ["src-a"], createdAt: Date(), updatedAt: Date()
         ))
         #expect(try store.loadArtifact(deckID)?.isCardDeck == true)
-        #expect(try store.pendingSyncChanges().contains { $0.entity == .artifact && $0.logicalKey == deckID }, "it syncs as an Artifact")
         #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger'") == 0)
         #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM ck_outbox_fields") == 0)
         #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM global_artifacts WHERE body_ref IS NOT NULL") == 0)
-        try store.clearAllPendingSyncChanges()
         try store.deleteArtifactRecord(deckID)
-        #expect(try store.pendingSyncChanges().contains { $0.entity == .artifact && $0.logicalKey == deckID && $0.operation == .delete })
         #expect(try Self.emptyCounts(store).values.allSatisfy { $0 == 0 }, "generation 1 writes none of 159's tables")
     }
 
@@ -123,6 +119,7 @@ struct ArtifactSchema159MigrationTests {
         defer { try? FileManager.default.removeItem(at: root) }
         do {
             let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+            try Schema154Fixture.restoreGeneration1Tables(store)
             // 6,000 sources, 1,000 Docs with their notebook links, and 17,000 sync rows: ten times
             // production's 86 Artifacts.
             try store.execForTesting("""

@@ -1,13 +1,26 @@
 import Foundation
 import OSLog
 
-/// The activation's steps reach the store on the storage actor, one bounded step at a time, with the
-/// read-only window lifted for that step only (`KnowledgeStoreWriteGate`).
+/// How the activation and the seed reach the store: one bounded step at a time.
+protocol MigrationStoreAccess: Sendable {
+    func perform<T: Sendable>(_ body: @Sendable (KnowledgeStore) throws -> T) async throws -> T
+}
+
+/// A store used directly (tests, and a store no actor owns).
+struct DirectStoreAccess: MigrationStoreAccess {
+    let store: KnowledgeStore
+
+    func perform<T: Sendable>(_ body: @Sendable (KnowledgeStore) throws -> T) async throws -> T {
+        try body(store)
+    }
+}
+
+/// The activation's steps reach the store on the storage actor, one bounded step at a time.
 struct StorageStoreAccess: MigrationStoreAccess {
     let storage: StorageService
 
     func perform<T: Sendable>(_ body: @Sendable (KnowledgeStore) throws -> T) async throws -> T {
-        try await storage.performStoreWork { store in try KnowledgeStoreWriteGate.allowingWrites(on: store) { try body(store) } }
+        try await storage.performStoreWork { store in try body(store) }
     }
 }
 

@@ -61,20 +61,6 @@ enum RecoveredDoc {
         return id(artifactID: artifactID, hash: hash)
     }
 
-    /// An old-world body that lost to this Mac's own edit of the Doc (§13.4 step 0, R7-m7): its package
-    /// (Markdown, pictures and site files) kept as a new Doc under `recovered:<artifactID>:<revision>`.
-    /// Returns the Doc's id. A second pass that meets the same body finds the first and makes nothing.
-    @discardableResult
-    static func keepOldWorldPackage(
-        _ package: ArtifactBodyPackage.Decoded, artifactID: String, title: String, notebookID: String?, in store: KnowledgeStore
-    ) throws -> String {
-        let recoveredID = id(artifactID: artifactID, hash: package.revision)
-        let existed = try store.scalarInteger("SELECT EXISTS(SELECT 1 FROM global_artifacts WHERE id = ?)", [.text(recoveredID)]) == 1
-        try make(in: store, artifactID: artifactID, hash: package.revision, title: title, notebookID: notebookID, bodyRef: nil, copying: nil, text: package.markdown)
-        if !existed { try store.writeArtifactAttachments(package, artifactID: recoveredID) }
-        return recoveredID
-    }
-
     /// A body generation 1 held for the writer beside a Doc (`document.remote.md`, kept when its
     /// three-way merge overlapped, §13.3 step 3c, R8-m8): no generation-2 surface reads a held body, so
     /// it is saved as `recovered:<artifactID>:<hash of its text>` before the derivations. Returns the id.

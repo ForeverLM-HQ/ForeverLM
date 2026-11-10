@@ -46,7 +46,7 @@ struct MemorySchema161MigrationTests {
         let library = try Schema154Fixture.makeLibrary(at: root, version: version, sourceCount: 4)
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(version))
         #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM sqlite_master WHERE name = 'memory_sittings'") == 0)
-        let counts = ["sources", "memory_items", "memory_attempts", "source_activity_days", "memory_review_activity", "sync_metadata"]
+        let counts = ["sources", "memory_items", "memory_attempts", "source_activity_days", "memory_review_activity"]
         let before = counts.map { Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM \($0)") }
 
         let migrated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
@@ -54,7 +54,6 @@ struct MemorySchema161MigrationTests {
         #expect(counts.map { Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM \($0)") } == before)
         #expect(try Self.counts(migrated).values.allSatisfy { $0 == 0 }, "nothing filled before the activation")
         #expect(try Schema154Fixture.count(migrated, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger'") == 0)
-        #expect(try migrated.pendingSyncChanges().isEmpty, "a schema-only migration republishes nothing")
         #expect(Set(try migrated.loadSourcesWithoutContent().map(\.id)) == Set(library.sourceIDs))
     }
 

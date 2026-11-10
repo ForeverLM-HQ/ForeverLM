@@ -451,7 +451,6 @@ extension StudioViewModel {
             // Zoom sessions still waiting for their transcript are asked
             // about now and every quarter hour from here.
             self.startZoomTranscriptChecks()
-            await self.runDeferredSourceSyncRepair()
             await self.runDeferredSourceTextReferenceRepair()
             await self.runDeferredPaperFigureMarkdownRepair()
             await self.runDeferredSourceWordCountRepair()

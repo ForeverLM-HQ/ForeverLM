@@ -1,6 +1,5 @@
 import Foundation
 import Testing
-import SQLite3
 @testable import ForeverLM
 
 /// Memory as cards, stage two: the card face in its item, its identity, Keep,
@@ -319,7 +318,6 @@ struct MemoryCardTests {
     func saveIfAbsentNeverOverwrites() throws {
         let store = try makeStore()
         let kept = try store.keepMemoryCard(drafted(), sourceID: "src-1", quote: Self.quote, at: Self.keptAt)
-        let pendingBefore = try store.pendingSyncChanges().count
 
         // What a keep racing this one would have written under the same id.
         let rival = try drafted(back: "A rival back.").memoryItem(
@@ -331,7 +329,6 @@ struct MemoryCardTests {
         let existing = try store.saveMemoryItemIfAbsent(rival)
         #expect(existing == kept)
         #expect(try store.loadMemoryItem(kept.id) == kept)
-        #expect(try store.pendingSyncChanges().count == pendingBefore)
 
         // A rival's keep through the store finds the item and refuses its face.
         #expect(throws: KnowledgeStoreError.self) {
@@ -494,14 +491,6 @@ struct MemoryCardTests {
         try store.recordSourceQuestionAttempt(question, answer: "No idea.", feedback: "Missed.", score: 0, rating: .again, at: Self.keptAt)
         let item = try #require(try store.loadMemoryItems().first)
         #expect(try store.loadMemoryAttempts(memoryItemID: item.id).map(\.attemptType) == [.discovery])
-        #expect(try store.pendingSyncChanges().contains { $0.entity == .memoryItem && $0.logicalKey == item.id })
-        // The attempt is queued in the same write. pendingSyncChanges holds an
-        // attempt back until its item has been uploaded, so read the queue itself.
-        var queuedAttempts = 0
-        try store.query("SELECT COUNT(*) FROM sync_changes WHERE entity_type = 'memoryAttempt' AND operation = 'save'") { stmt in
-            queuedAttempts = Int(sqlite3_column_int64(stmt, 0))
-        }
-        #expect(queuedAttempts == 1)
     }
 
     // MARK: Self-graded answers

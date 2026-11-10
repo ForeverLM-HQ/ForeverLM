@@ -533,8 +533,8 @@ struct AudioOverviewTests {
         let body = try await storage.artifactMarkdown("overview-1")
         #expect(AudioOverviewScript.settings(fromMarkdown: body.markdown) == result.settings)
         // The carrier is not one of the notebook's sources.
-        let pool = try await storage.notebookContextSourceIDs(notebookID: notebook.id)
-        #expect(!pool.contains(result.carrier.id))
+        let sources = try await storage.loadLearningGoal(notebook.id)?.approvedSourceIDs ?? []
+        #expect(!sources.contains(result.carrier.id))
     }
 
     @Test("A source too long for the window is read from a condensed account of its whole text, and the turn says so")
@@ -650,9 +650,9 @@ struct AudioOverviewTests {
         let notebook = try await makeNotebook(storage, title: "N", sourceIDs: [a.id])
         let related = try await makeNotebook(storage, title: "R", sourceIDs: [lent.id])
         try await storage.setRelatedNotebooks(notebookID: notebook.id, relatedNotebookIDs: [related.id])
-        #expect(try await storage.notebookContextSourceIDs(notebookID: notebook.id) == [a.id, lent.id], "a box can stand for either")
         let linked = try #require(try await storage.loadLearningGoal(notebook.id))
         let contextNotebooks = NotebookChatSelection.contextNotebooks(of: linked) { $0 == related.id ? [lent.id] : nil }
+        #expect(NotebookChatContext.linkedPool(own: linked.approvedSourceIDs, linked: contextNotebooks) == [a.id, lent.id], "a box can stand for either")
 
         try await NotebookStateStore.$override.withValue(NotebookStateStore.Box()) { () async throws -> Void in
             #expect(NotebookChatContext.chatSourceIDs(
@@ -810,21 +810,13 @@ struct AudioOverviewTests {
         // The Artifact deleted on another Mac: the carrier goes too, and its
         // tombstone is sent for a deleting client that never sent it.
         let firstCarrier = try makeOverview("overview-inbound-1")
-        try store.clearAllPendingSyncChanges()
-        try store.withoutSyncTracking { try store.deleteArtifactRecord("overview-inbound-1") }
+        try store.deleteArtifactRecord("overview-inbound-1")
         #expect(try store.loadSourceWithoutContent(firstCarrier) == nil)
-        let afterArtifact = try store.pendingSyncChanges()
-        #expect(afterArtifact.contains { $0.entity == .source && $0.logicalKey == firstCarrier && $0.operation == .delete })
-        #expect(!afterArtifact.contains { $0.entity == .artifact })
 
         // The carrier deleted elsewhere: the Artifact goes, tombstone included.
         let secondCarrier = try makeOverview("overview-inbound-2")
-        try store.clearAllPendingSyncChanges()
-        try store.withoutSyncTracking { try store.deleteSource(secondCarrier) }
+        try store.deleteSource(secondCarrier)
         #expect(try store.loadArtifact("overview-inbound-2") == nil)
-        let afterCarrier = try store.pendingSyncChanges()
-        #expect(afterCarrier.contains { $0.entity == .artifact && $0.logicalKey == "overview-inbound-2" && $0.operation == .delete })
-        #expect(!afterCarrier.contains { $0.entity == .source })
     }
 
     @Test("An overview stays out of a team: sharing its notebook copies its Docs and not it, and sharing it alone is refused, kind or no kind")

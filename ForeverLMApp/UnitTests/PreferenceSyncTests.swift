@@ -250,9 +250,6 @@ struct PreferenceSyncTests {
         let payload = try #require(try store.loadPreferenceForSync("studio.showSearchPanel"))
         #expect(payload.key == "studio.showSearchPanel")
         #expect(PreferenceStore.decodePlist(payload.valuePlistXML) as? Bool == true)
-
-        let pending = try store.pendingSyncChanges()
-        #expect(pending.contains { $0.entity == .preference && $0.logicalKey == "studio.showSearchPanel" })
     }
 
     @Test("Legacy model choices migrate into durable preference rows")
@@ -280,6 +277,8 @@ struct PreferenceSyncTests {
     @Test("Legacy meeting folder images become durable without overwriting sync state")
     func legacyMeetingFolderImagesMigrateOnce() throws {
         let store = try KnowledgeStore(inMemory: true)
+        // The step runs on a store from before schema 175, which still has generation 1's bookkeeping.
+        try Schema154Fixture.restoreGeneration1Tables(store)
         let strandedKey = MeetingMetadata.folderImagePreferenceKey(for: "nexus")
         let durableKey = MeetingMetadata.folderImagePreferenceKey(for: "weekly")
         let tombstonedKey = MeetingMetadata.folderImagePreferenceKey(for: "retired")
@@ -316,8 +315,6 @@ struct PreferenceSyncTests {
                 == durableURL
         )
         #expect(values[tombstonedKey] == nil)
-        let pending = try store.pendingSyncChanges()
-        #expect(pending.contains { $0.entity == .preference && $0.logicalKey == strandedKey })
     }
 
     @Test("The reader layout and the rail's hidden rows follow the account")
@@ -374,6 +371,8 @@ struct PreferenceSyncTests {
     @Test("v116 adopts a local display preference once, and never over a synced choice or a tombstone")
     func adoptsNewlySyncedDisplayPreferences() throws {
         let store = try KnowledgeStore(inMemory: true)
+        // The step runs on a store from before schema 175, which still has generation 1's bookkeeping.
+        try Schema154Fixture.restoreGeneration1Tables(store)
         let stranded = "reader.youtubeTranscriptBesideVideo"
         let durable = "studio.navigation.chatsExpanded.v1"
         let tombstoned = StudioRailHiddenItems.storageKey
@@ -406,10 +405,6 @@ struct PreferenceSyncTests {
         #expect(PreferenceStore.decodePlist(try #require(values[durable])) as? Bool == false)
         #expect(values[tombstoned] == nil)
         #expect(values["studio.navigationRailWidth"] == nil, "a device-local key is never adopted")
-        #expect(
-            try store.pendingSyncChanges()
-                .contains { $0.entity == .preference && $0.logicalKey == stranded }
-        )
     }
 
     @Test("Rewriting a key updates in place rather than duplicating")
@@ -419,7 +414,7 @@ struct PreferenceSyncTests {
         try store.writePreference(key: "uiZoomStep", valuePlistXML: try #require(PreferenceStore.encodePlist(4)))
         try store.writePreference(key: "uiZoomStep", valuePlistXML: try #require(PreferenceStore.encodePlist(6)))
 
-        #expect(try store.loadAllPreferenceKeys() == ["uiZoomStep"])
+        #expect(try store.loadAllPreferences().keys.sorted() == ["uiZoomStep"])
         let payload = try #require(try store.loadPreferenceForSync("uiZoomStep"))
         #expect(PreferenceStore.decodePlist(payload.valuePlistXML) as? Int == 6)
     }
@@ -448,29 +443,6 @@ struct PreferenceSyncTests {
         #expect(relaunched.keys.isEmpty)
         #expect(defaults.object(forKey: PreferenceWriteJournal.defaultsKey) == nil)
         #expect(!SyncedPreferenceKeys.isSynced(PreferenceWriteJournal.defaultsKey))
-    }
-
-    /// Inbound records must not become outbound saves, or two Macs ping-pong the
-    /// same record forever. The mapper wraps the apply in `withoutSyncTracking`;
-    /// this pins that the wrapping actually suppresses the enqueue.
-    @Test("Applying an inbound record does not queue an outbound save")
-    func inboundApplyDoesNotEnqueue() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        let payload = CloudKitPreferencePayload(
-            key: "podcastSortMode",
-            valuePlistXML: try #require(PreferenceStore.encodePlist("title")),
-            updatedAt: Date(timeIntervalSinceReferenceDate: 1000)
-        )
-
-        try store.withoutSyncTracking {
-            try store.savePreferenceRecord(payload)
-        }
-
-        let stored = try #require(try store.loadPreferenceForSync("podcastSortMode"))
-        #expect(PreferenceStore.decodePlist(stored.valuePlistXML) as? String == "title")
-
-        let pending = try store.pendingSyncChanges()
-        #expect(pending.contains { $0.entity == .preference } == false)
     }
 
     /// Preference rows sync whole and the newer write wins. A card-state row
@@ -515,7 +487,7 @@ struct PreferenceSyncTests {
         #expect(!other.sendBack)
     }
 
-    @Test("Deleting a preference removes the row and tombstones it")
+    @Test("Deleting a preference removes the row")
     func deleteTombstones() throws {
         let store = try KnowledgeStore(inMemory: true)
         try store.writePreference(key: "showReadStatus", valuePlistXML: try #require(PreferenceStore.encodePlist(true)))
@@ -523,21 +495,7 @@ struct PreferenceSyncTests {
         try store.deletePreference(key: "showReadStatus")
 
         #expect(try store.loadPreferenceForSync("showReadStatus") == nil)
-        #expect(try store.loadAllPreferenceKeys().isEmpty)
-        let pending = try store.pendingSyncChanges()
-        #expect(pending.contains { $0.entity == .preference && $0.operation == .delete })
-    }
-
-    @Test("Preferences are reported to the sync engine as existing local records")
-    func hasLocalSyncRecord() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        try store.writePreference(key: "videoSortMode", valuePlistXML: try #require(PreferenceStore.encodePlist("date")))
-
-        // discardPendingSavesMissingLocalRecords drops any pending save whose
-        // entity reports no local row — without this branch it would silently eat
-        // the entire preference queue.
-        #expect(try store.hasLocalSyncRecord(entity: .preference, logicalKey: "videoSortMode"))
-        #expect(try store.hasLocalSyncRecord(entity: .preference, logicalKey: "never.written") == false)
+        #expect(try store.loadAllPreferences().isEmpty)
     }
 
     // MARK: - Unreadable rows
@@ -578,7 +536,7 @@ struct PreferenceSyncTests {
         #expect(PreferenceStore.recoverPlist("") == nil)
     }
 
-    @Test("Unreadable rows are re-encoded once and queued, and the rest are named")
+    @Test("Unreadable rows are re-encoded once, and the rest are named")
     func unreadableRowsRepair() throws {
         let store = try KnowledgeStore(inMemory: true)
         let url = "https://images.example.com/favicon.ico?format=300w"
@@ -588,24 +546,16 @@ struct PreferenceSyncTests {
         let emptyKey = "videoSortMode"
         let localKey = "some.key.nobody.declared"
         let soundXML = try #require(PreferenceStore.encodePlist(true))
-        // Arrived from CloudKit, as the live rows did: no outbound entry of their own.
-        try store.withoutSyncTracking {
-            for (key, xml) in [
-                brokenKey: escapedRow(url),
-                soundKey: soundXML,
-                garbageKey: "not a plist",
-                emptyKey: "",
-                localKey: escapedRow(url),
-            ] {
-                try store.savePreferenceRecord(CloudKitPreferencePayload(
-                    key: key,
-                    valuePlistXML: xml,
-                    updatedAt: Date(timeIntervalSinceReferenceDate: 1000)
-                ))
-            }
+        // Stored as the live rows were.
+        for (key, xml) in [
+            brokenKey: escapedRow(url),
+            soundKey: soundXML,
+            garbageKey: "not a plist",
+            emptyKey: "",
+            localKey: escapedRow(url),
+        ] {
+            try store.writePreference(key: key, valuePlistXML: xml, updatedAt: Date(timeIntervalSinceReferenceDate: 1000))
         }
-        let before = try store.pendingSyncChanges()
-        #expect(before.isEmpty)
 
         let report = try store.repairUnreadablePreferences()
         #expect(report.repaired == [brokenKey])
@@ -615,10 +565,6 @@ struct PreferenceSyncTests {
         let repaired = try #require(try store.loadPreferenceForSync(brokenKey))
         #expect(repaired.valuePlistXML == PreferenceStore.encodePlist(url))
         #expect(PreferenceStore.decodePlist(repaired.valuePlistXML) as? String == url)
-        // Only the repaired row is queued: the clean copy replaces the broken
-        // mirror on the other Mac, and nothing else is echoed back.
-        let pending = try store.pendingSyncChanges().filter { $0.entity == .preference }
-        #expect(pending.map(\.logicalKey) == [brokenKey])
         // Untouched: the sound row, the empty "no value" row, the garbage it
         // cannot read, and the row for a key nothing hydrates.
         let sound = try store.loadPreferenceForSync(soundKey)
@@ -633,8 +579,6 @@ struct PreferenceSyncTests {
         // Self-retiring: a repaired row decodes, so the next pass rewrites nothing.
         let again = try store.repairUnreadablePreferences()
         #expect(again == KnowledgeStore.PreferenceRepairReport(repaired: [], unreadable: [garbageKey]))
-        let stillPending = try store.pendingSyncChanges().filter { $0.entity == .preference }
-        #expect(stillPending.count == 1)
     }
 
     // MARK: - Escape hatches

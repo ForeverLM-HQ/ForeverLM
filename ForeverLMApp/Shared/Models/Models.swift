@@ -2551,14 +2551,6 @@ struct StudioArticle: Identifiable, Codable, Equatable {
         return value == Self.unknownPaperYear
     }
 
-    /// Every bibliographic field resolved. This is a completeness answer for
-    /// display and for enrichment decisions — it is deliberately *not* the
-    /// ingestion gate, because plenty of real documents never print all three.
-    var hasRequiredPaperMetadata: Bool {
-        guard sourceType == .paper else { return true }
-        return !paperAuthorNeedsEnrichment && !paperJournalNeedsEnrichment && !paperYearNeedsEnrichment
-    }
-
     /// What the metadata stage actually requires: the extractor came back with
     /// at least one bibliographic field. Requiring all three failed the
     /// documents that simply do not have them — a lab preprint with no venue,
@@ -2656,9 +2648,6 @@ struct StudioArticle: Identifiable, Codable, Equatable {
     var requiresPaperMetadataAI: Bool {
         sourceType == .paper && paperIngestionMethod == nil
     }
-
-    static let missingPaperIngestionAttestationError =
-        "Paper ingestion incomplete: AI metadata extraction is required."
 
     mutating func prepareForPaperMetadataExtraction() {
         guard sourceType == .paper else { return }
@@ -3022,84 +3011,6 @@ struct StudioArticle: Identifiable, Codable, Equatable {
     mutating func adoptPaperIngestionAttestation(from original: StudioArticle) {
         guard sourceType == .paper, original.sourceType == .paper else { return }
         paperIngestionMethod = original.paperIngestionMethod
-    }
-
-    mutating func retainCompletedPaperIngestion(from local: StudioArticle) -> Bool {
-        guard sourceType == .paper, local.sourceType == .paper, id == local.id else {
-            return false
-        }
-        var changed = false
-        if paperIngestionMethod == nil, local.hasPaperIngestionAttestation {
-            // The attestation covers the complete AI-owned metadata snapshot,
-            // including its normalized title. An unattested whole-record write
-            // is only an intermediate/legacy snapshot and cannot replace it.
-            if title != local.title {
-                title = local.title
-                changed = true
-            }
-            if author != local.author {
-                author = local.author
-                changed = true
-            }
-            if journal != local.journal {
-                journal = local.journal
-                changed = true
-            }
-            if publishedYear != local.publishedYear {
-                publishedYear = local.publishedYear
-                changed = true
-            }
-            if doi != local.doi {
-                doi = local.doi
-                changed = true
-            }
-            paperIngestionMethod = local.paperIngestionMethod
-            changed = true
-        } else {
-            if paperAuthorNeedsEnrichment, !local.paperAuthorNeedsEnrichment {
-                author = local.author
-                changed = true
-            }
-            if paperJournalNeedsEnrichment, !local.paperJournalNeedsEnrichment {
-                journal = local.journal
-                changed = true
-            }
-            if paperYearNeedsEnrichment, !local.paperYearNeedsEnrichment {
-                publishedYear = local.publishedYear
-                changed = true
-            }
-            if doi?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false,
-               let localDOI = local.doi?.trimmingCharacters(in: .whitespacesAndNewlines),
-               !localDOI.isEmpty {
-                doi = localDOI
-                changed = true
-            }
-        }
-        if local.isPaperReadyForListenPreparation,
-           hasPaperIngestionAttestation,
-           state != .ready {
-            state = .ready
-            errorMessage = nil
-            changed = true
-        }
-        return changed
-    }
-
-    /// Version-0 CloudKit payloads predate the attestation field. This is the
-    /// cross-device equivalent of the version-10 SQLite migration's one-time
-    /// `legacy` grandfathering; current payloads never call it.
-    @discardableResult
-    mutating func grandfatherLegacyPaperIngestionIfEligible() -> Bool {
-        guard sourceType == .paper,
-              paperIngestionMethod == nil,
-              hasRequiredPaperMetadata,
-              state == .ready
-                || (state == .error && errorMessage == Self.missingPaperIngestionAttestationError)
-        else { return false }
-        paperIngestionMethod = .legacy
-        state = .ready
-        errorMessage = nil
-        return true
     }
 
     /// Record that a caller has already verified a local file at `rawPath`.
@@ -4729,28 +4640,6 @@ struct LearningGoalRecord: Identifiable, Codable, Equatable {
     static let companionKind = LearningGoalShape.companionKind
     /// Longest stored Notebook summary; the Portable rule every client shares.
     static let summaryMaxLength = NotebookSummary.maxLength
-
-    /// The Notebook as a team sees it: membership, order and each item's
-    /// approval intact, every member's own completions and quiz history
-    /// removed. A team record carries what the team shares, never one person's
-    /// progress. `reviewState` is not progress: it says whether a source is in
-    /// the notebook at all (approved), a suggestion awaiting a verdict
-    /// (pending), or a removal no proposer may undo (rejected), and nil reads
-    /// as approved — so blanking it published every suggestion and every
-    /// tombstone to the team as an approved source.
-    func strippingMemberProgress() -> LearningGoalRecord {
-        var copy = self
-        copy.items = items.map { item in
-            var stripped = item
-            stripped.completedAt = nil
-            stripped.lastQuizzedAt = nil
-            stripped.quizCount = nil
-            stripped.lastScore = nil
-            return stripped
-        }
-        copy.lastQuizDate = nil
-        return copy
-    }
 
     /// Stored `end_at` at or beyond this threshold means the notebook has no
     /// real deadline. Both live in Portable (`LearningGoalShape`), which the

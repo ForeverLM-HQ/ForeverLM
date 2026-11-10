@@ -423,8 +423,8 @@ enum PreferenceStore {
             decoded[key] = value
         }
         // Applied off the main actor deliberately: UserDefaults is thread-safe, and
-        // the codebase already posts sync notifications from the storage actor (see
-        // `markRecordChanged`). The resulting change notification is posted on main
+        // the codebase already posts sync notifications from the storage actor.
+        // The resulting change notification is posted on main
         // by `postRemoteChange`, so observers need no hop of their own.
         applyInbound(decoded)
     }

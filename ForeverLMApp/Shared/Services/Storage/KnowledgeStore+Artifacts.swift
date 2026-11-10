@@ -158,14 +158,12 @@ extension KnowledgeStore {
                 bind(statement, 1, artifactID)
                 sqlite3_bind_double(statement, 2, hiddenAt.timeIntervalSinceReferenceDate)
             }
-            try markRecordChanged(entity: .hiddenArtifact, logicalKey: artifactID, at: hiddenAt)
             return hiddenAt
         }
         guard existing != nil else { return nil }
         try execBind("DELETE FROM hidden_artifacts WHERE artifact_id = ?") { statement in
             bind(statement, 1, artifactID)
         }
-        try markRecordDeleted(entity: .hiddenArtifact, logicalKey: artifactID)
         return nil
     }
 
@@ -291,164 +289,6 @@ extension KnowledgeStore {
         }
     }
 
-    struct ArtifactBodyRepairBatch: Sendable {
-        let lastScannedID: String?
-        let queuedCount: Int
-        let adoptedLinkCount: Int
-        let deferredDownloadCount: Int
-        let deferredConflictCount: Int
-        let isComplete: Bool
-    }
-
-    /// Repair one bounded page of Docs. This re-enrolls bodies skipped by builds
-    /// that looked beside `knowledge.db` instead of in the canonical content
-    /// root and adopts retired product-scheme link targets into ForeverLM.
-    /// Each page commits independently, so an interrupted upgrade resumes safely
-    /// on the next launch rather than holding one unbounded transaction.
-    /// Only Articles with a readable, package-sized body are queued, so a
-    /// metadata-only receiving device never overwrites a good server body with
-    /// an absent local file.
-    func enqueueArtifactBodyRepairBatch(
-        after lastScannedID: String?,
-        limit: Int = 50
-    ) throws -> ArtifactBodyRepairBatch {
-        let boundedLimit = max(1, min(limit, 100))
-        var candidates: [(id: String, updatedAt: Date)] = []
-        try queryBind("""
-            SELECT id, updated_at
-            FROM global_artifacts
-            WHERE id > ?
-            ORDER BY id
-            LIMIT \(boundedLimit + 1)
-        """, bind: { statement in
-            bind(statement, 1, lastScannedID ?? "")
-        }) { statement in
-            guard let id = string(statement, 0) else { return }
-            candidates.append((
-                id,
-                Date(timeIntervalSinceReferenceDate: sqlite3_column_double(statement, 1))
-            ))
-        }
-
-        let isComplete = candidates.count <= boundedLimit
-        let page = Array(candidates.prefix(boundedLimit))
-        guard !page.isEmpty else {
-            return ArtifactBodyRepairBatch(
-                lastScannedID: lastScannedID,
-                queuedCount: 0,
-                adoptedLinkCount: 0,
-                deferredDownloadCount: 0,
-                deferredConflictCount: 0,
-                isComplete: true
-            )
-        }
-
-        var repairable: [(id: String, updatedAt: Date, adoptedLinks: Bool)] = []
-        var adoptedLinkCount = 0
-        var deferredDownloadCount = 0
-        var deferredConflictCount = 0
-        for candidate in page {
-            if let markdown = try loadArtifactMarkdownForSync(candidate.id) {
-                let adopted = LegacyIdentityAdoption.adoptingRetiredArtifactLinks(in: markdown)
-                let adoptedLinks = adopted != markdown
-                if adoptedLinks, try hasSyncConflict(entity: .artifact, logicalKey: candidate.id) {
-                    deferredConflictCount += 1
-                    continue
-                }
-                if adoptedLinks {
-                    try saveArtifactMarkdownFromSync(adopted, artifactID: candidate.id)
-                    adoptedLinkCount += 1
-                }
-                let recordName = CloudKitRecordMapper.recordName(
-                    for: .artifact,
-                    logicalKey: candidate.id
-                )
-                let package = try loadArtifactBodyPackageForSync(candidate.id)
-                let acknowledged = try committedAssetDigests(recordName: recordName)["payloadAsset"]
-                if acknowledged != package?.revision {
-                    repairable.append((
-                        candidate.id,
-                        adoptedLinks ? Date() : candidate.updatedAt,
-                        adoptedLinks
-                    ))
-                }
-            } else if artifactMarkdownDownloadIsPending(candidate.id) {
-                deferredDownloadCount += 1
-            }
-        }
-        guard !repairable.isEmpty else {
-            return ArtifactBodyRepairBatch(
-                lastScannedID: page.last?.id,
-                queuedCount: 0,
-                adoptedLinkCount: adoptedLinkCount,
-                deferredDownloadCount: deferredDownloadCount,
-                deferredConflictCount: deferredConflictCount,
-                isComplete: isComplete
-            )
-        }
-
-        var queuedCount = 0
-        try exec("BEGIN IMMEDIATE")
-        do {
-            for candidate in repairable {
-                // A normal edit already pending will serialize a path-only
-                // repair. Link adoption changes the body itself, so it receives
-                // a fresh generation and replaces the pending body package.
-                let alreadyPending = try hasPendingSyncChange(
-                    entity: .artifact,
-                    logicalKey: candidate.id
-                )
-                guard (candidate.adoptedLinks || !alreadyPending), try !hasSyncConflict(
-                    entity: .artifact,
-                    logicalKey: candidate.id
-                ) else { continue }
-                if candidate.adoptedLinks {
-                    try execBind("UPDATE global_artifacts SET updated_at = ? WHERE id = ?") { statement in
-                        sqlite3_bind_double(statement, 1, candidate.updatedAt.timeIntervalSinceReferenceDate)
-                        bind(statement, 2, candidate.id)
-                    }
-                }
-                try upsertSyncSave(
-                    entity: .artifact,
-                    logicalKey: candidate.id,
-                    at: candidate.updatedAt
-                )
-                queuedCount += 1
-            }
-            try exec("COMMIT")
-        } catch {
-            try? exec("ROLLBACK")
-            throw error
-        }
-        if queuedCount > 0 {
-            NotificationCenter.default.post(name: .cloudKitSyncStoreDidChange, object: nil)
-        }
-        return ArtifactBodyRepairBatch(
-            lastScannedID: page.last?.id,
-            queuedCount: queuedCount,
-            adoptedLinkCount: adoptedLinkCount,
-            deferredDownloadCount: deferredDownloadCount,
-            deferredConflictCount: deferredConflictCount,
-            isComplete: isComplete
-        )
-    }
-
-    func saveArtifactMarkdownFromSync(_ markdown: String, artifactID: String) throws {
-        let data = Data(markdown.utf8)
-        guard data.count <= ArtifactRecord.markdownByteLimit else {
-            throw KnowledgeStoreError.invalidData("Synced artifact Markdown is too large.")
-        }
-        guard let url = artifactMarkdownURL(artifactID) else {
-            throw KnowledgeStoreError.invalidData("Invalid artifact identifier.")
-        }
-        try FileManager.default.createDirectory(
-            at: url.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try data.write(to: url, options: .atomic)
-        try saveArtifactBaseMarkdown(markdown, artifactID: artifactID)
-    }
-
     /// Verify the complete package before writing anything, materialize media
     /// first, then atomically replace Markdown last. A failed attachment write
     /// can therefore never make a good local document point at missing bytes.
@@ -535,40 +375,6 @@ extension KnowledgeStore {
         guard let url = artifactSidecarURL(artifactID, name: Self.artifactHeldRemoteDocumentName),
               FileManager.default.fileExists(atPath: url.path) else { return }
         try FileManager.default.removeItem(at: url)
-    }
-
-    /// CloudKit acknowledged an upload of this Doc. If the body on disk is
-    /// still the one that went up — its package hashes to the digest the
-    /// upload committed — the server now holds exactly this body, and it
-    /// becomes the base. A body edited again while the upload was in flight is
-    /// left for the next acknowledgement.
-    func adoptArtifactBaseIfCurrent(_ artifactID: String) throws {
-        guard let markdown = try loadArtifactMarkdownForSync(artifactID),
-              let package = try loadArtifactBodyPackageForSync(artifactID) else { return }
-        let recordName = CloudKitRecordMapper.recordName(for: .artifact, logicalKey: artifactID)
-        guard try committedAssetDigests(recordName: recordName)[.payloadAsset] == package.revision else {
-            return
-        }
-        try saveArtifactBaseMarkdown(markdown, artifactID: artifactID)
-    }
-
-    /// The body after a merge with a server body: this device's own edit,
-    /// newer than the server's, so the row's date moves and the pending upload
-    /// carries the merged text.
-    func saveArtifactMarkdownAfterMerge(_ markdown: String, artifactID: String) throws {
-        let data = Data(markdown.utf8)
-        guard data.count <= ArtifactRecord.markdownByteLimit else {
-            throw KnowledgeStoreError.invalidData("Merged artifact Markdown is too large.")
-        }
-        guard let url = artifactMarkdownURL(artifactID) else {
-            throw KnowledgeStoreError.invalidData("Invalid artifact identifier.")
-        }
-        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
-        try data.write(to: url, options: .atomic)
-        if var artifact = try loadArtifact(artifactID) {
-            artifact.updatedAt = Date()
-            try saveArtifactRecord(artifact)
-        }
     }
 
     func artifactSidecarURL(_ artifactID: String, name: String) -> URL? {
@@ -667,7 +473,7 @@ extension KnowledgeStore {
                 }
             }
             if try !artifactUsesSharedDatabase(artifact.id) {
-                try markRecordChanged(entity: .artifact, logicalKey: artifact.id, at: artifact.updatedAt)
+                noteStoreChanged()
             }
             try exec("COMMIT")
         } catch {
@@ -696,11 +502,6 @@ extension KnowledgeStore {
             try execBind("DELETE FROM hidden_artifacts WHERE artifact_id = ?") { statement in
                 bind(statement, 1, artifactID)
             }
-            if syncTrackingSuppressionDepth > 0 {
-                try enqueueCascadingRecordDeletion(entity: .hiddenArtifact, logicalKey: artifactID)
-            } else {
-                try markRecordDeleted(entity: .hiddenArtifact, logicalKey: artifactID)
-            }
         }
         try execBind("DELETE FROM artifact_walkthroughs WHERE artifact_id = ?") { statement in
             bind(statement, 1, artifactID)
@@ -714,7 +515,6 @@ extension KnowledgeStore {
         try execBind("DELETE FROM artifact_files WHERE artifact_id = ?") { statement in
             bind(statement, 1, artifactID)
         }
-        try markRecordDeleted(entity: .artifact, logicalKey: artifactID)
         // An audio overview's script and audio live on a carrier source whose
         // id the URL grammar fixes; it has no life of its own and goes with
         // the record on every path — the row menu, `delete_doc`, an inbound
@@ -723,9 +523,6 @@ extension KnowledgeStore {
         let carrierID = GeneratedAudioOverview.carrierSourceID(artifactID: artifactID)
         if try loadSourceWithoutContent(carrierID) != nil {
             try deleteSourceRows(carrierID)
-            if syncTrackingSuppressionDepth > 0 {
-                try enqueueCascadingRecordDeletion(entity: .source, logicalKey: carrierID)
-            }
         }
     }
 
@@ -761,7 +558,7 @@ extension KnowledgeStore {
                     sqlite3_bind_double(statement, 1, changedAt.timeIntervalSinceReferenceDate)
                     bind(statement, 2, artifactID)
                 }
-                try markRecordChanged(entity: .artifact, logicalKey: artifactID, at: changedAt)
+                noteStoreChanged()
             }
             try exec("COMMIT")
         } catch {
@@ -827,39 +624,6 @@ extension KnowledgeStore {
         return legacyContentDirectories
             .map { $0.appendingPathComponent(relative, isDirectory: false) }
             .first { fileManager.fileExists(atPath: $0.path) }
-    }
-
-    /// Start a legacy iCloud download without mistaking its placeholder for a
-    /// permanently absent Note body. The repair completion marker stays unset,
-    /// so the next activation or explicit sync rechecks it after CloudDocs has
-    /// materialized the file.
-    private func artifactMarkdownDownloadIsPending(_ artifactID: String) -> Bool {
-        guard let canonical = artifactMarkdownURL(artifactID) else { return false }
-        let relative = "Artifacts/\(artifactID)/document.md"
-        let fileManager = FileManager.default
-        for candidate in [canonical] + legacyContentDirectories.map({
-            $0.appendingPathComponent(relative, isDirectory: false)
-        }) {
-            if fileManager.fileExists(atPath: candidate.path) {
-                var refreshed = candidate
-                refreshed.removeAllCachedResourceValues()
-                let values = try? refreshed.resourceValues(
-                    forKeys: [.isUbiquitousItemKey, .ubiquitousItemDownloadingStatusKey]
-                )
-                if values?.isUbiquitousItem == true,
-                   values?.ubiquitousItemDownloadingStatus == .notDownloaded {
-                    try? fileManager.startDownloadingUbiquitousItem(at: candidate)
-                    return true
-                }
-            }
-            let placeholder = candidate.deletingLastPathComponent()
-                .appendingPathComponent(".\(candidate.lastPathComponent).icloud")
-            if fileManager.fileExists(atPath: placeholder.path) {
-                try? fileManager.startDownloadingUbiquitousItem(at: placeholder)
-                return true
-            }
-        }
-        return false
     }
 
 }

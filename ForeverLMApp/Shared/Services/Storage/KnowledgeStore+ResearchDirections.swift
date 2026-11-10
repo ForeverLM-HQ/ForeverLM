@@ -88,14 +88,6 @@ extension KnowledgeStore {
         return found
     }
 
-    func loadAllResearchDirectionIDs() throws -> [String] {
-        var ids: [String] = []
-        try query("SELECT id FROM research_directions") { stmt in
-            if let id = self.string(stmt, 0) { ids.append(id) }
-        }
-        return ids
-    }
-
     /// What an id names as a Direction's home: a Goal (a companion record
     /// with a deadline), a Notebook (one without), or an Idea. nil when the
     /// library holds none of them under that id.
@@ -199,7 +191,6 @@ extension KnowledgeStore {
         do {
             for direction in saved {
                 try writeResearchDirectionRow(direction)
-                try markRecordChanged(entity: .researchDirection, logicalKey: direction.id, at: now)
             }
             try exec("COMMIT")
         } catch {
@@ -266,7 +257,6 @@ extension KnowledgeStore {
         try exec("BEGIN IMMEDIATE")
         do {
             try writeResearchDirectionRow(direction)
-            try markRecordChanged(entity: .researchDirection, logicalKey: direction.id, at: now)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -280,11 +270,9 @@ extension KnowledgeStore {
         guard try hasResearchDirection(directionID) else {
             throw KnowledgeStoreError.invalidData("Direction not found: \(directionID)")
         }
-        let now = Date()
         try exec("BEGIN IMMEDIATE")
         do {
             try execBind("DELETE FROM research_directions WHERE id = ?") { stmt in self.bind(stmt, 1, directionID) }
-            try markRecordDeleted(entity: .researchDirection, logicalKey: directionID, at: now)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -304,67 +292,9 @@ extension KnowledgeStore {
         }
         guard !ids.isEmpty else { return }
         try execBind("DELETE FROM research_directions WHERE home_id = ?") { stmt in self.bind(stmt, 1, homeID) }
-        for id in ids {
-            try markRecordDeleted(entity: .researchDirection, logicalKey: id, at: date)
-        }
     }
 
     // MARK: CloudKit
-
-    func loadResearchDirectionForSync(_ directionID: String) throws -> CloudKitResearchDirectionPayload? {
-        guard let direction = try loadResearchDirection(directionID) else { return nil }
-        return CloudKitResearchDirectionPayload(direction: direction)
-    }
-
-    /// Applies an inbound record. A Direction was last written whole on one
-    /// device — proposed there, or answered there — so the newer record wins
-    /// whole; `created_at` keeps the earlier of the two. The home is not
-    /// checked: CloudKit may deliver a Direction before the Goal or Idea it
-    /// is toward, and a Direction whose home never arrives is simply shown
-    /// nowhere.
-    func saveResearchDirectionRecord(_ payload: CloudKitResearchDirectionPayload) throws {
-        var incoming = payload.direction
-        let title = ResearchDirection.normalizedTitle(incoming.title)
-        guard !title.isEmpty else {
-            throw KnowledgeStoreError.invalidData("Inbound direction \(incoming.id) has no sentence.")
-        }
-        incoming.title = title
-        if let existing = try loadResearchDirection(incoming.id) {
-            guard incoming.updatedAt >= existing.updatedAt else { return }
-            incoming = ResearchDirection(
-                id: incoming.id,
-                homeKind: incoming.homeKind,
-                homeID: incoming.homeID,
-                title: incoming.title,
-                rationale: incoming.rationale,
-                angle: incoming.angle,
-                evidence: incoming.evidence,
-                objection: incoming.objection,
-                nextStep: incoming.nextStep,
-                status: incoming.status,
-                verdictReason: incoming.verdictReason,
-                chatSessionID: incoming.chatSessionID,
-                createdAt: min(existing.createdAt, incoming.createdAt),
-                updatedAt: incoming.updatedAt,
-                decidedAt: incoming.decidedAt
-            )
-        }
-        try writeResearchDirectionRow(incoming)
-    }
-
-    func deleteResearchDirectionRecord(_ directionID: String) throws {
-        try execBind("DELETE FROM research_directions WHERE id = ?") { stmt in self.bind(stmt, 1, directionID) }
-    }
-
-    func researchDirectionSyncBackfillDate(_ directionID: String) throws -> Date? {
-        var date: Date?
-        try queryBind("SELECT updated_at FROM research_directions WHERE id = ? LIMIT 1", bind: { stmt in
-            self.bind(stmt, 1, directionID)
-        }) { stmt in
-            date = Date(timeIntervalSinceReferenceDate: sqlite3_column_double(stmt, 0))
-        }
-        return date
-    }
 
     // MARK: Row plumbing
 

@@ -79,37 +79,6 @@ enum NotebookChatSelection {
         return next.intersection(pool).sorted()
     }
 
-    /// The boxes a notebook ticks again after sources joined notebooks:
-    /// `arrivals` names, for each notebook that gained sources, the ids it
-    /// holds now and did not before. A source arrives ticked in the notebook
-    /// it joined, every one of them (adding a source asks for it), so an
-    /// untick left behind when it last left — through any route, on any
-    /// device — never outlives its return. The same holds for a source that
-    /// joins a context notebook this notebook's chats read
-    /// (`contextNotebookIDs`, the linked ones its row puts in): it arrives
-    /// ticked here too, unless the notebook already showed it through its own
-    /// sources or another context notebook it put in, whose box keeps its
-    /// untick. A linked notebook that is not put in brings nothing.
-    /// `approvedOf` gives another notebook's own sources.
-    static func arrivalsToTick(
-        in notebook: LearningGoalRecord,
-        arrivals: [String: [String]],
-        contextNotebookIDs: [String] = [],
-        approvedOf: (String) -> [String]? = { _ in nil }
-    ) -> [String] {
-        var tick = arrivals[notebook.id] ?? []
-        let reached = contextNotebookIDs.filter { arrivals[$0] != nil }
-        if !reached.isEmpty {
-            var heldOtherwise = Set(notebook.approvedSourceIDs)
-            for id in contextNotebookIDs where arrivals[id] == nil {
-                heldOtherwise.formUnion(approvedOf(id) ?? [])
-            }
-            tick += reached.flatMap { arrivals[$0] ?? [] }.filter { !heldOtherwise.contains($0) }
-        }
-        var seen = Set<String>()
-        return tick.filter { seen.insert($0).inserted }
-    }
-
     /// The context notebooks `notebook`'s chats read, in link order: the
     /// linked ones `putIn` (its `notebook.chatContextNotebooks` row) names.
     static func contextNotebookIDs(of notebook: LearningGoalRecord, putIn: Set<String>) -> [String] {
@@ -156,47 +125,6 @@ enum NotebookChatSelection {
             if !arrivals.isEmpty { result[notebook.id] = arrivals }
         }
         return result
-    }
-
-    /// The boxes `notebook` ticks after an inbound sync change: the arrivals
-    /// `arrivalsToTick` names, less any the notebook's row may have unticked
-    /// after the source joined. An untick certainly from before the join —
-    /// left when the source last left the notebook, by any route on any
-    /// device, which an older web or iPhone build never clears — goes; one
-    /// that may be from after it stands, so adding a source on the phone and
-    /// then unticking it, before this Mac heard of either, keeps the untick
-    /// whatever else changed in the notebook meanwhile. Each join is its
-    /// earliest possible date (`Arrival.joinedAt`), so a row written between
-    /// that and the add is left alone too: never ticking is the safe side. A
-    /// source joins the notebook's chats when it arrives in the notebook
-    /// itself, or else with its first arrival among the context notebooks it
-    /// put in: the earliest of their dates.
-    /// `exclusionWrittenAt` is when the row was last written, on whatever
-    /// device wrote it; nil, no date known, is older than every join.
-    static func inboundArrivalsToTick(
-        in notebook: LearningGoalRecord,
-        arrivals: [String: [Arrival]],
-        exclusionWrittenAt: Date?,
-        contextNotebookIDs: [String] = [],
-        approvedOf: (String) -> [String]? = { _ in nil }
-    ) -> [String] {
-        let tick = arrivalsToTick(
-            in: notebook,
-            arrivals: arrivals.mapValues { $0.map(\.sourceID) },
-            contextNotebookIDs: contextNotebookIDs,
-            approvedOf: approvedOf
-        )
-        guard let writtenAt = exclusionWrittenAt, !tick.isEmpty else { return tick }
-        var joinedAt: [String: Date] = [:]
-        for contextID in contextNotebookIDs {
-            for arrival in arrivals[contextID] ?? [] {
-                joinedAt[arrival.sourceID] = min(joinedAt[arrival.sourceID] ?? .distantFuture, arrival.joinedAt)
-            }
-        }
-        for arrival in arrivals[notebook.id] ?? [] {
-            joinedAt[arrival.sourceID] = arrival.joinedAt
-        }
-        return tick.filter { (joinedAt[$0] ?? .distantPast) > writtenAt }
     }
 
     /// Saves one notebook's exclusion. Empty is the default: everything ticked.

@@ -265,41 +265,6 @@ enum MemoryTutorIdentity {
         )
     }
 
-    /// Deterministic identity for the losing side of a simultaneous
-    /// first-review curriculum race. The CloudKit server's canonical item keeps
-    /// the source-global ID; the local curriculum and evidence move to this
-    /// retired archive instead of being discarded or blocking future review.
-    static func conflictArchiveItemID(for item: MemoryItem) -> String {
-        let anchors = item.sources.sorted {
-            if $0.sortIndex != $1.sortIndex { return $0.sortIndex < $1.sortIndex }
-            return $0.id < $1.id
-        }
-        var fields = [
-            item.id,
-            item.kind.rawValue,
-            item.target,
-            item.rubricJSON,
-            item.goalID ?? "",
-        ]
-        for anchor in anchors {
-            fields.append(String(anchor.sortIndex))
-            fields.append(anchor.locatorJSON ?? "")
-            fields.append(anchor.excerpt)
-            fields.append(anchor.sourceSHA256)
-        }
-        return digestID(namespace: "memory-conflict-archive-v1", fields: fields)
-    }
-
-    static func conflictArchiveAttemptID(
-        originalAttemptID: String,
-        archiveItemID: String
-    ) -> String {
-        digestID(
-            namespace: "memory-conflict-attempt-v1",
-            fields: [archiveItemID, originalAttemptID]
-        )
-    }
-
     /// Local-only fallback retained for sources that truly have no portable
     /// identity. Production intake should obtain a portable key from storage or
     /// a synced source payload and call `firstReviewItemID(portableSourceKey:)`.

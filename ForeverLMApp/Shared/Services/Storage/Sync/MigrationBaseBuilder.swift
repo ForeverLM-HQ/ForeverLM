@@ -96,7 +96,7 @@ struct MigrationBaseWriter {
         for shard in MigrationBaseShards.allNames {
             let file = try await blobs.upload(
                 shards[shard] ?? MigrationBaseShards.encode([:]), owner: SyncSchema.rootRecordName, ownerType: .zoneRoot,
-                role: RootMigrationBaseStore.role(forShard: shard), mime: "application/json", encoding: .gzip, into: content
+                role: MigrationBaseShards.role(forShard: shard), mime: "application/json", encoding: .gzip, into: content
             )
             files[shard] = file.value
         }

@@ -7,7 +7,7 @@ import SQLite3
 // source, Notebook, Doc or chat transcript into a team's namespace.
 //
 // Nothing here talks to CloudKit. StorageService+Teams owns the zone, the
-// share and the files; CloudKitSyncEngine owns delivery. This file only has
+// share and the files; sync owns delivery. This file only has
 // to be right about rows.
 extension KnowledgeStore {
 
@@ -73,7 +73,7 @@ extension KnowledgeStore {
         do {
             try upsertTeamRow(team)
             if publish, team.role == .owner {
-                try markRecordChanged(entity: .team, logicalKey: team.id, at: team.updatedAt, home: team.home)
+                noteStoreChanged()
             }
             try exec("COMMIT")
         } catch {
@@ -116,76 +116,6 @@ extension KnowledgeStore {
         }
     }
 
-    /// The team's own record arrived from its zone. On the owner's other Macs
-    /// this is how the team first appears locally; on a member's Mac the row
-    /// already exists from accepting the invitation and only the name moves.
-    func upsertTeamFromZone(
-        _ payload: CloudKitTeamPayload,
-        home: CloudKitZoneHome,
-        permission: TeamPermission?
-    ) throws {
-        let now = Date()
-        if var existing = try loadTeam(payload.id) {
-            existing.name = payload.name
-            existing.updatedAt = payload.updatedAt
-            existing.createdAt = payload.createdAt
-            existing.familyPlanCode = payload.familyPlanCode
-            if let permission { existing.permission = permission }
-            try upsertTeamRow(existing)
-            return
-        }
-        let role: TeamRole = home.scope == .privateScope ? .owner : .member
-        try upsertTeamRow(TeamRecord(
-            id: payload.id,
-            name: payload.name,
-            role: role,
-            permission: permission ?? (role == .owner ? .readWrite : .readOnly),
-            zoneScope: home.scope,
-            zoneName: home.zoneName,
-            zoneOwnerRecordName: home.ownerRecordName,
-            shareRecordName: nil,
-            shareURL: nil,
-            createdAt: payload.createdAt,
-            joinedAt: now,
-            updatedAt: payload.updatedAt,
-            familyPlanCode: payload.familyPlanCode
-        ))
-    }
-
-    /// Inbound apply for the `Team` record when the zone is not known to the
-    /// caller. The engine calls `upsertTeamFromZone` with the home it saw; this
-    /// keeps the record mapper's exhaustive apply honest and only touches the
-    /// name of a team already known locally.
-    func applyTeamRecordFromSync(_ payload: CloudKitTeamPayload) throws {
-        guard var existing = try loadTeam(payload.id) else { return }
-        existing.name = payload.name
-        existing.createdAt = payload.createdAt
-        existing.updatedAt = payload.updatedAt
-        existing.familyPlanCode = payload.familyPlanCode
-        try upsertTeamRow(existing)
-    }
-
-    func loadTeamForSync(_ teamID: String) throws -> CloudKitTeamPayload? {
-        guard let team = try loadTeam(teamID) else { return nil }
-        let creator = try loadTeamMembers(teamID: teamID).first { $0.role == .owner }?.displayName
-        return CloudKitTeamPayload(
-            id: team.id,
-            name: team.name,
-            createdAt: team.createdAt,
-            updatedAt: team.updatedAt,
-            createdByDisplayName: creator,
-            familyPlanCode: team.familyPlanCode
-        )
-    }
-
-    func updateTeamShare(teamID: String, shareRecordName: String?, shareURL: String?, permission: TeamPermission?) throws {
-        guard var team = try loadTeam(teamID) else { return }
-        if let shareRecordName { team.shareRecordName = shareRecordName }
-        if let shareURL { team.shareURL = shareURL }
-        if let permission { team.permission = permission }
-        try upsertTeamRow(team)
-    }
-
     func renameTeam(_ teamID: String, name: String, at date: Date = Date()) throws {
         guard var team = try loadTeam(teamID) else {
             throw KnowledgeStoreError.invalidData("Team \(teamID) does not exist.")
@@ -199,136 +129,12 @@ extension KnowledgeStore {
         try saveTeam(team)
     }
 
-    /// Everything a team put on this Mac goes with it: the team's copies of
-    /// sources, Notebooks, Docs, chats and tasks, the roster, and the sync
-    /// bookkeeping for its zone. Nothing in the learner's own library moves.
-    /// Runs sync-suppressed: the zone is gone or being left, so there is
-    /// nothing to tombstone. Each row-level delete below is its own atomic
-    /// transaction (the store's delete methods open one), so this does not
-    /// wrap them in another; a failure part-way leaves a smaller team, which
-    /// the next removal attempt finishes.
-    func removeTeamLocally(_ teamID: String) throws {
-        let team = try loadTeam(teamID)
-        try withoutSyncTracking {
-            for sessionID in try ids("SELECT id FROM review_sessions WHERE team_id = ?", teamID) {
-                try deleteReviewSession(sessionID)
-            }
-            for artifactID in try ids("SELECT id FROM global_artifacts WHERE team_id = ?", teamID) {
-                try deleteArtifactRecord(artifactID)
-            }
-            // Before the sources, so each course's own material is detached
-            // from a course that is going anyway rather than from one that stays.
-            for courseID in try ids("SELECT id FROM courses WHERE team_id = ?", teamID) {
-                try deleteCourseGroup(name: courseID)
-            }
-            try execBind("DELETE FROM notebook_tasks WHERE team_id = ?") { stmt in bind(stmt, 1, teamID) }
-            try execBind("DELETE FROM share_requests WHERE team_id = ?") { stmt in bind(stmt, 1, teamID) }
-            for goalID in try ids("SELECT id FROM learning_goals WHERE team_id = ? AND parent_notebook_id IS NULL", teamID) {
-                try deleteLearningGoal(goalID, cascadeChildGoals: true)
-            }
-            for goalID in try ids("SELECT id FROM learning_goals WHERE team_id = ?", teamID) {
-                try deleteLearningGoal(goalID, cascadeChildGoals: true)
-            }
-            for sourceID in try ids("SELECT id FROM sources WHERE team_id = ?", teamID) {
-                try deleteSource(sourceID)
-            }
-            try exec("BEGIN IMMEDIATE")
-            do {
-                try execBind("DELETE FROM teams WHERE id = ?") { stmt in bind(stmt, 1, teamID) }
-                if let home = team?.home {
-                    try clearSyncBookkeeping(home: home)
-                }
-                try exec("COMMIT")
-            } catch {
-                try? exec("ROLLBACK")
-                throw error
-            }
-        }
-    }
-
     private func ids(_ sql: String, _ key: String) throws -> [String] {
         var result: [String] = []
         try queryBind(sql, bind: { stmt in bind(stmt, 1, key) }) { stmt in
             if let id = self.string(stmt, 0) { result.append(id) }
         }
         return result
-    }
-
-    /// Drop every sync row that names a zone. Used when a team zone is gone.
-    func clearSyncBookkeeping(home: CloudKitZoneHome) throws {
-        for table in ["sync_changes", "sync_metadata", "sync_conflicts"] {
-            try execBind("""
-                DELETE FROM \(table)
-                WHERE zone_scope = ? AND zone_name = ? AND COALESCE(zone_owner_record_name, '') = ?
-            """) { stmt in
-                bind(stmt, 1, home.scope.rawValue)
-                bind(stmt, 2, home.zoneName)
-                bind(stmt, 3, home.ownerRecordName ?? "")
-            }
-        }
-    }
-
-    /// Record names homed in a zone; the engine uses this to drop engine
-    /// state for a zone that disappeared.
-    func syncRecordNames(home: CloudKitZoneHome) throws -> [String] {
-        var names: [String] = []
-        try queryBind("""
-            SELECT record_name FROM sync_metadata
-            WHERE zone_scope = ? AND zone_name = ? AND COALESCE(zone_owner_record_name, '') = ?
-        """, bind: { stmt in
-            bind(stmt, 1, home.scope.rawValue)
-            bind(stmt, 2, home.zoneName)
-            bind(stmt, 3, home.ownerRecordName ?? "")
-        }) { stmt in
-            if let name = self.string(stmt, 0) { names.append(name) }
-        }
-        return names
-    }
-
-    func teamPermission(forHome home: CloudKitZoneHome) throws -> TeamPermission? {
-        try loadTeam(home: home)?.permission
-    }
-
-    /// The zone a record belongs in, read from its own row. A row with a
-    /// `team_id` lives in that team's zone; everything else is the learner's
-    /// own Knowledge zone. A team id whose team is unknown locally still routes
-    /// to a private team zone, which is the only place such a row can have
-    /// come from on this account.
-    func resolveRecordHome(entity: CloudKitSyncEntity, logicalKey: String) throws -> CloudKitZoneHome {
-        let teamID: String?
-        switch entity {
-        case .source:
-            teamID = try singleString("SELECT team_id FROM sources WHERE id = ?", key: logicalKey)
-        case .learningGoal:
-            teamID = try singleString("SELECT team_id FROM learning_goals WHERE id = ?", key: logicalKey)
-        case .artifact:
-            teamID = try singleString("SELECT team_id FROM global_artifacts WHERE id = ?", key: logicalKey)
-        case .artifactComment:
-            teamID = try singleString("""
-                SELECT a.team_id FROM artifact_comments c
-                JOIN global_artifacts a ON a.id = c.artifact_id
-                WHERE c.id = ?
-            """, key: logicalKey)
-        case .reviewSession:
-            teamID = try singleString("SELECT team_id FROM review_sessions WHERE id = ?", key: logicalKey)
-        case .notebookTask:
-            teamID = try singleString("SELECT team_id FROM notebook_tasks WHERE id = ?", key: logicalKey)
-        case .shareRequest:
-            teamID = try singleString("SELECT team_id FROM share_requests WHERE id = ?", key: logicalKey)
-        case .course:
-            teamID = try singleString("SELECT team_id FROM courses WHERE id = ?", key: logicalKey)
-        case .team:
-            teamID = logicalKey
-        default:
-            teamID = nil
-        }
-        guard let teamID else { return .knowledge }
-        if let team = try loadTeam(teamID) { return team.home }
-        return CloudKitZoneHome(
-            scope: .privateScope,
-            zoneName: TeamRecord.zoneName(forTeamID: teamID),
-            ownerRecordName: nil
-        )
     }
 
     private func singleString(_ sql: String, key: String) throws -> String? {
@@ -362,128 +168,6 @@ extension KnowledgeStore {
     }
 
     // MARK: - Per-member state on team copies
-
-    /// The columns a team record never carries, captured before an inbound
-    /// apply overwrites the row and put back afterwards. Where one member got
-    /// to in a paper, and what they have completed in a team Notebook, is theirs.
-    /// An item's approval (`review_state`) is not among them: it is the team's
-    /// notebook membership, carried by the record, so the incoming record's
-    /// value stands — a teammate's rejection or a pending suggestion must
-    /// reach this member as it is, not be overwritten by what they held.
-    struct MemberStateSnapshot {
-        let entity: CloudKitSyncEntity
-        let logicalKey: String
-        var readAt: Date?
-        var readingPositionPage: Int?
-        var readingPositionLocator: String?
-        var isConsumed: Int?
-        var reviewDepth: String?
-        var goalItems: [(sourceID: String, completedAt: Date?, lastQuizzedAt: Date?, quizCount: Int?, lastScore: Double?)] = []
-        /// Whether this member hid a team's course from their Courses home.
-        var courseIsHidden: Bool?
-    }
-
-    func captureMemberState(entity: CloudKitSyncEntity, logicalKey: String) throws -> MemberStateSnapshot? {
-        switch entity {
-        case .source:
-            var snapshot: MemberStateSnapshot?
-            try queryBind("""
-                SELECT read_at, reading_position_page, reading_position_locator, is_consumed, review_depth
-                FROM sources WHERE id = ?
-            """, bind: { stmt in bind(stmt, 1, logicalKey) }) { stmt in
-                snapshot = MemberStateSnapshot(
-                    entity: .source,
-                    logicalKey: logicalKey,
-                    readAt: sqlite3_column_type(stmt, 0) == SQLITE_NULL ? nil : Date(timeIntervalSinceReferenceDate: sqlite3_column_double(stmt, 0)),
-                    readingPositionPage: sqlite3_column_type(stmt, 1) == SQLITE_NULL ? nil : Int(sqlite3_column_int(stmt, 1)),
-                    readingPositionLocator: self.string(stmt, 2),
-                    isConsumed: sqlite3_column_type(stmt, 3) == SQLITE_NULL ? nil : Int(sqlite3_column_int(stmt, 3)),
-                    reviewDepth: self.string(stmt, 4)
-                )
-            }
-            return snapshot
-        case .learningGoal:
-            var snapshot = MemberStateSnapshot(entity: .learningGoal, logicalKey: logicalKey)
-            try queryBind("""
-                SELECT source_id, completed_at, last_quizzed_at, quiz_count, last_score
-                FROM learning_goal_items WHERE goal_id = ?
-            """, bind: { stmt in bind(stmt, 1, logicalKey) }) { stmt in
-                guard let sourceID = self.string(stmt, 0) else { return }
-                snapshot.goalItems.append((
-                    sourceID: sourceID,
-                    completedAt: sqlite3_column_type(stmt, 1) == SQLITE_NULL ? nil : Date(timeIntervalSinceReferenceDate: sqlite3_column_double(stmt, 1)),
-                    lastQuizzedAt: sqlite3_column_type(stmt, 2) == SQLITE_NULL ? nil : Date(timeIntervalSinceReferenceDate: sqlite3_column_double(stmt, 2)),
-                    quizCount: sqlite3_column_type(stmt, 3) == SQLITE_NULL ? nil : Int(sqlite3_column_int(stmt, 3)),
-                    lastScore: sqlite3_column_type(stmt, 4) == SQLITE_NULL ? nil : sqlite3_column_double(stmt, 4)
-                ))
-            }
-            return snapshot.goalItems.isEmpty ? nil : snapshot
-        case .course:
-            var snapshot: MemberStateSnapshot?
-            try queryBind("SELECT is_hidden FROM courses WHERE id = ?", bind: { stmt in bind(stmt, 1, logicalKey) }) { stmt in
-                var captured = MemberStateSnapshot(entity: .course, logicalKey: logicalKey)
-                captured.courseIsHidden = sqlite3_column_int(stmt, 0) != 0
-                snapshot = captured
-            }
-            return snapshot
-        default:
-            return nil
-        }
-    }
-
-    func restoreMemberState(_ snapshot: MemberStateSnapshot) throws {
-        switch snapshot.entity {
-        case .source:
-            try execBind("""
-                UPDATE sources
-                SET read_at = ?, reading_position_page = ?, reading_position_locator = ?,
-                    is_consumed = ?, review_depth = ?
-                WHERE id = ?
-            """) { stmt in
-                if let readAt = snapshot.readAt {
-                    sqlite3_bind_double(stmt, 1, readAt.timeIntervalSinceReferenceDate)
-                } else {
-                    sqlite3_bind_null(stmt, 1)
-                }
-                bind(stmt, 2, snapshot.readingPositionPage)
-                bind(stmt, 3, snapshot.readingPositionLocator)
-                bind(stmt, 4, snapshot.isConsumed)
-                bind(stmt, 5, snapshot.reviewDepth)
-                bind(stmt, 6, snapshot.logicalKey)
-            }
-        case .learningGoal:
-            for item in snapshot.goalItems {
-                try execBind("""
-                    UPDATE learning_goal_items
-                    SET completed_at = ?, last_quizzed_at = ?, quiz_count = ?, last_score = ?
-                    WHERE goal_id = ? AND source_id = ?
-                """) { stmt in
-                    if let completedAt = item.completedAt {
-                        sqlite3_bind_double(stmt, 1, completedAt.timeIntervalSinceReferenceDate)
-                    } else {
-                        sqlite3_bind_null(stmt, 1)
-                    }
-                    if let lastQuizzedAt = item.lastQuizzedAt {
-                        sqlite3_bind_double(stmt, 2, lastQuizzedAt.timeIntervalSinceReferenceDate)
-                    } else {
-                        sqlite3_bind_null(stmt, 2)
-                    }
-                    bind(stmt, 3, item.quizCount)
-                    bind(stmt, 4, item.lastScore)
-                    bind(stmt, 5, snapshot.logicalKey)
-                    bind(stmt, 6, item.sourceID)
-                }
-            }
-        case .course:
-            guard let isHidden = snapshot.courseIsHidden else { return }
-            try execBind("UPDATE courses SET is_hidden = ? WHERE id = ?") { stmt in
-                sqlite3_bind_int(stmt, 1, isHidden ? 1 : 0)
-                bind(stmt, 2, snapshot.logicalKey)
-            }
-        default:
-            break
-        }
-    }
 
     // MARK: - Members
 
@@ -585,14 +269,6 @@ extension KnowledgeStore {
         return task
     }
 
-    func loadAllNotebookTaskIDs() throws -> [String] {
-        var ids: [String] = []
-        try query("SELECT id FROM notebook_tasks") { stmt in
-            if let id = self.string(stmt, 0) { ids.append(id) }
-        }
-        return ids
-    }
-
     func readNotebookTaskRow(_ stmt: OpaquePointer?) -> NotebookTaskRecord? {
         guard let id = string(stmt, 0),
               let notebookID = string(stmt, 1),
@@ -689,7 +365,7 @@ extension KnowledgeStore {
         do {
             try saveNotebookTaskRecord(task)
             try keepTaskRowsForGeneration2(notebookIDs: [task.notebookID], taskIDs: [task.id])
-            try markRecordChanged(entity: .notebookTask, logicalKey: task.id, at: task.updatedAt)
+            noteStoreChanged()
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -698,23 +374,14 @@ extension KnowledgeStore {
     }
 
     func deleteNotebookTask(_ id: String, at date: Date = Date()) throws {
-        // Same as a share request below: a task a teammate created has no queue
-        // entry here, so its zone is read before the row that names it goes.
-        let home = try resolveRecordHome(entity: .notebookTask, logicalKey: id)
         try exec("BEGIN IMMEDIATE")
         do {
             try execBind("DELETE FROM notebook_tasks WHERE id = ?") { stmt in bind(stmt, 1, id) }
-            try markRecordDeleted(entity: .notebookTask, logicalKey: id, at: date, home: home)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
             throw error
         }
-    }
-
-    /// Inbound deletion: the row goes, nothing is enqueued.
-    func deleteNotebookTaskRecord(_ id: String) throws {
-        try execBind("DELETE FROM notebook_tasks WHERE id = ?") { stmt in bind(stmt, 1, id) }
     }
 
     func deleteNotebookTasks(notebookID: String) throws {
@@ -786,14 +453,6 @@ extension KnowledgeStore {
             request = readShareRequestRow(stmt)
         }
         return request
-    }
-
-    func loadAllShareRequestIDs() throws -> [String] {
-        var ids: [String] = []
-        try query("SELECT id FROM share_requests") { stmt in
-            if let id = self.string(stmt, 0) { ids.append(id) }
-        }
-        return ids
     }
 
     private func readShareRequestRow(_ stmt: OpaquePointer?) -> ShareRequestRecord? {
@@ -875,7 +534,6 @@ extension KnowledgeStore {
         do {
             try saveShareRequestRecord(request)
             try keepTaskRowsForGeneration2(notebookIDs: [], taskIDs: [request.id])
-            try markRecordChanged(entity: .shareRequest, logicalKey: request.id, at: request.updatedAt)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -884,25 +542,14 @@ extension KnowledgeStore {
     }
 
     func deleteShareRequest(_ id: String, at date: Date = Date()) throws {
-        // The zone is read while the row still names its team. A request another
-        // member made arrived through sync with no queue entry of its own, so once
-        // the row is gone nothing else here remembers which team zone the
-        // tombstone belongs in, and it would be homed in Knowledge.
-        let home = try resolveRecordHome(entity: .shareRequest, logicalKey: id)
         try exec("BEGIN IMMEDIATE")
         do {
             try execBind("DELETE FROM share_requests WHERE id = ?") { stmt in bind(stmt, 1, id) }
-            try markRecordDeleted(entity: .shareRequest, logicalKey: id, at: date, home: home)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
             throw error
         }
-    }
-
-    /// Inbound deletion: the row goes, nothing is enqueued.
-    func deleteShareRequestRecord(_ id: String) throws {
-        try execBind("DELETE FROM share_requests WHERE id = ?") { stmt in bind(stmt, 1, id) }
     }
 
     // MARK: - Copies into a team
@@ -1493,10 +1140,9 @@ extension KnowledgeStore {
         let copiedQuizIDs = Set(quizzes.map(\.id))
         quizzes += try loadCourseQuizzes(courseID: copyID).filter { !copiedQuizIDs.contains($0.id) }
 
-        // The row carries the team before anything queues the course, so the
-        // record is homed in the team's zone from its first save
-        // (`resolveRecordHome`). Then the metadata, the outline and the
-        // quizzes. The copy is not hidden and awaits no playlist import on
+        // The row carries the team from its first write, so the record is
+        // homed in the team's zone from its first save. Then the metadata,
+        // the outline and the quizzes. The copy is not hidden and awaits no playlist import on
         // the team's side: both are about the original.
         try execBind("""
             INSERT INTO courses (id, title, team_id) VALUES (?, ?, ?)
@@ -1515,7 +1161,6 @@ extension KnowledgeStore {
         ))
         try saveCourseOutline(courseName: copyID, lectures: lectures, items: items)
         try replaceCourseQuizzesFromSync(courseID: copyID, quizzes: quizzes)
-        try markRecordChanged(entity: .course, logicalKey: copyID)
         return CourseTeamCopy(id: copyID, carriedSources: carried, itemsLeftOut: itemsLeftOut)
     }
 
@@ -1723,7 +1368,7 @@ extension KnowledgeStore {
         )
         try saveReviewSessionRecord(snapshot)
         try stampTeam(entity: .reviewSession, logicalKey: copyID, teamID: teamID)
-        try markRecordChanged(entity: .reviewSession, logicalKey: copyID, home: team.home)
+        noteStoreChanged()
         return copyID
     }
 
@@ -1893,7 +1538,6 @@ extension KnowledgeStore {
             }
             if added {
                 try touchLearningGoal(copyID)
-                try markRecordChanged(entity: .learningGoal, logicalKey: copyID)
                 changed.insert(team.id)
             }
         }

@@ -357,7 +357,6 @@ extension KnowledgeStore {
             survivor.state = .ready
             survivor.errorMessage = nil
             try persistSourceRows(survivor)
-            try markRecordChanged(entity: .meetingGroup, logicalKey: groupID, at: now)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")

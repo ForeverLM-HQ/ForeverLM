@@ -178,7 +178,7 @@ extension KnowledgeStore {
         do {
             try upsertPaperWalkthrough(walkthrough, json: json)
             try queuePublishedSourceFilesRefresh(sourceID: walkthrough.sourceID)
-            try markRecordChanged(entity: .source, logicalKey: walkthrough.sourceID)
+            noteStoreChanged()
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -196,7 +196,7 @@ extension KnowledgeStore {
             try execBind("DELETE FROM source_walkthroughs WHERE source_id = ?") { stmt in
                 self.bind(stmt, 1, sourceID)
             }
-            try markRecordChanged(entity: .source, logicalKey: sourceID)
+            noteStoreChanged()
             try deleteWalkthroughProgress(sourceID)
             try exec("COMMIT")
         } catch {
@@ -206,79 +206,7 @@ extension KnowledgeStore {
         return true
     }
 
-    /// Applies an encrypted CloudKit payload's walkthrough. A payload that
-    /// carries none leaves the local row alone: an older client that does not
-    /// know the key is not saying the walkthrough is gone. A walkthrough for a
-    /// text this Mac does not hold is skipped rather than stored dark.
-    func savePaperWalkthroughFromSync(sourceID: String, walkthrough: PaperWalkthrough?) throws {
-        guard let walkthrough, walkthrough.isUsable else { return }
-        if let content = try loadSourceContent(sourceID),
-           !Self.walkthroughText(content, matches: walkthrough.sourceSHA256) {
-            return
-        }
-        var record = walkthrough
-        record.sourceID = sourceID
-        let json = try PaperWalkthroughCoding.json(record)
-        try exec("BEGIN IMMEDIATE")
-        do {
-            try upsertPaperWalkthrough(record, json: json)
-            try exec("COMMIT")
-        } catch {
-            try? exec("ROLLBACK")
-            throw error
-        }
-    }
-
     // MARK: The pictures a walk shows
-
-    /// Every source whose walk names a drawn picture in a step's `picture`:
-    /// the walks whose pictures ride the Source record
-    /// (`walkthroughPicturesAsset`). Stale walks included; the record's own
-    /// build decides what it carries.
-    func walkthroughSourceIDsNamingDrawnPictures() throws -> [String] {
-        var ids: [String] = []
-        try query("""
-            SELECT source_id FROM source_walkthroughs
-            WHERE instr(walkthrough_json, '"image_id"') > 0
-            ORDER BY source_id
-        """) { stmt in
-            if let id = self.string(stmt, 0) { ids.append(id) }
-        }
-        return ids
-    }
-
-    /// Queues the source of each walk that names one of `imageIDs`, so the
-    /// Source record carries the picture as it is now; returns those sources.
-    /// The ids are UUIDs, so a text match over each row's JSON finds only
-    /// the steps' own; the few walks that name any picture are the rows read.
-    @discardableResult
-    func markWalkthroughSourcesChanged(namingAnyOf imageIDs: [String]) throws -> [String] {
-        let wanted = Array(Set(imageIDs.map { $0.lowercased() }.filter { !$0.isEmpty })).sorted()
-        guard !wanted.isEmpty else { return [] }
-        let condition = Array(repeating: "instr(lower(walkthrough_json), ?) > 0", count: wanted.count).joined(separator: " OR ")
-        var sourceIDs: [String] = []
-        try queryBind("""
-            SELECT source_id FROM source_walkthroughs
-            WHERE instr(walkthrough_json, '"image_id"') > 0 AND (\(condition))
-            ORDER BY source_id
-        """, bind: { stmt in
-            for (offset, id) in wanted.enumerated() { self.bind(stmt, offset + 1, id) }
-        }) { stmt in
-            if let id = self.string(stmt, 0) { sourceIDs.append(id) }
-        }
-        guard !sourceIDs.isEmpty else { return [] }
-        try exec("BEGIN IMMEDIATE")
-        do {
-            for sourceID in sourceIDs {
-                try markRecordChanged(entity: .source, logicalKey: sourceID)
-            }
-            try exec("COMMIT")
-        } catch {
-            try? exec("ROLLBACK")
-            throw error
-        }
-        return sourceIDs
-    }
 
     private func upsertPaperWalkthrough(_ walkthrough: PaperWalkthrough, json: String) throws {
         try execBind("""
@@ -372,7 +300,7 @@ extension KnowledgeStore {
         try exec("BEGIN IMMEDIATE")
         do {
             try upsertArtifactWalkthrough(walkthrough, json: json)
-            try markRecordChanged(entity: .artifact, logicalKey: walkthrough.sourceID)
+            noteStoreChanged()
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -389,7 +317,7 @@ extension KnowledgeStore {
             try execBind("DELETE FROM artifact_walkthroughs WHERE artifact_id = ?") { stmt in
                 self.bind(stmt, 1, artifactID)
             }
-            try markRecordChanged(entity: .artifact, logicalKey: artifactID)
+            noteStoreChanged()
             try deleteWalkthroughProgress(artifactID)
             try exec("COMMIT")
         } catch {
@@ -397,25 +325,6 @@ extension KnowledgeStore {
             throw error
         }
         return true
-    }
-
-    /// Applies an encrypted Artifact payload's walkthrough. A payload that
-    /// carries none leaves the local row alone (an older client is not saying
-    /// the walk is gone); one for an address this Mac's record does not hold
-    /// is stored as it came and reads as stale until the record catches up.
-    func saveArtifactWalkthroughFromSync(artifactID: String, walkthrough: PaperWalkthrough?) throws {
-        guard let walkthrough, walkthrough.isUsable, walkthrough.subject == .animation else { return }
-        var record = walkthrough
-        record.sourceID = artifactID
-        let json = try PaperWalkthroughCoding.json(record)
-        try exec("BEGIN IMMEDIATE")
-        do {
-            try upsertArtifactWalkthrough(record, json: json)
-            try exec("COMMIT")
-        } catch {
-            try? exec("ROLLBACK")
-            throw error
-        }
     }
 
     private func upsertArtifactWalkthrough(_ walkthrough: PaperWalkthrough, json: String) throws {
@@ -440,13 +349,6 @@ extension KnowledgeStore {
 
 // MARK: Walkthrough progress (walkthrough_progress, schema 133)
 
-/// A walk's progress as the `WalkthroughProgress` CloudKit record carries it,
-/// in the encrypted payload. Per learner: the record lives in the private
-/// zone and never in a team's.
-struct CloudKitWalkthroughProgressPayload: Codable, Sendable {
-    let progress: WalkthroughProgress
-}
-
 extension KnowledgeStore {
     func loadWalkthroughProgress(_ subjectID: String) throws -> WalkthroughProgress? {
         // Generation 2 keys a source's walk by its wire id, so a team copy and the personal one share it.
@@ -466,7 +368,6 @@ extension KnowledgeStore {
         try exec("BEGIN IMMEDIATE")
         do {
             try writeWalkthroughProgressRow(progress)
-            try markRecordChanged(entity: .walkthroughProgress, logicalKey: progress.subjectID, at: progress.updatedAt)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -481,7 +382,6 @@ extension KnowledgeStore {
         try execBind("DELETE FROM walkthrough_progress WHERE subject_id = ?") { stmt in
             self.bind(stmt, 1, key)
         }
-        try markRecordDeleted(entity: .walkthroughProgress, logicalKey: subjectID)
     }
 
     func hasWalkthroughProgress(_ subjectID: String) throws -> Bool {
@@ -493,48 +393,6 @@ extension KnowledgeStore {
             found = true
         }
         return found
-    }
-
-    func loadAllWalkthroughProgressIDs() throws -> [String] {
-        var ids: [String] = []
-        try query("SELECT subject_id FROM walkthrough_progress") { stmt in
-            if let id = self.string(stmt, 0) { ids.append(id) }
-        }
-        return ids
-    }
-
-    func loadWalkthroughProgressForSync(_ subjectID: String) throws -> CloudKitWalkthroughProgressPayload? {
-        try loadWalkthroughProgress(subjectID).map(CloudKitWalkthroughProgressPayload.init(progress:))
-    }
-
-    /// Applies an inbound record: the newer progress wins whole, since one
-    /// device moved through the walk last. A walk already open on this Mac
-    /// keeps its place until it is opened again.
-    func saveWalkthroughProgressRecord(_ payload: CloudKitWalkthroughProgressPayload) throws {
-        let incoming = payload.progress
-        guard !incoming.subjectID.isEmpty else {
-            throw KnowledgeStoreError.invalidData("Inbound walkthrough progress has no subject.")
-        }
-        if let existing = try loadWalkthroughProgress(incoming.subjectID), existing.updatedAt > incoming.updatedAt {
-            return
-        }
-        try writeWalkthroughProgressRow(incoming)
-    }
-
-    func deleteWalkthroughProgressRecord(_ subjectID: String) throws {
-        try execBind("DELETE FROM walkthrough_progress WHERE subject_id = ?") { stmt in
-            self.bind(stmt, 1, subjectID)
-        }
-    }
-
-    func walkthroughProgressSyncBackfillDate(_ subjectID: String) throws -> Date? {
-        var date: Date?
-        try queryBind("SELECT updated_at FROM walkthrough_progress WHERE subject_id = ? LIMIT 1", bind: { stmt in
-            self.bind(stmt, 1, subjectID)
-        }) { stmt in
-            date = Date(timeIntervalSinceReferenceDate: sqlite3_column_double(stmt, 0))
-        }
-        return date
     }
 
     private func writeWalkthroughProgressRow(_ progress: WalkthroughProgress) throws {

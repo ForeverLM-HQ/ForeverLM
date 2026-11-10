@@ -2,8 +2,8 @@ import SwiftUI
 
 /// Data & Privacy › iCloud, below the sync card (docs/cloudkit-schema-design.md §13): where the library's
 /// upload to the library container stands, "This Mac holds my library", "Upload my library to iCloud
-/// again", the rollback copy, and the bytes each owned space holds. The upload's progress while it runs,
-/// and the catch-up's own 5% question, are `LibraryMoveSettingsCard` above. The old iCloud library has no
+/// again", the rollback copy, and the bytes each owned space holds. The upload's progress while it runs
+/// is `LibraryMoveSettingsCard` above. The old iCloud library has no
 /// card: it stayed with the old Apple team, and no build can read or remove it.
 struct ICloudMigrationSettingsView: View {
     @State private var model = ICloudMigrationModel.shared

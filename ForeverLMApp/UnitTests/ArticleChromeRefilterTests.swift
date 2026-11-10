@@ -1,4 +1,3 @@
-import CloudKit
 import Foundation
 import SQLite3
 import Testing
@@ -25,7 +24,6 @@ struct ArticleChromeRefilterTests {
     private static func makeVersion73Store(at root: URL, populate: (KnowledgeStore) throws -> Void) throws {
         let store = try KnowledgeStore(storeDirectory: root)
         try populate(store)
-        try store.clearAllPendingSyncChanges()
         try store.execForTesting("DROP TABLE article_chrome_refilter_queue")
         try store.execForTesting("PRAGMA user_version = 73")
     }
@@ -85,35 +83,5 @@ struct ArticleChromeRefilterTests {
         }
         #expect(remaining == 1)
         #expect(lastError?.contains("403") == true)
-    }
-
-    @Test("Republishing a reader document clears the digest that would suppress it")
-    func republishInvalidatesTheAssetDigest() throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("foreverlm-refilter-republish-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
-
-        let sourceID = "republished-article"
-        let store = try KnowledgeStore(storeDirectory: root)
-        try store.saveSource(Self.archivedArticle(id: sourceID))
-        let recordName = CloudKitRecordMapper.recordName(for: .source, logicalKey: sourceID)
-        try store.stageAssetDigests(
-            [CKRecord.FieldKey.sourceReaderHTMLAsset: "stale-digest"],
-            recordName: recordName
-        )
-        try store.commitStagedAssetDigests(recordName: recordName)
-        try store.clearAllPendingSyncChanges()
-        #expect(try store.committedAssetDigests(recordName: recordName).isEmpty == false)
-
-        try store.republishArticleReaderDocument(sourceID: sourceID)
-
-        // Without clearing the digest the rewritten archive would upload nothing.
-        #expect(try store.committedAssetDigests(recordName: recordName)[
-            CKRecord.FieldKey.sourceReaderHTMLAsset
-        ] == nil)
-        #expect(try store.pendingSyncChanges().contains {
-            $0.entity == .source && $0.logicalKey == sourceID
-        })
     }
 }

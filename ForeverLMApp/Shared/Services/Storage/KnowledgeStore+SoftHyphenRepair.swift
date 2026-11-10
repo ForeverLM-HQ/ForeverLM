@@ -428,7 +428,6 @@ extension KnowledgeStore {
                     .real(now.timeIntervalSinceReferenceDate),
                     .text(idea.id),
                 ])
-                try markRecordChanged(entity: .sourceIdea, logicalKey: idea.id, at: now)
             }
 
             // The reading levels, written from C. Local to this Mac.
@@ -466,7 +465,7 @@ extension KnowledgeStore {
         }
         let changed = textChanged || titleChanged || derivativesChanged
         if changed {
-            try markRecordChanged(entity: .source, logicalKey: sourceID, at: now)
+            noteStoreChanged()
         }
         try execute("DELETE FROM source_text_soft_hyphen_repair_queue WHERE source_id = ?", [.text(sourceID)])
         return changed ? .repaired : .unchanged

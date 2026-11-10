@@ -105,14 +105,8 @@ extension KnowledgeStore {
                 containing: oldSegment,
                 rewrites: rewrites
             )
-            for sourceID in sourceIDs {
-                try markRecordChanged(entity: .source, logicalKey: sourceID)
-            }
-            for bookID in bookIDs {
-                try markRecordChanged(entity: .book, logicalKey: bookID)
-            }
-            for scheduledID in scheduledIDs {
-                try markRecordChanged(entity: .scheduledSource, logicalKey: scheduledID)
+            if !sourceIDs.isEmpty {
+                noteStoreChanged()
             }
             try exec("COMMIT")
         } catch {

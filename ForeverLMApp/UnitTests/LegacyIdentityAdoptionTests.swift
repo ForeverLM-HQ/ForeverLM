@@ -44,28 +44,6 @@ struct ForeverLMRuntimeIdentityTests {
 
 @Suite("Legacy FeynmanLM identity adoption")
 struct LegacyIdentityAdoptionTests {
-    @Test("Retired Doc links are adopted without changing prose or unrelated URLs")
-    func retiredDocLinksAreAdopted() {
-        let markdown = """
-        [Named](feynmanlm://source/src_1)
-        [Attached]( <feynmanlm://grounding/src_1,book:book_2>)
-        ![Image](feynmanlm://attachment/image.png)
-
-        A prose example says feynmanlm://source/src_example.
-        [Website](https://feynmanlm.com/source/src_web)
-        [Unknown](feynmanlm://other/value)
-        """
-
-        let adopted = LegacyIdentityAdoption.adoptingRetiredArtifactLinks(in: markdown)
-
-        #expect(adopted.contains("[Named](foreverlm://source/src_1)"))
-        #expect(adopted.contains("[Attached]( <foreverlm://grounding/src_1,book:book_2>)"))
-        #expect(adopted.contains("![Image](foreverlm://attachment/image.png)"))
-        #expect(adopted.contains("prose example says feynmanlm://source/src_example"))
-        #expect(adopted.contains("[Website](https://feynmanlm.com/source/src_web)"))
-        #expect(adopted.contains("[Unknown](feynmanlm://other/value)"))
-    }
-
     @Test("Moves a retired library when ForeverLM has no knowledge database")
     func movesRetiredLibraryWhenCurrentIsMissing() throws {
         let env = try Sandbox()
@@ -195,34 +173,6 @@ struct LegacyIdentityAdoptionTests {
         #expect(roots.contains { $0.hasSuffix("com~apple~CloudDocs/Documents/FeynmanLM") })
         #expect(roots.contains { $0.hasSuffix("Documents/FeynmanLM") })
         #expect(roots.first == StorageService.libraryRootPath)
-    }
-
-    @Test("CloudKit rebases when the container identifier changes")
-    func cloudKitRebasesOnContainerRename() {
-        #expect(
-            CloudKitSyncEngine.needsReplicaRebase(
-                previousEnvironment: "production",
-                currentEnvironment: "production",
-                previousContainer: "iCloud.com.feynmanlm",
-                currentContainer: "iCloud.com.foreverlm"
-            )
-        )
-        #expect(
-            !CloudKitSyncEngine.needsReplicaRebase(
-                previousEnvironment: "production",
-                currentEnvironment: "production",
-                previousContainer: "iCloud.com.foreverlm",
-                currentContainer: "iCloud.com.foreverlm"
-            )
-        )
-        #expect(
-            CloudKitSyncEngine.needsReplicaRebase(
-                previousEnvironment: "production",
-                currentEnvironment: "production",
-                previousContainer: nil,
-                currentContainer: "iCloud.com.foreverlm"
-            )
-        )
     }
 
     @Test("A zero-byte knowledge.db does not count as a real library")

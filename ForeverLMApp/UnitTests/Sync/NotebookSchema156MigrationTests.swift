@@ -39,7 +39,7 @@ struct NotebookSchema156MigrationTests {
         let library = try Schema154Fixture.makeLibrary(at: root, version: version, sourceCount: 4)
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(version))
         #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM sqlite_master WHERE name = 'notebook_states'") == 0)
-        let counts = ["sources", "learning_goals", "learning_goal_items", "notebook_files", "sync_metadata"]
+        let counts = ["sources", "learning_goals", "learning_goal_items", "notebook_files"]
         let before = counts.map { Schema154Fixture.rowCount(at: root, $0) }
 
         let migrated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
@@ -48,7 +48,6 @@ struct NotebookSchema156MigrationTests {
         #expect(try Self.emptyCounts(migrated).values.allSatisfy { $0 == 0 }, "nothing filled before the activation")
         #expect(try Schema154Fixture.count(migrated, "SELECT COUNT(*) FROM learning_goal_items WHERE order_key IS NOT NULL") == 0)
         #expect(try Schema154Fixture.count(migrated, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger'") == 0)
-        #expect(try migrated.pendingSyncChanges().isEmpty, "a schema-only migration republishes nothing")
         // The view reads the library as it is: the fixture's notebook holds a source and a file.
         #expect(try Schema154Fixture.count(migrated, """
             SELECT COUNT(*) FROM ck_notebook_children WHERE notebook_id = '\(library.notebookID)'
@@ -111,6 +110,7 @@ struct NotebookSchema156MigrationTests {
         defer { try? FileManager.default.removeItem(at: root) }
         do {
             let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+            try Schema154Fixture.restoreGeneration1Tables(store)
             // 6,000 sources, 60 notebooks holding 4,000 items between them, and 17,000 sync rows.
             try store.execForTesting("""
                 BEGIN IMMEDIATE;

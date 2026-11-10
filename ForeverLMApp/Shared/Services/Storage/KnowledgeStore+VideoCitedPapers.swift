@@ -18,7 +18,6 @@ extension KnowledgeStore {
     /// win against a newer one from the other Mac.
     func saveVideoCitedPaper(_ paper: VideoCitedPaper) throws {
         try upsertVideoCitedPaperRow(paper)
-        try markRecordChanged(entity: .videoCitedPaper, logicalKey: paper.id, at: paper.updatedAt)
     }
 
     func loadVideoCitedPapers(forSourceID sourceID: String) throws -> [VideoCitedPaper] {
@@ -49,75 +48,9 @@ extension KnowledgeStore {
         try execBind("DELETE FROM video_cited_papers WHERE id = ?") { stmt in
             bind(stmt, 1, id)
         }
-        try markRecordDeleted(entity: .videoCitedPaper, logicalKey: id)
     }
 
     // MARK: - Sync
-
-    func loadVideoCitedPaperForSync(_ id: String) throws -> CloudKitVideoCitedPaperPayload? {
-        guard let paper = try loadVideoCitedPaper(id: id) else { return nil }
-        // Both foreign keys travel with their own identity so a peer whose source IDs
-        // differ can remap them. Losing `importedSourceID` would make an already
-        // imported paper look like an open candidate on the other Mac.
-        let sourceIdentity = try sourceIdentities(for: [paper.sourceID]).first
-        let importedSourceIdentity = try paper.importedSourceID.flatMap {
-            try sourceIdentities(for: [$0]).first
-        }
-        return CloudKitVideoCitedPaperPayload(
-            paper: paper,
-            sourceIdentity: sourceIdentity,
-            importedSourceIdentity: importedSourceIdentity
-        )
-    }
-
-    func saveVideoCitedPaperRecord(_ payload: CloudKitVideoCitedPaperPayload) throws {
-        let resolvedSourceID = try resolveSourceID(
-            payload.paper.sourceID,
-            identities: [payload.sourceIdentity].compactMap { $0 }
-        )
-        let resolvedImportedSourceID = try payload.paper.importedSourceID.map {
-            try resolveSourceID($0, identities: [payload.importedSourceIdentity].compactMap { $0 })
-        }
-
-        var paper = payload.paper
-        paper.sourceID = resolvedSourceID
-        paper.importedSourceID = resolvedImportedSourceID
-
-        try exec("BEGIN IMMEDIATE")
-        do {
-            try upsertVideoCitedPaperRow(paper)
-            try exec("COMMIT")
-        } catch {
-            try? exec("ROLLBACK")
-            throw error
-        }
-    }
-
-    func deleteVideoCitedPaperRecord(id: String) throws {
-        try execBind("DELETE FROM video_cited_papers WHERE id = ?") { stmt in
-            bind(stmt, 1, id)
-        }
-    }
-
-    func loadAllVideoCitedPaperIDs() throws -> [String] {
-        var ids: [String] = []
-        try query("SELECT id FROM video_cited_papers") { stmt in
-            if let id = self.string(stmt, 0) {
-                ids.append(id)
-            }
-        }
-        return ids
-    }
-
-    func hasVideoCitedPaper(_ id: String) throws -> Bool {
-        var found = false
-        try queryBind("SELECT 1 FROM video_cited_papers WHERE id = ? LIMIT 1", bind: { stmt in
-            bind(stmt, 1, id)
-        }) { _ in
-            found = true
-        }
-        return found
-    }
 
     // MARK: - Row plumbing
 

@@ -55,14 +55,6 @@ extension KnowledgeStore {
         return found
     }
 
-    func loadAllIdeaIDs() throws -> [String] {
-        var ids: [String] = []
-        try query("SELECT id FROM ideas") { stmt in
-            if let id = self.string(stmt, 0) { ids.append(id) }
-        }
-        return ids
-    }
-
     /// The Ideas linked to one record, newest first: what a source's or a
     /// Goal's surface would ask to show the thought behind it.
     func loadIdeas(linkedTo kind: IdeaLinkKind, targetID: String) throws -> [IdeaRecord] {
@@ -106,7 +98,6 @@ extension KnowledgeStore {
             for link in idea.links {
                 try writeIdeaLinkRow(ideaID: idea.id, link: link)
             }
-            try markRecordChanged(entity: .idea, logicalKey: idea.id, at: now)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -136,7 +127,6 @@ extension KnowledgeStore {
         try exec("BEGIN IMMEDIATE")
         do {
             try writeIdeaRow(idea)
-            try markRecordChanged(entity: .idea, logicalKey: idea.id, at: idea.updatedAt)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -159,7 +149,6 @@ extension KnowledgeStore {
         try exec("BEGIN IMMEDIATE")
         do {
             try writeIdeaRow(idea)
-            try markRecordChanged(entity: .idea, logicalKey: idea.id, at: idea.updatedAt)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -197,7 +186,6 @@ extension KnowledgeStore {
             for link in fresh {
                 try writeIdeaLinkRow(ideaID: idea.id, link: link)
             }
-            try markRecordChanged(entity: .idea, logicalKey: idea.id, at: now)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -234,7 +222,6 @@ extension KnowledgeStore {
                     self.bind(stmt, 3 + offset, targetID)
                 }
             }
-            try markRecordChanged(entity: .idea, logicalKey: idea.id, at: now)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -254,7 +241,6 @@ extension KnowledgeStore {
         do {
             try execBind("DELETE FROM idea_links WHERE idea_id = ?") { stmt in self.bind(stmt, 1, ideaID) }
             try execBind("DELETE FROM ideas WHERE id = ?") { stmt in self.bind(stmt, 1, ideaID) }
-            try markRecordDeleted(entity: .idea, logicalKey: ideaID, at: now)
             // What was proposed toward the Idea goes with it
             // (docs/directions-design.md).
             try deleteResearchDirectionRowsInTransaction(homeID: ideaID, at: now)
@@ -299,65 +285,6 @@ extension KnowledgeStore {
     }
 
     // MARK: CloudKit
-
-    func loadIdeaForSync(_ ideaID: String) throws -> CloudKitIdeaPayload? {
-        guard let idea = try loadIdea(ideaID) else { return nil }
-        return CloudKitIdeaPayload(idea: idea)
-    }
-
-    /// Applies an inbound record. The Idea is one thing — its words, its
-    /// status and its links were last written together on one device — so
-    /// the newer record wins whole, links included: an older record never
-    /// rewinds a link made here, and a link taken off on the other Mac comes
-    /// off here. `created_at` keeps the earlier of the two.
-    func saveIdeaRecord(_ payload: CloudKitIdeaPayload) throws {
-        var incoming = payload.idea
-        let title = IdeaRecord.normalizedTitle(incoming.title)
-        guard !title.isEmpty else {
-            throw KnowledgeStoreError.invalidData("Inbound idea \(incoming.id) has no title.")
-        }
-        incoming.title = title
-        incoming.links = Self.dedupedIdeaLinks(incoming.links)
-        if let existing = try loadIdea(incoming.id) {
-            guard incoming.updatedAt >= existing.updatedAt else { return }
-            incoming = IdeaRecord(
-                id: incoming.id,
-                title: incoming.title,
-                notes: incoming.notes,
-                status: incoming.status,
-                links: incoming.links,
-                createdAt: min(existing.createdAt, incoming.createdAt),
-                updatedAt: incoming.updatedAt
-            )
-        }
-        try exec("BEGIN IMMEDIATE")
-        do {
-            try writeIdeaRow(incoming)
-            try execBind("DELETE FROM idea_links WHERE idea_id = ?") { stmt in self.bind(stmt, 1, incoming.id) }
-            for link in incoming.links {
-                try writeIdeaLinkRow(ideaID: incoming.id, link: link)
-            }
-            try exec("COMMIT")
-        } catch {
-            try? exec("ROLLBACK")
-            throw error
-        }
-    }
-
-    func deleteIdeaRecord(_ ideaID: String) throws {
-        try execBind("DELETE FROM idea_links WHERE idea_id = ?") { stmt in self.bind(stmt, 1, ideaID) }
-        try execBind("DELETE FROM ideas WHERE id = ?") { stmt in self.bind(stmt, 1, ideaID) }
-    }
-
-    func ideaSyncBackfillDate(_ ideaID: String) throws -> Date? {
-        var date: Date?
-        try queryBind("SELECT updated_at FROM ideas WHERE id = ? LIMIT 1", bind: { stmt in
-            self.bind(stmt, 1, ideaID)
-        }) { stmt in
-            date = Date(timeIntervalSinceReferenceDate: sqlite3_column_double(stmt, 0))
-        }
-        return date
-    }
 
     // MARK: Row plumbing
 

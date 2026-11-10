@@ -98,25 +98,6 @@ struct MultiMacReconcileTests {
         #expect(try b.count("SELECT COUNT(*) FROM ck_manifest_pending") == 0, "the pending rows went with the delta's save")
     }
 
-    @Test("A pending old-world change the catch-up kept is dated with its own time, so a later rename here beats the old world's")
-    func keptChangeSurvives() async throws {
-        let server = EngineTestDriver.server()
-        let (a, b) = try await Self.seededPair(server, name: "rec-kept")
-        // B renamed the seeded notebook offline on generation 1: its undrained row is newer than the old
-        // record's change (R8-m2), and the activation left the rename in the table without an outbox row.
-        let renamedAt = Date().timeIntervalSinceReferenceDate - 60
-        try C.quietly(b.store) { try b.store.execute("UPDATE learning_goals SET title = 'Offline rename' WHERE id = 'nb1'") }
-        try b.store.execute("INSERT INTO sync_changes (entity_type, logical_key, record_name, operation, changed_at) VALUES ('learningGoal', 'nb1', 'goal-nb1', 'save', ?)", [.real(renamedAt)])
-        #expect(try CutoverPendingChanges.capture(in: b.store, registry: KnowledgeStore.projectionRegistry) >= 1)
-        // Run once: a second call captures nothing.
-        #expect(try CutoverPendingChanges.capture(in: b.store, registry: KnowledgeStore.projectionRegistry) == 0)
-
-        let outcome = try await CutoverReconcile(Self.environment(b)).run()
-        guard case .reconciled = outcome else { Issue.record("did not reconcile: \(outcome)"); return }
-        try await b.send()
-        #expect(try a.serverEnvelope(.notebook, "nb1")?.fields["title"] == .string("Offline rename"))
-    }
-
     @Test("A Mac that holds no library has nothing to reconcile")
     func noLibrary() async throws {
         let server = EngineTestDriver.server()
@@ -126,16 +107,13 @@ struct MultiMacReconcileTests {
         #expect(try await CutoverReconcile(environment).run() == .noLibrary)
     }
 
-    @Test("A fetch that did not reach the end never starts the comparison, and a waiting question holds the reconcile")
-    func fetchAndQuestionGate() async throws {
+    @Test("A fetch that did not reach the end never starts the comparison")
+    func fetchGate() async throws {
         let server = EngineTestDriver.server()
         let (_, b) = try await Self.seededPair(server, name: "rec-gate")
         var environment = Self.environment(b)
         environment.fetchAll = { false }
         #expect(try await CutoverReconcile(environment).run() == .fetchIncomplete)
-        environment = Self.environment(b)
-        environment.beforeReconcile = { false }
-        #expect(try await CutoverReconcile(environment).run() == .question)
         #expect(try b.count("SELECT COUNT(*) FROM ck_seed_cursor") == 0, "nothing was compared")
     }
 

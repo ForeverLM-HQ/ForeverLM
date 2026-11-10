@@ -213,15 +213,3 @@ struct IdeaLink: Codable, Equatable, Hashable, Sendable {
     }
 }
 
-/// The `Idea` CloudKit record: the Idea and its links in one payload, the
-/// way a day plan carries its blocks — a link is meaningless without its
-/// Idea, and a second Mac must read the same chips. Schema gate: create
-/// `Idea` with `payload` and `userModificationDate` in Development, then
-/// deploy it to Production before shipping the build that writes it.
-struct CloudKitIdeaPayload: Codable, Sendable {
-    let idea: IdeaRecord
-
-    init(idea: IdeaRecord) {
-        self.idea = idea
-    }
-}

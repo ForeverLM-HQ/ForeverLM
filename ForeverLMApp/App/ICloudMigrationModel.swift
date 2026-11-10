@@ -5,7 +5,6 @@ import OSLog
 /// Settings › iCloud's model of the library's move to the new iCloud store (docs/cloudkit-schema-design.md
 /// §13.3 to §13.8): what it shows (`ICloudMigrationState`) and what its buttons do. Everything that touches
 /// the store, iCloud or the files runs off the main actor; this class only holds the latest values.
-/// Generation 1 has none of it: the state stays nil and nothing in the pane shows.
 @MainActor
 @Observable
 final class ICloudMigrationModel {
@@ -14,7 +13,6 @@ final class ICloudMigrationModel {
     enum Work: Equatable {
         case refreshing
         case confirmingLibrary
-        case answeringQuestion
         case uploadingAgain
     }
 
@@ -24,17 +22,13 @@ final class ICloudMigrationModel {
     private(set) var notice: String?
 
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "ICloudMigration")
-    /// The parity report walks every old asset's file, so it is measured at most this often.
-    private static let parityInterval: TimeInterval = 10 * 60
-    @ObservationIgnored private var parity: (report: ByteParityReport, at: Date)?
 
     private init() {}
 
     // MARK: - Reading
 
-    /// Reads the store, the coordinator, late import and the removal gate. Cheap enough for each time the
-    /// pane appears and after each sync; the parity report is reused for ten minutes unless `forceParity`.
-    func refresh(forceParity: Bool = false) async {
+    /// Reads the store and the coordinator. Cheap enough for each time the pane appears and after each sync.
+    func refresh() async {
         if work == nil { work = .refreshing }
         defer { if work == .refreshing { work = nil } }
         let storage = StorageService()
@@ -48,21 +42,7 @@ final class ICloudMigrationModel {
             return
         }
         let sync = await coordinator?.status
-        let imports = try? await MigrationServices.shared.importer?.facts()
-        var report: ByteParityReport?
-        if imports != nil, snapshot.isActivated {
-            if !forceParity, let parity, Date().timeIntervalSince(parity.at) < Self.parityInterval {
-                report = parity.report
-            } else {
-                report = try? await storage.performStoreWork { try ByteParityReport.compute(in: $0) }
-                if let report { parity = (report, Date()) }
-            }
-        }
-        let now = Date()
-        state = ICloudMigrationState(
-            snapshot: snapshot, sync: sync, imports: imports, parity: report,
-            gate: OldContainerRemovalGate.evaluate(facts: imports, parity: report, now: now), now: now
-        )
+        state = ICloudMigrationState(snapshot: snapshot, sync: sync, now: Date())
     }
 
     // MARK: - Buttons
@@ -92,24 +72,6 @@ final class ICloudMigrationModel {
             notice = "Could not start: \(error.localizedDescription)"
         }
         await refresh()
-    }
-
-    /// Apply or Keep for an import pass's or a refresh's 5% question (§13.6, R7-m3).
-    func answerImportQuestion(_ answer: ImportQuestionAnswer) async {
-        notice = nil
-        guard let question = state?.imports?.question, let importer = MigrationServices.shared.importer else {
-            notice = "No question about the old iCloud library is waiting."
-            return
-        }
-        work = .answeringQuestion
-        defer { work = nil }
-        do {
-            try await importer.answer(question, answer)
-            notice = answer == .apply ? "Applying the old library's removals." : "Keeping what those removals would have taken."
-        } catch {
-            notice = "Could not answer: \(error.localizedDescription)"
-        }
-        await refresh(forceParity: true)
     }
 
     /// Replaces what iCloud holds of this Mac's library with this Mac's copy: the zones go, then the

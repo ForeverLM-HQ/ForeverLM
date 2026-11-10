@@ -153,39 +153,29 @@ struct ReviewExchangeRatingSyncTests {
         let xml = try #require(PreferenceStore.encodePlist(json))
         let store = try KnowledgeStore(storeDirectory: root)
         try store.writePreference(key: key, valuePlistXML: xml)
-        try store.clearAllPendingSyncChanges()
         defaults.set(json, forKey: key)
 
         let storage = StorageService(storeRoot: root)
         await RetiredQuestionCalibration.clearOnce(storage: storage, defaults: defaults)
         #expect(try store.loadAllPreferences()[key] == nil)
-        #expect(try store.pendingSyncChanges().contains {
-            $0.entity == .preference && $0.logicalKey == key && $0.operation == .delete
-        })
         #expect(defaults.object(forKey: key) == nil)
         #expect(defaults.bool(forKey: RetiredQuestionCalibration.clearedKey))
 
         // Once only: a copy an older Mac writes back afterwards is left alone.
-        try store.clearAllPendingSyncChanges()
         try store.writePreference(key: key, valuePlistXML: xml)
-        try store.clearAllPendingSyncChanges()
         await RetiredQuestionCalibration.clearOnce(storage: storage, defaults: defaults)
         #expect(try store.loadAllPreferences()[key] != nil)
-        #expect(try store.pendingSyncChangeCount() == 0)
     }
 
-    @Test("A library that never had a calibration queues nothing")
+    @Test("A library that never had a calibration is marked cleared")
     func retiredCalibrationAbsentQueuesNothing() async throws {
         let root = try Self.makeRoot()
         defer { try? FileManager.default.removeItem(at: root) }
         let suite = "ReviewExchangeRatingSyncTests-\(UUID().uuidString)"
         let defaults = try #require(UserDefaults(suiteName: suite))
         defer { defaults.removePersistentDomain(forName: suite) }
-        let store = try KnowledgeStore(storeDirectory: root)
-        try store.clearAllPendingSyncChanges()
 
         await RetiredQuestionCalibration.clearOnce(storage: StorageService(storeRoot: root), defaults: defaults)
-        #expect(try store.pendingSyncChangeCount() == 0)
         #expect(defaults.bool(forKey: RetiredQuestionCalibration.clearedKey))
     }
 }

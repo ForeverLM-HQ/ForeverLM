@@ -16,52 +16,6 @@ struct NotebookWorkbenchPlanTests {
         #expect(!StudioViewModel.cloudKitEntitiesRequireMemoryRefresh([.preference]))
     }
 
-    @MainActor @Test func immutableSyncConflictsAreExplainedWithoutClaimingSuccess() {
-        let single = StudioViewModel.cloudKitSyncConflictToast(
-            entity: .memoryItem,
-            reason: "The source-grounded rubric differs.",
-            count: 1
-        )
-        #expect(single.contains("Cloud sync stopped"))
-        #expect(single.contains("memory idea"))
-        #expect(single.contains("local copy is intact"))
-        #expect(!single.localizedCaseInsensitiveContains("synced successfully"))
-
-        let multiple = StudioViewModel.cloudKitSyncConflictToast(
-            entity: .memoryAttempt,
-            reason: "Immutable attempts disagree.",
-            count: 3
-        )
-        #expect(multiple.contains("3 learning records"))
-        #expect(multiple.contains("local copies are intact"))
-
-        let malformedWebImport = StudioViewModel.cloudKitSyncConflictToast(
-            entity: .source,
-            reason: CloudKitInboundWebPDFRetry.quarantineReasonPrefix
-                + "CloudKit web PDF is unreadable.",
-            count: 1
-        )
-        #expect(malformedWebImport.contains("unreadable Web Studio file"))
-        #expect(malformedWebImport.contains("local library is intact"))
-        #expect(!malformedWebImport.contains("immutable evidence"))
-        #expect(!malformedWebImport.contains("devices disagree"))
-
-        // A refused save is not something the learner can resolve, so it must
-        // not borrow the conflict wording that asks them to.
-        let refusedSave = StudioViewModel.cloudKitSyncConflictToast(
-            entity: .artifact,
-            reason: CloudKitRejectedSaveQuarantine.encodedReason(
-                errorCode: 12,
-                message: "Cannot create new type Artifact in production schema"
-            ),
-            count: 2
-        )
-        #expect(refusedSave.contains("iCloud refused 2 records"))
-        #expect(refusedSave.contains("retries"))
-        #expect(refusedSave.contains("production schema"))
-        #expect(!refusedSave.contains("devices disagree"))
-    }
-
     private func companionGoal(
         items: [LearningGoalItem],
         gaps: [LearningGoalGap]? = nil
@@ -576,16 +530,4 @@ struct NotebookSourceRecommendationTests {
 
 @Suite("CloudKit: what a launch announces")
 struct CloudKitConflictLaunchToastTests {
-    @Test("A refusal the engine's start re-arms is not announced at launch; a conflict that needs the learner still is")
-    func launchSkipsWhatStartRetries() {
-        let refusedSave = CloudKitRejectedSaveQuarantine.encodedReason(
-            errorCode: 12,
-            message: "Cannot create or modify field 'payloadAsset' in record 'ReviewSession' in production schema"
-        )
-        let refusedDelete = CloudKitRejectedChangeQuarantine.encodedReason(operation: .delete, errorCode: 12, message: "refused")
-        #expect(StudioViewModel.isRearmedAtEngineStart(reason: refusedSave))
-        #expect(StudioViewModel.isRearmedAtEngineStart(reason: refusedDelete))
-        #expect(!StudioViewModel.isRearmedAtEngineStart(reason: "Both sides changed the same passage."))
-        #expect(!StudioViewModel.isRearmedAtEngineStart(reason: CloudKitInboundWebPDFRetry.quarantineReasonPrefix + " unreadable"))
-    }
 }

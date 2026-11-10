@@ -252,7 +252,7 @@ struct NotebookCollectionsViewModelTests {
         }
     }
 
-    @Test("A deleted notebook leaves its collections, and a merged one's go to the survivor")
+    @Test("A deleted notebook leaves its collections, and the other notebooks keep theirs")
     func deleteAndMerge() throws {
         try withCollectionDefaults { defaults in
             let vm = makeViewModel()
@@ -260,15 +260,11 @@ struct NotebookCollectionsViewModelTests {
             let first = try #require(vm.createNotebookCollection(named: "First", adding: ["a"]))
             let second = try #require(vm.createNotebookCollection(named: "Second", adding: ["a", "b"]))
 
-            vm.mergeNotebookCollections("a", into: "b")
-            #expect(memberships("b") == [first.id, second.id])
-            #expect(memberships("a").isEmpty)
-            #expect(vm.notebookCollections.collections(ofNotebook: "b").map(\.id) == [first.id, second.id])
-
             vm.forgetNotebookCollections(of: "b")
             #expect(memberships("b").isEmpty)
             #expect(vm.notebookCollections.collections(ofNotebook: "b").isEmpty)
-            #expect(vm.orderedNotebookCollections.count == 2, "the collections stay, empty")
+            #expect(memberships("a") == [first.id, second.id], "the other notebook keeps its own")
+            #expect(vm.orderedNotebookCollections.count == 2, "the collections stay")
         }
     }
 

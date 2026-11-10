@@ -233,14 +233,3 @@ extension Array where Element == SkillRecord {
     }
 }
 
-/// One skill in one `Skill` CloudKit record. Private zone only. Schema gate:
-/// create `Skill` with `payload` (encrypted bytes) and `userModificationDate`
-/// (encrypted timestamp) in Development, then deploy it to Production before
-/// shipping schema 136.
-struct CloudKitSkillPayload: Codable, Sendable {
-    let skill: SkillRecord
-
-    init(skill: SkillRecord) {
-        self.skill = skill
-    }
-}

@@ -128,45 +128,6 @@ struct NotebookChatSelectionTests {
         )
     }
 
-    @Test("A source arrives ticked where it was added; a notebook only linked brings nothing to the notebooks linking it")
-    func arrivalsTickWhereTheSourceArrived() {
-        // B gained x and y; A links B and C but put neither into its chats.
-        let b = notebook("B", sources: ["x", "y"])
-        let a = notebook("A", sources: ["y"], related: ["B", "C"])
-        let unrelated = notebook("D", sources: ["x"])
-        let arrivals = ["B": ["x", "y"]]
-
-        #expect(NotebookChatSelection.arrivalsToTick(in: b, arrivals: arrivals) == ["x", "y"],
-                "where it was added, every arrival: the add asked for it")
-        #expect(NotebookChatSelection.arrivalsToTick(in: a, arrivals: arrivals).isEmpty)
-        #expect(NotebookChatSelection.arrivalsToTick(in: unrelated, arrivals: arrivals).isEmpty)
-        #expect(NotebookChatSelection.arrivalsToTick(in: a, arrivals: ["A": ["z", "z"]]) == ["z"], "each once")
-        #expect(NotebookChatSelection.arrivalsToTick(in: a, arrivals: [:]).isEmpty)
-    }
-
-    @Test("A source arriving in a context notebook the notebook put in ticks there, unless the notebook already showed it; one only linked brings nothing")
-    func contextNotebookArrivalsTick() {
-        let a = notebook("A", sources: ["own"], related: ["B", "C"])
-        let arrivals = ["B": ["x", "own", "c1"], "C": ["y"]]
-        let approved = ["B": ["x", "own", "c1"], "C": ["c1", "y"]]
-        let putIn = NotebookChatSelection.contextNotebookIDs(of: a, putIn: ["B"])
-        #expect(putIn == ["B"])
-        #expect(NotebookChatSelection.arrivalsToTick(in: a, arrivals: arrivals, contextNotebookIDs: putIn, approvedOf: { approved[$0] }) == ["x", "c1"],
-                "x and c1 came in through B; own was A's already")
-        #expect(NotebookChatSelection.arrivalsToTick(in: a, arrivals: arrivals).isEmpty, "linked, not put in: nothing")
-        let both = NotebookChatSelection.contextNotebookIDs(of: a, putIn: ["C", "B", "elsewhere"])
-        #expect(both == ["B", "C"], "link order, linked ones only")
-        #expect(NotebookChatSelection.arrivalsToTick(in: a, arrivals: ["B": ["c1"]], contextNotebookIDs: both, approvedOf: { approved[$0] }).isEmpty,
-                "c1 was in A's chats already through C")
-
-        let t0 = Date(timeIntervalSinceReferenceDate: 800_000_000)
-        let inbound = ["B": [NotebookChatSelection.Arrival(sourceID: "x", joinedAt: t0)]]
-        #expect(NotebookChatSelection.inboundArrivalsToTick(in: a, arrivals: inbound, exclusionWrittenAt: t0.addingTimeInterval(-60), contextNotebookIDs: putIn, approvedOf: { approved[$0] }) == ["x"],
-                "an untick from before x joined B goes")
-        #expect(NotebookChatSelection.inboundArrivalsToTick(in: a, arrivals: inbound, exclusionWrittenAt: t0.addingTimeInterval(60), contextNotebookIDs: putIn, approvedOf: { approved[$0] }).isEmpty,
-                "an untick that may be from after it stands")
-    }
-
     // MARK: - Arrivals from another device
 
     private func item(_ notebookID: String, _ sourceID: String, addedAt: Date, state: LearningGoalItemReviewState? = nil) -> LearningGoalItem {
@@ -219,69 +180,6 @@ struct NotebookChatSelectionTests {
             .init(sourceID: "c", joinedAt: removed),
             .init(sourceID: "d", joinedAt: t1),
         ]], "an item that was there was approved after the version this Mac held, never later than t2 but no earlier than that version; a new item joined when added; a rename brings nothing; a notebook new to this Mac is not compared")
-    }
-
-    @Test("An untick from before a source joined goes; one made after it, on any device, stands")
-    func inboundArrivalsTickOnlyStaleUnticks() {
-        let t0 = Date(timeIntervalSinceReferenceDate: 800_000_000)
-        let joined = t0.addingTimeInterval(600)
-        let n = notebook("N", items: [item("N", "x", addedAt: t0), item("N", "y", addedAt: t0)], updatedAt: joined)
-        let arrivals: [String: [NotebookChatSelection.Arrival]] = ["N": [.init(sourceID: "x", joinedAt: joined)]]
-
-        #expect(NotebookChatSelection.inboundArrivalsToTick(in: n, arrivals: arrivals, exclusionWrittenAt: t0) == ["x"],
-                "the row was written before x came back: its untick is from when x last left")
-        #expect(NotebookChatSelection.inboundArrivalsToTick(in: n, arrivals: arrivals, exclusionWrittenAt: joined.addingTimeInterval(5)).isEmpty,
-                "the row was written after x joined: added, then unticked, before this Mac heard of either")
-        #expect(NotebookChatSelection.inboundArrivalsToTick(in: n, arrivals: arrivals, exclusionWrittenAt: nil) == ["x"],
-                "a row with no known date is older than every join")
-        #expect(NotebookChatSelection.inboundArrivalsToTick(in: n, arrivals: [:], exclusionWrittenAt: t0).isEmpty,
-                "nothing joined, nothing ticks: an untick that arrives alone is never undone")
-    }
-
-    @Test("A source added back, then unticked, then the notebook edited again, all before this Mac syncs, stays unticked")
-    func inboundReAddThenUntickThenEditKeepsTheUntick() {
-        let t0 = Date(timeIntervalSinceReferenceDate: 800_000_000)
-        // This Mac last saw b removed, at 9:00.
-        let removedAt = t0
-        let before = notebook("N", items: [
-            item("N", "a", addedAt: t0.addingTimeInterval(-3_600)),
-            item("N", "b", addedAt: t0.addingTimeInterval(-3_600), state: .rejected),
-        ], updatedAt: removedAt)
-        // On the phone, with this Mac asleep: b added back at 10:00 (the same
-        // item approved again, its first addedAt kept), b unticked at 10:01,
-        // then c added (or the notebook renamed) at 10:02.
-        let reAdded = t0.addingTimeInterval(3_600)
-        let unticked = reAdded.addingTimeInterval(60)
-        let edited = unticked.addingTimeInterval(60)
-        let after = notebook("N", items: [
-            item("N", "a", addedAt: t0.addingTimeInterval(-3_600)),
-            item("N", "b", addedAt: t0.addingTimeInterval(-3_600), state: .approved),
-            item("N", "c", addedAt: edited),
-        ], updatedAt: edited)
-
-        let arrivals = NotebookChatSelection.inboundArrivals(before: [before], after: [after])
-        let tick = NotebookChatSelection.inboundArrivalsToTick(in: after, arrivals: arrivals, exclusionWrittenAt: unticked)
-
-        #expect(!tick.contains("b"), "b was unticked after it came back; the later edit does not make that untick look stale")
-        #expect(tick == ["c"], "c, added after the row was written, is the add's to tick")
-
-        // The reported case: b unticked at 8:00, then removed on an older
-        // phone at 9:00 (the version this Mac held), then added back. The row
-        // is older than anything b's return can follow, so b comes back ticked.
-        let staleUntick = t0.addingTimeInterval(-3_600)
-        #expect(NotebookChatSelection.inboundArrivalsToTick(in: after, arrivals: arrivals, exclusionWrittenAt: staleUntick) == ["b", "c"])
-    }
-
-    @Test("A source that joined a context notebook on another device ticks nothing in the notebook linking it")
-    func inboundArrivalsInAContextNotebook() {
-        let t0 = Date(timeIntervalSinceReferenceDate: 800_000_000)
-        let joined = t0.addingTimeInterval(600)
-        let a = notebook("A", items: [item("A", "a", addedAt: t0)], updatedAt: t0, related: ["B"])
-        let arrivals: [String: [NotebookChatSelection.Arrival]] = ["B": [.init(sourceID: "x", joinedAt: joined)]]
-
-        #expect(NotebookChatSelection.inboundArrivalsToTick(in: a, arrivals: arrivals, exclusionWrittenAt: t0).isEmpty,
-                "B's box in A says whether A's chats read x")
-        #expect(NotebookChatSelection.inboundArrivalsToTick(in: a, arrivals: arrivals, exclusionWrittenAt: nil).isEmpty)
     }
 }
 

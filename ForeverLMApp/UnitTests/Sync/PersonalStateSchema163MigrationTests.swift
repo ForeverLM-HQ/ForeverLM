@@ -44,7 +44,7 @@ struct PersonalStateSchema163MigrationTests {
         sqlite3_close(database)
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(version))
         #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM sqlite_master WHERE name IN ('devices', 'blocked_podcast_shows')") == 0)
-        let counts = ["sources", "user_preferences", "hidden_sources", "source_highlights", "sync_metadata"]
+        let counts = ["sources", "user_preferences", "hidden_sources", "source_highlights"]
         let before = counts.map { Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM \($0)") }
 
         let migrated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
@@ -52,7 +52,6 @@ struct PersonalStateSchema163MigrationTests {
         #expect(counts.map { Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM \($0)") } == before)
         #expect(Self.filledCount(root) == 0, "nothing filled before the activation")
         #expect(try Schema154Fixture.count(migrated, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger'") == 0)
-        #expect(try migrated.pendingSyncChanges().isEmpty, "a schema-only migration republishes nothing")
     }
 
     @Test("A migrated store and a fresh one hold the same 163 tables")
@@ -103,6 +102,7 @@ struct PersonalStateSchema163MigrationTests {
         defer { try? FileManager.default.removeItem(at: root) }
         do {
             let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+            try Schema154Fixture.restoreGeneration1Tables(store)
             // 6,000 sources, 1,500 preference rows, 17,000 sync rows: the step is DDL only, so none is read.
             try store.execForTesting("""
                 BEGIN IMMEDIATE;

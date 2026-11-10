@@ -1,54 +1,6 @@
 import Foundation
 import SQLite3
 
-/// The synced record for one idea. Its own CloudKit record type (`SourceIdea`)
-/// rather than a field inside the Source record: ideas are written by one
-/// billed extraction and read by every review on either device, while the
-/// Source record carries content assets that must not republish because a
-/// grade retired an idea.
-struct CloudKitSourceIdeaPayload: Codable, Sendable {
-    static let currentVersion = 1
-
-    let payloadVersion: Int
-    let idea: SourceIdea
-    /// Portable identity of the idea's source, so the receiving device can map
-    /// `idea.sourceID` onto its own row the way memory items already do.
-    let sourceIdentities: [CloudKitSourceIdentityPayload]
-
-    init(
-        payloadVersion: Int = Self.currentVersion,
-        idea: SourceIdea,
-        sourceIdentities: [CloudKitSourceIdentityPayload] = []
-    ) {
-        self.payloadVersion = payloadVersion
-        self.idea = idea
-        self.sourceIdentities = sourceIdentities
-    }
-
-    private enum CodingKeys: String, CodingKey {
-        case payloadVersion
-        case idea
-        case sourceIdentities
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        payloadVersion = try container.decodeIfPresent(Int.self, forKey: .payloadVersion) ?? 0
-        idea = try container.decode(SourceIdea.self, forKey: .idea)
-        sourceIdentities = try container.decodeIfPresent(
-            [CloudKitSourceIdentityPayload].self,
-            forKey: .sourceIdentities
-        ) ?? []
-    }
-
-    func encode(to encoder: Encoder) throws {
-        var container = encoder.container(keyedBy: CodingKeys.self)
-        try container.encode(payloadVersion, forKey: .payloadVersion)
-        try container.encode(idea, forKey: .idea)
-        try container.encode(sourceIdentities, forKey: .sourceIdentities)
-    }
-}
-
 extension KnowledgeStore {
 
     // MARK: - Source ideas
@@ -109,16 +61,6 @@ extension KnowledgeStore {
         return result
     }
 
-    func loadSourceIdea(_ id: String) throws -> SourceIdea? {
-        var idea: SourceIdea?
-        try queryBind("SELECT \(Self.sourceIdeaColumns) FROM source_ideas WHERE id = ? LIMIT 1", bind: { stmt in
-            bind(stmt, 1, id)
-        }) { stmt in
-            idea = self.readSourceIdeaRow(stmt)
-        }
-        return idea
-    }
-
     /// The hash the source's active ideas were extracted from, or nil when the
     /// source has none. `SourceIdeaExtractionService` compares it with the
     /// current text to decide whether a source needs extraction.
@@ -160,11 +102,9 @@ extension KnowledgeStore {
                     bind(stmt, 1, now.timeIntervalSinceReferenceDate)
                     bind(stmt, 2, id)
                 }
-                try markRecordChanged(entity: .sourceIdea, logicalKey: id, at: now)
             }
             for idea in ideas.prefix(SourceIdea.maximumPerSource) {
                 try upsertSourceIdeaRow(idea)
-                try markRecordChanged(entity: .sourceIdea, logicalKey: idea.id, at: idea.updatedAt)
             }
             try exec("COMMIT")
         } catch {
@@ -181,7 +121,6 @@ extension KnowledgeStore {
             bind(stmt, 2, now.timeIntervalSinceReferenceDate)
             bind(stmt, 3, id)
         }
-        try markRecordChanged(entity: .sourceIdea, logicalKey: id, at: now)
     }
 
     private func upsertSourceIdeaRow(_ idea: SourceIdea) throws {
@@ -221,77 +160,12 @@ extension KnowledgeStore {
 
     // MARK: Sync
 
-    func loadSourceIdeaForSync(_ id: String) throws -> CloudKitSourceIdeaPayload? {
-        guard let idea = try loadSourceIdea(id) else { return nil }
-        return CloudKitSourceIdeaPayload(
-            idea: idea,
-            sourceIdentities: try sourceIdentities(for: [idea.sourceID])
-        )
-    }
-
-    /// Applies an inbound idea. The source id is remapped through the portable
-    /// identity the payload carries; a newer local row wins, so a stale copy
-    /// arriving from a device that has not synced cannot un-retire an idea.
-    func saveSourceIdeaRecord(_ payload: CloudKitSourceIdeaPayload) throws {
-        let resolvedSourceID = try resolveSourceIDs([payload.idea.sourceID], identities: payload.sourceIdentities).first
-            ?? payload.idea.sourceID
-        var incoming = payload.idea
-        if resolvedSourceID != incoming.sourceID {
-            incoming = SourceIdea(
-                id: incoming.id,
-                sourceID: resolvedSourceID,
-                statement: incoming.statement,
-                recallNote: incoming.recallNote,
-                anchors: incoming.anchors,
-                wanted: incoming.wanted,
-                originSessionID: incoming.originSessionID,
-                contentHash: incoming.contentHash,
-                status: incoming.status,
-                sortIndex: incoming.sortIndex,
-                createdAt: incoming.createdAt,
-                updatedAt: incoming.updatedAt
-            )
-        }
-        if let existing = try loadSourceIdea(incoming.id), existing.updatedAt > incoming.updatedAt {
-            return
-        }
-        try upsertSourceIdeaRow(incoming)
-    }
-
-    func deleteSourceIdeaRecord(_ id: String) throws {
-        try execBind("DELETE FROM source_ideas WHERE id = ?") { stmt in
-            bind(stmt, 1, id)
-        }
-    }
-
-    func hasSourceIdea(_ id: String) throws -> Bool {
-        var found = false
-        try queryBind("SELECT 1 FROM source_ideas WHERE id = ? LIMIT 1", bind: { stmt in
-            bind(stmt, 1, id)
-        }) { _ in
-            found = true
-        }
-        return found
-    }
-
-    func loadAllSourceIdeaIDs() throws -> [String] {
-        var ids: [String] = []
-        try query("SELECT id FROM source_ideas ORDER BY id") { stmt in
-            if let id = self.string(stmt, 0) { ids.append(id) }
-        }
-        return ids
-    }
-
     // MARK: - Review depth
 
     func loadSourceReviewDepths(sourceIDs: [String]) throws -> [String: MemoryReviewDepth] {
         let ids = Array(Set(sourceIDs))
         guard !ids.isEmpty else { return [:] }
         return try readingStateReviewDepths(sourceIDs: ids).compactMapValues(MemoryReviewDepth.init(rawValue:))
-    }
-
-    func loadSourceReviewDepth(sourceID: String) throws -> MemoryReviewDepth? {
-        try loadSourceReviewDepths(sourceIDs: [sourceID])[sourceID]
     }
 
     /// Sets or clears a source's review depth. Synced with the source, since
@@ -310,14 +184,6 @@ extension KnowledgeStore {
         return
     }
 
-    /// The inbound twin: applies a synced depth without republishing.
-    func saveSourceReviewDepthFromSync(sourceID: String, depth: String?) throws {
-        try execBind("UPDATE sources SET review_depth = ? WHERE id = ?") { stmt in
-            bind(stmt, 1, depth)
-            bind(stmt, 2, sourceID)
-        }
-    }
-
     // MARK: - Memory review chat briefing
 
     /// The briefing a memory chat's tutor carries: the day's plan, its ideas
@@ -329,7 +195,7 @@ extension KnowledgeStore {
             bind(stmt, 1, briefing)
             bind(stmt, 2, sessionID)
         }
-        try markRecordChanged(entity: .reviewSession, logicalKey: sessionID)
+        noteStoreChanged()
     }
 
     func loadReviewSessionBriefing(sessionID: String) throws -> String? {
@@ -386,7 +252,7 @@ extension KnowledgeStore {
             bind(stmt, 5, sessionID)
             sqlite3_bind_int(stmt, 6, Int32(sequence))
         }
-        try markRecordChanged(entity: .reviewSession, logicalKey: sessionID)
+        noteStoreChanged()
     }
 
     /// Records the learner's steer after the latest graded contour that has not
@@ -419,7 +285,7 @@ extension KnowledgeStore {
             bind(stmt, 2, sessionID)
             sqlite3_bind_int(stmt, 3, Int32(target.sequence))
         }
-        try markRecordChanged(entity: .reviewSession, logicalKey: sessionID)
+        noteStoreChanged()
         return MemoryIdeaCoverage.decode(target.coverage)
     }
 
@@ -479,16 +345,4 @@ extension KnowledgeStore {
         return result
     }
 
-    func loadReviewSessionKind(sessionID: String) throws -> ReviewSessionKind? {
-        var kind: ReviewSessionKind?
-        try queryBind("SELECT kind FROM review_sessions WHERE id = ? LIMIT 1", bind: { stmt in
-            bind(stmt, 1, sessionID)
-        }) { stmt in
-            kind = self.string(stmt, 0).flatMap(ReviewSessionKind.init(rawValue:))
-        }
-        if kind == nil, MemoryReviewSession.isMemorySession(sessionID) {
-            return .memory
-        }
-        return kind
-    }
 }

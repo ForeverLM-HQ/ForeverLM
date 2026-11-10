@@ -67,7 +67,7 @@ struct TasksSchema162MigrationTests {
         for added in KnowledgeStore.tasksSyncColumns {
             #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM pragma_table_info('\(added.table)') WHERE name = '\(added.column)'") == 0)
         }
-        let counts = ["sources", "notebook_tasks", "share_requests", "meeting_action_items", "scheduled_tasks", "scheduled_task_runs", "sync_metadata"]
+        let counts = ["sources", "notebook_tasks", "share_requests", "meeting_action_items", "scheduled_tasks", "scheduled_task_runs"]
         let before = counts.map { Schema154Fixture.rowCount(at: root, $0) }
 
         let migrated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
@@ -75,7 +75,6 @@ struct TasksSchema162MigrationTests {
         #expect(counts.map { Schema154Fixture.rowCount(at: root, $0) } == before)
         #expect(Self.filledCount(root) == 0, "nothing filled before the activation")
         #expect(try Schema154Fixture.count(migrated, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger'") == 0)
-        #expect(try migrated.pendingSyncChanges().isEmpty, "a schema-only migration republishes nothing")
         #expect(Set(try migrated.loadSourcesWithoutContent().map(\.id)) == Set(library.sourceIDs))
         #expect(try migrated.loadNotebookTasks(notebookID: library.notebookID).map(\.id) == ["task-1", "task-2"])
         #expect(try migrated.loadScheduledTaskRuns(taskID: "auto-1").map(\.id) == ["run-2", "run-1"])
@@ -149,6 +148,7 @@ struct TasksSchema162MigrationTests {
         defer { try? FileManager.default.removeItem(at: root) }
         do {
             let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+            try Schema154Fixture.restoreGeneration1Tables(store)
             // 6,000 sources; 2,000 tasks, 500 share requests, 2,000 action items; 50 automations with 1,000 runs;
             // 17,000 sync rows. Production holds none of the tasks or automations (2026-10-04): this is 10× and more.
             try store.execForTesting("""

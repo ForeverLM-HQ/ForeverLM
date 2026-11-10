@@ -181,26 +181,21 @@ struct CutoverSeederTests {
         }
     }
 
-    @Test("A record takes its migrated time: a pending old change's date, else the old record's modification date, else the row's own, else the walk's start")
+    @Test("A record takes its migrated time: the row's own, else the walk's start")
     func migratedTimes() async throws {
         let server = EngineTestDriver.server()
         let mac = try await C.seeder(server, name: "seed-times")
         let store = mac.store
-        try store.execute("""
-            INSERT INTO sync_metadata (entity_type, logical_key, record_name, system_fields, user_modification_at, is_deleted)
-            VALUES ('source', 's2', 'src-s2', NULL, 50000, 0), ('source', 's3', 'src-s3', NULL, 50000, 0)
-        """)
-        try store.execute("INSERT INTO sync_changes (entity_type, logical_key, record_name, operation, changed_at) VALUES ('source', 's3', 'src-s3', 'save', 60000)")
         _ = try await CutoverSeeder(C.environment(mac)).run()
         let offset = try #require(try store.replica.loadClock()?.serverOffset)
         // The clock's offset moves a few milliseconds as acknowledged saves add samples.
         func expected(_ seconds: Double) -> Int64 { SyncTime.milliseconds(cocoaSeconds: seconds) + offset }
         func isAbout(_ actual: Int64?, _ seconds: Double) -> Bool { actual.map { abs($0 - expected(seconds)) < 200 } ?? false }
 
-        #expect(isAbout(C.stampMilliseconds(try mac.serverEnvelope(.source, "s2", zone: "Catalog"), "title"), 50_000), "the old record's modification date")
-        #expect(isAbout(C.stampMilliseconds(try mac.serverEnvelope(.source, "s3", zone: "Catalog"), "title"), 60_000), "the pending old change wins")
-        // s1 has no old record and its address row has no time of its own: the walk's start.
-        #expect(isAbout(C.stampMilliseconds(try mac.serverEnvelope(.source, "s1", zone: "Catalog"), "title"), 700_000_000))
+        // A source's address row has no time of its own: the walk's start.
+        for id in ["s1", "s2", "s3"] {
+            #expect(isAbout(C.stampMilliseconds(try mac.serverEnvelope(.source, id, zone: "Catalog"), "title"), 700_000_000), "\(id)")
+        }
         // A notebook's row has its own: updated_at 1000.
         #expect(isAbout(C.stampMilliseconds(try mac.serverEnvelope(.notebook, "nb1"), "title"), 1000))
     }
@@ -256,23 +251,16 @@ struct CutoverSeederTests {
         #expect(try mac.serverEnvelope(.source, "s2", zone: "Catalog")?.fields["title"] == .string("Edited meanwhile"), "the edit went out with its pass")
     }
 
-    @Test("A highlight is seeded at its migrated time: its own times are Unix seconds, and its old record's date wins when it has one")
+    @Test("A highlight is seeded at its own time, which it keeps in Unix seconds")
     func highlightsAreSeeded() async throws {
         let server = EngineTestDriver.server()
         let mac = try await C.seeder(server, name: "seed-highlights")
         let store = mac.store
         let unix = 1_700_000_000.0
         try C.quietly(store) {
-            for id in ["hl_own", "hl_old", "hl_zero"] {
-                try HighlightRow(id: id, sourceID: "s1", pageIndex: 0, geometryJSON: "[]", text: "Complex I", color: SourceHighlightColor.default.rawValue,
-                                 createdAt: unix, updatedAt: unix).save(store)
-            }
+            try HighlightRow(id: "hl_own", sourceID: "s1", pageIndex: 0, geometryJSON: "[]", text: "Complex I", color: SourceHighlightColor.default.rawValue,
+                             createdAt: unix, updatedAt: unix).save(store)
         }
-        // Generation 1 synced a highlight as `sourceHighlight`, keyed by its id; a zero date is no date.
-        try store.execute("""
-            INSERT INTO sync_metadata (entity_type, logical_key, record_name, system_fields, user_modification_at, is_deleted)
-            VALUES ('sourceHighlight', 'hl_old', 'hl-old', NULL, 50000, 0), ('sourceHighlight', 'hl_zero', 'hl-zero', NULL, 0, 0)
-        """)
         let outcome = try await CutoverSeeder(C.environment(mac)).run()
         guard case .complete = outcome else { Issue.record("the seed did not finish: \(outcome)"); return }
         let offset = try #require(try store.replica.loadClock()?.serverOffset)
@@ -281,8 +269,6 @@ struct CutoverSeederTests {
         }
         let own = unix - Date.timeIntervalBetween1970AndReferenceDate
         #expect(isAbout(C.stampMilliseconds(try mac.serverEnvelope(.highlight, "hl_own"), "color"), own), "the row's own time, converted from Unix seconds")
-        #expect(isAbout(C.stampMilliseconds(try mac.serverEnvelope(.highlight, "hl_old"), "color"), 50_000), "the old record's modification date")
-        #expect(isAbout(C.stampMilliseconds(try mac.serverEnvelope(.highlight, "hl_zero"), "color"), own))
         #expect(try mac.outboxRows() == 0, "every highlight went out")
     }
 

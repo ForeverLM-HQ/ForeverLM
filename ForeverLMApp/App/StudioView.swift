@@ -521,12 +521,7 @@ struct StudioView: View {
             // in the bell instead.
             let tray = CornerNoticeTray.shared
             let subjects = vm.inboxSubjects(planDay: DayModel.shared.planTheDayAsk)
-            if let card = ActivationNotice.shared.card, tray.showsInCorner(.libraryMove, subject: subjects.subject(.libraryMove)) {
-                ActivationCard(title: card.title, detail: card.detail, style: .floating)
-                    .padding(.leading, cornerCardLeadingInset)
-                    .padding(.bottom, StudioDesign.Spacing.large)
-                    .transition(.move(edge: .leading).combined(with: .opacity))
-            } else if let message = StoreUpgradeSpaceNotice.shared.visibleMessage,
+            if let message = StoreUpgradeSpaceNotice.shared.visibleMessage,
                       tray.showsInCorner(.storeUpgradeSpace, subject: subjects.subject(.storeUpgradeSpace)) {
                 StoreUpgradeSpaceCard(message: message, style: .floating)
                     .padding(.leading, cornerCardLeadingInset)

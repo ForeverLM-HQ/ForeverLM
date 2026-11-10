@@ -470,18 +470,6 @@ struct PaperWalkthrough: Codable, Equatable, Sendable {
         }
     }
 
-    /// The drawn pictures the steps name (`PaperWalkthroughPicture.imageID`),
-    /// lower-cased, in step order, each once. The Source record carries them
-    /// beside the walk (`WalkthroughPicturePackageFormat`), since a picture
-    /// lives in the image store of the Mac that drew or saved it.
-    var drawnPictureIDs: [String] {
-        var seen = Set<String>()
-        return steps.compactMap { step in
-            guard let id = step.picture?.imageID?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
-                  !id.isEmpty, seen.insert(id).inserted else { return nil }
-            return id
-        }
-    }
 }
 
 /// One claim of the source and the steps that teach it (2026-09-23, from
@@ -1335,24 +1323,6 @@ enum WalkthroughCardPicture: Equatable, Sendable {
     /// A picture drawn for the step, or for an earlier step of the chapter:
     /// the id and the brief it was drawn from.
     case drawn(imageID: String, brief: String?)
-}
-
-/// How a walk's drawn pictures ride its Source record, read by the Mac that
-/// packs and applies it (`WalkthroughPicturePackage`) and by the phone that
-/// shows it (`MobileSourceFileStore.walkthroughPicture`).
-///
-/// The field is one `CKAsset`: a binary property list of store file name
-/// (`<id>.<ext>`) → the file's bytes as stored, prompt and version in their
-/// XMP, plus one entry under `manifestName` whose bytes are a binary
-/// property list of the id each step names → the file name shown for it (the
-/// image's latest version when the step names the image, else that version
-/// as redrawn). A Mac rebuilds what it shows from the files' own XMP; the
-/// phone, which keeps no image store, reads the manifest.
-enum WalkthroughPicturePackageFormat {
-    static let field = "walkthroughPicturesAsset"
-    /// Not a store file name (`GeneratedImageReference.isValidID` refuses
-    /// it), so a Mac writing the package into its store skips it.
-    static let manifestName = "shown.plist"
 }
 
 /// An open question about what the step just showed, answered in the

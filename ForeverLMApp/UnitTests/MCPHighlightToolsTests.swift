@@ -638,40 +638,6 @@ struct MCPHighlightToolsTests {
         #expect(refused.text.contains("Copy the quote verbatim"))
     }
 
-    // MARK: Sync
-
-    @Test("Highlight writes stage CloudKit changes so other devices see them")
-    func writesStageSyncChanges() throws {
-        let (store, path) = try makeStore()
-        defer { cleanup(path) }
-        let sourceID = try seedArticle(in: store)
-
-        let created = try json(try store.createSourceHighlight(
-            sourceID: sourceID,
-            quote: "Spacing compounds that effect.",
-            note: "sync me",
-            color: nil
-        ))
-        let highlightID = try #require((created["highlight"] as? [String: Any])?["highlight_id"] as? String)
-
-        // A highlight save is deliberately withheld from `pendingSyncChanges`
-        // until its parent source has been published to CloudKit, so the proof
-        // that the write went through the tracked path is the staged change row.
-        func stagedOperations() throws -> [String] {
-            try store.withDB { db in
-                try store.query(
-                    db,
-                    "SELECT operation FROM sync_changes WHERE entity_type = 'sourceHighlight' AND logical_key = ?",
-                    params: [highlightID]
-                ).compactMap { $0["operation"] as? String }
-            }
-        }
-        #expect(try stagedOperations() == ["save"])
-
-        _ = try store.deleteSourceHighlight(highlightID: highlightID)
-        #expect(try stagedOperations() == ["delete"])
-    }
-
     // MARK: Marks another app made on a PDF
 
     private static let firstLine = "Retrieval practice beats rereading."
@@ -1025,7 +991,7 @@ struct MCPHighlightToolsTests {
             marksReviewed: false
         )
         let sessionID = try importedSessionID(in: opened)
-        #expect(try knowledge.loadReviewSessionKind(sessionID: sessionID) == .chat, "the choice is kept on the chat")
+        #expect(try knowledge.storedSessionKind(sessionID) == .chat, "the choice is kept on the chat")
 
         let appended = try store.importReviewChat(
             title: "",
@@ -1079,7 +1045,7 @@ struct MCPHighlightToolsTests {
             modelID: nil
         )
         let sessionID = try importedSessionID(in: opened)
-        #expect(try knowledge.loadReviewSessionKind(sessionID: sessionID) == nil, "a review import writes no kind, as before")
+        #expect(try knowledge.storedSessionKind(sessionID) == nil, "a review import writes no kind, as before")
 
         // A review keeps reviewing what later calls add.
         _ = try store.importReviewChat(
@@ -1111,40 +1077,7 @@ struct MCPHighlightToolsTests {
 
     // MARK: The link on the record
 
-    @Test("A mark's chat rides the synced record, and a mark without one encodes as before")
-    func chatLinkRoundTripsThroughSyncPayload() throws {
-        let now = Date(timeIntervalSince1970: 1_790_000_000)
-        var highlight = SourceHighlight(
-            id: "hl_link",
-            sourceID: "src_1",
-            quote: "RET does not occur in intact mammalian cells.",
-            note: "Since 2013: it does.",
-            color: .blue,
-            anchor: ReaderTextAnchor(exact: "RET does not occur in intact mammalian cells."),
-            pdfAnchor: nil,
-            chatSessionID: "chat-1",
-            createdAt: now,
-            updatedAt: now
-        )
-        let encoded = try JSONEncoder().encode(CloudKitSourceHighlightPayload(highlight: highlight, sourceIdentity: nil))
-        let decoded = try JSONDecoder().decode(CloudKitSourceHighlightPayload.self, from: encoded)
-        #expect(decoded.highlight.chatSessionID == "chat-1")
-
-        highlight.chatSessionID = nil
-        let bare = try JSONEncoder().encode(highlight)
-        let object = try #require(try JSONSerialization.jsonObject(with: bare) as? [String: Any])
-        #expect(object["chatSessionID"] == nil, "a mark with no chat keeps its old record shape")
-        #expect(try JSONDecoder().decode(SourceHighlight.self, from: bare).chatSessionID == nil)
-
-        // A record from a build that predates the field decodes as unlinked.
-        let blank = SourceHighlight(
-            id: "hl_blank", sourceID: "src_1", quote: "x", note: "", color: .yellow,
-            anchor: ReaderTextAnchor(exact: "x"), pdfAnchor: nil, createdAt: now, updatedAt: now
-        )
-        #expect(try JSONDecoder().decode(SourceHighlight.self, from: JSONEncoder().encode(blank)).chatSessionID == nil)
-    }
-
-    @Test("The store keeps a mark's chat through saves, links and inbound records")
+    @Test("The store keeps a mark's chat through saves and links")
     func storeKeepsChatLink() throws {
         let (store, path) = try makeStore()
         defer { cleanup(path) }
@@ -1173,12 +1106,6 @@ struct MCPHighlightToolsTests {
         try knowledge.saveSourceHighlight(highlight)
         #expect(try knowledge.sourceHighlights(sourceID: sourceID).first?.chatSessionID == "chat-7")
         #expect(try knowledge.sourceHighlights(sourceIDs: [sourceID])[sourceID]?.first?.chatSessionID == "chat-7")
-
-        // What another Mac sends replaces it, link and all.
-        var incoming = highlight
-        incoming.chatSessionID = "chat-8"
-        try knowledge.saveSourceHighlightRecord(CloudKitSourceHighlightPayload(highlight: incoming, sourceIdentity: nil))
-        #expect(try knowledge.sourceHighlight(id: highlight.id)?.chatSessionID == "chat-8")
 
         try knowledge.linkSourceHighlight(id: highlight.id, toChat: nil)
         #expect(try knowledge.sourceHighlight(id: highlight.id)?.chatSessionID == nil)
@@ -1270,31 +1197,7 @@ struct HighlightReferenceTests {
         #expect(SourceHighlightReference.make(citation: "   ", doi: "10.1/x") == nil)
     }
 
-    @Test("Cited papers ride the record, and a mark without any encodes as before")
-    func referencesRoundTrip() throws {
-        let now = Date(timeIntervalSince1970: 1_790_000_000)
-        let references = [
-            SourceHighlightReference(citation: "Vozza et al., PNAS 2014", title: "UCP2 transports C4 metabolites", url: "https://doi.org/10.1073/pnas.1320692111"),
-            SourceHighlightReference(citation: "Chouchani et al., Nature 2014", url: "https://doi.org/10.1038/nature13909"),
-        ]
-        var highlight = SourceHighlight(
-            id: "hl_refs", sourceID: "src_1", quote: "x", note: "Since 2013: …", color: .blue,
-            anchor: ReaderTextAnchor(exact: "x"), pdfAnchor: nil, references: references, createdAt: now, updatedAt: now
-        )
-        let encoded = try JSONEncoder().encode(CloudKitSourceHighlightPayload(highlight: highlight, sourceIdentity: nil))
-        #expect(try JSONDecoder().decode(CloudKitSourceHighlightPayload.self, from: encoded).highlight.references == references)
-
-        highlight.references = []
-        let bare = try #require(try JSONSerialization.jsonObject(with: JSONEncoder().encode(highlight)) as? [String: Any])
-        #expect(bare["references"] == nil, "a mark with no papers keeps its old record shape")
-
-        #expect(SourceHighlightReference.storedJSON([]) == nil)
-        #expect(SourceHighlightReference.references(storedJSON: SourceHighlightReference.storedJSON(references)) == references)
-        #expect(SourceHighlightReference.references(storedJSON: nil).isEmpty)
-        #expect(SourceHighlightReference.references(storedJSON: "not json").isEmpty)
-    }
-
-    @Test("The store keeps a mark's papers through saves and inbound records")
+    @Test("The store keeps a mark's papers through saves and links")
     func storeKeepsReferences() throws {
         let (store, path) = try makeStore()
         defer { try? FileManager.default.removeItem(atPath: path) }
@@ -1302,7 +1205,7 @@ struct HighlightReferenceTests {
         let knowledge = try store.knowledgeStore()
         let now = Date()
         let reference = SourceHighlightReference(citation: "Vozza et al., PNAS 2014", url: "https://doi.org/10.1073/pnas.1320692111")
-        var highlight = SourceHighlight(
+        let highlight = SourceHighlight(
             id: SourceHighlight.newID(), sourceID: sourceID, quote: "Spacing compounds that effect.", note: "",
             color: .blue, anchor: ReaderTextAnchor(exact: "Spacing compounds that effect."), pdfAnchor: nil,
             references: [reference], createdAt: now, updatedAt: now
@@ -1314,10 +1217,6 @@ struct HighlightReferenceTests {
         // Linking a chat later keeps the papers.
         try knowledge.linkSourceHighlight(id: highlight.id, toChat: "chat-1")
         #expect(try knowledge.sourceHighlight(id: highlight.id)?.references == [reference])
-
-        highlight.references = []
-        try knowledge.saveSourceHighlightRecord(CloudKitSourceHighlightPayload(highlight: highlight, sourceIdentity: nil))
-        #expect(try knowledge.sourceHighlight(id: highlight.id)?.references.isEmpty == true)
     }
 
     @Test("create_source_highlight keeps the papers a note cites and says which the library holds")
@@ -1660,3 +1559,10 @@ struct HighlightChatLinkSchemaTests {
 }
 
 #endif
+
+private extension KnowledgeStore {
+    /// The kind a chat's row holds, nil when none was written.
+    func storedSessionKind(_ sessionID: String) throws -> ReviewSessionKind? {
+        try scalarText("SELECT kind FROM review_sessions WHERE id = ?", [.text(sessionID)]).flatMap(ReviewSessionKind.init(rawValue:))
+    }
+}

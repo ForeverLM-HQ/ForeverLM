@@ -40,43 +40,9 @@ struct MigrationBaseTests {
         #expect(try MigrationBaseShards.decode(Data("{\"v\":1}".utf8)).isEmpty)
     }
 
-    @Test("Seven quiet days finish the import, an old-zone write clears it, and polling is hourly, daily, then weekly")
-    func watermark() {
-        var mark = MigrationImportWatermark(container: "iCloud.com.foreverlm", zones: ["Knowledge"], tokens: ["Knowledge": "AAA="])
-        #expect(MigrationImportWatermark(json: mark.json) == mark)
-        #expect(mark.pollInterval == MigrationImportWatermark.hour)
-
-        mark.recordPass(at: Self.t0, sawOldWrite: false)
-        #expect(mark.quietSince == SyncTime.milliseconds(Self.t0) && mark.finishedAt == nil, "the first quiet pass starts the quiet period")
-        mark.recordPass(at: Self.t0.addingTimeInterval(6 * Self.day), sawOldWrite: false)
-        #expect(mark.finishedAt == nil, "six quiet days are not enough")
-        mark.recordPass(at: Self.t0.addingTimeInterval(7 * Self.day), sawOldWrite: false)
-        #expect(mark.finishedAt == SyncTime.milliseconds(Self.t0.addingTimeInterval(7 * Self.day)) && mark.isQuiet)
-        #expect(mark.pollInterval == Self.day)
-
-        mark.recordPass(at: Self.t0.addingTimeInterval(8 * Self.day), sawOldWrite: true)
-        let written = SyncTime.milliseconds(Self.t0.addingTimeInterval(8 * Self.day))
-        #expect(mark.finishedAt == nil && mark.quietSince == written && mark.lastOldWriteAt == written, "a write clears finishedAt and restarts the quiet period")
-        #expect(mark.pollInterval == MigrationImportWatermark.hour)
-        mark.recordPass(at: Self.t0.addingTimeInterval(14 * Self.day), sawOldWrite: false)
-        #expect(mark.finishedAt == nil, "a week counts from the last write")
-
-        mark.removedAt = 1
-        #expect(mark.pollInterval == 7 * Self.day, "after the removal the check for a re-created zone is weekly")
-    }
-
     @Test("A watermark with a key it does not know still reads")
     func unknownKeys() throws {
         let mark = try #require(MigrationImportWatermark(json: .object(["zones": ["Knowledge"], "future": "x"])))
         #expect(mark.zones == ["Knowledge"] && mark.tokens.isEmpty)
-    }
-
-    @Test("A base entry survives its JSON form, lists a map field per element, and splits its keys at the first colon")
-    func baseEntry() throws {
-        let notebook = LegacyV2Record(type: .notebook, id: "nb1", fields: ["title": "N", "researchQuestions": ["q1": "x"]], giving: .owns)
-        let entry = MigrationBaseEntry(mapping: LegacyMapping(entity: .learningGoal, logicalKey: "lg", records: [notebook]), changeTag: "t", waiting: true)
-        #expect(MigrationBaseEntry(json: entry.jsonWithTag) == entry)
-        #expect(entry.records["Notebook:nb1"]?.hashes["researchQuestions/q1"] != nil)
-        #expect(MigrationRecordKey(baseKey: "Entry:en:nb1:source:s1", spaceID: nil) == MigrationRecordKey(.entry, "en:nb1:source:s1"))
     }
 }

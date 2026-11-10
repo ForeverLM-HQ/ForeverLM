@@ -112,10 +112,6 @@ enum LearnerProfile {
     static let maximumAboutYouLength = 4_000
     static let maximumFocusLength = 1_000
 
-    static func courseFocusPreferenceKey(courseID: String) -> String {
-        courseFocusPreferenceKeyPrefix + courseID
-    }
-
     static var aboutYou: String {
         (UserDefaults.standard.string(forKey: aboutYouPreferenceKey) ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)

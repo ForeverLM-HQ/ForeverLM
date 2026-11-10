@@ -48,7 +48,6 @@ struct PodcastTranscriptDetruncationMigrationTests {
         let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         if triggers { try store.installOutboxTriggers() }
         try populate(store)
-        try store.clearAllPendingSyncChanges()
         if triggers {
             try store.execForTesting("DELETE FROM ck_outbox_fields; DELETE FROM ck_outbox;")
         }
@@ -164,8 +163,6 @@ struct PodcastTranscriptDetruncationMigrationTests {
         try Self.stampReleasedState(at: root)
         #expect(Self.scalar(at: root, "PRAGMA user_version") == "\(released)")
         #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM sqlite_master WHERE name = 'podcast_transcript_audits'") == "0")
-        let syncMetadataBefore = Self.scalar(at: root, "SELECT COUNT(*) FROM sync_metadata")
-        let syncChangesBefore = Self.scalar(at: root, "SELECT COUNT(*) FROM sync_changes")
 
         let migrated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         #expect(Self.scalar(at: root, "PRAGMA user_version") == "\(KnowledgeStore.schemaVersion)")
@@ -197,9 +194,6 @@ struct PodcastTranscriptDetruncationMigrationTests {
         // pending, and nothing is republished: the step stages local work only.
         #expect(try migrated.loadSources().count == 11)
         #expect(try migrated.loadSourceContent("capped-marked") == Self.transcript)
-        #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM sync_metadata") == syncMetadataBefore)
-        #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM sync_changes") == syncChangesBefore)
-        #expect(try migrated.pendingSyncChanges().isEmpty)
     }
 
     @Test("On a store with the outbox triggers the step records nothing in the outbox")

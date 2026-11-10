@@ -103,7 +103,6 @@ struct BookFolderReferenceRewriteTests {
         }
         // Saving queued these already; start from a clean queue so the rewrite's
         // own enqueues are what the assertions see.
-        try store.exec("DELETE FROM sync_changes")
 
         #expect(try store.referencedTaggedBookFolderNames() == [taggedName])
 
@@ -131,12 +130,6 @@ struct BookFolderReferenceRewriteTests {
         try store.query("SELECT source_url FROM scheduled_sources") { stmt in scheduledURL = store.string(stmt, 0) }
         #expect(scheduledURL == "Books/\(cleanName)/Chapters/02.xhtml")
 
-        #expect(try store.hasPendingSyncChange(entity: .source, logicalKey: ch1.id))
-        #expect(try store.hasPendingSyncChange(entity: .source, logicalKey: ch2.id))
-        #expect(try !store.hasPendingSyncChange(entity: .source, logicalKey: other.id))
-        #expect(try store.hasPendingSyncChange(entity: .book, logicalKey: "book-1"))
-        #expect(try !store.hasPendingSyncChange(entity: .book, logicalKey: "book-2"))
-        #expect(try store.hasPendingSyncChange(entity: .scheduledSource, logicalKey: "sched-1"))
 
         #expect(try store.referencedTaggedBookFolderNames().isEmpty)
     }
@@ -145,9 +138,7 @@ struct BookFolderReferenceRewriteTests {
     func noMatchIsANoOp() throws {
         let store = try KnowledgeStore(inMemory: true)
         try store.saveSource(makeChapter("Immune", file: "01.xhtml", group: "book-2"))
-        try store.exec("DELETE FROM sync_changes")
         #expect(try store.rewriteBookFolderReferences(from: taggedName, to: cleanName) == 0)
-        #expect(try store.pendingSyncChangeCount() == 0)
     }
 
     @Test("The original book file is renamed with its folder")

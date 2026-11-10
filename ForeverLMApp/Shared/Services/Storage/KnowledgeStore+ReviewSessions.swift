@@ -257,7 +257,7 @@ extension KnowledgeStore {
                     )
                 }
             }
-            try markRecordChanged(entity: .reviewSession, logicalKey: id)
+            noteStoreChanged()
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -429,7 +429,7 @@ extension KnowledgeStore {
             try replaceReviewSessionSources(sessionID: newSessionID, sourceIDs: sourceIDs)
             // A fork holds the original's answers, so it keeps its kind: a review's stays private.
             try keepChatShapeForGeneration2(sessionID: newSessionID, kind: try chatKind(sessionID: sessionID))
-            try markRecordChanged(entity: .reviewSession, logicalKey: newSessionID)
+            noteStoreChanged()
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -474,7 +474,7 @@ extension KnowledgeStore {
             bind(stmt, 4, trimmedNonEmpty(modelSpeed))
             bind(stmt, 5, sessionID)
         }
-        try markRecordChanged(entity: .reviewSession, logicalKey: sessionID)
+        noteStoreChanged()
     }
 
     /// The route a chat's row keeps, read fresh when the chat is reopened so
@@ -512,7 +512,7 @@ extension KnowledgeStore {
             bind(stmt, 1, trimmedTitle)
             bind(stmt, 2, sessionID)
         }
-        try markRecordChanged(entity: .reviewSession, logicalKey: sessionID)
+        noteStoreChanged()
     }
 
     /// Replace a session's title only while it still reads `provisionalTitle`.
@@ -541,7 +541,7 @@ extension KnowledgeStore {
             bind(stmt, 3, provisionalTitle)
         }
         guard sqlite3_changes(db) > 0 else { return false }
-        try markRecordChanged(entity: .reviewSession, logicalKey: sessionID)
+        noteStoreChanged()
         return true
     }
 
@@ -555,7 +555,7 @@ extension KnowledgeStore {
             bind(stmt, 1, goalID)
             bind(stmt, 2, sessionID)
         }
-        try markRecordChanged(entity: .reviewSession, logicalKey: sessionID)
+        noteStoreChanged()
     }
 
     /// The Notebook or Goal a session is filed under, nil when it is loose.
@@ -627,8 +627,8 @@ extension KnowledgeStore {
         return result
     }
 
-    /// Replace the saved summary for a session. No `markRecordChanged`: the
-    /// digest is derived from the exchanges, which are what CloudKit carries.
+    /// Replace the saved summary for a session. It does not sync: the digest
+    /// is derived from the exchanges, which are what iCloud carries.
     func saveReviewSessionHistoryDigest(_ digest: ReviewSessionHistoryDigest) throws {
         let trimmed = digest.digest.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -696,7 +696,7 @@ extension KnowledgeStore {
                 sqlite3_bind_int(stmt, 1, Int32(nextSequence))
                 bind(stmt, 2, sessionID)
             })
-            try markRecordChanged(entity: .reviewSession, logicalKey: sessionID)
+            noteStoreChanged()
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -738,7 +738,7 @@ extension KnowledgeStore {
                 sqlite3_bind_int(stmt, 1, Int32(nextSequence))
                 bind(stmt, 2, sessionID)
             })
-            try markRecordChanged(entity: .reviewSession, logicalKey: sessionID)
+            noteStoreChanged()
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -795,7 +795,7 @@ extension KnowledgeStore {
                 bind(stmt, 4, sessionID)
                 sqlite3_bind_int(stmt, 5, Int32(pendingSequence))
             }
-            try markRecordChanged(entity: .reviewSession, logicalKey: sessionID)
+            noteStoreChanged()
             return pendingSequence
         }
 
@@ -827,7 +827,7 @@ extension KnowledgeStore {
                 sqlite3_bind_int(stmt, 1, Int32(nextSequence))
                 bind(stmt, 2, sessionID)
             })
-            try markRecordChanged(entity: .reviewSession, logicalKey: sessionID)
+            noteStoreChanged()
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -931,7 +931,7 @@ extension KnowledgeStore {
             bind(stmt, 7, sessionID)
             sqlite3_bind_int(stmt, 8, Int32(pendingSequence))
         }
-        try markRecordChanged(entity: .reviewSession, logicalKey: sessionID)
+        noteStoreChanged()
         return pendingSequence
     }
 
@@ -950,7 +950,7 @@ extension KnowledgeStore {
             sqlite3_bind_double(stmt, 3, endedAt.timeIntervalSinceReferenceDate)
             bind(stmt, 4, sessionID)
         }
-        try markRecordChanged(entity: .reviewSession, logicalKey: sessionID)
+        noteStoreChanged()
     }
 
     /// Import a full external chat as a completed review. The transcript
@@ -1030,7 +1030,7 @@ extension KnowledgeStore {
 
             try replaceReviewSessionSources(sessionID: id, sourceIDs: sourceIDs)
             try keepChatShapeForGeneration2(sessionID: id, kind: chatKind, marksReviewed: marksReviewed)
-            try markRecordChanged(entity: .reviewSession, logicalKey: id)
+            noteStoreChanged()
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -1051,23 +1051,6 @@ extension KnowledgeStore {
             modelID: trimmedNonEmpty(modelID),
             goalID: trimmedNonEmpty(goalID)
         )
-    }
-
-    /// Records that an imported chat did not review its sources, so a later
-    /// import into it leaves the sources it adds unreviewed too. Only a chat
-    /// with no kind is stamped: nil already reads as an ordinary chat
-    /// everywhere else, so the stamp changes nothing but that default, and a
-    /// review or a memory review keeps what it is. The kind rides the
-    /// session's record, so the other Macs learn it too.
-    func markImportedChatAsChat(sessionID: String) throws {
-        guard !MemoryReviewSession.isMemorySession(sessionID) else { return }
-        try execBind("UPDATE review_sessions SET kind = ? WHERE id = ? AND kind IS NULL") { stmt in
-            bind(stmt, 1, ReviewSessionKind.chat.rawValue)
-            bind(stmt, 2, sessionID)
-        }
-        if sqlite3_changes(db) > 0 {
-            try markRecordChanged(entity: .reviewSession, logicalKey: sessionID)
-        }
     }
 
     /// Append further parsed turns to an imported chat, for a chat too long to
@@ -1179,7 +1162,7 @@ extension KnowledgeStore {
                 bind(stmt, 10, sessionID)
             }
             try replaceReviewSessionSources(sessionID: sessionID, sourceIDs: mergedSourceIDs)
-            try markRecordChanged(entity: .reviewSession, logicalKey: sessionID)
+            noteStoreChanged()
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -1334,7 +1317,7 @@ extension KnowledgeStore {
                 bind(stmt, 10, sessionID)
             }
             try replaceReviewSessionSources(sessionID: sessionID, sourceIDs: mergedSourceIDs)
-            try markRecordChanged(entity: .reviewSession, logicalKey: sessionID)
+            noteStoreChanged()
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -1402,7 +1385,7 @@ extension KnowledgeStore {
         """) { stmt in
             bind(stmt, 1, sessionID)
         }
-        try markRecordChanged(entity: .reviewSession, logicalKey: sessionID)
+        noteStoreChanged()
     }
 
     @discardableResult
@@ -1432,7 +1415,7 @@ extension KnowledgeStore {
                     bind(stmt, 4, existing.id)
             }
                 try replaceReviewSessionSources(sessionID: existing.id, sourceIDs: sourceIDs)
-                try markRecordChanged(entity: .reviewSession, logicalKey: existing.id)
+                noteStoreChanged()
                 try exec("COMMIT")
             } catch {
                 try? exec("ROLLBACK")
@@ -1466,7 +1449,7 @@ extension KnowledgeStore {
         }
             try replaceReviewSessionSources(sessionID: id, sourceIDs: sourceIDs)
             try keepChatShapeForGeneration2(sessionID: id, kind: .chat)
-            try markRecordChanged(entity: .reviewSession, logicalKey: id)
+            noteStoreChanged()
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -1559,14 +1542,12 @@ extension KnowledgeStore {
                 self.bind(stmt, 1, sessionID)
                 sqlite3_bind_double(stmt, 2, hiddenAt.timeIntervalSinceReferenceDate)
             }
-            try markRecordChanged(entity: .hiddenReviewSession, logicalKey: sessionID, at: hiddenAt)
             return hiddenAt
         }
         guard existing != nil else { return nil }
         try execBind("DELETE FROM hidden_review_sessions WHERE session_id = ?") { stmt in
             self.bind(stmt, 1, sessionID)
         }
-        try markRecordDeleted(entity: .hiddenReviewSession, logicalKey: sessionID)
         return nil
     }
 
@@ -1713,7 +1694,7 @@ extension KnowledgeStore {
                 bind(stmt, 2, sessionID)
             }
 
-            try markRecordChanged(entity: .reviewSession, logicalKey: sessionID)
+            noteStoreChanged()
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -2167,7 +2148,7 @@ extension KnowledgeStore {
             if let docLinks = payload.docLinks {
                 try replaceArtifactChatLinks(sessionID: payload.id, links: docLinks)
             }
-            try markRecordChanged(entity: .reviewSession, logicalKey: payload.id)
+            noteStoreChanged()
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -2234,7 +2215,7 @@ extension KnowledgeStore {
             bind(statement, 8, record.sectionTitle)
             sqlite3_bind_double(statement, 9, record.createdAt.timeIntervalSinceReferenceDate)
         }
-        try markRecordChanged(entity: .reviewSession, logicalKey: sessionID, at: createdAt)
+        noteStoreChanged()
         return record
     }
 
@@ -2297,11 +2278,11 @@ extension KnowledgeStore {
         ) { statement in
             sessionID = self.string(statement, 0)
         }
-        guard let sessionID else { return }
+        guard sessionID != nil else { return }
         try execBind("DELETE FROM artifact_chat_links WHERE id = ?") { statement in
             bind(statement, 1, linkID)
         }
-        try markRecordChanged(entity: .reviewSession, logicalKey: sessionID)
+        noteStoreChanged()
     }
 
     /// Drops the links a deleted doc leaves behind. `artifact_id` carries no
@@ -2319,8 +2300,8 @@ extension KnowledgeStore {
         try execBind("DELETE FROM artifact_chat_links WHERE artifact_id = ?") { statement in
             bind(statement, 1, artifactID)
         }
-        for sessionID in sessionIDs {
-            try markRecordChanged(entity: .reviewSession, logicalKey: sessionID)
+        if !sessionIDs.isEmpty {
+            noteStoreChanged()
         }
     }
 
@@ -2362,25 +2343,20 @@ extension KnowledgeStore {
 
     func deleteReviewSession(_ sessionID: String) throws {
         try requireSpaceDeletion(.chat, sessionID)
-        // The local delete and CloudKit tombstone are one correctness boundary:
-        // either the session plus its linked immutable memory attempts and all
-        // tombstones commit, or none do. Retaining attempts after their exact
-        // transcript disappears would leave broken cross-device relationships.
-        let deletedAt = Date()
+        // One transaction: either the session and its linked immutable memory
+        // attempts go together, or neither does. Retaining attempts after their
+        // exact transcript disappears would leave broken relationships.
         try exec("BEGIN IMMEDIATE")
         do {
-            var linkedAttempts: [(id: String, memoryItemID: String)] = []
+            var memoryItemIDs = Set<String>()
             try queryBind("""
-                SELECT id, memory_item_id
+                SELECT DISTINCT memory_item_id
                 FROM memory_attempts
                 WHERE session_id = ?
-                ORDER BY id
             """, bind: { stmt in
                 bind(stmt, 1, sessionID)
             }) { stmt in
-                guard let id = self.string(stmt, 0),
-                      let memoryItemID = self.string(stmt, 1) else { return }
-                linkedAttempts.append((id, memoryItemID))
+                if let memoryItemID = self.string(stmt, 0) { memoryItemIDs.insert(memoryItemID) }
             }
             try execBind("DELETE FROM memory_attempts WHERE session_id = ?") { stmt in
                 bind(stmt, 1, sessionID)
@@ -2388,43 +2364,13 @@ extension KnowledgeStore {
             try execBind("DELETE FROM review_sessions WHERE id = ?", { stmt in
                 bind(stmt, 1, sessionID)
             })
-            // The hide goes with the chat, tombstone included; a remote
-            // delete runs suppressed and the deleting client may never have
-            // known the hide record existed, so its tombstone is published
-            // explicitly, as the memory attempts below are.
-            if try reviewSessionHiddenAt(sessionID: sessionID) != nil {
-                try execBind("DELETE FROM hidden_review_sessions WHERE session_id = ?") { stmt in
-                    bind(stmt, 1, sessionID)
-                }
-                if syncTrackingSuppressionDepth > 0 {
-                    try enqueueCascadingRecordDeletion(entity: .hiddenReviewSession, logicalKey: sessionID, at: deletedAt)
-                } else {
-                    try markRecordDeleted(entity: .hiddenReviewSession, logicalKey: sessionID, at: deletedAt)
-                }
+            // The hide goes with the chat.
+            try execBind("DELETE FROM hidden_review_sessions WHERE session_id = ?") { stmt in
+                bind(stmt, 1, sessionID)
             }
-            for memoryItemID in Set(linkedAttempts.map(\.memoryItemID)).sorted() {
+            for memoryItemID in memoryItemIDs.sorted() {
                 try rebuildMemorySchedule(memoryItemID: memoryItemID)
             }
-            for attempt in linkedAttempts {
-                if syncTrackingSuppressionDepth > 0 {
-                    // The inbound session tombstone already exists on the server,
-                    // but an older deleting client may never have known about the
-                    // separately synced memory attempt. Publish that dependent
-                    // tombstone explicitly so it cannot be fetched back orphaned.
-                    try enqueueCascadingRecordDeletion(
-                        entity: .memoryAttempt,
-                        logicalKey: attempt.id,
-                        at: deletedAt
-                    )
-                } else {
-                    try markRecordDeleted(
-                        entity: .memoryAttempt,
-                        logicalKey: attempt.id,
-                        at: deletedAt
-                    )
-                }
-            }
-            try markRecordDeleted(entity: .reviewSession, logicalKey: sessionID, at: deletedAt)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -2494,9 +2440,7 @@ extension KnowledgeStore {
                 try execBind("DELETE FROM hidden_review_sessions WHERE session_id = ?") { stmt in
                     bind(stmt, 1, sessionID)
                 }
-                try markRecordDeleted(entity: .hiddenReviewSession, logicalKey: sessionID)
             }
-            try markRecordDeleted(entity: .reviewSession, logicalKey: sessionID)
             try exec("COMMIT")
             return true
         } catch {
@@ -2515,7 +2459,7 @@ extension KnowledgeStore {
                 bind(stmt, 2, sessionID)
             }
             try replaceReviewSessionSources(sessionID: sessionID, sourceIDs: sourceIDs)
-            try markRecordChanged(entity: .reviewSession, logicalKey: sessionID)
+            noteStoreChanged()
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -2531,7 +2475,7 @@ extension KnowledgeStore {
                 self.bind($0, 2, sourceId)
             })
         }
-        try markRecordChanged(entity: .reviewSession, logicalKey: sessionId)
+        noteStoreChanged()
     }
 
     /// Sources attached to the learner's most recent ordinary chats and review

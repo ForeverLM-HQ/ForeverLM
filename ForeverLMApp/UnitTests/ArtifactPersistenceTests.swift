@@ -300,8 +300,6 @@ struct ArtifactPersistenceTests {
         try store.saveArtifactCommentRecord(comment)
 
         #expect(try store.loadArtifactComments(artifact.id) == [comment])
-        let pending = try store.pendingSyncChanges()
-        #expect(pending.contains { $0.entity == .artifactComment && $0.logicalKey == comment.id })
         #expect(try store.loadArtifactCommentForSync(comment.id)?.artifactID == artifact.id)
     }
 
@@ -337,9 +335,6 @@ struct ArtifactPersistenceTests {
         // The doc has moved on: the quote survives, the offsets stop being an answer.
         #expect(!link.locatesPassage(inRevision: "revision-b"))
         // The link travels inside its session's record, so that is what must be queued.
-        #expect(try store.pendingSyncChanges().contains {
-            $0.entity == .reviewSession && $0.logicalKey == "chat-a"
-        })
     }
 
     @Test("A link anchors the selection by offsets on its revision, and by quote once the doc moved on")
@@ -701,75 +696,6 @@ struct ArtifactPersistenceTests {
         #expect(try await storage.artifactMarkdown(artifact.id).markdown == "Still here.")
     }
 
-    @Test("Artifact metadata, Markdown, and all Notebook links round-trip through CloudKit")
-    func artifactCloudKitRoundTrip() throws {
-        let senderRoot = FileManager.default.temporaryDirectory
-            .appendingPathComponent("ArtifactSyncSenderTests_\(UUID().uuidString)", isDirectory: true)
-        let receiverRoot = FileManager.default.temporaryDirectory
-            .appendingPathComponent("ArtifactSyncReceiverTests_\(UUID().uuidString)", isDirectory: true)
-        defer {
-            try? FileManager.default.removeItem(at: senderRoot)
-            try? FileManager.default.removeItem(at: receiverRoot)
-        }
-        // Match production: SQLite and canonical content intentionally live in
-        // different sibling directories. Using one test root for both masked a
-        // path bug that omitted every Note body from CloudKit on real Macs.
-        let senderStoreRoot = senderRoot.appendingPathComponent(".appdata", isDirectory: true)
-        let senderContentRoot = senderRoot.appendingPathComponent("Content", isDirectory: true)
-        let senderLegacyRoot = senderRoot.appendingPathComponent("LegacyCloud", isDirectory: true)
-        let receiverStoreRoot = receiverRoot.appendingPathComponent(".appdata", isDirectory: true)
-        let receiverContentRoot = receiverRoot.appendingPathComponent("Content", isDirectory: true)
-        let sender = try KnowledgeStore(
-            storeDirectory: senderStoreRoot,
-            contentDirectory: senderContentRoot,
-            legacyContentDirectories: [senderLegacyRoot]
-        )
-        let receiver = try KnowledgeStore(
-            storeDirectory: receiverStoreRoot,
-            contentDirectory: receiverContentRoot
-        )
-        let artifact = ArtifactRecord(
-            id: "artifact-sync",
-            title: "Cross-device article",
-            homeNotebookID: "notebook-home",
-            linkedNotebookIDs: ["notebook-a", "notebook-b"],
-            isDraft: true,
-            archivedAt: Date(timeIntervalSinceReferenceDate: 150),
-            createdAt: Date(timeIntervalSinceReferenceDate: 100),
-            updatedAt: Date(timeIntervalSinceReferenceDate: 200)
-        )
-        try sender.saveArtifactRecord(artifact)
-        let legacyDocument = senderLegacyRoot
-            .appendingPathComponent("Artifacts/artifact-sync", isDirectory: true)
-            .appendingPathComponent("document.md")
-        try FileManager.default.createDirectory(
-            at: legacyDocument.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try Data("# Cross-device article\n\nCites [[source]].".utf8)
-            .write(to: legacyDocument, options: .atomic)
-        #expect(!FileManager.default.fileExists(
-            atPath: senderStoreRoot
-                .appendingPathComponent("Artifacts/artifact-sync/document.md")
-                .path
-        ))
-        let change = try #require(sender.pendingSyncChanges().first { $0.entity == .artifact })
-        let record = try #require(try CloudKitRecordMapper.makeRecord(for: change, store: sender))
-        #expect(record.recordType == "Artifact")
-
-        _ = try CloudKitRecordMapper.apply(record: record, to: receiver)
-        #expect(try receiver.loadArtifact(artifact.id) == artifact)
-        #expect(try receiver.loadArtifactMarkdownForSync(artifact.id) == "# Cross-device article\n\nCites [[source]].")
-        let receiverRepair = try receiver.enqueueArtifactBodyRepairBatch(
-            after: nil,
-            limit: 10
-        )
-        #expect(receiverRepair.queuedCount == 0)
-
-        let legacy = try JSONEncoder().encode(LegacyArtifactPayload(artifact: artifact))
-        #expect(try JSONDecoder().decode(CloudKitArtifactPayload.self, from: legacy).markdown == nil)
-    }
-
     @Test("Artifact payloads default old records to production")
     func legacyArtifactPayloadDefaultsToProduction() throws {
         let data = try JSONEncoder().encode(LegacyArtifactRecord(
@@ -853,7 +779,7 @@ struct ArtifactPersistenceTests {
         #expect(try await storage.loadArtifacts().first { $0.id == created.artifact.id }?.archivedAt == nil)
     }
 
-    @Test("Hiding a doc follows the account: the record does not move, and the hide syncs as a record of its own")
+    @Test("Hiding a doc follows the account: the record does not move")
     func hideFollowsTheAccount() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("ArtifactHideTests_\(UUID().uuidString)", isDirectory: true)
@@ -870,25 +796,17 @@ struct ArtifactPersistenceTests {
         )
         #expect(!created.artifact.isHidden)
         let store = try await storage.notebookFilesKnowledgeStore()
-        try store.clearAllPendingSyncChanges()
 
         let hidden = try await storage.setArtifactHidden(artifactID: created.artifact.id, isHidden: true)
         let hiddenAt = try #require(hidden.hiddenAt)
         #expect(hidden.isHidden)
-        // Nothing about the record moved: not its date, not its archive, and
-        // the Artifact itself was not queued — hiding is not a change to the
-        // record. What was queued is the hide, as a record of its own, so the
-        // learner's other Macs hide the same doc (product owner, 2026-09-13).
+        // Nothing about the record moved: not its date, not its archive.
+        // Hiding is not a change to the record but the learner's own choice,
+        // which their other Macs share (product owner, 2026-09-13).
         #expect(hidden.updatedAt == created.artifact.updatedAt)
         #expect(!hidden.isArchived)
         #expect(hidden.title == created.artifact.title)
         #expect(hidden.linkedNotebookIDs == [notebook.id])
-        let queued = try store.pendingSyncChanges()
-        #expect(queued.map(\.entity) == [.hiddenArtifact])
-        #expect(queued.first?.logicalKey == created.artifact.id)
-        #expect(queued.first?.operation == .save)
-        #expect(queued.first?.changedAt == hiddenAt)
-        #expect(try store.loadHiddenArtifactForSync(created.artifact.id)?.hiddenAt == hiddenAt)
         #expect(try await storage.loadArtifacts().first { $0.id == created.artifact.id }?.hiddenAt == hiddenAt)
         #expect(try await storage.artifactMarkdown(created.artifact.id).markdown == "# Ideas\n\nA doc's text.")
 
@@ -913,10 +831,8 @@ struct ArtifactPersistenceTests {
         #expect(resaved.hiddenAt == hiddenAt)
 
         // Hiding again keeps the first date and queues nothing new.
-        try store.clearAllPendingSyncChanges()
         let again = try await storage.setArtifactHidden(artifactID: created.artifact.id, isHidden: true)
         #expect(again.hiddenAt == hiddenAt)
-        #expect(try store.pendingSyncChanges().isEmpty)
 
         // An unrelated record update leaves the hide alone.
         let renamed = try await storage.updateArtifact(
@@ -929,43 +845,13 @@ struct ArtifactPersistenceTests {
         #expect(try await storage.loadArtifacts().first { $0.id == created.artifact.id }?.hiddenAt == hiddenAt)
 
         // Showing it again tombstones the hide for the other Macs.
-        try store.clearAllPendingSyncChanges()
         let shown = try await storage.setArtifactHidden(artifactID: created.artifact.id, isHidden: false)
         #expect(!shown.isHidden)
         #expect(shown.hiddenAt == nil)
         #expect(try await storage.loadArtifacts().first { $0.id == created.artifact.id }?.hiddenAt == nil)
-        let tombstone = try #require(try store.pendingSyncChanges().first { $0.entity == .hiddenArtifact })
-        #expect(tombstone.operation == .delete)
-        #expect(tombstone.logicalKey == created.artifact.id)
     }
 
-    @Test("A hide from another Mac lands whether or not its doc has arrived, and leaves with the doc")
-    func hideFromAnotherMacLands() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        let hiddenAt = Date(timeIntervalSinceReferenceDate: 1_000)
-        // The hide arrives first: the row waits for its doc.
-        try store.saveHiddenArtifactRecord(CloudKitHiddenArtifactPayload(artifactID: "doc-late", hiddenAt: hiddenAt))
-        #expect(try store.loadArtifacts().isEmpty)
-        try store.saveArtifactRecord(ArtifactRecord(
-            id: "doc-late", title: "Late doc", homeNotebookID: nil, linkedNotebookIDs: [],
-            createdAt: Date(), updatedAt: Date()
-        ))
-        #expect(try store.loadArtifacts().first { $0.id == "doc-late" }?.hiddenAt == hiddenAt)
-        // A republish keeps the hide's own date.
-        #expect(try store.syncBackfillDate(for: .hiddenArtifact, logicalKey: "doc-late") == hiddenAt)
-        // Shown on the other Mac: the row goes.
-        try store.deleteHiddenArtifactRecord(artifactID: "doc-late")
-        #expect(try store.loadArtifacts().first { $0.id == "doc-late" }?.hiddenAt == nil)
-        // Deleting a hidden doc takes the hide with it, tombstone included.
-        try store.saveHiddenArtifactRecord(CloudKitHiddenArtifactPayload(artifactID: "doc-late", hiddenAt: hiddenAt))
-        try store.clearAllPendingSyncChanges()
-        try store.deleteArtifactRecord("doc-late")
-        #expect(try store.loadHiddenArtifactForSync("doc-late") == nil)
-        let tombstones = try store.pendingSyncChanges().filter { $0.operation == .delete }.map(\.entity)
-        #expect(Set(tombstones) == [.artifact, .hiddenArtifact])
-    }
-
-    @Test("A linked Google Doc keeps its URL through SQLite and the CloudKit payload, and refuses body writes")
+    @Test("A linked Google Doc keeps its URL through SQLite and its JSON, and refuses body writes")
     func linkedDocRoundTripAndReadOnly() async throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("LinkedDocTests_\(UUID().uuidString)", isDirectory: true)
@@ -1021,14 +907,12 @@ struct ArtifactPersistenceTests {
             _ = try await storage.replaceLinkedArtifactExport(artifactID: markdownDoc.artifact.id, text: "x")
         }
 
-        // The URL is a key inside the artifact's encrypted JSON payload — the
-        // same CloudKit field every artifact already syncs — and an older
-        // payload without it decodes as a Markdown doc.
-        let encoded = try JSONEncoder().encode(CloudKitArtifactPayload(artifact: exported.artifact))
+        // The URL is a key of the artifact's JSON, and an older record without
+        // it decodes as a Markdown doc.
+        let encoded = try JSONEncoder().encode(exported.artifact)
         let json = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
-        let artifactJSON = try #require(json["artifact"] as? [String: Any])
-        #expect(artifactJSON["linkedURL"] as? String == "https://docs.google.com/document/d/1AbC/edit")
-        #expect(try JSONDecoder().decode(CloudKitArtifactPayload.self, from: encoded).artifact == exported.artifact)
+        #expect(json["linkedURL"] as? String == "https://docs.google.com/document/d/1AbC/edit")
+        #expect(try JSONDecoder().decode(ArtifactRecord.self, from: encoded) == exported.artifact)
         let legacy = try JSONEncoder().encode(LegacyArtifactRecord(
             id: "legacy", title: "Older", homeNotebookID: nil, linkedNotebookIDs: [],
             createdAt: Date(timeIntervalSinceReferenceDate: 1), updatedAt: Date(timeIntervalSinceReferenceDate: 2)
@@ -1146,172 +1030,6 @@ struct ArtifactPersistenceTests {
         #expect(relinked.linkedURL == "https://docs.google.com/document/d/1AbC/edit")
     }
 
-    @Test("A linked doc's URL travels to another device inside the existing Artifact record")
-    func linkedDocCloudKitRoundTrip() throws {
-        let senderRoot = FileManager.default.temporaryDirectory
-            .appendingPathComponent("LinkedDocSyncSender_\(UUID().uuidString)", isDirectory: true)
-        let receiverRoot = FileManager.default.temporaryDirectory
-            .appendingPathComponent("LinkedDocSyncReceiver_\(UUID().uuidString)", isDirectory: true)
-        defer {
-            try? FileManager.default.removeItem(at: senderRoot)
-            try? FileManager.default.removeItem(at: receiverRoot)
-        }
-        let sender = try KnowledgeStore(
-            storeDirectory: senderRoot.appendingPathComponent(".appdata", isDirectory: true),
-            contentDirectory: senderRoot.appendingPathComponent("Content", isDirectory: true)
-        )
-        let receiver = try KnowledgeStore(
-            storeDirectory: receiverRoot.appendingPathComponent(".appdata", isDirectory: true),
-            contentDirectory: receiverRoot.appendingPathComponent("Content", isDirectory: true)
-        )
-        let artifact = ArtifactRecord(
-            id: "linked-sync",
-            title: "Shared plan",
-            homeNotebookID: nil,
-            linkedNotebookIDs: ["notebook-a"],
-            linkedURL: "https://docs.google.com/document/d/1AbC/edit",
-            createdAt: Date(timeIntervalSinceReferenceDate: 100),
-            updatedAt: Date(timeIntervalSinceReferenceDate: 200)
-        )
-        try sender.saveArtifactRecord(artifact)
-        try sender.saveArtifactMarkdownFromSync("Exported text.", artifactID: artifact.id)
-
-        let change = try #require(sender.pendingSyncChanges().first { $0.entity == .artifact })
-        let record = try #require(try CloudKitRecordMapper.makeRecord(for: change, store: sender))
-        #expect(record.recordType == "Artifact")
-        _ = try CloudKitRecordMapper.apply(record: record, to: receiver)
-
-        let received = try #require(try receiver.loadArtifact(artifact.id))
-        #expect(received == artifact)
-        #expect(received.isLinked)
-        #expect(try receiver.loadArtifactMarkdownForSync(artifact.id) == "Exported text.")
-    }
-
-    @Test("Artifact body path repair is bounded and preserves newer edits")
-    func artifactBodyPathRepairIsBoundedAndPreservesNewerEdits() throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("ArtifactBodyRepairTests_\(UUID().uuidString)", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(
-            storeDirectory: root.appendingPathComponent(".appdata", isDirectory: true),
-            contentDirectory: root.appendingPathComponent("Content", isDirectory: true)
-        )
-
-        for (id, updatedAt) in [
-            ("artifact-a", Date(timeIntervalSinceReferenceDate: 100)),
-            ("artifact-b", Date(timeIntervalSinceReferenceDate: 200)),
-        ] {
-            try store.saveArtifactRecord(ArtifactRecord(
-                id: id,
-                title: id,
-                homeNotebookID: nil,
-                linkedNotebookIDs: [],
-                createdAt: updatedAt,
-                updatedAt: updatedAt
-            ))
-            try store.saveArtifactMarkdownFromSync("# \(id)", artifactID: id)
-            try store.clearPendingSyncChange(entity: .artifact, logicalKey: id)
-        }
-
-        let newerEdit = Date(timeIntervalSinceReferenceDate: 500)
-        try store.markRecordChanged(
-            entity: .artifact,
-            logicalKey: "artifact-b",
-            at: newerEdit
-        )
-
-        let first = try store.enqueueArtifactBodyRepairBatch(after: nil, limit: 1)
-        let second = try store.enqueueArtifactBodyRepairBatch(
-            after: first.lastScannedID,
-            limit: 1
-        )
-        let pending = try store.pendingSyncChanges()
-        let repaired = try #require(pending.first { $0.logicalKey == "artifact-a" })
-        let edited = try #require(pending.first { $0.logicalKey == "artifact-b" })
-
-        #expect(first.lastScannedID == "artifact-a")
-        #expect(first.queuedCount == 1)
-        #expect(!first.isComplete)
-        #expect(second.lastScannedID == "artifact-b")
-        #expect(second.queuedCount == 0)
-        #expect(second.isComplete)
-        #expect(repaired.changedAt == Date(timeIntervalSinceReferenceDate: 100))
-        #expect(edited.changedAt == newerEdit)
-    }
-
-    @Test("Artifact body repair adopts retired product links and queues the new body")
-    func artifactBodyRepairAdoptsRetiredProductLinks() throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("ArtifactBodyIdentityTests_\(UUID().uuidString)", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(
-            storeDirectory: root.appendingPathComponent(".appdata", isDirectory: true),
-            contentDirectory: root.appendingPathComponent("Content", isDirectory: true)
-        )
-        let artifact = ArtifactRecord(
-            id: "artifact-identity",
-            title: "Identity",
-            homeNotebookID: nil,
-            linkedNotebookIDs: [],
-            createdAt: Date(timeIntervalSinceReferenceDate: 100),
-            updatedAt: Date(timeIntervalSinceReferenceDate: 100)
-        )
-        try store.saveArtifactRecord(artifact)
-        try store.saveArtifactMarkdownFromSync(
-            "[Paper](feynmanlm://source/src_1) and prose feynmanlm://source/example",
-            artifactID: artifact.id
-        )
-        try store.clearPendingSyncChange(entity: .artifact, logicalKey: artifact.id)
-
-        let batch = try store.enqueueArtifactBodyRepairBatch(after: nil, limit: 10)
-
-        #expect(batch.adoptedLinkCount == 1)
-        #expect(batch.queuedCount == 1)
-        #expect(try store.loadArtifactMarkdownForSync(artifact.id) ==
-            "[Paper](foreverlm://source/src_1) and prose feynmanlm://source/example")
-        #expect(try store.hasPendingSyncChange(entity: .artifact, logicalKey: artifact.id))
-        let reloaded = try #require(try store.loadArtifact(artifact.id))
-        #expect(reloaded.updatedAt > artifact.updatedAt)
-    }
-
-    @Test("Artifact body repair defers while a legacy iCloud placeholder downloads")
-    func artifactBodyRepairDefersICloudPlaceholder() throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("ArtifactBodyPlaceholderTests_\(UUID().uuidString)", isDirectory: true)
-        defer { try? FileManager.default.removeItem(at: root) }
-        let legacyRoot = root.appendingPathComponent("LegacyCloud", isDirectory: true)
-        let store = try KnowledgeStore(
-            storeDirectory: root.appendingPathComponent(".appdata", isDirectory: true),
-            contentDirectory: root.appendingPathComponent("Content", isDirectory: true),
-            legacyContentDirectories: [legacyRoot]
-        )
-        let artifact = ArtifactRecord(
-            id: "artifact-placeholder",
-            title: "Downloading Note",
-            homeNotebookID: nil,
-            linkedNotebookIDs: [],
-            createdAt: Date(timeIntervalSinceReferenceDate: 100),
-            updatedAt: Date(timeIntervalSinceReferenceDate: 100)
-        )
-        try store.saveArtifactRecord(artifact)
-        try store.clearPendingSyncChange(entity: .artifact, logicalKey: artifact.id)
-        let placeholder = legacyRoot
-            .appendingPathComponent("Artifacts/artifact-placeholder", isDirectory: true)
-            .appendingPathComponent(".document.md.icloud")
-        try FileManager.default.createDirectory(
-            at: placeholder.deletingLastPathComponent(),
-            withIntermediateDirectories: true
-        )
-        try Data("placeholder".utf8).write(to: placeholder)
-
-        let batch = try store.enqueueArtifactBodyRepairBatch(after: nil, limit: 10)
-
-        #expect(batch.queuedCount == 0)
-        #expect(batch.deferredDownloadCount == 1)
-        #expect(batch.isComplete)
-        #expect(try !store.hasPendingSyncChange(entity: .artifact, logicalKey: artifact.id))
-    }
-
     private struct LegacyArtifactPayload: Encodable {
         let artifact: ArtifactRecord
     }
@@ -1336,9 +1054,9 @@ struct ArtifactPersistenceTests {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("ArtifactV105Fixture_\(UUID().uuidString)", isDirectory: true)
         let store = try KnowledgeStore(storeDirectory: root)
+        try Schema154Fixture.restoreGeneration1Tables(store)
         try store.execForTesting("BEGIN IMMEDIATE")
         do {
-            try store.execForTesting("DELETE FROM sync_changes; DELETE FROM sync_metadata;")
             try store.execForTesting("""
                 WITH RECURSIVE seq(n) AS (
                     SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < \(articleCount)
@@ -1395,9 +1113,9 @@ struct ArtifactPersistenceTests {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("ArtifactV110Fixture_\(UUID().uuidString)", isDirectory: true)
         let store = try KnowledgeStore(storeDirectory: root)
+        try Schema154Fixture.restoreGeneration1Tables(store)
         try store.execForTesting("BEGIN IMMEDIATE")
         do {
-            try store.execForTesting("DELETE FROM sync_changes; DELETE FROM sync_metadata;")
             try store.execForTesting("""
                 WITH RECURSIVE seq(n) AS (
                     SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < \(articleCount)
@@ -1452,9 +1170,9 @@ struct ArtifactPersistenceTests {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("ArtifactV89Fixture_\(UUID().uuidString)", isDirectory: true)
         let store = try KnowledgeStore(storeDirectory: root)
+        try Schema154Fixture.restoreGeneration1Tables(store)
         try store.execForTesting("BEGIN IMMEDIATE")
         do {
-            try store.execForTesting("DELETE FROM sync_changes; DELETE FROM sync_metadata;")
             try store.execForTesting("""
                 WITH RECURSIVE seq(n) AS (
                     SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < \(articleCount)
@@ -1508,9 +1226,9 @@ struct ArtifactPersistenceTests {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("ArtifactV75Fixture_\(UUID().uuidString)", isDirectory: true)
         let store = try KnowledgeStore(storeDirectory: root)
+        try Schema154Fixture.restoreGeneration1Tables(store)
         try store.execForTesting("BEGIN IMMEDIATE")
         do {
-            try store.execForTesting("DELETE FROM sync_changes; DELETE FROM sync_metadata;")
             try store.execForTesting("""
                 INSERT INTO sources (id, date_added, state, source_type, status)
                 VALUES
@@ -1569,9 +1287,9 @@ struct ArtifactPersistenceTests {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("ArtifactV70Fixture_\(UUID().uuidString)", isDirectory: true)
         let store = try KnowledgeStore(storeDirectory: root)
+        try Schema154Fixture.restoreGeneration1Tables(store)
         try store.execForTesting("BEGIN IMMEDIATE")
         do {
-            try store.execForTesting("DELETE FROM sync_changes; DELETE FROM sync_metadata;")
             try store.execForTesting("""
                 WITH RECURSIVE seq(n) AS (
                     SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < \(articleCount)
@@ -2232,14 +1950,11 @@ struct PageCommentThreadTests {
     func editComment() throws {
         let store = try storeWithPage()
         try store.saveArtifactCommentRecord(comment("root", at: 30))
-        try store.clearPendingSyncChange(entity: .artifactComment, logicalKey: "root")
         let unchanged = try store.editArtifactComment("root", body: "Comment root", at: Date(timeIntervalSinceReferenceDate: 40))
         #expect(unchanged.updatedAt == Date(timeIntervalSinceReferenceDate: 30))
-        #expect(try store.pendingSyncChanges().allSatisfy { $0.logicalKey != "root" })
         let edited = try store.editArtifactComment("root", body: "Say more here.", at: Date(timeIntervalSinceReferenceDate: 41))
         #expect(edited.body == "Say more here.")
         #expect(try store.loadArtifactComments(Self.pageID).first?.body == "Say more here.")
-        #expect(try store.pendingSyncChanges().contains { $0.logicalKey == "root" && $0.operation == .save })
         #expect(throws: ArtifactCommentError.emptyBody) { try store.editArtifactComment("root", body: "") }
     }
 
@@ -2257,9 +1972,6 @@ struct PageCommentThreadTests {
         #expect(threads[0].replies.map(\.id) == ["reply-b"])
         #expect(threads[0].root.anchorQuote == "gradient" && threads[0].root.anchorStart == 9)
         #expect(threads[0].isResolved, "the thread stays resolved")
-        let pending = try store.pendingSyncChanges()
-        #expect(pending.contains { $0.logicalKey == "root" && $0.operation == .delete })
-        #expect(pending.contains { $0.logicalKey == "reply-b" && $0.operation == .save })
     }
 
     @Test("Deleting a reply takes only that reply")
@@ -2279,8 +1991,6 @@ struct PageCommentThreadTests {
         try store.saveArtifactCommentRecord(comment("other", start: 30, quote: "budget", at: 33))
         try store.deleteArtifactCommentThread("reply-a")
         #expect(try store.loadArtifactComments(Self.pageID).map(\.id) == ["other"])
-        let deleted = Set(try store.pendingSyncChanges().filter { $0.operation == .delete }.map(\.logicalKey))
-        #expect(deleted == ["root", "reply-a"])
     }
 
     @Test("The editor is handed each thread's place, words and resolution")

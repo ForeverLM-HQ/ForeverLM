@@ -41,7 +41,7 @@ struct SourceSchema155MigrationTests {
         let library = try Schema154Fixture.makeLibrary(at: root, version: version, sourceCount: 4)
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(version))
         #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM sqlite_master WHERE name = 'source_work_keys'") == 0)
-        let counts = ["sources", "articles", "group_members", "learning_goal_items", "sync_metadata"]
+        let counts = ["sources", "articles", "group_members", "learning_goal_items"]
         let before = counts.map { Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM \($0)") }
 
         let migrated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
@@ -49,7 +49,6 @@ struct SourceSchema155MigrationTests {
         #expect(counts.map { Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM \($0)") } == before)
         #expect(try Self.emptyCounts(migrated).values.allSatisfy { $0 == 0 }, "nothing filled before the activation")
         #expect(try Schema154Fixture.count(migrated, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger'") == 0)
-        #expect(try migrated.pendingSyncChanges().isEmpty, "a schema-only migration republishes nothing")
         #expect(Set(try migrated.loadSourcesWithoutContent().map(\.id)) == Set(library.sourceIDs))
     }
 
@@ -98,6 +97,7 @@ struct SourceSchema155MigrationTests {
         defer { try? FileManager.default.removeItem(at: root) }
         do {
             let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+            try Schema154Fixture.restoreGeneration1Tables(store)
             // 6,000 sources (the largest library has 5,161) with their article rows and 1,000 group
             // memberships, and 17,000 sync rows.
             try store.execForTesting("""
@@ -173,7 +173,6 @@ struct SourceSchema155MigrationTests {
         try store.execForTesting("INSERT INTO courses (id, title) VALUES ('course-1', 'A course')")
         try store.saveSource(StudioArticle(url: "https://www.youtube.com/watch?v=efghijklmno", title: "Lecture 1", sourceType: .video, parentGroup: "course-1"))
         try store.saveSource(StudioArticle(url: "https://example.org/stray", title: "Stray", sourceType: .article, parentGroup: "a stray group"))
-        try store.clearAllPendingSyncChanges()
     }
 
     private static func runDerivations(_ store: KnowledgeStore) throws {

@@ -1,23 +1,12 @@
 import Foundation
-import SQLite3
 import Testing
 @testable import ForeverLM
 
 /// Directions (docs/directions-design.md): what the store keeps and refuses
 /// from a search, how an answer is recorded, what goes with a deleted home,
-/// how a Direction syncs, and what a store from before schema 147 gains.
+/// and what a store from before schema 147 gains.
 @Suite("Research direction persistence")
 struct ResearchDirectionPersistenceTests {
-
-    private func syncChanges(_ store: KnowledgeStore, entity: String) throws -> [(key: String, operation: String)] {
-        var rows: [(key: String, operation: String)] = []
-        try store.query("SELECT logical_key, operation FROM sync_changes WHERE entity_type = '\(entity)'") { stmt in
-            let key = sqlite3_column_text(stmt, 0).map { String(cString: $0) } ?? ""
-            let operation = sqlite3_column_text(stmt, 1).map { String(cString: $0) } ?? ""
-            rows.append((key, operation))
-        }
-        return rows
-    }
 
     private func makeGoal(_ store: KnowledgeStore, title: String = "Find methods to target rare mitochondrial diseases", parentNotebookID: String? = nil) throws -> LearningGoalRecord {
         try store.createCompanionGoal(
@@ -60,7 +49,7 @@ struct ResearchDirectionPersistenceTests {
         )
     }
 
-    @Test("A search's proposals are saved with the store's ids, cleaned evidence, and queued for sync")
+    @Test("A search's proposals are saved with the store's ids and cleaned evidence")
     func proposeSavesAndQueues() throws {
         let store = try KnowledgeStore(inMemory: true)
         let goal = try makeGoal(store)
@@ -78,8 +67,6 @@ struct ResearchDirectionPersistenceTests {
         let loaded = try #require(try store.loadResearchDirection(saved.id))
         #expect(loaded == saved, "what was saved reads back whole")
         #expect(try store.loadResearchDirections(homeID: goal.id).map(\.id) == [saved.id])
-        #expect(try syncChanges(store, entity: "researchDirection").map(\.key) == [saved.id])
-        #expect(try store.hasLocalSyncRecord(entity: .researchDirection, logicalKey: saved.id))
     }
 
     @Test("A proposal without evidence that can be opened, or toward no home, refuses the whole call")
@@ -105,7 +92,6 @@ struct ResearchDirectionPersistenceTests {
             try store.proposeResearchDirections(homeID: "no-such-home", drafts: [hypoxiaDraft()])
         }
         #expect(try store.loadResearchDirections().isEmpty, "nothing is half-saved")
-        #expect(try syncChanges(store, entity: "researchDirection").isEmpty)
     }
 
     @Test("A proposal the home already has, reworded only in case or punctuation, is skipped and named")
@@ -169,14 +155,14 @@ struct ResearchDirectionPersistenceTests {
         #expect(updated.evidence[0].citation == "Jain et al., Science 2016", "the first occurrence is kept")
     }
 
-    @Test("Deleting a Goal, a Notebook or an Idea deletes what was proposed toward it, tombstones included")
+    @Test("Deleting a Goal, a Notebook or an Idea deletes what was proposed toward it")
     func homesTakeTheirDirectionsWithThem() throws {
         let store = try KnowledgeStore(inMemory: true)
         let goal = try makeGoal(store)
         let idea = try store.createIdea(title: "Could spare mitochondrial mass protect against disease?")
         let notebook = try makeNotebook(store)
         let kept = try makeGoal(store, title: "A goal that stays")
-        let onGoal = try #require(try store.proposeResearchDirections(homeID: goal.id, drafts: [hypoxiaDraft()]).saved.first)
+        _ = try #require(try store.proposeResearchDirections(homeID: goal.id, drafts: [hypoxiaDraft()]).saved.first)
         let onIdea = try #require(try store.proposeResearchDirections(homeID: idea.id, drafts: [hypoxiaDraft()]).saved.first)
         let onNotebook = try #require(try store.proposeResearchDirections(homeID: notebook.id, drafts: [hypoxiaDraft()]).saved.first)
         let onKept = try #require(try store.proposeResearchDirections(homeID: kept.id, drafts: [hypoxiaDraft()]).saved.first)
@@ -188,39 +174,6 @@ struct ResearchDirectionPersistenceTests {
         try store.deleteLearningGoal(notebook.id)
 
         #expect(try store.loadResearchDirections().map(\.id) == [onKept.id])
-        let deletions = try syncChanges(store, entity: "researchDirection").filter { $0.operation == "delete" }.map(\.key)
-        #expect(Set(deletions) == [onGoal.id, onIdea.id, onNotebook.id])
-    }
-
-    @Test("An inbound record newer than this Mac's wins whole; an older one changes nothing")
-    func syncMergeNewerWins() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        let goal = try makeGoal(store)
-        let local = try #require(try store.proposeResearchDirections(homeID: goal.id, drafts: [hypoxiaDraft()]).saved.first)
-
-        var older = local
-        older.status = .setAside
-        older.verdictReason = "From the past"
-        older.updatedAt = local.updatedAt.addingTimeInterval(-60)
-        try store.saveResearchDirectionRecord(CloudKitResearchDirectionPayload(direction: older))
-        #expect(try store.loadResearchDirection(local.id)?.status == .proposed)
-
-        var newer = local
-        newer.status = .pursued
-        newer.verdictReason = "Answered on the other Mac"
-        newer.decidedAt = Date()
-        newer.updatedAt = local.updatedAt.addingTimeInterval(60)
-        let payload = try JSONEncoder().encode(CloudKitResearchDirectionPayload(direction: newer))
-        let decoded = try JSONDecoder().decode(CloudKitResearchDirectionPayload.self, from: payload)
-        try store.saveResearchDirectionRecord(decoded)
-        let merged = try #require(try store.loadResearchDirection(local.id))
-        #expect(merged.status == .pursued)
-        #expect(merged.verdictReason == "Answered on the other Mac")
-        #expect(merged.evidence == local.evidence)
-
-        let arriving = ResearchDirection(homeKind: .goal, homeID: "a-goal-not-here-yet", title: "Arrives before its Goal", rationale: "Sync order")
-        try store.saveResearchDirectionRecord(CloudKitResearchDirectionPayload(direction: arriving))
-        #expect(try store.loadResearchDirection(arriving.id) != nil, "a Direction may arrive before its home")
     }
 
     @Test("A record from a newer build reads an unknown angle and status leniently; an unknown home fails")

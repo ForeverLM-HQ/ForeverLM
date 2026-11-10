@@ -70,7 +70,7 @@ extension KnowledgeStore {
             if sourceWasMissing {
                 try restoreDeferredReviewSessionSourceLinks(sourceID: article.id)
             }
-            try markRecordChanged(entity: .source, logicalKey: article.id)
+            noteStoreChanged()
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -80,41 +80,6 @@ extension KnowledgeStore {
             var changes = AppliedRemoteChanges()
             changes.note(.source, localID: article.id)
             appliedRemoteChangesHandler?(changes)
-        }
-    }
-
-    /// Source payload identity is derived from the canonical subtype rows rather
-    /// than duplicated onto `StudioArticle`. Apply it in the same transaction as
-    /// the aggregate so a published DOI can never arrive without its Source row.
-    func saveSourceFromSync(
-        _ article: StudioArticle,
-        portableIdentity: CloudKitSourceIdentityPayload?
-    ) throws {
-        if let portableIdentity, portableIdentity.sourceID != article.id {
-            throw KnowledgeStoreError.invalidData(
-                "Synced Source portable identity points to a different source."
-            )
-        }
-        try exec("BEGIN IMMEDIATE")
-        do {
-            let sourceWasMissing = !(try sourceExists(article.id))
-            let publishedDOI = portableIdentity?.publishedDOI?
-                .trimmingCharacters(in: .whitespacesAndNewlines)
-                .lowercased()
-            // Persist portable identity before the targeted anchor reconciliation
-            // at the end of persistSourceRows. Item-before-Source delivery may
-            // have only publishedDOI available to map the remote source ID.
-            try persistSourceRows(
-                article,
-                publishedDOI: publishedDOI?.isEmpty == false ? publishedDOI : nil
-            )
-            if sourceWasMissing {
-                try restoreDeferredReviewSessionSourceLinks(sourceID: article.id)
-            }
-            try exec("COMMIT")
-        } catch {
-            try? exec("ROLLBACK")
-            throw error
         }
     }
 
@@ -715,7 +680,6 @@ extension KnowledgeStore {
             let now = Date()
             for goalID in affectedGoalIDs {
                 try touchLearningGoal(goalID, at: now)
-                try markRecordChanged(entity: .learningGoal, logicalKey: goalID)
             }
         }
 
@@ -728,7 +692,6 @@ extension KnowledgeStore {
         if shouldHideSource {
             try writeSourceHidden(article.id, hidden: true, hiddenAt: pendingHiddenAt ?? Date())
             try deletePendingHiddenSource(article.id)
-            try markRecordChanged(entity: .hiddenSource, logicalKey: article.id)
         }
         if article.sourceType == .podcast, shouldHideSource {
             let hideKey = try personalStateSourceKey(article.id)
@@ -750,7 +713,7 @@ extension KnowledgeStore {
         // activation's derivations ran once, and the Source names it by id (§4.4).
         try deriveSourceCollections(onlySource: article.id)
         try derivePlaylistCollections(onlySource: article.id)
-        try markRecordChanged(entity: .source, logicalKey: article.id)
+        noteStoreChanged()
         return keptStored
     }
 
@@ -1350,42 +1313,6 @@ extension KnowledgeStore {
         return
     }
 
-    /// Reinstate this device's reading progress after an inbound record wrote
-    /// the sending device's progress over it. Only used by the conflict path,
-    /// where the local progress is newer by definition; the ordinary inbound
-    /// apply has no local edit to protect and takes the record as sent.
-    ///
-    /// Returns whether anything actually changed, so the caller only republishes
-    /// a row that now differs from the server snapshot it just adopted.
-    @discardableResult
-    func restoreSourceReadingProgress(
-        sourceID: String,
-        page: Int?,
-        locator: String?,
-        readAt: Date?
-    ) throws -> Bool {
-        try execBind("""
-            UPDATE sources
-            SET reading_position_page = ?1,
-                reading_position_locator = ?2,
-                read_at = ?3
-            WHERE id = ?4
-              AND (reading_position_page IS NOT ?1
-                OR reading_position_locator IS NOT ?2
-                OR read_at IS NOT ?3)
-        """) { stmt in
-            bind(stmt, 1, page)
-            bind(stmt, 2, locator)
-            if let readAt {
-                sqlite3_bind_double(stmt, 3, readAt.timeIntervalSinceReferenceDate)
-            } else {
-                sqlite3_bind_null(stmt, 3)
-            }
-            bind(stmt, 4, sourceID)
-        }
-        return sqlite3_changes(db) > 0
-    }
-
     /// Record the Liked-feed dates for a video. Called per item on every Liked
     /// sync, which is also what backfills rows that predate these columns —
     /// there is no separate migration. Each argument is only written when
@@ -1406,7 +1333,7 @@ extension KnowledgeStore {
             bind(stmt, 3, sourceID)
         }
         guard sqlite3_changes(db) > 0 else { return false }
-        try markRecordChanged(entity: .source, logicalKey: sourceID)
+        noteStoreChanged()
         return true
     }
 
@@ -1525,17 +1452,6 @@ extension KnowledgeStore {
         return date
     }
 
-    func savePendingHiddenSource(_ sourceID: String, hiddenAt: Date) throws {
-        try execBind("""
-            INSERT INTO pending_hidden_sources (source_id, hidden_at)
-            VALUES (?, ?)
-            ON CONFLICT(source_id) DO UPDATE SET hidden_at = excluded.hidden_at
-        """) { stmt in
-            bind(stmt, 1, sourceID)
-            sqlite3_bind_double(stmt, 2, hiddenAt.timeIntervalSinceReferenceDate)
-        }
-    }
-
     func deletePendingHiddenSource(_ sourceID: String) throws {
         try execBind("DELETE FROM pending_hidden_sources WHERE source_id = ?") { stmt in
             bind(stmt, 1, sourceID)
@@ -1556,7 +1472,6 @@ extension KnowledgeStore {
         try execBind("DELETE FROM books WHERE id = ?") { stmt in
             bind(stmt, 1, sourceId)
         }
-        try markRecordDeleted(entity: .book, logicalKey: sourceId)
     }
 
     func deleteSubtypeRows(for sourceId: String, except sourceType: StudioSourceType) throws {
@@ -2007,7 +1922,7 @@ extension KnowledgeStore {
                             sourceID: row.sourceID,
                             preparationTable: table
                         )
-                        try markRecordChanged(entity: .source, logicalKey: row.sourceID)
+                        noteStoreChanged()
                         requeued.append(row.sourceID)
                     }
                 }
@@ -2095,7 +2010,7 @@ extension KnowledgeStore {
             try execBind("DELETE FROM canonical_content_cleanup_queue WHERE source_id = ?") { stmt in
                 bind(stmt, 1, candidate.sourceID)
             }
-            try markRecordChanged(entity: .source, logicalKey: candidate.sourceID)
+            noteStoreChanged()
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -2140,7 +2055,7 @@ extension KnowledgeStore {
             }
             let changed = sqlite3_changes(db) > 0
             if changed {
-                try markRecordChanged(entity: .source, logicalKey: sourceID)
+                noteStoreChanged()
             }
             try exec("COMMIT")
             return changed
@@ -2241,7 +2156,7 @@ extension KnowledgeStore {
             // Any preparation recorded against the pre-cleanup text is void.
             // The cleaned derivative is prepared when a review asks for it.
             try retireSourceReviewGuidePreparation(sourceID: candidate.sourceID)
-            try markRecordChanged(entity: .source, logicalKey: candidate.sourceID)
+            noteStoreChanged()
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -2325,7 +2240,7 @@ extension KnowledgeStore {
             try execBind("DELETE FROM canonical_content_cleanup_queue WHERE source_id = ?") { stmt in
                 bind(stmt, 1, candidate.sourceID)
             }
-            try markRecordChanged(entity: .source, logicalKey: candidate.sourceID)
+            noteStoreChanged()
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -2633,7 +2548,7 @@ extension KnowledgeStore {
             try execBind("DELETE FROM podcast_transcript_cleanup_queue WHERE source_id = ?") { stmt in
                 bind(stmt, 1, candidate.sourceID)
             }
-            try markRecordChanged(entity: .source, logicalKey: candidate.sourceID)
+            noteStoreChanged()
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -2686,7 +2601,7 @@ extension KnowledgeStore {
                 try enqueueSourceListenableContentPreparation(sourceID: sourceID, content: preparation.input)
                 try retireSourceReviewGuidePreparation(sourceID: sourceID)
                 try enqueuePodcastTranscriptCleanupIfNeeded(sourceID: sourceID)
-                try markRecordChanged(entity: .source, logicalKey: sourceID)
+                noteStoreChanged()
                 try exec("COMMIT")
                 restored.append(sourceID)
             } catch {
@@ -2988,7 +2903,7 @@ extension KnowledgeStore {
                 bind(stmt, 1, candidate.sourceID)
             }
             try queuePublishedSourceFilesRefresh(sourceID: candidate.sourceID)
-            try markRecordChanged(entity: .source, logicalKey: candidate.sourceID)
+            noteStoreChanged()
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -3060,40 +2975,6 @@ extension KnowledgeStore {
             }
         }
         return summaries
-    }
-
-    func saveSourceListenableContentFromSync(
-        sourceID: String,
-        content: String,
-        metadata: SourceListenableContentMetadata
-    ) throws {
-        let narration = content.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard metadata.generatorVersion == SourceListenableContentMetadata.currentVersion,
-              metadata.characterCount.map({ $0 == narration.count }) ?? true,
-              MacArticleSpeechText.containsLetterOrDigit(narration),
-              let canonical = try loadSourceContent(sourceID),
-              PaperContentPreparationService.sha256(
-                canonical.trimmingCharacters(in: .whitespacesAndNewlines)
-              ) == metadata.sourceSHA256 else {
-            throw KnowledgeStoreError.invalidData(
-                "Synced listenable content failed its source integrity check for \(sourceID)."
-            )
-        }
-        try execBind("""
-            INSERT OR REPLACE INTO source_listenable_content
-                (source_id, source_sha256, content, generator_version, preparation_signature, prepared_at)
-            VALUES (?, ?, ?, ?, ?, ?)
-        """) { stmt in
-            bind(stmt, 1, sourceID)
-            bind(stmt, 2, metadata.sourceSHA256)
-            bind(stmt, 3, narration)
-            sqlite3_bind_int(stmt, 4, Int32(metadata.generatorVersion))
-            bind(stmt, 5, metadata.preparationSignature)
-            sqlite3_bind_double(stmt, 6, metadata.preparedAt.timeIntervalSinceReferenceDate)
-        }
-        try execBind("DELETE FROM source_listenable_content_queue WHERE source_id = ?") { stmt in
-            bind(stmt, 1, sourceID)
-        }
     }
 
     // MARK: - Source review guide preparation
@@ -3376,7 +3257,7 @@ extension KnowledgeStore {
                 bind(stmt, 1, candidate.sourceID)
             }
             try queuePublishedSourceFilesRefresh(sourceID: candidate.sourceID)
-            try markRecordChanged(entity: .source, logicalKey: candidate.sourceID)
+            noteStoreChanged()
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -3417,45 +3298,6 @@ extension KnowledgeStore {
             )
         }
         return result
-    }
-
-    /// Applies an encrypted CloudKit payload only when it belongs to the local
-    /// canonical text. Older payloads omit the guide and leave local preparation queued.
-    func saveSourceReviewGuideFromSync(sourceID: String, guide: SourceReviewGuide?) throws {
-        guard let guide,
-              let sourceType = try loadSourceForSync(sourceID)?.sourceType,
-              SourceReviewGuide.isCompatible(
-                generatorVersion: guide.generatorVersion,
-                sourceType: sourceType
-              ),
-              let content = try loadSourceContent(sourceID),
-              PaperContentPreparationService.sha256(content) == guide.sourceSHA256 else { return }
-        try exec("BEGIN IMMEDIATE")
-        do {
-            try execBind("""
-                INSERT INTO source_review_guides
-                    (source_id, source_sha256, guide, generator_version, generated_at)
-                VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(source_id) DO UPDATE SET
-                    source_sha256 = excluded.source_sha256,
-                    guide = excluded.guide,
-                    generator_version = excluded.generator_version,
-                    generated_at = excluded.generated_at
-            """) { stmt in
-                bind(stmt, 1, sourceID)
-                bind(stmt, 2, guide.sourceSHA256)
-                bind(stmt, 3, guide.guide)
-                sqlite3_bind_int(stmt, 4, Int32(guide.generatorVersion))
-                sqlite3_bind_double(stmt, 5, guide.generatedAt.timeIntervalSinceReferenceDate)
-            }
-            try execBind("DELETE FROM source_review_guide_queue WHERE source_id = ?") { stmt in
-                bind(stmt, 1, sourceID)
-            }
-            try exec("COMMIT")
-        } catch {
-            try? exec("ROLLBACK")
-            throw error
-        }
     }
 
     /// `restrictedTo` narrows the scan to an explicit set of sources, applied
@@ -3706,9 +3548,6 @@ extension KnowledgeStore {
             // never tombstoned the Artifact, so that tombstone is published here.
             if let overviewID, try loadArtifact(overviewID) != nil {
                 try deleteArtifactRecord(overviewID)
-                if syncTrackingSuppressionDepth > 0 {
-                    try enqueueCascadingRecordDeletion(entity: .artifact, logicalKey: overviewID)
-                }
             }
             try exec("COMMIT")
             // Source-scoped credentials should not outlive their source. This
@@ -3740,33 +3579,11 @@ extension KnowledgeStore {
         // The source's notebook items stay: their Entries stay live on the server and hide on read
         // while the source is missing, and a re-import of the same id shows them again
         // (schema v2 §3.5.8, §5.4). The item table has no foreign key to `sources`.
-        for goalId in affectedGoalIds {
-            try markRecordChanged(entity: .learningGoal, logicalKey: goalId)
-        }
         // Its vectors, full-text row and stamps: a deleted source left in search is found by
         // keyword search and, at the next launch, by meaning.
         try dropSourceSearchRows(sourceID: sourceId)
         try execBind("DELETE FROM sources WHERE id = ?") { stmt in
             bind(stmt, 1, sourceId)
-        }
-        try markRecordDeleted(entity: .source, logicalKey: sourceId)
-    }
-
-    /// Delete all locally-discovered sources that duplicate a CloudKit-synced source.
-    /// Matches by URL (relative or normalized) and deletes every duplicate whose ID differs.
-    /// Called inside `withoutSyncTracking` so it does not queue spurious changes for
-    /// unrelated entities. Each removed duplicate's own sync state is still reconciled
-    /// via `purgeSyncStateForDeletedDuplicate` so it leaves no orphaned `sync_metadata`.
-    func deleteLocalDuplicate(of article: StudioArticle) throws {
-        // Deletes every duplicate row and reconciles each one's sync state in a
-        // single atomic transaction so a partial delete can't orphan sync_metadata.
-        try exec("BEGIN IMMEDIATE")
-        do {
-            try deleteLocalDuplicateRows(of: article)
-            try exec("COMMIT")
-        } catch {
-            try? exec("ROLLBACK")
-            throw error
         }
     }
 
@@ -3840,34 +3657,15 @@ extension KnowledgeStore {
         at now: Date
     ) throws {
         do {
-            var discardedMeetingGroupIDs: Set<String> = []
             if discardingMeetingArtifacts {
-                try queryBind(
-                    "SELECT DISTINCT group_id FROM meeting_artifacts WHERE source_id = ?",
-                    bind: { stmt in bind(stmt, 1, duplicateID) }
-                ) { stmt in
-                    if let id = string(stmt, 0) { discardedMeetingGroupIDs.insert(id) }
-                }
                 try execBind("DELETE FROM meeting_artifacts WHERE source_id = ?") { stmt in
                     bind(stmt, 1, duplicateID)
                 }
             }
-            let affectedGoalIDs = try reassignLearningGoalItems(
-                from: duplicateID,
-                to: canonicalID
-            )
-            let affectedSessionIDs = try reassignReviewSessionSources(
-                from: duplicateID,
-                to: canonicalID
-            )
-            let scheduleChanges = try reassignScheduledSource(
-                from: duplicateID,
-                to: canonicalID
-            )
-            let relationshipChanges = try reassignSimpleSourceRelationships(
-                from: duplicateID,
-                to: canonicalID
-            )
+            try reassignLearningGoalItems(from: duplicateID, to: canonicalID)
+            try reassignReviewSessionSources(from: duplicateID, to: canonicalID)
+            try reassignScheduledSource(from: duplicateID, to: canonicalID)
+            try reassignSimpleSourceRelationships(from: duplicateID, to: canonicalID)
 
             try execBind("UPDATE sources SET status = ?, archived_at = ? WHERE id = ?") { stmt in
                 bind(stmt, 1, SourceStatus.archived.rawValue)
@@ -3877,43 +3675,7 @@ extension KnowledgeStore {
             // The canonical source is searched in its place; the duplicate's rows would answer for it.
             try dropSourceSearchRows(sourceID: duplicateID)
 
-            for goalID in affectedGoalIDs {
-                try markRecordChanged(entity: .learningGoal, logicalKey: goalID, at: now)
-            }
-            for sessionID in affectedSessionIDs {
-                try markRecordChanged(entity: .reviewSession, logicalKey: sessionID, at: now)
-            }
-            for highlightID in relationshipChanges.highlightIDs {
-                try markRecordChanged(entity: .sourceHighlight, logicalKey: highlightID, at: now)
-            }
-            for memoryItemID in relationshipChanges.memoryItemIDs {
-                try markRecordChanged(entity: .memoryItem, logicalKey: memoryItemID, at: now)
-            }
-            for goalID in relationshipChanges.learningGoalIDs {
-                try markRecordChanged(entity: .learningGoal, logicalKey: goalID, at: now)
-            }
-            for meetingGroupID in relationshipChanges.meetingGroupIDs.union(discardedMeetingGroupIDs) {
-                try markRecordChanged(entity: .meetingGroup, logicalKey: meetingGroupID, at: now)
-            }
-            for citedPaperID in relationshipChanges.videoCitedPaperIDs {
-                try markRecordChanged(entity: .videoCitedPaper, logicalKey: citedPaperID, at: now)
-            }
-            for groupID in relationshipChanges.groupIDs {
-                if try loadBookForSync(groupID) != nil {
-                    try markRecordChanged(entity: .book, logicalKey: groupID, at: now)
-                }
-                if try loadVideoPlaylistForSync(groupID) != nil {
-                    try markRecordChanged(entity: .videoPlaylist, logicalKey: groupID, at: now)
-                }
-            }
-            for placementID in scheduleChanges.savedPlacementIDs {
-                try markRecordChanged(entity: .scheduledSource, logicalKey: placementID, at: now)
-            }
-            for placementID in scheduleChanges.deletedPlacementIDs {
-                try markRecordDeleted(entity: .scheduledSource, logicalKey: placementID, at: now)
-            }
-            try markRecordChanged(entity: .source, logicalKey: canonicalID, at: now)
-            try markRecordChanged(entity: .source, logicalKey: duplicateID, at: now)
+            noteStoreChanged()
         }
     }
 
@@ -3923,18 +3685,7 @@ extension KnowledgeStore {
     private func reassignLearningGoalItems(
         from duplicateID: String,
         to canonicalID: String
-    ) throws -> [String] {
-        var goalIDs: [String] = []
-        try queryBind(
-            "SELECT DISTINCT goal_id FROM learning_goal_items WHERE source_id IN (?, ?)",
-            bind: { stmt in
-                bind(stmt, 1, duplicateID)
-                bind(stmt, 2, canonicalID)
-            }
-        ) { stmt in
-            if let goalID = string(stmt, 0) { goalIDs.append(goalID) }
-        }
-
+    ) throws {
         // Move non-overlapping Notebook membership without changing its stable item id.
         try execBind("""
             UPDATE learning_goal_items
@@ -4031,16 +3782,14 @@ extension KnowledgeStore {
         try execBind("DELETE FROM learning_goal_items WHERE source_id = ?") { stmt in
             bind(stmt, 1, duplicateID)
         }
-        return goalIDs
     }
 
     /// Session JSON is the canonical relationship and the junction is its local
-    /// projection. Rewrite both so the next CloudKit save cannot resurrect the
-    /// duplicate id.
+    /// projection. Rewrite both so neither still names the duplicate id.
     private func reassignReviewSessionSources(
         from duplicateID: String,
         to canonicalID: String
-    ) throws -> [String] {
+    ) throws {
         var sessions: [(id: String, sourceIDs: [String])] = []
         try queryBind("""
             SELECT id, source_ids FROM review_sessions
@@ -4071,12 +3820,6 @@ extension KnowledgeStore {
             }
             try replaceReviewSessionSources(sessionID: session.id, sourceIDs: rewritten)
         }
-        return sessions.map(\.id)
-    }
-
-    private struct DuplicateScheduleChanges {
-        var savedPlacementIDs: [String] = []
-        var deletedPlacementIDs: [String] = []
     }
 
     /// Schedule is source-global. If both duplicate ids were placed, merge their
@@ -4085,7 +3828,7 @@ extension KnowledgeStore {
     private func reassignScheduledSource(
         from duplicateID: String,
         to canonicalID: String
-    ) throws -> DuplicateScheduleChanges {
+    ) throws {
         struct Placement {
             let id: String
             let isAutomatic: Bool
@@ -4103,7 +3846,7 @@ extension KnowledgeStore {
             return result
         }
 
-        guard let duplicate = try placement(for: duplicateID) else { return .init() }
+        guard let duplicate = try placement(for: duplicateID) else { return }
         guard let canonical = try placement(for: canonicalID) else {
             try execBind("""
                 UPDATE scheduled_sources
@@ -4130,7 +3873,7 @@ extension KnowledgeStore {
                 toPlacement: duplicate.id,
                 canonicalID: canonicalID
             )
-            return DuplicateScheduleChanges(savedPlacementIDs: [duplicate.id])
+            return
         }
 
         try execBind("""
@@ -4178,10 +3921,6 @@ extension KnowledgeStore {
         try execBind("DELETE FROM scheduled_sources WHERE id = ?") { stmt in
             bind(stmt, 1, duplicate.id)
         }
-        return DuplicateScheduleChanges(
-            savedPlacementIDs: [canonical.id],
-            deletedPlacementIDs: [duplicate.id]
-        )
     }
 
     /// Move a duplicate placement's activity ledger under the canonical source.
@@ -4287,26 +4026,10 @@ extension KnowledgeStore {
     /// Move source relationships whose rows have their own stable identity. The
     /// duplicate Source itself remains archived, so source-owned derived products
     /// do not need an unbounded copy during this user-visible repair.
-    private struct DuplicateRelationshipChanges {
-        var highlightIDs = Set<String>()
-        var memoryItemIDs = Set<String>()
-        var learningGoalIDs = Set<String>()
-        var meetingGroupIDs = Set<String>()
-        var videoCitedPaperIDs = Set<String>()
-        var groupIDs = Set<String>()
-    }
-
     private func reassignSimpleSourceRelationships(
         from duplicateID: String,
         to canonicalID: String
-    ) throws -> DuplicateRelationshipChanges {
-        var changes = DuplicateRelationshipChanges()
-        try queryBind("SELECT highlight_id FROM source_highlights WHERE source_id = ?", bind: { stmt in
-            bind(stmt, 1, duplicateID)
-        }) { stmt in
-            if let id = string(stmt, 0) { changes.highlightIDs.insert(id) }
-        }
-
+    ) throws {
         func tableExists(_ table: String) throws -> Bool {
             var exists = false
             try queryBind(
@@ -4314,48 +4037,6 @@ extension KnowledgeStore {
                 bind: { stmt in bind(stmt, 1, table) }
             ) { _ in exists = true }
             return exists
-        }
-
-        func collectParentIDs(table: String, column: String, into ids: inout Set<String>) throws {
-            guard try tableExists(table) else { return }
-            try queryBind(
-                "SELECT DISTINCT \(column) FROM \(table) WHERE source_id = ?",
-                bind: { stmt in bind(stmt, 1, duplicateID) }
-            ) { stmt in
-                if let id = string(stmt, 0) { ids.insert(id) }
-            }
-        }
-
-        try collectParentIDs(
-            table: "memory_item_sources",
-            column: "memory_item_id",
-            into: &changes.memoryItemIDs
-        )
-        try collectParentIDs(
-            table: "learning_goal_gaps",
-            column: "goal_id",
-            into: &changes.learningGoalIDs
-        )
-        try collectParentIDs(
-            table: "meeting_artifacts",
-            column: "group_id",
-            into: &changes.meetingGroupIDs
-        )
-        if try tableExists("video_cited_papers") {
-            try queryBind(
-                "SELECT id FROM video_cited_papers WHERE imported_source_id = ?",
-                bind: { stmt in bind(stmt, 1, duplicateID) }
-            ) { stmt in
-                if let id = string(stmt, 0) { changes.videoCitedPaperIDs.insert(id) }
-            }
-        }
-        if try tableExists("group_members") {
-            try queryBind(
-                "SELECT DISTINCT group_id FROM group_members WHERE source_id = ?",
-                bind: { stmt in bind(stmt, 1, duplicateID) }
-            ) { stmt in
-                if let id = string(stmt, 0) { changes.groupIDs.insert(id) }
-            }
         }
 
         let simpleTables = [
@@ -4385,119 +4066,6 @@ extension KnowledgeStore {
         try execBind("DELETE FROM group_members WHERE source_id = ?") { stmt in
             bind(stmt, 1, duplicateID)
         }
-        return changes
-    }
-
-    private func deleteLocalDuplicateRows(of article: StudioArticle) throws {
-        let persistedURL = StorageService.relativeSourcePath(article.url)
-        let normURL = article.normalizedURL ?? URLNormalizer.normalize(article.url)
-
-        var duplicateIds: [String] = []
-        try queryBind("""
-            SELECT id FROM source_projection
-            WHERE (url = ? OR normalized_url = ?) AND id != ?
-        """, bind: { stmt in
-            bind(stmt, 1, persistedURL)
-            bind(stmt, 2, normURL)
-            bind(stmt, 3, article.id)
-        }) { stmt in
-            if let id = string(stmt, 0) {
-                duplicateIds.append(id)
-            }
-        }
-
-        for dupId in duplicateIds {
-            try execBind("DELETE FROM embeddings WHERE entity_type = ? AND entity_id = ?") { stmt in
-                bind(stmt, 1, KnowledgeEntityType.source.rawValue)
-                bind(stmt, 2, dupId)
-            }
-            try deleteEmbeddings(
-                entityType: .sourceChunk,
-                entityIdPrefix: StorageService.sourceChunkEmbeddingPrefix(for: dupId),
-                model: StorageService.sourceEmbeddingModel
-            )
-            try execBind("DELETE FROM sources WHERE id = ?") { stmt in
-                bind(stmt, 1, dupId)
-            }
-            try purgeSyncStateForDeletedDuplicate(dupId)
-        }
-    }
-
-    /// Remove the CloudKit sync bookkeeping for a locally-deleted duplicate source.
-    ///
-    /// `deleteLocalDuplicate` runs under `withoutSyncTracking`, which suppresses
-    /// `markRecordDeleted`. Without this, deleting the `sources` row leaves the
-    /// duplicate's `sync_metadata` behind as a live orphan (metadata says synced &
-    /// alive, but the row is gone) — and if it had already been pushed, CloudKit
-    /// would resurrect it on the next fetch. So we record the deletion directly:
-    /// tombstone + queue a delete when it was synced, otherwise drop the stale
-    /// metadata outright.
-    func purgeSyncStateForDeletedDuplicate(_ sourceID: String) throws {
-        guard let metadata = try loadSyncMetadata(entity: .source, logicalKey: sourceID) else { return }
-        guard metadata.systemFieldsData != nil else {
-            // Never reached CloudKit — just drop the stale local metadata.
-            try clearSyncMetadata(entity: .source, logicalKey: sourceID)
-            return
-        }
-        // Was synced — tombstone and queue a delete so the redundant CloudKit
-        // record is removed instead of resurrecting the duplicate.
-        try saveSyncMetadata(
-            CloudKitSyncMetadata(
-                entity: .source,
-                logicalKey: sourceID,
-                recordName: metadata.recordName,
-                systemFieldsData: nil,
-                userModificationDate: Date(),
-                isDeleted: true
-            )
-        )
-        try execBind("""
-            INSERT INTO sync_changes (entity_type, logical_key, record_name, operation, changed_at)
-            VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(entity_type, logical_key) DO UPDATE SET
-                record_name = excluded.record_name,
-                operation = excluded.operation,
-                changed_at = excluded.changed_at
-        """) { stmt in
-            bind(stmt, 1, CloudKitSyncEntity.source.rawValue)
-            bind(stmt, 2, sourceID)
-            bind(stmt, 3, metadata.recordName)
-            bind(stmt, 4, CloudKitSyncOperation.delete.rawValue)
-            sqlite3_bind_double(stmt, 5, Date().timeIntervalSinceReferenceDate)
-        }
-    }
-
-    /// Return content from a local duplicate before replacing it with a CloudKit-synced source.
-    /// This prevents metadata-only remote records from discarding text already extracted locally.
-    func loadLocalDuplicateContent(of article: StudioArticle) throws -> String? {
-        let persistedURL = StorageService.relativeSourcePath(article.url)
-        let normalizedURL = article.normalizedURL ?? URLNormalizer.normalize(article.url)
-        var content: String?
-        try queryBind("""
-            SELECT sc.content
-            FROM source_projection sp
-            JOIN source_content sc ON sc.source_id = sp.id
-            WHERE sp.id != ?
-              AND sc.content IS NOT NULL
-              AND sc.content != ''
-              AND (
-                sp.url = ?
-                OR sp.url = ?
-                OR sp.normalized_url = ?
-                OR sp.normalized_url = ?
-              )
-            ORDER BY length(sc.content) DESC
-            LIMIT 1
-        """, bind: { stmt in
-            bind(stmt, 1, article.id)
-            bind(stmt, 2, persistedURL)
-            bind(stmt, 3, article.url)
-            bind(stmt, 4, normalizedURL)
-            bind(stmt, 5, persistedURL)
-        }) { stmt in
-            content = string(stmt, 0)
-        }
-        return content
     }
 
     /// Mark a source URL as dismissed so it won't be re-discovered.
@@ -4518,7 +4086,6 @@ extension KnowledgeStore {
             sqlite3_bind_double(stmt, 3, Date().timeIntervalSinceReferenceDate)
         }
         try archiveSourcesMatchingDismissedURL(persistedURL)
-        try markRecordChanged(entity: .dismissedSource, logicalKey: persistedURL)
     }
 
     /// Whether a (persisted) URL belongs to a book source. Book chapters are keyed
@@ -4602,7 +4169,6 @@ extension KnowledgeStore {
             try execBind("DELETE FROM dismissed_sources WHERE url = ?") { stmt in
                 bind(stmt, 1, dismissedURL)
             }
-            try markRecordDeleted(entity: .dismissedSource, logicalKey: dismissedURL)
         }
         return deletionKeys.sorted()
     }
@@ -4646,20 +4212,6 @@ extension KnowledgeStore {
 
         for sourceID in sourceIDs {
             try archiveSource(sourceID)
-            // `archiveSource` records its own sync change, but two of the three
-            // callers run inside `withoutSyncTracking` — the inbound
-            // DismissedSource record, and an inbound Source record whose URL is
-            // already dismissed locally — where that call is a no-op. The
-            // suppression is there to stop the *arriving* record from echoing
-            // back; these archives are not an echo, they are a local change no
-            // other device knows about, so they must still publish.
-            //
-            // Without this the server keeps serving the source as active with
-            // its text wiped, and every full pass re-sends it and re-archives it
-            // here: a loop that never converges, and other devices list a source
-            // they cannot open. `upsertSyncSave` is deliberately not
-            // suppression-gated, which is what lets the archive out.
-            try upsertSyncSave(entity: .source, logicalKey: sourceID, at: Date())
         }
         return sourceIDs
     }
@@ -4746,13 +4298,8 @@ extension KnowledgeStore {
                 try enqueuePodcastTranscriptCleanupIfNeeded(sourceID: sourceID)
             }
         }
-        for sourceID in affectedOverrideIDs {
-            try markRecordChanged(entity: .source, logicalKey: sourceID)
-        }
-        if hidden {
-            try markRecordChanged(entity: .hiddenPodcastShow, logicalKey: trimmed)
-        } else {
-            try markRecordDeleted(entity: .hiddenPodcastShow, logicalKey: trimmed)
+        if !affectedOverrideIDs.isEmpty {
+            noteStoreChanged()
         }
         return revealedEpisodeIDs
     }
@@ -4819,13 +4366,8 @@ extension KnowledgeStore {
                 bind(stmt, 1, trimmed)
             }
         }
-        for sourceID in affectedOverrideIDs {
-            try markRecordChanged(entity: .source, logicalKey: sourceID)
-        }
-        if hidden {
-            try markRecordChanged(entity: .hiddenYouTubeChannel, logicalKey: trimmed)
-        } else {
-            try markRecordDeleted(entity: .hiddenYouTubeChannel, logicalKey: trimmed)
+        if !affectedOverrideIDs.isEmpty {
+            noteStoreChanged()
         }
     }
 
@@ -4874,12 +4416,7 @@ extension KnowledgeStore {
             try writeSourceHidden(trimmed, hidden: false)
             try enqueuePodcastTranscriptCleanupIfNeeded(sourceID: trimmed)
         }
-        if hidden {
-            try markRecordChanged(entity: .hiddenSource, logicalKey: trimmed)
-        } else {
-            try markRecordDeleted(entity: .hiddenSource, logicalKey: trimmed)
-        }
-        try markRecordChanged(entity: .source, logicalKey: trimmed)
+        noteStoreChanged()
     }
 
     func setSourceHidden(_ sourceID: String, hidden: Bool) throws {
@@ -4908,12 +4445,7 @@ extension KnowledgeStore {
                 try enqueuePodcastTranscriptCleanupIfNeeded(sourceID: trimmed)
             }
         }
-        if hidden {
-            try markRecordChanged(entity: .hiddenSource, logicalKey: trimmed)
-        } else {
-            try markRecordDeleted(entity: .hiddenSource, logicalKey: trimmed)
-        }
-        try markRecordChanged(entity: .source, logicalKey: trimmed)
+        noteStoreChanged()
     }
 
     func isPodcastSource(_ sourceID: String) -> Bool {
@@ -4987,17 +4519,6 @@ extension KnowledgeStore {
         }
     }
 
-    func isPodcastEpisodeVisibleOverride(_ sourceID: String) throws -> Bool {
-        var found = false
-        let key = try personalStateSourceKey(sourceID)
-        try queryBind("SELECT 1 FROM visible_podcast_episode_overrides WHERE source_id = ? LIMIT 1", bind: { stmt in
-            bind(stmt, 1, key)
-        }) { _ in
-            found = true
-        }
-        return found
-    }
-
     func setPodcastEpisodeVisibleOverride(_ sourceID: String, visible: Bool) throws {
         let trimmed = sourceID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -5016,7 +4537,6 @@ extension KnowledgeStore {
                 bind(stmt, 1, key)
             }
             try writeSourceHidden(trimmed, hidden: false)
-            try markRecordDeleted(entity: .hiddenSource, logicalKey: trimmed)
         } else {
             try execBind("DELETE FROM visible_podcast_episode_overrides WHERE source_id = ?") { stmt in
                 bind(stmt, 1, key)
@@ -5026,7 +4546,7 @@ extension KnowledgeStore {
             bind(stmt, 1, trimmed)
         }
         try enqueuePodcastTranscriptCleanupIfNeeded(sourceID: trimmed)
-        try markRecordChanged(entity: .source, logicalKey: trimmed)
+        noteStoreChanged()
     }
 
     func loadVisibleYouTubeVideoOverrideIDs() throws -> Set<String> {
@@ -5068,15 +4588,6 @@ extension KnowledgeStore {
         }
     }
 
-    func isYouTubeVideoVisibleOverride(_ sourceID: String) throws -> Bool {
-        var found = false
-        let key = try personalStateSourceKey(sourceID)
-        try queryBind("SELECT 1 FROM visible_youtube_video_overrides WHERE source_id = ? LIMIT 1", bind: { stmt in
-            bind(stmt, 1, key)
-        }) { _ in found = true }
-        return found
-    }
-
     func setYouTubeVideoVisibleOverride(_ sourceID: String, visible: Bool) throws {
         let trimmed = sourceID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
@@ -5092,13 +4603,12 @@ extension KnowledgeStore {
                 sqlite3_bind_double(stmt, 2, Date().timeIntervalSinceReferenceDate)
             }
             try writeSourceHidden(trimmed, hidden: false)
-            try markRecordDeleted(entity: .hiddenSource, logicalKey: trimmed)
         } else {
             try execBind("DELETE FROM visible_youtube_video_overrides WHERE source_id = ?") { stmt in
                 bind(stmt, 1, key)
             }
         }
-        try markRecordChanged(entity: .source, logicalKey: trimmed)
+        noteStoreChanged()
     }
 
     func updateSourceType(_ sourceId: String, to newType: String) throws {

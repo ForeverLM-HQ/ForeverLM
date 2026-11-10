@@ -390,7 +390,7 @@ class StudioViewModel {
     }
     @ObservationIgnored var sourceIndexingKickTask: Task<Void, Never>?
     @ObservationIgnored var cloudKitRemoteChangeTask: Task<Void, Never>?
-    @ObservationIgnored var cloudKitConflictObservationTask: Task<Void, Never>?
+    @ObservationIgnored var iCloudFullObservationTask: Task<Void, Never>?
     @ObservationIgnored var cloudKitBackgroundSyncTask: Task<Void, Never>?
     @ObservationIgnored var cloudKitEventSyncTask: Task<Void, Never>?
     @ObservationIgnored var lastCloudKitEventSyncAt: Date?
@@ -517,7 +517,6 @@ class StudioViewModel {
     @ObservationIgnored var activePaperBrowserAttemptIDs: [String: UUID] = [:]
     @ObservationIgnored var activePaperBrowserServices: [String: SourceDiscovery.PaperAIBrowserDownloadService] = [:]
     @ObservationIgnored var activePaperBrowserTasks: [String: Task<SourceDiscovery.PaperAIBrowserDownloadService.DownloadedPDF, Error>] = [:]
-    @ObservationIgnored var sourceSyncRepairInFlight = false
     @ObservationIgnored var zoomMeetingAdoptionInFlight = false
     @ObservationIgnored var sourceTextReferenceRepairInFlight = false
     /// The soft hyphen repair running now (schema 166), which a second caller
@@ -4147,31 +4146,6 @@ class StudioViewModel {
         }
     }
 
-    /// Turn versioned repair IDs into ordinary sync changes only after the
-    /// source list has loaded. Small batches keep SQLite available and make the
-    /// work resumable if the app closes midway through an upgrade.
-    func runDeferredSourceSyncRepair() async {
-        guard !sourceSyncRepairInFlight else { return }
-        sourceSyncRepairInFlight = true
-        defer { sourceSyncRepairInFlight = false }
-        do {
-            while !Task.isCancelled {
-                let drained = try await storage.drainSourceSyncRepairBatch(limit: 50)
-                guard drained > 0 else { break }
-                await Task.yield()
-            }
-            // Schema 98 staged every review session for re-upload under its
-            // renamed record type; same batching, same reason.
-            while !Task.isCancelled {
-                let drained = try await storage.drainReviewSessionSyncRepairBatch(limit: 50)
-                guard drained > 0 else { break }
-                await Task.yield()
-            }
-        } catch {
-            logger.error("Deferred source sync repair paused: \(error.localizedDescription)")
-        }
-    }
-
     /// Adopt historical Zoom video rows only after the source list is visible.
     /// Bounded batches keep the storage actor available; the final reload
     /// publishes type, series relationship, and provider together.
@@ -4796,7 +4770,7 @@ class StudioViewModel {
         if observeCloudKitChanges {
             startObservingCloudKitRemoteChanges()
             startObservingResolvedPathCacheClears()
-            startObservingCloudKitSyncConflicts()
+            startObservingICloudStorageFull()
             startObservingDerivedSourceWork()
             startObservingManagedAICreditsRestored()
             startObservingBackgroundAISpendControls()

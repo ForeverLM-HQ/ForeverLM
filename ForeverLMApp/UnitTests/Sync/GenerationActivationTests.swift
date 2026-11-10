@@ -3,8 +3,8 @@ import Testing
 @testable import ForeverLM
 
 /// The generation-2 activation's journal and the steps every mode shares (D46, D49,
-/// docs/cloudkit-schema-design.md §13.3 step 3), and generation 1's side of it (D40, §13.2). The modes'
-/// launch behaviour (the read-only window, the fallbacks, the catch-up) is `ActivationModeTests` (WP16a).
+/// docs/cloudkit-schema-design.md §13.3 step 3), and schema 175, which records generation 1's history in
+/// the journal and drops its tables. The modes' launch behaviour is `ActivationModeTests` (WP16a).
 @Suite("Generation activation")
 struct GenerationActivationTests {
     private typealias Fixture = OutboxTestProjections
@@ -26,57 +26,120 @@ struct GenerationActivationTests {
         return activation
     }
 
-    @Test("The mode is decided once and recorded: no history is fresh without asking the account")
+    @Test("The mode is decided once and recorded: a journal with no mode activates fresh")
     func modeIsRecorded() async throws {
-        var asked = 0
-        let fresh = await GenerationActivation.decideMode(hasHistory: false) { asked += 1; return .unavailable }
-        #expect(fresh == .freshNoHistory)
-        #expect(asked == 0, "a store with no generation-1 history asks nothing of the network")
-        let full = await GenerationActivation.decideMode(hasHistory: true) { .signedIn(userRecordName: "_8f2c") }
-        #expect(full == ActivationModeDecision(mode: .full, freshReason: nil, account: "_8f2c"))
-        let deferred = await GenerationActivation.decideMode(hasHistory: true) { .unavailable }
-        #expect(deferred == ActivationModeDecision(mode: .deferred, freshReason: nil, account: nil))
-
         let (root, store) = try Self.generation2Store("mode")
         defer { try? FileManager.default.removeItem(at: root) }
-        #expect(try store.scalarInteger("SELECT COUNT(*) FROM sync_metadata") ?? 0 > 0, "local writes leave sync_metadata rows")
-        #expect(try GenerationActivation.hasGeneration1History(store) == false, "but a library that never synced has no history")
-        try store.executeScript("UPDATE sync_metadata SET system_fields = X'00' WHERE rowid = (SELECT MIN(rowid) FROM sync_metadata)")
-        #expect(try GenerationActivation.hasGeneration1History(store), "one record the server knows is history")
-        let journal = try Self.activation(store).run(full)
-        #expect(journal.mode == .full && journal.account == "_8f2c" && journal.freshReason == nil)
+        let decision = GenerationActivationRunner(access: DirectStoreAccess(store: store), environment: ActivationEnvironment()).decideMode()
+        #expect(decision == .freshNoHistory)
+        let journal = try Self.activation(store).run(decision)
+        #expect(journal.mode == .fresh && journal.freshReason == .noHistory && journal.account == nil)
         #expect(try store.activationJournal() == journal)
+        // A recorded mode is kept: a second run with another decision changes nothing.
+        #expect(try Self.activation(store).run(ActivationModeDecision(mode: .deferred, freshReason: nil, account: nil)) == journal)
     }
 
     @Test("A fresh activation makes no network call, to either container")
     func freshMakesNoNetworkCall() async throws {
         let server = FakeCloudKit()
-        let legacy = server.transport(user: "_learner", container: FakeCloudKit.legacyContainer, device: "mac")
+        _ = server.transport(user: "_learner", container: FakeCloudKit.legacyContainer, device: "mac")
         _ = server.transport(user: "_learner", container: FakeCloudKit.libraryContainer, device: "mac")
         let (root, store) = try Self.generation2Store("fresh-offline")
         defer { try? FileManager.default.removeItem(at: root) }
 
-        let decision = await GenerationActivation.decideMode(hasHistory: try GenerationActivation.hasGeneration1History(store)) {
-            await GenerationActivation.account(of: legacy)
-        }
-        let journal = try Self.activation(store).run(decision)
+        let journal = try Self.activation(store).run(.freshNoHistory)
         #expect(journal.mode == .fresh && journal.freshReason == .noHistory)
         #expect(journal.activatedAt != nil, "activated at once")
         #expect(server.calls.isEmpty, "no call reached the server: \(server.calls.map(\.operation))")
+    }
 
-        // The same check with generation-1 history asks the old container, and only it.
-        let withHistory = await GenerationActivation.decideMode(hasHistory: true) {
-            await GenerationActivation.account(of: legacy)
+    // MARK: Schema 175: generation 1's tables go
+
+    /// A library at schema 174 as the last generation-1 build left it: today's store with generation 1's
+    /// tables back (the only difference between 174 and 175), `extraSQL` run on it, stamped 174. The next
+    /// open migrates it.
+    private static func schema174Library(_ name: String, extraSQL: String) throws -> URL {
+        let root = try Schema154Fixture.temporaryRoot(name)
+        try Schema154Fixture.makeLibrary(at: root, version: nil)
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+        try Schema154Fixture.restoreGeneration1Tables(store)
+        try store.executeScript(extraSQL)
+        try store.execForTesting("PRAGMA user_version = 174")
+        Schema154Fixture.newLaunch(root)
+        return root
+    }
+
+    private static let generation1TableCount = """
+        SELECT COUNT(*) FROM sqlite_master WHERE name IN ('sync_changes', 'sync_metadata', 'sync_conflicts',
+            'sync_asset_digests', 'sync_engine_states', 'source_sync_repair_queue', 'review_session_sync_repair_queue',
+            'idx_sync_metadata_zone', 'idx_sync_conflicts_detected')
+        """
+
+    @Test("A fresh store has none of generation 1's tables")
+    func freshStoreHasNoGeneration1Tables() throws {
+        let store = try KnowledgeStore(inMemory: true)
+        #expect(try Schema154Fixture.count(store, Self.generation1TableCount) == 0)
+        #expect(try store.scalarInteger("PRAGMA user_version") == Int64(KnowledgeStore.schemaVersion))
+    }
+
+    @Test("Schema 175 records a synced library's history as a deferred journal, then drops generation 1's tables")
+    func schema175RecordsHistoryAndDrops() async throws {
+        let root = try Self.schema174Library("175-history", extraSQL: """
+            INSERT INTO sync_metadata (entity_type, logical_key, record_name, system_fields, user_modification_at)
+            VALUES ('preference', 'history.marker', 'Preference-history', X'00', 1),
+                   ('preference', 'local.only', 'Preference-local', NULL, 1);
+            INSERT INTO sync_changes (entity_type, logical_key, record_name, operation, changed_at)
+            VALUES ('preference', 'history.marker', 'Preference-history', 'save', 2);
+            INSERT INTO sync_engine_states (scope, state_serialization) VALUES ('private', X'01');
+            """)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let sources = Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM sources")
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+        #expect(try store.scalarInteger("PRAGMA user_version") == 175)
+        #expect(try Schema154Fixture.count(store, Self.generation1TableCount) == 0)
+        #expect(try Schema154Fixture.count(store, "SELECT COUNT(*) FROM sources") == sources, "no library row is touched")
+        let journal = try #require(try store.activationJournal())
+        #expect(journal.mode == .deferred && journal.step == .recordCopy && journal.activatedAt == nil && journal.startedAt != nil)
+
+        try store.executeScript(OutboxTestProjections.tablesSQL)
+        var environment = ActivationEnvironment()
+        environment.status = ActivationStatus()
+        environment.derivations = []
+        environment.registry = OutboxTestProjections.registry
+        let activated = try await GenerationActivationRunner(access: DirectStoreAccess(store: store), environment: environment).run()
+        #expect(activated.mode == .deferred && activated.activatedAt != nil, "the runner keeps the recorded mode")
+    }
+
+    @Test("Schema 175 leaves no journal for history generation 1 cleared at sign-out, and turns an unfinished full journal deferred",
+          arguments: ["signedOut", "full"])
+    func schema175Journals(_ shape: String) throws {
+        let extra = shape == "signedOut"
+            ? "INSERT INTO sync_metadata (entity_type, logical_key, record_name, system_fields, user_modification_at) VALUES ('preference', 'x', 'Preference-x', NULL, 1);"
+            : "INSERT OR REPLACE INTO ck_activation (id, step, mode, account, started_at) VALUES (1, 'catchUp', 'full', '_8f2c', 1);"
+        let root = try Self.schema174Library("175-\(shape)", extraSQL: extra)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+        #expect(try Schema154Fixture.count(store, Self.generation1TableCount) == 0)
+        let journal = try store.activationJournal()
+        if shape == "signedOut" {
+            #expect(journal?.mode == nil, "a library with no record the server knows activates fresh")
+        } else {
+            #expect(journal?.mode == .deferred && journal?.step == .catchUp && journal?.account == "_8f2c")
         }
-        #expect(withHistory == ActivationModeDecision(mode: .full, freshReason: nil, account: "_learner"))
-        #expect(server.calls.map(\.operation) == [.accountStatus, .userRecordName])
-        #expect(server.calls.allSatisfy { $0.container == FakeCloudKit.legacyContainer })
-        server.resetCalls()
-        server.signIn(legacy, as: nil)
-        let signedOut = await GenerationActivation.decideMode(hasHistory: true) {
-            await GenerationActivation.account(of: legacy)
-        }
-        #expect(signedOut.mode == .deferred, "history and no account: deferred")
+    }
+
+    @Test("Schema 175 never touches an activated journal")
+    func schema175KeepsAnActivatedJournal() throws {
+        let root = try Self.schema174Library("175-activated", extraSQL: """
+            INSERT OR REPLACE INTO ck_activation (id, step, mode, started_at, activated_at) VALUES (1, 'activated', 'full', 1, 2);
+            INSERT INTO sync_metadata (entity_type, logical_key, record_name, system_fields, user_modification_at)
+            VALUES ('preference', 'history.marker', 'Preference-history', X'00', 1);
+            """)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+        let journal = try #require(try store.activationJournal())
+        #expect(journal.mode == .full && journal.step == .activated && journal.activatedAt != nil)
+        #expect(try Schema154Fixture.count(store, Self.generation1TableCount) == 0)
     }
 
     @Test("The copy step 1 took is recorded with the user_version read from the copy")

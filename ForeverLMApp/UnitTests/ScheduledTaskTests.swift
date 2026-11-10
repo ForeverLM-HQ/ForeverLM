@@ -170,7 +170,7 @@ struct ScheduledTaskTests {
 
     // MARK: - Storage
 
-    @Test("Saving, listing, and deleting a task keeps CloudKit bookkeeping consistent")
+    @Test("A task is saved, listed, and deleted")
     func taskPersistenceTracksSync() throws {
         let root = temporaryRoot("ScheduledTaskPersistence")
         defer { try? FileManager.default.removeItem(at: root) }
@@ -181,15 +181,9 @@ struct ScheduledTaskTests {
         )
         #expect(try store.loadScheduledTasks().map(\.id) == [saved.id])
         #expect(try store.hasScheduledTask(saved.id))
-        #expect(try store.pendingSyncChanges().contains {
-            $0.entity == .scheduledTask && $0.logicalKey == saved.id && $0.operation == .save
-        })
 
         try store.deleteScheduledTask(saved.id)
         #expect(try store.loadScheduledTasks().isEmpty)
-        #expect(try store.pendingSyncChanges().contains {
-            $0.entity == .scheduledTask && $0.logicalKey == saved.id && $0.operation == .delete
-        })
     }
 
     @Test("A task with no title or no instruction is rejected")
@@ -309,146 +303,6 @@ struct ScheduledTaskTests {
         }
         #expect(try store.loadScheduledTaskRuns(taskID: task.id, limit: 1_000).count
             == ScheduledTask.retainedRunCount)
-    }
-
-    // MARK: - CloudKit
-
-    @Test("A task round-trips through CloudKit with its receipts")
-    func cloudKitRoundTripPreservesTaskAndRuns() throws {
-        let senderRoot = temporaryRoot("ScheduledTaskSender")
-        let receiverRoot = temporaryRoot("ScheduledTaskReceiver")
-        defer {
-            try? FileManager.default.removeItem(at: senderRoot)
-            try? FileManager.default.removeItem(at: receiverRoot)
-        }
-        let sender = try KnowledgeStore(storeDirectory: senderRoot)
-        let receiver = try KnowledgeStore(storeDirectory: receiverRoot)
-
-        let task = try sender.saveScheduledTask(
-            ScheduledTask(
-                title: "Weekly digest",
-                instruction: "Summarize the week.",
-                notebookID: "notebook-a",
-                sourceIDs: ["source-1"],
-                cadence: .weekly,
-                weekday: 2,
-                hour: 9,
-                minute: 15,
-                timeZoneID: "Europe/Amsterdam"
-            )
-        )
-        let claimed = try #require(try sender.claimScheduledTaskOccurrence(
-            taskID: task.id,
-            occurrenceAt: date("2026-08-10T09:15:00", zone: "Europe/Amsterdam"),
-            deviceName: "Mac A"
-        ))
-        try sender.finishScheduledTaskRun(
-            runID: claimed.id,
-            status: .succeeded,
-            sessionID: "session-a",
-            message: nil
-        )
-
-        let payload = try #require(try sender.loadScheduledTaskForSync(task.id))
-        let encoded = try JSONEncoder().encode(payload)
-        let decoded = try JSONDecoder().decode(CloudKitScheduledTaskPayload.self, from: encoded)
-        try receiver.saveScheduledTaskRecord(decoded)
-
-        let landed = try #require(try receiver.loadScheduledTask(task.id))
-        #expect(landed.title == "Weekly digest")
-        // Every relationship field has to survive the trip, or the task lands on
-        // the second Mac stripped of what makes it meaningful.
-        #expect(landed.notebookID == "notebook-a")
-        #expect(landed.sourceIDs == ["source-1"])
-        #expect(landed.cadence == .weekly)
-        #expect(landed.weekday == 2)
-        #expect(landed.hour == 9)
-        #expect(landed.minute == 15)
-        #expect(landed.timeZoneID == "Europe/Amsterdam")
-        #expect(landed.lastOccurrenceAt == date("2026-08-10T09:15:00", zone: "Europe/Amsterdam"))
-
-        let landedRuns = try receiver.loadScheduledTaskRuns(taskID: task.id)
-        #expect(landedRuns.count == 1)
-        #expect(landedRuns.first?.sessionID == "session-a")
-        #expect(landedRuns.first?.deviceName == "Mac A")
-    }
-
-    @Test("Inbound sync unions receipts and never rewinds a claim")
-    func inboundSyncMergesHistoryMonotonically() throws {
-        let root = temporaryRoot("ScheduledTaskMerge")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root)
-        let task = try store.saveScheduledTask(
-            ScheduledTask(title: "Briefing", instruction: "Go.")
-        )
-        let localOccurrence = date("2026-08-11T07:00:00", zone: "UTC")
-        _ = try store.claimScheduledTaskOccurrence(
-            taskID: task.id,
-            occurrenceAt: localOccurrence,
-            deviceName: "Mac A"
-        )
-
-        // A record written before this Mac's claim, carrying the *other* Mac's
-        // run for an earlier day.
-        var remote = try #require(try store.loadScheduledTask(task.id))
-        let remoteOccurrence = date("2026-08-10T07:00:00", zone: "UTC")
-        remote.lastOccurrenceAt = remoteOccurrence
-        let remoteRun = ScheduledTaskRun(
-            taskID: task.id,
-            occurrenceAt: remoteOccurrence,
-            startedAt: remoteOccurrence,
-            finishedAt: remoteOccurrence,
-            status: .succeeded,
-            sessionID: "session-remote",
-            deviceName: "Mac B"
-        )
-        try store.saveScheduledTaskRecord(
-            CloudKitScheduledTaskPayload(task: remote, runs: [remoteRun])
-        )
-
-        // The newer local claim survives, so today does not run a second time…
-        #expect(try store.loadScheduledTask(task.id)?.lastOccurrenceAt == localOccurrence)
-        // …and both devices' history is visible here.
-        let runs = try store.loadScheduledTaskRuns(taskID: task.id)
-        #expect(runs.count == 2)
-        #expect(Set(runs.compactMap(\.deviceName)) == ["Mac A", "Mac B"])
-    }
-
-    @Test("A finished receipt is not downgraded by a stale in-flight snapshot")
-    func inboundRunningDoesNotOverwriteTerminalStatus() throws {
-        let root = temporaryRoot("ScheduledTaskRunMerge")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root)
-        let task = try store.saveScheduledTask(
-            ScheduledTask(title: "Briefing", instruction: "Go.")
-        )
-        let occurrence = date("2026-08-10T07:00:00", zone: "UTC")
-        let claimed = try #require(try store.claimScheduledTaskOccurrence(
-            taskID: task.id,
-            occurrenceAt: occurrence
-        ))
-        try store.finishScheduledTaskRun(
-            runID: claimed.id,
-            status: .succeeded,
-            sessionID: "session-a",
-            message: nil
-        )
-
-        let stale = ScheduledTaskRun(
-            taskID: task.id,
-            occurrenceAt: occurrence,
-            startedAt: occurrence,
-            status: .running
-        )
-        try store.saveScheduledTaskRecord(
-            CloudKitScheduledTaskPayload(
-                task: try #require(try store.loadScheduledTask(task.id)),
-                runs: [stale]
-            )
-        )
-        let run = try #require(try store.loadScheduledTaskRuns(taskID: task.id).first)
-        #expect(run.status == .succeeded)
-        #expect(run.sessionID == "session-a")
     }
 
     @Test("Deleting a Notebook detaches its tasks instead of deleting them")
@@ -698,69 +552,6 @@ struct ScheduledTaskTests {
         #expect(try store.claimScheduledTaskRetry(runID: second.id, now: nextDay.addingTimeInterval(300)) == nil)
     }
 
-    @Test("Inbound sync takes a morning's later try whole, and an older snapshot of it changes nothing")
-    func inboundSyncPrefersTheLaterTry() throws {
-        let root = temporaryRoot("ScheduledTaskRetryMerge")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root)
-        let task = try store.saveScheduledTask(ScheduledTask(title: "Night", instruction: "Go."))
-        let occurrence = date("2026-08-10T02:00:00", zone: "UTC")
-        let claimed = try #require(try store.claimScheduledTaskOccurrence(
-            taskID: task.id, occurrenceAt: occurrence, deviceName: "Mac A"
-        ))
-        try store.finishScheduledTaskRun(
-            runID: claimed.id,
-            status: .failed,
-            sessionID: "session-1",
-            message: "Rate limit exceeded (429).",
-            retryAt: occurrence.addingTimeInterval(300)
-        )
-
-        let answered = ScheduledTaskRun(
-            id: "run-on-the-other-copy",
-            taskID: task.id,
-            occurrenceAt: occurrence,
-            startedAt: occurrence,
-            finishedAt: occurrence.addingTimeInterval(400),
-            status: .succeeded,
-            sessionID: "session-1",
-            deviceName: "Mac A",
-            attempt: 2
-        )
-        try store.saveScheduledTaskRecord(CloudKitScheduledTaskPayload(
-            task: try #require(try store.loadScheduledTask(task.id)),
-            runs: [answered]
-        ))
-        var run = try #require(try store.loadScheduledTaskRuns(taskID: task.id).first)
-        #expect(run.id == claimed.id)
-        #expect(run.status == .succeeded)
-        #expect(run.attempt == 2)
-        #expect(run.retryAt == nil)
-        #expect(run.message == nil)
-
-        let staleFirstTry = ScheduledTaskRun(
-            taskID: task.id,
-            occurrenceAt: occurrence,
-            startedAt: occurrence,
-            finishedAt: occurrence.addingTimeInterval(30),
-            status: .failed,
-            message: "Rate limit exceeded (429).",
-            deviceName: "Mac A",
-            attempt: 1,
-            retryAt: occurrence.addingTimeInterval(300)
-        )
-        try store.saveScheduledTaskRecord(CloudKitScheduledTaskPayload(
-            task: try #require(try store.loadScheduledTask(task.id)),
-            runs: [staleFirstTry]
-        ))
-        run = try #require(try store.loadScheduledTaskRuns(taskID: task.id).first)
-        #expect(run.status == .succeeded)
-        #expect(run.attempt == 2)
-        #expect(run.retryAt == nil)
-        #expect(run.message == nil)
-        #expect(run.finishedAt == occurrence.addingTimeInterval(400))
-    }
-
     @Test("A receipt written before retries decodes as its only try, and a new one round-trips")
     func receiptPayloadsAcrossBuilds() throws {
         let older = """
@@ -853,7 +644,6 @@ struct ScheduledTaskTests {
         let store = try KnowledgeStore(storeDirectory: root)
         try store.execForTesting("BEGIN IMMEDIATE")
         do {
-            try store.execForTesting("DELETE FROM sync_changes; DELETE FROM sync_metadata;")
             try store.execForTesting("""
                 WITH RECURSIVE seq(n) AS (
                     SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < \(sourceCount)
@@ -869,15 +659,6 @@ struct ScheduledTaskTests {
                        'example.com' FROM seq;
                 INSERT INTO learning_goals (id, title, start_at, end_at, created_at, updated_at, status)
                 VALUES ('notebook-a', 'Immunology', 0, 0, 0, 0, 'active');
-                WITH RECURSIVE seq(n) AS (
-                    SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < 3
-                )
-                INSERT INTO sync_changes (entity_type, logical_key, record_name, operation, changed_at)
-                SELECT 'source', printf('source-%05d', n), printf('record-%05d', n), 'save', n FROM seq;
-                INSERT INTO sync_metadata (
-                    entity_type, logical_key, record_name, system_fields,
-                    user_modification_at, is_deleted
-                ) VALUES ('source', 'source-00001', 'record-00001', NULL, 1, 0);
                 DROP TABLE scheduled_task_runs;
                 DROP TABLE scheduled_tasks;
                 PRAGMA user_version = 71;

@@ -9,8 +9,8 @@ import Foundation
 // tasks are the team's, assignable to a member by CloudKit user record name.
 // See docs/teams-design.md.
 //
-// Everything here goes through StorageService so files, rows, sync_metadata
-// and sync_changes move together. These tools are desktop-only in the public
+// Everything here goes through StorageService so files and rows move
+// together. These tools are desktop-only in the public
 // allowlist: the hosted account has no team zone to stand in for the Mac.
 
 extension MCPDataStore {

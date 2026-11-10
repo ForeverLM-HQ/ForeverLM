@@ -589,8 +589,8 @@ struct ReportTests {
         // The notebook lists it among its Docs, and its sources stay its own.
         let filed = try await storage.loadArtifacts(notebookID: notebook.id)
         #expect(filed.map(\.id).contains("report-1"))
-        let pool = try await storage.notebookContextSourceIDs(notebookID: notebook.id)
-        #expect(Set(pool) == Set([a.id, b.id]))
+        let sources = try await storage.loadLearningGoal(notebook.id)?.approvedSourceIDs ?? []
+        #expect(Set(sources) == Set([a.id, b.id]))
     }
 
     @Test("A source too long for the window is read from a condensed account of its whole text, and the turn and the Doc say so")

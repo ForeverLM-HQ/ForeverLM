@@ -90,15 +90,9 @@ struct SeedTakeoverTests {
         try C.addLibrary(b.store)
         try await b.bootstrap(.macHoldingLibrary)
         try await b.sync()
-        var environment = C.environment(b)
-        let imported = CutoverSeederTests.Counter()
-        environment.afterTakeover = {
-            _ = imported.next()
-            return true
-        }
+        let environment = C.environment(b)
         let outcome = try await CutoverSeeder(environment).run()
         guard case .complete = outcome else { Issue.record("did not finish: \(outcome)"); return }
-        #expect(imported.next() == 2, "the refresh and the import pass ran once, before B reconciled")
         let root = try C.root(server)
         #expect(root.fields["seedClaim"]?.objectValue?["device"] == .string("macbbbbb"), "the new holder is the importer")
         #expect(MaintenanceLease.holder(in: root)?.device == "macbbbbb")

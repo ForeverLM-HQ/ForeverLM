@@ -104,7 +104,7 @@ extension KnowledgeStore {
             }
             let changed = sqlite3_changes(db) > 0
             if changed {
-                try markRecordChanged(entity: .source, logicalKey: sourceID)
+                noteStoreChanged()
                 try execBind("DELETE FROM source_fts_state WHERE source_id = ?") { stmt in
                     bind(stmt, 1, sourceID)
                 }

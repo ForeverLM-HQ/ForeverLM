@@ -475,10 +475,5 @@ struct CloudKitZoneHome: Hashable, Sendable, Codable {
         ownerRecordName: nil
     )
 
-    var isKnowledge: Bool { self == .knowledge }
-
-    /// A team zone in either database.
-    var isTeamZone: Bool { teamID != nil }
-
     var teamID: String? { TeamRecord.teamID(fromZoneName: zoneName) }
 }

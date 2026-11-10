@@ -7982,7 +7982,7 @@ private struct InternalReviewPanelContent: View {
 
         do {
             // Same storage call `add_notebook_sources` uses over MCP, so the
-            // pool, its sync_changes row, and the other Mac all agree. It
+            // pool and the other Mac agree. It
             // already re-approves a previously rejected source, which is the
             // behavior we want: using a source overrides an earlier removal.
             try await vm.storage.addCompanionSeedSources(goalID: notebook.id, sourceIDs: newIDs)

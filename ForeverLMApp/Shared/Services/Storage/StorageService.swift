@@ -760,8 +760,6 @@ actor StorageService {
             // What another device changed reaches the models that hold the rows in memory.
             store.appliedRemoteChangesHandler = { AppliedRemoteChangesAnnouncer.announce($0) }
         }
-        // A store whose full activation has not finished is read-only from its first moment (§13.3).
-        GenerationActivationRunner.holdIfActivationMayBeFull(store)
         _knowledgeStore = store
         return store
     }
@@ -820,12 +818,6 @@ actor StorageService {
         scheduleCloudKitSync(.soon)
     }
 
-    /// A review session row changed in an extension file: the closer's summary
-    /// landing on the record (`StorageService+DayClose`).
-    func scheduleImmediateCloudKitSyncForReviewSessions() {
-        scheduleCloudKitSync(.immediate)
-    }
-
     /// The planner's bridge: a redrawn day should be on the other Mac before
     /// the learner sits down at it.
     func scheduleImmediateCloudKitSyncForDayPlans() {
@@ -872,48 +864,6 @@ actor StorageService {
     /// outbox cannot be read, rather than saying nothing waits.
     func pendingCloudKitChangeCount() async throws -> Int {
         try await MacSyncSession.current?.outboxBacklog() ?? 0
-    }
-
-    /// Permanent create-once/immutable CloudKit collisions quarantined out of
-    /// the active retry queue. Callers can surface these failures explicitly;
-    /// they are never counted as ordinary pending work that background sync can
-    /// resolve by retrying.
-    func cloudKitSyncConflicts() throws -> [CloudKitSyncConflict] {
-        try ensureStoreExists()
-        return try knowledgeStore().loadSyncConflicts()
-    }
-
-    /// Drain one bounded post-launch repair batch into the normal CloudKit
-    /// queue. Returning zero means this versioned repair is complete.
-    func drainSourceSyncRepairBatch(limit: Int = 50) throws -> Int {
-        try ensureStoreExists()
-        let drained = try knowledgeStore().drainSourceSyncRepairBatch(limit: limit)
-        if drained > 0 {
-            scheduleCloudKitSync(.immediate)
-        }
-        return drained
-    }
-
-    func sourceSyncRepairQueueCount() throws -> Int {
-        try ensureStoreExists()
-        return try knowledgeStore().sourceSyncRepairQueueCount()
-    }
-
-    /// The schema-98 counterpart for review sessions: one bounded batch of
-    /// sessions re-enqueued under the renamed CloudKit record type. Zero
-    /// means the re-upload is staged in full.
-    func drainReviewSessionSyncRepairBatch(limit: Int = 50) throws -> Int {
-        try ensureStoreExists()
-        let drained = try knowledgeStore().drainReviewSessionSyncRepairBatch(limit: limit)
-        if drained > 0 {
-            scheduleCloudKitSync(.immediate)
-        }
-        return drained
-    }
-
-    func reviewSessionSyncRepairQueueCount() throws -> Int {
-        try ensureStoreExists()
-        return try knowledgeStore().reviewSessionSyncRepairQueueCount()
     }
 
     func drainZoomMeetingAdoptionBatch(limit: Int = 50) throws -> [String] {
@@ -1089,11 +1039,6 @@ actor StorageService {
     func paperFigures(sourceID: String) throws -> [PaperFigureRecord] {
         try ensureStoreExists()
         return try knowledgeStore().paperFigures(sourceID: sourceID)
-    }
-
-    func syncedPaperFigures(sourceID: String) throws -> [SyncedPaperFigure] {
-        try ensureStoreExists()
-        return try knowledgeStore().syncedPaperFigures(sourceID: sourceID)
     }
 
     // MARK: - Reader Highlights and Notes
@@ -2937,21 +2882,6 @@ actor StorageService {
         try knowledgeStore().loadAllPreferences()
     }
 
-    /// When each of `keys` was last written, on whatever device wrote it: the
-    /// row's `updated_at`, which an inbound row takes from its payload. A key
-    /// with no row is left out. One lookup per key, for the few rows a caller
-    /// names.
-    func preferenceWriteDates(keys: [String]) throws -> [String: Date] {
-        let store = try knowledgeStore()
-        var dates: [String: Date] = [:]
-        for key in Set(keys) {
-            if let row = try store.loadPreferenceForSync(key) {
-                dates[key] = row.updatedAt
-            }
-        }
-        return dates
-    }
-
     /// Rewrite preference rows stored in a form hydration cannot read, and report
     /// what was repaired and what could not be.
     func repairUnreadablePreferences() throws -> KnowledgeStore.PreferenceRepairReport {
@@ -4148,10 +4078,6 @@ actor StorageService {
         try knowledgeStore().loadSourceIdeas(sourceIDs: sourceIDs, includeRetired: includeRetired)
     }
 
-    func loadSourceIdea(_ id: String) throws -> SourceIdea? {
-        try knowledgeStore().loadSourceIdea(id)
-    }
-
     /// One source's row without its text, for callers that need its title and
     /// type and nothing else.
     func loadSourceWithoutContent(_ id: String) throws -> StudioArticle? {
@@ -4557,14 +4483,6 @@ actor StorageService {
 
     func loadLearningGoals() throws -> [LearningGoalRecord] {
         try knowledgeStore().loadLearningGoals()
-    }
-
-    /// A Notebook's own sources followed by each context notebook's, put into
-    /// its chats or not: every source one of its boxes can stand for
-    /// (`KnowledgeStore.notebookContextSourceIDs`). Its chats read only the
-    /// context notebooks put in (`NotebookChatContext.chatPool`).
-    func notebookContextSourceIDs(notebookID: String) throws -> [String] {
-        try knowledgeStore().notebookContextSourceIDs(notebookID: notebookID)
     }
 
     func loadLearningGoal(_ id: String) throws -> LearningGoalRecord? {
@@ -5266,11 +5184,6 @@ actor StorageService {
         )
         scheduleCloudKitSync()
         NotificationCenter.default.post(name: .derivedSourceWorkNeeded, object: nil)
-    }
-
-    /// Save raw TTML for an existing source_content row.
-    func saveRawTTML(_ sourceId: String, _ ttml: String) throws {
-        try knowledgeStore().saveRawTTML(sourceId, ttml)
     }
 
     /// Load the original Apple Podcasts TTML for display-only transcript rendering.

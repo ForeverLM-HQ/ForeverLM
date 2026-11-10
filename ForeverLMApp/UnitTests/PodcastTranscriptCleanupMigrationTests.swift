@@ -34,7 +34,6 @@ struct PodcastTranscriptCleanupMigrationTests {
     ) throws {
         let store = try KnowledgeStore(storeDirectory: root)
         try populate(store)
-        try store.clearAllPendingSyncChanges()
         try store.execForTesting("DROP TABLE podcast_transcript_cleanup_queue")
         try store.execForTesting("DROP TABLE podcast_transcript_preparations")
         try store.execForTesting("PRAGMA user_version = 76")
@@ -82,7 +81,6 @@ struct PodcastTranscriptCleanupMigrationTests {
         let store = try KnowledgeStore(storeDirectory: root)
         try store.saveSource(Self.episode(id: "cleanable-episode"))
         try store.saveTranscript("cleanable-episode", input)
-        try store.clearAllPendingSyncChanges()
 
         let candidate = try #require(
             try store.podcastTranscriptCleanupCandidates(limit: 1).first
@@ -105,10 +103,6 @@ struct PodcastTranscriptCleanupMigrationTests {
         let preparation = try #require(try store.loadPodcastTranscriptPreparation("cleanable-episode"))
         #expect(preparation.input == input)
         #expect(preparation.metadata.cleanerVersion == PodcastTranscriptCleanupMetadata.currentVersion)
-        // The cleaned text is the canonical record other devices must receive.
-        #expect(try store.pendingSyncChanges().contains {
-            $0.entity == .source && $0.logicalKey == "cleanable-episode"
-        })
     }
 
     @Test("A drain that may not spend a model leaves the ad clean-up queue as it found it")
@@ -233,20 +227,19 @@ struct PodcastTranscriptCleanupMigrationTests {
 
         let store = try KnowledgeStore(storeDirectory: root)
 
-        // A show unhidden on another device arrives as a deleted hidden-show
-        // record, not as a call to setPodcastShowHidden.
+        // A show unhidden again stages the episodes it was hiding.
         try store.saveSource(Self.episode(id: "remote-show-episode", show: "Remote Show"))
-        try store.saveTranscript("remote-show-episode", "A transcript from a remotely hidden show.")
+        try store.saveTranscript("remote-show-episode", "A transcript from a hidden show.")
         try store.setPodcastShowHidden("Remote Show", hidden: true)
         #expect(try store.podcastTranscriptCleanupQueueCount() == 0)
-        try store.deleteHiddenPodcastShowRecord(showName: "Remote Show")
+        try store.setPodcastShowHidden("Remote Show", hidden: false)
         #expect(try store.podcastTranscriptCleanupCandidates(limit: 10).map(\.sourceID) == ["remote-show-episode"])
 
-        // Likewise one episode unhidden elsewhere.
+        // Likewise one episode unhidden again.
         try store.saveSource(Self.episode(id: "remote-episode", show: "Another Show"))
-        try store.saveTranscript("remote-episode", "A transcript hidden from another device.")
+        try store.saveTranscript("remote-episode", "A transcript that was hidden for a while.")
         try store.setPodcastEpisodeHidden("remote-episode", hidden: true)
-        try store.deleteHiddenSourceRecord(sourceID: "remote-episode")
+        try store.setPodcastEpisodeHidden("remote-episode", hidden: false)
         #expect(try store.podcastTranscriptCleanupQueueCount() == 2)
 
         // An episode of a hidden show made explicitly visible is owed the pass
@@ -491,7 +484,6 @@ struct PodcastTranscriptFormattingQueueTests {
         let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         try store.saveSource(Self.episode(id: "queued-before"))
         try store.saveTranscript("queued-before", Self.raw)
-        try store.clearAllPendingSyncChanges()
         // A store as schema 171 left it: the queue without its two columns.
         try store.execForTesting("""
             ALTER TABLE podcast_transcript_cleanup_queue DROP COLUMN learner_asked;
@@ -510,7 +502,6 @@ struct PodcastTranscriptFormattingQueueTests {
         #expect(row.formatSHA == nil && row.learnerAsked == 0)
         let candidate = try #require(try migrated.podcastTranscriptCleanupCandidates(limit: 5).first)
         #expect(candidate.sourceID == "queued-before" && !candidate.formatsTranscript)
-        #expect(try migrated.pendingSyncChanges().isEmpty)
     }
 
     @Test("A raw transcript is ready at once and owes the formatting pass for exactly that text")

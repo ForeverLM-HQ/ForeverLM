@@ -412,52 +412,25 @@ actor MacSyncSession {
         }
         guard let coordinator else { throw SessionLibraryClaimer.NotYet(reason: "The new iCloud store could not be reached yet.") }
         _ = await coordinator.syncUntilCaughtUp()
-        switch try await deferredCatchUp() {
-        case .caughtUp, .noOldWorld, .readsNothing:
-            return
-        case .notReady:
-            throw SessionLibraryClaimer.NotYet(reason: "This Mac has not finished reading the new iCloud store yet.")
-        case .waitingForQuestion, .guardTripped:
-            throw SessionLibraryClaimer.NotYet(reason: "A question about the old iCloud library waits in Settings.")
-        }
     }
 
-    /// The deferred catch-up (§13.3, WP16b2): there is no old world to catch up with, since generation 1's
-    /// container stayed with the old Apple team and no build is entitled to it. So a `deferred` store waits
-    /// for "This Mac holds my library", and the learner's confirmation uploads this Mac's library.
-    private func deferredCatchUp() async throws -> MigrationDeferredCatchUp.Outcome {
-        .noOldWorld(account: nil)
-    }
-
-    /// The catch-up a `deferred` store owes, once a round has fetched (§13.3): true once it ran and this Mac
-    /// holds its library. A missing `Knowledge` zone, or the answer "Not this library", leaves the library
-    /// waiting for "This Mac holds my library"; a question waits for its answer and the next round asks again.
-    private func runOwedCatchUp() async throws -> Bool {
-        switch try await deferredCatchUp() {
-        case .caughtUp:
-            catchUpOwed = false
-            await takeLibrary()
-            return true
-        case .noOldWorld, .readsNothing:
-            catchUpOwed = false
-            CutoverStatus.shared.update(.waitingForConfirmation)
-            return false
-        case .notReady, .waitingForQuestion, .guardTripped:
-            return false
-        }
+    /// What a `deferred` store does once a round has fetched (§13.3): there is no old world to catch up
+    /// with, since generation 1's container stayed with the old Apple team and no build is entitled to it.
+    /// So the library waits for "This Mac holds my library", and the learner's confirmation uploads it.
+    private func settleOwedCatchUp() {
+        catchUpOwed = false
+        CutoverStatus.shared.update(.waitingForConfirmation)
     }
 
     /// This Mac holds its library from here on, in place: the root and the engine are the same for a Mac with
-    /// one and without, and the seeder or the reconcile decides which it does. Its old-world changes are the
-    /// outbox's first, and its sends wait for the seed (§13.5).
+    /// one and without, and the seeder or the reconcile decides which it does. Its sends wait for the seed
+    /// (§13.5).
     private func takeLibrary() async {
         guard !holds else { return }
         holds = true
         waitsForLearner = false
         holding = .library
         cutoverFinished = false
-        let registry = store.registry
-        _ = try? await store.perform { try CutoverPendingChanges.capture(in: $0.connection, registry: registry) }
         try? await setHold(true)
     }
 
@@ -505,10 +478,6 @@ actor MacSyncSession {
         // Rows this Mac wrote before it knew its sync device id take it (a day logged both ways is merged).
         try await store.onStore { try $0.claimOwnMemoryRows(deviceID: deviceID) }
 
-        // The old-world changes this Mac kept are the outbox's before the engine's first inbound apply writes
-        // the server's values over their rows (§13.5, R8-m2).
-        let registry = store.registry
-        if holds || catchUpOwed { _ = try await store.perform { try CutoverPendingChanges.capture(in: $0.connection, registry: registry) } }
         try await setHold(true)
 
         let pacer = await SyncPacer.shared(container: container, database: .private)
@@ -738,7 +707,7 @@ actor MacSyncSession {
     // MARK: - The cutover
 
     /// The hold on this Mac's sends (`holdSendsForSeed`): until the root shows `seed.metadataCompleteAt` or
-    /// this Mac is the seeder, and while a question about the old world waits (§13.5, R8-m5).
+    /// this Mac is the seeder (§13.5, R8-m5).
     private func setHold(_ hold: Bool) async throws {
         let released = try await store.perform { state -> Bool in
             let replica = state.replica
@@ -761,17 +730,10 @@ actor MacSyncSession {
         let hold = try await store.perform { state -> Bool in
             guard let root = try state.replica.personalRoot()?.envelope else { return true }
             let seed = CutoverRootState(root: root)
-            if try Self.questionWaits(state) { return true }
             if seed.metadataCompleteAt != nil { return false }
             return !(seed.state == "seeding" && seed.claimDevice == deviceID)
         }
         try await setHold(hold)
-    }
-
-    private static func questionWaits(_ state: PrivateSyncLocalState) throws -> Bool {
-        if let data = try state.replica.engineState(ActivationQuestion.scope),
-           let object = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any], object["answer"] == nil { return true }
-        return try MigrationImportState.guardQuestion(state.connection).map { $0.answer == nil } ?? false
     }
 
     private func seedEnvironment(_ coordinator: SyncCoordinator) async -> CutoverSeedEnvironment {
@@ -789,10 +751,6 @@ actor MacSyncSession {
         environment.configuration.rehearsalSeedLocal = Self.rehearsalSeedLocal
         environment.pause = { await coordinator.pacer.pause(of: .engine, writes: true) }
         environment.fetchAll = { await coordinator.syncUntilCaughtUp() }
-        environment.prepare = { pass, state in
-            guard pass == .structure, let local = (state as? MacPrivateSyncStore.State)?.store else { return }
-            try SeedDocBodies.choose(in: local)
-        }
         let satellites = CutoverSatellites(store: store, blobs: blobs, pendingCount: pending)
         environment.uploadSatellites = { try await satellites.upload() }
         environment.runTeams = { passKey in
@@ -819,7 +777,8 @@ actor MacSyncSession {
         ticking = true
         defer { ticking = false }
         do {
-            if catchUpOwed, try await !runOwedCatchUp() {
+            if catchUpOwed {
+                settleOwedCatchUp()
                 try await refreshHold()
                 return
             }
@@ -846,7 +805,7 @@ actor MacSyncSession {
                 case .reconciled(_, _, let satellites):
                     CutoverStatus.shared.update(.moved)
                     cutoverFinished = satellites
-                case .noLibrary, .waitingForSeed, .fetchIncomplete, .question:
+                case .noLibrary, .waitingForSeed, .fetchIncomplete:
                     break
                 }
             case .stopped(let stop):

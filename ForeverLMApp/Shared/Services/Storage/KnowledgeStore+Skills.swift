@@ -57,14 +57,6 @@ extension KnowledgeStore {
         return found
     }
 
-    func loadAllSkillIDs() throws -> [String] {
-        var ids: [String] = []
-        try query("SELECT id FROM skills") { stmt in
-            if let id = self.string(stmt, 0) { ids.append(id) }
-        }
-        return ids
-    }
-
     // MARK: Writes
 
     /// Write a new skill. The name is normalized to a `/` command
@@ -87,7 +79,6 @@ extension KnowledgeStore {
         try exec("BEGIN IMMEDIATE")
         do {
             try writeSkillRow(skill)
-            try markRecordChanged(entity: .skill, logicalKey: skill.id, at: now)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -137,7 +128,6 @@ extension KnowledgeStore {
         try exec("BEGIN IMMEDIATE")
         do {
             try writeSkillRow(skill)
-            try markRecordChanged(entity: .skill, logicalKey: skill.id, at: now)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -150,11 +140,9 @@ extension KnowledgeStore {
         guard try hasSkill(skillID) else {
             throw KnowledgeStoreError.invalidData("Skill not found: \(skillID)")
         }
-        let now = Date()
         try exec("BEGIN IMMEDIATE")
         do {
             try execBind("DELETE FROM skills WHERE id = ?") { stmt in self.bind(stmt, 1, skillID) }
-            try markRecordDeleted(entity: .skill, logicalKey: skillID, at: now)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -175,51 +163,6 @@ extension KnowledgeStore {
     }
 
     // MARK: CloudKit
-
-    func loadSkillForSync(_ skillID: String) throws -> CloudKitSkillPayload? {
-        guard let skill = try loadSkill(skillID) else { return nil }
-        return CloudKitSkillPayload(skill: skill)
-    }
-
-    /// Applies an inbound record. A skill was last written whole on one
-    /// device, so the newer record wins whole; `created_at` keeps the earlier
-    /// of the two. A name that does not normalize to a command is refused
-    /// rather than stored as something `/` could never call.
-    func saveSkillRecord(_ payload: CloudKitSkillPayload) throws {
-        var incoming = payload.skill
-        let name = SkillRecord.normalizedName(incoming.name)
-        guard !name.isEmpty else {
-            throw KnowledgeStoreError.invalidData("Inbound skill \(incoming.id) has no usable name.")
-        }
-        incoming.name = name
-        incoming.description = SkillRecord.normalizedDescription(incoming.description)
-        if let existing = try loadSkill(incoming.id) {
-            guard incoming.updatedAt >= existing.updatedAt else { return }
-            incoming = SkillRecord(
-                id: incoming.id,
-                name: incoming.name,
-                description: incoming.description,
-                instructions: incoming.instructions,
-                createdAt: min(existing.createdAt, incoming.createdAt),
-                updatedAt: incoming.updatedAt
-            )
-        }
-        try writeSkillRow(incoming)
-    }
-
-    func deleteSkillRecord(_ skillID: String) throws {
-        try execBind("DELETE FROM skills WHERE id = ?") { stmt in self.bind(stmt, 1, skillID) }
-    }
-
-    func skillSyncBackfillDate(_ skillID: String) throws -> Date? {
-        var date: Date?
-        try queryBind("SELECT updated_at FROM skills WHERE id = ? LIMIT 1", bind: { stmt in
-            self.bind(stmt, 1, skillID)
-        }) { stmt in
-            date = Date(timeIntervalSinceReferenceDate: sqlite3_column_double(stmt, 0))
-        }
-        return date
-    }
 
     // MARK: Row plumbing
 

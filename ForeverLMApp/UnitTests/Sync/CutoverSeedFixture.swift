@@ -74,18 +74,18 @@ enum CutoverSeedFixture {
         return mac
     }
 
-    /// The shared base as the root names it, read the way the importer reads it.
+    /// The shared base as the root names it: every shard the root points at, fetched and decoded.
     static func baseEntries(_ mac: EngineTestDevice) async throws -> [String: MigrationBaseEntry] {
         let local = mac.local
-        func zone(_ key: String) async throws -> BlobZone {
-            guard let zone = try await local.perform({ try BlobZone.resolve(zoneKey: key, in: $0) }) else { throw CloudError(.zoneNotFound, message: key) }
-            return zone
+        let key = PrivateSyncZones.key(PrivateSyncZones.content)
+        guard let content = try await local.perform({ try BlobZone.resolve(zoneKey: key, in: $0) }) else { throw CloudError(.zoneNotFound, message: key) }
+        let pointers = try await local.perform { try $0.replica.personalRoot()?.envelope.fields[MigrationBaseBuilder.Wire.baseField]?.objectValue } ?? [:]
+        var all: [String: MigrationBaseEntry] = [:]
+        for name in MigrationBaseShards.allNames {
+            guard let pointer = pointers[name], let file = FileRef(json: pointer) else { continue }
+            all.merge(try MigrationBaseShards.decode(try await blobs(mac).fetch(file, from: content))) { first, _ in first }
         }
-        let store = RootMigrationBaseStore(
-            store: local, blobs: blobs(mac), writer: writer(mac),
-            library: { try await zone(PrivateSyncZones.libraryKey) }, content: { try await zone(PrivateSyncZones.key(PrivateSyncZones.content)) }
-        )
-        return try await MigrationBaseReader(store: store).all()
+        return all
     }
 
     /// The root as the server holds it.

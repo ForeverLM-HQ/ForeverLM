@@ -348,24 +348,6 @@ struct PaperFigureSingleAnalysisTests {
         #expect(stored.map(\.pageIndex) == [1, 2, 3])
     }
 
-    @Test("A figure's new explanation republishes its source")
-    func singleFigureAnalysisMarksTheSourceChanged() throws {
-        let (store, article, figures) = try indexedStore()
-        let before = try store.pendingSyncChangeCount()
-
-        _ = try store.updatePaperFigureAnalysis(
-            sourceID: article.id,
-            figureID: figures[0].id,
-            analysis: analysis(summary: "A clear separation.", rect: nil)
-        )
-
-        // The figures travel inside the source record, so a rect that improved
-        // here is only better on the phone if the record is republished.
-        #expect(try store.pendingSyncChangeCount() >= before)
-        let pending = try store.pendingSyncItemSummaries(limit: 20)
-        #expect(pending.contains { $0.title.contains("Per-Figure Paper") })
-    }
-
     @Test("An analysis for a figure that was never indexed is refused")
     func unknownFigureIsNotInvented() throws {
         let (store, article, _) = try indexedStore()

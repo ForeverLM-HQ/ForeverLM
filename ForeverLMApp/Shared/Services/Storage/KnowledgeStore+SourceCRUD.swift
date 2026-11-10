@@ -712,11 +712,7 @@ extension KnowledgeStore {
             // claiming it has any — otherwise reviving it later brings back a
             // source that reports `ready` with nothing behind it.
             try clearSourceText(sourceId)
-            // Sync bookkeeping shares the transaction so data + sync_changes commit atomically.
-            for goalId in affectedGoalIds {
-                try markRecordChanged(entity: .learningGoal, logicalKey: goalId)
-            }
-            try markRecordChanged(entity: .source, logicalKey: sourceId)
+            noteStoreChanged()
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -729,7 +725,7 @@ extension KnowledgeStore {
         try exec("BEGIN IMMEDIATE")
         do {
             try clearSourceText(sourceId)
-            try markRecordChanged(entity: .source, logicalKey: sourceId)
+            noteStoreChanged()
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -933,7 +929,7 @@ extension KnowledgeStore {
                 // An unarchived podcast that kept its transcript is visible
                 // again and may never have been through ad cleanup.
                 try enqueuePodcastTranscriptCleanupIfNeeded(sourceID: sourceID)
-                try markRecordChanged(entity: .source, logicalKey: sourceID)
+                noteStoreChanged()
             }
             try exec("COMMIT")
         } catch {
@@ -979,7 +975,7 @@ extension KnowledgeStore {
         // that came back textless is requeued above and stages the cleanup when
         // its transcript is saved.
         try enqueuePodcastTranscriptCleanupIfNeeded(sourceID: sourceID)
-        try markRecordChanged(entity: .source, logicalKey: sourceID)
+        noteStoreChanged()
     }
 
     /// `unarchive_source` as the MCP tool does it, in one place so the app's
@@ -1199,7 +1195,7 @@ extension KnowledgeStore {
                     self.bind(stmt, 2, sourceID)
                 }
             }
-            try markRecordChanged(entity: .source, logicalKey: sourceID)
+            noteStoreChanged()
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -1248,7 +1244,7 @@ extension KnowledgeStore {
                 self.bind(stmt, 1, StudioArticleState.queued.rawValue)
                 self.bind(stmt, 2, sourceID)
             }
-            try markRecordChanged(entity: .source, logicalKey: sourceID)
+            noteStoreChanged()
         }
         return sourceIDs.count
     }
@@ -1369,7 +1365,7 @@ extension KnowledgeStore {
             }
             try enqueueSourceListenableContentPreparation(sourceID: sourceId, content: text)
             try retireSourceReviewGuidePreparation(sourceID: sourceId)
-            try markRecordChanged(entity: .source, logicalKey: sourceId)
+            noteStoreChanged()
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -1474,21 +1470,12 @@ extension KnowledgeStore {
             }
             try enqueueSourceListenableContentPreparation(sourceID: sourceId, content: text)
             try retireSourceReviewGuidePreparation(sourceID: sourceId)
-            try markRecordChanged(entity: .source, logicalKey: sourceId)
+            noteStoreChanged()
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
             throw error
         }
-    }
-
-    /// Save raw TTML for an existing source_content row.
-    func saveRawTTML(_ sourceId: String, _ ttml: String) throws {
-        try execBind("UPDATE podcasts SET raw_ttml = ? WHERE source_id = ?") { stmt in
-            self.bind(stmt, 1, ttml)
-            self.bind(stmt, 2, sourceId)
-        }
-        try markRecordChanged(entity: .source, logicalKey: sourceId)
     }
 
     /// Return the set of Apple Podcasts track IDs that already have transcript content in the DB.
@@ -1540,7 +1527,7 @@ extension KnowledgeStore {
                     sourceIDs: [sourceId]
                 )
             }
-            try markRecordChanged(entity: .source, logicalKey: sourceId)
+            noteStoreChanged()
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -1556,7 +1543,7 @@ extension KnowledgeStore {
             sqlite3_bind_int(stmt, 3, Int32(sortIndex))
         }
         guard sqlite3_changes(db) > 0 else { return false }
-        try markRecordChanged(entity: .source, logicalKey: sourceId)
+        noteStoreChanged()
         return true
     }
 
@@ -1570,8 +1557,8 @@ extension KnowledgeStore {
                     self.bind(stmt, 2, sourceId)
                 }
             }
-            for (sourceID, _) in ordering {
-                try markRecordChanged(entity: .source, logicalKey: sourceID)
+            if !ordering.isEmpty {
+                noteStoreChanged()
             }
             try exec("COMMIT")
         } catch {
@@ -1590,8 +1577,8 @@ extension KnowledgeStore {
                     self.bind(stmt, 2, sourceId)
                 }
             }
-            for (sourceID, _) in ordering {
-                try markRecordChanged(entity: .source, logicalKey: sourceID)
+            if !ordering.isEmpty {
+                noteStoreChanged()
             }
             try exec("COMMIT")
         } catch {
@@ -1894,30 +1881,4 @@ extension KnowledgeStore {
 
     // MARK: - Context Source IDs
 
-    /// Write only the context source IDs.
-    func saveContextSourceIds(_ sourceIds: [String]) throws {
-        let json = (try? JSONEncoder().encode(sourceIds)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
-        try execBind("""
-            INSERT OR REPLACE INTO chat_context (key, source_ids, last_updated)
-            VALUES ('current',?,?)
-        """) { stmt in
-            bind(stmt, 1, json)
-            bind(stmt, 2, Date().timeIntervalSinceReferenceDate)
-        }
-        try markRecordChanged(entity: .chatContext, logicalKey: CloudKitRecordMapper.contextLogicalKey)
-    }
-
-    func saveChatContextRecord(_ payload: CloudKitChatContextPayload) throws {
-        try saveContextSourceIds(try resolveSourceIDs(payload.sourceIDs, identities: payload.sourceIdentities))
-    }
-
-    /// Load only the context source IDs (no chat messages).
-    func loadContextSourceIds() throws -> [String]? {
-        var contextSourceIds: [String]?
-        try query("SELECT source_ids FROM chat_context WHERE key = 'current'") { stmt in
-            let json = self.string(stmt, 0) ?? "[]"
-            contextSourceIds = (try? JSONDecoder().decode([String].self, from: Data(json.utf8))) ?? []
-        }
-        return contextSourceIds
-    }
 }

@@ -5,9 +5,8 @@ import OSLog
 ///
 /// An external assistant gets exactly what the app's Tasks pane gets: create,
 /// inspect, edit, pause, run now, and delete. Everything goes through the same
-/// `KnowledgeStore` APIs the UI uses, so SQLite, `sync_metadata`, and
-/// `sync_changes` stay consistent and a task made in Claude is indistinguishable
-/// from one made in the app.
+/// `KnowledgeStore` APIs the UI uses, so a task made in Claude is
+/// indistinguishable from one made in the app.
 extension MCPDataStore {
 
     // MARK: - Reads

@@ -3,7 +3,7 @@ import SQLite3
 
 /// Journals: followed feeds, the articles they announced, and the verdicts.
 ///
-/// Nothing here touches `sync_metadata` or `sync_changes`. The tables are
+/// Nothing here syncs. The tables are
 /// device-local by design (see the schema comment and docs/journals-design.md);
 /// the one thing that becomes synced data is the Source an accepted match is
 /// imported as, and that goes through the ordinary source pipeline.

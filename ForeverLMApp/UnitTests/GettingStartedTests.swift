@@ -439,74 +439,37 @@ struct ICloudStorageUsageTests {
     @Test("Only what iCloud holds for the learner's own library counts, in bytes")
     func syncedSourceStorageCountsWhatICloudHolds() throws {
         let store = try KnowledgeStore(inMemory: true)
+        // The upload ledger: one row per part sync stored. The library's own
+        // zones and the spaces the learner owns are in the private database; a
+        // team they were invited to is in the shared one, billed to its creator.
         try store.exec("""
-            INSERT INTO sources (id, date_added, state, source_type, status) VALUES
-                ('paper', 0, 'ready', 'paper', 'active'),
-                ('paper-unsent', 0, 'ready', 'paper', 'active'),
-                ('paper-deleted', 0, 'ready', 'paper', 'active'),
-                ('paper-team', 0, 'ready', 'paper', 'active'),
-                ('paper-deferred', 0, 'ready', 'paper', 'active'),
-                ('article', 0, 'ready', 'article', 'active'),
-                ('podcast', 0, 'ready', 'podcast', 'active');
-            INSERT INTO papers (source_id, url, local_file_path) VALUES
-                ('paper', 'https://doi.org/10.1/a', 'Papers/a.pdf'),
-                ('paper-unsent', 'https://doi.org/10.1/b', 'Papers/b.pdf'),
-                ('paper-deleted', 'https://doi.org/10.1/c', 'Papers/c.pdf'),
-                ('paper-team', 'https://doi.org/10.1/d', 'Papers/d.pdf'),
-                ('paper-deferred', 'https://doi.org/10.1/e', 'Papers/e.pdf');
-            INSERT INTO articles (source_id, url) VALUES ('article', 'https://example.com/a');
-            INSERT INTO podcasts (source_id, url, raw_ttml) VALUES
-                ('podcast', 'https://example.com/p', '<tt>12345</tt>');
-            INSERT INTO source_content (source_id, content) VALUES
-                ('paper', '0123456789'),
-                ('paper-unsent', 'not in iCloud yet'),
-                ('paper-deleted', 'gone from iCloud'),
-                ('paper-team', 'billed to the team creator'),
-                ('paper-deferred', 'content not sent yet'),
-                ('article', 'héllo');
-            INSERT INTO paper_content_preparations (source_id, raw_content, raw_sha256) VALUES
-                ('paper', '01234567890123456789', 'x'),
-                ('article', 'a paper preparation an article record never carries', 'x');
-            INSERT INTO article_content_preparations (source_id, raw_content, raw_sha256) VALUES
-                ('article', 'raw', 'x');
-            INSERT INTO podcast_transcript_preparations
-                (source_id, input_content, input_sha256, clean_sha256) VALUES
-                ('podcast', 'input', 'x', 'y');
-            INSERT INTO source_listenable_content
-                (source_id, source_sha256, content, generator_version, prepared_at) VALUES
-                ('paper', 'x', 'listen', 1, 0);
-            INSERT INTO sync_metadata
-                (entity_type, logical_key, record_name, system_fields, user_modification_at, is_deleted, zone_scope) VALUES
-                ('source', 'paper', 'r-paper', X'01', 0, 0, 'private'),
-                ('source', 'paper-unsent', 'r-paper-unsent', NULL, 0, 0, 'private'),
-                ('source', 'paper-deleted', 'r-paper-deleted', X'01', 0, 1, 'private'),
-                ('source', 'paper-team', 'r-paper-team', X'01', 0, 0, 'shared'),
-                ('source', 'paper-deferred', 'r-paper-deferred', X'01', 0, 0, 'private'),
-                ('source', 'article', 'r-article', X'01', 0, 0, 'private'),
-                ('source', 'podcast', 'r-podcast', X'01', 0, 0, 'private');
-            INSERT INTO sync_asset_digests (record_name, field, digest) VALUES
-                ('r-paper-deferred', '\(KnowledgeStore.deferredContentMarkerField)', 'deferred');
+            INSERT INTO ck_blobs (zone_key, record_name, content_id, owner_id, role, part_hash, part_bytes, enc, acked_at) VALUES
+                ('private/Content', 'p-paper-pdf', 'ct:paper:pdf', 'paper', 'pdf', 'h1', 1000, 'identity', 1),
+                ('private/Space-notebook', 'p-book-pdf', 'ct:book:pdf', 'book', 'pdf', 'h2', 234, 'identity', 1),
+                ('private/Content', 'p-paper-text', 'ct:paper:text', 'paper', 'text', 'h3', 120, 'gzip', 1),
+                ('private/Content', 'p-paper-listen', 'ct:paper:listenText', 'paper', 'listenText', 'h4', 30, 'gzip', 1),
+                ('private/Content', 'p-book-epub', 'ct:novel:epub', 'novel', 'epub', 'h5', 50, 'identity', 1),
+                ('private/Content', 'p-cover', 'ct:novel:cover', 'novel', 'cover', 'h6', 7, NULL, 1),
+                ('shared/_owner/Space-team', 'p-team-pdf', 'ct:team:pdf', 'team-paper', 'pdf', 'h7', 5000, 'identity', 1),
+                ('shared/_owner/Space-team', 'p-team-text', 'ct:team:text', 'team-paper', 'text', 'h8', 600, 'gzip', 1);
         """)
 
         let synced = try store.iCloudSyncedSourceStorage()
 
-        #expect(synced.pdfPaths == [
-            ICloudSyncedSourceStorage.StoredPath(localFilePath: "Papers/a.pdf", url: "https://doi.org/10.1/a"),
-        ])
-        // paper: 10 + 20 + 6 (listen). article: "héllo" is 6 bytes, not 5
-        // characters, + 3; the paper preparation on it never ships. podcast:
-        // 14 of TTML + 5 of input.
-        #expect(synced.textBytes == 36 + 9 + 19)
+        // A PDF is a document whatever its zone; a gzipped part is text; the
+        // rest (EPUBs, covers, pictures, audio) is other. The team's parts are
+        // not the learner's to pay for.
+        #expect(synced == ICloudSyncedSourceStorage(documentBytes: 1_234, textBytes: 150, otherBytes: 57))
     }
 
-    @Test("A PDF counts at its size once, and iCloud Drive at every file's logical size")
+    @Test("The synced parts count at their uploaded size, and iCloud Drive at every file's logical size")
     func measureCountsFilesAtTheirSize() throws {
         let root = FileManager.default.temporaryDirectory
             .appendingPathComponent("icloud-usage-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }
         let fm = FileManager.default
 
-        func write(_ relative: String, bytes: Int, sparse: Bool = false) throws -> String {
+        func write(_ relative: String, bytes: Int, sparse: Bool = false) throws {
             let url = root.appendingPathComponent(relative)
             try fm.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
             if sparse {
@@ -517,42 +480,25 @@ struct ICloudStorageUsageTests {
             } else {
                 #expect(fm.createFile(atPath: url.path, contents: Data(repeating: 7, count: bytes)))
             }
-            return url.path
         }
 
-        let paper = try write("Library/a.pdf", bytes: 1_234)
-        let byURL = try write("Library/b.pdf", bytes: 766)
-        let book = try write("Library/book.epub", bytes: 50)
-        let tooLarge = try write(
-            "Library/huge.pdf",
-            bytes: CloudKitRecordMapper.maxPaperPDFAssetBytes + 1,
-            sparse: true
-        )
-        _ = try write("Drive/Documents/ForeverLM/Audio/a.m4a", bytes: 100)
-        _ = try write("Drive/Documents/ForeverLM Dev/Audio/b.m4a", bytes: 250)
+        try write("Drive/Documents/ForeverLM/Audio/a.m4a", bytes: 100)
+        try write("Drive/Documents/ForeverLM Dev/Audio/b.m4a", bytes: 250)
         // An evicted file keeps its logical size, and iCloud still bills it.
-        _ = try write("Drive/Documents/ForeverLM/Audio/evicted.m4a", bytes: 1_000_000, sparse: true)
+        try write("Drive/Documents/ForeverLM/Audio/evicted.m4a", bytes: 1_000_000, sparse: true)
+        // Outside the Drive root: not part of the container's bill.
+        try write("Library/a.pdf", bytes: 1_234)
 
         let usage = ICloudStorageUsage.measure(
-            ICloudSyncedSourceStorage(
-                pdfPaths: [
-                    .init(localFilePath: paper, url: "https://doi.org/10.1/a"),
-                    // Not on this Mac by its path, so the URL is tried, as
-                    // `resolvedPDFPath` tries it.
-                    .init(localFilePath: root.appendingPathComponent("Library/missing.pdf").path, url: byURL),
-                    .init(localFilePath: book, url: nil),
-                    .init(localFilePath: tooLarge, url: nil),
-                    .init(localFilePath: nil, url: "https://example.com/never-downloaded.pdf"),
-                ],
-                textBytes: 42
-            ),
+            ICloudSyncedSourceStorage(documentBytes: 2_000, textBytes: 42, otherBytes: 58),
             driveRoot: root.appendingPathComponent("Drive", isDirectory: true)
         )
 
         #expect(usage.documentBytes == 2_000)
         #expect(usage.textBytes == 42)
+        #expect(usage.otherBytes == 58)
         #expect(usage.driveBytes == 1_000_350)
-        #expect(usage.totalBytes == 2_000 + 42 + 1_000_350)
+        #expect(usage.totalBytes == 2_000 + 42 + 58 + 1_000_350)
     }
 
     @Test("iCloud Drive is ForeverLM's whole iCloud Documents folder, whichever profile's folder a file sits in")

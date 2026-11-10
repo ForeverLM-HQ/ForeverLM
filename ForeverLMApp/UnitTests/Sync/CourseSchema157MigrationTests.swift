@@ -69,7 +69,7 @@ struct CourseSchema157MigrationTests {
             #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM sqlite_master WHERE name = 'ck_notebook_children' AND sql LIKE '%''courses''%'") == 1,
                     "the 156 fixture holds WP8's view with its course-home line, so 157's drop of it is tested")
         }
-        let counts = ["sources", "courses", "course_lectures", "course_lecture_items", "course_quizzes", "source_units", "notebook_course_links", "sync_metadata"]
+        let counts = ["sources", "courses", "course_lectures", "course_lecture_items", "course_quizzes", "source_units", "notebook_course_links"]
         let before = counts.map { Schema154Fixture.rowCount(at: root, $0) }
 
         let migrated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
@@ -78,7 +78,6 @@ struct CourseSchema157MigrationTests {
         #expect(Self.filledCount(root) == 0, "nothing filled before the activation")
         #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM course_quizzes WHERE revision = 1") == 1, "a quiz's revision is 1 until generation 2 counts")
         #expect(try Schema154Fixture.count(migrated, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger'") == 0)
-        #expect(try migrated.pendingSyncChanges().isEmpty, "a schema-only migration republishes nothing")
         // The notebook follows the course; nothing names it as the course's home any more.
         #expect(try Schema154Fixture.count(migrated, """
             SELECT COUNT(*) FROM ck_notebook_children WHERE notebook_id = '\(library.notebookID)' AND child_type = 'Course'
@@ -144,6 +143,7 @@ struct CourseSchema157MigrationTests {
         defer { try? FileManager.default.removeItem(at: root) }
         do {
             let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+            try Schema154Fixture.restoreGeneration1Tables(store)
             // 6,000 sources; 60 courses with 1,800 lectures, 3,600 items and 600 quizzes; 17,000 sync rows.
             try store.execForTesting("""
                 BEGIN IMMEDIATE;

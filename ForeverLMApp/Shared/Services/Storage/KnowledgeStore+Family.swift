@@ -100,7 +100,7 @@ extension KnowledgeStore {
                 sqlite3_bind_double(stmt, 2, date.timeIntervalSinceReferenceDate)
                 bind(stmt, 3, taskID)
             }
-            try markRecordChanged(entity: .notebookTask, logicalKey: taskID, at: date)
+            noteStoreChanged()
         }
         return closed
     }
@@ -143,7 +143,7 @@ extension KnowledgeStore {
                 sqlite3_bind_double(stmt, 1, date.timeIntervalSinceReferenceDate)
                 bind(stmt, 2, taskID)
             }
-            try markRecordChanged(entity: .notebookTask, logicalKey: taskID, at: date)
+            noteStoreChanged()
         }
         return reopened
     }

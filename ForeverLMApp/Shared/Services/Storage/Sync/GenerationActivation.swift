@@ -18,14 +18,6 @@ enum FreshReason: String, Sendable, Equatable {
     case knowledgeMissing
 }
 
-/// What the account check found, for a store with generation-1 history.
-enum ActivationAccount: Equatable, Sendable {
-    /// The old container's user record name.
-    case signedIn(userRecordName: String)
-    /// Signed out, iCloud off for ForeverLM, or unreachable.
-    case unavailable
-}
-
 struct ActivationModeDecision: Equatable, Sendable {
     let mode: ActivationMode
     let freshReason: FreshReason?
@@ -133,8 +125,6 @@ struct GenerationActivation {
     let store: KnowledgeStore
     var registry: ProjectionRegistry = KnowledgeStore.projectionRegistry
     var derivations: [ActivationDerivation] = KnowledgeStore.activationDerivations
-    /// Step b of a `full` activation (WP16a); nil runs none.
-    var catchUp: ((KnowledgeStore) throws -> Void)?
     var now: () -> Date = Date.init
 
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "GenerationActivation")
@@ -145,40 +135,6 @@ struct GenerationActivation {
 
     var storeDirectory: URL {
         URL(fileURLWithPath: store.dbPath).deletingLastPathComponent()
-    }
-
-    /// Whether the store has generation-1 sync history: a `sync_metadata` row with the server's system
-    /// fields, which only a save the server acknowledged or a record it delivered leaves. Every local
-    /// write makes a row too, with none, so a library that never synced (a new store, its default and
-    /// seed rows, a Mac that was never signed in) has no history. Generation 1 forgets its history on
-    /// sign-out and account switch, so such a Mac activates `fresh` too.
-    static func hasGeneration1History(_ store: KnowledgeStore) throws -> Bool {
-        let tableExists = try store.scalarInteger("SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'sync_metadata')") == 1
-        guard tableExists else { return false }
-        return try store.scalarInteger("SELECT EXISTS(SELECT 1 FROM sync_metadata WHERE system_fields IS NOT NULL)") == 1
-    }
-
-    /// The mode (§13.3 step 3): with no history `fresh` at once, asking nothing of the network; with
-    /// history the account check decides. The 2-minute fallback and a missing `Knowledge` zone are
-    /// WP16a's.
-    static func decideMode(hasHistory: Bool, account: () async -> ActivationAccount) async -> ActivationModeDecision {
-        guard hasHistory else { return .freshNoHistory }
-        switch await account() {
-        case .signedIn(let userRecordName):
-            return ActivationModeDecision(mode: .full, freshReason: nil, account: userRecordName)
-        case .unavailable:
-            return ActivationModeDecision(mode: .deferred, freshReason: nil, account: nil)
-        }
-    }
-
-    /// What the account check reads (§13.3 step 3): the old container's account status and, when an
-    /// account is there, its user record name. A failure counts as no account; WP16a waits up to 2
-    /// minutes for iCloud before it settles for `deferred`.
-    static func account(of legacyContainer: any CloudTransport) async -> ActivationAccount {
-        guard (try? await legacyContainer.accountStatus()) == .available,
-              let userRecordName = try? await legacyContainer.userRecordName()
-        else { return .unavailable }
-        return .signedIn(userRecordName: userRecordName)
     }
 
     /// Runs the activation from the step its journal names. `decision` is recorded when the journal has
@@ -218,7 +174,6 @@ struct GenerationActivation {
         if journal.activatedAt != nil { return journal }
         var step = journal.step ?? .catchUp
         if step == .catchUp {
-            if journal.mode == .full, let catchUp { try catchUp(store) }
             step = derivations.first.map { .derive($0.id) } ?? .triggers
             try advance(&journal, to: step)
         }

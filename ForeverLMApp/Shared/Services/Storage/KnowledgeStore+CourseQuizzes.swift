@@ -64,7 +64,6 @@ extension KnowledgeStore {
             try writeCourseQuizRow(quiz)
             try countQuizRevisionForGeneration2(quizID: quiz.id, questionsBefore: questionsBefore)
             try keepCourseRowsForGeneration2(courseIDs: [quiz.courseID])
-            try markRecordChanged(entity: .course, logicalKey: quiz.courseID)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -73,13 +72,12 @@ extension KnowledgeStore {
     }
 
     func deleteCourseQuiz(_ id: String) throws {
-        guard let quiz = try loadCourseQuiz(id) else { return }
+        guard try loadCourseQuiz(id) != nil else { return }
         try exec("BEGIN IMMEDIATE")
         do {
             try execBind("DELETE FROM course_quizzes WHERE id = ?") { stmt in
                 self.bind(stmt, 1, id)
             }
-            try markRecordChanged(entity: .course, logicalKey: quiz.courseID)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -88,8 +86,7 @@ extension KnowledgeStore {
     }
 
     /// Replaces a course's quizzes with the ones its Course record carries,
-    /// in one transaction. The inbound apply wraps it in `withoutSyncTracking`,
-    /// so the replacement is not queued back out.
+    /// in one transaction.
     func replaceCourseQuizzesFromSync(courseID: String, quizzes: [CourseQuiz]) throws {
         try exec("BEGIN IMMEDIATE")
         do {

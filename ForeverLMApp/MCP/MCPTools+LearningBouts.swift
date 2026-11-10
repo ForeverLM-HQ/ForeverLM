@@ -14,8 +14,8 @@ import Foundation
 // is expected to ask both questions — what landed, and what did not — before
 // calling it.
 //
-// Everything goes through StorageService so SQLite, sync_metadata and
-// sync_changes move together and every client republishes at once. Desktop-only
+// Everything goes through StorageService so every client republishes at once.
+// Desktop-only
 // in the public allowlist, as the calendar tools are: the clock is the Mac's
 // own record.
 

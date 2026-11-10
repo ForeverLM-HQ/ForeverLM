@@ -139,28 +139,4 @@ struct IdeaPersistenceTests {
         #expect(idea.status == .open, "an unknown status reads as open")
         #expect(idea.links.map(\.targetID) == ["source-a"], "a kind this build lacks is dropped, the record survives")
     }
-
-    @Test("An Idea and its links ride one CloudKit payload")
-    func syncPayloadCarriesTheLinks() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        try seedSource(store, id: "source-c", title: "Carried across")
-        let idea = try store.createIdea(
-            title: "One payload, chips and all",
-            notes: "A link is meaningless without its Idea.",
-            links: [IdeaLink(kind: .source, targetID: "source-c")]
-        )
-
-        let payload = try #require(try store.loadIdeaForSync(idea.id))
-        #expect(payload.idea.id == idea.id)
-        #expect(payload.idea.links.map(\.targetID) == ["source-c"])
-
-        try store.deleteIdea(idea.id)
-        #expect(try store.loadIdea(idea.id) == nil)
-
-        try store.saveIdeaRecord(payload)
-        let restored = try #require(try store.loadIdea(idea.id))
-        #expect(restored.title == idea.title)
-        #expect(restored.notes == idea.notes)
-        #expect(restored.links.map(\.targetID) == ["source-c"], "the chips come back with it")
-    }
 }

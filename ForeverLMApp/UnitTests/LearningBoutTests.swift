@@ -226,53 +226,6 @@ struct LearningBoutTests {
 
     // MARK: - Sync
 
-    @Test("Bouts round-trip through the day's record with every field")
-    func cloudKitRoundTrip() throws {
-        let senderRoot = temporaryRoot("BoutSender")
-        let receiverRoot = temporaryRoot("BoutReceiver")
-        defer {
-            try? FileManager.default.removeItem(at: senderRoot)
-            try? FileManager.default.removeItem(at: receiverRoot)
-        }
-        let sender = try KnowledgeStore(storeDirectory: senderRoot)
-        let receiver = try KnowledgeStore(storeDirectory: receiverRoot)
-        let today = DayPlan.dateString(for: Date())
-
-        let block = try sender.addTimeBlock(TimeBlock(dayPlanID: today, startMinute: 540, endMinute: 630, title: "GDF15"))
-        let bout = try sender.startLearningBout(LearningBout(
-            dayPlanID: today, blockID: block.id, title: "GDF15",
-            notebookID: "notebook-mito", sourceIDs: ["src-a", "src-b"], plannedMinutes: 90
-        ))
-        try sender.writeUpLearningBout(bout.id, learned: "GFRAL is the receptor.", unclear: "The vagotomy result.")
-        try sender.startLearningBoutBreak(bout.id, minutes: 12)
-
-        let payload = try #require(try sender.loadDayPlanForSync(today))
-        let decoded = try JSONDecoder().decode(CloudKitDayPlanPayload.self, from: try JSONEncoder().encode(payload))
-        try receiver.saveDayPlanRecord(decoded)
-
-        let landed = try #require(try receiver.loadLearningBout(bout.id))
-        #expect(landed.title == "GDF15")
-        #expect(landed.blockID == block.id)
-        #expect(landed.notebookID == "notebook-mito")
-        #expect(landed.sourceIDs == ["src-a", "src-b"])
-        #expect(landed.plannedMinutes == 90)
-        #expect(landed.learned == "GFRAL is the receptor.")
-        #expect(landed.unclear == "The vagotomy result.")
-        #expect(landed.writtenAt != nil)
-        #expect(landed.breakMinutes == 12)
-        #expect(landed.phase() == .resting)
-        // And it reads back through the day the way the panes ask for it.
-        #expect(try receiver.loadDayPlan(today)?.bouts.map(\.id) == [bout.id])
-    }
-
-    @Test("A record written before bouts existed lands as a day with none")
-    func olderRecordDecodes() throws {
-        let older = try JSONDecoder().decode(CloudKitDayPlanPayload.self, from: Data("""
-        {"plan": {"id": "2026-09-18", "date": "2026-09-18", "revision": 1}, "blocks": []}
-        """.utf8))
-        #expect(older.bouts.isEmpty)
-    }
-
     @Test("A stale record cannot un-end a bout, and a device that only ended the break cannot blank the write-up")
     func mergeKeepsWhatHappened() {
         let base = Date(timeIntervalSinceReferenceDate: 800_000_000)

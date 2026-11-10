@@ -1724,7 +1724,7 @@ struct ReviewChatResumeTests {
         }
     }
 
-    @Test("opening an abandoned review removes it and queues its sync deletion")
+    @Test("opening an abandoned review removes it")
     func abandonedReviewIsRemovedAtomically() throws {
         let store = try KnowledgeStore(inMemory: true)
         try store.createReviewSession(
@@ -1744,15 +1744,9 @@ struct ReviewChatResumeTests {
         #expect(deleted)
         #expect(try store.loadReviewSessionLinks().contains { $0.id == "session-1" } == false)
         #expect(try store.loadReviewSessionExchanges(sessionID: "session-1").isEmpty)
-        let change = try store.pendingSyncChanges().first {
-            $0.entity == .reviewSession && $0.logicalKey == "session-1"
-        }
-        let metadata = try store.loadSyncMetadata(entity: .reviewSession, logicalKey: "session-1")
-        #expect(change?.operation == .delete)
-        #expect(metadata?.isDeleted == true)
     }
 
-    @Test("explicit chat deletion removes its transcript and queues one sync tombstone")
+    @Test("explicit chat deletion removes its transcript")
     func explicitChatDeletionIsAtomic() throws {
         let store = try KnowledgeStore(inMemory: true)
         try store.createReviewSession(
@@ -1776,13 +1770,6 @@ struct ReviewChatResumeTests {
 
         #expect(try store.loadReviewSessionLinks().contains { $0.id == "session-1" } == false)
         #expect(try store.loadReviewSessionExchanges(sessionID: "session-1").isEmpty)
-        let changes = try store.pendingSyncChanges().filter {
-            $0.entity == .reviewSession && $0.logicalKey == "session-1"
-        }
-        let metadata = try store.loadSyncMetadata(entity: .reviewSession, logicalKey: "session-1")
-        #expect(changes.count == 1)
-        #expect(changes.first?.operation == .delete)
-        #expect(metadata?.isDeleted == true)
     }
 
     @Test("reviews with a learner response are never auto-removed")
@@ -1953,11 +1940,6 @@ struct ReviewChatResumeTests {
         #expect(forkedExchanges[0].evaluation == originalExchanges[0].evaluation)
         #expect(forkedExchanges[0].sourceRefs == [article.id])
         #expect(try store.loadReviewSessionExchanges(sessionID: "original-session").count == 2)
-
-        let pendingChange = try store.pendingSyncChanges().first {
-            $0.entity == .reviewSession && $0.logicalKey == fork.id
-        }
-        #expect(pendingChange?.operation == .save)
     }
 
     @Test("deleting an in-app chat message updates the persisted exchange")
@@ -2423,11 +2405,8 @@ struct ReviewSessionLoadedSourcesTests {
 
         #expect(try store.loadReviewSessionLoadedSourceIDs(sessionID: "chat") == nil)
 
-        try store.clearAllPendingSyncChanges()
         try store.updateReviewSessionLoadedSources(sessionID: "chat", sourceIDs: ["src-b", "src-a"])
         #expect(try store.loadReviewSessionLoadedSourceIDs(sessionID: "chat") == ["src-b", "src-a"])
-        // Local state: nothing is queued for CloudKit by remembering it.
-        #expect(try store.pendingSyncChanges().isEmpty)
 
         try store.updateReviewSessionLoadedSources(sessionID: "chat", sourceIDs: [])
         #expect(try store.loadReviewSessionLoadedSourceIDs(sessionID: "chat") == [])
@@ -2667,7 +2646,6 @@ struct ChatModelTuningPersistenceTests {
                 COMMIT;
             """)
         }
-        try store.clearAllPendingSyncChanges()
         try store.execForTesting("""
             ALTER TABLE review_sessions DROP COLUMN model_speed;
             ALTER TABLE review_sessions DROP COLUMN model_effort;
@@ -2703,7 +2681,6 @@ struct ChatModelTuningPersistenceTests {
         #expect(try migrated.loadReviewSessionLinks().map(\.id) == ["old-chat"])
         #expect(try migrated.loadReviewSessionExchanges(sessionID: "old-chat").count == 1)
         #expect(try migrated.loadReviewSessionModelRoute(sessionID: "old-chat") == Self.route(Self.opus, effort: nil, speed: nil))
-        #expect(try migrated.pendingSyncChanges().isEmpty, "a schema-only migration republishes nothing")
 
         // And the columns take a pick straight away.
         try migrated.updateReviewSessionModel(

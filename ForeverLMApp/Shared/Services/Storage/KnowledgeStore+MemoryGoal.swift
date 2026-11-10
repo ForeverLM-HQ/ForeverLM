@@ -80,7 +80,7 @@ extension KnowledgeStore {
         try exec("BEGIN IMMEDIATE")
         do {
             try upsertMemoryReviewActivityRow(activity)
-            try markRecordChanged(entity: .memoryReviewActivity, logicalKey: activity.id, at: activity.updatedAt)
+            noteStoreChanged()
             // Generation 2: the clock in this Mac's own activity log (§3.5.24).
             try recordOwnReviewActivity(activity)
             try exec("COMMIT")
@@ -112,43 +112,4 @@ extension KnowledgeStore {
 
     // MARK: - Sync
 
-    func loadMemoryReviewActivityForSync(_ id: String) throws -> CloudKitMemoryReviewActivityPayload? {
-        guard let activity = try loadMemoryReviewActivity(id) else { return nil }
-        return CloudKitMemoryReviewActivityPayload(activity: activity)
-    }
-
-    /// Applies an inbound row. Only the device that owns a row ever writes it,
-    /// so the newer copy is simply the truth; an older copy arriving late from
-    /// a device that had not synced must not wind the total back.
-    func saveMemoryReviewActivityRecord(_ payload: CloudKitMemoryReviewActivityPayload) throws {
-        let incoming = payload.activity
-        if let existing = try loadMemoryReviewActivity(incoming.id), existing.updatedAt > incoming.updatedAt {
-            return
-        }
-        try upsertMemoryReviewActivityRow(incoming)
-    }
-
-    func deleteMemoryReviewActivityRecord(_ id: String) throws {
-        try execBind("DELETE FROM memory_review_activity WHERE id = ?") { stmt in
-            bind(stmt, 1, id)
-        }
-    }
-
-    func hasMemoryReviewActivity(_ id: String) throws -> Bool {
-        var found = false
-        try queryBind("SELECT 1 FROM memory_review_activity WHERE id = ? LIMIT 1", bind: { stmt in
-            bind(stmt, 1, id)
-        }) { _ in
-            found = true
-        }
-        return found
-    }
-
-    func loadAllMemoryReviewActivityIDs() throws -> [String] {
-        var ids: [String] = []
-        try query("SELECT id FROM memory_review_activity ORDER BY id") { stmt in
-            if let id = self.string(stmt, 0) { ids.append(id) }
-        }
-        return ids
-    }
 }

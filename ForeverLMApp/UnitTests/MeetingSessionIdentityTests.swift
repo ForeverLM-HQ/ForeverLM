@@ -312,16 +312,6 @@ struct MeetingGroupDeletionTests {
         #expect(try store.loadMeetingArtifacts(groupID: groupID).isEmpty)
         #expect(try store.loadMeetingArtifacts(groupID: aliasID).isEmpty)
         #expect(try store.loadMeetingArtifacts(groupID: otherGroupID).count == 1)
-
-        // The other Mac has to hear about it, or the folder syncs straight back.
-        let pending = try store.pendingSyncChanges()
-        let deletions = Set(
-            pending.filter { $0.operation == .delete }.map { "\($0.entity.rawValue):\($0.logicalKey)" }
-        )
-        #expect(deletions.contains("meetingGroup:\(groupID)"))
-        #expect(deletions.contains("meetingGroup:\(aliasID)"))
-        #expect(deletions.contains("source:session-a"))
-        #expect(deletions.contains("source:session-b"))
     }
 
     @Test("a session shared with another group survives, losing only its membership here")

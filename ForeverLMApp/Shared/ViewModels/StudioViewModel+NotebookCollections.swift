@@ -161,10 +161,4 @@ extension StudioViewModel {
         notebookCollections = notebookCollections.settingMembership([], for: notebookID)
     }
 
-    /// A merged notebook's collections go to the notebook it was folded into.
-    func mergeNotebookCollections(_ mergedID: String, into survivorID: String) {
-        guard notebookCollections.memberships[mergedID] != nil else { return }
-        NotebookCollectionRows.merge(mergedID, into: survivorID)
-        notebookCollections = NotebookCollectionRows.read()
-    }
 }

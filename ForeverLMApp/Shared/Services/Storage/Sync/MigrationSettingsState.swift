@@ -178,14 +178,11 @@ struct ICloudMigrationLine: Equatable, Sendable {
     var detail: String?
 }
 
-/// Everything Settings › iCloud renders for the move, as plain values: a snapshot of the store, what the
-/// coordinator publishes, what late import knows, and the removal gate judged on them.
+/// Everything Settings › iCloud renders for the move, as plain values: a snapshot of the store and what
+/// the coordinator publishes.
 struct ICloudMigrationState: Equatable, Sendable {
     var snapshot: ICloudMigrationSnapshot
     var sync: SyncStatus?
-    var imports: OldContainerImportFacts?
-    var parity: ByteParityReport?
-    var gate: OldContainerRemovalGate
     var now: Date
 
     /// Nothing about the move shows under generation 1, or while the activation itself is running (its
@@ -248,43 +245,15 @@ struct ICloudMigrationState: Equatable, Sendable {
         case .none: return "Rollback copy: none; the old iCloud library still holds your synced library"
         }
     }
-
-    /// "A device is still using an older ForeverLM (last change <time>)" (§13.6).
-    var oldVersionLine: String? {
-        guard let imports, let last = imports.lastOldZoneWriteAt, imports.removedAt == nil else { return nil }
-        let quietFor = now.timeIntervalSince(last)
-        guard quietFor < OldContainerRemovalGate.quietInterval else { return nil }
-        return "A device is still using an older ForeverLM (last change \(last.formatted(date: .abbreviated, time: .shortened)))"
-    }
-
-    /// Why "Remove old iCloud data" is off, nil when it is on.
-    var removalHint: String? {
-        guard let blocker = gate.blockers.first else { return nil }
-        switch blocker {
-        case .importUnavailable: return "Available once the old iCloud library has been imported"
-        case .notQuiet(let days): return days == 1 ? "Available after 1 more quiet day" : "Available after \(days) more quiet days"
-        case .parityNotClean(let missing):
-            if missing == 0 { return "Checking your old files" }
-            return missing == 1 ? "1 old file is not in the new store yet" : "\(missing.formatted()) old files are not in the new store yet"
-        case .questionWaiting: return "Answer the question above first"
-        case .notCarried(let count):
-            return count == 1 ? "1 idea, research direction or skill is only in the old iCloud store" : "\(count.formatted()) ideas, research directions and skills are only in the old iCloud store"
-        case .oldZonesUnreadable: return "The old iCloud store could not be read just now"
-        case .alreadyRemoved: return "The old iCloud data was removed"
-        }
-    }
 }
 
 // MARK: - The same state for `get_sync_status`
 
 extension ICloudMigrationState {
     /// `get_sync_status`'s `migration` object: everything Settings › iCloud shows of the move, as plain
-    /// JSON, so an assistant can answer "did my library move?" and "can I remove the old iCloud data?"
-    /// without the window. Nil under generation 1, which has no move.
+    /// JSON, so an assistant can answer "did my library move?" without the window.
     func statusPayload() -> [String: Any]? {
         guard snapshot.isGeneration2 else { return nil }
-        let iso = ISO8601DateFormatter()
-        func time(_ date: Date?) -> Any { date.map(iso.string(from:)) ?? NSNull() }
         let journal = snapshot.journal
         var payload: [String: Any] = [
             "activated": snapshot.isActivated,
@@ -329,39 +298,6 @@ extension ICloudMigrationState {
                 "outcome": progress.outcome.map { "\($0)" } ?? NSNull(),
             ] as [String: Any]
         }
-
-        if let imports {
-            var old: [String: Any] = [
-                "last_write_at": time(imports.lastOldZoneWriteAt),
-                "quiet_since": time(imports.quietSince),
-                "finished_at": time(imports.finishedAt),
-                "removed_at": time(imports.removedAt),
-                "older_version_in_use": oldVersionLine != nil,
-                "waiting": imports.waiting.map { ["record": $0.recordName, "title": $0.title ?? NSNull(), "since": time($0.since)] as [String: Any] },
-                "kept_from_an_older_foreverlm": imports.keptRemovals.map { ["what": $0.what, "at": time($0.at)] as [String: Any] },
-                "not_applied": imports.notApplied.map { ["what": $0.what, "at": time($0.at)] as [String: Any] },
-            ]
-            if let question = imports.question {
-                old["question"] = [
-                    "pass": question.pass.rawValue, "would_remove": question.deleting, "of": question.of,
-                    "answers": "run_settings_action apply_old_library_removals, or keep_old_library_removals",
-                ] as [String: Any]
-            }
-            payload["old_icloud_library"] = old
-        }
-        if let parity {
-            payload["byte_parity"] = [
-                "clean": parity.isClean, "checked": parity.checked, "in_new_store": parity.newSatellites,
-                "on_this_mac": parity.localFiles, "held_by_other_macs": parity.heldByOtherMacs,
-                "missing": parity.missing.prefix(50).map { ["title": $0.title, "kind": $0.field.rawValue] as [String: Any] },
-                "missing_count": parity.missing.count,
-            ] as [String: Any]
-        }
-        payload["remove_old_icloud_data"] = [
-            "available": gate.isOpen,
-            "waiting_for": [removalHint].compactMap { $0 },
-            "how": "Only in the Settings window, where the learner confirms after reading what remains (open_settings data_privacy).",
-        ] as [String: Any]
         return payload
     }
 }

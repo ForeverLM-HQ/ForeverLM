@@ -1037,8 +1037,8 @@ enum AIModelCatalog {
     /// Slug → accepts image input, captured from the directory's
     /// `architecture.input_modalities` on the same fetch that refreshes prices
     /// (`AIModelPriceRefresher.ingest`). A device-local derived cache, not user
-    /// intent, so it lives in plain `UserDefaults` like the remote price table —
-    /// no `sync_changes`, nothing to reconcile across devices.
+    /// intent, so it lives in plain `UserDefaults` like the remote price table:
+    /// it does not sync, and there is nothing to reconcile across devices.
     private static let openRouterVisionKey = "aiCapabilities.openRouterVision"
 
     /// Whether a directory slug was last seen accepting image input. `nil` means

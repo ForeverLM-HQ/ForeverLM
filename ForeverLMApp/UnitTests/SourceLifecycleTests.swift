@@ -158,11 +158,6 @@ struct SourceLifecycleTests {
         #expect(recovered.wordCount == 4)
         #expect(try store.loadSourceContent(episode.id) == "[0:00] Confirmed YouTube captions")
         #expect(try store.loadPodcastRawTTML(episode.id) == nil)
-
-        let payloadData = try JSONEncoder().encode(CloudKitSourcePayload(article: recovered))
-        let synced = try JSONDecoder().decode(CloudKitSourcePayload.self, from: payloadData)
-        #expect(synced.article.publicURL == youtubeURL)
-        #expect(synced.article.url == episode.url)
     }
 
     @Test("YouTube podcast recovery rolls back when the target is not a podcast")
@@ -689,10 +684,6 @@ struct UnarchiveMatchingURLTests {
         let deletionKeys = try store.undismissSource(url: url)
 
         #expect(deletionKeys.contains(url))
-        let deletion = try #require(try store.pendingSyncChanges().first {
-            $0.entity == .dismissedSource && $0.logicalKey == url
-        })
-        #expect(deletion.operation == .delete)
 
         var paper = makeArticle(url: url, title: "Explicitly re-added paper", sourceType: .paper)
         #expect(try store.insertSourceIfNew(&paper))

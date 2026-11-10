@@ -385,7 +385,7 @@ extension MCPDataStore {
             // learning_goal_items row the source is absent from
             // LearningGoalRecord.items, so it never counts toward progress, never
             // gets its completion mirrored back onto the goal, and doesn't reach a
-            // second device (loadLearningGoalForSync builds the payload from items).
+            // second device (the goal's record is built from its items).
             guard let placementGoal = try store.loadLearningGoal(scheduleGoal.id) else {
                 throw MCPError.invalidInput("Goal or Notebook not found: \(scheduleGoal.id)")
             }

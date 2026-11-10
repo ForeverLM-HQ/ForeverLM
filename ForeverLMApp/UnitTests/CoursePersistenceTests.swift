@@ -275,7 +275,6 @@ struct CoursePersistenceTests {
             id: "lecture-2-slides"
         )
         try store.saveSource(laterSource)
-        try store.clearAllPendingSyncChanges()
         try store.saveCourseLectureItem(
             CourseLectureItem(
                 id: "later-item",
@@ -284,17 +283,6 @@ struct CoursePersistenceTests {
                 role: .slides,
                 sortIndex: 1
             )
-        )
-        let pendingChanges = try store.pendingSyncChanges()
-        #expect(
-            pendingChanges.contains {
-                $0.entity == .course && $0.logicalKey == courseID
-            }
-        )
-        #expect(
-            pendingChanges.contains {
-                $0.entity == .learningGoal && $0.logicalKey == notebook.id
-            }
         )
 
         let reloadedNotebook = try store.loadLearningGoal(notebook.id)
@@ -316,7 +304,7 @@ struct CoursePersistenceTests {
             try store.loadLearningGoal(notebook.id)?.approvedSourceIDs
                 == [laterSource.id, groupedSource.id]
         )
-        #expect(try store.loadLearningGoalForSync(notebook.id)?.linkedCourseIDs == [courseID])
+        #expect(try store.linkedCourseIDsForNotebook(goalID: notebook.id) == [courseID])
 
         try store.deleteCourseGroup(name: courseID)
         #expect(try store.linkedCourseIDsForNotebook(goalID: notebook.id).isEmpty)
@@ -746,9 +734,6 @@ struct CourselessCourseSourceTests {
         // Hidden, not archived.
         #expect(sources.first { $0.id == "handout" }?.status == .active)
         #expect(try store.loadSourceContent("handout") == "Handout text")
-
-        let pending = try store.pendingSyncChanges()
-        #expect(pending.filter { $0.entity == .hiddenSource }.map(\.logicalKey).sorted() == ["handout", "notes"])
     }
 
     /// 2026-09-27: a hidden legacy course keyed by a book's own id was deleted,
@@ -782,7 +767,6 @@ struct CourselessCourseSourceTests {
         var hiddenMetadata = CourseMetadata(title: "Molecular Biology of the Cell")
         hiddenMetadata.isHidden = true
         try store.saveCourseGroup(name: bookID, metadata: hiddenMetadata)
-        try store.clearAllPendingSyncChanges()
 
         let hidden = try store.deleteCourseGroup(name: bookID)
 
@@ -793,10 +777,6 @@ struct CourselessCourseSourceTests {
             .sorted { $0.id < $1.id }
         #expect(chapters.map(\.parentGroup) == [bookID, bookID])
         #expect(chapters.map(\.courseSortIndex) == [0, 1])
-        // The chapters did not change, so none is republished without its book.
-        let pending = try store.pendingSyncChanges()
-        #expect(!pending.contains { $0.entity == .source })
-        #expect(pending.contains { $0.entity == .course && $0.logicalKey == bookID })
     }
 }
 

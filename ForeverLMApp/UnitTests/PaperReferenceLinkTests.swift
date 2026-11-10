@@ -475,7 +475,6 @@ struct PaperReferenceStorageTests {
         defer { try? FileManager.default.removeItem(at: root) }
         try addPaper(store, "with-file")
         try addPaper(store, "no-file", path: nil)
-        try store.clearAllPendingSyncChanges()
         // A store as schema 173 left it: everything but the two tables.
         try store.execForTesting("""
             DROP TABLE paper_references;
@@ -487,11 +486,10 @@ struct PaperReferenceStorageTests {
         let migrated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
 
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
-        #expect(KnowledgeStore.schemaVersion == 174)
+        #expect(KnowledgeStore.schemaVersion == 175)
         #expect(try migrated.holdsPaperReferenceTables())
         #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM paper_references") == 0)
         #expect(try migrated.paperReferenceReadCandidates(limit: 10).map(\.sourceID) == ["with-file"])
-        #expect(try migrated.pendingSyncChanges().isEmpty)
         // The papers are still all there.
         #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM papers") == 2)
     }

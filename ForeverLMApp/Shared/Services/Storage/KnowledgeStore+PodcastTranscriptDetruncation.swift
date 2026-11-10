@@ -290,7 +290,7 @@ extension KnowledgeStore {
             ) { stmt in
                 self.bind(stmt, 1, sourceID)
             }
-            try markRecordChanged(entity: .source, logicalKey: sourceID)
+            noteStoreChanged()
             try exec("COMMIT")
             return true
         } catch {

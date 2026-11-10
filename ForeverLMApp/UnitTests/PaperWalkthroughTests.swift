@@ -835,13 +835,11 @@ struct PaperWalkthroughStorageTests {
         )
     }
 
-    @Test("A saved walkthrough reads back, replaces itself, queues the source for sync and deletes")
+    @Test("A saved walkthrough reads back, replaces itself and deletes")
     func saveLoadDelete() async throws {
         let (storage, root) = makeTemporaryStorage("save")
         defer { try? FileManager.default.removeItem(at: root) }
         let article = try await seedArticle(storage, content: paperText)
-        let store = try KnowledgeStore(storeDirectory: root)
-        try store.clearAllPendingSyncChanges()
 
         #expect(try await storage.loadPaperWalkthrough(article.id) == nil)
         #expect(try await storage.hasPaperWalkthrough(article.id) == false)
@@ -852,7 +850,6 @@ struct PaperWalkthroughStorageTests {
         #expect(loaded.title == "Walk")
         #expect(loaded.steps.count == 1)
         #expect(try await storage.hasPaperWalkthrough(article.id))
-        #expect(try store.hasPendingSyncChange(entity: .source, logicalKey: article.id))
 
         try await storage.savePaperWalkthrough(walkthrough(for: article, text: paperText, title: "Walk again"))
         #expect(try await storage.loadPaperWalkthrough(article.id)?.title == "Walk again")
@@ -1054,36 +1051,6 @@ struct PaperWalkthroughStorageTests {
         try await storage.savePaperWalkthrough(walkthrough(for: article, text: paperText))
         try await storage.deleteSource(article.id)
         #expect(try await storage.hasPaperWalkthrough(article.id) == false)
-    }
-
-    @Test("The walkthrough rides the Source sync payload and lands on the other Mac only for the same text")
-    func syncPayload() async throws {
-        let (storage, root) = makeTemporaryStorage("payload")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let article = try await seedArticle(storage, content: paperText)
-        let record = walkthrough(for: article, text: paperText)
-
-        let payload = CloudKitSourcePayload(article: article, paperWalkthrough: record)
-        let data = try JSONEncoder().encode(payload)
-        let decoded = try JSONDecoder().decode(CloudKitSourcePayload.self, from: data)
-        #expect(decoded.paperWalkthrough == record)
-
-        // An older client's payload has no key: the local row is left alone.
-        let older = try JSONDecoder().decode(CloudKitSourcePayload.self, from: JSONEncoder().encode(CloudKitSourcePayload(article: article)))
-        #expect(older.paperWalkthrough == nil)
-
-        let store = try KnowledgeStore(storeDirectory: root)
-        try store.savePaperWalkthroughFromSync(sourceID: article.id, walkthrough: record)
-        #expect(try store.loadPaperWalkthrough(article.id)?.title == "Walk")
-
-        var other = record
-        other.sourceSHA256 = "not-this-text"
-        other.title = "Wrong text"
-        try store.savePaperWalkthroughFromSync(sourceID: article.id, walkthrough: other)
-        #expect(try store.loadPaperWalkthrough(article.id)?.title == "Walk")
-        // A payload with no walkthrough leaves the row alone.
-        try store.savePaperWalkthroughFromSync(sourceID: article.id, walkthrough: nil)
-        #expect(try store.loadPaperWalkthrough(article.id)?.title == "Walk")
     }
 }
 
@@ -2913,8 +2880,6 @@ struct AnimationWalkthroughStorageTests {
             url: URL(string: "foreverlm-site://pmf-two-components/")!, title: "One force, two components",
             homeNotebookID: nil, linkedNotebookIDs: [], kind: .animation
         )
-        let store = try KnowledgeStore(storeDirectory: root)
-        try store.clearAllPendingSyncChanges()
 
         #expect(try await storage.loadArtifactWalkthrough(artifact.id) == nil)
         #expect(try await storage.hasArtifactWalkthrough(artifact.id) == false)
@@ -2928,7 +2893,6 @@ struct AnimationWalkthroughStorageTests {
         #expect(loaded.steps[1].animation?.conditions == ["iono": "nig"])
         #expect(try await storage.hasArtifactWalkthrough(artifact.id))
         #expect(try await storage.artifactIDsWithWalkthroughs() == [artifact.id])
-        #expect(try store.hasPendingSyncChange(entity: .artifact, logicalKey: artifact.id))
         // The source table knows nothing of it.
         #expect(try await storage.loadPaperWalkthrough(artifact.id) == nil)
 
@@ -2973,34 +2937,6 @@ struct AnimationWalkthroughStorageTests {
 
         try await storage.deleteArtifact(artifact.id)
         #expect(try await storage.hasArtifactWalkthrough(artifact.id) == false)
-    }
-
-    @Test("The walk rides the Artifact sync payload and comes back; a payload without the key reads as none")
-    func syncPayload() async throws {
-        let (storage, root) = makeTemporaryStorage("anim-sync")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let artifact = try await storage.createLinkedArtifact(
-            url: URL(string: "foreverlm-site://pmf-two-components/")!, title: "One force",
-            homeNotebookID: nil, linkedNotebookIDs: [], kind: .animation
-        )
-        let walk = animationWalk(for: artifact)
-        let payload = CloudKitArtifactPayload(artifact: artifact, bodyRevision: "r1", bodyByteCount: 3, bodyFormatVersion: 1, walkthrough: walk)
-        let data = try JSONEncoder().encode(payload)
-        let decoded = try JSONDecoder().decode(CloudKitArtifactPayload.self, from: data)
-        #expect(decoded.walkthrough == walk)
-        #expect(decoded.bodyRevision == "r1")
-        let older = try JSONDecoder().decode(CloudKitArtifactPayload.self, from: try JSONEncoder().encode(CloudKitArtifactPayload(artifact: artifact)))
-        #expect(older.walkthrough == nil)
-
-        // Applied from sync: stored without a sync change of its own.
-        let store = try KnowledgeStore(storeDirectory: root)
-        try store.clearAllPendingSyncChanges()
-        try store.saveArtifactWalkthroughFromSync(artifactID: artifact.id, walkthrough: walk)
-        #expect(try store.loadArtifactWalkthrough(artifact.id)?.title == "Two forces")
-        #expect(try store.hasPendingSyncChange(entity: .artifact, logicalKey: artifact.id) == false)
-        // A payload with none leaves the row alone.
-        try store.saveArtifactWalkthroughFromSync(artifactID: artifact.id, walkthrough: nil)
-        #expect(try store.loadArtifactWalkthrough(artifact.id)?.title == "Two forces")
     }
 }
 
@@ -3225,13 +3161,11 @@ struct WalkthroughLessonAdoptionMigrationTests {
         let article = try await seedArticle(storage, content: paperText)
         do {
             let store = try KnowledgeStore(storeDirectory: root)
-            try store.clearAllPendingSyncChanges()
             try store.execForTesting("PRAGMA user_version = 129")
         }
         let migrated = try KnowledgeStore(storeDirectory: root)
         #expect(Self.scalarInt(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
         #expect(try migrated.loadPaperWalkthrough(article.id) == nil)
-        #expect(Self.scalarInt(at: root, "SELECT COUNT(*) FROM sync_changes") == 0)
     }
 }
 
@@ -3556,113 +3490,5 @@ struct PaperWalkthroughCitationTests {
         #expect(!StudioViewModel.isDistinctiveCitedTitle("life itself"))
         #expect(StudioViewModel.soleSource(titled: "the abstraction fallacy why ai", among: [(id: "a", title: "The Abstraction Fallacy: why AI"), (id: "b", title: "Other")]) == "a")
         #expect(StudioViewModel.soleSource(titled: "same title said here", among: [(id: "a", title: "Same title said here"), (id: "b", title: "Same Title, Said Here")]) == nil)
-    }
-}
-
-/// The drawn pictures a walk shows ride its Source record
-/// (`walkthroughPicturesAsset`): out of the store of the Mac that holds them,
-/// into every other Mac's, showing there what they show here.
-@Suite("Walkthrough Picture Package")
-struct WalkthroughPicturePackageTests {
-    private static let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
-
-    // Three images: `v` revised once, `x` revised and then its revision
-    // redrawn, and `solo`, which nothing names.
-    private static let v1 = "a0000000-0000-4000-8000-000000000001"
-    private static let v2 = "a0000000-0000-4000-8000-000000000002"
-    private static let x1 = "b0000000-0000-4000-8000-000000000001"
-    private static let x2 = "b0000000-0000-4000-8000-000000000002"
-    private static let x3 = "b0000000-0000-4000-8000-000000000003"
-    private static let solo = "c0000000-0000-4000-8000-000000000001"
-    private static let missing = "d0000000-0000-4000-8000-000000000001"
-
-    private func root(_ name: String) throws -> URL {
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent("walk_picture_package_\(name)_\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: url.appendingPathComponent(GeneratedImageStore.directory), withIntermediateDirectories: true)
-        return url
-    }
-
-    private func store(_ id: String, _ details: GeneratedImageStore.Details, in root: URL) throws {
-        let stored = try GeneratedImageStore.withDetails(GeneratedImage(data: Self.png, mediaType: "image/png"), details)
-        try stored.data.write(to: root.appendingPathComponent(GeneratedImageStore.directory).appendingPathComponent("\(id).png"))
-    }
-
-    private func seed(_ root: URL) throws {
-        try store(Self.v1, .init(origin: .saved, text: "A cell.", title: "Cell", imageID: Self.v1, version: 1), in: root)
-        try store(Self.v2, .init(origin: .saved, text: "A cell, labelled.", title: "Cell", imageID: Self.v1, version: 2), in: root)
-        try store(Self.x1, .init(origin: .drawn, text: "A blanket.", title: "Blanket", imageID: Self.x1, version: 1), in: root)
-        try store(Self.x2, .init(origin: .drawn, text: "A blanket, nested.", title: "Blanket", imageID: Self.x1, version: 2, replacedBy: Self.x3), in: root)
-        try store(Self.x3, .init(origin: .drawn, text: "A blanket, nested.", title: "Blanket", imageID: Self.x1, version: 3, replaces: Self.x2), in: root)
-        try store(Self.solo, .init(origin: .saved, text: "Alone.", title: "Alone", imageID: Self.solo, version: 1), in: root)
-    }
-
-    private func walk(naming ids: [String?]) -> PaperWalkthrough {
-        PaperWalkthrough(
-            sourceID: "article-1",
-            sourceSHA256: "sha",
-            title: "Metabolism as inference",
-            steps: ids.enumerated().map { offset, id in
-                PaperWalkthroughStep(
-                    id: "s\(offset)", kind: .explain, title: "Step \(offset)", body: "Point \(offset).",
-                    picture: id.map { PaperWalkthroughPicture(brief: "Picture \(offset)", imageID: $0) }
-                )
-            },
-            author: .assistant
-        )
-    }
-
-    @Test("A walk names each drawn picture once, in step order, lower-cased")
-    func namesPictures() {
-        let record = walk(naming: [Self.v1.uppercased(), nil, Self.x2, Self.v1])
-        #expect(record.drawnPictureIDs == [Self.v1, Self.x2])
-        #expect(walk(naming: [nil, nil]).drawnPictureIDs.isEmpty)
-    }
-
-    @Test("Each named image travels whole, the version a step shows first; what this Mac lacks is left out")
-    func packsWhatStepsShow() throws {
-        let sender = try root("sender")
-        defer { try? FileManager.default.removeItem(at: sender) }
-        try seed(sender)
-
-        let contents = WalkthroughPicturePackage.contents(for: [Self.v1, Self.x2, Self.missing], root: sender)
-        // Named as the image, `v` shows its latest; named as a version, `x2`
-        // shows its redraw.
-        #expect(contents.shown == [Self.v1: "\(Self.v2).png", Self.x2: "\(Self.x3).png"])
-        #expect(contents.files.map(\.id) == [Self.v2, Self.x3, Self.v1, Self.x2, Self.x1])
-        #expect(!contents.files.contains { $0.id == Self.solo }, "an image no step names stays home")
-        #expect(contents.digest.hasPrefix("w:"))
-        #expect(WalkthroughPicturePackage.contents(for: [Self.v1, Self.x2], root: sender).digest == contents.digest)
-        #expect(WalkthroughPicturePackage.contents(for: [Self.v1, Self.x1], root: sender).digest != contents.digest,
-                "what a step shows is part of the signature")
-        #expect(WalkthroughPicturePackage.contents(for: [Self.missing], root: sender).isEmpty)
-        #expect(WalkthroughPicturePackage.contents(for: [], root: sender).isEmpty)
-    }
-
-    @Test("The receiving store shows what the sender's does, and the manifest never lands in it")
-    func roundTrip() throws {
-        let sender = try root("sender")
-        let receiver = try root("receiver")
-        defer {
-            try? FileManager.default.removeItem(at: sender)
-            try? FileManager.default.removeItem(at: receiver)
-        }
-        try seed(sender)
-        let named = [Self.v1, Self.x2]
-        let contents = WalkthroughPicturePackage.contents(for: named, root: sender)
-        let package = try #require(contents.encoded())
-        let entries = try #require(try PropertyListSerialization.propertyList(from: package, options: [], format: nil) as? [String: Data])
-        let manifest = try #require(entries[WalkthroughPicturePackageFormat.manifestName])
-        #expect(try PropertyListSerialization.propertyList(from: manifest, options: [], format: nil) as? [String: String] == contents.shown)
-
-        let packageURL = receiver.appendingPathComponent("package.plist")
-        try package.write(to: packageURL)
-        let written = WalkthroughPicturePackage.materialize(packageAt: packageURL, root: receiver)
-        #expect(Set(written) == [Self.v1, Self.v2, Self.x1, Self.x2, Self.x3])
-        let folder = receiver.appendingPathComponent(GeneratedImageStore.directory)
-        #expect(!FileManager.default.fileExists(atPath: folder.appendingPathComponent(WalkthroughPicturePackageFormat.manifestName).path))
-        #expect(try Data(contentsOf: folder.appendingPathComponent("\(Self.x3).png")) == Data(contentsOf: sender.appendingPathComponent(GeneratedImageStore.directory).appendingPathComponent("\(Self.x3).png")))
-        // The receiver would send the same pictures showing the same way.
-        #expect(WalkthroughPicturePackage.contents(for: named, root: receiver).shown == contents.shown)
-        #expect(WalkthroughPicturePackage.materialize(packageAt: packageURL, root: receiver).isEmpty, "a second arrival adds nothing")
     }
 }

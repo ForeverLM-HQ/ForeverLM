@@ -671,7 +671,12 @@ struct DayPlanTests {
         // drawn in column 2.
         let review = TimeBlock(dayPlanID: date, startMinute: 540, endMinute: 555, title: "Memory review", revision: 1, supersededInRevision: 2, createdAt: now, updatedAt: now)
         let afternoon = TimeBlock(dayPlanID: date, startMinute: 840, endMinute: 930, title: "Read", revision: 2, createdAt: now, updatedAt: now)
-        try store.saveDayPlanRecord(CloudKitDayPlanPayload(plan: DayPlan(date: date, revision: 2, createdAt: now, updatedAt: now), blocks: [review, afternoon]))
+        try store.exec("""
+            INSERT INTO day_plans (id, plan_date, revision, created_at, updated_at)
+            VALUES ('\(date)', '\(date)', 2, \(now.timeIntervalSinceReferenceDate), \(now.timeIntervalSinceReferenceDate))
+        """)
+        try store.writeTimeBlockRow(review)
+        try store.writeTimeBlockRow(afternoon)
         var detail = try #require(try store.loadDayPlan(date))
         #expect(detail.currentBlocks.map(\.id) == [afternoon.id])
 
@@ -794,30 +799,21 @@ struct DayPlanTests {
         let date = "2026-09-10"
 
         let block = try store.addTimeBlock(TimeBlock(dayPlanID: date, startMinute: 480, endMinute: 600, title: "Read"))
-        #expect(try store.pendingSyncChanges().contains { $0.entity == .dayPlan && $0.logicalKey == date && $0.operation == .save })
-        try store.clearAllPendingSyncChanges()
 
         try store.setDayPlanNotes(date, notes: "  Ideas: revisit the atlas  ")
         #expect(try store.loadDayPlan(date)?.plan.notes == "Ideas: revisit the atlas")
-        #expect(try store.pendingSyncChanges().contains { $0.entity == .dayPlan && $0.logicalKey == date })
-        try store.clearAllPendingSyncChanges()
 
         try store.setDayPlanShutdown(date, at: Date())
         #expect(try store.loadDayPlan(date)?.plan.isShutDown == true)
-        #expect(try store.pendingSyncChanges().contains { $0.entity == .dayPlan && $0.logicalKey == date })
-        try store.clearAllPendingSyncChanges()
 
         _ = try store.reviseDayPlan(date, replacing: [block.id], replacements: [
             TimeBlock(dayPlanID: date, startMinute: 480, endMinute: 660, title: "Read, longer"),
         ])
         let revised = try #require(try store.loadDayPlan(date))
         #expect(revised.currentBlocks.map(\.title) == ["Read, longer"])
-        #expect(try store.pendingSyncChanges().contains { $0.entity == .dayPlan && $0.logicalKey == date }, "a redraw queues the day")
-        try store.clearAllPendingSyncChanges()
 
         try store.deleteDayPlan(date)
         #expect(try store.loadDayPlan(date) == nil)
-        #expect(try store.pendingSyncChanges().contains { $0.entity == .dayPlan && $0.logicalKey == date && $0.operation == .delete })
     }
 
     @Test("The log reads back under the names the source, chat and Doc carry now")
@@ -856,13 +852,12 @@ struct DayPlanTests {
             "The Landscape of Mitochondrial Therapeutics",
             "A video since deleted",
         ], "a thing that is gone keeps the name it was seen under")
-        // The stored row is untouched — it is the fallback, not the display
-        // name — and it is what travels to the other Macs.
-        let payload = try #require(try store.loadDayPlanForSync(date))
-        #expect(payload.activities.map(\.title).first == "file:///Users/x/Downloads/d41586-025-01234-5.pdf")
+        // The stored row is untouched: it is the fallback, not the display name.
+        #expect(try store.scalarText("SELECT title FROM day_activities WHERE day_plan_id = '\(date)' ORDER BY start_minute LIMIT 1")
+            == "file:///Users/x/Downloads/d41586-025-01234-5.pdf")
     }
 
-    @Test("The log records what was seen a minute at a time, merges sittings, and rides with the day")
+    @Test("The log records what was seen a minute at a time, merges sittings, and goes with the day")
     func logRecordsAndMergesSpans() throws {
         let root = temporaryRoot("DayPlanLog")
         defer { try? FileManager.default.removeItem(at: root) }
@@ -874,8 +869,7 @@ struct DayPlanTests {
         // The first observation makes the day and a one-minute span.
         let first = try #require(try store.recordDayActivity(kind: .reading, targetID: "src-atlas", title: "Atlas", at: at(600)))
         #expect(first.startMinute == 600 && first.endMinute == 601)
-        #expect(try store.hasDayPlan(date))
-        #expect(try store.pendingSyncChanges().contains { $0.entity == .dayPlan && $0.logicalKey == date })
+        #expect(try store.loadDayPlan(date) != nil)
         // A second look inside the same minute changes nothing.
         #expect(try store.recordDayActivity(kind: .reading, targetID: "src-atlas", title: "Atlas", at: at(600, seconds: 30)) == nil)
         // Heartbeats within the gap lengthen the same span.
@@ -896,9 +890,7 @@ struct DayPlanTests {
         #expect(detail.currentBlocks.isEmpty, "nothing observed ever draws or completes a block")
         #expect(detail.loggedMinutesByKind == [.reading: 5, .chat: 1])
 
-        // The log travels in the day's record and is removed with the day.
-        let payload = try #require(try store.loadDayPlanForSync(date))
-        #expect(payload.activities.count == 3)
+        // The log is removed with the day.
         try store.deleteDayPlan(date)
         #expect(try store.loadDayPlan(date) == nil)
 
@@ -976,140 +968,6 @@ struct DayPlanTests {
     }
 
     // MARK: - CloudKit
-
-    @Test("A day round-trips through CloudKit with every column and every relationship")
-    func cloudKitRoundTrip() throws {
-        let senderRoot = temporaryRoot("DayPlanSender")
-        let receiverRoot = temporaryRoot("DayPlanReceiver")
-        defer {
-            try? FileManager.default.removeItem(at: senderRoot)
-            try? FileManager.default.removeItem(at: receiverRoot)
-        }
-        let sender = try KnowledgeStore(storeDirectory: senderRoot)
-        let receiver = try KnowledgeStore(storeDirectory: receiverRoot)
-        let date = "2026-09-11"
-
-        let first = try sender.addTimeBlock(TimeBlock(
-            dayPlanID: date, startMinute: 540, endMinute: 660, title: "Atlas draft",
-            notes: "Section 2", notebookID: "notebook-mito", sourceIDs: ["src-atlas", "src-review"], purpose: .review,
-            calendarEventID: "google:primary/evt-atlas", calendarEventURL: "https://calendar.google.com/event?eid=atlas"
-        ))
-        var moved = first
-        moved.startMinute = 600
-        moved.endMinute = 720
-        _ = try sender.updateTimeBlock(moved)
-        try sender.setDayPlanNotes(date, notes: "Shutdown: carry the figure to Friday")
-        try sender.setDayPlanShutdown(date, at: Date(timeIntervalSinceReferenceDate: 800_000_000))
-        let midnight = try #require(DayPlan.startOfDay(date))
-        let logged = try #require(try sender.recordDayActivity(kind: .reading, targetID: "src-atlas", title: "Atlas", at: midnight.addingTimeInterval(600 * 60)))
-
-        let payload = try #require(try sender.loadDayPlanForSync(date))
-        let encoded = try JSONEncoder().encode(payload)
-        let decoded = try JSONDecoder().decode(CloudKitDayPlanPayload.self, from: encoded)
-        try receiver.saveDayPlanRecord(decoded)
-
-        let landed = try #require(try receiver.loadDayPlan(date))
-        #expect(landed.plan.revision == 1)
-        #expect(landed.plan.notes == "Shutdown: carry the figure to Friday")
-        #expect(landed.plan.isShutDown)
-        // Every relationship field has to survive the trip, or the block lands
-        // on the second Mac stripped of what makes it meaningful.
-        let current = try #require(landed.currentBlocks.first)
-        #expect(current.id == first.id)
-        #expect(current.notebookID == "notebook-mito")
-        #expect(current.sourceIDs == ["src-atlas", "src-review"])
-        #expect(current.calendarEventID == "google:primary/evt-atlas", "the moved block keeps its event, and the event lands")
-        #expect(current.calendarEventURL == "https://calendar.google.com/event?eid=atlas")
-        #expect(current.notes == "Section 2")
-        #expect(current.startMinute == 600 && current.endMinute == 720)
-        // The one-source field older clients read carries the first source.
-        let encodedText = String(decoding: encoded, as: UTF8.self)
-        #expect(encodedText.contains("\"sourceID\":\"src-atlas\""))
-        // The log's spans carry their own `kind` (reading, chat, doc); the block's is gone.
-        #expect(!encodedText.contains("\"kind\":\"deep\""), "the retired block kind is not written")
-        // What kind of hour the block is rides the record as its own key
-        // (schema 123) and lands.
-        #expect(encodedText.contains("\"purpose\":\"review\""))
-        #expect(current.purpose == .review)
-        #expect(landed.blocks.count == 1, "a moved block is one row")
-        #expect(landed.activities == [logged], "the log lands with the day")
-        #expect(try receiver.pendingSyncChanges().isEmpty, "an inbound apply queues nothing")
-
-        // A record written before the log existed still decodes: no activities.
-        let older = try JSONDecoder().decode(CloudKitDayPlanPayload.self, from: Data("""
-        {"plan":{"id":"2026-09-11","date":"2026-09-11","revision":1},"blocks":[{"id":"b","dayPlanID":"2026-09-11","startMinute":540,"endMinute":600,"title":"Old"}]}
-        """.utf8))
-        #expect(older.activities.isEmpty)
-        #expect(older.blocks.first?.calendarEventID == nil, "a block written before build 101 has no event")
-        #expect(older.blocks.first?.purpose == .work, "a block written before schema 123 is work")
-
-        // A block written by a build up to 99 carries one source and a kind:
-        // the source becomes the list, the kind is dropped on the floor.
-        let legacy = try JSONDecoder().decode(CloudKitDayPlanPayload.self, from: Data("""
-        {"plan":{"id":"2026-09-11","date":"2026-09-11","revision":1},"blocks":[
-          {"id":"b1","dayPlanID":"2026-09-11","startMinute":540,"endMinute":600,"title":"Read","kind":"shallow","sourceID":" src-old ","status":"planned","revision":1}
-        ]}
-        """.utf8))
-        #expect(legacy.blocks.first?.sourceIDs == ["src-old"])
-
-        // Inbound log spans are unioned by id, newest-wins: the Mac that kept
-        // reading has the longer, newer span, and a span only it saw stays.
-        var longer = logged
-        longer.endMinute = 640
-        longer.updatedAt = logged.updatedAt.addingTimeInterval(60)
-        let elsewhere = DayActivity(dayPlanID: date, startMinute: 700, endMinute: 720, kind: .chat, targetID: "chat-1", title: "Q")
-        try receiver.saveDayPlanRecord(CloudKitDayPlanPayload(plan: landed.plan, blocks: [], activities: [longer, elsewhere]))
-        var stale = logged
-        stale.endMinute = 602
-        stale.updatedAt = logged.updatedAt.addingTimeInterval(-60)
-        try receiver.saveDayPlanRecord(CloudKitDayPlanPayload(plan: landed.plan, blocks: [], activities: [stale]))
-        let merged = try #require(try receiver.loadDayPlan(date))
-        #expect(merged.activities.map(\.id) == [logged.id, elsewhere.id])
-        #expect(merged.activities.first?.endMinute == 640, "a stale shorter span never shortens the newer one")
-    }
-
-    @Test("Inbound sync unions blocks, never brings back a deleted one, and keeps a row an older build redrew off the plan")
-    func inboundMerge() throws {
-        let root = temporaryRoot("DayPlanMerge")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root)
-        let date = "2026-09-12"
-        let now = Date()
-
-        _ = try store.addTimeBlock(TimeBlock(dayPlanID: date, startMinute: 540, endMinute: 600, title: "Local only"), now: now)
-        let shared = try store.addTimeBlock(TimeBlock(dayPlanID: date, startMinute: 600, endMinute: 660, title: "Shared, local title"), now: now)
-        let afternoon = try store.addTimeBlock(TimeBlock(dayPlanID: date, startMinute: 900, endMinute: 960, title: "Afternoon"), now: now)
-        // This Mac took the shared block off the day.
-        try store.deleteTimeBlock(shared.id, now: now)
-
-        // The other Mac, on a build that still draws columns, never saw the
-        // delete: it retitled the shared row a minute later, drew a row of
-        // its own, and redrew the afternoon into column 2, which left the
-        // afternoon's block behind in column 1. Its day's note is older.
-        var remoteShared = shared
-        remoteShared.title = "Shared, remote title"
-        remoteShared.updatedAt = now.addingTimeInterval(60)
-        let remoteOnly = TimeBlock(dayPlanID: date, startMinute: 780, endMinute: 840, title: "Remote only", revision: 2, createdAt: now, updatedAt: now)
-        var remoteAfternoon = afternoon
-        remoteAfternoon.supersededInRevision = 2
-        remoteAfternoon.updatedAt = now.addingTimeInterval(60)
-        let remotePlan = DayPlan(date: date, revision: 2, notes: "remote note", createdAt: now, updatedAt: now.addingTimeInterval(-30))
-        try store.saveDayPlanRecord(CloudKitDayPlanPayload(plan: remotePlan, blocks: [remoteShared, remoteOnly, remoteAfternoon]))
-
-        let merged = try #require(try store.loadDayPlan(date))
-        #expect(merged.plan.notes == nil, "the older remote note does not outrank the newer local day")
-        #expect(merged.plan.revision == 2, "the stored revision only ever advances, as the older build expects")
-        #expect(Set(merged.currentBlocks.map(\.title)) == ["Local only", "Remote only"])
-        let sharedRow = try #require(merged.blocks.first { $0.id == shared.id })
-        #expect(sharedRow.deletedAt != nil, "a deleted block stays deleted whatever the remote says")
-        #expect(sharedRow.title == "Shared, remote title", "the newer remote edit still wins the fields")
-        #expect(merged.blocks.first { $0.id == afternoon.id }?.supersededInRevision == 2, "a row the older build left in a column stays off the plan")
-
-        // A block drawn here now carries the day's stored revision, so the
-        // older build shows it in its current column.
-        let evening = try store.addTimeBlock(TimeBlock(dayPlanID: date, startMinute: 1020, endMinute: 1080, title: "Evening"), now: now)
-        #expect(evening.revision == 2)
-    }
 
     // MARK: - Helpers
 

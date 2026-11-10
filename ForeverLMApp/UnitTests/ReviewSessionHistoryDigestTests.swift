@@ -69,7 +69,6 @@ struct ReviewSessionHistoryDigestTests {
     ) throws {
         let store = try KnowledgeStore(storeDirectory: root)
         try populate(store)
-        try store.clearAllPendingSyncChanges()
         try store.execForTesting("DROP TABLE review_session_history_digests")
         try store.execForTesting("PRAGMA user_version = 87")
     }
@@ -98,7 +97,6 @@ struct ReviewSessionHistoryDigestTests {
         let store = try KnowledgeStore(storeDirectory: root)
         let exchanges = try Self.addChat(to: store, sessionID: "chat", turns: 4)
 
-        let pendingBeforeSaving = try store.pendingSyncChanges().count
         let first = ReviewSessionHistoryDigest(
             sessionID: "chat",
             digest: "Learner is studying GDF15 signalling.",
@@ -127,10 +125,6 @@ struct ReviewSessionHistoryDigestTests {
             throughField: .userAnswer, updatedAt: Date()
         ))
         #expect(try store.loadReviewSessionHistoryDigest(sessionID: "chat") == second)
-
-        // The digest is a local cache of synced exchanges, never a synced record:
-        // saving it enqueues nothing for CloudKit.
-        #expect(try store.pendingSyncChanges().count == pendingBeforeSaving)
 
         try store.deleteReviewSession("chat")
         #expect(Self.scalarInt(at: root, "SELECT COUNT(*) FROM review_session_history_digests") == 0)

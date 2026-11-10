@@ -118,57 +118,19 @@ struct SeedRowReader {
         return merged
     }
 
-    /// The columns of a table that name a row's old record, and the entity generation 1 synced it as
-    /// (`sync_metadata.entity_type`).
-    private static let primaryEntities: [String: (entity: String, column: String)] = [
-        "sources": ("source", "id"), "learning_goals": ("learningGoal", "id"), "review_sessions": ("reviewSession", "id"),
-        "global_artifacts": ("artifact", "id"), "courses": ("course", "id"), "memory_items": ("memoryItem", "id"),
-        "memory_attempts": ("memoryAttempt", "id"), "user_preferences": ("preference", "key"),
-        "source_highlights": ("sourceHighlight", "highlight_id"),
-    ]
     /// Tables whose own time columns keep Unix seconds, not Cocoa seconds (`HighlightRow`).
     private static let unixSecondsTables: Set<String> = ["source_highlights"]
-    private static let referenceEntities: [(column: String, entity: String)] = [
-        ("source_id", "source"), ("goal_id", "learningGoal"), ("notebook_id", "learningGoal"), ("session_id", "reviewSession"),
-        ("course_id", "course"), ("artifact_id", "artifact"),
-    ]
     private static let updatedColumns = ["updated_at", "modified_at", "created_at", "added_at", "date_added", "started_at", "recorded_at"]
 
-    /// The old record a table's rows belong to: the entity generation 1 synced it as and the column that holds
-    /// its logical key; nil for a table no old record owns.
-    func oldRecord(of table: SeedTable) throws -> (entity: String, column: String)? {
-        var columns: [String] = []
-        try connection.query("SELECT name FROM pragma_table_info(\(OutboxTriggerSQL.literal(table.name)))", []) { columns.append($0.text(0) ?? "") }
-        if let primary = Self.primaryEntities[table.name] { return primary }
-        return Self.referenceEntities.first { columns.contains($0.column) }.map { ($0.entity, $0.column) }
-    }
-
-    /// SQL for a row's migrated time, in Cocoa seconds (§13.4 step 4): the pending old-world change this
-    /// Mac kept, else the old record's modification date, else the row's own time, else the walk's start.
-    /// A time is taken only when it is after the reference date and not after `now`; a table that keeps
-    /// Unix seconds has its own time converted. `?` is the fallback time.
+    /// SQL for a row's migrated time, in Cocoa seconds (§13.4 step 4): the row's own time, else the walk's
+    /// start. A time is taken only when it is after the reference date and not after `now`; a table that
+    /// keeps Unix seconds has its own time converted. `?` is the fallback time. (Generation 1's pending
+    /// changes and record dates came first until schema 175 dropped its tables.)
     func timeSQL(for table: SeedTable) throws -> String {
         var columns: [String] = []
         try connection.query("SELECT name FROM pragma_table_info(\(OutboxTriggerSQL.literal(table.name)))", []) { columns.append($0.text(0) ?? "") }
-        let entity = try oldRecord(of: table)
         var parts: [String] = []
         let latest = "\(now)"
-        // Generation 1's tables stay until the post-soak cleanup; a store without them has no old times.
-        let hasOldTables = try connection.scalarInteger(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('sync_changes', 'sync_metadata')"
-        ) == 2
-        if let entity, hasOldTables {
-            let key = "t.\(OutboxTriggerSQL.quoted(entity.column))"
-            let kind = OutboxTriggerSQL.literal(entity.entity)
-            parts.append("""
-                (SELECT c.changed_at FROM sync_changes c WHERE c.entity_type = \(kind) AND c.logical_key = \(key) AND c.operation = 'save' \
-                AND c.changed_at > 0 AND c.changed_at <= \(latest))
-                """)
-            parts.append("""
-                (SELECT m.user_modification_at FROM sync_metadata m WHERE m.entity_type = \(kind) AND m.logical_key = \(key) AND m.is_deleted = 0 \
-                AND m.user_modification_at > 0 AND m.user_modification_at <= \(latest))
-                """)
-        }
         if let own = Self.updatedColumns.first(where: { columns.contains($0) }) {
             let raw = "t.\(OutboxTriggerSQL.quoted(own))"
             let column = Self.unixSecondsTables.contains(table.name) ? "(\(raw) - \(Date.timeIntervalBetween1970AndReferenceDate))" : raw

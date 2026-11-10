@@ -30,8 +30,6 @@ enum CutoverSeedStop: Equatable, Sendable {
     case quotaExceeded
     /// Another Mac holds the claim now.
     case lostClaim
-    /// The takeover's refresh or import pass waits for the learner's answer (R8-m5).
-    case question
     /// The engine could not send what it held (a purge stopped the database, iCloud refused): the seed
     /// resumes from its cursor on a later round.
     case sendsStalled
@@ -88,12 +86,6 @@ struct CutoverSeedEnvironment: Sendable {
     var pause: @Sendable () async -> SyncPacerState.PauseReason? = { nil }
     /// Runs before a pass's first row, on the store (P1 chooses each Doc's body, §13.4 P5).
     var prepare: @Sendable (SeedPass, PrivateSyncLocalState) throws -> Void = { _, _ in }
-    /// WP16b: after a takeover's claim, refreshes this Mac's catch-up and runs one import pass from the
-    /// shared base (§13.4 step 1). False while a question (Apply or Keep) waits.
-    var afterTakeover: (@Sendable () async throws -> Bool)?
-    /// WP16b: before a second Mac reconciles, refreshes its catch-up and runs one import pass from the shared
-    /// base (§13.5). False while a question (Apply or Keep) waits; nothing is reconciled or sent then.
-    var beforeReconcile: (@Sendable () async throws -> Bool)?
     /// A complete fetch of `Library`, `Catalog` and every space; false when it did not reach the end. A
     /// reconcile compares the library with the server's, so it never starts on a partial fetch (§13.5).
     var fetchAll: @Sendable () async throws -> Bool = { true }
@@ -252,8 +244,6 @@ actor CutoverSeeder {
             } catch MigrationBaseError.shardTooLarge(let shard, _) {
                 return .stopped(.baseTooLarge(shard: shard))
             }
-        } else if takeoverWithBase, let afterTakeover = env.afterTakeover {
-            guard try await afterTakeover() else { return .stopped(.question) }
         }
 
         let fallback = journal.catchUpAt ?? journal.startedAt ?? env.clock().timeIntervalSinceReferenceDate

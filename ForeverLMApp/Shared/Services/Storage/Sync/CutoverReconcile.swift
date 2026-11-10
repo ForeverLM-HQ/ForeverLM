@@ -11,8 +11,6 @@ enum CutoverReconcileOutcome: Equatable, Sendable {
     case waitingForSeed
     /// The fetch did not reach the end, so the library cannot be compared with the server's.
     case fetchIncomplete
-    /// The refresh's or the import pass's 5% question waits: nothing is reconciled, taken over or sent.
-    case question
     /// The library was compared with the server's: `uploaded` records the server lacked and the manifest did
     /// not list, `deleted` records the manifest lists and the server lacks. `satellites` is false while the
     /// seeder holds the claim and this Mac's own cursor for satellites cannot run yet.
@@ -55,7 +53,6 @@ actor CutoverReconcile {
         var deleted = 0
         if !finished {
             guard try await env.fetchAll() else { return .fetchIncomplete }
-            if let before = env.beforeReconcile, try await !before() { return .question }
             let tally = try await reconcileRows()
             uploaded = tally.enqueued
             deleted = tally.deleted

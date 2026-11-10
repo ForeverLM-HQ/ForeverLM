@@ -294,25 +294,4 @@ struct CardRecordLifecycleTests {
         #expect(Set(waiting.filter { $0.kind == .draft }.map(\.cardID)) == [SyncIdentity.cardDraftID(deckSourceID: "src-1", seedKey: "walk-step:step-3"), "card-u"])
         #expect(Set(waiting.filter { $0.kind == .legacy }.map(\.cardID)) == ["legacy-1", "legacy-2"])
     }
-
-    @Test("An old build's deck after the cutover gives its cards' draft Cards, each created once")
-    func lateImportDeck() async throws {
-        let (root, store) = try F.makeStore("late-deck")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let markdown = FlashcardDeck(title: "Cards to check: Mitochondria", cards: [
-            Self.draft(id: "x-1"), Self.draft("Again the same seed?", id: "x-2"), Self.draft("No seed?", seed: nil, id: "x-3"),
-        ]).markdown
-        let package = try ArtifactBodyPackage.encode(markdown: markdown, attachmentDirectory: nil).data
-        let record = LegacyRecord(
-            entity: .artifact, logicalKey: Self.deckID, recordName: "r", modifiedAt: Date(),
-            payload: .artifact(CloudKitArtifactPayload(artifact: ArtifactRecord(
-                id: Self.deckID, title: "Cards", homeNotebookID: nil, linkedNotebookIDs: [], kind: .flashcards, createdAt: Date(), updatedAt: Date()
-            ))),
-            bodyPackage: package
-        )
-        let mapping = try LegacyV2Mapping.map(record, context: StoreLegacyMappingContext(connection: store))
-        #expect(mapping.records.map(\.id) == [Self.seeded, "x-3"], "of two cards of one seed the first")
-        #expect(mapping.records.allSatisfy { $0.type == .card && $0.giving == .createsOnly })
-        #expect(mapping.records.first?.fields["status"] == "draft" && mapping.records.first?.fields["draft"]?["front"] == "What couples respiration to ATP synthesis?")
-    }
 }

@@ -97,7 +97,7 @@ struct SyncSchema154MigrationTests {
         let library = try Schema154Fixture.makeLibrary(at: root, version: version, sourceCount: 4)
         let rowsBefore = Schema154Fixture.perMemberRows(at: root)
         #expect(rowsBefore.count == 13, "two sources with six kinds of row each, and one file")
-        let counts = ["sources", "learning_goals", "learning_goal_items", "sync_metadata", "sync_changes", "articles"]
+        let counts = ["sources", "learning_goals", "learning_goal_items", "articles"]
         let countsBefore = counts.map { Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM \($0)") }
 
         let migrated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
@@ -116,7 +116,6 @@ struct SyncSchema154MigrationTests {
         }
         #expect(try Schema154Fixture.count(migrated, "SELECT COUNT(*) FROM learning_goals WHERE COALESCE(entity_kind, merged_into, fold_kind, moving_to, moved_to) IS NOT NULL") == 0)
         #expect(try Schema154Fixture.count(migrated, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger'") == 0)
-        #expect(try migrated.pendingSyncChanges().isEmpty, "a schema-only migration republishes nothing")
         // Sources stay visible, the hidden ones hidden, with no deferred work queued by 154.
         let sources = try migrated.loadSourcesWithoutContent()
         #expect(Set(sources.map(\.id)) == Set(library.sourceIDs))
@@ -193,6 +192,7 @@ struct SyncSchema154MigrationTests {
         defer { try? FileManager.default.removeItem(at: root) }
         do {
             let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+            try Schema154Fixture.restoreGeneration1Tables(store)
             // 6,000 sources (the largest library has 5,161), with production's per-member rows twice
             // over, 40 notebooks with files, and 17,000 sync rows.
             try store.execForTesting("""

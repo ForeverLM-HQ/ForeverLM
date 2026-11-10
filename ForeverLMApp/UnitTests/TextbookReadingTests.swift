@@ -218,8 +218,7 @@ struct TextbookReadingTests {
     func profileRefusals() {
         #expect(SyncedPreferenceKeys.isSynced(LearnerProfile.aboutYouPreferenceKey))
         // A course's focus is the member's Enrollment record (§3.5.12), no preference row.
-        let focusKey = LearnerProfile.courseFocusPreferenceKey(courseID: "course")
-        #expect(!SyncedPreferenceKeys.isSynced(focusKey))
+        #expect(!SyncedPreferenceKeys.isSynced(LearnerProfile.courseFocusPreferenceKeyPrefix + "course"))
         let before = LearnerProfile.aboutYou
         #expect(!LearnerProfile.setAboutYou(String(repeating: "a", count: LearnerProfile.maximumAboutYouLength + 1)))
         #expect(LearnerProfile.aboutYou == before)
@@ -332,59 +331,11 @@ struct TextbookReadingTests {
         #expect(try store.bookGroupID(ofChapter: "video-1") == nil)
     }
 
-    @Test("The Course record carries its readings' units, and another Mac applies them before the items")
-    func courseRecordCarriesUnits() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        let lectures = try seed(store)
-        try store.replaceTextbookReadings(courseID: "course", bookChapterIDs: ["ch3", "ch8", "ch12"], placements: [
-            placement(lectures[0], "ch8", 2...8),
-        ])
-        let payload = try #require(try store.loadCourseForSync("course"))
-        let decoded = try JSONDecoder().decode(CloudKitCoursePayload.self, from: JSONEncoder().encode(payload))
-        #expect(decoded.sourceUnits?.map(\.locator) == ["2-8"])
-
-        // Another Mac with the same library but no units yet.
-        let other = try KnowledgeStore(inMemory: true)
-        _ = try seed(other)
-        try other.withoutSyncTracking {
-            if let units = decoded.sourceUnits { try other.upsertSourceUnitsFromSync(units) }
-            try other.saveCourseOutline(courseName: "course", lectures: decoded.lectures, items: decoded.lectureItems)
-        }
-        let reading = try #require(try other.loadCourseLectureItems().first { $0.role == .reading })
-        #expect(try other.loadCourseSourceUnits()[reading.sourceUnitId ?? ""]?.locator == "2-8")
-    }
-
     @Test("A Course record from a build without units decodes with none")
     func olderCoursePayload() throws {
         let json = #"{"id": "course", "name": "Course", "title": "Course", "isHidden": false, "lectures": [], "lectureItems": []}"#
         let payload = try JSONDecoder().decode(CloudKitCoursePayload.self, from: Data(json.utf8))
         #expect(payload.sourceUnits == nil)
-    }
-
-    @Test("A chapter's record from a Mac that has not heard of a unit keeps the reading that uses it")
-    func sourceRecordMergesUnits() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        let lectures = try seed(store)
-        let written = try store.replaceTextbookReadings(courseID: "course", bookChapterIDs: ["ch3", "ch8", "ch12"], placements: [
-            placement(lectures[0], "ch8", 2...8),
-        ])
-        let unused = SourceUnit(id: "stale-unit", sourceId: "ch8", kind: TextbookReading.unitKind, locator: "20-21")
-        try store.upsertSourceUnitsFromSync([unused])
-
-        try store.withoutSyncTracking {
-            try store.saveSourceUnitsRecord(sourceID: "ch8", units: [])
-        }
-        let items = try store.loadCourseLectureItems()
-        #expect(items.contains { $0.id == written[0].id }, "the reading survives")
-        let units = try store.loadSourceUnits(ids: [written[0].sourceUnitId ?? "", "stale-unit"])
-        #expect(units.map(\.id) == [written[0].sourceUnitId ?? ""], "a referenced unit stays; an unused one the record lacks goes")
-
-        // The same unit arriving again is an update, never a delete and re-insert.
-        let same = try #require(units.first)
-        try store.withoutSyncTracking {
-            try store.saveSourceUnitsRecord(sourceID: "ch8", units: [same])
-        }
-        #expect(try store.loadCourseLectureItems().contains { $0.id == written[0].id })
     }
 
     // MARK: The pipeline

@@ -190,7 +190,6 @@ struct XPostAuthorMigrationTests {
     ) throws {
         let store = try KnowledgeStore(storeDirectory: root)
         try populate(store)
-        try store.clearAllPendingSyncChanges()
         try store.execForTesting("DROP VIEW source_projection")
         try store.execForTesting("ALTER TABLE x_posts DROP COLUMN author")
         try store.execForTesting(try version86ProjectionViewSQL(store))

@@ -294,7 +294,6 @@ struct MarkProjectionTests {
         """)
         try store.setPodcastEpisodeVisibleOverride("pod-team", visible: true)
         #expect(try F.text(store, "SELECT group_concat(source_id) FROM visible_podcast_episode_overrides") == "pod-p")
-        #expect(try store.isPodcastEpisodeVisibleOverride("pod-team"))
         #expect(try store.loadVisiblePodcastEpisodeOverrideIDs().contains("pod-team"), "the loader names the local copy")
         try store.setPodcastEpisodeVisibleOverride("pod-team", visible: false)
         #expect(try F.count(store, "SELECT COUNT(*) FROM visible_podcast_episode_overrides") == 0)

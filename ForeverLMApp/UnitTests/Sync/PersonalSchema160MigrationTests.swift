@@ -42,7 +42,7 @@ struct PersonalSchema160MigrationTests {
         sqlite3_close(database)
         let reading = "SELECT reading_position_page || '|' || read_at || '|' || review_depth || '|' || is_consumed FROM sources WHERE id = '\(library.sourceIDs[0])'"
         let before = Schema154Fixture.scalar(at: root, reading)
-        let counts = ["sources", "learning_goals", "learning_goal_items", "walkthrough_progress", "source_understanding", "sync_metadata"]
+        let counts = ["sources", "learning_goals", "learning_goal_items", "walkthrough_progress", "source_understanding"]
         let countsBefore = counts.map { Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM \($0)") }
 
         let migrated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
@@ -51,7 +51,6 @@ struct PersonalSchema160MigrationTests {
         #expect(before == "7|1000.0|deep|1" && Schema154Fixture.scalar(at: root, reading) == before, "the sources columns stay as they were")
         #expect(try Schema154Fixture.count(migrated, "SELECT COUNT(*) FROM reading_states") == 0, "nothing filled before the activation")
         #expect(try Schema154Fixture.count(migrated, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'trigger'") == 0)
-        #expect(try migrated.pendingSyncChanges().isEmpty, "a schema-only migration republishes nothing")
         // Generation 1's Reader still reads the position from the sources columns.
         var page: Int32 = -1
         try migrated.query("SELECT reading_position_page FROM source_projection WHERE id = '\(library.sourceIDs[0])'") { page = sqlite3_column_int($0, 0) }
@@ -115,6 +114,7 @@ struct PersonalSchema160MigrationTests {
         defer { try? FileManager.default.removeItem(at: root) }
         do {
             let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
+            try Schema154Fixture.restoreGeneration1Tables(store)
             // 6,000 sources, a third of them with a position and a read mark, and 17,000 sync rows.
             try store.execForTesting("""
                 BEGIN IMMEDIATE;

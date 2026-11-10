@@ -117,7 +117,7 @@ extension KnowledgeStore {
                 }
                 try invalidateCanonicalContentIndexes(sourceID: sourceID)
                 try retireSourceReviewGuidePreparation(sourceID: sourceID)
-                try markRecordChanged(entity: .source, logicalKey: sourceID)
+                noteStoreChanged()
             }
             try execBind("DELETE FROM youtube_transcript_check_queue WHERE source_id = ?") { stmt in
                 bind(stmt, 1, sourceID)

@@ -18,6 +18,16 @@ extension MCPDataStore {
         // narrowed to a take (MCPTools+ICloudAccount.swift).
         payload["answered_by"] = await Self.answeringMac()
         if let note = Self.screenRecordNarrowedNote { payload["narrowed"] = note }
+        if let migration = await Self.libraryMoveStatus() { payload["migration"] = migration }
+        if let usage = try? await ICloudStorageUsage.measure(storage: StorageService()) {
+            payload["icloud_storage"] = [
+                "pdf_bytes": usage.documentBytes,
+                "text_bytes": usage.textBytes,
+                "other_file_bytes": usage.otherBytes,
+                "icloud_drive_bytes": usage.driveBytes,
+                "total_bytes": usage.totalBytes,
+            ]
+        }
         guard let session = MacSyncSession.current else {
             payload["phase"] = "not_started"
             payload["message"] = "The new iCloud sync has not started on this Mac yet."
@@ -40,6 +50,14 @@ extension MCPDataStore {
             payload["message"] = Self.cutoverMessage(snapshot.cutover) ?? "Syncing with iCloud."
         }
         return try jsonString(payload)
+    }
+
+    /// The library's move to the new iCloud store, as Settings › iCloud shows it (`ICloudMigrationModel`).
+    @MainActor
+    private static func libraryMoveStatus() async -> [String: Any]? {
+        let model = ICloudMigrationModel.shared
+        await model.refresh()
+        return model.state?.statusPayload()
     }
 
     static func phaseName(_ phase: SyncStatus.Phase) -> String {
@@ -72,7 +90,7 @@ extension MCPDataStore {
 
     static func cutoverMessage(_ state: CutoverStatus.State) -> String? {
         switch state {
-        case .waitingForCatchUp: return "This Mac waits for its catch-up with the old iCloud store before it syncs."
+        case .waitingForCatchUp: return "This Mac is reading the new iCloud store before it sends anything."
         case .waitingForConfirmation: return "This Mac uploads nothing until you confirm it holds your library."
         case .seeding: return "This Mac is moving your library to the new iCloud store."
         case .waitingForSeed(let holder): return "Another Mac (\(holder)) is moving your library to the new iCloud store."

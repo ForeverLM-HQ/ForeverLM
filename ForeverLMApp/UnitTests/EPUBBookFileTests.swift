@@ -499,19 +499,17 @@ struct EPUBBookFileMigrationTests {
             INSERT INTO group_members (source_id, group_id, sort_index) VALUES
                 ('epub-1', 'epub', 0), ('epub-2', 'epub', 1), ('team-1', 'team-epub', 0), ('pdf-1', 'pdf', 0), ('gone-1', 'gone', 0);
         """)
-        try store.clearAllPendingSyncChanges()
         try store.execForTesting("DELETE FROM book_file_merge_queue; PRAGMA user_version = 169;")
 
         Schema154Fixture.newLaunch(root)
         let migrated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
 
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
-        #expect(KnowledgeStore.schemaVersion == 174)
+        #expect(KnowledgeStore.schemaVersion == 175)
         #expect(Set(try migrated.dueBookFileMerges(limit: 10)) == ["epub", "team-epub"])
         #expect(try migrated.bookChapterPaths(bookID: "epub") == [
             "Books/Epub/Chapters/OEBPS/one.xhtml", "Books/Epub/Chapters/OEBPS/two.html",
         ])
-        #expect(try migrated.pendingSyncChanges().isEmpty)
         #expect(StudioViewModel.isUnpackedEPUBChapterPath("Books/Epub/Chapters/OEBPS/one.xhtml"))
         #expect(!StudioViewModel.isUnpackedEPUBChapterPath("Books/Pdf/Chapters/01 One.pdf"))
         #expect(!StudioViewModel.isUnpackedEPUBChapterPath("Books/Pdf/Pdf.pdf#page=3"))

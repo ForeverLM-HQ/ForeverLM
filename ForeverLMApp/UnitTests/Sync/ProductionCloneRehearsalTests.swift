@@ -385,10 +385,8 @@ final class RehearsalRun: @unchecked Sendable {
     }
 
     /// WP28 step 1 (R3-x1): the clone's sync history names the old container's Production records, so it is
-    /// emptied (in the clone only) before the first generation-2 open. What it held is reported, and the old
-    /// asset digests are kept for the byte parity report.
-    private var oldAssetDigests: [OldAssetDigest] = []
-
+    /// emptied (in the clone only) before the first generation-2 open, which then activates `fresh` (schema
+    /// 175 records no history and drops the tables). What it held is reported.
     private func emptyGeneration1History() throws {
         let database = try RehearsalDatabase(paths.run.appendingPathComponent("knowledge.db").path)
         let version = Int(try database.scalar("PRAGMA user_version") ?? "0") ?? 0
@@ -402,23 +400,6 @@ final class RehearsalRun: @unchecked Sendable {
         history["syncedRecordsByEntity"] = byEntity
         for table in ["sync_metadata", "sync_changes", "sync_asset_digests"] where database.tableExists(table) {
             history[table] = Int(try database.scalar("SELECT COUNT(*) FROM \(table)") ?? "0") ?? 0
-        }
-        if database.tableExists("sync_asset_digests"), database.tableExists("sync_metadata") {
-            let fields = OldAssetField.allCases.map { "'\($0.rawValue)'" }.joined(separator: ", ")
-            do {
-                for row in try database.rows("""
-                    SELECT m.logical_key, COALESCE(s.title, m.logical_key), d.field
-                    FROM sync_asset_digests d
-                    JOIN sync_metadata m ON m.record_name = d.record_name AND m.entity_type = 'source' AND m.is_deleted = 0
-                    LEFT JOIN sources s ON s.id = m.logical_key
-                    WHERE d.digest IS NOT NULL AND d.digest <> '-' AND d.field IN (\(fields))
-                """) {
-                    guard let id = row[0], let field = row[2].flatMap(OldAssetField.init(rawValue:)) else { continue }
-                    oldAssetDigests.append(OldAssetDigest(sourceID: id, title: row[1] ?? id, field: field))
-                }
-            } catch {
-                history["oldAssetDigestsError"] = String(describing: error)
-            }
         }
         for table in ["sync_metadata", "sync_changes", "sync_asset_digests"] where database.tableExists(table) {
             try database.exec("DELETE FROM \(table)")
@@ -443,7 +424,6 @@ final class RehearsalRun: @unchecked Sendable {
                 startupPreferenceSnapshot: [:]
             )
         }
-        GenerationActivationRunner.holdIfActivationMayBeFull(store)
         let toVersion = try store.scalarInteger("PRAGMA user_version")
         var copyFacts: [String: Any] = [
             "fromUserVersion": Int(fromVersion ?? "0") ?? 0, "toUserVersion": Int(toVersion ?? 0),
@@ -478,9 +458,7 @@ final class RehearsalRun: @unchecked Sendable {
         let oldContainer = server.transport(user: Self.account, container: FakeCloudKit.legacyContainer, device: "rehearsal-mac")
         let timings = DerivationTimings()
         var environment = ActivationEnvironment()
-        environment.oldContainerTransport = oldContainer
         environment.status = ActivationStatus()
-        environment.sleep = { _ in }
         environment.derivations = KnowledgeStore.activationDerivations.map { derivation in
             ActivationDerivation(id: derivation.id) { store in
                 let started = ContinuousClock.now
@@ -513,7 +491,6 @@ final class RehearsalRun: @unchecked Sendable {
         let deviceID = Self.deviceID
         try report.step("claimOwnRows") {
             try store.claimOwnMemoryRows(deviceID: deviceID)
-            _ = try CutoverPendingChanges.capture(in: store, registry: KnowledgeStore.projectionRegistry)
         }
         try await local.perform { try $0.replica.setEngineState(ReplicaStore.EngineScope.holdSendsForSeed, Data("wait".utf8)) }
         var bootstrap = ZoneBootstrap(transport: transport, legacyTransport: oldForBootstrap, store: local, client: .macHoldingLibrary, deviceID: deviceID)
@@ -576,10 +553,6 @@ final class RehearsalRun: @unchecked Sendable {
         seedEnvironment.configuration.canaryPause = 0
         seedEnvironment.configuration.rehearsalSeedLocal = true
         seedEnvironment.pause = { await pacer.pause(of: .engine, writes: true) }
-        seedEnvironment.prepare = { pass, state in
-            guard pass == .structure, let local = (state as? MacPrivateSyncStore.State)?.store else { return }
-            try SeedDocBodies.choose(in: local)
-        }
         seedEnvironment.uploadSatellites = {
             let items = try await local.onStore { try planner.satellites(in: $0) }
             let measured = SatellitePlan.measure(items, paths: paths)
@@ -693,15 +666,6 @@ final class RehearsalRun: @unchecked Sendable {
         }
         parityMissing = missingTotal
 
-        let digests = oldAssetDigests
-        var laidOut = Set<ByteParityInputs.SatelliteKey>()
-        for table in [("source_files", "role"), ("source_derived", "kind")] {
-            try store.query("SELECT source_id, \(table.1) FROM \(table.0) WHERE file_ref IS NOT NULL", []) { row in
-                laidOut.insert(ByteParityInputs.SatelliteKey(owner: row.text(0) ?? "", role: row.text(1) ?? ""))
-            }
-        }
-        let byteParity = ByteParityInputs(digests: digests, satellites: laidOut, localFile: { _ in false }, heldBy: { _ in nil }).report()
-
         report.set("records", [
             "byZoneAndType": types, "onServerByZoneAndType": onServer, "payloadLimit": limit, "overLimit": oversizeRecords,
             "quarantined": parked, "outboxLeft": outboxLeft, "outboxLeftByTable": leftovers.privateRows, "patchesLeft": patches,
@@ -710,11 +674,6 @@ final class RehearsalRun: @unchecked Sendable {
             "parity": parity, "parityMissingTotal": missingTotal,
             "emptyExchangesLeftLocal": emptyExchanges,
             "seedLeftovers": ["count": unsent.count, "sample": unsent.sample.map { "\($0.type.rawValue) \($0.wireID)" }] as [String: Any],
-        ] as [String: Any])
-        report.set("byteParity", [
-            "note": "old-container assets (sync_asset_digests) against the satellites this run laid out for P5; missing ones need P4b's recovery from the old container",
-            "checked": byteParity.checked, "plannedSatellites": byteParity.newSatellites, "missing": byteParity.missing.count,
-            "missingSample": byteParity.missing.prefix(30).map { "\($0.title) [\($0.field.rawValue)] \($0.sourceID)" },
         ] as [String: Any])
     }
 

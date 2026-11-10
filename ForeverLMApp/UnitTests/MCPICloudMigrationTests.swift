@@ -8,7 +8,7 @@ import Testing
 @Suite("MCP iCloud migration")
 struct MCPICloudMigrationTests {
     private static let moveActions = [
-        "confirm_this_mac_holds_my_library", "upload_library_to_icloud_again", "replace_icloud_library", "apply_old_library_removals", "keep_old_library_removals",
+        "confirm_this_mac_holds_my_library", "upload_library_to_icloud_again", "replace_icloud_library",
     ]
 
     @Test("The move's buttons are actions of run_settings_action, listed by get_app_settings and in its schema")
@@ -24,13 +24,5 @@ struct MCPICloudMigrationTests {
             #expect(MCPDataStore.settingsActionIDs.first { $0["action"] == action }?["pane"] == "Data & Privacy › iCloud")
         }
         #expect(tool.description.contains("confirm_this_mac_holds_my_library"))
-    }
-
-    @Test("Remove old iCloud data stays in the Settings window, with its reason, and open_settings points at the pane")
-    func removalNeedsTheLearner() throws {
-        let entry = try #require(MCPDataStore.settingsOnlyInTheWindow.first { $0["control"] == "Remove old iCloud data" })
-        #expect(entry["open_settings"] == "data_privacy")
-        #expect(MCPDataStore.settingsPaneIDs.contains { $0.id == "data_privacy" })
-        #expect(!MCPDataStore.settingsActionIDs.contains { ($0["action"] ?? "").contains("remove_old") }, "no chat action deletes the old container")
     }
 }

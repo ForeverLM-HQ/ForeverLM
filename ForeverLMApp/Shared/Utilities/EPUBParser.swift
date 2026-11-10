@@ -1621,25 +1621,6 @@ enum EPUBParser {
 
     // MARK: - Illustrated reader documents
 
-    /// A book chapter prepared for a device that does not have the book files.
-    ///
-    /// The phone only ever receives a source's *text*, and `stripHTML` deletes
-    /// `<img>` and `<svg>` outright, so an illustrated chapter used to arrive on
-    /// iOS with every figure silently missing. This rebuilds the chapter as one
-    /// self-contained string — the chapter's own markup with each local image
-    /// inlined as a `data:` URI — which renders with a nil base URL and cannot
-    /// reach the network.
-    struct ReaderDocument: Sendable, Equatable {
-        /// Sanitized body HTML: no script, no stylesheet link, and no reference
-        /// that leaves the document.
-        let html: String
-        /// Images inlined as `data:` URIs.
-        let inlinedImageCount: Int
-        /// Images replaced by a visible note — unreadable, or past the byte
-        /// budget. Silently dropping one would look like the book never had it.
-        let omittedImageCount: Int
-    }
-
     /// Longest side an inlined raster image keeps. A phone reader never shows
     /// more than ~1200pt across at 3x, and print-resolution plates are common in
     /// EPUBs.
@@ -1651,10 +1632,6 @@ enum EPUBParser {
     /// markup and stays sharp at any zoom, and GIF, which ImageIO would flatten
     /// to a single frame.
     private static let maxReaderVerbatimOnlyImageBytes = 1024 * 1024
-    /// Whole-document ceiling, well under CloudKit's asset limit and the 30 MB
-    /// Mac -> iOS convention `makeSourcePDFAsset` uses. A photographic chapter
-    /// stops adding images here rather than making the record unsyncable.
-    static let maxReaderDocumentBytes = 12 * 1024 * 1024
 
     /// True for the chapter shapes that carry markup — an EPUB import writes
     /// `.xhtml`, older imports `.html`. PDF-backed chapters sync their PDF
@@ -1662,158 +1639,6 @@ enum EPUBParser {
     static func isMarkupChapter(_ path: String) -> Bool {
         ["html", "htm", "xhtml"].contains(URL(fileURLWithPath: path).pathExtension.lowercased())
     }
-
-    /// Builds the reader document for a local markup file, resolving images
-    /// beside it. Used by extracted EPUB chapters and archived web articles.
-    ///
-    /// File and ImageIO work: callers must stay off the main actor.
-    static func readerDocument(
-        forMarkupAt path: String,
-        maximumBytes: Int = EPUBParser.maxReaderDocumentBytes
-    ) -> ReaderDocument? {
-        guard isMarkupChapter(path), let html = readChapterMarkup(at: path) else { return nil }
-        return readerDocument(fromHTML: html, chapterPath: path, maximumBytes: maximumBytes)
-    }
-
-    static func readerDocument(
-        forChapterAt path: String,
-        maximumBytes: Int = EPUBParser.maxReaderDocumentBytes
-    ) -> ReaderDocument? {
-        readerDocument(forMarkupAt: path, maximumBytes: maximumBytes)
-    }
-
-    /// Testable core: the same transformation with the markup already in hand.
-    /// `chapterPath` still resolves image references, exactly as the Mac reader's
-    /// base URL does.
-    static func readerDocument(
-        fromHTML html: String,
-        chapterPath: String,
-        maximumBytes: Int = EPUBParser.maxReaderDocumentBytes
-    ) -> ReaderDocument {
-        let body = removingUnsafeMarkup(
-            in: extractBodyHTML(normalizeImageDataURIs(in: html), removesMedia: false)
-        )
-        var remaining = max(0, maximumBytes - body.utf8.count)
-        var inlined = 0
-        var omitted = 0
-        let inlinedBody = inliningMediaReferences(
-            in: body,
-            chapterPath: chapterPath,
-            remainingBytes: &remaining,
-            inlinedCount: &inlined,
-            omittedCount: &omitted
-        )
-        return ReaderDocument(
-            html: inlinedBody,
-            inlinedImageCount: inlined,
-            omittedImageCount: omitted
-        )
-    }
-
-    /// EPUB chapters are usually UTF-8; a few older exports are Latin-1, and
-    /// reading those as UTF-8 fails outright rather than mojibake.
-    private static func readChapterMarkup(at path: String) -> String? {
-        EPUBBookFiles.text(atPath: path)
-    }
-
-    /// Everything a chapter must not carry onto another device. `extractBodyHTML`
-    /// has already removed `<script>` and `<style>` blocks; this removes what is
-    /// left that can execute, load, or navigate — publisher inline styles stay,
-    /// because the reader stylesheet overrides the ones that matter.
-    private static func removingUnsafeMarkup(in html: String) -> String {
-        var body = html
-        let removals = [
-            #"<(iframe|object|embed|form|noscript)\b[\s\S]*?</\1>"#,
-            #"<(link|meta|base|input|button|source|track)\b[^>]*/?>"#,
-            #"\s(on[a-z]+)\s*=\s*("[^"]*"|'[^']*')"#,
-            #"\s(srcset|data-srcset)\s*=\s*("[^"]*"|'[^']*')"#,
-        ]
-        for pattern in removals {
-            guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) else { continue }
-            body = regex.stringByReplacingMatches(
-                in: body,
-                range: NSRange(body.startIndex..<body.endIndex, in: body),
-                withTemplate: ""
-            )
-        }
-        // A javascript: URL cannot run in the reader (taps never navigate), but
-        // it has no business travelling with the chapter either.
-        if let regex = try? NSRegularExpression(
-            pattern: #"(href|src)\s*=\s*(["'])\s*javascript:[^"']*\2"#,
-            options: .caseInsensitive
-        ) {
-            body = regex.stringByReplacingMatches(
-                in: body,
-                range: NSRange(body.startIndex..<body.endIndex, in: body),
-                withTemplate: ""
-            )
-        }
-        return body
-    }
-
-    /// Rewrites every `<img>`/`<image>` reference to an inlined `data:` URI.
-    /// Tags are processed last-first so earlier replacements cannot invalidate
-    /// later ranges.
-    private static func inliningMediaReferences(
-        in html: String,
-        chapterPath: String,
-        remainingBytes: inout Int,
-        inlinedCount: inout Int,
-        omittedCount: inout Int
-    ) -> String {
-        guard let regex = try? NSRegularExpression(
-            pattern: #"<(img|image)\b[^>]*?/?>"#,
-            options: .caseInsensitive
-        ) else {
-            return html
-        }
-
-        var rewritten = html
-        let matches = regex.matches(in: html, range: NSRange(html.startIndex..<html.endIndex, in: html))
-        // Count forward so a budget exhausted mid-document omits the *later*
-        // images, matching reading order, then apply the edits in reverse.
-        var replacements: [(range: Range<String.Index>, markup: String)] = []
-        for match in matches {
-            guard let range = Range(match.range(at: 0), in: rewritten) else { continue }
-            let tag = String(rewritten[range])
-            let referenceAttributes = ["src", "data-src", "xlink:href", "href"]
-            guard let attribute = referenceAttributes.first(where: { attributeValue($0, in: tag) != nil }),
-                  let reference = attributeValue(attribute, in: tag) else {
-                // A tag with no reference at all: nothing to inline, nothing lost.
-                continue
-            }
-
-            if reference.lowercased().hasPrefix("data:") {
-                inlinedCount += 1
-                continue
-            }
-            guard let imagePath = resolveImageReference(reference, relativeTo: chapterPath),
-                  let dataURI = imageDataURI(atPath: imagePath) else {
-                omittedCount += 1
-                replacements.append((range, omittedImageMarkup))
-                continue
-            }
-            let cost = dataURI.utf8.count
-            guard cost <= remainingBytes else {
-                omittedCount += 1
-                replacements.append((range, omittedImageMarkup))
-                continue
-            }
-            remainingBytes -= cost
-            inlinedCount += 1
-            replacements.append((range, settingAttribute(attribute, to: dataURI, in: tag)))
-        }
-
-        for replacement in replacements.reversed() {
-            rewritten.replaceSubrange(replacement.range, with: replacement.markup)
-        }
-        return rewritten
-    }
-
-    /// Inline so it can sit inside a paragraph without splitting it. The reader
-    /// stylesheet styles this class as a muted note.
-    private static let omittedImageMarkup =
-        "<span class=\"flm-image-omitted\">Image not synced — open this book on your Mac.</span>"
 
     /// One image as a `data:` URI, re-encoded only when it has to be. nil for a
     /// file ImageIO cannot read, which the caller turns into a visible note.
@@ -1915,16 +1740,4 @@ enum EPUBParser {
         return nil
     }
 
-    private static func settingAttribute(_ name: String, to value: String, in tag: String) -> String {
-        let escaped = NSRegularExpression.escapedPattern(for: name)
-        let pattern = #"(?<![\w:.-])\#(escaped)\s*=\s*(?:"[^"]*"|'[^']*')"#
-        guard let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive),
-              let match = regex.firstMatch(in: tag, range: NSRange(tag.startIndex..<tag.endIndex, in: tag)),
-              let range = Range(match.range(at: 0), in: tag) else {
-            return tag
-        }
-        var updated = tag
-        updated.replaceSubrange(range, with: "\(name)=\"\(escapeHTMLAttribute(value))\"")
-        return updated
-    }
 }

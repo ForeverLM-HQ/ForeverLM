@@ -350,14 +350,3 @@ struct DirectionEvidence: Codable, Equatable, Hashable, Sendable {
     }
 }
 
-/// The `ResearchDirection` CloudKit record: one Direction whole, evidence
-/// included. Schema gate: create `ResearchDirection` with `payload` and
-/// `userModificationDate` in Development, then deploy it to Production
-/// before shipping the build that writes it.
-struct CloudKitResearchDirectionPayload: Codable, Sendable {
-    let direction: ResearchDirection
-
-    init(direction: ResearchDirection) {
-        self.direction = direction
-    }
-}

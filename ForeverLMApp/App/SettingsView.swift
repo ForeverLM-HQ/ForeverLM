@@ -760,40 +760,13 @@ struct ICloudSyncSettingsSection: View {
     }
 }
 
-/// Data & Privacy › iCloud, above the sync card: where the library's move to the new iCloud store stands
-/// (docs/cloudkit-schema-design.md §13.3 step 3), the read-only window of its first minutes, and the
-/// question a tripped 5% guard asks (Apply, or Not this library). Nothing shows under generation 1, or
-/// once the move is done.
+/// Data & Privacy › iCloud, above the sync card: a library whose move to the new iCloud store failed
+/// (docs/cloudkit-schema-design.md §13.3 step 3). Nothing shows otherwise.
 private struct LibraryMoveSettingsCard: View {
     @State private var notice = ActivationNotice.shared
-    @State private var isAnswering = false
-
-    private func answer(_ apply: Bool) {
-        isAnswering = true
-        Task {
-            let storage = StorageService()
-            try? await storage.performStoreWork { store in
-                if apply { try ActivationQuestion.answerApply(store: store) } else { try ActivationQuestion.answerNotThisLibrary(store: store) }
-            }
-            ActivationStatus.shared.update(.done)
-            isAnswering = false
-        }
-    }
 
     var body: some View {
         switch notice.phase {
-        case .moving(let step, let total, let text):
-            card(icon: "arrow.triangle.2.circlepath", tint: .blue, title: "Moving your library to the new iCloud store (step \(step) of \(total))",
-                 detail: "\(text). Your library is read-only until this ends.")
-        case .asking(let question):
-            card(icon: "questionmark.circle.fill", tint: .orange, title: "Your old iCloud library does not look like this Mac's",
-                 detail: "It would remove \(question.deleting.formatted()) of \(question.of.formatted()) items here. Nothing was changed.") {
-                HStack {
-                    Button("Apply") { answer(true) }
-                    Button("Not this library") { answer(false) }
-                }
-                .disabled(isAnswering)
-            }
         case .failed(let message):
             card(icon: "exclamationmark.triangle.fill", tint: .orange, title: "Your library has not moved to the new iCloud store yet", detail: message)
         case .idle, .preparing, .done:
@@ -891,6 +864,7 @@ private struct ICloudStorageUsageRow: View {
         [
             ("PDFs", usage.documentBytes),
             ("Text", usage.textBytes),
+            ("Other files", usage.otherBytes),
             ("iCloud Drive", usage.driveBytes),
         ]
         .filter { $0.1 > 0 }

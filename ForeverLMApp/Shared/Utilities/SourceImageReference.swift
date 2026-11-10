@@ -13,9 +13,7 @@ import Foundation
 ///   they already hold for the reader.
 /// - `img/<n>` — the n-th `<img>`/`<image>` tag, in document order, of a
 ///   markup-backed source (an EPUB chapter, an archived article). The Mac
-///   reads the file beside the chapter; other clients take the same tag out of
-///   the illustrated reader document `EPUBParser.readerDocument` syncs, whose
-///   image order this shares by construction.
+///   reads the file beside the chapter.
 /// - `slide/<n>` — slide frame `n` of a video or meeting recording, as numbered
 ///   in the "Extracted video slide frames" block of its stored content. The
 ///   frame's file lives under the library's content root on the device that

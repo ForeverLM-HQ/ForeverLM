@@ -95,7 +95,6 @@ extension KnowledgeStore {
                 )
             }
             try keepNotebookRowsForGeneration2(goalIDs: [id])
-            try markRecordChanged(entity: .learningGoal, logicalKey: id)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -153,7 +152,6 @@ extension KnowledgeStore {
             sqlite3_bind_double(stmt, 7, Date().timeIntervalSinceReferenceDate)
             bind(stmt, 8, goalID)
         }
-        try markRecordChanged(entity: .learningGoal, logicalKey: goalID)
     }
 
     /// The shared placement for a source, if it has one. Global by design:
@@ -200,7 +198,6 @@ extension KnowledgeStore {
             sqlite3_bind_double(stmt, 2, Date().timeIntervalSinceReferenceDate)
             bind(stmt, 3, goalID)
         }
-        try markRecordChanged(entity: .learningGoal, logicalKey: goalID)
     }
 
     /// Move a Goal's deadline and nothing else — the Goals tab's **Change
@@ -222,7 +219,6 @@ extension KnowledgeStore {
             sqlite3_bind_double(stmt, 2, now.timeIntervalSinceReferenceDate)
             bind(stmt, 3, goalID)
         }
-        try markRecordChanged(entity: .learningGoal, logicalKey: goalID, at: now)
     }
 
     /// Tag a Goal to a Notebook, move it to another one, or untag it entirely
@@ -260,7 +256,6 @@ extension KnowledgeStore {
             sqlite3_bind_double(stmt, 2, Date().timeIntervalSinceReferenceDate)
             bind(stmt, 3, goalID)
         }
-        try markRecordChanged(entity: .learningGoal, logicalKey: goalID)
     }
 
     /// Clear a Goal's Notebook tag, leaving the Goal and everything it holds in
@@ -273,7 +268,6 @@ extension KnowledgeStore {
             sqlite3_bind_double(stmt, 1, Date().timeIntervalSinceReferenceDate)
             bind(stmt, 2, goalID)
         }
-        try markRecordChanged(entity: .learningGoal, logicalKey: goalID)
     }
 
     /// Split a companion goal into one or more child notebooks by moving sources (and
@@ -417,586 +411,18 @@ extension KnowledgeStore {
 
     // MARK: A removed notebook's own words
 
-    /// Writes the words of the notebooks in `folded` onto `target`, the
-    /// notebook that takes their place, inside the caller's transaction: what
-    /// a merge does for its survivor, and what a split that removes its
-    /// parent does for the heir. These are columns of the removed notebook's
-    /// own row, which `moveNotebookContentsInTransaction` (what points at a
-    /// notebook by id) never carries and the row's delete would take with it.
-    ///
-    /// - The target's own words win: a folded notebook only fills a field the
-    ///   target left blank (its standing Instructions `description`, its
-    ///   summary, its repository).
-    /// - Research questions are unioned, trimmed, case-insensitively, the
-    ///   target's first.
-    /// - Synthesis notes are concatenated, each under `## <title>` of the
-    ///   notebook that wrote them, the target's first; `mergeNotes` false
-    ///   keeps only the target's.
-    ///
-    /// `title` renames the target (nil keeps its own). The caller touches the
-    /// target and marks it changed. `target` and `folded` are the records as
-    /// they were read; nothing else in a merge or a split writes these
-    /// columns.
-    private func foldNotebookWordsInTransaction(
-        into target: LearningGoalRecord,
-        from folded: [LearningGoalRecord],
-        title: String? = nil,
-        mergeNotes: Bool = true,
-        at now: Date
-    ) throws {
-        func isBlank(_ value: String?) -> Bool {
-            value?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ?? true
-        }
-        var notesSections: [String] = []
-        if mergeNotes {
-            for notebook in [target] + folded {
-                guard let notes = notebook.notes?.trimmingCharacters(in: .whitespacesAndNewlines),
-                      !notes.isEmpty else { continue }
-                notesSections.append("## \(notebook.title)\n\n\(notes)")
-            }
-        }
-        var researchQuestions = target.researchQuestions ?? []
-        var description = target.description
-        var summary = target.summary
-        var repository = target.repository
-        for notebook in folded {
-            for question in notebook.researchQuestions ?? [] {
-                let trimmed = question.trimmingCharacters(in: .whitespacesAndNewlines)
-                guard !trimmed.isEmpty,
-                      !researchQuestions.contains(where: { $0.caseInsensitiveCompare(trimmed) == .orderedSame }) else {
-                    continue
-                }
-                researchQuestions.append(trimmed)
-            }
-            if isBlank(description), !isBlank(notebook.description) { description = notebook.description }
-            if isBlank(summary), !isBlank(notebook.summary) { summary = notebook.summary }
-            if isBlank(repository), !isBlank(notebook.repository) { repository = notebook.repository }
-        }
-
-        let notes = notesSections.isEmpty ? target.notes : notesSections.joined(separator: "\n\n")
-        let researchQuestionsJSON: String? = researchQuestions.isEmpty
-            ? target.researchQuestions.map { _ in "[]" }
-            : jsonString(from: researchQuestions)
-        try execBind("""
-            UPDATE learning_goals
-            SET title = ?, notes = ?, description = ?, summary = ?, repository = ?,
-                research_questions = ?, updated_at = ?
-            WHERE id = ?
-        """) { stmt in
-            bind(stmt, 1, title ?? target.title)
-            bind(stmt, 2, notes)
-            bind(stmt, 3, description)
-            bind(stmt, 4, summary)
-            bind(stmt, 5, repository)
-            bind(stmt, 6, researchQuestionsJSON)
-            sqlite3_bind_double(stmt, 7, now.timeIntervalSinceReferenceDate)
-            bind(stmt, 8, target.id)
-        }
-        try keepNotebookRowsForGeneration2(goalIDs: [target.id])
-    }
-
     // MARK: Moving a notebook's contents
-
-    /// What one notebook handed another: the counts a merge reports.
-    struct NotebookContentsMove: Equatable, Sendable {
-        var sourcesAdded = 0
-        var gapsAdded = 0
-        var chatsMoved = 0
-        var childGoalsMoved = 0
-        var tasksMoved = 0
-        var docsMoved = 0
-
-        mutating func add(_ other: NotebookContentsMove) {
-            sourcesAdded += other.sourcesAdded
-            gapsAdded += other.gapsAdded
-            chatsMoved += other.chatsMoved
-            childGoalsMoved += other.childGoalsMoved
-            tasksMoved += other.tasksMoved
-            docsMoved += other.docsMoved
-        }
-    }
-
-    /// Moves everything that belongs to the notebook `fromID` into the
-    /// notebook `toID`, inside the caller's transaction: what a merge does to
-    /// each merged Notebook, and what a split that removes its parent does to
-    /// the parent. The one list of what a notebook holds by id, so merging
-    /// and splitting can never strand a different set of records:
-    ///
-    /// - its pool: sources (a source both hold is kept once, its better
-    ///   review state kept), open questions (one whose summary the target
-    ///   already has stays behind and goes with the row) and course links;
-    /// - chats (`review_sessions.goal_id`), nested Goals
-    ///   (`parent_notebook_id`), tasks, Docs (home and links), courses' home,
-    ///   scheduled tasks, Schedule placements' tags, Planner blocks and bouts,
-    ///   Memory items, journal verdicts, related-Notebook links both ways,
-    ///   Ideas' links and Directions.
-    ///
-    /// Every synced record it re-points is queued for CloudKit in the same
-    /// transaction, so another device learns the move as it would an edit.
-    /// Both notebooks are in one library (a merge refuses otherwise, and a
-    /// split's children take the parent's team), so no record changes zone.
-    /// The caller then removes the emptied row through
-    /// `deleteLearningGoalRowInTransaction`, the ordinary delete, which finds
-    /// nothing of this left to clear.
-    @discardableResult
-    func moveNotebookContentsInTransaction(from fromID: String, to toID: String, at now: Date) throws -> NotebookContentsMove {
-        guard fromID != toID else {
-            throw KnowledgeStoreError.invalidData("A notebook cannot move its contents into itself.")
-        }
-        guard let target = try loadLearningGoal(toID), target.isCompanion else {
-            throw KnowledgeStoreError.invalidData("Notebook not found: \(toID)")
-        }
-        var moved = NotebookContentsMove()
-        moved.sourcesAdded = try movePoolItems(from: fromID, to: toID)
-        moved.gapsAdded = try moveOpenQuestions(from: fromID, to: toID)
-        try execBind("""
-            INSERT OR IGNORE INTO notebook_course_links (goal_id, course_id)
-            SELECT ?, course_id
-            FROM notebook_course_links
-            WHERE goal_id = ?
-        """) { stmt in
-            bind(stmt, 1, toID)
-            bind(stmt, 2, fromID)
-        }
-        moved.chatsMoved = try moveReviewSessions(fromGoal: fromID, toGoal: toID, at: now)
-        moved.childGoalsMoved = try moveChildGoals(fromNotebook: fromID, toNotebook: toID, at: now)
-        moved.tasksMoved = try moveNotebookTasks(fromNotebook: fromID, toNotebook: toID, teamID: target.teamID, at: now)
-        moved.docsMoved = try moveArtifactNotebookLinks(fromNotebook: fromID, toNotebook: toID, at: now)
-        try moveScheduledTasks(fromNotebook: fromID, toNotebook: toID, at: now)
-        try moveSchedulePlacementGoals(fromGoal: fromID, toGoal: toID, at: now)
-        try movePlannerRecords(fromNotebook: fromID, toNotebook: toID, at: now)
-        try moveMemoryItems(fromGoal: fromID, toGoal: toID, at: now)
-        try moveJournalWatchRecords(fromNotebook: fromID, toNotebook: toID)
-        try moveRelatedNotebookLinks(fromNotebook: fromID, toNotebook: toID, at: now)
-        try moveIdeaLinks(fromNotebook: fromID, toNotebook: toID, kind: target.isGoal ? .goal : .notebook, at: now)
-        try moveResearchDirections(
-            fromHome: fromID,
-            toHome: toID,
-            homeKind: target.isGoal ? .goal : .notebook,
-            at: now
-        )
-        try keepNotebookRowsForGeneration2(goalIDs: [toID])
-        return moved
-    }
 
     // Each helper below runs inside the caller's transaction and republishes
     // every synced record it re-points. Ids are collected before the UPDATE:
     // the rows are what the sync queue needs, and a count alone could not
     // name them.
 
-    /// The pool rows: a source only the old notebook held moves; a source both
-    /// hold is kept once, with the better review state of the two.
-    private func movePoolItems(from fromID: String, to toID: String) throws -> Int {
-        var targetItems = Dictionary(
-            try loadLearningGoalItems(goalID: toID).map { ($0.sourceID, $0) },
-            uniquingKeysWith: { first, _ in first }
-        )
-        var added = 0
-        for item in try loadLearningGoalItems(goalID: fromID) {
-            try deleteCompanionGoalItem(goalID: fromID, sourceID: item.sourceID)
-            let kept: LearningGoalItem
-            if let existing = targetItems[item.sourceID] {
-                kept = reassignedCompanionGoalItem(preferredCompanionGoalItem(existing, item), goalID: toID)
-                try deleteCompanionGoalItem(goalID: toID, sourceID: item.sourceID)
-            } else {
-                kept = reassignedCompanionGoalItem(item, goalID: toID)
-                added += 1
-            }
-            try saveLearningGoalItem(kept, goalID: toID)
-            targetItems[item.sourceID] = kept
-        }
-        return added
-    }
-
-    /// Open questions, deduped by summary: one the target already asks stays
-    /// on the old row and goes with it.
-    private func moveOpenQuestions(from fromID: String, to toID: String) throws -> Int {
-        var summaries = Set(try loadLearningGoalGaps(goalID: toID).map { normalizedCompanionGapSummary($0.summary) })
-        var moved = 0
-        for gap in try loadLearningGoalGaps(goalID: fromID) {
-            guard summaries.insert(normalizedCompanionGapSummary(gap.summary)).inserted else { continue }
-            try execBind("UPDATE learning_goal_gaps SET goal_id = ? WHERE id = ? AND goal_id = ?") { stmt in
-                bind(stmt, 1, toID)
-                bind(stmt, 2, gap.id)
-                bind(stmt, 3, fromID)
-            }
-            moved += 1
-        }
-        return moved
-    }
-
-    private func idsWhere(_ sql: String, _ value: String) throws -> [String] {
-        var ids: [String] = []
-        try queryBind(sql, bind: { stmt in bind(stmt, 1, value) }) { stmt in
-            if let id = self.string(stmt, 0) { ids.append(id) }
-        }
-        return ids
-    }
-
-    private func moveReviewSessions(fromGoal mergeeID: String, toGoal survivorID: String, at now: Date) throws -> Int {
-        let sessionIDs = try idsWhere("SELECT id FROM review_sessions WHERE goal_id = ? ORDER BY id", mergeeID)
-        guard !sessionIDs.isEmpty else { return 0 }
-        try execBind("UPDATE review_sessions SET goal_id = ? WHERE goal_id = ?") { stmt in
-            bind(stmt, 1, survivorID)
-            bind(stmt, 2, mergeeID)
-        }
-        for sessionID in sessionIDs {
-            try markRecordChanged(entity: .reviewSession, logicalKey: sessionID, at: now)
-        }
-        return sessionIDs.count
-    }
-
-    private func moveChildGoals(fromNotebook mergeeID: String, toNotebook survivorID: String, at now: Date) throws -> Int {
-        let childIDs = try childGoalIDs(ofNotebook: mergeeID)
-        guard !childIDs.isEmpty else { return 0 }
-        try execBind("""
-            UPDATE learning_goals SET parent_notebook_id = ?, updated_at = ? WHERE parent_notebook_id = ?
-        """) { stmt in
-            bind(stmt, 1, survivorID)
-            sqlite3_bind_double(stmt, 2, now.timeIntervalSinceReferenceDate)
-            bind(stmt, 3, mergeeID)
-        }
-        for childID in childIDs {
-            try markRecordChanged(entity: .learningGoal, logicalKey: childID, at: now)
-        }
-        return childIDs.count
-    }
-
-    private func moveNotebookTasks(
-        fromNotebook mergeeID: String,
-        toNotebook survivorID: String,
-        teamID: String?,
-        at now: Date
-    ) throws -> Int {
-        let taskIDs = try idsWhere("SELECT id FROM notebook_tasks WHERE notebook_id = ? ORDER BY id", mergeeID)
-        guard !taskIDs.isEmpty else { return 0 }
-        try execBind("""
-            UPDATE notebook_tasks SET notebook_id = ?, team_id = ?, updated_at = ? WHERE notebook_id = ?
-        """) { stmt in
-            bind(stmt, 1, survivorID)
-            bind(stmt, 2, teamID)
-            sqlite3_bind_double(stmt, 3, now.timeIntervalSinceReferenceDate)
-            bind(stmt, 4, mergeeID)
-        }
-        for taskID in taskIDs {
-            try markRecordChanged(entity: .notebookTask, logicalKey: taskID, at: now)
-        }
-        return taskIDs.count
-    }
-
-    /// A Doc filed under the merged Notebook is filed under the survivor; a Doc
-    /// linked to it is linked to the survivor, once, whichever way it got there.
-    private func moveArtifactNotebookLinks(fromNotebook mergeeID: String, toNotebook survivorID: String, at now: Date) throws -> Int {
-        var artifactIDs: [String] = []
-        try queryBind("""
-            SELECT id FROM global_artifacts WHERE home_notebook_id = ?
-            UNION
-            SELECT artifact_id FROM global_artifact_notebook_links WHERE notebook_id = ?
-            """, bind: { stmt in
-                bind(stmt, 1, mergeeID)
-                bind(stmt, 2, mergeeID)
-            }) { stmt in
-                if let id = self.string(stmt, 0) { artifactIDs.append(id) }
-            }
-        guard !artifactIDs.isEmpty else { return 0 }
-        try execBind("UPDATE global_artifacts SET home_notebook_id = ? WHERE home_notebook_id = ?") { stmt in
-            bind(stmt, 1, survivorID)
-            bind(stmt, 2, mergeeID)
-        }
-        try execBind("""
-            INSERT OR IGNORE INTO global_artifact_notebook_links (artifact_id, notebook_id, linked_at)
-            SELECT artifact_id, ?, linked_at FROM global_artifact_notebook_links WHERE notebook_id = ?
-        """) { stmt in
-            bind(stmt, 1, survivorID)
-            bind(stmt, 2, mergeeID)
-        }
-        try execBind("DELETE FROM global_artifact_notebook_links WHERE notebook_id = ?") { stmt in
-            bind(stmt, 1, mergeeID)
-        }
-        for artifactID in artifactIDs {
-            try execBind("UPDATE global_artifacts SET updated_at = ? WHERE id = ?") { stmt in
-                sqlite3_bind_double(stmt, 1, now.timeIntervalSinceReferenceDate)
-                bind(stmt, 2, artifactID)
-            }
-            try markRecordChanged(entity: .artifact, logicalKey: artifactID, at: now)
-        }
-        return artifactIDs.count
-    }
-
-    private func moveScheduledTasks(fromNotebook mergeeID: String, toNotebook survivorID: String, at now: Date) throws {
-        let taskIDs = try idsWhere("SELECT id FROM scheduled_tasks WHERE notebook_id = ? ORDER BY id", mergeeID)
-        guard !taskIDs.isEmpty else { return }
-        try execBind("UPDATE scheduled_tasks SET notebook_id = ?, updated_at = ? WHERE notebook_id = ?") { stmt in
-            bind(stmt, 1, survivorID)
-            sqlite3_bind_double(stmt, 2, now.timeIntervalSinceReferenceDate)
-            bind(stmt, 3, mergeeID)
-        }
-        for taskID in taskIDs {
-            try markRecordChanged(entity: .scheduledTask, logicalKey: taskID, at: now)
-        }
-    }
-
-    /// A Schedule placement tagged with the merged Notebook is tagged with the
-    /// survivor instead; one already tagged with both simply loses the old tag.
-    private func moveSchedulePlacementGoals(fromGoal mergeeID: String, toGoal survivorID: String, at now: Date) throws {
-        let placementIDs = try idsWhere(
-            "SELECT scheduled_source_id FROM scheduled_source_goals WHERE goal_id = ? ORDER BY scheduled_source_id",
-            mergeeID
-        )
-        guard !placementIDs.isEmpty else { return }
-        try execBind("""
-            INSERT OR IGNORE INTO scheduled_source_goals (scheduled_source_id, goal_id, added_at)
-            SELECT scheduled_source_id, ?, added_at FROM scheduled_source_goals WHERE goal_id = ?
-        """) { stmt in
-            bind(stmt, 1, survivorID)
-            bind(stmt, 2, mergeeID)
-        }
-        try execBind("DELETE FROM scheduled_source_goals WHERE goal_id = ?") { stmt in
-            bind(stmt, 1, mergeeID)
-        }
-        for placementID in placementIDs {
-            try markRecordChanged(entity: .scheduledSource, logicalKey: placementID, at: now)
-        }
-    }
-
-    /// Planner blocks and bouts travel inside their day's plan record, so the
-    /// day is what gets republished.
-    private func movePlannerRecords(fromNotebook mergeeID: String, toNotebook survivorID: String, at now: Date) throws {
-        var dayPlanIDs = Set<String>()
-        try queryBind("""
-            SELECT day_plan_id FROM time_blocks WHERE notebook_id = ? OR goal_id = ?
-            UNION
-            SELECT day_plan_id FROM learning_bouts WHERE notebook_id = ?
-            """, bind: { stmt in
-                bind(stmt, 1, mergeeID)
-                bind(stmt, 2, mergeeID)
-                bind(stmt, 3, mergeeID)
-            }) { stmt in
-                if let id = self.string(stmt, 0) { dayPlanIDs.insert(id) }
-            }
-        guard !dayPlanIDs.isEmpty else { return }
-        try execBind("""
-            UPDATE time_blocks
-            SET notebook_id = CASE WHEN notebook_id = ?1 THEN ?2 ELSE notebook_id END,
-                goal_id = CASE WHEN goal_id = ?1 THEN ?2 ELSE goal_id END,
-                updated_at = ?3
-            WHERE notebook_id = ?1 OR goal_id = ?1
-        """) { stmt in
-            bind(stmt, 1, mergeeID)
-            bind(stmt, 2, survivorID)
-            sqlite3_bind_double(stmt, 3, now.timeIntervalSinceReferenceDate)
-        }
-        try execBind("UPDATE learning_bouts SET notebook_id = ?, updated_at = ? WHERE notebook_id = ?") { stmt in
-            bind(stmt, 1, survivorID)
-            sqlite3_bind_double(stmt, 2, now.timeIntervalSinceReferenceDate)
-            bind(stmt, 3, mergeeID)
-        }
-        for dayPlanID in dayPlanIDs.sorted() {
-            try touchDayPlan(dayPlanID, at: now)
-            try markRecordChanged(entity: .dayPlan, logicalKey: dayPlanID, at: now)
-        }
-    }
-
-    private func moveMemoryItems(fromGoal mergeeID: String, toGoal survivorID: String, at now: Date) throws {
-        let itemIDs = try idsWhere("SELECT id FROM memory_items WHERE goal_id = ? ORDER BY id", mergeeID)
-        guard !itemIDs.isEmpty else { return }
-        try execBind("UPDATE memory_items SET goal_id = ?, updated_at = ? WHERE goal_id = ?") { stmt in
-            bind(stmt, 1, survivorID)
-            sqlite3_bind_double(stmt, 2, now.timeIntervalSinceReferenceDate)
-            bind(stmt, 3, mergeeID)
-        }
-        for itemID in itemIDs {
-            try markRecordChanged(entity: .memoryItem, logicalKey: itemID, at: now)
-        }
-    }
-
-    /// Journal verdicts are keyed by article and Notebook, so a verdict both
-    /// Notebooks already hold keeps the survivor's. The watch exclusion is the
-    /// survivor's own setting and is not inherited.
-    private func moveJournalWatchRecords(fromNotebook mergeeID: String, toNotebook survivorID: String) throws {
-        try execBind("""
-            INSERT OR IGNORE INTO journal_article_matches
-                (item_url, notebook_id, reason, matched_at, state, decided_at, source_id)
-            SELECT item_url, ?, reason, matched_at, state, decided_at, source_id
-            FROM journal_article_matches WHERE notebook_id = ?
-        """) { stmt in
-            bind(stmt, 1, survivorID)
-            bind(stmt, 2, mergeeID)
-        }
-        try execBind("DELETE FROM journal_article_matches WHERE notebook_id = ?") { stmt in
-            bind(stmt, 1, mergeeID)
-        }
-        try execBind("DELETE FROM journal_watch_excluded_notebooks WHERE notebook_id = ?") { stmt in
-            bind(stmt, 1, mergeeID)
-        }
-    }
-
-    /// Links are directional. What the merged Notebook drew context from, the
-    /// survivor now draws from; whoever drew context from the merged Notebook
-    /// now draws it from the survivor — and is republished, since the link is
-    /// carried in the referring Notebook's own record. A Notebook never links to
-    /// itself, so the pair that would collapse onto the survivor is dropped.
-    private func moveRelatedNotebookLinks(fromNotebook mergeeID: String, toNotebook survivorID: String, at now: Date) throws {
-        try execBind("""
-            INSERT OR IGNORE INTO notebook_related_notebook_links (notebook_id, related_notebook_id, linked_at)
-            SELECT ?1, related_notebook_id, linked_at
-            FROM notebook_related_notebook_links
-            WHERE notebook_id = ?2 AND related_notebook_id <> ?1
-        """) { stmt in
-            bind(stmt, 1, survivorID)
-            bind(stmt, 2, mergeeID)
-        }
-        let referrerIDs = try idsWhere("""
-            SELECT DISTINCT notebook_id FROM notebook_related_notebook_links
-            WHERE related_notebook_id = ? ORDER BY notebook_id
-            """, mergeeID)
-        guard !referrerIDs.isEmpty else { return }
-        try execBind("""
-            INSERT OR IGNORE INTO notebook_related_notebook_links (notebook_id, related_notebook_id, linked_at)
-            SELECT notebook_id, ?1, linked_at
-            FROM notebook_related_notebook_links
-            WHERE related_notebook_id = ?2 AND notebook_id <> ?1
-        """) { stmt in
-            bind(stmt, 1, survivorID)
-            bind(stmt, 2, mergeeID)
-        }
-        try execBind("DELETE FROM notebook_related_notebook_links WHERE related_notebook_id = ?") { stmt in
-            bind(stmt, 1, mergeeID)
-        }
-        for referrerID in referrerIDs where referrerID != survivorID {
-            try touchLearningGoal(referrerID, at: now)
-            try markRecordChanged(entity: .learningGoal, logicalKey: referrerID, at: now)
-        }
-    }
-
-    /// An Idea linked to the old notebook is linked to the new one, once, with
-    /// the link's date kept and the kind the new notebook is. The link rides
-    /// inside the Idea's own record, so the Idea is what gets republished, with
-    /// a newer `updated_at` so the other devices take it (`saveIdeaRecord`).
-    private func moveIdeaLinks(fromNotebook fromID: String, toNotebook toID: String, kind: IdeaLinkKind, at now: Date) throws {
-        let notebookKinds = [IdeaLinkKind.notebook.rawValue, IdeaLinkKind.goal.rawValue]
-        var ideaIDs: [String] = []
-        try queryBind("""
-            SELECT DISTINCT idea_id FROM idea_links
-            WHERE target_id = ? AND kind IN (?, ?)
-            ORDER BY idea_id
-            """, bind: { stmt in
-                bind(stmt, 1, fromID)
-                bind(stmt, 2, notebookKinds[0])
-                bind(stmt, 3, notebookKinds[1])
-            }) { stmt in
-                if let id = self.string(stmt, 0) { ideaIDs.append(id) }
-            }
-        guard !ideaIDs.isEmpty else { return }
-        try execBind("""
-            INSERT OR IGNORE INTO idea_links (idea_id, kind, target_id, added_at)
-            SELECT idea_id, ?1, ?2, MIN(added_at)
-            FROM idea_links
-            WHERE target_id = ?3 AND kind IN (?4, ?5)
-            GROUP BY idea_id
-        """) { stmt in
-            bind(stmt, 1, kind.rawValue)
-            bind(stmt, 2, toID)
-            bind(stmt, 3, fromID)
-            bind(stmt, 4, notebookKinds[0])
-            bind(stmt, 5, notebookKinds[1])
-        }
-        try execBind("DELETE FROM idea_links WHERE target_id = ? AND kind IN (?, ?)") { stmt in
-            bind(stmt, 1, fromID)
-            bind(stmt, 2, notebookKinds[0])
-            bind(stmt, 3, notebookKinds[1])
-        }
-        for ideaID in ideaIDs {
-            try execBind("UPDATE ideas SET updated_at = MAX(updated_at, ?) WHERE id = ?") { stmt in
-                sqlite3_bind_double(stmt, 1, now.timeIntervalSinceReferenceDate)
-                bind(stmt, 2, ideaID)
-            }
-            try markRecordChanged(entity: .idea, logicalKey: ideaID, at: now)
-        }
-    }
-
-    /// What was proposed toward the old notebook is proposed toward the new
-    /// one: the Directions are re-homed, verdicts and all, never deleted.
-    private func moveResearchDirections(
-        fromHome fromID: String,
-        toHome toID: String,
-        homeKind: DirectionHomeKind,
-        at now: Date
-    ) throws {
-        let directionIDs = try idsWhere("SELECT id FROM research_directions WHERE home_id = ? ORDER BY id", fromID)
-        guard !directionIDs.isEmpty else { return }
-        try execBind("""
-            UPDATE research_directions
-            SET home_id = ?, home_kind = ?, updated_at = MAX(updated_at, ?)
-            WHERE home_id = ?
-        """) { stmt in
-            bind(stmt, 1, toID)
-            bind(stmt, 2, homeKind.rawValue)
-            sqlite3_bind_double(stmt, 3, now.timeIntervalSinceReferenceDate)
-            bind(stmt, 4, fromID)
-        }
-        for directionID in directionIDs {
-            try markRecordChanged(entity: .researchDirection, logicalKey: directionID, at: now)
-        }
-    }
-
     private func deleteCompanionGoalItem(goalID: String, sourceID: String) throws {
         try execBind("DELETE FROM learning_goal_items WHERE goal_id = ? AND source_id = ?") { stmt in
             bind(stmt, 1, goalID)
             bind(stmt, 2, sourceID)
         }
-    }
-
-    private func normalizedCompanionGapSummary(_ summary: String) -> String {
-        summary.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-    }
-
-    private func reassignedCompanionGoalItem(_ item: LearningGoalItem, goalID: String) -> LearningGoalItem {
-        LearningGoalItem(
-            id: UUID().uuidString,
-            goalID: goalID,
-            sourceID: item.sourceID,
-            addedAt: item.addedAt,
-            completedAt: item.completedAt,
-            origin: item.origin,
-            reviewState: item.reviewState,
-            relevance: item.relevance,
-            lastQuizzedAt: item.lastQuizzedAt,
-            quizCount: item.quizCount,
-            lastScore: item.lastScore,
-            sequence: item.sequence
-        )
-    }
-
-    private func preferredCompanionGoalItem(_ left: LearningGoalItem, _ right: LearningGoalItem) -> LearningGoalItem {
-        func score(_ item: LearningGoalItem) -> Int {
-            var value = 0
-            if item.isApproved { value += 100 }
-            if item.isCompleted { value += 50 }
-            value += min(item.quizCount ?? 0, 20) * 5
-            if let lastScore = item.lastScore { value += Int(lastScore * 10) }
-            if item.lastQuizzedAt != nil { value += 2 }
-            return value
-        }
-
-        let winner = score(left) >= score(right) ? left : right
-        let loser = winner.sourceID == left.sourceID && winner.id == left.id ? right : left
-        let maxRelevance = max(left.relevance ?? 0, right.relevance ?? 0)
-        let maxQuizCount = max(left.quizCount ?? 0, right.quizCount ?? 0)
-        return LearningGoalItem(
-            id: winner.id,
-            goalID: winner.goalID,
-            sourceID: winner.sourceID,
-            addedAt: min(left.addedAt, right.addedAt),
-            completedAt: [left.completedAt, right.completedAt].compactMap { $0 }.max(),
-            origin: winner.origin ?? loser.origin,
-            reviewState: winner.isApproved ? winner.reviewState : (left.isApproved ? left.reviewState : right.reviewState),
-            relevance: maxRelevance > 0 ? maxRelevance : nil,
-            lastQuizzedAt: [left.lastQuizzedAt, right.lastQuizzedAt].compactMap { $0 }.max(),
-            quizCount: maxQuizCount > 0 ? maxQuizCount : nil,
-            lastScore: [left.lastScore, right.lastScore].compactMap { $0 }.max(),
-            sequence: [left.sequence, right.sequence].compactMap { $0 }.min()
-        )
     }
 
     /// Insert newly discovered sources as pending suggestions. Skips sources already in
@@ -1021,7 +447,6 @@ extension KnowledgeStore {
                 added += 1
             }
             try touchLearningGoal(goalID, at: now)
-            try markRecordChanged(entity: .learningGoal, logicalKey: goalID)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -1053,7 +478,6 @@ extension KnowledgeStore {
                 restoreExisting: true
             )
             try touchLearningGoal(goalID, at: now)
-            try markRecordChanged(entity: .learningGoal, logicalKey: goalID)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -1155,7 +579,6 @@ extension KnowledgeStore {
                 restoreExisting: true
             )
             try touchLearningGoal(goalID, at: now)
-            try markRecordChanged(entity: .learningGoal, logicalKey: goalID)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -1184,7 +607,6 @@ extension KnowledgeStore {
                 bind(stmt, 2, trimmedCourseID)
             }
             try touchLearningGoal(goalID, at: now)
-            try markRecordChanged(entity: .learningGoal, logicalKey: goalID)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -1301,7 +723,6 @@ extension KnowledgeStore {
             guard added > 0 else { continue }
             totalAdded += added
             try touchLearningGoal(notebookID, at: addedAt)
-            try markRecordChanged(entity: .learningGoal, logicalKey: notebookID)
         }
         return totalAdded
     }
@@ -1324,7 +745,6 @@ extension KnowledgeStore {
             }
         }
         try touchLearningGoal(goalID, at: now)
-        try markRecordChanged(entity: .learningGoal, logicalKey: goalID)
         if state == .approved, let parentNotebookID = goal.parentNotebookID {
             _ = try addCompanionSeedSources(goalID: parentNotebookID, sourceIDs: matchedSourceIDs)
         }
@@ -1370,7 +790,6 @@ extension KnowledgeStore {
                 }
             }
             try touchLearningGoal(goalID, at: now)
-            try markRecordChanged(entity: .learningGoal, logicalKey: goalID)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -1419,7 +838,6 @@ extension KnowledgeStore {
             // sends one Entry (schema v2 §5.2).
             try keepNotebookRowsForGeneration2(goalIDs: [goalID])
             try touchLearningGoal(goalID)
-            try markRecordChanged(entity: .learningGoal, logicalKey: goalID)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -1478,7 +896,6 @@ extension KnowledgeStore {
         guard sqlite3_changes(db) > 0 else {
             throw KnowledgeStoreError.invalidData("Learning Companion goal not found: \(goalID)")
         }
-        try markTutorStateChanged(entity: .learningGoal, logicalKey: goalID, at: recordedAt)
     }
 
     /// Mark items as served in today's quiz (sets last_quizzed_at + the goal's
@@ -1499,7 +916,6 @@ extension KnowledgeStore {
                 sqlite3_bind_double(stmt, 2, now.timeIntervalSinceReferenceDate)
                 bind(stmt, 3, goalID)
             }
-            try markTutorStateChanged(entity: .learningGoal, logicalKey: goalID, at: now)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -1514,7 +930,6 @@ extension KnowledgeStore {
             sqlite3_bind_double(stmt, 2, date.timeIntervalSinceReferenceDate)
             bind(stmt, 3, goalID)
         }
-        try markTutorStateChanged(entity: .learningGoal, logicalKey: goalID, at: date)
     }
 
     /// Upsert gaps for a companion goal. Each input gap with a matching id replaces the
@@ -1541,7 +956,6 @@ extension KnowledgeStore {
                 try saveLearningGoalGap(stored, goalID: goalID)
             }
             try touchLearningGoal(goalID, at: now)
-            try markTutorStateChanged(entity: .learningGoal, logicalKey: goalID, at: now)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -1699,7 +1113,6 @@ extension KnowledgeStore {
             }
             for notebookID in referringIDs {
                 try touchLearningGoal(notebookID, at: now)
-                try markRecordChanged(entity: .learningGoal, logicalKey: notebookID, at: now)
             }
             try exec("COMMIT")
         } catch {
@@ -1724,18 +1137,13 @@ extension KnowledgeStore {
 
     private func clearReviewSessionGoals(sessionIDs: [String]) throws {
         guard !sessionIDs.isEmpty else { return }
-        let changedAt = Date()
         try exec("BEGIN IMMEDIATE")
         do {
             for sessionID in sessionIDs {
                 try execBind("UPDATE review_sessions SET goal_id = NULL WHERE id = ?") { statement in
                     bind(statement, 1, sessionID)
                 }
-                try markRecordChanged(
-                    entity: .reviewSession,
-                    logicalKey: sessionID,
-                    at: changedAt
-                )
+                noteStoreChanged()
             }
             try exec("COMMIT")
         } catch {
@@ -1756,22 +1164,6 @@ extension KnowledgeStore {
         return ids
     }
 
-    /// Whether this id names a Notebook or Goal that was deleted here and is
-    /// still carrying its CloudKit tombstone. Deliberately narrow: a tombstone
-    /// whose row is somehow back is not treated as deleted, so the check can
-    /// never strand a live record.
-    private func isDeletedLearningGoalID(_ goalID: String) throws -> Bool {
-        guard try loadSyncMetadata(entity: .learningGoal, logicalKey: goalID)?.isDeleted == true else {
-            return false
-        }
-        var exists = false
-        try queryBind(
-            "SELECT 1 FROM learning_goals WHERE id = ? LIMIT 1",
-            bind: { stmt in bind(stmt, 1, goalID) }
-        ) { _ in exists = true }
-        return !exists
-    }
-
     /// Drops one `learning_goals` row and everything hanging off it, with no
     /// regard for nesting. Always reach it through `deleteLearningGoal`.
     private func deleteLearningGoalRow(_ goalID: String) throws {
@@ -1787,9 +1179,8 @@ extension KnowledgeStore {
 
     /// The body of `deleteLearningGoalRow`, inside the caller's transaction:
     /// the row (its pool, open questions, course links and outgoing related
-    /// links cascade with it; its file index goes with it under generation 1
-    /// and stays, unfiled, under generation 2), its Schedule placements, its
-    /// Directions and its CloudKit tombstone. A merge and a split that removes
+    /// links cascade with it; its file index stays, unfiled), its Schedule
+    /// placements and its Directions. A merge and a split that removes
     /// its parent reach it after `moveNotebookContentsInTransaction`, so the
     /// emptied notebook leaves the library the way any deleted one does.
     private func deleteLearningGoalRowInTransaction(_ goalID: String, at now: Date) throws {
@@ -1801,12 +1192,10 @@ extension KnowledgeStore {
             if let placementID = self.string(stmt, 0) { affectedPlacements.append(placementID) }
         }
 
-        var orphaned: [String] = []
         try execBind("DELETE FROM scheduled_source_goals WHERE goal_id = ?") { stmt in
             bind(stmt, 1, goalID)
         }
-        // The file index lost its foreign key in schema 154: generation 1
-        // removes it here as the cascade did; generation 2 leaves it unfiled.
+        // The file index lost its foreign key in schema 154: its rows stay, unfiled.
         try releaseFilesOfDeletedNotebook(goalID)
         // Cascades learning_goal_items (companion) via FK on learning_goals.
         try execBind("DELETE FROM learning_goals WHERE id = ?") { stmt in
@@ -1831,22 +1220,8 @@ extension KnowledgeStore {
                 try execBind("DELETE FROM scheduled_sources WHERE id = ?") { stmt in
                     bind(stmt, 1, placementID)
                 }
-                orphaned.append(placementID)
             }
         }
-        // Tombstones belong in the same transaction as the rows they
-        // describe. Written after the COMMIT, any throw in this sequence —
-        // or a quit between the two writes — left the goal deleted locally
-        // with its CloudKit record intact and nothing to refuse it: the
-        // next fetch applied the server copy and the Notebook was back.
-        let orphanSet = Set(orphaned)
-        for placementID in affectedPlacements where !orphanSet.contains(placementID) {
-            try markRecordChanged(entity: .scheduledSource, logicalKey: placementID, at: now)
-        }
-        for placementID in orphaned {
-            try markRecordDeleted(entity: .scheduledSource, logicalKey: placementID)
-        }
-        try markRecordDeleted(entity: .learningGoal, logicalKey: goalID)
         // What was proposed toward the Goal or Notebook goes with it
         // (docs/directions-design.md).
         try deleteResearchDirectionRowsInTransaction(homeID: goalID, at: now)
@@ -1863,14 +1238,6 @@ extension KnowledgeStore {
         _ goal: LearningGoalRecord,
         replacingLinkedCourseIDs: [String]?
     ) throws {
-        // The upsert below inserts as readily as it updates, so a save built
-        // from a stale in-memory copy — a view that outlived its Notebook, an
-        // inbound merge adopting a server record this device already deleted —
-        // re-creates the row, and `markRecordChanged` at the end of the
-        // transaction then republishes it everywhere. A tombstone with no
-        // surviving row is a committed deletion: nothing may write that id back.
-        // Goal ids are fresh UUIDs, so this never blocks a legitimate re-create.
-        if try isDeletedLearningGoalID(goal.id) { return }
         try exec("BEGIN IMMEDIATE")
         do {
             try execBind("""
@@ -1981,7 +1348,6 @@ extension KnowledgeStore {
                 }
             }
             try keepNotebookRowsForGeneration2(goalIDs: [goal.id])
-            try markRecordChanged(entity: .learningGoal, logicalKey: goal.id)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -2034,49 +1400,6 @@ extension KnowledgeStore {
             mappedGoal,
             replacingLinkedCourseIDs: payload.linkedCourseIDs
         )
-    }
-
-    /// Merge the monotonic learning evidence from both sides of a CloudKit
-    /// `serverRecordChanged`. `preferLocalEditorial` chooses the ordinary
-    /// user-editable scalar winner; completions, quiz history, gap identities,
-    /// and relationship membership are never allowed to move backward.
-    ///
-    /// Returns whether the merged local payload differs from the server payload
-    /// and therefore must be republished after adopting the server change tag.
-    func mergeLearningGoalServerConflict(
-        _ payload: CloudKitLearningGoalPayload,
-        preferLocalEditorial: Bool
-    ) throws -> Bool {
-        let incoming = try remappedLearningGoalRecord(payload)
-        guard let local = try loadLearningGoal(incoming.id) else {
-            try saveLearningGoalRecord(
-                incoming,
-                replacingLinkedCourseIDs: payload.linkedCourseIDs
-            )
-            return false
-        }
-        let merged = mergedLearningGoal(
-            local: local,
-            incoming: incoming,
-            preferLocalEditorial: preferLocalEditorial
-        )
-        let localLinkedCourseIDs = Set(try linkedCourseIDsForNotebook(goalID: incoming.id))
-        let incomingLinkedCourseIDs = Set(payload.linkedCourseIDs ?? [])
-        let mergedLinkedCourseIDs: [String]
-        if preferLocalEditorial || payload.linkedCourseIDs == nil {
-            // nil is an old payload with no opinion; a true explicit removal is
-            // the present empty array and follows the editorial LWW winner.
-            mergedLinkedCourseIDs = Array(localLinkedCourseIDs).sorted()
-        } else {
-            mergedLinkedCourseIDs = Array(incomingLinkedCourseIDs).sorted()
-        }
-        let differsFromServer = merged != incoming
-            || Set(mergedLinkedCourseIDs) != incomingLinkedCourseIDs
-        try saveLearningGoalRecord(
-            merged,
-            replacingLinkedCourseIDs: mergedLinkedCourseIDs
-        )
-        return differsFromServer
     }
 
     private func remappedLearningGoalRecord(
@@ -2181,205 +1504,6 @@ extension KnowledgeStore {
         return mappedGoal
     }
 
-    private func mergedLearningGoal(
-        local: LearningGoalRecord,
-        incoming: LearningGoalRecord,
-        preferLocalEditorial: Bool
-    ) -> LearningGoalRecord {
-        let editorial = preferLocalEditorial ? local : incoming
-        let items = mergedLearningGoalItems(
-            local: local.items,
-            incoming: incoming.items,
-            goalID: incoming.id,
-            preferLocalEditorial: preferLocalEditorial
-        )
-        let gaps = mergedLearningGoalGaps(
-            local: local.gaps ?? [],
-            incoming: incoming.gaps ?? [],
-            goalID: incoming.id,
-            preferLocalEditorial: preferLocalEditorial
-        )
-        return LearningGoalRecord(
-            id: incoming.id,
-            title: editorial.title,
-            startAt: editorial.startAt,
-            endAt: editorial.endAt,
-            createdAt: min(local.createdAt, incoming.createdAt),
-            updatedAt: max(local.updatedAt, incoming.updatedAt),
-            status: editorial.status,
-            items: items,
-            kind: editorial.kind,
-            description: editorial.description,
-            summary: editorial.summary,
-            topic: editorial.topic,
-            discoveryEnabled: editorial.discoveryEnabled,
-            dailyTarget: editorial.dailyTarget,
-            lastQuizDate: maxOptionalString(local.lastQuizDate, incoming.lastQuizDate),
-            lastDiscoveryAt: maxOptionalDate(local.lastDiscoveryAt, incoming.lastDiscoveryAt),
-            gaps: gaps.isEmpty && local.gaps == nil && incoming.gaps == nil ? nil : gaps,
-            notes: editorial.notes,
-            parentNotebookID: editorial.parentNotebookID,
-            researchQuestions: editorial.researchQuestions,
-            relatedNotebookIDs: editorial.relatedNotebookIDs ?? local.relatedNotebookIDs,
-            repository: editorial.repository ?? local.repository,
-            artifactID: editorial.artifactID ?? local.artifactID,
-            sortOrder: editorial.sortOrder ?? local.sortOrder
-        )
-    }
-
-    private func mergedLearningGoalItems(
-        local: [LearningGoalItem],
-        incoming: [LearningGoalItem],
-        goalID: String,
-        preferLocalEditorial: Bool
-    ) -> [LearningGoalItem] {
-        let localBySource = Dictionary(local.map { ($0.sourceID, $0) }, uniquingKeysWith: { first, _ in first })
-        let incomingBySource = Dictionary(incoming.map { ($0.sourceID, $0) }, uniquingKeysWith: { first, _ in first })
-        let retainedSourceIDs = preferLocalEditorial
-            ? Set(localBySource.keys)
-            : Set(incomingBySource.keys)
-        return retainedSourceIDs.sorted().compactMap { sourceID in
-            switch (localBySource[sourceID], incomingBySource[sourceID]) {
-            case let (left?, right?):
-                let editorial = preferLocalEditorial ? left : right
-                let lastScore: Double?
-                switch (left.lastQuizzedAt, right.lastQuizzedAt) {
-                case let (leftDate?, rightDate?) where leftDate > rightDate:
-                    lastScore = left.lastScore ?? right.lastScore
-                case let (leftDate?, rightDate?) where rightDate > leftDate:
-                    lastScore = right.lastScore ?? left.lastScore
-                default:
-                    lastScore = maxOptionalDouble(left.lastScore, right.lastScore)
-                }
-                return LearningGoalItem(
-                    id: editorial.id,
-                    goalID: goalID,
-                    sourceID: sourceID,
-                    addedAt: min(left.addedAt, right.addedAt),
-                    completedAt: maxOptionalDate(left.completedAt, right.completedAt),
-                    origin: editorial.origin,
-                    reviewState: editorial.reviewState,
-                    relevance: editorial.relevance,
-                    lastQuizzedAt: maxOptionalDate(left.lastQuizzedAt, right.lastQuizzedAt),
-                    quizCount: maxOptionalInt(left.quizCount, right.quizCount),
-                    lastScore: lastScore,
-                    sequence: editorial.sequence
-                )
-            case let (left?, nil):
-                return LearningGoalItem(
-                    id: left.id,
-                    goalID: goalID,
-                    sourceID: left.sourceID,
-                    addedAt: left.addedAt,
-                    completedAt: left.completedAt,
-                    origin: left.origin,
-                    reviewState: left.reviewState,
-                    relevance: left.relevance,
-                    lastQuizzedAt: left.lastQuizzedAt,
-                    quizCount: left.quizCount,
-                    lastScore: left.lastScore,
-                    sequence: left.sequence
-                )
-            case let (nil, right?):
-                return LearningGoalItem(
-                    id: right.id,
-                    goalID: goalID,
-                    sourceID: right.sourceID,
-                    addedAt: right.addedAt,
-                    completedAt: right.completedAt,
-                    origin: right.origin,
-                    reviewState: right.reviewState,
-                    relevance: right.relevance,
-                    lastQuizzedAt: right.lastQuizzedAt,
-                    quizCount: right.quizCount,
-                    lastScore: right.lastScore,
-                    sequence: right.sequence
-                )
-            case (nil, nil):
-                return nil
-            }
-        }
-    }
-
-    private func mergedLearningGoalGaps(
-        local: [LearningGoalGap],
-        incoming: [LearningGoalGap],
-        goalID: String,
-        preferLocalEditorial: Bool
-    ) -> [LearningGoalGap] {
-        let localByID = Dictionary(local.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        let incomingByID = Dictionary(incoming.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        return Set(localByID.keys).union(incomingByID.keys).sorted().compactMap { gapID in
-            switch (localByID[gapID], incomingByID[gapID]) {
-            case let (left?, right?):
-                let editorial: LearningGoalGap
-                if left.lastSeenAt > right.lastSeenAt {
-                    editorial = left
-                } else if right.lastSeenAt > left.lastSeenAt {
-                    editorial = right
-                } else {
-                    editorial = preferLocalEditorial ? left : right
-                }
-                let resolvedAt = maxOptionalDate(left.resolvedAt, right.resolvedAt)
-                let status = mergedGapStatus(left.status, right.status, resolvedAt: resolvedAt)
-                return LearningGoalGap(
-                    id: gapID,
-                    goalID: goalID,
-                    summary: editorial.summary,
-                    sourceID: editorial.sourceID ?? left.sourceID ?? right.sourceID,
-                    status: status,
-                    severity: maxOptionalDouble(left.severity, right.severity),
-                    firstSeenAt: min(left.firstSeenAt, right.firstSeenAt),
-                    lastSeenAt: max(left.lastSeenAt, right.lastSeenAt),
-                    resolvedAt: resolvedAt,
-                    sessionID: editorial.sessionID ?? left.sessionID ?? right.sessionID
-                )
-            case let (left?, nil):
-                return LearningGoalGap(
-                    id: left.id,
-                    goalID: goalID,
-                    summary: left.summary,
-                    sourceID: left.sourceID,
-                    status: left.status,
-                    severity: left.severity,
-                    firstSeenAt: left.firstSeenAt,
-                    lastSeenAt: left.lastSeenAt,
-                    resolvedAt: left.resolvedAt,
-                    sessionID: left.sessionID
-                )
-            case let (nil, right?):
-                return LearningGoalGap(
-                    id: right.id,
-                    goalID: goalID,
-                    summary: right.summary,
-                    sourceID: right.sourceID,
-                    status: right.status,
-                    severity: right.severity,
-                    firstSeenAt: right.firstSeenAt,
-                    lastSeenAt: right.lastSeenAt,
-                    resolvedAt: right.resolvedAt,
-                    sessionID: right.sessionID
-                )
-            case (nil, nil):
-                return nil
-            }
-        }
-    }
-
-    private func mergedGapStatus(
-        _ left: String,
-        _ right: String,
-        resolvedAt: Date?
-    ) -> String {
-        if resolvedAt != nil || left == "resolved" || right == "resolved" {
-            return "resolved"
-        }
-        if left == "improving" || right == "improving" {
-            return "improving"
-        }
-        return left < right ? right : left
-    }
-
     private func maxOptionalDate(_ left: Date?, _ right: Date?) -> Date? {
         switch (left, right) {
         case let (left?, right?): return max(left, right)
@@ -2405,37 +1529,6 @@ extension KnowledgeStore {
         case let (nil, right?): return right
         case (nil, nil): return nil
         }
-    }
-
-    private func maxOptionalString(_ left: String?, _ right: String?) -> String? {
-        switch (left, right) {
-        case let (left?, right?): return max(left, right)
-        case let (left?, nil): return left
-        case let (nil, right?): return right
-        case (nil, nil): return nil
-        }
-    }
-
-    func loadLearningGoalForSync(_ goalID: String) throws -> CloudKitLearningGoalPayload? {
-        guard let goal = try loadLearningGoal(goalID) else { return nil }
-        let relationshipSourceIDs = dictUnique(
-            goal.items.map(\.sourceID) + (goal.gaps ?? []).compactMap(\.sourceID)
-        )
-        return CloudKitLearningGoalPayload(
-            goal: goal,
-            sourceIdentities: try sourceIdentities(for: relationshipSourceIDs),
-            linkedCourseIDs: try linkedCourseIDsForNotebook(goalID: goalID)
-        )
-    }
-
-    func loadAllLearningGoalIDs() throws -> [String] {
-        var ids: [String] = []
-        try query("SELECT id FROM learning_goals") { stmt in
-            if let id = self.string(stmt, 0) {
-                ids.append(id)
-            }
-        }
-        return ids
     }
 
     func readLearningGoalRow(_ stmt: OpaquePointer?) -> LearningGoalRecord? {
@@ -2490,23 +1583,6 @@ extension KnowledgeStore {
         return ids
     }
 
-    /// Direct Notebook sources followed by each directly related Notebook's
-    /// sources: the linked pool, every source a box beside the Notebook's
-    /// sources can stand for (`NotebookChatContext.linkedPool`). Its chats
-    /// read a related Notebook's only while the learner has put it in
-    /// (`NotebookChatContext.chatPool`). Links are intentionally one hop: a
-    /// Notebook controls its own context boundary and does not silently
-    /// inherit a remote graph.
-    func notebookContextSourceIDs(notebookID: String) throws -> [String] {
-        guard let notebook = try loadLearningGoal(notebookID), notebook.isNotebook else { return [] }
-        var ids = notebook.approvedSourceIDs
-        for relatedID in notebook.relatedNotebookIDs ?? [] {
-            guard let related = try loadLearningGoal(relatedID), related.isNotebook else { continue }
-            ids.append(contentsOf: related.approvedSourceIDs)
-        }
-        return dictUnique(ids)
-    }
-
     /// Replace a Notebook's directional context links. Notebooks stay flat and
     /// their source memberships remain independent.
     func setRelatedNotebooks(notebookID: String, relatedNotebookIDs: [String]) throws {
@@ -2537,7 +1613,6 @@ extension KnowledgeStore {
                 linkedAt: now
             )
             try touchLearningGoal(notebookID, at: now)
-            try markRecordChanged(entity: .learningGoal, logicalKey: notebookID, at: now)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -2729,7 +1804,6 @@ extension KnowledgeStore {
             sqlite3_bind_double(stmt, 2, now.timeIntervalSinceReferenceDate)
             bind(stmt, 3, goalID)
         }
-        try markRecordChanged(entity: .learningGoal, logicalKey: goalID, at: now)
     }
 
     /// Replace the short user-authored Notebook instructions stored in the
@@ -2743,7 +1817,6 @@ extension KnowledgeStore {
             sqlite3_bind_double(stmt, 2, now.timeIntervalSinceReferenceDate)
             bind(stmt, 3, goalID)
         }
-        try markRecordChanged(entity: .learningGoal, logicalKey: goalID, at: now)
     }
 
     /// Replace a Notebook's short description — the gallery card copy. Nil or
@@ -2759,7 +1832,6 @@ extension KnowledgeStore {
             sqlite3_bind_double(stmt, 2, now.timeIntervalSinceReferenceDate)
             bind(stmt, 3, goalID)
         }
-        try markRecordChanged(entity: .learningGoal, logicalKey: goalID, at: now)
     }
 
     /// The stored form of a Notebook summary: whitespace runs (including line
@@ -2795,7 +1867,6 @@ extension KnowledgeStore {
             sqlite3_bind_double(stmt, 2, now.timeIntervalSinceReferenceDate)
             bind(stmt, 3, notebookID)
         }
-        try markRecordChanged(entity: .learningGoal, logicalKey: notebookID, at: now)
     }
 
     /// Link a Goal to the artifact it is for — the Doc, Site or animation
@@ -2817,7 +1888,6 @@ extension KnowledgeStore {
             sqlite3_bind_double(stmt, 2, now.timeIntervalSinceReferenceDate)
             bind(stmt, 3, goal.id)
         }
-        try markRecordChanged(entity: .learningGoal, logicalKey: goal.id, at: now)
     }
 
     /// Put the learner's Goals in an order (product owner, 2026-09-20: "allow me to
@@ -2875,7 +1945,6 @@ extension KnowledgeStore {
                     sqlite3_bind_double(stmt, 2, now.timeIntervalSinceReferenceDate)
                     bind(stmt, 3, id)
                 }
-                try markRecordChanged(entity: .learningGoal, logicalKey: id, at: now)
             }
             try exec("COMMIT")
         } catch {
@@ -2923,7 +1992,6 @@ extension KnowledgeStore {
             sqlite3_bind_double(stmt, 2, now.timeIntervalSinceReferenceDate)
             bind(stmt, 3, goalID)
         }
-        try markRecordChanged(entity: .learningGoal, logicalKey: goalID, at: now)
     }
 
     /// Replaces the Notebook's defining research questions. An empty list is
@@ -2937,7 +2005,6 @@ extension KnowledgeStore {
             bind(stmt, 3, goalID)
         }
         try keepNotebookRowsForGeneration2(goalIDs: [goalID])
-        try markRecordChanged(entity: .learningGoal, logicalKey: goalID, at: now)
     }
 
     func dictUnique(_ values: [String]) -> [String] {
@@ -3108,27 +2175,6 @@ extension KnowledgeStore {
         }
         guard let maxOffset = existing.map({ Int($0.timeIntervalSince(dayStart).rounded(.down)) }).max() else { return 0 }
         return min(maxOffset + 1, 86_399)
-    }
-
-    /// The source_id a placement row currently belongs to, if that row exists.
-    private func scheduledSourcePlacementOwner(placementID: String) throws -> String? {
-        var owner: String?
-        try queryBind("SELECT source_id FROM scheduled_sources WHERE id = ? LIMIT 1", bind: { stmt in
-            bind(stmt, 1, placementID)
-        }) { stmt in
-            owner = self.string(stmt, 0)
-        }
-        return owner
-    }
-
-    private func sourceRowExists(_ sourceID: String) throws -> Bool {
-        var found = false
-        try queryBind("SELECT 1 FROM sources WHERE id = ? LIMIT 1", bind: { stmt in
-            bind(stmt, 1, sourceID)
-        }) { _ in
-            found = true
-        }
-        return found
     }
 
     /// Create the placement row for a source if it does not exist yet. Returns its id.
@@ -3524,11 +2570,6 @@ extension KnowledgeStore {
                 bind(stmt, 3, placementID)
             }
         }
-        try markRecordChanged(
-            entity: .scheduledSource,
-            logicalKey: placementID,
-            at: recordedAt
-        )
         return inserted
     }
 
@@ -3707,7 +2748,6 @@ extension KnowledgeStore {
                 sqlite3_bind_double(stmt, 3, now.timeIntervalSinceReferenceDate)
             }
             try touchLearningGoal(goalID, at: now)
-            try markRecordChanged(entity: .scheduledSource, logicalKey: placementID, at: now)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -3721,7 +2761,6 @@ extension KnowledgeStore {
     func removeSourceFromGoal(sourceID: String, goalID: String) throws {
         let now = Date()
         guard let placementID = try scheduledSourceID(forSource: sourceID) else { return }
-        var deletedPlacement = false
         try exec("BEGIN IMMEDIATE")
         do {
             try execBind("DELETE FROM scheduled_source_goals WHERE scheduled_source_id = ? AND goal_id = ?") { stmt in
@@ -3733,7 +2772,6 @@ extension KnowledgeStore {
                 try execBind("DELETE FROM scheduled_sources WHERE id = ?") { stmt in
                     bind(stmt, 1, placementID)
                 }
-                deletedPlacement = true
             } else if try scheduledSourceGoalCount(placementID: placementID) == 0 {
                 try convertPlacementToAutomaticHistory(
                     placementID: placementID,
@@ -3742,11 +2780,6 @@ extension KnowledgeStore {
                 )
             }
             try touchLearningGoal(goalID, at: now)
-            if deletedPlacement {
-                try markRecordDeleted(entity: .scheduledSource, logicalKey: placementID)
-            } else {
-                try markRecordChanged(entity: .scheduledSource, logicalKey: placementID, at: now)
-            }
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -3768,14 +2801,12 @@ extension KnowledgeStore {
                 try execBind("DELETE FROM scheduled_sources WHERE id = ?") { stmt in
                     bind(stmt, 1, placementID)
                 }
-                try markRecordDeleted(entity: .scheduledSource, logicalKey: placementID)
             } else {
                 try convertPlacementToAutomaticHistory(
                     placementID: placementID,
                     sourceID: sourceID,
                     at: Date()
                 )
-                try markRecordChanged(entity: .scheduledSource, logicalKey: placementID)
             }
             try exec("COMMIT")
         } catch {
@@ -3887,7 +2918,6 @@ extension KnowledgeStore {
                 try execBind("DELETE FROM scheduled_sources WHERE id = ?") { stmt in
                     bind(stmt, 1, entry.placementID)
                 }
-                try markRecordDeleted(entity: .scheduledSource, logicalKey: entry.placementID, at: now)
 
                 var clearedReadAt: Date?
                 if let readAt = entry.readAt, readAt >= dayStart, readAt < dayEnd {
@@ -3965,7 +2995,6 @@ extension KnowledgeStore {
                     bind(stmt, 3, placementID)
                     bind(stmt, 4, row.placementID)
                 }
-                try markRecordChanged(entity: .scheduledSource, logicalKey: row.placementID, at: now)
             }
             try exec("COMMIT")
         } catch {
@@ -3984,7 +3013,6 @@ extension KnowledgeStore {
             sqlite3_bind_double(stmt, 2, now.timeIntervalSinceReferenceDate)
             bind(stmt, 3, placementID)
         }
-        try markTutorStateChanged(entity: .scheduledSource, logicalKey: placementID, at: now)
 
         try fillReadingStateReadAt(sourceID: sourceID, at: now)
 
@@ -3999,7 +3027,6 @@ extension KnowledgeStore {
             sqlite3_bind_double(stmt, 1, now.timeIntervalSinceReferenceDate)
             bind(stmt, 2, placementID)
         }
-        try markRecordChanged(entity: .scheduledSource, logicalKey: placementID, at: now)
 
         // Deliberately NOT mirrored back onto learning_goal_items. Reopening a
         // Schedule row means "put this back on my calendar", not "erase the record
@@ -4052,7 +3079,6 @@ extension KnowledgeStore {
             }
             guard sqlite3_changes(db) > 0 else { continue }
             try touchLearningGoal(goalID, at: now)
-            try markTutorStateChanged(entity: .learningGoal, logicalKey: goalID, at: now)
         }
     }
 
@@ -4167,11 +3193,6 @@ extension KnowledgeStore {
             sqlite3_bind_double(stmt, 2, recordedAt.timeIntervalSinceReferenceDate)
             bind(stmt, 3, placementID)
         }
-        try markTutorStateChanged(
-            entity: .scheduledSource,
-            logicalKey: placementID,
-            at: recordedAt
-        )
 
         try fillReadingStateReadAt(sourceID: sourceID, at: sourceReadAt ?? recordedAt)
 
@@ -4284,59 +3305,6 @@ extension KnowledgeStore {
 
     // MARK: - Shared Schedule Placement sync
 
-    func loadScheduledSourceForSync(_ id: String) throws -> CloudKitScheduledSourcePayload? {
-        var placement: ScheduledSource?
-        var storedIdentity: CloudKitSourceIdentityPayload?
-        try queryBind("""
-            SELECT id, source_id, planned_at, added_at, completed_at, created_at, updated_at,
-                   source_url, source_normalized_url, source_doi, source_published_doi
-            FROM scheduled_sources WHERE id = ? LIMIT 1
-        """, bind: { stmt in
-            bind(stmt, 1, id)
-        }) { stmt in
-            placement = self.readScheduledSourceRow(stmt)
-            guard let sourceID = self.string(stmt, 1) else { return }
-            let url = self.string(stmt, 7)
-            let normalizedURL = self.string(stmt, 8)
-            let doi = self.string(stmt, 9)
-            let publishedDOI = self.string(stmt, 10)
-            if url != nil || normalizedURL != nil || doi != nil || publishedDOI != nil {
-                storedIdentity = CloudKitSourceIdentityPayload(
-                    sourceID: sourceID,
-                    url: url,
-                    normalizedURL: normalizedURL,
-                    doi: doi,
-                    publishedDOI: publishedDOI
-                )
-            }
-        }
-        guard let placement else { return nil }
-        var goalIDs: [String] = []
-        try queryBind("SELECT goal_id FROM scheduled_source_goals WHERE scheduled_source_id = ? ORDER BY added_at ASC", bind: { stmt in
-            bind(stmt, 1, id)
-        }) { stmt in
-            if let goalID = self.string(stmt, 0) { goalIDs.append(goalID) }
-        }
-        let identity = try sourceIdentities(for: [placement.sourceID]).first
-            ?? storedIdentity
-        let isAutomatic = try scheduledSourceIsAutomatic(placementID: id)
-        return CloudKitScheduledSourcePayload(
-            placement: placement,
-            goalIDs: goalIDs,
-            sourceIdentity: identity,
-            activityDays: try loadSourceActivityDays(sourceID: placement.sourceID),
-            isAutomatic: isAutomatic
-        )
-    }
-
-    func loadAllScheduledSourceIDs() throws -> [String] {
-        var ids: [String] = []
-        try query("SELECT id FROM scheduled_sources") { stmt in
-            if let id = self.string(stmt, 0) { ids.append(id) }
-        }
-        return ids
-    }
-
     func scheduledSourceUpdatedAt(_ id: String) throws -> Date? {
         var date: Date?
         try queryBind("SELECT updated_at FROM scheduled_sources WHERE id = ? LIMIT 1", bind: { stmt in
@@ -4345,248 +3313,6 @@ extension KnowledgeStore {
             date = Date(timeIntervalSinceReferenceDate: sqlite3_column_double(stmt, 0))
         }
         return date
-    }
-
-    func hasScheduledSource(_ id: String) throws -> Bool {
-        var found = false
-        try queryBind("SELECT 1 FROM scheduled_sources WHERE id = ? LIMIT 1", bind: { stmt in
-            bind(stmt, 1, id)
-        }) { _ in
-            found = true
-        }
-        return found
-    }
-
-    func saveScheduledSourceRecord(
-        _ payload: CloudKitScheduledSourcePayload
-    ) throws -> (logicalKey: String, requiresRepublish: Bool) {
-        try saveScheduledSourceRecord(payload, mergingServerConflict: false)
-    }
-
-    /// Resolve a CloudKit `serverRecordChanged` without allowing a stale whole
-    /// record to erase monotonic tutor state. This is deliberately separate from
-    /// ordinary inbound application: a normal, authoritative record may remove a
-    /// goal tag, while two concurrently edited snapshots must retain the union of
-    /// their memberships and any completion either side has observed.
-    func mergeScheduledSourceServerConflict(
-        _ payload: CloudKitScheduledSourcePayload,
-        preferLocalEditorial: Bool
-    ) throws -> (logicalKey: String, requiresRepublish: Bool) {
-        try saveScheduledSourceRecord(
-            payload,
-            mergingServerConflict: true,
-            preferLocalEditorial: preferLocalEditorial
-        )
-    }
-
-    private func saveScheduledSourceRecord(
-        _ payload: CloudKitScheduledSourcePayload,
-        mergingServerConflict: Bool,
-        preferLocalEditorial: Bool = false
-    ) throws -> (logicalKey: String, requiresRepublish: Bool) {
-        let resolvedSourceID = try resolveSourceID(payload.placement.sourceID, identities: [payload.sourceIdentity].compactMap { $0 })
-        let portableSourceKey: String
-        if let identity = payload.sourceIdentity {
-            portableSourceKey = MemoryTutorIdentity.portableSourceKey(
-                sourceID: identity.sourceID,
-                normalizedURL: normalizedScheduledIdentityURL(identity),
-                doi: normalizedScheduledIdentityDOI(identity.doi),
-                publishedDOI: normalizedScheduledIdentityDOI(identity.publishedDOI)
-            )
-        } else {
-            portableSourceKey = try portableMemorySourceKey(sourceID: resolvedSourceID)
-        }
-        let canonicalPlacementID = MemoryTutorIdentity.scheduledSourcePlacementID(
-            portableSourceKey: portableSourceKey
-        )
-        var requiresRepublish = payload.placement.id != canonicalPlacementID
-        try exec("BEGIN IMMEDIATE")
-        do {
-            let existingPlacementID = try scheduledSourceID(forSource: resolvedSourceID)
-            let existingPlacement = try existingPlacementID.flatMap {
-                try loadScheduledSourceRow(id: $0)
-            }
-            let existingGoalIDs = try existingPlacementID.map {
-                try scheduledSourceMembershipIDs(placementID: $0)
-            } ?? []
-            let existingIsAutomatic = try existingPlacementID.map {
-                try scheduledSourceIsAutomatic(placementID: $0)
-            } ?? false
-            let existingActivityDays = try loadSourceActivityDays(sourceID: resolvedSourceID)
-            let incomingActivityDays = payload.activityDays.map {
-                SourceActivityDay(
-                    id: $0.id,
-                    sourceID: resolvedSourceID,
-                    dayStart: $0.dayStart,
-                    firstActivityAt: $0.firstActivityAt,
-                    lastActivityAt: $0.lastActivityAt,
-                    kinds: $0.kinds,
-                    completedKinds: $0.completedKinds,
-                    maxFraction: $0.maxFraction,
-                    engagedSeconds: $0.engagedSeconds
-                )
-            }
-            let mergedActivityDays = mergedSourceActivityDays(
-                existingActivityDays,
-                incomingActivityDays,
-                sourceID: resolvedSourceID,
-                portableSourceKey: portableSourceKey
-            )
-            if mergedActivityDays != incomingActivityDays.sorted(by: { $0.dayStart < $1.dayStart }) {
-                requiresRepublish = true
-            }
-
-            // Any non-canonical ID is a pre-v2 alias. Alias convergence is a
-            // commutative merge regardless of which record arrived first. The
-            // same merge is also required for a true CloudKit save conflict so
-            // stale offline state cannot clear completion or relationships.
-            let isAliasMerge = existingPlacement != nil && (
-                existingPlacementID != canonicalPlacementID
-                    || payload.placement.id != canonicalPlacementID
-                    || existingPlacementID != payload.placement.id
-            )
-            let mergesExisting = existingPlacement != nil
-                && (mergingServerConflict || isAliasMerge)
-            let incomingPlacement = ScheduledSource(
-                id: canonicalPlacementID,
-                sourceID: resolvedSourceID,
-                plannedAt: payload.placement.plannedAt,
-                addedAt: payload.placement.addedAt,
-                completedAt: payload.placement.completedAt,
-                createdAt: payload.placement.createdAt,
-                updatedAt: payload.placement.updatedAt
-            )
-            let storedPlacement: ScheduledSource
-            let storedGoalIDs: [String]
-            let storedIsAutomatic: Bool
-            if mergesExisting, let existingPlacement {
-                if isAliasMerge {
-                    storedPlacement = mergedScheduledSource(
-                        existing: existingPlacement,
-                        incoming: incomingPlacement,
-                        canonicalID: canonicalPlacementID,
-                        resolvedSourceID: resolvedSourceID
-                    )
-                    // Pre-v2 aliases are two record identities for one logical
-                    // placement and cannot express which alias removed a tag.
-                    // Preserve both sets during the one-time canonical merge.
-                    storedGoalIDs = Array(Set(existingGoalIDs).union(payload.goalIDs)).sorted()
-                } else {
-                    storedPlacement = mergedScheduledSourceConflict(
-                        existing: existingPlacement,
-                        incoming: incomingPlacement,
-                        preferLocalEditorial: preferLocalEditorial,
-                        canonicalID: canonicalPlacementID,
-                        resolvedSourceID: resolvedSourceID
-                    )
-                    // A true same-record conflict can represent an explicit tag
-                    // removal. Relationships follow the editorial LWW side while
-                    // completion remains monotonic below.
-                    storedGoalIDs = Array(Set(
-                        preferLocalEditorial ? existingGoalIDs : payload.goalIDs
-                    )).sorted()
-                }
-                if storedPlacement != incomingPlacement
-                    || Set(storedGoalIDs) != Set(payload.goalIDs) {
-                    requiresRepublish = true
-                }
-                // An explicit plan wins a save conflict with automatic activity;
-                // a background event must never move a learner-chosen date.
-                storedIsAutomatic = existingIsAutomatic && payload.isAutomatic
-                if storedIsAutomatic != payload.isAutomatic { requiresRepublish = true }
-            } else {
-                storedPlacement = incomingPlacement
-                storedGoalIDs = Array(Set(payload.goalIDs)).sorted()
-                storedIsAutomatic = payload.isAutomatic
-            }
-
-            if let existingPlacementID, existingPlacementID != canonicalPlacementID {
-                requiresRepublish = true
-                try execBind(
-                    "DELETE FROM scheduled_source_goals WHERE scheduled_source_id = ?",
-                    { statement in bind(statement, 1, existingPlacementID) }
-                )
-                try execBind(
-                    "DELETE FROM scheduled_sources WHERE id = ?",
-                    { statement in bind(statement, 1, existingPlacementID) }
-                )
-                if existingPlacementID != payload.placement.id {
-                    // This is a pre-v2 random placement already published by
-                    // this device. Even during inbound sync suppression, enqueue
-                    // its tombstone so CloudKit cannot later redeliver it and
-                    // race the portable deterministic record again.
-                    try enqueueCascadingRecordDeletion(
-                        entity: .scheduledSource,
-                        logicalKey: existingPlacementID,
-                        at: payload.placement.updatedAt
-                    )
-                }
-            }
-            try execBind("""
-                INSERT INTO scheduled_sources (
-                    id, source_id, source_url, source_normalized_url,
-                    source_doi, source_published_doi,
-                    planned_at, added_at, completed_at, created_at, updated_at,
-                    is_automatic
-                )
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                    source_id = excluded.source_id,
-                    source_url = COALESCE(excluded.source_url, scheduled_sources.source_url),
-                    source_normalized_url = COALESCE(
-                        excluded.source_normalized_url,
-                        scheduled_sources.source_normalized_url
-                    ),
-                    source_doi = COALESCE(excluded.source_doi, scheduled_sources.source_doi),
-                    source_published_doi = COALESCE(
-                        excluded.source_published_doi,
-                        scheduled_sources.source_published_doi
-                    ),
-                    planned_at = excluded.planned_at,
-                    added_at = excluded.added_at,
-                    completed_at = excluded.completed_at,
-                    created_at = excluded.created_at,
-                    updated_at = excluded.updated_at,
-                    is_automatic = excluded.is_automatic
-            """) { stmt in
-                bind(stmt, 1, canonicalPlacementID)
-                bind(stmt, 2, resolvedSourceID)
-                bind(stmt, 3, payload.sourceIdentity?.url)
-                bind(stmt, 4, payload.sourceIdentity.flatMap(normalizedScheduledIdentityURL))
-                bind(stmt, 5, normalizedScheduledIdentityDOI(payload.sourceIdentity?.doi))
-                bind(stmt, 6, normalizedScheduledIdentityDOI(payload.sourceIdentity?.publishedDOI))
-                sqlite3_bind_double(stmt, 7, storedPlacement.plannedAt.timeIntervalSinceReferenceDate)
-                sqlite3_bind_double(stmt, 8, storedPlacement.addedAt.timeIntervalSinceReferenceDate)
-                if let completedAt = storedPlacement.completedAt {
-                    sqlite3_bind_double(stmt, 9, completedAt.timeIntervalSinceReferenceDate)
-                } else {
-                    sqlite3_bind_null(stmt, 9)
-                }
-                sqlite3_bind_double(stmt, 10, storedPlacement.createdAt.timeIntervalSinceReferenceDate)
-                sqlite3_bind_double(stmt, 11, storedPlacement.updatedAt.timeIntervalSinceReferenceDate)
-                sqlite3_bind_int(stmt, 12, storedIsAutomatic ? 1 : 0)
-            }
-            try execBind("DELETE FROM scheduled_source_goals WHERE scheduled_source_id = ?") { stmt in
-                bind(stmt, 1, canonicalPlacementID)
-            }
-            for goalID in storedGoalIDs {
-                try execBind("INSERT OR IGNORE INTO scheduled_source_goals (scheduled_source_id, goal_id, added_at) VALUES (?, ?, ?)") { stmt in
-                    bind(stmt, 1, canonicalPlacementID)
-                    bind(stmt, 2, goalID)
-                    sqlite3_bind_double(stmt, 3, storedPlacement.addedAt.timeIntervalSinceReferenceDate)
-                }
-            }
-            try replaceSourceActivityDays(
-                mergedActivityDays,
-                placementID: canonicalPlacementID,
-                sourceID: resolvedSourceID
-            )
-            try exec("COMMIT")
-            return (canonicalPlacementID, requiresRepublish)
-        } catch {
-            try? exec("ROLLBACK")
-            throw error
-        }
     }
 
     private func mergedSourceActivityDays(
@@ -4917,21 +3643,6 @@ extension KnowledgeStore {
             placementID: canonicalID,
             sourceID: sourceID
         )
-        for aliasID in candidateIDs where aliasID != canonicalID {
-            try enqueueCascadingRecordDeletion(
-                entity: .scheduledSource,
-                logicalKey: aliasID,
-                at: merged.updatedAt
-            )
-        }
-        if repairedCount > 0 {
-            try upsertSyncSave(
-                entity: .scheduledSource,
-                logicalKey: canonicalID,
-                at: max(Date(), merged.updatedAt),
-                tutorOnly: true
-            )
-        }
         return repairedCount
     }
 
@@ -4975,41 +3686,4 @@ extension KnowledgeStore {
         )
     }
 
-    private func mergedScheduledSourceConflict(
-        existing: ScheduledSource,
-        incoming: ScheduledSource,
-        preferLocalEditorial: Bool,
-        canonicalID: String,
-        resolvedSourceID: String
-    ) -> ScheduledSource {
-        let editorial = preferLocalEditorial ? existing : incoming
-        return ScheduledSource(
-            id: canonicalID,
-            sourceID: resolvedSourceID,
-            plannedAt: editorial.plannedAt,
-            addedAt: min(existing.addedAt, incoming.addedAt),
-            completedAt: maxOptionalDate(existing.completedAt, incoming.completedAt),
-            createdAt: min(existing.createdAt, incoming.createdAt),
-            updatedAt: max(existing.updatedAt, incoming.updatedAt)
-        )
-    }
-
-    func deleteScheduledSourceRecord(id: String) throws {
-        try exec("BEGIN IMMEDIATE")
-        do {
-            try execBind("DELETE FROM scheduled_source_goals WHERE scheduled_source_id = ?") { stmt in
-                bind(stmt, 1, id)
-            }
-            try execBind("DELETE FROM source_activity_days WHERE scheduled_source_id = ?") { stmt in
-                bind(stmt, 1, id)
-            }
-            try execBind("DELETE FROM scheduled_sources WHERE id = ?") { stmt in
-                bind(stmt, 1, id)
-            }
-            try exec("COMMIT")
-        } catch {
-            try? exec("ROLLBACK")
-            throw error
-        }
-    }
 }

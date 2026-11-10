@@ -130,9 +130,41 @@ enum Schema154Fixture {
         let version: Int32
     }
 
+    /// Generation 1's seven tables as every released schema below 175 had them, verbatim from
+    /// `createSchema` before 175. Today's code never makes them (schema 175 drops them), so a library
+    /// given an older shape gets them back, empty; a test that fills them before giving the shape
+    /// calls this first.
+    static func restoreGeneration1Tables(_ store: KnowledgeStore) throws {
+        try store.executeScript(generation1TablesSQL)
+    }
+
+    static let generation1TablesSQL = """
+        CREATE TABLE IF NOT EXISTS sync_changes (entity_type TEXT NOT NULL, logical_key TEXT NOT NULL, record_name TEXT NOT NULL,
+            operation TEXT NOT NULL, changed_at REAL NOT NULL, tutor_only INTEGER NOT NULL DEFAULT 0,
+            zone_scope TEXT NOT NULL DEFAULT 'private', zone_name TEXT NOT NULL DEFAULT 'Knowledge', zone_owner_record_name TEXT,
+            PRIMARY KEY (entity_type, logical_key));
+        CREATE TABLE IF NOT EXISTS source_sync_repair_queue (source_id TEXT PRIMARY KEY REFERENCES sources(id) ON DELETE CASCADE, enqueued_at REAL NOT NULL);
+        CREATE TABLE IF NOT EXISTS review_session_sync_repair_queue (session_id TEXT PRIMARY KEY REFERENCES review_sessions(id) ON DELETE CASCADE, enqueued_at REAL NOT NULL);
+        CREATE TABLE IF NOT EXISTS sync_metadata (entity_type TEXT NOT NULL, logical_key TEXT NOT NULL, record_name TEXT NOT NULL,
+            system_fields BLOB, user_modification_at REAL NOT NULL, is_deleted INTEGER NOT NULL DEFAULT 0,
+            zone_scope TEXT NOT NULL DEFAULT 'private', zone_name TEXT NOT NULL DEFAULT 'Knowledge', zone_owner_record_name TEXT,
+            PRIMARY KEY (entity_type, logical_key), UNIQUE (record_name));
+        CREATE INDEX IF NOT EXISTS idx_sync_metadata_zone ON sync_metadata(zone_scope, zone_name, zone_owner_record_name);
+        CREATE TABLE IF NOT EXISTS sync_conflicts (entity_type TEXT NOT NULL, logical_key TEXT NOT NULL, record_name TEXT NOT NULL,
+            reason TEXT NOT NULL, local_modification_at REAL NOT NULL, server_modification_at REAL NOT NULL, detected_at REAL NOT NULL,
+            server_payload BLOB, server_system_fields BLOB,
+            zone_scope TEXT NOT NULL DEFAULT 'private', zone_name TEXT NOT NULL DEFAULT 'Knowledge', zone_owner_record_name TEXT,
+            PRIMARY KEY (entity_type, logical_key));
+        CREATE INDEX IF NOT EXISTS idx_sync_conflicts_detected ON sync_conflicts(detected_at DESC);
+        CREATE TABLE IF NOT EXISTS sync_asset_digests (record_name TEXT NOT NULL, field TEXT NOT NULL, digest TEXT, pending_digest TEXT,
+            staged_attempts INTEGER NOT NULL DEFAULT 0, first_staged_at REAL, last_staged_at REAL, PRIMARY KEY (record_name, field));
+        CREATE TABLE IF NOT EXISTS sync_engine_states (scope TEXT PRIMARY KEY, state_serialization BLOB);
+        """
+
     /// Gives a store made by today's code the released shape of `version` (148 to 153) and stamps it.
     static func restoreReleasedShape(_ store: KnowledgeStore, version: Int32) throws {
         guard (148...153).contains(version) else { throw UnsupportedVersion(version: version) }
+        try restoreGeneration1Tables(store)
         try store.execForTesting("PRAGMA legacy_alter_table = ON")
         try restoreSchema154Shape(store)
         for table in KnowledgeStore.replicaTables {
@@ -179,6 +211,7 @@ enum Schema154Fixture {
     /// Gives a store made by today's code schema 154's shape: 155's tables go (DDL only, so nothing
     /// else differs) and the store is stamped 154.
     static func restoreSchema154Shape(_ store: KnowledgeStore) throws {
+        try restoreGeneration1Tables(store)
         try restoreSchema155Shape(store)
         for table in KnowledgeStore.sourceSyncTables {
             try store.execForTesting("DROP TABLE IF EXISTS \(table.name)")
@@ -189,6 +222,7 @@ enum Schema154Fixture {
     /// Gives a store made by today's code schema 155's shape: 156's view, tables and order key go (DDL
     /// only, so nothing else differs) and the store is stamped 155.
     static func restoreSchema155Shape(_ store: KnowledgeStore) throws {
+        try restoreGeneration1Tables(store)
         try restoreSchema156Shape(store)
         try store.execForTesting("DROP VIEW IF EXISTS ck_notebook_children")
         for table in KnowledgeStore.notebookSyncTables {
@@ -212,6 +246,7 @@ enum Schema154Fixture {
     /// 159's tables and column, 158's columns and 157's table and columns go, the view is WP8's again
     /// (DDL only, so nothing else differs), and the store is stamped 156.
     static func restoreSchema156Shape(_ store: KnowledgeStore) throws {
+        try restoreGeneration1Tables(store)
         try restoreShapeBeforeChatSchema(store)
         try store.execForTesting("DROP VIEW IF EXISTS ck_notebook_children")
         for table in KnowledgeStore.courseSyncTables {
@@ -232,6 +267,7 @@ enum Schema154Fixture {
     /// tables and column and the chat columns go (DDL only, so nothing else differs) and the store is
     /// stamped `versionBeforeChatSchema`.
     static func restoreShapeBeforeChatSchema(_ store: KnowledgeStore) throws {
+        try restoreGeneration1Tables(store)
         try restoreShapeBeforeArtifactSchema(store)
         for column in KnowledgeStore.chatSyncColumns.reversed() {
             guard try store.tableColumnNames(column.table).contains(column.name) else { continue }
@@ -247,6 +283,7 @@ enum Schema154Fixture {
     /// tables and `global_artifacts.body_ref` go (DDL only, so nothing else differs) and the store is
     /// stamped `versionBeforeArtifactSchema`.
     static func restoreShapeBeforeArtifactSchema(_ store: KnowledgeStore) throws {
+        try restoreGeneration1Tables(store)
         try restoreShapeBeforeReadingSchema(store)
         for table in KnowledgeStore.artifactSyncTables {
             try store.execForTesting("DROP TABLE IF EXISTS \(table.name)")
@@ -263,6 +300,7 @@ enum Schema154Fixture {
     /// Gives a store made by today's code the shape it had before 160: 161's tables and 160's table go
     /// (DDL only, so nothing else differs) and the store is stamped `versionBeforeReadingSchema`.
     static func restoreShapeBeforeReadingSchema(_ store: KnowledgeStore) throws {
+        try restoreGeneration1Tables(store)
         // A generation-2 store's source view reads `reading_states`, and SQLite refuses every DROP COLUMN
         // below while a view names a table that is gone. The next open makes the view again.
         try store.execForTesting("DROP VIEW IF EXISTS source_projection")
@@ -281,6 +319,7 @@ enum Schema154Fixture {
     /// Gives a store made by today's code the shape it had before 161: 162's table and columns and 161's
     /// tables go (DDL only, so nothing else differs) and the store is stamped `versionBeforeMemorySchema`.
     static func restoreShapeBeforeMemorySchema(_ store: KnowledgeStore) throws {
+        try restoreGeneration1Tables(store)
         try restoreShapeBeforeTasksSchema(store)
         for table in KnowledgeStore.memorySyncTables {
             try store.execForTesting("DROP TABLE IF EXISTS \(table.name)")
@@ -294,6 +333,7 @@ enum Schema154Fixture {
     /// Gives a store made by today's code the shape it had before 162: 163's tables and 162's table and
     /// columns go (DDL only, so nothing else differs) and the store is stamped `versionBeforeTasksSchema`.
     static func restoreShapeBeforeTasksSchema(_ store: KnowledgeStore) throws {
+        try restoreGeneration1Tables(store)
         try restoreShapeBeforePersonalStateSchema(store)
         for table in KnowledgeStore.tasksSyncTables {
             try store.execForTesting("DROP TABLE IF EXISTS \(table.name)")
@@ -312,6 +352,7 @@ enum Schema154Fixture {
     /// tables go (DDL only, so nothing else differs) and the store is stamped
     /// `versionBeforePersonalStateSchema`.
     static func restoreShapeBeforePersonalStateSchema(_ store: KnowledgeStore) throws {
+        try restoreGeneration1Tables(store)
         for table in KnowledgeStore.personalStateSyncTables {
             try store.execForTesting("DROP TABLE IF EXISTS \(table.name)")
         }
@@ -364,7 +405,6 @@ enum Schema154Fixture {
             INSERT INTO notebook_files (id, notebook_id, relative_path, name, role, content_type, size_bytes, modified_at, created_at)
             VALUES ('file-1', '\(notebook.id)', 'Projects/\(notebook.id)/data.tsv', 'data.tsv', 'file', 'text/tab-separated-values', 42, 4, 5)
         """)
-        try store.clearAllPendingSyncChanges()
         if version == versionBeforePersonalStateSchema {
             try restoreShapeBeforePersonalStateSchema(store)
         } else if version == versionBeforeTasksSchema {
@@ -384,6 +424,7 @@ enum Schema154Fixture {
         } else if version == 154 {
             try restoreSchema154Shape(store)
         } else if version == versionBeforeNotebookNames {
+            try restoreGeneration1Tables(store)
             try store.execForTesting("PRAGMA user_version = \(versionBeforeNotebookNames)")
         } else if let version {
             try restoreReleasedShape(store, version: version)

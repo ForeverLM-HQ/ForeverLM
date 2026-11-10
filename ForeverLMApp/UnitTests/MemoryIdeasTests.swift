@@ -309,21 +309,6 @@ struct MemoryIdeasTests {
         #expect(MemoryReviewDepth.effective(sourceDepth: .deep, sourceType: type) == .deep)
         #expect(SyncedPreferenceKeys.isSynced(MemoryReviewDepth.typePreferenceKey(sourceType: type)))
     }
-
-    @Test("The synced idea record round-trips and tolerates a payload without identities")
-    func ideaPayloadCodable() throws {
-        let payload = CloudKitSourceIdeaPayload(idea: Self.ideas[0])
-        let data = try JSONEncoder().encode(payload)
-        let decoded = try JSONDecoder().decode(CloudKitSourceIdeaPayload.self, from: data)
-        #expect(decoded.idea == Self.ideas[0])
-        #expect(decoded.payloadVersion == CloudKitSourceIdeaPayload.currentVersion)
-        let bare = try JSONDecoder().decode(
-            CloudKitSourceIdeaPayload.self,
-            from: Data("{\"idea\":\(String(data: try JSONEncoder().encode(Self.ideas[1]), encoding: .utf8)!)}".utf8)
-        )
-        #expect(bare.payloadVersion == 0)
-        #expect(bare.sourceIdentities.isEmpty)
-    }
 }
 
 @Suite("Memory ideas storage", .serialized)
@@ -376,12 +361,11 @@ struct MemoryIdeasStorageTests {
         }
     }
 
-    @Test("Ideas round-trip, a new text generation retires the old one, and sync marks every row")
+    @Test("Ideas round-trip, and a new text generation retires the old one")
     func ideasRoundTrip() throws {
         let (store, root) = try Self.temporaryStore()
         defer { try? FileManager.default.removeItem(at: root) }
         try Self.addSource(store, id: "s1")
-        try store.clearAllPendingSyncChanges()
 
         let first = Self.ideas(for: "s1", hash: "hash-a", count: 3)
         try store.replaceSourceIdeas(sourceID: "s1", contentHash: "hash-a", ideas: first)
@@ -391,8 +375,6 @@ struct MemoryIdeasStorageTests {
         #expect(loaded[0].wanted)
         #expect(loaded[0].anchors == [SourceIdeaAnchor(quote: "quote 0")])
         #expect(try store.sourceIdeaContentHash(sourceID: "s1") == "hash-a")
-        #expect(try store.hasSourceIdea(first[1].id))
-        #expect(try store.pendingSyncChanges().filter { $0.entity == .sourceIdea }.count == 3)
 
         let second = Self.ideas(for: "s1", hash: "hash-b", count: 2)
         try store.replaceSourceIdeas(sourceID: "s1", contentHash: "hash-b", ideas: second)
@@ -405,15 +387,8 @@ struct MemoryIdeasStorageTests {
 
         try store.setSourceIdeaStatus(id: second[0].id, status: .retired)
         #expect(try store.loadSourceIdeas(sourceIDs: ["s1"])["s1"]?.map(\.id) == [second[1].id])
-
-        // The synced payload comes back through the inbound path unchanged, and
-        // an older copy cannot un-retire what this device retired.
-        let payload = try #require(try store.loadSourceIdeaForSync(second[0].id))
-        #expect(payload.idea.status == .retired)
-        var stale = second[0]
-        stale.updatedAt = payload.idea.updatedAt.addingTimeInterval(-60)
-        try store.saveSourceIdeaRecord(CloudKitSourceIdeaPayload(idea: stale))
-        #expect(try store.loadSourceIdea(second[0].id)?.status == .retired)
+        let retired = try store.loadSourceIdeas(sourceIDs: ["s1"], includeRetired: true)["s1"] ?? []
+        #expect(retired.first { $0.id == second[0].id }?.status == .retired)
     }
 
     @Test("Ideas must belong to the source and hash they replace")
@@ -429,18 +404,16 @@ struct MemoryIdeasStorageTests {
 
     /// Generation 2: the depth lives in the source's reading state (§3.5.18), per member, and the
     /// source's own record is not touched by it.
-    @Test("Under generation 2 review depth is the reading state's, and the source record queues nothing")
+    @Test("Review depth is the reading state's")
     func reviewDepthInReadingState() throws {
         let (store, root) = try Self.temporaryStore()
         defer { try? FileManager.default.removeItem(at: root) }
         try Self.addSource(store, id: "s1")
-        try store.clearAllPendingSyncChanges()
         try store.setSourceReviewDepth(sourceID: "s1", depth: .quick)
-        #expect(try store.loadSourceReviewDepth(sourceID: "s1") == .quick)
+        #expect(try store.loadSourceReviewDepths(sourceIDs: ["s1"])["s1"] == .quick)
         #expect(try store.readingStateReviewDepths(sourceIDs: ["s1"])["s1"] == MemoryReviewDepth.quick.rawValue)
-        #expect(try store.pendingSyncChanges().filter { $0.entity == .source }.isEmpty)
         try store.setSourceReviewDepth(sourceID: "s1", depth: nil)
-        #expect(try store.loadSourceReviewDepth(sourceID: "s1") == nil)
+        #expect(try store.loadSourceReviewDepths(sourceIDs: ["s1"])["s1"] == nil)
         #expect(throws: KnowledgeStoreError.self) {
             try store.setSourceReviewDepth(sourceID: "missing", depth: .quick)
         }
@@ -453,12 +426,12 @@ struct MemoryIdeasStorageTests {
         try Self.addSource(store, id: "s1")
         let sessionID = MemoryReviewSession.sessionID(for: Date())
         try store.createReviewSession(id: sessionID, topic: "Memory", sourceIDs: ["s1"], briefing: "PLAN")
-        #expect(try store.loadReviewSessionKind(sessionID: sessionID) == .memory)
         #expect(try store.loadReviewSessionBriefing(sessionID: sessionID) == "PLAN")
 
         let plain = UUID().uuidString
         try store.createReviewSession(id: plain, topic: "Chat", sourceIDs: [])
-        #expect(try store.loadReviewSessionKind(sessionID: plain) == nil)
+        let plainPayload = try #require(try store.loadReviewSessionForSync(plain))
+        #expect(plainPayload.kind == nil)
 
         let payload = try #require(try store.loadReviewSessionForSync(sessionID))
         #expect(payload.kind == "memory")
@@ -485,7 +458,8 @@ struct MemoryIdeasStorageTests {
         )
         try store.saveReviewSessionRecord(stripped)
         #expect(try store.loadReviewSessionBriefing(sessionID: sessionID) == "PLAN")
-        #expect(try store.loadReviewSessionKind(sessionID: sessionID) == .memory)
+        let kept = try #require(try store.loadReviewSessionForSync(sessionID))
+        #expect(kept.kind == "memory")
     }
 
     @Test("A graded contour lands on its exchange, the steer follows it, and the ladder reads both")

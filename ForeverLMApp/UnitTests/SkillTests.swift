@@ -1,25 +1,14 @@
 import Foundation
-import SQLite3
 import Testing
 @testable import ForeverLM
 
 /// The learner's chat skills (docs/chat-design.md, "Skills"): what the store
-/// keeps and refuses, how a skill syncs, what survives a store from before
-/// schema 136, and how a `/name` message carries its skill.
+/// keeps and refuses, what survives a store from before schema 136, and how a
+/// `/name` message carries its skill.
 @Suite("Skill persistence")
 struct SkillPersistenceTests {
 
-    private func syncChanges(_ store: KnowledgeStore, entity: String) throws -> [(key: String, operation: String)] {
-        var rows: [(key: String, operation: String)] = []
-        try store.query("SELECT logical_key, operation FROM sync_changes WHERE entity_type = '\(entity)'") { stmt in
-            let key = sqlite3_column_text(stmt, 0).map { String(cString: $0) } ?? ""
-            let operation = sqlite3_column_text(stmt, 1).map { String(cString: $0) } ?? ""
-            rows.append((key, operation))
-        }
-        return rows
-    }
-
-    @Test("A skill keeps its words, takes a / name, and is queued for sync")
+    @Test("A skill keeps its words and takes a / name")
     func createNormalizesAndQueues() throws {
         let store = try KnowledgeStore(inMemory: true)
         let skill = try store.createSkill(
@@ -32,8 +21,6 @@ struct SkillPersistenceTests {
         #expect(skill.instructions == "# Walkthrough\n\nOne point a card.", "trimmed, lines kept")
         #expect(try store.loadSkills().map(\.id) == [skill.id])
         #expect(try store.loadSkill(named: "/Paper walkthrough")?.id == skill.id, "a name is looked up the way it is typed")
-        #expect(try syncChanges(store, entity: "skill").map(\.key) == [skill.id])
-        #expect(try store.hasLocalSyncRecord(entity: .skill, logicalKey: skill.id))
     }
 
     @Test("A taken name, a built-in command's name and empty fields are refused")
@@ -62,7 +49,7 @@ struct SkillPersistenceTests {
         #expect(try store.loadSkills().map(\.id).sorted() == [first.id, second.id].sorted())
     }
 
-    @Test("An edit bumps the date only when something changed, and a delete is queued")
+    @Test("An edit bumps the date only when something changed, and a delete removes the skill")
     func updateAndDelete() throws {
         let store = try KnowledgeStore(inMemory: true)
         let skill = try store.createSkill(name: "outline", description: "Outlines", instructions: "Headings.")
@@ -75,49 +62,6 @@ struct SkillPersistenceTests {
 
         try store.deleteSkill(skill.id)
         #expect(try store.loadSkills().isEmpty)
-        #expect(try syncChanges(store, entity: "skill").last?.operation == "delete")
-    }
-
-    @Test("An inbound skill wins when newer, loses when older, and may share a name")
-    func inboundApply() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        let local = try store.createSkill(name: "outline", description: "Outlines", instructions: "Headings.")
-
-        let older = SkillRecord(
-            id: local.id, name: "outline", description: "Stale", instructions: "Old.",
-            createdAt: local.createdAt.addingTimeInterval(-100), updatedAt: local.updatedAt.addingTimeInterval(-60)
-        )
-        try store.withoutSyncTracking { try store.saveSkillRecord(CloudKitSkillPayload(skill: older)) }
-        #expect(try store.loadSkill(local.id)?.description == "Outlines", "an older record never rewinds an edit")
-
-        let newer = SkillRecord(
-            id: local.id, name: "Outline", description: "Outlines,  newer", instructions: "Headings first.",
-            createdAt: local.createdAt.addingTimeInterval(100), updatedAt: local.updatedAt.addingTimeInterval(60)
-        )
-        try store.withoutSyncTracking { try store.saveSkillRecord(CloudKitSkillPayload(skill: newer)) }
-        let applied = try #require(try store.loadSkill(local.id))
-        #expect(applied.description == "Outlines, newer")
-        #expect(applied.instructions == "Headings first.")
-        #expect(applied.name == "outline", "an inbound name is normalized")
-        #expect(abs(applied.createdAt.timeIntervalSince(local.createdAt)) < 0.001, "created_at keeps the earlier")
-
-        // The other Mac wrote its own `outline` before the two met: both rows
-        // arrive, and the name calls the newer edit.
-        let twin = SkillRecord(
-            name: "outline", description: "The other Mac's", instructions: "Its way.",
-            createdAt: Date(), updatedAt: applied.updatedAt.addingTimeInterval(60)
-        )
-        try store.withoutSyncTracking { try store.saveSkillRecord(CloudKitSkillPayload(skill: twin)) }
-        #expect(try store.loadSkills().count == 2)
-        #expect(try store.loadSkill(named: "outline")?.id == twin.id)
-        #expect(try store.loadSkills().skill(named: "outline")?.id == twin.id)
-
-        let payload = try #require(try store.loadSkillForSync(twin.id))
-        let decoded = try JSONDecoder().decode(CloudKitSkillPayload.self, from: JSONEncoder().encode(payload))
-        #expect(decoded.skill == payload.skill)
-
-        try store.deleteSkillRecord(twin.id)
-        #expect(try store.loadSkill(named: "outline")?.id == local.id)
     }
 
 }

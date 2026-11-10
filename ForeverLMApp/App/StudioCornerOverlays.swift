@@ -509,9 +509,9 @@ struct StoreUpgradeSpaceCard: View {
     }
 }
 
-// MARK: - Moving the library to the new iCloud store
+// MARK: - The library's move to the new iCloud store
 
-/// The generation-2 activation's progress for the corner card (docs/cloudkit-schema-design.md §13.3 step 3).
+/// The generation-2 activation's progress for Settings (docs/cloudkit-schema-design.md §13.3 step 3).
 /// The storage actor runs the activation (`ActivationStatus`); this model reads it at first use and on
 /// every change.
 @MainActor
@@ -527,61 +527,6 @@ final class ActivationNotice {
             Task { @MainActor in ActivationNotice.shared.phase = ActivationStatus.shared.current }
         }
     }
-
-    /// The card's lines while the library is moving or waits for an answer; nil when there is nothing to
-    /// say.
-    var card: (title: String, detail: String?)? {
-        switch phase {
-        case .moving(let step, let total, let text):
-            return ("Moving your library to the new iCloud store (step \(step) of \(total))", "\(text). You can read your library, but not change it, until this ends.")
-        case .asking:
-            return ("Your old iCloud library does not look like this Mac's", "Open Settings, Data & Privacy, iCloud to choose what to do.")
-        case .idle, .preparing, .failed, .done:
-            return nil
-        }
-    }
-}
-
-/// "Moving your library to the new iCloud store (step 3 of 5)": the library is readable and refuses
-/// writes for the few minutes the catch-up takes (a `full` activation). No close glyph: it ends by itself.
-struct ActivationCard: View {
-    let title: String
-    let detail: String?
-    let style: PlanTheDayCard.Style
-
-    @Environment(\.cornerNoticeReadMark) private var readMark
-
-    var body: some View {
-        HStack(alignment: .top, spacing: StudioDesign.Spacing.small) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .zoomedSystemFont(size: style.isCompact ? 12 : 12.5, weight: .medium)
-                    .fixedSize(horizontal: false, vertical: true)
-                if let detail {
-                    Text(detail)
-                        .zoomedSystemFont(size: 11, weight: .regular)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
-            .textSelection(.disabled)
-            Spacer(minLength: 0)
-            // It ends by itself, so there is nothing to dismiss: the glyph
-            // only tucks it into the bell.
-            if style != .tray {
-                CornerCardClose(
-                    style: style,
-                    kind: .libraryMove,
-                    dismissHelp: "",
-                    identifier: "studio.libraryMove.hide"
-                ) {}
-            }
-        }
-        .cornerCardChrome(style)
-        .cornerNoticeReadMenu(readMark)
-        .accessibilityElement(children: .contain)
-        .accessibilityIdentifier("studio.libraryMove")
-    }
 }
 
 // MARK: - The inbox (Codex's Activity)
@@ -593,7 +538,7 @@ struct ActivationCard: View {
 enum CornerNoticeKind: String, CaseIterable, Identifiable {
     /// Corner cards, in the order the corner shows them: one card at a time,
     /// the first that is showing.
-    case libraryMove, storeUpgradeSpace, planTheDay
+    case storeUpgradeSpace, planTheDay
     /// Cards drafted in the background, and sources with none. The bell's
     /// alone (product owner, 2026-10-25: "i don't want that 'sources without
     /// cards' notification as a popup each time i build the app; it can be
@@ -610,7 +555,7 @@ enum CornerNoticeKind: String, CaseIterable, Identifiable {
     /// alone, so a notice of theirs is never "in view already".
     var isCornerCard: Bool {
         switch self {
-        case .libraryMove, .storeUpgradeSpace, .planTheDay: return true
+        case .storeUpgradeSpace, .planTheDay: return true
         case .cardsToCheck, .shareRequests, .pluginReconnect: return false
         }
     }
@@ -631,9 +576,6 @@ enum CornerNoticeKind: String, CaseIterable, Identifiable {
         now: Date = Date()
     ) -> Set<String> {
         switch self {
-        case .libraryMove:
-            if case .asking = ActivationNotice.shared.phase { return ["asking"] }
-            return ["moving"]
         case .storeUpgradeSpace:
             return ["space"]
         case .planTheDay:
@@ -1017,10 +959,6 @@ private struct NotificationCenterList: View {
     @ViewBuilder
     private func notice(_ kind: CornerNoticeKind) -> some View {
         switch kind {
-        case .libraryMove:
-            if let card = ActivationNotice.shared.card {
-                ActivationCard(title: card.title, detail: card.detail, style: .tray)
-            }
         case .storeUpgradeSpace:
             if let message = StoreUpgradeSpaceNotice.shared.visibleMessage {
                 StoreUpgradeSpaceCard(message: message, style: .tray)

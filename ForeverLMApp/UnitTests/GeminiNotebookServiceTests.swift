@@ -285,7 +285,7 @@ struct GeminiNotebookServiceTests {
         #expect(created.created)
         #expect(try await storage.loadReviewSessionExchanges(sessionID: id).map(\.userAnswer) == ["What is the abstraction fallacy?", nil])
         let store = try await storage.notebookFilesKnowledgeStore()
-        #expect(try store.loadReviewSessionKind(sessionID: id) == .chat)
+        #expect(try store.storedSessionKind(id) == .chat)
 
         let longer = first + [
             message(.learner, "Why is inference passive in an LLM?", 600),
@@ -307,5 +307,12 @@ struct GeminiNotebookServiceTests {
         #expect(again.appended == 0 && again.replaced == 0)
         // The learner spoke in it, so opening it never deletes it as abandoned.
         #expect(try await storage.deleteReviewSessionIfNoRecordedConversation(id) == false)
+    }
+}
+
+private extension KnowledgeStore {
+    /// The kind a chat's row holds, nil when none was written.
+    func storedSessionKind(_ sessionID: String) throws -> ReviewSessionKind? {
+        try scalarText("SELECT kind FROM review_sessions WHERE id = ?", [.text(sessionID)]).flatMap(ReviewSessionKind.init(rawValue:))
     }
 }

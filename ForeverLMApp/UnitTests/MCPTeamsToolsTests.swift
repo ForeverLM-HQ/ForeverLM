@@ -639,13 +639,11 @@ struct MCPTeamsToolsTests {
                 isCurrentUser: false, updatedAt: Date()
             ),
         ])
-        try knowledge.withoutSyncTracking {
-            try knowledge.saveLearningGoalRecord(LearningGoalRecord(
-                id: "proj-theirs", title: "Their notebook", startAt: Date(), endAt: LearningGoalRecord.openEndedEndAt,
-                createdAt: Date(), updatedAt: Date(), status: "active", items: [],
-                kind: LearningGoalRecord.companionKind, teamID: team.id
-            ))
-        }
+        try knowledge.saveLearningGoalRecord(LearningGoalRecord(
+            id: "proj-theirs", title: "Their notebook", startAt: Date(), endAt: LearningGoalRecord.openEndedEndAt,
+            createdAt: Date(), updatedAt: Date(), status: "active", items: [],
+            kind: LearningGoalRecord.companionKind, teamID: team.id
+        ))
         let own = try makeNotebook(store, title: "Mine", sourceIDs: [])
         let registry = MCPToolRegistry(store: store)
 
@@ -780,13 +778,11 @@ struct MCPTeamsToolsTests {
 
         // A team Notebook that arrived from the owner cannot take a task from a
         // read-only member either.
-        try knowledge.withoutSyncTracking {
-            try knowledge.saveLearningGoalRecord(LearningGoalRecord(
-                id: "proj-team", title: "Theirs", startAt: Date(), endAt: LearningGoalRecord.openEndedEndAt,
-                createdAt: Date(), updatedAt: Date(), status: "active", items: [],
-                kind: LearningGoalRecord.companionKind, teamID: team.id
-            ))
-        }
+        try knowledge.saveLearningGoalRecord(LearningGoalRecord(
+            id: "proj-team", title: "Theirs", startAt: Date(), endAt: LearningGoalRecord.openEndedEndAt,
+            createdAt: Date(), updatedAt: Date(), status: "active", items: [],
+            kind: LearningGoalRecord.companionKind, teamID: team.id
+        ))
         let taskOutcome = await registry.callToolDetailed(
             name: "create_notebook_task",
             arguments: ["notebook_id": "proj-team", "title": "Nope"]

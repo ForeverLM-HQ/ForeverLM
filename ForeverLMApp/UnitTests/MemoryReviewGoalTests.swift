@@ -407,7 +407,7 @@ struct MemoryReviewGoalStorageTests {
         #expect(try store.answeredMemoryReviewDays() == ["2026-09-17"])
     }
 
-    @Test("A device's row is written whole, queued for sync, and read back")
+    @Test("A device's row is written whole and read back")
     func roundTrip() throws {
         let (store, root) = try Self.temporaryStore()
         defer { try? FileManager.default.removeItem(at: root) }
@@ -422,45 +422,6 @@ struct MemoryReviewGoalStorageTests {
         let rows = try store.loadMemoryReviewActivities()
         #expect(rows == [later])
         #expect(try store.loadMemoryReviewActivity(later.id) == later)
-        #expect(try store.hasMemoryReviewActivity(later.id))
-        #expect(try store.loadAllMemoryReviewActivityIDs() == [later.id])
-        let pending = try store.pendingSyncChanges().filter { $0.entity == .memoryReviewActivity }
-        #expect(pending.map(\.logicalKey) == [later.id])
-
-        // The sync payload carries the row as it is.
-        let payload = try #require(try store.loadMemoryReviewActivityForSync(later.id))
-        let decoded = try JSONDecoder().decode(CloudKitMemoryReviewActivityPayload.self, from: try JSONEncoder().encode(payload))
-        #expect(decoded.activity == later)
-    }
-
-    @Test("An inbound row from another device is added; a stale copy never winds a total back")
-    func inboundRows() throws {
-        let (store, root) = try Self.temporaryStore()
-        defer { try? FileManager.default.removeItem(at: root) }
-
-        let mine = MemoryReviewActivity(day: "2026-09-05", deviceID: "mac-a", activeSeconds: 300, goalSeconds: 900, updatedAt: Date(timeIntervalSinceReferenceDate: 1_030))
-        try store.recordMemoryReviewActivity(mine)
-        let phone = MemoryReviewActivity(day: "2026-09-05", deviceID: "phone-b", activeSeconds: 650, goalSeconds: 900, updatedAt: Date(timeIntervalSinceReferenceDate: 1_040))
-        try store.withoutSyncTracking {
-            try store.saveMemoryReviewActivityRecord(CloudKitMemoryReviewActivityPayload(activity: phone))
-        }
-        // A copy of my own row from before my last write, arriving late.
-        let stale = MemoryReviewActivity(day: "2026-09-05", deviceID: "mac-a", activeSeconds: 120, goalSeconds: 900, updatedAt: Date(timeIntervalSinceReferenceDate: 1_000))
-        try store.withoutSyncTracking {
-            try store.saveMemoryReviewActivityRecord(CloudKitMemoryReviewActivityPayload(activity: stale))
-        }
-
-        let rows = try store.loadMemoryReviewActivities()
-        #expect(Set(rows) == [mine, phone])
-        let snapshot = MemoryReviewProgress.snapshot(rows: rows, today: "2026-09-05", goalSecondsNow: 900)
-        #expect(snapshot.today.activeSeconds == 950)
-        #expect(snapshot.isTodayComplete)
-        #expect(snapshot.streak == 1)
-        // Inbound writes queue nothing of their own.
-        #expect(try store.pendingSyncChanges().filter { $0.entity == .memoryReviewActivity }.map(\.logicalKey) == [mine.id])
-
-        try store.deleteMemoryReviewActivityRecord(phone.id)
-        #expect(!(try store.hasMemoryReviewActivity(phone.id)))
     }
 
     @Test("A released schema 90 store gains the table and keeps its data")
@@ -489,7 +450,6 @@ struct MemoryReviewGoalStorageTests {
         do {
             let store = try KnowledgeStore(storeDirectory: root)
             try store.replaceSourceIdeas(sourceID: "s1", contentHash: "abcdef0123456789", ideas: [idea])
-            try store.clearAllPendingSyncChanges()
             try store.execForTesting("DROP INDEX IF EXISTS idx_memory_review_activity_day")
             try store.execForTesting("DROP TABLE memory_review_activity")
             try store.execForTesting("PRAGMA user_version = 90")
@@ -505,8 +465,6 @@ struct MemoryReviewGoalStorageTests {
         let row = MemoryReviewActivity(day: "2026-09-05", deviceID: "mac-a", activeSeconds: 60, goalSeconds: 900, updatedAt: Date())
         try migrated.recordMemoryReviewActivity(row)
         #expect(try migrated.loadMemoryReviewActivities() == [row])
-        // A migration of this shape must not queue a republish of the library.
-        #expect(try migrated.pendingSyncChanges().filter { $0.entity == .sourceIdea }.isEmpty)
     }
 
     @Test("A same-named table of another shape rolls the migration back whole")

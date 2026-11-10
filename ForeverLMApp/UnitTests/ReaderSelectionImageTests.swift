@@ -178,9 +178,6 @@ struct ReaderSelectionImageTests {
         withPictures.imageAnchors = [ReaderImageAnchor(src: "https://x.example/a.png", alt: "A")]
         let data = try JSONEncoder().encode(withPictures)
         #expect(try JSONDecoder().decode(SourceHighlight.self, from: data) == withPictures)
-        let payload = CloudKitSourceHighlightPayload(highlight: withPictures, sourceIdentity: nil)
-        let decoded = try JSONDecoder().decode(CloudKitSourceHighlightPayload.self, from: JSONEncoder().encode(payload))
-        #expect(decoded.highlight.imageAnchors == withPictures.imageAnchors)
     }
 
     // MARK: - The chat's context block

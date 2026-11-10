@@ -1771,68 +1771,6 @@ struct SourcePersistenceTests {
         #expect(try store.paperFigureIndexQueueCount() == 2)
     }
 
-    @Test("Paper figure sync is optional and carries every stored column")
-    func paperFigureSyncRoundTrips() throws {
-        let article = makeArticle(url: "https://example.com/figure-sync", title: "Figure Sync")
-        let analysis = ForeverLM.PaperFigureAnalysis(
-            summary: "The treated group separates from control.",
-            visualEvidence: ["The blue series rises after week four."],
-            figureRect: ForeverLM.PaperFigureRect(x: 0.1, y: 0.2, width: 0.8, height: 0.5),
-            panels: [],
-            analysisVersion: ForeverLM.PaperFigureAnalysis.currentVersion,
-            generatedAt: Date(timeIntervalSinceReferenceDate: 1234)
-        )
-        let synced = ForeverLM.SyncedPaperFigure(
-            id: "figure-sync-1",
-            sourceID: article.id,
-            figureLabel: "Figure 1",
-            pageIndex: 3,
-            caption: "Figure 1 | Separation over time.",
-            analysis: analysis
-        )
-
-        let encoded = try JSONEncoder().encode(
-            CloudKitSourcePayload(article: article, paperFigures: [synced])
-        )
-        let decoded = try JSONDecoder().decode(CloudKitSourcePayload.self, from: encoded)
-        #expect(decoded.hasPaperFiguresPayload)
-        #expect(decoded.paperFigures == [synced])
-
-        var legacyObject = try #require(
-            JSONSerialization.jsonObject(with: encoded) as? [String: Any]
-        )
-        legacyObject.removeValue(forKey: "paperFigures")
-        let legacyData = try JSONSerialization.data(withJSONObject: legacyObject)
-        let legacy = try JSONDecoder().decode(CloudKitSourcePayload.self, from: legacyData)
-        #expect(!legacy.hasPaperFiguresPayload)
-        #expect(legacy.paperFigures.isEmpty)
-
-        let store = try makeInMemoryStore()
-        try store.saveSource(article)
-        try store.replacePaperFigureIndex(
-            sourceID: article.id,
-            pdfPath: "Papers/figure-sync.pdf",
-            pageCount: 8,
-            figures: [PaperFigureRecord(
-                id: synced.id,
-                sourceID: synced.sourceID,
-                figureLabel: synced.figureLabel,
-                pageIndex: synced.pageIndex,
-                caption: "Older local caption",
-                analysis: nil
-            )],
-            indexVersion: PaperFigureIndexContract.currentVersion
-        )
-        try store.savePaperFiguresFromSync(sourceID: article.id, figures: [synced])
-        let stored = try #require(try store.paperFigures(sourceID: article.id).first)
-        #expect(stored.caption == synced.caption)
-        #expect(stored.analysis == Optional(analysis))
-        #expect(stored.pageIndex == synced.pageIndex)
-
-        try store.savePaperFiguresFromSync(sourceID: article.id, figures: [])
-        #expect(try store.paperFigures(sourceID: article.id).isEmpty)
-    }
-
     @Test("The legacy figure block is stripped only when it is unmistakably generated")
     func legacyFigureBlockStrippingIsConservative() {
         let generated = """
@@ -1958,7 +1896,6 @@ struct SourcePersistenceTests {
         #expect(prepared.sourceSHA256 == candidate.sourceSHA256)
         #expect(prepared.guide.contains("Strong answer"))
         #expect(try store.sourceReviewGuideQueueCount() == 0)
-        #expect(try store.hasPendingSyncChange(entity: .source, logicalKey: paper.id))
 
         // Metadata-only saves retain the prepared guide; a canonical text change
         // invalidates it, and the replacement waits for the next review request.
@@ -2433,7 +2370,7 @@ struct SourcePersistenceTests {
             "UPDATE paper_content_preparations SET raw_content = '\(truncated)' WHERE source_id = '\(damagedID)'",
             "UPDATE source_content SET content = '\(truncated)' WHERE source_id = '\(damagedID)'",
             "DELETE FROM canonical_content_cleanup_queue",
-            "DELETE FROM sync_changes",
+            Schema154Fixture.generation1TablesSQL,
             "DROP TABLE IF EXISTS canonical_content_integrity_audit_queue",
             "PRAGMA user_version = 133",
         ] {
@@ -2467,7 +2404,6 @@ struct SourcePersistenceTests {
         #expect(restated.metadata.cleanerVersion == 0)
         #expect(restated.metadata.cleanSHA256 == nil)
         #expect(try migrated.canonicalContentCleanupCandidates(limit: 10).map(\.sourceID) == [damagedID])
-        #expect(try migrated.pendingSyncChanges().map(\.logicalKey) == [damagedID])
         // Rows whose text matches their hash are untouched.
         let untouched = try #require(try migrated.loadPaperContentPreparation(healthyID))
         #expect(untouched.metadata.cleanerVersion == PaperContentPreparationMetadata.currentVersion)
@@ -2640,64 +2576,6 @@ struct SourcePersistenceTests {
         #expect(!review.content.contains("References"))
     }
 
-    @Test("Source review guide and paper figures sync optionally and round-trip")
-    func sourceReviewGuideSyncPayloadRoundTrips() throws {
-        let article = makeArticle(url: "https://example.com/review-sync", title: "Review Sync")
-        let guide = SourceReviewGuide(
-            sourceSHA256: "abc123",
-            guide: "Question and strong answer",
-            generatorVersion: SourceReviewGuide.currentVersion,
-            generatedAt: Date(timeIntervalSinceReferenceDate: 1234)
-        )
-
-        let analysis = ForeverLM.PaperFigureAnalysis(
-            summary: "Panel b rises while control remains flat.",
-            visualEvidence: ["The blue series increases across the x-axis."],
-            figureRect: ForeverLM.PaperFigureRect(x: 0.1, y: 0.2, width: 0.8, height: 0.6),
-            panels: [ForeverLM.PaperFigurePanel(
-                id: "figure-2-panel-b",
-                label: "b",
-                explanation: "The treatment separates from control.",
-                rect: ForeverLM.PaperFigureRect(x: 0.5, y: 0.2, width: 0.4, height: 0.6)
-            )],
-            analysisVersion: ForeverLM.PaperFigureAnalysis.currentVersion,
-            generatedAt: Date(timeIntervalSinceReferenceDate: 1234)
-        )
-        let figure = ForeverLM.SyncedPaperFigure(
-            id: "figure-2",
-            sourceID: article.id,
-            figureLabel: "Figure 2",
-            pageIndex: 3,
-            caption: "Figure 2 | Treatment response.",
-            analysis: analysis
-        )
-        let listenableMetadata = SourceListenableContentMetadata(
-            sourceSHA256: "source-hash",
-            generatorVersion: SourceListenableContentMetadata.currentVersion,
-            preparationSignature: "route-hash",
-            characterCount: 12_345,
-            preparedAt: Date(timeIntervalSinceReferenceDate: 1234)
-        )
-        let encoded = try JSONEncoder().encode(CloudKitSourcePayload(
-            article: article,
-            listenableContentMetadata: listenableMetadata,
-            sourceReviewGuide: guide,
-            paperFigures: [figure]
-        ))
-        let decoded = try JSONDecoder().decode(CloudKitSourcePayload.self, from: encoded)
-        #expect(decoded.sourceReviewGuide == guide)
-        #expect(decoded.listenableContentMetadata == listenableMetadata)
-        #expect(decoded.hasListenableContentPayload)
-        #expect(decoded.paperFigures == [figure])
-
-        let legacyEncoded = try JSONEncoder().encode(CloudKitSourcePayload(article: article))
-        let legacyDecoded = try JSONDecoder().decode(CloudKitSourcePayload.self, from: legacyEncoded)
-        #expect(legacyDecoded.sourceReviewGuide == nil)
-        #expect(legacyDecoded.listenableContentMetadata == nil)
-        #expect(legacyDecoded.hasListenableContentPayload)
-        #expect(legacyDecoded.paperFigures.isEmpty)
-    }
-
     @Test("insertSourceIfNew inserts a new source")
     func testInsertSourceIfNewInsertsNewSource() throws {
         let store = try makeInMemoryStore()
@@ -2766,7 +2644,7 @@ struct SourcePersistenceTests {
         #expect(loaded.first?.isHidden == true)
     }
 
-    @Test("Video playlist metadata persists and queues sync")
+    @Test("Video playlist metadata persists")
     func videoPlaylistMetadataPersistsAndQueuesSync() throws {
         let store = try makeInMemoryStore()
         let metadata = VideoPlaylistMetadata(
@@ -2779,8 +2657,6 @@ struct SourcePersistenceTests {
         try store.saveVideoPlaylistGroup(id: "playlist-1", metadata: metadata)
 
         #expect(try store.loadVideoPlaylistGroups()["playlist-1"] == metadata)
-        #expect(try store.loadVideoPlaylistForSync("playlist-1")?.metadata == metadata)
-        #expect(try store.hasPendingSyncChange(entity: .videoPlaylist, logicalKey: "playlist-1"))
     }
 
     @Test("Unchanged YouTube feed metadata does not queue source sync")
@@ -2807,7 +2683,6 @@ struct SourcePersistenceTests {
         video.likedAt = likedAt
         video.videoPublishedAt = publishedAt
         try store.saveSource(video)
-        try store.clearAllPendingSyncChanges()
 
         #expect(try !store.updateCourseSortIndex(video.id, 0))
         #expect(try !store.updateVideoFeedDates(
@@ -2815,7 +2690,6 @@ struct SourcePersistenceTests {
             likedAt: likedAt,
             videoPublishedAt: publishedAt
         ))
-        #expect(try store.pendingSyncChanges().isEmpty)
 
         #expect(try store.updateCourseSortIndex(video.id, 1))
         #expect(try store.updateVideoFeedDates(
@@ -2823,22 +2697,6 @@ struct SourcePersistenceTests {
             likedAt: likedAt.addingTimeInterval(1),
             videoPublishedAt: publishedAt
         ))
-        #expect(try store.pendingSyncChanges().map(\.logicalKey) == [video.id])
-    }
-
-    @Test("Pending CloudKit saves for missing local records are discarded")
-    func pendingCloudKitSavesForMissingLocalRecordsAreDiscarded() throws {
-        let store = try makeInMemoryStore()
-        let article = makeArticle(url: "https://example.com/present", title: "Present")
-        try store.saveSource(article)
-        try store.clearAllPendingSyncChanges()
-
-        try store.requeueSyncChange(entity: .source, logicalKey: article.id, operation: .save)
-        try store.requeueSyncChange(entity: .source, logicalKey: "missing-source", operation: .save)
-        let discarded = try store.discardPendingSavesMissingLocalRecords()
-
-        #expect(discarded.map(\.logicalKey) == ["missing-source"])
-        #expect(try store.pendingSyncChanges().map(\.logicalKey) == [article.id])
     }
 
     @Test("Legacy database without source public URL still lists sources")
@@ -2890,7 +2748,6 @@ struct SourcePersistenceTests {
         )
 
         try store.saveSource(paper)
-        try store.clearAllPendingSyncChanges()
 
         paper.title = "Attention Is All You Need"
         paper.author = "Ashish Vaswani et al."
@@ -2904,10 +2761,6 @@ struct SourcePersistenceTests {
 
         let loaded = try store.loadSources()
         let saved = try #require(loaded.first(where: { $0.id == paper.id }))
-        let sourceChange = try store.pendingSyncChanges().first {
-            $0.entity == .source && $0.logicalKey == paper.id
-        }
-        let syncMetadata = try store.loadSyncMetadata(entity: .source, logicalKey: paper.id)
 
         #expect(saved.title == "Attention Is All You Need")
         #expect(saved.author == "Ashish Vaswani et al.")
@@ -2917,8 +2770,6 @@ struct SourcePersistenceTests {
         #expect(saved.paperIngestionMethod == .llm)
         #expect(saved.isPaperReadyForListenPreparation)
         #expect(!saved.hasSuccessfulPaperIngestion)
-        #expect(sourceChange?.operation == .save)
-        #expect(syncMetadata?.isDeleted == false)
     }
 
     @Test("Ready paper persistence requires a durable LLM attestation")
@@ -3207,7 +3058,6 @@ struct SourcePersistenceTests {
         #expect(review.content == clean)
         #expect(!review.content.contains("Website footer"))
         #expect(try store.sourceReviewGuideQueueCount() == 1)
-        #expect(try store.pendingSyncChanges().contains { $0.entity == .source && $0.logicalKey == article.id })
     }
 
     @Test("Transcript-backed sources can prepare a review from canonical content")
@@ -3968,7 +3818,6 @@ struct SourcePersistenceTests {
         // Schema 132 (cleaner v19) also queues every ready article for cleanup.
         #expect(try migrated.canonicalContentCleanupQueueCount() == 5)
         #expect(try migrated.loadSourcesWithoutContent().count == 7)
-        #expect(try migrated.pendingSyncChanges().count == 1)
         #expect(try migrated.loadLearningGoal("goal-1")?.items.count == 1)
         #expect(
             try migrated.loadSourceListenableContent("article-00001")?.text
@@ -4005,7 +3854,6 @@ struct SourcePersistenceTests {
         #expect(try migrated.loadSourcesWithoutContent().count == 10_000)
         #expect(try migrated.loadSourcesWithoutContent().contains { $0.id == "article-05000" })
         #expect(try migrated.loadSourcesWithoutContent().contains { $0.id == "paper-05000" })
-        #expect(try migrated.pendingSyncChanges().count == 1)
         #expect(try migrated.loadLearningGoal("goal-1")?.items.count == 1)
         #expect(elapsed < .seconds(10))
     }
@@ -4131,7 +3979,6 @@ struct SourcePersistenceTests {
                        'default', X'00', 0
                 FROM n;
                 DELETE FROM canonical_content_cleanup_queue;
-                DELETE FROM sync_changes;
                 PRAGMA user_version = 17;
                 COMMIT;
             """)
@@ -4163,22 +4010,15 @@ struct SourcePersistenceTests {
         article.author = "Ada Lovelace"
 
         try store.saveSource(article)
-        try store.clearAllPendingSyncChanges()
 
         try store.updateSourceType(article.id, to: StudioSourceType.paper.rawValue)
 
         let saved = try #require(try store.loadSources().first(where: { $0.id == article.id }))
-        let sourceChange = try store.pendingSyncChanges().first {
-            $0.entity == .source && $0.logicalKey == article.id
-        }
-        let syncMetadata = try store.loadSyncMetadata(entity: .source, logicalKey: article.id)
 
         #expect(saved.sourceType == .paper)
         #expect(saved.url == article.url)
         #expect(saved.title == "Research Note")
         #expect(saved.author == "Ada Lovelace")
-        #expect(sourceChange?.operation == .save)
-        #expect(syncMetadata?.isDeleted == false)
     }
 
     @Test("Paywall status persists and queues source sync")
@@ -4191,7 +4031,6 @@ struct SourcePersistenceTests {
         )
 
         try store.saveSource(paper)
-        try store.clearAllPendingSyncChanges()
 
         paper.state = .error
         paper.errorMessage = "paywall"
@@ -4199,17 +4038,11 @@ struct SourcePersistenceTests {
         try store.saveSource(paper)
 
         let saved = try #require(try store.loadSources().first(where: { $0.id == paper.id }))
-        let sourceChange = try store.pendingSyncChanges().first {
-            $0.entity == .source && $0.logicalKey == paper.id
-        }
-        let syncMetadata = try store.loadSyncMetadata(entity: .source, logicalKey: paper.id)
 
         #expect(saved.sourceType == .paper)
         #expect(saved.state == .error)
         #expect(saved.errorMessage == "paywall")
         #expect(saved.isPaywalled)
-        #expect(sourceChange?.operation == .save)
-        #expect(syncMetadata?.isDeleted == false)
     }
 
     @Test("A paywall suspicion persists with the paper, queues sync, and clears when written back nil")
@@ -4221,7 +4054,6 @@ struct SourcePersistenceTests {
             sourceType: .paper
         )
         try store.saveSource(paper)
-        try store.clearAllPendingSyncChanges()
         #expect(try #require(try store.loadSources().first(where: { $0.id == paper.id })).paywallSuspicion == nil)
 
         paper.paywallSuspicion = "Abstract-only page; the only full-text link says Get Access."
@@ -4230,10 +4062,6 @@ struct SourcePersistenceTests {
         #expect(saved.paywallSuspicion == "Abstract-only page; the only full-text link says Get Access.")
         #expect(!saved.isPaywalled, "a suspicion is not a marker")
         #expect(saved.state == .queued, "the paper stays in the attention list")
-        let sourceChange = try store.pendingSyncChanges().first {
-            $0.entity == .source && $0.logicalKey == paper.id
-        }
-        #expect(sourceChange?.operation == .save)
 
         paper.paywallSuspicion = nil
         paper.isPaywalled = true
@@ -4254,7 +4082,6 @@ struct SourcePersistenceTests {
         )
 
         try store.saveSource(paper)
-        try store.clearAllPendingSyncChanges()
 
         paper.localFilePath = "Papers/10.1038_35016601.pdf"
         paper.domain = "Local PDF"
@@ -4275,68 +4102,14 @@ struct SourcePersistenceTests {
             sourceType: .paper
         )
         rediscovered.doi = "10.1038/35016601"
-        let changes = try store.pendingSyncChanges()
 
         #expect(saved.url == remoteURL)
         #expect(saved.localFilePath?.hasSuffix("Papers/10.1038_35016601.pdf") == true)
         #expect(try store.insertSourceIfNew(&rediscovered) == false)
         #expect(try store.loadSources().count == 1)
-        #expect(changes.contains {
-            $0.entity == .source && $0.logicalKey == paper.id && $0.operation == .save
-        })
     }
 
-    @Test("Hidden sources are queued for CloudKit sync")
-    func hiddenSourcesAreQueuedForSync() throws {
-        let store = try makeInMemoryStore()
-        let article = makeArticle(url: "https://example.com/hidden", title: "Hidden")
-
-        try store.saveSource(article)
-        try store.setSourceHidden(article.id, hidden: true)
-
-        let payload = try store.loadHiddenSourceForSync(article.id)
-        let change = try store.pendingSyncChanges().first {
-            $0.entity == .hiddenSource && $0.logicalKey == article.id
-        }
-
-        #expect(payload?.sourceID == article.id)
-        #expect(change?.operation == .save)
-    }
-
-    @Test("Remote hidden source record waits for source row")
-    func remoteHiddenSourceWaitsForSourceRow() throws {
-        let store = try makeInMemoryStore()
-        let article = makeArticle(url: "https://example.com/deferred-hidden", title: "Deferred Hidden")
-
-        try store.saveHiddenSourceRecord(
-            CloudKitHiddenSourcePayload(sourceID: article.id, hiddenAt: Date())
-        )
-        try store.saveSource(article)
-
-        let loaded = try store.loadSources()
-        #expect(loaded.first?.isHidden == true)
-    }
-
-    @Test("Unhiding sources queues a CloudKit deletion")
-    func unhiddenSourcesQueueCloudKitDeletion() throws {
-        let store = try makeInMemoryStore()
-        let article = makeArticle(url: "https://example.com/hidden", title: "Hidden")
-
-        try store.saveSource(article)
-        try store.setSourceHidden(article.id, hidden: true)
-        try store.clearAllPendingSyncChanges()
-        try store.setSourceHidden(article.id, hidden: false)
-
-        let payload = try store.loadHiddenSourceForSync(article.id)
-        let change = try store.pendingSyncChanges().first {
-            $0.entity == .hiddenSource && $0.logicalKey == article.id
-        }
-
-        #expect(payload == nil)
-        #expect(change?.operation == .delete)
-    }
-
-    @Test("Video cited papers are queued for CloudKit sync")
+    @Test("Video cited papers are stored with their video")
     func videoCitedPapersAreQueuedForSync() throws {
         let store = try makeInMemoryStore()
         let video = makeArticle(url: "https://youtube.com/watch?v=cited", title: "Talk")
@@ -4350,46 +4123,11 @@ struct SourcePersistenceTests {
         )
         try store.saveVideoCitedPaper(paper)
 
-        let payload = try store.loadVideoCitedPaperForSync(paper.id)
-        let change = try store.pendingSyncChanges().first {
-            $0.entity == .videoCitedPaper && $0.logicalKey == paper.id
-        }
-
-        #expect(payload?.paper.id == paper.id)
-        #expect(payload?.paper.sourceID == video.id)
-        #expect(payload?.sourceIdentity?.sourceID == video.id)
+        #expect(try store.loadVideoCitedPaper(id: paper.id)?.sourceID == video.id)
         #expect(try store.loadVideoCitedPapers(forSourceID: video.id).count == 1)
-        #expect(change?.operation == .save)
     }
 
-    @Test("Remote video cited paper record keeps both source links")
-    func remoteVideoCitedPaperKeepsBothSourceLinks() throws {
-        let store = try makeInMemoryStore()
-        let video = makeArticle(url: "https://youtube.com/watch?v=remote-cited", title: "Remote Talk")
-        var importedPaper = makeArticle(url: "https://doi.org/10.1000/imported", title: "Imported Paper")
-        importedPaper.sourceType = .paper
-        try store.saveSource(video)
-        try store.saveSource(importedPaper)
-
-        let paper = VideoCitedPaper(
-            sourceID: video.id,
-            title: "Imported Paper",
-            status: .imported,
-            importedSourceID: importedPaper.id
-        )
-        try store.saveVideoCitedPaperRecord(
-            CloudKitVideoCitedPaperPayload(paper: paper)
-        )
-
-        let loaded = try store.loadVideoCitedPaper(id: paper.id)
-        #expect(loaded?.sourceID == video.id)
-        // The relationship, not just the row, has to survive the trip: a stripped
-        // importedSourceID would make an already-imported paper look like an open candidate.
-        #expect(loaded?.importedSourceID == importedPaper.id)
-        #expect(loaded?.status == .imported)
-    }
-
-    @Test("A linked source keeps its kind and context through the store and the CloudKit payload")
+    @Test("A linked source keeps its kind and context through the store")
     func linkedSourceCandidateRoundTrip() throws {
         let store = try makeInMemoryStore()
         let article = makeArticle(url: "https://example.substack.com/p/post", title: "A post")
@@ -4408,56 +4146,15 @@ struct SourcePersistenceTests {
         #expect(loaded?.kind == .video)
         #expect(loaded?.context == "Recommended as a primer.")
         #expect(loaded?.url == linked.url)
-
-        // The relationship rides the record as JSON, so the other Mac reads the same kind
-        // and context and offers the candidate as the video it is.
-        let payload = try #require(try store.loadVideoCitedPaperForSync(linked.id))
-        let data = try JSONEncoder().encode(payload)
-        let decoded = try JSONDecoder().decode(CloudKitVideoCitedPaperPayload.self, from: data)
-        #expect(decoded.paper.kind == .video)
-        #expect(decoded.paper.context == "Recommended as a primer.")
-
-        let remote = try makeInMemoryStore()
-        try remote.saveSource(article)
-        try remote.saveVideoCitedPaperRecord(decoded)
-        let applied = try remote.loadVideoCitedPaper(id: linked.id)
-        #expect(applied?.kind == .video)
-        #expect(applied?.context == "Recommended as a primer.")
     }
 
-    @Test("Deleting a video cited paper queues a CloudKit deletion")
-    func deletingVideoCitedPaperQueuesCloudKitDeletion() throws {
-        let store = try makeInMemoryStore()
-        let video = makeArticle(url: "https://youtube.com/watch?v=deleted-cited", title: "Talk")
-        try store.saveSource(video)
-
-        let paper = VideoCitedPaper(sourceID: video.id, title: "Dropped candidate")
-        try store.saveVideoCitedPaper(paper)
-        try store.clearAllPendingSyncChanges()
-        try store.deleteVideoCitedPaper(id: paper.id)
-
-        let payload = try store.loadVideoCitedPaperForSync(paper.id)
-        let change = try store.pendingSyncChanges().first {
-            $0.entity == .videoCitedPaper && $0.logicalKey == paper.id
-        }
-
-        #expect(payload == nil)
-        #expect(change?.operation == .delete)
-    }
-
-    @Test("Hidden podcast shows are queued for CloudKit sync")
+    @Test("A hidden podcast show is stored by its name")
     func hiddenPodcastShowsAreQueuedForSync() throws {
         let store = try makeInMemoryStore()
 
         try store.setPodcastShowHidden("Example Show", hidden: true)
 
-        let payload = try store.loadHiddenPodcastShowForSync("Example Show")
-        let change = try store.pendingSyncChanges().first {
-            $0.entity == .hiddenPodcastShow && $0.logicalKey == "Example Show"
-        }
-
-        #expect(payload?.showName == "Example Show")
-        #expect(change?.operation == .save)
+        #expect(try store.loadHiddenPodcastShows() == ["Example Show"])
     }
 
     @Test("Hidden podcast show marks matching episodes hidden")
@@ -4512,10 +4209,6 @@ struct SourcePersistenceTests {
         #expect(sources.first { $0.id == chosen.id }?.isHidden == true)
         #expect(sources.first { $0.id == consequence.id }?.isHidden == false)
         // The revealed episode's hidden record is withdrawn from sync too.
-        let change = try store.pendingSyncChanges().first {
-            $0.entity == .hiddenSource && $0.logicalKey == consequence.id
-        }
-        #expect(change?.operation == .delete)
     }
 
     @Test("Podcast dedup recognizes legacy single-slash episode URLs")
@@ -4568,24 +4261,7 @@ struct SourcePersistenceTests {
         #expect(try store.loadSources().count == 1)
     }
 
-    @Test("Unhiding podcast shows queues a CloudKit deletion")
-    func unhiddenPodcastShowsQueueCloudKitDeletion() throws {
-        let store = try makeInMemoryStore()
-
-        try store.setPodcastShowHidden("Example Show", hidden: true)
-        try store.clearAllPendingSyncChanges()
-        try store.setPodcastShowHidden("Example Show", hidden: false)
-
-        let payload = try store.loadHiddenPodcastShowForSync("Example Show")
-        let change = try store.pendingSyncChanges().first {
-            $0.entity == .hiddenPodcastShow && $0.logicalKey == "Example Show"
-        }
-
-        #expect(payload == nil)
-        #expect(change?.operation == .delete)
-    }
-
-    @Test("Hidden YouTube channels hide videos, allow overrides, and sync")
+    @Test("Hidden YouTube channels hide videos and allow overrides")
     func hiddenYouTubeChannelVisibilityAndSync() throws {
         let store = try makeInMemoryStore()
         var video = StudioArticle(
@@ -4599,25 +4275,15 @@ struct SourcePersistenceTests {
         try store.setYouTubeChannelHidden("Example Channel", hidden: true)
 
         let hidden = try #require(store.loadSources().first(where: { $0.id == video.id }))
-        let payload = try store.loadHiddenYouTubeChannelForSync("example channel")
-        let save = try store.pendingSyncChanges().first {
-            $0.entity == .hiddenYouTubeChannel && $0.logicalKey == "Example Channel"
-        }
         #expect(hidden.isHidden)
-        #expect(payload?.channelName == "Example Channel")
-        #expect(save?.operation == .save)
+        #expect(try store.loadHiddenYouTubeChannels() == ["Example Channel"])
 
         try store.setYouTubeVideoVisibleOverride(video.id, visible: true)
         let visible = try #require(store.loadSources().first(where: { $0.id == video.id }))
         #expect(!visible.isHidden)
 
-        try store.clearAllPendingSyncChanges()
         try store.setYouTubeChannelHidden("Example Channel", hidden: false)
-        let deletion = try store.pendingSyncChanges().first {
-            $0.entity == .hiddenYouTubeChannel && $0.logicalKey == "Example Channel"
-        }
         #expect(try store.loadHiddenYouTubeChannels().isEmpty)
-        #expect(deletion?.operation == .delete)
     }
 
     @Test("Projection repair stays visible to concurrent library readers")
@@ -4740,35 +4406,6 @@ struct SourcePersistenceTests {
 
         let active = try store.loadActiveSources()
         let all = try store.loadSourcesWithoutContent()
-        let sourceChange = try store.pendingSyncChanges().first {
-            $0.entity == .source && $0.logicalKey == article.id
-        }
-        let dismissedChange = try store.pendingSyncChanges().first {
-            $0.entity == .dismissedSource && $0.logicalKey == article.url
-        }
-
-        #expect(active.isEmpty)
-        #expect(all.first?.status == .archived)
-        #expect(sourceChange?.operation == .save)
-        #expect(dismissedChange?.operation == .save)
-    }
-
-    @Test("Remote dismissed source record archives matching active source")
-    func remoteDismissedSourceArchivesMatchingActiveSource() throws {
-        let store = try makeInMemoryStore()
-        let article = makeArticle(url: "https://example.com/remote-dismissed", title: "Remote Dismissed")
-
-        try store.saveSource(article)
-        try store.saveDismissedSourceRecord(
-            CloudKitDismissedSourcePayload(
-                url: article.url,
-                title: article.title,
-                dismissedAt: Date()
-            )
-        )
-
-        let active = try store.loadActiveSources()
-        let all = try store.loadSourcesWithoutContent()
 
         #expect(active.isEmpty)
         #expect(all.first?.status == .archived)
@@ -4801,13 +4438,12 @@ struct SourcePersistenceTests {
             coverPath: "Books/Immune/cover.jpg"
         )
 
-        let payload = try store.loadBookForSync(uuid)
-
-        #expect(payload?.title == "Immune")
-        #expect(payload?.subtitle == "A Journey into the Mysterious System That Keeps You Alive")
-        #expect(payload?.author == "Philipp Dettmer")
-        #expect(payload?.edition == "First Edition")
-        #expect(payload?.coverPath == "Books/Immune/cover.jpg")
+        let books = try store.loadBooks()
+        #expect(books.titles[uuid] == "Immune")
+        #expect(books.subtitles[uuid] == "A Journey into the Mysterious System That Keeps You Alive")
+        #expect(books.authors[uuid] == "Philipp Dettmer")
+        #expect(books.editions[uuid] == "First Edition")
+        #expect(try store.scalarText("SELECT cover_path FROM books WHERE id = ?", [.text(uuid)]) == "Books/Immune/cover.jpg")
     }
 
     @Test("Remote book payload applies to legacy book table")
@@ -4846,7 +4482,7 @@ struct SourcePersistenceTests {
         #expect(books.editions[uuid] == nil)
     }
 
-    @Test("Remote book payload preserves payload title")
+    @Test("A book record keeps the title it was written with")
     func remoteBookPayloadPreservesPayloadTitle() throws {
         let store = try makeInMemoryStore()
         let uuid = "91dd38ad-7356-5d08-b691-a44493dff38a"
@@ -4862,11 +4498,10 @@ struct SourcePersistenceTests {
             )
         )
 
-        let payload = try store.loadBookForSync(uuid)
-
-        #expect(payload?.title == uuid)
-        #expect(payload?.subtitle == "An Elegant Tour")
-        #expect(payload?.edition == "Second Edition")
+        let books = try store.loadBooks()
+        #expect(books.titles[uuid] == uuid)
+        #expect(books.subtitles[uuid] == "An Elegant Tour")
+        #expect(books.editions[uuid] == "Second Edition")
     }
 
     @Test("Book subtitle and edition round-trip through single-field saves")
@@ -4905,7 +4540,6 @@ struct SourcePersistenceTests {
                 coverPath: nil
             )
         )
-        try store.clearAllPendingSyncChanges()
 
         try store.setBookField(.edition, of: "book-edited", to: "Third Edition")
         try store.setBookField(.kind, of: "book-edited", to: "")
@@ -4920,22 +4554,16 @@ struct SourcePersistenceTests {
         #expect(books.authors["book-edited"] == "Zara Holt")
         #expect(books.editions["book-edited"] == "Third Edition")
         #expect(books.kinds["book-edited"] == nil)
-
-        let pending = try store.pendingSyncChanges()
-        #expect(!pending.contains { $0.operation == .delete })
-        #expect(pending.filter { $0.entity == .book }.map(\.logicalKey) == ["book-edited"])
     }
 
     @Test("Setting a field of a book with no row throws and writes nothing")
     func settingFieldOfMissingBookThrows() throws {
         let store = try KnowledgeStore(inMemory: true)
-        try store.clearAllPendingSyncChanges()
 
         #expect(throws: KnowledgeStoreError.self) {
             try store.setBookField(.author, of: "no-such-book", to: "Zara Holt")
         }
         #expect(try store.loadBooks().titles.isEmpty)
-        #expect(try store.pendingSyncChanges().isEmpty)
     }
 
     @Test("insertSourceIfNew skips existing active source")
@@ -5019,41 +4647,6 @@ struct SourcePersistenceTests {
         #expect(own.id != teamCopy.id)
     }
 
-    @Test("CloudKit duplicate replacement preserves local source content")
-    func cloudKitDuplicateReplacementPreservesLocalSourceContent() throws {
-        let store = try makeInMemoryStore()
-        var local = StudioArticle(
-            url: "Books/Immune/Chapters/01 What Is the Immune System?.pdf",
-            title: "Local Chapter",
-            sourceType: .book,
-            localFilePath: "Books/Immune/Chapters/01 What Is the Immune System?.pdf",
-            id: "local-source"
-        )
-        local.parentGroup = "Immune"
-        local.content = "The immune system protects the body."
-        try store.saveSource(local)
-
-        var remote = StudioArticle(
-            url: "Books/Immune/Chapters/01 What Is the Immune System?.pdf",
-            title: "Remote Chapter",
-            sourceType: .book,
-            localFilePath: "Books/Immune/Chapters/01 What Is the Immune System?.pdf",
-            id: "remote-source"
-        )
-        remote.parentGroup = "91dd38ad-7356-5d08-b691-a44493dff38a"
-        remote.content = try store.loadLocalDuplicateContent(of: remote)
-
-        try store.withoutSyncTracking {
-            try store.deleteLocalDuplicate(of: remote)
-            try store.saveSource(remote)
-        }
-
-        let active = try store.loadActiveSources()
-        #expect(active.count == 1)
-        #expect(active.first?.id == remote.id)
-        #expect(try store.loadSourceContent(remote.id) == "The immune system protects the body.")
-    }
-
     @Test("Paper identity merge archives the duplicate and preserves relationships")
     func paperIdentityMergePreservesRelationships() throws {
         let store = try makeInMemoryStore()
@@ -5126,39 +4719,6 @@ struct SourcePersistenceTests {
         #expect(goalItems.first?.sourceID == canonical.id)
         #expect(goalItems.first?.reviewState == LearningGoalItemReviewState.approved.rawValue)
         #expect(try store.reviewSessionSourceIDsBySessionID()["duplicate-review"] == [canonical.id])
-    }
-
-    /// A dismissal arriving from CloudKit archives matching local sources, and
-    /// that archive has to reach CloudKit too. It happens inside
-    /// `withoutSyncTracking` — which exists to stop the arriving DismissedSource
-    /// record from echoing back — so `archiveSource`'s own change tracking is
-    /// suppressed. Left unpublished, the server keeps the source active with its
-    /// text already wiped here, and other devices list a source that opens to
-    /// nothing.
-    @Test("dismissal archive publishes to CloudKit even under sync suppression")
-    func testDismissalArchivePublishesUnderSuppression() throws {
-        let store = try makeInMemoryStore()
-        var article = makeArticle(url: "https://example.com/post-1", title: "Post 1")
-        try store.insertSourceIfNew(&article)
-        // Clear the insert's own pending change so the assertion can only be
-        // satisfied by the archive republishing itself.
-        try store.clearPendingSyncChange(entity: .source, logicalKey: article.id)
-
-        try store.withoutSyncTracking {
-            try store.saveDismissedSourceRecord(
-                CloudKitDismissedSourcePayload(
-                    url: "https://example.com/post-1",
-                    title: "Post 1",
-                    dismissedAt: Date()
-                )
-            )
-        }
-
-        #expect(try store.loadActiveSources().isEmpty)
-        #expect(
-            try store.hasPendingSyncChange(entity: .source, logicalKey: article.id),
-            "The archive was never queued for CloudKit, so other devices keep showing this source as active."
-        )
     }
 
     @Test("insertSourceIfNew skips archived source")
@@ -6184,10 +5744,8 @@ struct SourcePersistenceTests {
             startedAt: Date(timeIntervalSinceReferenceDate: 100)
         )
         #expect(try store.loadReviewSessionLinks().first { $0.id == "session-active" }?.overallScore == nil)
-        try store.clearAllPendingSyncChanges()
 
         try store.reopenReviewSession(sessionID: "session-active")
-        #expect(try store.pendingSyncChanges().isEmpty)
         #expect(try store.loadReviewSessionLinks().first { $0.id == "session-active" }?.status == "active")
 
         try store.completeReviewSession(
@@ -6196,13 +5754,9 @@ struct SourcePersistenceTests {
             summary: "Completed once.",
             endedAt: Date(timeIntervalSinceReferenceDate: 200)
         )
-        try store.clearAllPendingSyncChanges()
 
         try store.reopenReviewSession(sessionID: "session-active")
         #expect(try store.loadReviewSessionLinks().first { $0.id == "session-active" }?.status == "active")
-        #expect(try store.pendingSyncChanges().contains {
-            $0.entity == .reviewSession && $0.logicalKey == "session-active"
-        })
     }
 
     @Test("relative file path round-trips")
@@ -6967,7 +6521,6 @@ struct StorageServicePersistenceTests {
             kind: .transcript,
             title: "Transcript"
         ))
-        try store.clearAllPendingSyncChanges()
 
         try store.mergeMeetingGroup("read-ai-weekly", into: "weekly")
 
@@ -6981,11 +6534,6 @@ struct StorageServicePersistenceTests {
 
         // This is the exact title Read AI will keep supplying after the merge.
         #expect(try store.resolvedMeetingGroupID(matching: "Weekly Sync from Read AI") == "weekly")
-        let pending = try store.pendingSyncChanges()
-        let changed = Set(pending.map { "\($0.entity.rawValue):\($0.logicalKey)" })
-        #expect(changed.contains("source:\(article.id)"))
-        #expect(changed.contains("meetingGroup:read-ai-weekly"))
-        #expect(changed.contains("meetingGroup:weekly"))
     }
 
 @Suite("Unreviewed consumed sources")
@@ -7418,7 +6966,6 @@ struct StoredHTMLCharacterReferenceRepairTests {
         article.content = Self.escaped
         article.state = .ready
         try store.saveSource(article)
-        try store.execForTesting("DELETE FROM sync_changes")
         try store.execForTesting("""
             INSERT INTO source_text_reference_repair_queue (source_id, enqueued_at)
             VALUES ('\(article.id)', 0)
@@ -7430,8 +6977,6 @@ struct StoredHTMLCharacterReferenceRepairTests {
 
         // The iPad reads the content asset off the Source record, so a local-only
         // repair would leave the phone showing the references forever.
-        let pending = try store.pendingSyncChanges()
-        #expect(pending.contains { $0.entity == .source && $0.logicalKey == article.id })
 
         // Resumable and idempotent: a second pass finds nothing left to do.
         #expect(try store.drainSourceTextReferenceRepairBatch(limit: 50).isEmpty)
@@ -7445,7 +6990,6 @@ struct StoredHTMLCharacterReferenceRepairTests {
         article.content = text
         article.state = .ready
         try store.saveSource(article)
-        try store.execForTesting("DELETE FROM sync_changes")
         try store.execForTesting("""
             INSERT INTO source_text_reference_repair_queue (source_id, enqueued_at)
             VALUES ('\(article.id)', 0)
@@ -7454,7 +6998,6 @@ struct StoredHTMLCharacterReferenceRepairTests {
         #expect(try store.drainSourceTextReferenceRepairBatch(limit: 50).isEmpty)
         #expect(try store.loadSourceContent(article.id) == text)
         #expect(try store.sourceTextReferenceRepairQueueCount() == 0)
-        #expect(try store.pendingSyncChanges().isEmpty)
     }
 
     @Test("A staged source whose content is gone leaves the queue")
@@ -7463,7 +7006,6 @@ struct StoredHTMLCharacterReferenceRepairTests {
         let article = makeArticle(url: "https://example.com/orphan", title: "Orphan")
         try store.saveSource(article)
         try store.execForTesting("DELETE FROM source_content")
-        try store.execForTesting("DELETE FROM sync_changes")
         try store.execForTesting("""
             INSERT INTO source_text_reference_repair_queue (source_id, enqueued_at)
             VALUES ('\(article.id)', 0)
@@ -7497,6 +7039,7 @@ struct StoredTitleMarkupRepairTests {
     /// a save through `StudioArticle` now folds it on the way.
     private func createVersion142Library(at root: URL, extraPapers: Int = 0) throws {
         let store = try KnowledgeStore(storeDirectory: root)
+        try Schema154Fixture.restoreGeneration1Tables(store)
         try store.saveSource(StudioArticle(
             url: "https://doi.org/10.1016/0014-5793(71)80459-3",
             title: "Placeholder",
@@ -7534,7 +7077,6 @@ struct StoredTitleMarkupRepairTests {
                 FROM n;
             """)
         }
-        try store.clearAllPendingSyncChanges()
         try store.execForTesting("PRAGMA user_version = 142")
     }
 
@@ -7570,18 +7112,8 @@ struct StoredTitleMarkupRepairTests {
         #expect(Set(try migrated.loadSources().map(\.id)) == [Self.paperID, Self.weeklyID, Self.plainID])
         #expect(try migrated.loadSources().first { $0.id == Self.paperID }?.title == Self.folded)
 
-        // Only the changed source is staged, the migration itself publishes
-        // nothing, and the full-text row that indexed the tags as words is due
-        // for a rewrite.
-        #expect(try migrated.sourceSyncRepairQueueCount() == 1)
-        #expect(try migrated.pendingSyncChanges().allSatisfy { $0.entity != .source })
+        // The full-text row that indexed the tags as words is due for a rewrite.
         #expect(try count("SELECT COUNT(*) FROM source_fts_state WHERE source_id = '\(Self.paperID)'", in: migrated) == 0)
-
-        // The phone draws the title off the Source record, so the drain has to
-        // republish it.
-        #expect(try migrated.drainSourceSyncRepairBatch(limit: 50) == 1)
-        #expect(try migrated.pendingSyncChanges().contains { $0.entity == .source && $0.logicalKey == Self.paperID })
-        #expect(try !migrated.pendingSyncChanges().contains { $0.entity == .source && $0.logicalKey == Self.weeklyID })
     }
 
     @Test("Schema 143 reads only the titles holding a `<` at production scale")
@@ -7597,7 +7129,6 @@ struct StoredTitleMarkupRepairTests {
         #expect(elapsed < 1.0)
         #expect(try count("SELECT COUNT(*) FROM papers", in: migrated) == 5_001)
         // The FEBS paper and the five italicised titles; nothing else is touched.
-        #expect(try migrated.sourceSyncRepairQueueCount() == 6)
         #expect(try storedTitle("paper-01000", table: "papers", in: migrated) == "Cytochrome c release, study 1000")
         #expect(try storedTitle("paper-00999", table: "papers", in: migrated) == "Mitochondrial study 999")
     }
@@ -7668,6 +7199,7 @@ struct StoredAuthorRepairMigrationTests {
     /// table, so both released shapes are today's without the 144 queue.
     private func createReleasedLibrary(at root: URL, version: Int32 = 143, extraRows: Int = 0) throws {
         let store = try KnowledgeStore(storeDirectory: root)
+        try Schema154Fixture.restoreGeneration1Tables(store)
         try store.saveSource(StudioArticle(url: "https://quantum.country/", title: "Quantum Country", sourceType: .article, id: Self.headID))
         try store.saveSource(StudioArticle(
             url: "https://www.nytimes.com/2026/01/03/business/chinese-peptides-silicon-valley.html",
@@ -7712,7 +7244,6 @@ struct StoredAuthorRepairMigrationTests {
                 FROM n;
             """)
         }
-        try store.clearAllPendingSyncChanges()
         try store.execForTesting("""
             DROP INDEX IF EXISTS idx_paper_registered_title_order;
             DROP TABLE paper_registered_title_queue;
@@ -7758,15 +7289,8 @@ struct StoredAuthorRepairMigrationTests {
         // The library is whole while the republish and the checks wait.
         #expect(Set(try migrated.loadSources().map(\.id)) == [Self.headID, Self.profileID, Self.namedID, Self.paperID, Self.noDOIID])
 
-        // Only the cleared sources are staged, the migration itself publishes
-        // nothing, and the full-text row that indexed the markup is due for a
-        // rewrite.
-        #expect(try migrated.sourceSyncRepairQueueCount() == 2)
-        #expect(try migrated.pendingSyncChanges().allSatisfy { $0.entity != .source })
+        // The full-text row that indexed the markup is due for a rewrite.
         #expect(try count("SELECT COUNT(*) FROM source_fts_state WHERE source_id = '\(Self.headID)'", in: migrated) == 0)
-        #expect(try migrated.drainSourceSyncRepairBatch(limit: 50) == 2)
-        let republished = Set(try migrated.pendingSyncChanges().filter { $0.entity == .source }.map(\.logicalKey))
-        #expect(republished == [Self.headID, Self.profileID])
 
         // The paper with a DOI waits for its check; the one without is not staged.
         #expect(try migrated.registeredPaperTitleQueueCount() == 1)
@@ -7786,7 +7310,6 @@ struct StoredAuthorRepairMigrationTests {
 
         #expect(elapsed < 1.0)
         // The fixture's two plus the five profile links; nothing else touched.
-        #expect(try migrated.sourceSyncRepairQueueCount() == 7)
         #expect(try author("article-01000", in: migrated) == nil)
         #expect(try author("article-00999", in: migrated) == "Writer 999; Editor 999")
         #expect(try migrated.registeredPaperTitleQueueCount() == 5_001)
@@ -7882,7 +7405,6 @@ struct RegisteredPaperTitleCheckServiceTests {
         try seedPaper("c-unregistered", title: "A bioRxiv version suffix", doi: "10.1101/2025.06.26.661135v2", in: store)
         try seedPaper("d-offline", title: "Asked while offline", doi: "10.1000/offline", in: store)
         #expect(try store.enqueueRegisteredPaperTitleChecks() == 4)
-        try store.clearAllPendingSyncChanges()
 
         let service = RegisteredPaperTitleCheckService(storage: storage) { doi in
             switch doi {
@@ -7899,7 +7421,6 @@ struct RegisteredPaperTitleCheckServiceTests {
         #expect(try store.loadSourceForSync("a-damaged")?.doi == "10.1523/jneurosci.1842-04.2004")
         #expect(try store.loadSourceForSync("b-wrong-record")?.title == "KL1333, a derivative of β-lapachone, protects against ototoxicity")
         // Only the restored paper travels to the other devices.
-        #expect(Set(try store.pendingSyncChanges().filter { $0.entity == .source }.map(\.logicalKey)) == ["a-damaged"])
 
         // Answered rows leave; the unanswered one stays, one attempt per batch
         // that reached it, and the drain stopped once nothing was answered.
@@ -7957,6 +7478,7 @@ struct YouTubeTranscriptCheckMigrationTests {
     /// without it and without the 148 queue.
     private func createReleasedLibrary(at root: URL, version: Int32 = 147, extraVideos: Int = 0) throws {
         let store = try KnowledgeStore(storeDirectory: root)
+        try Schema154Fixture.restoreGeneration1Tables(store)
         var lecture = StudioArticle(url: "https://www.youtube.com/watch?v=6BqWzEPN3xg", title: "Intact Cell Measurements 1", sourceType: .video, id: "yt-lecture")
         lecture.content = "[0:00] So hello again. Our class today is about how to measure mitochondrial bioenergetics."
         lecture.state = .ready
@@ -7985,7 +7507,6 @@ struct YouTubeTranscriptCheckMigrationTests {
                 SELECT printf('video-%05d', i), printf('[0:00] %s', hex(randomblob(1000))) FROM n;
             """)
         }
-        try store.clearAllPendingSyncChanges()
         try store.execForTesting("""
             DROP INDEX IF EXISTS idx_youtube_transcript_check_order;
             DROP TABLE youtube_transcript_check_queue;
@@ -8012,7 +7533,6 @@ struct YouTubeTranscriptCheckMigrationTests {
         // The library is whole while the checks wait, the transcript untouched.
         #expect(Set(try migrated.loadSources().map(\.id)) == ["yt-lecture", "yt-queued", "vimeo", "yt-team", "article"])
         #expect(try migrated.loadSourceContent("yt-lecture")?.hasPrefix("[0:00] So hello again.") == true)
-        #expect(try migrated.pendingSyncChanges().isEmpty)
 
         #expect(try migrated.youTubeTranscriptCheckQueueCount() == 2)
         #expect(try migrated.youTubeTranscriptCheckCandidates(limit: 10) == [
@@ -8127,7 +7647,6 @@ struct YouTubeTranscriptCheckServiceTests {
         let store = try await storage.cohortKnowledgeStore()
         try seedVideo("video", content: Self.formatted + Self.slides, in: store)
         #expect(try store.enqueueYouTubeTranscriptChecks() == 1)
-        try store.clearAllPendingSyncChanges()
 
         let service = YouTubeTranscriptCheckService(storage: storage) { url in
             #expect(url == Self.url)
@@ -8141,7 +7660,6 @@ struct YouTubeTranscriptCheckServiceTests {
         #expect(stored.contains("these reactions, so they can be inhibitors of lipid oxidation so you may be measuring"))
         #expect(stored.contains("\n\n[9:15] And inhibiting this process in your media because of your probe and not because it's not happening;"))
         #expect(stored.hasSuffix(Self.slides), "the slide frames block is kept as it was")
-        #expect(Set(try store.pendingSyncChanges().filter { $0.entity == .source }.map(\.logicalKey)) == ["video"])
         #expect(result.remainingCount == 0)
 
         // Checked once: a later drain has nothing to fetch.
@@ -8162,13 +7680,11 @@ struct YouTubeTranscriptCheckServiceTests {
         try seedVideo("untimed", content: "A transcript someone pasted without times.", in: store)
         try seedVideo("empty", content: nil, in: store)
         #expect(try store.enqueueYouTubeTranscriptChecks() == 3)
-        try store.clearAllPendingSyncChanges()
 
         let result = await YouTubeTranscriptCheckService(storage: storage) { _ in Self.captions }.drain()
 
         #expect(result.rewritten.isEmpty)
         #expect(try store.loadSourceContent("raw") == Self.captions)
-        #expect(try store.pendingSyncChanges().isEmpty)
         #expect(try store.youTubeTranscriptCheckQueueCount() == 0, "all three are answered")
     }
 
@@ -8206,7 +7722,6 @@ struct YouTubeTranscriptCheckServiceTests {
             author: .foreverlm, createdAt: Date(), updatedAt: Date()
         ))
         #expect(try store.enqueueYouTubeTranscriptChecks() == 3)
-        try store.clearAllPendingSyncChanges()
 
         let result = await YouTubeTranscriptCheckService(storage: storage) { _ in Self.captions }.drain()
 
@@ -8225,7 +7740,6 @@ struct YouTubeTranscriptCheckServiceTests {
         try seedVideo("a", content: Self.formatted, url: "https://www.youtube.com/watch?v=aaaaaaaaaaa", in: store)
         try seedVideo("b", content: Self.formatted, url: "https://www.youtube.com/watch?v=bbbbbbbbbbb", in: store)
         #expect(try store.enqueueYouTubeTranscriptChecks() == 2)
-        try store.clearAllPendingSyncChanges()
 
         let offline = await YouTubeTranscriptCheckService(storage: storage) { _ in
             throw URLError(.notConnectedToInternet)
@@ -8253,7 +7767,6 @@ struct YouTubeTranscriptCheckServiceTests {
         #expect(result.rewritten.isEmpty)
         #expect(try store.loadSourceContent("a") == Self.formatted)
         #expect(try store.loadSourceContent("b") == "[0:00] Reformatted meanwhile.")
-        #expect(try store.pendingSyncChanges().isEmpty)
         #expect(try store.youTubeTranscriptCheckQueueCount() == 0)
     }
 }
@@ -8648,7 +8161,6 @@ struct SourceFTSRowMapMigrationTests {
         // The library is whole and on screen while the record waits.
         #expect(Set(try store.loadActiveSources().map(\.id)) == Set(library.sourceIDs))
         if version == 165 {
-            #expect(try store.pendingSyncChanges().isEmpty, "the step writes nothing that syncs")
         }
 
         // After launch a delete records the old rows, takes its own, and leaves the rest found by rowid.

@@ -2,9 +2,8 @@ import Foundation
 
 /// The meeting-series half of the Planner over MCP (planner-design.md, "A
 /// meeting series on the clock"): a series' schedule, and the action items
-/// read out of its sessions. Writes go through `StorageService` so SQLite,
-/// `sync_metadata` and `sync_changes` move together and the Planner pane
-/// republishes at once.
+/// read out of its sessions. Writes go through `StorageService` so the
+/// Planner pane republishes at once.
 extension MCPDataStore {
 
     func setMeetingSchedule(

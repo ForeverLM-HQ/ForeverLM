@@ -551,9 +551,7 @@ struct CourseQuizPlanningTests {
 
         // Another Mac: the payload's quizzes replace its own.
         let other = try KnowledgeStore(inMemory: true)
-        try other.withoutSyncTracking {
-            try other.replaceCourseQuizzesFromSync(courseID: "course", quizzes: decoded.quizzes ?? [])
-        }
+        try other.replaceCourseQuizzesFromSync(courseID: "course", quizzes: decoded.quizzes ?? [])
         #expect(try other.loadCourseQuizzes(courseID: "course") == [quiz])
 
         _ = try store.deleteCourseGroup(name: "course")
@@ -2383,19 +2381,6 @@ struct CourseQuizDrawnPictureTests {
 /// show (`courseQuizPicturesAsset`): out of one Mac's store, into another's.
 @Suite("Course Quiz Picture Package")
 struct CourseQuizPicturePackageTests {
-    @Test("A drawing run holds its course's uploads until the last run on it ends")
-    func holdsUploads() {
-        let course = "course-\(UUID().uuidString)"
-        #expect(!CourseQuizPicturePackage.isHoldingUploads(courseID: course))
-        CourseQuizPicturePackage.holdUploads(courseID: course)
-        CourseQuizPicturePackage.holdUploads(courseID: course)
-        CourseQuizPicturePackage.releaseUploads(courseID: course)
-        #expect(CourseQuizPicturePackage.isHoldingUploads(courseID: course))
-        CourseQuizPicturePackage.releaseUploads(courseID: course)
-        #expect(!CourseQuizPicturePackage.isHoldingUploads(courseID: course))
-        CourseQuizPicturePackage.releaseUploads(courseID: course)
-        #expect(!CourseQuizPicturePackage.isHoldingUploads(courseID: course))
-    }
 
     @Test("A question's drawing is kept as a compact JPEG on white, never larger than drawn")
     func compactsDrawings() throws {
@@ -2466,43 +2451,6 @@ struct CourseQuizPicturePackageTests {
             },
             author: .foreverlm, createdAt: Date(), updatedAt: Date()
         )
-    }
-
-    @Test("The pictures a Mac holds travel whole; the receiving store gains only what it lacks")
-    func roundTrip() throws {
-        let sender = try root("sender")
-        let receiver = try root("receiver")
-        defer {
-            try? FileManager.default.removeItem(at: sender)
-            try? FileManager.default.removeItem(at: receiver)
-        }
-        let held = "1a2b3c4d-0000-4000-8000-000000000001"
-        let missing = "1a2b3c4d-0000-4000-8000-000000000002"
-        let already = "1a2b3c4d-0000-4000-8000-000000000003"
-        let senderStore = sender.appendingPathComponent(GeneratedImageStore.directory)
-        try Self.png.write(to: senderStore.appendingPathComponent("\(held).png"))
-        try Self.png.write(to: senderStore.appendingPathComponent("\(already).png"))
-        let receiverStore = receiver.appendingPathComponent(GeneratedImageStore.directory)
-        let kept = Data(Self.png.reversed())
-        try kept.write(to: receiverStore.appendingPathComponent("\(already).jpg"))
-
-        let ids = CourseQuizPicturePackage.storedImageIDs(in: [quiz(showing: [held, missing, held, already])])
-        #expect(ids == [held, missing, already])
-        let files = CourseQuizPicturePackage.localFiles(for: ids, root: sender)
-        #expect(files.map(\.id) == [held, already], "a picture this Mac lacks is left out; the rest still travel")
-        let digest = CourseQuizPicturePackage.digest(files)
-        #expect(digest.hasPrefix("q:"))
-        #expect(CourseQuizPicturePackage.digest(files) == digest)
-        #expect(CourseQuizPicturePackage.digest(Array(files.prefix(1))) != digest)
-
-        let package = try #require(CourseQuizPicturePackage.encode(files))
-        let packageURL = receiver.appendingPathComponent("package.plist")
-        try package.write(to: packageURL)
-        let written = CourseQuizPicturePackage.materialize(packageAt: packageURL, root: receiver)
-        #expect(written == [held])
-        #expect(try Data(contentsOf: receiverStore.appendingPathComponent("\(held).png")) == Self.png)
-        #expect(try Data(contentsOf: receiverStore.appendingPathComponent("\(already).jpg")) == kept, "nothing in the store is replaced")
-        #expect(CourseQuizPicturePackage.materialize(packageAt: packageURL, root: receiver).isEmpty)
     }
 
     @Test("A name that is not a store file, or bytes that are not a picture, never land")

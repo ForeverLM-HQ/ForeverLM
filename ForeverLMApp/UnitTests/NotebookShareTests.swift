@@ -224,15 +224,13 @@ struct NotebookShareTests {
         let store = try await seed(storage, root: root)
         let theirs = Self.readOnlyTeam()
         try store.saveTeam(theirs, publish: false)
-        try store.withoutSyncTracking {
-            try store.saveLearningGoalRecord(Self.notebook(id: "proj-theirs", title: "Their notebook", teamID: theirs.id))
-            // A copy of the learner's notebook that the team holds, from
-            // before the owner made this member read-only.
-            try store.saveLearningGoalRecord(Self.notebook(
-                id: TeamContentIdentity.notebookID(teamID: theirs.id, originalNotebookID: "proj-mito"),
-                teamID: theirs.id
-            ))
-        }
+        try store.saveLearningGoalRecord(Self.notebook(id: "proj-theirs", title: "Their notebook", teamID: theirs.id))
+        // A copy of the learner's notebook that the team holds, from
+        // before the owner made this member read-only.
+        try store.saveLearningGoalRecord(Self.notebook(
+            id: TeamContentIdentity.notebookID(teamID: theirs.id, originalNotebookID: "proj-mito"),
+            teamID: theirs.id
+        ))
 
         for notebookID in ["proj-theirs", "proj-mito"] {
             do {

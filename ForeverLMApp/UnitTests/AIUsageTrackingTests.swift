@@ -253,7 +253,7 @@ struct AIUsageTrackingTests {
         #expect(accumulated.outputTokens == 90)
     }
 
-    @Test("Persists usage events locally without enqueuing sync")
+    @Test("Persists usage events locally")
     func persistsUsageEventsLocallyWithoutSync() throws {
         let store = try KnowledgeStore(inMemory: true)
         let event = AIUsageEvent(
@@ -285,7 +285,7 @@ struct AIUsageTrackingTests {
 
         try store.saveAIUsageEvent(event)
 
-        guard let loaded = try store.loadAIUsageEventForSync("usage-1") else {
+        guard let loaded = try store.ledgerEvent("usage-1") else {
             throw RequirementFailure.missingValue
         }
         #expect(loaded.model == "gpt-5.5")
@@ -319,7 +319,6 @@ struct AIUsageTrackingTests {
         #expect(beforeRecord.eventCount == 0)
         // AI usage telemetry is intentionally local-only: syncing per-API-call
         // events clogged the CloudKit queue (see saveAIUsageEvent).
-        #expect(try store.hasPendingSyncChange(entity: .aiUsageEvent, logicalKey: "usage-1") == false)
 
         let summaries = try store.loadAIUsageSummaries()
         #expect(summaries.count == 1)
@@ -398,11 +397,12 @@ struct AIUsageTrackingTests {
             since: Date(timeIntervalSinceReferenceDate: 301), paidByOwnKey: true
         )).count == 0)
 
-        guard let reloaded = try store.loadAIUsageEventForSync("client-own-key") else {
+        guard let reloaded = try store.ledgerEvent("client-own-key") else {
             throw RequirementFailure.missingValue
         }
         #expect(reloaded.paidByOwnKey)
-        #expect(try store.loadAIUsageEventForSync("client-balance")?.paidByOwnKey == false)
+        // The deferred row is still stored, as proxied.
+        #expect(try store.scalarInteger("SELECT own_key FROM ai_usage_events WHERE id = 'client-balance'") == 0)
     }
 
     @Test("A row written before the rail column reads as proxied, not own-key")
@@ -413,7 +413,7 @@ struct AIUsageTrackingTests {
             VALUES ('legacy-1', 'OpenAI', 'gpt-5.5', 'chat_completion', 'chat', 1.0)
         """)
 
-        #expect(try store.loadAIUsageEventForSync("legacy-1")?.paidByOwnKey == false)
+        #expect(try store.ledgerEvent("legacy-1")?.paidByOwnKey == false)
     }
 
     @Test("Persists TTS character counts and estimated cost")
@@ -446,7 +446,7 @@ struct AIUsageTrackingTests {
 
         try store.saveAIUsageEvent(event)
 
-        guard let loaded = try store.loadAIUsageEventForSync("tts-1") else {
+        guard let loaded = try store.ledgerEvent("tts-1") else {
             throw RequirementFailure.missingValue
         }
         #expect(loaded.characterCount == 2_000)
@@ -2177,5 +2177,12 @@ struct ManagedSessionRenewalTests {
     @Test("The renewal lead is half the proxy's 30-day session life")
     func leadIsHalfTheSessionLife() {
         #expect(ManagedAI.sessionRenewalLead == 15 * day)
+    }
+}
+
+private extension KnowledgeStore {
+    /// One stored event as the ledger's paged read gives it back.
+    func ledgerEvent(_ id: String) throws -> AIUsageEvent? {
+        try loadAIUsageEvents(limit: 1_000).first { $0.id == id }
     }
 }

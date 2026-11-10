@@ -21,58 +21,6 @@ enum LegacyIdentityAdoption {
     static let currentAppGroup = "group.com.foreverlm"
     static let currentUbiquityContainerDirName = "iCloud~com~foreverlm"
 
-    /// Rewrite only machine-owned Markdown link targets from the retired URL
-    /// scheme. Plain prose and code examples are intentionally untouched.
-    /// This is used by the bounded one-time Article body adoption pass; the
-    /// editor itself recognizes only the current ForeverLM scheme.
-    static func adoptingRetiredArtifactLinks(in markdown: String) -> String {
-        let retiredPrefix = "feynmanlm://"
-        let currentPrefix = "foreverlm://"
-        let supportedKinds = ["source/", "grounding/", "attachment/"]
-        var result = markdown
-        var searchStart = result.startIndex
-
-        while let range = result.range(
-            of: retiredPrefix,
-            options: [.caseInsensitive],
-            range: searchStart..<result.endIndex
-        ) {
-            let suffix = result[range.upperBound...]
-            guard supportedKinds.contains(where: { suffix.hasPrefix($0) }) else {
-                searchStart = range.upperBound
-                continue
-            }
-
-            var cursor = range.lowerBound
-            if cursor > result.startIndex, result[result.index(before: cursor)] == "<" {
-                cursor = result.index(before: cursor)
-            }
-            while cursor > result.startIndex,
-                  result[result.index(before: cursor)].isWhitespace {
-                cursor = result.index(before: cursor)
-            }
-            guard cursor > result.startIndex,
-                  result[result.index(before: cursor)] == "(" else {
-                searchStart = range.upperBound
-                continue
-            }
-            let openParen = result.index(before: cursor)
-            guard openParen > result.startIndex,
-                  result[result.index(before: openParen)] == "]" else {
-                searchStart = range.upperBound
-                continue
-            }
-
-            let replacementOffset = result.distance(from: result.startIndex, to: range.lowerBound)
-            result.replaceSubrange(range, with: currentPrefix)
-            searchStart = result.index(
-                result.startIndex,
-                offsetBy: replacementOffset + currentPrefix.count
-            )
-        }
-        return result
-    }
-
     private static let defaultsCopiedKey = "LegacyIdentityAdoption.copiedRetiredDefaults.v1"
     private static let logger = Logger(
         subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM",

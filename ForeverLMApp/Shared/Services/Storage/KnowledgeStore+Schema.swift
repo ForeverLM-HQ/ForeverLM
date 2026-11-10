@@ -466,277 +466,23 @@ extension KnowledgeStore {
     // replaces this one; a home a course already had also had its
     // `notebook_course_links` row, so its notebook keeps following it.
     //
-    // 152: a team notebook's approval reaches the team (2026-10-02;
-    // teams-design.md, decision 7). Builds before 152 blanked
-    // `learning_goal_items.review_state` from every outbound team
-    // LearningGoal together with the member's progress, and nil reads as
-    // approved, so a pending suggestion or a rejected tombstone reached every
-    // teammate as an approved source; inbound applies then put back whatever
-    // each member already held. The record now carries approval and inbound
-    // follows it. No DDL: one set-based UPDATE and one INSERT … SELECT stage,
-    // for one republish, each team Notebook this Mac holds a pending or
-    // rejected item in, in a team it may edit, whose record sync already
-    // tracks (`stageTeamNotebookApprovalRepublish`). A team Notebook whose
-    // items all read as approved here is left alone, since the team's record
-    // already says so and this Mac's view could only overwrite a teammate's
-    // verdict. Nothing is read item by item and nothing reaches the network.
-    // `reviewState` already rides the existing LearningGoal payload, so there
-    // is no CloudKit schema gate. A Mac on build 177 or older still blanks
-    // approval on every team Notebook it saves, and a 152 Mac now takes that
-    // nil as approved; there is no compatibility path, the team updates
-    // together (CHANGELOG, teams-design.md decision 7).
-    // 153: links left pointing at a notebook that is gone are released
-    // (2026-10-02; notebooks-design.md, "Merging and splitting"). Merging
-    // Notebooks and a split with `keep_parent` false removed the emptied
-    // notebook by a raw DELETE, so its chats, nested Goals, Docs, courses,
-    // Ideas' links and the rest kept the dead id; both now move everything to
-    // the notebook kept first (`moveNotebookContentsInTransaction`). No DDL.
-    // One bounded, set-based repair (`releaseLinksToDeletedNotebooks`): for
-    // each id carrying a `learningGoal` tombstone with no row — never an id
-    // merely not delivered yet — the chats, courses, scheduled tasks, Memory
-    // items and Planner rows lose it, nested Goals stand alone, Docs lose the
-    // home and the link, other Notebooks their related link, placements the
-    // tag and Ideas the link, each record republished through `sync_metadata`
-    // / `sync_changes` before the stamp. Nothing is deleted but link rows; a
-    // read-only team's rows are left alone. Measured on the production
-    // library (36 notebooks, 4 tombstones): nothing pointed at a tombstoned
-    // id, 0 rows changed, about 5 ms. Two chats there name an id with no
-    // row and no tombstone; that reads like a Notebook not delivered yet, so
-    // they stay as they are (the rail already lists them under Chats). No
-    // CloudKit schema change.
-    // 154: the schema-v2 local store (docs/cloudkit-schema-design.md §12.7,
-    // WP4). DDL only, plus one row-preserving rebuild, and nothing is filled:
-    // - the replica tables, empty: `ck_zones`, `ck_records` and the rest
-    //   (`ReplicaStore.sharedTables`, `KnowledgeStore.macReplicaTables`);
-    // - `wire_id` on sources, learning_goals, review_sessions,
-    //   global_artifacts and courses, NULL until the generation-2
-    //   activation fills it, and the indexed virtual column
-    //   `wire_key = COALESCE(wire_id, id)` every v2 join uses, so no row
-    //   drops out of a join while wire_id is NULL;
-    // - learning_goals.entity_kind, merged_into, fold_kind, moving_to and
-    //   moved_to, NULL until the activation;
-    // - the per-member tables that held `ON DELETE CASCADE` keys to content
-    //   (source_highlights, hidden_sources, hidden_podcast_episodes, the two
-    //   visible overrides, source_understanding, and notebook_files, whose
-    //   notebook_id becomes nullable) are rebuilt without them, row for row
-    //   (`rebuildPerMemberTablesWithoutContentForeignKeys`): a few thousand
-    //   rows on the largest library. Nothing references them, so
-    //   foreign_keys stays on. Generation 1 still removes those rows with
-    //   their source or notebook, now explicitly in deleteSourceRows,
-    //   deleteLocalDuplicateRows and the notebook delete, so it behaves as
-    //   before; generation 2 keeps them (D18).
-    // No trigger is created here: the generation-2 activation installs them,
-    // so a generation-1 build never grows an outbox. Before this step runs,
-    // the store open takes `knowledge.pre-154.db` (§13.3 step 1,
-    // `KnowledgeRollbackCopy`). A disk with no room for that copy holds the
-    // store below 154 for the launch: every earlier step still runs, as none
-    // of them ever needed a copy, and the store is stamped 153
-    // (`createSchema(stoppingBeforeSchema154:)`). No CloudKit schema change in
-    // the old container; the new one's schema is `schema/cloudkit-schema.json`.
-    // 155: the Source and Collection records' local tables (§12.7, WP7), DDL
-    // only and empty: source_work_keys (the work-key index lookup-before-mint
-    // reads), source_files and source_derived (FileRefs by role and kind),
-    // source_collections (podcast shows, YouTube channels and playlists no
-    // table holds) and source_wire_fields (the Source fields no column holds)
-    // (`KnowledgeStore.sourceSyncTables`). Generation 1 never touches them;
-    // the generation-2 activation fills them. Like every step from 154 on, it
-    // waits with 154 on a store held below it for want of room.
-    // 156: the Notebook, Goal, Entry and NotebookState records' local tables
-    // (§12.7, WP8), DDL only and empty: learning_goal_items.order_key (an
-    // Entry's fractional key), notebook_states (the member's own state per
-    // notebook: chat ticks, context notebooks, collections, sidebar), the
-    // notebook_resolution table `resolveNotebook()` keeps, and
-    // notebook_research_questions (one row per question), plus the
-    // back-pointer view ck_notebook_children
-    // (`KnowledgeStore.notebookSyncTables`). Generation 1 never touches
-    // them; the generation-2 activation fills them. Like every step from 154
-    // on, it waits with 154 on a store held below it for want of room.
-    // 157: the Course, Lesson, Quiz and Enrollment records' local columns and
-    // table (§12.7, WP9), DDL only and empty: courses.created_at,
-    // course_lectures.order_key, course_lecture_items.order_key, span_json
-    // and span_slot (a lesson Entry's key, its span and the n of its `#n`),
-    // course_quizzes.revision (1 on every row), and course_enrollments (the
-    // member's own Enrollment per course) (`KnowledgeStore.courseSyncTables`).
-    // A course lives in no notebook since 2026-10-03, so there is no homing
-    // column and the back-pointer view no longer lists courses by their
-    // retired home. Generation 1 never touches them; the generation-2
-    // activation fills them. Like every step from 154 on, it waits with 154
-    // on a store held below it for want of room.
-    // 158: the Chat and Exchange records' local columns (§12.7, WP10), DDL
-    // only and NULL: review_sessions.chat_kind (the v2 kind, D50; today's
-    // `kind` keeps its generation-1 meaning), marks_reviewed and
-    // context_mode, and review_exchanges.anchor_json and cited_source_ids
-    // (`KnowledgeStore.chatSyncColumns`). Generation 1 never reads or writes
-    // them; the generation-2 activation derives the three on review_sessions.
-    // Like every step from 154 on, it waits with 154 on a store held below it
-    // for want of room.
-    // 159: the Artifact and Comment records' local tables (§12.7, WP11), DDL
-    // only and empty: global_artifacts.body_ref (the Doc body's FileRef the
-    // body publisher writes), artifact_files (an Artifact's other satellites,
-    // and a Notes Doc's body) and ck_legacy_bodies (the notes bases the
-    // catch-ups take from the old world, by wire id)
-    // (`KnowledgeStore.artifactSyncTables`). Generation 1 never touches them.
-    // Like every step from 154 on, it waits with 154 on a store held below it
-    // for want of room.
-    // 160: the member's reading state (§12.7, WP12), DDL only and empty:
-    // reading_states, one row per ReadingState record keyed by the source's
-    // wire id (`KnowledgeStore.readingSyncTables`). Generation 1 never touches
-    // it, and its `sources` columns stay the reading state's truth; the
-    // generation-2 activation fills it. Like every step from 154 on, it waits
-    // with 154 on a store held below it for want of room.
-    // 161: the memory records' local tables (§12.7, WP13), DDL only and
-    // empty: memory_sittings and memory_sitting_answers (Sittings and their
-    // answers), memory_card_states (a card's state outside its kept wording),
-    // device_activity_days and activity_logs (this Mac's and every other
-    // log), practices (`KnowledgeStore.memorySyncTables`). Generation 1 never
-    // touches them; the generation-2 activation fills them. Like every step
-    // from 154 on, it waits with 154 on a store held below it for want of
-    // room.
-    // 162: the Task, Job and Automation records' local table and columns
-    // (§12.7, WP14), DDL only and empty: jobs (the work a Mac does for the
-    // iPhone, the web and the hosted MCP, one row per Job record),
-    // notebook_tasks.order_key (a task's board key),
-    // scheduled_tasks.runner_device_id (the Mac that runs an automation) and
-    // scheduled_task_runs.ring_slot (the run's slot in its 20-slot ring)
-    // (`KnowledgeStore.tasksSyncTables`). Generation 1 never touches them;
-    // the generation-2 activation fills them. Like every step from 154 on, it
-    // waits with 154 on a store held below it for want of room.
-    // 163: the Device record's and the import-blocked shows' local tables
-    // (§12.7, WP12b), DDL only and empty: devices (one row per Device record)
-    // and blocked_podcast_shows (one row per show whose episodes are never
-    // imported) (`KnowledgeStore.personalStateSyncTables`). Generation 1 never
-    // touches them; its connectorHealth.* and podcasts.blockedShows rows stay
-    // their truth, and the generation-2 activation fills them. Like every
-    // step from 154 on, it waits with 154 on a store held below it for want
-    // of room.
-    // 164: a notebook is no longer called a project in storage
-    // (product owner, 2026-10-04: "they shouldn't be called projects internally
-    // anymore"). Six tables and thirteen columns that said project say
-    // notebook (`renameProjectStorageForSchema164`: ALTER TABLE RENAME,
-    // so rows, indexes, foreign keys and triggers stay; the indexes that
-    // carried the old word are dropped and made again by the installer; the
-    // back-pointer view ck_notebook_children is made again, since its rows
-    // name tables; the generation-2 outbox's table and column names follow),
-    // and the stored kind values that said 'project' (`idea_links.kind`,
-    // `research_directions.home_kind`) read 'notebook'; the usage ledger keeps
-    // the subject type each row was written with. It runs before any statement
-    // names the new tables, for the reason schema 98's rename does, and it
-    // does not wait with 154 on a store held below it: this build's queries
-    // name the new tables, and a rename needs no rollback copy. 0.16 s on a
-    // clone of the 3.3 GB Dev store. The settings catalog's keys
-    // (`studio.projectOrder`, `studio.navigation.expandedProjectIDs.v1`,
-    // `studio.unpinnedProjects`) keep their names. No CloudKit schema change.
-    // 165: three local tables for the sensemaking shapes
-    // (docs/sensemaking-design.md), DDL only and empty: `atlases` (one row an
-    // Atlas, its concepts as JSON), `source_levels` (a source's reading levels
-    // for the Reader, keyed to the text they were written from) and
-    // `source_faces` (a source card's written faces on the Canvas). Each is
-    // derived and rewritable, never synced (docs/backend-storage-sync.md,
-    // "Not synced"), so no CloudKit schema change.
-    // 166: the soft hyphens older builds left in stored text go
-    // (docs/source-content-integrity.md, "Soft hyphens are not text";
-    // docs/backend-storage-sync.md, "Soft hyphens repaired"). One empty
-    // local-only table, `source_text_soft_hyphen_repair_queue`, probed, and
-    // one set-based INSERT staging every source of the learner's own library
-    // by id: after launch, before sync starts, `drainStoredSoftHyphenRepairBatch`
-    // finds the few whose text holds U+00AD or a literal `&shy;` and repairs
-    // each with what was derived from its old text. The migration reads no
-    // text. Like every step from 154 on, it waits with 154 on a store held
-    // below it for want of room. No CloudKit schema change.
-    // 167: podcast transcripts still cut at the retired 50,000-character
-    // import cap are found by where they stop (2026-10-06;
-    // docs/source-content-integrity.md). Schema 85's audit counted a
-    // transcript as complete when it held 85% of its TTML text, so every
-    // episode of 50,000 to 58,800 characters passed with its end missing and
-    // was stamped `podcasts.detruncated_ttml_sha256`, which exempted it for
-    // good; an episode with no stored TTML was never measured at all. The new
-    // audit (`PodcastTranscriptCompleteness`) finds where the stored
-    // transcript's last words sit in the episode text and restores only one
-    // the cap cut. Its findings go in a new local-only table,
-    // `podcast_transcript_audits` (one row an episode: what it found, against
-    // which TTML), so the old marker is retired, unread and unwritten, and no
-    // `podcasts` row is rewritten: an UPDATE of that row rewrites its TTML,
-    // 1.4 GB over the largest library. `podcast_transcript_detruncation_queue`
-    // gains `retry_after`, since an episode with no stored TTML is measured
-    // against one fetch of Apple's and a failed fetch waits before it is
-    // tried again. The step is ids only: every active podcast with stored
-    // TTML, and every public Apple episode without it whose text did not
-    // come from YouTube, is queued (a row left there by schema 85 starts its
-    // attempts again); the drain after launch extracts, fetches and
-    // restores. The `podcasts` columns it reads are answered without reading
-    // a TTML (`octet_length`). Neither table syncs, so no CloudKit schema
-    // change, and nothing is republished until an episode is restored.
-    // 168: where each source's full-text row is (docs/backend-storage-sync.md,
-    // "Full-text rows found by rowid"). Two local tables, DDL only:
-    // `source_fts_rows` (a source's FTS5 rowid, so its row is deleted by rowid
-    // instead of reading every row's text for an UNINDEXED `source_id`) and
-    // `source_fts_row_backfill` (one row, enqueued here, while rows written
-    // before 168 have no rowid recorded; `recordSourceFTSRows` records them
-    // after launch). The migration reads no full-text row. It does not wait
-    // with 154 on a store held below it: this build's full-text writes read
-    // the map. Never synced, so no CloudKit schema change.
-    // 169: a PDF book is one file (docs/backend-storage-sync.md, "A book is
-    // one file"). `book_sources` gains `page_start` and `page_count`: the
-    // run of the book file's pages that is the chapter. NULL on every
-    // existing row is the truth, since every chapter there is a file of its
-    // own. A local-only queue, `book_file_merge_queue`, takes the id of every
-    // book with a chapter that is a PDF file (set-based, one row a book), and
-    // after launch `BookFileMerge` puts each book back into one file, points
-    // its chapters at their pages and deletes the chapter files. The
-    // migration reads no file. Like 168 it does not wait with 154 on a store
-    // held below it, since this build's book writes name the columns. They
-    // travel as `Source.meta.pageStart` and `pageCount`, inside the encrypted
-    // payload, so no CloudKit schema change.
-    // 170: an EPUB book is one file too. An older build unpacked each EPUB
-    // into `Books/<book>/Chapters/`; a chapter keeps that address, which now
-    // names the entry inside the book's `.epub` (`EPUBBookFiles`). The
-    // migration queues, in 169's queue, every book with a chapter addressed
-    // in an unpacked folder (ids only, no file read), and after launch the
-    // drain packs each folder into the book's file, reads every entry back,
-    // and removes the folder. No column, nothing synced: a chapter's file
-    // never travelled, only its text.
-    // 171: a book reads the moment it is added. Add Book saves the book as one
-    // entry over its whole file and leaves the metadata and paper checks,
-    // reading scanned pages and the chapter split to the work after it, which
-    // a local-only queue, `book_import_finish_queue`, keeps across a quit.
-    // DDL only: the table is created empty and proved before the stamp. Never
-    // synced, so no CloudKit schema change.
-    // 172: a podcast transcript reads the moment it is fetched. Hydration
-    // saves Apple's transcript (or an opted-in speech-to-text one) laid out
-    // but unformatted, ready, and the speaker names and paragraph formatting
-    // come after, in the local-only `podcast_transcript_cleanup_queue` that
-    // already held the ad pass. It gains `format_input_sha256` (the raw text
-    // the row owes the whole formatting pass for; NULL is the ad pass alone,
-    // which every existing row is) and `learner_asked` (an episode the learner
-    // asked for goes first, hidden or not; 0 on every existing row is the
-    // truth). DDL only: two ALTER TABLE ADD COLUMN, nothing read or rewritten.
-    // Not held with 154: this build's transcript saves write them. Never
-    // synced, so no CloudKit schema change.
-    // 173: a book is the same book only when it is the same file. Add Book
-    // matched a book by its title, so a second book called "Bioenergetics"
-    // took the first's row and archived its chapters. A file is now a book
-    // already there only by its bytes, which the local-only
-    // `book_file_digests` remembers by sha256 for each file added (the
-    // library's copy is rewritten by the import, so its own bytes cannot say
-    // it). DDL only: the table and its index are created empty and proved
-    // before the stamp. Not held with 154: this build's Add Book writes it.
-    // Never synced, so no CloudKit schema change.
-    // 174: a paper's reference list is read and linked when the paper is added.
-    // Citations in a paper resolved to their entry only through the PDF's own
-    // link annotations, so a PDF without them (NEJM, most preprints) showed no
-    // popup and no link, and nothing was kept of what a paper cites. The
-    // local-only `paper_references` holds each entry of a paper's list with
-    // the DOI or address it resolved to, and `paper_reference_reads` is the
-    // durable queue of papers owed a read and the record of what each read
-    // found. Both are derived from the paper's PDF by rule and by the free
-    // Crossref and OpenAlex catalogs (`PaperReferenceLinkService`), so the
-    // tables themselves are not synced records; the list rides as the
-    // `references` satellite of the paper's Source (a Mac that holds the PDF
-    // still makes its own, and takes the links another found). DDL and one set-based
-    // INSERT of ids from `papers` into the queue; nothing is read, opened or
-    // asked in the migration, and the drain runs after launch at `.utility`.
-    // Not held with 154: this build's paper saves write the queue.
-    static let schemaVersion: Int32 = 174
+    // 152 and 153 changed no table and went with the generation-1 sync
+    // engine: 152 queued each team Notebook's approval for that engine to
+    // send again, and 153 released links to Notebooks that its tombstones in
+    // `sync_metadata` named as deleted.
+    //
+    // 175: generation-1 sync is gone (2026-11-09). Its seven tables
+    // (`sync_changes`, `sync_metadata`, `sync_conflicts`, `sync_asset_digests`,
+    // `sync_engine_states`, `source_sync_repair_queue`,
+    // `review_session_sync_repair_queue`) are dropped, and a fresh store never
+    // makes them. A store below 175 still gets them for the older steps that
+    // read them, and the < 175 step first records in `ck_activation` what the
+    // last of them told the activation: a store with generation-1 sync history
+    // and no mode yet activates `deferred`, and an unactivated `full` journal
+    // continues as `deferred`. Nothing else is read from them; `card_meta` and
+    // `card_reviews` are not theirs and stay.
+    static let schemaVersion: Int32 = 175
+    static let generation1RemovalSchemaVersion: Int32 = 175
     static let minimumMigratableSchemaVersion: Int32 = 1
 
     /// The day Goals shipped — schema 120, build 114, 2026-09-19 — as midnight
@@ -882,7 +628,6 @@ extension KnowledgeStore {
 
         var migrationNeedsRollback = false
         var reactivatedCourseSourceCount = 0
-        var republishedVideoProgressCount = 0
         var migratedPaperIngestionCount = 0
         var queuedPaperFigureMarkdownRepairCount = 0
         var restoredCourseMaterialCount = 0
@@ -890,13 +635,11 @@ extension KnowledgeStore {
         var migratedMeetingFolderImageCount = 0
         var adoptedDisplayPreferenceCount = 0
         var queuedPodcastDetruncationCount = 0
-        var republishedDismissedArchiveCount = 0
         var queuedCanonicalCleanupCount = 0
         var queuedContentIntegrityAuditCount = 0
         var queuedArticleChromeRefilterCount = 0
         var republishedArchivedSourceCount = 0
         var removedArchivedGoalLinkCount = 0
-        var repairedOrphanedAssetStagingCount = 0
         var queuedReviewGuideCount = 0
         var cancelledReviewGuideCount = 0
         var queuedPaperMetadataRepublishCount = 0
@@ -923,8 +666,6 @@ extension KnowledgeStore {
         var queuedSoftHyphenRepairCount = 0
         var queuedSplitBookMergeCount = 0
         var queuedUnpackedEPUBBookCount = 0
-        var stagedTeamApprovalRepublishCount = 0
-        var releasedDeletedNotebookLinks = (deletedNotebooks: 0, republished: 0)
         var rebuiltPerMemberRows: [String: Int] = [:]
         if isMigration {
             try exec("BEGIN IMMEDIATE")
@@ -2817,44 +2558,6 @@ extension KnowledgeStore {
             )
         """)
 
-        try exec("""
-            CREATE TABLE IF NOT EXISTS sync_changes (
-                entity_type TEXT NOT NULL,
-                logical_key TEXT NOT NULL,
-                record_name TEXT NOT NULL,
-                operation TEXT NOT NULL,
-                changed_at REAL NOT NULL,
-                tutor_only INTEGER NOT NULL DEFAULT 0,
-                -- Where the record lives (schema 96): the private Knowledge
-                -- zone, or a team zone in either database. See CloudKitZoneHome.
-                zone_scope TEXT NOT NULL DEFAULT 'private',
-                zone_name TEXT NOT NULL DEFAULT 'Knowledge',
-                zone_owner_record_name TEXT,
-                PRIMARY KEY (entity_type, logical_key)
-            )
-        """)
-
-        // Local-only staging for versioned CloudKit repairs. The schema
-        // transaction enqueues IDs set-wise; bounded post-launch batches derive
-        // record names and build payloads/assets after the library is visible.
-        try exec("""
-            CREATE TABLE IF NOT EXISTS source_sync_repair_queue (
-                source_id TEXT PRIMARY KEY REFERENCES sources(id) ON DELETE CASCADE,
-                enqueued_at REAL NOT NULL
-            )
-        """)
-
-        // Schema 98 renamed the CloudKit record type behind review sessions, so
-        // every session goes up again under the new type. The migration stages
-        // the ids set-wise; bounded post-launch batches hash the new record
-        // names and enqueue ordinary sync changes.
-        try exec("""
-            CREATE TABLE IF NOT EXISTS review_session_sync_repair_queue (
-                session_id TEXT PRIMARY KEY REFERENCES review_sessions(id) ON DELETE CASCADE,
-                enqueued_at REAL NOT NULL
-            )
-        """)
-
         // Same staging contract for stored text that still carries HTML
         // character references: migration enqueues IDs set-wise, and bounded
         // post-launch batches read, decode, and republish the content.
@@ -2925,6 +2628,120 @@ extension KnowledgeStore {
                 enqueued_at REAL NOT NULL
             )
         """)
+
+        // Generation 1's tables, for a store migrating from below 175 only:
+        // the older steps below read and write them, and the < 175 step drops
+        // them before the stamp. A fresh store never has them.
+        if isMigration, currentVersion < Self.generation1RemovalSchemaVersion {
+            try exec("""
+                CREATE TABLE IF NOT EXISTS sync_changes (
+                    entity_type TEXT NOT NULL,
+                    logical_key TEXT NOT NULL,
+                    record_name TEXT NOT NULL,
+                    operation TEXT NOT NULL,
+                    changed_at REAL NOT NULL,
+                    tutor_only INTEGER NOT NULL DEFAULT 0,
+                    -- Where the record lives (schema 96): the private Knowledge
+                    -- zone, or a team zone in either database. See CloudKitZoneHome.
+                    zone_scope TEXT NOT NULL DEFAULT 'private',
+                    zone_name TEXT NOT NULL DEFAULT 'Knowledge',
+                    zone_owner_record_name TEXT,
+                    PRIMARY KEY (entity_type, logical_key)
+                )
+            """)
+
+            // Local-only staging for versioned CloudKit repairs. The schema
+            // transaction enqueues IDs set-wise; bounded post-launch batches derive
+            // record names and build payloads/assets after the library is visible.
+            try exec("""
+                CREATE TABLE IF NOT EXISTS source_sync_repair_queue (
+                    source_id TEXT PRIMARY KEY REFERENCES sources(id) ON DELETE CASCADE,
+                    enqueued_at REAL NOT NULL
+                )
+            """)
+
+            // Schema 98 renamed the CloudKit record type behind review sessions, so
+            // every session goes up again under the new type. The migration stages
+            // the ids set-wise; bounded post-launch batches hash the new record
+            // names and enqueue ordinary sync changes.
+            try exec("""
+                CREATE TABLE IF NOT EXISTS review_session_sync_repair_queue (
+                    session_id TEXT PRIMARY KEY REFERENCES review_sessions(id) ON DELETE CASCADE,
+                    enqueued_at REAL NOT NULL
+                )
+            """)
+
+            try exec("""
+                CREATE TABLE IF NOT EXISTS sync_metadata (
+                    entity_type TEXT NOT NULL,
+                    logical_key TEXT NOT NULL,
+                    record_name TEXT NOT NULL,
+                    system_fields BLOB,
+                    user_modification_at REAL NOT NULL,
+                    is_deleted INTEGER NOT NULL DEFAULT 0,
+                    zone_scope TEXT NOT NULL DEFAULT 'private',
+                    zone_name TEXT NOT NULL DEFAULT 'Knowledge',
+                    zone_owner_record_name TEXT,
+                    PRIMARY KEY (entity_type, logical_key),
+                    UNIQUE (record_name)
+                )
+            """)
+            try exec("CREATE INDEX IF NOT EXISTS idx_sync_metadata_zone ON sync_metadata(zone_scope, zone_name, zone_owner_record_name)")
+
+            // Permanent create-once/immutable record conflicts are quarantined
+            // here instead of remaining in `sync_changes`. Keeping the server
+            // payload and change tag makes the failure inspectable and recoverable,
+            // while removing the active save prevents an unbounded CKSyncEngine
+            // serverRecordChanged retry loop.
+            try exec("""
+                CREATE TABLE IF NOT EXISTS sync_conflicts (
+                    entity_type TEXT NOT NULL,
+                    logical_key TEXT NOT NULL,
+                    record_name TEXT NOT NULL,
+                    reason TEXT NOT NULL,
+                    local_modification_at REAL NOT NULL,
+                    server_modification_at REAL NOT NULL,
+                    detected_at REAL NOT NULL,
+                    server_payload BLOB,
+                    server_system_fields BLOB,
+                    zone_scope TEXT NOT NULL DEFAULT 'private',
+                    zone_name TEXT NOT NULL DEFAULT 'Knowledge',
+                    zone_owner_record_name TEXT,
+                    PRIMARY KEY (entity_type, logical_key)
+                )
+            """)
+            try exec("CREATE INDEX IF NOT EXISTS idx_sync_conflicts_detected ON sync_conflicts(detected_at DESC)")
+
+            // What each asset field last *successfully* uploaded, so an unchanged
+            // asset is not rebuilt and re-sent every time its record is saved for an
+            // unrelated reason. `digest` is the committed value; `pending_digest` is
+            // staged while a save is in flight and only promoted when CloudKit
+            // acknowledges the record. A crash between the two leaves a stale
+            // pending value, which the next makeRecord for that record overwrites
+            // before its own save can promote it.
+            try exec("""
+                CREATE TABLE IF NOT EXISTS sync_asset_digests (
+                    record_name TEXT NOT NULL,
+                    field TEXT NOT NULL,
+                    digest TEXT,
+                    pending_digest TEXT,
+                    staged_attempts INTEGER NOT NULL DEFAULT 0,
+                    first_staged_at REAL,
+                    last_staged_at REAL,
+                    PRIMARY KEY (record_name, field)
+                )
+            """)
+
+            // One CKSyncEngine per database scope (schema 96): the learner's
+            // private database, and the shared database that carries the teams
+            // they were invited to. Each engine serializes its own state.
+            try exec("""
+                CREATE TABLE IF NOT EXISTS sync_engine_states (
+                    scope TEXT PRIMARY KEY,
+                    state_serialization BLOB
+                )
+            """)
+        }
 
         try exec("""
             CREATE TABLE IF NOT EXISTS sync_metadata (
@@ -3366,9 +3183,6 @@ extension KnowledgeStore {
             if currentVersion < 8 {
                 reactivatedCourseSourceCount = try reactivateArchivedCourseLectureSources()
             }
-            if currentVersion < 9 {
-                republishedVideoProgressCount = try republishVideoWatchProgressForSync()
-            }
             if currentVersion < 10 {
                 migratedPaperIngestionCount = try migratePaperIngestionGate()
             }
@@ -3379,9 +3193,6 @@ extension KnowledgeStore {
                 migratedModelPreferenceCount = try migratePersistedModelPreferences(
                     startupPreferenceSnapshot
                 )
-            }
-            if currentVersion < 16 {
-                republishedDismissedArchiveCount = try republishDismissedArchivedSourcesForSync()
             }
             if currentVersion < 18 {
                 queuedCanonicalCleanupCount = try enqueueHistoricalCanonicalContentCleanup(
@@ -3559,16 +3370,6 @@ extension KnowledgeStore {
                 migratedMeetingFolderImageCount = try migrateMeetingFolderImagePreferences(
                     startupPreferenceSnapshot
                 )
-            }
-            if currentVersion < 83 {
-                // Repair the digests already orphaned by the two exit paths that
-                // used to leave them: a quarantined save and a save discarded
-                // for a missing local row both left the queue while their
-                // staged rows stayed pending, and nothing afterwards could
-                // commit or clear them. A record with no queue entry cannot be
-                // mid-flight at migration time, which is what makes this safe
-                // to do set-wise here rather than record by record later.
-                repairedOrphanedAssetStagingCount = try repairOrphanedAssetStaging()
             }
             // Schema 85 queued every podcast with stored TTML for a completeness
             // audit here. Schema 167's step, below, queues every episode its
@@ -3928,19 +3729,12 @@ extension KnowledgeStore {
                        AND end_at < \(sentinel)
                        AND created_at < \(goalsShippedAt)
                 """
-                var promoted: [String] = []
-                try query("SELECT id FROM learning_goals" + promotedWhere) { stmt in
-                    if let id = string(stmt, 0) { promoted.append(id) }
-                }
                 let promotedAt = Date()
                 try exec("""
                     UPDATE learning_goals
                        SET end_at = \(sentinel),
                            updated_at = \(promotedAt.timeIntervalSinceReferenceDate)
                 """ + promotedWhere)
-                for id in promoted {
-                    try upsertSyncSave(entity: .learningGoal, logicalKey: id, at: promotedAt)
-                }
                 // The probe proves the ALTER above landed before the stamp
                 // commits; no block named a Goal before, so nothing is read.
                 try query("SELECT goal_id FROM time_blocks LIMIT 0") { _ in }
@@ -4159,18 +3953,6 @@ extension KnowledgeStore {
                 // homing a course is the learner's act.
                 try query("SELECT home_notebook_id FROM courses LIMIT 0") { _ in }
             }
-            if currentVersion < 152 {
-                // A team notebook's approval (2026-10-02): the team Notebooks
-                // whose pending or rejected items never reached the team are
-                // staged for one republish. Set-based, metadata only.
-                stagedTeamApprovalRepublishCount = try stageTeamNotebookApprovalRepublish()
-            }
-            if currentVersion < 153 {
-                // What still points at a merged-away or split-away notebook
-                // (2026-10-02): released set-based, the records republished.
-                // Bounded by the dangling rows; no DDL.
-                releasedDeletedNotebookLinks = try releaseLinksToDeletedNotebooks()
-            }
             if currentVersion < 154, laysDownSchema154 {
                 // The schema-v2 local store (2026-10-03): the ck_* tables are
                 // created above, empty, and the wire columns were added with
@@ -4309,6 +4091,13 @@ extension KnowledgeStore {
                 try probePaperReferenceTables()
                 try enqueuePaperReferenceReadsForExistingPapers()
             }
+            if currentVersion < Self.generation1RemovalSchemaVersion, laysDownSchema154 {
+                // Generation 1 is gone (2026-11-09): what its tables still
+                // told the activation is recorded in its journal, then the
+                // seven tables go. Set-based; no application row is read.
+                try recordGeneration1HistoryInActivationJournal()
+                try dropGeneration1Tables()
+            }
             // Preparing the projection catches an older, structurally incompatible
             // table before the version stamp commits. The transaction then rolls
             // back completely instead of leaving a half-migrated store.
@@ -4329,12 +4118,6 @@ extension KnowledgeStore {
                 "Migrated knowledge database schema from \(currentVersion) to \(stampedVersion)"
             )
             if reactivatedCourseSourceCount > 0 {
-                NotificationCenter.default.post(name: .cloudKitSyncStoreDidChange, object: nil)
-            }
-            if republishedVideoProgressCount > 0 {
-                logger.notice(
-                    "Queued \(republishedVideoProgressCount) video watch-progress source(s) for CloudKit republish"
-                )
                 NotificationCenter.default.post(name: .cloudKitSyncStoreDidChange, object: nil)
             }
             if queuedPaperFigureMarkdownRepairCount > 0 {
@@ -4395,12 +4178,6 @@ extension KnowledgeStore {
             if migratedMeetingFolderImageCount > 0 {
                 logger.notice(
                     "Persisted and queued \(migratedMeetingFolderImageCount) meeting folder image(s) for CloudKit republish"
-                )
-                NotificationCenter.default.post(name: .cloudKitSyncStoreDidChange, object: nil)
-            }
-            if republishedDismissedArchiveCount > 0 {
-                logger.notice(
-                    "Queued \(republishedDismissedArchiveCount) dismissal-archived source(s) for CloudKit republish"
                 )
                 NotificationCenter.default.post(name: .cloudKitSyncStoreDidChange, object: nil)
             }
@@ -4474,12 +4251,6 @@ extension KnowledgeStore {
                     "Queued \(queuedUnpackedEPUBBookCount) EPUB book(s) to pack back into one file"
                 )
             }
-            if stagedTeamApprovalRepublishCount > 0 {
-                logger.notice(
-                    "Staged \(stagedTeamApprovalRepublishCount) team Notebook(s) for CloudKit republish so their pending and rejected sources reach the team"
-                )
-                NotificationCenter.default.post(name: .cloudKitSyncStoreDidChange, object: nil)
-            }
             if queuedSourcePDFAssetRepublishCount > 0 {
                 logger.notice(
                     "Staged \(queuedSourcePDFAssetRepublishCount) recorded PDF source(s) for deferred CloudKit asset repair"
@@ -4537,21 +4308,10 @@ extension KnowledgeStore {
                     "Staged \(queuedTextReferenceRepairCount) source(s) whose stored text still holds HTML character references"
                 )
             }
-            if repairedOrphanedAssetStagingCount > 0 {
-                logger.notice(
-                    "Cleared \(repairedOrphanedAssetStagingCount) orphaned CloudKit asset staging row(s)"
-                )
-            }
             if !rebuiltPerMemberRows.isEmpty {
                 logger.notice(
                     "Rebuilt \(rebuiltPerMemberRows.count) per-member table(s) without foreign keys to content, keeping all \(rebuiltPerMemberRows.values.reduce(0, +)) row(s)"
                 )
-            }
-            if releasedDeletedNotebookLinks.republished > 0 {
-                logger.notice(
-                    "Released \(releasedDeletedNotebookLinks.republished) record(s) still linked to \(releasedDeletedNotebookLinks.deletedNotebooks) deleted notebook(s) and queued them for CloudKit"
-                )
-                NotificationCenter.default.post(name: .cloudKitSyncStoreDidChange, object: nil)
             }
             if republishedArchivedSourceCount > 0 || removedArchivedGoalLinkCount > 0 {
                 logger.notice(
@@ -4999,8 +4759,7 @@ extension KnowledgeStore {
     }
 
     /// Version 114: the hides the retired per-Mac columns recorded become rows
-    /// in `hidden_artifacts` and `hidden_review_sessions`, each queued as a
-    /// save so every Mac signed into the account learns of them. A store from
+    /// in `hidden_artifacts` and `hidden_review_sessions`. A store from
     /// before 111 has no such column and nothing to hand over. Bounded by the
     /// number of docs and chats a person hid by hand, never by the library.
     func adoptRetiredHiddenColumns() throws -> Int {
@@ -5016,7 +4775,6 @@ extension KnowledgeStore {
                     bind(stmt, 1, row.id)
                     sqlite3_bind_double(stmt, 2, row.hiddenAt.timeIntervalSinceReferenceDate)
                 }
-                try upsertSyncSave(entity: .hiddenArtifact, logicalKey: row.id, at: row.hiddenAt)
                 adopted += 1
             }
         }
@@ -5031,7 +4789,6 @@ extension KnowledgeStore {
                     bind(stmt, 1, row.id)
                     sqlite3_bind_double(stmt, 2, row.hiddenAt.timeIntervalSinceReferenceDate)
                 }
-                try upsertSyncSave(entity: .hiddenReviewSession, logicalKey: row.id, at: row.hiddenAt)
                 adopted += 1
             }
         }
@@ -5266,167 +5023,10 @@ extension KnowledgeStore {
         """)
 
         let now = Date()
-        for sourceID in sourceIDs {
-            try upsertSyncSave(entity: .source, logicalKey: sourceID, at: now)
-        }
         for goalID in goalIDs {
             try touchLearningGoal(goalID, at: now)
-            try upsertSyncSave(entity: .learningGoal, logicalKey: goalID, at: now)
         }
         return (sourceIDs.count, removedGoalLinks)
-    }
-
-    /// Schema 153 releases what still points at a notebook that is gone.
-    /// Merging Notebooks removed each merged one by a raw DELETE, and a split
-    /// with `keep_parent` false removed its emptied parent the same way, so
-    /// whatever the ordinary delete would have cleared kept the dead id:
-    /// chats, nested Goals, Docs, Ideas' links and the rest
-    /// (`moveNotebookContentsInTransaction` now moves them first).
-    ///
-    /// "Gone" is a `learningGoal` tombstone in `sync_metadata` with no row
-    /// behind it — the mark every local delete and every applied remote
-    /// delete leaves. An id with no row and no tombstone is left alone: it
-    /// may be a Notebook CloudKit has not delivered yet, and clearing a chat's
-    /// link to it would republish the loss to every device.
-    ///
-    /// Each link is cleared the way the ordinary delete clears it, set-based:
-    /// a chat, a course, a scheduled task, a Memory item and a Planner block
-    /// or bout lose the id; a nested Goal stands alone instead of being
-    /// deleted with its Notebook; a Doc loses its home and its link; another
-    /// Notebook loses its related-Notebook link; a Schedule placement loses
-    /// the tag; an Idea loses the link. Nothing a learner wrote is deleted. A
-    /// Direction keeps its home (it has no other, and is shown nowhere), as
-    /// does every task, a team's or not (`notebook_tasks.notebook_id` is NOT
-    /// NULL); a read-only team's records
-    /// are not this member's to republish and are left as they are.
-    ///
-    /// Every changed record is queued for CloudKit before the version stamp
-    /// commits. The work is bounded by the dangling rows, not the library:
-    /// one indexed probe for tombstones answers a library with none.
-    func releaseLinksToDeletedNotebooks() throws -> (deletedNotebooks: Int, republished: Int) {
-        let deleted = """
-            SELECT m.logical_key FROM sync_metadata m
-            WHERE m.entity_type = '\(CloudKitSyncEntity.learningGoal.rawValue)'
-              AND m.is_deleted = 1
-              AND NOT EXISTS (SELECT 1 FROM learning_goals g WHERE g.id = m.logical_key)
-        """
-        var deletedCount = 0
-        try query("SELECT COUNT(*) FROM (\(deleted))") { stmt in
-            deletedCount = Int(sqlite3_column_int64(stmt, 0))
-        }
-        guard deletedCount > 0 else { return (0, 0) }
-
-        func writable(_ teamColumn: String) -> String {
-            "(\(teamColumn) IS NULL OR \(teamColumn) NOT IN (SELECT id FROM teams WHERE permission = '\(TeamPermission.readOnly.rawValue)'))"
-        }
-        let notebookLinkKinds = "('\(IdeaLinkKind.notebook.rawValue)', '\(IdeaLinkKind.goal.rawValue)')"
-        let now = Date()
-        var toStage: [(entity: CloudKitSyncEntity, key: String)] = []
-        func collect(_ entity: CloudKitSyncEntity, _ sql: String) throws {
-            try query(sql) { stmt in
-                if let id = self.string(stmt, 0) { toStage.append((entity, id)) }
-            }
-        }
-        func write(_ sql: String) throws {
-            try execBind(sql) { stmt in
-                sqlite3_bind_double(stmt, 1, now.timeIntervalSinceReferenceDate)
-            }
-        }
-
-        // Chats, kept in the ordinary Chats list (`clearReviewSessionGoals`).
-        let chats = "goal_id IN (\(deleted)) AND \(writable("team_id"))"
-        try collect(.reviewSession, "SELECT id FROM review_sessions WHERE \(chats) ORDER BY id")
-        try exec("UPDATE review_sessions SET goal_id = NULL WHERE \(chats)")
-
-        // Nested Goals stand alone; the ordinary delete would have deleted them.
-        let nested = "parent_notebook_id IN (\(deleted)) AND \(writable("team_id"))"
-        try collect(.learningGoal, "SELECT id FROM learning_goals WHERE \(nested) ORDER BY id")
-        try write("UPDATE learning_goals SET parent_notebook_id = NULL, updated_at = ?1 WHERE \(nested)")
-
-        // Docs lose the home and the link (`removeNotebookFromArtifacts`).
-        let docs = """
-            \(writable("team_id")) AND (home_notebook_id IN (\(deleted))
-                OR id IN (SELECT artifact_id FROM global_artifact_notebook_links WHERE notebook_id IN (\(deleted))))
-        """
-        try collect(.artifact, "SELECT id FROM global_artifacts WHERE \(docs) ORDER BY id")
-        try write("""
-            UPDATE global_artifacts
-            SET home_notebook_id = CASE WHEN home_notebook_id IN (\(deleted)) THEN NULL ELSE home_notebook_id END,
-                updated_at = ?1
-            WHERE \(docs)
-        """)
-        try exec("""
-            DELETE FROM global_artifact_notebook_links
-            WHERE notebook_id IN (\(deleted))
-              AND artifact_id IN (SELECT id FROM global_artifacts WHERE \(writable("team_id")))
-        """)
-
-        // A Notebook that drew context from the gone one stops
-        // (`removeIncomingRelatedNotebookLinks`); the link rides its record.
-        let referrers = """
-            \(writable("team_id")) AND id IN (
-                SELECT notebook_id FROM notebook_related_notebook_links WHERE related_notebook_id IN (\(deleted)))
-        """
-        try collect(.learningGoal, "SELECT id FROM learning_goals WHERE \(referrers) ORDER BY id")
-        try write("UPDATE learning_goals SET updated_at = ?1 WHERE \(referrers)")
-        try exec("""
-            DELETE FROM notebook_related_notebook_links
-            WHERE related_notebook_id IN (\(deleted))
-              AND notebook_id IN (SELECT id FROM learning_goals WHERE \(writable("team_id")))
-        """)
-
-        // Scheduled tasks file their runs in Chats (`detachScheduledTasksFromNotebook`).
-        let tasks = "notebook_id IN (\(deleted))"
-        try collect(.scheduledTask, "SELECT id FROM scheduled_tasks WHERE \(tasks) ORDER BY id")
-        try write("UPDATE scheduled_tasks SET notebook_id = NULL, updated_at = ?1 WHERE \(tasks)")
-
-        // A Schedule placement loses the tag and keeps its source.
-        let tagged = "SELECT scheduled_source_id FROM scheduled_source_goals WHERE goal_id IN (\(deleted))"
-        try collect(.scheduledSource, "SELECT DISTINCT scheduled_source_id FROM scheduled_source_goals WHERE goal_id IN (\(deleted)) ORDER BY 1")
-        try write("UPDATE scheduled_sources SET updated_at = ?1 WHERE id IN (\(tagged))")
-        try exec("DELETE FROM scheduled_source_goals WHERE goal_id IN (\(deleted))")
-
-        // Memory items keep their targets and lose the Goal.
-        let memory = "goal_id IN (\(deleted))"
-        try collect(.memoryItem, "SELECT id FROM memory_items WHERE \(memory) ORDER BY id")
-        try write("UPDATE memory_items SET goal_id = NULL, updated_at = ?1 WHERE \(memory)")
-
-        // An Idea loses the link; the link rides inside the Idea's record.
-        let ideaLinks = "kind IN \(notebookLinkKinds) AND target_id IN (\(deleted))"
-        try collect(.idea, "SELECT DISTINCT idea_id FROM idea_links WHERE \(ideaLinks) ORDER BY 1")
-        try write("UPDATE ideas SET updated_at = MAX(updated_at, ?1) WHERE id IN (SELECT idea_id FROM idea_links WHERE \(ideaLinks))")
-        try exec("DELETE FROM idea_links WHERE \(ideaLinks)")
-
-        // Planner blocks and bouts ride in their day's plan record.
-        let days = """
-            SELECT day_plan_id FROM time_blocks WHERE notebook_id IN (\(deleted)) OR goal_id IN (\(deleted))
-            UNION
-            SELECT day_plan_id FROM learning_bouts WHERE notebook_id IN (\(deleted))
-        """
-        try collect(.dayPlan, "SELECT day_plan_id FROM (\(days)) ORDER BY 1")
-        try write("UPDATE day_plans SET updated_at = ?1 WHERE id IN (\(days))")
-        try write("""
-            UPDATE time_blocks
-            SET notebook_id = CASE WHEN notebook_id IN (\(deleted)) THEN NULL ELSE notebook_id END,
-                goal_id = CASE WHEN goal_id IN (\(deleted)) THEN NULL ELSE goal_id END,
-                updated_at = ?1
-            WHERE notebook_id IN (\(deleted)) OR goal_id IN (\(deleted))
-        """)
-        try write("UPDATE learning_bouts SET notebook_id = NULL, updated_at = ?1 WHERE notebook_id IN (\(deleted))")
-
-        var seen = Set<String>()
-        var republished = 0
-        for record in toStage where seen.insert("\(record.entity.rawValue)\u{1F}\(record.key)").inserted {
-            // A record whose zone is a read-only team's cannot be queued
-            // (`upsertSyncSave` refuses it), and a migration must not fail on
-            // one; the team-column filters above already left such rows alone.
-            let home = try loadSyncMetadata(entity: record.entity, logicalKey: record.key)?.home
-                ?? resolveRecordHome(entity: record.entity, logicalKey: record.key)
-            if home.isTeamZone, try teamPermission(forHome: home) == .readOnly { continue }
-            try upsertSyncSave(entity: record.entity, logicalKey: record.key, at: now)
-            republished += 1
-        }
-        return (deletedCount, republished)
     }
 
     /// Clears the attempt budget for everything still queued. Version 32 removed
@@ -5621,80 +5221,6 @@ extension KnowledgeStore {
             sqlite3_bind_double(stmt, 1, enqueuedAt)
         }
         return try youTubeTranscriptCheckQueueCount()
-    }
-
-    /// The team Notebooks schema 152 republishes: held in a team this account
-    /// may edit, tracked by sync in that team's zone (a row the bootstrap pass
-    /// has not met yet goes up whole anyway), not deleted or quarantined, with
-    /// at least one pending or rejected item.
-    /// Builds before 152 published every one of those items without its
-    /// approval (`LearningGoalRecord.strippingMemberProgress`), so the team
-    /// read each as an approved source. A team Notebook whose items all read
-    /// as approved here is not named: the team's record already says that,
-    /// and sending this Mac's view of it could only overwrite a teammate's
-    /// verdict that never reached this Mac.
-    static let teamApprovalRepublishSelection = """
-        SELECT m.logical_key
-        FROM sync_metadata m
-        JOIN learning_goals g ON g.id = m.logical_key
-        JOIN teams t ON t.id = g.team_id
-        WHERE m.entity_type = 'learningGoal'
-          AND m.is_deleted = 0
-          AND m.zone_scope = t.zone_scope
-          AND m.zone_name = t.zone_name
-          AND t.permission = 'readWrite'
-          AND EXISTS (
-              SELECT 1 FROM learning_goal_items i
-              WHERE i.goal_id = g.id AND i.review_state IN ('pending', 'rejected')
-          )
-          AND NOT EXISTS (
-              SELECT 1 FROM sync_conflicts c
-              WHERE c.entity_type = m.entity_type AND c.logical_key = m.logical_key
-          )
-    """
-
-    /// Schema 152: stage each team Notebook in `teamApprovalRepublishSelection`
-    /// for one CloudKit save, the way `upsertSyncSave` would — the record's
-    /// modification date moves to now and a save is queued in the record's
-    /// own zone — but as two set-based statements, so the cost is the team's
-    /// Notebooks, never the library. A save already waiting takes the new
-    /// change date, as `upsertSyncSave` gives it, and stops being tutor-only:
-    /// a tutor-only change lets the server's record win the editorial merge,
-    /// and the server's is the one missing approval. Being editorial, the save
-    /// also wins over a teammate's change this Mac has not fetched yet, last
-    /// writer wins like any offline edit (backend-storage-sync.md, Teams).
-    /// The payload is built at send time from the rows as they stand, so the
-    /// migration reads no item and writes no application row.
-    func stageTeamNotebookApprovalRepublish() throws -> Int {
-        let now = Date().timeIntervalSinceReferenceDate
-        try execBind("""
-            UPDATE sync_metadata
-            SET user_modification_at = ?
-            WHERE entity_type = 'learningGoal'
-              AND logical_key IN (\(Self.teamApprovalRepublishSelection))
-        """) { stmt in
-            sqlite3_bind_double(stmt, 1, now)
-        }
-        let staged = Int(sqlite3_changes(db))
-        guard staged > 0 else { return 0 }
-        try execBind("""
-            INSERT INTO sync_changes (
-                entity_type, logical_key, record_name, operation, changed_at, tutor_only,
-                zone_scope, zone_name, zone_owner_record_name
-            )
-            SELECT m.entity_type, m.logical_key, m.record_name, 'save', ?, 0,
-                   m.zone_scope, m.zone_name, m.zone_owner_record_name
-            FROM sync_metadata m
-            WHERE m.entity_type = 'learningGoal'
-              AND m.logical_key IN (\(Self.teamApprovalRepublishSelection))
-            ON CONFLICT(entity_type, logical_key) DO UPDATE SET
-                changed_at = excluded.changed_at,
-                tutor_only = 0
-            WHERE sync_changes.operation = 'save'
-        """) { stmt in
-            sqlite3_bind_double(stmt, 1, now)
-        }
-        return staged
     }
 
     /// Version 70 asks every Mac that records an original PDF to publish it once
@@ -5945,7 +5471,6 @@ extension KnowledgeStore {
         }
         guard !sourceIDs.isEmpty else { return 0 }
 
-        let now = Date()
         for sourceID in sourceIDs {
             try execBind("""
                 UPDATE sources
@@ -5966,80 +5491,9 @@ extension KnowledgeStore {
                 bind(stmt, 1, StudioArticleState.queued.rawValue)
                 bind(stmt, 2, sourceID)
             }
-            guard sqlite3_changes(db) > 0 else { continue }
-            try upsertSyncSave(entity: .source, logicalKey: sourceID, at: now)
         }
 
         logger.notice("Reactivated \(sourceIDs.count) archived course lecture source(s)")
-        return sourceIDs.count
-    }
-
-    /// Version 9 republishes existing video/recording locators once. Older
-    /// builds synced the locator inside a whole-source payload, where a newer
-    /// metadata or content save from another Mac could replace it with an empty
-    /// value. Re-enqueueing surviving progress seeds CloudKit with the repaired
-    /// merge semantics without running a repair on every launch.
-    func republishVideoWatchProgressForSync() throws -> Int {
-        var sourceIDs: [String] = []
-        try query("""
-            SELECT id, reading_position_locator
-            FROM sources
-            WHERE reading_position_locator IS NOT NULL
-            ORDER BY id
-        """) { stmt in
-            guard let sourceID = string(stmt, 0),
-                  VideoWatchProgress(encoded: string(stmt, 1)) != nil else {
-                return
-            }
-            sourceIDs.append(sourceID)
-        }
-        guard !sourceIDs.isEmpty else { return 0 }
-
-        let now = Date()
-        for sourceID in sourceIDs {
-            try upsertSyncSave(entity: .source, logicalKey: sourceID, at: now)
-        }
-        return sourceIDs.count
-    }
-
-    /// Republish sources that a dismissal archived while sync tracking was
-    /// suppressed.
-    ///
-    /// `archiveSourcesMatchingDismissedURL` runs inside `withoutSyncTracking`
-    /// on both inbound paths — a DismissedSource record arriving, and a Source
-    /// record arriving whose URL is already dismissed here — so until the fix at
-    /// that call site, `archiveSource`'s own `markRecordChanged` was a no-op and
-    /// the archive never reached CloudKit. The server kept serving those sources
-    /// as active with their text already wiped locally, so other devices listed
-    /// sources they could not open, and every full zone pass re-sent and
-    /// re-archived them without ever converging.
-    ///
-    /// New archives publish themselves now; these are the ones already stranded.
-    /// Republishing an archived source that happens to be correct on the server
-    /// costs one upload and changes nothing.
-    func republishDismissedArchivedSourcesForSync() throws -> Int {
-        var sourceIDs: [String] = []
-        try query("""
-            SELECT DISTINCT sp.id
-            FROM source_projection sp
-            JOIN dismissed_sources d
-              ON d.url = sp.url
-              OR d.url = sp.normalized_url
-              OR d.url = sp.local_file_path
-              OR d.url = sp.podcast_web_page_url
-            WHERE sp.status = 'archived'
-            ORDER BY sp.id
-        """) { stmt in
-            if let sourceID = string(stmt, 0) {
-                sourceIDs.append(sourceID)
-            }
-        }
-        guard !sourceIDs.isEmpty else { return 0 }
-
-        let now = Date()
-        for sourceID in sourceIDs {
-            try upsertSyncSave(entity: .source, logicalKey: sourceID, at: now)
-        }
         return sourceIDs.count
     }
 
@@ -6092,10 +5546,6 @@ extension KnowledgeStore {
               )
         """)
 
-        let now = Date()
-        for sourceID in sourceIDs {
-            try upsertSyncSave(entity: .source, logicalKey: sourceID, at: now)
-        }
         return sourceIDs.count
     }
 
@@ -6122,7 +5572,6 @@ extension KnowledgeStore {
         }
         guard !sourceIDs.isEmpty else { return 0 }
 
-        let now = Date()
         for sourceID in sourceIDs {
             try execBind("""
                 INSERT INTO course_sources (
@@ -6174,9 +5623,58 @@ extension KnowledgeStore {
             try execBind("DELETE FROM papers WHERE source_id = ?") { stmt in
                 bind(stmt, 1, sourceID)
             }
-            try upsertSyncSave(entity: .source, logicalKey: sourceID, at: now)
         }
         return sourceIDs.count
+    }
+
+    /// Generation 1's tables, dropped by the < 175 step.
+    static let generation1Tables = [
+        "sync_changes", "sync_metadata", "sync_conflicts", "sync_asset_digests",
+        "sync_engine_states", "source_sync_repair_queue", "review_session_sync_repair_queue",
+    ]
+
+    /// The < 175 step's first half: what generation 1's tables told the
+    /// activation, written into its journal before they go. A store with
+    /// generation-1 sync history (a `sync_metadata` row with the server's
+    /// system fields, which only an acknowledged save or a delivered record
+    /// leaves) and no mode yet activates `deferred`: no build can reach the old
+    /// container for its account. A journal an earlier build left at `full`
+    /// before its catch-up continues as `deferred`. A store without history
+    /// keeps no mode, and its activation decides `fresh`. An activated journal
+    /// is never touched.
+    func recordGeneration1HistoryInActivationJournal() throws {
+        let hasMetadata = try scalarInteger(
+            "SELECT EXISTS(SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'sync_metadata')"
+        ) == 1
+        let hasHistory = try hasMetadata
+            && scalarInteger("SELECT EXISTS(SELECT 1 FROM sync_metadata WHERE system_fields IS NOT NULL)") == 1
+        if hasHistory {
+            try exec("""
+                INSERT INTO ck_activation (id, step, mode, started_at)
+                VALUES (1, '\(ActivationStep.recordCopy.rawValue)', '\(ActivationMode.deferred.rawValue)', \(Date().timeIntervalSinceReferenceDate))
+                ON CONFLICT(id) DO UPDATE SET
+                    step = excluded.step, mode = excluded.mode, started_at = excluded.started_at
+                WHERE ck_activation.mode IS NULL AND ck_activation.activated_at IS NULL
+            """)
+        }
+        try exec("""
+            UPDATE ck_activation SET mode = '\(ActivationMode.deferred.rawValue)'
+            WHERE id = 1 AND mode = '\(ActivationMode.full.rawValue)' AND activated_at IS NULL
+              AND (step IS NULL OR step IN ('\(ActivationStep.recordCopy.rawValue)', '\(ActivationStep.catchUp.rawValue)'))
+        """)
+    }
+
+    /// The < 175 step's second half: generation 1's tables go, with their
+    /// indexes, and none is left, or the migration rolls back.
+    func dropGeneration1Tables() throws {
+        for table in Self.generation1Tables {
+            try exec("DROP TABLE IF EXISTS \(table)")
+        }
+        let names = Self.generation1Tables.map { "'\($0)'" }.joined(separator: ", ")
+        let left = try scalarInteger("SELECT COUNT(*) FROM sqlite_master WHERE name IN (\(names))") ?? 0
+        guard left == 0 else {
+            throw KnowledgeStoreError.invalidData("Schema 175 left \(left) generation-1 tables.")
+        }
     }
 
     /// Additive changes supported by the current migration. Missing tables are
@@ -6963,7 +6461,7 @@ extension KnowledgeStore {
                         sqlite3_bind_int(stmt, 4, Int32(walkthrough.version))
                         sqlite3_bind_double(stmt, 5, walkthrough.generatedAt.timeIntervalSinceReferenceDate)
                     }
-                    try markRecordChanged(entity: .source, logicalKey: walkthrough.sourceID, at: now)
+                    noteStoreChanged()
                 }
             }
             // The lesson artifact leaves the gallery as an archived record —
@@ -6974,7 +6472,7 @@ extension KnowledgeStore {
                 bind(stmt, 2, now.timeIntervalSinceReferenceDate)
                 bind(stmt, 3, row.artifactID)
             }
-            try markRecordChanged(entity: .artifact, logicalKey: row.artifactID, at: now)
+            noteStoreChanged()
         }
         try exec("DROP INDEX IF EXISTS idx_artifact_lessons_source")
         try exec("DROP TABLE IF EXISTS artifact_lessons")

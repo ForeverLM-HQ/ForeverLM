@@ -262,7 +262,8 @@ extension MCPDataStoreTests {
             ])
             #expect(!outcome.isError, "\(outcome.text)")
             #expect(outcome.text.hasPrefix("Added 1 source to Notebook ‘Ticks’"))
-            #expect(Set(try approved(notebook.id, in: knowledge)) == [keptID, backID])
+            let held = try approved(notebook.id, in: knowledge)
+            #expect(Set(held) == [keptID, backID])
             #expect(box.snapshot.excluded[notebook.id] == Set([keptID]), "the source that came back is ticked; the deliberate untick stands")
 
             // Once there, adding it again changes nothing.
@@ -296,7 +297,8 @@ extension MCPDataStoreTests {
                 hostSessionID: chatID
             )
             #expect(!review.isError, "\(review.text)")
-            #expect(try approved(notebook.id, in: knowledge) == [reviewedID])
+            let afterReview = try approved(notebook.id, in: knowledge)
+            #expect(afterReview == [reviewedID])
             // The row keeps only boxes of sources the Notebook holds, so the
             // planned source's stale one goes too (NotebookChatSelection.updated).
             #expect(!(box.snapshot.excluded[notebook.id] ?? []).contains(reviewedID), "the reviewed source came back ticked")
@@ -305,7 +307,8 @@ extension MCPDataStoreTests {
                 "goal_id": notebook.id, "source_ids": [plannedID], "date": "today",
             ])
             #expect(!day.isError, "\(day.text)")
-            #expect(Set(try approved(notebook.id, in: knowledge)) == [reviewedID, plannedID])
+            let afterDay = try approved(notebook.id, in: knowledge)
+            #expect(Set(afterDay) == [reviewedID, plannedID])
             #expect(box.snapshot.excluded[notebook.id] == nil, "the planned source came back ticked too")
         }
     }
@@ -644,13 +647,11 @@ struct NotebookTeamImportTests {
             zoneName: TeamRecord.zoneName(forTeamID: "team-ro"), zoneOwnerRecordName: "_owner-record",
             shareRecordName: nil, shareURL: nil, createdAt: now, joinedAt: now, updatedAt: now
         ))
-        try knowledge.withoutSyncTracking {
-            try knowledge.saveLearningGoalRecord(LearningGoalRecord(
-                id: "proj-theirs", title: "Their notebook", startAt: now, endAt: LearningGoalRecord.openEndedEndAt,
-                createdAt: now, updatedAt: now, status: "active", items: [],
-                kind: LearningGoalRecord.companionKind, teamID: "team-ro"
-            ))
-        }
+        try knowledge.saveLearningGoalRecord(LearningGoalRecord(
+            id: "proj-theirs", title: "Their notebook", startAt: now, endAt: LearningGoalRecord.openEndedEndAt,
+            createdAt: now, updatedAt: now, status: "active", items: [],
+            kind: LearningGoalRecord.companionKind, teamID: "team-ro"
+        ))
         return "proj-theirs"
     }
 
@@ -929,7 +930,7 @@ struct NotebookAppAddTests {
         let b = try notebook("B", sources: [], in: knowledge)
         try knowledge.setRelatedNotebooks(notebookID: a.id, relatedNotebookIDs: [b.id])
 
-        await withNotebookState { box in
+        try await withNotebookState { box in
             let vm = StudioViewModel(storageService: store.notebookFileStorage)
             await vm.loadLearningGoals()
             // y is unticked in A on purpose. w, x and z were unticked before

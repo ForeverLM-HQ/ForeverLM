@@ -37,8 +37,7 @@ extension KnowledgeStore {
 
     /// Brings one notebook's derived file projection in line with the files on disk, atomically: rows for
     /// files that are not there any more go, rows for files that are there are written (only when they
-    /// differ, so an unchanged file queues nothing under generation 2). These rows never enter
-    /// sync_changes: iCloud Drive carries the files and user-owned paths.
+    /// differ, so an unchanged file queues nothing for sync).
     ///
     /// Under generation 2 an inbound file is only an index row until its bytes arrive (`#incoming` on its
     /// Artifact): it is not on disk yet and must stay, because dropping the row feeds a delete of the

@@ -35,17 +35,10 @@ final class KnowledgeStore: @unchecked Sendable {
     /// test fixtures, and auxiliary readers cannot absorb host-machine state.
     let startupPreferenceSnapshot: [String: Any]
     let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "KnowledgeStore")
-    var syncTrackingSuppressionDepth = 0
-    /// Once a generation-2 store's activation has finished, generation 1's change queue (`sync_changes`) is
-    /// never written again: the outbox's triggers record every change, and a row left here would read as a
-    /// pending old-world change at a reconcile (§13.5). Only a true answer is kept.
-    private let activatedLock = NSLock()
-    private var activatedCache = false
-    var writesGenerationOneQueue: Bool {
-        activatedLock.lock()
-        defer { activatedLock.unlock() }
-        if !activatedCache, (try? isActivatedForGeneration2()) == true { activatedCache = true }
-        return !activatedCache
+    /// Tells the open views that re-read on a local write (the "Assigned to you" list, the memory review
+    /// tracker) that a row they show changed.
+    func noteStoreChanged() {
+        NotificationCenter.default.post(name: .cloudKitSyncStoreDidChange, object: nil)
     }
     /// The rollback copy this open took before migrating (§13.3 step 1), nil when it took none, as
     /// every later open of the store in the launch does.
@@ -131,8 +124,6 @@ final class KnowledgeStore: @unchecked Sendable {
             self.db = nil
             throw error
         }
-        // A store opened while a `full` activation holds the library read-only is read-only too.
-        KnowledgeStoreWriteGate.register(self)
     }
 
     /// In-memory initializer for unit tests. Opens an empty `:memory:` database and

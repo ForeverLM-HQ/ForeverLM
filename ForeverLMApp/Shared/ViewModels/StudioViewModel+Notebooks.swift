@@ -118,19 +118,6 @@ extension StudioViewModel {
     // Its source pool (approvedSourceIDs) is the Notebook's MCP source context, and its
     // `notes` field holds the Notebook synthesis notes Markdown.
 
-    /// Every source a box beside the notebook's sources can stand for: its
-    /// own, then each context notebook's, put into its chats or not
-    /// (`NotebookChatContext.linkedPool`). What its chats read is
-    /// `notebookChatPool`.
-    func notebookContextSourceIDs(_ notebook: LearningGoalRecord) -> [String] {
-        var ids = notebook.approvedSourceIDs
-        for relatedID in notebook.relatedNotebookIDs ?? [] {
-            guard let related = self.notebook(id: relatedID) else { continue }
-            ids.append(contentsOf: related.approvedSourceIDs)
-        }
-        return orderedUniqueSourceIDs(ids)
-    }
-
     // MARK: - Notebook chat selection
     //
     // The checkboxes beside a notebook's sources pick which of them its chats

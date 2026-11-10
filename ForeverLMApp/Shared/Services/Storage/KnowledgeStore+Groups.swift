@@ -80,7 +80,6 @@ extension KnowledgeStore {
         }
         try keepCourseRowsForGeneration2(courseIDs: [name])
         guard !hidesOnlyForThisMember else { return }
-        try markRecordChanged(entity: .course, logicalKey: name)
     }
 
     /// The team a course is a copy in, or nil for the learner's own.
@@ -195,7 +194,6 @@ extension KnowledgeStore {
             sqlite3_bind_double(stmt, 5, lecture.createdAt.timeIntervalSinceReferenceDate)
         }
         try keepCourseRowsForGeneration2(courseIDs: [lecture.courseName])
-        try markRecordChanged(entity: .course, logicalKey: lecture.courseName)
     }
 
     @discardableResult
@@ -203,7 +201,7 @@ extension KnowledgeStore {
         // A team's course names only the team's rows (docs/teams-design.md,
         // decision 21).
         var item = item
-        if syncTrackingSuppressionDepth == 0, let courseID = try courseNameForLecture(item.lectureId) {
+        if let courseID = try courseNameForLecture(item.lectureId) {
             item = try lectureItemFiledInCourse(item, courseID: courseID)
         }
         try exec("BEGIN IMMEDIATE")
@@ -239,7 +237,6 @@ extension KnowledgeStore {
                     )
                 }
                 try keepCourseRowsForGeneration2(courseIDs: [courseName])
-                try markRecordChanged(entity: .course, logicalKey: courseName)
             }
             try exec("COMMIT")
         } catch {
@@ -250,22 +247,14 @@ extension KnowledgeStore {
     }
 
     func deleteCourseLectureItem(_ itemId: String) throws {
-        let courseName = try courseNameForLectureItem(itemId)
         try execBind("DELETE FROM course_lecture_items WHERE id = ?") { stmt in
             bind(stmt, 1, itemId)
-        }
-        if let courseName {
-            try markRecordChanged(entity: .course, logicalKey: courseName)
         }
     }
 
     func deleteCourseLecture(_ lectureId: String) throws {
-        let courseName = try courseNameForLecture(lectureId)
         try execBind("DELETE FROM course_lectures WHERE id = ?") { stmt in
             bind(stmt, 1, lectureId)
-        }
-        if let courseName {
-            try markRecordChanged(entity: .course, logicalKey: courseName)
         }
     }
 
@@ -285,94 +274,14 @@ extension KnowledgeStore {
             bind(stmt, 4, unit.locator)
             bind(stmt, 5, unit.title)
         }
-        try markRecordChanged(entity: .source, logicalKey: unit.sourceId)
-    }
-
-    func loadSourceUnitsForSync(_ sourceID: String) throws -> [SourceUnit] {
-        var units: [SourceUnit] = []
-        try queryBind("""
-            SELECT id, source_id, kind, locator, title
-            FROM source_units
-            WHERE source_id = ?
-            ORDER BY kind, locator, id
-        """, bind: { stmt in
-            bind(stmt, 1, sourceID)
-        }) { stmt in
-            guard let id = self.string(stmt, 0),
-                  let sourceID = self.string(stmt, 1),
-                  let kind = self.string(stmt, 2),
-                  let locator = self.string(stmt, 3) else { return }
-            units.append(
-                SourceUnit(
-                    id: id,
-                    sourceId: sourceID,
-                    kind: kind,
-                    locator: locator,
-                    title: self.string(stmt, 4)
-                )
-            )
-        }
-        return units
-    }
-
-    /// A source record's units, as another Mac sent them. Merged, never
-    /// replaced: a lecture item names its unit with `ON DELETE CASCADE`, so
-    /// deleting and re-inserting the same unit deleted every reading that used
-    /// it, and a peer that had not heard of a unit yet would have taken the
-    /// reading with it. A unit the record does not carry goes only when no
-    /// lecture item names it.
-    func saveSourceUnitsRecord(sourceID: String, units: [SourceUnit]) throws {
-        try exec("BEGIN IMMEDIATE")
-        do {
-            for unit in units {
-                try execBind("""
-                    INSERT INTO source_units (id, source_id, kind, locator, title)
-                    VALUES (?, ?, ?, ?, ?)
-                    ON CONFLICT(id) DO UPDATE SET
-                        source_id = excluded.source_id,
-                        kind = excluded.kind,
-                        locator = excluded.locator,
-                        title = excluded.title
-                """) { stmt in
-                    bind(stmt, 1, unit.id)
-                    bind(stmt, 2, sourceID)
-                    bind(stmt, 3, unit.kind)
-                    bind(stmt, 4, unit.locator)
-                    bind(stmt, 5, unit.title)
-                }
-            }
-            let carried = Set(units.map(\.id))
-            var stale: [String] = []
-            try queryBind("""
-                SELECT su.id FROM source_units su
-                WHERE su.source_id = ?
-                  AND NOT EXISTS (
-                        SELECT 1 FROM course_lecture_items cli WHERE cli.source_unit_id = su.id
-                  )
-            """, bind: { stmt in
-                self.bind(stmt, 1, sourceID)
-            }) { stmt in
-                if let id = self.string(stmt, 0), !carried.contains(id) { stale.append(id) }
-            }
-            for id in stale {
-                try execBind("DELETE FROM source_units WHERE id = ?") { stmt in
-                    bind(stmt, 1, id)
-                }
-            }
-            try markRecordChanged(entity: .source, logicalKey: sourceID)
-            try exec("COMMIT")
-        } catch {
-            try? exec("ROLLBACK")
-            throw error
-        }
+        noteStoreChanged()
     }
 
     func saveCourseOutline(courseName: String, lectures: [CourseSession], items: [CourseLectureItem]) throws {
         // A team's course names only the team's rows (docs/teams-design.md,
-        // decision 21); two items that become one row are one item. A record
-        // arriving from the team's zone is stored as it says.
+        // decision 21); two items that become one row are one item.
         var items = items
-        if syncTrackingSuppressionDepth == 0, try courseTeamID(courseName) != nil {
+        if try courseTeamID(courseName) != nil {
             var keys = Set<String>()
             items = try items
                 .map { try lectureItemFiledInCourse($0, courseID: courseName) }
@@ -419,7 +328,6 @@ extension KnowledgeStore {
                 sourceIDs: items.compactMap(\.sourceId)
             )
             try keepCourseRowsForGeneration2(courseIDs: [courseName])
-            try markRecordChanged(entity: .course, logicalKey: courseName)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -518,13 +426,6 @@ extension KnowledgeStore {
         }
         for sourceID in detached {
             try writeSourceHidden(sourceID, hidden: true, hiddenAt: now)
-            // `upsertSyncSave` rather than `markRecordChanged`: same rows, minus
-            // one store-changed notification per source. Inbound course
-            // deletions run under `withoutSyncTracking`, where the local hide
-            // still has to happen but must not echo back as a change of ours.
-            guard syncTrackingSuppressionDepth == 0 else { continue }
-            try upsertSyncSave(entity: .hiddenSource, logicalKey: sourceID, at: now)
-            try upsertSyncSave(entity: .source, logicalKey: sourceID, at: now)
         }
         return detached
     }
@@ -618,11 +519,9 @@ extension KnowledgeStore {
             let now = Date()
             for notebookID in linkedNotebookIDs {
                 try touchLearningGoal(notebookID, at: now)
-                try markRecordChanged(entity: .learningGoal, logicalKey: notebookID)
             }
-            try markRecordDeleted(entity: .course, logicalKey: name)
-            for sourceID in affectedSourceIDs {
-                try markRecordChanged(entity: .source, logicalKey: sourceID)
+            if !affectedSourceIDs.isEmpty {
+                noteStoreChanged()
             }
             // The course is gone, so its own material has nowhere left to show.
             hiddenSourceIDs = try hideCourseSourcesWithoutCourse(
@@ -743,12 +642,6 @@ extension KnowledgeStore {
                 sqlite3_bind_null(stmt, 7)
             }
         }
-        try markRecordChanged(entity: .videoPlaylist, logicalKey: id)
-    }
-
-    func loadVideoPlaylistForSync(_ id: String) throws -> CloudKitVideoPlaylistPayload? {
-        guard let metadata = try loadVideoPlaylistGroups()[id] else { return nil }
-        return CloudKitVideoPlaylistPayload(id: id, metadata: metadata)
     }
 
     func deleteVideoPlaylistGroup(id: String) throws {
@@ -766,26 +659,9 @@ extension KnowledgeStore {
         try execBind("DELETE FROM group_members WHERE group_id = ?") { stmt in
             bind(stmt, 1, id)
         }
-        try markRecordDeleted(entity: .videoPlaylist, logicalKey: id)
-        for sourceID in affectedSourceIDs {
-            try markRecordChanged(entity: .source, logicalKey: sourceID)
+        if !affectedSourceIDs.isEmpty {
+            noteStoreChanged()
         }
-    }
-
-    func courseNameForLectureItem(_ itemId: String) throws -> String? {
-        var courseName: String?
-        try queryBind("""
-            SELECT cl.course_id
-            FROM course_lecture_items cli
-            JOIN course_lectures cl ON cl.id = cli.lecture_id
-            WHERE cli.id = ?
-            LIMIT 1
-        """, bind: { stmt in
-            bind(stmt, 1, itemId)
-        }) { stmt in
-            courseName = string(stmt, 0)
-        }
-        return courseName
     }
 
     // MARK: - Meeting Groups
@@ -867,7 +743,6 @@ extension KnowledgeStore {
             bind(stmt, 8, metadata.mergedIntoGroupID)
             bind(stmt, 9, metadata.schedule?.jsonString)
         }
-        try markRecordChanged(entity: .meetingGroup, logicalKey: name)
     }
 
     /// Follow a durable meeting-group alias to the active destination. Chains
@@ -959,11 +834,9 @@ extension KnowledgeStore {
                 bind(stmt, 1, canonicalTarget)
                 bind(stmt, 2, canonicalSource)
             }
-            for sourceID in sourceIDs {
-                try markRecordChanged(entity: .source, logicalKey: sourceID)
+            if !sourceIDs.isEmpty {
+                noteStoreChanged()
             }
-            try markRecordChanged(entity: .meetingGroup, logicalKey: canonicalSource)
-            try markRecordChanged(entity: .meetingGroup, logicalKey: canonicalTarget)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -993,9 +866,6 @@ extension KnowledgeStore {
             bind(stmt, 1, groupID)
             bind(stmt, 2, sourceID)
             bind(stmt, 3, groupID)
-        }
-        for id in previous.union([groupID]) {
-            try markRecordChanged(entity: .meetingGroup, logicalKey: id)
         }
         return previous
     }
@@ -1081,53 +951,6 @@ extension KnowledgeStore {
             }
             bind(stmt, 10, artifact.sortIndex)
         }
-        try markRecordChanged(entity: .meetingGroup, logicalKey: artifact.groupId)
-    }
-
-    func saveMeetingArtifactsRecord(groupID: String, artifacts: [MeetingArtifact]) throws {
-        try exec("BEGIN IMMEDIATE")
-        do {
-            try execBind("DELETE FROM meeting_artifacts WHERE group_id = ?") { stmt in
-                bind(stmt, 1, groupID)
-            }
-            for artifact in artifacts {
-                try execBind("""
-                    INSERT INTO meeting_artifacts
-                        (id, source_id, group_id, kind, title, url, local_file_path, mime_type, modified_at, sort_index)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """) { stmt in
-                    bind(stmt, 1, artifact.id)
-                    bind(stmt, 2, artifact.sourceId)
-                    bind(stmt, 3, groupID)
-                    bind(stmt, 4, artifact.kind.rawValue)
-                    bind(stmt, 5, artifact.title)
-                    bind(stmt, 6, artifact.url)
-                    bind(stmt, 7, artifact.localFilePath)
-                    bind(stmt, 8, artifact.mimeType)
-                    if let modifiedAt = artifact.modifiedAt {
-                        sqlite3_bind_double(stmt, 9, modifiedAt.timeIntervalSinceReferenceDate)
-                    } else {
-                        sqlite3_bind_null(stmt, 9)
-                    }
-                    bind(stmt, 10, artifact.sortIndex)
-                }
-            }
-            try markRecordChanged(entity: .meetingGroup, logicalKey: groupID)
-            try exec("COMMIT")
-        } catch {
-            try? exec("ROLLBACK")
-            throw error
-        }
-    }
-
-    func loadMeetingGroupForSync(_ name: String) throws -> CloudKitMeetingGroupPayload? {
-        guard let metadata = try loadMeetingGroups()[name] else { return nil }
-        return CloudKitMeetingGroupPayload(
-            id: name,
-            metadata: metadata,
-            artifacts: try loadMeetingArtifacts(groupID: name),
-            actionItems: try loadMeetingActionItems(groupID: name)
-        )
     }
 
     func deleteMeetingGroup(name: String) throws {
@@ -1149,9 +972,8 @@ extension KnowledgeStore {
         try execBind("DELETE FROM group_members WHERE group_id = ?") { stmt in
             bind(stmt, 1, name)
         }
-        try markRecordDeleted(entity: .meetingGroup, logicalKey: name)
-        for sourceID in affectedSourceIDs {
-            try markRecordChanged(entity: .source, logicalKey: sourceID)
+        if !affectedSourceIDs.isEmpty {
+            noteStoreChanged()
         }
     }
 
@@ -1226,7 +1048,7 @@ extension KnowledgeStore {
                             bind(stmt, 2, groupID)
                         }
                     }
-                    try markRecordChanged(entity: .source, logicalKey: sourceID)
+                    noteStoreChanged()
                 }
             }
             // Artifacts and memberships of the deleted sessions went with them
@@ -1243,7 +1065,6 @@ extension KnowledgeStore {
                 try execBind("DELETE FROM meeting_groups WHERE id = ?") { stmt in
                     bind(stmt, 1, groupID)
                 }
-                try markRecordDeleted(entity: .meetingGroup, logicalKey: groupID)
             }
             try exec("COMMIT")
         } catch {
@@ -1309,7 +1130,6 @@ extension KnowledgeStore {
             guard sqlite3_changes(db) > 0 else {
                 throw KnowledgeStoreError.invalidData("No book with id \(groupName) to set its \(field.rawValue) on.")
             }
-            try markRecordChanged(entity: .book, logicalKey: groupName)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -1407,7 +1227,6 @@ extension KnowledgeStore {
                 bind(stmt, 5, kind)
             }
         }
-        try markRecordChanged(entity: .book, logicalKey: groupName)
     }
 
     /// The editable title of a book, by its stable group id. Nil when the group
@@ -1468,9 +1287,8 @@ extension KnowledgeStore {
                 bind(stmt, 3, oldName)
                 bind(stmt, 4, oldTitle)
             }
-            try markRecordChanged(entity: .book, logicalKey: oldName)
-            for sourceID in sourceIDs {
-                try markRecordChanged(entity: .source, logicalKey: sourceID)
+            if !sourceIDs.isEmpty {
+                noteStoreChanged()
             }
             try exec("COMMIT")
         } catch {
@@ -1586,7 +1404,6 @@ extension KnowledgeStore {
                         bind(stmt, 3, TimeZone.current.identifier)
                     }
                     groupIDByTitle[titleKey] = groupID
-                    try markRecordChanged(entity: .meetingGroup, logicalKey: groupID)
                 }
 
                 try execBind("""
@@ -1620,7 +1437,6 @@ extension KnowledgeStore {
                     bind(stmt, 1, sourceID)
                     bind(stmt, 2, groupID)
                 }
-                try upsertSyncSave(entity: .source, logicalKey: sourceID, at: now)
                 try execBind("DELETE FROM zoom_meeting_adoption_queue WHERE source_id = ?") { stmt in bind(stmt, 1, sourceID) }
                 migrated.append(sourceID)
             }

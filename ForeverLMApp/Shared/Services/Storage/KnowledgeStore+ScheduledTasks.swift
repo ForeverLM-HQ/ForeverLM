@@ -68,14 +68,6 @@ extension KnowledgeStore {
         return tasks.map { ScheduledTaskDetail(task: $0, runs: runsByTask[$0.id] ?? []) }
     }
 
-    func loadAllScheduledTaskIDs() throws -> [String] {
-        var ids: [String] = []
-        try query("SELECT id FROM scheduled_tasks") { stmt in
-            if let id = self.string(stmt, 0) { ids.append(id) }
-        }
-        return ids
-    }
-
     func hasScheduledTask(_ taskID: String) throws -> Bool {
         var found = false
         try queryBind("SELECT 1 FROM scheduled_tasks WHERE id = ? LIMIT 1", bind: { stmt in
@@ -101,7 +93,6 @@ extension KnowledgeStore {
         try exec("BEGIN IMMEDIATE")
         do {
             try writeScheduledTaskRow(normalized)
-            try markRecordChanged(entity: .scheduledTask, logicalKey: normalized.id, at: normalized.updatedAt)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -116,7 +107,6 @@ extension KnowledgeStore {
             try execBind("DELETE FROM scheduled_tasks WHERE id = ?") { stmt in
                 self.bind(stmt, 1, taskID)
             }
-            try markRecordDeleted(entity: .scheduledTask, logicalKey: taskID)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -146,9 +136,6 @@ extension KnowledgeStore {
             self.bind(stmt, 1, now.timeIntervalSinceReferenceDate)
             self.bind(stmt, 2, notebookID)
         }
-        for id in affected {
-            try markRecordChanged(entity: .scheduledTask, logicalKey: id, at: now)
-        }
         return affected.count
     }
 
@@ -176,7 +163,6 @@ extension KnowledgeStore {
                 try exec("ROLLBACK")
                 throw KnowledgeStoreError.invalidData("No scheduled task with id \(taskID).")
             }
-            try markRecordChanged(entity: .scheduledTask, logicalKey: taskID, at: date)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -268,7 +254,6 @@ extension KnowledgeStore {
                 self.bind(stmt, 5, taskID)
             }
             try pruneScheduledTaskRuns(taskID: taskID)
-            try markRecordChanged(entity: .scheduledTask, logicalKey: taskID, at: now)
             try exec("COMMIT")
             claimed = run
         } catch {
@@ -321,7 +306,6 @@ extension KnowledgeStore {
                 self.bind(stmt, 2, finishedAt.timeIntervalSinceReferenceDate)
                 self.bind(stmt, 3, taskID)
             }
-            try markRecordChanged(entity: .scheduledTask, logicalKey: taskID, at: finishedAt)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -383,7 +367,6 @@ extension KnowledgeStore {
                 self.bind(stmt, 1, now.timeIntervalSinceReferenceDate)
                 self.bind(stmt, 2, run.taskID)
             }
-            try markRecordChanged(entity: .scheduledTask, logicalKey: run.taskID, at: now)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -408,7 +391,7 @@ extension KnowledgeStore {
             }) { stmt in
                 taskID = self.string(stmt, 0)
             }
-            guard let taskID else {
+            guard taskID != nil else {
                 try exec("ROLLBACK")
                 return
             }
@@ -425,7 +408,6 @@ extension KnowledgeStore {
                 self.bind(stmt, 2, note)
                 self.bind(stmt, 3, runID)
             }
-            try markRecordChanged(entity: .scheduledTask, logicalKey: taskID, at: now)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -464,69 +446,11 @@ extension KnowledgeStore {
             try execBind("UPDATE scheduled_tasks SET last_run_status = 'failed' WHERE id = ? AND last_run_status = 'running'") { stmt in
                 self.bind(stmt, 1, taskID)
             }
-            try markRecordChanged(entity: .scheduledTask, logicalKey: taskID, at: now)
         }
         return interrupted.count
     }
 
     // MARK: - CloudKit
-
-    func loadScheduledTaskForSync(_ taskID: String) throws -> CloudKitScheduledTaskPayload? {
-        guard let task = try loadScheduledTask(taskID) else { return nil }
-        return CloudKitScheduledTaskPayload(
-            task: task,
-            runs: try loadScheduledTaskRuns(taskID: taskID)
-        )
-    }
-
-    /// Applies an inbound record.
-    ///
-    /// The definition is last-writer-wins (CKSyncEngine already resolved that),
-    /// but receipts are *unioned* by occurrence: each device only ever knows
-    /// about the runs it performed, so taking the remote list wholesale would
-    /// erase this Mac's own history. `last_occurrence_at` is likewise advanced,
-    /// never rewound — a claim another device already made must stay claimed or
-    /// the occurrence runs twice.
-    func saveScheduledTaskRecord(_ payload: CloudKitScheduledTaskPayload) throws {
-        let existing = try loadScheduledTask(payload.task.id)
-        var task = payload.task
-        if let existing, let localClaim = existing.lastOccurrenceAt {
-            if task.lastOccurrenceAt.map({ localClaim > $0 }) ?? true {
-                task.lastOccurrenceAt = localClaim
-                task.lastRunAt = existing.lastRunAt
-                task.lastRunStatus = existing.lastRunStatus
-            }
-        }
-
-        try exec("BEGIN IMMEDIATE")
-        do {
-            try writeScheduledTaskRow(task)
-            for run in payload.runs {
-                try upsertScheduledTaskRunFromSync(run)
-            }
-            try pruneScheduledTaskRuns(taskID: task.id)
-            try exec("COMMIT")
-        } catch {
-            try? exec("ROLLBACK")
-            throw error
-        }
-    }
-
-    func deleteScheduledTaskRecord(_ taskID: String) throws {
-        try execBind("DELETE FROM scheduled_tasks WHERE id = ?") { stmt in
-            self.bind(stmt, 1, taskID)
-        }
-    }
-
-    func scheduledTaskSyncBackfillDate(taskID: String) throws -> Date? {
-        var date: Date?
-        try queryBind("SELECT updated_at FROM scheduled_tasks WHERE id = ? LIMIT 1", bind: { stmt in
-            self.bind(stmt, 1, taskID)
-        }) { stmt in
-            date = Date(timeIntervalSinceReferenceDate: sqlite3_column_double(stmt, 0))
-        }
-        return date
-    }
 
     // MARK: - Row plumbing
 
@@ -610,56 +534,6 @@ extension KnowledgeStore {
         bind(stmt, 9, run.deviceName)
         bind(stmt, 10, run.attempt)
         bind(stmt, 11, run.retryAt?.timeIntervalSinceReferenceDate)
-    }
-
-    /// Inbound receipts land keyed by occurrence, not by row id: the same
-    /// morning must never appear twice because two devices minted different
-    /// UUIDs for it.
-    ///
-    /// The later try wins whole: a receipt with a higher `attempt` replaces
-    /// status, finish, message and pending retry, and one with a lower attempt
-    /// changes nothing but a missing chat or device, since it is an older
-    /// snapshot of the same morning. At the same attempt a local row already
-    /// holding a terminal status wins over an inbound `running`, which is only
-    /// ever a stale in-flight snapshot. Every right-hand side reads the row as
-    /// it was before the update, which is what SQLite's upsert guarantees.
-    private func upsertScheduledTaskRunFromSync(_ run: ScheduledTaskRun) throws {
-        try execBind("""
-            INSERT INTO scheduled_task_runs (
-                id, task_id, occurrence_at, started_at, finished_at, status, session_id, message, device_name,
-                attempt, retry_at
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(task_id, occurrence_at) DO UPDATE SET
-                started_at = MIN(started_at, excluded.started_at),
-                finished_at = CASE
-                    WHEN excluded.attempt > attempt THEN excluded.finished_at
-                    WHEN excluded.attempt < attempt THEN finished_at
-                    ELSE COALESCE(excluded.finished_at, finished_at)
-                END,
-                status = CASE
-                    WHEN excluded.attempt > attempt THEN excluded.status
-                    WHEN excluded.attempt < attempt THEN status
-                    WHEN excluded.status = 'running' AND status <> 'running' THEN status
-                    ELSE excluded.status
-                END,
-                retry_at = CASE
-                    WHEN excluded.attempt > attempt THEN excluded.retry_at
-                    WHEN excluded.attempt < attempt THEN retry_at
-                    WHEN excluded.status = 'running' AND status <> 'running' THEN retry_at
-                    ELSE excluded.retry_at
-                END,
-                message = CASE
-                    WHEN excluded.attempt > attempt THEN excluded.message
-                    WHEN excluded.attempt < attempt THEN message
-                    ELSE COALESCE(excluded.message, message)
-                END,
-                attempt = MAX(attempt, excluded.attempt),
-                session_id = COALESCE(excluded.session_id, session_id),
-                device_name = COALESCE(excluded.device_name, device_name)
-        """) { stmt in
-            self.bindScheduledTaskRun(stmt, run)
-        }
     }
 
     /// Keeps the receipt list bounded so one long-lived daily task cannot grow

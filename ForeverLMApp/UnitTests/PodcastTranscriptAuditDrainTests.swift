@@ -68,7 +68,11 @@ struct PodcastTranscriptAuditDrainTests {
     ) async throws {
         try await storage.saveSource(episode(id: id, trackID: trackID))
         try await storage.saveTranscript(id, stored)
-        if let ttml { try await storage.saveRawTTML(id, ttml) }
+        if let ttml {
+            try await storage.performStoreWork { store in
+                try store.execute("UPDATE podcasts SET raw_ttml = ? WHERE source_id = ?", [.text(ttml), .text(id)])
+            }
+        }
         if hidden { try await storage.setPodcastEpisodeHidden(id, hidden: true) }
         let sha = PaperContentPreparationService.sha256(stored)
         try await storage.performStoreWork { store in

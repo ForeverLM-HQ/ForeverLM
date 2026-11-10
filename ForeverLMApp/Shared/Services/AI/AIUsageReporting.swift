@@ -957,12 +957,6 @@ enum AIUsageTaskLabel {
     }
 }
 
-/// CloudKit `AIUsageEvent` record payload. Encoded with JSONEncoder's default
-/// (deferredToDate) date strategy on every platform.
-struct CloudKitAIUsageEventPayload: Codable, Sendable {
-    let event: AIUsageEvent
-}
-
 /// Static list prices used to stamp `AIUsageEvent.estimatedCost` at record time.
 ///
 /// Rates are USD list prices verified against provider pricing pages on

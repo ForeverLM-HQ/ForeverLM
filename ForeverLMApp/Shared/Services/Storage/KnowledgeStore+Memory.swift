@@ -11,7 +11,6 @@ extension KnowledgeStore {
         do {
             try upsertMemoryItemRows(item)
             try rebuildMemorySchedule(memoryItemID: item.id)
-            try markRecordChanged(entity: .memoryItem, logicalKey: item.id, at: item.updatedAt)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -42,11 +41,9 @@ extension KnowledgeStore {
             var changed = false
             if existing == nil {
                 try upsertMemoryItemRows(item)
-                try markRecordChanged(entity: .memoryItem, logicalKey: item.id, at: item.updatedAt)
                 changed = true
             }
             if let attempt, try insertMemoryAttemptIfNew(attempt) {
-                try markRecordChanged(entity: .memoryAttempt, logicalKey: attempt.id, at: attempt.attemptedAt)
                 changed = true
             }
             if changed {
@@ -82,16 +79,8 @@ extension KnowledgeStore {
                 bind(statement, 3, retiredID)
                 bind(statement, 4, MemoryItemStatus.retired.rawValue)
             }
-            var retiredRowCount = 0
-            try query("SELECT changes()") { statement in
-                retiredRowCount = Int(sqlite3_column_int64(statement, 0))
-            }
-            if retiredRowCount == 1 {
-                try markRecordChanged(entity: .memoryItem, logicalKey: retiredID, at: retiredAt)
-            }
             try upsertMemoryItemRows(item)
             try rebuildMemorySchedule(memoryItemID: item.id)
-            try markRecordChanged(entity: .memoryItem, logicalKey: item.id, at: item.updatedAt)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -235,7 +224,6 @@ extension KnowledgeStore {
             guard changedRowCount == 1 else {
                 throw KnowledgeStoreError.invalidData("Memory item \(id) does not exist.")
             }
-            try markRecordChanged(entity: .memoryItem, logicalKey: id, at: updatedAt)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -243,56 +231,16 @@ extension KnowledgeStore {
         }
     }
 
-    /// User-facing deletion removes the aggregate and its attempts and publishes a
-    /// tombstone for every top-level CloudKit record.
+    /// User-facing deletion removes the aggregate and its attempts.
     func deleteMemoryItem(_ id: String) throws {
         try exec("BEGIN IMMEDIATE")
         do {
-            let attemptIDs = try memoryAttemptIDs(memoryItemID: id)
             try execBind("DELETE FROM memory_items WHERE id = ?") { statement in
                 bind(statement, 1, id)
             }
             try execBind("DELETE FROM memory_attempts WHERE memory_item_id = ?") { statement in
                 bind(statement, 1, id)
             }
-            try markRecordDeleted(entity: .memoryItem, logicalKey: id)
-            for attemptID in attemptIDs {
-                try markRecordDeleted(entity: .memoryAttempt, logicalKey: attemptID)
-            }
-            try exec("COMMIT")
-        } catch {
-            try? exec("ROLLBACK")
-            throw error
-        }
-    }
-
-    func deleteMemoryItemRecord(id: String) throws {
-        let deletedAt = Date()
-        try exec("BEGIN IMMEDIATE")
-        do {
-            let attemptIDs = try memoryAttemptIDs(memoryItemID: id)
-            try execBind("DELETE FROM memory_attempts WHERE memory_item_id = ?") { statement in
-                bind(statement, 1, id)
-            }
-            try execBind("DELETE FROM memory_items WHERE id = ?") { statement in
-                bind(statement, 1, id)
-            }
-            for attemptID in attemptIDs {
-                if syncTrackingSuppressionDepth > 0 {
-                    try enqueueCascadingRecordDeletion(
-                        entity: .memoryAttempt,
-                        logicalKey: attemptID,
-                        at: deletedAt
-                    )
-                } else {
-                    try markRecordDeleted(
-                        entity: .memoryAttempt,
-                        logicalKey: attemptID,
-                        at: deletedAt
-                    )
-                }
-            }
-            try markRecordDeleted(entity: .memoryItem, logicalKey: id, at: deletedAt)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -312,7 +260,6 @@ extension KnowledgeStore {
             let inserted = try insertMemoryAttemptIfNew(attempt)
             if inserted {
                 try rebuildMemorySchedule(memoryItemID: attempt.memoryItemID)
-                try markRecordChanged(entity: .memoryAttempt, logicalKey: attempt.id, at: attempt.attemptedAt)
             }
             try exec("COMMIT")
             return inserted
@@ -402,27 +349,6 @@ extension KnowledgeStore {
         return try ids.compactMap { try loadMemoryAttempt($0) }
     }
 
-    func loadAllMemoryAttemptIDs() throws -> [String] {
-        var ids: [String] = []
-        try query("SELECT id FROM memory_attempts ORDER BY id") { statement in
-            if let id = self.string(statement, 0) {
-                ids.append(id)
-            }
-        }
-        return ids
-    }
-
-    private func memoryAttemptIDs(memoryItemID: String) throws -> [String] {
-        var ids: [String] = []
-        try queryBind(
-            "SELECT id FROM memory_attempts WHERE memory_item_id = ? ORDER BY id",
-            bind: { statement in bind(statement, 1, memoryItemID) }
-        ) { statement in
-            if let id = self.string(statement, 0) { ids.append(id) }
-        }
-        return ids
-    }
-
     private func memoryAttemptItemID(id: String) throws -> String? {
         var memoryItemID: String?
         try queryBind(
@@ -506,25 +432,6 @@ extension KnowledgeStore {
                 bind(statement, 1, id)
             }
             try rebuildMemorySchedule(memoryItemID: memoryItemID)
-            try markRecordDeleted(entity: .memoryAttempt, logicalKey: id)
-            try exec("COMMIT")
-        } catch {
-            try? exec("ROLLBACK")
-            throw error
-        }
-    }
-
-    func deleteMemoryAttemptRecord(id: String) throws {
-        try exec("BEGIN IMMEDIATE")
-        do {
-            let memoryItemID = try memoryAttemptItemID(id: id)
-            try execBind("DELETE FROM memory_attempts WHERE id = ?") { statement in
-                bind(statement, 1, id)
-            }
-            if let memoryItemID {
-                try rebuildMemorySchedule(memoryItemID: memoryItemID)
-            }
-            try markRecordDeleted(entity: .memoryAttempt, logicalKey: id)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -683,12 +590,6 @@ extension KnowledgeStore {
             SELECT mi.id
             FROM memory_items mi
             WHERE mi.status = 'active'
-              AND NOT EXISTS (
-                    SELECT 1
-                    FROM sync_conflicts conflict
-                    WHERE conflict.entity_type = 'memoryItem'
-                      AND conflict.logical_key = mi.id
-              )
               \(reviewableMemoryAnchorPredicate(sourceIDs: sourceIDs))
               \(recordingCutoff == nil ? "" : "AND mi.created_at >= ?")
             ORDER BY mi.id
@@ -819,12 +720,6 @@ extension KnowledgeStore {
               AND ms.repetition_count > 0
               AND mi.status = 'active'
               AND (? IS NULL OR mi.goal_id = ?)
-              AND NOT EXISTS (
-                    SELECT 1
-                    FROM sync_conflicts conflict
-                    WHERE conflict.entity_type = 'memoryItem'
-                      AND conflict.logical_key = mi.id
-              )
               \(sourcePredicate)
               \(recordingCutoff == nil ? "" : "AND mi.created_at >= ?")
             ORDER BY
@@ -1182,11 +1077,6 @@ extension KnowledgeStore {
                     }
                 } else {
                     try upsertMemoryItemRows(item)
-                    try markRecordChanged(
-                        entity: .memoryItem,
-                        logicalKey: item.id,
-                        at: item.updatedAt
-                    )
                 }
             } else if try loadMemoryItem(attempt.memoryItemID) == nil {
                 throw KnowledgeStoreError.invalidData("Memory item \(attempt.memoryItemID) does not exist.")
@@ -1233,16 +1123,9 @@ extension KnowledgeStore {
             guard changedRowCount == 1 else {
                 throw KnowledgeStoreError.invalidData("The pending review exchange changed before it could be recorded.")
             }
-            try markRecordChanged(entity: .reviewSession, logicalKey: sessionID, at: answeredAt)
+            noteStoreChanged()
 
-            let inserted = try insertMemoryAttemptIfNew(linkedAttempt)
-            if inserted {
-                try markRecordChanged(
-                    entity: .memoryAttempt,
-                    logicalKey: linkedAttempt.id,
-                    at: linkedAttempt.attemptedAt
-                )
-            }
+            _ = try insertMemoryAttemptIfNew(linkedAttempt)
             try rebuildMemorySchedule(memoryItemID: linkedAttempt.memoryItemID)
             try exec("COMMIT")
             return linkedAttempt
@@ -1310,11 +1193,6 @@ extension KnowledgeStore {
                     }
                 } else {
                     try upsertMemoryItemRows(item)
-                    try markRecordChanged(
-                        entity: .memoryItem,
-                        logicalKey: item.id,
-                        at: item.updatedAt
-                    )
                 }
             }
             if let expectedExistingItem {
@@ -1333,15 +1211,9 @@ extension KnowledgeStore {
                 sourceRefs: sourceRefs,
                 attempt: attempt
             )
-            if try insertMemoryAttemptIfNew(linkedAttempt) {
-                try markRecordChanged(
-                    entity: .memoryAttempt,
-                    logicalKey: linkedAttempt.id,
-                    at: linkedAttempt.attemptedAt
-                )
-            }
+            _ = try insertMemoryAttemptIfNew(linkedAttempt)
             try rebuildMemorySchedule(memoryItemID: linkedAttempt.memoryItemID)
-            try markRecordChanged(entity: .reviewSession, logicalKey: sessionID, at: attempt.attemptedAt)
+            noteStoreChanged()
             try exec("COMMIT")
             return linkedAttempt
         } catch {
@@ -1518,11 +1390,7 @@ extension KnowledgeStore {
                     sourceIDs: completionSourceIDs
                 )
                 try keepChatShapeForGeneration2(sessionID: sessionID, kind: .memory)
-                try markRecordChanged(
-                    entity: .reviewSession,
-                    logicalKey: sessionID,
-                    at: createIfMissing.startedAt
-                )
+                noteStoreChanged()
             }
             let session = try memoryReviewSessionState(sessionID: sessionID)
             if let createIfMissing {
@@ -1580,11 +1448,6 @@ extension KnowledgeStore {
                 } else {
                     try upsertMemoryItemRows(item)
                     try rebuildMemorySchedule(memoryItemID: item.id)
-                    try markRecordChanged(
-                        entity: .memoryItem,
-                        logicalKey: item.id,
-                        at: item.updatedAt
-                    )
                 }
             }
             for (itemID, expectedFingerprint) in expectedCurriculumFingerprints.sorted(
@@ -1643,11 +1506,6 @@ extension KnowledgeStore {
                     )
                 }
                 if try insertMemoryAttemptIfNew(linkedAttempt) {
-                    try markRecordChanged(
-                        entity: .memoryAttempt,
-                        logicalKey: linkedAttempt.id,
-                        at: linkedAttempt.attemptedAt
-                    )
                     changedItemIDs.insert(linkedAttempt.memoryItemID)
                 }
             }
@@ -1731,580 +1589,6 @@ extension KnowledgeStore {
         }
     }
 
-    // MARK: - CloudKit payloads
-
-    func loadMemoryItemForSync(_ id: String) throws -> CloudKitMemoryItemPayload? {
-        guard let item = try loadMemoryItem(id) else { return nil }
-        let liveIdentities = try sourceIdentities(for: item.sources.map(\.sourceID))
-        let storedIdentities = try loadStoredMemorySourceIdentities(memoryItemID: id)
-        var identityBySourceID: [String: CloudKitSourceIdentityPayload] = [:]
-        for identity in storedIdentities + liveIdentities {
-            identityBySourceID[identity.sourceID] = identity
-        }
-        var emittedSourceIDs = Set<String>()
-        let sourceIdentities = item.sources.compactMap { anchor -> CloudKitSourceIdentityPayload? in
-            guard emittedSourceIDs.insert(anchor.sourceID).inserted else { return nil }
-            return identityBySourceID[anchor.sourceID]
-        }
-        return CloudKitMemoryItemPayload(
-            item: item,
-            sourceIdentities: sourceIdentities
-        )
-    }
-
-    func saveMemoryItemRecord(_ payload: CloudKitMemoryItemPayload) throws {
-        #if DEBUG
-        try beforeInboundMemoryItemWriteTransactionForTesting?()
-        #endif
-        try exec("BEGIN IMMEDIATE")
-        do {
-            let remapped = try remappedMemoryItemRecord(payload)
-            let remappedItem = remapped.item
-            let identityByAnchorID = remapped.portableIdentitiesByAnchorID
-            try validateMemoryItem(remappedItem)
-            if let existing = try loadMemoryItem(remappedItem.id),
-               !MemoryTutorIdentity.hasSameImmutableCurriculum(existing, remappedItem) {
-                _ = try adoptServerMemoryItemResolvingCurriculumConflictWithinTransaction(
-                    payload,
-                    resolvedAt: remappedItem.updatedAt
-                )
-                try exec("COMMIT")
-                return
-            }
-            try upsertMemoryItemRows(
-                remappedItem,
-                portableIdentitiesByAnchorID: identityByAnchorID
-            )
-            try rebuildMemorySchedule(memoryItemID: remappedItem.id)
-            try markRecordChanged(
-                entity: .memoryItem,
-                logicalKey: remappedItem.id,
-                at: remappedItem.updatedAt
-            )
-            try exec("COMMIT")
-        } catch {
-            try? exec("ROLLBACK")
-            throw error
-        }
-    }
-
-    /// Resolve a simultaneous deterministic first-review race without losing
-    /// either curriculum. CloudKit's item remains canonical under the portable
-    /// source-global ID. The divergent local item, anchors, and attempts move to
-    /// deterministic retired archive identities, after which the server winner
-    /// can be applied and reviewed normally.
-    @discardableResult
-    func adoptServerMemoryItemResolvingCurriculumConflict(
-        _ payload: CloudKitMemoryItemPayload,
-        resolvedAt: Date
-    ) throws -> String? {
-        #if DEBUG
-        try beforeInboundMemoryItemWriteTransactionForTesting?()
-        #endif
-        try exec("BEGIN IMMEDIATE")
-        do {
-            let archiveID = try adoptServerMemoryItemResolvingCurriculumConflictWithinTransaction(
-                payload,
-                resolvedAt: resolvedAt
-            )
-            try exec("COMMIT")
-            return archiveID
-        } catch {
-            try? exec("ROLLBACK")
-            throw error
-        }
-    }
-
-    /// The caller must own a SQLite write transaction. Keeping the complete
-    /// read/compare/rekey/apply sequence here prevents a local curriculum or
-    /// linked attempt from committing between the conflict snapshot and archive.
-    private func adoptServerMemoryItemResolvingCurriculumConflictWithinTransaction(
-        _ payload: CloudKitMemoryItemPayload,
-        resolvedAt: Date
-    ) throws -> String? {
-        let remapped = try remappedMemoryItemRecord(payload)
-        let serverItem = remapped.item
-        try validateMemoryItem(serverItem)
-        guard let localItem = try loadMemoryItem(serverItem.id) else {
-            try upsertMemoryItemRows(
-                serverItem,
-                portableIdentitiesByAnchorID: remapped.portableIdentitiesByAnchorID
-            )
-            try rebuildMemorySchedule(memoryItemID: serverItem.id)
-            try markRecordChanged(
-                entity: .memoryItem,
-                logicalKey: serverItem.id,
-                at: serverItem.updatedAt
-            )
-            return nil
-        }
-        guard !MemoryTutorIdentity.hasSameImmutableCurriculum(
-            localItem,
-            serverItem
-        ) else {
-            try upsertMemoryItemRows(
-                serverItem,
-                portableIdentitiesByAnchorID: remapped.portableIdentitiesByAnchorID
-            )
-            try rebuildMemorySchedule(memoryItemID: serverItem.id)
-            try markRecordChanged(
-                entity: .memoryItem,
-                logicalKey: serverItem.id,
-                at: serverItem.updatedAt
-            )
-            return nil
-        }
-
-        let archiveID = MemoryTutorIdentity.conflictArchiveItemID(for: localItem)
-            let storedIdentities = try loadStoredMemorySourceIdentitiesByAnchorID(
-                memoryItemID: localItem.id
-            )
-            var archiveIdentities: [String: CloudKitSourceIdentityPayload] = [:]
-            let archiveSources = localItem.sources.map { source in
-                let archiveAnchorID = MemoryTutorIdentity.firstReviewAnchorID(
-                    memoryItemID: archiveID,
-                    sortIndex: source.sortIndex
-                )
-                if let identity = storedIdentities[source.id] {
-                    archiveIdentities[archiveAnchorID] = identity
-                }
-                return MemoryItemSource(
-                    id: archiveAnchorID,
-                    memoryItemID: archiveID,
-                    sourceID: source.sourceID,
-                    locatorJSON: source.locatorJSON,
-                    excerpt: source.excerpt,
-                    sourceSHA256: source.sourceSHA256,
-                    sortIndex: source.sortIndex
-                )
-            }
-            let archivedItem = MemoryItem(
-                id: archiveID,
-                kind: localItem.kind,
-                target: localItem.target,
-                rubricJSON: localItem.rubricJSON,
-                learnerContext: localItem.learnerContext,
-                goalID: localItem.goalID,
-                status: .retired,
-                sources: archiveSources,
-                createdAt: localItem.createdAt,
-                updatedAt: max(localItem.updatedAt, resolvedAt)
-            )
-            let archiveCurriculumFingerprint = MemoryTutorIdentity
-                .immutableCurriculumFingerprint(archivedItem)
-            let localAttempts = try loadMemoryAttempts(memoryItemID: localItem.id)
-            let conflictsByAttemptID = Dictionary(
-                uniqueKeysWithValues: try loadSyncConflicts()
-                    .filter { $0.entity == .memoryAttempt }
-                    .map { ($0.logicalKey, $0) }
-            )
-
-            if let existingArchive = try loadMemoryItem(archiveID) {
-                guard MemoryTutorIdentity.hasSameImmutableCurriculum(
-                    existingArchive,
-                    archivedItem
-                ) else {
-                    throw KnowledgeStoreError.invalidData(
-                        "Memory curriculum archive ID \(archiveID) already contains different content."
-                    )
-                }
-            }
-            try upsertMemoryItemRows(
-                archivedItem,
-                portableIdentitiesByAnchorID: archiveIdentities
-            )
-
-            var acknowledgedOldAttemptIDs: [String] = []
-            for attempt in localAttempts {
-                let archivedAttempt = MemoryAttempt(
-                    id: MemoryTutorIdentity.conflictArchiveAttemptID(
-                        originalAttemptID: attempt.id,
-                        archiveItemID: archiveID
-                    ),
-                    memoryItemID: archiveID,
-                    sessionID: attempt.sessionID,
-                    exchangeID: attempt.exchangeID,
-                    attemptType: attempt.attemptType,
-                    prompt: attempt.prompt,
-                    learnerAnswer: attempt.learnerAnswer,
-                    feedback: attempt.feedback,
-                    score: attempt.score,
-                    scheduleRating: attempt.scheduleRating,
-                    gradeState: attempt.gradeState,
-                    gradingError: attempt.gradingError,
-                    evidenceJSON: attempt.evidenceJSON,
-                    attemptedAt: attempt.attemptedAt,
-                    modelProvider: attempt.modelProvider,
-                    modelID: attempt.modelID,
-                    modelMetadataJSON: attempt.modelMetadataJSON
-                )
-                // Preserve the exact session/exchange relationship while
-                // moving the evidence to its archive identity. Inserting the
-                // replacement before removing the original would violate the
-                // UNIQUE(session_id, exchange_id) invariant for every linked
-                // attempt, so rekey the immutable row in place instead.
-                if let existingArchived = try loadMemoryAttempt(archivedAttempt.id) {
-                    guard existingArchived == archivedAttempt else {
-                        throw KnowledgeStoreError.invalidData(
-                            "Memory attempt archive ID \(archivedAttempt.id) already contains different immutable evidence."
-                        )
-                    }
-                    try execBind("DELETE FROM memory_attempts WHERE id = ?") { statement in
-                        bind(statement, 1, attempt.id)
-                    }
-                } else {
-                    try execBind("""
-                        UPDATE memory_attempts
-                        SET id = ?, memory_item_id = ?,
-                            parent_curriculum_fingerprint = ?
-                        WHERE id = ? AND memory_item_id = ?
-                    """) { statement in
-                        bind(statement, 1, archivedAttempt.id)
-                        bind(statement, 2, archiveID)
-                        bind(statement, 3, archiveCurriculumFingerprint)
-                        bind(statement, 4, attempt.id)
-                        bind(statement, 5, localItem.id)
-                    }
-                    guard sqlite3_changes(db) == 1 else {
-                        throw KnowledgeStoreError.invalidData(
-                            "Memory attempt \(attempt.id) changed while resolving its curriculum conflict."
-                        )
-                    }
-                }
-                try upsertSyncSave(
-                    entity: .memoryAttempt,
-                    logicalKey: archivedAttempt.id,
-                    at: archivedAttempt.attemptedAt
-                )
-                let metadata = try loadSyncMetadata(
-                    entity: .memoryAttempt,
-                    logicalKey: attempt.id
-                )
-                if metadata?.systemFieldsData != nil,
-                   conflictsByAttemptID[attempt.id]?.serverPayload == nil {
-                    acknowledgedOldAttemptIDs.append(attempt.id)
-                }
-                try clearPendingSyncChange(entity: .memoryAttempt, logicalKey: attempt.id)
-                try clearSyncConflict(entity: .memoryAttempt, logicalKey: attempt.id)
-            }
-
-            try execBind("DELETE FROM memory_attempts WHERE memory_item_id = ?") { statement in
-                bind(statement, 1, localItem.id)
-            }
-            try execBind("DELETE FROM memory_items WHERE id = ?") { statement in
-                bind(statement, 1, localItem.id)
-            }
-            try clearPendingSyncChange(entity: .memoryItem, logicalKey: localItem.id)
-            try clearSyncConflict(entity: .memoryItem, logicalKey: localItem.id)
-
-            try upsertMemoryItemRows(
-                serverItem,
-                portableIdentitiesByAnchorID: remapped.portableIdentitiesByAnchorID
-            )
-            try upsertSyncSave(
-                entity: .memoryItem,
-                logicalKey: archiveID,
-                at: archivedItem.updatedAt
-            )
-
-            // If a local attempt had already been acknowledged independently,
-            // retire its old server identity after the archived replacement is
-            // queued. Never delete a server attempt retained in a conflict row:
-            // it belongs to the canonical server curriculum and is replayed below.
-            for attemptID in acknowledgedOldAttemptIDs {
-                try enqueueCascadingRecordDeletion(
-                    entity: .memoryAttempt,
-                    logicalKey: attemptID,
-                    at: resolvedAt
-                )
-            }
-
-            // A server MemoryAttempt can arrive and be quarantined before its
-            // parent conflict is resolved. Recover those exact payloads now that
-            // the canonical server item is installed.
-            for conflict in conflictsByAttemptID.values.sorted(by: {
-                $0.logicalKey < $1.logicalKey
-            }) {
-                guard let data = conflict.serverPayload,
-                      let serverAttemptPayload = try? JSONDecoder().decode(
-                          CloudKitMemoryAttemptPayload.self,
-                          from: data
-                      ),
-                      serverAttemptPayload.attempt.memoryItemID == serverItem.id else {
-                    continue
-                }
-                try validateMemoryAttempt(serverAttemptPayload.attempt)
-                if serverAttemptPayload.payloadVersion >= 2 {
-                    guard let expectedFingerprint = serverAttemptPayload
-                        .parentCurriculumFingerprint,
-                          !expectedFingerprint.isEmpty else {
-                        throw KnowledgeStoreError.invalidData(
-                            "Quarantined version 2 MemoryAttempt \(serverAttemptPayload.attempt.id) is missing its parent curriculum fingerprint."
-                        )
-                    }
-                    guard expectedFingerprint == MemoryTutorIdentity
-                        .immutableCurriculumFingerprint(serverItem) else {
-                        throw KnowledgeStoreError.invalidData(
-                            "Quarantined MemoryAttempt \(serverAttemptPayload.attempt.id) does not belong to the adopted server curriculum."
-                        )
-                    }
-                } else if let expectedFingerprint = serverAttemptPayload
-                    .parentCurriculumFingerprint {
-                    guard expectedFingerprint == MemoryTutorIdentity
-                        .immutableCurriculumFingerprint(serverItem) else {
-                        throw KnowledgeStoreError.invalidData(
-                            "Quarantined MemoryAttempt \(serverAttemptPayload.attempt.id) does not belong to the adopted server curriculum."
-                        )
-                    }
-                }
-                try validateMemoryAttemptExchangeIfPresent(serverAttemptPayload.attempt)
-                _ = try insertMemoryAttemptIfNew(
-                    serverAttemptPayload.attempt,
-                    parentCurriculumFingerprint: serverAttemptPayload
-                        .parentCurriculumFingerprint,
-                    recordedHere: false
-                )
-                if let systemFields = conflict.serverSystemFields {
-                    try saveSyncMetadata(CloudKitSyncMetadata(
-                        entity: .memoryAttempt,
-                        logicalKey: serverAttemptPayload.attempt.id,
-                        recordName: conflict.recordName,
-                        systemFieldsData: systemFields,
-                        userModificationDate: conflict.serverModificationDate,
-                        isDeleted: false
-                    ))
-                }
-                try clearSyncConflict(
-                    entity: .memoryAttempt,
-                    logicalKey: serverAttemptPayload.attempt.id
-                )
-            }
-        try rebuildMemorySchedule(memoryItemID: archiveID)
-        try rebuildMemorySchedule(memoryItemID: serverItem.id)
-        return archiveID
-    }
-
-    /// Validate the create-once portion of a deterministic MemoryItem before a
-    /// local-newer CloudKit retry adopts the server change tag. Without this
-    /// guard, the generic retry path could make a divergent local curriculum
-    /// overwrite the server winner on its next save.
-    func requireMatchingImmutableMemoryItemRecord(
-        _ payload: CloudKitMemoryItemPayload
-    ) throws {
-        let incoming = try remappedMemoryItemRecord(payload).item
-        guard let existing = try loadMemoryItem(incoming.id) else {
-            throw KnowledgeStoreError.invalidData(
-                "CloudKit conflict references missing local memory item \(incoming.id)."
-            )
-        }
-        guard MemoryTutorIdentity.hasSameImmutableCurriculum(existing, incoming) else {
-            throw KnowledgeStoreError.invalidData(
-                "CloudKit conflict for memory item \(incoming.id) contains divergent immutable curriculum."
-            )
-        }
-    }
-
-    /// MemoryAttempt rows are wholly immutable. A record-name collision is safe
-    /// to retry only when every persisted field is identical.
-    func requireMatchingImmutableMemoryAttemptRecord(
-        _ payload: CloudKitMemoryAttemptPayload
-    ) throws {
-        guard let existing = try loadMemoryAttempt(payload.attempt.id) else {
-            throw KnowledgeStoreError.invalidData(
-                "CloudKit conflict references missing local memory attempt \(payload.attempt.id)."
-            )
-        }
-        guard existing == payload.attempt else {
-            throw KnowledgeStoreError.invalidData(
-                "CloudKit conflict for memory attempt \(payload.attempt.id) contains divergent immutable evidence."
-            )
-        }
-        let storedFingerprint = try loadMemoryAttemptParentCurriculumFingerprint(
-            id: payload.attempt.id
-        )
-        if payload.payloadVersion >= 2 {
-            guard let incomingFingerprint = payload.parentCurriculumFingerprint,
-                  !incomingFingerprint.isEmpty else {
-                throw KnowledgeStoreError.invalidData(
-                    "Version 2 memory attempt \(payload.attempt.id) requires its parent curriculum fingerprint."
-                )
-            }
-            let effectiveStoredFingerprint: String?
-            if let storedFingerprint {
-                effectiveStoredFingerprint = storedFingerprint
-            } else {
-                effectiveStoredFingerprint = try memoryItemCurriculumFingerprint(
-                    id: existing.memoryItemID
-                )
-            }
-            guard effectiveStoredFingerprint == incomingFingerprint else {
-                throw KnowledgeStoreError.invalidData(
-                    "CloudKit conflict for memory attempt \(payload.attempt.id) contains a divergent parent curriculum fingerprint."
-                )
-            }
-        } else if let storedFingerprint,
-                  let incomingFingerprint = payload.parentCurriculumFingerprint,
-                  storedFingerprint != incomingFingerprint {
-            throw KnowledgeStoreError.invalidData(
-                "CloudKit conflict for memory attempt \(payload.attempt.id) contains a divergent parent curriculum fingerprint."
-            )
-        }
-    }
-
-    private func remappedMemoryItemRecord(
-        _ payload: CloudKitMemoryItemPayload
-    ) throws -> (
-        item: MemoryItem,
-        portableIdentitiesByAnchorID: [String: CloudKitSourceIdentityPayload]
-    ) {
-        let identityLookup = sourceIdentityLookup(payload.sourceIdentities)
-        var identityByAnchorID: [String: CloudKitSourceIdentityPayload] = [:]
-        let remappedSources = try payload.item.sources.map { anchor in
-            let sourceID = try resolveSourceID(anchor.sourceID, identitiesBySourceID: identityLookup)
-            if let identity = identityLookup[anchor.sourceID] {
-                identityByAnchorID[anchor.id] = CloudKitSourceIdentityPayload(
-                    sourceID: sourceID,
-                    url: identity.url,
-                    normalizedURL: identity.normalizedURL ?? identity.url.map(URLNormalizer.normalize),
-                    doi: normalizedMemoryDOI(identity.doi),
-                    publishedDOI: normalizedMemoryDOI(identity.publishedDOI)
-                )
-            }
-            return MemoryItemSource(
-                id: anchor.id,
-                memoryItemID: payload.item.id,
-                sourceID: sourceID,
-                locatorJSON: anchor.locatorJSON,
-                excerpt: anchor.excerpt,
-                sourceSHA256: anchor.sourceSHA256,
-                sortIndex: anchor.sortIndex
-            )
-        }
-        return (
-            payload.item.replacingSources(remappedSources),
-            identityByAnchorID
-        )
-    }
-
-    func loadMemoryAttemptForSync(_ id: String) throws -> CloudKitMemoryAttemptPayload? {
-        guard let attempt = try loadMemoryAttempt(id) else { return nil }
-        let storedFingerprint = try loadMemoryAttemptParentCurriculumFingerprint(id: id)
-        let parentFingerprint: String?
-        if let storedFingerprint {
-            parentFingerprint = storedFingerprint
-        } else {
-            parentFingerprint = try loadMemoryItem(attempt.memoryItemID).map {
-                MemoryTutorIdentity.immutableCurriculumFingerprint($0)
-            }
-        }
-        guard let parentFingerprint, !parentFingerprint.isEmpty else {
-            throw KnowledgeStoreError.invalidData(
-                "Memory attempt \(id) cannot sync until its parent curriculum is available."
-            )
-        }
-        return CloudKitMemoryAttemptPayload(
-            attempt: attempt,
-            parentCurriculumFingerprint: parentFingerprint
-        )
-    }
-
-    func memoryItemCurriculumFingerprint(id: String) throws -> String? {
-        try loadMemoryItem(id).map {
-            MemoryTutorIdentity.immutableCurriculumFingerprint($0)
-        }
-    }
-
-    func saveMemoryAttemptRecord(_ payload: CloudKitMemoryAttemptPayload) throws {
-        let attempt = payload.attempt
-        try validateMemoryAttempt(attempt)
-        if payload.payloadVersion >= 2 {
-            guard let fingerprint = payload.parentCurriculumFingerprint,
-                  !fingerprint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                throw KnowledgeStoreError.invalidData(
-                    "Version 2 memory attempt \(attempt.id) requires its parent curriculum fingerprint."
-                )
-            }
-        } else if let fingerprint = payload.parentCurriculumFingerprint,
-                  fingerprint.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            throw KnowledgeStoreError.invalidData(
-                "Memory attempt \(attempt.id) has an empty parent curriculum fingerprint."
-            )
-        }
-        var rejectedDeletedParent: String?
-        try exec("BEGIN IMMEDIATE")
-        do {
-            guard try hasSyncConflict(
-                entity: .memoryItem,
-                logicalKey: attempt.memoryItemID
-            ) == false else {
-                throw KnowledgeStoreError.invalidData(
-                    "Memory attempt \(attempt.id) cannot be accepted while its parent MemoryItem \(attempt.memoryItemID) has an unresolved CloudKit curriculum conflict."
-                )
-            }
-            if let expectedFingerprint = payload.parentCurriculumFingerprint,
-               let parentItem = try loadMemoryItem(attempt.memoryItemID) {
-                guard MemoryTutorIdentity.immutableCurriculumFingerprint(parentItem)
-                    == expectedFingerprint else {
-                    throw KnowledgeStoreError.invalidData(
-                        "Memory attempt \(attempt.id) was graded against a different parent curriculum."
-                    )
-                }
-            }
-            let itemWasDeleted = try loadSyncMetadata(
-                entity: .memoryItem,
-                logicalKey: attempt.memoryItemID
-            )?.isDeleted == true
-            let sessionWasDeleted: Bool
-            if let sessionID = attempt.sessionID {
-                sessionWasDeleted = try loadSyncMetadata(
-                    entity: .reviewSession,
-                    logicalKey: sessionID
-                )?.isDeleted == true
-            } else {
-                sessionWasDeleted = false
-            }
-            if itemWasDeleted || sessionWasDeleted {
-                // A separately synced child can arrive in a later CloudKit delta
-                // than its parent tombstone. Never resurrect it: publish a child
-                // tombstone even though inbound application suppresses echo writes.
-                try enqueueCascadingRecordDeletion(
-                    entity: .memoryAttempt,
-                    logicalKey: attempt.id,
-                    at: Date()
-                )
-                rejectedDeletedParent = itemWasDeleted
-                    ? "memory item \(attempt.memoryItemID)"
-                    : "review session \(attempt.sessionID ?? "")"
-            } else {
-                try validateMemoryAttemptExchangeIfPresent(attempt)
-                if try insertMemoryAttemptIfNew(
-                    attempt,
-                    parentCurriculumFingerprint: payload.parentCurriculumFingerprint,
-                    recordedHere: false
-                ) {
-                    try rebuildMemorySchedule(memoryItemID: attempt.memoryItemID)
-                    try markRecordChanged(
-                        entity: .memoryAttempt,
-                        logicalKey: attempt.id,
-                        at: attempt.attemptedAt
-                    )
-                }
-            }
-            try exec("COMMIT")
-        } catch {
-            try? exec("ROLLBACK")
-            throw error
-        }
-        if let rejectedDeletedParent {
-            // The caller must not acknowledge this inbound save: doing so would
-            // clear the forced child deletion queued above. The committed tombstone
-            // drains first; a later fetch then sees the server child gone.
-            throw KnowledgeStoreError.invalidData(
-                "Memory attempt \(attempt.id) arrived after deleted \(rejectedDeletedParent) and was tombstoned instead of restored."
-            )
-        }
-    }
-
     // MARK: - Internal helpers
 
     private func loadMemoryItemSources(memoryItemID: String) throws -> [MemoryItemSource] {
@@ -2358,40 +1642,6 @@ extension KnowledgeStore {
             return try sourceIDByURL(url)
         }
         return nil
-    }
-
-    private func loadStoredMemorySourceIdentities(
-        memoryItemID: String
-    ) throws -> [CloudKitSourceIdentityPayload] {
-        var identities: [CloudKitSourceIdentityPayload] = []
-        var seenSourceIDs = Set<String>()
-        try queryBind("""
-            SELECT source_id, source_url, source_normalized_url, source_doi,
-                   source_published_doi
-            FROM memory_item_sources
-            WHERE memory_item_id = ?
-            ORDER BY sort_index, id
-        """, bind: { statement in
-            bind(statement, 1, memoryItemID)
-        }) { statement in
-            guard let sourceID = self.string(statement, 0),
-                  seenSourceIDs.insert(sourceID).inserted else { return }
-            let url = self.string(statement, 1)
-            let normalizedURL = self.string(statement, 2)
-            let doi = self.string(statement, 3)
-            let publishedDOI = self.string(statement, 4)
-            guard url != nil || normalizedURL != nil || doi != nil || publishedDOI != nil else {
-                return
-            }
-            identities.append(CloudKitSourceIdentityPayload(
-                sourceID: sourceID,
-                url: url,
-                normalizedURL: normalizedURL,
-                doi: doi,
-                publishedDOI: publishedDOI
-            ))
-        }
-        return identities
     }
 
     private func loadStoredMemorySourceIdentitiesByAnchorID(
@@ -2489,63 +1739,27 @@ extension KnowledgeStore {
                 sqlite3_bind_int64(statement, 11, Int64(source.sortIndex))
             }
         }
-        try quarantineAttemptsMismatchingParentCurriculum(item)
+        try removeAttemptsGivenToOtherWording(item)
     }
 
-    /// An attempt can arrive in an earlier CloudKit page than its parent. Keep
-    /// it inert until the parent appears, then retain a mismatched v2 payload in
-    /// the durable conflict backlog instead of letting it influence the wrong
-    /// curriculum's schedule or transcript relationships.
-    private func quarantineAttemptsMismatchingParentCurriculum(
+    /// An answer can arrive from another device before the card it was given
+    /// to, and the card that then arrives can carry different wording (the
+    /// kept wording won; this device's became a card of its own). An answer
+    /// given to other wording says nothing about this card, so it leaves the
+    /// card's attempts and cannot move its schedule. The answer itself stays
+    /// in its sitting, which is where sync keeps it.
+    private func removeAttemptsGivenToOtherWording(
         _ item: MemoryItem
     ) throws {
         let expectedFingerprint = MemoryTutorIdentity.immutableCurriculumFingerprint(item)
-        var mismatches: [(id: String, fingerprint: String)] = []
-        try queryBind("""
-            SELECT id, parent_curriculum_fingerprint
-            FROM memory_attempts
+        try execBind("""
+            DELETE FROM memory_attempts
             WHERE memory_item_id = ?
               AND parent_curriculum_fingerprint IS NOT NULL
               AND parent_curriculum_fingerprint <> ?
-            ORDER BY id
-        """, bind: { statement in
+        """) { statement in
             bind(statement, 1, item.id)
             bind(statement, 2, expectedFingerprint)
-        }) { statement in
-            guard let id = self.string(statement, 0),
-                  let fingerprint = self.string(statement, 1) else { return }
-            mismatches.append((id, fingerprint))
-        }
-        for mismatch in mismatches {
-            guard let attempt = try loadMemoryAttempt(mismatch.id) else { continue }
-            let metadata = try loadSyncMetadata(
-                entity: .memoryAttempt,
-                logicalKey: mismatch.id
-            )
-            let payload = CloudKitMemoryAttemptPayload(
-                attempt: attempt,
-                parentCurriculumFingerprint: mismatch.fingerprint
-            )
-            let detectedAt = Date()
-            try upsertSyncConflictRow(CloudKitSyncConflict(
-                entity: .memoryAttempt,
-                logicalKey: mismatch.id,
-                recordName: metadata?.recordName ?? CloudKitRecordMapper.recordName(
-                    for: .memoryAttempt,
-                    logicalKey: mismatch.id
-                ),
-                reason: "MemoryAttempt parent curriculum fingerprint does not match MemoryItem \(item.id).",
-                localModificationDate: attempt.attemptedAt,
-                serverModificationDate: metadata?.userModificationDate
-                    ?? attempt.attemptedAt,
-                detectedAt: detectedAt,
-                serverPayload: try JSONEncoder().encode(payload),
-                serverSystemFields: metadata?.systemFieldsData
-            ))
-            try clearPendingSyncChange(entity: .memoryAttempt, logicalKey: mismatch.id)
-            try execBind("DELETE FROM memory_attempts WHERE id = ?") { statement in
-                bind(statement, 1, mismatch.id)
-            }
         }
     }
 
@@ -2876,11 +2090,6 @@ extension KnowledgeStore {
         }
         if insertedAny {
             try touchLearningGoal(goalID, at: recordedAt)
-            try markTutorStateChanged(
-                entity: .learningGoal,
-                logicalKey: goalID,
-                at: recordedAt
-            )
         }
     }
 
@@ -2934,50 +2143,6 @@ extension KnowledgeStore {
                     "Memory attempt \(attempt.id) does not match its linked transcript exchange."
                 )
             }
-        }
-    }
-
-    /// CloudKit can deliver either aggregate first. When the referenced exchange
-    /// is already present, enforce the same immutable relationship parity used by
-    /// the session-first path; when it is absent, retain the attempt so the later
-    /// ReviewSession aggregate can validate it on arrival.
-    private func validateMemoryAttemptExchangeIfPresent(_ attempt: MemoryAttempt) throws {
-        guard let sessionID = attempt.sessionID, let exchangeID = attempt.exchangeID else { return }
-        var stored: (
-            sessionID: String,
-            question: String,
-            answer: String?,
-            evaluation: String?,
-            score: Double?
-        )?
-        try queryBind("""
-            SELECT session_id, question, user_answer, evaluation, score
-            FROM review_exchanges
-            WHERE id = ?
-            LIMIT 1
-        """, bind: { statement in
-            bind(statement, 1, exchangeID)
-        }) { statement in
-            guard let storedSessionID = self.string(statement, 0),
-                  let question = self.string(statement, 1) else { return }
-            stored = (
-                storedSessionID,
-                question,
-                self.string(statement, 2),
-                self.string(statement, 3),
-                self.optionalDouble(statement, 4)
-            )
-        }
-        guard let stored else { return }
-        let expectedEvaluation = attempt.feedback ?? attempt.gradingError
-        guard stored.sessionID == sessionID,
-              stored.question == attempt.prompt,
-              stored.answer == attempt.learnerAnswer,
-              stored.evaluation == expectedEvaluation,
-              stored.score == attempt.score else {
-            throw KnowledgeStoreError.invalidData(
-                "Memory attempt \(attempt.id) does not match its referenced transcript exchange."
-            )
         }
     }
 

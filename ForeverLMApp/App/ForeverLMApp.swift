@@ -682,7 +682,6 @@ struct ForeverLMApp: App {
                             await studioViewModel.refreshMemoryCardState()
                         }
                         Task(priority: .utility) {
-                            await studioViewModel.runDeferredSourceSyncRepair()
                             await studioViewModel.runDeferredSourceTextReferenceRepair()
                             await studioViewModel.runDeferredStoredSoftHyphenRepair()
                             await studioViewModel.runDeferredPaperFigureMarkdownRepair()

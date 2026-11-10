@@ -3768,7 +3768,7 @@ struct ScheduleChatNavigationTests {
         #expect(vm.notebookChatSourceIDs(main) == ["source-a"])
         let tally = vm.notebookChatTally(main)
         #expect(tally.inChat == 1 && tally.total == 2, "\(tally)")
-        #expect(vm.notebookContextSourceIDs(main) == ["source-a", "source-b", "source-r", "source-s", "source-t"],
+        #expect(NotebookChatContext.linkedPool(own: main.approvedSourceIDs, linked: vm.notebookContextNotebooks(main)) == ["source-a", "source-b", "source-r", "source-s", "source-t"],
                 "every box the column can draw")
         // What a group's rows read: a context notebook out of the chats is
         // unticked, and the notebook's own source it holds too is ticked.

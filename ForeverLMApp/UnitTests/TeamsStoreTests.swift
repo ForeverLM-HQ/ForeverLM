@@ -4,12 +4,10 @@ import SQLite3
 import Testing
 @testable import ForeverLM
 
-/// The rows and routing that make a team a library of its own: team copies get
-/// deterministic team-scoped ids and never appear in My Library; every team
-/// record is queued for the team's zone; a member's progress never leaves the
-/// Mac inside a team record; chats share as stripped transcripts; tasks follow
-/// their Notebook's team; a read-only team refuses writes; and removing a team
-/// takes only the team's copies with it.
+/// The rows that make a team a library of its own: team copies get
+/// deterministic team-scoped ids and never appear in My Library; chats share
+/// as stripped transcripts; tasks follow their Notebook's team; and a
+/// read-only team refuses writes.
 @Suite("Teams store")
 struct TeamsStoreTests {
 
@@ -146,20 +144,15 @@ struct TeamsStoreTests {
         #expect(TeamRecord.teamID(fromZoneName: "Knowledge") == nil)
     }
 
-    @Test("A zone home turns a record name into the right CloudKit address")
+    @Test("A zone home names the right CloudKit zone")
     func zoneHomes() {
         #expect(CloudKitZoneHome.knowledge.zoneID == CKRecordZone.ID(zoneName: "Knowledge", ownerName: CKCurrentUserDefaultName))
         let ownerTeam = CloudKitZoneHome(scope: .privateScope, zoneName: "Team-1", ownerRecordName: "ignored")
         #expect(ownerTeam.ownerRecordName == nil)
-        #expect(ownerTeam.isTeamZone)
         #expect(ownerTeam.teamID == "1")
         let memberTeam = CloudKitZoneHome(zoneID: CKRecordZone.ID(zoneName: "Team-1", ownerName: "_abc"), scope: .shared)
         #expect(memberTeam.ownerRecordName == "_abc")
         #expect(memberTeam.zoneID.ownerName == "_abc")
-        let name = CloudKitRecordMapper.recordName(for: .source, logicalKey: "src_x")
-        #expect(CloudKitRecordMapper.recordID(for: .source, logicalKey: "src_x").zoneID == CloudKitZoneHome.knowledge.zoneID)
-        #expect(CloudKitRecordMapper.recordID(for: .source, logicalKey: "src_x", in: memberTeam).recordName == name)
-        #expect(CloudKitRecordMapper.recordID(for: .source, logicalKey: "src_x", in: memberTeam).zoneID == memberTeam.zoneID)
     }
 
     @Test("Sharing a source copies it into the team and leaves My Library alone")
@@ -173,7 +166,6 @@ struct TeamsStoreTests {
             content: "Enough text to count as a readable source for the copy."
         )
         try store.saveSource(original)
-        try store.clearAllPendingSyncChanges()
 
         let copyID = try store.copySourceIntoTeam(sourceID: "src-own", teamID: team.id) { path in "Teams/team-1/\(path)" }
         #expect(copyID == TeamContentIdentity.sourceID(teamID: team.id, url: original.url))
@@ -191,16 +183,6 @@ struct TeamsStoreTests {
         #expect(copy.state == .ready)
         #expect(try store.loadSourceContent(copyID) == original.content)
         #expect(try store.teamIDsHoldingSource(url: original.url) == [team.id])
-
-        // The copy is queued for the team's zone; the original is not queued at all.
-        let pending = try store.pendingSyncChanges()
-        let copyChange = try #require(pending.first { $0.logicalKey == copyID })
-        #expect(copyChange.home == team.home)
-        #expect(copyChange.home.zoneName == "Team-team-1")
-        #expect(copyChange.home.scope == .privateScope)
-        #expect(!pending.contains { $0.logicalKey == "src-own" })
-        #expect(try store.resolveRecordHome(entity: .source, logicalKey: copyID) == team.home)
-        #expect(try store.resolveRecordHome(entity: .source, logicalKey: "src-own") == .knowledge)
 
         // Sharing again is an update, not a second copy.
         let again = try store.copySourceIntoTeam(sourceID: "src-own", teamID: team.id) { path in path }
@@ -270,55 +252,6 @@ struct TeamsStoreTests {
         #expect(library.teamCopyAliases == [copyID: "src-own"])
     }
 
-    @Test("A team record carries none of the member's reading progress")
-    func outboundTeamRecordStripsProgress() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        let team = try Self.makeTeam(store)
-        let original = Self.readySource(
-            id: "src-own",
-            url: "https://example.com/progress",
-            title: "Progress",
-            content: "Readable text for the progress test source."
-        )
-        try store.saveSource(original)
-        let copyID = try store.copySourceIntoTeam(sourceID: "src-own", teamID: team.id) { $0 }
-        // Give the copy local progress, the way reading it would.
-        try store.execForTesting("UPDATE sources SET read_at = 1000, reading_position_page = 3 WHERE id = '\(copyID)'")
-
-        let changes = try store.pendingSyncChanges()
-        let teamChange = try #require(changes.first { $0.logicalKey == copyID })
-        let ownChange = try #require(changes.first { $0.logicalKey == "src-own" })
-
-        let teamRecord = try #require(try CloudKitRecordMapper.makeRecord(for: teamChange, store: store))
-        #expect(teamRecord.recordID.zoneID == team.home.zoneID)
-        let teamPayload = try JSONDecoder().decode(
-            CloudKitSourcePayload.self,
-            from: try #require(teamRecord.encryptedValues[.payload] as? Data)
-        )
-        #expect(teamPayload.article.readAt == nil)
-        #expect(teamPayload.article.readingPositionPage == nil)
-        #expect(teamPayload.article.teamID == team.id)
-
-        let ownRecord = try #require(try CloudKitRecordMapper.makeRecord(for: ownChange, store: store))
-        #expect(ownRecord.recordID.zoneID == CloudKitZoneHome.knowledge.zoneID)
-        let ownPayload = try JSONDecoder().decode(
-            CloudKitSourcePayload.self,
-            from: try #require(ownRecord.encryptedValues[.payload] as? Data)
-        )
-        #expect(ownPayload.article.readAt == original.readAt)
-        #expect(ownPayload.article.readingPositionPage == 7)
-
-        // Inbound: what this member did with the copy survives an apply.
-        let snapshot = try #require(try store.captureMemberState(entity: .source, logicalKey: copyID))
-        try store.execForTesting("UPDATE sources SET read_at = NULL, reading_position_page = NULL WHERE id = '\(copyID)'")
-        try store.restoreMemberState(snapshot)
-        var restoredPage = -1
-        try store.query("SELECT reading_position_page FROM sources WHERE id = '\(copyID)'") { stmt in
-            restoredPage = Int(sqlite3_column_int(stmt, 0))
-        }
-        #expect(restoredPage == 3)
-    }
-
     @Test("Sharing a Notebook copies its sources, remapped to the team's copies, and leaves its suggestions and removals behind")
     func copyNotebookIntoTeam() throws {
         let store = try KnowledgeStore(inMemory: true)
@@ -386,184 +319,6 @@ struct TeamsStoreTests {
         #expect(original.items.first { $0.sourceID == "src-4" }?.reviewState == LearningGoalItemReviewState.rejected.rawValue)
         #expect(try store.loadActiveSources().map(\.id).sorted() == ["src-1", "src-2", "src-3", "src-4"])
         #expect(try store.loadActiveSources(teamID: team.id).count == 2)
-
-        let pending = try store.pendingSyncChanges()
-        let notebookChange = try #require(pending.first { $0.entity == .learningGoal && $0.logicalKey == copyID })
-        #expect(notebookChange.home == team.home)
-
-        // The outbound team Notebook carries membership but no member progress.
-        let record = try #require(try CloudKitRecordMapper.makeRecord(for: notebookChange, store: store))
-        let payload = try JSONDecoder().decode(
-            CloudKitLearningGoalPayload.self,
-            from: try #require(record.encryptedValues[.payload] as? Data)
-        )
-        #expect(payload.goal.items.count == 2)
-        #expect(payload.goal.items.allSatisfy { $0.completedAt == nil && $0.lastScore == nil })
-        #expect(payload.goal.teamID == team.id)
-    }
-
-    /// A team Notebook as one member's Mac holds it: an approved item this
-    /// member has read and been quizzed on, a legacy item (nil approval), a
-    /// pending suggestion and a rejected removal.
-    private static func teamNotebook(teamID: String, lastQuizDate: String? = nil) -> LearningGoalRecord {
-        let addedAt = Date(timeIntervalSinceReferenceDate: 500)
-        return LearningGoalRecord(
-            id: "team-proj",
-            title: "Mitochondria",
-            startAt: addedAt,
-            endAt: LearningGoalRecord.openEndedEndAt,
-            createdAt: addedAt,
-            updatedAt: addedAt,
-            status: "active",
-            items: [
-                LearningGoalItem(
-                    id: "item-approved", goalID: "team-proj", sourceID: "src-approved", addedAt: addedAt,
-                    completedAt: Date(timeIntervalSinceReferenceDate: 1_000),
-                    origin: LearningGoalItemOrigin.seed.rawValue,
-                    reviewState: LearningGoalItemReviewState.approved.rawValue,
-                    lastQuizzedAt: Date(timeIntervalSinceReferenceDate: 2_000), quizCount: 3, lastScore: 0.9, sequence: 1
-                ),
-                LearningGoalItem(id: "item-legacy", goalID: "team-proj", sourceID: "src-legacy", addedAt: addedAt, sequence: 2),
-                LearningGoalItem(
-                    id: "item-pending", goalID: "team-proj", sourceID: "src-pending", addedAt: addedAt,
-                    origin: LearningGoalItemOrigin.discovered.rawValue,
-                    reviewState: LearningGoalItemReviewState.pending.rawValue, relevance: 0.8
-                ),
-                LearningGoalItem(
-                    id: "item-rejected", goalID: "team-proj", sourceID: "src-rejected", addedAt: addedAt,
-                    origin: LearningGoalItemOrigin.discovered.rawValue,
-                    reviewState: LearningGoalItemReviewState.rejected.rawValue, relevance: 0.4
-                ),
-            ],
-            kind: LearningGoalRecord.companionKind,
-            lastQuizDate: lastQuizDate,
-            teamID: teamID
-        )
-    }
-
-    /// The team Notebook's outbound record, as the sync engine would send it.
-    private static func outboundTeamNotebook(_ store: KnowledgeStore, team: TeamRecord) throws -> (CKRecord, CloudKitLearningGoalPayload) {
-        let change = try #require(try store.pendingSyncChanges().first { $0.entity == .learningGoal && $0.logicalKey == "team-proj" })
-        #expect(change.home == team.home)
-        let record = try #require(try CloudKitRecordMapper.makeRecord(for: change, store: store))
-        #expect(record.recordID.zoneID == team.home.zoneID)
-        let payload = try JSONDecoder().decode(
-            CloudKitLearningGoalPayload.self,
-            from: try #require(record.encryptedValues[.payload] as? Data)
-        )
-        return (record, payload)
-    }
-
-    /// Apply a fetched team record the way the shared database's engine does.
-    @discardableResult
-    private static func applyAsTeammate(_ record: CKRecord, to store: KnowledgeStore) throws -> CloudKitAppliedRecord {
-        try CloudKitRecordMapper.applyFetched(
-            record: record,
-            descriptor: try CloudKitRecordMapper.descriptor(for: record),
-            home: CloudKitZoneHome(zoneID: record.recordID.zoneID, scope: .shared),
-            to: store
-        )
-    }
-
-    private static func reviewStates(_ goal: LearningGoalRecord) -> [String: String] {
-        Dictionary(uniqueKeysWithValues: goal.items.map { ($0.sourceID, $0.reviewState ?? "nil") })
-    }
-
-    /// Bug report 2026-10-02: a team notebook's approval state is shared
-    /// notebook state, not progress. Builds before schema 152 blanked it with
-    /// the progress, and nil reads as approved, so every teammate received a
-    /// pending suggestion and a rejected tombstone as an approved source.
-    @Test("A team Notebook's record carries each item's approval and none of the member's progress, and a teammate reads it as sent")
-    func teamNotebookRoundTripKeepsApproval() throws {
-        let sharer = try KnowledgeStore(inMemory: true)
-        let team = try Self.makeTeam(sharer)
-        try sharer.saveLearningGoalRecord(Self.teamNotebook(teamID: team.id, lastQuizDate: "2026-10-01"))
-
-        let (record, payload) = try Self.outboundTeamNotebook(sharer, team: team)
-        #expect(Self.reviewStates(payload.goal) == [
-            "src-approved": "approved",
-            "src-legacy": "nil",
-            "src-pending": "pending",
-            "src-rejected": "rejected",
-        ])
-        // Membership, order and discovery evidence are the team's too.
-        #expect(payload.goal.items.first { $0.sourceID == "src-pending" }?.origin == LearningGoalItemOrigin.discovered.rawValue)
-        #expect(payload.goal.items.first { $0.sourceID == "src-pending" }?.relevance == 0.8)
-        #expect(payload.goal.items.first { $0.sourceID == "src-approved" }?.sequence == 1)
-        // What this member did with the notebook is not.
-        #expect(payload.goal.items.allSatisfy {
-            $0.completedAt == nil && $0.lastQuizzedAt == nil && $0.quizCount == nil && $0.lastScore == nil
-        })
-        #expect(payload.goal.lastQuizDate == nil)
-
-        // The sharer's own row keeps its progress.
-        let held = try #require(try sharer.loadLearningGoal("team-proj"))
-        #expect(held.items.first { $0.sourceID == "src-approved" }?.completedAt != nil)
-
-        // A teammate's Mac reads the notebook as the sharer has it.
-        let teammate = try KnowledgeStore(inMemory: true)
-        _ = try Self.makeTeam(teammate, role: .member)
-        try teammate.clearAllPendingSyncChanges()
-        try Self.applyAsTeammate(record, to: teammate)
-        let received = try #require(try teammate.loadLearningGoal("team-proj"))
-        #expect(received.teamID == team.id)
-        #expect(Self.reviewStates(received) == Self.reviewStates(payload.goal))
-        #expect(Set(received.items.filter(\.isApproved).map(\.sourceID)) == ["src-approved", "src-legacy"])
-        #expect(received.items.filter(\.isPendingApproval).map(\.sourceID) == ["src-pending"])
-        #expect(received.items.allSatisfy { $0.completedAt == nil && $0.quizCount == nil })
-        #expect(try teammate.pendingSyncChanges().isEmpty, "an inbound apply queues nothing")
-    }
-
-    @Test("An inbound team Notebook sets each item's approval from the record and puts back this member's progress")
-    func inboundTeamNotebookFollowsApprovalKeepsProgress() throws {
-        let sharer = try KnowledgeStore(inMemory: true)
-        let team = try Self.makeTeam(sharer)
-        try sharer.saveLearningGoalRecord(Self.teamNotebook(teamID: team.id))
-        let (firstRecord, _) = try Self.outboundTeamNotebook(sharer, team: team)
-
-        let teammate = try KnowledgeStore(inMemory: true)
-        _ = try Self.makeTeam(teammate, role: .member)
-        try Self.applyAsTeammate(firstRecord, to: teammate)
-        // The teammate reads and is quizzed on two sources, and holds a stale
-        // view of two verdicts (what builds before 152 left behind: their own
-        // value restored over every inbound record).
-        try teammate.execForTesting("""
-            UPDATE learning_goal_items
-            SET completed_at = 3000, last_quizzed_at = 4000, quiz_count = 5, last_score = 0.6
-            WHERE goal_id = 'team-proj' AND source_id IN ('src-approved', 'src-pending')
-        """)
-        try teammate.execForTesting("UPDATE learning_goal_items SET review_state = 'approved' WHERE goal_id = 'team-proj' AND source_id = 'src-pending'")
-        try teammate.execForTesting("UPDATE learning_goal_items SET review_state = NULL WHERE goal_id = 'team-proj' AND source_id = 'src-rejected'")
-        try teammate.clearAllPendingSyncChanges()
-
-        // On the sharer's Mac a source is removed from the notebook and the
-        // suggestion stays a suggestion.
-        try sharer.clearAllPendingSyncChanges()
-        try sharer.setCompanionItemReviewState(goalID: "team-proj", sourceIDs: ["src-approved"], state: .rejected)
-        let (record, payload) = try Self.outboundTeamNotebook(sharer, team: team)
-        #expect(payload.goal.items.first { $0.sourceID == "src-approved" }?.reviewState == LearningGoalItemReviewState.rejected.rawValue)
-
-        try Self.applyAsTeammate(record, to: teammate)
-        let received = try #require(try teammate.loadLearningGoal("team-proj"))
-        // Approval follows the record.
-        #expect(Self.reviewStates(received) == [
-            "src-approved": "rejected",
-            "src-legacy": "nil",
-            "src-pending": "pending",
-            "src-rejected": "rejected",
-        ])
-        #expect(received.items.filter(\.isApproved).map(\.sourceID) == ["src-legacy"])
-        // Progress is the member's own and survives the apply.
-        for sourceID in ["src-approved", "src-pending"] {
-            let item = try #require(received.items.first { $0.sourceID == sourceID })
-            #expect(item.completedAt == Date(timeIntervalSinceReferenceDate: 3_000), Comment(rawValue: sourceID))
-            #expect(item.lastQuizzedAt == Date(timeIntervalSinceReferenceDate: 4_000), Comment(rawValue: sourceID))
-            #expect(item.quizCount == 5, Comment(rawValue: sourceID))
-            #expect(item.lastScore == 0.6, Comment(rawValue: sourceID))
-        }
-        #expect(received.items.first { $0.sourceID == "src-legacy" }?.completedAt == nil)
-        #expect(received.teamID == team.id)
-        #expect(try teammate.pendingSyncChanges().isEmpty, "an inbound apply queues nothing")
     }
 
     @Test("A chat shared with a team is a transcript with the learner's grading stripped")
@@ -639,9 +394,6 @@ struct TeamsStoreTests {
         #expect(links.first { $0.id == copyID }?.teamID == team.id)
         #expect(links.first { $0.id == copyID }?.isTeamSnapshot == true)
         #expect(links.first { $0.id == "chat-own" }?.teamID == nil)
-
-        let change = try #require(try store.pendingSyncChanges().first { $0.logicalKey == copyID })
-        #expect(change.home == team.home)
     }
 
     /// A chat the learner wrote in, filed under a Notebook, the way the app records one.
@@ -731,7 +483,6 @@ struct TeamsStoreTests {
         #expect(snapshot.endedAt == Date(timeIntervalSinceReferenceDate: 100))
         let teamChats = try store.loadReviewSessionLinks().filter { $0.teamID == team.id }
         #expect(teamChats.map(\.id) == [snapshotID])
-        #expect(try store.pendingSyncChanges().first { $0.logicalKey == snapshotID }?.home == team.home)
 
         // The learner can leave the chats out.
         let quiet = try Self.makeTeam(store, id: "team-quiet", name: "Quiet")
@@ -757,7 +508,6 @@ struct TeamsStoreTests {
         )
         #expect(try store.teamsHoldingNotebook("proj-own").map(\.id) == [team.id])
         #expect(try store.teamsHoldingNotebook("proj-private").isEmpty)
-        try store.clearAllPendingSyncChanges()
 
         // An approved addition travels; a suggestion still awaiting a verdict does not.
         _ = try store.addCompanionSeedSources(goalID: "proj-own", sourceIDs: ["src-2"])
@@ -774,7 +524,6 @@ struct TeamsStoreTests {
             TeamContentIdentity.sourceID(teamID: team.id, url: "https://example.com/2"),
         ])
         #expect(try store.loadActiveSources(teamID: team.id).count == 2)
-        #expect(try store.pendingSyncChanges().first { $0.logicalKey == copyID }?.home == team.home)
         // The original is exactly what the learner made it.
         #expect(try store.loadLearningGoal("proj-own")?.items.count == 3)
 
@@ -786,14 +535,12 @@ struct TeamsStoreTests {
 
         // A team that turned read-only takes nothing more.
         let readOnly = try Self.makeTeam(store, id: "team-ro", name: "Read-only", role: .member, permission: .readOnly)
-        try store.withoutSyncTracking {
-            try store.saveLearningGoalRecord(LearningGoalRecord(
-                id: TeamContentIdentity.notebookID(teamID: readOnly.id, originalNotebookID: "proj-own"),
-                title: "Theirs", startAt: Date(), endAt: LearningGoalRecord.openEndedEndAt,
-                createdAt: Date(), updatedAt: Date(), status: "active", items: [],
-                kind: LearningGoalRecord.companionKind, teamID: readOnly.id
-            ))
-        }
+        try store.saveLearningGoalRecord(LearningGoalRecord(
+            id: TeamContentIdentity.notebookID(teamID: readOnly.id, originalNotebookID: "proj-own"),
+            title: "Theirs", startAt: Date(), endAt: LearningGoalRecord.openEndedEndAt,
+            createdAt: Date(), updatedAt: Date(), status: "active", items: [],
+            kind: LearningGoalRecord.companionKind, teamID: readOnly.id
+        ))
         #expect(try store.teamsHoldingNotebook("proj-own").map(\.id) == [team.id])
         _ = try store.addCompanionSeedSources(goalID: "proj-own", sourceIDs: ["src-4"])
         #expect(try store.propagateNotebookSourcesToTeams(notebookID: "proj-own", sourceIDs: ["src-4"]) { path, _ in path } == [team.id])
@@ -1083,16 +830,14 @@ struct TeamsStoreTests {
 
         // The next turn rewrites the same transcript.
         _ = try store.addReviewPrompt(sessionID: "chat-later", question: "And the gradient?", sourceRefs: [])
-        try store.clearAllPendingSyncChanges()
         #expect(try store.propagateChatToTeams(sessionID: "chat-later") == [team.id])
         let refreshed = try #require(try store.loadReviewSessionForSync(snapshotID))
         #expect(refreshed.exchanges.count == 2)
         #expect(refreshed.exchanges.last?.question == "And the gradient?")
         #expect(try store.loadReviewSessionLinks().filter { $0.teamID == team.id }.count == 1)
-        #expect(try store.pendingSyncChanges().first { $0.logicalKey == snapshotID }?.home == team.home)
     }
 
-    @Test("Tasks follow their Notebook's team, and a delete tombstones in the same zone")
+    @Test("Tasks follow their Notebook's team, and a delete removes the task")
     func notebookTasks() throws {
         let store = try KnowledgeStore(inMemory: true)
         let team = try Self.makeTeam(store)
@@ -1119,16 +864,6 @@ struct TeamsStoreTests {
         #expect(saved.completedAt == nil)
         #expect(try store.loadNotebookTasks(notebookID: teamNotebookID).map(\.id) == ["task-1"])
         #expect(try store.loadNotebookTasks(teamID: team.id).map(\.id) == ["task-1"])
-        #expect(try store.resolveRecordHome(entity: .notebookTask, logicalKey: "task-1") == team.home)
-        let saveChange = try #require(try store.pendingSyncChanges().first { $0.entity == .notebookTask && $0.logicalKey == "task-1" })
-        #expect(saveChange.home == team.home)
-        #expect(saveChange.operation == .save)
-
-        let record = try #require(try CloudKitRecordMapper.makeRecord(for: saveChange, store: store))
-        #expect(record.recordType == "ProjectTask")
-        let payload = try JSONDecoder().decode(CloudKitNotebookTaskPayload.self, from: try #require(record.encryptedValues[.payload] as? Data))
-        #expect(payload.task.title == "Read the influx paper")
-        #expect(payload.task.teamID == team.id)
 
         // Done stamps a completion; reopening clears it.
         var done = saved
@@ -1143,16 +878,12 @@ struct TeamsStoreTests {
         // A task on a personal Notebook stays in the learner's own zone.
         try store.saveNotebookTask(NotebookTaskRecord(id: "task-own", notebookID: ownNotebook.id, title: "Mine"))
         #expect(try store.loadNotebookTask("task-own")?.teamID == nil)
-        #expect(try store.pendingSyncChanges().first { $0.logicalKey == "task-own" }?.home == .knowledge)
 
         try store.deleteNotebookTask("task-1")
         #expect(try store.loadNotebookTask("task-1") == nil)
-        let tombstone = try #require(try store.pendingSyncChanges().first { $0.entity == .notebookTask && $0.logicalKey == "task-1" })
-        #expect(tombstone.operation == .delete)
-        #expect(tombstone.home == team.home)
     }
 
-    @Test("A share request lives in the team zone, is answered with the holder's copy, and dies with the team")
+    @Test("A share request is the team's, and is answered with the holder's copy")
     func shareRequests() throws {
         let store = try KnowledgeStore(inMemory: true)
         let team = try Self.makeTeam(store)
@@ -1172,16 +903,6 @@ struct TeamsStoreTests {
         #expect(try store.openShareRequest(teamID: team.id, url: request.url)?.id == "req-1")
         #expect(try store.openShareRequest(teamID: team.id, url: "https://example.org/other") == nil)
 
-        // Homed in the team zone, and shaped for CloudKit like a task.
-        #expect(try store.resolveRecordHome(entity: .shareRequest, logicalKey: "req-1") == team.home)
-        let saveChange = try #require(try store.pendingSyncChanges().first { $0.entity == .shareRequest && $0.logicalKey == "req-1" })
-        #expect(saveChange.home == team.home)
-        let record = try #require(try CloudKitRecordMapper.makeRecord(for: saveChange, store: store))
-        #expect(record.recordType == "ShareRequest")
-        let payload = try JSONDecoder().decode(CloudKitShareRequestPayload.self, from: try #require(record.encryptedValues[.payload] as? Data))
-        #expect(payload.request.url == request.url)
-        #expect(payload.request.teamID == team.id)
-
         // The holder's library answers the card's address the way the card matched it.
         #expect(store.activeSourceID(forReferenceURL: request.url, teamID: nil) == "src-held")
         #expect(store.activeSourceID(forReferenceURL: request.url, teamID: team.id) == nil)
@@ -1197,20 +918,11 @@ struct TeamsStoreTests {
         #expect(try store.openShareRequest(teamID: team.id, url: request.url) == nil)
         #expect(store.activeSourceID(forReferenceURL: request.url, teamID: team.id) == copyID)
 
-        // A record from another member arrives without touching the queue.
-        try store.withoutSyncTracking {
-            try store.saveShareRequestRecord(ShareRequestRecord(id: "req-2", teamID: team.id, url: "https://example.org/two"))
-        }
+        // A request from another member arrives as its record; a deleted one goes.
+        try store.saveShareRequestRecord(ShareRequestRecord(id: "req-2", teamID: team.id, url: "https://example.org/two"))
         #expect(try store.loadShareRequests(teamID: team.id).count == 2)
-        #expect(try store.pendingSyncChanges().contains { $0.logicalKey == "req-2" } == false)
-
-        // Deleting the team takes its requests with it.
         try store.deleteShareRequest("req-2")
-        let tombstone = try #require(try store.pendingSyncChanges().first { $0.entity == .shareRequest && $0.logicalKey == "req-2" })
-        #expect(tombstone.operation == .delete)
-        #expect(tombstone.home == team.home)
-        try store.removeTeamLocally(team.id)
-        #expect(try store.loadShareRequests(teamID: team.id).isEmpty)
+        #expect(try store.loadShareRequests(teamID: team.id).map(\.id) == ["req-1"])
     }
 
     @Test("A read-only team refuses every write into it")
@@ -1223,52 +935,16 @@ struct TeamsStoreTests {
         }
         // A team Notebook that arrived from the owner cannot take a task from a
         // read-only member either: the queue refuses the save.
-        try store.withoutSyncTracking {
-            try store.saveLearningGoalRecord(LearningGoalRecord(
-                id: "proj-team", title: "Theirs", startAt: Date(), endAt: LearningGoalRecord.openEndedEndAt,
-                createdAt: Date(), updatedAt: Date(), status: "active", items: [],
-                kind: LearningGoalRecord.companionKind, teamID: team.id
-            ))
-        }
+        try store.saveLearningGoalRecord(LearningGoalRecord(
+            id: "proj-team", title: "Theirs", startAt: Date(), endAt: LearningGoalRecord.openEndedEndAt,
+            createdAt: Date(), updatedAt: Date(), status: "active", items: [],
+            kind: LearningGoalRecord.companionKind, teamID: team.id
+        ))
         #expect(throws: (any Error).self) {
             try store.saveNotebookTask(NotebookTaskRecord(id: "t", notebookID: "proj-team", title: "Nope"))
         }
         #expect(try store.loadNotebookTask("t") == nil)
         #expect(try store.loadActiveSources().map(\.id) == ["src-1"])
-    }
-
-    @Test("Removing a team takes its copies and bookkeeping, and nothing of the learner's own")
-    func removeTeamLocally() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        let team = try Self.makeTeam(store)
-        try store.saveSource(Self.readySource(id: "src-1", url: "https://example.com/1", title: "One", content: "Text one for the removal test."))
-        let ownNotebook = try store.createLearningGoal(title: "Own", startAt: Date(), endAt: Date().addingTimeInterval(86_400), sourceIDs: ["src-1"])
-        let teamNotebookID = try store.copyNotebookIntoTeam(
-            notebookID: ownNotebook.id, teamID: team.id, includeSources: true, includeDocs: false,
-            fileCopy: { $0 }, artifactCopy: { _, _ in nil }
-        )
-        try store.saveNotebookTask(NotebookTaskRecord(id: "task-1", notebookID: teamNotebookID, title: "Do it"))
-        try store.replaceTeamMembers(teamID: team.id, members: [
-            TeamMemberRecord(userRecordName: "_me", teamID: team.id, displayName: "Me", email: nil, role: .owner, permission: .readWrite, acceptanceStatus: "accepted", isCurrentUser: true, updatedAt: Date()),
-        ])
-        #expect(try store.loadTeamMembers(teamID: team.id).count == 1)
-        #expect(try store.loadActiveSources(teamID: team.id).count == 1)
-        #expect(try store.pendingSyncChanges().contains { $0.home == team.home })
-
-        try store.removeTeamLocally(team.id)
-
-        #expect(try store.loadTeam(team.id) == nil)
-        #expect(try store.loadTeamMembers(teamID: team.id).isEmpty)
-        #expect(try store.loadActiveSources(teamID: team.id).isEmpty)
-        #expect(try store.loadLearningGoal(teamNotebookID) == nil)
-        #expect(try store.loadNotebookTask("task-1") == nil)
-        #expect(!(try store.pendingSyncChanges().contains { $0.home == team.home }))
-        #expect(try store.loadSyncMetadata(entity: .learningGoal, logicalKey: teamNotebookID) == nil)
-
-        // My Library is exactly as it was.
-        #expect(try store.loadActiveSources().map(\.id) == ["src-1"])
-        #expect(try store.loadLearningGoal(ownNotebook.id)?.items.count == 1)
-        #expect(try store.pendingSyncChanges().contains { $0.logicalKey == ownNotebook.id })
     }
 
     // MARK: Courses (docs/teams-design.md, decision 21)
@@ -1377,7 +1053,6 @@ struct TeamsStoreTests {
         let store = try KnowledgeStore(inMemory: true)
         let team = try Self.makeTeam(store)
         try Self.seedCourse(store)
-        try store.clearAllPendingSyncChanges()
 
         let copy = try store.copyCourseIntoTeam(courseID: "course-own", teamID: team.id) { "Teams/team-1/\($0)" }
         let courseID = TeamContentIdentity.courseID(teamID: team.id, originalCourseID: "course-own")
@@ -1443,22 +1118,8 @@ struct TeamsStoreTests {
         #expect(checkpoint.id == TeamContentIdentity.coursePartID(teamID: team.id, part: "quiz", originalID: "quiz-assistant"))
         #expect(checkpoint.lectureIDs == [lecture1, lecture2])
 
-        // The course record is homed in the team's zone and carries no member's hidden flag.
-        #expect(try store.resolveRecordHome(entity: .course, logicalKey: courseID) == team.home)
-        #expect(try store.resolveRecordHome(entity: .course, logicalKey: "course-own") == .knowledge)
-        try store.execForTesting("UPDATE courses SET is_hidden = 1 WHERE id = '\(courseID)'")
-        let courseChange = try #require(try store.pendingSyncChanges().first { $0.entity == .course && $0.logicalKey == courseID })
-        #expect(courseChange.home == team.home)
-        let record = try #require(try CloudKitRecordMapper.makeRecord(for: courseChange, store: store))
-        #expect(record.recordID.zoneID == team.home.zoneID)
-        let payload = try JSONDecoder().decode(
-            CloudKitCoursePayload.self,
-            from: try #require(record.encryptedValues[.payload] as? Data)
-        )
-        #expect(!payload.isHidden)
-        #expect(payload.lectures.count == 2)
-        #expect(payload.quizzes?.count == 2)
-        #expect(!(try store.pendingSyncChanges().contains { $0.logicalKey == "course-own" }))
+        // The copy is the team's.
+        #expect(try store.courseTeamID(courseID) == team.id)
 
         // The original is exactly as it was.
         #expect(try store.courseTeamID("course-own") == nil)
@@ -1492,46 +1153,29 @@ struct TeamsStoreTests {
         #expect(quizIDs.contains("quiz-teammate"))
         #expect(quizIDs.count == 3)
         #expect(try store.loadActiveSources(teamID: team.id).count == 3)
-
-        // Removing the team takes its course, and leaves the learner's.
-        try store.removeTeamLocally(team.id)
-        #expect(try store.loadCourseGroups()[courseID] == nil)
-        #expect(try store.loadCourseQuizzes(courseID: courseID).isEmpty)
-        #expect(try store.loadCourseGroups()["course-own"] != nil)
-        #expect(try store.loadCourseLectures().filter { $0.courseName == "course-own" }.count == 2)
     }
 
-    @Test("Hiding a team's course is the member's own: nothing queues, a read-only member can do it, and an inbound apply keeps it")
+    @Test("Hiding a team's course is the member's own, and a read-only member can do it")
     func teamCourseHiddenIsPerMember() throws {
         let store = try KnowledgeStore(inMemory: true)
         let team = try Self.makeTeam(store)
         try Self.seedCourse(store)
         let courseID = try store.copyCourseIntoTeam(courseID: "course-own", teamID: team.id) { $0 }.id
-        try store.clearAllPendingSyncChanges()
 
         var metadata = try #require(try store.loadCourseGroups()[courseID])
         metadata.isHidden = true
         try store.saveCourseGroup(name: courseID, metadata: metadata)
         #expect(try store.loadCourseGroups()[courseID]?.isHidden == true)
-        #expect(!(try store.pendingSyncChanges().contains { $0.entity == .course }))
 
-        // A rename is the team's, and queues for its zone.
+        // A rename is the team's.
         metadata.title = "Bioelectricity, for the team"
         try store.saveCourseGroup(name: courseID, metadata: metadata)
-        #expect(try store.pendingSyncChanges().first { $0.entity == .course }?.home == team.home)
-
-        // An inbound Course record carries no hidden flag; this member's stays.
-        let snapshot = try #require(try store.captureMemberState(entity: .course, logicalKey: courseID))
-        try store.execForTesting("UPDATE courses SET is_hidden = 0 WHERE id = '\(courseID)'")
-        try store.restoreMemberState(snapshot)
-        #expect(try store.loadCourseGroups()[courseID]?.isHidden == true)
+        #expect(try store.loadCourseGroups()[courseID]?.title == "Bioelectricity, for the team")
 
         // A read-only member hides a team's course; changing it is refused.
         let readOnly = try Self.makeTeam(store, id: "team-ro", name: "Theirs", role: .member, permission: .readOnly)
-        try store.withoutSyncTracking {
-            try store.saveCourseGroup(name: "course-theirs", metadata: CourseMetadata(title: "Theirs"))
-            try store.stampTeam(entity: .course, logicalKey: "course-theirs", teamID: readOnly.id)
-        }
+        try store.saveCourseGroup(name: "course-theirs", metadata: CourseMetadata(title: "Theirs"))
+        try store.stampTeam(entity: .course, logicalKey: "course-theirs", teamID: readOnly.id)
         try store.saveCourseGroup(name: "course-theirs", metadata: CourseMetadata(title: "Theirs", isHidden: true))
         #expect(try store.loadCourseGroups()["course-theirs"]?.isHidden == true)
         #expect(throws: (any Error).self) {
@@ -1572,140 +1216,25 @@ struct TeamsStoreTests {
         #expect(try store.loadCourseLectureItems().first { $0.id == "item-own" }?.sourceId == "src-new")
     }
 
-    @Test("Team rows round-trip, and the team's own record is queued for its zone by the owner only")
+    @Test("Team rows round-trip, and stamping files a source in its team")
     func teamRows() throws {
         let store = try KnowledgeStore(inMemory: true)
         let owned = try Self.makeTeam(store, id: "owned", name: "Owned")
-        let joined = try Self.makeTeam(store, id: "joined", name: "Joined", role: .member, permission: .readWrite)
+        _ = try Self.makeTeam(store, id: "joined", name: "Joined", role: .member, permission: .readWrite)
 
         #expect(try store.loadTeams().map(\.id) == ["joined", "owned"])
         #expect(try store.loadTeam("owned")?.home == owned.home)
         #expect(try store.loadTeam("joined")?.home.scope == .shared)
         #expect(try store.loadTeam("joined")?.home.ownerRecordName == "_owner-record")
 
-        let pending = try store.pendingSyncChanges().filter { $0.entity == .team }
-        #expect(pending.map(\.logicalKey) == ["owned"])
-        #expect(pending.first?.home == owned.home)
-        let record = try #require(try CloudKitRecordMapper.makeRecord(for: pending[0], store: store))
-        #expect(record.recordType == "Team")
-        #expect(record.recordID.zoneID.zoneName == "Team-owned")
-
         try store.renameTeam("owned", name: "  Renamed  ")
         #expect(try store.loadTeam("owned")?.name == "Renamed")
 
-        // A member learns the name from the owner's record; the zone decides the role.
-        try store.upsertTeamFromZone(
-            CloudKitTeamPayload(id: "joined", name: "Joined, properly", createdAt: joined.createdAt, updatedAt: Date()),
-            home: joined.home,
-            permission: nil
-        )
-        #expect(try store.loadTeam("joined")?.name == "Joined, properly")
-        #expect(try store.loadTeam("joined")?.role == .member)
-        try store.upsertTeamFromZone(
-            CloudKitTeamPayload(id: "fresh", name: "Fresh", createdAt: Date(), updatedAt: Date()),
-            home: CloudKitZoneHome(scope: .privateScope, zoneName: "Team-fresh", ownerRecordName: nil),
-            permission: nil
-        )
-        #expect(try store.loadTeam("fresh")?.role == .owner)
-        #expect(try store.loadTeam("fresh")?.permission == .readWrite)
-
-        // Stamping from the zone wins over whatever a payload said.
+        // Stamping files a source in its team.
         try store.saveSource(Self.readySource(id: "src-1", url: "https://example.com/1", title: "One", content: "Text one for the stamp test."))
         try store.stampTeam(entity: .source, logicalKey: "src-1", teamID: "owned")
         #expect(try store.loadSourceWithoutContent("src-1")?.teamID == "owned")
         #expect(try store.loadActiveSources().isEmpty)
         #expect(try store.loadActiveSources(teamID: "owned").count == 1)
-    }
-
-    @Test("Engine state is kept per database scope")
-    func engineStatePerScope() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        #expect(try store.loadSyncEngineState(scope: .privateScope) == nil)
-        #expect(try store.loadSyncEngineState(scope: .shared) == nil)
-        try store.saveSyncEngineState(nil, scope: .shared)
-        var rows = -1
-        try store.query("SELECT COUNT(*) FROM sync_engine_states WHERE scope = 'shared'") { stmt in
-            rows = Int(sqlite3_column_int64(stmt, 0))
-        }
-        #expect(rows == 1)
-    }
-
-    @Test("A record's zone survives the bookkeeping round trip")
-    func bookkeepingRoundTrip() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        let home = CloudKitZoneHome(zoneID: CKRecordZone.ID(zoneName: "Team-x", ownerName: "_someone"), scope: .shared)
-        let name = CloudKitRecordMapper.recordName(for: .source, logicalKey: "src-shared")
-        try store.saveSyncMetadata(CloudKitSyncMetadata(
-            entity: .source, logicalKey: "src-shared", recordName: name,
-            systemFieldsData: nil, userModificationDate: Date(), isDeleted: false, home: home
-        ))
-        #expect(try store.loadSyncMetadata(entity: .source, logicalKey: "src-shared")?.home == home)
-        #expect(try store.loadSyncMetadata(recordName: name)?.home == home)
-        #expect(try store.syncRecordNames(home: home) == [name])
-
-        try store.quarantineSyncConflict(CloudKitSyncConflict(
-            entity: .source, logicalKey: "src-shared", recordName: name, reason: "test",
-            localModificationDate: Date(), serverModificationDate: Date(), detectedAt: Date(),
-            serverPayload: nil, serverSystemFields: nil, home: home
-        ))
-        #expect(try store.loadSyncConflict(recordName: name)?.home == home)
-        #expect(try store.loadSyncConflicts().first?.home == home)
-
-        try store.clearSyncBookkeeping(home: home)
-        #expect(try store.loadSyncMetadata(recordName: name) == nil)
-        #expect(try store.loadSyncConflict(recordName: name) == nil)
-    }
-
-    @Test("PROBE what this Mac would show")
-    func probeAccountName() {
-        let account = MacAccountUser.fullName
-        let row = CloudKitSyncEngine.memberDisplayName(
-            nameComponents: nil, email: nil, isCurrentUser: true, accountName: account
-        )
-        print("PROBE account=\(account ?? "nil") rosterRow=\(row) initials=\(TeamMemberRecord.initials(for: row))")
-        #expect(!row.isEmpty)
-    }
-
-    @Test("The roster falls back to the account name before it says \"You\"")
-    func currentMemberShowsTheAccountName() {
-        var mine = PersonNameComponents()
-        mine.givenName = "Ada"
-        mine.familyName = "Lovelace"
-
-        // CloudKit's own name for a participant always wins.
-        #expect(CloudKitSyncEngine.memberDisplayName(
-            nameComponents: mine, email: "ada@example.com",
-            isCurrentUser: true, accountName: "Someone Else"
-        ) == "Ada Lovelace")
-
-        // The signed-in account arrives nameless: CloudKit never names it.
-        #expect(CloudKitSyncEngine.memberDisplayName(
-            nameComponents: nil, email: nil,
-            isCurrentUser: true, accountName: "Ada Lovelace"
-        ) == "Ada Lovelace")
-        #expect(CloudKitSyncEngine.memberDisplayName(
-            nameComponents: nil, email: "ada@example.com",
-            isCurrentUser: true, accountName: "Ada Lovelace"
-        ) == "Ada Lovelace")
-
-        // No account name to stand in, and the placeholder is all that is left.
-        #expect(CloudKitSyncEngine.memberDisplayName(
-            nameComponents: nil, email: nil,
-            isCurrentUser: true, accountName: "   "
-        ) == "You")
-        #expect(CloudKitSyncEngine.memberDisplayName(
-            nameComponents: nil, email: "ada@example.com",
-            isCurrentUser: true, accountName: nil
-        ) == "ada@example.com")
-
-        // Another member's row never borrows this Mac's account name.
-        #expect(CloudKitSyncEngine.memberDisplayName(
-            nameComponents: nil, email: "grace@example.com",
-            isCurrentUser: false, accountName: "Ada Lovelace"
-        ) == "grace@example.com")
-        #expect(CloudKitSyncEngine.memberDisplayName(
-            nameComponents: nil, email: nil,
-            isCurrentUser: false, accountName: "Ada Lovelace"
-        ) == "Member")
     }
 }

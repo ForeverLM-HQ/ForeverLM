@@ -116,11 +116,6 @@ extension KnowledgeStore {
         try exec("BEGIN IMMEDIATE")
         do {
             try saveSourceHighlightRow(highlight)
-            try markRecordChanged(
-                entity: .sourceHighlight,
-                logicalKey: highlight.id,
-                at: highlight.updatedAt
-            )
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -179,11 +174,6 @@ extension KnowledgeStore {
                 }
                 guard try sourceExists(highlight.sourceID) else { continue }
                 try saveSourceHighlightRow(highlight)
-                try markRecordChanged(
-                    entity: .sourceHighlight,
-                    logicalKey: highlight.id,
-                    at: highlight.updatedAt
-                )
                 knownIDs.insert(highlight.id)
                 knownNotes[highlight.sourceID, default: [:]][passage, default: []].insert(note)
                 inserted += 1
@@ -194,48 +184,6 @@ extension KnowledgeStore {
             try? exec("ROLLBACK")
             throw error
         }
-    }
-
-    /// Inbound saves run under `withoutSyncTracking`; return the resolved local
-    /// source relationship so mapper metadata follows a deduplicated source ID
-    /// without changing the highlight's globally stable identity.
-    @discardableResult
-    func saveSourceHighlightRecord(_ payload: CloudKitSourceHighlightPayload) throws -> String {
-        let resolvedSourceID = try resolveSourceID(
-            payload.highlight.sourceID,
-            identities: [payload.sourceIdentity].compactMap { $0 }
-        )
-        guard try sourceExists(resolvedSourceID) else {
-            throw KnowledgeStoreError.invalidData(
-                "CloudKit highlight \(payload.highlight.id) references a source that is not available."
-            )
-        }
-        let incoming = SourceHighlight(
-            id: payload.highlight.id,
-            sourceID: resolvedSourceID,
-            quote: payload.highlight.quote,
-            note: payload.highlight.note,
-            color: payload.highlight.color,
-            anchor: payload.highlight.anchor,
-            pdfAnchor: payload.highlight.pdfAnchor,
-            imageAnchors: payload.highlight.imageAnchors,
-            chatSessionID: payload.highlight.chatSessionID,
-            references: payload.highlight.references,
-            publicationUpdate: payload.highlight.publicationUpdate,
-            publicationUpdateAt: payload.highlight.publicationUpdateAt,
-            createdAt: payload.highlight.createdAt,
-            updatedAt: payload.highlight.updatedAt
-        )
-        try saveSourceHighlightRow(incoming)
-        return incoming.id
-    }
-
-    func loadSourceHighlightForSync(_ id: String) throws -> CloudKitSourceHighlightPayload? {
-        guard let highlight = try sourceHighlight(id: id) else { return nil }
-        return CloudKitSourceHighlightPayload(
-            highlight: highlight,
-            sourceIdentity: try sourceIdentities(for: [highlight.sourceID]).first
-        )
     }
 
     private func saveSourceHighlightRow(_ highlight: SourceHighlight) throws {
@@ -287,7 +235,6 @@ extension KnowledgeStore {
         try exec("BEGIN IMMEDIATE")
         do {
             try deleteSourceHighlightRecord(id: id)
-            try markRecordDeleted(entity: .sourceHighlight, logicalKey: id)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -316,14 +263,6 @@ extension KnowledgeStore {
             result = self.decodeSourceHighlight(stmt)
         }
         return result
-    }
-
-    func loadAllSourceHighlightIDs() throws -> [String] {
-        var ids: [String] = []
-        try query("SELECT highlight_id FROM source_highlights ORDER BY highlight_id") { stmt in
-            if let id = self.string(stmt, 0) { ids.append(id) }
-        }
-        return ids
     }
 
     func sourceHighlightIDs(sourceID: String) throws -> [String] {

@@ -1051,15 +1051,7 @@ struct WalkthroughProgressStorageTests {
         ))
     }
 
-    private func syncChanges(_ store: KnowledgeStore) throws -> [(entity: String, key: String, operation: String)] {
-        var rows: [(String, String, String)] = []
-        try store.query("SELECT entity_type, logical_key, operation FROM sync_changes WHERE entity_type = 'walkthroughProgress'") { stmt in
-            rows.append((store.string(stmt, 0) ?? "", store.string(stmt, 1) ?? "", store.string(stmt, 2) ?? ""))
-        }
-        return rows
-    }
-
-    @Test("A walk's progress saves, reads back, is queued for sync, and an unknown outcome reads as none")
+    @Test("A walk's progress saves, reads back, and an unknown outcome reads as none")
     func savesAndQueues() throws {
         let store = try KnowledgeStore(inMemory: true)
         try seedWalk(store, id: "walked")
@@ -1074,7 +1066,6 @@ struct WalkthroughProgressStorageTests {
         )
         try store.saveWalkthroughProgress(progress)
         #expect(try store.loadWalkthroughProgress("walked") == progress)
-        #expect(try syncChanges(store).map(\.key) == ["walked"])
 
         let json = #"{"subject_id":"w","outcomes":{"step-1":"remembered","step-2":"a-later-kind"}}"#
         let decoded = try JSONDecoder().decode(WalkthroughProgress.self, from: Data(json.utf8))
@@ -1082,37 +1073,13 @@ struct WalkthroughProgressStorageTests {
         #expect(decoded.playedStepIDs.isEmpty)
     }
 
-    @Test("An inbound record wins only when newer, and applies without echoing back")
-    func inboundNewerWins() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        try seedWalk(store, id: "walked")
-        let local = WalkthroughProgress(subjectID: "walked", currentStepID: "step-1", playedStepIDs: ["step-1"], updatedAt: Date(timeIntervalSinceReferenceDate: 2_000))
-        try store.saveWalkthroughProgress(local)
-        let payload = try #require(try store.loadWalkthroughProgressForSync("walked"))
-        let roundTripped = try JSONDecoder().decode(CloudKitWalkthroughProgressPayload.self, from: JSONEncoder().encode(payload))
-        #expect(roundTripped.progress == local)
-
-        let older = WalkthroughProgress(subjectID: "walked", currentStepID: nil, updatedAt: Date(timeIntervalSinceReferenceDate: 1_000))
-        try store.withoutSyncTracking { try store.saveWalkthroughProgressRecord(CloudKitWalkthroughProgressPayload(progress: older)) }
-        #expect(try store.loadWalkthroughProgress("walked") == local)
-
-        let newer = WalkthroughProgress(subjectID: "walked", currentStepID: "step-1", revealedBeats: ["step-1": 1], playedStepIDs: ["step-1"], updatedAt: Date(timeIntervalSinceReferenceDate: 3_000))
-        try store.withoutSyncTracking { try store.saveWalkthroughProgressRecord(CloudKitWalkthroughProgressPayload(progress: newer)) }
-        #expect(try store.loadWalkthroughProgress("walked") == newer)
-        #expect(try store.hasLocalSyncRecord(entity: .walkthroughProgress, logicalKey: "walked"))
-
-        try store.deleteWalkthroughProgressRecord("walked")
-        #expect(try store.loadWalkthroughProgress("walked") == nil)
-    }
-
-    @Test("Removing a walk removes its progress, and tells the other Macs")
+    @Test("Removing a walk removes its progress")
     func deletedWithTheWalk() throws {
         let store = try KnowledgeStore(inMemory: true)
         try seedWalk(store, id: "walked")
         try store.saveWalkthroughProgress(WalkthroughProgress(subjectID: "walked", currentStepID: "step-1", playedStepIDs: ["step-1"]))
         #expect(try store.deletePaperWalkthrough("walked"))
         #expect(try store.loadWalkthroughProgress("walked") == nil)
-        #expect(try syncChanges(store).last?.operation == "delete")
     }
 
     @Test("A question remembered first time leaves nothing in Memory; one forgotten becomes a target, and a later grade is an attempt on it")

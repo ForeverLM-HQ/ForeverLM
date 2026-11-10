@@ -507,7 +507,6 @@ struct StoredSoftHyphenRepairMigrationTests {
                 SELECT printf('paper-%05d', i), printf('%s life%sspan', hex(randomblob(2000)), CASE WHEN i % 40 = 0 THEN char(173) ELSE '' END) FROM n;
             """)
         }
-        try store.clearAllPendingSyncChanges()
         try store.execForTesting("""
             DROP TABLE source_text_soft_hyphen_repair_queue;
             \(version < 165 ? "DROP INDEX IF EXISTS idx_atlases_updated; DROP TABLE atlases; DROP TABLE source_levels; DROP TABLE source_faces;" : "")
@@ -536,7 +535,6 @@ struct StoredSoftHyphenRepairMigrationTests {
         #expect(Set(try migrated.loadActiveSources().map(\.id)) == ["paper-shy", "article-entity", "article-clean", "paper-queued"])
         #expect(try migrated.loadSourceContent("paper-shy") == StoredText.content)
         #expect(try migrated.loadSourceContent("article-entity") == "The mito&shy;chondrion, and &shy; itself.")
-        #expect(try migrated.pendingSyncChanges().isEmpty)
         #expect(try StoredText.paidWork(migrated) == 0)
         // 164 gains 165's tables on the way.
         #expect(try StoredText.count(migrated, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('atlases', 'source_levels', 'source_faces')") == 3)
@@ -598,7 +596,6 @@ struct StoredSoftHyphenRepairDrainTests {
         try store.recordSourceIndexed(sourceID: id)
         try store.execute("INSERT INTO source_review_guide_queue (source_id, source_sha256, enqueued_at) VALUES (?, ?, 1)", [.text(id), .text(oldHash)])
         #expect(try store.enqueueStoredSoftHyphenRepair() == 1)
-        try store.clearAllPendingSyncChanges()
         let now = Date(timeIntervalSinceReferenceDate: 812_000_000)
 
         let batch = try store.drainStoredSoftHyphenRepairBatch(limit: 50, now: now)
@@ -631,9 +628,6 @@ struct StoredSoftHyphenRepairDrainTests {
         #expect(try StoredText.paidWork(store) == 0)
         #expect(try store.storedSoftHyphenRepairQueueCount() == 0)
         // The source and its idea go to the other devices.
-        let pending = try store.pendingSyncChanges()
-        #expect(pending.contains { $0.entity == .source && $0.logicalKey == id })
-        #expect(pending.contains { $0.entity == .sourceIdea && $0.logicalKey == idea.id })
     }
 
     @Test("Leaves what was made from older text, and a raw extraction its hash no longer attests, as they were")
@@ -705,13 +699,11 @@ struct StoredSoftHyphenRepairDrainTests {
         #expect(batches.flatMap(\.repairedSourceIDs) == ["paper-1"])
         let repaired = try store.loadSourceContent("paper-1")
         let repairedRawHash = try StoredText.text(store, "SELECT raw_sha256 FROM paper_content_preparations WHERE source_id = ?", "paper-1")
-        try store.clearAllPendingSyncChanges()
 
         try store.enqueueStoredSoftHyphenRepair()
         #expect(try store.drainStoredSoftHyphenRepairBatch(limit: 200) == StoredSoftHyphenRepairBatch(processedCount: 121, repairedSourceIDs: []))
         #expect(try store.loadSourceContent("paper-1") == repaired)
         #expect(try StoredText.text(store, "SELECT raw_sha256 FROM paper_content_preparations WHERE source_id = ?", "paper-1") == repairedRawHash)
-        #expect(try store.pendingSyncChanges().isEmpty)
         #expect(try StoredText.paidWork(store) == 0)
     }
 
@@ -754,14 +746,12 @@ struct StoredSoftHyphenRepairDrainTests {
         try store.replaceSourceFTS(sourceID: "paper-title", title: title, author: "", body: "A clean text.")
         try store.recordSourceIndexed(sourceID: "paper-title")
         try store.enqueueStoredSoftHyphenRepair()
-        try store.clearAllPendingSyncChanges()
 
         #expect(try store.drainStoredSoftHyphenRepairBatch(limit: 50).repairedSourceIDs == ["paper-title"])
         #expect(try StoredText.text(store, "SELECT title FROM papers WHERE source_id = ?", "paper-title") == "Plasma GDF15 affects long- term dementia risk")
         #expect(try StoredText.count(store, "SELECT COUNT(*) FROM source_fts_state WHERE source_id = 'paper-title'") == 0, "the full-text row is written again")
         #expect(try StoredText.count(store, "SELECT COUNT(*) FROM source_index_state WHERE source_id = 'paper-title'") == 1, "the embeddings stay")
         #expect(try store.loadSourceContent("paper-title") == "A clean text.")
-        #expect(try store.pendingSyncChanges().contains { $0.entity == .source && $0.logicalKey == "paper-title" })
     }
 
     @Test("A podcast transcript's input is repaired under its own hash")

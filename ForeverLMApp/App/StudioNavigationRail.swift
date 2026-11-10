@@ -1146,7 +1146,6 @@ struct StudioNavigationRail: View {
     /// chats that need attention.
     private var activeNoticeKinds: [CornerNoticeKind] {
         var kinds: [CornerNoticeKind] = []
-        if ActivationNotice.shared.card != nil { kinds.append(.libraryMove) }
         if StoreUpgradeSpaceNotice.shared.visibleMessage != nil { kinds.append(.storeUpgradeSpace) }
         if asksToPlanTheDay, DayModel.shared.planTheDayAsk != nil { kinds.append(.planTheDay) }
         if vm.cardsToCheckDetail != nil,
@@ -1436,12 +1435,7 @@ struct StudioNavigationRail: View {
             // in the bell instead.
             let tray = CornerNoticeTray.shared
             let subjects = vm.inboxSubjects(planDay: DayModel.shared.planTheDayAsk)
-            if let card = ActivationNotice.shared.card, tray.showsInCorner(.libraryMove, subject: subjects.subject(.libraryMove)) {
-                ActivationCard(title: card.title, detail: card.detail, style: .rail)
-                    .padding(.horizontal, 10)
-                    .padding(.top, 10)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            } else if let message = StoreUpgradeSpaceNotice.shared.visibleMessage,
+            if let message = StoreUpgradeSpaceNotice.shared.visibleMessage,
                       tray.showsInCorner(.storeUpgradeSpace, subject: subjects.subject(.storeUpgradeSpace)) {
                 StoreUpgradeSpaceCard(message: message, style: .rail)
                     .padding(.horizontal, 10)

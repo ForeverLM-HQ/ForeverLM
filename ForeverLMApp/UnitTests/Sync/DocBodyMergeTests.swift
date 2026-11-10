@@ -97,39 +97,4 @@ struct DocBodyMergeTests {
         #expect(try await rig.materializer.materializeDue()["notes:nb-b"] == .merged)
         #expect(try F.notes(rig.store, "nb-b") == "## Target\n\nB1\nB2\nB3 edited\nB4\nB5\n\n## Other\n\nA1", "neither edit is overwritten")
     }
-
-    @Test("A notes base written by wire id before any root is found after bootstrap, and a later acknowledged upload's base wins")
-    func legacyNotesBase() async throws {
-        let (root, store) = try N.makeStore("WP11-merge-legacy")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try N.addNotebook(store, "nb-1")
-        let walked = "N1\nN2\nN3\nN4\nN5"
-        try F.setNotes(store, "nb-1", walked)
-        // The catch-up's walk, before this Mac knows the zone's salt.
-        try NotesBase.saveLegacy(walked, notebookID: "nb-1", connection: store)
-        #expect(try NotesBase.recordName(notebookID: "nb-1", connection: store) == nil, "no root yet")
-
-        try N.prepareReplica(store)
-        let bodies = F.Bodies()
-        let synced = MacPrivateSyncStore.direct(store)
-        let rig = F.Rig(root: root, store: store, bodies: bodies,
-                        publisher: DocBodyPublisher(store: synced, transfer: bodies.transfer),
-                        materializer: DocBodyMaterializer(store: synced, transfer: bodies.transfer))
-        #expect(try NotesBase.load(notebookID: "nb-1", connection: store) == walked)
-        try F.setNotes(store, "nb-1", "N1 mine\nN2\nN3\nN4\nN5")
-        let theirs = try bodies.putNotes("N1\nN2\nN3\nN4\nN5 theirs", notebookID: "nb-1")
-        try N.apply(store, [try F.notesRecord("nb-1", body: theirs, ms: Self.later)])
-        #expect(try await rig.materializer.materializeDue()["notes:nb-1"] == .merged, "merged against the walk's notes")
-        let merged = "N1 mine\nN2\nN3\nN4\nN5 theirs"
-        #expect(try F.notes(store, "nb-1") == merged)
-
-        try await F.publishAndSend(rig)
-        #expect(try NotesBase.load(notebookID: "nb-1", connection: store) == merged, "the acknowledged upload's entry wins over the walk's")
-        // So the next server edit applies outright: this Mac has no edit since that base. Against the
-        // walk's notes it would have been taken for one and merged.
-        let next = try bodies.putNotes("N1 mine\nN2\nN3 again\nN4\nN5 theirs", notebookID: "nb-1")
-        try N.apply(store, [try F.notesRecord("nb-1", body: next, ms: Self.later + 1_000)])
-        #expect(try await rig.materializer.materializeDue()["notes:nb-1"] == .applied)
-        #expect(try F.notes(store, "nb-1") == "N1 mine\nN2\nN3 again\nN4\nN5 theirs")
-    }
 }

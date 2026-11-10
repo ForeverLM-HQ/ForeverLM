@@ -124,14 +124,6 @@ enum NotesBase {
         ])
     }
 
-    /// The notes base the catch-up's walk found (WP16a, WP16b2 write it before any root exists).
-    static func saveLegacy(_ text: String, notebookID: String, connection: SQLiteConnection) throws {
-        try connection.execute("""
-            INSERT INTO ck_legacy_bodies (record_type, wire_id, field, base_hash, base_text) VALUES (?, ?, ?, ?, ?)
-            ON CONFLICT(record_type, wire_id, field) DO UPDATE SET base_hash = excluded.base_hash, base_text = excluded.base_text
-        """, [.text(legacyType), .text(notebookID), .text(legacyField), .text(SyncIdentity.sha256Hex(Data(text.utf8))), .text(text)])
-    }
-
     /// The Notes Doc's record name: the replica's once it holds the record, else from `Library`'s salt.
     static func recordName(notebookID: String, connection: SQLiteConnection) throws -> String? {
         let id = NotesDoc.id(notebookID: notebookID)

@@ -111,7 +111,6 @@ struct FamilyAssignmentsTests {
         #expect(first.isNotebook)
         #expect(first.title == KnowledgeStore.assignmentsNotebookTitle)
         #expect(try store.loadLearningGoals().filter { $0.id == first.id }.count == 1)
-        #expect(try store.resolveRecordHome(entity: .learningGoal, logicalKey: first.id) == team.home)
     }
 
     // MARK: Finishing a source finishes its assignment
@@ -127,7 +126,6 @@ struct FamilyAssignmentsTests {
         try store.saveSource(Self.source(id: teamCopyID, url: url, title: "Mitochondria", teamID: team.id))
         try Self.assignment(store, teamID: team.id, id: "mine", assignee: "_kid", sourceID: teamCopyID)
         try Self.assignment(store, teamID: team.id, id: "sibling", assignee: "_sib", sourceID: teamCopyID)
-        try store.clearAllPendingSyncChanges()
 
         let readAt = Date(timeIntervalSinceReferenceDate: 800_000_000)
         try store.updateSourceReadAt(sourceID: "src-own", readAt: readAt)
@@ -136,9 +134,6 @@ struct FamilyAssignmentsTests {
         #expect(mine.status == .done)
         #expect(mine.completedAt == readAt)
         #expect(try store.loadNotebookTask("sibling")?.status == .todo, "a sibling's task is theirs to finish")
-        let change = try #require(try store.pendingSyncChanges().first { $0.entity == .notebookTask && $0.logicalKey == "mine" })
-        #expect(change.home == team.home, "the done task goes back to the team's zone, where the parent sees it")
-        #expect(!(try store.pendingSyncChanges().contains { $0.entity == .notebookTask && $0.logicalKey == "sibling" }))
     }
 
     @Test("Reading the team's copy itself closes the task too; marking a source unread leaves it alone")
@@ -193,7 +188,6 @@ struct FamilyAssignmentsTests {
         try store.recordScheduledSourceReview(sourceID: "src-own", on: Date())
         #expect(try store.loadNotebookTask("closed-by-review")?.status == .done)
         let day = try #require(try store.loadSourceActivityDays(sourceID: "src-own").first).dayStart
-        try store.clearAllPendingSyncChanges()
 
         let forgotten = try store.forgetAutomaticSourceActivity(sourceIDs: ["src-own"], on: day)
         #expect(forgotten.map(\.reopenedTaskIDs) == [["closed-by-review"]])
@@ -201,8 +195,6 @@ struct FamilyAssignmentsTests {
         #expect(reopened.status == .todo)
         #expect(reopened.completedAt == nil)
         #expect(try store.loadNotebookTask("done-by-hand")?.status == .done, "only the review's own completion is taken back")
-        let change = try #require(try store.pendingSyncChanges().first { $0.entity == .notebookTask && $0.logicalKey == "closed-by-review" })
-        #expect(change.home == team.home, "the reopened task goes back to the team's zone")
         #expect(try store.scheduledSourceID(forSource: "src-own") == nil)
     }
 
@@ -251,36 +243,6 @@ struct FamilyAssignmentsTests {
     }
 
     // MARK: Family plan code (schema 137)
-
-    @Test("The family plan code rides the team's record to a member's Mac, and clearing it travels too")
-    func familyPlanCodeRoundTrip() throws {
-        let owner = try KnowledgeStore(inMemory: true)
-        let team = try Self.makeTeam(owner, role: .owner, familyPlanCode: "0123456789abcdef0123456789abcdef")
-        #expect(try owner.loadTeam(team.id)?.familyPlanCode == "0123456789abcdef0123456789abcdef")
-        #expect(try owner.loadTeam(team.id)?.isFamily == true)
-
-        let change = try #require(try owner.pendingSyncChanges().first { $0.entity == .team && $0.logicalKey == team.id })
-        let record = try #require(try CloudKitRecordMapper.makeRecord(for: change, store: owner))
-        let data = try #require(record.encryptedValues[.payload] as? Data)
-        let payload = try JSONDecoder().decode(CloudKitTeamPayload.self, from: data)
-        #expect(payload.familyPlanCode == "0123456789abcdef0123456789abcdef")
-
-        let member = try KnowledgeStore(inMemory: true)
-        let memberHome = CloudKitZoneHome(scope: .shared, zoneName: team.zoneName, ownerRecordName: "_parent")
-        try member.upsertTeamFromZone(payload, home: memberHome, permission: .readWrite)
-        #expect(try member.loadTeam(team.id)?.familyPlanCode == "0123456789abcdef0123456789abcdef")
-
-        let cleared = CloudKitTeamPayload(id: team.id, name: team.name, createdAt: team.createdAt, updatedAt: Date())
-        try member.upsertTeamFromZone(cleared, home: memberHome, permission: nil)
-        #expect(try member.loadTeam(team.id)?.familyPlanCode == nil, "the owner turning the plan off reaches the member")
-    }
-
-    @Test("A Team record written before schema 137 decodes as no family")
-    func oldTeamPayloadDecodes() throws {
-        let json = #"{"id":"t","name":"Old","createdAt":0,"updatedAt":0}"#
-        let payload = try JSONDecoder().decode(CloudKitTeamPayload.self, from: Data(json.utf8))
-        #expect(payload.familyPlanCode == nil)
-    }
 
     // MARK: Migration
 

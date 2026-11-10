@@ -123,7 +123,6 @@ extension KnowledgeStore {
             )
             try deleteUnreferencedPageUnits(sourceIDs: chapterIDs)
             try keepCourseRowsForGeneration2(courseIDs: [courseID])
-            try markRecordChanged(entity: .course, logicalKey: courseID, at: now)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -324,30 +323,6 @@ extension KnowledgeStore {
     }
 
     // MARK: - Sync
-
-    /// Units a Course record carries, applied before its items so a reading's
-    /// unit is always there when the item naming it lands. Upserts only: a
-    /// record that does not name a unit says nothing about it, because another
-    /// course, or this course's next reading, may still use it.
-    func upsertSourceUnitsFromSync(_ units: [SourceUnit]) throws {
-        for unit in units {
-            try execBind("""
-                INSERT INTO source_units (id, source_id, kind, locator, title)
-                VALUES (?, ?, ?, ?, ?)
-                ON CONFLICT(id) DO UPDATE SET
-                    source_id = excluded.source_id,
-                    kind = excluded.kind,
-                    locator = excluded.locator,
-                    title = excluded.title
-            """) { stmt in
-                bind(stmt, 1, unit.id)
-                bind(stmt, 2, unit.sourceId)
-                bind(stmt, 3, unit.kind)
-                bind(stmt, 4, unit.locator)
-                bind(stmt, 5, unit.title)
-            }
-        }
-    }
 
     // MARK: - Helpers
 

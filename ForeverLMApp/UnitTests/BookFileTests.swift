@@ -437,7 +437,6 @@ struct BookFileMigrationTests {
                 INSERT INTO group_members (source_id, group_id, sort_index) SELECT printf('ch-%06d', i), printf('book-%d', i / 25), i % 25 FROM n;
             """)
         }
-        try store.clearAllPendingSyncChanges()
         try store.execForTesting("""
             DROP TABLE book_file_merge_queue;
             DROP VIEW IF EXISTS source_projection;
@@ -461,7 +460,7 @@ struct BookFileMigrationTests {
         let migrated = try reopen(root)
 
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
-        #expect(KnowledgeStore.schemaVersion == 174)
+        #expect(KnowledgeStore.schemaVersion == 175)
         #expect(try migrated.holdsBookFileSchema())
         #expect(
             Set(try migrated.dueBookFileMerges(limit: 10)) == ["split", "epub"],
@@ -470,7 +469,6 @@ struct BookFileMigrationTests {
         // The library is whole and on screen while the merge waits; nothing points at pages yet.
         #expect(Set(try migrated.loadActiveSources().map(\.id)).isSuperset(of: ["split-1", "split-2", "epub-1"]))
         #expect(try migrated.loadSourceForSync("split-1")?.bookPages == nil)
-        #expect(try migrated.pendingSyncChanges().isEmpty)
     }
 
     @Test("Queues books by id at production scale, well under a second")
@@ -636,7 +634,6 @@ struct BookImportFinishQueueTests {
         let root = try Schema154Fixture.temporaryRoot("book-import-finish-170")
         defer { try? FileManager.default.removeItem(at: root) }
         let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-        try store.clearAllPendingSyncChanges()
         // A store as schema 170 left it: everything but the queue.
         try store.execForTesting("DROP TABLE book_import_finish_queue; PRAGMA user_version = 170;")
 
@@ -644,10 +641,9 @@ struct BookImportFinishQueueTests {
         let migrated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
 
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
-        #expect(KnowledgeStore.schemaVersion == 174)
+        #expect(KnowledgeStore.schemaVersion == 175)
         #expect(try migrated.holdsBookImportFinishQueue())
         #expect(try migrated.dueBookImportFinishes(limit: 10).isEmpty)
-        #expect(try migrated.pendingSyncChanges().isEmpty)
     }
 
     @Test("A book waits until it is dropped; three failures park it until it is added again")
@@ -655,7 +651,6 @@ struct BookImportFinishQueueTests {
         let root = try Schema154Fixture.temporaryRoot("book-import-finish-queue")
         defer { try? FileManager.default.removeItem(at: root) }
         let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-        try store.clearAllPendingSyncChanges()
 
         try store.enqueueBookImportFinish(bookID: "older", bookFilePath: "/tmp/Books/Older/Older.pdf", wholeBookSourceID: nil, kind: nil)
         try store.enqueueBookImportFinish(bookID: "book", bookFilePath: "/tmp/Books/Book/Book.pdf", wholeBookSourceID: "whole", kind: "Textbook")
@@ -676,7 +671,6 @@ struct BookImportFinishQueueTests {
         try store.dropBookImportFinish(bookID: "older")
         #expect(try store.dueBookImportFinishes(limit: 10).isEmpty)
         // Local work: nothing here reaches another device.
-        #expect(try store.pendingSyncChanges().isEmpty)
     }
 
     @Test("The split's chapters stretch to hold a page marked or reached before they were found")
@@ -955,7 +949,6 @@ struct BookFileIdentityTests {
         let root = try Schema154Fixture.temporaryRoot("book-file-digests-172")
         defer { try? FileManager.default.removeItem(at: root) }
         let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-        try store.clearAllPendingSyncChanges()
         // A store as schema 172 left it: everything but the record.
         try store.execForTesting("DROP TABLE book_file_digests; PRAGMA user_version = 172;")
 
@@ -963,10 +956,9 @@ struct BookFileIdentityTests {
         let migrated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
 
         #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
-        #expect(KnowledgeStore.schemaVersion == 174)
+        #expect(KnowledgeStore.schemaVersion == 175)
         #expect(try migrated.holdsBookFileDigests())
         #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM book_file_digests") == 0)
         try migrated.recordBookFileDigest("abc", bookID: "BOOK")
-        #expect(try migrated.pendingSyncChanges().isEmpty)
     }
 }

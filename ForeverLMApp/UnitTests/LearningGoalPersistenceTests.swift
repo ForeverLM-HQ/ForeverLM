@@ -407,7 +407,6 @@ struct LearningGoalPersistenceTests {
             discoveryEnabled: false,
             seedSourceIDs: ["source-1"]
         )
-        try store.clearAllPendingSyncChanges()
 
         let newEnd = startAt.addingTimeInterval(21 * 24 * 60 * 60)
         try store.updateCompanionGoalSettings(
@@ -430,11 +429,6 @@ struct LearningGoalPersistenceTests {
         // Items and their states are untouched by a settings edit.
         #expect(updated.items.count == 1)
         #expect(updated.items.first?.isApproved == true)
-        #expect(try store.pendingSyncChanges().contains {
-            $0.entity == .learningGoal
-                && $0.logicalKey == goal.id
-                && $0.operation == .save
-        })
     }
 
     @Test("Renaming a Notebook changes only its title and queues sync")
@@ -451,7 +445,6 @@ struct LearningGoalPersistenceTests {
             discoveryEnabled: true,
             seedSourceIDs: ["source-1"]
         )
-        try store.clearAllPendingSyncChanges()
 
         try store.setLearningGoalTitle(goalID: goal.id, title: "  Deep Reinforcement Learning  ")
 
@@ -463,11 +456,6 @@ struct LearningGoalPersistenceTests {
         #expect(renamed.dailyTarget == goal.dailyTarget)
         #expect(renamed.discoveryEnabled == goal.discoveryEnabled)
         #expect(renamed.items == goal.items)
-        #expect(try store.pendingSyncChanges().contains {
-            $0.entity == .learningGoal
-                && $0.logicalKey == goal.id
-                && $0.operation == .save
-        })
     }
 
     @Test("Notebook instructions update and clear through the synced description field")
@@ -484,7 +472,6 @@ struct LearningGoalPersistenceTests {
             discoveryEnabled: false,
             seedSourceIDs: []
         )
-        try store.clearAllPendingSyncChanges()
 
         try store.setLearningGoalDescription(
             goalID: goal.id,
@@ -493,11 +480,6 @@ struct LearningGoalPersistenceTests {
 
         let updated = try #require(try store.loadLearningGoal(goal.id))
         #expect(updated.description == "Prioritize primary research and flag disputed claims.")
-        #expect(try store.pendingSyncChanges().contains {
-            $0.entity == .learningGoal
-                && $0.logicalKey == goal.id
-                && $0.operation == .save
-        })
 
         try store.setLearningGoalDescription(goalID: goal.id, description: "   ")
         let cleared = try #require(try store.loadLearningGoal(goal.id))
@@ -521,7 +503,6 @@ struct LearningGoalPersistenceTests {
         // Created with a summary: whitespace runs and the newline collapse.
         #expect(goal.summary == "How organelles age, and what slows it")
         #expect(goal.description == "Prefer primary research.")
-        try store.clearAllPendingSyncChanges()
 
         try store.setLearningGoalSummary(goalID: goal.id, summary: "Ageing organelles, measured")
         let updated = try #require(try store.loadLearningGoal(goal.id))
@@ -529,11 +510,6 @@ struct LearningGoalPersistenceTests {
         #expect(updated.displaySummary == "Ageing organelles, measured")
         // The card description never touches the chat Instructions.
         #expect(updated.description == "Prefer primary research.")
-        #expect(try store.pendingSyncChanges().contains {
-            $0.entity == .learningGoal
-                && $0.logicalKey == goal.id
-                && $0.operation == .save
-        })
 
         // Over-long text is capped rather than refused.
         try store.setLearningGoalSummary(goalID: goal.id, summary: String(repeating: "x", count: 500))
@@ -618,15 +594,11 @@ struct LearningGoalPersistenceTests {
             artifactID: "site-1"
         )
         #expect(try store.loadLearningGoal(goal.id)?.linkedArtifactID == "site-1")
-        try store.clearAllPendingSyncChanges()
 
         try store.setLearningGoalArtifact(goalID: goal.id, artifactID: nil)
         let unlinked = try #require(try store.loadLearningGoal(goal.id))
         #expect(unlinked.artifactID == "", "an unlink travels as an explicit clear, not as no opinion")
         #expect(unlinked.linkedArtifactID == nil)
-        #expect(try store.pendingSyncChanges().contains {
-            $0.entity == .learningGoal && $0.logicalKey == goal.id && $0.operation == .save
-        })
 
         try store.setLearningGoalArtifact(goalID: goal.id, artifactID: " site-1 ")
         #expect(try store.loadLearningGoal(goal.id)?.linkedArtifactID == "site-1")
@@ -705,7 +677,6 @@ struct LearningGoalPersistenceTests {
             try store.loadLearningGoals().filter { $0.isGoal && !$0.isDone }.sorted(by: LearningGoalRecord.listOrder).map(\.id)
         }
         #expect(try order() == [soon.id, week.id, month.id], "never placed, the list reads by deadline")
-        try store.clearAllPendingSyncChanges()
 
         // A subset places itself first; the rest keep the order they read.
         #expect(try store.reorderLearningGoals(goalIDs: [month.id]) == [month.id, soon.id, week.id])
@@ -714,17 +685,12 @@ struct LearningGoalPersistenceTests {
         #expect(try store.loadLearningGoal(soon.id)?.sortOrder == 1)
         #expect(try store.loadLearningGoal(week.id)?.sortOrder == 2)
         #expect(try store.loadLearningGoal(done.id)?.sortOrder == nil, "finished work is not placed")
-        let published = Set(try store.pendingSyncChanges().filter { $0.entity == .learningGoal }.map(\.logicalKey))
-        #expect(published == [month.id, soon.id, week.id])
 
         // The same order again writes nothing.
-        try store.clearAllPendingSyncChanges()
         #expect(try store.reorderLearningGoals(goalIDs: [month.id, soon.id, week.id]) == [month.id, soon.id, week.id])
-        #expect(try store.pendingSyncChanges().isEmpty, "a row whose place did not move is not republished")
 
         // One step down moves two rows and publishes two.
         #expect(try store.reorderLearningGoals(goalIDs: [soon.id, month.id, week.id]) == [soon.id, month.id, week.id])
-        #expect(Set(try store.pendingSyncChanges().map(\.logicalKey)) == [soon.id, month.id])
 
         // A placed Goal keeps its place whatever its deadline does.
         var overdue = try #require(try store.loadLearningGoal(week.id))
@@ -738,11 +704,9 @@ struct LearningGoalPersistenceTests {
         #expect(try store.loadLearningGoal(newcomer.id)?.sortOrder == nil)
 
         // An empty list forgets every placement.
-        try store.clearAllPendingSyncChanges()
         #expect(try store.reorderLearningGoals(goalIDs: []) == [week.id, soon.id, newcomer.id, month.id])
         #expect(try store.loadLearningGoals().filter { $0.isGoal }.allSatisfy { $0.sortOrder == nil })
         #expect(try order() == [week.id, soon.id, newcomer.id, month.id], "by deadline again, the overdue one first")
-        #expect(Set(try store.pendingSyncChanges().map(\.logicalKey)) == [soon.id, month.id, week.id], "the newcomer had no placement to forget")
 
         for refused in [notebook.id, done.id, "missing"] {
             #expect(throws: KnowledgeStoreError.self) {
@@ -808,7 +772,6 @@ struct LearningGoalPersistenceTests {
                 dailyTarget: 3, discoveryEnabled: false, seedSourceIDs: []
             )
             (soonID, laterID) = (soon.id, later.id)
-            try store.clearAllPendingSyncChanges()
             // Back to the exact shape builds 121 and 122 (schema 124) wrote: no order column.
             try store.execForTesting("DROP VIEW IF EXISTS source_projection")
             try store.execForTesting("ALTER TABLE learning_goals DROP COLUMN sort_order")
@@ -823,7 +786,6 @@ struct LearningGoalPersistenceTests {
         #expect(elapsed < 1.0, "the DDL-only migration took \(elapsed)s")
         #expect(Self.userVersion(at: root) == KnowledgeStore.schemaVersion)
         #expect(Self.columnExists(at: root, table: "learning_goals", column: "sort_order"))
-        #expect(try migrated.pendingSyncChanges().isEmpty, "a schema-only migration republishes no record")
         #expect(Self.scalarInt(at: root, "SELECT COUNT(*) FROM learning_goals WHERE sort_order IS NULL") == 2, "NULL is the truth about every old row")
 
         let goals = try migrated.loadLearningGoals().sorted(by: LearningGoalRecord.listOrder)
@@ -1080,104 +1042,6 @@ struct LearningGoalPersistenceTests {
         #expect(try store.loadLearningGoal(unrelated.id) != nil)
     }
 
-    @Test("Deleting a Notebook tombstones it and every Goal it cascades")
-    func notebookDeletionTombstonesItselfAndItsGoals() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        let start = Date()
-        let notebook = try store.createCompanionGoal(
-            title: "Mitochondria",
-            topic: "mitochondria",
-            startAt: start,
-            endAt: LearningGoalRecord.openEndedEndAt,
-            dailyTarget: 3,
-            discoveryEnabled: false,
-            seedSourceIDs: []
-        )
-        let childGoal = try store.createCompanionGoal(
-            title: "Write the review",
-            topic: "mitochondria",
-            startAt: start,
-            endAt: start.addingTimeInterval(7 * 86_400),
-            dailyTarget: 3,
-            discoveryEnabled: false,
-            seedSourceIDs: [],
-            parentNotebookID: notebook.id
-        )
-        try store.clearAllPendingSyncChanges()
-
-        try store.deleteLearningGoal(notebook.id, cascadeChildGoals: true)
-
-        // The tombstone is the only thing standing between a deleted Notebook and
-        // the copy CloudKit still holds. Every deleted row gets one, and each one
-        // is queued as a delete so the server copy goes too.
-        let pending = try store.pendingSyncChanges()
-        for goalID in [notebook.id, childGoal.id] {
-            let loaded = try store.loadSyncMetadata(entity: .learningGoal, logicalKey: goalID)
-            let metadata = try #require(loaded)
-            #expect(metadata.isDeleted)
-            #expect(pending.contains {
-                $0.entity == .learningGoal && $0.logicalKey == goalID && $0.operation == .delete
-            })
-        }
-    }
-
-    @Test("A deleted Notebook cannot be written back by a stale copy")
-    func deletedNotebookIsNotResurrectedByAStaleSave() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        let notebook = try store.createCompanionGoal(
-            title: "Mitochondria",
-            topic: "mitochondria",
-            startAt: Date(),
-            endAt: LearningGoalRecord.openEndedEndAt,
-            dailyTarget: 3,
-            discoveryEnabled: false,
-            seedSourceIDs: []
-        )
-        let staleCopy = try #require(try store.loadLearningGoal(notebook.id))
-        try store.deleteLearningGoal(notebook.id)
-
-        // A view that outlived its Notebook, or an inbound merge adopting a
-        // server record this device already deleted, both land here. The upsert
-        // would otherwise re-create the row and republish it to every device.
-        try store.saveLearningGoalRecord(staleCopy)
-
-        #expect(try store.loadLearningGoal(notebook.id) == nil)
-        let loaded = try store.loadSyncMetadata(entity: .learningGoal, logicalKey: notebook.id)
-        let metadata = try #require(loaded)
-        #expect(metadata.isDeleted)
-        #expect(try store.pendingSyncChanges().contains {
-            $0.entity == .learningGoal && $0.logicalKey == notebook.id && $0.operation == .delete
-        })
-    }
-
-    @Test("Marking a deleted Notebook changed leaves its deletion queued")
-    func markingDeletedNotebookChangedKeepsTheDeletion() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        let notebook = try store.createCompanionGoal(
-            title: "Mitochondria",
-            topic: "mitochondria",
-            startAt: Date(),
-            endAt: LearningGoalRecord.openEndedEndAt,
-            dailyTarget: 3,
-            discoveryEnabled: false,
-            seedSourceIDs: []
-        )
-        try store.deleteLearningGoal(notebook.id)
-
-        // A save queued for a row that no longer exists can only recreate the
-        // record on the server; it must not displace the pending delete.
-        try store.markRecordChanged(entity: .learningGoal, logicalKey: notebook.id)
-
-        let loaded = try store.loadSyncMetadata(entity: .learningGoal, logicalKey: notebook.id)
-        let metadata = try #require(loaded)
-        #expect(metadata.isDeleted)
-        let changes = try store.pendingSyncChanges().filter {
-            $0.entity == .learningGoal && $0.logicalKey == notebook.id
-        }
-        #expect(changes.count == 1)
-        #expect(changes.first?.operation == .delete)
-    }
-
     @Test("Deleting a Notebook keeps its chats ungrouped by default")
     func notebookDeletionKeepsChatsUngroupedByDefault() throws {
         let store = try KnowledgeStore(inMemory: true)
@@ -1218,7 +1082,6 @@ struct LearningGoalPersistenceTests {
             topic: "Loose chat",
             sourceIDs: []
         )
-        try store.clearAllPendingSyncChanges()
 
         try store.deleteLearningGoal(notebook.id, cascadeChildGoals: true)
 
@@ -1228,14 +1091,6 @@ struct LearningGoalPersistenceTests {
         #expect(sessions["notebook-chat"]?.goalID == nil)
         #expect(sessions["goal-chat"]?.goalID == nil)
         #expect(sessions["loose-chat"] != nil)
-        let pending = try store.pendingSyncChanges()
-        for sessionID in ["notebook-chat", "goal-chat"] {
-            #expect(pending.contains {
-                $0.entity == .reviewSession
-                    && $0.logicalKey == sessionID
-                    && $0.operation == .save
-            })
-        }
     }
 
     @Test("Deleting a Notebook can delete all of its chats")
@@ -1278,7 +1133,6 @@ struct LearningGoalPersistenceTests {
             topic: "Loose chat",
             sourceIDs: []
         )
-        try store.clearAllPendingSyncChanges()
 
         try store.deleteLearningGoal(
             notebook.id,
@@ -1290,14 +1144,6 @@ struct LearningGoalPersistenceTests {
         #expect(!sessionIDs.contains("notebook-chat"))
         #expect(!sessionIDs.contains("goal-chat"))
         #expect(sessionIDs.contains("loose-chat"))
-        let pending = try store.pendingSyncChanges()
-        for sessionID in ["notebook-chat", "goal-chat"] {
-            #expect(pending.contains {
-                $0.entity == .reviewSession
-                    && $0.logicalKey == sessionID
-                    && $0.operation == .delete
-            })
-        }
     }
 
     @Test("Reordering a companion pool persists a study order and queues sync")
@@ -1314,18 +1160,12 @@ struct LearningGoalPersistenceTests {
             discoveryEnabled: false,
             seedSourceIDs: ["s-a", "s-b", "s-c", "s-d"]
         )
-        try store.clearAllPendingSyncChanges()
 
         // Partial reorder: listed sources go first, the rest keep their relative order.
         try store.reorderCompanionSources(goalID: goal.id, orderedSourceIDs: ["s-c", "s-a"])
 
         let reordered = try #require(try store.loadLearningGoal(goal.id))
         #expect(reordered.approvedSourceIDs == ["s-c", "s-a", "s-b", "s-d"])
-        #expect(try store.pendingSyncChanges().contains {
-            $0.entity == .learningGoal
-                && $0.logicalKey == goal.id
-                && $0.operation == .save
-        })
 
         // A source added later is unsequenced and lands after the sequenced pool.
         try store.addCompanionSeedSources(goalID: goal.id, sourceIDs: ["s-e"])
@@ -1456,221 +1296,6 @@ struct LearningGoalPersistenceTests {
         #expect(oxphosItem?.sourceID == "src-b")
     }
 
-    // Pins generation 1: it deletes the merged notebook and an emptied parent and queues their rows in
-    // sync_changes. Generation 2 keeps a redirect stub instead (NotebookMergeSplitTests); this goes with
-    // generation 1 at the post-soak cleanup.
-    @Test("Merge companion goals unions pools and deletes merged notebooks")
-    func mergeCompanionGoalsUnionsPools() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        let startAt = Date()
-        let survivor = try store.createCompanionGoal(
-            title: "Mitochondria",
-            topic: "mitochondria",
-            startAt: startAt,
-            endAt: LearningGoalRecord.openEndedEndAt,
-            dailyTarget: 3,
-            discoveryEnabled: false,
-            seedSourceIDs: ["src-a"]
-        )
-        try store.setLearningGoalNotes(goalID: survivor.id, notes: "Parent notes")
-        let other = try store.createCompanionGoal(
-            title: "OXPHOS",
-            topic: "oxphos",
-            startAt: startAt,
-            endAt: LearningGoalRecord.openEndedEndAt,
-            dailyTarget: 3,
-            discoveryEnabled: false,
-            seedSourceIDs: ["src-b"]
-        )
-        try store.setLearningGoalNotes(goalID: other.id, notes: "Child notes")
-        try store.upsertCompanionGaps(goalID: other.id, gaps: [
-            LearningGoalGap(
-                id: "gap-2",
-                goalID: other.id,
-                summary: "What is complex I?",
-                sourceID: "src-b",
-                status: "open",
-                severity: 0.5,
-                firstSeenAt: startAt,
-                lastSeenAt: startAt,
-                resolvedAt: nil,
-                sessionID: nil
-            ),
-        ])
-
-        let result = try store.mergeCompanionGoals(
-            notebookIDs: [survivor.id, other.id],
-            title: "Mitochondria (merged)",
-            mergeNotes: true
-        )
-
-        #expect(result.survivorGoalID == survivor.id)
-        #expect(result.mergedGoalIDs == [other.id])
-        #expect(result.sourcesAdded == 1)
-        #expect(result.gapsAdded == 1)
-        #expect(try store.loadLearningGoal(other.id) == nil)
-
-        let merged = try store.loadLearningGoal(survivor.id)
-        #expect(merged?.title == "Mitochondria (merged)")
-        #expect(Set(merged?.approvedSourceIDs ?? []) == ["src-a", "src-b"])
-        let mergedNotes = merged?.notes ?? ""
-        #expect(mergedNotes.contains("Parent notes"))
-        #expect(mergedNotes.contains("Child notes"))
-        #expect(try store.loadLearningGoalGaps(goalID: survivor.id).map(\.id) == ["gap-2"])
-    }
-
-    // Pins generation 1: it deletes the merged notebook and an emptied parent and queues their rows in
-    // sync_changes. Generation 2 keeps a redirect stub instead (NotebookMergeSplitTests); this goes with
-    // generation 1 at the post-soak cleanup.
-    @Test("Merging Notebooks carries chats, Goals, tasks, Docs, planner records and links to the survivor")
-    func mergeCompanionGoalsMovesEverything() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        let startAt = Date()
-        let survivor = try store.createCompanionGoal(
-            title: "Mito Phenotyping",
-            topic: "mito phenotyping",
-            startAt: startAt,
-            endAt: LearningGoalRecord.openEndedEndAt,
-            dailyTarget: 3,
-            discoveryEnabled: false,
-            seedSourceIDs: ["src-a"]
-        )
-        try store.setLearningGoalResearchQuestions(
-            goalID: survivor.id,
-            questions: ["How can we measure mitochondrial function in vivo?"]
-        )
-        let other = try store.createCompanionGoal(
-            title: "Mitochondria",
-            topic: "mitochondria",
-            startAt: startAt,
-            endAt: LearningGoalRecord.openEndedEndAt,
-            dailyTarget: 3,
-            discoveryEnabled: false,
-            seedSourceIDs: ["src-a", "src-b"]
-        )
-        try store.setLearningGoalResearchQuestions(
-            goalID: other.id,
-            questions: [
-                "how can we measure mitochondrial function in vivo?",
-                "Are mtDNA mutations important in aging?",
-            ]
-        )
-        try store.setLearningGoalDescription(goalID: other.id, description: "Understand mitochondria")
-        let bystander = try store.createCompanionGoal(
-            title: "GDF15",
-            topic: "gdf15",
-            startAt: startAt,
-            endAt: LearningGoalRecord.openEndedEndAt,
-            dailyTarget: 3,
-            discoveryEnabled: false,
-            seedSourceIDs: ["src-c"]
-        )
-
-        try store.createReviewSession(id: "chat-1", topic: "Uncouplers", sourceIDs: [], goalID: other.id)
-        try store.createReviewSession(id: "chat-2", topic: "Elsewhere", sourceIDs: [], goalID: bystander.id)
-        let childGoal = try store.createCompanionGoal(
-            title: "Read Picard",
-            topic: "picard",
-            startAt: startAt,
-            endAt: startAt.addingTimeInterval(7 * 86_400),
-            dailyTarget: 1,
-            discoveryEnabled: false,
-            seedSourceIDs: [],
-            parentNotebookID: other.id
-        )
-        try store.saveNotebookTask(NotebookTaskRecord(id: "task-1", notebookID: other.id, title: "Draft the crosswalk"))
-        try store.saveArtifactRecord(ArtifactRecord(
-            id: "doc-1",
-            title: "Crosswalk",
-            homeNotebookID: other.id,
-            linkedNotebookIDs: [other.id, survivor.id],
-            createdAt: startAt,
-            updatedAt: startAt
-        ))
-        let scheduled = try store.saveScheduledTask(
-            ScheduledTask(title: "Weekly digest", instruction: "Summarise the week.", notebookID: other.id)
-        )
-        var placed = StudioArticle(url: "https://example.org/uncouplers", title: "Uncouplers", sourceType: .article)
-        try store.insertSourceIfNew(&placed)
-        try store.addSourceToGoal(sourceID: placed.id, goalID: other.id, plannedAt: startAt)
-        let block = try store.addTimeBlock(
-            TimeBlock(dayPlanID: "2026-09-19", startMinute: 540, endMinute: 600, title: "Read", notebookID: other.id)
-        )
-        try store.saveMemoryItem(MemoryItem(
-            id: "memory-1",
-            kind: .concept,
-            target: "Explain proton leak.",
-            rubricJSON: "{}",
-            goalID: other.id,
-            sources: [
-                MemoryItemSource(
-                    id: "anchor-memory-1",
-                    memoryItemID: "memory-1",
-                    sourceID: placed.id,
-                    locatorJSON: #"{"kind":"text","start":0,"end":40}"#,
-                    excerpt: "Uncouplers dissipate the proton gradient.",
-                    sourceSHA256: String(repeating: "a", count: 64),
-                    sortIndex: 0
-                ),
-            ]
-        ))
-        try store.setRelatedNotebooks(notebookID: other.id, relatedNotebookIDs: [bystander.id])
-        try store.setRelatedNotebooks(notebookID: bystander.id, relatedNotebookIDs: [other.id])
-        try store.setJournalWatchNotebookExcluded(other.id, excluded: true)
-        try store.clearAllPendingSyncChanges()
-
-        let result = try store.mergeCompanionGoals(notebookIDs: [survivor.id, other.id])
-
-        #expect(result.survivorGoalID == survivor.id)
-        #expect(result.mergedGoalIDs == [other.id])
-        #expect(result.sourcesAdded == 1)
-        #expect(result.chatsMoved == 1)
-        #expect(result.childGoalsMoved == 1)
-        #expect(result.tasksMoved == 1)
-        #expect(result.docsMoved == 1)
-        #expect(try store.loadLearningGoal(other.id) == nil)
-
-        let merged = try #require(try store.loadLearningGoal(survivor.id))
-        #expect(merged.title == "Mito Phenotyping")
-        #expect(Set(merged.approvedSourceIDs) == ["src-a", "src-b"])
-        #expect(merged.researchQuestions == [
-            "How can we measure mitochondrial function in vivo?",
-            "Are mtDNA mutations important in aging?",
-        ])
-        #expect(merged.description == "Understand mitochondria")
-        #expect(merged.relatedNotebookIDs == [bystander.id])
-        #expect(try store.loadLearningGoal(bystander.id)?.relatedNotebookIDs == [survivor.id])
-
-        let sessions = Dictionary(uniqueKeysWithValues: try store.loadReviewSessionLinks().map { ($0.id, $0) })
-        #expect(sessions["chat-1"]?.goalID == survivor.id)
-        #expect(sessions["chat-2"]?.goalID == bystander.id)
-        #expect(try store.loadLearningGoal(childGoal.id)?.parentNotebookID == survivor.id)
-        #expect(try store.loadNotebookTasks(notebookID: survivor.id).map(\.id) == ["task-1"])
-        let doc = try #require(try store.loadArtifact("doc-1"))
-        #expect(doc.homeNotebookID == survivor.id)
-        #expect(doc.linkedNotebookIDs == [survivor.id])
-        #expect(try store.loadScheduledTask(scheduled.id)?.notebookID == survivor.id)
-        #expect(try store.scheduledSourceGoalIDs(sourceID: placed.id) == [survivor.id])
-        #expect(try store.loadTimeBlock(block.id)?.notebookID == survivor.id)
-        #expect(try store.loadMemoryItem("memory-1")?.goalID == survivor.id)
-        #expect(!(try store.journalWatchExcludedNotebookIDs()).contains(other.id))
-
-        // Every re-pointed record is republished, and the merged Notebook gets
-        // its tombstone, in the same transaction.
-        let changes = try store.pendingSyncChanges()
-        #expect(changes.contains { $0.entity == .reviewSession && $0.logicalKey == "chat-1" && $0.operation == .save })
-        #expect(!changes.contains { $0.entity == .reviewSession && $0.logicalKey == "chat-2" })
-        #expect(changes.contains { $0.entity == .learningGoal && $0.logicalKey == other.id && $0.operation == .delete })
-        #expect(changes.contains { $0.entity == .learningGoal && $0.logicalKey == survivor.id && $0.operation == .save })
-        #expect(changes.contains { $0.entity == .learningGoal && $0.logicalKey == bystander.id && $0.operation == .save })
-        #expect(changes.contains { $0.entity == .learningGoal && $0.logicalKey == childGoal.id && $0.operation == .save })
-        #expect(changes.contains { $0.entity == .notebookTask && $0.logicalKey == "task-1" && $0.operation == .save })
-        #expect(changes.contains { $0.entity == .artifact && $0.logicalKey == "doc-1" && $0.operation == .save })
-        #expect(changes.contains { $0.entity == .scheduledTask && $0.logicalKey == scheduled.id && $0.operation == .save })
-        #expect(changes.contains { $0.entity == .dayPlan && $0.logicalKey == "2026-09-19" && $0.operation == .save })
-        #expect(changes.contains { $0.entity == .memoryItem && $0.logicalKey == "memory-1" && $0.operation == .save })
-    }
-
     @Test("Notebooks in different libraries refuse to merge")
     func mergeCompanionGoalsRefusesAcrossLibraries() throws {
         let store = try KnowledgeStore(inMemory: true)
@@ -1718,109 +1343,6 @@ struct LearningGoalPersistenceTests {
 
     // MARK: Merging and splitting leave nothing on the removed notebook
 
-    // Pins generation 1: it deletes the merged notebook and an emptied parent and queues their rows in
-    // sync_changes. Generation 2 keeps a redirect stub instead (NotebookMergeSplitTests); this goes with
-    // generation 1 at the post-soak cleanup.
-    @Test("Merging moves everything the merged notebook held, its courses, Ideas' links and Directions included, and deletes it the ordinary way")
-    func mergeLeavesNothingOnTheMergedNotebook() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        let survivor = try NotebookHoldings.makeNotebook(store, title: "Mito Phenotyping", sources: ["src-a"])
-        let mergee = try NotebookHoldings.makeNotebook(store, title: "Mitochondria", sources: ["src-a", "src-b"])
-        let bystander = try NotebookHoldings.makeNotebook(store, title: "GDF15")
-        let held = try NotebookHoldings.file(under: mergee.id, in: store, tag: "merged", day: "2026-09-18")
-        try store.setRelatedNotebooks(notebookID: bystander.id, relatedNotebookIDs: [mergee.id])
-        try store.clearAllPendingSyncChanges()
-
-        let result = try store.mergeCompanionGoals(notebookIDs: [survivor.id, mergee.id])
-
-        #expect(result.mergedGoalIDs == [mergee.id])
-        #expect(result.chatsMoved == 1)
-        #expect(result.childGoalsMoved == 1)
-        #expect(result.tasksMoved == 1)
-        #expect(result.docsMoved == 1)
-        #expect(try store.loadLearningGoal(mergee.id) == nil)
-        #expect(try NotebookHoldings.references(to: mergee.id, in: store).isEmpty, "nothing points at the merged id")
-        try held.expectFiled(under: survivor.id, in: store)
-        #expect(try store.loadLearningGoal(bystander.id)?.relatedNotebookIDs == [survivor.id])
-
-        let changes = try store.pendingSyncChanges()
-        try held.expectQueued(in: changes)
-        #expect(changes.contains { $0.entity == .learningGoal && $0.logicalKey == mergee.id && $0.operation == .delete })
-        #expect(try store.loadSyncMetadata(entity: .learningGoal, logicalKey: mergee.id)?.isDeleted == true)
-    }
-
-    // Pins generation 1: it deletes the merged notebook and an emptied parent and queues their rows in
-    // sync_changes. Generation 2 keeps a redirect stub instead (NotebookMergeSplitTests); this goes with
-    // generation 1 at the post-soak cleanup.
-    @Test("A split that empties its parent moves everything else the parent held to the child that took the most sources, and deletes the parent the ordinary way")
-    func splitHandsTheEmptiedParentToItsHeir() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        let startAt = Date()
-        let parent = try NotebookHoldings.makeNotebook(store, title: "Mitochondria", sources: ["src-a", "src-b", "src-c"])
-        let bystander = try NotebookHoldings.makeNotebook(store, title: "GDF15")
-        let held = try NotebookHoldings.file(under: parent.id, in: store, tag: "parent", day: "2026-09-17")
-        try store.setRelatedNotebooks(notebookID: bystander.id, relatedNotebookIDs: [parent.id])
-        try store.setRelatedNotebooks(notebookID: parent.id, relatedNotebookIDs: [bystander.id])
-        // An open question tied to no source, which no split names.
-        try store.upsertCompanionGaps(goalID: parent.id, gaps: [
-            LearningGoalGap(
-                id: "gap-unassigned", goalID: parent.id, summary: "Why does supercomplex assembly vary by tissue?",
-                sourceID: nil, status: "open", severity: 0.5, firstSeenAt: startAt, lastSeenAt: startAt,
-                resolvedAt: nil, sessionID: nil
-            ),
-        ])
-        // The parent's own words, columns of the row the split deletes.
-        try store.setLearningGoalNotes(goalID: parent.id, notes: "Supercomplexes look tissue-specific.")
-        try store.setLearningGoalDescription(goalID: parent.id, description: "Answer from primary papers only.")
-        try store.setLearningGoalResearchQuestions(goalID: parent.id, questions: ["Do supercomplexes raise OXPHOS flux?"])
-        try store.setLearningGoalSummary(goalID: parent.id, summary: "Respiratory chain structure")
-        try store.setNotebookRepository(notebookID: parent.id, repository: "example/mito-notes")
-        try store.clearAllPendingSyncChanges()
-
-        let result = try store.splitCompanionGoal(
-            sourceGoalID: parent.id,
-            splits: [
-                CompanionGoalSplitSpec(title: "OXPHOS", topic: nil, sourceIDs: ["src-a"], gapIDs: []),
-                CompanionGoalSplitSpec(title: "Biogenesis", topic: nil, sourceIDs: ["src-b", "src-c"], gapIDs: []),
-            ],
-            keepParent: false
-        )
-
-        #expect(result.parentGoalID == nil)
-        #expect(result.childGoalIDs.count == 2)
-        let heir = try #require(result.heirGoalID)
-        #expect(heir == result.childGoalIDs[1], "Biogenesis took two sources")
-        #expect(try store.loadLearningGoal(parent.id) == nil)
-        #expect(try NotebookHoldings.references(to: parent.id, in: store).isEmpty, "nothing points at the removed parent")
-        try held.expectFiled(under: heir, in: store)
-        #expect(Set(try store.loadLearningGoal(heir)?.approvedSourceIDs ?? []) == ["src-b", "src-c"])
-        #expect(try store.loadLearningGoalGaps(goalID: heir).map(\.id) == ["gap-unassigned"])
-        #expect(try store.loadLearningGoal(heir)?.relatedNotebookIDs == [bystander.id])
-        #expect(try store.loadLearningGoal(bystander.id)?.relatedNotebookIDs == [heir])
-        // The parent's words are the heir's, by the merge rule: the notes
-        // under the parent's title, the rest as written. The heir keeps its
-        // own title.
-        let heirRecord = try #require(try store.loadLearningGoal(heir))
-        #expect(heirRecord.title == "Biogenesis")
-        #expect(heirRecord.notes == "## Mitochondria\n\nSupercomplexes look tissue-specific.")
-        #expect(heirRecord.description == "Answer from primary papers only.")
-        #expect(heirRecord.researchQuestions == ["Do supercomplexes raise OXPHOS flux?"])
-        #expect(heirRecord.summary == "Respiratory chain structure")
-        #expect(heirRecord.repository == "example/mito-notes")
-        // The other child got its sources and nothing else.
-        let other = try #require(try store.loadLearningGoal(result.childGoalIDs[0]))
-        #expect(other.approvedSourceIDs == ["src-a"])
-        #expect(other.notes == nil && other.description == nil && (other.researchQuestions ?? []).isEmpty)
-        #expect(try store.loadReviewSessionLinks().allSatisfy { $0.goalID != result.childGoalIDs[0] })
-
-        let changes = try store.pendingSyncChanges()
-        try held.expectQueued(in: changes)
-        #expect(changes.contains { $0.entity == .learningGoal && $0.logicalKey == parent.id && $0.operation == .delete })
-        #expect(changes.contains { $0.entity == .learningGoal && $0.logicalKey == heir && $0.operation == .save })
-        #expect(changes.contains { $0.entity == .learningGoal && $0.logicalKey == bystander.id && $0.operation == .save })
-        #expect(try store.loadSyncMetadata(entity: .learningGoal, logicalKey: parent.id)?.isDeleted == true)
-    }
-
     @Test("Of children that took as many sources, the first split listed takes the emptied parent's place; a kept parent hands nothing on")
     func splitHeirTiesGoToTheFirstChild() throws {
         let store = try KnowledgeStore(inMemory: true)
@@ -1847,46 +1369,6 @@ struct LearningGoalPersistenceTests {
         #expect(stays.parentGoalID == kept.id, "a parent with a source left is kept")
         #expect(stays.heirGoalID == nil)
         #expect(try store.loadReviewSessionLinks().first { $0.id == "chat-kept" }?.goalID == kept.id)
-    }
-
-    // Pins generation 1: it deletes the merged notebook and an emptied parent and queues their rows in
-    // sync_changes. Generation 2 keeps a redirect stub instead (NotebookMergeSplitTests); this goes with
-    // generation 1 at the post-soak cleanup.
-    @Test("A team's Notebook splits into that team: the children live in its zone, and an emptied parent's deletion is queued there")
-    func splitKeepsTheTeam() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        let team = try NotebookHoldings.makeTeam(store)
-        let parent = try NotebookHoldings.makeNotebook(store, title: "Nexus reading", sources: ["src-a", "src-b"], teamID: team.id)
-        try store.createReviewSession(id: "chat-team", topic: "Complex I", sourceIDs: [], goalID: parent.id)
-        try store.saveNotebookTask(NotebookTaskRecord(id: "task-team", notebookID: parent.id, title: "Summarise Picard"))
-        try store.clearAllPendingSyncChanges()
-
-        let result = try store.splitCompanionGoal(
-            sourceGoalID: parent.id,
-            splits: [
-                CompanionGoalSplitSpec(title: "Complex I", topic: nil, sourceIDs: ["src-a"], gapIDs: []),
-                CompanionGoalSplitSpec(title: "Complex III", topic: nil, sourceIDs: ["src-b"], gapIDs: []),
-            ],
-            keepParent: false
-        )
-
-        let children = try result.childGoalIDs.compactMap { try store.loadLearningGoal($0) }
-        #expect(children.count == 2)
-        #expect(children.allSatisfy { $0.teamID == team.id && $0.isNotebook })
-        let changes = try store.pendingSyncChanges()
-        for child in children {
-            let change = try #require(changes.first { $0.entity == .learningGoal && $0.logicalKey == child.id })
-            #expect(change.operation == .save)
-            #expect(change.home.zoneName == team.home.zoneName, "a team's child is filed in the team's zone")
-        }
-        let deletion = try #require(changes.first { $0.entity == .learningGoal && $0.logicalKey == parent.id })
-        #expect(deletion.operation == .delete)
-        #expect(deletion.home.zoneName == team.home.zoneName)
-        let heir = try #require(result.heirGoalID)
-        #expect(try store.loadReviewSessionLinks().first { $0.id == "chat-team" }?.goalID == heir)
-        let task = try #require(try store.loadNotebookTasks(notebookID: heir).first)
-        #expect(task.id == "task-team")
-        #expect(task.teamID == team.id)
     }
 
     @Test("A read-only team's Notebook does not split, and nothing is written")
@@ -1949,17 +1431,9 @@ struct LearningGoalPersistenceTests {
         #expect(refreshedBroad.relatedNotebookIDs == [focused.id])
         #expect(refreshedBroad.approvedSourceIDs == ["landscape-source"])
         #expect(refreshedFocused.relatedNotebookIDs == [])
-        #expect(try store.notebookContextSourceIDs(notebookID: broad.id) == [
-            "landscape-source", "gdf15-source",
-        ])
-        #expect(try store.notebookContextSourceIDs(notebookID: focused.id) == ["gdf15-source"])
-        #expect(try store.loadLearningGoalForSync(broad.id)?.goal.relatedNotebookIDs == [focused.id])
 
         try store.deleteLearningGoal(focused.id, cascadeChildGoals: true)
         #expect(try store.loadLearningGoal(broad.id)?.relatedNotebookIDs == [])
-        #expect(try store.pendingSyncChanges().contains {
-            $0.entity == .learningGoal && $0.logicalKey == broad.id
-        })
     }
 
     @Test("Related Notebook links keep the order they were given, not the ids' order")
@@ -1990,242 +1464,6 @@ struct LearningGoalPersistenceTests {
         #expect(try store.loadLearningGoal(base.id)?.relatedNotebookIDs == linked + [added])
     }
 
-}
-
-// MARK: - Schema 153: links released from a deleted notebook
-
-/// Schema 153 releases what an older build's merge or split left pointing at
-/// the notebook it removed by a raw DELETE. Fixtures are today's tables at the
-/// released stamp (151 to 153 added no DDL), and for 149 without the
-/// `courses.home_notebook_id` column 150 added. They keep 154's DDL, which this
-/// step never reads, so they cover 153's step and not 154's: the released
-/// shapes for that are `Schema154Fixture`'s (SyncSchema154MigrationTests).
-@Suite("Notebook link release migration")
-struct NotebookLinkReleaseMigrationTests {
-    private static func temporaryRoot(_ name: String) throws -> URL {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("NotebookLinkRelease-\(name)-\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return root
-    }
-
-    private static func scalar(at root: URL, _ sql: String) -> String? {
-        var database: OpaquePointer?
-        guard sqlite3_open_v2(root.appendingPathComponent("knowledge.db").path, &database, SQLITE_OPEN_READONLY, nil) == SQLITE_OK,
-              let database else { return nil }
-        defer { sqlite3_close(database) }
-        var statement: OpaquePointer?
-        guard sqlite3_prepare_v2(database, sql, -1, &statement, nil) == SQLITE_OK, let statement else { return nil }
-        defer { sqlite3_finalize(statement) }
-        guard sqlite3_step(statement) == SQLITE_ROW, let text = sqlite3_column_text(statement, 0) else { return nil }
-        return String(cString: text)
-    }
-
-    private struct ReleasedLibrary {
-        let keptID: String
-        let goneID: String
-        let held: NotebookHoldings
-    }
-
-    /// A released library at `version` holding two notebooks, everything
-    /// filed under the second, and a chat filed under a Notebook CloudKit has
-    /// not delivered. When `removeTheSecond` is set the second notebook was
-    /// then removed the way merge and split did before 2026-10-02: a raw
-    /// DELETE and a tombstone, its records left behind.
-    private static func createReleasedLibrary(at root: URL, version: Int32, removeTheSecond: Bool = true) throws -> ReleasedLibrary {
-        let store = try KnowledgeStore(storeDirectory: root)
-        let kept = try NotebookHoldings.makeNotebook(store, title: "Mito Phenotyping", sources: ["src-a"])
-        let gone = try NotebookHoldings.makeNotebook(store, title: "Mitochondria", sources: ["src-b"])
-        let held = try NotebookHoldings.file(under: gone.id, in: store, tag: "gone", day: "2026-09-16")
-        try store.setRelatedNotebooks(notebookID: kept.id, relatedNotebookIDs: [gone.id])
-        try store.createReviewSession(id: "chat-undelivered", topic: "Arrives later", sourceIDs: [], goalID: "notebook-not-delivered-yet")
-        if removeTheSecond {
-            try store.execForTesting("DELETE FROM learning_goals WHERE id = '\(gone.id)'")
-            try store.markRecordDeleted(entity: .learningGoal, logicalKey: gone.id)
-        }
-        try store.clearAllPendingSyncChanges()
-        try store.execForTesting("""
-            \(version < 150 ? "DROP INDEX IF EXISTS idx_courses_home_notebook; ALTER TABLE courses DROP COLUMN home_notebook_id;" : "")
-            PRAGMA user_version = \(version);
-        """)
-        return ReleasedLibrary(keptID: kept.id, goneID: gone.id, held: held)
-    }
-
-    @Test("A fresh store is at the current schema and has nothing to release")
-    func freshStore() throws {
-        let root = try Self.temporaryRoot("fresh")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root)
-        #expect(Self.scalar(at: root, "PRAGMA user_version") == "174")
-        #expect(KnowledgeStore.schemaVersion == 174)
-        let released = try store.releaseLinksToDeletedNotebooks()
-        #expect(released.deletedNotebooks == 0 && released.republished == 0)
-    }
-
-    @Test(
-        "A released store lets go of a deleted notebook: every record it held is kept, unlinked and republished",
-        arguments: [Int32(149), Int32(150)]
-    )
-    func version153ReleasesLinks(from released: Int32) throws {
-        let root = try Self.temporaryRoot("v153-from-\(released)")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let library = try Self.createReleasedLibrary(at: root, version: released)
-        let held = library.held
-        #expect(Self.scalar(at: root, "PRAGMA user_version") == "\(released)")
-        #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM sync_changes") == "0")
-
-        let migrated = try KnowledgeStore(storeDirectory: root)
-        #expect(Self.scalar(at: root, "PRAGMA user_version") == "\(KnowledgeStore.schemaVersion)")
-        #expect(KnowledgeStore.schemaVersion == 174)
-
-        // Every record is still there, and none of them names the gone notebook.
-        let sessions = Dictionary(uniqueKeysWithValues: try migrated.loadReviewSessionLinks().map { ($0.id, $0) })
-        #expect(sessions[held.chatID] != nil && sessions[held.chatID]?.goalID == nil)
-        #expect(sessions["chat-undelivered"]?.goalID == "notebook-not-delivered-yet", "a Notebook not delivered yet keeps its chats")
-        let nested = try #require(try migrated.loadLearningGoal(held.nestedGoalID))
-        #expect(nested.parentNotebookID == nil && nested.isStandaloneGoal, "a nested Goal stands alone instead of being deleted")
-        let doc = try #require(try migrated.loadArtifact(held.docID))
-        #expect(doc.homeNotebookID == nil)
-        #expect(doc.linkedNotebookIDs.isEmpty)
-        #expect(try migrated.notebookIDsFollowingCourse(held.courseID).isEmpty, "the course stays; no notebook follows it")
-        #expect(try migrated.loadScheduledTask(held.scheduledTaskID)?.notebookID == nil)
-        #expect(try migrated.scheduledSourceGoalIDs(sourceID: held.placementSourceID).isEmpty)
-        #expect(try migrated.scheduledPlacement(forSource: held.placementSourceID) != nil, "the placement keeps its source")
-        #expect(try migrated.loadMemoryItem(held.memoryItemID)?.goalID == nil)
-        #expect(try migrated.loadMemoryItem(held.memoryItemID)?.target == "Explain proton leak (gone).")
-        let idea = try #require(try migrated.loadIdea(held.ideaID))
-        #expect(idea.links.isEmpty)
-        #expect(idea.title == "Uncouplers as a therapy (gone)")
-        #expect(try migrated.loadTimeBlock(held.blockID)?.notebookID == nil)
-        #expect(try migrated.loadLearningGoal(library.keptID)?.relatedNotebookIDs == [])
-        // What has no other home keeps the dead one rather than being deleted.
-        #expect(try migrated.loadResearchDirection(held.directionID)?.homeID == library.goneID)
-        #expect(try migrated.loadNotebookTasks(notebookID: library.goneID).map(\.id) == [held.taskID])
-        #expect(try NotebookHoldings.references(to: library.goneID, in: migrated).sorted() == [
-            "notebook_tasks.notebook_id=1",
-            "research_directions.home_id=1",
-        ])
-
-        // Each changed record is queued, with its metadata, before the stamp.
-        let changes = try migrated.pendingSyncChanges()
-        func queued(_ entity: CloudKitSyncEntity, _ key: String) -> Bool {
-            changes.contains { $0.entity == entity && $0.logicalKey == key && $0.operation == .save }
-        }
-        #expect(queued(.reviewSession, held.chatID))
-        #expect(!queued(.reviewSession, "chat-undelivered"))
-        #expect(queued(.learningGoal, held.nestedGoalID))
-        #expect(queued(.learningGoal, library.keptID))
-        #expect(queued(.artifact, held.docID))
-        #expect(!queued(.course, held.courseID), "a course lives in no notebook, so its record is not touched")
-        #expect(queued(.scheduledTask, held.scheduledTaskID))
-        #expect(queued(.memoryItem, held.memoryItemID))
-        #expect(queued(.idea, held.ideaID))
-        #expect(queued(.dayPlan, "2026-09-16"))
-        #expect(changes.contains { $0.entity == .scheduledSource })
-        #expect(!changes.contains { $0.entity == .researchDirection || $0.entity == .notebookTask })
-        #expect(Self.scalar(at: root, """
-            SELECT COUNT(*) FROM sync_changes c
-            LEFT JOIN sync_metadata m ON m.entity_type = c.entity_type AND m.logical_key = c.logical_key
-            WHERE m.logical_key IS NULL OR m.is_deleted = 1
-        """) == "0", "every queued save has live metadata")
-        #expect(try migrated.loadSyncMetadata(entity: .learningGoal, logicalKey: library.goneID)?.isDeleted == true)
-
-        // Sources stay visible; the kept notebook keeps its pool.
-        #expect(Set(try migrated.loadActiveSources().map(\.id)).contains(held.placementSourceID))
-        #expect(try migrated.loadLearningGoal(library.keptID)?.approvedSourceIDs == ["src-a"])
-    }
-
-    @Test("A library whose notebooks are all alive migrates to 153 without a row changed or queued")
-    func version153LeavesALiveLibraryAlone() throws {
-        let root = try Self.temporaryRoot("v153-live")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let library = try Self.createReleasedLibrary(at: root, version: 150, removeTheSecond: false)
-        let metadataBefore = Self.scalar(at: root, "SELECT COUNT(*) FROM sync_metadata")
-
-        let migrated = try KnowledgeStore(storeDirectory: root)
-        #expect(Self.scalar(at: root, "PRAGMA user_version") == "174")
-        #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM sync_metadata") == metadataBefore)
-        #expect(try migrated.pendingSyncChanges().isEmpty)
-        try library.held.expectFiled(under: library.goneID, in: migrated)
-    }
-
-    @Test("A schema 153 migration that fails leaves the v150 store, its links and its queue as they were")
-    func version153RollsBack() throws {
-        let root = try Self.temporaryRoot("v153-rollback")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let library = try Self.createReleasedLibrary(at: root, version: 150)
-        var database: OpaquePointer?
-        #expect(sqlite3_open(root.appendingPathComponent("knowledge.db").path, &database) == SQLITE_OK)
-        if let database {
-            // The repair's first write refuses, after the steps before it ran.
-            #expect(sqlite3_exec(database, """
-                CREATE TRIGGER refuse_chat_unlink BEFORE UPDATE OF goal_id ON review_sessions
-                BEGIN SELECT RAISE(ABORT, 'refused'); END;
-            """, nil, nil, nil) == SQLITE_OK)
-            sqlite3_close(database)
-        }
-
-        #expect(throws: (any Error).self) {
-            _ = try KnowledgeStore(storeDirectory: root)
-        }
-        #expect(Self.scalar(at: root, "PRAGMA user_version") == "150")
-        #expect(Self.scalar(at: root, "SELECT goal_id FROM review_sessions WHERE id = '\(library.held.chatID)'") == library.goneID)
-        #expect(Self.scalar(at: root, "SELECT parent_notebook_id FROM learning_goals WHERE id = '\(library.held.nestedGoalID)'") == library.goneID)
-        #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM idea_links WHERE target_id = '\(library.goneID)'") == "1")
-        #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM sync_changes") == "0")
-        #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM sources") == "1")
-    }
-
-    @Test("A production-sized library with hundreds of stranded chats migrates to 153 in well under a second")
-    func version153Scales() throws {
-        let root = try Self.temporaryRoot("v153-scale")
-        defer { try? FileManager.default.removeItem(at: root) }
-        do {
-            let store = try KnowledgeStore(storeDirectory: root)
-            try store.execForTesting("""
-                BEGIN IMMEDIATE;
-                WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < 20000)
-                INSERT INTO sources (id, date_added, state, source_type, status)
-                SELECT printf('source-%05d', n), n, 'ready', 'article', 'active' FROM seq;
-                WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < 20000)
-                INSERT INTO articles (source_id, url, normalized_url, title, domain)
-                SELECT printf('source-%05d', n), printf('https://example.com/%05d', n),
-                       printf('example.com/%05d', n), printf('Source %05d', n), 'example.com'
-                FROM seq;
-                WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < 500)
-                INSERT INTO learning_goals (id, title, start_at, end_at, created_at, updated_at, status, kind)
-                SELECT printf('notebook-%04d', n), printf('Notebook %04d', n), 1, 4102444800, 1, 1, 'active', 'companion'
-                FROM seq;
-                WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < 10000)
-                INSERT INTO review_sessions (id, topic, started_at, goal_id)
-                SELECT printf('chat-%05d', n), 'Chat', n,
-                       CASE WHEN n <= 500 THEN 'gone-notebook' ELSE printf('notebook-%04d', 1 + n % 500) END
-                FROM seq;
-                WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < 5000)
-                INSERT INTO memory_items (id, kind, target, rubric_json, goal_id, created_at, updated_at)
-                SELECT printf('memory-%05d', n), 'concept', 'Target', '{}',
-                       CASE WHEN n <= 250 THEN 'gone-notebook' ELSE NULL END, 1, 1
-                FROM seq;
-                INSERT INTO sync_metadata (entity_type, logical_key, record_name, user_modification_at, is_deleted)
-                VALUES ('learningGoal', 'gone-notebook', 'LearningGoal-gone-notebook', 1, 1);
-                COMMIT;
-                PRAGMA user_version = 150;
-            """)
-        }
-
-        let started = ContinuousClock.now
-        let migrated = try KnowledgeStore(storeDirectory: root)
-        let elapsed = started.duration(to: .now)
-        #expect(elapsed < .seconds(1))
-        #expect(Self.scalar(at: root, "PRAGMA user_version") == "174")
-        #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM review_sessions WHERE goal_id = 'gone-notebook'") == "0")
-        #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM review_sessions WHERE goal_id IS NULL") == "500")
-        #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM memory_items WHERE goal_id IS NOT NULL") == "0")
-        #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM sync_changes") == "750", "each released chat and Memory item is queued once")
-        var visible = 0
-        try migrated.query("SELECT COUNT(*) FROM source_projection") { visible = Int(sqlite3_column_int($0, 0)) }
-        #expect(visible == 20_000, "sources stay visible")
-    }
 }
 
 // MARK: - One of everything a notebook holds
@@ -2397,23 +1635,6 @@ fileprivate struct NotebookHoldings {
         #expect(direction.homeKind == .notebook)
     }
 
-    /// Every record was republished.
-    func expectQueued(in changes: [CloudKitPendingChange]) throws {
-        func queued(_ entity: CloudKitSyncEntity, _ key: String) -> Bool {
-            changes.contains { $0.entity == entity && $0.logicalKey == key && $0.operation == .save }
-        }
-        #expect(queued(.reviewSession, chatID))
-        #expect(queued(.learningGoal, nestedGoalID))
-        #expect(queued(.notebookTask, taskID))
-        #expect(queued(.artifact, docID))
-        #expect(queued(.scheduledTask, scheduledTaskID))
-        #expect(queued(.memoryItem, memoryItemID))
-        #expect(queued(.idea, ideaID))
-        #expect(queued(.researchDirection, directionID))
-        #expect(changes.contains { $0.entity == .scheduledSource && $0.operation == .save })
-        #expect(changes.contains { $0.entity == .dayPlan && $0.operation == .save })
-    }
-
     /// Every table that names a notebook by id, as `table.column=count` for
     /// the ones that name `id`.
     static func references(to id: String, in store: KnowledgeStore) throws -> [String] {
@@ -2491,7 +1712,6 @@ extension KnowledgeStore {
                     addedAt: learningGoalItemPlannedDate(index < plannedDates.count ? plannedDates[index] : now, order: index)
                 )
             }
-            try markRecordChanged(entity: .learningGoal, logicalKey: id)
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")

@@ -106,34 +106,6 @@ private enum CourseNotebookFixtures {
     static func links(_ courseID: String, in store: KnowledgeStore) throws -> Set<String> {
         Set(try store.notebookIDsFollowingCourse(courseID))
     }
-
-    /// A Course record as a build before 2026-10-03 sent it: with the
-    /// `homeNotebookID` key `staleHome` names, which a course no longer has.
-    static func inboundCourseRecord(_ payload: CloudKitCoursePayload, staleHome: String? = nil) throws -> CKRecord {
-        var data = try JSONEncoder().encode(payload)
-        if let staleHome {
-            var object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
-            object["homeNotebookID"] = staleHome
-            data = try JSONSerialization.data(withJSONObject: object)
-        }
-        let record = CKRecord(
-            recordType: CloudKitSyncEntity.course.recordType,
-            recordID: CloudKitRecordMapper.recordID(for: .course, logicalKey: payload.id)
-        )
-        record.encryptedValues[.payload] = data as NSData
-        record.encryptedValues[.userModificationDate] = Date() as NSDate
-        return record
-    }
-
-    static func outboundCoursePayload(_ courseID: String, in store: KnowledgeStore) throws -> (CKRecord, CloudKitCoursePayload) {
-        let change = try #require(try store.pendingSyncChanges().first { $0.entity == .course && $0.logicalKey == courseID })
-        let record = try #require(try CloudKitRecordMapper.makeRecord(for: change, store: store))
-        let payload = try JSONDecoder().decode(
-            CloudKitCoursePayload.self,
-            from: try #require(record.encryptedValues[.payload] as? Data)
-        )
-        return (record, payload)
-    }
 }
 
 // MARK: - A course and its notebooks
@@ -151,15 +123,11 @@ struct CourseNotebookTests {
         let store = try KnowledgeStore(inMemory: true)
         try F.seedCourse(store, id: "course-1", title: "Systems Biology", sourceIDs: ["src-a", "src-b"])
         let notebook = try F.makeNotebook(store, title: "Systems Biology")
-        try store.clearAllPendingSyncChanges()
 
         let added = try store.followCourse(courseID: "course-1", notebookID: notebook.id)
         #expect(added == 2)
         #expect(try F.links("course-1", in: store) == [notebook.id])
         #expect(try F.approved(notebook.id, in: store) == ["src-a", "src-b"])
-        let pending = try store.pendingSyncChanges()
-        #expect(pending.contains { $0.entity == .learningGoal && $0.logicalKey == notebook.id })
-        #expect(!pending.contains { $0.entity == .course }, "a course has no notebook to record: its own record is not republished")
 
         // A lecture the course gains joins the notebook that follows it.
         try F.seedCourse(store, id: "course-1", title: "Systems Biology", sourceIDs: ["src-a", "src-b", "src-c"])
@@ -188,13 +156,10 @@ struct CourseNotebookTests {
         try store.followCourse(courseID: "course-1", notebookID: first.id)
         try store.followCourse(courseID: "course-1", notebookID: second.id)
         #expect(try F.links("course-1", in: store) == [first.id, second.id])
-        try store.clearAllPendingSyncChanges()
 
         #expect(try store.unlinkCourseFromNotebook(goalID: first.id, courseID: "course-1"))
         #expect(try F.links("course-1", in: store) == [second.id])
         #expect(try F.approved(first.id, in: store) == ["src-a"], "it keeps the sources it holds")
-        let courseRepublished = try store.pendingSyncChanges().contains { $0.entity == .course }
-        #expect(!courseRepublished, "the course's record is not touched")
         #expect(try !store.unlinkCourseFromNotebook(goalID: first.id, courseID: "course-1"), "a second stop changes nothing")
     }
 
@@ -230,41 +195,13 @@ struct CourseNotebookTests {
         let survivor = try F.makeNotebook(store, title: "Survivor")
         try store.followCourse(courseID: "course-1", notebookID: doomed.id)
         try store.followCourse(courseID: "course-2", notebookID: mergee.id)
-        try store.clearAllPendingSyncChanges()
 
         try store.deleteLearningGoal(doomed.id)
         #expect(try F.links("course-1", in: store).isEmpty)
         #expect(try store.loadCourseGroups()["course-1"] != nil, "the course itself stays")
-        let courseRepublished = try store.pendingSyncChanges().contains { $0.entity == .course }
-        #expect(!courseRepublished, "nothing about the course changed")
 
         _ = try store.mergeCompanionGoals(notebookIDs: [survivor.id, mergee.id])
         #expect(try F.links("course-2", in: store) == [survivor.id])
-    }
-
-    @Test("The Course record carries no notebook, and a stale home an older build sent changes nothing")
-    func payloadCarriesNoHome() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        try F.seedCourse(store, id: "course-1", title: "One", sourceIDs: ["src-a"])
-        let notebook = try F.makeNotebook(store, title: "Follower")
-        try store.followCourse(courseID: "course-1", notebookID: notebook.id)
-
-        let (record, payload) = try F.outboundCoursePayload("course-1", in: store)
-        let payloadData = try #require(record.encryptedValues[.payload] as? Data)
-        let object = try #require(JSONSerialization.jsonObject(with: payloadData) as? [String: Any])
-        #expect(object["homeNotebookID"] == nil, "a course lives in no notebook, so it names none")
-        #expect(payload.title == "One")
-
-        // An older build's record names a home; this build ignores it.
-        let base = try #require(try store.loadCourseForSync("course-1"))
-        let stale = CloudKitCoursePayload(
-            id: base.id, title: base.title ?? base.name, courseCode: base.courseCode,
-            institution: base.institution, instructors: base.instructors, playlistURL: base.playlistURL,
-            lectures: base.lectures, lectureItems: base.lectureItems, quizzes: base.quizzes, sourceUnits: base.sourceUnits
-        )
-        _ = try CloudKitRecordMapper.apply(record: try F.inboundCourseRecord(stale, staleHome: "proj-somewhere"), to: store)
-        #expect(try F.links("course-1", in: store) == [notebook.id])
-        #expect(try store.loadCourseGroups()["course-1"] != nil)
     }
 }
 
@@ -302,7 +239,6 @@ struct Schema150MigrationTests {
                 COMMIT;
             """)
         }
-        try store.clearAllPendingSyncChanges()
         try store.execForTesting("""
             DROP INDEX IF EXISTS idx_courses_home_notebook;
             ALTER TABLE courses DROP COLUMN home_notebook_id;
@@ -332,14 +268,8 @@ struct Schema150MigrationTests {
         try Self.createReleasedLibrary(at: root, version: released)
         #expect(F.scalar(at: root, "PRAGMA user_version") == "\(released)")
         #expect(F.scalar(at: root, Self.homeColumn) == "0")
-        let syncMetadataBefore = F.scalar(at: root, "SELECT COUNT(*) FROM sync_metadata")
-        let syncChangesBefore = F.scalar(at: root, "SELECT COUNT(*) FROM sync_changes")
 
         let migrated = try KnowledgeStore(storeDirectory: root)
-        // Sync bookkeeping parity: a DDL-only step neither drops nor queues a record.
-        #expect(syncMetadataBefore != nil)
-        #expect(F.scalar(at: root, "SELECT COUNT(*) FROM sync_metadata") == syncMetadataBefore)
-        #expect(F.scalar(at: root, "SELECT COUNT(*) FROM sync_changes") == syncChangesBefore)
         #expect(F.scalar(at: root, "PRAGMA user_version") == "\(KnowledgeStore.schemaVersion)")
         #expect(KnowledgeStore.schemaVersion == 174)
         #expect(F.scalar(at: root, Self.homeColumn) == "1")
@@ -351,7 +281,6 @@ struct Schema150MigrationTests {
         let landscape = try #require(try migrated.loadLearningGoals().first { $0.title == "Landscape of Aging" })
         #expect(try migrated.linkedCourseIDsForNotebook(goalID: landscape.id) == ["aging"])
         #expect(Set(try migrated.loadActiveSources().map(\.id)) == ["src-1", "src-2"], "sources stay visible")
-        #expect(try migrated.pendingSyncChanges().isEmpty, "a schema-only migration republishes nothing")
     }
 
     @Test("A schema 150 migration that fails leaves the v149 store and its courses as they were")

@@ -3,8 +3,8 @@ import Testing
 @testable import ForeverLM
 
 /// What Settings › iCloud shows of the move (docs/cloudkit-schema-design.md §13.3 to §13.8): the lines
-/// follow the activation's journal, the root's seed and claim, the pacer's pause, the rollback copy and
-/// what late import knows, and the store's own snapshot reads them from a real activated store.
+/// follow the activation's journal, the root's seed and claim, the pacer's pause and the rollback copy,
+/// and the store's own snapshot reads them from a real activated store.
 @Suite("iCloud migration state", .serialized)
 struct ICloudMigrationStateTests {
     private static let now = Date(timeIntervalSinceReferenceDate: 812_000_000)
@@ -21,8 +21,8 @@ struct ICloudMigrationStateTests {
 
     private static func state(
         journal: ActivationJournal? = journal(), seed: ICloudMigrationSnapshot.SeedLine = .init(phase: .complete),
-        root: HoldsMyLibrary.RootState = .complete, library: Bool = true, sync: SyncStatus? = nil, imports: OldContainerImportFacts? = nil,
-        parity: ByteParityReport? = nil, stop: PurgeHandler.Event? = nil, copy: ICloudMigrationSnapshot.RollbackCopyLine = .checked(userVersion: 153)
+        root: HoldsMyLibrary.RootState = .complete, library: Bool = true, sync: SyncStatus? = nil,
+        stop: PurgeHandler.Event? = nil, copy: ICloudMigrationSnapshot.RollbackCopyLine = .checked(userVersion: 153)
     ) -> ICloudMigrationState {
         var snapshot = ICloudMigrationSnapshot()
         snapshot.isGeneration2 = true
@@ -32,10 +32,7 @@ struct ICloudMigrationStateTests {
         snapshot.holdsLibrary = library
         snapshot.stop = stop
         snapshot.rollbackCopy = copy
-        return ICloudMigrationState(
-            snapshot: snapshot, sync: sync, imports: imports, parity: parity,
-            gate: OldContainerRemovalGate.evaluate(facts: imports, parity: parity, now: now), now: now
-        )
+        return ICloudMigrationState(snapshot: snapshot, sync: sync, now: now)
     }
 
     // MARK: The move
@@ -109,37 +106,6 @@ struct ICloudMigrationStateTests {
         #expect(Self.state(copy: .none).rollbackCopyLine.hasPrefix("Rollback copy: none"))
     }
 
-    // MARK: The old library
-
-    @Test("A device still on an older ForeverLM is named with its last change, until a week has passed")
-    func oldVersionWarning() {
-        var facts = OldContainerImportFacts(lastOldZoneWriteAt: Self.now.addingTimeInterval(-86_400))
-        #expect(Self.state(imports: facts).oldVersionLine?.hasPrefix("A device is still using an older ForeverLM (last change") == true)
-        facts.lastOldZoneWriteAt = Self.now.addingTimeInterval(-8 * 86_400)
-        #expect(Self.state(imports: facts).oldVersionLine == nil)
-        facts.lastOldZoneWriteAt = nil
-        #expect(Self.state(imports: facts).oldVersionLine == nil)
-    }
-
-    @Test("The removal button's hint says what it waits for")
-    func removalHints() {
-        let quiet = OldContainerImportFacts(quietSince: Self.now.addingTimeInterval(-8 * 86_400), finishedAt: Self.now.addingTimeInterval(-86_400))
-        let clean = ByteParityReport(checked: 1, newSatellites: 1)
-        #expect(Self.state(imports: quiet, parity: clean).removalHint == nil)
-        #expect(Self.state().removalHint == "Available once the old iCloud library has been imported")
-        var young = quiet
-        young.quietSince = Self.now.addingTimeInterval(-3 * 86_400)
-        young.finishedAt = nil
-        #expect(Self.state(imports: young, parity: clean).removalHint == "Available after 4 more quiet days")
-        young.quietSince = Self.now.addingTimeInterval(-6.5 * 86_400)
-        #expect(Self.state(imports: young, parity: clean).removalHint == "Available after 1 more quiet day")
-        let missing = ByteParityReport.build(digests: [OldAssetDigest(sourceID: "a", title: "A", field: .pdf)], coverage: { _ in .missing })
-        #expect(Self.state(imports: quiet, parity: missing).removalHint == "1 old file is not in the new store yet")
-        var asking = quiet
-        asking.question = .init(pass: .refresh, deleting: 9, of: 10)
-        #expect(Self.state(imports: asking, parity: clean).removalHint == "Answer the question above first")
-    }
-
     // MARK: The root
 
     @Test("The seed and the claim are read from the personal root, and an expired claim names no Mac")
@@ -188,40 +154,20 @@ struct ICloudMigrationStateTests {
 
     // MARK: get_sync_status
 
-    @Test("get_sync_status carries the move: mode, seed, rollback, the old library, parity and whether removal is open")
+    @Test("get_sync_status carries the move: mode, seed and rollback")
     func statusPayload() throws {
-        let quiet = OldContainerImportFacts(
-            lastOldZoneWriteAt: Self.now.addingTimeInterval(-9 * 86_400), quietSince: Self.now.addingTimeInterval(-8 * 86_400),
-            finishedAt: Self.now.addingTimeInterval(-86_400),
-            waiting: [.init(recordName: "rec-1", title: "Attachments", since: nil)],
-            keptRemovals: [.init(id: "k", what: "A deleted card", at: nil)]
-        )
-        let missing = ByteParityReport.build(digests: [OldAssetDigest(sourceID: "s", title: "A paper", field: .pdf)], coverage: { _ in .missing })
-        let payload = try #require(Self.state(seed: .init(phase: .metadataComplete), imports: quiet, parity: missing).statusPayload())
+        let payload = try #require(Self.state(seed: .init(phase: .metadataComplete)).statusPayload())
         #expect(payload["activated"] as? Bool == true)
         #expect(payload["activation_mode"] as? String == "full")
         #expect((payload["seed"] as? [String: Any])?["phase"] as? String == "metadataComplete")
         // The rollback is the local copy alone: no build of the old team can reach any container now.
         #expect((payload["rollback"] as? [String: Any])?["copy"] as? String == "Rollback copy: checked (library version 153)")
         #expect((payload["rollback"] as? [String: Any])?["build"] == nil)
-        let old = try #require(payload["old_icloud_library"] as? [String: Any])
-        #expect((old["waiting"] as? [[String: Any]])?.count == 1)
-        #expect((old["kept_from_an_older_foreverlm"] as? [[String: Any]])?.first?["what"] as? String == "A deleted card")
-        let parity = try #require(payload["byte_parity"] as? [String: Any])
-        #expect(parity["clean"] as? Bool == false && parity["missing_count"] as? Int == 1)
-        let removal = try #require(payload["remove_old_icloud_data"] as? [String: Any])
-        #expect(removal["available"] as? Bool == false)
-        #expect((removal["waiting_for"] as? [String]) == ["1 old file is not in the new store yet"])
+        // The old library's import, byte parity and its removal are gone with generation 1.
+        for key in ["old_icloud_library", "byte_parity", "remove_old_icloud_data"] {
+            #expect(payload[key] == nil, "\(key)")
+        }
         #expect(JSONSerialization.isValidJSONObject(payload), "the payload serializes")
-
-        // Open once parity is clean; the question, when one waits, names its two answers.
-        let open = try #require(Self.state(imports: quiet, parity: ByteParityReport(checked: 1, newSatellites: 1)).statusPayload())
-        #expect((open["remove_old_icloud_data"] as? [String: Any])?["available"] as? Bool == true)
-        var asking = quiet
-        asking.question = .init(pass: .importPass, deleting: 40, of: 100)
-        let asked = try #require(Self.state(imports: asking).statusPayload())
-        let question = try #require((asked["old_icloud_library"] as? [String: Any])?["question"] as? [String: Any])
-        #expect(question["would_remove"] as? Int == 40 && (question["answers"] as? String)?.contains("keep_old_library_removals") == true)
     }
 
     @Test("get_sync_status says when this Mac is offered 'This Mac holds my library', and names the action and its cost")

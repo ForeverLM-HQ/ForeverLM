@@ -44,67 +44,9 @@ extension ActivationJournal {
     /// no seed claim and no lease (§13.3). WP16b's deferred catch-up sets `catch_up_at`.
     var sendsWaitForCatchUp: Bool { mode == .deferred && catchUpAt == nil }
 
-    /// A `fresh` store whose old `Knowledge` zone was missing, or whose 5% guard was answered "Not this
-    /// library", uploads nothing until the learner confirms "This Mac holds my library" (WP16c, §13.5).
+    /// A `fresh` store whose old `Knowledge` zone was missing uploads nothing until the learner confirms
+    /// "This Mac holds my library" (WP16c, §13.5).
     var sendsWaitForConfirmation: Bool { mode == .fresh && freshReason == .knowledgeMissing }
-}
-
-// MARK: - The tripped 5% guard's question
-
-/// The question a tripped guard asks (D46, R5-m5, R6-m9), kept in `ck_engine_state` until answered.
-/// **Apply** records the answer and the deferred catch-up (WP16b) runs once with the guard lifted, then
-/// clears it. **Not this library** applies nothing, keeps the store and records `fresh` with
-/// `fresh_reason = knowledgeMissing`.
-enum ActivationQuestion {
-    static let scope = "activation.guardQuestion"
-
-    struct Stored: Codable, Equatable, Sendable {
-        var question: MigrationGuardQuestion
-        /// `apply` once the learner chose it; nil while the question waits.
-        var answer: String?
-    }
-
-    static func load(_ store: KnowledgeStore) throws -> Stored? {
-        try store.replica.engineState(scope).flatMap { try? decoder.decode(Stored.self, from: $0) }
-    }
-
-    static func ask(_ question: MigrationGuardQuestion, store: KnowledgeStore) throws {
-        try save(Stored(question: question, answer: nil), store: store)
-    }
-
-    static func answerApply(store: KnowledgeStore) throws {
-        guard var stored = try load(store) else { return }
-        stored.answer = "apply"
-        try save(stored, store: store)
-    }
-
-    static func answerNotThisLibrary(store: KnowledgeStore) throws {
-        var journal = try store.activationJournal() ?? ActivationJournal()
-        journal.mode = .fresh
-        journal.freshReason = .knowledgeMissing
-        try store.writeActivationJournal(journal)
-        try clear(store: store)
-    }
-
-    static func clear(store: KnowledgeStore) throws {
-        try store.replica.setEngineState(scope, nil)
-    }
-
-    private static func save(_ stored: Stored, store: KnowledgeStore) throws {
-        try store.replica.setEngineState(scope, try encoder.encode(stored))
-    }
-
-    private static let encoder: JSONEncoder = {
-        let encoder = JSONEncoder()
-        encoder.dateEncodingStrategy = .secondsSince1970
-        return encoder
-    }()
-
-    private static let decoder: JSONDecoder = {
-        let decoder = JSONDecoder()
-        decoder.dateDecodingStrategy = .secondsSince1970
-        return decoder
-    }()
 }
 
 // MARK: - What the window and Settings show
@@ -117,17 +59,12 @@ final class ActivationStatus: @unchecked Sendable {
 
     enum Phase: Equatable, Sendable {
         case idle
-        /// A `full` activation: the library is read-only until it ends. `step` of `total`.
-        case moving(step: Int, total: Int, text: String)
-        /// A `deferred` or `fresh` activation's quick local steps: nothing is read-only.
+        /// The activation's quick local steps.
         case preparing
-        /// The walk would delete more than 5% of the library: waiting for Apply or Not this library.
-        case asking(MigrationGuardQuestion)
         case failed(String)
         case done
     }
 
-    static let steps = 5
     private let lock = NSLock()
     private var phase = Phase.idle
 
@@ -135,12 +72,6 @@ final class ActivationStatus: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         return phase
-    }
-
-    /// Whether the library refuses writes for the window's banner.
-    var isReadOnly: Bool {
-        if case .moving = current { return true }
-        return false
     }
 
     func update(_ new: Phase) {

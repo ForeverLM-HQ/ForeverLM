@@ -100,9 +100,6 @@ extension KnowledgeStore {
                     sqlite3_bind_null(statement, 13)
                 }
             }
-            if try !artifactUsesSharedDatabase(comment.artifactID) {
-                try markRecordChanged(entity: .artifactComment, logicalKey: comment.id, at: comment.updatedAt)
-            }
             try exec("COMMIT")
         } catch {
             try? exec("ROLLBACK")
@@ -114,7 +111,6 @@ extension KnowledgeStore {
         try execBind("DELETE FROM artifact_comments WHERE id = ?") { statement in
             bind(statement, 1, commentID)
         }
-        try markRecordDeleted(entity: .artifactComment, logicalKey: commentID)
     }
 
     /// A reply in a comment's thread: it stands on the thread's passage (the
@@ -216,15 +212,6 @@ extension KnowledgeStore {
             try deleteArtifactCommentRecord(member.id)
         }
         try deleteArtifactCommentRecord(rootID)
-    }
-
-    func deleteArtifactCommentFromSync(_ commentID: String) throws {
-        try withoutSyncTracking {
-            try execBind("DELETE FROM artifact_comments WHERE id = ?") { statement in
-                bind(statement, 1, commentID)
-            }
-            try clearPendingSyncChange(entity: .artifactComment, logicalKey: commentID)
-        }
     }
 
     func saveArtifactCollaborationRecord(_ record: ArtifactCollaborationRecord) throws {
