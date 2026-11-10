@@ -6854,14 +6854,14 @@ final class ReviewSessionManager {
         if !activeSourceIDs.isEmpty, !sourceManifest.isEmpty {
             specs.append(AIToolSpec(
                 name: "retrieve_sources",
-                description: "Retrieve focused passages (mode \"focused\", the default) or page through a source from beginning to end (mode \"full\"). Full mode returns a continuation cursor when more text remains; pass it back to read the next page. If cursor is omitted, ForeverLM automatically continues after the last full-mode page read in this session instead of repeating it. The attached source text already in context is primary; retrieve only what is missing. Prefer source_ids when the relevant sources are clear from the attached source catalog; use query to let ForeverLM pick relevant attached sources.",
+                description: "Retrieve focused passages (mode \"focused\", the default) or page through a source from beginning to end (mode \"full\"). Full mode returns a continuation cursor when more text remains; pass it back to read the next page. If cursor is omitted, ForeverLM automatically continues after the last full-mode page read in this session instead of repeating it. The attached source text already in context is primary; retrieve only what is missing. Prefer source_ids when the relevant sources are clear from the attached source catalog; use query to let ForeverLM pick relevant attached sources. It reads only the catalog: for any other library source, call search_sources_keyword with its id in source_ids for passages, or get_source_content for its whole text.",
                 inputSchema: [
                     "type": "object",
                     "properties": [
                         "source_ids": [
                             "type": "array",
                             "items": ["type": "string"],
-                            "description": "IDs of attached sources to retrieve, from the attached source catalog."
+                            "description": "IDs of attached sources to retrieve, from the attached source catalog. An id outside the catalog is not read here; use search_sources_keyword with source_ids for it."
                         ] as [String: Any],
                         "query": [
                             "type": "string",
@@ -11238,8 +11238,9 @@ final class ReviewSessionManager {
 
             Notebook sources:
             - This chat is scoped to one Notebook. Its attached source catalog is the working set; use retrieve_sources to read from it, and answer from the Notebook instructions and its sources first.
-            - The learner picks which of the Notebook's sources its chats read. This chat's catalog holds the ones ticked when it began; list_notebook_sources marks the rest in_chat false. They are still the Notebook's: leave them out unless the learner asks about one, then read it with get_source_content. Tick or untick sources (set_notebook_source_selection) only when the learner asks.
-            - The Notebook is a focus, not a wall. The learner's whole library stays readable here: search_sources_semantic searches all of it by default, and get_source_content reads any source in it. There is no unlocking step and nothing to ask permission for — it is the learner's own library.
+            - The learner picks which of the Notebook's sources its chats read. This chat's catalog holds the ones ticked when it began; list_notebook_sources marks the rest in_chat false. They are still the Notebook's: leave them out unless the learner asks about one. Tick or untick sources (set_notebook_source_selection) only when the learner asks.
+            - The Notebook is a focus, not a wall. The learner's whole library stays readable here: search_sources_semantic and search_sources_keyword search all of it by default, and search_sources_keyword (with source_ids) and get_source_content read any source in it. There is no unlocking step and nothing to ask permission for — it is the learner's own library.
+            - Reading a source outside this chat's catalog: \(Self.outsideCatalogReadingRule)
             - So when a request depends on a saved item the Notebook pool does not contain — a dated meeting recording, transcript, notes, a named paper, an earlier session — just look it up and read it. Use the Notebook title, instructions, collection/folder names, source type, and exact local date as discovery context.
             - Notebook membership can change while this chat remains open. If the learner says sources were added, re-read list_notebook_sources or get_notebook_context.
             - To deliberately narrow a search to this Notebook's own sources, pass notebook_id "\(notebookID)". To find sources that are not yet in it, pass exclude_notebook_id "\(notebookID)" instead.
@@ -11386,6 +11387,8 @@ final class ReviewSessionManager {
 
                 Prefer the narrowest thing that answers the question: one chapter rather than the whole book, a focused passage rather than an entire paper.
 
+                \(Self.outsideCatalogReadingRule)
+
                 For research-paper visuals, text retrieval is not visual evidence. Call inspect_paper_figure before explaining a figure or asking a quiz question whose answer depends on a graph, diagram, or labelled panel. Use the returned vision explanation as ground truth. When the result carries a Markdown image line, include it exactly in the visible response so the learner sees the original figure while answering; when it says the figure is outlined in the Reader beside the chat, point the learner at the outlined figure in the paper instead of adding a picture. Both picture tools take any source in the library by its ID, attached or not: a paper that search_sources_semantic just found is shown from the library's own PDF. Never open a publisher's page in the browser or search the web for a figure of a paper the library holds.
 
                 Source text never carries the pictures. When the learner asks to see a figure, diagram, photo, or illustration from a book chapter, article, or paper — or asks whether the source has a picture of something — call show_source_image with that source_id and the figure label or caption words as query, then include the returned Markdown image lines verbatim, each on its own line, where they belong in the answer. Never describe a picture as unavailable, and never redraw it as ASCII art, without having called show_source_image first.
@@ -11417,6 +11420,8 @@ final class ReviewSessionManager {
             retrieve_sources(source_ids?: [string], query?: string, reason?: string, max_sources?: integer, mode?: "focused" | "full", cursor?: integer)
 
             Call it to load what a question needs. Prefer source_ids when the catalog makes the right sources obvious; use query when you need ForeverLM to rank the attached sources for you. Always pass query even alongside source_ids: it decides which passage inside each source you get, and it lets ForeverLM check your choice against its own ranking. A catalog line shows a title, not contents, so a source whose title does not imply what is in it is easy to miss. When a result contains a source marked "Added by ForeverLM", the ranker placed it above one you asked for — read it with a follow-up retrieve_sources call before you answer, and never treat the short lead as proof of what the source does or does not contain. Use max_sources between 1 and \(sourceRetrievalMaxSources). Use mode "focused" to pull passages matching a query. Use mode "full" only for a start-to-finish read: it returns next_cursor when another page remains, and you must pass that cursor back until the result says the end was reached. Omitting cursor automatically advances rather than repeating the same page. Full mode reads one source at a time. Prefer the narrowest thing that answers the question: one chapter rather than the whole book, a focused passage rather than an entire paper.
+
+            \(Self.outsideCatalogReadingRule)
 
             To call the tool, respond with exactly one line and no other text:
             <flm_tool_call>{"tool":"retrieve_sources","source_ids":["SOURCE_ID"],"query":"WHAT_TO_FIND","reason":"WHY_THIS_CONTEXT_IS_NEEDED","max_sources":4}</flm_tool_call>
@@ -11547,6 +11552,15 @@ final class ReviewSessionManager {
         This chat is about that one attached source, and the learner knows it. Do not cite it: no [Title](foreverlm://source/…) link after claims drawn from it, in any reply of this chat. Name it in plain words when you need to refer to it. Place a citation link only on a claim taken from a different source you looked up in the library, so the learner can tell which claims came from elsewhere.
         """
     }
+
+    /// How to read a library source that is not in this chat's catalog. A
+    /// Notebook chat's agent reasoned it out every turn (2026-11-10): that
+    /// retrieve_sources reads only the catalog, that get_source_content is a
+    /// whole document, and that search_sources_keyword with source_ids gives
+    /// passages. Stated once here, it is a rule instead of a deliberation.
+    static let outsideCatalogReadingRule = """
+    retrieve_sources reads only the sources in this chat's catalog. To read a library source that is not in it (a Notebook source left out of this chat, or anything a search found), call search_sources_keyword with that source's id in source_ids, the words you are looking for as keywords, and snippets_per_source up to 5: it returns the passages where they appear. Call get_source_content, which returns the whole text, only when the learner wants the full source or those passages do not answer the question.
+    """
 
     /// The rule that makes lazy loading safe.
     ///
@@ -15023,6 +15037,17 @@ final class ReviewSessionManager {
     private func retrieveSourceContext(for call: RetrievalToolCall) async -> RetrievalResult {
         let activeIDSet = Set(activeSourceIDs)
         let requestedIDs = call.sourceIDs.filter { activeIDSet.contains($0) }
+        // Ids outside the catalog used to vanish: named alone, they fell
+        // through to a ranking of the catalog, so the model got passages from
+        // sources it never asked for. The answer now names them and the route
+        // that does read them.
+        let outsideIDs = call.sourceIDs.filter { !activeIDSet.contains($0) }
+        let outsideNote = outsideIDs.isEmpty ? "" : """
+        Not in this chat's catalog, so not read: \(outsideIDs.joined(separator: ", ")). \(Self.outsideCatalogReadingRule)
+        """
+        if !outsideIDs.isEmpty, requestedIDs.isEmpty {
+            return .failure(outsideNote)
+        }
         let queryForScoring = call.query.isEmpty ? call.reason : call.query
         let candidates: [RetrievalCandidate]
         if requestedIDs.isEmpty {
@@ -15183,8 +15208,9 @@ final class ReviewSessionManager {
         guard !parts.isEmpty else {
             return .failure("Source retrieval returned no readable excerpts.")
         }
+        let read = String(parts.joined(separator: Self.sourceBlockSeparator).prefix(retrievalLimit))
         return RetrievalResult(
-            text: String(parts.joined(separator: Self.sourceBlockSeparator).prefix(retrievalLimit)),
+            text: outsideNote.isEmpty ? read : outsideNote + Self.sourceBlockSeparator + read,
             loadedIDs: loadedIDs,
             shares: shares
         )
