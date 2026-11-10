@@ -118,6 +118,25 @@ extension StorageService {
         }
     }
 
+    /// Tells the space sync which library is on screen, so its space is walked first and the others
+    /// follow by when each was last opened on this Mac (§2.2 "Fetch priority"). `openedNow` stamps
+    /// the active team as opened; a launch passes false, since it only restores what was open.
+    func applySpaceFetchPriority(activeTeamID: String?, openedNow: Bool, coordinator: SyncCoordinator? = nil) async {
+        guard let coordinator = coordinator ?? SyncCoordinator.current else { return }
+        if openedNow, let activeTeamID { SpaceFetchPriority.noteOpened(teamID: activeTeamID, at: Date()) }
+        do {
+            let priority = SpaceFetchPriority.resolve(
+                activeTeamID: activeTeamID,
+                teamZones: try notebookFilesKnowledgeStore().teamZoneKeys(),
+                lastOpenedByTeam: SpaceFetchPriority.lastOpenedByTeam()
+            )
+            await coordinator.spaces.setPriority(onScreen: priority.onScreen, lastOpened: priority.lastOpened)
+        } catch {
+            Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "Teams")
+                .error("The space on screen could not be put first: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
     /// Sharing a notebook into a space this account owns moves it there (D21, §5.3): the move is a
     /// `Job(moveToSpace)` that a Mac's `SpaceMoveJob` (WP15b) runs. The notebook keeps its id.
     @discardableResult
@@ -129,5 +148,37 @@ extension StorageService {
             kind: "moveToSpace", target: ItemRef(.notebook, notebookID).rawValue, params: ["spaceID": .string(spaceID)],
             device: device, at: Date(), connection: store
         )
+    }
+}
+
+/// Which space the sync walks first (§2.2): the team or family library on screen, then the others by
+/// when this Mac last opened them. When a library was opened is device-local and never synced.
+enum SpaceFetchPriority {
+    static let lastOpenedDefaultsKey = "sync.spaceLastOpenedAtByTeam"
+
+    static func lastOpenedByTeam(defaults: UserDefaults = .standard) -> [String: Date] {
+        let stored = defaults.dictionary(forKey: lastOpenedDefaultsKey) as? [String: Double] ?? [:]
+        return stored.mapValues { Date(timeIntervalSinceReferenceDate: $0) }
+    }
+
+    static func noteOpened(teamID: String, at date: Date, defaults: UserDefaults = .standard) {
+        var stored = defaults.dictionary(forKey: lastOpenedDefaultsKey) as? [String: Double] ?? [:]
+        stored[teamID] = date.timeIntervalSinceReferenceDate
+        defaults.set(stored, forKey: lastOpenedDefaultsKey)
+    }
+
+    /// The zone keys `SpaceSync.setPriority` takes, from the Mac's team ids. A team with no space
+    /// zone yet (its row has not been mirrored) has nothing to walk and is left out.
+    static func resolve(
+        activeTeamID: String?,
+        teamZones: [String: String],
+        lastOpenedByTeam: [String: Date]
+    ) -> (onScreen: String?, lastOpened: [String: Date]) {
+        var lastOpened: [String: Date] = [:]
+        for (teamID, date) in lastOpenedByTeam {
+            guard let zoneKey = teamZones[teamID] else { continue }
+            lastOpened[zoneKey] = max(lastOpened[zoneKey] ?? .distantPast, date)
+        }
+        return (activeTeamID.flatMap { teamZones[$0] }, lastOpened)
     }
 }

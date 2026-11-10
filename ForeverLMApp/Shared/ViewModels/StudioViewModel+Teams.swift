@@ -94,6 +94,8 @@ extension StudioViewModel {
         let resolved = teamID.flatMap { id in teams.contains { $0.id == id } ? id : nil }
         guard resolved != activeTeamID else { return }
         activeTeamID = resolved
+        // The library on screen is the space the sync walks first (§2.2).
+        Task { [storage] in await storage.applySpaceFetchPriority(activeTeamID: resolved, openedNow: true) }
         activeNotebookId = nil
         // A notebook belongs to its library: every window holding one of the
         // library just left closes it now, before its Add sources could file

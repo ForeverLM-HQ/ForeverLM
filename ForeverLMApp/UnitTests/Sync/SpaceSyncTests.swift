@@ -388,3 +388,39 @@ struct SpaceSyncTests {
         #expect(!library.contentOnly)
     }
 }
+
+/// Which space the Mac's sync walks first (§2.2 "Fetch priority"): the library on screen, then the
+/// others by when this Mac last opened them.
+@Suite("Space fetch priority")
+struct SpaceFetchPriorityTests {
+    @Test("The library on screen and each team's last opening are handed over by zone")
+    func resolvesTeamsToZones() {
+        let earlier = Date(timeIntervalSinceReferenceDate: 1_000)
+        let later = Date(timeIntervalSinceReferenceDate: 2_000)
+        let priority = SpaceFetchPriority.resolve(
+            activeTeamID: "t2",
+            teamZones: ["t1": "private/Space-s1", "t2": "shared/alice/Space-s2"],
+            lastOpenedByTeam: ["t1": earlier, "t2": later, "gone": later]
+        )
+        #expect(priority.onScreen == "shared/alice/Space-s2")
+        #expect(priority.lastOpened == ["private/Space-s1": earlier, "shared/alice/Space-s2": later])
+    }
+
+    @Test("My Library on screen, or a team with no space yet, puts no space first")
+    func nothingOnScreen() {
+        let zones = ["t1": "private/Space-s1"]
+        #expect(SpaceFetchPriority.resolve(activeTeamID: nil, teamZones: zones, lastOpenedByTeam: [:]).onScreen == nil)
+        #expect(SpaceFetchPriority.resolve(activeTeamID: "t9", teamZones: zones, lastOpenedByTeam: [:]).onScreen == nil)
+    }
+
+    @Test("An opening is kept on this Mac and read back")
+    func remembersOpenings() throws {
+        let suite = "SpaceFetchPriorityTests.\(UUID().uuidString)"
+        let defaults = try #require(UserDefaults(suiteName: suite))
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let opened = Date(timeIntervalSinceReferenceDate: 3_000)
+        SpaceFetchPriority.noteOpened(teamID: "t1", at: opened, defaults: defaults)
+        SpaceFetchPriority.noteOpened(teamID: "t2", at: opened.addingTimeInterval(60), defaults: defaults)
+        #expect(SpaceFetchPriority.lastOpenedByTeam(defaults: defaults) == ["t1": opened, "t2": opened.addingTimeInterval(60)])
+    }
+}

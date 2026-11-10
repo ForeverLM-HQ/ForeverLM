@@ -546,6 +546,13 @@ actor MacSyncSession {
             _ = await moves.afterRound()
             await self?.afterRound()
         }
+
+        // The library this Mac reopens on is walked first from the first round on (§2.2); switching
+        // libraries updates it (`StudioViewModel.setActiveTeam`).
+        let reopened = UserDefaults.standard.string(forKey: StudioViewModel.activeTeamPreferenceKey)
+        await storage.applySpaceFetchPriority(
+            activeTeamID: reopened?.isEmpty == false ? reopened : nil, openedNow: false, coordinator: coordinator
+        )
     }
 
     // MARK: - After each round
