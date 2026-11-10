@@ -3750,7 +3750,7 @@ choosing the closest match. `get_mcp_status` says which Mac that is.
 | `list_shows` | `kind?` | List every podcast show and YouTube channel in the library with its episode count. Gives the exact names `filter_sources` and a search's `show` take. Needs the Mac open and connected. |
 | `filter_sources` | `show?`, `author?`, `title_contains?`, `text?`, `source_type?`, `include_archived?`, `limit?` | List every source whose metadata matches: all of one show's episodes, every paper by an author, everything with a name in its title, byline or show. Case-insensitive substrings, combined with AND, never ranked or cut off by similarity. Needs the Mac open and connected. |
 | `get_app_context` | — | What is open in the Mac app: the notebook each window holds, frontmost first, with its title, `notebook_id` and source count, then the sources the frontmost window's notebook reads. Call it only when the learner asks about what is open; it is never a default scope. |
-| `get_sync_status` | — | iCloud sync health for this Mac: changes still waiting to upload, records CloudKit never acknowledged, quarantined conflicts, the container environment, whether iCloud is full, and how much of the learner's iCloud ForeverLM's files take. `migration` reports the library's move to the new iCloud store. Use it when items are missing or stale across devices, before concluding anything is lost. |
+| `get_sync_status` | — | iCloud sync health for this Mac: what sync is doing and why it waits or stopped, changes still waiting to upload, the container environment, and how much of the learner's iCloud ForeverLM's files take. `migration` reports the library's move to the new iCloud store. Use it when items are missing or stale across devices, before concluding anything is lost. |
 
 ## Settings
 
@@ -3810,7 +3810,7 @@ three from report to approved change. These need an active Mac:
 |---|---|---|
 | `get_app_settings` | `pane?`, `setting?` | Every catalog setting with its `id`, `value`, `type` (`boolean`, `number`, `choice`, `text`, `string_list`), `reach` (`account` or `this_mac`) and the `options` its picker offers, plus `dedicated_tools` (the panes with a pair of their own), `actions` and `only_in_the_settings_window`. |
 | `set_app_setting` | `setting`, `value` | Change one catalog setting exactly as the pane does. A choice outside the pane's options is refused with them. Returns the setting and `changed`. Model and voice pickers change what work is billed at; ask first. |
-| `run_settings_action` | `action`, `approved_spend_usd?` | One of the buttons that act once, whether or not a pane still shows it: `sync_icloud_now`, `prepare_memory_review_now`, `draw_missing_meeting_icons`, `sync_x_bookmarks`, `clear_usage_ledger_warning`, and the iCloud pane's `confirm_this_mac_holds_my_library`, `upload_library_to_icloud_again`, `apply_old_library_removals` and `keep_old_library_removals`, and `replace_icloud_library`, which only an assistant presses when you ask: it deletes iCloud's copy of your library and uploads this Mac's from the start. |
+| `run_settings_action` | `action`, `approved_spend_usd?` | One of the buttons that act once, whether or not a pane still shows it: `sync_icloud_now`, `prepare_memory_review_now`, `draw_missing_meeting_icons`, `sync_x_bookmarks`, `clear_usage_ledger_warning`, and the iCloud pane's `confirm_this_mac_holds_my_library`, `upload_library_to_icloud_again`, and `replace_icloud_library`, which only an assistant presses when you ask: it deletes iCloud's copy of your library and uploads this Mac's from the start. |
 | `open_settings` | `pane?` | Open the Settings window on the Mac at one pane, for a sign-in or the sharing sheet. `plugins` and a plugin's id (`x`, `youtube`, `google_drive`, `apple_calendar`, `slack`, `linear`, `github`, `notion`, `build_your_own_plugin`) open the Plugins place on the icon strip instead, at that plugin's page, where its consent page is opened. |
 | `open_in_app` | `kind`, `id?`, `side_by_side?` | Show a notebook, doc, chat, source, quiz or idea in the Mac's window as a click would, `space` (the Space's All list), or `plugins` (the Plugins place, at a plugin's page when `id` names one). Listing or loading a notebook changes nothing on screen; this does. |
 | `get_plugin_connections` | `include_slack_channels?` | Plugins: which of X, YouTube, Google Drive, Calendar (the Mac's), Slack, GitHub, Linear, Notion and the learner's own plugins are connected, their accounts (every X, YouTube and Google account listed on its own, a YouTube account with its import source), Slack channels, followed and hidden YouTube channels, and what connecting each takes. |
@@ -6751,6 +6751,21 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **The iPhone opens on voice.** Home is ForeverLM's mark: tap it to talk about anything, name a source, or go through today's cards, which voice offers first when they are due; type instead whenever you can't talk (every voice conversation now has a field for that, so the gym is just voice). Everything else (notebooks, the library, To Read, Follow Up, Spaces, **Review Cards** to tap through them with their pictures, Memory and Settings) is in the menu at the bottom.
 - **A daily quiz reminder on the iPhone,** on by default at 7:00 (or your review hour): tap it to go through today's cards, or use its Memory Check by Voice button. iOS asks once for permission.
 
+## 0.209.0 (build 289) — 2026-11-09
+
+**Highlights:**
+- **Home lists what you saved to read**, and the Library gets **Recent**.
+- **A PDF you add to a chat goes with your message** instead of becoming a paper.
+- **Long papers play through** without a speech timeout.
+
+- **Home shows what you saved to read.** An empty chat outside a notebook lists what you saved and have not finished, newest first, in place of the suggestions; each row opens in the Reader, and the foot opens the Library's new **Recent** list.
+- **A PDF you add to a chat goes with your message.** Its text is attached to the next message, as a picture is, and nothing is saved as a paper. Books and text files still become sources.
+- **Listening to a long paper no longer times out.** A narration request may take up to four minutes, and a timeout is never sent again, so a long section is not cut off or paid for twice.
+- **Marking a failed paper paywalled reaches your other Mac.**
+- **Supplementary figures are found by their own labels** ("Supp. Fig. 1", "Fig S1", "Appendix Figure S1"), so their captions open the figure.
+- **Notebooks have a book icon** instead of a folder.
+- **The retired first-generation sync is gone.** Its leftover tables are removed from your library (schema 175); syncing works exactly as before.
+
 ## 0.208.0 (build 288) — 2026-11-09
 
 **Highlights:**
@@ -6773,6 +6788,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **On your own OpenRouter key, an OpenAI model always runs on OpenAI's endpoint**, so it spends your OpenAI credits, even before ForeverLM has read that model's endpoints.
 - **A covered account sees only the models it is covered for** when picking a model.
 - **Figures: a reference in running text ("fig. 6 A-C)") is no longer listed as a figure**, and replacing a supplement's PDF removes the old one.
+- **Supplementary figures labelled loosely are found too**: "Supp. Fig. 1", "Fig S1", "Appendix Figure S1" and "Supplementary Data Figure 1" now count as figures, so a joined supplement that prints only these can be shown and explained. A paper is read again the next time you use it.
 
 ## 0.206.0 (build 286) — 2026-11-08
 

@@ -9,6 +9,21 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **The iPhone opens on voice.** Home is ForeverLM's mark: tap it to talk about anything, name a source, or go through today's cards, which voice offers first when they are due; type instead whenever you can't talk (every voice conversation now has a field for that, so the gym is just voice). Everything else (notebooks, the library, To Read, Follow Up, Spaces, **Review Cards** to tap through them with their pictures, Memory and Settings) is in the menu at the bottom.
 - **A daily quiz reminder on the iPhone,** on by default at 7:00 (or your review hour): tap it to go through today's cards, or use its Memory Check by Voice button. iOS asks once for permission.
 
+## 0.209.0 (build 289) — 2026-11-09
+
+**Highlights:**
+- **Home lists what you saved to read**, and the Library gets **Recent**.
+- **A PDF you add to a chat goes with your message** instead of becoming a paper.
+- **Long papers play through** without a speech timeout.
+
+- **Home shows what you saved to read.** An empty chat outside a notebook lists what you saved and have not finished, newest first, in place of the suggestions; each row opens in the Reader, and the foot opens the Library's new **Recent** list.
+- **A PDF you add to a chat goes with your message.** Its text is attached to the next message, as a picture is, and nothing is saved as a paper. Books and text files still become sources.
+- **Listening to a long paper no longer times out.** A narration request may take up to four minutes, and a timeout is never sent again, so a long section is not cut off or paid for twice.
+- **Marking a failed paper paywalled reaches your other Mac.**
+- **Supplementary figures are found by their own labels** ("Supp. Fig. 1", "Fig S1", "Appendix Figure S1"), so their captions open the figure.
+- **Notebooks have a book icon** instead of a folder.
+- **The retired first-generation sync is gone.** Its leftover tables are removed from your library (schema 175); syncing works exactly as before.
+
 ## 0.208.0 (build 288) — 2026-11-09
 
 **Highlights:**
