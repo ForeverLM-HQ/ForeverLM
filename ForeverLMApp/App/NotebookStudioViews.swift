@@ -1,6 +1,5 @@
 #if os(macOS)
 import SwiftUI
-import UniformTypeIdentifiers
 
 /// The notebook's **Studio** column, the workspace's right-hand part
 /// (docs/notebooks-design.md, "Studio"): its title and fold on the chrome
@@ -1017,7 +1016,7 @@ final class NotebookOutputSeenTracker {
 /// opens it, opens it in the other window, renames a record, shows what it
 /// was made from (Prompt and Sources: a report's recipe, its sources), and
 /// takes a record out of the notebook. A picture's row carries the picture's
-/// own actions, which the Artifacts home held until 2026-10-06 — rename,
+/// own actions — rename,
 /// move to another notebook, copy, Show in Finder, trash — and drags out as
 /// its file.
 private struct NotebookOutputRow: View {

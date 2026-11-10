@@ -745,9 +745,9 @@ extension KnowledgeStore {
         if includeSources {
             // Only the notebook's approved sources travel: a suggestion still
             // awaiting the learner's verdict is theirs to decide on first, and
-            // a source they removed is not copied into the team at all. The
-            // copy used to take every item and leave its approval behind, and
-            // since nil reads as approved, both reached the team as sources.
+            // a source they removed is not copied into the team at all. Copying
+            // every item and leaving its approval behind would send both to the
+            // team as sources, since nil reads as approved.
             for item in original.items where item.isApproved {
                 guard try sourceExists(item.sourceID) else { continue }
                 let teamSourceID = try copySourceIntoTeam(sourceID: item.sourceID, teamID: teamID, fileCopy: fileCopy)

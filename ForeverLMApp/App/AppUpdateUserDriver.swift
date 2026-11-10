@@ -132,7 +132,7 @@ final class AppUpdateUserDriver: NSObject, SPUUserDriver {
         super.init()
     }
 
-    private static func stage(for state: SPUUserUpdateState) -> AppUpdateOfferPolicy.Stage {
+    nonisolated static func stage(for state: SPUUserUpdateState) -> AppUpdateOfferPolicy.Stage {
         switch state.stage {
         case .notDownloaded:
             return .notDownloaded

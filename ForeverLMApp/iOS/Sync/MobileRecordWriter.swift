@@ -1,7 +1,7 @@
 import Foundation
 import OSLog
 
-/// Why the phone did not make a change under generation 2, in words for the learner.
+/// Why the phone did not make a change, in words for the learner.
 enum MobileRecordWriterError: LocalizedError, Equatable {
     /// The phone has never had a timestamped answer from the new container, so it cannot stamp (§6.3).
     case noServerTime
@@ -34,7 +34,7 @@ enum MobileRecordWriterError: LocalizedError, Equatable {
     }
 }
 
-/// The phone's write path under generation 2 (docs/cloudkit-schema-design.md §6.5, §6.6, §14.1 iOS/Sync):
+/// The phone's write path (docs/cloudkit-schema-design.md §6.5, §6.6, §14.1 iOS/Sync):
 /// every change is a `RecordPatch` patched onto the record as the phone holds it, stamped by the
 /// replica's `StampClock` at the moment of the write, and folded into the record's `ck_patches` row,
 /// which the index shows at once and the private engine or SpaceSync sends (`MobilePatchOutbox`). A
@@ -84,7 +84,12 @@ final class MobileRecordWriter: @unchecked Sendable {
 
     /// `current()`, or the refusal a screen shows when the session could not start.
     static func required() async throws -> MobileRecordWriter {
-        guard let writer = await current() else { throw MobileRecordWriterError.zoneNotHeld }
+        try await required(from: { await current() })
+    }
+
+    /// The writer `provider` hands over, or the refusal a screen shows when it has none.
+    static func required(from provider: @Sendable () async -> MobileRecordWriter?) async throws -> MobileRecordWriter {
+        guard let writer = await provider() else { throw MobileRecordWriterError.zoneNotHeld }
         return writer
     }
 
@@ -519,7 +524,7 @@ struct MobilePatchOutbox {
     }
 
     /// A pending write to a record a move took to `destination`, laid over the copy there, field by field
-    /// by stamp, once the phone holds the copy; the old zone's replica row goes, since the move took it.
+    /// by stamp, once the phone holds the copy; the replica row in the zone it left goes, since the move took it.
     private func relay(_ type: SyncRecordType, _ wireID: String, from zoneKey: String, to destination: String) throws {
         guard let zone = SyncZoneName(destination), let targetKey = try ReplicaPlacement(connection: connection).zoneKey(of: zone),
               try store.record(zoneKey: targetKey, recordType: type.rawValue, wireID: wireID) != nil,

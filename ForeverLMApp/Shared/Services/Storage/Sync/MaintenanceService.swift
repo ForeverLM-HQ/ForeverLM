@@ -194,7 +194,7 @@ struct MaintenanceWriter {
 /// `moveMaps` folding, the cover backfill and the practices engine, and imports late once the seed is
 /// complete (§13.6). A 24-hour lease, S: the first acknowledged save stands. Its holder renews it
 /// whenever less than half of it is left, so a Mac that is up renews it about twice a day. Only a Mac
-/// that holds the library takes it: the seeder with its claim (`ZoneBootstrap`, WP16's takeover); any
+/// that holds the library takes it: the seeder with its claim (`ZoneBootstrap`'s takeover); any
 /// other Mac only after the root shows `seed.metadataCompleteAt` and its own first complete fetch of
 /// `Library` and `Catalog`; and an expired lease only by a compare-and-set save against the root as
 /// the server holds it now.
@@ -400,7 +400,7 @@ enum CompactionGate {
 
     /// After the re-fetch reached the end. Returns how many edits it dropped.
     static func finish(in state: PrivateSyncLocalState, now: Date) throws -> Int {
-        let horizon = now.addingTimeInterval(-Double(horizonDays) * 86_400)
+        let horizon = now.addingTimeInterval(-Double(horizonDays) * MemoryTutorScheduler.secondsPerDay)
         let dropped = try state.dropStaleElementEdits(before: horizon, now: now)
         try state.replica.setEngineState(ReplicaStore.EngineScope.refetchBeforeSend, nil, now: now)
         return dropped
@@ -415,10 +415,10 @@ enum CompactionGate {
 /// root's `moveMaps` past 32 entries, resolves duplicate sources, runs the orphan janitor and collects
 /// unreachable satellites, the last three only after a round that fetched every zone to the end. Before
 /// the engine starts it runs the compaction gate. Nothing runs on the main actor; the work runs where
-/// the coordinator's round runs, at `.utility` when the app schedules it (WP16 wires it).
+/// the coordinator's round runs, at `.utility` when the app schedules it.
 actor MaintenanceService: SyncMaintenanceHooks {
     /// How often the janitor, duplicate resolution and GC run on the lease holder.
-    static let dailyInterval: TimeInterval = 86_400
+    static let dailyInterval: TimeInterval = MemoryTutorScheduler.secondsPerDay
 
     struct Report: Equatable, Sendable {
         var lease: MaintenanceLease.Decision?
@@ -447,7 +447,7 @@ actor MaintenanceService: SyncMaintenanceHooks {
     private let clock: @Sendable () -> Date
     private var onChange: (@Sendable () async -> Void)?
     private var running = false
-    /// The notebook cover service (WP31): woken after each round, and told whether this Mac holds the lease,
+    /// The notebook cover service: woken after each round, and told whether this Mac holds the lease,
     /// which is what lets its backfill run (§5.9).
     private var covers: NotebookCoverService?
 
@@ -471,7 +471,7 @@ actor MaintenanceService: SyncMaintenanceHooks {
         MaintenanceWriter(transport: transport, store: store, moveMaps: moveMaps, deviceID: deviceID, clock: clock)
     }
 
-    /// Wires the service into the coordinator's rounds (WP16 builds both on the Mac).
+    /// Wires the service into the coordinator's rounds.
     func attach(to coordinator: SyncCoordinator) async {
         onChange = { Task { await coordinator.sendSoon() } }
         await coordinator.setMaintenance(self)
@@ -492,7 +492,7 @@ actor MaintenanceService: SyncMaintenanceHooks {
         }
     }
 
-    /// Wires the notebook cover service in (WP16 builds both on the Mac).
+    /// Wires the notebook cover service in.
     func attachCovers(_ service: NotebookCoverService) {
         covers = service
     }

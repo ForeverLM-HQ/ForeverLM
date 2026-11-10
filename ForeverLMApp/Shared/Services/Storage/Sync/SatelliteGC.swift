@@ -79,10 +79,10 @@ struct SatelliteSweepReport: Equatable, Sendable {
 ///    from the replica and this Mac's pending changes, each candidate's owner is read again by name,
 ///    and only what is still unreachable goes, 200 at a time.
 extension MaintenanceService {
-    static let gcSecondSweepAfter: TimeInterval = 7 * 86_400
-    static let gcMinimumAge: TimeInterval = 60 * 86_400
-    static let gcSupersededAfter: TimeInterval = 2 * 86_400
-    static let gcContentWalkInterval: TimeInterval = 7 * 86_400
+    static let gcSecondSweepAfter: TimeInterval = 7 * MemoryTutorScheduler.secondsPerDay
+    static let gcMinimumAge: TimeInterval = 60 * MemoryTutorScheduler.secondsPerDay
+    static let gcSupersededAfter: TimeInterval = 2 * MemoryTutorScheduler.secondsPerDay
+    static let gcContentWalkInterval: TimeInterval = 7 * MemoryTutorScheduler.secondsPerDay
     static let gcBodyRole = "body"
 
     private static let gcLogger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "SatelliteGC")

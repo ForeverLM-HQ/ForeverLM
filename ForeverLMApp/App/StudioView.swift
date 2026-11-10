@@ -1,8 +1,6 @@
 import SwiftUI
 import Combine
 import UniformTypeIdentifiers
-import PDFKit
-import WebKit
 import AppKit
 
 /// Studio — Knowledge Base interface: the navigation rail on the left and the center panes beside it.
@@ -1693,11 +1691,11 @@ extension View {
     /// Pins the shared Studio status banner to the bottom of this view's window.
     ///
     /// `StudioViewModel.showToast(_:)` fires from the source-reader and assistant
-    /// pop-out windows as well as the main Studio window, but only the main window
-    /// used to render the banner — messages raised from a secondary window (a PDF
-    /// download result, a review command's usage hint) were silently dropped. Each
-    /// window that can raise a toast now carries this overlay so the message lands
-    /// where the action happened.
+    /// pop-out windows as well as the main Studio window, so each window
+    /// that can raise a toast carries this overlay, and the message lands where
+    /// the action happened. Without it, messages raised from a secondary window (a
+    /// PDF download result, a review command's usage hint) would be silently
+    /// dropped.
     ///
     /// There is a single shared `toastMessage`, so the same text appears in every
     /// open window at once and dismissing or hovering it in one governs them all —

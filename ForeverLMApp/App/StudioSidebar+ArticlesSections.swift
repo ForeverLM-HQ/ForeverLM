@@ -1,6 +1,5 @@
 // The source sidebar's article sections and paper batch buttons.
 import SwiftUI
-import UniformTypeIdentifiers
 import AppKit
 
 extension StudioSidebar {

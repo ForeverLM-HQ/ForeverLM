@@ -1,8 +1,8 @@
 import CryptoKit
 import Foundation
 
-/// The phone's writes to the library: each change goes to the replica through `MobileRecordWriter`
-/// (WP20), which sends it. The phone holds no other copy of the library.
+/// The phone's writes to the library: each change goes to the replica through `MobileRecordWriter`,
+/// which sends it. The phone holds no other copy of the library.
 actor MobileCloudMutationService {
     static let shared = MobileCloudMutationService()
 
@@ -13,8 +13,7 @@ actor MobileCloudMutationService {
     }
 
     private func requiredWriter() async throws -> MobileRecordWriter {
-        guard let writer = await recordWriter() else { throw MobileRecordWriterError.zoneNotHeld }
-        return writer
+        try await MobileRecordWriter.required(from: recordWriter)
     }
 
     // MARK: - Notebooks
@@ -274,7 +273,7 @@ actor MobileCloudMutationService {
         try await writer.saveWalkthrough(walkthrough)
     }
 
-    /// The placement a screen keeps for a source until its Placement is written (WP21).
+    /// The placement a screen keeps for a source until its Placement is written.
     private static func unsavedPlacement(source: MobileCloudSource, at date: Date, completedAt: Date?) -> MobileCloudScheduledSource {
         MobileCloudScheduledSource(id: SyncIdentity.placementID(sourceID: source.id), sourceID: source.id, sourceIdentity: nil,
                                    plannedAt: Calendar.current.startOfDay(for: date), completedAt: completedAt, goalIDs: [],

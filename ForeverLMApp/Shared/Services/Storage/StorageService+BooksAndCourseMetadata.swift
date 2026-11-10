@@ -1,6 +1,4 @@
 // StorageService: books, course metadata and video playlist metadata.
-import Foundation
-import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif

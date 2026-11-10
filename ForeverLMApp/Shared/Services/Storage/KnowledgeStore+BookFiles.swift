@@ -1,5 +1,4 @@
 import Foundation
-import SQLite3
 
 // MARK: - A PDF book is one file (schema 169)
 
@@ -184,7 +183,7 @@ extension KnowledgeStore {
 
 /// A book added on this Mac whose chapters are still to be found. Until they
 /// are, the book reads as one entry over its whole file (`wholeBookSourceID`),
-/// and `StudioViewModel.finishBookImport` does the work Add Book used to make
+/// and `StudioViewModel.finishBookImport` does the work Add Book would otherwise make
 /// the learner wait for: the metadata and paper checks, reading scanned pages,
 /// and the chapter split.
 struct BookImportFinishJob: Equatable, Sendable {

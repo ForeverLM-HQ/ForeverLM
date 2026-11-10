@@ -1,16 +1,10 @@
 // Source embedding indexing and the deferred repair, audit and cleanup runs.
 
 import Foundation
-import CryptoKit
-import Observation
 import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
-import SwiftUI
-import AppKit
-import SQLite3
-import WebKit
 import Darwin
 
 extension StudioViewModel {
@@ -279,9 +273,13 @@ extension StudioViewModel {
             }
         } catch {
             logger.error("Figure image sweep paused: \(error.localizedDescription)")
-            try? await storage.recordPaperFigureImageSweepFailure(
-                message: error.localizedDescription
-            )
+            do {
+                try await storage.recordPaperFigureImageSweepFailure(
+                    message: error.localizedDescription
+                )
+            } catch {
+                logger.error("recordPaperFigureImageSweepFailure failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 
@@ -549,7 +547,7 @@ extension StudioViewModel {
         if didChange {
             // Assign once: mutating `articles[index]` invokes the array's
             // didSet, rebuilds sidebar indexes, and invalidates SwiftUI. A
-            // cleanup batch used to repeat that O(library) main-actor work
+            // cleanup batch would repeat that O(library) main-actor work
             // for every processed source.
             articles = updatedArticles
         }

@@ -1,13 +1,7 @@
 // Starting text to speech and generating audio for a source.
 #if os(macOS)
-import AVFoundation
-import CryptoKit
 import Foundation
-import MediaPlayer
-import os
-import PDFKit
 import SwiftUI
-import WebKit
 
 extension ArticleSpeechService {
     /// UI entry point. It publishes preparation state in the button's action

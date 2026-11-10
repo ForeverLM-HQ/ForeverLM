@@ -1,9 +1,6 @@
 // Part of ReviewSessionManager: the app tool surface, deferral and native tool specs.
 
 import Foundation
-import Observation
-import PDFKit
-import os
 
 extension ReviewSessionManager {
     /// `turns` with a retry directive at the end. After tool results it is a

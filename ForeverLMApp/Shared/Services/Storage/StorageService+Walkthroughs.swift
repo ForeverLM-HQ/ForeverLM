@@ -171,7 +171,11 @@ extension StorageService {
 
     func clearSourceDerivedData(_ sourceId: String) {
         guard let ks = try? knowledgeStore() else { return }
-        try? ks.clearSourceDerivedData(sourceId)
+        do {
+            try ks.clearSourceDerivedData(sourceId)
+        } catch {
+            Self.derivationLogger.error("Derived data of a source was not cleared: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     private static let derivationLogger = Logger(

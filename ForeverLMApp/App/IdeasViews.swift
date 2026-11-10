@@ -1,5 +1,4 @@
 import SwiftUI
-import UniformTypeIdentifiers
 
 // MARK: - The Ideas tab
 
@@ -71,7 +70,7 @@ struct IdeasHomeView: View {
     let isEmbedded: Bool
     /// The home's search: the Ideas whose words or note match.
     let query: String
-    /// The home's notebook filter (shell stage 4): the Ideas it keeps; nil
+    /// The home's notebook filter: the Ideas it keeps; nil
     /// keeps every one.
     let admits: ((IdeaRecord) -> Bool)?
     /// Hears of an idea jotted here, so a list in the Space files it
@@ -357,7 +356,7 @@ struct IdeaRow: View {
             Button("Link\u{2026}") { isLinking = true }
             // Only an open Idea is a card on a canvas.
             if idea.isOpen { KnowledgeMapAddToCanvasMenu(refs: ["idea:\(idea.id)"]) }
-            // Where it lives (shell stage 4): a link to a notebook, as Link…
+            // Where it lives: a link to a notebook, as Link…
             // makes, with the notebooks holding its sources first.
             NotebookFilingMenuItems(
                 sourceIDs: idea.links.filter { $0.kind == .source }.map(\.targetID),
@@ -424,8 +423,7 @@ struct IdeaRow: View {
     /// so its sources sit behind one "N sources" toggle and open beneath it,
     /// while the few chats, Docs, goals and notebooks stay named in the line.
     /// On an open Idea a quiet offer to link something closes the line while
-    /// the pointer is over the row, in a slot that keeps its size; it was
-    /// drawn on every open row until 2026-10-06. The row's menu has Link… at
+    /// the pointer is over the row, in a slot that keeps its size. The row's menu has Link… at
     /// all times.
     @ViewBuilder
     private var chipRow: some View {

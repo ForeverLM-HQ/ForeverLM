@@ -37,8 +37,7 @@ extension KnowledgeStore {
 /// Generation 2's keeper of the import-blocked shows: the list stays in this Mac's `UserDefaults`
 /// (`SourceDiscovery.blockedPodcastShowNames`, read synchronously by the importer), and each change is
 /// written to `blocked_podcast_shows`, the table of `Mark(importBlocked)`, off the main actor and in call
-/// order. `reload()` takes the table back into `UserDefaults` after an inbound Mark (WP16 calls it after
-/// an apply).
+/// order. `reload()` takes the table back into `UserDefaults` after an inbound Mark.
 enum BlockedShowsSync {
     private static let storage = StorageService()
     private static let lock = NSLock()

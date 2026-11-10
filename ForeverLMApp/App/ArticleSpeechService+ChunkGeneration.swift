@@ -1,13 +1,8 @@
 // Chunk timing, prefetching and chunk generation tasks.
 #if os(macOS)
 import AVFoundation
-import CryptoKit
 import Foundation
-import MediaPlayer
-import os
-import PDFKit
 import SwiftUI
-import WebKit
 
 extension ArticleSpeechService {
     var totalChunkCount: Int {

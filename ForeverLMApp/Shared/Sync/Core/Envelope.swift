@@ -1,5 +1,4 @@
 import Compression
-import CryptoKit
 import Foundation
 
 /// A field's stamp in an envelope: one stamp for a scalar, one per key for a map or a set.

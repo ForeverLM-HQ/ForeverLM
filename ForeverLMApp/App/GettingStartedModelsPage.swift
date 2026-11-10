@@ -1,8 +1,6 @@
 // The model choices page of Getting Started.
 import AppKit
-import AVFoundation
 import SwiftUI
-import UniformTypeIdentifiers
 
 /// Setup's models page (product owner, 2026-09-28, then 2026-10-11): the whole
 /// set in one step (`RecommendedModels`) on one card, with the rest behind

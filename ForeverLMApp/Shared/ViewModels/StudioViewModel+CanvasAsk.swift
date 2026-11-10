@@ -1,6 +1,6 @@
 import Foundation
 
-// MARK: - Ask the Canvas (WP-B1, docs/sensemaking-design.md)
+// MARK: - Ask the Canvas (docs/sensemaking-design.md)
 //
 // The inspector's Ask (Bridge, Connect, Gaps, Summarize, Break Down, a Mind Map
 // and a Question Map), the chat's Make a Mind Map, and `ask_canvas` over MCP

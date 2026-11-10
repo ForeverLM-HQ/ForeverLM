@@ -1,5 +1,3 @@
-import Foundation
-
 // MARK: - Schema 162: what the Task, Job and Automation records need (§12.7)
 
 extension KnowledgeStore {
@@ -45,7 +43,7 @@ extension KnowledgeStore {
 // MARK: - The activation's derivations for tasks and automations (§13.3 step 3c)
 
 extension KnowledgeStore {
-    /// WP14's derivations, in order, after the earlier packages': every notebook's task board keys and a
+    /// The derivations for tasks and automations, in order: every notebook's task board keys and a
     /// team's tasks and share requests in `ck_identity`, exactly what the generation-2 upkeep keeps
     /// afterwards; then every automation's runs their ring slots. Each is idempotent, bounded by the
     /// library's tasks and automations (0 of each in production on 2026-10-04), in its own transaction,

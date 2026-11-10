@@ -1,8 +1,6 @@
 // The AI subscriptions setup asks about, the connected assistants and the full disk access check.
 import AppKit
-import AVFoundation
 import SwiftUI
-import UniformTypeIdentifiers
 
 /// An AI app the learner may already pay for. Setup asks (product owner, 2026-09-23)
 /// instead of telling everyone about Claude and ChatGPT, so the AI step can say

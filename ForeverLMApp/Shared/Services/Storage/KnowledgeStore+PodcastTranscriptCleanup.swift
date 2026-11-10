@@ -1,8 +1,6 @@
 // KnowledgeStore: podcast transcript ad cleanup.
 import Foundation
 import SQLite3
-import OSLog
-import CloudKit
 
 extension KnowledgeStore {
 

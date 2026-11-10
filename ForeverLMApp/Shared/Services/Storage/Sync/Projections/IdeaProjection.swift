@@ -31,7 +31,7 @@ struct IdeaRows: Equatable, Sendable {
 
 /// The Idea record's projection (§3.5.26): the Mac's `ideas` row and its `idea_links` rows, both ways.
 ///
-/// - `body` is the Idea's notes; `status` is `open`, or `dismissed` for the Mac's `archived` (WP25a: the
+/// - `body` is the Idea's notes; `status` is `open`, or `dismissed` for the Mac's `archived` (the
 ///   Mac has two statuses, so `dismissed` reads as archived and every other value as open, and a status
 ///   the record holds that reads as the row's own is kept, so `pursuing` or `done` written elsewhere is
 ///   never rewritten to `open`).

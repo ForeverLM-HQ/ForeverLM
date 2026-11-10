@@ -77,7 +77,7 @@ extension KnowledgeStore {
 /// and writing their three `UserDefaults` keys, which stay this Mac's under generation 2
 /// (`SyncedPreferenceKeys.generation2MovedKeys`); each change is written to the member's NotebookStates
 /// off the main actor and in call order, and `reload()` takes the NotebookStates back into those keys
-/// after an inbound NotebookState (WP16 calls it after an apply), posting the change as a preference
+/// after an inbound NotebookState, posting the change as a preference
 /// that changed remotely, which the view model and the rail already reseed from.
 enum NotebookSidebarSync {
     static let orderKey = "studio.projectOrder"

@@ -450,7 +450,7 @@ enum EPUBKitReaderSupport {
         return String(fileURL.path.dropFirst(chaptersPath.count + 1))
     }
 
-    /// Base URL for `loadHTMLString` when opening legacy combined chapter files.
+    /// Base URL for `loadHTMLString` when opening combined chapter files.
     /// Combined chapter assets are rebased relative to `ForeverLMCombinedChapters`,
     /// not the parent `Chapters` directory.
     static func htmlDocumentBaseURL(for chapterPath: String) -> URL {
@@ -479,7 +479,7 @@ enum EPUBKitReaderSupport {
         }
     }
 
-    /// Legacy combined chapter files used an HTML5 doctype, which makes `.xhtml`
+    /// Combined chapter files use an HTML5 doctype, which makes `.xhtml`
     /// fail strict XML parsing in WKWebView. Returns normalized HTML when that fix
     /// is needed, otherwise nil so callers can load the file directly.
     static func normalizedXHTMLContent(for path: String) -> String? {

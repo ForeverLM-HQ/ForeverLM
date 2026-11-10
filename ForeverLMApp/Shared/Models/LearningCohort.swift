@@ -125,7 +125,7 @@ struct MemoryReviewLedger: Equatable, Sendable {
     /// first pass draws from, said in the learner's own days.
     static func windowStart(now: Date, calendar: Calendar = .current) -> Date {
         let today = calendar.startOfDay(for: now)
-        return calendar.date(byAdding: .day, value: -1, to: today) ?? today.addingTimeInterval(-86_400)
+        return calendar.date(byAdding: .day, value: -1, to: today) ?? today.addingTimeInterval(-MemoryTutorScheduler.secondsPerDay)
     }
 
     static let windowLabel = "Yesterday and today"
@@ -298,7 +298,7 @@ enum CohortSelector {
     }
 
     static func days(from start: Date, to end: Date) -> Int {
-        Int(max(0, end.timeIntervalSince(start)) / 86_400)
+        Int(max(0, end.timeIntervalSince(start)) / MemoryTutorScheduler.secondsPerDay)
     }
 
     /// Splits eligible candidates into the session's spine and its spacing set.

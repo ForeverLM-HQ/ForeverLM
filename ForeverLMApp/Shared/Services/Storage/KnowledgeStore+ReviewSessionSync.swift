@@ -1,8 +1,6 @@
 // KnowledgeStore: saving a review session from its synced record.
 import Foundation
 import SQLite3
-import OSLog
-import CloudKit
 
 extension KnowledgeStore {
 

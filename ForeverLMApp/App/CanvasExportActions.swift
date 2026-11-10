@@ -1,7 +1,6 @@
 #if os(macOS)
 import AppKit
 import SwiftUI
-import UniformTypeIdentifiers
 
 // MARK: - What the canvas menu does with a canvas
 //

@@ -1,6 +1,5 @@
 // StorageService: background AI spend control.
 import Foundation
-import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif

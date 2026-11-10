@@ -178,10 +178,9 @@ final class MobileSourceReaderViewModel: ObservableObject {
 
         // Highlights are already on the phone, in the catalog's mirror of the
         // Knowledge zone, so the reader shows them at once and never waits on
-        // CloudKit for them. It used to run a zone delta first, ahead of even
-        // the text fetch, and a dropped connection became "Highlights could
-        // not be loaded … (CKErrorDomain error 4.)" over highlights that were
-        // sitting on the phone the whole time.
+        // CloudKit for them: a zone delta first would turn a dropped connection
+        // into "Highlights could not be loaded … (CKErrorDomain error 4.)" over
+        // highlights sitting on the phone.
         highlights = await MobileCloudSourceCatalog.shared.currentSourceHighlights(sourceID: source.id)
         refreshHighlights(sourceID: source.id)
 

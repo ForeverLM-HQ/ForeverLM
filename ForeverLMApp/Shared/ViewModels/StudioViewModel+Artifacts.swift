@@ -101,7 +101,11 @@ extension StudioViewModel {
                     expectedRevision: snapshot.revision
                 )
             } catch {
-                try? await storage.deleteArtifact(id)
+                do {
+                    try await storage.deleteArtifact(id)
+                } catch {
+                    logger.error("deleteArtifact failed: \(error.localizedDescription, privacy: .public)")
+                }
                 throw error
             }
         }

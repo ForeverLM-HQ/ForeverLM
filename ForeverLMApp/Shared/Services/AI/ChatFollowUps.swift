@@ -176,7 +176,7 @@ enum ChatFollowUps {
         return end == text.endIndex ? text : String(text[..<end])
     }
 
-    private static func containsAngleBracket(_ text: String) -> Bool {
+    static func containsAngleBracket(_ text: String) -> Bool {
         var copy = text
         return copy.withUTF8 { bytes in
             guard let base = bytes.baseAddress else { return false }

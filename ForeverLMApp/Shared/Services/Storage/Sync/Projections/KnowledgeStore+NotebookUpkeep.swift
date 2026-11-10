@@ -17,7 +17,7 @@ extension KnowledgeStore {
             }
             try EntryOrderKeys.replan(goalID: goalID, connection: self)
         }
-        // A space notebook's Entries are named by wire ids (§4.3, WP15).
+        // A space notebook's Entries are named by wire ids (§4.3).
         let spaceNotebooks = try goalIDs.filter { try scalarText("SELECT team_id FROM learning_goals WHERE id = ?", [.text($0)]) != nil }
         if !spaceNotebooks.isEmpty {
             try SpaceRows.recordEntryIdentities(notebookIDs: spaceNotebooks, teamZones: try teamZoneKeys(), connection: self)

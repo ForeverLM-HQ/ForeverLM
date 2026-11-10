@@ -1,7 +1,6 @@
 // Connector and account credential accessors, moved out of KeychainService.swift.
 
 import Foundation
-import OSLog
 import Security
 
 extension KeychainService {

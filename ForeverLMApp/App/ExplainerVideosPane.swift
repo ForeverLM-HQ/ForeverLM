@@ -1,6 +1,5 @@
 #if os(macOS)
 import AppKit
-import AVKit
 import SwiftUI
 
 // MARK: - Requests

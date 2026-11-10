@@ -174,7 +174,7 @@ enum MacRealtimeAssistant {
             formatter.locale = Locale(identifier: "en_US_POSIX")
             formatter.dateFormat = "yyyy-MM-dd"
             let today = formatter.string(from: Date())
-            let yesterday = formatter.string(from: Date().addingTimeInterval(-86_400))
+            let yesterday = formatter.string(from: Date().addingTimeInterval(-MemoryTutorScheduler.secondsPerDay))
             async let todayActivity = mcp("get_day_activity", ["date": today])
             async let yesterdayActivity = mcp("get_day_activity", ["date": yesterday])
             async let chats = mcp("get_review_sessions", [:])

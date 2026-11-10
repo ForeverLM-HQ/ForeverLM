@@ -6,11 +6,11 @@ import Foundation
 ///
 /// Anna's Archive names every download
 /// `Title -- Author -- Edition, Place, Year -- Publisher -- isbn13 … -- <md5> -- Anna’s Archive`.
-/// The importer used to keep that whole string as the book's folder under
-/// `Books/`, as the managed copy's file name, and therefore inside every chapter
-/// URL, cover path and CloudKit record. The learner saw a clean title in the app
-/// while Finder and the database carried the archive's tag. A tagged name is
-/// reduced to its title segment; every other name is kept as it is.
+/// Keeping that whole string as the book's folder under `Books/`, as the managed
+/// copy's file name, and therefore inside every chapter URL, cover path and
+/// CloudKit record, would show the learner a clean title in the app while Finder
+/// and the database carried the archive's tag. A tagged name is reduced to its
+/// title segment; every other name is kept as it is.
 enum BookFolderNaming {
     static let segmentSeparator = " -- "
 

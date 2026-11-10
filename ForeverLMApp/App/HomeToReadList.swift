@@ -1,9 +1,5 @@
 // The Home list of saved unread sources and its rows.
 import SwiftUI
-import Combine
-import UniformTypeIdentifiers
-import PDFKit
-import WebKit
 import AppKit
 
 // MARK: - Home's To Read list
@@ -63,7 +59,7 @@ private struct HomeToReadRow: View {
     var body: some View {
         Button(action: open) {
             HStack(spacing: 10) {
-                Image(systemName: Self.glyph(source.sourceType))
+                Image(systemName: source.sourceType.symbolName)
                     .zoomedSystemFont(size: 12, weight: .regular)
                     .foregroundStyle(.secondary)
                     .frame(width: 18)
@@ -112,19 +108,5 @@ private struct HomeToReadRow: View {
             parts.append(source.dateAdded.formatted(.dateTime.month(.abbreviated).day()))
         }
         return parts.joined(separator: " · ")
-    }
-
-    static func glyph(_ type: StudioSourceType) -> String {
-        switch type {
-        case .article, .unclassified: return "doc.richtext"
-        case .paper: return "doc.text.magnifyingglass"
-        case .podcast: return "headphones"
-        case .book: return "book.closed"
-        case .course: return "graduationcap"
-        case .meeting: return "person.2.wave.2"
-        case .video: return "play.rectangle"
-        case .xPost: return "bubble.left"
-        case .manual: return "link"
-        }
     }
 }

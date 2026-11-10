@@ -197,11 +197,15 @@ actor SourceListenableContentPreparationService {
                 }
 
                 if let failureMessage {
-                    try? await storage.recordSourceListenableContentFailure(
-                        sourceID: candidate.sourceID,
-                        message: failureMessage,
-                        sourceSHA256: candidate.sourceSHA256
-                    )
+                    do {
+                        try await storage.recordSourceListenableContentFailure(
+                            sourceID: candidate.sourceID,
+                            message: failureMessage,
+                            sourceSHA256: candidate.sourceSHA256
+                        )
+                    } catch {
+                        logger.error("Could not record the listenable-content failure: \(error.localizedDescription, privacy: .public)")
+                    }
                     if firstError == nil {
                         firstError = "\(candidate.title): \(failureMessage)"
                     }
@@ -476,7 +480,7 @@ struct PaperTextToSpeechPreparationService: Sendable {
             guard deletion.occurrence > 0,
                   !deletion.exactText.isEmpty,
                   deletion.exactText.count <= 160,
-                  let range = occurrenceRange(
+                  let range = PaperContentPreparationService.occurrenceRange(
                       of: deletion.exactText,
                       occurrence: deletion.occurrence,
                       in: text
@@ -495,22 +499,6 @@ struct PaperTextToSpeechPreparationService: Sendable {
         }
         result.append(contentsOf: text[cursor..<text.endIndex])
         return result
-    }
-
-    private static func occurrenceRange(
-        of needle: String,
-        occurrence: Int,
-        in text: String
-    ) -> Range<String.Index>? {
-        var searchStart = text.startIndex
-        for current in 1...occurrence {
-            guard let range = text.range(of: needle, range: searchStart..<text.endIndex) else {
-                return nil
-            }
-            if current == occurrence { return range }
-            searchStart = range.upperBound
-        }
-        return nil
     }
 
     private static func requestChunks(

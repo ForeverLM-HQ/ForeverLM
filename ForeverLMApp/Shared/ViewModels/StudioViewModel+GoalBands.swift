@@ -1,17 +1,9 @@
 // Goals grouped by deadline for the Goals tab.
 
 import Foundation
-import CryptoKit
-import Observation
-import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
-import SwiftUI
-import AppKit
-import SQLite3
-import WebKit
-import Darwin
 
 extension StudioViewModel {
 

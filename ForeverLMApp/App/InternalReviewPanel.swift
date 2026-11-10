@@ -1,10 +1,7 @@
 import SwiftUI
 import Combine
 import UniformTypeIdentifiers
-import PDFKit
-import WebKit
 import AppKit
-
 
 struct InternalReviewPanel: View {
     /// The session store owns conversation lifetimes independently of this
@@ -622,9 +619,9 @@ struct InternalReviewPanelContent: View {
         }
         .contentShape(Rectangle())
         // A drop still lands anywhere over the chat, but only the composer says
-        // so (`ReviewChatComposerDropTarget`). The pane-wide dashed outline that
-        // used to appear here named neither the payload nor the place to let go,
-        // and it lit up in step with every other drop zone in the window.
+        // so (`ReviewChatComposerDropTarget`). A pane-wide dashed outline would
+        // name neither the payload nor the place to let go, and would light up in
+        // step with every other drop zone in the window.
         .onDrop(
             of: reviewChatDropTypes,
             isTargeted: dropTargetBinding,

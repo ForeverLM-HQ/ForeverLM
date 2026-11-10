@@ -1,9 +1,6 @@
 // Part of ReviewSessionManager: tool activity rows and leaked tool text clean-up.
 
 import Foundation
-import Observation
-import PDFKit
-import os
 
 extension ReviewSessionManager {
     /// "#acme-nexus · 30 days" — the channel, and the window when the call set
@@ -513,21 +510,13 @@ extension ReviewSessionManager {
         return withoutToolCalls
     }
 
-    private static func containsAngleBracket(_ text: String) -> Bool {
-        var copy = text
-        return copy.withUTF8 { bytes in
-            guard let base = bytes.baseAddress else { return false }
-            return memchr(base, Int32(UInt8(ascii: "<")), bytes.count) != nil
-        }
-    }
-
     private static func removeToolCallBlocks(from text: String) -> String {
         // Runs on every message of the transcript each time a streamed token
         // lands, so the common case — prose with no tag at all — has to be a
         // memchr over the bytes, not Foundation's option-aware substring
         // search; `utf8.contains` goes through the generic iterator and was
         // nearly as slow.
-        guard containsAngleBracket(text) else { return text }
+        guard ChatFollowUps.containsAngleBracket(text) else { return text }
         let startTag = "<flm_tool_call>"
         let endTag = "</flm_tool_call>"
         var remaining = text

@@ -218,7 +218,7 @@ enum AutomaticCardDrafting {
 /// close's status line. A source the daily cap stopped is not a failure.
 enum AutomaticCardDraftingFailures {
     static let key = "memory.autoDraft.failures.v1"
-    static let retryInterval: TimeInterval = 24 * 60 * 60
+    static let retryInterval: TimeInterval = MemoryTutorScheduler.secondsPerDay
 
     struct Record: Equatable, Sendable {
         let sourceID: String
@@ -298,7 +298,7 @@ struct AutomaticCardDraftingRun: Codable, Equatable, Sendable {
     /// about today's candidates.
     func waiting(asOf now: Date) -> Int {
         let age = now.timeIntervalSince(at)
-        return age >= 0 && age < 24 * 60 * 60 ? waiting : 0
+        return age >= 0 && age < MemoryTutorScheduler.secondsPerDay ? waiting : 0
     }
 }
 

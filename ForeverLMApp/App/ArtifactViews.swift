@@ -1,10 +1,8 @@
 import AppKit
-import PDFKit
 import SwiftUI
-import UniformTypeIdentifiers
 
 /// Carries formatting between the page's menu and the editor beneath it.
-/// Formatting is the editor's selection bar since 2026-10-06 (docs/ui-design.md,
+/// Formatting is the editor's selection bar (docs/ui-design.md,
 /// "Quiet chrome"); the page menu's Format items are for a writer without the
 /// keyboard, and the editor is the only thing that can run them. A press
 /// travels down as a request, and what the caret currently sits inside travels

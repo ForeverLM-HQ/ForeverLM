@@ -1,5 +1,4 @@
 import Foundation
-import SQLite3
 
 extension KnowledgeStore {
     /// The sources an ordinary chat discussed (`ChatSourceEvidence.discussedSourceIDs`): the

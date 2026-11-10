@@ -1,6 +1,3 @@
-import Foundation
-import SQLite3
-
 extension KnowledgeStore {
 
     /// The AI usage ledger, the response cache and the managed-proxy cursor.

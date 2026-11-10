@@ -52,7 +52,7 @@ struct DeviceRow: Equatable, Sendable {
 /// The Device record's projection (§3.5.2): `dev:<deviceID>`, private to the member and written only by
 /// its own device. This Mac's row holds its connector health (was the synced `connectorHealth.*`
 /// preferences), the one field this projection sends; the build fields and `lastSeenDay` are written on a
-/// build change and at most weekly by WP17's Device writer, straight onto the record. Other devices' records project into their rows, read-only here.
+/// build change and at most weekly by the Device writer, straight onto the record. Other devices' records project into their rows, read-only here.
 struct DeviceProjection: RecordProjection {
     var recordType: SyncRecordType { .device }
 
@@ -171,7 +171,7 @@ extension KnowledgeStore {
     }
 
     /// Makes this Mac's Device row where it has none (its build, platform and first sighting), its
-    /// connector health from the generation-1 rows; nil while this device has no id yet. WP17's Device
+    /// connector health from the generation-1 rows; nil while this device has no id yet. The Device
     /// writer keeps the build fields, the display name and `lastSeenDay` from then on.
     @discardableResult
     func ensureThisDeviceRow(now: Date = Date()) throws -> DeviceRow? {

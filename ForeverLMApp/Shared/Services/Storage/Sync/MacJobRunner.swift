@@ -66,7 +66,7 @@ actor MacJobRunner {
     /// How much of a tool's answer a Job's `result.note` keeps.
     static let noteLimit = 2_000
     /// The tools a Job may run, by kind: the MCP calls the hosted MCP and the web hand a Mac
-    /// (`params = {tool, arguments}`, WP25b and WP23b).
+    /// (`params = {tool, arguments}`).
     static let tools: [String: Set<String>] = [
         "generateCourse": ["generate_course"],
         "generateAudio": ["generate_audio_overview"],
@@ -108,7 +108,7 @@ actor MacJobRunner {
         onChange = handler
     }
 
-    /// Runs after each sync round, wired to the coordinator (WP16 builds both). What it writes goes out
+    /// Runs after each sync round, wired to the coordinator. What it writes goes out
     /// a moment later, without holding up the round.
     func attach(to coordinator: SyncCoordinator) async {
         setOnChange { Task { await coordinator.sendSoon() } }

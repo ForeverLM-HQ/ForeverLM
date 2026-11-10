@@ -1,5 +1,3 @@
-import Foundation
-
 extension StorageService {
 
     func loadMemoryReviewActivities() throws -> [MemoryReviewActivity] {

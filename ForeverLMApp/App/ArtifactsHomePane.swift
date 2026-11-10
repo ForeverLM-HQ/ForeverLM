@@ -14,7 +14,7 @@ import SwiftUI
 /// beside the sidebar (docs/docs-design.md, "The Space").
 ///
 /// It began on 2026-09-17 as the Artifacts page over everything made, became
-/// the Notebooks home's Artifacts tab at shell stage 4 (2026-10-01), and its
+/// the Notebooks home's Artifacts tab (2026-10-01), and its
 /// Docs tab on 2026-10-06, when the product owner said "maybe artifacts should JUST be at the
 /// notebook level.. not some overarching artifacts page" and kept Docs, Sites
 /// and Ideas above the notebooks. Copying the Space brought one kind back the
@@ -236,7 +236,7 @@ extension ArtifactSection: Identifiable {
 /// One of the kinds that opens in a pane of its own from the Space sidebar —
 /// its Pages and Sites rows, dragged to an edge or opened beside
 /// (`SpaceDestination.openableKind`). Courses is not a kind here: it is a
-/// pane of its own. Ideas had a row until 2026-10-10, when the chat became
+/// pane of its own. Ideas have no row: the chat is
 /// the way to them (`SpaceTab`); their pane still opens beside a Doc whose
 /// idea link is followed (`StudioViewModel.openIdea`).
 enum ArtifactsHomeKind: String, CaseIterable, Identifiable {

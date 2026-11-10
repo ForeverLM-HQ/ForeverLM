@@ -1,12 +1,11 @@
 import Foundation
 
-// The phone's synced preferences under generation 2 (docs/cloudkit-schema-design.md §3.5.3, §10,
-// D28; §14.2 WP20b). Generation 1 keeps one `Preference` record per key in the old container, read and
-// written by `MobileModelPreferenceStore`. Once switched, a key is what §10 makes of it: a key the
-// settings catalog lists is a `Setting` record holding typed JSON (`{t, v}`), and a domain prefix is a
-// field of its own record (a listening position on `ReadingState.listen`, the notebook rows on the
-// member's `NotebookState`, a quiz score a `Sitting`). The callers keep generation 1's key-and-value
-// shape: `MobileModelPreferenceStore` hands both generations' reads and writes the same keys.
+// The phone's synced preferences (docs/cloudkit-schema-design.md §3.5.3, §10, D28). The callers
+// (`MobileModelPreferenceStore`) read and write a key by its preference name; a key is what §10 makes
+// of it: a key the settings catalog lists is a `Setting` record holding typed JSON (`{t, v}`), and a
+// domain prefix is a field of its own record (a listening position on `ReadingState.listen`, the
+// notebook rows on the member's `NotebookState`, a quiz score a `Sitting`). A value goes in and comes
+// out in the property-list shape the callers use.
 
 extension MobileSettingCatalog {
     /// What the catalog says of a key the phone writes: its value type (`SettingValue.t`), its range and
@@ -50,7 +49,7 @@ extension MobileSettingCatalog {
 }
 
 /// A Setting's value as typed JSON (§3.5.3): `{"t": <type>, "v": <value>}`, data as base64 and a date as
-/// epoch milliseconds, and back into the property-list value generation 1's rows hold.
+/// epoch milliseconds, and back into a property-list value.
 enum MobileSettingValue {
     /// `value` as a Setting of `type`; nil when it is not one (a string where a number belongs).
     static func typed(_ value: Any, type: String) -> SyncJSON? {
@@ -133,7 +132,7 @@ enum MobileSettingValue {
     }
 }
 
-/// Where a generation-1 preference key lives under generation 2 (§10): a Setting, or a field of the
+/// Where a preference key lives (§10): a Setting, or a field of the
 /// record its domain prefix moved into.
 enum MobilePreferenceRoute: Equatable, Sendable {
     /// A Setting the catalog lists (or one only its own writer sets, `leftOut`).
@@ -179,8 +178,7 @@ enum MobilePreferenceRoute: Equatable, Sendable {
 extension MobileWrite {
     // MARK: - Reading a preference key
 
-    /// A generation-1 preference key's value as the phone holds it under generation 2, in the shape
-    /// generation 1's row held (a property-list value); nil when there is none.
+    /// A preference key's value as the phone holds it, as a property-list value; nil when there is none.
     func preferenceValue(_ key: String) throws -> Any? {
         switch MobilePreferenceRoute.of(key) {
         case .setting:
@@ -224,7 +222,7 @@ extension MobileWrite {
 
     // MARK: - Writing a preference key
 
-    /// Writes a generation-1 preference key as what it is under generation 2; nil clears it (a Setting
+    /// Writes a preference key as what it is; nil clears it (a Setting
     /// keeps its record with `value` null, a position or a row empties). A key the phone does not set is
     /// refused, never written anywhere.
     mutating func writePreference(_ key: String, _ value: Any?) throws {
@@ -409,7 +407,7 @@ extension MobileWrite {
 }
 
 extension MobileRecordWriter {
-    /// A generation-1 preference key's value, as `MobileWrite.preferenceValue` reads it.
+    /// A preference key's value, as `MobileWrite.preferenceValue` reads it.
     func preferenceValue(_ key: String) async throws -> Any? {
         try await read { try $0.preferenceValue(key) }
     }

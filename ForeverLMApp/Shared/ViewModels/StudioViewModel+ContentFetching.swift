@@ -1,14 +1,8 @@
 import Foundation
-import CryptoKit
-import Observation
 import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
-import SwiftUI
-import AppKit
-import SQLite3
-import WebKit
 import Darwin
 
 /// Result of the off-main existence / iCloud-stub check for a local document in `fetchContent`.
@@ -47,7 +41,11 @@ extension StudioViewModel {
             // reordered `articles`, so the captured index could now point at a
             // different source (or be out of bounds).
             guard let clearedIdx = articles.firstIndex(where: { $0.id == articleId }) else { return }
-            try? await storage.saveSource(articles[clearedIdx])
+            do {
+                try await storage.saveSource(articles[clearedIdx])
+            } catch {
+                logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
 
         guard let idx = articles.firstIndex(where: { $0.id == articleId }) else { return }
@@ -69,7 +67,11 @@ extension StudioViewModel {
             articles[idx].errorMessage = nil
             await storage.clearSourceDerivedData(articleId)
             guard let clearedIdx = articles.firstIndex(where: { $0.id == articleId }) else { return }
-            try? await storage.saveSource(articles[clearedIdx])
+            do {
+                try await storage.saveSource(articles[clearedIdx])
+            } catch {
+                logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
 
         guard let idx = articles.firstIndex(where: { $0.id == articleId }) else { return }
@@ -92,7 +94,11 @@ extension StudioViewModel {
             let savedArticle = articles[idx]
             let shouldEnqueuePaperMetadata = savedArticle.sourceType == .paper
                 && savedArticle.requiresPaperMetadataAI
-            try? await storage.saveSource(savedArticle)
+            do {
+                try await storage.saveSource(savedArticle)
+            } catch {
+                logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+            }
             if shouldEnqueuePaperMetadata {
                 enqueueAutoMetadataExtraction([articleId])
             }
@@ -157,7 +163,11 @@ extension StudioViewModel {
                 let savedArticle = articles[cachedIdx]
                 let shouldEnqueuePaperMetadata = savedArticle.sourceType == .paper
                     && savedArticle.requiresPaperMetadataAI
-                try? await storage.saveSource(savedArticle)
+                do {
+                    try await storage.saveSource(savedArticle)
+                } catch {
+                    logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+                }
                 if shouldEnqueuePaperMetadata {
                     enqueueAutoMetadataExtraction([articleId])
                 }
@@ -224,7 +234,11 @@ extension StudioViewModel {
                 let savedArticle = articles[latestIndex]
                 let shouldExtractPaperMetadata = savedArticle.sourceType == .paper
                     && savedArticle.requiresPaperMetadataAI
-                try? await storage.saveSource(savedArticle)
+                do {
+                    try await storage.saveSource(savedArticle)
+                } catch {
+                    logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+                }
                 if shouldExtractPaperMetadata {
                     _ = await extractPaperMetadataWithAI(id: articleId, showToasts: false)
                 }
@@ -250,7 +264,11 @@ extension StudioViewModel {
                    articles[idx].localFilePath != nil {
                     articles[idx].state = .queued
                     articles[idx].errorMessage = nil
-                    try? await storage.saveSource(articles[idx])
+                    do {
+                        try await storage.saveSource(articles[idx])
+                    } catch {
+                        logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+                    }
                     enqueueAutoPaperFetch(articleId)
                 } else {
                     articles[idx].state = .error
@@ -336,7 +354,11 @@ extension StudioViewModel {
                     articles[idx2].wordCount = existingContent.split(separator: " ").count
                     articles[idx2].state = .ready
                     articles[idx2].errorMessage = nil
-                    try? await storage.saveSource(articles[idx2])
+                    do {
+                        try await storage.saveSource(articles[idx2])
+                    } catch {
+                        logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+                    }
                     queueSourceEmbeddingRefreshIfReady(articleId)
                 }
                 isFetchingContent = false
@@ -361,7 +383,11 @@ extension StudioViewModel {
             } else if let idx2 = articles.firstIndex(where: { $0.id == articleId }) {
                 articles[idx2].state = .error
                 articles[idx2].errorMessage = Self.noPodcastTranscriptMessage
-                try? await storage.saveSource(articles[idx2])
+                do {
+                    try await storage.saveSource(articles[idx2])
+                } catch {
+                    logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+                }
             }
             isFetchingContent = false
             return
@@ -416,7 +442,11 @@ extension StudioViewModel {
             if let idx2 = articles.firstIndex(where: { $0.id == articleId }) {
                 articles[idx2].state = .error
                 articles[idx2].errorMessage = "Book PDF download failed. Try importing the file manually."
-                try? await storage.saveSource(articles[idx2])
+                do {
+                    try await storage.saveSource(articles[idx2])
+                } catch {
+                    logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+                }
             }
             isFetchingContent = false
             return
@@ -448,7 +478,11 @@ extension StudioViewModel {
                         message: articles[idx2].errorMessage ?? "PDF download failed."
                     )
                 }
-                try? await storage.saveSource(articles[idx2])
+                do {
+                    try await storage.saveSource(articles[idx2])
+                } catch {
+                    logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+                }
             }
             isFetchingContent = false
             return
@@ -559,7 +593,11 @@ extension StudioViewModel {
                     }
                     await persistSource(articles[idx], context: "Save paper error state")
                 } else {
-                    try? await storage.archiveSource(articleId)
+                    do {
+                        try await storage.archiveSource(articleId)
+                    } catch {
+                        logger.error("archiveSource failed: \(error.localizedDescription, privacy: .public)")
+                    }
                     articles.remove(at: idx)
                     if selectedArticleId == articleId { selectedArticleId = nil }
                 }
@@ -567,7 +605,11 @@ extension StudioViewModel {
                 articles[idx].state = .error
                 articles[idx].errorMessage = error.localizedDescription
                 if SourceService.googleDocsResource(from: URL(string: url) ?? URL(fileURLWithPath: "/")) != nil {
-                    try? await storage.saveSource(articles[idx])
+                    do {
+                        try await storage.saveSource(articles[idx])
+                    } catch {
+                        logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+                    }
                 }
             }
         }
@@ -672,7 +714,11 @@ extension StudioViewModel {
                 failedArticle.state = shouldRetryAutomatically ? .queued : .error
                 failedArticle.errorMessage = shouldRetryAutomatically ? nil : failureMessage
                 failedArticle.stageArticleContentCleanup(raw: content, rawSHA256: rawSHA256)
-                try? await storage.saveSource(failedArticle)
+                do {
+                    try await storage.saveSource(failedArticle)
+                } catch {
+                    logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+                }
                 failedArticle.discardPersistedArticleContentHandoff()
                 if let currentIndex = articles.firstIndex(where: { $0.id == articleId }) {
                     articles[currentIndex] = failedArticle
@@ -750,7 +796,11 @@ extension StudioViewModel {
                         || updated.author != articles[idx2].author
                         || updated.publishedYear != articles[idx2].publishedYear {
                         articles[idx2] = updated
-                        try? await storage.saveSource(updated)
+                        do {
+                            try await storage.saveSource(updated)
+                        } catch {
+                            logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+                        }
                     }
                 }
             }
@@ -794,9 +844,9 @@ extension StudioViewModel {
     /// document.
     ///
     /// The wall renders as an ordinary page with ordinary text, so the extractors
-    /// cannot tell it from a document and used to store it: a few hundred
-    /// characters of Cloudflare boilerplate became the source's body, the paper
-    /// went `.ready` on it, and from then on search, chat, and Listen read the
+    /// cannot tell it from a document and would store it: a few hundred
+    /// characters of Cloudflare boilerplate would become the source's body, the paper
+    /// would go `.ready` on it, and from then on search, chat, and Listen would read the
     /// wall instead of the paper — silently, because a `.ready` source with
     /// content looks finished from every angle. Nothing is stored here, and the
     /// source goes to the actionable error state so it surfaces in Papers Needing
@@ -823,7 +873,11 @@ extension StudioViewModel {
                 message: Self.securityChallengeFailureMessage
             )
         }
-        try? await storage.saveSource(blocked)
+        do {
+            try await storage.saveSource(blocked)
+        } catch {
+            logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+        }
         logger.info("Security check blocked content for \(blocked.title)")
     }
 

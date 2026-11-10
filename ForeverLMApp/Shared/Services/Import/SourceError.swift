@@ -1,23 +1,17 @@
 // Source fetching errors and the PDF fetch refusal.
 import Foundation
 import PDFKit
-import CryptoKit
-import os
-import WebKit
 
 // MARK: - Errors
 
 /// A PDF request the host answered with something other than the file, and
 /// what it answered.
 ///
-/// `downloadPDF` used to throw a bare `fetchFailed` or `accessDenied` here, and
-/// the hidden reader's retry replaced even that with `fetchFailed`, so
-/// `attach_pdf_to_paper` relayed "Failed to fetch source content" for three
-/// PubMed Central PDFs that PMC had in fact refused with "Supplemental document
-/// is embargoed" (HTTP 403, 2026-09-23). The pipeline's decisions — paywall
-/// evidence, whether the reader's session is worth a try — read
-/// `classification`, which is what the bare error used to be; only the sentence
-/// now says what happened.
+/// What `downloadPDF` throws when the publisher refuses the file, so a tool
+/// relays what the publisher said (PubMed Central's "Supplemental document is
+/// embargoed", HTTP 403) and not a bare "Failed to fetch source content". The
+/// pipeline's decisions — paywall evidence, whether the reader's session is
+/// worth a try — read `classification`; only the sentence says what happened.
 struct PDFFetchRefusal: LocalizedError, Equatable {
     /// What the pipeline treats the answer as.
     let classification: SourceError

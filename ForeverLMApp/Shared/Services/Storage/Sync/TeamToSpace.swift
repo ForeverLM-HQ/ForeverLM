@@ -10,7 +10,7 @@ import OSLog
 /// their approval states (b2), its chats, which the classifier makes `transcript` (D50), its Docs and
 /// its courses.
 ///
-/// WP16's seeder runs it as P6 after the seed manifest is written (R6-m7): every record of the space
+/// The seeder runs it as P6 after the seed manifest is written (R6-m7): every record of the space
 /// is listed in `ck_manifest_pending` under `passKey`, so the delta writer lists it once acknowledged.
 /// It is resumable: a team whose space exists is adopted again (its root by its kind, its rows
 /// idempotently), and a team marked done is skipped. A member's Mac needs no pass of its own: its

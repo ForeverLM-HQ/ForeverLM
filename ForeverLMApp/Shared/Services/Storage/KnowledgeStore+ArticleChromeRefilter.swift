@@ -1,4 +1,3 @@
-import Foundation
 import SQLite3
 
 /// One archived article whose reader document predates `ArticleChromeFilter`.

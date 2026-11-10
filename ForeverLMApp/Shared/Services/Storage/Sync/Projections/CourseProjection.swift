@@ -1,5 +1,3 @@
-import Foundation
-
 // MARK: - The Course record (docs/cloudkit-schema-design.md §3.5.9, §5.5)
 
 /// One `courses` row as the Course record reads it.
@@ -21,7 +19,7 @@ struct CourseRows: Equatable, Sendable {
 /// course is `archived`. The gate is today's for every course: each written quiz holds back what
 /// follows it, and a pass is three in four (`LectureQuizScore.rightNeededToPass`), which `policy`
 /// states as `{gateQuizzes: true, pass: null}`. `course_code` and `instructors` have no field yet and
-/// stay on this Mac. A team's course is a space's (WP15): its changes wait on its `ck_identity`.
+/// stay on this Mac. A team's course is a space's: its changes wait on its `ck_identity`.
 struct CourseProjection: RecordProjection {
     var recordType: SyncRecordType { .course }
 
@@ -77,7 +75,7 @@ struct CourseProjection: RecordProjection {
     }
 
     func apply(_ envelope: SyncEnvelope, to record: ProjectionRecordRef, connection: SQLiteConnection) throws -> ProjectionApplyOutcome {
-        // A space's course is the space packages' (WP15). `notebookID` and `homing`, which another
+        // A space's course is the space packages'. `notebookID` and `homing`, which another
         // client may still hold, stay in the replica unread.
         guard !record.zone.isSpace else { return .projected }
         let fields = envelope.fields

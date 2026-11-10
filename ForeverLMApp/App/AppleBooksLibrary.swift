@@ -1,8 +1,6 @@
 // Reading the Apple Books library.
 import AppKit
-import AVFoundation
 import SwiftUI
-import UniformTypeIdentifiers
 
 // MARK: - Apple Books
 

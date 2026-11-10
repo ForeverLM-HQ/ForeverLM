@@ -90,7 +90,7 @@ enum DayNow {
     /// An event too short to see still covers one minute.
     static func minuteSpan(of event: AppleCalendarEvent, on day: Date, calendar: Calendar = .current) -> (start: Int, end: Int) {
         let dayStart = calendar.startOfDay(for: day)
-        let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart.addingTimeInterval(86_400)
+        let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart.addingTimeInterval(MemoryTutorScheduler.secondsPerDay)
         func minute(_ date: Date) -> Int {
             if date <= dayStart { return 0 }
             if date >= dayEnd { return DayPlan.minutesPerDay }

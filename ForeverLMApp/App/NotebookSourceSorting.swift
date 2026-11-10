@@ -1,9 +1,6 @@
 // Grouping, sorting and chapter titles for the notebook source pool.
 import SwiftUI
 import Combine
-import UniformTypeIdentifiers
-import PDFKit
-import WebKit
 import AppKit
 
 /// Canonical pool ordering for source types, mirroring the sidebar tab order so the

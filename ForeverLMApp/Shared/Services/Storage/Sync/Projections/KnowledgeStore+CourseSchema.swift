@@ -38,7 +38,7 @@ extension KnowledgeStore {
 // MARK: - The activation's derivations for courses (§13.3 step 3c)
 
 extension KnowledgeStore {
-    /// WP9's derivations, in order, after WP8's: every course's generation-2 columns (its created date,
+    /// The derivations for courses, in order: every course's generation-2 columns (its created date,
     /// its lectures' and items' order keys, the items' slots and spans, a team's course's children in
     /// `ck_identity`), exactly what the generation-2 upkeep keeps afterwards; then the member's
     /// Enrollments from the `course.focus.*` rows. Each is idempotent, bounded by the library's courses,

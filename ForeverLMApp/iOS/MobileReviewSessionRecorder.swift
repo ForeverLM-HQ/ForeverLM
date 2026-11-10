@@ -49,16 +49,9 @@ struct MobileReviewResult {
     /// quizzes. Declared last with a default so existing single-source call
     /// sites and their memberwise argument order are untouched.
     var additionalSourceIDs: [String] = []
-    /// Portable identities for out-of-order CloudKit delivery. Source IDs stay
-    /// authoritative; URLs only help the receiving Mac reconcile a relationship
-    /// when the referenced Source record has not arrived yet.
-    var sourceURLs: [String: String] = [:]
-    var sourceNormalizedURLs: [String: String] = [:]
-    var sourceDOIs: [String: String] = [:]
-    var sourcePublishedDOIs: [String: String] = [:]
     /// What the conversation is (`Chat.kind`, D50), from the surface that recorded it: a reading or
-    /// notebook chat `chat`, a walk's chat `walkthrough`, a hands-free review `review`. Generation 2
-    /// writes it on the Chat; nil falls back to `ChatKindClassifier`'s reading of the session.
+    /// notebook chat `chat`, a walk's chat `walkthrough`, a hands-free review `review`. It is
+    /// written on the Chat; nil falls back to `ChatKindClassifier`'s reading of the session.
     var kind: ChatKind? = nil
 }
 
@@ -196,6 +189,7 @@ actor MobileReviewSessionRecorder {
         return digest.map { String(format: "%02x", $0) }.joined()
     }
 
+    /// The same id the Mac derives for an exchange it saves without one.
     static func exchangeID(sessionID: String, sequence: Int) -> String {
         "\(sessionID)::exchange::\(String(format: "%04d", sequence))"
     }

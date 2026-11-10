@@ -1,6 +1,5 @@
 // Pull-to-refresh for the source sidebar list.
 import SwiftUI
-import UniformTypeIdentifiers
 import AppKit
 
 /// Fires refresh callbacks when the user reaches or pulls past the top of the list

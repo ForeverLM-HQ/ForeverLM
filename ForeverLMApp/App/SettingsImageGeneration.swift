@@ -383,7 +383,7 @@ enum OpenRouterMakerIcon {
     private static let store = Store()
 
     private actor Store {
-        private static let freshness: TimeInterval = 30 * 24 * 60 * 60
+        private static let freshness: TimeInterval = 30 * MemoryTutorScheduler.secondsPerDay
         /// Only icons found: a maker that came back empty (OpenRouter
         /// unreachable, say) is asked again the next time a pane opens.
         private var read: [String: Data] = [:]

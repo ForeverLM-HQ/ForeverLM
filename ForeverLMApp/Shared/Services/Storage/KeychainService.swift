@@ -402,7 +402,7 @@ enum KeychainService {
 
         // A shared access group can be unavailable in ad-hoc or otherwise
         // unusually signed development builds. Stay on the data-protection
-        // keychain in that case: falling straight through to the legacy
+        // keychain in that case: falling straight through to the
         // file-based login keychain gives the item an app-signature ACL and
         // makes macOS ask for the login password again when another valid
         // ForeverLM build accesses it.
@@ -765,7 +765,7 @@ enum KeychainService {
             case .unanswered:
                 // Nobody said no — nobody said anything. Leave the question open
                 // for a later launch and report an ordinary empty result, which
-                // is all this adoption was ever allowed to be: legacy data whose
+                // is all this adoption was ever allowed to be: older-install data whose
                 // absence costs a re-entered credential, never a working app.
                 return nil
             }
@@ -787,7 +787,7 @@ enum KeychainService {
     /// and each adopts independently.
     private static let retiredFileVaultAdoptedKey = "keychain.retiredProductFileVaultAdopted"
 
-    /// Held under `vaultLock`. `settledThisLaunch` answers the lookup at once; the defaults write waits
+    /// Held under `vaultLock`. `retiredFileVaultSettledThisLaunch` answers the lookup at once; the defaults write waits
     /// for `withVaultLock` to release the lock.
     private static var vaultLockDepth = 0
     private static var retiredFileVaultSettledThisLaunch = false
@@ -818,7 +818,7 @@ enum KeychainService {
         //     missing, and an established install is not missing them. Only a
         //     fresh install inheriting a pre-rename FeynmanLM keychain is.
         //   - The build is properly signed. Same rule as `load(_:)` and the
-        //     ForeverLM-named legacy vault: an ad-hoc build is authorized by
+        //     ForeverLM-named vault: an ad-hoc build is authorized by
         //     CDHash, so the grant never survives the next rebuild and the read
         //     becomes a password prompt on every single launch.
         //   - The question has not already been settled, by an adoption or by
@@ -886,7 +886,7 @@ enum KeychainService {
     ///
     /// `SecItemCopyMatching` on such an item does not return until the dialog is
     /// answered, and none of the callers here are worth waiting on: everything
-    /// they can recover is legacy data that a later launch can pick up just as
+    /// they can recover is older-install data that a later launch can pick up just as
     /// well. Waiting instead cost the app its launch — a signed build sat with no
     /// window at all until the dialog was answered, and an app-hosted test run,
     /// which has no way to answer one, timed out before the runner connected.
@@ -1229,7 +1229,7 @@ enum KeychainService {
     }
 
     /// Read a boolean stored as "true"/"false". Returns nil when unset so callers
-    /// can fall back to a legacy default.
+    /// can fall back to their own default.
     static func loadBool(_ key: Key) -> Bool? {
         guard let value = load(key)?.trimmingCharacters(in: .whitespacesAndNewlines),
               !value.isEmpty else {

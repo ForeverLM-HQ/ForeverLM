@@ -1,9 +1,4 @@
 #if canImport(PDFKit)
-#if os(macOS)
-import AppKit
-#else
-import UIKit
-#endif
 import CoreGraphics
 import Foundation
 import PDFKit

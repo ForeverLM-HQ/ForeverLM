@@ -157,7 +157,7 @@ struct JobProjection: RecordProjection {
 /// out like any other, and the Mac that can run it claims it.
 enum MacJobRequests {
     /// A Job is kept for 7 days after it was asked for (`expiresAt`).
-    static let lifetime: TimeInterval = 7 * 86_400
+    static let lifetime: TimeInterval = 7 * MemoryTutorScheduler.secondsPerDay
 
     @discardableResult
     static func request(kind: String, target: String?, params: [String: SyncJSON], device: String, at date: Date,

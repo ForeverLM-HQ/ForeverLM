@@ -761,8 +761,8 @@ final class MobileChatViewModel: ObservableObject {
     /// code spans and links. A malformed run falls back to the raw text — a chat
     /// reply is never worth dropping over its formatting.
     ///
-    /// Off-main and once per reply: this used to run in the view body, which meant
-    /// re-parsing the whole partial answer on every streamed publish.
+    /// Off-main and once per reply: in the view body it would re-parse the whole
+    /// partial answer on every streamed publish.
     private nonisolated static func renderMarkdown(_ markdown: String) async -> AttributedString {
         await Task.detached(priority: .userInitiated) {
             let options = AttributedString.MarkdownParsingOptions(
@@ -1029,8 +1029,8 @@ final class MobileChatViewModel: ObservableObject {
     }
 
     /// Built off the main actor on first send. The source text runs to 240k
-    /// characters, so bounding and interpolating it is real work that used to sit
-    /// in init — on the render path, before the sheet had drawn a frame.
+    /// characters, so bounding and interpolating it is real work that stays out
+    /// of init, which is on the render path before the sheet has drawn a frame.
     private func resolvedSystemPrompt() async -> String {
         if let cachedSystemPrompt { return cachedSystemPrompt }
         let source = self.source
@@ -1101,7 +1101,7 @@ final class MobileChatViewModel: ObservableObject {
 ///
 /// Unlike the Mac's batcher this awaits each publish, which is what keeps them in
 /// order — no sequence guard is needed on the receiving side.
-private actor MobileChatStreamBatcher {
+actor MobileChatStreamBatcher {
     private let interval: TimeInterval
     private let publish: @Sendable (String) async -> Void
     private var accumulated = ""

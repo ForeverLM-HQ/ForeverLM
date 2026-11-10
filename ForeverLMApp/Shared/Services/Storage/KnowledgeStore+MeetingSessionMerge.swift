@@ -1,5 +1,4 @@
 import Foundation
-import SQLite3
 
 /// One sitting, one session.
 ///

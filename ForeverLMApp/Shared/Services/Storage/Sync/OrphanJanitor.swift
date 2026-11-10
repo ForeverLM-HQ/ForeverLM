@@ -13,11 +13,11 @@ import OSLog
 /// done, failed or cancelled (a queued Job never expires, so a capture waits for a Mac however long it
 /// lags); and records named with another salt than their zone's. A parent counts as present when any
 /// zone this Mac holds has it, or when `ZoneRoot.moveMaps` lists it as moved, so a late child a stale
-/// device wrote into `Library` is left for re-homing (WP15b), never collected. A merged or moved
+/// device wrote into `Library` is left for re-homing, never collected. A merged or moved
 /// notebook is a stub record, never gone.
 extension MaintenanceService {
-    static let orphanAfter: TimeInterval = 7 * 86_400
-    static let personalOrphanAfter: TimeInterval = 30 * 86_400
+    static let orphanAfter: TimeInterval = 7 * MemoryTutorScheduler.secondsPerDay
+    static let personalOrphanAfter: TimeInterval = 30 * MemoryTutorScheduler.secondsPerDay
     /// Past this many entries the maintenance Mac folds `moveMaps` into one `folded.<n>` entry.
     static let moveMapsFoldAbove = 32
     /// `ck_engine_state` scope: when each orphan was first found, by zone key and record name.

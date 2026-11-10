@@ -77,10 +77,10 @@ enum MemoryReviewSession {
     /// rows read their date from the id instead, so the run under Memory is
     /// uniform. A title the learner typed is left alone.
     static func displayTitle(storedTitle: String, sessionID: String, calendar: Calendar = .current) -> String {
-        guard storedTitle.hasPrefix(legacyTitlePrefix),
+        guard storedTitle.hasPrefix(memoryTitlePrefix),
               let date = date(fromSessionID: sessionID, calendar: calendar) else { return storedTitle }
         return title(for: date, calendar: calendar)
     }
 
-    static let legacyTitlePrefix = "Memory · "
+    static let memoryTitlePrefix = "Memory · "
 }

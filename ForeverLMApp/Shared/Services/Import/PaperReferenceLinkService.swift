@@ -142,16 +142,11 @@ enum ReferenceCatalogClient {
             title: title,
             journal: journal,
             year: (work["publication_year"] as? Int).map(String.init),
-            authors: nonBlank(authors),
-            volume: nonBlank(biblio?["volume"] as? String),
-            firstPage: nonBlank(biblio?["first_page"] as? String),
+            authors: PaperReferenceSummary.nonBlank(authors),
+            volume: PaperReferenceSummary.nonBlank(biblio?["volume"] as? String),
+            firstPage: PaperReferenceSummary.nonBlank(biblio?["first_page"] as? String),
             pubMedID: pmid
         )
-    }
-
-    private static func nonBlank(_ value: String?) -> String? {
-        guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
-        return trimmed
     }
 
     private enum Fetched {
@@ -466,9 +461,13 @@ actor PaperReferenceLinkService {
                 referenceLinkLogger.error(
                     "Reading the references of \(candidate.sourceID, privacy: .public) failed: \(error.localizedDescription, privacy: .public)"
                 )
-                try? await storage.finishPaperReferenceRead(
-                    sourceID: candidate.sourceID, pdfPath: nil, failure: error.localizedDescription, authoredBy: "app"
-                )
+                do {
+                    try await storage.finishPaperReferenceRead(
+                        sourceID: candidate.sourceID, pdfPath: nil, failure: error.localizedDescription, authoredBy: "app"
+                    )
+                } catch {
+                    referenceLinkLogger.error("Could not record the failed reference read: \(error.localizedDescription, privacy: .public)")
+                }
             }
             try? await Task.sleep(for: .milliseconds(300))
         }

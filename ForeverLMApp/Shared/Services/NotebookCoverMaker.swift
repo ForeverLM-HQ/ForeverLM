@@ -243,8 +243,7 @@ struct NotebookCoverCache: Sendable {
 // MARK: - The drawing (§5.9)
 
 /// Draws a notebook's cover and moves its pointer: the drawing shared by creation, Redraw With, a
-/// claimed `makeDerived` Job and the backfill. Generation 2 only; nothing constructs it under
-/// generation 1, which has no `Notebook.files` to write.
+/// claimed `makeDerived` Job and the backfill. It moves the notebook's `files.cover` pointer.
 ///
 /// 1. The prompt is read from the notebook's record in the replica (`notebookCoverPrompt`), drawn through
 ///    the managed image route on the account's Images model, and kept as a 512-px JPEG.
@@ -450,7 +449,7 @@ extension KnowledgeStore {
 /// folded notebook's: its FileRef verbatim, adopted by compare-and-set beside the engine once the survivor's
 /// record is sent (`NotebookCoverService`, kind `notebookCoverFold`). Queued inside the fold's own
 /// transaction, so a quit never loses it. Personal notebooks only: a space's notebooks are the space
-/// owner's Mac's (WP15), and a folded notebook not yet in the replica has no cover to hand over.
+/// owner's Mac's, and a folded notebook not yet in the replica has no cover to hand over.
 enum NotebookCoverFold {
     static func queue(into targetID: String, from foldedIDs: [String], connection: SQLiteConnection, now: Date) throws {
         guard let target = try personal(targetID, connection: connection) else { return }
@@ -485,8 +484,8 @@ enum NotebookCoverFold {
 /// Draws the covers this Mac was asked for (§5.9, D53), off the main actor and off the launch path:
 /// the creation queue (a notebook made here one at a time, once it is sent and named), the fold's
 /// hand-overs, a `makeDerived` Job's cover and Redraw With. The cover backfill runs here too, on the
-/// maintenance-lease holder only (`NotebookCoverBackfill`). WP16 builds it with the coordinator, and
-/// `MaintenanceService` wakes it after each round; nothing constructs it under generation 1.
+/// maintenance-lease holder only (`NotebookCoverBackfill`). The sync coordinator builds it, and
+/// `MaintenanceService` wakes it after each round.
 actor NotebookCoverService {
     /// The service the app started, for the creation flows and the menus.
     nonisolated(unsafe) static weak var current: NotebookCoverService?
@@ -607,10 +606,14 @@ actor NotebookCoverService {
         } catch {
             Self.logger.error("A notebook cover failed: \(String(describing: error), privacy: .public)")
             let message = String(describing: error)
-            try? await store.perform { state in
-                try state.connection.execute(
-                    "UPDATE ck_backfill_queue SET attempts = attempts + 1, last_error = ? WHERE id = ?", [.text(message), .integer(row.id)]
-                )
+            do {
+                try await store.perform { state in
+                    try state.connection.execute(
+                        "UPDATE ck_backfill_queue SET attempts = attempts + 1, last_error = ? WHERE id = ?", [.text(message), .integer(row.id)]
+                    )
+                }
+            } catch {
+                Self.logger.error("Could not record the failed cover attempt: \(error.localizedDescription, privacy: .public)")
             }
             return false
         }
@@ -724,8 +727,8 @@ actor NotebookCoverService {
 #if os(macOS)
 extension NotebookCoverService {
     /// The service the Mac runs: the managed image route on the account's Images model, the
-    /// Setting read when a cover would be drawn, and the covers cached in Caches. WP16 builds it
-    /// with the coordinator, beside `MaintenanceService` (`attachCovers`), and keeps it, since `current` is
+    /// Setting read when a cover would be drawn, and the covers cached in Caches. The sync coordinator builds it
+    /// beside `MaintenanceService` (`attachCovers`), and keeps it, since `current` is
     /// weak.
     static func live(store: PrivateSyncLocalStore, blobs: BlobStore, writer: MaintenanceWriter, deviceID: String) -> NotebookCoverService {
         let maker = NotebookCoverMaker(
@@ -747,7 +750,11 @@ extension NotebookCoverService {
         guard gates.automatic else { return }
         await PreferenceStore.flushPendingWrites()
         var queued = false
-        try? await storage.performSync { queued = try $0.queueNotebookCover(notebookID, gates: gates) }
+        do {
+            try await storage.performSync { queued = try $0.queueNotebookCover(notebookID, gates: gates) }
+        } catch {
+            Self.logger.error("Could not queue the notebook cover: \(error.localizedDescription, privacy: .public)")
+        }
         if queued { current?.wake() }
     }
 

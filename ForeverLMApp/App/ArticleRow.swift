@@ -1,8 +1,6 @@
 import SwiftUI
 import Combine
 import UniformTypeIdentifiers
-import PDFKit
-import WebKit
 import AppKit
 
 struct ArticleRow: View {
@@ -88,8 +86,8 @@ struct ArticleRow: View {
            article.parentGroup == nil || (type != .book && type != .course) {
             if type == .video {
                 // Videos show the uploader channel, mirroring how podcast
-                // episodes show their show name. Legacy rows may still hold
-                // playlist-title noise in `domain`; the helper filters it out.
+                // episodes show their show name. A row's `domain` may hold
+                // playlist-title noise; the helper filters it out.
                 if let channel = vm.videoChannelName(for: article) {
                     parts.append(channel)
                 }
@@ -401,7 +399,7 @@ struct ArticleRow: View {
     }
 
     private var compactGlyph: some View {
-        Image(systemName: sourceTypeIcon(article.sourceType))
+        Image(systemName: article.sourceType.symbolName)
             .zoomedSystemFont(size: 13)
             .foregroundStyle(.secondary)
             .frame(width: 22, height: 22)
@@ -769,8 +767,8 @@ struct ArticleRow: View {
             BookCoverThumbnail(
                 pdfPath: thumbnailPath,
                 size: Self.thumbnailSize,
-                placeholderSystemImage: sourceTypeIcon(article.sourceType),
-                tint: sourceTypeColor(article.sourceType)
+                placeholderSystemImage: article.sourceType.symbolName,
+                tint: article.sourceType.tintColor
             )
         } else if let artworkURLString = article.artworkURL,
                   MeetingIconService.localArtworkPath(for: artworkURLString) == nil,
@@ -799,7 +797,7 @@ struct ArticleRow: View {
     private var sourceTypeIconView: some View {
         if article.sourceType == .xPost {
             XLogoShape()
-                .fill(sourceTypeColor(article.sourceType), style: FillStyle(eoFill: true))
+                .fill(article.sourceType.tintColor, style: FillStyle(eoFill: true))
                 .frame(width: 18, height: 18)
                 .frame(width: 36, height: 36)
         } else if ZoomRecordingService.isZoomRecordingURL(article.url) {
@@ -810,40 +808,13 @@ struct ArticleRow: View {
                 .frame(width: 20, height: 20)
                 .frame(width: 36, height: 36)
         } else {
-            Image(systemName: sourceTypeIcon(article.sourceType))
+            Image(systemName: article.sourceType.symbolName)
                 .zoomedSystemFont(size: 20)
-                .foregroundStyle(sourceTypeColor(article.sourceType))
+                .foregroundStyle(article.sourceType.tintColor)
                 .frame(width: 36, height: 36)
         }
     }
 
-    private func sourceTypeIcon(_ type: StudioSourceType) -> String {
-        switch type {
-        case .article, .unclassified: return "doc.richtext"
-        case .paper: return "doc.text.magnifyingglass"
-        case .podcast: return "headphones"
-        case .book: return "book.closed"
-        case .course: return "graduationcap"
-        case .meeting: return "person.2.wave.2"
-        case .video: return "play.rectangle"
-        case .xPost: return "bubble.left"
-        case .manual: return "link"
-        }
-    }
-
-    private func sourceTypeColor(_ type: StudioSourceType) -> Color {
-        switch type {
-        case .article, .unclassified: return .blue
-        case .paper: return .purple
-        case .podcast: return .orange
-        case .book: return .green
-        case .course: return .indigo
-        case .meeting: return .teal
-        case .video: return .red
-        case .xPost: return .primary
-        case .manual: return .secondary
-        }
-    }
 }
 
 // MARK: - What a source row says

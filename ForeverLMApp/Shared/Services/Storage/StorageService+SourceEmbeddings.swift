@@ -1,6 +1,5 @@
 // StorageService: the chunk vector index and source embeddings.
 import Foundation
-import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
@@ -68,7 +67,7 @@ extension StorageService {
 
     /// How far back "Read next" looks for what the learner has been reading,
     /// and how many of those sources it measures the library against.
-    static let readNextLookback: TimeInterval = 30 * 24 * 60 * 60
+    static let readNextLookback: TimeInterval = 30 * MemoryTutorScheduler.secondsPerDay
     static let readNextSeedLimit = 10
 
     /// Unread sources nearest to what the learner has been reading lately.
@@ -462,9 +461,9 @@ extension StorageService {
     ///
     /// Stored text wins. Deriving text from a local file — a book chapter's
     /// PDF, a course handout — happens only for a source that has nothing
-    /// stored yet, and it runs off this actor. It used to run here on every
-    /// read of a PDF-backed source, re-extracting the whole file to compare it
-    /// against the stored copy, which held the single storage lane for as long
+    /// stored yet, and it runs off this actor. Running it here on every
+    /// read of a PDF-backed source would re-extract the whole file to compare it
+    /// against the stored copy, holding the single storage lane for as long
     /// as the extraction took while every chat send, sync hop and reader open
     /// queued behind it (see `ChatSendPreparationTrace`). A stale derived copy
     /// is refreshed by the ingestion paths that replace the file, not by reads.

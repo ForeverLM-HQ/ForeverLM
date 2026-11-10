@@ -49,7 +49,7 @@ extension KnowledgeStore {
             ("status", "TEXT NOT NULL DEFAULT 'active'"),
             ("added_at", "REAL"),
         ], constraints: ["UNIQUE (kind, external_key)"]),
-        // The Source fields no generation-1 column holds, one row per source (correction of §12.7, WP7):
+        // The Source fields no generation-1 column holds, one row per source (correction of §12.7):
         // set by the activation, an inbound record or a generation-2 write, so they survive a round
         // trip. `extra_meta_json` holds the `meta` keys no column holds; `lossy_json` the wire value of a
         // field a column holds only approximately (authors, publication date, type, ingest), beside the
@@ -86,7 +86,7 @@ extension KnowledgeStore {
 // MARK: - The activation's derivations for sources and collections (§13.3 step 3c)
 
 extension KnowledgeStore {
-    /// WP7's derivations, in order: wire ids and the team copies' `ck_identity` rows, then work keys,
+    /// The derivations for sources, in order: wire ids and the team copies' `ck_identity` rows, then work keys,
     /// then the shows, channels and playlists no table holds, then the queue of the satellite layout. Each is idempotent, set-based or bounded
     /// by the library, in its own transaction, and reads generation-1 truth only, so it reflects every
     /// generation-1 write made before the activation.
@@ -111,11 +111,11 @@ extension KnowledgeStore {
     }
 
     /// The zone a generation-1 team's copies will live in, as `ck_identity` names it until the space
-    /// packages make the team a space (§13.7, WP15): `Space-<team id>` (lowercased when it is a UUID),
+    /// packages make the team a space (§13.7): `Space-<team id>` (lowercased when it is a UUID),
     /// in the private database for a team this Mac owns, else in its owner's shared one. No such zone
     /// has a root yet, so the feeder holds every change to a team copy, rows and all, until then. Once
     /// the team is a space (`TeamToSpace`, or a space `SpaceService` made or joined), its `teams` row
-    /// names the space's zone and its owner as the library container knows them (WP15).
+    /// names the space's zone and its owner as the library container knows them.
     func teamZoneKeys() throws -> [String: String] {
         try SpaceRows.teamZoneKeys(self)
     }

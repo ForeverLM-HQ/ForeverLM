@@ -32,7 +32,7 @@ actor MobileLearningBoutStore {
         let stored = defaults.dictionary(forKey: Self.endedBreaksKey) as? [String: Double] ?? [:]
         return stored.compactMapValues { seconds in
             let date = Date(timeIntervalSince1970: seconds)
-            return now.timeIntervalSince(date) < 2 * 86_400 ? date : nil
+            return now.timeIntervalSince(date) < 2 * MemoryTutorScheduler.secondsPerDay ? date : nil
         }
     }
 
@@ -43,8 +43,7 @@ actor MobileLearningBoutStore {
     }
 
     private func requiredWriter() async throws -> MobileRecordWriter {
-        guard let writer = await recordWriter() else { throw MobileRecordWriterError.zoneNotHeld }
-        return writer
+        try await MobileRecordWriter.required(from: recordWriter)
     }
 
     // MARK: - Reads
@@ -54,7 +53,7 @@ actor MobileLearningBoutStore {
     /// and yesterday's bouts are read, from midnight yesterday on, because a
     /// bout begun before midnight is still the live one at ten past.
     func fetchLive(now: Date = Date()) async throws -> LearningBout? {
-        let since = Calendar.current.startOfDay(for: now).addingTimeInterval(-86_400)
+        let since = Calendar.current.startOfDay(for: now).addingTimeInterval(-MemoryTutorScheduler.secondsPerDay)
         let ended = endedBreaks(now: now)
         return LearningBout.live(in: try await requiredWriter().read { try $0.bouts(since: since, endedBreaks: ended) }, now: now)
     }

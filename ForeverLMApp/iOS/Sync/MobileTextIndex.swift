@@ -6,8 +6,7 @@ import OSLog
 /// DOI, summary), extracted inside the apply that writes the Source as the index columns are, and
 /// over the canonical text of its text set: the sources in its notebooks, the sources opened in the
 /// last 30 days, the sources saved offline, and the whole library when the learner opts in. Never
-/// synced: each device builds its own from the `text` satellites. Generation 2 only; under generation
-/// 1 the replica is never opened.
+/// synced: each device builds its own from the `text` satellites.
 ///
 /// The FTS rows are keyed through two plain tables, so a record's metadata row and a source's text
 /// row are found by key, never by scanning the FTS tables: `m_text_keys` (one row per held copy of a
@@ -22,7 +21,7 @@ enum MobileTextIndex {
     /// Source records indexed again per transaction when the metadata is filled.
     static let fillBatch = 500
     /// How long an opened source's text stays searchable after it was last opened.
-    static let openedWindow: TimeInterval = 30 * 86_400
+    static let openedWindow: TimeInterval = 30 * MemoryTutorScheduler.secondsPerDay
 
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "MobileTextIndex")
     private static let tokenizer = "tokenize = 'unicode61 remove_diacritics 2'"

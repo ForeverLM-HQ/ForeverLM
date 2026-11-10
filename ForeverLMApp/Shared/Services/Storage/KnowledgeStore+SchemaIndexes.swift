@@ -1,6 +1,3 @@
-import Foundation
-import SQLite3
-
 extension KnowledgeStore {
 
     /// Recreates the `source_projection` view to pick up the current columns.

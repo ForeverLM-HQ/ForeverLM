@@ -2194,7 +2194,7 @@ enum Prompts {
     """
 
     /// The one rewording a card that failed `cardWordingCheck` is given
-    /// before it is checked again (`CardWordingCheck.rewriteMessage`). The
+    /// before it is checked again (`CardWordingGate`). The
     /// user message says whether the answer may change too: a kept card's
     /// answer is its identity, so only its question is reworded.
     static let cardWordingRewrite = """

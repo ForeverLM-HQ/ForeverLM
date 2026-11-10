@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Sensemaking prompts (docs/sensemaking-design.md)
 //
-// One constant per AITask the shapes added, each owned by the work package
+// One constant per AITask the shapes added, each owned by the code
 // that calls it. They are the tasks' default system prompts
 // (`AITask.defaultPrompt`); a learner's own prompt in Settings replaces them.
 

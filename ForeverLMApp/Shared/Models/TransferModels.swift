@@ -1,15 +1,8 @@
 // Drag and drop transfer models, moved out of Models.swift.
 
 import Foundation
-import CryptoKit
-import SwiftUI
 import UniformTypeIdentifiers
 import CoreTransferable
-#if os(macOS)
-import AppKit
-#elseif canImport(UIKit)
-import UIKit
-#endif
 
 // MARK: - Drag & Drop Transfer
 
@@ -55,7 +48,7 @@ extension UTType {
     /// another to reorder the pins (`PagePins.rowsAfterMoving`): its id.
     static let spacePin = UTType(exportedAs: "com.foreverlm.space-pin")
     /// Custom UTType for a Board card dragged to another column or another
-    /// place in its column (`SpaceBoardDrop`): the task's id.
+    /// place in its column (`SpaceBoardDropDelegate`): the task's id.
     static let boardCard = UTType(exportedAs: "com.foreverlm.board-card")
     /// Finder-style web location files for dragging URL-only sources to external apps.
     static let webInternetLocation = UTType(filenameExtension: "webloc")

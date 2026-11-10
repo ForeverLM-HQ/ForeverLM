@@ -1,14 +1,7 @@
 // Recording source consumption, depth and activity.
 
-import AVFoundation
-import Combine
-import CryptoKit
-import MediaPlayer
-import OSLog
-import SwiftUI
 import CloudKit
-import SQLite3
-import WidgetKit
+import Foundation
 
 extension MobileAudioReviewViewModel {
     /// The one mobile completion boundary for both reading and listening. It

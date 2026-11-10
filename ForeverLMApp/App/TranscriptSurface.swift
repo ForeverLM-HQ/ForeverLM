@@ -1,9 +1,5 @@
 // The backdrop modifier behind the chat panel transcript.
 import SwiftUI
-import Combine
-import UniformTypeIdentifiers
-import PDFKit
-import WebKit
 import AppKit
 
 /// Backdrop for the scrolling transcript. In the docked Chat column and pop-out

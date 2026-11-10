@@ -3,7 +3,7 @@ import Foundation
 /// A mark the learner set aside to come back to — blue (Follow up) or pink
 /// (Doubt), `SourceHighlightColor.isOpenItem` — with the library source it is
 /// on. `sourceID` is the source's id on this device, which a team copy's marks
-/// (kept on the source's wire id under generation 2) are mapped to.
+/// (kept on the source's wire id) are mapped to.
 struct FollowUpMark: Identifiable, Equatable, Sendable {
     let highlight: SourceHighlight
     let sourceID: String

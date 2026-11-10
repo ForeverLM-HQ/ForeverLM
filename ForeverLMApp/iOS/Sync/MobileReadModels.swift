@@ -1,10 +1,9 @@
 import Foundation
 
-/// The screens' models under generation 2 (docs/cloudkit-schema-design.md D33, D52, §3.5, §5.6, §8b–§8d,
-/// §14.1; §14.2 WP19b): what generation 1 assembled from the old zone's payloads, read instead from the
-/// index columns `MobileReplica` extracted when each record was applied. The screens keep their models
-/// (`MobileCloudSource`, `MobileCloudNotebook`, `MobileCatalogCollections`, `MobileCloudArtifact`,
-/// `MobileNotebookChatSummary`), so a screen reads the same shape whichever generation fed it.
+/// The screens' models (docs/cloudkit-schema-design.md D33, D52, §3.5, §5.6, §8b–§8d, §14.1), read
+/// from the index columns `MobileReplica` extracted when each record was applied. The screens' models
+/// are `MobileCloudSource`, `MobileCloudNotebook`, `MobileCatalogCollections`, `MobileCloudArtifact` and
+/// `MobileNotebookChatSummary`.
 ///
 /// One read of the index builds the snapshot; no payload is decoded for it but each space's root. A
 /// chat's transcript decodes only that chat's exchanges, and the Memory grid folds the ActivityLog
@@ -14,16 +13,16 @@ enum MobileReadModels {
     static let libraryKey = MobileProjection.libraryKey
     static let catalogKey = MobileProjection.catalogKey
 
-    /// Everything the catalog serves under generation 2.
+    /// Everything the catalog serves.
     struct Snapshot: Sendable {
         var structure = MobileProjection.LibraryStructure()
         /// Every source the phone holds, one per id (`Catalog` first, then each space), merged duplicates
-        /// left out. Hidden and archived ones stay, flagged, as generation 1 kept them: the lists filter.
+        /// left out. Hidden and archived ones stay, flagged: the lists filter.
         var sources: [MobileCloudSource] = []
         var collections = MobileCatalogCollections.empty
         /// The notebooks Home lists, newest first: archived, hidden and redirect stubs left out.
         var notebooks: [MobileCloudNotebook] = []
-        /// This member's ticks per notebook, in the shape generation 1's two rows have: the sources whose
+        /// This member's ticks per notebook: the sources whose
         /// untick still names their Entry's stamps, and the context notebooks ticked in (§5.6, D52).
         var selections: [String: NotebookChatContext.Selection] = [:]
         var artifacts: [MobileCloudArtifact] = []
@@ -34,11 +33,11 @@ enum MobileReadModels {
         var chatZones: [String: String] = [:]
         /// The day-named memory review chats, for the history grid.
         var memoryChats: [MobileMemoryHistoryDays.Session] = []
-        /// The Schedule's live placements, each with its source's activity days (WP20c).
+        /// The Schedule's live placements, each with its source's activity days.
         var placements: [MobileCloudScheduledSource] = []
         /// The notebooks and Goals a placement's tags name.
         var scheduleGoals: [MobileCloudGoal] = []
-        /// The member's highlights, oldest first (WP20c).
+        /// The member's highlights, oldest first.
         var highlights: [SourceHighlight] = []
         /// Every source's activity days, folded from every device's ActivityLog, whether or not it is on
         /// the Schedule: what memory review counts as consumption.
@@ -186,7 +185,7 @@ enum MobileReadModels {
         return rows.map(\.source).sorted { $0.dateAdded > $1.dateAdded }
     }
 
-    /// Generation 1's three states from the ingest's (§3.5.4): a paywalled source is ready, and marked.
+    /// The three states a source shows, from the ingest's (§3.5.4): a paywalled source is ready, and marked.
     static func state(ofIngest ingest: String?) -> String {
         switch ingest {
         case "queued"?, "fetching"?: return "queued"
@@ -222,7 +221,7 @@ enum MobileReadModels {
     }
 
     /// Courses with their lessons in path order and each lesson's sources (§3.5.9, §3.5.10, §8d). An
-    /// archived course is hidden, as a hidden course is on generation 1. Quizzes wait for their
+    /// archived course is hidden. Quizzes wait for their
     /// `questions` satellites, which the course page fetches when it opens (`MobileCourseQuizzes`).
     static func courses(in connection: SQLiteConnection) throws -> [String: MobileCloudCourse] {
         var courses: [String: MobileCloudCourse] = [:]
@@ -378,7 +377,7 @@ enum MobileReadModels {
         return (notebooks, selections, pools)
     }
 
-    /// `owner/repo` from a repository's URL (§3.5.6), as generation 1 named it.
+    /// `owner/repo` from a repository's URL (§3.5.6).
     static func repositoryName(of url: String) -> String? {
         guard let parsed = URL(string: url), parsed.host?.lowercased().hasSuffix("github.com") == true else {
             return url.isEmpty ? nil : url
@@ -390,7 +389,7 @@ enum MobileReadModels {
 
     // MARK: - Artifacts
 
-    /// Generation 1's kind words for the kinds a notebook's Studio lists (§3.5.15): a Doc, a linked
+    /// The kind words for the kinds a notebook's Studio lists (§3.5.15): a Doc, a linked
     /// page, a report, an explainer or a lesson reads as a kindless Doc, an animation and an audio
     /// overview keep theirs. Notes Docs, sites, files, pictures and skills have no place on the phone.
     static func phoneKind(of kind: String?) -> (listed: Bool, kind: String?) {
@@ -438,7 +437,7 @@ enum MobileReadModels {
 
     // MARK: - Chats
 
-    /// What a saved chat is, from its kind (D50): every chat carries one under generation 2, so the
+    /// What a saved chat is, from its kind (D50): every chat carries one, so the
     /// shape needs no guess from its exchanges.
     static func shape(ofKind kind: String?, chatID: String) -> MobileNotebookChatContinuation.Shape {
         switch kind {
@@ -478,7 +477,7 @@ enum MobileReadModels {
         var discussions: [ChatDiscussion] = []
         for chat in structure.chats {
             let chatKey = key(chat.zoneKey, chat.chatID)
-            // A finished chat's own sources count as reviewed, as an ended generation-1 session's did.
+            // A finished chat's own sources count as reviewed.
             if chat.status == "ended" || chat.status == "archived" { reviewed.formUnion(extras[chatKey]?.context ?? []) }
             let count = counts[chatKey] ?? (0, 0)
             let hidden = marks.isHidden("cht", chat.chatID)
@@ -596,7 +595,7 @@ enum MobileReadModels {
     // MARK: - Narration
 
     /// Where this member left a narration (`ReadingState.listen`, §3.5.18): its seconds, when it was
-    /// saved against this narration's text or names none, as generation 1 reads the position file.
+    /// saved against this narration's text or names none.
     static func listenPosition(_ listen: SyncJSON?, contentSignature: String) -> TimeInterval? {
         guard let seconds = listen?["globalTime"]?.numberValue, seconds > 0 else { return nil }
         if let saved = listen?["contentSignature"]?.stringValue, saved != contentSignature { return nil }
@@ -645,13 +644,12 @@ enum MobileReadModels {
 
     // MARK: - Memory
 
-    /// The review clock of every ActivityLog (§3.5.24), as the rows generation 1's arithmetic folds
+    /// The review clock of every ActivityLog (§3.5.24), as the rows the review arithmetic folds
     /// (`MemoryReviewProgress.days`, `MobileMemoryGoalModel`): one row per device log with review time,
     /// judged by `goalSecondsNow`, since a device log records no goal; and one row per old device of a
     /// `legacy22` log, with the goal it had. A device log's row is dated `now`, so on a day both kinds
-    /// hold (around the move), the goal in force now is the day's, as generation 1 takes the goal of
-    /// the row written last. The fold sums the seconds; nothing is counted twice, since a device records
-    /// under one generation at a time.
+    /// hold, the goal in force now is the day's, as the goal of the row written last. The fold sums the
+    /// seconds; nothing is counted twice.
     static func reviewActivity(_ projection: MobileProjection, goalSecondsNow: TimeInterval, now: Date = Date()) async throws -> [MemoryReviewActivity] {
         try await projection.replica.read { try reviewActivity(in: $0.connection, goalSecondsNow: goalSecondsNow, now: now) }
     }
@@ -679,7 +677,7 @@ enum MobileReadModels {
 
     // MARK: - Cards and answers (§3.5.22, §3.5.23)
 
-    /// The member's Memory as generation 1 held it: every kept card as the item it is, and every answer
+    /// The member's Memory: every kept card as the item it is, and every answer
     /// about a card as the attempt it is. Decoded from the Card and Sitting payloads, which the index
     /// leaves alone (a Sitting's answers can run to 100 KiB each), so it is read once and kept until the
     /// replica changes, not with every snapshot.
@@ -794,7 +792,7 @@ enum MobileReadModels {
         URL(string: url)?.host.map { $0.hasPrefix("www.") ? String($0.dropFirst(4)) : $0 }
     }
 
-    private static func placeholders(_ count: Int) -> String {
+    static func placeholders(_ count: Int) -> String {
         Array(repeating: "?", count: max(count, 1)).joined(separator: ", ")
     }
 }

@@ -138,7 +138,7 @@ extension StudioViewModel {
 
     /// Whether the user opted into periodic background import of their YouTube
     /// Liked videos. Stored in the synced Keychain so the choice carries
-    /// between the user's Macs; falls back to the legacy per-device UserDefaults
+    /// between the user's Macs; falls back to the per-device UserDefaults
     /// value when never set.
     nonisolated static var isYouTubeAutoImportEnabled: Bool {
         KeychainService.loadBool(.youtubeAutoImportEnabled)
@@ -146,7 +146,7 @@ extension StudioViewModel {
     }
 
     /// Persist the YouTube auto-import preference to the synced Keychain (so it
-    /// carries between Macs) and mirror it to UserDefaults for legacy local reads.
+    /// carries between Macs) and mirror it to UserDefaults for per-device reads.
     nonisolated static func setYouTubeAutoImportEnabled(_ enabled: Bool) {
         // The Keychain copy is a *synced* key — a synchronizable SecItem write,
         // i.e. securityd IPC — and this runs from the Settings toggle. Keep the
@@ -183,10 +183,10 @@ extension StudioViewModel {
     /// exemption they would match this predicate and get archived — which wipes
     /// their transcript — on every Liked-feed sync.
     ///
-    /// The sweep only retracts rows the Liked feed itself created. It used to
-    /// exempt just `.manual`, which meant a YouTube video found in a browser
-    /// Reading List was archived for the sole reason that it wasn't liked — a
-    /// video the learner never claimed was liked in the first place. Absence
+    /// The sweep only retracts rows the Liked feed itself created. Exempting
+    /// just `.manual` would archive a YouTube video found in a browser Reading
+    /// List for the sole reason that it wasn't liked — a video the learner never
+    /// claimed was liked in the first place. Absence
     /// from the feed says nothing about a row the feed didn't put there.
     nonisolated static func shouldArchiveUnlikedYouTubeVideo(
         _ article: StudioArticle,
@@ -837,7 +837,11 @@ extension StudioViewModel {
         guard !idsToArchive.isEmpty else { return 0 }
 
         for sourceID in idsToArchive {
-            try? await storage.archiveSource(sourceID)
+            do {
+                try await storage.archiveSource(sourceID)
+            } catch {
+                logger.error("archiveSource failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
         let archived = Set(idsToArchive)
         articles.removeAll { archived.contains($0.id) }
@@ -888,7 +892,11 @@ extension StudioViewModel {
         guard !idsToArchive.isEmpty else { return 0 }
 
         for sourceID in idsToArchive {
-            try? await storage.archiveSource(sourceID)
+            do {
+                try await storage.archiveSource(sourceID)
+            } catch {
+                logger.error("archiveSource failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
         let archived = Set(idsToArchive)
         articles.removeAll { archived.contains($0.id) }

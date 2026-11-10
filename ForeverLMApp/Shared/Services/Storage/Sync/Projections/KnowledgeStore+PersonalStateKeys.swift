@@ -1,5 +1,3 @@
-import Foundation
-
 // MARK: - Per-member rows on the source's wire id (docs/cloudkit-schema-design.md §4.3, D18)
 
 extension KnowledgeStore {

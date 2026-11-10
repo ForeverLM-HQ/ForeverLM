@@ -1,13 +1,4 @@
 import Foundation
-import CryptoKit
-import SwiftUI
-import UniformTypeIdentifiers
-import CoreTransferable
-#if os(macOS)
-import AppKit
-#elseif canImport(UIKit)
-import UIKit
-#endif
 
 enum UITestConfiguration {
     static var isUITesting: Bool {
@@ -604,7 +595,7 @@ struct SourceEdits: Equatable, Sendable {
 extension StudioArticle {
     /// This copy as a save writes it over `stored`, the row as the store holds it now: a field this copy
     /// changed since it was read keeps this copy's value, and every other field takes the stored one.
-    /// `PaperMetadataBackfillPatch` is the same rule for its fields. Under generation 2 every column whose
+    /// `PaperMetadataBackfillPatch` is the same rule for its fields. Every column whose
     /// value a save changes is sent with a new stamp and wins on every device, so a copy held across
     /// another device's change (a long ingestion's snapshot, the view model's copy before its reload)
     /// would otherwise send the old value back. A field changed and changed back still counts as

@@ -254,12 +254,10 @@ struct MobileAudioReviewView: View {
     // MARK: - First sync
 
     private var loadingState: some View {
-        // The first sync is a background pass, not a doorway. On a first launch
-        // this used to be a wait screen — a spinner, a record count, and the
-        // whole iPad canvas black around it — that read as "the app is stuck".
-        // It is now an invitation: start using ForeverLM, and the library fills
-        // in behind you. The sync readout stays, demoted to a small card, and the
-        // shell's sync row carries the same numbers once the learner leaves.
+        // The first sync is a background pass, not a doorway: an invitation to
+        // start using ForeverLM while the library fills in behind. The sync
+        // readout is a small card, and the shell's sync row carries the same
+        // numbers once the learner leaves.
         VStack(spacing: 0) {
             Spacer(minLength: 0)
 
@@ -471,8 +469,7 @@ struct MobileShellSourceDestination: View {
 /// A page a route named, looked up when it is drawn. The learner's own Markdown page the Space holds is
 /// written in place (`MobilePageScreen`), opened from the Space, a link or a notebook's Studio alike, so
 /// a page edits the same everywhere on the phone. What the Space does not write here — a reading, a
-/// linked Google Doc, a team's page — is read in the notebook that opened it, as before, and so is
-/// every page under generation 1.
+/// linked Google Doc, a team's page — is read in the notebook that opened it.
 private struct MobileShellPageDestination: View {
     let pageID: String
     /// The notebook whose Studio opened it; nil from the Space or a link.

@@ -1,6 +1,5 @@
 // StorageService: opening the knowledge store, the paper figure index and reader highlights.
 import Foundation
-import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif

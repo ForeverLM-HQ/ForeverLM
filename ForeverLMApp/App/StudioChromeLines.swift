@@ -1,12 +1,7 @@
 // The window chrome view, chrome line dividers and the pane environment keys.
 
 import SwiftUI
-import Combine
-import UniformTypeIdentifiers
-import PDFKit
-import WebKit
 import AppKit
-import OSLog
 
 /// Applies the chrome as soon as the view lands in a window, keeps the traffic
 /// lights centered in the visual top bar, and stays out of hit testing so the
@@ -381,7 +376,7 @@ private struct StudioCenterTabCloseChrome: ViewModifier {
                 // the chrome line and the content row.
                 if !centerTabStripVisible && drawsCloseControl && placement != .hidden {
                     GeometryReader { proxy in
-                        closeButton
+                        PaneCloseButton(action: closePane)
                             .studioPanelHeaderChrome(
                                 height: titlebarBandHeight ?? StudioPanelChrome.headerHeight
                             )
@@ -397,24 +392,6 @@ private struct StudioCenterTabCloseChrome: ViewModifier {
                     }
                 }
             }
-    }
-
-    private var closeButton: some View {
-        // A `Button` on the chrome line hands its mouse-down to the titlebar's
-        // window drag; see `TitlebarBandHitSurfaceView`.
-        TitlebarBandButton(
-            help: "Close pane",
-            accessibilityLabel: "Close pane",
-            action: closePane
-        ) {
-            Image(systemName: "xmark")
-                .zoomedSystemFont(size: 11, weight: .medium)
-                .foregroundStyle(.secondary)
-                .frame(
-                    width: StudioPanelChrome.centerTabCloseButtonSize,
-                    height: StudioPanelChrome.centerTabCloseButtonSize
-                )
-        }
     }
 
     private var drawsCloseControl: Bool {
@@ -614,5 +591,28 @@ extension EnvironmentValues {
     var studioPaneChromePlacement: StudioPaneClosePlacement {
         get { self[StudioPaneChromePlacementKey.self] }
         set { self[StudioPaneChromePlacementKey.self] = newValue }
+    }
+}
+
+/// The × that closes a pane, on the titlebar's chrome line.
+struct PaneCloseButton: View {
+    let action: () -> Void
+
+    var body: some View {
+        // A `Button` on the chrome line hands its mouse-down to the titlebar's
+        // window drag; see `TitlebarBandHitSurfaceView`.
+        TitlebarBandButton(
+            help: "Close pane",
+            accessibilityLabel: "Close pane",
+            action: action
+        ) {
+            Image(systemName: "xmark")
+                .zoomedSystemFont(size: 11, weight: .medium)
+                .foregroundStyle(.secondary)
+                .frame(
+                    width: StudioPanelChrome.centerTabCloseButtonSize,
+                    height: StudioPanelChrome.centerTabCloseButtonSize
+                )
+        }
     }
 }

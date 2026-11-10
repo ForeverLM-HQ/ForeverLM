@@ -72,7 +72,7 @@ enum CourseEnrollmentStore {
         enqueue { try $0.setCourseFocus(courseID: courseID, focus: text) }
     }
 
-    /// Reloads after an inbound Enrollment (WP16 calls it after an apply).
+    /// Reloads after an inbound Enrollment.
     static func reload() { enqueue { _ in } }
 
     /// Takes a snapshot read back from the store; whether it differs from the one held.

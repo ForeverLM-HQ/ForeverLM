@@ -1,5 +1,3 @@
-import Foundation
-
 /// The device's stamp source (§6.3, D9). It keeps the server offset (the median of the last 20
 /// `server time − local send time` deltas from acknowledged saves, or from a response's own
 /// timestamps on the web and in the hosted MCP) and the last stamp it issued. The Mac persists it

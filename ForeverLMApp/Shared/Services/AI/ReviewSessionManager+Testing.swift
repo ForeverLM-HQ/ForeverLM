@@ -1,9 +1,6 @@
 // Part of ReviewSessionManager: the debug-only hooks that tests call.
 
 import Foundation
-import Observation
-import PDFKit
-import os
 
 #if DEBUG
 extension ReviewSessionManager {

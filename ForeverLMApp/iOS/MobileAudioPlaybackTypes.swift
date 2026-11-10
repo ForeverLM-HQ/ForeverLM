@@ -1,14 +1,6 @@
 // The playback, book and sync status types the audio view model publishes.
 
-import AVFoundation
-import Combine
-import CryptoKit
-import MediaPlayer
-import OSLog
-import SwiftUI
-import CloudKit
-import SQLite3
-import WidgetKit
+import Foundation
 
 struct MobileSourceSyncDiagnostic: Equatable {
     let accountStatus: String

@@ -1,9 +1,6 @@
 // The mirror of a quote selected on a page.
 import SwiftUI
 import Combine
-import UniformTypeIdentifiers
-import PDFKit
-import WebKit
 import AppKit
 
 /// Observes the Page highlight on behalf of the chat panel, so only this

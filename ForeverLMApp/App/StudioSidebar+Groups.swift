@@ -5,8 +5,8 @@ import AppKit
 
 extension StudioSidebar {
     /// A book file dropped on a Books-tab row imports it. Sources and groups
-    /// dropped on a collection used to join it as a course; courses have their
-    /// own pane now (courses-design.md), where a drop still does that.
+    /// dropped on a collection do not join it as a course; courses have their
+    /// own pane (courses-design.md), where a drop does that.
     func handleGroupedCollectionDrop(_ providers: [NSItemProvider], groupName: String) -> Bool {
         var handled = false
         for provider in providers {

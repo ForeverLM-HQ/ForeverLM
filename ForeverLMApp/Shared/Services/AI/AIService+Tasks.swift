@@ -324,17 +324,7 @@ enum OpenRouterSpeedTier {
               let payload = root["data"] as? [String: Any],
               let rows = payload["endpoints"] as? [[String: Any]]
         else { return [] }
-        func usdPerMTokens(_ value: Any?) -> Double? {
-            let perToken: Double?
-            if let string = value as? String { perToken = Double(string) }
-            else if let number = value as? NSNumber { perToken = number.doubleValue }
-            else { perToken = nil }
-            guard let perToken, perToken.isFinite, perToken >= 0 else { return nil }
-            // OpenRouter quotes per token in decimal strings; the binary
-            // product ("0.0000004" × 1e6) is 0.3999…, so settle to a
-            // millionth of a dollar per 1M tokens, far below any list price.
-            return (perToken * 1_000_000 * 1_000_000).rounded() / 1_000_000
-        }
+        let usdPerMTokens = OpenRouterRegionalEndpoints.usdPerMTokens
         return rows.compactMap { row in
             guard let tag = row["tag"] as? String, !tag.isEmpty,
                   let pricing = row["pricing"] as? [String: Any],
@@ -830,7 +820,7 @@ extension AIService {
                     // for again rather than replayed.
                     if let cached = try await storage.cachedAIResponse(
                         for: requestKey,
-                        notOlderThan: Date().addingTimeInterval(-24 * 60 * 60)
+                        notOlderThan: Date().addingTimeInterval(-MemoryTutorScheduler.secondsPerDay)
                     ), Self.isUsable(cached, validateResponse) {
                         return cached
                     }

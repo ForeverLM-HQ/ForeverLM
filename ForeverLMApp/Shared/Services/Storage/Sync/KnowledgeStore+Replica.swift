@@ -286,21 +286,13 @@ extension KnowledgeStore {
             bind(statement, 1, notebookID)
         }
         // The notebook's Notes Doc is deleted with it (§5.2): its body pointer goes, and the record
-        // with it (WP11).
+        // with it.
         try execBind("DELETE FROM artifact_files WHERE artifact_id = ?") { statement in
             bind(statement, 1, NotesDoc.id(notebookID: notebookID))
         }
     }
 
     // MARK: - ck_identity (§4.3)
-
-    /// Records which local row holds a record of a zone.
-    func recordIdentity(zoneKey: String, recordType: String, wireID: String, localID: String) throws {
-        try execute("""
-            INSERT INTO ck_identity (zone_key, record_type, wire_id, local_id) VALUES (?, ?, ?, ?)
-            ON CONFLICT(zone_key, record_type, wire_id) DO UPDATE SET local_id = excluded.local_id
-        """, [.text(zoneKey), .text(recordType), .text(wireID), .text(localID)])
-    }
 
     /// The local id of a record in one zone, if this store has recorded one.
     func localID(zoneKey: String, recordType: String, wireID: String) throws -> String? {
@@ -323,5 +315,29 @@ extension KnowledgeStore {
             "SELECT local_id FROM ck_identity WHERE record_type = ? AND wire_id = ? ORDER BY zone_key LIMIT 1",
             [.text(recordType), .text(wireID)]
         )
+    }
+}
+
+extension SQLiteConnection {
+    /// Records which local row holds a record of a zone.
+    func recordIdentity(zoneKey: String, recordType: String, wireID: String, localID: String) throws {
+        try execute("""
+            INSERT INTO ck_identity (zone_key, record_type, wire_id, local_id) VALUES (?, ?, ?, ?)
+            ON CONFLICT(zone_key, record_type, wire_id) DO UPDATE SET local_id = excluded.local_id
+        """, [.text(zoneKey), .text(recordType), .text(wireID), .text(localID)])
+    }
+}
+
+extension SQLiteConnection {
+    /// Queues one backfill item with its payload. A payload that changed starts the attempts over; the
+    /// same one keeps what its failures already spent.
+    func queueBackfillKeepingAttempts(kind: String, target: String, payload: String) throws {
+        try execute("""
+            INSERT INTO ck_backfill_queue (kind, target, payload_json, enqueued_at) VALUES (?, ?, ?, ?)
+            ON CONFLICT(kind, target) DO UPDATE SET
+                attempts = CASE WHEN ck_backfill_queue.payload_json IS excluded.payload_json THEN ck_backfill_queue.attempts ELSE 0 END,
+                last_error = CASE WHEN ck_backfill_queue.payload_json IS excluded.payload_json THEN ck_backfill_queue.last_error END,
+                payload_json = excluded.payload_json
+        """, [.text(kind), .text(target), .text(payload), .real(Date().timeIntervalSinceReferenceDate)])
     }
 }

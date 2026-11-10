@@ -143,8 +143,8 @@ enum NotebookResearchQuestions {
         }
     }
 
-    /// The generation-1 array the rows give: the questions not dropped, in their order.
-    static func legacyJSON(notebookID: String, connection: SQLiteConnection) throws -> String {
+    /// The JSON array the learning goal row stores: the questions not dropped, in their order.
+    static func activeQuestionsJSON(notebookID: String, connection: SQLiteConnection) throws -> String {
         let texts = try rows(notebookID: notebookID, connection: connection).filter { $0.status != "dropped" }.map(\.text)
         return KnowledgeStore.encodeResearchQuestions(texts)
     }
@@ -314,14 +314,14 @@ struct NotebookProjection: RecordProjection {
     }
 
     func apply(_ envelope: SyncEnvelope, to record: ProjectionRecordRef, connection: SQLiteConnection) throws -> ProjectionApplyOutcome {
-        // A space notebook lands on a row of its space's team id (WP15); a moved stub projects only into
+        // A space notebook lands on a row of its space's team id; a moved stub projects only into
         // `notebook_resolution` (§5.2).
         defer { try? NotebookResolutionTable.refresh(connection) }
         let fields = envelope.fields
         guard fields["status"]?.stringValue != "moved" else { return .projected }
         let space = try SpaceRows.placement(of: record, table: "learning_goals", connection: connection)
         let id = space?.localID ?? record.localID
-        // A notebook moved back to My Library takes its row out of the space it left (WP15b).
+        // A notebook moved back to My Library takes its row out of the space it left.
         if space == nil { try SpaceMoveLocal.comeBack(record, fields: fields, connection: connection) }
         let heldKind = try connection.scalarText("SELECT COALESCE(entity_kind, '') FROM learning_goals WHERE id = ?", [.text(id)])
         // b1: a Notebook never lands on a Goal's row.
@@ -434,7 +434,7 @@ struct NotebookProjection: RecordProjection {
         // Generation-1 readers read the array.
         try connection.execute(
             "UPDATE learning_goals SET research_questions = ? WHERE id = ?",
-            [.text(try NotebookResearchQuestions.legacyJSON(notebookID: notebookID, connection: connection)), .text(notebookID)]
+            [.text(try NotebookResearchQuestions.activeQuestionsJSON(notebookID: notebookID, connection: connection)), .text(notebookID)]
         )
     }
 
@@ -590,7 +590,7 @@ struct GoalProjection: RecordProjection {
 /// The Mac's materialized `notebook_resolution`: every notebook id it knows (its rows, and the
 /// notebooks and stubs its replica holds) with the last live notebook its redirects lead to and that
 /// notebook's zone, as `NotebookResolution` walks them. Refreshed on every Notebook apply and at the
-/// activation; bounded by the library's notebooks. WP8b's jobs and WP15b's moves read it.
+/// activation; bounded by the library's notebooks. The notebook jobs and the space moves read it.
 enum NotebookResolutionTable {
     static func refresh(_ connection: SQLiteConnection) throws {
         var held: [SyncRecordLocation: NotebookRedirects] = [:]
@@ -658,7 +658,7 @@ enum NotebookResolutionTable {
 /// owned by the Doc, laid out as `BlobStore` lays it out; the title "Notes", as the web's
 /// `setNotebookNotes` writes one, so a Notes body hashes the same on every client (§13.6). Empty notes
 /// have no body. This is the encoding only: the Artifact projection, which publishes a body on idle and
-/// three-way merges it (D44, §6.2 step 4), is WP11's, and no notes base is ever taken from the local
+/// three-way merges it (D44, §6.2 step 4), is its own, and no notes base is ever taken from the local
 /// text (§13.6, R8-1).
 enum NotesDoc {
     static let title = "Notes"

@@ -1,13 +1,9 @@
 import Foundation
-import CryptoKit
-import Observation
 import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
-import SwiftUI
 import AppKit
-import SQLite3
 import WebKit
 import Darwin
 
@@ -543,10 +539,10 @@ extension StudioViewModel {
     // A transcript the retired 50,000-character import cap cut is found and
     // restored by the completeness audit (`PodcastTranscriptDetruncationService`,
     // schema 167), which measures where each transcript stops in its episode's
-    // TTML. Opening an episode no longer guesses at it: the reader used to
-    // re-fetch and re-format every TTML-less episode of 44,000 to 50,000
-    // characters, complete ones included, and missed the capped ones that
-    // formatting had pushed past 50,000.
+    // TTML. Opening an episode does not guess at it: guessing would re-fetch
+    // and re-format every TTML-less episode of 44,000 to 50,000 characters,
+    // complete ones included, and miss the capped ones that formatting had
+    // pushed past 50,000.
 
     /// Fetches an episode's transcript again from Apple Podcasts and replaces
     /// the stored one: `refetch_source_content`'s route for a podcast. It is
@@ -619,7 +615,11 @@ extension StudioViewModel {
 
         articles[index].state = .fetching
         articles[index].errorMessage = nil
-        try? await storage.saveSource(articles[index])
+        do {
+            try await storage.saveSource(articles[index])
+        } catch {
+            logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+        }
 
         let storage = self.storage
         let homeDir = realHomeDirectory
@@ -890,7 +890,7 @@ extension StudioViewModel {
     nonisolated static func uploadsNearEpisode(
         _ uploads: [YouTubePlaylistItem],
         addedAt: Date,
-        window: TimeInterval = 10 * 86_400,
+        window: TimeInterval = 10 * MemoryTutorScheduler.secondsPerDay,
         limit: Int = 3
     ) -> [String] {
         uploads
@@ -1343,25 +1343,7 @@ extension StudioViewModel {
             log: log
         )
 
-        let chunkSize = 50_000
-        let chunks: [String]
-        if speakerNamedRaw.count <= chunkSize {
-            chunks = [speakerNamedRaw]
-        } else {
-            var result: [String] = []
-            var start = speakerNamedRaw.startIndex
-            while start < speakerNamedRaw.endIndex {
-                let end = speakerNamedRaw.index(start, offsetBy: chunkSize, limitedBy: speakerNamedRaw.endIndex) ?? speakerNamedRaw.endIndex
-                var breakAt = end
-                if end < speakerNamedRaw.endIndex,
-                   let dotRange = speakerNamedRaw[start..<end].range(of: ". ", options: .backwards) {
-                    breakAt = speakerNamedRaw.index(after: dotRange.lowerBound)
-                }
-                result.append(String(speakerNamedRaw[start..<breakAt]))
-                start = breakAt
-            }
-            chunks = result
-        }
+        let chunks = Self.transcriptFormattingChunks(speakerNamedRaw)
 
         let indexed = Array(chunks.enumerated())
         // Long episodes bill one charge per chunk, so without this the
@@ -1618,13 +1600,7 @@ extension StudioViewModel {
         validSpeakerIDs: Set<String>,
         log: Logger
     ) -> [String: String] {
-        var json = response.trimmingCharacters(in: .whitespacesAndNewlines)
-        if json.hasPrefix("```") {
-            json = json.components(separatedBy: "\n").dropFirst().joined(separator: "\n")
-            if json.hasSuffix("```") {
-                json = String(json.dropLast(3)).trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        }
+        let json = Self.unfencedModelJSON(response)
 
         guard let data = json.data(using: .utf8),
               let decoded = try? JSONDecoder().decode([String: String].self, from: data) else {
@@ -1667,13 +1643,7 @@ extension StudioViewModel {
         to text: String,
         from response: String
     ) -> [PodcastTranscriptAdRemovalCandidate] {
-        var json = response.trimmingCharacters(in: .whitespacesAndNewlines)
-        if json.hasPrefix("```") {
-            json = json.components(separatedBy: "\n").dropFirst().joined(separator: "\n")
-            if json.hasSuffix("```") {
-                json = String(json.dropLast(3)).trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        }
+        let json = Self.unfencedModelJSON(response)
         guard let data = json.data(using: .utf8),
               let annotations = try? JSONDecoder().decode([PodcastTranscriptAnnotation].self, from: data) else {
             return []
@@ -1930,29 +1900,10 @@ extension StudioViewModel {
         from response: String,
         transcriptIsDiarized: Bool? = nil
     ) -> String {
-        struct Annotation: Decodable {
-            let after: String?
-            let speaker: String?
-            let adStart: String?
-            let adEnd: String?
-
-            enum CodingKeys: String, CodingKey {
-                case after, speaker
-                case adStart = "ad_start"
-                case adEnd = "ad_end"
-            }
-        }
-
-        var json = response.trimmingCharacters(in: .whitespacesAndNewlines)
-        if json.hasPrefix("```") {
-            json = json.components(separatedBy: "\n").dropFirst().joined(separator: "\n")
-            if json.hasSuffix("```") {
-                json = String(json.dropLast(3)).trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        }
+        let json = Self.unfencedModelJSON(response)
 
         guard let data = json.data(using: .utf8),
-              let annotations = try? JSONDecoder().decode([Annotation].self, from: data) else {
+              let annotations = try? JSONDecoder().decode([PodcastTranscriptAnnotation].self, from: data) else {
             return text
         }
 

@@ -1,9 +1,7 @@
 // The Docs source picker and its chapter screen.
 
 import AppKit
-import PDFKit
 import SwiftUI
-import UniformTypeIdentifiers
 
 /// One book on the Docs source picker's chapter screen. Flat by design, for the
 /// same reason `ArtifactSourcePickerRow` is: the picker's `List` only ever needs

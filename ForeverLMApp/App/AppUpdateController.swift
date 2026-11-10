@@ -851,19 +851,6 @@ extension AppUpdateController: SPUUpdaterDelegate, SPUStandardUserDriverDelegate
         }
     }
 
-    private static func stage(for state: SPUUserUpdateState) -> AppUpdateOfferPolicy.Stage {
-        switch state.stage {
-        case .notDownloaded:
-            return .notDownloaded
-        case .downloaded:
-            return .downloaded
-        case .installing:
-            return .installing
-        @unknown default:
-            return .installing
-        }
-    }
-
     /// The user driver found that the build Sparkle resumed is no longer the
     /// newest in the feed and told Sparkle to skip it. Sparkle is now removing
     /// the archive or cancelling the waiting installer and ending the session;
@@ -877,7 +864,7 @@ extension AppUpdateController: SPUUpdaterDelegate, SPUStandardUserDriverDelegate
         setPhase(.idle)
         // A cancelled installer takes a moment to exit. Re-checking before it
         // has would find it still running and resume the same build again.
-        let delay: TimeInterval = Self.stage(for: state) == .installing ? 1.5 : 0.2
+        let delay: TimeInterval = AppUpdateUserDriver.stage(for: state) == .installing ? 1.5 : 0.2
         pendingRecheck = (userInitiated: state.userInitiated, delay: delay)
     }
 
@@ -965,7 +952,7 @@ extension AppUpdateController: SPUUpdaterDelegate, SPUStandardUserDriverDelegate
         if state.userInitiated {
             return
         }
-        setPhase(Self.phase(for: Self.stage(for: state), version: updateLabel(for: update)))
+        setPhase(Self.phase(for: AppUpdateUserDriver.stage(for: state), version: updateLabel(for: update)))
         // Also notified when Sparkle is showing its own dialog: that window can
         // open behind whatever the user is working in, which is the same silence
         // as no surface at all.

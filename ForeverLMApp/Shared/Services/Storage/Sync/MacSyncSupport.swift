@@ -19,16 +19,16 @@ enum CutoverReadiness: Equatable, Sendable {
     }
 
     case notActivated
-    /// A `deferred` store whose catch-up has not run: it sends nothing and takes no claim (WP16b2 runs it).
+    /// A `deferred` store whose catch-up has not run: it sends nothing and takes no claim.
     case waitingForCatchUp
     /// A `fresh` store whose old zone was missing or whose guard was answered "Not this library": nothing
-    /// is uploaded until the learner confirms "This Mac holds my library" (WP16c).
+    /// is uploaded until the learner confirms "This Mac holds my library".
     case waitingForConfirmation
     case ready(Holding)
 
     /// `confirmedHoldsLibrary` is the learner's "This Mac holds my library" with its catch-up done
     /// (`HoldsMyLibrary.Standing.mayClaim`); `confirmationStarted` is a confirmation whose catch-up has not
-    /// finished, which waits for the flow to resume (WP16c).
+    /// finished, which waits for the flow to resume.
     static func decide(_ journal: CutoverJournal.Read, hasLibrary: Bool, confirmedHoldsLibrary: Bool, confirmationStarted: Bool = false) -> CutoverReadiness {
         guard journal.activatedAt != nil else { return .notActivated }
         switch journal.mode {
@@ -166,7 +166,7 @@ enum MacSyncDeviceID {
 
 // MARK: - What the learner sees of the cutover
 
-/// The cutover's progress, process-wide, for Settings › iCloud (WP16c) and the window's card: which phase
+/// The cutover's progress, process-wide, for Settings › iCloud and the window's card: which phase
 /// this Mac's seed is in, or whose seed it waits for. The session writes it; the main actor reads it.
 final class CutoverStatus: @unchecked Sendable {
     static let shared = CutoverStatus()

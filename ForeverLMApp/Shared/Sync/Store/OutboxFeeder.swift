@@ -668,7 +668,7 @@ final class OutboxFeeder {
         var held = placement.zones(holding: record.key.type, id: record.key.wireID)
         // A source's or a collection's id names the personal copy and every space's copy alike (§4.3); a
         // space's copy always has its `ck_identity` row, so a row without one is the personal copy and
-        // never goes to a space that holds the same id (WP15).
+        // never goes to a space that holds the same id.
         if [.source, .collection].contains(record.key.type) { held = held.filter { !$0.isSpace } }
         let zone = held.first { !$0.isSpace } ?? held.first
             ?? ZonePlacement.zone(for: record.key.type, id: record.key.wireID, fields: fields, writtenIn: .library, replica: placement)
@@ -734,16 +734,11 @@ final class OutboxFeeder {
     /// The device's clock (`ck_clock`); nil before it exists, and a device without one sends nothing
     /// that needs a new stamp.
     func loadClock() throws -> StampClock? {
-        guard let json = try connection.scalarText("SELECT clock_json FROM ck_clock WHERE id = 1") else { return nil }
-        return try? JSONDecoder().decode(StampClock.self, from: Data(json.utf8))
+        try connection.loadStampClock()
     }
 
     func saveClock(_ clock: StampClock, now: Date = Date()) throws {
-        let json = String(decoding: try JSONEncoder().encode(clock), as: UTF8.self)
-        try connection.execute("""
-            INSERT INTO ck_clock (id, clock_json, updated_at) VALUES (1, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET clock_json = excluded.clock_json, updated_at = excluded.updated_at
-        """, [.text(json), .real(now.timeIntervalSinceReferenceDate)])
+        try connection.saveStampClock(clock, now: now)
     }
 
     // MARK: - The stamps a record holds now (§5.6)

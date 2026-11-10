@@ -167,7 +167,7 @@ enum PaperIngestionDiagnostics {
             subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM",
             category: "PaperIngestion"
         )
-        private let formatter = ISO8601DateFormatter()
+        private let formatter = KnowledgeStore.iso8601Formatter
 
         func append(_ line: String) {
             do {

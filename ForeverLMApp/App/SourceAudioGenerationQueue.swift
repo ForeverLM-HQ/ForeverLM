@@ -172,8 +172,7 @@ final class SourceAudioGenerationQueue: ObservableObject {
                   items[index].status.isActive else {
                 // A narration the learner started with Listen or Generate
                 // Audio has no entry here; it is stopped through the service,
-                // so a run that has hung can be ended from outside the app
-                // (it used to answer "not active" and stay for ever).
+                // so a run that has hung can be ended from outside the app.
                 if speech.backgroundGenerationSourceIDs.contains(sourceID) || speech.isMakingNarration(sourceID) {
                     speech.stopMakingNarration(sourceID: sourceID)
                     cancelled.append(sourceID)

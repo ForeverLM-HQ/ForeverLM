@@ -1,9 +1,6 @@
 // Part of ReviewSessionManager: starting a generation and running the text and native turns.
 
 import Foundation
-import Observation
-import PDFKit
-import os
 
 extension ReviewSessionManager {
     private func finishSendPreparationTrace() {

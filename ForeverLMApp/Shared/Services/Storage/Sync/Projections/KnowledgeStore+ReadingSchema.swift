@@ -1,5 +1,3 @@
-import Foundation
-
 // MARK: - Schema 160: the member's reading state (docs/cloudkit-schema-design.md §12.7, §3.5.18)
 
 extension KnowledgeStore {

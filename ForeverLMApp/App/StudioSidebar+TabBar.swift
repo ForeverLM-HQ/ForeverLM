@@ -1,6 +1,5 @@
 // The source sidebar's tab bar: tab buttons, overflow menu and context menus.
 import SwiftUI
-import UniformTypeIdentifiers
 import AppKit
 
 extension StudioSidebar {

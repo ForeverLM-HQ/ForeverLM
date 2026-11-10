@@ -342,7 +342,7 @@ struct MobileNotebooksScreen: View {
 
 // MARK: - The List's parts
 
-/// The List's columns on an iPad, the Mac's (`NotebooksHomeList.Column`):
+/// The List's columns on an iPad, the Mac's:
 /// Notebook takes the rest.
 enum MobileNotebookListColumn {
     static let collections: CGFloat = 190

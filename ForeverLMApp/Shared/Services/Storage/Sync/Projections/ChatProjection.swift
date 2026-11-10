@@ -46,7 +46,7 @@ enum ChatEvidence {
     }
 }
 
-/// `Chat.contextMode` (§3.5.13) from what a chat holds, the rule the web writes by (WP23b): `explicit`
+/// `Chat.contextMode` (§3.5.13) from what a chat holds, the rule the web writes by: `explicit`
 /// when it holds sources of its own, `notebook` when it is filed in a notebook and holds none, else
 /// `none`. The activation derives it for every chat; a generation-2 creation site writes it.
 enum ChatContextModeRule {
@@ -77,7 +77,7 @@ enum ChatContextModeRule {
 ///
 /// An inbound FileRef whose bytes this Mac does not hold (another device's new text) is remembered in
 /// `ck_backfill_queue` (kind `chatSatellites`, target `<type>:<id>`, the wanted FileRefs by field) for
-/// the satellite reader (WP16), and the encoder holds that field back meanwhile, so a local edit never
+/// the satellite reader, and the encoder holds that field back meanwhile, so a local edit never
 /// sends the old text over the new. `received` writes the fetched text in and forgets the wish.
 enum ChatSatellites {
     static let queueKind = "chatSatellites"
@@ -445,7 +445,7 @@ struct ChatProjection: RecordProjection {
     }
 
     func apply(_ envelope: SyncEnvelope, to record: ProjectionRecordRef, connection: SQLiteConnection) throws -> ProjectionApplyOutcome {
-        // A space's chats are the space packages' (WP15).
+        // A space's chats are the space packages'.
         guard !record.zone.isSpace else { return .projected }
         let fields = envelope.fields
         let id = record.localID

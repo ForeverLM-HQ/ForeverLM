@@ -1,7 +1,5 @@
-import CloudKit
 import Combine
 import Foundation
-import OSLog
 import Security
 
 enum CloudRuntimeAvailability {
@@ -223,8 +221,6 @@ final class CloudKitSyncStatusCenter: ObservableObject {
     @Published private(set) var receivedThisPass = 0
     @Published private(set) var lastCompleted: Date?
     @Published private(set) var conflictCount = 0
-    @Published private(set) var pendingItems: [CloudKitSyncPendingItem] = []
-    @Published private(set) var issueItems: [CloudKitSyncIssueItem] = []
     /// CloudKit refused the last uploads because the learner's iCloud storage
     /// is full. Changes stay queued; nothing uploads until there is room.
     @Published private(set) var isICloudFull = false
@@ -248,10 +244,9 @@ final class CloudKitSyncStatusCenter: ObservableObject {
         }
     }
 
-    func beginSending(remaining: Int, items: [CloudKitSyncPendingItem] = []) {
+    func beginSending(remaining: Int) {
         guard remaining > 0 else { return }
         cancelPendingCompletion()
-        pendingItems = items
         switch phase {
         case .sending(_, let total), .backingOff(_, let total), .waitingToRetry(_, let total):
             // A new CK window is still the same logical drain. Local edits can
@@ -268,13 +263,8 @@ final class CloudKitSyncStatusCenter: ObservableObject {
         }
     }
 
-    func advanceSending(
-        remaining: Int,
-        sentInBatch: Int,
-        items: [CloudKitSyncPendingItem] = []
-    ) {
+    func advanceSending(remaining: Int, sentInBatch: Int) {
         cancelPendingCompletion()
-        pendingItems = items
         uploadedThisPass += max(sentInBatch, 0)
         guard case .sending(_, let existingTotal) = phase else { return }
         let total = max(existingTotal, uploadedThisPass + remaining)
@@ -285,13 +275,12 @@ final class CloudKitSyncStatusCenter: ObservableObject {
         fractionComplete = max(fractionComplete ?? 0, min(measuredFraction, 0.995))
     }
 
-    func finishSending(remaining: Int, items: [CloudKitSyncPendingItem] = []) {
+    func finishSending(remaining: Int) {
         // CKSyncEngine emits no-op send windows too. Without a matching active
         // upload, `didSendChanges` must not manufacture almost-complete progress.
         guard case .sending(_, let existingTotal) = phase else { return }
         let total = max(existingTotal, uploadedThisPass + remaining)
         phase = .sending(remaining: remaining, total: total)
-        pendingItems = items
 
         guard remaining == 0 else {
             cancelPendingCompletion()
@@ -310,15 +299,10 @@ final class CloudKitSyncStatusCenter: ObservableObject {
 
     /// `stalled` decides which of the two waiting states this is: a paced pause
     /// inside a drain that is still moving, or a drain CloudKit has refused
-    /// often enough to be worth alarming about. See `CloudKitSyncStallPolicy`.
-    func waitToRetry(
-        remaining: Int,
-        items: [CloudKitSyncPendingItem] = [],
-        stalled: Bool
-    ) {
+    /// often enough to be worth alarming about.
+    func waitToRetry(remaining: Int, stalled: Bool) {
         guard remaining > 0 else { return }
         cancelPendingCompletion()
-        pendingItems = items
         let total: Int
         switch phase {
         case .sending(_, let existingTotal),
@@ -351,7 +335,6 @@ final class CloudKitSyncStatusCenter: ObservableObject {
             lastCompleted = Date()
             fractionComplete = nil
             phase = .idle
-            pendingItems = []
         case .sending(let remaining, _):
             if remaining == 0 {
                 scheduleCompletion()
@@ -391,7 +374,6 @@ final class CloudKitSyncStatusCenter: ObservableObject {
             self.lastCompleted = Date()
             self.fractionComplete = nil
             self.phase = .idle
-            self.pendingItems = []
             self.completionTask = nil
         }
     }

@@ -338,7 +338,7 @@ enum SituatedCardDrafting {
     /// words, and its place among the anchor's cards. The same Idea drafted
     /// again offers nothing new (`FlashcardDeck.appending`); an Idea the
     /// learner rewrote is a new seed. Ideas and arrows are the learner's own
-    /// thinking, so their seeds read as an idea's (`idea:`) to generation 2's
+    /// thinking, so their seeds read as an idea's (`idea:`) to the
     /// card origin; concepts and terms as a guide's.
     static func seedKey(for anchor: SituatedAnchor, card: Int) -> String {
         let words = CardDraftingSeedKey.words(anchor.text)

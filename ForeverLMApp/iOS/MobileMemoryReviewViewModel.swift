@@ -289,7 +289,7 @@ final class MobileMemoryReviewViewModel: ObservableObject {
             workingLabel = "Thinking"
             var history = Self.providerHistory(from: review)
             history.append((role: "user", content: providerAnswer))
-            let batcher = MobileMemoryReviewStreamBatcher(interval: Self.streamPublishInterval) { [weak self] text in
+            let batcher = MobileChatStreamBatcher(interval: Self.streamPublishInterval) { [weak self] text in
                 await self?.applyStreamedText(text, to: assistantID)
             }
             let result = try await MobileStreamingChat.stream(
@@ -526,28 +526,5 @@ struct AnyDecodable: Decodable {
         else {
             throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unsupported JSON value")
         }
-    }
-}
-
-/// Coalesces stream deltas so the main actor publishes at most once per
-/// interval; `accumulated` is the whole text so far, so a skipped publish is
-/// self-healing.
-private actor MobileMemoryReviewStreamBatcher {
-    private let interval: TimeInterval
-    private let publish: @Sendable (String) async -> Void
-    private var accumulated = ""
-    private var lastPublishedAt = Date.distantPast
-
-    init(interval: TimeInterval, publish: @escaping @Sendable (String) async -> Void) {
-        self.interval = interval
-        self.publish = publish
-    }
-
-    func consume(_ delta: String) async {
-        accumulated += delta
-        let now = Date()
-        guard now.timeIntervalSince(lastPublishedAt) >= interval else { return }
-        lastPublishedAt = now
-        await publish(accumulated)
     }
 }

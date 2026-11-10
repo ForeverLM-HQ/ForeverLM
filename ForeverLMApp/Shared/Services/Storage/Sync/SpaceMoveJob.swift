@@ -431,7 +431,11 @@ actor SpaceMoveJob {
         } catch {
             let now = writer.clock()
             let failed = job
-            try? await store.perform { try SpaceMoveJournal.save(failed, now: now, error: String(describing: error), $0.connection) }
+            do {
+                try await store.perform { try SpaceMoveJournal.save(failed, now: now, error: String(describing: error), $0.connection) }
+            } catch let journalError {
+                Self.logger.error("The failed move was not journaled: \(journalError.localizedDescription, privacy: .public)")
+            }
             throw error
         }
         return report
@@ -1221,7 +1225,7 @@ final class SpaceMoveRunning: @unchecked Sendable {
 
 /// The Mac's local rows across a move (docs/cloudkit-schema-design.md §4.3, §5.3): a notebook keeps its
 /// row and its id. Moving into a space, the space's copy of the notebook lands on the learner's own row
-/// (WP15's `SpaceRows.placement` would otherwise give it a row of its own beside the personal one), and
+/// (`SpaceRows.placement` would otherwise give it a row of its own beside the personal one), and
 /// each pool item of it comes to name the space's copy of its source. Moving back, the row is the
 /// learner's own again and its pool items name the learner's own sources. Synchronous SQL on the store's
 /// connection, inside an apply, so nothing it writes is sent.

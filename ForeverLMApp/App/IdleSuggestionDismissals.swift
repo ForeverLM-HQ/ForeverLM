@@ -1,9 +1,5 @@
 // The idle welcome suggestions the learner has dismissed.
 import SwiftUI
-import Combine
-import UniformTypeIdentifiers
-import PDFKit
-import WebKit
 import AppKit
 
 /// Suggestion rows the learner has hidden from the idle chat.

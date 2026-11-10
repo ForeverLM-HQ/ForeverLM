@@ -231,7 +231,7 @@ extension ManagedAI {
             guard state == .freeDays, unlocked, let freeUntil else { return nil }
             let remaining = freeUntil.timeIntervalSince(serverNow)
             guard remaining > 0 else { return nil }
-            return max(0, Int((remaining / 86_400).rounded(.up)) - 1)
+            return max(0, Int((remaining / MemoryTutorScheduler.secondsPerDay).rounded(.up)) - 1)
         }
 
         /// The account menu's quiet line: "MCP free: 6 days left", "MCP free:

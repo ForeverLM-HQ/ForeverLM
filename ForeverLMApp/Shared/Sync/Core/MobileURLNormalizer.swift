@@ -7,7 +7,7 @@ import Foundation
 /// Frozen with the ids it minted: the Mac reads it too, to record a source's historical iPhone form as
 /// an extra `url:` work key (docs/cloudkit-schema-design.md §4.1), so a source the phone minted under
 /// its own form is still found before a second one is minted. Generation 2 replaces its uses on the
-/// iPhone with the core `URLNormalizer` (WP20); this copy stays the record of what the phone did.
+/// iPhone with the core `URLNormalizer`; this copy stays the record of what the phone did.
 enum MobileURLNormalizer {
     private static let trackingParameters: Set<String> = [
         "utm_source", "utm_medium", "utm_campaign", "utm_content", "utm_term",

@@ -222,7 +222,7 @@ final class MobileProjection: @unchecked Sendable {
         structure.spaces = try spaces(in: replica)
         let spacesByKey = Dictionary(uniqueKeysWithValues: structure.spaces.map { ($0.zoneKey, $0) })
         let keys = [libraryKey] + structure.spaces.map(\.zoneKey)
-        let held = placeholders(keys.count)
+        let held = MobileReadModels.placeholders(keys.count)
 
         var all: [(notebook: Notebook, mergedInto: String?, movedTo: String?, movingTo: String?)] = []
         try connection.query("""
@@ -529,9 +529,5 @@ final class MobileProjection: @unchecked Sendable {
             status: row.text(start + 8), ingestState: row.text(start + 9), addedAt: row.integer(start + 10),
             publishedAt: row.integer(start + 11), hasPDF: row.integer(start + 12) == 1
         )
-    }
-
-    private static func placeholders(_ count: Int) -> String {
-        Array(repeating: "?", count: max(count, 1)).joined(separator: ", ")
     }
 }

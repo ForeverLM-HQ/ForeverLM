@@ -1,6 +1,5 @@
 import SwiftUI
 import UIKit
-import UniformTypeIdentifiers
 
 enum MobileSourceActionDestination: String, Identifiable {
     case notebook

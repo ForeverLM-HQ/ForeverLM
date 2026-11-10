@@ -12,7 +12,7 @@ import Foundation
 /// at anything but a real database.
 ///
 /// Everything crossing it is a value (records, ids, tokens, errors), so the fake needs no CloudKit
-/// object and the replica stores what arrives as it arrives. The CloudKit implementation (WP5) maps:
+/// object and the replica stores what arrives as it arrives. The CloudKit implementation maps:
 /// - `CloudRecord.systemFields` to and from `CKRecord.encodeSystemFields(with:)`, archived; a save
 ///   starts from `CKRecord(coder:)` over them, so `.ifServerRecordUnchanged` compares their tag;
 /// - `CloudChangeToken.data` to and from an archived `CKServerChangeToken`;
@@ -280,7 +280,7 @@ struct CloudZoneModifyResults: Sendable {
     var deleted: [CloudZoneID: Result<Void, CloudError>]
 }
 
-// MARK: - Sharing and subscriptions (WP6)
+// MARK: - Sharing and subscriptions
 
 /// What sharing a space takes beyond records (docs/cloudkit-schema-design.md §2.3, §9.2, §9.6): the
 /// zone-wide CKShare of an owned space, accepting an invitation, and the shared database's

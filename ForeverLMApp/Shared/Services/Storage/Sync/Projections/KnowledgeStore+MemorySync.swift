@@ -3,7 +3,7 @@ import Foundation
 // MARK: - The activation's memory derivations (docs/cloudkit-schema-design.md §13.3 step 3c)
 
 extension KnowledgeStore {
-    /// WP13's derivations, in order: one Sitting per kept quiz score, each card's state, and every draft
+    /// The derivations for cards and sittings, in order: one Sitting per kept quiz score, each card's state, and every draft
     /// deck's cards as their Cards (`deriveCardDrafts`, which reads the decks' bodies and so takes its own
     /// transaction per deck). Each is idempotent, bounded by the history it reads, and reads generation-1
     /// truth only, so it reflects every generation-1 write made before the activation.
@@ -206,8 +206,8 @@ extension KnowledgeStore {
             + variant + digits[17..<20].joined() + "-" + digits[20..<32].joined()
     }
 
-    /// Gives the rows this Mac wrote before it knew its sync device id ('') that id, when its clock is made
-    /// (WP16 calls this with the device id it creates the clock with). A day logged both ways is merged.
+    /// Gives the rows this Mac wrote before it knew its sync device id ('') that id, when its clock is made,
+    /// with the device id the clock is created with. A day logged both ways is merged.
     func claimOwnMemoryRows(deviceID: String) throws {
         try exec("BEGIN IMMEDIATE")
         do {

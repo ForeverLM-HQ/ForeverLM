@@ -468,7 +468,7 @@ enum ManagedAI {
             var utc = Calendar(identifier: .gregorian)
             utc.timeZone = TimeZone(identifier: "UTC")!
             let today = utc.startOfDay(for: now)
-            return utc.date(byAdding: .day, value: 1, to: today) ?? today.addingTimeInterval(86_400)
+            return utc.date(byAdding: .day, value: 1, to: today) ?? today.addingTimeInterval(MemoryTutorScheduler.secondsPerDay)
         }
 
         /// Every free-model request of the day is used.
@@ -574,7 +574,7 @@ enum ManagedAI {
     /// halfway mark means any Mac opened at least once a fortnight never lapses,
     /// and a fortnight of slack absorbs a holiday without an extra round trip on
     /// every launch.
-    static let sessionRenewalLead: TimeInterval = 15 * 24 * 60 * 60
+    static let sessionRenewalLead: TimeInterval = 15 * MemoryTutorScheduler.secondsPerDay
 
     /// Pure: whether a session expiring at `expiry` should be renewed at `now`.
     ///
@@ -623,7 +623,7 @@ enum ManagedAI {
     /// How long past a session's expiry this Mac still counts as having an account, for
     /// **gating the app only** — a lapsed session keeps the knowledge base reachable for two
     /// weeks even though the proxy already rejects the expired token.
-    static let accountGracePeriod: TimeInterval = 14 * 24 * 60 * 60
+    static let accountGracePeriod: TimeInterval = 14 * MemoryTutorScheduler.secondsPerDay
 
     /// Whether this Mac has an Apple account attached — the launch gate's question.
     ///
@@ -821,8 +821,8 @@ enum ManagedAI {
     // MARK: - Account API
 
     /// Balance is USD on the wire and in the UI; the ledger stays micro-USD
-    /// precise. Nothing adds balance any more except an operator grant: the
-    /// prepaid top-ups were retired on 2026-09-25 (`balance_retired`).
+    /// precise. Nothing adds balance except an operator grant: prepaid
+    /// top-ups are not sold (`balance_retired`).
     static func creditBalanceText(microUSD: Int) -> String {
         max(0, Double(microUSD) / 1_000_000).formatted(
             .currency(code: "USD").precision(.fractionLength(2))

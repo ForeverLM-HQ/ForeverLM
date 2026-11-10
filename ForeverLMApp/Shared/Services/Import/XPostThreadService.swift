@@ -403,7 +403,7 @@ actor XPostThreadService {
         let withFraction = ISO8601DateFormatter()
         withFraction.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         if let date = withFraction.date(from: value) { return date }
-        return ISO8601DateFormatter().date(from: value)
+        return KnowledgeStore.iso8601Formatter.date(from: value)
     }
 
     /// Swap each `t.co` shortlink for the URL it stands for. The mapping is

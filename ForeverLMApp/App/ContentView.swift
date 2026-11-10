@@ -189,7 +189,7 @@ struct ContentView: View {
         if url.host?.lowercased() == "settings",
            let destination = url.pathComponents.dropFirst().first?.lowercased() {
             // The web library's links into the Mac still say settings/ for
-            // the plugins, which are a place of their own since 2026-10-13.
+            // the plugins, which are a place of their own.
             switch destination {
             case "plugins":
                 PluginsPlace.requestOpen()

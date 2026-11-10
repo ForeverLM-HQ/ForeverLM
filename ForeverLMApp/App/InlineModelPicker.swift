@@ -11,8 +11,8 @@ import AppKit
 ///
 /// This is a `ButtonStyle`, not a modifier on the label, and for a `Menu` it
 /// only works together with `.menuStyle(.button)` — use `pickerPillMenu()`.
-/// The chrome used to live inside the Menu's label under
-/// `.menuStyle(.borderlessButton)`, and never drew: that style is an AppKit
+/// Chrome inside the Menu's label under
+/// `.menuStyle(.borderlessButton)` never draws: that style is an AppKit
 /// popup button (`SwiftUIPopupButton`) which takes the label's image and text
 /// and lays them out itself as `NSButtonImageView` and `NSButtonTextField`,
 /// discarding the label view — padding, frame, fill and border with it.
@@ -99,7 +99,7 @@ extension View {
 struct InlineModelPicker: View {
     // Safe placeholders only. Keychain and catalog work is loaded off-main by
     // `syncSelectionFromStorage`; a SwiftUI state initializer runs on the main
-    // actor and used to synchronously build and price the entire catalog.
+    // actor and would synchronously build and price the entire catalog.
     @State private var selectedProvider: AIProvider = .openRouter
     @State private var selectedModel: String = AIModelDefaults.defaultOpenRouter
     @State private var selectedEffort: AIEffort?
@@ -517,8 +517,7 @@ struct InlineModelPicker: View {
         Self.chipEffort(selected: selectedEffort, supported: supportedEfforts, modelDefault: defaultEffort)
     }
 
-    /// The effort the chip names: the pick, else the model's default, as the
-    /// Effort pill beside the chip showed it until 2026-10-06; none for a
+    /// The effort the chip names: the pick, else the model's default, none for a
     /// model that takes no effort. Pure so a test can pin it.
     static func chipEffort(selected: AIEffort?, supported: [AIEffort], modelDefault: AIEffort) -> AIEffort? {
         guard !supported.isEmpty else { return nil }
@@ -714,8 +713,7 @@ struct InlineModelPicker: View {
             }
 
             // Effort for the current model, the chip's second word. A pick
-            // writes what the composer's Effort pill wrote until 2026-10-06:
-            // the chat's own effort, and the effort every later chat starts
+            // writes the chat's own effort, and the effort every later chat starts
             // on (`selectEffort`).
             let efforts = supportedEfforts
             if !efforts.isEmpty {
@@ -831,9 +829,9 @@ struct InlineModelPicker: View {
         }
         // Sizing goes *inside* the chip, so the fill, the border and the
         // hit region are all the same rectangle. The chip always shows the
-        // model's whole name, at full size: it used to stop at 110pt and
-        // then fall back to a shortened name, which cut "Nemotron 3 Ultra
-        // (free)" to "Nemotron…ltra (free)" (product owner, 2026-09-25).
+        // model's whole name, at full size: a 110pt cap with a shortened-name
+        // fallback cut "Nemotron 3 Ultra (free)" to "Nemotron…ltra (free)"
+        // (product owner, 2026-09-25).
         .frame(minWidth: 46, alignment: .leading)
         .fixedSize()
     }

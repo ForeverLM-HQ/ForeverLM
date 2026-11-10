@@ -206,7 +206,7 @@ enum NotebookStateStore {
         enqueue { try $0.setNotebookCollections(notebookID: notebookID, collectionIDs: ids) }
     }
 
-    /// Reloads after an inbound change to a NotebookState or an Entry (WP16 calls it after an apply).
+    /// Reloads after an inbound change to a NotebookState or an Entry.
     static func reload() { enqueue { _ in } }
 
     private static func update(_ change: (inout NotebookStateSnapshot) -> Void) {

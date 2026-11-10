@@ -1,8 +1,6 @@
 // KnowledgeStore: the source column lists and the loaders of sources and their content.
 import Foundation
 import SQLite3
-import OSLog
-import CloudKit
 
 extension KnowledgeStore {
 

@@ -19,13 +19,13 @@ enum MacArticleSpeechMode: String, CaseIterable, Identifiable {
     ///
     /// The unified catalog remains the only picker surface, and every model in
     /// it, Grok and Gemini included, is served by OpenRouter
-    /// (`ArticleSpeechCatalog`). The legacy provider modes are not
+    /// (`ArticleSpeechCatalog`). The other provider modes are not
     /// independently selectable. Their enum cases remain for the playback
-    /// paths that still reference them, and the underlying persisted case name
-    /// is retained for manifest and preference compatibility.
+    /// paths that reference them, and the persisted case names are the stored
+    /// manifest and preference values.
     ///
-    /// Apple on-device and the local Qwen3 server stay excluded as before.
-    /// Older stored providers remain readable so their failure is explicit;
+    /// Apple on-device and the local Qwen3 server stay excluded.
+    /// Stored providers stay readable so their failure is explicit;
     /// they are never rewritten to OpenRouter behind the listener's back.
     static var selectableCases: [MacArticleSpeechMode] {
         [.openRouter]
@@ -41,20 +41,6 @@ enum MacArticleSpeechMode: String, CaseIterable, Identifiable {
         case .xai: return "xAI"
         case .gemini: return "Gemini"
         case .localQwen3: return "Local"
-        case .apple: return "On Device"
-        }
-    }
-
-    var toolbarLabel: String {
-        switch self {
-        case .openRouter: return "Provider TTS"
-        case .groq: return "Groq TTS"
-        case .openAI: return "OpenAI TTS"
-        case .togetherAI: return "Together AI TTS"
-        case .elevenLabs: return "ElevenLabs TTS"
-        case .xai: return "xAI TTS"
-        case .gemini: return "Gemini TTS"
-        case .localQwen3: return "Local TTS"
         case .apple: return "On Device"
         }
     }
@@ -385,7 +371,7 @@ enum MacArticleSpeechSettings {
         "alloy", "ash", "ballad", "coral", "echo", "fable", "nova",
         "onyx", "sage", "shimmer", "verse", "marin", "cedar"
     ]
-    private static let legacyOpenAIVoices = [
+    private static let ttsOneOpenAIVoices = [
         "alloy", "ash", "coral", "echo", "fable", "onyx", "nova", "sage", "shimmer"
     ]
     static let groqOrpheusEnglishVoices = ["autumn", "diana", "hannah", "austin", "daniel", "troy"]
@@ -504,7 +490,7 @@ enum MacArticleSpeechSettings {
 
     static func openAIVoices(for model: String) -> [String] {
         if model == "tts-1" || model == "tts-1-hd" {
-            return legacyOpenAIVoices
+            return ttsOneOpenAIVoices
         }
         return openAIVoices
     }
@@ -603,11 +589,9 @@ enum MacArticleSpeechSettings {
     static var openRouterVoice: String {
         get {
             let stored = UserDefaults.standard.string(forKey: openRouterVoiceDefaultsKey) ?? defaultOpenRouterVoice
-            // The selection used to be global while some catalog entries were
-            // incorrectly modeled as taking a provider default. Resolve the
-            // stored value against the current model so an old voice (or the
-            // historical empty value) becomes that model's real default before
-            // it can reach the managed endpoint.
+            // Resolve the stored value against the current model, so a voice
+            // from another model (or an empty value) becomes that model's real
+            // default before it can reach the managed endpoint.
             return ArticleSpeechCatalog.resolvedVoiceID(stored, forModel: openRouterModel) ?? ""
         }
         set {
@@ -993,7 +977,7 @@ enum MacArticleSpeechSettings {
         return (pick.model, pick.voice, repair)
     }
 
-    /// Legacy/global master switch for cost confirmation. Individual dismissals
+    /// Global master switch for cost confirmation. Individual dismissals
     /// live in `TextToSpeechCostConfirmationPreferences`, keyed by model rather
     /// than voice, so changing voices never resurrects or broadens a dismissal.
     static var confirmCostBeforeListening: Bool {

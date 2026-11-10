@@ -156,7 +156,7 @@ struct ExchangeProjection: RecordProjection {
     }
 
     func apply(_ envelope: SyncEnvelope, to record: ProjectionRecordRef, connection: SQLiteConnection) throws -> ProjectionApplyOutcome {
-        // A space's exchanges are the space packages' (WP15).
+        // A space's exchanges are the space packages'.
         guard !record.zone.isSpace else { return .projected }
         let fields = envelope.fields
         let id = record.localID

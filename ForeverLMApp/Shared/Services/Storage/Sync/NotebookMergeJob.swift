@@ -1,5 +1,4 @@
 import Foundation
-import OSLog
 
 // MARK: - Notebook merge, split and stubs under generation 2 (docs/cloudkit-schema-design.md §5.2, D17, D48)
 
@@ -48,7 +47,7 @@ enum NotebookStubs {
 
 /// A notebook's own words as the fold reads and writes them: columns of its row, which the Notebook
 /// record and the Notes Doc carry (the notes are `learning_goals.notes` until the Artifact projection
-/// publishes them as the Notes Doc's body, WP11).
+/// publishes them as the Notes Doc's body).
 struct NotebookWords: Equatable, Sendable {
     let id: String
     var title: String
@@ -493,7 +492,7 @@ struct NotebookMergeJob {
     /// Folds each of `mergeeIDs` into `survivorID`: (1) the redirect, (2) the Entries, (3) the children,
     /// (4) the fold of every mergee's words into the survivor, then this Mac's own hand-over of the
     /// member's NotebookState sets (6). The Notes Doc of a mergee goes once the survivor's folded body
-    /// is acknowledged (5), which is the Artifact projection's (WP11).
+    /// is acknowledged (5), which is the Artifact projection's.
     func merge(_ mergeeIDs: [String], into survivorID: String, title: String?, mergeNotes: Bool) throws -> Merged {
         var merged = Merged()
         for mergee in mergeeIDs where mergee != survivorID {

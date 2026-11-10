@@ -1,9 +1,6 @@
 // Slash commands, mentions and their running in the chat panel.
 import SwiftUI
 import Combine
-import UniformTypeIdentifiers
-import PDFKit
-import WebKit
 import AppKit
 
 extension InternalReviewPanelContent {

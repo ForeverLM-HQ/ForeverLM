@@ -1,8 +1,6 @@
 // KnowledgeStore: adding, importing and reconciling the exchanges of a review session.
 import Foundation
 import SQLite3
-import OSLog
-import CloudKit
 
 extension KnowledgeStore {
 
@@ -313,7 +311,7 @@ extension KnowledgeStore {
     /// is parsed into individual question/answer exchanges so it displays per-turn
     /// and is searchable, rather than being stored as one opaque blob.
     /// `kind` is `.chat` for a chat that did not review its sources, so a later
-    /// import into it knows not to mark them (see `markImportedChatAsChat`).
+    /// import into it knows not to mark them.
     @discardableResult
     func importReviewChatSession(
         id: String,

@@ -56,9 +56,9 @@ enum EntryRows: Equatable, Sendable {
 }
 
 /// The Entry record's projection (§3.5.8) for every container a Mac holds rows for: notebooks and
-/// Goals (their pool), a notebook's followed courses, playlists (WP7's `PlaylistEntryProjection`,
-/// folded in: one projection per type) and lessons (WP9's `LessonEntryProjection`). A course lives in
-/// no notebook: a notebook's followed course is its one tie to it. A space's Entries are WP15's; until
+/// Goals (their pool), a notebook's followed courses, playlists (`PlaylistEntryProjection`) and lessons
+/// (`LessonEntryProjection`): one projection for every Entry type. A course lives in
+/// no notebook: a notebook's followed course is its one tie to it. A space's Entries belong to the space packages; until
 /// then they stay in the replica, unprojected.
 ///
 /// Approval is shared editorial state and travels (bug b2); no per-member field is on the record:
@@ -328,12 +328,11 @@ extension EntryProjection {
             return .waiting(WaitingParent(type: .source, wireID: wire.itemID))
         }
         let local = EntryID(containerID: notebook, itemKind: wire.itemKind, itemID: source)
-        // A pool item of a notebook that moved here keeps its row, naming the space's copy of its source (WP15b).
+        // A pool item of a notebook that moved here keeps its row, naming the space's copy of its source.
         try SpaceMoveLocal.adoptPoolItem(notebook: notebook, source: source, sourceWireID: wire.itemID, connection: connection)
-        try connection.execute("""
-            INSERT INTO ck_identity (zone_key, record_type, wire_id, local_id) VALUES (?, ?, ?, ?)
-            ON CONFLICT(zone_key, record_type, wire_id) DO UPDATE SET local_id = excluded.local_id
-        """, [.text(record.zoneKey), .text(SyncRecordType.entry.rawValue), .text(record.wireID), .text(local.wireID)])
+        try connection.recordIdentity(
+            zoneKey: record.zoneKey, recordType: SyncRecordType.entry.rawValue, wireID: record.wireID, localID: local.wireID
+        )
         return .local(local)
     }
 }

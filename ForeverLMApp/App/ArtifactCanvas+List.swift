@@ -1,9 +1,7 @@
 // ArtifactCanvas: the Docs list, the home and the selection bookkeeping.
 
 import AppKit
-import PDFKit
 import SwiftUI
-import UniformTypeIdentifiers
 
 extension ArtifactCanvas {
     var artifactList: some View {
@@ -227,7 +225,7 @@ extension ArtifactCanvas {
         // Put away, not thrown away: the record keeps its body, its page and
         // its Notebook links and only leaves the list (product owner, 2026-09-10:
         // "allow me to archive sites"). For a page or a site the put-away
-        // place is the Space's Trash since 2026-10-06, so Move to Trash below
+        // place is the Space's Trash, so Move to Trash below
         // is the one way there and Restore the way back; an animation keeps
         // Archive, having no Trash to be found in.
         if artifact.isArchived {
@@ -764,7 +762,7 @@ extension ArtifactCanvas {
     /// without this the doc that was open would give way to whichever is first.
     /// Opens the record a card asked for before this canvas could list it.
     /// Clicking an Animation's card on the Artifacts home (an animation is a
-    /// row of its notebook's Studio since 2026-10-06) made this canvas and
+    /// row of its notebook's Studio) made this canvas and
     /// asked for the record in one motion, but the canvas's list was still
     /// loading when `task` looked, so the request was never answered and the
     /// pane said "Select an animation" (seen filming, 2026-09-24). The list

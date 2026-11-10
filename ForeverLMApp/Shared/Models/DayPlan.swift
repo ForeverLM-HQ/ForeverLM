@@ -534,8 +534,7 @@ struct DayPlan: Identifiable, Codable, Equatable, Sendable {
     /// blocks are the exception, in both directions — see
     /// `TimeBlock.keepsClearOfOtherBlocks`.
 
-    /// The quarter hour the clock snaps to. `DayTimelineView.snapMinutes` is
-    /// this.
+    /// The quarter hour the clock snaps to.
     static let gridMinutes = 15
 
     /// The current blocks among `blocks` that share a minute with `block`,

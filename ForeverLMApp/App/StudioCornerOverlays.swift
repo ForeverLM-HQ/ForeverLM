@@ -1,5 +1,4 @@
 import SwiftUI
-import UniformTypeIdentifiers
 import AppKit
 
 // MARK: - Shared chrome
@@ -958,8 +957,8 @@ private struct InboxChatRow: View {
 /// A teammate's request for a source this library holds (docs/teams-design.md,
 /// decision 14): what was asked for, who asked and in which team, with
 /// Decline, which closes the request for everyone, and Share, which copies
-/// this Mac's source into the team. The bell is where a request is answered
-/// since 2026-10-13; the Space's own bell and the Docs home's banner went.
+/// this Mac's source into the team. The bell is where a request is answered;
+/// the Space and the Docs home have no bell or banner of their own.
 private struct ShareRequestNoticeCard: View {
     let item: StorageService.FulfillableShareRequest
     let close: () -> Void

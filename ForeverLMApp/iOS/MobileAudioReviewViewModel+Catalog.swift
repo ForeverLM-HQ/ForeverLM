@@ -1,13 +1,6 @@
 // Catalog loading, sync status, notebook reads and card review reads.
 
-import AVFoundation
-import Combine
-import CryptoKit
-import MediaPlayer
-import OSLog
-import SwiftUI
-import CloudKit
-import SQLite3
+import Foundation
 import WidgetKit
 
 extension MobileAudioReviewViewModel {
@@ -374,7 +367,7 @@ extension MobileAudioReviewViewModel {
         await sourceCatalog.currentKeptCardListings()
     }
 
-    // MARK: - Going through cards (generation 2)
+    // MARK: - Going through cards
 
     /// The cards to check over `scope` (To Check), in their order; nil when
     /// the replica could not be read. Local only.
@@ -624,13 +617,12 @@ extension MobileAudioReviewViewModel {
         // nothing, so rebuilds open on the previously synced library.
         //
         // Order matters here, and it is not cosmetic. The manifest pass below
-        // walks the shared iCloud audio tree, and that tree is now thousands of
-        // files: it asks CloudDocs to materialize every manifest the Mac has
-        // published. Loading it ahead of this publish, with `isLoading` gated
-        // behind it, meant one slow or wedged CloudDocs could hide a fully
-        // synced library behind the spinner indefinitely — the library was
-        // never lost, it was simply never shown. (The same pass used to gate the
-        // CloudKit walk too; it now runs alongside it, see below.)
+        // walks the shared iCloud audio tree, thousands of files: it asks
+        // CloudDocs to materialize every manifest the Mac has published. Loading
+        // it ahead of this publish, with `isLoading` gated behind it, would let
+        // one slow or wedged CloudDocs hide a fully synced library behind the
+        // spinner indefinitely. The manifest pass runs alongside the CloudKit
+        // walk, see below.
         let checkpointSources = await sourceCatalog.currentSources()
         if !checkpointSources.isEmpty {
             notebooks = await sourceCatalog.currentNotebooks()

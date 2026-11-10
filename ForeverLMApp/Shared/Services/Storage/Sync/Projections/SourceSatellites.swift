@@ -1,4 +1,3 @@
-import CloudKit
 import Foundation
 import OSLog
 
@@ -34,7 +33,7 @@ struct SourceLocalSatellite: Equatable, Sendable {
 /// and a podcast's TTML, gzip), `reviewGuide`, `walkthrough`, `figures` and `references` (gzip). Left to later packages,
 /// which own their makers: `timing` (built from the TTML), `thumbnail`, `cover`, `icon`, `slides`,
 /// `readerHTML`, `audio.*` (narration, `NarrationSatellites`), `attachment.*` (meeting files), `vectors.*`
-/// (WP18), `ideas` (packed from `source_ideas`), `citedPapers` and `explainer`. A pointer the publisher
+///, `ideas` (packed from `source_ideas`), `citedPapers` and `explainer`. A pointer the publisher
 /// wrote keeps no path; the seed builds its body here again (`SeedSatellite.Origin.table`).
 enum SourceSatelliteRoles {
     static func localSatellites(sourceID: String, connection: SQLiteConnection, resolve: (String) -> URL) throws -> [SourceLocalSatellite] {
@@ -170,7 +169,7 @@ extension KnowledgeStore {
     /// way, never the Mac's own folders.
     @TaskLocal static var sourceFileLocationOverride: (@Sendable (String) -> URL)?
 
-    /// Queues every source for the satellite backfill: the activation's last WP7 step. Set-based and
+    /// Queues every source for the satellite backfill: the activation's last source step. Set-based and
     /// derived from the library alone (each queued as of when it was added), so it gives one result
     /// however often it runs; the queue's `(kind, target)` key queues nothing twice.
     func queueSourceFilesBackfill() throws {
@@ -316,16 +315,9 @@ enum InboundSourceFiles {
     /// the failures already spent, so a record that changes again does not give a broken satellite fresh tries.
     static func save(_ waiting: [String: SyncJSON], sourceID: String, connection: SQLiteConnection) throws {
         guard fileRoles.contains(where: { waiting[$0] != nil }) else { return try forget(sourceID: sourceID, connection: connection) }
-        try connection.execute("""
-            INSERT INTO ck_backfill_queue (kind, target, payload_json, enqueued_at) VALUES (?, ?, ?, ?)
-            ON CONFLICT(kind, target) DO UPDATE SET
-                attempts = CASE WHEN ck_backfill_queue.payload_json IS excluded.payload_json THEN ck_backfill_queue.attempts ELSE 0 END,
-                last_error = CASE WHEN ck_backfill_queue.payload_json IS excluded.payload_json THEN ck_backfill_queue.last_error END,
-                payload_json = excluded.payload_json
-        """, [
-            .text(queueKind), .text(sourceID), .text(String(decoding: SyncJSON.object(waiting).serialized(), as: UTF8.self)),
-            .real(Date().timeIntervalSinceReferenceDate),
-        ])
+        try connection.queueBackfillKeepingAttempts(
+            kind: queueKind, target: sourceID, payload: String(decoding: SyncJSON.object(waiting).serialized(), as: UTF8.self)
+        )
     }
 
     static func forget(sourceID: String, connection: SQLiteConnection) throws {

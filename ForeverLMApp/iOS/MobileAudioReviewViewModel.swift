@@ -1,12 +1,8 @@
 import AVFoundation
 import Combine
-import CryptoKit
+import Foundation
 import MediaPlayer
 import OSLog
-import SwiftUI
-import CloudKit
-import SQLite3
-import WidgetKit
 
 @MainActor
 final class MobileAudioReviewViewModel: NSObject, ObservableObject {
@@ -215,7 +211,7 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     static let openingExtensionLeadSeconds: TimeInterval = 20
     /// A read request that arrived while TTS was already preparing audio. This
     /// closes the CarPlay race where generate_source_audio could be running and
-    /// a later "listen now" request was previously ignored.
+    /// a later "listen now" request would be ignored.
     var pendingTextToSpeechAfterPreparationSourceID: String?
     /// Event-driven handoff when a next chapter was already being prepared at
     /// the moment its predecessor finished. The generation completion consumes
@@ -235,7 +231,7 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     /// Generations that were cut short by something worth retrying, and whether
     /// the listener was waiting to hear each one. Suspension is the common
     /// cause: the speech requests in flight when iOS froze the app fail as soon
-    /// as it thaws, which used to end the whole generation for good.
+    /// as it thaws, which would otherwise end the whole generation for good.
     var pendingTextToSpeechResumes: [String: Bool] = [:]
     var automaticTextToSpeechResumeCounts: [String: Int] = [:]
     /// Sources whose Listen stopped while the text was still being prepared,
@@ -270,7 +266,7 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     var forcedCatalogReloadRequested = false
     /// Whether the next load walks the iCloud Drive audio tree; a reload the replica asked for does not.
     var narrationScanRequested = false
-    /// Turns the replica's changes into at most one library reload per interval (generation 2).
+    /// Turns the replica's changes into at most one library reload per interval.
     private var replicaReloads: MobileReloadCoalescer?
     var lastSourceSyncErrorMessage: String?
     var shouldResumePlaybackAfterSpeech = false
@@ -446,9 +442,9 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
 
     /// False when the last consent read did not reach iCloud. The mirror then
     /// holds no answer, and a pass may neither generate nor retire anything.
-    /// A transient outage used to read as "consent withdrawn": the pass tried
-    /// to switch every opt-in off, that write failed on the same outage, and
-    /// the failure was announced as a toast over the source list.
+    /// A transient outage must not read as "consent withdrawn": the pass would
+    /// try to switch every opt-in off, that write would fail on the same outage,
+    /// and the failure would be announced as a toast over the source list.
     var paidAutomaticVoiceConsentIsKnown = false
 
 }

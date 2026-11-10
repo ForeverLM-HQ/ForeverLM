@@ -3,11 +3,9 @@ import JavaScriptCore
 
 /// The renderer foreverlm.com draws a published Doc with, running on this Mac.
 ///
-/// The Docs pane's Page view used to ask the site to draw the doc's current
-/// text — `POST /api/publish/preview` on every open and every save — and
-/// showed a spinner until the round trip landed: the TLS handshake, the
-/// identity check behind the route, the render, the answer. The page is a pure
-/// function of its Markdown, and the function is ours, so the app carries it:
+/// The Docs pane's Page view draws the doc's current text without a round trip
+/// to the site. The page is a pure function of its Markdown, and the function
+/// is ours, so the app carries it:
 /// `Web/PublishedPage/build.mjs` bundles `docs-site/website/publishing/`
 /// (page.ts and markdown.ts, unchanged) into `App/PublishedPageResources/
 /// published-page.js`, and this actor evaluates that bundle once in a

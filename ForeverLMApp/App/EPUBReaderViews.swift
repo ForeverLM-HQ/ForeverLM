@@ -1,8 +1,5 @@
 import AppKit
-import CoreImage
 import SwiftUI
-import PDFKit
-import UniformTypeIdentifiers
 import WebKit
 
 // MARK: - Prose presentation
@@ -994,9 +991,8 @@ final class EPUBBookProgressWriter {
 }
 
 /// A book's Contents, as a popover off the Reader's ⋯ button, whose menu
-/// lists Contents… while the reader has a contents to show. It had a
-/// list-and-chevron button of its own on the bar until 2026-10-06 (Quiet
-/// chrome, docs/ui-design.md). Picking a chapter, a section or Log as
+/// lists Contents… while the reader has a contents to show. It has no
+/// button of its own on the bar (Quiet chrome, docs/ui-design.md). Picking a chapter, a section or Log as
 /// Listened closes it.
 extension View {
     func bookContentsPopover(

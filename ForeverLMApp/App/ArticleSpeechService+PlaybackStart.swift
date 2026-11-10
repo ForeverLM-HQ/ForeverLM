@@ -1,13 +1,8 @@
 // Preparing and starting playback, and the playback controls.
 #if os(macOS)
 import AVFoundation
-import CryptoKit
 import Foundation
-import MediaPlayer
-import os
-import PDFKit
 import SwiftUI
-import WebKit
 
 extension ArticleSpeechService {
     /// Everything the main actor needs to start playback, computed off-main.
@@ -53,9 +48,8 @@ extension ArticleSpeechService {
             ? MacArticleSpeechText.paperNarrationText(from: content)
             : MacArticleSpeechText.narrationText(from: content)
         let contentSignature = SyncedArticleAudioStore.contentSignature(for: narrationText)
-        // Apple speech used to bypass the full narration cleanup and speak the
-        // raw PDF extraction, even though cloud voices received cleaned chunks.
-        // All providers must consume the exact same preflight-cleaned text.
+        // Every provider, Apple speech included, consumes the same
+        // preflight-cleaned text, never the raw PDF extraction.
         let speakableText = MacArticleSpeechText.speakableInput(from: narrationText)
         // Boundaries only move for a generation that has no complete manifest
         // yet; anything already generated replays from its manifest's own chunk

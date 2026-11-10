@@ -1,5 +1,4 @@
 import Foundation
-import OSLog
 
 /// Giving meeting rows a picture.
 ///

@@ -2,8 +2,6 @@ import SwiftUI
 import AppKit
 import AuthenticationServices
 import Combine
-import UniformTypeIdentifiers
-import EventKit
 
 // MARK: - One plugin's page
 
@@ -1581,7 +1579,7 @@ enum PluginStatus: Equatable {
 /// connected: what the connection may read, named. Each returns nil when the
 /// connection has nothing more specific to say than the plugin's own
 /// description, which the row then keeps. Internal so the unit tests can pin
-/// the sentences; Web Studio's `pluginScopeDescriptions` says the same.
+/// the sentences.
 enum PluginScopeCopy {
     /// "Imports bookmarks and saved posts from @handle." for one account,
     /// "… from 2 accounts." for several.

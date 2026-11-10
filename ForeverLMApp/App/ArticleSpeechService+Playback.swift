@@ -1,13 +1,8 @@
 // Stopping, chunk playback and synced audio playback.
 #if os(macOS)
 import AVFoundation
-import CryptoKit
 import Foundation
-import MediaPlayer
-import os
-import PDFKit
 import SwiftUI
-import WebKit
 
 extension ArticleSpeechService {
     /// Stops playback. By default any in-flight audio generation is cancelled

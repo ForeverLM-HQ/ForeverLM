@@ -1,7 +1,6 @@
 // The update pill on the rail.
 import SwiftUI
 import AppKit
-import UniformTypeIdentifiers
 
 // MARK: - Update button
 

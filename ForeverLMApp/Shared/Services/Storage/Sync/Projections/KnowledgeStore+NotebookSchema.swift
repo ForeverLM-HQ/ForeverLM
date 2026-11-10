@@ -47,8 +47,8 @@ extension KnowledgeStore {
     ]
 
     /// The back-pointer index (§5.2): every row that files something into a notebook, by the
-    /// notebook's local id. What a delete unfiles, a merge re-points (WP8b) and a move into a space
-    /// copies (WP15b) is found here, so nothing belongs to a notebook by living inside it (D17). A course
+    /// notebook's local id. What a delete unfiles, a merge re-points and a move into a space
+    /// copies is found here, so nothing belongs to a notebook by living inside it (D17). A course
     /// is in no notebook (2026-10-03): a notebook only follows one, which its Entry row says (schema 157
     /// dropped the retired `courses.home_notebook_id` line).
     static let notebookChildrenView = """
@@ -90,7 +90,7 @@ extension KnowledgeStore {
 // MARK: - The activation's derivations for notebooks (§13.3 step 3c)
 
 extension KnowledgeStore {
-    /// WP8's derivations, in order, after WP7's wire ids: each row's kind, the Entries' order keys, the
+    /// The derivations for notebooks, in order, after the wire ids: each row's kind, the Entries' order keys, the
     /// research questions' rows, the member's NotebookStates from the preference rows, and where each
     /// notebook id leads. Each is idempotent, bounded by the library's notebooks and their items, in its
     /// own transaction, and reads generation-1 truth only. None writes a notes base: a Notes Doc's base

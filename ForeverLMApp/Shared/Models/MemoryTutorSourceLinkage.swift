@@ -112,7 +112,7 @@ struct SourceActivityDay: Identifiable, Codable, Equatable, Sendable {
     /// negative from a clock jump must never reach the additive merge.
     static func clampSeconds(_ value: Double) -> Double {
         guard value.isFinite else { return 0 }
-        return min(max(value, 0), 86_400)
+        return min(max(value, 0), MemoryTutorScheduler.secondsPerDay)
     }
 
     /// Time spent across one source's activity days, for `SourceConsumptionSignals`.

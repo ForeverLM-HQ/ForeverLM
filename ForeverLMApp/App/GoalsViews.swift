@@ -297,8 +297,7 @@ struct GoalsHomeView: View {
     /// "allow me to reshuffle these"): a row dropped on a row takes its
     /// place, and the context menu moves a row one step for a keyboard or
     /// an assistant. The way back to deadline order is the row menu's
-    /// **Sort Goals by Deadline** since 2026-10-06; it was a button in the
-    /// first band's header.
+    /// **Sort Goals by Deadline**.
     @ViewBuilder
     private func band(_ title: String, _ goals: [LearningGoalRecord]) -> some View {
         if !goals.isEmpty {

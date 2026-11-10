@@ -1,8 +1,6 @@
 // KnowledgeStore: review activity of sources, memory review stats and source identity aliases.
 import Foundation
 import SQLite3
-import OSLog
-import CloudKit
 
 extension KnowledgeStore {
 
@@ -19,7 +17,7 @@ extension KnowledgeStore {
         let boundedSessionLimit = max(0, min(sessionLimit, 50))
         let boundedAgeDays = max(1, min(maximumAgeDays, 90))
         guard boundedSessionLimit > 0 else { return [] }
-        let cutoff = now.addingTimeInterval(-Double(boundedAgeDays) * 86_400)
+        let cutoff = now.addingTimeInterval(-Double(boundedAgeDays) * MemoryTutorScheduler.secondsPerDay)
         var result: [MemoryTutorRecentSourceActivity] = []
         try queryBind("""
             WITH recent_sessions AS (

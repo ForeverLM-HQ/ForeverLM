@@ -109,7 +109,7 @@ final class MobileNotebookRailStore: ObservableObject {
     private let readRows: ReadRows
     private let writeRow: WriteRow
     private let defaults: UserDefaults?
-    private var chain: Task<Void, Never>?
+    private let operations = MobileSerialOperations()
 
     nonisolated static let cloudReadRows: ReadRows = { keys in
         try await MobileModelPreferenceStore.shared.stringArrays(forKeys: keys)
@@ -194,13 +194,7 @@ final class MobileNotebookRailStore: ObservableObject {
     private func serialized<T: Sendable>(
         _ operation: @escaping @Sendable @MainActor () async throws -> T
     ) async throws -> T {
-        let previous = chain
-        let task = Task { @MainActor in
-            await previous?.value
-            return try await operation()
-        }
-        chain = Task { _ = await task.result }
-        return try await task.value
+        try await operations.run(operation)
     }
 }
 

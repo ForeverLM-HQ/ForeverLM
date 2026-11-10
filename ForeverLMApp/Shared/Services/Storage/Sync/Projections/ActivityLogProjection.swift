@@ -244,8 +244,8 @@ extension KnowledgeStore {
     func recordOwnReviewActivity(_ activity: MemoryReviewActivity) throws {
         guard try recordsMemoryForGeneration2() else { return }
         let device = try MemorySyncDevice.current(self) ?? ""
-        let legacy = try ActivityLogProjection.loadLog(table: "activity_logs", day: activity.day, deviceID: SyncIdentity.migratedHistoryDeviceID, connection: self)
-        let baseline = legacy?.reviewByDevice[activity.deviceID]?["activeSeconds"]?.numberValue ?? 0
+        let migrated = try ActivityLogProjection.loadLog(table: "activity_logs", day: activity.day, deviceID: SyncIdentity.migratedHistoryDeviceID, connection: self)
+        let baseline = migrated?.reviewByDevice[activity.deviceID]?["activeSeconds"]?.numberValue ?? 0
         var log = try loadDeviceActivityLog(day: activity.day, deviceID: device) ?? DeviceActivityLog(day: activity.day)
         log.review = [
             "seconds": .number(max(0, activity.activeSeconds - baseline)),
@@ -323,7 +323,7 @@ extension KnowledgeStore {
             ])
         }
 
-        // The review clock: the legacy log's old device rows, and one row per device that logged under
+        // The review clock: the migrated log's old device rows, and one row per device that logged under
         // generation 2 (`al:<deviceID>`, apart from every old device id). This Mac's own row is its
         // recorder's, as before.
         let mine = try MemorySyncDevice.current(self)

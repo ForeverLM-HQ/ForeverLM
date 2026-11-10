@@ -1,8 +1,6 @@
 // The Reading List browsers and their label.
 import AppKit
-import AVFoundation
 import SwiftUI
-import UniformTypeIdentifiers
 
 /// The browser Reading Lists used by the first-source workflow. Onboarding and
 /// the persistent empty-library guide share this copy so they teach the same

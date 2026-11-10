@@ -1,7 +1,4 @@
 import SwiftUI
-#if os(iOS)
-import UIKit
-#endif
 
 /// How a card looks wherever Memory draws one, on the Mac and on the phone
 /// (docs/memory-design.md, "How a card looks", 2026-10-11): an index card —

@@ -1,14 +1,6 @@
 // The value types behind text-to-speech preparation, progress and cost.
 
-import AVFoundation
-import Combine
-import CryptoKit
-import MediaPlayer
-import OSLog
-import SwiftUI
-import CloudKit
-import SQLite3
-import WidgetKit
+import Foundation
 
 struct MobileAudioItem: Identifiable, Equatable {
     let manifest: SyncedArticleAudioManifest

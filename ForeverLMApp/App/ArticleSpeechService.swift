@@ -1,12 +1,9 @@
 #if os(macOS)
 import AVFoundation
-import CryptoKit
 import Foundation
 import MediaPlayer
 import os
-import PDFKit
 import SwiftUI
-import WebKit
 
 let articleSpeechLogger = Logger(
     subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM",
@@ -147,8 +144,8 @@ struct ArticleSpeechLanguageNotice: Equatable, Identifiable, Sendable {
 final class ArticleSpeechService: NSObject, ObservableObject {
     /// Single app-wide instance. Text-to-speech is inherently exclusive (one voice,
     /// one Now Playing entry, one set of media-key handlers), so every reader
-    /// surface shares this object. Per-surface instances used to each register
-    /// MPRemoteCommandCenter targets that were never removed, and two surfaces
+    /// surface shares this object. A per-surface instance would register
+    /// MPRemoteCommandCenter targets that are never removed, and two surfaces
     /// could narrate simultaneously.
     static let shared = ArticleSpeechService()
     let activityStorage = StorageService()
@@ -296,8 +293,8 @@ final class ArticleSpeechService: NSObject, ObservableObject {
     /// Monotonic counter bumped by stop/finish/seek. Async continuations capture
     /// the epoch before awaiting and bail if it moved — this is the staleness
     /// guard for playback state. Task cancellation alone cannot be trusted here:
-    /// jumpToChunk historically cancelled `playbackTask` while running *inside*
-    /// it, self-cancelling and silently killing every cross-chunk seek and resume.
+    /// jumpToChunk must not cancel `playbackTask` while running *inside*
+    /// it: that self-cancels and silently kills every cross-chunk seek and resume.
     var playbackEpoch = 0
     var syncedAudioContext: SyncedArticleAudioContext?
     var syncedChunkURLs: [URL] = []
@@ -351,11 +348,11 @@ final class ArticleSpeechService: NSObject, ObservableObject {
         // StudioView's overlay chain, and SourceReaderPanel, ArticleReaderView
         // and SourceReaderWindow each hold it as a stored `@ObservedObject` —
         // so anything blocking here blocks a view body. Reading the provider
-        // used to reach `SecItemCopyMatching`, which raises a system
+        // from the keychain reaches `SecItemCopyMatching`, which raises a system
         // authorization dialog for an ACL-protected vault item and never
-        // returns until it is answered: the app hung with no window painted,
-        // and an app-hosted test run (which can never answer it) timed out
-        // before the test runner connected. Seed the compile-time product
+        // returns until it is answered: the app would hang with no window
+        // painted, and an app-hosted test run (which can never answer it) would
+        // time out before the test runner connected. Seed the compile-time product
         // defaults, then adopt what is stored off the main thread.
         //
         // The two speech settings that live purely in UserDefaults stay eager;

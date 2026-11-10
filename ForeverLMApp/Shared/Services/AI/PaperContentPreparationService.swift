@@ -754,7 +754,8 @@ struct PaperContentPreparationService: Sendable {
         return result
     }
 
-    private static func occurrenceRange(
+    /// The `occurrence`th (1-based) match of `needle` in `text`.
+    static func occurrenceRange(
         of needle: String,
         occurrence: Int,
         in text: String
@@ -1271,10 +1272,14 @@ actor CanonicalContentCleanupService {
                         }
                     }
                     if candidate.isPendingIngestion, !transient {
-                        try? await storage.failPendingCanonicalContentCleanup(
-                            candidate: candidate,
-                            message: failure.message
-                        )
+                        do {
+                            try await storage.failPendingCanonicalContentCleanup(
+                                candidate: candidate,
+                                message: failure.message
+                            )
+                        } catch {
+                            logger.error("Could not park the pending content cleanup: \(error.localizedDescription, privacy: .public)")
+                        }
                         // Terminally parking one pending import frees this
                         // bounded batch to continue with later work.
                         processed += 1
@@ -1329,10 +1334,14 @@ actor CanonicalContentCleanupService {
             )
             return false
         }
-        try? await storage.failPendingCanonicalContentCleanup(
-            candidate: candidate,
-            message: CanonicalContentCleanupRetry.exhaustedMessage(attempts: attempts, lastError: message)
-        )
+        do {
+            try await storage.failPendingCanonicalContentCleanup(
+                candidate: candidate,
+                message: CanonicalContentCleanupRetry.exhaustedMessage(attempts: attempts, lastError: message)
+            )
+        } catch {
+            logger.error("Could not park the pending content cleanup: \(error.localizedDescription, privacy: .public)")
+        }
         return true
     }
 
@@ -1407,12 +1416,16 @@ actor CanonicalContentCleanupService {
                 if firstError == nil {
                     firstError = "\(candidate.title): \(error.localizedDescription)"
                 }
-                try? await storage.recordCanonicalContentCleanupFailure(
-                    sourceID: candidate.sourceID,
-                    message: error.localizedDescription,
-                    sourceSHA256: candidate.storedTextSHA256,
-                    consumesAttempt: false
-                )
+                do {
+                    try await storage.recordCanonicalContentCleanupFailure(
+                        sourceID: candidate.sourceID,
+                        message: error.localizedDescription,
+                        sourceSHA256: candidate.storedTextSHA256,
+                        consumesAttempt: false
+                    )
+                } catch {
+                    logger.error("Could not record the content cleanup failure: \(error.localizedDescription, privacy: .public)")
+                }
             }
         }
         return await result(

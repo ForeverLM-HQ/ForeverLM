@@ -601,9 +601,8 @@ struct NotebookWorkspaceView: View {
     /// The notebook's name at the head of its column, over the search, as a
     /// Space list wears its name ("One head for every list"): the column's
     /// whole width, two lines before it truncates. A click opens the
-    /// notebook's menu, Rename Notebook… in it (the name renamed on a click
-    /// until 2026-10-17; the notebook has had no settings sheet since
-    /// 2026-10-04). Off the chrome line it is an ordinary SwiftUI `Menu`.
+    /// notebook's menu, Rename Notebook… in it (the notebook has no
+    /// settings sheet). Off the chrome line it is an ordinary SwiftUI `Menu`.
     @ViewBuilder
     private func notebookTitle(_ goal: LearningGoalRecord) -> some View {
         HStack(alignment: .firstTextBaseline, spacing: 6) {

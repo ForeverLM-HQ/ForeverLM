@@ -177,18 +177,14 @@ struct AudioOverviewPlan: Sendable {
         }
     }
 
-    /// "12 of 14 sources · 2 read from their ideas · 1 condensed · 2 without text"
+    /// "12 of 14 sources · 2 read from their ideas · 1 condensed · 2 left out"
     var sourcesSummary: String {
-        let total = sources.count + skipped.count
-        var parts = [total == sources.count
-            ? (sources.count == 1 ? "1 source" : "\(sources.count) sources")
-            : "\(sources.count) of \(total) sources"]
-        let ideas = sources.filter { $0.readAs == .ideas }.count
-        let condensed = sources.filter { $0.readAs == .condensed }.count
-        if ideas > 0 { parts.append("\(ideas) read from \(ideas == 1 ? "its" : "their") ideas") }
-        if condensed > 0 { parts.append("\(condensed) condensed") }
-        if !skipped.isEmpty { parts.append("\(skipped.count) left out") }
-        return parts.joined(separator: " · ")
+        ReportPlan.sourcesLine(
+            included: sources.count,
+            skipped: skipped.count,
+            readFromIdeas: sources.filter { $0.readAs == .ideas }.count,
+            condensed: sources.filter { $0.readAs == .condensed }.count
+        )
     }
 }
 

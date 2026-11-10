@@ -1,5 +1,4 @@
 import Foundation
-import SQLite3
 
 // MARK: - A course and its notebooks (docs/courses-design.md, "A course is its own thing")
 //

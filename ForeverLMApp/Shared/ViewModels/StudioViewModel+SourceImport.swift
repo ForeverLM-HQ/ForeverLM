@@ -1,13 +1,10 @@
 import Foundation
-import Observation
 import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
 import SwiftUI
 import AppKit
-import SQLite3
-import WebKit
 import Darwin
 
 extension StudioViewModel {
@@ -50,8 +47,8 @@ extension StudioViewModel {
             try? fm.createDirectory(atPath: papersDir, withIntermediateDirectories: true)
 
             // A Papers file with this name may already hold a different paper:
-            // every PDF dropped without a filename used to land on
-            // `Dropped Paper.pdf`, so the second such drop skipped its copy and
+            // every PDF dropped without a filename lands on
+            // `Dropped Paper.pdf`, so the second such drop would skip its copy and
             // "imported" whatever paper the first drop had left there. Only a
             // byte-identical file is the same paper; anything else gets a
             // numbered sibling.
@@ -857,7 +854,7 @@ extension StudioViewModel {
         }
     }
 
-    /// The work Add Book used to make the learner wait for, done while the
+    /// The work Add Book leaves for after the learner is done waiting, done while the
     /// book reads: Book Author's details, the paper check, a PDF scan's text,
     /// and the chapters. A stop of one of its steps, or any
     /// cancellation, leaves the book on the queue as it was, its attempts
@@ -869,7 +866,11 @@ extension StudioViewModel {
         let bookPath = StorageService.absoluteSourcePath(job.bookFilePath)
         guard let bookTitle = bookTitles[bookID], FileManager.default.fileExists(atPath: bookPath) else {
             // The book was removed, or its file is gone: nothing is left to finish.
-            try? await storage.dropBookImportFinish(bookID: bookID)
+            do {
+                try await storage.dropBookImportFinish(bookID: bookID)
+            } catch {
+                logger.error("dropBookImportFinish failed: \(error.localizedDescription, privacy: .public)")
+            }
             return
         }
         let progress = BookImportProgress(self, bookID: bookID)
@@ -911,7 +912,11 @@ extension StudioViewModel {
         } catch {
             let message = error.localizedDescription
             logger.error("[BookImport] Finishing \(bookID) failed: \(message)")
-            try? await storage.failBookImportFinish(bookID: bookID, message: message)
+            do {
+                try await storage.failBookImportFinish(bookID: bookID, message: message)
+            } catch {
+                logger.error("failBookImportFinish failed: \(error.localizedDescription, privacy: .public)")
+            }
             let lastAttempt = job.attempts + 1 >= 3
             if lastAttempt {
                 await giveWholeBookItsText(job.wholeBookSourceID, bookPath: bookPath)
@@ -1409,7 +1414,11 @@ extension StudioViewModel {
         // Every chapter now names the book's pages: a folder of chapter files
         // an earlier import left is no longer anyone's, nor is the book's
         // place in the merge queue.
-        try? await storage.dropBookFileMerge(bookID: bookID)
+        do {
+            try await storage.dropBookFileMerge(bookID: bookID)
+        } catch {
+            logger.error("dropBookFileMerge failed: \(error.localizedDescription, privacy: .public)")
+        }
         try? await Task.detached(priority: .utility) {
             if FileManager.default.fileExists(atPath: chaptersDir) {
                 try FileManager.default.removeItem(atPath: chaptersDir)
@@ -1817,7 +1826,11 @@ extension StudioViewModel {
         }
         // A folder of chapter files an earlier import left is no one's now, nor
         // the book's place in the merge queue.
-        try? await storage.dropBookFileMerge(bookID: bookID)
+        do {
+            try await storage.dropBookFileMerge(bookID: bookID)
+        } catch {
+            logger.error("dropBookFileMerge failed: \(error.localizedDescription, privacy: .public)")
+        }
         try? await Task.detached(priority: .utility) {
             if FileManager.default.fileExists(atPath: chaptersDir) {
                 try FileManager.default.removeItem(atPath: chaptersDir)
@@ -2790,7 +2803,11 @@ extension StudioViewModel {
         article.content = trimmed
         article.wordCount = trimmed.split(separator: " ").count
 
-        _ = try? await storage.insertSourceIfNew(&article)
+        do {
+            _ = try await storage.insertSourceIfNew(&article)
+        } catch {
+            logger.error("insertSourceIfNew failed: \(error.localizedDescription, privacy: .public)")
+        }
         articles.insert(article, at: 0)
         addSourceToContext(article.id, explicit: true)
         retitleAddedText(article.id, provisionalTitle: "Pasted Text", url: "")
@@ -2800,7 +2817,7 @@ extension StudioViewModel {
     func importDroppedFile(url: URL) async {
         let ext = url.pathExtension.lowercased()
 
-        // Audio files — no longer supported as artifacts
+        // Audio files are not supported as artifacts
         if ["mp3", "m4a", "wav", "aac", "caf", "aiff"].contains(ext) {
             errorMessage = "Audio file import is no longer supported."
             return

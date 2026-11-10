@@ -25,7 +25,7 @@ struct ReplicaAudit {
 
     /// Walks `zone` and sweeps what the server no longer has. Throws when the walk cannot finish;
     /// nothing is swept then. A space is walked in the database that holds it, under its own key
-    /// (SpaceSync, WP6); a private zone needs neither.
+    /// (SpaceSync); a private zone needs neither.
     @discardableResult
     func run(_ zone: CloudZoneID, in database: CloudDatabaseScope = .private, zoneKey: String? = nil) async throws -> Result {
         let zoneKey = zoneKey ?? PrivateSyncZones.key(zone)

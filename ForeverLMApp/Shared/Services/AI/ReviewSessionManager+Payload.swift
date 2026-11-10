@@ -1,9 +1,6 @@
 // Part of ReviewSessionManager: the provider payload and transcript replay.
 
 import Foundation
-import Observation
-import PDFKit
-import os
 
 extension ReviewSessionManager {
     /// A tutor reply as the model reads it back. A quiz tutor never sees a

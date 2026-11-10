@@ -1,5 +1,4 @@
 import Foundation
-import OSLog
 
 /// One fused search hit: a source, its combined rank score, and the per-branch
 /// evidence that produced it.
@@ -26,9 +25,9 @@ struct SourceSearchHit: Sendable {
 /// Both entry points must rank identically: a learner who asks an assistant "what do I
 /// have on GDF15?" and one who types the same thing into the app are asking the same
 /// question, and getting different orderings from the two surfaces made search feel
-/// unreliable in a way neither ranking alone explained. Previously MCP ran weighted RRF
-/// while the UI added hand-tuned constants (`min(score * 0.20, 0.35)`) on top of raw
-/// scores drawn from incomparable scales, and never consulted the full-text index at all.
+/// unreliable in a way neither ranking alone explained. Weighted RRF on one surface, and
+/// hand-tuned constants (`min(score * 0.20, 0.35)`) on top of raw scores drawn from
+/// incomparable scales on the other, with no full-text index, would disagree again.
 ///
 /// Three branches are retrieved and fused:
 ///

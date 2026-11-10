@@ -1,5 +1,4 @@
 import Foundation
-import SQLite3
 
 // MARK: - Soft hyphens left in stored text (schema 166)
 //

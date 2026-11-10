@@ -1,9 +1,5 @@
 import AppKit
-import CoreImage
 import SwiftUI
-import PDFKit
-import UniformTypeIdentifiers
-import WebKit
 
 struct PodcastTranscriptSegment: Equatable, Sendable {
     /// Stand-in label for a segment no speaker was named for. Not a speaker —
@@ -218,7 +214,7 @@ enum PodcastTranscriptParser {
         guard !trimmed.isEmpty else { return nil }
 
         if trimmed.hasSuffix("s"), let seconds = Double(trimmed.dropLast()) {
-            return displayTime(seconds)
+            return YouTubeTranscriptTime.display(seconds)
         }
 
         let parts = trimmed.split(separator: ":").compactMap { Double($0) }
@@ -231,18 +227,7 @@ enum PodcastTranscriptParser {
         } else {
             seconds = parts[0]
         }
-        return displayTime(seconds)
-    }
-
-    private static func displayTime(_ seconds: Double) -> String {
-        let total = max(0, Int(seconds.rounded()))
-        let hours = total / 3600
-        let minutes = (total % 3600) / 60
-        let secs = total % 60
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, secs)
-        }
-        return String(format: "%d:%02d", minutes, secs)
+        return YouTubeTranscriptTime.display(seconds)
     }
 
     private static func decodeEntities(_ value: String) -> String {
@@ -432,8 +417,8 @@ enum YouTubeTranscriptDisplayParser {
 
     /// Collapse every whitespace run to one space, drop the run before closing
     /// punctuation and after an opening bracket, and trim the ends. One pass over
-    /// the scalars: this used to be a newline replace and three regex replaces, each
-    /// bridging the block to NSString, and it ran once per block.
+    /// the scalars: a newline replace and three regex replaces would each
+    /// bridge the block to NSString, once per block.
     private static func cleanText(_ text: String) -> String {
         var cleaned = String.UnicodeScalarView()
         var pendingWhitespace = false
@@ -477,9 +462,9 @@ enum YouTubeTranscriptDisplayParser {
         let captures: [String]
     }
 
-    // Compiled once. Every one of these used to be built from its pattern on each
-    // call, and the block-level ones ran once per block: for a Zoom standup of 149
-    // turns that was some 750 regex compilations per parse, most of the 8 ms the
+    // Compiled once. Building these from their pattern on each call would run
+    // the block-level ones once per block: for a Zoom standup of 149
+    // turns that is some 750 regex compilations per parse, most of the 8 ms the
     // parse took in the debug test bundle (2026-09-19), and 70 ms of a 135 KB
     // Nexus session's. The patterns are constants, so a failed compile is a
     // programming error, not a runtime condition.
@@ -560,7 +545,7 @@ struct YouTubeSlideFrameContext: Equatable, Identifiable, Sendable {
 
     var displayTitle: String {
         if let timeSeconds {
-            return "Slide \(index) · \(Self.displayTime(timeSeconds))"
+            return "Slide \(index) · \(YouTubeTranscriptTime.display(timeSeconds))"
         }
         return "Slide \(index)"
     }
@@ -570,17 +555,6 @@ struct YouTubeSlideFrameContext: Equatable, Identifiable, Sendable {
     // actor. A synchronous `imageURL` here could only resolve a single root and
     // would reintroduce the missing-cover class of bug, so it is intentionally
     // absent — resolve via `loadThumbnail`, not a main-thread URL accessor.
-
-    private static func displayTime(_ seconds: Double) -> String {
-        let total = max(0, Int(seconds.rounded()))
-        let hours = total / 3600
-        let minutes = (total % 3600) / 60
-        let secs = total % 60
-        if hours > 0 {
-            return String(format: "%d:%02d:%02d", hours, minutes, secs)
-        }
-        return String(format: "%d:%02d", minutes, secs)
-    }
 }
 
 struct YouTubeSlideContent: Equatable {
@@ -592,7 +566,7 @@ struct YouTubeSlideContent: Equatable {
     /// keeps the judgement reversible and the cited-paper keying intact.
     ///
     /// If *every* frame is marked — which the write-time guard is meant to prevent, but a
-    /// legacy or hand-edited deck could still carry — fall back to showing all of them. A
+    /// hand-edited deck could still carry — fall back to showing all of them. A
     /// deck that renders empty is the one failure worse than a stray camera shot slipping
     /// through, so the reader never hides the whole thing.
     var displaySlides: [YouTubeSlideFrameContext] {
@@ -677,7 +651,7 @@ enum YouTubeSlideContentParser {
     }
 
     /// Reads every bracketed group in a slide heading. `[1:23–2:45]` is one on-screen
-    /// window; a bare `[2:05]` is legacy content that recorded a single timestamp, kept as
+    /// window; a bare `[2:05]` is content that recorded a single timestamp, kept as
     /// an open-ended window for the display layer to close at the next slide's start.
     private static func parseWindows(from heading: String) -> [SlideTimeWindow] {
         var windows: [SlideTimeWindow] = []

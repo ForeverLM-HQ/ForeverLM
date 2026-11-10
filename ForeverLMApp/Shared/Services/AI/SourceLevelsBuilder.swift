@@ -489,7 +489,7 @@ enum SourceLevelsBuilder {
     /// The levels from what was written: sections ordered and cut to cover
     /// every paragraph from the first, each paragraph with its line and the
     /// anchor taken from the text, findings and terms checked against them.
-    /// `findingSections` turns a finding's written section number into the
+    /// `findingSectionStart` turns a finding's written section number into the
     /// ¶ number that section starts at.
     static func assemble(
         source: SourceLevelsSource,

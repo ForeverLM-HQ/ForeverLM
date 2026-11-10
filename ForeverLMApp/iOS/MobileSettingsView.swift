@@ -31,7 +31,7 @@ struct MobileSettingsView: View {
     @AppStorage(DailyReviewPreparationKeys.hour)
     private var prepareDailyReviewHour: Int = DailyReviewPreparationKeys.defaultHour
     @ObservedObject private var reviewScheduler = MobileMemoryReviewScheduler.shared
-    /// The library's move and sync, on a generation-2 build only (`MobileSyncNotice`).
+    /// The library's move and sync (`MobileSyncNotice`).
     @ObservedObject private var librarySync = MobileLibrarySyncStatusModel.shared
 
     /// The live mark at the chosen pace beside its slider, so the setting is
@@ -892,7 +892,7 @@ private struct MobileCreditsView: View {
         await refresh(silently: true)
     }
 
-    /// Balance is no longer sold (retired 2026-09-25), so the section shows
+    /// Balance is not sold (since 2026-09-25), so the section shows
     /// only while some is left, or for a comped or disabled account.
     private var showsBalanceSection: Bool {
         guard let balance else { return false }

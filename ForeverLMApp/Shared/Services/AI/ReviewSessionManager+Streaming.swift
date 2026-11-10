@@ -1,9 +1,6 @@
 // Part of ReviewSessionManager: streaming an assistant response, usage and cost tracking.
 
 import Foundation
-import Observation
-import PDFKit
-import os
 
 extension ReviewSessionManager {
     func streamAssistantResponse(

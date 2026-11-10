@@ -823,7 +823,7 @@ struct StudioDockedAssistantPanel: View {
             // line after another has dropped.
             if !centerTabStripVisible && drawsCloseControl && placement != .hidden {
                 GeometryReader { proxy in
-                    closeButton
+                    PaneCloseButton(action: closePane)
                         .studioPanelHeaderChrome(
                             height: titlebarBandHeight ?? StudioPanelChrome.headerHeight
                         )
@@ -842,24 +842,6 @@ struct StudioDockedAssistantPanel: View {
     }
 
     /// Closes the Chat pane entirely (nothing is left behind); ⇧⌘K reopens it.
-    private var closeButton: some View {
-        // A `Button` on the chrome line hands its mouse-down to the titlebar's
-        // window drag; see `TitlebarBandHitSurfaceView`.
-        TitlebarBandButton(
-            help: "Close pane",
-            accessibilityLabel: "Close pane",
-            action: closePane
-        ) {
-            Image(systemName: "xmark")
-                .zoomedSystemFont(size: 11, weight: .medium)
-                .foregroundStyle(.secondary)
-                .frame(
-                    width: StudioPanelChrome.centerTabCloseButtonSize,
-                    height: StudioPanelChrome.centerTabCloseButtonSize
-                )
-        }
-    }
-
     private func closePane() {
         withAnimation(.easeInOut(duration: 0.22)) {
             onDismiss()

@@ -43,7 +43,7 @@ final class MacPrivateSyncStore: PrivateSyncLocalStore, @unchecked Sendable {
     }
 
     /// Runs `body` on the store itself, where it belongs: the Doc body publisher's and materializer's
-    /// reads and writes (WP11), which need its files as well as its connection.
+    /// reads and writes, which need its files as well as its connection.
     func onStore<T>(_ body: @escaping (KnowledgeStore) throws -> T) async throws -> T {
         var result: Result<T, Error>?
         try await runner { store in

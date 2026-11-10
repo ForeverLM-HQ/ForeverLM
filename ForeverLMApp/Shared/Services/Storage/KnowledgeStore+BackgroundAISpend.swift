@@ -163,7 +163,7 @@ extension KnowledgeStore {
         }
 
         var jobs: [BackgroundAIBulkJob] = []
-        let since = now.addingTimeInterval(-Double(BackgroundAIBulkQueue.costSampleWindowDays) * 86_400)
+        let since = now.addingTimeInterval(-Double(BackgroundAIBulkQueue.costSampleWindowDays) * MemoryTutorScheduler.secondsPerDay)
         for row in rows {
             var held = 0
             var affected = 0

@@ -1,8 +1,6 @@
 // The sections, pages, flow and steps of Getting Started.
 import AppKit
-import AVFoundation
 import SwiftUI
-import UniformTypeIdentifiers
 
 /// The rail's three groups. Setup comes first because its storage and AI
 /// steps gate what the source steps may do; the workspace steps only show
@@ -206,7 +204,6 @@ enum GettingStartedStep: Int, CaseIterable, Identifiable {
 
 extension Notification.Name {
     /// Posted by the app menu's "Set Up ForeverLM…" item; the active Studio
-    /// window reopens the Getting Started guide. Closing the guide with
-    /// "Continue later" used to be final, with no way back to it.
+    /// window reopens the Getting Started guide, also after "Continue later".
     static let showGettingStarted = Notification.Name("showGettingStarted")
 }

@@ -95,7 +95,7 @@ enum ForeverLMRuntimeIdentity {
 
     /// A Development build's own data folder under Application Support, from `FOREVERLM_DATA_FOLDER_NAME`
     /// (one path component, never a profile's folder): the isolated instance the cutover rehearsal runs on
-    /// (docs/cloudkit-schema-design.md §14 WP28), so a generation or seed override never reaches the store
+    /// (docs/cloudkit-schema-design.md §14), so a generation or seed override never reaches the store
     /// every Dev build opens. Nil in Release and First Run builds and when the variable is unset.
     static let isolatedFolderName: String? = isolatedFolderName(
         environment: ProcessInfo.processInfo.environment, isDevelopmentBuild: isDevelopmentDataBuild
@@ -125,7 +125,7 @@ enum ForeverLMRuntimeIdentity {
     static var mcpLoopbackPort: UInt16 { activeProfile.mcpLoopbackPort }
 
     /// Whether this process is a unit-test host: the Debug app that XCTest and Swift Testing load their bundle
-    /// into. The host is generation 2 on the shared Development container, so anything that would start a
+    /// into. The host runs on the shared Development container, so anything that would start a
     /// real activation or a real sync in it (writing to a store and a container the learner's Dev app uses)
     /// checks this first (`GenerationActivationLauncher`, `MacSyncSession.startIfEnabled`).
     static var isTestHost: Bool {

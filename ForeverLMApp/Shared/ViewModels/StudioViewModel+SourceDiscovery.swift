@@ -1,14 +1,10 @@
 import Foundation
-import CryptoKit
-import Observation
 import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
 import SwiftUI
 import AppKit
-import SQLite3
-import WebKit
 import Darwin
 
 /// Per-key debounced, latest-wins writers for reading-progress persistence.
@@ -313,7 +309,7 @@ extension StudioViewModel {
         Task { [weak self] in
             guard let self else { return }
             // Local databases must never wait behind remote plugins. A slow
-            // or signed-out network integration previously held Apple Podcasts
+            // or signed-out network integration would hold Apple Podcasts
             // discovery for minutes during the all-sources activation path.
             async let upstream: Void = self.refreshTabUpstreamPlugins(for: tab, silent: true, only: due)
             async let local: Void = self.syncLocalDiscoveryOnEvent(for: tab, only: due)
@@ -580,7 +576,7 @@ extension StudioViewModel {
     /// listening. Every pass looks, so the first one after an update backfills
     /// the last month and later ones pick up each new play; a play already
     /// recorded costs a read.
-    nonisolated static let applePodcastsListeningWindow: TimeInterval = 30 * 86_400
+    nonisolated static let applePodcastsListeningWindow: TimeInterval = 30 * MemoryTutorScheduler.secondsPerDay
 
     /// The plays among discovered episodes that a sync pass records: each
     /// episode Apple Podcasts says was played inside the window, at the moment
@@ -974,12 +970,16 @@ extension StudioViewModel {
                 if candidates[i].sourceType == .book,
                    let groupName = candidates[i].parentGroup?.trimmingCharacters(in: .whitespacesAndNewlines),
                    !groupName.isEmpty {
-                    try? await storage.saveBookMetadata(
-                        groupName: groupName,
-                        title: candidates[i].title,
-                        author: candidates[i].author,
-                        coverPath: nil
-                    )
+                    do {
+                        try await storage.saveBookMetadata(
+                            groupName: groupName,
+                            title: candidates[i].title,
+                            author: candidates[i].author,
+                            coverPath: nil
+                        )
+                    } catch {
+                        logger.error("saveBookMetadata failed: \(error.localizedDescription, privacy: .public)")
+                    }
                 }
             } catch {
                 logger.warning("Failed to persist discovered source \(candidates[i].url): \(error.localizedDescription)")

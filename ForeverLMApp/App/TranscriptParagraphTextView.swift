@@ -364,7 +364,7 @@ struct TranscriptParagraphTextView: NSViewRepresentable {
             return view.unconstrainedSize()
         }
         // A paragraph wraps down to nothing, and laying a thousand characters
-        // out one to a line to say so is what a zero-width probe used to cost.
+        // out one to a line to say so is what a zero-width probe costs.
         guard width >= Self.narrowestMeasuredWidth else {
             return CGSize(width: max(width, 0), height: view.unconstrainedSize().height)
         }

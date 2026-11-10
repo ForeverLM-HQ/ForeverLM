@@ -1,5 +1,4 @@
 import AppKit
-import CloudKit
 import Foundation
 import OSLog
 
@@ -157,15 +156,15 @@ final class CloudKitSyncStatusAdapter: @unchecked Sendable {
 /// The Mac's generation-2 sync of one launch: `SyncCoordinator` on the library container
 /// (`ForeverLMRuntimeIdentity.libraryContainerIdentifier`) with the Mac's services beside it, and the
 /// library's upload into it (§13.4 the seed, §13.5 the reconcile). It starts after the store's activation
-/// finished (the gate WP16a built). There is no old container to import from: generation 1's stayed with
+/// finished. There is no old container to import from: generation 1's stayed with
 /// the old Apple team, so no late import runs and a `deferred` store's catch-up finds no old world.
 ///
 /// - the engine's rounds run `MacRoundHooks` and, after each, the Job runner, the move jobs, the cutover and
 ///   the maintenance service (one `setAfterRound`);
 /// - a Mac that holds a library and is not the seeder sends nothing until the seed's metadata is complete
 ///   and its own catch-up has run (`ReplicaStore.EngineScope.holdSendsForSeed`), then reconciles;
-/// - a seed claim waits for a `deferred` store's catch-up (WP16b2) and for "This Mac holds my library"
-///   (WP16c).
+/// - a seed claim waits for a `deferred` store's catch-up and for "This Mac holds my library"
+///  .
 actor MacSyncSession {
     /// The session the app started. Strong: the services below are held through it.
     nonisolated(unsafe) static var current: MacSyncSession?
@@ -358,7 +357,7 @@ actor MacSyncSession {
             case .waitingForCatchUp:
                 // A `deferred` store fetches the new container first, receive-only: it joins as a Mac with no
                 // library, sends nothing and takes no claim or lease. Its catch-up runs after a round, over
-                // the complete fetch (`cutoverTick`), and then it holds its library (§13.3, WP16b2).
+                // the complete fetch (`cutoverTick`), and then it holds its library (§13.3).
                 catchUpOwed = true
                 holding = .library
                 waitsForLearner = true
@@ -393,7 +392,7 @@ actor MacSyncSession {
         )
     }
 
-    /// The deferred catch-up "This Mac holds my library" runs first (WP16c). A store whose `Knowledge` zone was
+    /// The deferred catch-up "This Mac holds my library" runs first. A store whose `Knowledge` zone was
     /// missing reads nothing from the old zones (R6-m9). Any other first joins receive-only when it has not
     /// started yet, fetches the new container to its end, and runs the catch-up over that fetch. Throws while
     /// it has not run, so the flow keeps its confirmation and resumes.
@@ -425,11 +424,15 @@ actor MacSyncSession {
         waitsForLearner = false
         holding = .library
         cutoverFinished = false
-        try? await setHold(true)
+        do {
+            try await setHold(true)
+        } catch {
+            Self.logger.error("Sends were not held for the library confirmation: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     /// A confirmation whose catch-up or claim a quit interrupted goes on where it stopped; nothing asks the
-    /// learner twice (WP16c: `HoldsMyLibraryFlow` keeps its progress in `library.holdsConfirmed`).
+    /// learner twice (`HoldsMyLibraryFlow` keeps its progress in `library.holdsConfirmed`).
     private func resumeConfirmation() async {
         guard let claimer = MigrationServices.shared.claimer,
               (try? await store.onStore { try $0.holdsMyLibraryConfirmation() }) != nil else { return }
@@ -438,7 +441,7 @@ actor MacSyncSession {
         _ = try? await flow.confirm(freshReason: reason.flatMap(FreshReason.init(rawValue:)))
     }
 
-    // MARK: - This Mac holds my library (WP16c's seams)
+    // MARK: - This Mac holds my library
 
     /// The learner confirmed and the catch-up ran: this Mac may claim the seed or reconcile (`Standing.mayClaim`).
     /// A session that has not started (a store whose old zone was missing starts nothing before this) starts
@@ -489,8 +492,7 @@ actor MacSyncSession {
         await coordinator.start()
     }
 
-    /// Builds the Mac's services around the coordinator and attaches them (the reports of WP15b, WP17 and
-    /// WP31 say what each needs).
+    /// Builds the Mac's services around the coordinator and attaches them.
     private func wire(_ coordinator: SyncCoordinator, deviceID: String) async {
         let blobs = coordinator.blobs
         let writer = MaintenanceWriter(transport: coordinator.transport, store: store, moveMaps: coordinator.engine.moveMaps, deviceID: deviceID, clock: { Date() })
@@ -540,7 +542,7 @@ actor MacSyncSession {
         services.covers = covers
 
         // One after-round chain: `setAfterRound` holds a single closure, and the move jobs run beside the
-        // Job runner (WP15b's report). Nothing here waits on the cutover, which runs on a task of its own.
+        // Job runner. Nothing here waits on the cutover, which runs on a task of its own.
         await coordinator.setAfterRound { [weak self] in
             // A body that a space's walk pointed at (a shared Doc's, `DocSpaces`) is brought in now and not
             // a round later: the walk runs after the private fetch's own hook. One query when none waits.
@@ -648,7 +650,11 @@ actor MacSyncSession {
         guard let coordinator else { return }
         if !accountWritten, let account = try? await coordinator.transport.userRecordName() {
             accountWritten = true
-            try? await store.perform { try $0.replica.setEngineState(ReplicaStore.EngineScope.account, Data(account.utf8)) }
+            do {
+                try await store.perform { try $0.replica.setEngineState(ReplicaStore.EngineScope.account, Data(account.utf8)) }
+            } catch {
+                Self.logger.error("The account name was not stored: \(error.localizedDescription, privacy: .public)")
+            }
         }
         if let spaces = services.spaces {
             try? await spaces.mirrorTeams()
@@ -726,7 +732,7 @@ actor MacSyncSession {
 
     private func refreshHold() async throws {
         let deviceID = deviceID
-        // A library the learner has not confirmed uploads nothing, whatever the root says (§13.5, WP16c).
+        // A library the learner has not confirmed uploads nothing, whatever the root says (§13.5).
         if waitsForLearner {
             try await setHold(true)
             return
@@ -857,7 +863,7 @@ actor MacSyncSession {
 }
 
 /// "This Mac holds my library" asks the session for the deferred catch-up and for the claim or the reconcile
-/// (`LibraryClaiming`, WP16c). The catch-up is WP16b2's; with none registered it says so, and the flow
+/// (`LibraryClaiming`). With no catch-up registered the claimer says so, and the flow
 /// leaves the confirmation standing for the next launch.
 struct SessionLibraryClaimer: LibraryClaiming {
     /// The catch-up has not run yet; the confirmation stands and the flow resumes.

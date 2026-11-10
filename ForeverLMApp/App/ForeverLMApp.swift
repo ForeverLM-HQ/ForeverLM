@@ -910,8 +910,7 @@ struct ForeverLMApp: App {
                 .shellShortcut(.dailyNotes)
 
                 // While the key window shows a canvas, ⌥⇧⌘S saves a version
-                // of it. It was ⌥⌘S (Heptabase's) until 2026-10-13, when
-                // Codex's Side Chat took that key.
+                // of it; ⌥⌘S is Codex's Side Chat.
                 if activeWindowShowsCanvas {
                     Button("Save Canvas Version…") {
                         studioViewModel.promptSaveCanvasVersion(canvasID: studioViewModel.knowledgeMap.mapID)
@@ -1056,8 +1055,7 @@ struct ForeverLMApp: App {
                 .shellShortcut(.addSources)
                 .disabled(activeWindowNotebook == nil)
 
-                // ⌃⌥⌘S: it was ⌥⌘S until 2026-10-13, when Codex's Side Chat
-                // took that key.
+                // ⌃⌥⌘S: ⌥⌘S is Codex's Side Chat.
                 if let notebook = activeWindowNotebook, let state = activeWindowState {
                     Button(notebook.sourcesCollapsed ? "Show Sources" : "Hide Sources") {
                         guard state.notebook != nil else { return }
@@ -1298,7 +1296,7 @@ struct StudioDisplayDescriptor: Equatable {
 }
 
 /// Resolves a saved display against the screens connected now. A persistent
-/// CoreGraphics UUID is authoritative. Legacy records fall back to the current
+/// CoreGraphics UUID is authoritative. Records without one fall back to the current
 /// display number, then their spatial index before a product name: two matching
 /// monitors commonly publish the same name, so "first screen with this name"
 /// is not identity and can put both saved windows on one display.

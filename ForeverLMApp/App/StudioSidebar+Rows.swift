@@ -1,6 +1,5 @@
 // The source sidebar's drop overlays and article rows.
 import SwiftUI
-import UniformTypeIdentifiers
 import AppKit
 
 extension StudioSidebar {

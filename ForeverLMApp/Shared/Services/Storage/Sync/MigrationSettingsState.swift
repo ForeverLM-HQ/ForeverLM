@@ -161,7 +161,7 @@ struct ICloudMigrationState: Equatable, Sendable {
     var now: Date
 
     /// Nothing about the move shows under generation 1, or while the activation itself is running (its
-    /// own card shows then, WP16a).
+    /// own card shows then).
     var isShown: Bool { snapshot.isGeneration2 && snapshot.isActivated }
 
     var holds: HoldsMyLibrary.Standing { snapshot.holdsMyLibraryStanding }

@@ -50,7 +50,7 @@ enum SourceLocalTables {
     }
 
     /// The `sources` columns the Source record reads; reading positions, the review depth and the
-    /// card count are not on the record (they are the member's `ReadingState`, WP12).
+    /// card count are not on the record (they are the member's `ReadingState`).
     static let sourceColumns = ["date_added", "state", "error_message", "source_type", "status"]
     static let wireFieldColumns = [
         "primary_key", "made_by_json", "type_locked", "subtitle", "language", "summary", "content_hash",
@@ -80,7 +80,7 @@ enum SourceLocalTables {
 
 /// A group membership that makes a source a member of a collection: a book's chapter or a meeting
 /// series' session (`Source.collectionID`, `collectionOrder`). Playlist memberships are Entries
-/// (`PlaylistEntryProjection`), and a course's are its lesson items (WP9).
+/// (`PlaylistEntryProjection`), and a course's are its lesson items.
 struct SourceCollectionMembership: Equatable, Sendable {
     enum Kind: String, Sendable { case book, meetingSeries }
     let groupID: String
@@ -195,8 +195,8 @@ struct SourceRows: Equatable, Sendable {
 
 /// The Source record's projection (§3.5.4) into `sources`, its per-type table, its collection
 /// membership, its meeting attachments and schema 155's tables. Per-member state is not on the record:
-/// reading position and progress are the member's `ReadingState` (WP12), and when a video was liked,
-/// the search that found a source and whether a feed is followed are Marks (WP12b).
+/// reading position and progress are the member's `ReadingState`, and when a video was liked,
+/// the search that found a source and whether a feed is followed are Marks.
 struct SourceProjection: RecordProjection {
     var recordType: SyncRecordType { .source }
 
@@ -367,10 +367,6 @@ struct SourceProjection: RecordProjection {
         return refs
     }
 
-    private static func json(_ text: String?) -> SyncJSON? {
-        text.flatMap { try? SyncJSON(parsing: Data($0.utf8)) }
-    }
-
     static func wireFields(sourceID: String, connection: SQLiteConnection) throws -> SourceWireFields {
         var fields = SourceWireFields()
         try connection.query(
@@ -378,17 +374,17 @@ struct SourceProjection: RecordProjection {
             [.text(sourceID)]
         ) { row in
             fields.primaryKey = row.text(0)
-            fields.madeBy = json(row.text(1))
+            fields.madeBy = SyncJSON.stored(row.text(1))
             fields.typeLocked = row.integer(2).map { $0 != 0 }
             fields.subtitle = row.text(3)
             fields.language = row.text(4)
             fields.summary = row.text(5)
             fields.contentHash = row.text(6)
-            fields.metrics = json(row.text(7))?.objectValue
-            fields.copiedFrom = json(row.text(8))
+            fields.metrics = SyncJSON.stored(row.text(7))?.objectValue
+            fields.copiedFrom = SyncJSON.stored(row.text(8))
             fields.mergedInto = row.text(9)
-            fields.extraMeta = json(row.text(10))?.objectValue ?? [:]
-            fields.lossy = SourceLossyFields(json: json(row.text(11)))
+            fields.extraMeta = SyncJSON.stored(row.text(10))?.objectValue ?? [:]
+            fields.lossy = SourceLossyFields(json: SyncJSON.stored(row.text(11)))
         }
         return fields
     }
@@ -639,10 +635,9 @@ extension SourceProjection {
             teamID = try SpaceRows.localTeamID(spaceID: spaceID, connection: connection)
             if localID == record.wireID {
                 localID = SpaceLocalID.localID(spaceID: spaceID, type: .source, wireID: record.wireID)
-                try connection.execute("""
-                    INSERT INTO ck_identity (zone_key, record_type, wire_id, local_id) VALUES (?, ?, ?, ?)
-                    ON CONFLICT(zone_key, record_type, wire_id) DO UPDATE SET local_id = excluded.local_id
-                """, [.text(record.zoneKey), .text(SyncRecordType.source.rawValue), .text(record.wireID), .text(localID)])
+                try connection.recordIdentity(
+                    zoneKey: record.zoneKey, recordType: SyncRecordType.source.rawValue, wireID: record.wireID, localID: localID
+                )
             }
         }
         let existing = try Self.loadRows(localID: localID, connection: connection)
@@ -1084,7 +1079,7 @@ enum SourceWorkKeys {
 /// A podcast's show and a YouTube video's channel are collections no table holds: their records are
 /// derived from the episodes and videos (`source_collections`), by kind and name. The Mac holds no
 /// feed URL or channel id for today's rows, so the show or channel name is their external key (a
-/// correction of §3.5.5, WP7).
+/// correction of §3.5.5).
 enum SourceCollections {
     /// A YouTube video's channel from its `domain`, which rows imported before channel capture may fill
     /// with something else: the playlist title ("Liked videos", "ForeverLM"), its group, or the address's

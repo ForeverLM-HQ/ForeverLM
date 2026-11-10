@@ -449,7 +449,6 @@ actor ZoomRecordingService {
         /// Decoded only so `assetSummary` can say the recording itself is
         /// there and the transcript is not. Nothing downloads these.
         let viewMp4Url: String?
-        let shareMp4Url: String?
         let transcriptUrl: String?
         let ccUrl: String?
         let meet: Meet?

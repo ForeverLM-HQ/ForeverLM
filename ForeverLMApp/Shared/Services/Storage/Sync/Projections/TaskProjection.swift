@@ -63,8 +63,8 @@ enum TaskRows: Equatable, Sendable {
 
 /// The Task record's projection (§3.5.27). A team's tasks and share requests live in the space their
 /// team becomes (their `ck_identity` rows, `TaskUpkeep.recordTeamIdentities`), so the feeder holds them
-/// until WP15 gives the space a root; a Task arriving in a space is kept in the replica, unprojected,
-/// for WP15. Share requests live only in team spaces, so in `Library` the projection writes none.
+/// until the space has a root; a Task arriving in a space is kept in the replica, unprojected,
+/// until then. Share requests live only in team spaces, so in `Library` the projection writes none.
 struct TaskProjection: RecordProjection {
     var recordType: SyncRecordType { .task }
 
@@ -412,7 +412,7 @@ enum TaskUpkeep {
         """, [.text(notebookID)])
     }
 
-    /// A team's tasks and every share request live in the space their team becomes (§13.7, WP15): each
+    /// A team's tasks and every share request live in the space their team becomes (§13.7): each
     /// gets its `ck_identity` row in that zone, as the team's notebook did (`deriveWireIDs`), so the feeder
     /// holds their changes until the space has a root instead of sending them into `Library`.
     static func recordTeamIdentities(teamZones: [String: String], connection: SQLiteConnection, ids: [String]? = nil) throws {
@@ -426,10 +426,7 @@ enum TaskUpkeep {
         }
         for row in rows {
             guard let zone = teamZones[row.team] else { continue }
-            try connection.execute("""
-                INSERT INTO ck_identity (zone_key, record_type, wire_id, local_id) VALUES (?, ?, ?, ?)
-                ON CONFLICT(zone_key, record_type, wire_id) DO UPDATE SET local_id = excluded.local_id
-            """, [.text(zone), .text(SyncRecordType.task.rawValue), .text(row.id), .text(row.id)])
+            try connection.recordIdentity(zoneKey: zone, recordType: SyncRecordType.task.rawValue, wireID: row.id, localID: row.id)
         }
     }
 }

@@ -1,9 +1,6 @@
 // Part of ReviewSessionManager: memory review sessions, grading tools and resume state.
 
 import Foundation
-import Observation
-import PDFKit
-import os
 
 extension ReviewSessionManager {
     struct MemoryReviewExtraction {

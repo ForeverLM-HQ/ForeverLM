@@ -1,17 +1,10 @@
 // Adding sources to courses, and creating, organizing and describing courses.
 
 import Foundation
-import CryptoKit
-import Observation
 import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
-import SwiftUI
-import AppKit
-import SQLite3
-import WebKit
-import Darwin
 
 extension StudioViewModel {
 
@@ -175,7 +168,11 @@ extension StudioViewModel {
                 do {
                     hiddenSourceIDs = try await self.storage.deleteCourseGroup(name: name)
                 } catch {
-                    try? await self.storage.saveCourseGroup(name: name, metadata: originalMetadata)
+                    do {
+                        try await self.storage.saveCourseGroup(name: name, metadata: originalMetadata)
+                    } catch {
+                        self.logger.error("saveCourseGroup failed: \(error.localizedDescription, privacy: .public)")
+                    }
                     self.courseMetadata[name] = originalMetadata
                     self.logger.error("Failed to finalize course removal '\(name)': \(error.localizedDescription)")
                     self.showToast("Removing “\(title)” failed: \(error.localizedDescription)")

@@ -60,7 +60,7 @@ struct ModelTableRow: Identifiable, Equatable {
     var offersHost: Bool { !model.id.lowercased().hasPrefix("openrouter/") }
 
     /// How long after OpenRouter first lists a model the table marks it New.
-    static let newFor: TimeInterval = 7 * 24 * 60 * 60
+    static let newFor: TimeInterval = 7 * MemoryTutorScheduler.secondsPerDay
 
     /// Whether OpenRouter first listed the model within `newFor`.
     func isListedRecently(asOf now: Date = Date()) -> Bool {

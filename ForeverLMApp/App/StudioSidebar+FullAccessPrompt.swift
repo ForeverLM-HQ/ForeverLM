@@ -1,6 +1,5 @@
 // The source sidebar's full disk access prompt.
 import SwiftUI
-import UniformTypeIdentifiers
 import AppKit
 
 extension StudioSidebar {

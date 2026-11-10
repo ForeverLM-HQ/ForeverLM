@@ -1,13 +1,10 @@
 import Foundation
 
-// The phone's learning history under generation 2 (docs/cloudkit-schema-design.md §3.5.22–§3.5.24,
-// D23, D24, D44; §14.2 WP20b). Generation 1 writes each graded answer as a `MemoryAttempt` record, the
-// day's review minutes as this phone's `MemoryReviewActivity` row and a learning bout's break into the
-// day's `DayPlan`, all in the old container. Once switched, the phone writes what the Mac's WP13 records
-// hold: an answer joins this device's `Sitting` (one writer, each answer written once), a card kept here
-// is a `Card` whose kept wording never changes, a quiz's score is a Sitting of its own, the review clock
-// and the sources the learner spent time with are this device's `ActivityLog` of the day, and a bout's
-// break end is `Sitting(kind bout).breakEndsAt`. The shapes are the Mac's (`MemoryAnswerCodec`,
+// The phone's learning history (docs/cloudkit-schema-design.md §3.5.22–§3.5.24, D23, D24, D44). The
+// phone writes what the Mac's records hold: an answer joins this device's `Sitting` (one writer, each
+// answer written once), a card kept here is a `Card` whose kept wording never changes, a quiz's score
+// is a Sitting of its own, the review clock and the sources the learner spent time with are this
+// device's `ActivityLog` of the day, and a bout's break end is `Sitting(kind bout).breakEndsAt`. The shapes are the Mac's (`MemoryAnswerCodec`,
 // `CardProjection.kept`, `quizScoreSitting`) and the web's (`saveMemoryAttempt`, `recordActivity`).
 
 enum MobileMemoryRecords {
@@ -74,7 +71,7 @@ enum MobileMemoryRecords {
 
     /// The attempt an answer about a card is, the inverse of `answer(for:curriculumFingerprint:)` and the
     /// Mac's `MemoryAnswerCodec.attempt`: nil for an answer about anything else, and for one that only
-    /// practised (no grade state and not counted), which generation 1 never recorded. `sessionID` is the
+    /// practised (no grade state and not counted), which the phone never records. `sessionID` is the
     /// chat of the Sitting that holds it.
     static func attempt(answerID: String, answer: [String: SyncJSON], sessionID: String?) -> MemoryAttempt? {
         guard let subject = answer["subject"]?.stringValue,
@@ -161,17 +158,17 @@ enum MobileMemoryRecords {
     }
 
     /// A Card kept on any device as the phone's Memory item (the Mac's inbound reading): the back when it
-    /// has one, else the front, else `legacy.target`; the other columns from `legacy`; the anchors in
+    /// has one, else the front, else `legacy.target`; the other columns from the same field; the anchors in
     /// order. Nil for a Card that was never kept.
     static func item(fromCard fields: [String: SyncJSON], id: String) -> MemoryItem? {
         guard let kept = fields["kept"]?.objectValue else { return nil }
-        let legacy = fields["legacy"]?.objectValue ?? [:]
+        let columns = fields["legacy"]?.objectValue ?? [:]
         func clean(_ value: SyncJSON?) -> String? {
             guard let text = value?.stringValue, !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
             return text
         }
         let front = clean(kept["front"]) ?? ""
-        let target = clean(kept["back"]) ?? clean(kept["front"]) ?? clean(legacy["target"]) ?? ""
+        let target = clean(kept["back"]) ?? clean(kept["front"]) ?? clean(columns["target"]) ?? ""
         let rubric = clean(kept["rubric"]) ?? String(decoding: SyncJSON.object([
             "card": .object(["cardID": .string(id), "front": .string(front), "origin": .string(fields["origin"]?.stringValue ?? "manual")]),
             "criteria": .array([]),
@@ -189,10 +186,10 @@ enum MobileMemoryRecords {
             )
         }
         return MemoryItem(
-            id: id, kind: legacy["kind"]?.stringValue.flatMap(MemoryItemKind.init(rawValue:)) ?? .concept, target: target,
-            rubricJSON: rubric, learnerContext: clean(legacy["learnerContext"]), goalID: clean(legacy["goalID"]),
+            id: id, kind: columns["kind"]?.stringValue.flatMap(MemoryItemKind.init(rawValue:)) ?? .concept, target: target,
+            rubricJSON: rubric, learnerContext: clean(columns["learnerContext"]), goalID: clean(columns["goalID"]),
             status: fields["status"]?.stringValue == "retired" ? .retired : .active, sources: sources,
-            createdAt: keptAt, updatedAt: keptAt, ideaID: clean(legacy["ideaID"])
+            createdAt: keptAt, updatedAt: keptAt, ideaID: clean(columns["ideaID"])
         )
     }
 
@@ -428,7 +425,7 @@ extension MobileWrite {
 
     // MARK: - Learning bouts (§3.5.23 kind `bout`)
 
-    /// The bouts started since `since`, read from their Sittings as the Mac writes them (WP13): the scope
+    /// The bouts started since `since`, read from their Sittings as the Mac writes them: the scope
     /// carries the title, plan, notebook, sources and block; `breakEndsAt` is when the break ends.
     /// `breakEndedAt` stays each device's own (the Mac keeps it local), so it comes from `endedBreaks`, the
     /// breaks this phone ended.
@@ -488,7 +485,7 @@ extension MobileRecordWriter {
     }
 }
 
-/// The phone's source activity under generation 2 (§3.5.24): timed use (reading, listening, watching)
+/// The phone's source activity (§3.5.24): timed use (reading, listening, watching)
 /// is held here until the source has 30 s of engaged use on the day, then logged and added to from then
 /// on; a chat, a review or a completion is logged at once. Opening a source logs nothing (P9).
 actor MobileActivityLogRecorder {
@@ -566,7 +563,7 @@ extension MobileWrite {
 
     /// The day's review chat, its briefing (uploaded first) and the tutor's opening question.
     mutating func createMemoryReview(_ draft: MobileMemoryReviewStore.Draft, briefing: FileRef?) throws {
-        let opening = MobileChatRecord.Exchange(id: MobileMemoryReviewStore.exchangeID(sessionID: draft.sessionID, sequence: 1), seq: 1,
+        let opening = MobileChatRecord.Exchange(id: MobileReviewSessionRecorder.exchangeID(sessionID: draft.sessionID, sequence: 1), seq: 1,
                                                 question: draft.openingQuestion, userAnswer: nil, evaluation: nil, score: nil, answeredAt: nil,
                                                 sourceRefs: [], knowledgeNote: nil)
         try recordChat(MobileChatRecord(id: draft.sessionID, kind: .memory, notebookID: nil, title: draft.topic, startedAt: draft.startedAt,
@@ -588,7 +585,7 @@ extension MobileWrite {
         ])
     }
 
-    /// One turn, as generation 1 records it on the review's record: the learner's answer to the open
+    /// One turn, as the review's record holds it: the learner's answer to the open
     /// question and the tutor's reply on the unanswered exchange, else on a new one whose question is the
     /// last reply; the grade when there was one; the steer given before answering on the graded exchange
     /// it steered. An answered exchange is never rewritten (its fields are S).
@@ -633,7 +630,7 @@ extension MobileWrite {
     }
 
     private mutating func writeMemoryReviewExchange(sessionID: String, seq: Int, fields: [String: SyncJSON]) throws {
-        var patch = RecordPatch(.exchange, id: MobileMemoryReviewStore.exchangeID(sessionID: sessionID, sequence: seq))
+        var patch = RecordPatch(.exchange, id: MobileReviewSessionRecorder.exchangeID(sessionID: sessionID, sequence: seq))
         patch.changes["chatID"] = .value(.string(sessionID))
         patch.changes["seq"] = .value(SyncJSON(seq))
         for (field, value) in fields { patch.changes[field] = .value(value) }

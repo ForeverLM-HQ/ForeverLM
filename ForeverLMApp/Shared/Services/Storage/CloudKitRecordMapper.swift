@@ -4,7 +4,6 @@ import CryptoKit
 import Foundation
 import ImageIO
 import OSLog
-import PDFKit
 import UniformTypeIdentifiers
 
 enum CloudKitSyncEntity: String, CaseIterable, Sendable {
@@ -162,28 +161,6 @@ enum CloudKitSyncEntity: String, CaseIterable, Sendable {
     static func from(recordType: String) -> CloudKitSyncEntity? {
         allCases.first(where: { $0.recordType == recordType })
     }
-}
-
-enum CloudKitSyncOperation: String, Sendable, Equatable {
-    case save
-    case delete
-}
-
-struct CloudKitSyncPendingItem: Identifiable, Equatable, Sendable {
-    let id: String
-    let title: String
-    let kind: String
-    let operation: CloudKitSyncOperation
-    let changedAt: Date
-}
-
-struct CloudKitSyncIssueItem: Identifiable, Equatable, Sendable {
-    let id: String
-    let title: String
-    let kind: String
-    let operation: CloudKitSyncOperation
-    let message: String
-    let detectedAt: Date
 }
 
 extension CloudKitZoneHome {

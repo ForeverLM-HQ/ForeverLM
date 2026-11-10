@@ -4,15 +4,6 @@ import Foundation
 
 // MARK: - Helpers
 
-@MainActor
-private func makeViewModel() -> StudioViewModel {
-    let tmp = FileManager.default.temporaryDirectory
-        .appendingPathComponent("SourceAddTests_\(UUID().uuidString)")
-    try? FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
-    let service = StorageService(storeRoot: tmp)
-    return StudioViewModel(storageService: service)
-}
-
 // MARK: - URL Normalization
 
 @Suite("URL Normalization")

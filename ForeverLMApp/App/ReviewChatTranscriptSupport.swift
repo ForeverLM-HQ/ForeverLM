@@ -1,9 +1,5 @@
 // Citation contexts, try-again models, the transcript chooser and lookups for the chat transcript.
 import SwiftUI
-import Combine
-import UniformTypeIdentifiers
-import PDFKit
-import WebKit
 import AppKit
 
 /// A walkthrough step's animation, opened large from its row.

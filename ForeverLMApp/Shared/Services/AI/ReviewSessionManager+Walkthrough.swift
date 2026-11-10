@@ -1,9 +1,6 @@
 // Part of ReviewSessionManager: walkthrough playback and the reader focus tools.
 
 import Foundation
-import Observation
-import PDFKit
-import os
 
 extension ReviewSessionManager {
     // MARK: - Walkthrough playback

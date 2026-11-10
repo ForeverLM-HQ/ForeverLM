@@ -77,7 +77,7 @@ enum MeetingCalendarEvent {
             // A meeting that began hours before the recording and is still
             // running touches the window, so reach back a whole day.
             let events = try await service.shownEvents(
-                from: startedAt.addingTimeInterval(-24 * 60 * 60),
+                from: startedAt.addingTimeInterval(-MemoryTutorScheduler.secondsPerDay),
                 to: startedAt.addingTimeInterval(grace + 60)
             )
             return event(startingAt: startedAt, title: title, in: events)?.attendeeNames ?? []

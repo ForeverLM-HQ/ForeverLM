@@ -1209,7 +1209,11 @@ extension StudioViewModel {
                     if article.errorMessage != stop.localizedDescription {
                         article.state = .error
                         article.errorMessage = stop.localizedDescription
-                        try? await storage.saveSource(article)
+                        do {
+                            try await storage.saveSource(article)
+                        } catch {
+                            logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+                        }
                     }
                     await MainActor.run { _ = self.zoomLocalRecordingRetryPending.insert(folder.path) }
                     await reloadSourcesAfterZoomLocalFiling(base: base, log: log)
@@ -1250,7 +1254,11 @@ extension StudioViewModel {
                     // recording waits for the next pass.
                     article.state = .error
                     article.errorMessage = error.localizedDescription
-                    try? await storage.saveSource(article)
+                    do {
+                        try await storage.saveSource(article)
+                    } catch {
+                        logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+                    }
                     await MainActor.run {
                         self.zoomLocalRecordingTranscriptAttempts[folder.path] = attempts
                         _ = self.zoomLocalRecordingRetryPending.insert(folder.path)
@@ -1259,7 +1267,11 @@ extension StudioViewModel {
                 } catch {
                     article.state = .error
                     article.errorMessage = "Transcribing the Zoom recording failed: \(error.localizedDescription)"
-                    try? await storage.saveSource(article)
+                    do {
+                        try await storage.saveSource(article)
+                    } catch {
+                        logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+                    }
                     // A recording with no speech in it has none on the next
                     // attempt either.
                     var heardNothing = false

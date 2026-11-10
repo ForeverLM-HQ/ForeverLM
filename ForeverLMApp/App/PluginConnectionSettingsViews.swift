@@ -1,9 +1,7 @@
 // Settings views for the Google Drive, Apple Calendar, calendar-group and YouTube connections.
 import SwiftUI
 import AppKit
-import AuthenticationServices
 import Combine
-import UniformTypeIdentifiers
 import EventKit
 
 struct GoogleDriveConnectionSettingsView: View {

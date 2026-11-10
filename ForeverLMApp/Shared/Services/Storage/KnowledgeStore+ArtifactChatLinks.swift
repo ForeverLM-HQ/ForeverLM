@@ -1,8 +1,6 @@
 // KnowledgeStore: the doc passages a chat was opened on.
 import Foundation
 import SQLite3
-import OSLog
-import CloudKit
 
 extension KnowledgeStore {
 

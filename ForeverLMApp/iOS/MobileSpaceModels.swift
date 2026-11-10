@@ -155,7 +155,7 @@ struct MobileSpaceTeam: Identifiable, Equatable, Hashable, Sendable {
 
 /// Why the Space did not do what it was asked, in words for the learner.
 enum MobileSpaceError: LocalizedError, Equatable {
-    /// The phone is not on the new iCloud store (generation 1), or its library has not arrived.
+    /// The phone has no replica of the library yet, or its library has not arrived.
     case unavailable
     /// The page or the space is gone, here or on another device.
     case notFound
@@ -319,7 +319,7 @@ enum MobileSpaceListing {
     static let unlistedKinds: Set<String> = ["notes", "file", "picture", "animation", "audioOverview", "audio_overview", "flashcards"]
 
     /// Whether a record of `kind` under `id` is a Space item at all: not a member's draft of a team page
-    /// (`draft:`, and generation 1's `draft_`), a Notes Doc, a notebook file, a picture, a card deck or the
+    /// (`draft:`, and `draft_`), a Notes Doc, a notebook file, a picture, a card deck or the
     /// working memory (`WorkingMemoryRecords`).
     static func isSpaceRecord(id: String, kind: String?) -> Bool {
         guard !id.isEmpty, !unlistedKinds.contains(kind ?? ""), !WorkingMemoryRecords.contains(id) else { return false }
@@ -396,7 +396,7 @@ enum MobileSpaceListing {
 
     // MARK: Pins
 
-    /// Whether a page pins: the learner's own, out of Trash (`canPinPageItem`). A team's page is the team's.
+    /// Whether a page pins: the learner's own, out of Trash. A team's page is the team's.
     static func canPin(_ page: MobileSpacePage) -> Bool {
         page.isOwn && !page.isTrashed
     }

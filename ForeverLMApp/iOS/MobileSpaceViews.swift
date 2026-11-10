@@ -96,8 +96,8 @@ struct MobileSpaceScreen: View {
     }
 }
 
-/// The Space once the phone can show it: a spinner while the replica is read the first time, and the
-/// one sentence generation 1 gets, since its pages open only from the new iCloud store.
+/// The Space once the phone can show it: a spinner while the replica is read the first time, and a
+/// sentence when the phone has no replica.
 struct MobileSpaceAvailability<Content: View>: View {
     @ViewBuilder let content: () -> Content
 
@@ -694,8 +694,8 @@ enum MobileSpaceDateText {
         let seconds = now.timeIntervalSince(date)
         if seconds < 60 { return "now" }
         if seconds < 3600 { return "\(Int(seconds / 60))m" }
-        if seconds < 86_400 { return "\(Int(seconds / 3600))h" }
-        if seconds < 7 * 86_400 { return "\(Int(seconds / 86_400))d" }
+        if seconds < MemoryTutorScheduler.secondsPerDay { return "\(Int(seconds / 3600))h" }
+        if seconds < 7 * MemoryTutorScheduler.secondsPerDay { return "\(Int(seconds / MemoryTutorScheduler.secondsPerDay))d" }
         let calendar = Calendar.current
         if calendar.component(.year, from: date) == calendar.component(.year, from: now) {
             return date.formatted(.dateTime.month(.abbreviated).day())

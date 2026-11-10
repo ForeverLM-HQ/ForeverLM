@@ -1,5 +1,3 @@
-import Foundation
-
 // MARK: - Schema 158: what the Chat and Exchange records need (§12.7)
 
 extension KnowledgeStore {
@@ -9,7 +7,7 @@ extension KnowledgeStore {
 // MARK: - The activation's derivations for chats (§13.3 step 3c)
 
 extension KnowledgeStore {
-    /// WP10's derivations, after WP8's: each chat's kind, whether its imports' appends mark sources
+    /// The derivations for chats: each chat's kind, whether its imports' appends mark sources
     /// reviewed, and its context mode. Each fills only rows that have none, so a second run changes
     /// nothing, a chat generation-1 code made after 158 is covered, and a value a generation-2 creation
     /// site wrote is never overwritten. Bounded by the library's chats, each in its own transaction,

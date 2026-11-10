@@ -1,9 +1,6 @@
 // The transcript, its blocks, bubbles, editing and new chat hand-off of the chat panel.
 import SwiftUI
 import Combine
-import UniformTypeIdentifiers
-import PDFKit
-import WebKit
 import AppKit
 
 extension InternalReviewPanelContent {

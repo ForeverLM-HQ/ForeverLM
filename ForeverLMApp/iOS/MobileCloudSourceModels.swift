@@ -1,4 +1,3 @@
-import CryptoKit
 import Foundation
 #if os(macOS)
 @testable import ForeverLM
@@ -1022,7 +1021,7 @@ extension MobileCloudSource {
     }
 }
 
-/// Mobile mirror of `CloudKitMemoryAttemptPayload`. It lives with the pure
+/// The memory attempt payload as the phone reads it. It lives with the pure
 /// source projections so macOS unit tests can verify out-of-order delivery
 /// without compiling the phone's CloudKit/UI actor.
 struct MobileCloudMemoryAttemptPayload: Decodable, Sendable {
@@ -1059,8 +1058,8 @@ struct MobileCloudMemoryAttemptPayload: Decodable, Sendable {
 
 enum MobileMemoryAttemptCurriculumProjection {
     /// Fail closed on missing parents and on malformed/mismatched v2 evidence.
-    /// A nil fingerprint is accepted only for legacy payloads written before
-    /// the parent snapshot field existed.
+    /// A nil fingerprint is accepted only for payloads without the parent
+    /// snapshot field.
     static func compatibleAttempts(
         items: [MemoryItem],
         envelopesByRecordName: [String: MobileCloudMemoryAttemptPayload]

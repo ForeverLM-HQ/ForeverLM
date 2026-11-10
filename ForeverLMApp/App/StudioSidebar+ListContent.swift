@@ -1,6 +1,5 @@
 // The source sidebar's list content and the meetings empty state.
 import SwiftUI
-import UniformTypeIdentifiers
 import AppKit
 
 extension StudioSidebar {

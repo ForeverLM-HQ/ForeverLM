@@ -1,8 +1,6 @@
 // KnowledgeStore: source review guide preparation.
 import Foundation
 import SQLite3
-import OSLog
-import CloudKit
 
 extension KnowledgeStore {
 

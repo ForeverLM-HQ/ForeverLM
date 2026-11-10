@@ -1,9 +1,6 @@
 // Part of ReviewSessionManager: the running history digest.
 
 import Foundation
-import Observation
-import PDFKit
-import os
 
 extension ReviewSessionManager {
     // MARK: - Rolling history summary

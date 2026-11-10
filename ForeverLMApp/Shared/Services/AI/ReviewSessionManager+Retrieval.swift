@@ -1,9 +1,7 @@
 // Part of ReviewSessionManager: tool call parsing and source retrieval.
 
 import Foundation
-import Observation
 import PDFKit
-import os
 
 extension ReviewSessionManager {
     /// Why a source is in a retrieval result: the model asked for it (or the

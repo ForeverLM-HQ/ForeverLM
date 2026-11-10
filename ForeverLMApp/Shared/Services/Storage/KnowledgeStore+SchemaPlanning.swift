@@ -1,6 +1,3 @@
-import Foundation
-import SQLite3
-
 extension KnowledgeStore {
 
     /// Scheduled sources, source activity and scheduled tasks.

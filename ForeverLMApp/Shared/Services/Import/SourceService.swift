@@ -2,9 +2,6 @@ import Foundation
 import PDFKit
 import CryptoKit
 import os
-#if os(macOS)
-import WebKit
-#endif
 
 private let logger = Logger(subsystem: "com.foreverlm", category: "SourceService")
 
@@ -742,7 +739,7 @@ actor SourceService {
             .secure: "TRUE",
         ]
         if let days = challenge.cookieExpirationDays, days > 0 {
-            properties[.expires] = now.addingTimeInterval(days * 86_400)
+            properties[.expires] = now.addingTimeInterval(days * MemoryTutorScheduler.secondsPerDay)
         }
         return HTTPCookie(properties: properties)
     }

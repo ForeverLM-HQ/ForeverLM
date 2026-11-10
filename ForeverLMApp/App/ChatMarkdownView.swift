@@ -1,7 +1,6 @@
 import SwiftUI
 import Combine
 import UniformTypeIdentifiers
-import PDFKit
 import WebKit
 import AppKit
 
@@ -437,8 +436,8 @@ struct ChatMarkdownView: NSViewRepresentable {
     /// scroll, not just the visible rows.
     private static let reusePoolCapacity = 16
     /// How many parked views the pool keeps ready while a transcript is open.
-    /// The pool used to fill only with views the transcript had discarded, so
-    /// the first scroll back through a chat found it empty and paid a template
+    /// A pool filled only with views the transcript has discarded would be
+    /// empty on the first scroll back through a chat, and would pay a template
     /// load — 80 to 200 ms in the web process before the page could draw — for
     /// every row that entered. Spares are made while the user reads, one at a
     /// time and never during a scroll, so a row scrolled in finds a loaded page.
@@ -1172,7 +1171,7 @@ struct ChatMarkdownView: NSViewRepresentable {
         return json
     }
 
-    private static func jsonString(_ value: String) -> String {
+    static func jsonString(_ value: String) -> String {
         let data = (try? JSONEncoder().encode(value)) ?? Data("\"\"".utf8)
         return String(data: data, encoding: .utf8) ?? "\"\""
     }
@@ -1426,7 +1425,7 @@ struct ChatMarkdownView: NSViewRepresentable {
 
         /// WebKit starts a link drag with the link's address and title on the
         /// pasteboard and nothing an in-app destination recognises, which is
-        /// how a chat card dropped on a Doc used to land as a bare private
+        /// how a chat card dropped on a Doc would land as a bare private
         /// address. The session is this view's own (WebKit names the web view
         /// as the drag's source), so the moment it begins the source payload
         /// the sidebar's drag carries is added beside WebKit's items. WebKit's

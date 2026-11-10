@@ -989,8 +989,8 @@ extension StudioSidebar {
         Divider()
 
         // Hide is its own item, for any source: an episode, a paper, an article,
-        // a video. It used to sit only behind Remove…'s confirmation, which reads
-        // as deletion, so hiding one episode looked impossible from the row.
+        // a video. Behind Remove…'s confirmation, which reads as deletion, hiding
+        // one episode would look impossible from the row.
         Button {
             Task { await vm.hideSources(selectedIds) }
         } label: {
@@ -1131,7 +1131,7 @@ extension StudioSidebar {
             Divider()
         }
 
-        // Meetings have slides too, now that a recording's frames can be read: the entry
+        // Meetings have slides too, since a recording's frames can be read: the entry
         // follows what the action actually supports rather than naming one provider.
         if StudioViewModel.supportsSlideExtraction(article) {
             Button {

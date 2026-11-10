@@ -40,7 +40,7 @@ enum ShareServiceError: Error, Equatable, Sendable {
 /// the owner's name (§2.5, `quotaNotice`).
 ///
 /// A space itself (its zone, and a root with a fresh salt saved by compare-and-set create) is made by
-/// `SpaceService` (WP15) with `spaceRoot`; this service shares it. Generation 2 only: generation 1's
+/// `SpaceService` with `spaceRoot`; this service shares it. Generation 2 only: generation 1's
 /// team and Doc sharing keep the old container's own paths (D40).
 struct ShareService {
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "ShareService")
@@ -49,7 +49,7 @@ struct ShareService {
     let store: PrivateSyncLocalStore
     let spaces: SpaceSync
     /// The name the learner goes by in the app, for their own row: CloudKit never names the signed-in
-    /// account on its own roster (generation 1's `memberDisplayName` rule).
+    /// account on its own roster.
     var accountName: String?
 
     // MARK: - A space's root

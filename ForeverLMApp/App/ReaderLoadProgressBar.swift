@@ -1,5 +1,4 @@
 import AppKit
-import WebKit
 
 /// What the reader's load progress bar should be showing, derived from the web
 /// view's `isLoading` and `estimatedProgress`.

@@ -1,6 +1,6 @@
 import Foundation
 
-// MARK: - What the activation keeps and shows (docs/cloudkit-schema-design.md §13.3 step 3, WP16a)
+// MARK: - What the activation keeps and shows (docs/cloudkit-schema-design.md §13.3 step 3)
 
 /// A body generation 1 holds for a writer beside a Doc (`document.remote.md`, kept when its three-way
 /// merge overlapped) is saved as the Recovered Doc `recovered:<artifactID>:<hash>` before the derivations
@@ -45,7 +45,7 @@ extension ActivationJournal {
     var sendsWaitForCatchUp: Bool { mode == .deferred && catchUpAt == nil }
 
     /// A `fresh` store whose old `Knowledge` zone was missing uploads nothing until the learner confirms
-    /// "This Mac holds my library" (WP16c, §13.5).
+    /// "This Mac holds my library" (§13.5).
     var sendsWaitForConfirmation: Bool { mode == .fresh && freshReason == .knowledgeMissing }
 }
 

@@ -1,17 +1,10 @@
 // The Papers lists: library keys, listing facts, duplicate suppression and dedup keys.
 
 import Foundation
-import CryptoKit
-import Observation
 import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
-import SwiftUI
-import AppKit
-import SQLite3
-import WebKit
-import Darwin
 
 extension StudioViewModel {
 
@@ -359,7 +352,7 @@ extension StudioViewModel {
     /// is in the library. One set lookup, against a table built once per
     /// articles revision.
     ///
-    /// The chat's web sources footer used to answer this by scanning
+    /// The chat's web sources footer does not answer this by scanning
     /// `articles` and normalizing every source's URL for each citation it drew,
     /// inside its SwiftUI body. Normalizing a stored file path walks the
     /// content roots, and a lazy transcript rebuilds the row every time it

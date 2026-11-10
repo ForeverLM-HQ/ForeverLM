@@ -14,7 +14,7 @@ import Foundation
 /// limit at 7:00 says nothing about 7:05.
 enum SourceIdeaExtractionFailures {
     static let key = "sourceIdeas.extractionFailures.v1"
-    static let retryInterval: TimeInterval = 24 * 60 * 60
+    static let retryInterval: TimeInterval = MemoryTutorScheduler.secondsPerDay
 
     struct Record: Equatable, Sendable {
         let contentHash: String

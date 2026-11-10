@@ -1,13 +1,7 @@
 // The permit pool that bounds how many audio chunks generate at once.
 #if os(macOS)
-import AVFoundation
-import CryptoKit
 import Foundation
-import MediaPlayer
-import os
-import PDFKit
 import SwiftUI
-import WebKit
 
 /// Bounds how many chunks generate at once, and hands each freed permit to the
 /// chunk playback will reach soonest.

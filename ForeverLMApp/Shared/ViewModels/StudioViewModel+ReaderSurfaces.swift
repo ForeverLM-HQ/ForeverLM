@@ -1,17 +1,9 @@
 // Opening and revealing the reader, notebook, artifact and browser surfaces.
 
 import Foundation
-import CryptoKit
-import Observation
-import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
-import SwiftUI
-import AppKit
-import SQLite3
-import WebKit
-import Darwin
 
 extension StudioViewModel {
 
@@ -200,11 +192,10 @@ extension StudioViewModel {
 
     /// Docs or Sites for a record: the record's own answer, by its link. A
     /// Google Doc and every Markdown doc are Docs, published or not; a Claude
-    /// artifact, a Codex site or a ForeverLM site is a Site. From 2026-09-08
-    /// to 2026-09-10 a Markdown doc moved to Sites while it had a page on
-    /// foreverlm.com; the product owner reversed that ("sites should only hold actual
-    /// sites, published docs stay in docs"), so publication no longer moves
-    /// anything. Kept as the one place every canvas and `revealArtifact` ask.
+    /// artifact, a Codex site or a ForeverLM site is a Site. A Markdown doc stays a Doc
+    /// when it has a page on foreverlm.com (product owner: "sites should only hold actual
+    /// sites, published docs stay in docs"), so publication moves
+    /// nothing. Kept as the one place every canvas and `revealArtifact` ask.
     func section(of artifact: ArtifactRecord) -> ArtifactSection {
         artifact.section
     }

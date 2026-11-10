@@ -170,7 +170,7 @@ enum FieldFeed: Sendable, Equatable {
     /// its own row's time, and a row gone because its item went is not a removal (§5.7).
     case elementRows(table: String)
     /// Read from any of these, whichever holds the record's row: a Source's title is in the per-type
-    /// table of its kind (WP7). The latest change among them.
+    /// table of its kind. The latest change among them.
     indirect case anyOf([FieldFeed])
 }
 
@@ -250,7 +250,7 @@ protocol RecordProjection: Sendable {
     /// Removes the local rows of a record the server deleted.
     func applyDeletion(_ record: ProjectionRecordRef, connection: SQLiteConnection) throws
     /// The server took a save of the record (§6.6 step 6): what the projection keeps besides the
-    /// replica, such as a body's merge base (WP11). Runs inside the acknowledgement's transaction.
+    /// replica, such as a body's merge base. Runs inside the acknowledgement's transaction.
     func acknowledged(_ change: OutboxChange, serverRecord: ReplicaRecord, connection: SQLiteConnection) throws
 }
 

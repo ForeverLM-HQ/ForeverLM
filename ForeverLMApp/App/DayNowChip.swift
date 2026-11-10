@@ -17,7 +17,7 @@ import SwiftUI
 /// is what gets shown in the bottom left"). There is no Planner behind the
 /// chip: its popover lists today's events, opens any of them in the Calendar
 /// app, joins a call from its link, starts a bout, and opens the chat that
-/// plans the day by writing events into the calendar. Since shell stage 4 it
+/// plans the day by writing events into the calendar. It
 /// is also a way to Activity, the day's record, which left the rail's top
 /// rows (`DayNowMenuRow.activity`). A hairline along its foot shows how far
 /// through the event the clock is. `StudioView` starts the day's model, so

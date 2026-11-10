@@ -40,7 +40,7 @@ final class ScheduledTaskRunner {
     private(set) var runningTaskIDs: Set<String> = []
     /// Whether this Mac stays awake while a task is due
     /// (`ScheduledTaskWakePolicy`): the Tasks pane's ⋯ › Keep This Mac
-    /// Awake for Tasks (its header's cup button until 2026-10-06), and
+    /// Awake for Tasks (not a button in its header), and
     /// `tasks.keep_mac_awake` over MCP. This Mac only.
     private(set) var keepsMacAwake = UserDefaults.standard.bool(forKey: ScheduledTaskWakePolicy.keepMacAwakeKey)
     /// The chat each running task is generating in, so `stop` can end it.
@@ -83,7 +83,11 @@ final class ScheduledTaskRunner {
             // A run left mid-flight by a quit is not still running. Settle those
             // receipts before anything reads them, so the surface never shows a
             // spinner with nothing behind it.
-            _ = try? await storage.failInterruptedScheduledTaskRuns(deviceName: Self.deviceName)
+            do {
+                _ = try await storage.failInterruptedScheduledTaskRuns(deviceName: Self.deviceName)
+            } catch {
+                self.logger.error("Failed to settle interrupted scheduled task runs: \(error.localizedDescription, privacy: .public)")
+            }
             await refresh()
         }
     }
@@ -269,10 +273,14 @@ final class ScheduledTaskRunner {
             // A try that would come too late is settled, whichever Mac failed
             // it: that Mac would settle it the same way.
             for run in detail.runs where run.isAwaitingRetry && detail.task.isStale(occurrence: run.occurrenceAt, now: now) {
-                try? await storage.abandonScheduledTaskRetry(
-                    runID: run.id,
-                    note: "Not tried again: ForeverLM was not open when the next try was due."
-                )
+                do {
+                    try await storage.abandonScheduledTaskRetry(
+                        runID: run.id,
+                        note: "Not tried again: ForeverLM was not open when the next try was due."
+                    )
+                } catch {
+                    logger.error("Failed to settle a stale scheduled task retry: \(error.localizedDescription, privacy: .public)")
+                }
                 settledStaleRetry = true
             }
             if let due = detail.task.dueOccurrence(now: now) {
@@ -290,13 +298,17 @@ final class ScheduledTaskRunner {
         // Generating Monday's briefing on Wednesday is worse than saying it was
         // missed.
         if task.isStale(occurrence: occurrence, now: now) {
-            _ = try? await storage.claimScheduledTaskOccurrence(
-                taskID: task.id,
-                occurrenceAt: occurrence,
-                status: .skipped,
-                message: "ForeverLM was not open when this was due.",
-                deviceName: Self.deviceName
-            )
+            do {
+                _ = try await storage.claimScheduledTaskOccurrence(
+                    taskID: task.id,
+                    occurrenceAt: occurrence,
+                    status: .skipped,
+                    message: "ForeverLM was not open when this was due.",
+                    deviceName: Self.deviceName
+                )
+            } catch {
+                logger.error("Failed to record a skipped scheduled task occurrence: \(error.localizedDescription, privacy: .public)")
+            }
             return
         }
 
@@ -327,10 +339,14 @@ final class ScheduledTaskRunner {
         if let retained = chatsAwaitingRetry[run.id], !(await chatIsAsItWasLeft(retained)) {
             chatsAwaitingRetry[run.id] = nil
             retained.manager.endSession()
-            try? await storage.abandonScheduledTaskRetry(
-                runID: run.id,
-                note: "Not tried again: its chat changed after the failed try."
-            )
+            do {
+                try await storage.abandonScheduledTaskRetry(
+                    runID: run.id,
+                    note: "Not tried again: its chat changed after the failed try."
+                )
+            } catch {
+                logger.error("Failed to settle a scheduled task retry whose chat changed: \(error.localizedDescription, privacy: .public)")
+            }
             await reloadDetails()
             return
         }

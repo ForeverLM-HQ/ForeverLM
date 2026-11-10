@@ -1,6 +1,3 @@
-import Foundation
-import SQLite3
-
 extension KnowledgeStore {
 
     /// Sources and the per-source content, preparation and background-work tables.

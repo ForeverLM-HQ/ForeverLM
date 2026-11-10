@@ -7,11 +7,11 @@ import OSLog
 /// The Space on the iPhone and iPad (docs/docs-design.md, "The Space"; the product owner, 2026-10-07: "yes build
 /// the space on iphone too", "docs etc all has to work there too"): every page the learner holds, their
 /// own spaces of pages, pins and subpages, read from the phone's replica and written through its
-/// generation-2 writer as the Mac and the web write them. The screens draw from `pages` and
+/// writer as the Mac and the web write them. The screens draw from `pages` and
 /// `organization` with `MobileSpaceListing`'s rules; this store reads and writes, nothing more.
 ///
-/// Generation 2 only (§13.6): before this install has switched to the replica the Space is unavailable
-/// (`isAvailable` false, every act `.unavailable`), and nothing reaches the old container.
+/// Until the phone has its replica (§13.6) the Space is unavailable (`isAvailable` false, every act
+/// `.unavailable`).
 ///
 /// The store reads the library again when the replica changes (`.mobileReplicaDidChange`, coalesced),
 /// and publishes each of its own writes as soon as it is made, read back from the replica, so a list

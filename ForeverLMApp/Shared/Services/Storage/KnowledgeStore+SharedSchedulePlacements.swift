@@ -1,8 +1,6 @@
 // KnowledgeStore: shared Schedule placements and source activity days.
 import Foundation
 import SQLite3
-import OSLog
-import CloudKit
 
 extension KnowledgeStore {
 
@@ -45,7 +43,7 @@ extension KnowledgeStore {
     /// Next free order-offset for a placement landing on `day`, so same-day placements stay distinct.
     func nextScheduledSourceOrder(day: Date, excludingSourceID sourceID: String) throws -> Int {
         let dayStart = Calendar.current.startOfDay(for: day)
-        let dayEnd = dayStart.addingTimeInterval(24 * 60 * 60)
+        let dayEnd = dayStart.addingTimeInterval(MemoryTutorScheduler.secondsPerDay)
         var existing: [Date] = []
         try queryBind("""
             SELECT planned_at FROM scheduled_sources

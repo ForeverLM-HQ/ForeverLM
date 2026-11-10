@@ -109,7 +109,7 @@ struct SettingRow: Equatable, Sendable {
 /// and an inbound one lands on the same row. A space's Setting of any other key stays in the replica.
 ///
 /// An inbound Setting writes `user_preferences` under the guard; `UserDefaults` takes it when the store
-/// is hydrated after the apply (`PreferenceStore.hydrateFromStore`, called by the engine's apply in WP16).
+/// is hydrated after the apply (`PreferenceStore.hydrateFromStore`, called by the engine's apply).
 /// The keys whose Setting arrived cleared (`value: null`: a collection deleted, a setting reset on another
 /// device) and so left `user_preferences` under an apply. `UserDefaults` is read by the surfaces, and an
 /// absent row cannot tell hydration "removed" from "not synced yet", so the Mac's round hook takes these
@@ -225,10 +225,9 @@ struct SettingProjection: RecordProjection {
                 ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
             """, [.text(key), .text(xml), .real(editedAt ?? Date().timeIntervalSinceReferenceDate)])
         }
-        try connection.execute("""
-            INSERT INTO ck_identity (zone_key, record_type, wire_id, local_id) VALUES (?, ?, ?, ?)
-            ON CONFLICT(zone_key, record_type, wire_id) DO UPDATE SET local_id = excluded.local_id
-        """, [.text(record.zoneKey), .text(SyncRecordType.setting.rawValue), .text(record.wireID), .text(key)])
+        try connection.recordIdentity(
+            zoneKey: record.zoneKey, recordType: SyncRecordType.setting.rawValue, wireID: record.wireID, localID: key
+        )
         return .projected
     }
 

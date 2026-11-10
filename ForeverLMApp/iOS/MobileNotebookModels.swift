@@ -12,7 +12,7 @@ import Foundation
 // models a chat may pick. Foundation-only and compiled into the macOS unit
 // tests beside `MobileCloudSourceModels.swift`, so each rule is pinned against
 // the Mac's own (`NotebookChatSelection`, `NotebookChatContext`, `PreferenceStore`,
-// `CloudKitArtifactPayload`, `ArtifactRecord.section`, `NotebookMembership`,
+// `ArtifactRecord.section`, `NotebookMembership`,
 // `NotebookOutputs.ordered`); a notebook's cards are the Mac's own
 // `MemoryCardScope`.
 
@@ -179,7 +179,7 @@ enum MobileNotebookChatSelection {
 
     /// The exclusion after `arriving` joined the notebook: their ids leave it,
     /// so an untick left from when a source last left the notebook never
-    /// outlives its return (the Mac's `NotebookChatSelection.arrivalsToTick`).
+    /// outlives its return (the Mac's `StudioViewModel.notebookArrivals`).
     /// Sorted, as the Mac writes it.
     static func afterArrivals(_ current: Set<String>, arriving: [String]) -> [String] {
         current.subtracting(arriving).sorted()
@@ -768,7 +768,7 @@ enum MobileShellRoute: Hashable {
 
 /// One Artifact record as a notebook's Studio lists it: the payload's
 /// `artifact` (the Mac's `ArtifactRecord` coding keys) and the body revision
-/// beside it (`CloudKitArtifactPayload.bodyRevision`).
+/// beside it.
 struct MobileCloudArtifact: Identifiable, Equatable, Sendable {
     let id: String
     let title: String

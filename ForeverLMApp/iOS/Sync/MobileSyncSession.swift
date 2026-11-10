@@ -16,8 +16,7 @@ import UIKit
 /// lost a space, the index drops what the replica no longer holds. Each round, a waiting one included,
 /// ends with `.mobileReplicaDidChange`, which the screens' models reload on.
 ///
-/// Only a build whose entitlements grant the library container runs it (`isEnabled`). There is no old
-/// container to look in: generation 1's stayed with the old Apple team, and no build is entitled to it.
+/// Only a build whose entitlements grant the library container runs it (`isEnabled`).
 actor MobileSyncSession {
     /// The session the app started, for the push handler and the screens.
     @MainActor static var current: MobileSyncSession?
@@ -26,7 +25,7 @@ actor MobileSyncSession {
     static let refreshInterval: TimeInterval = SyncRoundLoop.refreshInterval
     private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "MobileSyncSession")
 
-    /// Whether this build syncs at all: generation 2 and a library container its entitlements grant.
+    /// Whether this build syncs at all: it needs a library container its entitlements grant.
     static var isEnabled: Bool {
         ForeverLMRuntimeIdentity.libraryContainerIdentifier != nil
     }
@@ -35,12 +34,12 @@ actor MobileSyncSession {
     nonisolated let replica: MobileReplica
     nonisolated let projection: MobileProjection
     nonisolated let coordinator: SyncCoordinator
-    /// The phone's write path (WP20): RecordPatches into the replica, sent by the coordinator's engine
+    /// The phone's write path: RecordPatches into the replica, sent by the coordinator's engine
     /// and SpaceSync.
     nonisolated let writer: MobileRecordWriter
-    /// Satellites on demand (WP21): fetched by name when a screen opens them, kept on disk by hash.
+    /// Satellites on demand: fetched by name when a screen opens them, kept on disk by hash.
     nonisolated let satellites: MobileSatellites
-    /// The phone's search index over its text set (WP21, §8a).
+    /// The phone's search index over its text set (§8a).
     nonisolated let textIndexer: MobileTextIndexer
     private var cadence: SyncRoundLoop?
 
@@ -171,7 +170,7 @@ actor MobileSyncSession {
 }
 
 extension Notification.Name {
-    /// The phone's replica changed after a sync round or a write the screens show (generation 2): the
+    /// The phone's replica changed after a sync round or a write the screens show: the
     /// screens' models read it again, through a `MobileReloadCoalescer`.
     static let mobileReplicaDidChange = Notification.Name("ForeverLM.mobileReplicaDidChange")
 }

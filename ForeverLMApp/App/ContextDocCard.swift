@@ -1,9 +1,5 @@
 // The document and source cards shown for chat context.
 import SwiftUI
-import Combine
-import UniformTypeIdentifiers
-import PDFKit
-import WebKit
 import AppKit
 
 /// An attached Doc in the "In context" list.

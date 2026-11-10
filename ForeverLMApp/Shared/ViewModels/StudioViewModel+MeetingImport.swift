@@ -1,16 +1,11 @@
 // Importing meeting artifacts: file identities, session keys, titles and descriptors.
 
 import Foundation
-import CryptoKit
-import Observation
 import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
-import SwiftUI
 import AppKit
-import SQLite3
-import WebKit
 import Darwin
 
 extension StudioViewModel {
@@ -150,8 +145,8 @@ extension StudioViewModel {
         // themselves — surface it and keep the date-based titles.
         //
         // A session filed while the call could not run (no model to run it on,
-        // a failed request) kept the date its key spells, and used to keep it
-        // for good: only new sessions were ever asked about. Every Nexus
+        // a failed request) keeps the date its key spells, and would keep it
+        // for good if only new sessions were ever asked about: every Nexus
         // session from 2026-10-11 on stayed "2026/10/11" while meeting tasks
         // waited for a paid model. Such a session is asked about again on each
         // refresh until a call has read its current file names once.
@@ -240,9 +235,9 @@ extension StudioViewModel {
             // whichever plugin ran last, emptying the other tab.
             if article.discoveryOrigin == nil { article.discoveryOrigin = discoveryOrigin }
             article.parentGroup = groupID
-            // Sessions used to be stored as "<series> - <topic>", which repeated
-            // the row they already sit under on every line of the folder. Take
-            // that prefix back off however this session is titled now: the
+            // A session's title carries no "<series> - " prefix, which would repeat
+            // the row it already sits under on every line of the folder. Strip
+            // that prefix however this session is titled now: the
             // group's current and provider names, and the series its own key
             // spells out, which is the folder name from before a rename.
             article.title = Self.strippingMeetingSeriesPrefix(
@@ -354,12 +349,11 @@ extension StudioViewModel {
         //
         // A Drive file belongs to exactly one meeting, so a stored session that
         // shares a file with a session in this import *is* that meeting. Two
-        // retired rules left such rows behind: the session key used to be built
-        // from the group's display title, so renaming the folder re-keyed every
-        // session in it, and a recursive listing used to walk into subfolders
-        // that are series of their own, so a parent folder held a copy of every
-        // session in the meetings folder nested inside it. The second case is
-        // recognised by a file this folder no longer lists that another series
+        // cases leave such rows behind: a session key built from the group's
+        // display title would re-key every session when the folder is renamed,
+        // and a recursive listing walks into subfolders that are series of their
+        // own, so a parent folder holds a copy of every session in the meetings
+        // folder nested inside it. The second case is recognised by a file this folder no longer lists that another series
         // now owns — the folder gave it up, so the session goes with it.
         //
         // Matching on the file rather than on titles or dates is what makes the
@@ -427,9 +421,9 @@ extension StudioViewModel {
 
         if !silent {
             // Every provider lands in the same place now, so there is no tab to
-            // choose and no way to choose it wrongly. Picking one used to be a
-            // real bug: the destination was hardcoded to Read AI, so importing a
-            // Drive folder dropped the learner on an unrelated empty tab.
+            // choose and no way to choose it wrongly. The destination is not
+            // tied to one provider: hardcoding Read AI would drop a learner who
+            // imports a Drive folder on an unrelated empty tab.
             //
             // Landing on a tab Studio unpinned for want of evidence: this import
             // is the evidence, so pin it rather than select a tab the tab bar
@@ -709,12 +703,11 @@ extension StudioViewModel {
     /// day. Names with no parseable date fall back to the cleaned stem.
     ///
     /// Everything the key is made of comes out of the file's own name. Nothing
-    /// mutable is allowed in: the key used to fall back to the group's display
-    /// title whenever a file led with its date (`2026-08-30 - [Recording] - …`,
-    /// the hand-named convention), which made session identity a function of a
-    /// name the learner can edit. Renaming the folder therefore re-keyed every
-    /// session in it, and the next refresh imported all of them a second time —
-    /// forty-two sessions became eighty-four, each one twice. A date-led file
+    /// mutable is allowed in: falling back to the group's display title when a
+    /// file leads with its date (`2026-08-30 - [Recording] - …`, the hand-named
+    /// convention) would make session identity a function of a name the learner
+    /// can edit. Renaming the folder would then re-key every session in it, and
+    /// the next refresh would import all of them a second time. A date-led file
     /// keys on its date alone; the group id already says which series it is.
     nonisolated static func meetingSessionKey(from fileStem: String) -> String {
         let key = fileStem

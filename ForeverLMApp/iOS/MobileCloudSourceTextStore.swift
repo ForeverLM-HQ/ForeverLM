@@ -1,19 +1,15 @@
 // The actor that stores the text of synced sources on the phone.
 
-import AVFoundation
-import Combine
 import CryptoKit
-import MediaPlayer
+import Foundation
 import OSLog
-import SwiftUI
-import CloudKit
-import SQLite3
-import WidgetKit
 
 /// A source's text on the phone: the canonical `text` satellite (§3.5.30), fetched by name, with the
 /// saved-offline copy and the disk cache in front of it.
 actor MobileCloudSourceTextStore {
     static let shared = MobileCloudSourceTextStore()
+
+    private static let logger = Logger(subsystem: "com.foreverlm.mobile", category: "CloudSourceTextStore")
 
     private var cachedText: [String: String] = [:]
 
@@ -72,7 +68,11 @@ actor MobileCloudSourceTextStore {
               let text = String(data: try await session.satellites.data(satellite), encoding: .utf8), !text.isEmpty
         else { return nil }
         // An opened source's text is searchable on this phone for the next 30 days (§8a).
-        try? await session.textIndexer.index(text, sourceID: sourceID, hash: satellite.file.hash)
+        do {
+            try await session.textIndexer.index(text, sourceID: sourceID, hash: satellite.file.hash)
+        } catch {
+            Self.logger.error("Indexing a source's text failed: \(error.localizedDescription, privacy: .public)")
+        }
         return text
     }
 

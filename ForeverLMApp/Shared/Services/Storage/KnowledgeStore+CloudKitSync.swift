@@ -1,7 +1,5 @@
 import Foundation
 import SQLite3
-import OSLog
-import CloudKit
 
 extension KnowledgeStore {
 
@@ -1527,7 +1525,7 @@ extension KnowledgeStore {
 /// denominator. `ai_usage_events.input_tokens` is stored exactly as the provider
 /// reported it, and the two conventions disagree: Anthropic-direct excludes
 /// cached and cache-write tokens from it, while the OpenAI/OpenRouter shape
-/// includes them (which is why `AIUsageRates.inputIncludesCached` exists). A
+/// includes them (which is why `AIProviderPricing.TokenRates.inputIncludesCached` exists). A
 /// `cached / (cached + write + input)` ratio would therefore double-count the
 /// denominator on most of this app's traffic. Reads-versus-writes needs no such
 /// assumption and answers the question that matters anyway.

@@ -232,7 +232,7 @@ struct GoalEditorSheet: View {
     /// sources in context, and a review — being questioned on them — that
     /// is stamped with the Goal and counts toward it. Both keep what was
     /// typed in the sheet before leaving it. All three stay in view, as he
-    /// asked for them; since 2026-10-06 Chat is the one prominent button and
+    /// asked for them; Chat is the one prominent button and
     /// Quiz me and Find directions are plain beside it, where three bordered
     /// buttons read as three equal choices.
     private var workOnIt: some View {
@@ -448,8 +448,7 @@ struct GoalEditorSheet: View {
     // MARK: Footer
 
     /// Cancel and Save, with the Goal's status changes in a ⋯ beside them:
-    /// Mark done and Archive (or Reopen), then Delete…. They were three more
-    /// bordered buttons on the footer's left until 2026-10-06.
+    /// Mark done and Archive (or Reopen), then Delete….
     private var footer: some View {
         HStack(spacing: StudioDesign.Spacing.small) {
             Spacer(minLength: StudioDesign.Spacing.medium)

@@ -70,7 +70,11 @@ final class TeamSharingService: NSObject, @preconcurrency NSCloudSharingServiceD
         activeTeamID = nil
         guard let teamID else { return }
         Task {
-            _ = try? await StorageService().refreshTeamMembers(teamID: teamID)
+            do {
+                _ = try await StorageService().refreshTeamMembers(teamID: teamID)
+            } catch {
+                self.logger.error("Refreshing the team roster failed: \(error.localizedDescription, privacy: .public)")
+            }
             await MainActor.run {
                 NotificationCenter.default.post(name: Self.teamRosterDidChange, object: teamID)
             }
@@ -80,7 +84,11 @@ final class TeamSharingService: NSObject, @preconcurrency NSCloudSharingServiceD
     func sharingService(_ sharingService: NSSharingService, didSave share: CKShare) {
         guard let teamID = activeTeamID else { return }
         Task {
-            _ = try? await StorageService().refreshTeamMembers(teamID: teamID)
+            do {
+                _ = try await StorageService().refreshTeamMembers(teamID: teamID)
+            } catch {
+                self.logger.error("Refreshing the team roster failed: \(error.localizedDescription, privacy: .public)")
+            }
             await MainActor.run {
                 NotificationCenter.default.post(name: Self.teamRosterDidChange, object: teamID)
             }
@@ -90,7 +98,11 @@ final class TeamSharingService: NSObject, @preconcurrency NSCloudSharingServiceD
     func sharingService(_ sharingService: NSSharingService, didStopSharing share: CKShare) {
         guard let teamID = activeTeamID else { return }
         Task {
-            _ = try? await StorageService().refreshTeamMembers(teamID: teamID)
+            do {
+                _ = try await StorageService().refreshTeamMembers(teamID: teamID)
+            } catch {
+                self.logger.error("Refreshing the team roster failed: \(error.localizedDescription, privacy: .public)")
+            }
             await MainActor.run {
                 NotificationCenter.default.post(name: Self.teamRosterDidChange, object: teamID)
             }

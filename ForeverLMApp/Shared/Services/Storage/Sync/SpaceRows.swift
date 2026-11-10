@@ -6,7 +6,7 @@ import Foundation
 /// store's connection, run where the store belongs, under generation 2 only.
 ///
 /// A space's records keep their logical ids. Their local rows keep theirs too, except where a row of
-/// another zone holds the id already: a space's copy of a source is `SpaceLocalID`'s (WP7), and so
+/// another zone holds the id already: a space's copy of a source is `SpaceLocalID`'s, and so
 /// is a source a team copied under generation 1 (its `TeamContentIdentity` id). An Entry is named by
 /// its notebook's and its source's wire ids, so an Entry of a space notebook maps
 /// `en:<notebook>:source:<source's local id>` to `en:<notebook>:source:<source's wire id>`.
@@ -31,7 +31,7 @@ enum SpaceRows {
         ) ?? spaceID
     }
 
-    /// The zone each team's rows live in, by team id (`KnowledgeStore.teamZoneKeys`, WP7): the space the
+    /// The zone each team's rows live in, by team id (`KnowledgeStore.teamZoneKeys`): the space the
     /// `teams` row names once the team is one, else `Space-<team id>` (lowercased when it is a UUID), in
     /// the private database for a team this Mac owns and in its owner's shared one otherwise.
     static func teamZoneKeys(_ connection: SQLiteConnection) throws -> [String: String] {
@@ -69,13 +69,12 @@ enum SpaceRows {
         if localID == record.wireID, try connection.scalarInteger(
             "SELECT EXISTS(SELECT 1 FROM \(table) WHERE id = ? AND team_id IS NOT ?)", [.text(localID), .text(teamID)]
         ) == 1, try !SpaceMoveLocal.adopt(table: table, localID: localID, spaceID: spaceID, teamID: teamID, connection: connection) {
-            // A notebook moving or moved here from the learner's own library keeps its row (WP15b).
+            // A notebook moving or moved here from the learner's own library keeps its row.
             localID = SpaceLocalID.localID(spaceID: spaceID, type: record.type, wireID: record.wireID)
         }
-        try connection.execute("""
-            INSERT INTO ck_identity (zone_key, record_type, wire_id, local_id) VALUES (?, ?, ?, ?)
-            ON CONFLICT(zone_key, record_type, wire_id) DO UPDATE SET local_id = excluded.local_id
-        """, [.text(record.zoneKey), .text(record.type.rawValue), .text(record.wireID), .text(localID)])
+        try connection.recordIdentity(
+            zoneKey: record.zoneKey, recordType: record.type.rawValue, wireID: record.wireID, localID: localID
+        )
         return (localID, teamID)
     }
 
@@ -214,7 +213,7 @@ enum SpaceRows {
         }
     }
 
-    /// Moves every `ck_identity` row of one zone to another: a team's provisional zone (§13.7, WP7) to
+    /// Moves every `ck_identity` row of one zone to another: a team's provisional zone (§13.7) to
     /// the space it became, or a joined team's old-container owner name to the new container's, which
     /// names users differently. A row the target already holds stays as the target holds it.
     static func rehome(from oldZoneKey: String, to newZoneKey: String, connection: SQLiteConnection) throws {

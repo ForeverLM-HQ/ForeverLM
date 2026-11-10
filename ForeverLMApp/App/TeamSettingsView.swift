@@ -399,7 +399,7 @@ private func teamEyebrow(_ team: TeamRecord) -> String {
 /// <Team> Settings → General: the open team's name and standing, its
 /// invitation link, and leaving or deleting it. Scoped to the active library
 /// (product owner, 2026-09-08: team settings follow the open library, like Claude's
-/// admin settings follow the selected organization) and, since 2026-09-22, a
+/// admin settings follow the selected organization) and a
 /// Settings of its own rather than a group in the learner's.
 struct TeamGeneralSettingsDetailView: View {
     @Environment(StudioViewModel.self) private var vm

@@ -1,8 +1,6 @@
 // KnowledgeStore: loading, deleting, saving and remapping learning goal records.
 import Foundation
 import SQLite3
-import OSLog
-import CloudKit
 
 extension KnowledgeStore {
 

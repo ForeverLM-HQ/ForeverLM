@@ -610,9 +610,7 @@ struct NativeTranscriptReaderView: View {
     /// One speaker labelled down the whole margin says nothing the reader did
     /// not know by the second row, and `unlabeledSpeaker` is not a speaker at
     /// all — it is the stand-in for a transcript that named none, so counting it
-    /// would let a single placeholder hold the column open. The HTML renderer
-    /// reaches the same judgement from the call site via `showSpeakers`; this is
-    /// the native reader's version, made from the data.
+    /// would let a single placeholder hold the column open.
     private var showsSpeakerNames: Bool {
         var seen: Set<String> = []
         for segment in segments where segment.hasNamedSpeaker {

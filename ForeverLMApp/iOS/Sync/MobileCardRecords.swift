@@ -1,6 +1,6 @@
 import Foundation
 
-// Cards on the phone under generation 2 (docs/memory-design.md, "Cards to check on the iPhone";
+// Cards on the phone (docs/memory-design.md, "Cards to check on the iPhone";
 // docs/cloudkit-schema-design.md §3.5.22). A drafted card is a `Card` whose status is `draft`: its draft
 // wording (`draft`: front, back, the rubric that carries its why and pictures, and the
 // anchors it stands on) is editable until Keep, and its deck is the source it was drafted from
@@ -8,8 +8,7 @@ import Foundation
 // and the status `kept`; Skip writes `skipped`; Retire `retired`, which nothing turns back. What the
 // learner changes about a kept card lives on its Card too: "always ask it this way" (`alwaysAsk`), a
 // new front (the variant `front`), a rewording taken out (its variant `retired`), and starting it over,
-// which retires it and keeps a new Card that `supersedes` it. The Card is the generation-1 deck row's
-// successor (§10, `cards.state.*` → Card), so the phone reads and writes no deck row.
+// which retires it and keeps a new Card that `supersedes` it. The phone reads and writes no deck row (§10, `cards.state.*` → Card).
 
 /// One Card record as the phone reads it.
 struct MobileCardRecord: Equatable, Sendable {
@@ -214,7 +213,7 @@ enum MobileCardRecords {
         }
     }
 
-    /// Each kept card's state by its item's id, as its deck's row held it under generation 1
+    /// Each kept card's state by its item's id, as its deck's row held it
     /// (`MemoryCardDeckState`): what words a sitting's cards (`MobileCardReviewDealing.sittingCards`).
     /// A card with no face, or none of whose records the phone holds, is left out.
     static func deckStates(

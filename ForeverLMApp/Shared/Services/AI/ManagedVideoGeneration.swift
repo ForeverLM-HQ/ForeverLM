@@ -79,7 +79,7 @@ enum ManagedVideoGeneration {
         let duration = durationSeconds ?? resolved.clipSeconds
 
         return try await AIUsageAttribution.$task.withValue(usageTask) {
-            try await withOptionalSource(source) {
+            try await ManagedImageGeneration.withOptionalSource(source) {
                 // Built inside the closure: the body is not Sendable.
                 let body = requestBody(prompt: trimmed, model: resolved, resolution: resolution, durationSeconds: duration)
                 // An own OpenRouter key films with OpenRouter directly and
@@ -135,14 +135,6 @@ enum ManagedVideoGeneration {
             .compactMap { value in ImageGenerationCatalog.Shape.ratio(value).map { (value, abs(log($0) - log(target))) } }
             .min { $0.1 < $1.1 }?
             .0
-    }
-
-    private static func withOptionalSource<T: Sendable>(
-        _ source: AIUsageSource?,
-        _ body: @Sendable () async throws -> T
-    ) async throws -> T {
-        guard let source else { return try await body() }
-        return try await AIUsageAttribution.withSource(source, operation: body)
     }
 
     // MARK: - The job route

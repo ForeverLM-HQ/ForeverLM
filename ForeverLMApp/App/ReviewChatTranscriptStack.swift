@@ -1,9 +1,6 @@
 // The rows of one chat in a view of their own.
 import SwiftUI
 import Combine
-import UniformTypeIdentifiers
-import PDFKit
-import WebKit
 import AppKit
 
 /// The rows of one chat, in a view of their own so that a streamed token

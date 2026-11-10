@@ -1,13 +1,8 @@
 // Whole-book audiobook plans and source language resolution.
 #if os(macOS)
 import AVFoundation
-import CryptoKit
 import Foundation
-import MediaPlayer
-import os
-import PDFKit
 import SwiftUI
-import WebKit
 
 extension ArticleSpeechService {
     // MARK: - Whole book

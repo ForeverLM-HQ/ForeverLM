@@ -1,5 +1,4 @@
 import Foundation
-import SQLite3
 
 /// Where a paper stands in having its reference list read (schema 174, `paper_reference_reads`).
 struct PaperReferenceReadState: Equatable, Sendable {

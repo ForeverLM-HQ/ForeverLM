@@ -105,7 +105,7 @@ enum DocSharing {
         return Identity(displayName: displayName, email: email)
     }
 
-    /// A page with no reader list and no legacy password is open to anyone
+    /// A page with no reader list and no share password is open to anyone
     /// with the link. An unpublished Doc is not open: nobody has a link.
     static func isOpen(_ status: PublishedDocStatus?) -> Bool {
         guard let status else { return false }
@@ -122,7 +122,7 @@ enum DocSharing {
             isPublished: status != nil,
             isOpen: isOpen(status),
             readerCount: status?.readers.count ?? 0,
-            hasLegacyPassword: status?.isProtected == true && status?.readers.isEmpty == true && status?.password != nil,
+            hasSharePassword: status?.isProtected == true && status?.readers.isEmpty == true && status?.password != nil,
             teamNames: teamNames
         )
     }
@@ -131,7 +131,7 @@ enum DocSharing {
         isPublished: Bool,
         isOpen: Bool,
         readerCount: Int,
-        hasLegacyPassword: Bool,
+        hasSharePassword: Bool,
         teamNames: [String]
     ) -> String {
         let page: String
@@ -143,7 +143,7 @@ enum DocSharing {
             page = "Only the person listed can open this page"
         } else if readerCount > 1 {
             page = "Only the \(readerCount) people listed can open this page"
-        } else if hasLegacyPassword {
+        } else if hasSharePassword {
             page = "Only people with its old password can open this page"
         } else {
             page = "Nobody but you can open this page"

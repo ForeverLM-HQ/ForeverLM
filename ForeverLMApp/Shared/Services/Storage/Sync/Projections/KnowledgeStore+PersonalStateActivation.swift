@@ -1,9 +1,9 @@
 import Foundation
 
-// MARK: - The activation's derivations for the personal records (§13.3 step 3c, WP12b)
+// MARK: - The activation's derivations for the personal records (§13.3 step 3c)
 
 extension KnowledgeStore {
-    /// WP12b's derivations, after the other packages': the member's highlights and Schedule placements on
+    /// The derivations for the personal records: the member's highlights and Schedule placements on
     /// their sources' wire ids, the hides still waiting for their source as hides, the import-blocked
     /// shows from their preference row, and this Mac's Device row. Each is idempotent, bounded by the
     /// library, in its own transaction, and reads generation-1 truth only, so a run after generation-1

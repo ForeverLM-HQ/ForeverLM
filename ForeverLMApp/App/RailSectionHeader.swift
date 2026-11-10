@@ -1,7 +1,6 @@
 // The rail section headers and placeholder rows.
 import SwiftUI
 import AppKit
-import UniformTypeIdentifiers
 
 struct RailSectionHeader: View {
     let title: String

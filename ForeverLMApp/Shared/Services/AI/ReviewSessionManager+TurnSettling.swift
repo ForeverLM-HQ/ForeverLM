@@ -1,9 +1,6 @@
 // Part of ReviewSessionManager: native tool result trimming, cancellation and settling an answer.
 
 import Foundation
-import Observation
-import PDFKit
-import os
 
 extension ReviewSessionManager {
     func nativeSynthesisCall(from call: AIToolCallRequest) -> SynthesisToolCall? {

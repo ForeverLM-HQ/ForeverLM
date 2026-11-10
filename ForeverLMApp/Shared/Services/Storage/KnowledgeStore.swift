@@ -1,7 +1,6 @@
 import Foundation
 import SQLite3
 import OSLog
-import CloudKit
 
 // MARK: - Entity Types
 
@@ -381,13 +380,6 @@ enum KnowledgeStoreError: Error, LocalizedError {
     case openFailed(Int32)
     case execFailed(String, String)
     case invalidData(String)
-    /// A browser-authored CloudKit PDF record is structurally invalid and must
-    /// not be retried until the server record changes.
-    case permanentInboundWebPDF(String)
-    /// The record is valid, but its CKAsset or one of the destination file
-    /// providers was temporarily unavailable. CKSyncEngine may already advance
-    /// its token, so callers must persist an explicit direct-fetch retry.
-    case transientInboundWebPDF(String)
     case sourceContentChanged
     /// The identity a row was about to take is already held by another active
     /// source; the caller folds the two together rather than keeping both.
@@ -398,8 +390,6 @@ enum KnowledgeStoreError: Error, LocalizedError {
         case .openFailed(let code): return "Failed to open knowledge database (SQLite error \(code))"
         case .execFailed(let sql, let msg): return "SQLite error: \(msg) [SQL: \(sql.prefix(200))]"
         case .invalidData(let message): return message
-        case .permanentInboundWebPDF(let message): return message
-        case .transientInboundWebPDF(let message): return message
         case .sourceContentChanged:
             return "Source text changed while listenable content was being prepared; it will be retried."
         case .duplicateSourceIdentity(let existingSourceID):

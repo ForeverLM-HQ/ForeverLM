@@ -132,15 +132,26 @@ struct ReportPlan: Sendable {
 
     /// "6 of 8 sources · 1 read from its ideas · 1 condensed · 2 left out"
     var sourcesSummary: String {
-        let total = sources.count + skipped.count
-        var parts = [total == sources.count
-            ? (sources.count == 1 ? "1 source" : "\(sources.count) sources")
-            : "\(sources.count) of \(total) sources"]
-        let ideas = sources.filter { $0.readAs == .ideas }.count
-        let condensed = sources.filter { $0.readAs == .condensed }.count
+        Self.sourcesLine(
+            included: sources.count,
+            skipped: skipped.count,
+            readFromIdeas: sources.filter { $0.readAs == .ideas }.count,
+            condensed: sources.filter { $0.readAs == .condensed }.count
+        )
+    }
+
+    /// The line a plan's sources are summed up in, for the options sheets and
+    /// the tools that quote a plan: how many sources go in of those chosen,
+    /// how many are read from their ideas or condensed, and how many are left
+    /// out.
+    static func sourcesLine(included: Int, skipped: Int, readFromIdeas ideas: Int, condensed: Int) -> String {
+        let total = included + skipped
+        var parts = [total == included
+            ? (included == 1 ? "1 source" : "\(included) sources")
+            : "\(included) of \(total) sources"]
         if ideas > 0 { parts.append("\(ideas) read from \(ideas == 1 ? "its" : "their") ideas") }
         if condensed > 0 { parts.append("\(condensed) condensed") }
-        if !skipped.isEmpty { parts.append("\(skipped.count) left out") }
+        if skipped > 0 { parts.append("\(skipped) left out") }
         return parts.joined(separator: " · ")
     }
 }

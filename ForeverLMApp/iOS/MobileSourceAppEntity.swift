@@ -1,6 +1,7 @@
 import AppIntents
 import CoreSpotlight
 import Foundation
+import OSLog
 
 // Apple Intelligence / Siri AI integration.
 //
@@ -84,6 +85,8 @@ struct SourceEntityQuery: EntityStringQuery {
 // by meaning. iOS 18+ only (IndexedEntity); a no-op below that.
 @available(iOS 18.0, *)
 enum SourceSpotlightIndexer {
+    private static let logger = Logger(subsystem: "com.foreverlm.mobile", category: "SourceSpotlightIndexer")
+
     static func index(_ sources: [MobileCloudSource]) async {
         guard !sources.isEmpty else { return }
         let entities = sources.map(SourceEntity.init(source:))
@@ -91,7 +94,7 @@ enum SourceSpotlightIndexer {
             try await CSSearchableIndex.default().indexAppEntities(entities)
         } catch {
             // Discoverability booster only — a failed index never breaks a review.
-            NSLog("ForeverLM: Spotlight indexAppEntities failed: \(error.localizedDescription)")
+            logger.error("Spotlight indexAppEntities failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 }

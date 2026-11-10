@@ -1,8 +1,6 @@
 // KnowledgeStore: dismissed sources, hidden shows, channels and episodes, and source types.
 import Foundation
 import SQLite3
-import OSLog
-import CloudKit
 
 extension KnowledgeStore {
 

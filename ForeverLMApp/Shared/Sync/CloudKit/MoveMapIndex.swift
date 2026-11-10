@@ -170,6 +170,18 @@ final class MoveMapIndex: @unchecked Sendable {
         }
     }
 
+    /// Reads the moves the replica's personal root lists, fetching their bodies through `transport`.
+    /// Nothing happens when the replica holds no root, or a root without its salt.
+    func refreshFromPersonalRoot(store: PrivateSyncLocalStore, transport: CloudTransport) async throws {
+        guard let (root, salt) = try await store.perform({ state -> (SyncEnvelope, Data)? in
+            guard let root = try state.replica.personalRoot()?.envelope,
+                  let salt = root.fields["salt"]?.stringValue.flatMap(RecordNaming.salt(base64:))
+            else { return nil }
+            return (root, salt)
+        }) else { return }
+        await refresh(from: root, fetch: Self.transportFetch(transport, salt: salt))
+    }
+
     /// Reads a FileRef's parts from the private `Content` zone by name through `transport`, named with
     /// the personal library's salt: the inline `data` of each part, or its downloaded `asset`, each
     /// checked against its part hash.

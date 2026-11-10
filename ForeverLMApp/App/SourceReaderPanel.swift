@@ -2,7 +2,6 @@ import AppKit
 import SwiftUI
 import PDFKit
 import UniformTypeIdentifiers
-import WebKit
 
 /// Inline source reader panel for the Studio 4-panel layout.
 /// Shows the selected source's content (web article, PDF, or text transcript).
@@ -583,7 +582,7 @@ struct SourceReaderPanel: View {
         .padding(.trailing, panelTrailingOverflow)
         // In a window the toolbar hangs into the titlebar band and shares the
         // traffic lights' center line. Full screen has no band, so it uses the
-        // regular in-flow header height rather than the old compact tab-strip
+        // regular in-flow header height rather than a compact tab-strip
         // height; that keeps source content out from under the controls.
         .studioPanelHeaderChrome(
             height: titlebarBandHeight ?? StudioPanelChrome.headerHeight,
@@ -1445,7 +1444,7 @@ struct SourceReaderPanel: View {
     /// appear exactly when it becomes relevant, beside the browser controls.
     private func addableLibraryPageURL(for article: StudioArticle) -> URL? {
         guard let currentURL = currentBrowserURL(for: article),
-              canOpenExternally(currentURL) else {
+              currentURL.hasWebScheme else {
             return nil
         }
         if isDisplayingExternalPage { return currentURL }
@@ -1498,34 +1497,12 @@ struct SourceReaderPanel: View {
     }
 
     private func currentBrowserURL(for article: StudioArticle) -> URL? {
-        if article.isYouTubeURL,
-           let url = youtubeWatchPageURL,
-           canOpenExternally(url) {
-            return url
-        }
-        if usesEmbeddedBrowser(article),
-           let url = articleReaderChrome.liveBrowserURL(),
-           canOpenExternally(url) {
-            return url
-        }
-        if usesEmbeddedBrowser(article),
-           let url = articleReaderChrome.currentURL,
-           canOpenExternally(url) {
-            return url
-        }
-        // Archived articles render cached HTML whose links can navigate the
-        // reader to a live external page; prefer that page over the source URL.
-        if article.cachedIsArchivedArticle,
-           let url = archivedArticlePageURL,
-           canOpenExternally(url) {
-            return url
-        }
-        return URL(string: article.url)
-    }
-
-    private func canOpenExternally(_ url: URL) -> Bool {
-        guard let scheme = url.scheme?.lowercased() else { return false }
-        return scheme == "http" || scheme == "https"
+        ReaderBrowserURL.current(
+            for: article,
+            youtubeWatchPageURL: youtubeWatchPageURL,
+            embeddedBrowser: usesEmbeddedBrowser(article) ? articleReaderChrome : nil,
+            archivedArticlePageURL: archivedArticlePageURL
+        )
     }
 
     private func openInSafariMenuLabel(for article: StudioArticle) -> String {
@@ -1565,15 +1542,15 @@ struct SourceReaderPanel: View {
     @ViewBuilder
     private func readerContent(for article: StudioArticle) -> some View {
         if article.statusFlag == .confirmPodcast, let match = vm.heldPodcastMatch(for: article.id)?.info {
-            podcastConfirmationView(article: article, match: match)
+            PodcastMatchConfirmationView(article: article, match: match)
         } else if article.readerWaitsForFetch {
             fetchingSourceView(for: article)
-        } else if shouldFetchPodcastTranscriptOnOpen(article) {
+        } else if article.fetchesPodcastTranscriptOnOpen {
             fetchingSourceView(for: article)
                 .task(id: article.id) {
                     await fetchPodcastTranscriptOnOpenIfNeeded(article)
                 }
-        } else if shouldShowPodcastTranscriptPrompt(for: article) {
+        } else if article.offersPodcastTranscriptSearch {
             podcastTranscriptPrompt(for: article)
         } else if GeneratedExplainerVideo.isVideoURL(article.url) {
             ExplainerVideoReaderView(article: article)
@@ -2003,71 +1980,9 @@ struct SourceReaderPanel: View {
         }
     }
 
-    private func shouldShowPodcastTranscriptPrompt(for article: StudioArticle) -> Bool {
-        article.sourceType == .podcast
-            && (article.content?.isEmpty != false)
-            && article.state != .fetching
-            && (
-                article.statusFlag == .needsTranscript
-                    || article.url.hasPrefix("apple-podcast:")
-                    || article.url.hasPrefix("http://")
-                    || article.url.hasPrefix("https://")
-            )
-    }
-
-    private func shouldFetchPodcastTranscriptOnOpen(_ article: StudioArticle) -> Bool {
-        article.sourceType == .podcast
-            && article.state != .fetching
-            && (article.errorMessage?.isEmpty != false)
-            && article.url.hasPrefix("apple-podcast://")
-            && article.content?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false
-    }
-
     private func fetchPodcastTranscriptOnOpenIfNeeded(_ article: StudioArticle) async {
-        guard shouldFetchPodcastTranscriptOnOpen(article) else { return }
+        guard article.fetchesPodcastTranscriptOnOpen else { return }
         await vm.fetchContent(for: article.id)
-    }
-
-    @ViewBuilder
-    private func podcastConfirmationView(article: StudioArticle, match: PodcastMatchInfo) -> some View {
-        VStack(spacing: 24) {
-            Spacer()
-            Image(systemName: "headphones")
-                .zoomedSystemFont(size: 48)
-                .foregroundStyle(.orange)
-            Text("Is this the right podcast?")
-                .font(.title2.weight(.semibold))
-            VStack(spacing: 4) {
-                Text(match.podcastName)
-                    .font(.headline)
-                Text(match.episodeTitle)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-            HStack(spacing: 16) {
-                Button {
-                    Task { await vm.rejectPodcastMatch(for: article.id) }
-                } label: {
-                    Text("No, Skip")
-                        .frame(minWidth: 80)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-
-                Button {
-                    Task { await vm.confirmPodcastMatch(for: article.id) }
-                } label: {
-                    Text("Yes, Use This")
-                        .frame(minWidth: 80)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.orange)
-                .controlSize(.large)
-            }
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder
@@ -2972,5 +2887,117 @@ extension StudioArticle {
         default:
             return false
         }
+    }
+}
+
+extension StudioArticle {
+    /// A podcast with no transcript yet that the reader can offer to find one for.
+    var offersPodcastTranscriptSearch: Bool {
+        sourceType == .podcast
+            && (content?.isEmpty != false)
+            && state != .fetching
+            && (
+                statusFlag == .needsTranscript
+                    || url.hasPrefix("apple-podcast:")
+                    || url.hasPrefix("http://")
+                    || url.hasPrefix("https://")
+            )
+    }
+
+    /// An Apple Podcasts episode that has no transcript and no error yet, so
+    /// opening it fetches one.
+    var fetchesPodcastTranscriptOnOpen: Bool {
+        sourceType == .podcast
+            && state != .fetching
+            && (errorMessage?.isEmpty != false)
+            && url.hasPrefix("apple-podcast://")
+            && content?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false
+    }
+}
+
+/// "Is this the right podcast?": the match found for a podcast source, to
+/// confirm or skip.
+struct PodcastMatchConfirmationView: View {
+    @Environment(StudioViewModel.self) private var vm
+    let article: StudioArticle
+    let match: PodcastMatchInfo
+
+    var body: some View {
+        VStack(spacing: 24) {
+            Spacer()
+            Image(systemName: "headphones")
+                .zoomedSystemFont(size: 48)
+                .foregroundStyle(.orange)
+            Text("Is this the right podcast?")
+                .font(.title2.weight(.semibold))
+            VStack(spacing: 4) {
+                Text(match.podcastName)
+                    .font(.headline)
+                Text(match.episodeTitle)
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+            }
+            HStack(spacing: 16) {
+                Button {
+                    Task { await vm.rejectPodcastMatch(for: article.id) }
+                } label: {
+                    Text("No, Skip")
+                        .frame(minWidth: 80)
+                }
+                .buttonStyle(.bordered)
+                .controlSize(.large)
+
+                Button {
+                    Task { await vm.confirmPodcastMatch(for: article.id) }
+                } label: {
+                    Text("Yes, Use This")
+                        .frame(minWidth: 80)
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.orange)
+                .controlSize(.large)
+            }
+            Spacer()
+        }
+        .frame(maxWidth: .infinity)
+    }
+}
+
+/// The page a source reader's browser actions (open in Safari, copy link, add
+/// to the library) act on.
+@MainActor
+enum ReaderBrowserURL {
+    static func current(
+        for article: StudioArticle,
+        youtubeWatchPageURL: URL?,
+        embeddedBrowser: ArticleReaderChromeState?,
+        archivedArticlePageURL: URL?
+    ) -> URL? {
+        // The video on screen, which is the player's to choose once it hands
+        // itself on to the next one.
+        if article.isYouTubeURL,
+           let url = youtubeWatchPageURL,
+           url.hasWebScheme {
+            return url
+        }
+        if let embeddedBrowser,
+           let url = embeddedBrowser.liveBrowserURL(),
+           url.hasWebScheme {
+            return url
+        }
+        if let embeddedBrowser,
+           let url = embeddedBrowser.currentURL,
+           url.hasWebScheme {
+            return url
+        }
+        // Archived articles render cached HTML whose links can navigate the
+        // reader to a live external page; prefer that page over the source URL.
+        if article.cachedIsArchivedArticle,
+           let url = archivedArticlePageURL,
+           url.hasWebScheme {
+            return url
+        }
+        return URL(string: article.url)
     }
 }

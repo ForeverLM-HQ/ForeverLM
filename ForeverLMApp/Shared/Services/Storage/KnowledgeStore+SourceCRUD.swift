@@ -1,7 +1,5 @@
 import Foundation
 import SQLite3
-import OSLog
-import CloudKit
 
 /// What `unarchiveSourceRestoringContent` did, for the sentence the caller
 /// shows or returns.
@@ -816,8 +814,8 @@ extension KnowledgeStore {
     /// source's own row back in step with that.
     ///
     /// **This is the only place source text is deleted**, deliberately. Both
-    /// callers previously dropped the content while leaving `state = 'ready'`
-    /// and the per-type `word_count` untouched, which is what produced 57
+    /// callers that drop the content while leaving `state = 'ready'`
+    /// and the per-type `word_count` untouched produced 57
     /// videos advertising a nine-thousand-word transcript they no longer had.
     /// `ready` means "content fetched, available" — so nothing requeued them,
     /// nothing flagged them, and every consumer downstream believed the claim.
@@ -826,10 +824,8 @@ extension KnowledgeStore {
     ///
     /// Keeping the state reset inside the delete is the point: a future path
     /// that removes text gets the reset for free instead of having to remember
-    /// it. The two sites that used to do this by hand — `archiveSource` and
-    /// `clearSourceDerivedData` — now share it, which also fixes the MCP
-    /// `clear_source_derived_data` wrapper, whose in-app twin reset the state
-    /// separately and which therefore did not.
+    /// it. `archiveSource` and `clearSourceDerivedData` share it, so the MCP
+    /// `clear_source_derived_data` wrapper and its in-app twin reset the state alike.
     ///
     /// A source whose fetch is known to fail keeps its `error_message` and its
     /// state: requeuing a paywalled paper would retry a doomed fetch forever.

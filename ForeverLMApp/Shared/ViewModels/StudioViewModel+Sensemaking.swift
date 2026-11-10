@@ -3,13 +3,11 @@ import Foundation
 // MARK: - Sensemaking entry points (docs/sensemaking-design.md)
 //
 // The calls one shape makes into another: the Canvas inspector's Ask section
-// opens an Atlas, starts a review in place and drafts cards. Foundation stubs;
-// each work package writes the body of its own function and leaves the others
-// alone.
+// opens an Atlas, starts a review in place and drafts cards.
 
 extension StudioViewModel {
 
-    // MARK: Ask the Canvas (WP-B1)
+    // MARK: Ask the Canvas
 
     /// Asks the selected cards `tool`; the answer arrives as proposals drawn
     /// dotted on the Canvas.
@@ -17,7 +15,7 @@ extension StudioViewModel {
         startCanvasAsk(tool, refs: refs)
     }
 
-    // MARK: Atlas (WP-C)
+    // MARK: Atlas
 
     /// Opens an Atlas of `topic` over these cards or this notebook: the one
     /// already made for it, else a new one. A nil topic is read from the cards.
@@ -28,7 +26,7 @@ extension StudioViewModel {
         presentAtlas(topic: topic, itemRefs: itemRefs, notebookID: notebookID)
     }
 
-    // MARK: Memory on the Canvas (WP-B2)
+    // MARK: Memory on the Canvas
 
     /// Reviews the kept cards anchored to these Canvas cards, in place: the
     /// Canvas flies to each card in turn and asks there.

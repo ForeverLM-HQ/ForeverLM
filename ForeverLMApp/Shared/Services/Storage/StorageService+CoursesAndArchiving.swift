@@ -1,6 +1,5 @@
 // StorageService: a course and its notebooks, archiving, deleting and importing sources.
 import Foundation
-import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif

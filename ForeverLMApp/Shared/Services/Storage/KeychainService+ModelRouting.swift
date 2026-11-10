@@ -1,8 +1,6 @@
 // AI model routing preferences (chat, background and per-task routes), moved out of KeychainService.swift.
 
 import Foundation
-import OSLog
-import Security
 
 extension KeychainService {
     // MARK: - Text Routing
@@ -598,7 +596,7 @@ extension KeychainService {
     /// when the chat's model offers it, else nil for the model's default.
     ///
     /// Unlike its model, a chat's effort does not reset with each new chat.
-    /// Every new chat used to start on the model's default effort, and the product owner
+    /// Starting every new chat on the model's default effort would have the product owner
     /// set Low again in each one: "whenever I set the level of reasoning, I
     /// want that to persist" (2026-09-28). A chat whose model does not offer
     /// the chosen effort runs on that model's default; the choice itself is

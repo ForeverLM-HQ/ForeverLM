@@ -142,7 +142,7 @@ struct AudioOverviewOptionsSheet: View {
 
             if isLoading || errorMessage != nil {
                 Divider()
-                statusRow
+                SourcesReadingStatusRow(errorMessage: errorMessage)
             }
         }
         .frame(width: 520)
@@ -208,28 +208,6 @@ struct AudioOverviewOptionsSheet: View {
             parts.append("Left out: " + plan.skipped.map { "\($0.title) (\($0.reason.lowercased().trimmingCharacters(in: CharacterSet(charactersIn: "."))))" }.joined(separator: "; ") + ".")
         }
         return parts.isEmpty ? nil : parts.joined(separator: " ")
-    }
-
-    @ViewBuilder
-    private var statusRow: some View {
-        HStack(spacing: 10) {
-            if let errorMessage {
-                Image(systemName: "exclamationmark.triangle")
-                    .foregroundStyle(.orange)
-                Text(errorMessage)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(3)
-            } else {
-                ProgressView().controlSize(.small)
-                Text("Reading the sources")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
     }
 
     // MARK: Actions
@@ -398,3 +376,30 @@ struct AudioOverviewOutputRow: View {
     }
 }
 #endif
+
+/// The sheet's status line while the sources are read: a progress spinner, or
+/// the error that stopped it.
+struct SourcesReadingStatusRow: View {
+    let errorMessage: String?
+
+    var body: some View {
+        HStack(spacing: 10) {
+            if let errorMessage {
+                Image(systemName: "exclamationmark.triangle")
+                    .foregroundStyle(.orange)
+                Text(errorMessage)
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(3)
+            } else {
+                ProgressView().controlSize(.small)
+                Text("Reading the sources")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+        }
+        .padding(.horizontal, 20)
+        .padding(.vertical, 12)
+    }
+}

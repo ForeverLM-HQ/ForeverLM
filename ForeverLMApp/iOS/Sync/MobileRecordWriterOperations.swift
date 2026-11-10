@@ -1,10 +1,9 @@
 import Foundation
 import SQLite3
 
-// The phone's library changes under generation 2 (docs/cloudkit-schema-design.md §5.2, §5.4, §5.6,
-// §3.5.13–§3.5.28; §14.2 WP20), each one `MobileWrite` transaction of RecordPatches, written the way
-// the web's generation-2 writer writes them (`library-mutations-v2.js`), so every client makes the
-// same records.
+// The phone's library changes (docs/cloudkit-schema-design.md §5.2, §5.4, §5.6, §3.5.13–§3.5.28),
+// each one `MobileWrite` transaction of RecordPatches, written the way the web's writer writes them,
+// so every client makes the same records.
 
 /// The keys the settings catalog lists under `leftOut` (§3.5.3, R7-m2): Settings only their own writer
 /// sets, never `set_app_setting`. The phone's collection and notebook writers pass through it; a key it
@@ -246,7 +245,7 @@ extension MobileWrite {
             patch.changes["relatedNotebookIDs"] = .elements(Dictionary(uniqueKeysWithValues: links.map { ($0, SyncJSON.bool(false)) }))
             try write(patch, in: row[0])
         }
-        // The Schedule's tags naming it go too, as generation 1 untagged them: a placement tagged with nothing
+        // The Schedule's tags naming it go too: a placement tagged with nothing
         // else stays as its source's automatic entry, or is released (`releasePlacement`).
         for row in try rows("SELECT source_id, goals_json FROM m_placements WHERE zone_key = ? AND state <> 'removed'", [.text(Self.libraryKey)]) {
             let tagged = MobileReadModels.members(row[1]).filter(names.contains)
@@ -282,7 +281,7 @@ extension MobileWrite {
 
     // MARK: - The member's NotebookState (§3.5.20, §5.6, D16, D52)
 
-    /// The member's chat ticks of a notebook in generation 1's two rows' shape: the sources whose untick
+    /// The member's chat ticks of a notebook: the sources whose untick
     /// still names their compared Entry's stamps, and the context notebooks ticked in that the notebook
     /// still lists.
     func chatSelection(of id: String) throws -> NotebookChatContext.Selection {
@@ -291,7 +290,7 @@ extension MobileWrite {
         return NotebookChatContext.Selection(excluded: context.excluded, contextNotebookIDs: Set(context.ticked))
     }
 
-    /// Writes the member's unticked sources as generation 1's row lists them: an untick names the Entry
+    /// Writes the member's unticked sources: an untick names the Entry
     /// stamps the phone holds now (a pending change's included), a tick clears the element. Only
     /// elements that change are written.
     mutating func setChatExclusions(_ id: String, to wanted: Set<String>) throws {
@@ -454,7 +453,7 @@ extension MobileWrite {
     }
 
     /// The learner reached the end of a source (`readAt`; for listening, `consumedAt` too). The first
-    /// time stands, as generation 1 keeps the first consumption.
+    /// time stands.
     mutating func markRead(_ sourceID: String, at date: Date, consumed: Bool) throws {
         let id = SyncIdentity.readingStateID(targetID: sourceID)
         let state = try held(.readingState, id, in: Self.libraryKey)
@@ -743,7 +742,7 @@ extension MobileWrite {
         return nil
     }
 
-    // MARK: - Archiving and deleting a source (§5.4; §14.2 WP20b)
+    // MARK: - Archiving and deleting a source (§5.4)
 
     /// Archives a source the way the web's `removeSource` does for one with an address: it leaves every
     /// notebook and Goal of the member's (its Entries flip to `removed`) and the Schedule (its Placement
@@ -798,8 +797,7 @@ extension MobileWrite {
     }
 
     /// Points the learner's own source at a walkthrough this phone wrote, its bytes uploaded first
-    /// (`derived.walkthrough`, L): a later one from any device replaces it, as generation 1's
-    /// `paperWalkthrough` did.
+    /// (`derived.walkthrough`, L): a later one from any device replaces it.
     mutating func pointAtWalkthrough(sourceID: String, file: FileRef) throws {
         guard try held(.source, sourceID, in: Self.catalogKey) != nil else {
             throw MobileRecordWriterError.refused("This source is not in your library yet. Add it on your Mac first.")
@@ -897,13 +895,13 @@ extension MobileRecordWriter {
     }
 }
 
-// MARK: - Generation 1's notebook rows, read and written as records
+// MARK: - The notebook rows, read and written as records
 
-/// The per-member rows the phone's screens read and write by key under generation 1 (the chat ticks,
-/// the context notebooks, the Notebook Collections, a collection's name, a notebook's naming mark) as
-/// what they are under generation 2 (§10, D52): the member's NotebookState and account Settings, read
-/// from the replica with the pending patches over it and written through `MobileRecordWriter`. A key
-/// that is none of these is refused rather than written anywhere.
+/// The per-member rows the phone's screens read and write by key (the chat ticks, the context
+/// notebooks, the Notebook Collections, a collection's name, a notebook's naming mark): the member's
+/// NotebookState and account Settings (§10, D52), read from the replica with the pending patches over
+/// it and written through `MobileRecordWriter`. A key that is none of these is refused rather than
+/// written anywhere.
 enum MobileNotebookRows {
     /// The `[String]` rows, by key; a key with no row (or no notebook) is absent.
     static func stringArrays(_ keys: [String], writer: MobileRecordWriter) async throws -> [String: [String]] {

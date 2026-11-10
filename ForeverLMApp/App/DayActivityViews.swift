@@ -587,8 +587,7 @@ struct DayCalendarEventCard: View {
 enum DayActivityLayout: String, CaseIterable, Identifiable {
     /// One row per thing, its sittings along the day.
     case bySource
-    /// Every day's time spent, newest first, a month at a time. Settings ›
-    /// History until 2026-09-24.
+    /// Every day's time spent, newest first, a month at a time.
     case history
 
     static let storageKey = "activityPaneLayout"

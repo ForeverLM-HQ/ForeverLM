@@ -2,7 +2,6 @@
 import AppKit
 import AVFoundation
 import SwiftUI
-import UniformTypeIdentifiers
 
 // MARK: - Welcome story
 
@@ -18,10 +17,10 @@ import UniformTypeIdentifiers
 /// before, in that book…" is said. The mark then answers it: the same cards
 /// come back whole and gather into one stack under it. One page then says
 /// how, in three rows: what they read comes back as quizzes, the AI is
-/// theirs to choose, and the data is theirs to keep, in their own iCloud
-/// (the old Storage step). Data comes last because the first step, Full
+/// theirs to choose, and the data is theirs to keep, in their own iCloud.
+/// Data comes last because the first step, Full
 /// Disk Access, asks to read some of it. The product owner, 2026-09-24: fewer
-/// screens, so the three used to be pages of their own.
+/// screens, so the three share one page.
 /// The product owner, 2026-09-22: the onboarding starts with the story, not with a
 /// settings question; 2026-09-24: the day has to look far better than a grid
 /// of icons.
@@ -362,7 +361,7 @@ struct WelcomeStory: View {
                 .padding(.leading, 50)
             }
             // What ForeverLM costs, said once at the start (product owner,
-            // 2026-10-10): free, MCP included, since 2026-11-08; a price only
+            // 2026-10-10): free, MCP included; a price only
             // while the account server sells one.
             Text(EarlyUserDealOffer.welcomeLine(access: ManagedAI.appAccess))
                 .font(.system(size: 17, weight: .semibold, design: .rounded))

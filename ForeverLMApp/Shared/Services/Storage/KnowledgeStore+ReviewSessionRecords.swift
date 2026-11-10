@@ -1,8 +1,6 @@
 // KnowledgeStore: review session links, hidden state, loading, and deleting sessions.
 import Foundation
 import SQLite3
-import OSLog
-import CloudKit
 
 extension KnowledgeStore {
 

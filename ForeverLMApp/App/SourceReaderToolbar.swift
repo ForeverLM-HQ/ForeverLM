@@ -798,7 +798,7 @@ struct SourceReaderToolbarActions: View {
             }
         }
         // A narration Listen made, landing while this Reader still shows its
-        // source, plays — the Listen control that used to take it is off the
+        // source, plays — the Listen control is off the
         // bar once the narration is no longer being made.
         .onChange(of: speech.madeNarrationSourceID) { _, sourceID in
             guard isSavedSource, sourceID == article.id else { return }

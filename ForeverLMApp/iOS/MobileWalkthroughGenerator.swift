@@ -1,5 +1,4 @@
 import Foundation
-import PDFKit
 
 enum MobileWalkthroughError: LocalizedError {
     case notSignedIn

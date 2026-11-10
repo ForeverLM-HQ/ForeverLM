@@ -204,7 +204,7 @@ enum ReaderWebViewPark {
     private static func discard(_ entry: Entry) {
         entry.expiry?.cancel()
         entry.expiry = nil
-        // The teardown the reader used to do inline: stop whatever the page is
+        // Teardown: stop whatever the page is
         // still running before letting go of it.
         entry.webView.loadHTMLString("", baseURL: nil)
     }
@@ -280,11 +280,6 @@ struct WebViewReader: NSViewRepresentable {
 
     private var darkensPage: Bool {
         ReaderDarkMode.darkensPage(in: colorScheme, originalPageColors: originalPageColors)
-    }
-
-    private static func canOpenExternally(_ url: URL) -> Bool {
-        guard let scheme = url.scheme?.lowercased() else { return false }
-        return scheme == "http" || scheme == "https"
     }
 
     func makeCoordinator() -> Coordinator {
@@ -461,12 +456,12 @@ struct WebViewReader: NSViewRepresentable {
         // Load the URL
         if let url = URL(string: urlString) {
             DispatchQueue.main.async {
-                if Self.canOpenExternally(url) {
+                if url.hasWebScheme {
                     self.currentURL = url
                 }
             }
             Task { @MainActor in
-                if Self.canOpenExternally(url) {
+                if url.hasWebScheme {
                     self.chromeState?.updateNavigationState(from: webView, currentURL: url)
                 }
             }
@@ -1106,18 +1101,13 @@ struct WebViewReader: NSViewRepresentable {
                 self.parent.canGoBack = webView.canGoBack
                 self.parent.canGoForward = webView.canGoForward
                 self.parent.currentDomain = url?.host ?? ""
-                if let url, Self.canOpenExternally(url) {
+                if let url, url.hasWebScheme {
                     self.parent.currentURL = url
                 }
             }
             Task { @MainActor in
                 self.parent.chromeState?.updateNavigationState(from: webView, currentURL: url)
             }
-        }
-
-        private static func canOpenExternally(_ url: URL) -> Bool {
-            guard let scheme = url.scheme?.lowercased() else { return false }
-            return scheme == "http" || scheme == "https"
         }
 
         private static func shouldOpenWithSystem(_ url: URL) -> Bool {
@@ -1185,7 +1175,7 @@ struct WebViewReader: NSViewRepresentable {
             if navigationAction.navigationType == .linkActivated,
                navigationAction.modifierFlags.contains(.command),
                let url = navigationAction.request.url,
-               Self.canOpenExternally(url) {
+               url.hasWebScheme {
                 Task { @MainActor in self.openLinkInNewTab(url) }
                 return nil
             }
@@ -1201,7 +1191,7 @@ struct WebViewReader: NSViewRepresentable {
                 return nil
             }
             if let url = navigationAction.request.url,
-               Self.canOpenExternally(url) {
+               url.hasWebScheme {
                 updateReaderLocation(for: webView, currentURL: url)
             }
             // A new-window link loads here, so it is the learner's click the
@@ -1745,7 +1735,7 @@ struct WebViewReader: NSViewRepresentable {
             if isLinkActivated,
                navigationAction.modifierFlags.contains(.command),
                let url = navigationAction.request.url,
-               Self.canOpenExternally(url) {
+               url.hasWebScheme {
                 decisionHandler(.cancel, preferences)
                 Task { @MainActor in self.openLinkInNewTab(url) }
                 return
@@ -1791,7 +1781,7 @@ struct WebViewReader: NSViewRepresentable {
             case .allow:
                 if isMainFrame,
                    let url = navigationAction.request.url,
-                   Self.canOpenExternally(url) {
+                   url.hasWebScheme {
                     updateReaderLocation(for: webView, currentURL: url)
                 }
                 decisionHandler(.allow, preferences)
@@ -1913,7 +1903,7 @@ struct WebViewReader: NSViewRepresentable {
         private func startAttachmentDownloadIfDisplayingPDF(in webView: WKWebView) {
             guard paperReceivingPDFs != nil,
                   let url = webView.url,
-                  Self.canOpenExternally(url),
+                  url.hasWebScheme,
                   mainFrameMIMEType == "application/pdf" else {
                 return
             }

@@ -1,14 +1,7 @@
 // The on-device store of source usage history.
 
-import AVFoundation
-import Combine
-import CryptoKit
-import MediaPlayer
-import OSLog
-import SwiftUI
-import CloudKit
+import Foundation
 import SQLite3
-import WidgetKit
 
 /// The usage ledger's cache on this phone, one SQLite file in Application Support (which Xcode app
 /// rebuilds preserve; only uninstalling the app removes it). A file written before keeps the old

@@ -1,6 +1,5 @@
 // The source sidebar's search field.
 import SwiftUI
-import UniformTypeIdentifiers
 import AppKit
 
 /// The Sources search field.

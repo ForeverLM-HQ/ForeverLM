@@ -1,14 +1,8 @@
 import Foundation
-import CryptoKit
-import Observation
 import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
-import SwiftUI
-import AppKit
-import SQLite3
-import WebKit
 import Darwin
 
 extension StudioViewModel {
@@ -255,8 +249,8 @@ extension StudioViewModel {
         let destination = destinationWindowState ?? activeWindowState
         // Following a citation is reader navigation, so it leaves the Sources
         // browser exactly as the learner left it. Taking the panel away here
-        // used to be permanent — nothing ever handed it back — so a single
-        // citation click silently undid a panel they had chosen to keep open.
+        // would be permanent — nothing hands it back — so a single
+        // citation click would silently undo a panel they had chosen to keep open.
         showReaderPanel = true
         readerPoppedOut = false
         revealReader(beside: companion, in: destination)
@@ -873,8 +867,8 @@ extension StudioViewModel {
     /// ten seconds the source (or its group) is hidden in every store. It is not
     /// a hidden item, though — the learner did not hide it, and the Undo banner
     /// is its affordance — so the hidden-items footer and popover leave it out.
-    /// Every removal used to spend the window as "1 hidden item" at the foot of
-    /// the list (product owner, 2026-09-20: a deleted meeting folder "still show[ed]
+    /// A removal is not counted as "1 hidden item" at the foot of
+    /// the list while it runs (product owner, 2026-09-20: a deleted meeting folder "still show[ed]
     /// up for a while at the bottom"). A removal interrupted before it finished
     /// has no pending deletion, so what it left hidden stays listed and can be
     /// restored from there.

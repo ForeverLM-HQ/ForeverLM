@@ -1,14 +1,6 @@
 // Siri, the voice agent and the source chat.
 
-import AVFoundation
-import Combine
-import CryptoKit
-import MediaPlayer
-import OSLog
-import SwiftUI
-import CloudKit
-import SQLite3
-import WidgetKit
+import Foundation
 
 extension MobileAudioReviewViewModel {
     func beginSiriVoiceSessionIfNeeded() async {

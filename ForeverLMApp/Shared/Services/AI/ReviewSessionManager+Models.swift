@@ -1,9 +1,6 @@
 // Part of ReviewSessionManager: the nested model types and transcript text helpers.
 
 import Foundation
-import Observation
-import PDFKit
-import os
 
 extension ReviewSessionManager {
     // MARK: - Models
@@ -433,13 +430,7 @@ extension ReviewSessionManager {
 
         /// Human-readable model name for the transcript, e.g. "Claude Opus 5".
         var modelDisplayName: String? {
-            guard let modelID, !modelID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-                return nil
-            }
-            if let provider = modelProvider.flatMap(AIProvider.init(rawValue:)) {
-                return AIModelDisplayName.textModelName(modelID, provider: provider)
-            }
-            return modelID
+            ReviewSessionRecord.modelDisplayName(modelID: modelID, modelProvider: modelProvider)
         }
     }
 

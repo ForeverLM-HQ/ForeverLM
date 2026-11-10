@@ -1,9 +1,7 @@
 // Part of ReviewSessionManager: figure, picture, slide and video tools.
 
 import Foundation
-import Observation
 import PDFKit
-import os
 
 extension ReviewSessionManager {
     /// What `inspect_paper_figure` says when the label the learner asked for is

@@ -1,4 +1,3 @@
-import CloudKit
 import Foundation
 import OSLog
 
@@ -178,13 +177,7 @@ actor SpaceSync {
 
     /// Reads the moves the personal root lists (D51).
     func refreshMoveMaps() async throws {
-        guard let (root, salt) = try await store.perform({ state -> (SyncEnvelope, Data)? in
-            guard let root = try state.replica.personalRoot()?.envelope,
-                  let salt = root.fields["salt"]?.stringValue.flatMap(RecordNaming.salt(base64:))
-            else { return nil }
-            return (root, salt)
-        }) else { return }
-        await moveMaps.refresh(from: root, fetch: MoveMapIndex.transportFetch(transport, salt: salt))
+        try await moveMaps.refreshFromPersonalRoot(store: store, transport: transport)
     }
 
     /// The moves as the server's personal root lists them now, before a lost record is judged.
@@ -917,7 +910,7 @@ actor SpaceSync {
         var results: CloudModifyResults
         var copy = found.copy
         // The copy may have moved on since this device last fetched it (the move back revived it): the
-        // write is merged again onto the version the server answers with, a few times (WP15b).
+        // write is merged again onto the version the server answers with, a few times.
         var rounds = 0
         while true {
             switch change.action {

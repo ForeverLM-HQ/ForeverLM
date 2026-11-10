@@ -4,15 +4,6 @@ import Foundation
 
 // MARK: - Helpers
 
-@MainActor
-private func makeViewModel() -> StudioViewModel {
-    let tmp = FileManager.default.temporaryDirectory
-        .appendingPathComponent("SourceRemovalTests_\(UUID().uuidString)")
-    try? FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
-    let service = StorageService(storeRoot: tmp)
-    return StudioViewModel(storageService: service)
-}
-
 private func makeArticle(
     url: String = "https://example.com",
     title: String = "Test",

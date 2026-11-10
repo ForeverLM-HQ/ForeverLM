@@ -7,7 +7,7 @@ import WebKit
 ///
 /// A saved animation is an Artifact whose address is the library's own
 /// `foreverlm-site://<id>/`: its files travel inside the record's CloudKit
-/// body package (under generation 2, its `body` satellite), which the phone
+/// body package (its `body` satellite), which the phone
 /// fetches and unpacks here, then serves from Caches through
 /// `MobileLocalSiteSchemeHandler`. The page gets the kit's walk parameters
 /// (`?embed=1&step=N&c=…`), so it shows its stage alone at the step and holds

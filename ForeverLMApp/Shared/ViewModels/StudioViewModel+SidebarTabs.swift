@@ -1,16 +1,11 @@
 // Sidebar tabs, show-more limits and podcast catalog search.
 
 import Foundation
-import CryptoKit
-import Observation
 import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
-import SwiftUI
 import AppKit
-import SQLite3
-import WebKit
 import Darwin
 
 extension StudioViewModel {
@@ -238,7 +233,7 @@ extension StudioViewModel {
     /// action, so Meetings and X still pin on that.
     ///
     /// Meetings needs that exemption applied per *session* rather than per tab.
-    /// It is no longer plugin-backed as a whole — Drive sign-in and folder
+    /// It is not plugin-backed as a whole — Drive sign-in and folder
     /// imports are the learner's own actions and should pin it — so exempting
     /// the whole tab would stop those from ever pinning, while exempting none
     /// of it would let a Read AI push pin a tab the learner never asked for.

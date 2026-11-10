@@ -82,9 +82,8 @@ actor StorageService {
         return URL(fileURLWithPath: path, isDirectory: true)
     }
 
-    // The container-locating resolver that used to live here is gone with the
-    // content root it served, and no build is entitled to that container any
-    // more: `url(forUbiquityContainerIdentifier:)` is never called. What still
+    // No build is entitled to the ubiquity container:
+    // `url(forUbiquityContainerIdentifier:)` is never called. What still
     // sits in the folder is read by path through `ubiquityContentRootPath`.
 
     func ensureICloudUbiquityAvailable() throws {

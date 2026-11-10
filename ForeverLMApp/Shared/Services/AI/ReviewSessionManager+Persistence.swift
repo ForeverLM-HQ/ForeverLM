@@ -1,9 +1,6 @@
 // Part of ReviewSessionManager: persisting assistant responses.
 
 import Foundation
-import Observation
-import PDFKit
-import os
 
 extension ReviewSessionManager {
     /// A saved grade folded into what the review shows: each idea's latest

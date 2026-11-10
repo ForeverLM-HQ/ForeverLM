@@ -304,7 +304,7 @@ struct MobileNotebookChatTab: View {
         }
         .toolbar {
             // Only while the Chat tab is on screen: the notebook's chats,
-            // the Mac's Chats menu (`compactChatsMenu`), and, while a chat
+            // the Mac's Chats menu, and, while a chat
             // is open, ChatGPT's compose button, which goes back to the
             // guide and its empty composer (the conversation's "‹ Chats"
             // until 2026-10-06).

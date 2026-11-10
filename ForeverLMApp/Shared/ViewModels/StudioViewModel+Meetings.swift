@@ -1,15 +1,9 @@
 import Foundation
-import CryptoKit
-import Observation
 import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
-import SwiftUI
 import AppKit
-import SQLite3
-import WebKit
-import Darwin
 
 enum MeetingTranscriptError: LocalizedError {
     case sourceNotFound
@@ -137,9 +131,8 @@ extension StudioViewModel {
 
     /// Whether a series survives the provider filter.
     ///
-    /// With no filter set — the default — every series does. That is the whole
-    /// change: provider narrows what the learner is looking at, and no longer
-    /// decides where a series is allowed to exist.
+    /// With no filter set — the default — every series does. Provider narrows what the
+    /// learner is looking at; it does not decide where a series is allowed to exist.
     func meetingGroupMatchesProviderFilter(_ groupName: String) -> Bool {
         guard let provider = meetingProviderFilter else { return true }
         return meetingGroupProviders(groupName).contains(provider)
@@ -175,7 +168,7 @@ extension StudioViewModel {
     /// that series the first time one arrives from a given Zoom account.
     ///
     /// Every meeting reaches the Meetings tab through a series, so a session
-    /// with no group is a session nothing can show — the bug that used to strand
+    /// with no group is a session nothing can show — a session like that strands
     /// locally imported folders. A pasted Zoom link carries no series, so
     /// `ForeverLMCore.zoomMeetingSeries` derives one deterministically from
     /// the hosting account, and the learner renames the row to whatever the
@@ -980,11 +973,10 @@ extension StudioViewModel {
 
     /// Bring a hidden meeting group back, and unarchive its sessions with it.
     ///
-    /// Deletion no longer archives anything, so the unarchive is for the groups
-    /// an older build removed: it archived the sessions and kept the group as a
-    /// hidden row, and without this they return as a series with no sessions in
-    /// it. Archiving cleared each session's text, so those sessions come back
-    /// empty until the group's plugin or an MCP import refills them.
+    /// Deletion archives nothing, so the unarchive is for a hidden group whose
+    /// sessions were archived: without it the group returns as a series with no
+    /// sessions in it. Archiving clears each session's text, so those sessions
+    /// come back empty until the group's plugin or an MCP import refills them.
     func restoreMeetingGroup(_ groupName: String) async {
         if await undoPendingDeletion(forDeletionKey: Self.meetingRemovalKey(groupName)) {
             guard meetingMetadata[groupName]?.isHidden == true else { return }
@@ -1083,12 +1075,12 @@ extension StudioViewModel {
     /// removal tombstone stays behind so a background Drive pass cannot import
     /// the folder again.
     ///
-    /// Removal used to archive the sessions and keep the folder as a hidden row.
-    /// Nothing about that read as deleted: the series stayed listed under Hidden
-    /// Items, and archiving had already cleared every transcript, so the one
-    /// action offered there brought the folder back empty. Deleting is now the
-    /// whole of it — what the learner asked for, and the only outcome that
-    /// Hidden Items can describe honestly.
+    /// Removal does not archive the sessions and keep the folder as a hidden row:
+    /// that would not read as deleted, the series would stay listed under Hidden
+    /// Items, and archiving clears every transcript, so the one action offered
+    /// there would bring the folder back empty. Deleting is the whole of it —
+    /// what the learner asked for, and the only outcome that Hidden Items can
+    /// describe honestly.
     ///
     /// The learner's own files are untouched. This removes ForeverLM's copy of
     /// the series, not the Google Drive folder or the recordings behind it, so
@@ -1117,8 +1109,8 @@ extension StudioViewModel {
         // single removed session leaves. The series tombstone above stops the
         // series coming back under its title or folder; this stops each
         // recording coming back on its own — a Zoom notice re-forwarded to the
-        // recordings mailbox, a plugin re-pushing its history — now that
-        // the archived row that used to answer "already exists" is gone. Web
+        // recordings mailbox, a plugin re-pushing its history — since
+        // no archived row answers "already exists". Web
         // Studio reads the same synced DismissedSource records. Written after
         // the delete so nothing is archived only to be deleted a moment later.
         let removedSessions = articles.filter { removedSourceIDs.contains($0.id) }

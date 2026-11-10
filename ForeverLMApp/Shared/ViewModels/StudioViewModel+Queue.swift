@@ -1,14 +1,9 @@
 import Foundation
-import CryptoKit
-import Observation
 import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
-import SwiftUI
 import AppKit
-import SQLite3
-import WebKit
 import Darwin
 
 extension StudioViewModel {
@@ -539,10 +534,10 @@ extension StudioViewModel {
         }
     }
 
-    /// A row asks for its picture as it scrolls into view. Each answer used to
-    /// be its own write to `articles`, and every write re-diffs every row of
-    /// the List it lands in: on a ~1,000-paper Papers tab that was 1–2 s of
-    /// main thread per answer, so scrolling stalled again and again (product
+    /// A row asks for its picture as it scrolls into view. Answers are not
+    /// written to `articles` one by one: every write re-diffs every row of the List
+    /// it lands in, which on a ~1,000-paper Papers tab costs 1–2 s of main thread
+    /// per answer and stalls scrolling (product
     /// owner, 2026-11-08: "very glitchy and slow. It needs to be super fast").
     /// The lookup is the id index, not a scan of the library, and the answers
     /// land together in one write (`queueBackfilledArtwork`).
@@ -634,7 +629,11 @@ extension StudioViewModel {
         }
 
         let classified = candidates.compactMap { $0.index < articles.count ? articles[$0.index] : nil }
-        try? await storage.saveSourcesBatchOnly(classified)
+        do {
+            try await storage.saveSourcesBatchOnly(classified)
+        } catch {
+            logger.error("saveSourcesBatchOnly failed: \(error.localizedDescription, privacy: .public)")
+        }
         for source in classified where source.sourceType == .book {
             await persistWholeBookMetadataIfNeeded(for: source)
         }
@@ -666,7 +665,11 @@ extension StudioViewModel {
             logger.info("Reclassified mislabeled book as paper: \(self.articles[idx].title)")
         }
         guard !repaired.isEmpty else { return }
-        try? await storage.saveSourcesBatchOnly(repaired)
+        do {
+            try await storage.saveSourcesBatchOnly(repaired)
+        } catch {
+            logger.error("saveSourcesBatchOnly failed: \(error.localizedDescription, privacy: .public)")
+        }
         syncCloudKitInBackground()
     }
 
@@ -1268,9 +1271,9 @@ extension StudioViewModel {
                 errorMessage = "This paper is already in your reading list as a local PDF."
                 return
             }
-            // The LLM-based semantic dedup that used to run here now runs in the
+            // The LLM-based semantic dedup runs in the
             // background after the optimistic insert below, so a slow AI round-trip
-            // no longer delays the paper (and its "Downloading PDF…" status) from
+            // does not delay the paper (and its "Downloading PDF…" status) from
             // appearing. See the paper post-insert block near the end of addArticle.
         }
 
@@ -1391,7 +1394,7 @@ extension StudioViewModel {
         urlInput = ""
 
         // The tab switch happens either way: a paper that just landed in the library should
-        // be findable where papers live, and switching tabs no longer disturbs the reader.
+        // be findable where papers live, and switching tabs does not disturb the reader.
         if detectedType == .paper {
             if sidebarTab != .papers {
                 switchTab(to: .papers)
@@ -1502,7 +1505,11 @@ extension StudioViewModel {
             guard let idx2 = articles.firstIndex(where: { $0.id == articleId }) else { return }
             articles[idx2].state = .error
             articles[idx2].errorMessage = "No matching podcast found on Apple Podcasts."
-            try? await storage.saveSource(articles[idx2])
+            do {
+                try await storage.saveSource(articles[idx2])
+            } catch {
+                logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+            }
             return
         }
         // The link named this episode: there is nothing to confirm.
@@ -1557,7 +1564,11 @@ extension StudioViewModel {
             guard let idx2 = articles.firstIndex(where: { $0.id == articleId }) else { return .sourceGone }
             articles[idx2].state = .error
             articles[idx2].errorMessage = "Already in your sources: \"\(existing.title)\""
-            try? await storage.saveSource(articles[idx2])
+            do {
+                try await storage.saveSource(articles[idx2])
+            } catch {
+                logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+            }
             logger.info("Skipping duplicate podcast: \(matchTitle)")
             return .alreadyInLibrary(title: existing.title)
         }
@@ -1578,7 +1589,11 @@ extension StudioViewModel {
         articles[idx2].podcastMatchTrackId = match.storeTrackId
         articles[idx2].state = .error
         articles[idx2].statusFlag = .confirmPodcast
-        try? await storage.saveSource(articles[idx2])
+        do {
+            try await storage.saveSource(articles[idx2])
+        } catch {
+            logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+        }
         if confirmingAtOnce {
             await confirmPodcastMatch(for: articleId)
             return .confirmed
@@ -1711,14 +1726,22 @@ extension StudioViewModel {
                 ?? articles[idx2].title
             articles[idx2].state = .error
             articles[idx2].errorMessage = "Already in your sources: \"\(existingTitle)\""
-            try? await storage.saveSource(articles[idx2])
+            do {
+                try await storage.saveSource(articles[idx2])
+            } catch {
+                logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+            }
             return false
         } catch {
             logger.warning("Could not move podcast row \(articleId, privacy: .public) to episode \(trackId): \(error.localizedDescription, privacy: .public)")
             guard let idx2 = articles.firstIndex(where: { $0.id == articleId }) else { return false }
             articles[idx2].state = .error
             articles[idx2].errorMessage = Self.retryablePodcastTranscriptMessage
-            try? await storage.saveSource(articles[idx2])
+            do {
+                try await storage.saveSource(articles[idx2])
+            } catch {
+                logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+            }
             return false
         }
         // Storage holds the episode's address and no page text; the
@@ -1834,8 +1857,8 @@ extension StudioViewModel {
             if updated.statusFlag == .paywall {
                 updated.errorMessage = nil
                 // Attestation is metadata only — author, venue, year. A paper can
-                // carry all three and still hold no body text at all, which is how
-                // paywalled papers used to come back as `ready` and then fail at
+                // carry all three and still hold no body text at all, which would let
+                // paywalled papers come back as `ready` and then fail at
                 // the point of use, in the car. Readable text is the precondition
                 // for `ready`; without it the source belongs in the queue.
                 let hasText = await storage.hasReadableSourceContent(updated.id)
@@ -2061,7 +2084,11 @@ extension StudioViewModel {
                     self.hiddenPodcastShows.remove(trimmed)
                     self.articles.removeAll { removedIDs.contains($0.id) }
                 } catch {
-                    try? await self.storage.setPodcastShowHidden(trimmed, hidden: wasHidden)
+                    do {
+                        try await self.storage.setPodcastShowHidden(trimmed, hidden: wasHidden)
+                    } catch {
+                        self.logger.error("setPodcastShowHidden failed: \(error.localizedDescription, privacy: .public)")
+                    }
                     if wasHidden {
                         self.hiddenPodcastShows.insert(trimmed)
                     } else {

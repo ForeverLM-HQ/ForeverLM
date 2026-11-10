@@ -114,7 +114,11 @@ extension StudioViewModel {
         if let index = articles.firstIndex(where: { $0.id == sourceID }) {
             articles[index].content = extraction.content
             articles[index].wordCount = extraction.content.split(separator: " ").count
-            try? await storage.saveSource(articles[index])
+            do {
+                try await storage.saveSource(articles[index])
+            } catch {
+                logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
         return (extraction.content, extraction.slideCount)
     }

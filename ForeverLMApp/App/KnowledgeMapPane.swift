@@ -1,6 +1,4 @@
 import SwiftUI
-import UniformTypeIdentifiers
-import WebKit
 
 /// A canvas: a plane for what the learner thinks (docs/knowledge-map-design.md).
 /// Their Ideas, the regions they draw and the arrows between them sit on it;

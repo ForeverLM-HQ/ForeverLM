@@ -1,5 +1,4 @@
 import SwiftUI
-import UniformTypeIdentifiers
 import UIKit
 
 // What the Space does to a page from its row and from its own ⋯ (docs/docs-design.md, "The Space",

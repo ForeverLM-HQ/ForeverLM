@@ -1404,10 +1404,9 @@ struct ReviewSlashSuggestionsOverlay: View {
 
 /// The chat's one visible drop target: the box the learner already types into.
 ///
-/// A drag out of Sources used to light the whole chat pane with a dashed
-/// outline, and `StudioDropZoneOverlay` renders no title, so the pane said
-/// "something can happen here" without saying what or where. The panel still
-/// takes a drop anywhere over the transcript — this is the only thing that
+/// Lighting the whole chat pane with a dashed outline during a drag out of
+/// Sources (`StudioDropZoneOverlay` renders no title) would say "something can
+/// happen here" without saying what or where. The panel still takes a drop anywhere over the transcript — this is the only thing that
 /// advertises it, so a dragged source has one obvious place to land.
 struct ReviewChatComposerDropTarget: View {
     /// The pointer is over the chat right now, so letting go drops here.

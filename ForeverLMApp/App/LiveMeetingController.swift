@@ -1,6 +1,5 @@
 import Foundation
 import Observation
-import os
 import ScreenCaptureKit
 
 /// The meeting being recorded live on this Mac, one at a time.

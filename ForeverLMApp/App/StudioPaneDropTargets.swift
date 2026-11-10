@@ -3,10 +3,7 @@
 import SwiftUI
 import Combine
 import UniformTypeIdentifiers
-import PDFKit
-import WebKit
 import AppKit
-import OSLog
 
 /// An always-registered AppKit drop destination for a center area's far edge.
 /// Center-tab drags already originate in AppKit, and keeping this endpoint in

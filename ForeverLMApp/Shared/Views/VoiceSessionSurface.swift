@@ -533,7 +533,7 @@ private struct VoiceContextCard: View {
 
 /// The voice orb: the ForeverLM mark, alive and moving with the session.
 ///
-/// This was a coloured sphere until 2026-08-30. It is the logo now — the same
+/// It is the logo — the same
 /// iridescent infinity ribbon the app icon, the sign-in gate and the loading
 /// indicator draw.
 ///
@@ -562,9 +562,8 @@ private struct VoiceContextCard: View {
 /// than inventing one: muted drains to silver, and failed drains and glows red
 /// under an exclamation mark.
 ///
-/// The orb's box is wider than it is tall now. Callers that used to hand it a
-/// square were letterboxing the ribbon into a third of the space; `aspectRatio`
-/// is the shape to size it by.
+/// The orb's box is wider than it is tall: a square box would letterbox the
+/// ribbon into a third of the space, so `aspectRatio` is the shape to size it by.
 struct VoiceOrb: View {
     /// Width-to-height of the orb's box. Wider than the artwork's own 2.07:1
     /// would give, because the box carries halo headroom above and below the

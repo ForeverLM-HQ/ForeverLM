@@ -1,9 +1,6 @@
 // The chat title header, chat actions menu, memory review strip and walkthrough strip of the chat panel.
 import SwiftUI
 import Combine
-import UniformTypeIdentifiers
-import PDFKit
-import WebKit
 import AppKit
 
 extension InternalReviewPanelContent {
@@ -409,7 +406,7 @@ extension InternalReviewPanelContent {
             }
         }
         // The page passages this chat was opened on (`docOriginMenuTitle`),
-        // here since 2026-10-06 rather than over the composer.
+        // listed here rather than over the composer.
         if !sessionDocLinks.isEmpty {
             Divider()
             ForEach(sessionDocLinks) { entry in

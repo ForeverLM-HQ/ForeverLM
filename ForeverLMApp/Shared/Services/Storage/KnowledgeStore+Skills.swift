@@ -3,8 +3,8 @@ import SQLite3
 
 // MARK: - Skills (the learner's own chat skills; docs/chat-design.md, "Skills")
 //
-// One row a skill in `skills`, travelling as one `Skill` CloudKit record
-// (`CloudKitSkillPayload`). Every write here is the learner's hand, so each
+// One row a skill in `skills`, travelling as one `Skill` CloudKit record.
+// Every write here is the learner's hand, so each
 // is queued for sync at once. The name is not unique in the table: it is the
 // learner's handle, and two Macs that each wrote a skill of the same name
 // must both arrive rather than fail the inbound apply. The local writes below

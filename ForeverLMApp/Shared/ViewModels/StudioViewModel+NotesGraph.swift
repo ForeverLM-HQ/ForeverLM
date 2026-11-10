@@ -1,9 +1,6 @@
 import Foundation
 
 // MARK: - Notes as a graph: the Studio's entry points (docs/notes-graph-design.md)
-//
-// FOUNDATION STUBS: each body is one work package's to write (named on it);
-// every other package calls them freely and they work once merged.
 
 /// Which block of a Doc to show when it opens: by its id, or, for a block
 /// that has none (a block in a linked reference), by its key at a revision
@@ -25,7 +22,7 @@ extension StudioViewModel {
     /// does not exist yet: the rail's Daily Notes row, ⇧⌘D, a day's link and
     /// the day stepper. A daily note is My Library's, so a team library open
     /// in the Studio gives way to My Library first, the way a team's Doc
-    /// listed in My Library opens in its team (`openTeamArtifact`). WP-R3.
+    /// listed in My Library opens in its team (`openTeamArtifact`).
     func openDailyNote(dayKey: String? = nil, in window: StudioWindowState? = nil) async {
         let destination = window ?? activeWindowState
         let key = dayKey ?? DailyNote.dayKey(for: Date())
@@ -208,7 +205,7 @@ extension StudioViewModel {
     /// A Doc brought forward in Docs with one of its blocks shown and
     /// flashed: the doc comes forward as `revealArtifact` brings it, and the
     /// block travels on the same request to the window's canvas, which hands
-    /// it to the editor once the editor holds that doc. WP-R3.
+    /// it to the editor once the editor holds that doc.
     func openDoc(_ docID: String, revealing reveal: DocBlockReveal?, in window: StudioWindowState? = nil) async {
         let destination = window ?? activeWindowState
         if !artifacts.contains(where: { $0.id == docID }) {
@@ -241,7 +238,7 @@ extension StudioViewModel {
     /// that title, or the daily note for a day's title, made when there is
     /// none, in the library of the Doc the title was written in. A page made
     /// here is an empty, unfiled Doc, as Roam makes one; making it is the one
-    /// write opening a title does. WP-R3.
+    /// write opening a title does.
     func openPage(titled title: String, teamID: String?, in window: StudioWindowState? = nil) async {
         let destination = window ?? activeWindowState
         let name = title.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -279,7 +276,7 @@ extension StudioViewModel {
         }
     }
 
-    /// An Idea from a link: the Ideas pane with that Idea open. WP-R4.
+    /// An Idea from a link: the Ideas pane with that Idea open.
     func openIdea(_ ideaID: String) async {
         let id = ideaID.trimmingCharacters(in: .whitespacesAndNewlines)
         // An Idea jotted down a moment ago, on another Mac or by an
@@ -298,7 +295,7 @@ extension StudioViewModel {
     }
 }
 
-// MARK: - WP-R3's helpers for the entry points above
+// MARK: - Helpers for the entry points above
 
 extension DocBlockReveal {
     /// Whether it names a block at all: by its id, or by its text.

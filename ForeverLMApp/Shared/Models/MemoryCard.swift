@@ -544,7 +544,7 @@ struct MemoryCardState: Equatable, Sendable {
     /// guide question's hash), so drafting never offers the same seed twice.
     var seed: String?
     /// When the day close reworded the card, once it was remembered twice
-    /// (`CardVariationPass`): set once, whether or not any rewording passed
+    /// (the Card Variation task): set once, whether or not any rewording passed
     /// its checks, so a card is reworded — and billed — once.
     var variedAt: Date?
     var updatedAt: Date

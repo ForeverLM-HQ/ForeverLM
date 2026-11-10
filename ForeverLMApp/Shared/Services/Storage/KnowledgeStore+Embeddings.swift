@@ -1,7 +1,5 @@
 import Foundation
 import SQLite3
-import OSLog
-import CloudKit
 
 extension KnowledgeStore {
 
@@ -783,7 +781,7 @@ extension KnowledgeStore {
 
         // Keep each identity lookup on one explicit index. An OR across identity
         // columns is currently optimized as a multi-index query by SQLite, but that is
-        // plan-dependent and previously turned other identity reconciliation paths into
+        // plan-dependent and has turned other identity reconciliation paths into
         // scans as their tables grew. Two tiny probes make the performance invariant.
         func collect(column: String, index: String) throws {
             try queryBind("""

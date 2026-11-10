@@ -137,7 +137,7 @@ enum CalendarGroups {
     static func regroupSpan(now: Date = Date()) -> DateInterval {
         let calendar = PlanQuarterWeeks.weekCalendar()
         let monday = calendar.dateInterval(of: .weekOfYear, for: now)?.start ?? calendar.startOfDay(for: now)
-        let end = calendar.date(byAdding: .day, value: 7 * 13, to: monday) ?? monday.addingTimeInterval(91 * 86_400)
+        let end = calendar.date(byAdding: .day, value: 7 * 13, to: monday) ?? monday.addingTimeInterval(91 * MemoryTutorScheduler.secondsPerDay)
         return DateInterval(start: monday, end: end)
     }
 

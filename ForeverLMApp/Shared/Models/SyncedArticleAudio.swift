@@ -755,9 +755,9 @@ enum SyncedArticleAudioStore {
         workingFolder?.saved?(manifest.sourceID)
     }
 
-    /// Generation 2: lays down the narration the replica names for a source and brings its chunks into the
-    /// working folder, so what another device made plays here without being made again. Nothing under
-    /// generation 1, and nothing when the replica names no narration the folder lacks.
+    /// Lays down the narration the replica names for a source and brings its chunks into the
+    /// working folder, so what another device made plays here without being made again. Nothing
+    /// when the replica names no narration the folder lacks.
     static func bringReplicaNarration(sourceID: String) async {
         guard let folder = workingFolder else { return }
         await folder.adopt(sourceID)
@@ -859,7 +859,7 @@ enum SyncedArticleAudioStore {
         timeout: Duration = .seconds(10)
     ) async -> SyncedArticleAudioManifest? {
         if let manifest = publishedManifest(sourceID: sourceID) { return manifest }
-        // Generation 2: the replica is asked, not CloudDocs, and what it holds is laid down at once.
+        // The replica is asked, not CloudDocs, and what it holds is laid down at once.
         if let folder = workingFolder {
             await folder.adopt(sourceID)
             return publishedManifest(sourceID: sourceID)
@@ -976,7 +976,7 @@ enum SyncedArticleAudioStore {
         guard !urls.isEmpty else {
             throw SyncedArticleAudioStoreError.missingAudioChunk(manifest.sourceID)
         }
-        // Generation 2: the chunks are the narration's satellites, fetched by name.
+        // The chunks are the narration's satellites, fetched by name.
         if let folder = workingFolder {
             try await folder.materialize(manifest, onProgress)
             return
@@ -1131,9 +1131,8 @@ enum SyncedArticleAudioStore {
 
 #if !os(macOS)
 extension SyncedArticleAudioStore {
-    /// Republishes complete audio from one root into another, the manifest last. Generation 1's phone
-    /// moved audio stranded locally into iCloud Documents with it; nothing in the app calls it now that
-    /// no build reads that container, and it goes with WP30.
+    /// Republishes complete audio from one root into another, the manifest last. Only the
+    /// iPhone tests call it; the app does not.
     @discardableResult
     static func recoverLocallyStrandedAudio(from localRoot: URL, to cloudRoot: URL) throws -> Int {
         let fileManager = FileManager.default
@@ -1427,11 +1426,11 @@ final class SyncedAudioManifestObserver {
     }
 }
 
-/// Where narration lives under generation 2 (docs/cloudkit-schema-design.md §3.5.30, `audio.<voiceKey>`):
+/// Where narration lives (docs/cloudkit-schema-design.md §3.5.30, `audio.<voiceKey>`):
 /// the replica holds it, as the source's satellites, and a device keeps a working copy of the same layout
 /// on its own disk instead of in iCloud Drive. What the device generates is written there first; what other
 /// devices made is laid down there from the replica. The store's paths follow `root`; what it would ask
-/// CloudDocs for it asks `materialize` and `adopt` instead. Generation 1 has none.
+/// CloudDocs for it asks `materialize` and `adopt` instead.
 struct SyncedArticleAudioWorkingFolder: Sendable {
     let root: URL
     /// Brings every chunk the manifest names into the folder, reporting as they arrive.

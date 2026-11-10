@@ -64,13 +64,13 @@ enum SpaceServiceError: Error, Equatable, LocalizedError {
 /// generation 1 keeps its id there (§13.7).
 ///
 /// Generation 2 only: nothing under generation 1 reaches it, and generation 1's teams, Doc shares and
-/// family plans stay on the old container until WP30 (D40).
+/// family plans stay on the old container (D40).
 struct SpaceService {
     /// The UI warns from this many owned spaces and refuses one past the maximum (§2.2).
     static let warningOwnedSpaces = 100
     static let maximumOwnedSpaces = 250
     /// A space that went stays on this Mac, hidden, this long, for "Keep a personal copy" (§2.5, §9.6).
-    static let goneKeepInterval: TimeInterval = 30 * 86_400
+    static let goneKeepInterval: TimeInterval = 30 * MemoryTutorScheduler.secondsPerDay
     static let kinds: Set<String> = ["team", "family", "notebook", "doc"]
 
     /// `ck_engine_state` scopes of this Mac's own choices about a space.
@@ -308,7 +308,7 @@ struct SpaceService {
     }
 
     /// The Doc space a Doc is shared through (§9.1 `doc`, D5): the one this account owns for it, else a
-    /// new one, shared. Moving the Doc and its Comments into it is `SpaceMoveJob`'s (WP15b); the Doc
+    /// new one, shared. Moving the Doc and its Comments into it is `SpaceMoveJob`'s; the Doc
     /// keeps its `notebookID`, so its notebook still lists it for the owner.
     func docSpace(forArtifact artifactID: String, title: String, owner: SyncPerson) async throws -> SpaceSummary {
         if let held = try await list().first(where: { $0.isOwned && $0.gone == nil && $0.kind == "doc" && $0.primaryID == artifactID }) {
@@ -333,7 +333,7 @@ struct SpaceService {
     /// Mirrors every team and family space this Mac holds into `teams` (§13.7): a new space gets a row
     /// under its space id; a team from generation 1 keeps its row and id, which now names the space's
     /// zone as the library container knows it. A member's identities move from the old container's
-    /// owner name (WP7's provisional zone) to the new one, so their team copies send into the space.
+    /// owner name (the provisional zone) to the new one, so their team copies send into the space.
     func mirrorTeams() async throws {
         try await adoptJoinedTeams()
         let at = now().timeIntervalSinceReferenceDate

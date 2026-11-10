@@ -1,15 +1,6 @@
 // Paper ingestion models and StudioArticle paper-metadata members, moved out of Models.swift.
 
 import Foundation
-import CryptoKit
-import SwiftUI
-import UniformTypeIdentifiers
-import CoreTransferable
-#if os(macOS)
-import AppKit
-#elseif canImport(UIKit)
-import UIKit
-#endif
 
 /// Durable proof that a paper passed the metadata gate required for ingestion.
 /// `predatesGate` (stored as `"legacy"`) marks papers that predate the gate and
@@ -24,7 +15,7 @@ enum PaperIngestionMethod: String, Codable {
     /// attestation has to be able to complete ingestion the model could not.
     case manual
     /// Another of the learner's devices finished this paper's ingestion and its Source
-    /// record arrived `ready` (generation 2: `Source.ingest`, written only after that
+    /// record arrived `ready` (`Source.ingest`, written only after that
     /// device passed the metadata gate). This Mac took its word and neither calls the
     /// Paper Metadata model nor queues the paper for it. Written only by
     /// `SourceProjection` and `InboundSourceFiles`.

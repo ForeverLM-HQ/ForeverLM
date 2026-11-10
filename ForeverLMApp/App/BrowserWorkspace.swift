@@ -597,12 +597,11 @@ final class BrowserWorkspace {
 /// What a click and a response become, in every ForeverLM web view: a Browser
 /// tab and a source's reader follow the same rules, which are a browser's.
 ///
-/// A page is shown whatever its address looks like. The reader used to guess
-/// from the address that a link was a PDF and save whatever came back; SSRN's
-/// Download This Paper (`Delivery.cfm/….pdf`) answers with a page first — a
-/// Cloudflare check, a sign-in — and the saved page read "That link opened a
-/// page, not a PDF" where any browser would have run it and received the file
-/// (2026-09-23). Only the response decides: a PDF on a paper's page is caught
+/// A page is shown whatever its address looks like. The address never
+/// decides that a link is a PDF: SSRN's Download This Paper
+/// (`Delivery.cfm/….pdf`) answers with a page first — a Cloudflare check, a
+/// sign-in — and a guess would save that page as the paper where any browser
+/// would run it and receive the file (2026-09-23). Only the response decides: a PDF on a paper's page is caught
 /// and attached to the paper, another file goes to Downloads, a page is shown.
 enum WebPagePolicy {
     enum ActionDecision: Equatable {
@@ -1582,7 +1581,7 @@ enum WebLinkOpening {
     }
 
     /// The same choice for a SwiftUI `Link` or a link in a `Text`: the
-    /// Studio window's `openURL` (`StudioWebLinkRouting`).
+    /// Studio window's `openURL` (`ForeverLMApp`).
     @MainActor
     static func handle(_ url: URL) -> OpenURLAction.Result {
         guard isWebLink(url) else { return .systemAction }

@@ -3,7 +3,7 @@ import OSLog
 import SwiftUI
 import UIKit
 
-// Spaces on the iPhone (docs/cloudkit-schema-design.md §5.3, §9.1, §9.7, D21; §14.2 WP20): a share of
+// Spaces on the iPhone (docs/cloudkit-schema-design.md §5.3, §9.1, §9.7, D21): a share of
 // the library container the system hands over is accepted into ShareService and walked at once; a
 // notebook of the personal library is shared by asking a Mac to move it into a space
 // (`Job(moveToSpace)`); a notebook in a space shows the system's sharing controller for that space.
@@ -12,7 +12,7 @@ import UIKit
 /// The share invitations the system hands the phone.
 enum MobileShareAcceptance {
     enum Route: Equatable {
-        /// A space of the library container: generation 2's ShareService.
+        /// A space of the library container: ShareService's.
         case space
         /// Not a share this build accepts (another container's, or a build that syncs nothing).
         case notOurs
@@ -53,7 +53,7 @@ enum MobileShareAcceptance {
 }
 
 /// The phone's window scenes, for the one thing SwiftUI's own delegate does not do: take an accepted
-/// CloudKit share (`CKSharingSupported`). Set only on a generation-2 build (`MobileAppDelegate`).
+/// CloudKit share (`CKSharingSupported`). Set only on a build that syncs (`MobileAppDelegate`).
 final class MobileWindowSceneDelegate: UIResponder, UIWindowSceneDelegate {
     func scene(_ scene: UIScene, willConnectTo session: UISceneSession, options connectionOptions: UIScene.ConnectionOptions) {
         if let metadata = connectionOptions.cloudKitShareMetadata {
@@ -83,7 +83,7 @@ extension MobileWrite {
     }
 }
 
-// MARK: - A notebook's Share under generation 2
+// MARK: - A notebook's Share
 
 @MainActor
 final class MobileSpaceShareModel: ObservableObject {

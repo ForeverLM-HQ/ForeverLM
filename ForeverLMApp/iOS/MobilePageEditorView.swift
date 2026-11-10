@@ -16,6 +16,12 @@ import WebKit
 // from outside — a stylesheet and a script injected at load — rather than
 // forking the page, which the Mac and the web keep editing.
 
+/// `value` as a JSON string literal, ready to splice into a script.
+private func javaScriptStringLiteral(_ value: String) -> String {
+    let data = (try? JSONEncoder().encode(value)) ?? Data("\"\"".utf8)
+    return String(data: data, encoding: .utf8) ?? "\"\""
+}
+
 /// One thing a typed link can point at — a page of the same library, a
 /// notebook, an Idea or a chat — as the editor's `setLinkTargets` takes it
 /// (the Mac's `ArtifactPageLinkTarget`). `[[` and `@` list these, filtered as
@@ -405,7 +411,7 @@ struct MobilePageEditorView: UIViewRepresentable {
                 // here anyway is answered, so the panel is not left waiting.
                 guard let requestID = payload["requestID"] as? String, !requestID.isEmpty else { return }
                 message.webView?.evaluateJavaScript(
-                    "window.foreverLMArtifactEditor.failAIEdit(\(Self.jsonString(requestID)), \(Self.jsonString(Self.unavailableAIMessage)));"
+                    "window.foreverLMArtifactEditor.failAIEdit(\(javaScriptStringLiteral(requestID)), \(javaScriptStringLiteral(Self.unavailableAIMessage)));"
                 )
             case "error":
                 report(payload["message"] as? String ?? "The page editor failed to load.")
@@ -532,13 +538,13 @@ struct MobilePageEditorView: UIViewRepresentable {
         private func startupScript() -> String {
             "window.foreverLMArtifactEditor.setPageWidth(\(Double(MobilePageEditorView.pageMaxWidth))); "
                 + Self.editableScript(isEditable)
-                + " window.foreverLMArtifactEditor.create(\(Self.jsonString(heldText)), \(Double(fontSize))); true;"
+                + " window.foreverLMArtifactEditor.create(\(javaScriptStringLiteral(heldText)), \(Double(fontSize))); true;"
         }
 
         /// The body with the page's key. The phone keeps no folds, so a page
         /// opens unfolded; the editor keeps those of the page it holds.
         private func setMarkdownScript() -> String {
-            "window.foreverLMArtifactEditor.setMarkdown(\(Self.jsonString(heldText)), { key: \(Self.jsonString(pageID)), folds: \"\" });"
+            "window.foreverLMArtifactEditor.setMarkdown(\(javaScriptStringLiteral(heldText)), { key: \(javaScriptStringLiteral(pageID)), folds: \"\" });"
         }
 
         private static let serializedMarkdownScript = "window.foreverLMArtifactEditor.serializedMarkdown();"
@@ -551,11 +557,6 @@ struct MobilePageEditorView: UIViewRepresentable {
 
         private static func editableScript(_ editable: Bool) -> String {
             "window.foreverLMArtifactEditor.setEditable(\(editable));"
-        }
-
-        private static func jsonString(_ value: String) -> String {
-            let data = (try? JSONEncoder().encode(value)) ?? Data("\"\"".utf8)
-            return String(data: data, encoding: .utf8) ?? "\"\""
         }
 
         private static func sameTitle(_ left: String, _ right: String) -> Bool {
@@ -650,13 +651,8 @@ enum MobilePageEditorAddress {
 enum MobilePageEditorTouch {
     static let script: String = scriptSource.replacingOccurrences(
         of: "__FOREVERLM_STYLESHEET__",
-        with: jsonString(stylesheet)
+        with: javaScriptStringLiteral(stylesheet)
     )
-
-    private static func jsonString(_ value: String) -> String {
-        let data = (try? JSONEncoder().encode(value)) ?? Data("\"\"".utf8)
-        return String(data: data, encoding: .utf8) ?? "\"\""
-    }
 
     static let stylesheet = #"""
     html { -webkit-text-size-adjust: 100%; }

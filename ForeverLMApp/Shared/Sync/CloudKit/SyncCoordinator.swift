@@ -8,17 +8,17 @@ import OSLog
 /// and sends every owned and joined space, and BlobStore and ShareService run on the same transport
 /// and pacers. It publishes `SyncStatus`. Only a generation-2 build with a library container starts
 /// it (`start` refuses otherwise), and nothing starts it before the activation is wired into the
-/// launch (WP16a); pushes reach it through `handleRemoteNotification(from:)`, and an accepted share
+/// launch; pushes reach it through `handleRemoteNotification(from:)`, and an accepted share
 /// through `acceptShare`.
 /// Work a device runs inside each private round (§6.2 step 4, D44): after the fetch, bringing in the
 /// bodies inbound pointers named; before the send, publishing the bodies that went idle, so their
-/// pointers go out in the same round. The Mac's is `DocBodySync` (WP11).
+/// pointers go out in the same round. The Mac's is `DocBodySync`.
 protocol SyncRoundHooks: Sendable {
     func afterFetch() async
     func beforeSend() async
 }
 
-/// The Mac's maintenance (`MaintenanceService`, WP17): the compaction gate before the engine starts,
+/// The Mac's maintenance (`MaintenanceService`): the compaction gate before the engine starts,
 /// so a device back from a long absence discards its engine state and re-fetches before it sends
 /// (§3.2 rule 4); after each round, the lease and the work its holder runs.
 protocol SyncMaintenanceHooks: Sendable {
@@ -50,13 +50,13 @@ actor SyncCoordinator {
     private(set) var status = SyncStatus()
     private var onStatus: (@Sendable (SyncStatus) -> Void)?
     private var lastPushFetch: Date?
-    /// What the device runs between a round's fetch and its send (the Mac's Doc and notes bodies, WP11).
+    /// What the device runs between a round's fetch and its send (the Mac's Doc and notes bodies).
     private var roundHooks: (any SyncRoundHooks)?
     /// What the device does after each round: the Mac's one chain of Job runs, move work and cutover ticks
-    /// (`MacSyncSession.wire`, WP16).
+    /// (`MacSyncSession.wire`).
     private var afterRound: (@Sendable () async -> Void)?
     /// What the Mac runs before the engine starts and after each round: the compaction gate, then the
-    /// lease, the Device record, GC and the janitor (`MaintenanceService`, WP17). `caughtUp` says the
+    /// lease, the Device record, GC and the janitor (`MaintenanceService`). `caughtUp` says the
     /// round took every private zone and every space to the end, which the janitor and GC wait for.
     private var maintenance: (any SyncMaintenanceHooks)?
     private var privateFetchCompleted = false
@@ -402,7 +402,7 @@ actor SyncCoordinator {
 
     /// An invitation the system handed over (`userDidAcceptCloudKitShareWith`): accepted, then the
     /// space is walked at once (§9.7). `prepare` runs between the two: the Mac moves a joined team's
-    /// identities to the space there, so its first walk lands on the team's rows (WP15).
+    /// identities to the space there, so its first walk lands on the team's rows.
     @discardableResult
     func acceptShare(_ invitation: CloudShareInvitation, prepare: (@Sendable (SpaceZone) async throws -> Void)? = nil) async throws -> SpaceZone {
         let zone = try await shares.accept(invitation)
@@ -412,7 +412,7 @@ actor SyncCoordinator {
     }
 
     /// "Upload my library to iCloud again" (§2.5): forgets the old zones, then bootstraps as a device
-    /// that never held a root. The seed that uploads the library follows it (WP16).
+    /// that never held a root. The seed that uploads the library follows it.
     func uploadAgain() async throws {
         try await store.perform { try PurgeHandler.reupload(in: $0) }
         uploadGeneration += 1

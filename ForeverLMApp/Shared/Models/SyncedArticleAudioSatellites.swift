@@ -1,7 +1,7 @@
 import Foundation
 
 // A narration as a source's satellites (docs/cloudkit-schema-design.md §3.5.30 `files.audio.<voiceKey>`,
-// children `audioChunk`; D29; §14.2 NARR2 and NARR3). Under generation 2 the replica holds a narration, not
+// children `audioChunk`; D29; §14.2 NARR2 and NARR3). The replica holds a narration, not
 // iCloud Drive: the manifest is the `audio.<voiceKey>` satellite (`SyncedArticleAudioManifest` as JSON, gzip)
 // and each chunk a child satellite of role `audioChunk` keyed by the chunk's file name.
 //

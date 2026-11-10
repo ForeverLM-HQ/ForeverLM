@@ -40,8 +40,8 @@ struct ExplainerToolbarButton: View {
 /// The explainer's menu items: **Open Explainer** when the source has one,
 /// then **Generate Explainer** / **Rewrite Explainer**, or **Cancel Writing
 /// Explainer** while a write is in flight. The sidebar's context menu and the
-/// reader's ⋯ menu both offer them; since 2026-10-06 (Quiet chrome) the ⋯ is
-/// the Reader's only way to them, the toolbar's lightbulb having gone.
+/// reader's ⋯ menu both offer them; the ⋯ is the Reader's only way to
+/// them (Quiet chrome), the toolbar having no lightbulb.
 ///
 /// Nothing here without `GeneratedExplainer.canExplain(article)`: a paper
 /// still being ingested, or an explainer itself, offers no explainer.

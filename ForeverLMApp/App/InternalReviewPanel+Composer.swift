@@ -2,8 +2,6 @@
 import SwiftUI
 import Combine
 import UniformTypeIdentifiers
-import PDFKit
-import WebKit
 import AppKit
 
 extension InternalReviewPanelContent {
@@ -904,9 +902,9 @@ extension InternalReviewPanelContent {
     /// header ⋯'s "Open “<page>” — <section>", falling back to the page alone
     /// when the passage sat under no heading. It brings the page forward, so
     /// the round trip with the page's Discussion closes in both directions.
-    /// A line over the composer said "From <page> — <section>" for the whole
-    /// chat until 2026-10-06 (the ChatGPT composer: nothing stays over the
-    /// field that the learner did not just put there).
+    /// No line over the composer says "From <page> — <section>" for the whole
+    /// chat (the ChatGPT composer: nothing stays over the field that the
+    /// learner did not just put there).
     func docOriginMenuTitle(for entry: ArtifactChatLink) -> String {
         let title = vm.artifacts.first { $0.id == entry.link.artifactID }?.title
             .trimmingCharacters(in: .whitespacesAndNewlines)

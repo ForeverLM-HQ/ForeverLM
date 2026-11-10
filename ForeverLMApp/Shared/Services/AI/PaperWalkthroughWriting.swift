@@ -449,8 +449,7 @@ enum PaperWalkthroughWriting {
     /// The text the writer sees: whole when it fits, else the opening budget
     /// with a flag so the prompt can say the end is missing.
     static func budgeted(_ text: String) -> (text: String, truncated: Bool) {
-        guard text.count > sourceCharacterBudget else { return (text, false) }
-        return (String(text.prefix(sourceCharacterBudget)), true)
+        ExplainerScript.budgeted(text)
     }
 
     /// The words a figure's row is read for: its own caption, or — for

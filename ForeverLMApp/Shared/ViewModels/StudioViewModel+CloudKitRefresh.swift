@@ -1,16 +1,10 @@
 // Reacting to CloudKit changes and resuming source work.
 
 import Foundation
-import CryptoKit
-import Observation
 import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
-import SwiftUI
-import AppKit
-import SQLite3
-import WebKit
 import Darwin
 
 extension StudioViewModel {
@@ -88,10 +82,10 @@ extension StudioViewModel {
     /// The drain lives in a task of its own, outside the debounce, because this
     /// event is posted by every `saveSource` — including the saves the drain
     /// itself makes, and those made concurrently by metadata extraction, artwork
-    /// backfill, and incoming sync. Cancelling the debounce task used to cancel
-    /// the drain with it, and every source still mid-flight in that batch threw
-    /// a cancellation that the queue recorded as the source's own failure. A
-    /// batch of imported papers could park itself wholesale that way.
+    /// backfill, and incoming sync. Were it inside the debounce task, cancelling that
+    /// task would cancel the drain with it, and every source still mid-flight in
+    /// that batch would throw a cancellation that the queue records as the
+    /// source's own failure, parking a batch of imported papers wholesale.
     ///
     /// Coalescing is kept: a second call while a drain runs sets a flag instead
     /// of starting a rival batch, and the drain starts again when it finishes.

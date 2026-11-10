@@ -1,7 +1,6 @@
 // The sidebar toggle and the place arrows.
 import SwiftUI
 import AppKit
-import UniformTypeIdentifiers
 
 // MARK: - Sidebar toggle
 

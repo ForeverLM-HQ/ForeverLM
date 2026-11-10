@@ -1,8 +1,6 @@
 import SwiftUI
 import Combine
 import UniformTypeIdentifiers
-import PDFKit
-import WebKit
 import AppKit
 
 func notebookCanAcceptCurrentDrag(goal: LearningGoalRecord, dragVisibility: StudioDragVisibility) -> Bool {
@@ -290,7 +288,7 @@ struct NotebookSourcePoolView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
             if let column {
-                // No "Sources" heading over the field since 2026-10-06: the
+                // No "Sources" heading over the field: the
                 // notebook's name heads the column above it
                 // (`NotebookWorkspaceView.notebookTitle`), and the field says
                 // what it searches.

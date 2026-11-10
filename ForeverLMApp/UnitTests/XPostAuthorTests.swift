@@ -6,15 +6,6 @@ import SQLite3
 // MARK: - Helpers
 
 @MainActor
-private func makeViewModel() -> StudioViewModel {
-    let tmp = FileManager.default.temporaryDirectory
-        .appendingPathComponent("XPostAuthorTests_\(UUID().uuidString)")
-    try? FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
-    let service = StorageService(storeRoot: tmp)
-    return StudioViewModel(storageService: service)
-}
-
-@MainActor
 private func makeXPost(
     username: String,
     tweetID: String = "1",

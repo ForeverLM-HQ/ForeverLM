@@ -3,10 +3,9 @@ import Foundation
 // MARK: - Memory as cards: the cards to check
 //
 // docs/memory-design.md, "Cards to check". Stage four of memory as cards: cards
-// drafted from a source wait in its draft deck (`FlashcardDeck`: under
-// generation 2 the source's draft Cards, `KnowledgeStore.cardRecordDecks`,
-// whose kept item is the Card's own id; under generation 1 a private Artifact,
-// whose kept item is `MemoryTutorIdentity.cardItemID` of the deck card) until
+// drafted from a source wait in its draft deck (`FlashcardDeck`: the
+// source's draft Cards, `KnowledgeStore.cardRecordDecks`, whose kept item is
+// the Card's own id) until
 // the learner goes through them — Keep, Edit, Skip — in the Memory pane's To
 // Check. Everything here is pure (Foundation only): which cards wait, in what order, and what a
 // decision writes; storage reads the decks and the state rows, and the Memory

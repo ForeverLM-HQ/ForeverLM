@@ -1,13 +1,8 @@
 // Playback rate, remote commands, now playing info and the synced audio manifest.
 #if os(macOS)
-import AVFoundation
-import CryptoKit
 import Foundation
 import MediaPlayer
-import os
-import PDFKit
 import SwiftUI
-import WebKit
 
 extension ArticleSpeechService {
     func applyAudioPlaybackRate() {

@@ -1,15 +1,6 @@
 // Review session models, moved out of Models.swift.
 
 import Foundation
-import CryptoKit
-import SwiftUI
-import UniformTypeIdentifiers
-import CoreTransferable
-#if os(macOS)
-import AppKit
-#elseif canImport(UIKit)
-import UIKit
-#endif
 
 // MARK: - Review Session Links
 
@@ -150,6 +141,12 @@ struct ReviewSessionRecord: Identifiable, Codable, Equatable {
     }
 
     var modelDisplayName: String? {
+        Self.modelDisplayName(modelID: modelID, modelProvider: modelProvider)
+    }
+
+    /// A stored model id as a reader sees it, e.g. "Claude Opus 5"; the raw id
+    /// when its provider is not one the app knows; nil for no model.
+    static func modelDisplayName(modelID: String?, modelProvider: String?) -> String? {
         guard let modelID, !modelID.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return nil
         }

@@ -4,12 +4,11 @@ import WebKit
 
 /// The whole chat transcript as one web page.
 ///
-/// The transcript used to be a lazy SwiftUI list with every reply its own
-/// `WKWebView`. The list placed a reply before its page could say how tall it
-/// was, so it guessed, the page answered a few frames later, and the
-/// difference moved the text under the learner's scroll; height memory, scroll
-/// anchoring and measuring ahead each hid one case of it. Here one page holds
-/// the whole conversation: the browser lays it out, scrolls it, and keeps the
+/// A lazy SwiftUI list with every reply its own `WKWebView` places a reply
+/// before its page can say how tall it is, so it guesses, the page answers a
+/// few frames later, and the difference moves the text under the learner's
+/// scroll; height memory, scroll anchoring and measuring ahead each hide one
+/// case of it. Here one page holds the whole conversation: the browser lays it out, scrolls it, and keeps the
 /// learner's place when something above changes, as Codex's and Claude's
 /// desktop apps draw theirs. Nothing reports a height, so nothing is guessed.
 ///

@@ -1,10 +1,10 @@
 import Foundation
 import OSLog
 
-// The narration a switched phone makes (docs/cloudkit-schema-design.md §3.5.30 `files.audio.<voiceKey>`,
-// children `audioChunk`; D29; §14.2 NARR2). Under generation 2 the replica holds a narration as its
-// source's satellites, not as files in iCloud Drive: the manifest is the `audio.<voiceKey>` satellite
-// (`SyncedArticleAudioManifest` as JSON, gzip) and each chunk a child satellite of role `audioChunk`
+// The narration the phone makes (docs/cloudkit-schema-design.md §3.5.30 `files.audio.<voiceKey>`,
+// children `audioChunk`; D29). The replica holds a narration as its source's satellites, not as
+// files in iCloud Drive: the manifest is the `audio.<voiceKey>` satellite (`SyncedArticleAudioManifest`
+// as JSON, gzip) and each chunk a child satellite of role `audioChunk`
 // keyed by the chunk's file name, which is what every reader on the phone already expects
 // (`MobileNarrationChunks`, `MobileAudioOverviewNarrationStore`, `MobileOfflineLibrary`).
 //
@@ -53,7 +53,7 @@ typealias MobileNarrationLocal = NarrationLocal
 typealias MobileNarrationReplica = NarrationReplica
 typealias MobileNarrationPlan = NarrationPlan
 
-/// The phone's narration under generation 2: reconciles its working folder with the replica (laying
+/// The phone's narration: reconciles its working folder with the replica (laying
 /// down what other devices made, uploading what this phone made), and brings a narration's chunks down
 /// from their satellites when something plays them. Opening a narration writes nothing synced (P9); only
 /// a narration this phone generated is ever uploaded.
@@ -200,10 +200,10 @@ actor MobileNarrationLibrary {
         }
         switch publishing {
         case .awaiting:
-            for id in uploads { _ = try? await publish(sourceID: id) }
+            for id in uploads { await publishLoggingFailure(sourceID: id) }
         case .background:
             for id in uploads {
-                Task(priority: .utility) { [self] in _ = try? await publish(sourceID: id) }
+                Task(priority: .utility) { [self] in await publishLoggingFailure(sourceID: id) }
             }
         }
     }
@@ -260,6 +260,15 @@ actor MobileNarrationLibrary {
     }
 
     // MARK: - Uploading
+
+    /// `publish(sourceID:)` for a caller that has nobody to tell: a failure is logged.
+    private func publishLoggingFailure(sourceID: String) async {
+        do {
+            try await publish(sourceID: sourceID)
+        } catch {
+            Self.logger.error("Uploading a narration failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
 
     /// Uploads a narration this phone made: every chunk as a child satellite, then the manifest, each
     /// acknowledged before anything points at it, then the source's pointer (§3.5.30 rule 2). Returns

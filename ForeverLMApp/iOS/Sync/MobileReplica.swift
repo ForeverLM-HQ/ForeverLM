@@ -5,7 +5,7 @@ import OSLog
 /// carried in Info.plist as `ForeverLMCloudKitEnvironment` from the `FOREVERLM_CLOUDKIT_ENVIRONMENT` build
 /// setting: Development for Debug, Production for Release. Development and Production are separate
 /// copies of every container with the same record names, so synced state kept on the phone (the
-/// generation-1 mirror and its change token, the generation-2 replica) is kept apart per environment:
+/// replica and its change token) is kept apart per environment:
 /// a Debug install, which shares the app's container with a TestFlight one, never reads Production's
 /// tokens against Development or the other way round (docs/cloudkit-schema-design.md §2.1 C4).
 enum MobileCloudKitEnvironment: String, Sendable {
@@ -172,16 +172,16 @@ struct MobileIndexTable {
 /// queue that owns the connection, never on the main actor, so an apply's transaction never spans an
 /// await and nothing else writes inside it. What the phone writes reaches the replica as RecordPatches
 /// (`ck_patches`, §6.6), which an inbound record merges with (`InboundApply`) and the index shows merged;
-/// `MobileRecordWriter` makes them and `MobilePatchOutbox` sends them. Nothing runs under generation 1.
+/// `MobileRecordWriter` makes them and `MobilePatchOutbox` sends them.
 final class MobileReplica: PrivateSyncLocalStore, PrivateSyncLocalState, @unchecked Sendable {
     /// The index tables' version. A build that changes a table or a column moves it, and the next open
     /// builds the index again from the replica's records (`rebuildIndex`), the one time every record is
-    /// decoded outside an apply. 2: the columns the screens' read models need (WP19b) and the
+    /// decoded outside an apply. 2: the columns the screens' read models need and the
     /// ActivityLog table the Memory grid folds. 3: the Sittings the phone writes and reads back (its
-    /// quiz scores, its review answers, a learning bout's break; WP20b). 4: a course's retired
+    /// quiz scores, its review answers, a learning bout's break). 4: a course's retired
     /// `notebookID` and `homing` leave `m_courses`, since a notebook lists the courses it follows
     /// (spec revision 9). 5: the Schedule's Placements, the member's Highlights, and each ActivityLog's
-    /// sources, which the Schedule folds into activity days (WP20c). 6: a PDF book chapter's run of
+    /// sources, which the Schedule folds into activity days. 6: a PDF book chapter's run of
     /// its book's pages (`meta.pageStart`, `meta.pageCount`), since its url no longer ends in `.pdf`.
     static let indexVersion: Int64 = 6
     static let fileName = "ForeverLMReplica.sqlite"
@@ -471,13 +471,13 @@ final class MobileReplica: PrivateSyncLocalStore, PrivateSyncLocalState, @unchec
     private func index(_ envelope: SyncEnvelope, in table: MobileIndexTable, zoneKey: String, recordName: String?) throws {
         guard envelope.type == table.type.rawValue else { return }
         try connection.execute(table.upsertStatement, [.text(zoneKey), .text(envelope.id), .text(recordName)] + table.columns.map { $0.value(envelope) })
-        // A source's metadata is searchable from the same apply (WP21).
+        // A source's metadata is searchable from the same apply.
         if table.type == .source { try MobileTextIndex.index(envelope, zoneKey: zoneKey, in: connection) }
     }
 
     /// Indexes one record again from what the phone holds: the replica's version with its pending patch
     /// laid over it, the patch alone for a record created here and not acknowledged yet, or nothing,
-    /// which removes the row. The writer calls it inside its transaction after it saves a patch (WP20).
+    /// which removes the row. The writer calls it inside its transaction after it saves a patch.
     func reindex(zoneKey: String, type: SyncRecordType, wireID: String) throws {
         guard let table = Self.indexTable(for: type) else { return }
         var held = try replica.record(zoneKey: zoneKey, recordType: type.rawValue, wireID: wireID)

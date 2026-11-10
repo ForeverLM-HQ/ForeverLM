@@ -5,7 +5,7 @@ import SwiftUI
 /// as the stretches of the clock it happened in.
 ///
 /// It reads the day's log (`day_activities`) — the minute-by-minute record the
-/// Activity pane draws — and not the per-day ledger it used to list. The ledger
+/// Activity pane draws — and not the per-day ledger. The ledger
 /// (`source_activity_days`) says a source was *touched* on a day, and too many
 /// things touch a source: a memory review created at 07:00 with thirty
 /// candidates attached stamped all thirty "Reviewed" (product owner, 2026-09-22: "it
@@ -291,19 +291,10 @@ enum ActivityHistory {
         if lhs.endMinute != rhs.endMinute { return lhs.endMinute > rhs.endMinute }
         return lhs.id < rhs.id
     }
-
-    static func durationText(_ minutes: Int) -> String {
-        let hours = minutes / 60
-        let rest = minutes % 60
-        if hours == 0 { return "\(rest)m" }
-        if rest == 0 { return "\(hours)h" }
-        return "\(hours)h \(rest)m"
-    }
 }
 
-/// Activity › History: every day's time spent, a month at a time. Lived in
-/// Settings until 2026-09-24; it is a log, not a setting, so it is the
-/// Activity pane's third layout now.
+/// Activity › History: every day's time spent, a month at a time.
+/// It is a log, not a setting, so it is the Activity pane's third layout.
 struct ActivityHistoryListView: View {
     @Environment(StudioViewModel.self) private var vm
 
@@ -354,7 +345,7 @@ struct ActivityHistoryListView: View {
             VStack(alignment: .leading, spacing: 16) {
                 // A small menu, and only while the days hold more than one
                 // kind to tell apart (or a filter is on, so it can be taken
-                // off): a segmented control of five until 2026-10-06.
+                // off).
                 if filter != .all || ActivityHistory.filters(in: listing.all).count > 1 {
                     filterMenu(ActivityHistory.filters(in: listing.all))
                 }
@@ -445,9 +436,8 @@ struct ActivityHistoryListView: View {
             .padding(.leading, 4)
             showEarlierButton
         } else {
-            // Lazy for the reason the old pane found the hard way: an eager
-            // stack of a month of rows is walked on every accessibility focus
-            // update, which beachballed the window it sat in.
+            // Lazy because an eager stack of a month of rows is walked on every
+            // accessibility focus update, which beachballs the window it sits in.
             LazyVStack(alignment: .leading, spacing: 24) {
                 ForEach(days) { day in
                     HistoryDaySection(day: day, sourceFacts: sourceFacts, articles: vm.articlesById)
@@ -542,11 +532,11 @@ private struct HistoryDaySection: View {
     }
 
     /// What the times are, on the day's total rather than under every list
-    /// (a footnote under History until 2026-10-06).
+    /// rather than as a footnote under History.
     private static let clockExplanation = "Times are what ForeverLM saw on this Mac: a source open in the Reader while the app is in front, audio playing, a chat turn, a Page being saved. Opening something and leaving within two minutes is a glance. Being material for a memory review, or cited in a chat, is not time spent."
 
     /// The day's heading, then its rows grouped under it with no card
-    /// around them (a Settings card each until 2026-10-06).
+    /// around them.
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
@@ -554,7 +544,7 @@ private struct HistoryDaySection: View {
                     .font(.system(size: 12, weight: .semibold))
                     .foregroundStyle(.secondary)
                 if day.loggedMinutes > 0 {
-                    Text("· \(ActivityHistory.durationText(day.loggedMinutes)) on the clock")
+                    Text("· \(DayActivityText.durationText(day.loggedMinutes)) on the clock")
                         .font(.system(size: 12))
                         .foregroundStyle(.tertiary)
                         .textSelection(.disabled)
@@ -702,7 +692,7 @@ private struct HistoryBlockRow: View {
 
             HStack(spacing: 4) {
                 ForEach(block.orderedParts, id: \.part) { entry in
-                    HistoryChip(text: "\(entry.part.label) \(ActivityHistory.durationText(entry.minutes))")
+                    HistoryChip(text: "\(entry.part.label) \(DayActivityText.durationText(entry.minutes))")
                 }
             }
         }
@@ -716,7 +706,7 @@ private struct HistoryUntimedRow: View {
 
     private var label: String {
         if entry.engagedMinutes > 0 {
-            let time = "\(entry.part.label) \(ActivityHistory.durationText(entry.engagedMinutes))"
+            let time = "\(entry.part.label) \(DayActivityText.durationText(entry.engagedMinutes))"
             return entry.isFinished ? "\(time), finished" : time
         }
         return "\(entry.part.label), finished"

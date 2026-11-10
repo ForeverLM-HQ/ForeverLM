@@ -1,14 +1,8 @@
 import Foundation
-import CryptoKit
-import Observation
 import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
-import SwiftUI
-import AppKit
-import SQLite3
-import WebKit
 import Darwin
 
 extension StudioViewModel {
@@ -235,7 +229,11 @@ extension StudioViewModel {
         do {
             try await storage.renameBookGroup(from: groupName, to: value)
             for article in articles where ids.contains(article.id) {
-                try? await storage.saveSource(article)
+                do {
+                    try await storage.saveSource(article)
+                } catch {
+                    logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+                }
             }
         } catch {
             logger.error("Failed to rename book: \(error.localizedDescription)")

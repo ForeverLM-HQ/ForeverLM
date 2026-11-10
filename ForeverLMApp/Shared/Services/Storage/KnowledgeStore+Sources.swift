@@ -1,6 +1,5 @@
 import Foundation
 import SQLite3
-import OSLog
 import CloudKit
 
 /// What Mark as Watched or Mark as Not Watched left on a source

@@ -1,7 +1,6 @@
 // The current macOS user.
 import SwiftUI
 import AppKit
-import UniformTypeIdentifiers
 
 // MARK: - Current macOS user
 
@@ -12,7 +11,7 @@ enum MacAccountUser {
     static let displayNamePreferenceKey = "account.displayName"
     /// Synced: whether the account menu shows a complimentary account's
     /// "Usage is paid for" row with its crown, and the web's footer its crown
-    /// (the Mac's account button carried one too until 2026-10-06). On unless
+    /// (the Mac's account button carries none). On unless
     /// the learner hides them, for a screenshot or a recording; Settings ›
     /// AI Usage still says who pays.
     static let showsCompCrownPreferenceKey = "account.showsCompCrown"

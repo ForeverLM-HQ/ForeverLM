@@ -402,10 +402,9 @@ final class MobileOfflineLibrary: ObservableObject {
         }
     }
 
-    /// Generation 2 (docs/cloudkit-schema-design.md §2.3, §8b): a saved source's files are its
-    /// satellites, kept durable for it (`MobileSatelliteHolder.source`): the paper's document, a
-    /// chapter's document or reader page, and its narration with every chunk, which no longer lives in
-    /// iCloud Drive for the phone to materialize. The text is saved above, as on generation 1. A
+    /// A saved source's files are its satellites (docs/cloudkit-schema-design.md §2.3, §8b), kept
+    /// durable for it (`MobileSatelliteHolder.source`): the paper's document, a chapter's document or
+    /// reader page, and its narration with every chunk, which does not live in iCloud Drive. The text is saved above. A
     /// chapter kept as a run of its book's pages keeps the book's file, which every saved chapter of
     /// that book keeps as a hard link to one copy, so a whole book saved is stored once.
     private func saveSatellites(of source: MobileCloudSource, satellites: MobileSatellites) async {
@@ -433,8 +432,8 @@ final class MobileOfflineLibrary: ObservableObject {
         }
     }
 
-    /// What a saved source takes on this phone: its saved text and files, and under generation 2 the
-    /// satellites kept for it.
+    /// What a saved source takes on this phone: its saved text and files, and the satellites
+    /// kept for it.
     private func byteCount(sourceID: String) async -> Int64 {
         let saved = await store.byteCount(sourceID: sourceID)
         guard let satellites = await MobileSatellites.current() else { return saved }

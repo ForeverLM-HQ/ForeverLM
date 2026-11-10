@@ -27,7 +27,7 @@ struct ReaderHighlightCard: Identifiable, Equatable {
 }
 
 /// A side chat over words selected in the Reader: the popover a reply's side
-/// chat is (`ChatReplySideChat`), hung off a passage in a source instead. It
+/// chat is (`ReviewChatSideChatPopover`), hung off a passage in a source instead. It
 /// stays until its X is clicked, and the next one replaces it.
 struct ReaderSideChat: Identifiable {
     let sourceID: String

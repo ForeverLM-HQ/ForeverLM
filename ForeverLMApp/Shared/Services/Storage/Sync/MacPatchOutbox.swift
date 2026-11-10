@@ -5,7 +5,7 @@ import Foundation
 /// The Mac's `ck_patches` rows as the changes the private engine and SpaceSync send: late import's patches,
 /// stamped with the old records' modification dates, and listen positions read from iCloud Drive files. The
 /// outbox feeder sends rows the triggers recorded and nothing else, which is why the first package that
-/// writes patches on the Mac adds this (WP4c's open item). It is the Mac twin of the phone's
+/// writes patches on the Mac adds this. It is the Mac twin of the phone's
 /// `MobilePatchOutbox`.
 ///
 /// Each patch goes onto the raw payload the replica holds (a new envelope for a record made here) and is

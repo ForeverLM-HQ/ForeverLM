@@ -1,9 +1,6 @@
 // Part of ReviewSessionManager: sending, queued follow-ups, retry and take-back.
 
 import Foundation
-import Observation
-import PDFKit
-import os
 
 extension ReviewSessionManager {
     func sendAnswer(

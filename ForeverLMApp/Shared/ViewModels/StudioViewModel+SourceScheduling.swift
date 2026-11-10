@@ -1,16 +1,10 @@
 // Scheduling sources, notebook membership and review session actions.
 
 import Foundation
-import CryptoKit
-import Observation
 import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
-import SwiftUI
-import AppKit
-import SQLite3
-import WebKit
 import Darwin
 
 extension StudioViewModel {
@@ -194,7 +188,7 @@ extension StudioViewModel {
     func markScheduleSourceDone(sourceID: String) async {
         // The checkbox reflects the click immediately; the storage actor can be
         // seconds behind during a CloudKit merge, and the write plus four
-        // reloads used to gate any visible change.
+        // reloads would gate any visible change.
         applyLocalScheduleCompletion(sourceID: sourceID, completedAt: Date())
         do {
             // Completion is shared across every goal the placement belongs to.

@@ -1,6 +1,5 @@
 import BackgroundTasks
 import Foundation
-import UIKit
 import UserNotifications
 
 /// Prepares today's memory review chat on the phone, and sends the daily

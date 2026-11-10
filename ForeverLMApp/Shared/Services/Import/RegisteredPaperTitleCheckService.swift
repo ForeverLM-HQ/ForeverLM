@@ -115,7 +115,11 @@ actor RegisteredPaperTitleCheckService {
         let title = candidate.title
         guard !doi.isEmpty, !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             // The DOI or the title went away since the row was staged.
-            try? await storage.completeRegisteredPaperTitleCheck(sourceID: candidate.sourceID)
+            do {
+                try await storage.completeRegisteredPaperTitleCheck(sourceID: candidate.sourceID)
+            } catch {
+                logger.error("Could not complete the registered-title check: \(error.localizedDescription, privacy: .public)")
+            }
             return .answered
         }
         let answer = await lookup(doi)
@@ -148,13 +152,21 @@ actor RegisteredPaperTitleCheckService {
                 return .unanswered
             }
         case .unregistered:
-            try? await storage.completeRegisteredPaperTitleCheck(sourceID: candidate.sourceID)
+            do {
+                try await storage.completeRegisteredPaperTitleCheck(sourceID: candidate.sourceID)
+            } catch {
+                logger.error("Could not complete the registered-title check: \(error.localizedDescription, privacy: .public)")
+            }
             return .answered
         case .unavailable(let message):
-            try? await storage.recordRegisteredPaperTitleCheckFailure(
-                sourceID: candidate.sourceID,
-                message: message
-            )
+            do {
+                try await storage.recordRegisteredPaperTitleCheckFailure(
+                    sourceID: candidate.sourceID,
+                    message: message
+                )
+            } catch {
+                logger.error("Could not record the registered-title check failure: \(error.localizedDescription, privacy: .public)")
+            }
             return .unanswered
         }
     }

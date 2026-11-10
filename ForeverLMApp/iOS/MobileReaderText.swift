@@ -156,7 +156,7 @@ enum MobileReaderText {
     }
 
     /// The reader document for a source that synced real markup rather than text:
-    /// an EPUB chapter or archived article, published as `sourceReaderHTMLAsset`
+    /// an EPUB chapter or archived article, published as the `readerHTML` satellite
     /// with every figure inlined as a `data:` URI. Rendering that markup is the whole point —
     /// escaping it would be the plain-text reader again, with the images gone.
     ///

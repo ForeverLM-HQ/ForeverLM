@@ -1,4 +1,3 @@
-import CloudKit
 import Foundation
 import OSLog
 
@@ -81,7 +80,7 @@ struct CutoverSeedEnvironment: Sendable {
     /// P4b and P5: bytes recovered from the old container, then satellites uploaded (`CutoverSatellites`).
     var recoverBytes: (@Sendable () async throws -> Void)?
     var uploadSatellites: (@Sendable () async throws -> CutoverSatelliteTotals)?
-    /// P6: WP15's `TeamToSpace` (the key names the pass's manifest delta).
+    /// P6: `TeamToSpace` (the key names the pass's manifest delta).
     var runTeams: (@Sendable (_ passKey: String) async throws -> Void)?
     var progress: @Sendable (CutoverSeedPhase) -> Void = { _ in }
 }
@@ -312,7 +311,11 @@ actor CutoverSeeder {
     }
 
     private func releaseGate() async {
-        _ = try? await env.store.perform { try CutoverSeedGate.hold([], in: $0.connection) }
+        do {
+            _ = try await env.store.perform { try CutoverSeedGate.hold([], in: $0.connection) }
+        } catch {
+            Self.logger.error("The seed gate was not released: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     private func passRunner(decider: SeedRowDecider, prefix: String) -> SeedPassRunner {

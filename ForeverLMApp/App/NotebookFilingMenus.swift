@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// Add to Notebook ▸ and Remove from <Notebook>: the two items a made
-/// thing's menu carries for the notebooks it lives in (shell stage 4;
-/// docs/notebooks-design.md, "Homing"). The submenu lists the open library's
+/// thing's menu carries for the notebooks it lives in
+/// (docs/notebooks-design.md, "Homing"). The submenu lists the open library's
 /// notebooks that take new things, those holding most of the thing's sources
 /// first under Suggested (`NotebookMembership.suggestions`), then the rest by
 /// title; a notebook the thing lives in already is offered as Remove instead.

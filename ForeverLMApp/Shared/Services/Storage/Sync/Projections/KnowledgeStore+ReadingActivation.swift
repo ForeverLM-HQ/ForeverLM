@@ -18,7 +18,7 @@ extension KnowledgeStore {
     /// Tests stand in for iCloud Drive here, per task.
     @TaskLocal static var listenFileProbeOverride: (@Sendable ([String]) -> [String: ListenFileProbe])?
 
-    /// WP12's derivations, after WP7's wire ids: the team copies' per-member rows on wire ids, then each
+    /// The derivations for reading state, after the wire ids: the team copies' per-member rows on wire ids, then each
     /// work's reading state from generation-1 truth, then the Understanding documents queued for their
     /// layout. Each is idempotent, bounded by the library, in its own transaction, and reads
     /// generation-1 truth only, so a run after generation-1 edits reflects them.
@@ -33,7 +33,7 @@ extension KnowledgeStore {
     /// Re-keys the per-member rows of team copies (local ids) to their wire ids, the personal copy's.
     /// Where one meets the personal copy's row, the two merge column by column: the later time wins,
     /// and the ideas discussed are the union. Highlights, placements, card sources and dismissals are
-    /// re-keyed with their readers (WP12b).
+    /// re-keyed with their readers.
     func rekeyTeamCopiesPerMemberRows() throws {
         for (table, time) in [
             ("hidden_sources", "hidden_at"), ("hidden_podcast_episodes", "hidden_at"),
@@ -220,7 +220,7 @@ extension KnowledgeStore {
 
     /// Lays out up to `limit` queued Understanding documents: each file read once, gzipped into the
     /// staging folder, its FileRef (owned by the ReadingState, `rs:<wire id>`) written to its
-    /// reading_states row with no outbox row, like WP7's satellites: the cutover seed sends the pointers
+    /// reading_states row with no outbox row, like the source satellites: the cutover seed sends the pointers
     /// and then the bytes. Off main, at `.utility`, resumable; generation 2 only. Returns how many it laid.
     @discardableResult
     func runUnderstandingBackfill(limit: Int = 50) throws -> Int {

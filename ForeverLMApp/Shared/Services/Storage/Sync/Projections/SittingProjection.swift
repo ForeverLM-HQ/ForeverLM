@@ -175,14 +175,9 @@ struct SittingProjection: RecordProjection {
         return bout
     }
 
-    static func json(_ text: String?) -> SyncJSON? {
-        text.flatMap { try? SyncJSON(parsing: Data($0.utf8)) }
-    }
+    static func json(_ text: String?) -> SyncJSON? { SyncJSON.stored(text) }
 
-    static func text(_ json: SyncJSON?) -> String? {
-        guard let json, !json.isNull else { return nil }
-        return String(decoding: json.serialized(), as: UTF8.self)
-    }
+    static func text(_ json: SyncJSON?) -> String? { SyncJSON.storedText(json) }
 
     static func milliseconds(_ seconds: Double?) -> SyncJSON? {
         seconds.map { SyncJSON(SyncTime.milliseconds(cocoaSeconds: $0)) }

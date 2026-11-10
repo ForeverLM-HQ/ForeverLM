@@ -640,7 +640,7 @@ struct MemoryReviewCardFooter: View {
 /// pane's header above, which already carries them wherever it is mounted.
 struct MemoryReviewSessionBar<Accessory: View>: View {
     /// A segment each: today's topics, or its sources in a review planned
-    /// source by source, where the bar stands in for the old chip strip.
+    /// source by source.
     let topics: [MemoryReviewCardSubject]
     let statusBySource: [String: MemoryReviewSourceStatus]
     /// The topic the tutor is on right now.

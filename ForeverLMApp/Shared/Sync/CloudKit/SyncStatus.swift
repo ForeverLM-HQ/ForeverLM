@@ -1,9 +1,7 @@
 import Foundation
 
 /// What the generation-2 private sync is doing, as `SyncCoordinator` publishes it
-/// (docs/cloudkit-schema-design.md §2.5, §14.1). WP16 moves generation 1's status types
-/// (`CloudKitSyncStatusCenter` and its neighbours) next to it and feeds them from this under
-/// generation 2; until then nothing shows it.
+/// (docs/cloudkit-schema-design.md §2.5, §14.1).
 struct SyncStatus: Equatable, Sendable {
     enum Phase: Equatable, Sendable {
         /// Not started, or no library container in this build.

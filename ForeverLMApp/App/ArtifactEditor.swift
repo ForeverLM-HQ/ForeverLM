@@ -1,9 +1,7 @@
 // The Doc editor and the chips it draws above the shelf.
 
 import AppKit
-import PDFKit
 import SwiftUI
-import UniformTypeIdentifiers
 
 struct ArtifactEditor: View {
     @Environment(StudioViewModel.self) private var vm
@@ -729,16 +727,15 @@ struct ArtifactEditor: View {
 
     /// What the highlighted passage stands on.
     ///
-    /// This is the shelf's only job. It used to list everything the doc stood on —
-    /// every chip anywhere in it, plus every source its Notebooks lent it — which
-    /// made it a pile that answered a question nobody was asking, and a permanent
+    /// This is the shelf's only job: listing everything the doc stands on —
+    /// every chip anywhere in it, plus every source its Notebooks lend it —
+    /// would be a pile that answers a question nobody is asking, and a permanent
     /// band under the page. Sources attached to a passage are invisible in the
     /// prose, so the moment they are worth showing is the moment a writer selects
     /// the passage, and this is where they appear.
     ///
-    /// The doc-wide list still exists, as `documentContextSourceIDs`, because a
-    /// question about a passage that stands on nothing has to fall back to
-    /// something. It is no longer drawn.
+    /// The doc-wide list is `documentContextSourceIDs`: a question about a
+    /// passage that stands on nothing falls back to it. It is not drawn.
     /// The doc as a page, or why it cannot be shown yet.
     @ViewBuilder
     private var pageSurface: some View {

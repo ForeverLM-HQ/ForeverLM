@@ -1,9 +1,6 @@
 // Part of ReviewSessionManager: system prompt and instruction assembly.
 
 import Foundation
-import Observation
-import PDFKit
-import os
 
 extension ReviewSessionManager {
     /// The verbatim source text loaded into this chat, the text its tutor
@@ -329,7 +326,7 @@ extension ReviewSessionManager {
             let feedback = attempt.feedback?.trimmingCharacters(in: .whitespacesAndNewlines)
             let error = attempt.gradingError?.trimmingCharacters(in: .whitespacesAndNewlines)
             return """
-            - attempted_at: \(ISO8601DateFormatter().string(from: attempt.attemptedAt))
+            - attempted_at: \(KnowledgeStore.iso8601Formatter.string(from: attempt.attemptedAt))
               retrieval_quality: \(attempt.retrievalQuality ?? "unknown")
               schedule_rating: \(attempt.scheduleRating?.rawValue ?? "none")
               score: \(attempt.score.map { String(format: "%.2f", $0) } ?? "none")

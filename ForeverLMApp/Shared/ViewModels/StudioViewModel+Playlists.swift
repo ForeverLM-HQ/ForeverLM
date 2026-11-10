@@ -1,14 +1,9 @@
 import Foundation
-import CryptoKit
-import Observation
 import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
-import SwiftUI
 import AppKit
-import SQLite3
-import WebKit
 import Darwin
 
 private struct PreparedVideoPlaylistItem: Sendable {
@@ -547,7 +542,11 @@ extension StudioViewModel {
                     changed = true
                 }
                 if changed {
-                    try? await storage.saveSource(working[existingIndex])
+                    do {
+                        try await storage.saveSource(working[existingIndex])
+                    } catch {
+                        logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+                    }
                     touched += 1
                 }
                 return working[existingIndex].id
@@ -680,15 +679,23 @@ extension StudioViewModel {
                 }
 
                 if let articleId {
-                    _ = try? await storage.updateCourseSortIndex(articleId, playlistSortIndex)
+                    do {
+                        _ = try await storage.updateCourseSortIndex(articleId, playlistSortIndex)
+                    } catch {
+                        logger.error("updateCourseSortIndex failed: \(error.localizedDescription, privacy: .public)")
+                    }
                     // Runs for existing rows too, which is what backfills the
                     // feed dates for videos imported before these columns
                     // existed — no separate migration or backfill job.
-                    _ = try? await storage.updateVideoFeedDates(
-                        articleId,
-                        likedAt: item.likedAt,
-                        videoPublishedAt: item.videoPublishedAt
-                    )
+                    do {
+                        _ = try await storage.updateVideoFeedDates(
+                            articleId,
+                            likedAt: item.likedAt,
+                            videoPublishedAt: item.videoPublishedAt
+                        )
+                    } catch {
+                        logger.error("updateVideoFeedDates failed: \(error.localizedDescription, privacy: .public)")
+                    }
                 }
             }
 
@@ -1089,7 +1096,11 @@ extension StudioViewModel {
             if matchCount > 0 {
                 let courseSourceIDs = sourceIdsForGroup(courseName)
                 let matched = articles.filter { $0.lectureGroupId != nil && courseSourceIDs.contains($0.id) }
-                try? await storage.saveSourcesBatchOnly(matched)
+                do {
+                    try await storage.saveSourcesBatchOnly(matched)
+                } catch {
+                    logger.error("saveSourcesBatchOnly failed: \(error.localizedDescription, privacy: .public)")
+                }
                 logger.info("Matched \(matchCount) lectures to notes in '\(courseName)'")
             }
         } catch {
@@ -1138,7 +1149,11 @@ extension StudioViewModel {
         }
 
         if !matchedArticles.isEmpty {
-            try? await storage.saveSourcesBatchOnly(matchedArticles)
+            do {
+                try await storage.saveSourcesBatchOnly(matchedArticles)
+            } catch {
+                logger.error("saveSourcesBatchOnly failed: \(error.localizedDescription, privacy: .public)")
+            }
             logger.info("Matched \(matchCount) lectures to notes by number in '\(courseName)'")
         }
         return matchCount

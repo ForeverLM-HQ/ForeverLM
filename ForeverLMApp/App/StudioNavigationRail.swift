@@ -1,9 +1,8 @@
 import SwiftUI
 import AppKit
-import UniformTypeIdentifiers
 
 /// Codex-style chat navigation rail. It is the app's primary navigation surface,
-/// led by the notebooks since shell stage 4 (docs/notebooks-design.md, "The
+/// led by the notebooks (docs/notebooks-design.md, "The
 /// rail"): Spaces, Memory and Library as icons, with Home's sidebar beside
 /// them while a chat or the Reader is on screen: New chat and the Browser, the
 /// Notebooks header (the Space's All list), then the Pinned and Recent
@@ -111,8 +110,8 @@ struct StudioNavigationRail: View {
     /// the notebook's guide.
     static let compactRailWidth: CGFloat = 52
 
-    /// Whether this is the icon rail, which is the window's rail everywhere
-    /// since 2026-10-07; the other style is Home's sidebar.
+    /// Whether this is the icon rail, which is the window's rail everywhere;
+    /// the other style is Home's sidebar.
     private var isCompact: Bool { style == .strip }
 
     private static func clampedRailWidth(_ value: CGFloat) -> CGFloat {
@@ -710,7 +709,7 @@ struct StudioNavigationRail: View {
                         }
                         // The Space: every page, site, picture, canvas, list,
                         // notebook and course. Goals and Ideas are the chat's
-                        // to show since 2026-10-10 (`SpaceTab`).
+                        // to show (`SpaceTab`).
                         Section("Space") {
                             Button("Open Space", systemImage: "square.grid.2x2") {
                                 vm.inWindow(windowState) { vm.showSpaceAll(in: windowState) }
@@ -1838,7 +1837,7 @@ struct StudioNavigationRail: View {
 
     /// The button's tooltip and the comp refresh on opening the menu: on for a comped account unless the learner switched the crown
     /// off, and never while screen record mode is filming (usage stays off
-    /// screen). The button itself carries no crown since 2026-10-06.
+    /// screen). The button itself carries no crown.
     private var showsCompOnScreen: Bool {
         account.usageIsComped && showsCompCrown && !vm.isScreenRecordModeActive
     }

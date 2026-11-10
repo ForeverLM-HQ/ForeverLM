@@ -1,6 +1,5 @@
 // Meeting session chevron, artifact rows, folder icon and provider badges.
 import SwiftUI
-import UniformTypeIdentifiers
 import AppKit
 
 /// Indents a session's artifacts under it and hangs a hairline rail down the
@@ -123,7 +122,7 @@ struct MeetingArtifactRow: View {
 
     /// The kinds ForeverLM shows in place stay live even with no external copy at
     /// all: an on-device transcript has neither a Drive URL nor a file on disk,
-    /// and used to render as a permanently disabled row under the recording it
+    /// and must not render as a permanently disabled row under the recording it
     /// was made from.
     private var canOpen: Bool {
         switch artifact.kind {

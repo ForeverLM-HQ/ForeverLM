@@ -1,16 +1,9 @@
 // A journal supplement joined to its paper in one PDF.
 
 import Foundation
-import CryptoKit
-import Observation
-import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
-import SwiftUI
-import AppKit
-import SQLite3
-import WebKit
 import Darwin
 
 // MARK: - Supplementary material

@@ -2,7 +2,7 @@ import SwiftUI
 
 // Memory on the iPhone and iPad (docs/memory-design.md, "The Memory screen
 // on the iPhone"): the Mac's Memory pane (`App/MemoryPane.swift`) over every
-// notebook, and Home's Memory strip, the Mac's `NotebooksHomeMemoryStripView`.
+// notebook, and Home's Memory strip, the Mac's.
 // Review draws today's cards as the Mac's deck ("10", "cards today", "6 due ·
 // 4 new"), starts the card review (Start Review, Keep Going, Practice N New
 // Cards) and draws the history grid; To Check goes through the cards drafted

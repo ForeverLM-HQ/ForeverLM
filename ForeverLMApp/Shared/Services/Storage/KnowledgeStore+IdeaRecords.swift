@@ -4,7 +4,7 @@ import SQLite3
 // MARK: - Ideas (the learner's own; docs/ideas-design.md)
 //
 // One row an Idea in `ideas`, one row a link in `idea_links`; the two travel
-// as one `Idea` CloudKit record (`CloudKitIdeaPayload`). Every write here is
+// as one `Idea` CloudKit record (`IdeaProjection`). Every write here is
 // the learner's hand — a thought jotted down, a link made — so each is
 // queued for sync at once and the whole record is republished, links
 // included, the way a day plan republishes with its blocks.

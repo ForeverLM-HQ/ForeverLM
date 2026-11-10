@@ -1,15 +1,6 @@
 // Podcast models, moved out of Models.swift.
 
 import Foundation
-import CryptoKit
-import SwiftUI
-import UniformTypeIdentifiers
-import CoreTransferable
-#if os(macOS)
-import AppKit
-#elseif canImport(UIKit)
-import UIKit
-#endif
 
 /// Audit and staleness proof for the deletion-only podcast ad cleanup.
 ///

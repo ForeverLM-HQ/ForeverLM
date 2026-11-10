@@ -7,7 +7,7 @@ import SwiftUI
 /// (`WalkthroughAnimationCard`). Since 2026-09-22 a step's turn is never drawn
 /// as a row while the walk plays — the card is its picture — and a walk left
 /// behind leaves its turns in the transcript as the Markdown they are, so the
-/// chip row that used to head each turn is gone (2026-09-23).
+/// no chip row heads each turn (2026-09-23).
 
 /// What a step's animation card shows: an inline document the step carries,
 /// or a saved animation's page pinned to a step (`WalkthroughAnimationReference`).
@@ -17,8 +17,7 @@ enum WalkthroughAnimationContent: Equatable {
 }
 
 /// A step's animation on its own card, with Enlarge opening it as a sheet.
-/// Alone on the card since 2026-09-24, so an inline document has the room a
-/// figure had.
+/// Alone on the card, so an inline document has the room a figure has.
 struct WalkthroughAnimationCard: View {
     let content: WalkthroughAnimationContent
     let enlarge: () -> Void
@@ -239,7 +238,7 @@ struct WalkthroughCardDeck<Figure: View, Face: View, Chip: View>: View {
             // Next swaps what changed, not the card: the figure keeps its
             // identity across a step's cards so it neither reloads nor
             // blinks, and only the point under it crossfades. (2026-09-23:
-            // the whole card used to fly in from the right on every Next.)
+            // the whole card flew in from the right on every Next.)
             figure(Self.compactFigureHeight)
                 .id(currentStep?.id ?? "")
                 .transition(.opacity)

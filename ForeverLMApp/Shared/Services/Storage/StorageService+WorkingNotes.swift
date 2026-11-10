@@ -1,5 +1,3 @@
-import Foundation
-
 extension StorageService {
 
     /// The Doc that mirrors the working notes (`WorkingNoteMirror`), made in

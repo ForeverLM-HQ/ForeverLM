@@ -1,6 +1,5 @@
 // StorageService: the store, content and library root paths and where a source file lives.
 import Foundation
-import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
@@ -16,7 +15,7 @@ extension StorageService {
     /// The one directory this install stores content in. It does not change at
     /// runtime, and it is not in iCloud — see `libraryRootPath` for why.
     ///
-    /// It used to depend on the live container lookup, and that was its own bug
+    /// Depending on the live container lookup would be its own bug
     /// class: any momentary nil from `url(forUbiquityContainerIdentifier:)`
     /// silently redirected writes to `fallbackRoot`, and the failure was cached
     /// for only a second, so a brief hiccup mid-download dropped that one file
@@ -31,7 +30,7 @@ extension StorageService {
         // Local, always, and identical to the static `libraryRootPath` — an
         // instance root that disagrees with the static one is how the app ends up
         // writing files where it cannot later find them. No ubiquity lookup: the
-        // container is no longer a write target, so there is no longer a
+        // container is not a write target, so there is no
         // momentary-nil hazard to guard against here.
         return URL(fileURLWithPath: Self.libraryRootPath, isDirectory: true)
         #endif
@@ -81,7 +80,7 @@ extension StorageService {
     /// Content root used when iCloud is unavailable. Deliberately inside
     /// Application Support, beside `knowledge.db`.
     ///
-    /// This used to be `~/Documents/ForeverLM`, which is not local at all: with
+    /// It is not `~/Documents/ForeverLM`, which is not local at all: with
     /// "Desktop & Documents Folders" syncing enabled — the macOS default —
     /// `~/Documents` IS iCloud Drive, so the fallback silently became a second
     /// synced root, user-visible and editable in Finder, alongside the app's
@@ -107,9 +106,9 @@ extension StorageService {
             "Library/Mobile Documents/com~apple~CloudDocs/Documents/\(ForeverLMRuntimeIdentity.productFolderName)"
         )
 
-    /// The iCloud Documents folder's document-scope root. This is where content
-    /// used to live and where most of it still sits, so it stays resolvable — but
-    /// the app no longer writes documents here. See `libraryRootPath`. A fixed
+    /// The iCloud Documents folder's document-scope root. This is where most
+    /// existing content sits, so it stays resolvable — but
+    /// the app does not write documents here. See `libraryRootPath`. A fixed
     /// folder name read by plain path, never a container the app resolves:
     /// `ForeverLMRuntimeIdentity.iCloudDocumentsFolderName` says why.
     static let ubiquityContentRootPath: String = (contentHomeDirectory as NSString)
@@ -120,8 +119,8 @@ extension StorageService {
     /// Where this app writes content: a local directory that iCloud never
     /// touches.
     ///
-    /// This used to be the ubiquity container's `Documents/ForeverLM`, and that
-    /// is what kept forking the library into `ForeverLM 2`, `ForeverLM 3`, …
+    /// It is not the ubiquity container's `Documents/ForeverLM`, which kept
+    /// forking the library into `ForeverLM 2`, `ForeverLM 3`, …
     /// Two mechanisms combined. CloudDocs resolves a *directory* conflict in
     /// document scope by bouncing one side to a numbered name (TN2336), and it
     /// only needs a directory to be removed-or-late on one Mac while the other
@@ -251,7 +250,7 @@ extension StorageService {
         //
         // A foreign path that reduces to nothing is not merely stored oddly. It
         // cannot be located on disk, `isAppManagedSourcePath` disowns it, and
-        // `materializeInboundSourcePDFIfNeeded` refuses to install the PDF bytes
+        // the inbound PDF install refuses to install the PDF bytes
         // CloudKit delivered in the very record carrying that path — which is
         // what left papers published before commit 3c62e0d reporting "PDF
         // needed" on the receiving Mac forever. Matching the home-relative
@@ -272,7 +271,7 @@ extension StorageService {
         // published. An exact suffix match left every such path whole, so the
         // receiving apply saw an "incoming" absolute path that differed from
         // the portable one it had just installed and asked for a republish
-        // that could never converge (`inboundArchivedArticleHTMLMaterializes`).
+        // that could never converge.
         guard let foreignRelative = pathBelowForeignHome(absolutePath) else { return nil }
         let foreignComponents = foreignRelative.split(separator: "/", omittingEmptySubsequences: true)
         for root in knownContentRoots {

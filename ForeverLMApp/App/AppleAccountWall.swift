@@ -1,6 +1,6 @@
+import AuthenticationServices
 import SwiftUI
 import AppKit
-import AuthenticationServices
 
 /// The account wall: ForeverLM requires Sign in with Apple before it can be used.
 ///
@@ -34,10 +34,10 @@ struct AppleAccountWall: View {
                 // colour drifts — ambient, and the wall is a screen people sit
                 // and look at.
                 //
-                // This used to be `AppIconImage.shared`, which is the mark on the
-                // icon's opaque white tile. On the wall's own soft gradient that
-                // read as a white card pasted onto the screen; the transparent
-                // artwork sits on the wash instead of punching a hole in it.
+                // The transparent artwork sits on the wash. `AppIconImage.shared`
+                // is the mark on the icon's opaque white tile, which on the
+                // wall's own soft gradient would read as a white card pasted
+                // onto the screen.
                 if isCheckingSession {
                     ForeverLMLoadingIndicator(width: 116)
                         .frame(height: 76)

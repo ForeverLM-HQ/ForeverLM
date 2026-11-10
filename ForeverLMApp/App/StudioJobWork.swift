@@ -3,8 +3,8 @@ import Foundation
 /// The Mac's own paths for the Jobs `MacJobRunner` runs (docs/cloudkit-schema-design.md §3.5.28, §5.4):
 /// the Studio's link and file imports, the MCP tools in this process (`MCPToolRegistry`, so a tool's
 /// checks and its cost confirmation apply), the scheduled-task runner's Run now, and the satellites in
-/// the private `Content` zone through the coordinator's BlobStore. Generation 2 only: WP16 builds it with
-/// the coordinator and attaches the runner (`MacJobRunner.attach(to:)`).
+/// the private `Content` zone through the coordinator's BlobStore. The sync coordinator builds it and
+/// attaches the runner (`MacJobRunner.attach(to:)`).
 struct StudioJobWork: MacJobWork {
     let viewModel: StudioViewModel
     let storage: StorageService

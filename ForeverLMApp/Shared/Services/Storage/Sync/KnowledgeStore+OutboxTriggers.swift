@@ -212,30 +212,29 @@ enum OutboxTriggerSQL {
 
 
 extension KnowledgeStore {
-    /// The projections this build runs. Each projection package adds its own here (WP7 onwards).
+    /// The projections this build runs. Each projection adds its own here.
     static let projectionRegistry = ProjectionRegistry([
         SourceProjection(),
         CollectionProjection(),
         NotebookProjection(),
         GoalProjection(),
-        // Notebook, Goal, playlist and lesson Entries (WP8; it holds WP7's playlist Entries and WP9's
-        // lesson items).
+        // Notebook, Goal, playlist and lesson Entries (one projection for every Entry type).
         EntryProjection(),
         NotebookStateProjection(),
-        // A course and what it holds, and the member's Enrollment (WP9).
+        // A course and what it holds, and the member's Enrollment.
         CourseProjection(),
         LessonProjection(),
         QuizProjection(),
         EnrollmentProjection(),
-        // Chats and their Exchanges (WP10); a rating is a Mark, below.
+        // Chats and their Exchanges; a rating is a Mark, below.
         ChatProjection(),
         ExchangeProjection(),
-        // Docs, Notes Docs and their Comments (WP11).
+        // Docs, Notes Docs and their Comments.
         ArtifactProjection(),
         CommentProjection(),
-        // The member's reading state (WP12).
+        // The member's reading state.
         ReadingStateProjection(),
-        // Cards, Sittings, activity logs and practices (WP13).
+        // Cards, Sittings, activity logs and practices.
         CardProjection(),
         SittingProjection(),
         ActivityLogProjection(),
@@ -244,11 +243,11 @@ extension KnowledgeStore {
         // store's existing rows are sent by the trigger refresh, `installOutboxTriggers`).
         IdeaProjection(),
         // A notebook's tasks, a team's share requests and a meeting's action items, the member's
-        // Jobs and Automations (WP14).
+        // Jobs and Automations.
         TaskProjection(),
         JobProjection(),
         AutomationProjection(),
-        // The member's Marks, highlights, Schedule placements, Settings and devices (WP12b).
+        // The member's Marks, highlights, Schedule placements, Settings and devices.
         MarkProjection(),
         HighlightProjection(),
         PlacementProjection(),

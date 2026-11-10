@@ -20,10 +20,6 @@ enum ReviewGlassStyle {
     static var contentBackdrop: Color {
         Color(nsColor: .windowBackgroundColor).opacity(0.90)
     }
-
-    static var toolbarBackdrop: Color {
-        Color(nsColor: .windowBackgroundColor).opacity(0.82)
-    }
 }
 
 @available(macOS 26.0, iOS 26.0, *)

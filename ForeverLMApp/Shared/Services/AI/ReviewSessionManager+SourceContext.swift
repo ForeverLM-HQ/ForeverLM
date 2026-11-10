@@ -1,9 +1,6 @@
 // Part of ReviewSessionManager: session titles, source context and the source catalog.
 
 import Foundation
-import Observation
-import PDFKit
-import os
 
 extension ReviewSessionManager {
     /// The attached-source catalog. Carries no source text: what the model

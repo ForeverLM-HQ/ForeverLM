@@ -1,21 +1,15 @@
 // Course lectures: creating, ordering and titling them, and the title parsers.
 
 import Foundation
-import CryptoKit
-import Observation
 import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
-import SwiftUI
 import AppKit
-import SQLite3
-import WebKit
-import Darwin
 
-/// Immutable parsers shared by course-title normalization. These used to be
-/// compiled inside the per-video helpers below, which made a 500-item YouTube
-/// refresh spend seconds compiling the same ICU programs on the main actor.
+/// Immutable parsers shared by course-title normalization. Compiling them inside the
+/// per-video helpers below would make a 500-item YouTube refresh spend seconds
+/// compiling the same ICU programs on the main actor.
 private enum CourseTitleParserCache {
     private static let lessonLabel = #"(?:lecture|lec|chapter|chap|ch|session|week|class|unit|section)"#
 
@@ -75,7 +69,11 @@ extension StudioViewModel {
             saveUserCourseNames()
             if courseMetadata[courseName] == nil {
                 courseMetadata[courseName] = CourseMetadata()
-                try? await storage.saveCourseGroup(name: courseName, metadata: CourseMetadata())
+                do {
+                    try await storage.saveCourseGroup(name: courseName, metadata: CourseMetadata())
+                } catch {
+                    logger.error("saveCourseGroup failed: \(error.localizedDescription, privacy: .public)")
+                }
             }
             return lecture
         } catch {

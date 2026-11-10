@@ -1,14 +1,8 @@
 // The actor that reads and caches the synced source catalog on the phone.
 
-import AVFoundation
-import Combine
-import CryptoKit
-import MediaPlayer
-import OSLog
-import SwiftUI
 import CloudKit
-import SQLite3
-import WidgetKit
+import Foundation
+import OSLog
 
 actor MobileCloudSourceCatalog {
     static let shared = MobileCloudSourceCatalog()
@@ -36,7 +30,7 @@ actor MobileCloudSourceCatalog {
     private var replicaMemoryHandle: MobileReplica?
     /// Moves with every replica load, so a decode that began before one never outlives it.
     private var replicaMemoryEpoch = 0
-    /// The usage ledger's cache under generation 2, in a file of its own beside where the mirror was.
+    /// The usage ledger's cache, in a file of its own.
     private var usageStore: MobileUsageHistoryStore?
 
     /// The replica's query layer once the session runs (`MobileSyncSession`); nil when it cannot start.
@@ -166,7 +160,7 @@ actor MobileCloudSourceCatalog {
             .map { FollowUpMark(highlight: $0, sourceID: $0.sourceID) }
     }
 
-    /// The load (§13.6, WP19b): the replica's index, read through `MobileReadModels` into the rows the
+    /// The load (§13.6): the replica's index, read through `MobileReadModels` into the rows the
     /// screens already take; the session's rounds keep the replica current.
     private func performReplicaLoad() async throws -> [MobileCloudSource] {
         guard let projection = await replicaProjection() else {
@@ -256,7 +250,7 @@ actor MobileCloudSourceCatalog {
     ) -> [MemoryTutorRecentSourceActivity] {
         let availableSourceIDs = Set((replicaSnapshot?.sources ?? []).map(\.id))
         let cutoff = now.addingTimeInterval(
-            -Double(max(1, min(maximumAgeDays, 90))) * 86_400
+            -Double(max(1, min(maximumAgeDays, 90))) * MemoryTutorScheduler.secondsPerDay
         )
         // Already newest first (`MobileReadModels.chats`).
         let discussions = (replicaSnapshot?.chatDiscussions ?? [])
@@ -291,7 +285,7 @@ actor MobileCloudSourceCatalog {
         let availableSourceIDs = Set((replicaSnapshot?.sources ?? []).map(\.id))
         let activityDays = replicaSnapshot?.activityDays ?? [:]
         let cutoff = now.addingTimeInterval(
-            -Double(max(1, min(maximumAgeDays, 90))) * 86_400
+            -Double(max(1, min(maximumAgeDays, 90))) * MemoryTutorScheduler.secondsPerDay
         )
         return activityDays
             .compactMap { sourceID, days -> MemoryTutorRecentSourceActivity? in
@@ -358,7 +352,7 @@ actor MobileCloudSourceCatalog {
     /// The active ideas of the given sources, in their stored order — what a
     /// memory review's contour is graded against.
     func currentSourceIdeas(sourceIDs: [String]) async -> [String: [SourceIdea]] {
-        // Generation 2 keeps a source's ideas in its `ideas` satellite (§10), not in records the catalog holds.
+        // A source's ideas live in its `ideas` satellite (§10), not in records the catalog holds.
         return await ideaStore.ideas(sourceIDs: sourceIDs)
     }
 
@@ -413,7 +407,7 @@ actor MobileCloudSourceCatalog {
         return Self.memoryReviewInputs(replicaSnapshot ?? MobileReadModels.Snapshot())
     }
 
-    /// Generation 2's candidate inputs, from the replica's index: its sources, the member's highlights
+    /// The candidate inputs, from the replica's index: its sources, the member's highlights
     /// and every source's activity days folded from the ActivityLogs. Its chats' exchanges are not in
     /// the index, so no review session counts yet.
     static func memoryReviewInputs(
@@ -478,7 +472,7 @@ actor MobileCloudSourceCatalog {
                             notebookMembers: snapshot.notebookPools, goalParents: snapshot.goalParents)
     }
 
-    /// Generation 2's cards and answers, decoded once per replica load. A read that fails answers what the
+    /// The cards and answers, decoded once per replica load. A read that fails answers what the
     /// phone could not read as nothing held, and says so in the log; the next call tries again.
     /// Adds what the phone just wrote to the cards and answers it holds. With none held yet, the next
     /// read decodes them from the replica, which has the write already; a decode under way began before
@@ -620,7 +614,7 @@ actor MobileCloudSourceCatalog {
         return NotebookCardCounts(kept: counts.kept, due: counts.due, toCheck: toCheck)
     }
 
-    // MARK: Cards to check and a kept card's Card (generation 2)
+    // MARK: Cards to check and a kept card's Card
 
     /// The cards to check over `scope` (docs/memory-design.md, "Cards to
     /// check on the iPhone"): the drafts in the replica's Cards whose source
@@ -720,7 +714,7 @@ actor MobileCloudSourceCatalog {
     /// being resumed, and nothing prepares one from here.
     func currentDayReviewChatIsUnderway(now: Date = Date()) -> Bool {
         let sessionID = MemoryReviewSession.sessionID(for: now)
-        // Generation 2: a chat the learner has answered in is one whose exchanges hold an answer.
+        // A chat the learner has answered in is one whose exchanges hold an answer.
         return replicaSnapshot?.memoryChats.contains { $0.id == sessionID && $0.isAnswered } ?? false
     }
 
@@ -902,7 +896,7 @@ actor MobileCloudSourceCatalog {
 
     func diagnose() async -> MobileSourceSyncDiagnostic {
         let checkedAt = Date()
-        // No old container to ask: the replica is the library, and the session reports its rounds.
+        // The replica is the library, and the session reports its rounds.
         return MobileSourceSyncDiagnostic(
             accountStatus: "not checked", knowledgeZoneStatus: "moved to the new iCloud store",
             sourceRecordCount: replicaSnapshot?.sources.count, decodedSourceCount: lastDecodedSourceCount,

@@ -3,7 +3,6 @@ import AppKit
 import OSLog
 import SwiftUI
 import PDFKit
-import WebKit
 
 /// A pop-out window for reading a source article, PDF, or transcript.
 /// Can be dragged to a second screen while keeping the Studio on the primary screen.
@@ -71,15 +70,15 @@ struct SourceReaderWindow: View {
                     ReaderFindBar(state: findState)
                     Group {
                     if article.statusFlag == .confirmPodcast, let match = vm.heldPodcastMatch(for: article.id)?.info {
-                        podcastConfirmationView(article: article, match: match)
+                        PodcastMatchConfirmationView(article: article, match: match)
                     } else if article.readerWaitsForFetch {
                         fetchingSourceView(for: article)
-                    } else if shouldFetchPodcastTranscriptOnOpen(article) {
+                    } else if article.fetchesPodcastTranscriptOnOpen {
                         fetchingSourceView(for: article)
                             .task(id: article.id) {
                                 await fetchPodcastTranscriptOnOpenIfNeeded(article)
                             }
-                    } else if shouldShowPodcastTranscriptPrompt(for: article) {
+                    } else if article.offersPodcastTranscriptSearch {
                         podcastTranscriptPrompt(for: article)
                     } else if article.cachedIsArchivedArticle,
                               !article.cachedPrefersLiveWebPage,
@@ -820,7 +819,7 @@ struct SourceReaderWindow: View {
 
     private func addableLibraryPageURL(for article: StudioArticle) -> URL? {
         guard let currentURL = currentBrowserURL(for: article),
-              canOpenExternally(currentURL),
+              currentURL.hasWebScheme,
               libraryPageKey(currentURL) != SourceDiscovery.normalizedURL(article.url) else {
             return nil
         }
@@ -948,36 +947,12 @@ struct SourceReaderWindow: View {
     }
 
     private func currentBrowserURL(for article: StudioArticle) -> URL? {
-        // The video on screen, which is the player's to choose once it hands
-        // itself on to the next one.
-        if article.isYouTubeURL,
-           let url = youtubeWatchPageURL,
-           canOpenExternally(url) {
-            return url
-        }
-        if usesEmbeddedBrowser(article),
-           let url = articleReaderChrome.liveBrowserURL(),
-           canOpenExternally(url) {
-            return url
-        }
-        if usesEmbeddedBrowser(article),
-           let url = articleReaderChrome.currentURL,
-           canOpenExternally(url) {
-            return url
-        }
-        // Archived articles render cached HTML whose links can navigate the
-        // reader to a live external page; prefer that page over the source URL.
-        if article.cachedIsArchivedArticle,
-           let url = archivedArticlePageURL,
-           canOpenExternally(url) {
-            return url
-        }
-        return URL(string: article.url)
-    }
-
-    private func canOpenExternally(_ url: URL) -> Bool {
-        guard let scheme = url.scheme?.lowercased() else { return false }
-        return scheme == "http" || scheme == "https"
+        ReaderBrowserURL.current(
+            for: article,
+            youtubeWatchPageURL: youtubeWatchPageURL,
+            embeddedBrowser: usesEmbeddedBrowser(article) ? articleReaderChrome : nil,
+            archivedArticlePageURL: archivedArticlePageURL
+        )
     }
 
     private func openInSafariMenuLabel(for article: StudioArticle) -> String {
@@ -1035,28 +1010,8 @@ struct SourceReaderWindow: View {
         article.url.hasPrefix("http://") || article.url.hasPrefix("https://")
     }
 
-    private func shouldShowPodcastTranscriptPrompt(for article: StudioArticle) -> Bool {
-        article.sourceType == .podcast
-            && (article.content?.isEmpty != false)
-            && article.state != .fetching
-            && (
-                article.statusFlag == .needsTranscript
-                    || article.url.hasPrefix("apple-podcast:")
-                    || article.url.hasPrefix("http://")
-                    || article.url.hasPrefix("https://")
-            )
-    }
-
-    private func shouldFetchPodcastTranscriptOnOpen(_ article: StudioArticle) -> Bool {
-        article.sourceType == .podcast
-            && article.state != .fetching
-            && (article.errorMessage?.isEmpty != false)
-            && article.url.hasPrefix("apple-podcast://")
-            && article.content?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty != false
-    }
-
     private func fetchPodcastTranscriptOnOpenIfNeeded(_ article: StudioArticle) async {
-        guard shouldFetchPodcastTranscriptOnOpen(article) else { return }
+        guard article.fetchesPodcastTranscriptOnOpen else { return }
         await vm.fetchContent(for: article.id)
     }
 
@@ -1069,48 +1024,6 @@ struct SourceReaderWindow: View {
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    @ViewBuilder
-    private func podcastConfirmationView(article: StudioArticle, match: PodcastMatchInfo) -> some View {
-        VStack(spacing: 24) {
-            Spacer()
-            Image(systemName: "headphones")
-                .zoomedSystemFont(size: 48)
-                .foregroundStyle(.orange)
-            Text("Is this the right podcast?")
-                .font(.title2.weight(.semibold))
-            VStack(spacing: 4) {
-                Text(match.podcastName)
-                    .font(.headline)
-                Text(match.episodeTitle)
-                    .font(.subheadline)
-                    .foregroundStyle(.secondary)
-                    .multilineTextAlignment(.center)
-            }
-            HStack(spacing: 16) {
-                Button {
-                    Task { await vm.rejectPodcastMatch(for: article.id) }
-                } label: {
-                    Text("No, Skip")
-                        .frame(minWidth: 80)
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.large)
-
-                Button {
-                    Task { await vm.confirmPodcastMatch(for: article.id) }
-                } label: {
-                    Text("Yes, Use This")
-                        .frame(minWidth: 80)
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.orange)
-                .controlSize(.large)
-            }
-            Spacer()
-        }
-        .frame(maxWidth: .infinity)
     }
 
     @ViewBuilder

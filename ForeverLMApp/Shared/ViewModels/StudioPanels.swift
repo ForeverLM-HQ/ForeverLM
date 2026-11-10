@@ -208,7 +208,7 @@ struct StudioCenterTabGroups: Equatable {
         /// recreated and reloaded its page over the network, and every chat
         /// bubble's measured height reset to its 36pt placeholder and re-grew
         /// as each web view reported back. That is the multi-second pause the
-        /// swap control used to produce.
+        /// swap control would produce.
         ///
         /// Equality stays content-only because every comparison of a layout
         /// asks "is this the same arrangement" — the `didSet` deciding whether
@@ -2202,7 +2202,7 @@ enum StudioSidebarTab: String, CaseIterable, Codable {
 
 // MARK: - X Logo
 
-/// The X (formerly Twitter) logo drawn as a SwiftUI Shape using the official brand path.
+/// The X logo drawn as a SwiftUI Shape using the official brand path.
 struct XLogoShape: Shape {
     func path(in rect: CGRect) -> Path {
         // Official X logo path, original viewBox: 0 0 1200 1227
@@ -2254,10 +2254,8 @@ struct XLogoShape: Shape {
 /// The Meetings tab's one-line notice that a meeting plugin has gone quiet,
 /// and the single action that goes with it.
 ///
-/// Two different situations used to share one "disconnected — reconnect" line
-/// and one Reconnect button that opened the generic Build Your Own page, which
-/// listed no plugins and never mentioned the provider. They need different
-/// words and different actions. When no plugin exists for meetings that only
+/// Two different situations need different words and different actions, not one
+/// "disconnected — reconnect" line. When no plugin exists for meetings that only
 /// a plugin can bring in, the useful thing to hand over is the setup prompt
 /// itself, filled in for that provider. When a plugin exists and has
 /// reported trouble, the useful thing is what it reported.

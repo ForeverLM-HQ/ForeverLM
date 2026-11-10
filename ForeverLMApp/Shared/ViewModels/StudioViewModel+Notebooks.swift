@@ -1,7 +1,5 @@
 import Foundation
-import Observation
 import OSLog
-import SwiftUI
 
 /// The two queries behind a Notebook's no-query "Suggested to add" list — one per
 /// search branch, because the branches want different text.
@@ -287,7 +285,7 @@ extension StudioViewModel {
     /// After sources joined notebooks — `arrivals` names, per notebook, the
     /// ids it holds now and did not before — their boxes are ticked where
     /// they arrived, and in every notebook whose chats read the notebook they
-    /// arrived in (`NotebookChatSelection.arrivalsToTick`): an untick left
+    /// arrived in: an untick left
     /// behind when a source last left the notebook, by whatever route or
     /// device, never outlives its return. Only rows naming an arrival are
     /// looked at; `setNotebookSources` writes only a row that changes.
@@ -324,7 +322,7 @@ extension StudioViewModel {
     /// device — the web, the iPhone, another Mac, a teammate — arrives ticked
     /// here as an add on this Mac does, so an older client that writes the
     /// membership and never the row is covered. An untick made after the
-    /// source joined stands (`NotebookChatSelection.inboundArrivalsToTick`).
+    /// source joined stands (`NotebookChatSelection.inboundArrivals`).
     /// Only rows naming an arrival are read, and only their write dates.
     func tickNotebookArrivalsFromSync(before: [LearningGoalRecord], after: [LearningGoalRecord]? = nil) async {
         let arrivals = NotebookChatSelection.inboundArrivals(before: before, after: after ?? learningGoals)
@@ -1231,22 +1229,6 @@ extension StudioViewModel {
     ) -> [String] {
         let rows = Set(rowIDs)
         return approved.filter { rows.contains(rowID($0)) }
-    }
-
-    /// The Notebook inspector calls the existing description field Instructions:
-    /// it is the concise, user-authored guidance attached to this source context.
-    func setNotebookInstructions(_ instructions: String, notebookID: String) async {
-        let trimmed = instructions.trimmingCharacters(in: .whitespacesAndNewlines)
-        do {
-            try await storage.setLearningGoalDescription(
-                goalID: notebookID,
-                description: trimmed.isEmpty ? nil : trimmed
-            )
-            await loadLearningGoals()
-        } catch {
-            logger.error("Failed to update Notebook instructions: \(error)")
-            showToast("Could not save instructions")
-        }
     }
 
     /// The short description under a Notebook's title on its gallery card. An

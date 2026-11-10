@@ -1,14 +1,8 @@
 import Foundation
-import CryptoKit
-import Observation
 import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
-import SwiftUI
-import AppKit
-import SQLite3
-import WebKit
 import Darwin
 
 extension StudioViewModel {
@@ -389,7 +383,11 @@ extension StudioViewModel {
                     }
                     try await self.storage.deleteVideoPlaylistGroup(id: groupName)
                 } catch {
-                    try? await self.storage.saveVideoPlaylistGroup(id: groupName, metadata: originalMetadata)
+                    do {
+                        try await self.storage.saveVideoPlaylistGroup(id: groupName, metadata: originalMetadata)
+                    } catch {
+                        self.logger.error("saveVideoPlaylistGroup failed: \(error.localizedDescription, privacy: .public)")
+                    }
                     self.videoPlaylistMetadata[groupName] = originalMetadata
                     self.logger.error("Failed to finalize video playlist removal: \(error.localizedDescription)")
                     self.showToast("Removing “\(title)” failed: \(error.localizedDescription)")

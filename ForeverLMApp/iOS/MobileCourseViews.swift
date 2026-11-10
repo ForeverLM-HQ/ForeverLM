@@ -54,7 +54,7 @@ struct MobileCoursePageScreen: View {
     @State private var lockedMessage: String?
     @State private var quizToTake: MobileCoursePathRow?
     @State private var continueSource: MobileCloudSource?
-    /// Generation 2: the course's quizzes, read from their Quiz records and `questions` satellites when
+    /// The course's quizzes, read from their Quiz records and `questions` satellites when
     /// the page opens (docs/cloudkit-schema-design.md §3.5.11); the catalog's course carries none.
     @State private var satelliteQuizzes: [CourseQuiz]?
 

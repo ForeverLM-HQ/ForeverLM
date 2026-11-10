@@ -1,16 +1,11 @@
 // Notebook changes, source capture and library mutations.
 
-import AVFoundation
-import Combine
-import CryptoKit
-import MediaPlayer
+import Foundation
 import OSLog
-import SwiftUI
-import CloudKit
-import SQLite3
-import WidgetKit
 
 extension MobileAudioReviewViewModel {
+    private static let libraryLogger = Logger(subsystem: "com.foreverlm.mobile", category: "LibraryMutations")
+
     func createNotebook(title: String, instructions: String?, summary: String? = nil) async -> String? {
         await performLibraryMutation {
             try await MobileCloudMutationService.shared.createNotebook(
@@ -86,7 +81,13 @@ extension MobileAudioReviewViewModel {
         let redescribed = summary.map { NotebookSummary.normalized($0) != before?.summary } ?? false
         if updated, renamed || redescribed {
             let key = NotebookNaming.preferenceKey(notebookID: id)
-            if let writer = await MobileRecordWriter.current() { try? await MobileNotebookRows.write(key, string: nil, writer: writer) }
+            if let writer = await MobileRecordWriter.current() {
+                do {
+                    try await MobileNotebookRows.write(key, string: nil, writer: writer)
+                } catch {
+                    Self.libraryLogger.error("Clearing a notebook's naming mark failed: \(error.localizedDescription, privacy: .public)")
+                }
+            }
         }
         return updated
     }
@@ -154,7 +155,7 @@ extension MobileAudioReviewViewModel {
     /// action, as the Mac's own adds do, so an untick from when it last left
     /// does not outlive its return. The add stands if this fails, and the
     /// error bar says so; the Mac ticks it when the add reaches it
-    /// (`NotebookChatSelection.inboundArrivalsToTick`).
+    /// (`StudioViewModel.tickArrivingNotebookSources`).
     private func tickNotebookArrivals(_ sourceIDs: [String], notebookID: String) async {
         do {
             try await MobileNotebookChatSelection.tickArrivals(

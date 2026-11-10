@@ -1,9 +1,6 @@
 // The MCP settings detail view and its setup assistant.
 import SwiftUI
 import Combine
-import UniformTypeIdentifiers
-import PDFKit
-import WebKit
 import AppKit
 
 private enum MCPSetupAssistant: String, CaseIterable, Identifiable {

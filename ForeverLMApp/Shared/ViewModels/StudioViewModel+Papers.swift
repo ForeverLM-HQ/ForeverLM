@@ -1,14 +1,9 @@
 import Foundation
-import CryptoKit
-import Observation
 import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
-import SwiftUI
 import AppKit
-import SQLite3
-import WebKit
 import Darwin
 
 extension StudioViewModel {
@@ -223,7 +218,11 @@ extension StudioViewModel {
         }
 
         for id in idsToRemove {
-            try? await storage.archiveSource(id)
+            do {
+                try await storage.archiveSource(id)
+            } catch {
+                logger.error("archiveSource failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
         articles.removeAll { idsToRemove.contains($0.id) }
         paperVersionConflicts = []
@@ -556,7 +555,11 @@ extension StudioViewModel {
         }
 
         for id in idsToRemove {
-            try? await storage.archiveSource(id)
+            do {
+                try await storage.archiveSource(id)
+            } catch {
+                logger.error("archiveSource failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
         let before = articles.count
         articles.removeAll { idsToRemove.contains($0.id) }

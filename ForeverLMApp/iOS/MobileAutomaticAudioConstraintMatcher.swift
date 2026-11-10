@@ -1,14 +1,6 @@
 // Matches a spoken constraint against the automatic audio filters.
 
-import AVFoundation
-import Combine
-import CryptoKit
-import MediaPlayer
-import OSLog
-import SwiftUI
-import CloudKit
-import SQLite3
-import WidgetKit
+import Foundation
 
 enum AutomaticAudioConstraintControl: Error {
     case noConstraints

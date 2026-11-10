@@ -1,8 +1,6 @@
 // KnowledgeStore: related notebooks, goal items and gaps, and the setters of a notebook.
 import Foundation
 import SQLite3
-import OSLog
-import CloudKit
 
 extension KnowledgeStore {
 

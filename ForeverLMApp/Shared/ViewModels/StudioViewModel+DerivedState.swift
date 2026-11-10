@@ -1,14 +1,8 @@
 import Foundation
-import CryptoKit
-import Observation
 import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
-import SwiftUI
-import AppKit
-import SQLite3
-import WebKit
 import Darwin
 
 extension StudioViewModel {
@@ -485,8 +479,8 @@ extension StudioViewModel {
     /// published count and, when the inputs have moved on, schedules the scan
     /// that produces the next one off the main actor.
     ///
-    /// It used to compute the partition inline, memoized per articles revision.
-    /// That memo is worthless during launch — every republish of `articles`
+    /// The partition is not computed inline and memoized per articles revision:
+    /// that memo is worthless during launch — every republish of `articles`
     /// bumps the revision — so a library-sized scan ran inside the sidebar's
     /// view body on each pass. On a 700-paper library a launch profile put it at
     /// 310ms of main-thread time, the largest single app-code term, which is a

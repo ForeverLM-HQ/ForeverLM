@@ -1,9 +1,6 @@
 import SwiftUI
 import AppKit
-import AuthenticationServices
 import Combine
-import UniformTypeIdentifiers
-import EventKit
 
 enum SettingsPane: Hashable {
     /// The data story, iCloud sync, and the learner's teams.
@@ -611,8 +608,8 @@ private struct SettingsSidebarIcon: View {
 
 /// Data & Privacy › iCloud: whether the library is in sync, with the one
 /// button that pushes it, how much of the learner's iCloud it takes up, and the
-/// storage notices when iCloud is full or signed out. Was its own pane until 2026-09-24; the per-change list of
-/// pending and refused records was a diagnostic and went then.
+/// storage notices when iCloud is full or signed out. The per-change list of
+/// pending and refused records is a diagnostic and is not shown.
 struct ICloudSyncSettingsSection: View {
     @ObservedObject private var status = CloudKitSyncStatusCenter.shared
     @State private var isRequestingSync = false

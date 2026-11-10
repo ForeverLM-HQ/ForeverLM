@@ -114,7 +114,7 @@ struct MemoryReviewChatHandoff: Equatable, Sendable {
     /// Builds the handoff for one stored exchange of a review.
     ///
     /// - Parameters:
-    ///   - reviewTitle: the review's stored title; a legacy "Memory · " title is
+    ///   - reviewTitle: the review's stored title; a stored "Memory · " title is
     ///     read as its date the way the rail reads it.
     ///   - ideas: the ideas of the exchange's sources, for the statements
     ///     behind the grade's ids.

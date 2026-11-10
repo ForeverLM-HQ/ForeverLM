@@ -1,6 +1,5 @@
 // Row chrome and hover helpers for source sidebar rows.
 import SwiftUI
-import UniformTypeIdentifiers
 import AppKit
 
 /// What a row of the Sources list adds around the row itself: the

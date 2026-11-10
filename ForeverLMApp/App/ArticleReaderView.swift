@@ -173,7 +173,7 @@ final class ArticleReaderChromeState {
         canGoBack = target.readerCanGoBack
         canGoForward = target.readerCanGoForward
         let resolvedURL = currentURL ?? target.readerCurrentURL
-        if let resolvedURL, Self.canOpenExternally(resolvedURL) {
+        if let resolvedURL, resolvedURL.hasWebScheme {
             self.currentURL = resolvedURL
         }
     }
@@ -214,11 +214,6 @@ final class ArticleReaderChromeState {
         zoomOut = nil
         resetZoom = nil
         setZoom = nil
-    }
-
-    private static func canOpenExternally(_ url: URL) -> Bool {
-        guard let scheme = url.scheme?.lowercased() else { return false }
-        return scheme == "http" || scheme == "https"
     }
 }
 
@@ -961,21 +956,16 @@ struct ArticleReaderView: View {
     }
 
     private var currentBrowserURL: URL? {
-        if let url = chromeState?.liveBrowserURL(), Self.canOpenExternally(url) {
+        if let url = chromeState?.liveBrowserURL(), url.hasWebScheme {
             return url
         }
-        if let url = webViewRef?.url, Self.canOpenExternally(url) {
+        if let url = webViewRef?.url, url.hasWebScheme {
             return url
         }
-        if let url = currentURL, Self.canOpenExternally(url) {
+        if let url = currentURL, url.hasWebScheme {
             return url
         }
         return URL(string: article.url)
-    }
-
-    private static func canOpenExternally(_ url: URL) -> Bool {
-        guard let scheme = url.scheme?.lowercased() else { return false }
-        return scheme == "http" || scheme == "https"
     }
 
     private static func isPDFLikeURL(_ url: URL) -> Bool {
@@ -1164,7 +1154,7 @@ struct ArticleReaderView: View {
 
         for raw in pageURLs {
             guard let url = URL(string: raw),
-                  Self.canOpenExternally(url),
+                  url.hasWebScheme,
                   Self.isPDFLikeURL(url) else {
                 continue
             }
@@ -1204,7 +1194,7 @@ struct ArticleReaderView: View {
 
         guard let raw = try? await webView.evaluateJavaScript(js) as? String,
               let url = URL(string: raw),
-              Self.canOpenExternally(url),
+              url.hasWebScheme,
               !PaperService.isSupplementaryPDFURL(url.absoluteString) else {
             return nil
         }
@@ -1319,5 +1309,14 @@ struct ArticleReadingViewMenuItems: View {
                 Label("Remove Reading View", systemImage: "trash")
             }
         }
+    }
+}
+
+extension URL {
+    /// Whether the address is an http or https link, the kind a reader can
+    /// hand to a browser.
+    var hasWebScheme: Bool {
+        guard let scheme = scheme?.lowercased() else { return false }
+        return scheme == "http" || scheme == "https"
     }
 }

@@ -2,14 +2,6 @@
 
 import Foundation
 import CryptoKit
-import SwiftUI
-import UniformTypeIdentifiers
-import CoreTransferable
-#if os(macOS)
-import AppKit
-#elseif canImport(UIKit)
-import UIKit
-#endif
 
 /// Typed status flags stored as sentinel strings in
 /// `StudioArticle.errorMessage`. The raw values match the stored strings, so

@@ -1,9 +1,6 @@
 // The popover and page side chat layouts and the idle welcome of the chat panel.
 import SwiftUI
 import Combine
-import UniformTypeIdentifiers
-import PDFKit
-import WebKit
 import AppKit
 
 extension InternalReviewPanelContent {
@@ -351,7 +348,7 @@ extension InternalReviewPanelContent {
     }
 
     /// Today's pending planned items and what can be done with them: the
-    /// Today card's, which the plan's own row opens since 2026-10-06.
+    /// plan's own row opens them.
     private struct IdleTodayPlan {
         let items: [SchedulePlanItem]
         let start: (SchedulePlanItem) -> Void
@@ -391,8 +388,7 @@ extension InternalReviewPanelContent {
     /// and which goal it serves. It deliberately never congratulates: the app
     /// cannot see whether anything was understood — only that no planned item
     /// is outstanding — and an empty plan is the ordinary state, not an
-    /// achievement. It was the greeting's subtitle until 2026-10-06, when the
-    /// welcome kept only its greeting line.
+    /// achievement.
     private func idleTodayPlanTitle(_ schedule: IdleScheduleSnapshot) -> String {
         let pending = schedule.pendingToday
         let count = pending.count == 1 ? "1 source" : "\(pending.count) sources"
@@ -744,9 +740,9 @@ extension InternalReviewPanelContent {
     }
 
     /// The schedule facts the idle welcome is built from, resolved once per
-    /// render. The greeting, the suggestions and the welcome state each used to
-    /// rebucket the whole Schedule for themselves, so an empty chat rebuilt it
-    /// four to six times per body pass. Pure/in-memory.
+    /// render. The greeting, the suggestions and the welcome state would each
+    /// rebucket the whole Schedule for themselves, so an empty chat would rebuild
+    /// it four to six times per body pass. Pure/in-memory.
     private struct IdleScheduleSnapshot {
         /// Today's row on the unified Schedule across all goals.
         let today: ScheduleDay?
@@ -796,10 +792,9 @@ extension InternalReviewPanelContent {
     /// row opening its source and its leading circle checking it off — the
     /// one completion by hand (schedule-design.md) — and Quiz me on these
     /// under them, which starts a review of the whole day. Planning itself
-    /// happens in the conversation. This was the Today card under the
-    /// greeting until 2026-10-06, when the welcome kept only its greeting
+    /// happens in the conversation. The welcome keeps only its greeting
     /// and a few suggestions (the product owner: "cleaner and fewer buttons and bells
-    /// and whistles"); the plan moved behind its row rather than leaving.
+    /// and whistles"), so the plan sits behind its row.
     private struct IdleTodayPlanList: View {
         let plan: IdleTodayPlan
         let close: () -> Void
@@ -950,7 +945,7 @@ extension InternalReviewPanelContent {
     /// How stale a suggestion may be before it stops being a suggestion. A plan
     /// abandoned two months ago is not the next thing to do, and offering it
     /// as one is how this screen came to advertise work nobody meant to resume.
-    private static let idleSuggestionRecency: TimeInterval = 14 * 24 * 60 * 60
+    private static let idleSuggestionRecency: TimeInterval = 14 * MemoryTutorScheduler.secondsPerDay
 
     /// The most overdue still-live placement, resolved through the day model so
     /// the row can start it exactly like today's plan does. Used when today is

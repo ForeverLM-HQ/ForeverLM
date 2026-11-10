@@ -512,10 +512,14 @@ final class DocBodyMaterializer: @unchecked Sendable {
                 }
             } catch {
                 Self.logger.error("A body of \(job.artifactID, privacy: .private) was not brought in: \(String(describing: error), privacy: .public)")
-                try? await store.onStore { store in
-                    try store.execute("UPDATE ck_blob_jobs SET attempts = attempts + 1, last_error = ?, updated_at = ? WHERE id = ?", [
-                        .text(String(describing: error)), .real(Date().timeIntervalSinceReferenceDate), .integer(job.id),
-                    ])
+                do {
+                    try await store.onStore { store in
+                        try store.execute("UPDATE ck_blob_jobs SET attempts = attempts + 1, last_error = ?, updated_at = ? WHERE id = ?", [
+                            .text(String(describing: error)), .real(Date().timeIntervalSinceReferenceDate), .integer(job.id),
+                        ])
+                    }
+                } catch let recordError {
+                    Self.logger.error("A body job's failure was not recorded: \(recordError.localizedDescription, privacy: .public)")
                 }
             }
         }

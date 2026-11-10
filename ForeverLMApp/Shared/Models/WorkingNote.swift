@@ -238,7 +238,7 @@ struct WorkingNoteOps: Decodable, Equatable, Sendable {
 /// `.update`), because it sees the notes beside the day's activity.
 enum WorkingNoteConsolidation {
     /// A thread nobody recalled or rewrote in this long has ended.
-    static let threadLifetime: TimeInterval = 60 * 86_400
+    static let threadLifetime: TimeInterval = 60 * MemoryTutorScheduler.secondsPerDay
     static let maximumNotes = 200
 
     static func consolidate(_ notes: [WorkingNote], now: Date) -> [WorkingNote] {

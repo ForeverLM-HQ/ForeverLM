@@ -225,9 +225,8 @@ final class StudioSidebarStore {
     ///
     /// A filter, not a membership rule: this is the whole difference between
     /// one Meetings tab and the split Google Drive / Read AI tabs it replaced.
-    /// Provider used to decide which tab a session could appear in, which left
-    /// folder imports homeless and listed mixed-provider series twice. Now it
-    /// narrows a list the learner is already looking at, and defaults to off.
+    /// Provider never decides which tab a session appears in; it narrows a list
+    /// the learner is already looking at, and defaults to off.
     var meetingProviderFilter: MeetingProvider?
 
     /// Sources whose canonical content contains every term in the current `searchText`,
@@ -276,7 +275,7 @@ final class StudioSidebarStore {
 
     /// Books-tab group list memoized per filter revision and book metadata. The
     /// sidebar body reads it several times per render and the chapter filter once
-    /// more; each read used to re-run every book's metadata and chapter scan.
+    /// more; an uncached read re-runs every book's metadata and chapter scan.
     @ObservationIgnored var filteredBookGroupNamesCacheKey: StudioViewModel.FilteredBookGroupNamesCacheKey?
     @ObservationIgnored var filteredBookGroupNamesCache: [String]?
 

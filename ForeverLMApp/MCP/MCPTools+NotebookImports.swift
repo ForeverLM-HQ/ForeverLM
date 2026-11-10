@@ -316,7 +316,7 @@ extension MCPDataStore {
 
     /// After sources joined Notebooks — `arrivals` names, per Notebook, the ids
     /// it holds now and did not before — their chat checkboxes are ticked
-    /// where they arrived (`NotebookChatSelection.arrivalsToTick`), so a box
+    /// where they arrived (`NotebookChatSelection.inboundArrivals`), so a box
     /// unticked before a source last left the Notebook does not outlive its
     /// return. Only rows naming an arrival are read, and only a row that
     /// changes is written. Called after the store gate is let go; the open

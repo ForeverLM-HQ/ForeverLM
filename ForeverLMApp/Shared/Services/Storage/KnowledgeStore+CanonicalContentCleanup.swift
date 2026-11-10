@@ -1,8 +1,6 @@
 // KnowledgeStore: the canonical content cleanup queue, its audit and its application.
 import Foundation
 import SQLite3
-import OSLog
-import CloudKit
 
 extension KnowledgeStore {
 

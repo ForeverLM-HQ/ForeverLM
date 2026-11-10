@@ -170,8 +170,8 @@ extension FreeModelsSetup {
     }
 
     /// How many free backups a free pick brings on its own. Two, although a
-    /// learner may list up to `AIBackupModels.limit` (ten since 2026-09-27):
-    /// that request was about what a learner may set. Each backup a failing
+    /// learner may list up to `AIBackupModels.limit` :
+    /// that limit is about what a learner may set. Each backup a failing
     /// call walks is one more request against the key's free-model quota,
     /// which OpenRouter counts per day across every free model, so ten
     /// automatic backups could spend a day's quota on a handful of calls
@@ -490,9 +490,9 @@ enum RecommendedModels {
 
 /// Moves every setting that uses a free model OpenRouter now charges for, or
 /// no longer lists, onto another free model that can do the same work
-/// (product owner, 2026-09-26). It always runs on its own: the switch that turned
-/// it off was removed on 2026-09-27, since the replacement leads with the
-/// Free Models Router, which never charges. A setting no free model can take
+/// (product owner, 2026-09-26). It always runs on its own: there is no switch to
+/// turn it off, since the replacement leads with the Free Models Router, which
+/// never charges. A setting no free model can take
 /// keeps the one it has, and the notification says so.
 enum FreeModelReplacement {
     struct Move: Equatable, Sendable {

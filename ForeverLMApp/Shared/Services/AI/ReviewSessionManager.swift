@@ -1,6 +1,5 @@
 import Foundation
 import Observation
-import PDFKit
 import os
 
 /// Shared session logic for explain-it-back review quizzing across all platforms.
@@ -540,7 +539,7 @@ final class ReviewSessionManager {
 
     // MARK: - Session Control
 
-    /// The kind a chat this manager creates is written with under generation 2 (D50): the day's memory
+    /// The kind a chat this manager creates is written with (D50): the day's memory
     /// review `memory`, a course quiz's sitting `quizSitting`, a review `review`, any other chat `chat`.
     /// A spoken conversation is the chat or review it drives.
     nonisolated static func createdChatKind(fixedSessionID: String?, mode: InitialPromptMode) -> ChatKind {

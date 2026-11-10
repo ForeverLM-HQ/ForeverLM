@@ -1,15 +1,9 @@
 import Foundation
-import CryptoKit
-import Observation
 import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
-import SwiftUI
 import AppKit
-import SQLite3
-import WebKit
-import Darwin
 
 /// One row in the Docs source picker: the strings the row draws, and nothing else.
 ///
@@ -90,10 +84,10 @@ enum ArtifactSourcePickerFilter: String, CaseIterable, Identifiable, Sendable {
 
 /// The Docs source picker's library, analysed once so that a keystroke only compares.
 ///
-/// The picker used to rebuild its rows from `articles` on every keystroke, on the
-/// main actor, through `sourceMatchesSearch` — which normalizes and folds every
-/// field it reads (ICU folding and a regex each) before it compares anything. Over
-/// the product owner's 4,500 sources that was half a second a pass, and a keystroke ran two
+/// Rebuilding the rows from `articles` on every keystroke, on the main actor,
+/// through `sourceMatchesSearch` would normalize and fold every field it reads
+/// (ICU folding and a regex each) before comparing anything. Over the product
+/// owner's 4,500 sources that is half a second a pass, and a keystroke runs two
 /// passes: the titles, then again with the content matches. Here each source's
 /// fields are analysed once, when the picker opens, and a query is a byte search
 /// over the result: a few milliseconds for the whole library, off the main actor.
@@ -590,10 +584,10 @@ extension StudioViewModel {
     /// vectors and the full-text row keep pace with newly fetched transcripts and
     /// article text instead of staying title-only.
     ///
-    /// Goes through the indexer rather than embedding here: this path used to write
-    /// vectors alone, so a source fetched while the app was open had no full-text row
-    /// until the next launch, and the indexer then embedded it a second time because
-    /// no index stamp had been recorded.
+    /// Goes through the indexer rather than embedding here: writing vectors alone
+    /// would leave a source fetched while the app was open with no full-text row
+    /// until the next launch, and the indexer would then embed it a second time
+    /// because no index stamp had been recorded.
     func queueSourceEmbeddingRefreshIfReady(_ articleId: String) {
         guard let article = articles.first(where: { $0.id == articleId }),
               article.state == .ready else { return }

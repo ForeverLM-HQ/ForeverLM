@@ -1,8 +1,5 @@
 import AppKit
-import CoreImage
 import SwiftUI
-import PDFKit
-import UniformTypeIdentifiers
 import WebKit
 
 struct YouTubeSeekRequest: Equatable {
@@ -200,104 +197,62 @@ struct YouTubeVideoReaderView: View {
     /// more than just over half the pane — a wide pane letterboxes the video rather
     /// than squeezing the transcript into a sliver.
     private func videoHeight(in size: CGSize) -> CGFloat {
-        let height: CGFloat
-        if let draggedVideoHeight {
-            height = draggedVideoHeight
-        } else if storedVideoFraction > 0 {
-            height = size.height * CGFloat(storedVideoFraction)
-        } else {
-            height = min(size.width * 9.0 / 16.0, size.height * 0.55)
-        }
-        return Self.clampedVideoHeight(height, in: size)
+        VideoPaneSplit.height(
+            in: size,
+            dragged: draggedVideoHeight,
+            storedFraction: storedVideoFraction,
+            minVideo: Self.minVideoHeight,
+            minTranscript: Self.minTranscriptHeight
+        )
     }
 
     private static func clampedVideoHeight(_ height: CGFloat, in size: CGSize) -> CGFloat {
-        let maxHeight = max(minVideoHeight, size.height - minTranscriptHeight)
-        return min(max(height, minVideoHeight), maxHeight)
+        VideoPaneSplit.clampedHeight(height, in: size, minVideo: minVideoHeight, minTranscript: minTranscriptHeight)
     }
 
     /// Split-view style divider between video and transcript: drag to resize,
     /// double-click to return to the automatic split.
     private func videoResizeHandle(in size: CGSize) -> some View {
-        Rectangle()
-            .fill(Color.clear)
-            .frame(height: 8)
-            .frame(maxWidth: .infinity)
-            .overlay { Divider() }
-            .contentShape(Rectangle())
-            .cursor(.resizeUpDown)
-            .onTapGesture(count: 2) { storedVideoFraction = 0 }
-            .gesture(
-                // Global space: the handle moves with the video's bottom edge while
-                // dragging, so a local-space translation would feed back into itself
-                // and stutter.
-                DragGesture(minimumDistance: 1, coordinateSpace: .global)
-                    .onChanged { value in
-                        let start = dragStartVideoHeight ?? videoHeight(in: size)
-                        dragStartVideoHeight = start
-                        draggedVideoHeight = Self.clampedVideoHeight(start + value.translation.height, in: size)
-                    }
-                    .onEnded { _ in
-                        if let height = draggedVideoHeight, size.height > 0 {
-                            storedVideoFraction = Double(height / size.height)
-                        }
-                        dragStartVideoHeight = nil
-                        draggedVideoHeight = nil
-                    }
-            )
+        VideoStackedResizeHandle(
+            paneLength: size.height,
+            dragged: $draggedVideoHeight,
+            dragStart: $dragStartVideoHeight,
+            current: { videoHeight(in: size) },
+            clamp: { Self.clampedVideoHeight($0, in: size) },
+            onReset: { storedVideoFraction = 0 },
+            onCommit: { storedVideoFraction = $0 }
+        )
     }
 
     /// Width of the video column in the side-by-side layout. The player fills
     /// and letterboxes inside whatever box it gets, so this only splits the pane.
     private func videoWidth(in size: CGSize) -> CGFloat {
-        let width: CGFloat
-        if let draggedVideoWidth {
-            width = draggedVideoWidth
-        } else if storedVideoWidthFraction > 0 {
-            width = size.width * CGFloat(storedVideoWidthFraction)
-        } else {
-            width = size.width * 0.5
-        }
-        return Self.clampedVideoWidth(width, in: size)
+        VideoPaneSplit.width(
+            in: size,
+            dragged: draggedVideoWidth,
+            storedFraction: storedVideoWidthFraction,
+            minVideo: Self.minVideoPaneWidth,
+            minTranscript: Self.minTranscriptPaneWidth
+        )
     }
 
     private static func clampedVideoWidth(_ width: CGFloat, in size: CGSize) -> CGFloat {
-        let maxWidth = max(minVideoPaneWidth, size.width - minTranscriptPaneWidth)
-        return min(max(width, minVideoPaneWidth), maxWidth)
+        VideoPaneSplit.clampedWidth(width, in: size, minVideo: minVideoPaneWidth, minTranscript: minTranscriptPaneWidth)
     }
 
     /// The side-by-side counterpart of `videoResizeHandle`: a vertical divider
     /// between video and transcript columns, dragged horizontally.
     private func videoWidthResizeHandle(in size: CGSize) -> some View {
-        Rectangle()
-            .fill(Color.clear)
-            .frame(width: Self.sideBySideHandleWidth)
-            .frame(maxHeight: .infinity)
-            .overlay {
-                // A ZStack-context Divider draws horizontally; the column split
-                // needs an explicit vertical hairline.
-                Rectangle()
-                    .fill(Color(nsColor: .separatorColor))
-                    .frame(width: 1)
-            }
-            .contentShape(Rectangle())
-            .cursor(.resizeLeftRight)
-            .onTapGesture(count: 2) { storedVideoWidthFraction = 0 }
-            .gesture(
-                DragGesture(minimumDistance: 1, coordinateSpace: .global)
-                    .onChanged { value in
-                        let start = dragStartVideoWidth ?? videoWidth(in: size)
-                        dragStartVideoWidth = start
-                        draggedVideoWidth = Self.clampedVideoWidth(start + value.translation.width, in: size)
-                    }
-                    .onEnded { _ in
-                        if let width = draggedVideoWidth, size.width > 0 {
-                            storedVideoWidthFraction = Double(width / size.width)
-                        }
-                        dragStartVideoWidth = nil
-                        draggedVideoWidth = nil
-                    }
-            )
+        VideoSideBySideResizeHandle(
+            handleWidth: Self.sideBySideHandleWidth,
+            paneLength: size.width,
+            dragged: $draggedVideoWidth,
+            dragStart: $dragStartVideoWidth,
+            current: { videoWidth(in: size) },
+            clamp: { Self.clampedVideoWidth($0, in: size) },
+            onReset: { storedVideoWidthFraction = 0 },
+            onCommit: { storedVideoWidthFraction = $0 }
+        )
     }
 
     private var timedTranscriptTaskID: String {
@@ -456,7 +411,7 @@ struct YouTubeVideoReaderView: View {
                 parsedSlideContent = slides
                 displayTranscript = transcript
             }
-            // Migrate legacy transcripts to the video's real chapters; this is a
+            // Bring older transcripts to the video's real chapters; this is a
             // no-op when the video has no official chapters.
             await vm.refreshOfficialYouTubeChaptersIfNeeded(for: article.id)
         }
@@ -1950,7 +1905,7 @@ struct YouTubeWatchPageView: NSViewRepresentable {
                     // Steady-state playback reports at ~1 Hz, not on every 0.35 s of
                     // progress. Each report crosses the bridge and updates playbackTime,
                     // which re-runs the reader's body and the whole transcript view
-                    // (O(segments) work, main thread) — at the old ~3 Hz that churn made
+                    // (O(segments) work, main thread) — at ~3 Hz that churn made
                     // clicking the video to pause/resume feel laggy. Nothing shown needs
                     // finer granularity: the active-segment highlight, caption line, and
                     // chapter marker all move on segment boundaries, and watch progress
@@ -2061,4 +2016,134 @@ struct YouTubeWatchPageView: NSViewRepresentable {
         injectionTime: .atDocumentEnd,
         forMainFrameOnly: true
     )
+}
+
+/// How a reader with a video divides its pane between the video and the
+/// transcript, stacked or side by side. The YouTube and meeting-recording
+/// readers differ only in the minimum sizes they keep.
+enum VideoPaneSplit {
+    /// The video's height in the stacked layout: dragged, else the stored
+    /// fraction of the pane, else 16:9 at the pane's width but never more than
+    /// just over half the pane.
+    static func height(in size: CGSize, dragged: CGFloat?, storedFraction: Double, minVideo: CGFloat, minTranscript: CGFloat) -> CGFloat {
+        let height: CGFloat
+        if let dragged {
+            height = dragged
+        } else if storedFraction > 0 {
+            height = size.height * CGFloat(storedFraction)
+        } else {
+            height = min(size.width * 9.0 / 16.0, size.height * 0.55)
+        }
+        return clampedHeight(height, in: size, minVideo: minVideo, minTranscript: minTranscript)
+    }
+
+    static func clampedHeight(_ height: CGFloat, in size: CGSize, minVideo: CGFloat, minTranscript: CGFloat) -> CGFloat {
+        let maxHeight = max(minVideo, size.height - minTranscript)
+        return min(max(height, minVideo), maxHeight)
+    }
+
+    /// The video column's width in the side-by-side layout: dragged, else the
+    /// stored fraction of the pane, else half of it.
+    static func width(in size: CGSize, dragged: CGFloat?, storedFraction: Double, minVideo: CGFloat, minTranscript: CGFloat) -> CGFloat {
+        let width: CGFloat
+        if let dragged {
+            width = dragged
+        } else if storedFraction > 0 {
+            width = size.width * CGFloat(storedFraction)
+        } else {
+            width = size.width * 0.5
+        }
+        return clampedWidth(width, in: size, minVideo: minVideo, minTranscript: minTranscript)
+    }
+
+    static func clampedWidth(_ width: CGFloat, in size: CGSize, minVideo: CGFloat, minTranscript: CGFloat) -> CGFloat {
+        let maxWidth = max(minVideo, size.width - minTranscript)
+        return min(max(width, minVideo), maxWidth)
+    }
+}
+
+/// The divider between a video and its transcript in the stacked layout: drag
+/// to resize, double-click to return to the automatic split.
+struct VideoStackedResizeHandle: View {
+    let paneLength: CGFloat
+    @Binding var dragged: CGFloat?
+    @Binding var dragStart: CGFloat?
+    let current: () -> CGFloat
+    let clamp: (CGFloat) -> CGFloat
+    let onReset: () -> Void
+    let onCommit: (Double) -> Void
+
+    var body: some View {
+        Rectangle()
+            .fill(Color.clear)
+            .frame(height: 8)
+            .frame(maxWidth: .infinity)
+            .overlay { Divider() }
+            .contentShape(Rectangle())
+            .cursor(.resizeUpDown)
+            .onTapGesture(count: 2) { onReset() }
+            .gesture(
+                // Global space: the handle moves with the video's bottom edge while
+                // dragging, so a local-space translation would feed back into itself
+                // and stutter.
+                DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                    .onChanged { value in
+                        let start = dragStart ?? current()
+                        dragStart = start
+                        dragged = clamp(start + value.translation.height)
+                    }
+                    .onEnded { _ in
+                        if let height = dragged, paneLength > 0 {
+                            onCommit(Double(height / paneLength))
+                        }
+                        dragStart = nil
+                        dragged = nil
+                    }
+            )
+    }
+}
+
+/// The side-by-side counterpart of `VideoStackedResizeHandle`: a vertical
+/// divider between the video and transcript columns, dragged horizontally.
+struct VideoSideBySideResizeHandle: View {
+    let handleWidth: CGFloat
+    let paneLength: CGFloat
+    @Binding var dragged: CGFloat?
+    @Binding var dragStart: CGFloat?
+    let current: () -> CGFloat
+    let clamp: (CGFloat) -> CGFloat
+    let onReset: () -> Void
+    let onCommit: (Double) -> Void
+
+    var body: some View {
+        Rectangle()
+            .fill(Color.clear)
+            .frame(width: handleWidth)
+            .frame(maxHeight: .infinity)
+            .overlay {
+                // A ZStack-context Divider draws horizontally; the column split
+                // needs an explicit vertical hairline.
+                Rectangle()
+                    .fill(Color(nsColor: .separatorColor))
+                    .frame(width: 1)
+            }
+            .contentShape(Rectangle())
+            .cursor(.resizeLeftRight)
+            .onTapGesture(count: 2) { onReset() }
+            .gesture(
+                DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                    .onChanged { value in
+                        let start = dragStart ?? current()
+                        dragStart = start
+                        dragged = clamp(start + value.translation.width)
+                    }
+                    .onEnded { _ in
+                        if let width = dragged, paneLength > 0 {
+                            onCommit(Double(width / paneLength))
+                        }
+                        dragStart = nil
+                        dragged = nil
+                    }
+            )
+    }
 }

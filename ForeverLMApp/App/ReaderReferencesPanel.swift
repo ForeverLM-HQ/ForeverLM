@@ -160,10 +160,10 @@ struct ReaderReferencesPanel: View {
                 .controlSize(.small)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .unreadable(let message):
-            centered(message)
+            ReaderPanelMessage(text: message)
         case .ready:
             if groups.isEmpty {
-                centered("Nothing links this source yet")
+                ReaderPanelMessage(text: "Nothing links this source yet")
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 12) {
@@ -176,21 +176,6 @@ struct ReaderReferencesPanel: View {
                 }
             }
         }
-    }
-
-    private func centered(_ text: String) -> some View {
-        VStack {
-            Spacer()
-            Text(text)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.disabled)
-            Spacer()
-        }
-        .padding(.horizontal, 18)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     private func groupView(_ group: DocGraphReferenceGroup) -> some View {
@@ -314,3 +299,23 @@ struct ReaderReferencesMenuItem: View {
     }
 }
 #endif
+
+/// A quiet message centred in a reader side panel: nothing to show, or why.
+struct ReaderPanelMessage: View {
+    let text: String
+
+    var body: some View {
+        VStack {
+            Spacer()
+            Text(text)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
+                .textSelection(.disabled)
+            Spacer()
+        }
+        .padding(.horizontal, 18)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+}

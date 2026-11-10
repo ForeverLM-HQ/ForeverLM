@@ -1,8 +1,6 @@
 // AI provider and per-provider model preferences, moved out of KeychainService.swift.
 
 import Foundation
-import OSLog
-import Security
 
 extension KeychainService {
     private static let defaultAnthropicModel = AIModelDefaults.defaultAnthropic
@@ -76,7 +74,7 @@ extension KeychainService {
                let provider = AIProvider(rawValue: route.provider) {
                 return provider
             }
-            // This is the Chat (review) default. Unset, legacy "appleIntelligence",
+            // This is the Chat (review) default. Unset, a stored "appleIntelligence",
             // and unknown values all map to Anthropic. Without a managed Apple
             // session, resolveConfig returns nil and the review UI asks the user
             // to sign in instead of silently degrading.
@@ -113,7 +111,7 @@ extension KeychainService {
     static var anthropicModel: String {
         get {
             guard let stored = load(.anthropicModel) else { return defaultAnthropicModel }
-            // Same read-time mapping as `aiProvider` uses for legacy values: a stored
+            // Same read-time mapping as `aiProvider` uses for retired values: a stored
             // copy of the retired default follows the current default (Sonnet 5)
             // unless the user explicitly picked it after this build.
             if stored == retiredAnthropicDefaultModel,

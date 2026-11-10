@@ -1,9 +1,8 @@
 import Foundation
 
-// The Schedule on the phone under generation 2 (docs/cloudkit-schema-design.md §3.5.18, §3.5.21, §3.5.24,
-// §10; §14.2 WP20c): one Placement per source (`pl:<sourceID>`) in the member's `Library`, written as the
-// web's generation-2 writer writes it (`library-mutations-v2.js`) and read in the shape the Mac's
-// `PlacementProjection` (WP12b) reads, and the activity days the Schedule shows folded from every device's
+// The Schedule on the phone (docs/cloudkit-schema-design.md §3.5.18, §3.5.21, §3.5.24, §10): one
+// Placement per source (`pl:<sourceID>`) in the member's `Library`, written as the web's writer writes
+// it and read in the shape the Mac's `PlacementProjection` reads, and the activity days the Schedule shows folded from every device's
 // ActivityLog. A placement is never deleted: taken off the Schedule its state flips to `removed`. A
 // completion is the placement's `completedAt` and the source's `ReadingState.completedAt`, which is what a
 // notebook's or a Goal's item completion became (§10).
@@ -38,7 +37,7 @@ enum MobilePlacementDay {
         key.flatMap { offsets[$0] }
     }
 
-    /// When generation 1 planned the row: the day's midnight plus its order in seconds.
+    /// When the row is planned: the day's midnight plus its order in seconds.
     static func plannedAt(day: String, orderKey: String?, calendar: Calendar = .current) -> Date? {
         start(of: day, calendar: calendar).map { $0.addingTimeInterval(Double(order(ofKey: orderKey) ?? 0)) }
     }
@@ -47,7 +46,7 @@ enum MobilePlacementDay {
 // MARK: - Reading the Schedule
 
 extension MobileReadModels {
-    /// The member's live placements in the shape generation 1's rows have, each with its source's activity
+    /// The member's live placements, each with its source's activity
     /// days (folded here unless the caller already holds them), ordered by when they are planned.
     static func placements(in connection: SQLiteConnection, sourceID: String? = nil,
                            activityDays held: [String: [SourceActivityDay]]? = nil) throws -> [MobileCloudScheduledSource] {
@@ -104,7 +103,7 @@ extension MobileReadModels {
         return folded.mapValues { $0.values.sorted { $0.dayStart < $1.dayStart } }
     }
 
-    /// An ActivityLog's kind word as generation 1 names it (`read` is `reading`).
+    /// An ActivityLog's kind word as the screens name it (`read` is `reading`).
     static func activityKind(_ wire: String) -> SourceActivityKind? {
         switch wire {
         case "read": return .reading
@@ -156,7 +155,7 @@ extension MobileWrite {
 
     /// Takes tags off a placement (all of them when `goalIDs` is nil). One left with no tag stays on the
     /// Schedule as the automatic entry on the source's latest activity day when it has activity, else its
-    /// state is `removed` (generation 1's release, the web's `releasePlacement`).
+    /// state is `removed` (as the web's `releasePlacement` does).
     mutating func releasePlacement(_ sourceID: String, goalIDs: [String]?) throws {
         guard let held = try heldPlacement(sourceID) else { return }
         let tagged = members(held.fields["goalIDs"])

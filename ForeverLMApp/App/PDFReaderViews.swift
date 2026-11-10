@@ -3,8 +3,6 @@ import Darwin
 import OSLog
 import SwiftUI
 import PDFKit
-import UniformTypeIdentifiers
-import WebKit
 
 struct RemotePDFReaderView: View {
     let articleId: String

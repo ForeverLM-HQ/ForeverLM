@@ -2,7 +2,7 @@ import SwiftUI
 import AppKit
 
 // The AI Usage surface: the learner's own key, spending and limits, and the
-// activity by task. It is no Settings pane any more: it opens from the rail's
+// activity by task. It opens from the rail's
 // OpenRouter button, under what is running now (`BackgroundWorkButton`).
 
 /// AI Usage above the activity: the learner's own key and
@@ -364,9 +364,8 @@ enum AIModelSetting {
 /// AI Usage › Activity: which tasks used AI, grouped by task, for a range,
 /// read from this Mac's usage ledger (`ai_usage_events`). Every row shows what
 /// it cost, a free model's as $0.00.
-/// Was the Usage pane until 2026-09-24,
-/// with a per-call log, facet filters, a prompt-cache line and a CSV export;
-/// those were diagnostics, and `get_ai_usage_report` reads the same ledger.
+/// The per-call log, facet filters, prompt-cache line and CSV export are
+/// diagnostics left to `get_ai_usage_report`, which reads the same ledger.
 struct AIActivitySettingsSection: View {
     private enum UsageRange: String, CaseIterable, Identifiable {
         case today = "Today"

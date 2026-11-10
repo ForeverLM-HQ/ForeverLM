@@ -17,8 +17,7 @@ actor MobileModelPreferenceStore {
     }
 
     private func requiredWriter() async throws -> MobileRecordWriter {
-        guard let writer = await recordWriter() else { throw MobileRecordWriterError.zoneNotHeld }
-        return writer
+        try await MobileRecordWriter.required(from: recordWriter)
     }
 
     /// The route for `task`, after refreshing the account's settings. A transient
@@ -78,14 +77,14 @@ actor MobileModelPreferenceStore {
     }
 
     /// The account's chat model as the phone runs it: the atomic route row,
-    /// else the legacy provider and model rows, else the phone's own default
+    /// else the separate provider and model rows, else the phone's own default
     /// (`AIModelDefaults.mobileDefaultChatModel`).
     private func chatRoutePreference() async throws -> AIModelRoutePreference {
         if let atomic = try await routePreference(forKey: AIModelPreferenceKey.defaultChatRoute) {
             return atomic
         }
-        if let legacy = try await legacyChatRoute() {
-            return legacy
+        if let separate = try await providerAndModelChatRoute() {
+            return separate
         }
         return AIModelRoutePreference(
             provider: AIModelDefaults.mobileDefaultChatProvider,
@@ -161,8 +160,8 @@ actor MobileModelPreferenceStore {
         if let atomic = try await routePreference(forKey: backgroundKey) {
             background = atomic
         } else if !task.usesMultimodalBackgroundModelDefault,
-                  let legacy = try await legacyBackgroundRoute() {
-            background = legacy
+                  let separate = try await providerAndModelBackgroundRoute() {
+            background = separate
         } else if task.usesMultimodalBackgroundModelDefault {
             background = AIModelRoutePreference(
                 provider: AIModelDefaults.mobileDefaultBackgroundMultimodalProvider,
@@ -180,7 +179,7 @@ actor MobileModelPreferenceStore {
     private func textRoutingMode() async throws -> AITextRoutingMode {
         // Match macOS: the learner's own router key names the transport; else
         // the server names it, the shipped default stands in until it has, and
-        // legacy synced choices cannot move text traffic.
+        // the synced provider choice cannot move text traffic.
         if let own = ManagedAI.ownKeyRouter { return own.routingMode }
         return ManagedAI.requiredTextRoutingMode ?? .shippedDefault
     }
@@ -256,9 +255,9 @@ actor MobileModelPreferenceStore {
         }
     }
 
-    private func legacyChatRoute() async throws -> AIModelRoutePreference? {
+    private func providerAndModelChatRoute() async throws -> AIModelRoutePreference? {
         guard let storedProvider = try await fetchPreference("ai_provider") as? String else { return nil }
-        let provider = try legacyProviderName(storedProvider)
+        let provider = try providerLabel(storedProvider)
         let modelKey: String
         switch provider {
         case "Anthropic (Claude)": modelKey = "anthropic_model"
@@ -273,7 +272,7 @@ actor MobileModelPreferenceStore {
         return AIModelRoutePreference(provider: provider, model: model)
     }
 
-    private func legacyBackgroundRoute() async throws -> AIModelRoutePreference? {
+    private func providerAndModelBackgroundRoute() async throws -> AIModelRoutePreference? {
         guard let provider = try await fetchPreference("aiBackground.provider") as? String else { return nil }
         let perProviderKey = "aiBackground.model.\(provider)"
         let model: String
@@ -389,7 +388,7 @@ actor MobileModelPreferenceStore {
         try await requiredWriter().preferenceValue(key)
     }
 
-    private func legacyProviderName(_ raw: String) throws -> String {
+    private func providerLabel(_ raw: String) throws -> String {
         switch raw {
         case "anthropic": return "Anthropic (Claude)"
         case "openai": return "OpenAI (GPT)"

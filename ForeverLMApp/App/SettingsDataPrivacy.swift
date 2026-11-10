@@ -4,8 +4,7 @@ import SwiftUI
 
 /// Settings → Data & Privacy: where the learner's data lives, what ForeverLM's
 /// own servers keep, the one switch over models that train on prompts and
-/// what AI hosts may retain, and — since 2026-09-24, when they stopped being
-/// panes of their own — iCloud sync and the learner's teams.
+/// what AI hosts may retain, and iCloud sync and the learner's teams.
 ///
 /// Every line on this pane is a claim about the running system, kept to a
 /// headline and one sentence. The library is `knowledge.db` and its files on
@@ -165,8 +164,8 @@ private struct DataPrivacyFactRow: View {
 /// are offered at all, and whether OpenRouter may route to hosts that keep or
 /// train on them. Writes through the synced preference rail so
 /// the other Mac and the phone see the same answer, and re-reads when a remote
-/// change lands. Lived under AI Models → Chat until 2026-09-12; it sits with
-/// the rest of the data story now, and `AIDataPolicy.settingsLocation` says so.
+/// change lands. It sits with
+/// the rest of the data story, and `AIDataPolicy.settingsLocation` says so.
 struct AIDataPolicySettingsView: View {
     @State private var deniesDataCollection = AIDataPolicy.deniesDataCollection
 

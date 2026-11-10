@@ -36,14 +36,14 @@ struct SourceThumbnail: View {
                     pdfPath: bookCoverPath,
                     size: CGSize(width: size, height: size),
                     placeholderSystemImage: "book.closed",
-                    tint: sourceTypeColor(.book)
+                    tint: StudioSourceType.book.tintColor
                 )
             } else if let thumbnailPath = localDocumentThumbnailPath, !drawsPaperAsIcon {
                 BookCoverThumbnail(
                     pdfPath: thumbnailPath,
                     size: CGSize(width: size, height: size),
-                    placeholderSystemImage: sourceTypeIcon(source.sourceType),
-                    tint: sourceTypeColor(source.sourceType)
+                    placeholderSystemImage: source.sourceType.symbolName,
+                    tint: source.sourceType.tintColor
                 )
             } else if let artworkURL {
                 CachedAsyncImage(url: artworkURL) { phase in
@@ -84,35 +84,24 @@ struct SourceThumbnail: View {
     private var sourceTypeIconView: some View {
         if source.sourceType == .xPost {
             XLogoShape()
-                .fill(sourceTypeColor(source.sourceType), style: FillStyle(eoFill: true))
+                .fill(source.sourceType.tintColor, style: FillStyle(eoFill: true))
                 .frame(width: size * 0.40, height: size * 0.40)
                 .frame(width: size, height: size)
-                .background(sourceTypeColor(source.sourceType).opacity(0.10))
+                .background(source.sourceType.tintColor.opacity(0.10))
         } else {
-            Image(systemName: sourceTypeIcon(source.sourceType))
+            Image(systemName: source.sourceType.symbolName)
                 .zoomedSystemFont(size: max(12, size * 0.42))
-                .foregroundStyle(sourceTypeColor(source.sourceType))
+                .foregroundStyle(source.sourceType.tintColor)
                 .frame(width: size, height: size)
-                .background(sourceTypeColor(source.sourceType).opacity(0.10))
+                .background(source.sourceType.tintColor.opacity(0.10))
         }
     }
+}
 
-    private func sourceTypeIcon(_ type: StudioSourceType) -> String {
-        switch type {
-        case .article, .unclassified: return "doc.richtext"
-        case .paper: return "doc.text.magnifyingglass"
-        case .podcast: return "headphones"
-        case .book: return "book.closed"
-        case .course: return "graduationcap"
-        case .meeting: return "person.2.wave.2"
-        case .video: return "play.rectangle"
-        case .xPost: return "bubble.left"
-        case .manual: return "link"
-        }
-    }
-
-    private func sourceTypeColor(_ type: StudioSourceType) -> Color {
-        switch type {
+extension StudioSourceType {
+    /// The colour a row, thumbnail or tab gives a source of this type.
+    var tintColor: Color {
+        switch self {
         case .article, .unclassified: return .blue
         case .paper: return .purple
         case .podcast: return .orange

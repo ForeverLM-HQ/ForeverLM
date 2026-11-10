@@ -1,13 +1,7 @@
 // Finishing playback and saving the listening position.
 #if os(macOS)
-import AVFoundation
-import CryptoKit
 import Foundation
-import MediaPlayer
-import os
-import PDFKit
 import SwiftUI
-import WebKit
 
 extension ArticleSpeechService {
     func finishPlayback(completedSuccessfully: Bool = false) {
@@ -186,8 +180,8 @@ extension ArticleSpeechService {
 
     /// Promote resumable playback position into durable consumption evidence.
     ///
-    /// Abandoning a podcast at 70% previously left nothing behind but a resume
-    /// locator, so the memory companion could not tell it apart from an episode
+    /// Abandoning a podcast at 70% would leave nothing behind but a resume
+    /// locator, and the memory companion could not tell it apart from an episode
     /// that was never opened. Depth rides the same throttle as the position
     /// save, and completion separately records 1.0.
     ///
@@ -261,7 +255,13 @@ extension ArticleSpeechService {
             if toAccount {
                 await SyncedArticleAudioStore.publishPlaybackPositionToAccount(position, sourceID: sourceID)
                 // The account copy is the source's ReadingState (`listen.position.*` stays on this Mac).
-                try? await activityStorage.saveListenPosition(position, sourceID: sourceID)
+                do {
+                    try await activityStorage.saveListenPosition(position, sourceID: sourceID)
+                } catch {
+                    articleSpeechLogger.error(
+                        "Could not save the listen position for \(sourceID, privacy: .public): \(error.localizedDescription, privacy: .public)"
+                    )
+                }
             }
         }
     }

@@ -1,17 +1,9 @@
 // Requests that open or reset the review chat in a window.
 
 import Foundation
-import CryptoKit
-import Observation
-import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
-import SwiftUI
-import AppKit
-import SQLite3
-import WebKit
-import Darwin
 
 extension StudioViewModel {
 

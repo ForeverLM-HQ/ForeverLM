@@ -1,7 +1,7 @@
 import Foundation
 
-// An explainer written on the phone under generation 2 (docs/cloudkit-schema-design.md §3.5.4, §3.5.30,
-// §5.4; explainer-design.md; §14.2 WP20c). It stays what every client makes of it: an article-typed Source
+// An explainer written on the phone (docs/cloudkit-schema-design.md §3.5.4, §3.5.30, §5.4;
+// explainer-design.md). It stays what every client makes of it: an article-typed Source
 // in the learner's `Catalog` whose url is `foreverlm://explainer/<sourceID>`, under the id the Mac derives
 // from that url (`GeneratedExplainer.sourceID(explaining:)`), with the script as its `files.text`
 // satellite. So the Mac's Explain button, the phone's reader and Listen find it as they find any source,

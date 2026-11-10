@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - What Settings › iCloud's buttons ask of the cutover
 
-/// What "This Mac holds my library" asks of the seeder and the catch-up (§13.5, WP16 and WP16b).
+/// What "This Mac holds my library" asks of the seeder and the catch-up (§13.5).
 protocol LibraryClaiming: Sendable {
     /// The deferred catch-up, once. A `knowledgeMissing` store reads nothing from the old zones, so
     /// `readsOldZones` is false (R6-m9).

@@ -1,6 +1,6 @@
 import Foundation
 
-// MARK: - Written faces on the plane (WP-B1)
+// MARK: - Written faces on the plane
 //
 // docs/sensemaking-design.md, "Written faces". A source card drawn on the
 // Canvas reads at three distances: far, a few words of what it is about; mid,

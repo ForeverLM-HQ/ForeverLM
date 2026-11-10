@@ -1,6 +1,5 @@
 import AppKit
 import SwiftUI
-import UniformTypeIdentifiers
 import WebKit
 
 /// Carries the Docs pane header's requests down to the linked doc's web view.

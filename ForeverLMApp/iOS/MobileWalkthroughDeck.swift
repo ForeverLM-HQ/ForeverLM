@@ -72,7 +72,7 @@ struct MobileWalkthroughDeck: Decodable, Equatable, Sendable {
         let picturePanelLabel: String?
         /// Or the picture drawn for the step, by its image-store id: the
         /// Source record carries the file beside the walk
-        /// (`WalkthroughPicturePackageFormat`), and the phone reads it from
+        /// (`WalkthroughPicturePackage`), and the phone reads it from
         /// there (`MobileSourceFileStore.walkthroughPicture`). Nil when the
         /// step's picture is a figure, as on the Mac.
         let pictureImageID: String?

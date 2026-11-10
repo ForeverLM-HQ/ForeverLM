@@ -13,7 +13,7 @@ import Foundation
 //   card review deals practice (`MemoryCardSitting`, `MemoryCardSessionModel`:
 //   the same writes, so generation 2's Sitting records stay right), and asked
 //   in place: the Canvas flies to each card and the question floats beside it
-//   (`KnowledgeMapReviewOverlay`).
+//   (`KnowledgeMapCanvasView+Memory.swift`).
 // - **Make Cards** from the learner's own Ideas and arrows
 //   (`SituatedCardDrafter`), into To Check. Sources selected alone go to the
 //   source Make Cards the Reader's button opens.

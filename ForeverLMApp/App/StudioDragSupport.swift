@@ -1,12 +1,8 @@
 // Drag visibility, drop zones, panel and tab-group sizing, and the centre tab drag payloads.
 
 import SwiftUI
-import Combine
 import UniformTypeIdentifiers
-import PDFKit
-import WebKit
 import AppKit
-import OSLog
 
 /// `@Observable` deliberately: nearly every row in the app (chat rows, notebook
 /// rows, source rows, drop panels) consults this object. As an
@@ -284,9 +280,9 @@ enum StudioPanelDefaultSizing {
     ///
     ///     window = 2·side + panes·φ·side + panes·divider
     ///
-    /// for `side` is what keeps that ratio true at any window size — the old
-    /// pinned point width held only at one width and drifted everywhere else
-    /// (at 2560pt it had stretched the center to 2.5× the sides).
+    /// for `side` is what keeps that ratio true at any window size — a
+    /// pinned point width holds only at one width and drifts everywhere else
+    /// (at 2560pt it stretched the center to 2.5× the sides).
     ///
     /// Splitting the center narrows the sidebar, since the row now owes φ to
     /// two panes instead of one.
@@ -489,7 +485,7 @@ enum StudioCenterTabDragPayload {
     }
 
     /// A private type keeps native Reader/Chat text views from competing with
-    /// the edge split destination for what used to look like an ordinary text
+    /// the edge split destination for what would look like an ordinary text
     /// drag. Keep UTF-8 text alongside it so the SwiftUI strip delegates retain
     /// compatibility with drags started by older builds.
     static let contentType = UTType(exportedAs: "com.foreverlm.studio-center-tab")

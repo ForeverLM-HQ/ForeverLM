@@ -1,8 +1,5 @@
 import SwiftUI
 import Combine
-import UniformTypeIdentifiers
-import PDFKit
-import WebKit
 import AppKit
 
 struct ReviewSessionsPanel: View {
@@ -985,42 +982,14 @@ struct ReviewSessionSourcesEditor: View {
     private func sourceTypeIconView(for type: StudioSourceType) -> some View {
         if type == .xPost {
             XLogoShape()
-                .fill(sourceTypeColor(type), style: FillStyle(eoFill: true))
+                .fill(type.tintColor, style: FillStyle(eoFill: true))
                 .frame(width: 12, height: 12)
                 .frame(width: 18, height: 18)
         } else {
-            Image(systemName: sourceTypeIcon(type))
+            Image(systemName: type.symbolName)
                 .font(.subheadline)
-                .foregroundStyle(sourceTypeColor(type))
+                .foregroundStyle(type.tintColor)
                 .frame(width: 18, height: 18)
-        }
-    }
-
-    private func sourceTypeIcon(_ type: StudioSourceType) -> String {
-        switch type {
-        case .article, .unclassified: return "doc.richtext"
-        case .paper: return "doc.text.magnifyingglass"
-        case .podcast: return "headphones"
-        case .book: return "book.closed"
-        case .course: return "graduationcap"
-        case .meeting: return "person.2.wave.2"
-        case .video: return "play.rectangle"
-        case .xPost: return "bubble.left"
-        case .manual: return "link"
-        }
-    }
-
-    private func sourceTypeColor(_ type: StudioSourceType) -> Color {
-        switch type {
-        case .article, .unclassified: return .blue
-        case .paper: return .purple
-        case .podcast: return .orange
-        case .book: return .green
-        case .course: return .indigo
-        case .meeting: return .teal
-        case .video: return .red
-        case .xPost: return .primary
-        case .manual: return .secondary
         }
     }
 }

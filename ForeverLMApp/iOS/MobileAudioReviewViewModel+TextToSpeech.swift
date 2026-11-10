@@ -1,14 +1,7 @@
 // Text-to-speech preparation and generation.
 
-import AVFoundation
-import Combine
-import CryptoKit
+import Foundation
 import MediaPlayer
-import OSLog
-import SwiftUI
-import CloudKit
-import SQLite3
-import WidgetKit
 
 extension MobileAudioReviewViewModel {
     func resolveTextToSpeechCostConfirmation(approved: Bool) {
@@ -282,7 +275,7 @@ extension MobileAudioReviewViewModel {
                 onProgress: onProgress
             )
         }
-        // Generation 2: the finished narration goes up as the source's `audio.*` satellites.
+        // The finished narration goes up as the source's `audio.*` satellites.
         let sourceID = source.id
         Task { await MobileNarrationLibrary.shared.refresh(only: sourceID) }
         return manifest
@@ -619,7 +612,7 @@ extension MobileAudioReviewViewModel {
             // is the listener's call to make, not this pass's. A Listen that
             // stopped while its text was being prepared has narrated nothing
             // yet, and the windows it did finish are kept, so it restarts too:
-            // that stop used to end the Listen for good, which on a phone that
+            // a stop would otherwise end the Listen for good, which on a phone that
             // was locked or between cells was nearly every time.
             let stoppedWhilePreparingText = textToSpeechStoppedWhilePreparingText.remove(sourceID) != nil
             let hasJournal = await Task.detached(priority: .utility) {

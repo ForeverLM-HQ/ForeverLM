@@ -7,7 +7,7 @@ import SwiftUI
 /// foreverlm"). Top to bottom: the Doc's title; a field that invites people
 /// by email; **Who has access** — the link, anyone at each team, each reader,
 /// the author; and a footer with the one sentence that says who can open it,
-/// a gear to the publish sheet (the custom address, the legacy cases) and
+/// a gear to the publish sheet (the custom address, pages guarded by a password) and
 /// **Copy link**. Every row acts at once and shows its own progress; the
 /// rows come from `DocSharing`, which is also what the header chip, the More
 /// menu, Web Studio and `list_docs` read.
@@ -22,7 +22,7 @@ struct DocSharePopover: View {
     let publish: (DocPageAccess) async throws -> PublishedDocStatus
     /// A team was just given a copy; the header re-reads who holds one.
     let teamShared: () async -> Void
-    /// The gear: the publish sheet, for the address and the legacy cases.
+    /// The gear: the publish sheet, for the address and pages guarded by a password.
     let openSettings: () -> Void
     let close: () -> Void
 

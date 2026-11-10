@@ -2,9 +2,6 @@
 
 import SwiftUI
 import Combine
-import UniformTypeIdentifiers
-import PDFKit
-import WebKit
 import AppKit
 import OSLog
 
@@ -156,7 +153,7 @@ protocol TitlebarBandControlClickPassthrough: NSView {}
 
 /// The one mouse surface for a control that lives in the titlebar band.
 ///
-/// A press on a band control used to slide the whole window: measured on the
+/// A press on a band control slides the whole window by default: measured on the
 /// shipped build 2026-08-31, pressing a pane close and moving the pointer 60pt
 /// moved the window 54pt, and the click was lost whenever the pointer left the
 /// control before the release. `mouseDownCanMoveWindow` does not prevent it —

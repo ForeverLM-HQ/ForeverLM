@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 // MARK: - Collections of notebooks on the phone
 
@@ -59,7 +60,8 @@ final class MobileNotebookCollectionsStore: ObservableObject {
     private var heldNotebookIDs: Set<String> = []
     /// Every collection this phone has seen with a name since launch.
     private var seenCollectionIDs: Set<String> = []
-    private var chain: Task<Void, Never>?
+    private static let logger = Logger(subsystem: "com.foreverlm.mobile", category: "NotebookCollections")
+    private let operations = MobileSerialOperations()
 
     // A notebook's row (§3.5.3, §3.5.20) is its NotebookState's `collections`, and a
     // collection's name the account Setting `notebookCollection.<id>`, which the catalog lists under
@@ -203,10 +205,14 @@ final class MobileNotebookCollectionsStore: ObservableObject {
     /// No row is the common case; a failed removal leaves a row no notebook
     /// answers to, which every device reads past.
     func forgetNotebook(notebookID: String) async {
-        try? await serialized {
-            self.heldNotebookIDs.remove(notebookID)
-            self.state = self.state.settingMembership([], for: notebookID)
-            try await self.writeMembership(NotebookCollections.membershipKey(notebookID: notebookID), [])
+        do {
+            try await serialized {
+                self.heldNotebookIDs.remove(notebookID)
+                self.state = self.state.settingMembership([], for: notebookID)
+                try await self.writeMembership(NotebookCollections.membershipKey(notebookID: notebookID), [])
+            }
+        } catch {
+            Self.logger.error("Removing a deleted notebook's collection row failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -228,13 +234,7 @@ final class MobileNotebookCollectionsStore: ObservableObject {
     private func serialized<T: Sendable>(
         _ operation: @escaping @Sendable @MainActor () async throws -> T
     ) async throws -> T {
-        let previous = chain
-        let task = Task { @MainActor in
-            await previous?.value
-            return try await operation()
-        }
-        chain = Task { _ = await task.result }
-        return try await task.value
+        try await operations.run(operation)
     }
 }
 
@@ -291,5 +291,22 @@ extension MobileAudioReviewViewModel {
         } catch {
             errorMessage = "The collection could not be deleted: \(error.localizedDescription)"
         }
+    }
+}
+
+/// Runs operations one after another, in the order they were asked for.
+@MainActor
+final class MobileSerialOperations {
+    private var chain: Task<Void, Never>?
+
+    /// Runs `operation` after every operation asked for before it, whether that one finished or threw.
+    func run<T: Sendable>(_ operation: @escaping @Sendable @MainActor () async throws -> T) async throws -> T {
+        let previous = chain
+        let task = Task { @MainActor in
+            await previous?.value
+            return try await operation()
+        }
+        chain = Task { _ = await task.result }
+        return try await task.value
     }
 }

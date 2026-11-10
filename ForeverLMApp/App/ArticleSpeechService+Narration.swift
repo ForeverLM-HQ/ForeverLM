@@ -1,13 +1,8 @@
 // Narration that plays at once and is kept as it is made.
 #if os(macOS)
 import AVFoundation
-import CryptoKit
 import Foundation
-import MediaPlayer
-import os
-import PDFKit
 import SwiftUI
-import WebKit
 
 extension ArticleSpeechService {
     // MARK: - Narration: play at once, keep it as it is made

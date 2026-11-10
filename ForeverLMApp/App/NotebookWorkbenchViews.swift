@@ -1,5 +1,4 @@
 import SwiftUI
-import UniformTypeIdentifiers
 
 /// Menu item that pins one active notebook to the rail's Pinned section or
 /// takes it off (`NotebookPins`). Pinning is the learner's own presentation

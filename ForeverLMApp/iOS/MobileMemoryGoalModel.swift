@@ -64,7 +64,7 @@ final class MobileMemoryGoalModel: ObservableObject {
             let now = Date()
             do {
                 // The goal is a Setting and the minutes are the ActivityLog fold of every device, read
-                // from the replica (§3.5.24, WP19b).
+                // from the replica (§3.5.24).
                 guard let session = await MobileSyncSession.startIfEnabled() else { return }
                 let budget: SyncJSON? = try? await session.projection.setting(MemoryReviewBudget.preferenceKey)
                 // The Setting holds typed JSON (`{t: int, v: …}`), not a bare number.

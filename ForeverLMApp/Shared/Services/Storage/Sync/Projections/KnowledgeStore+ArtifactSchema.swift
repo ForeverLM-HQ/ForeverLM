@@ -17,7 +17,7 @@ extension KnowledgeStore {
             ("file_ref", "TEXT NOT NULL"),
             ("local_path", "TEXT"),
         ], constraints: ["PRIMARY KEY (artifact_id, file_key)"]),
-        // The time this Mac's seed or reconcile had a body's upload acknowledged (`sent_at`, WP16),
+        // The time this Mac's seed or reconcile had a body's upload acknowledged (`sent_at`),
         // keyed by wire id. `base_hash` and `base_text` are no longer written.
         ReplicaSchemaTable("ck_body_sends", [
             ("record_type", "TEXT NOT NULL"),
@@ -44,7 +44,7 @@ extension KnowledgeStore {
 // MARK: - The activation's derivation for Artifacts (§13.3 step 3c)
 
 extension KnowledgeStore {
-    /// WP11's derivation: every Doc's body pointer and every notebook's Notes Doc pointer, laid out from
+    /// The derivation for Artifacts: every Doc's body pointer and every notebook's Notes Doc pointer, laid out from
     /// the bodies this Mac holds as the publisher lays them out, without uploading them (the cutover
     /// seed sends pointers and then bytes, §3.5.30 rule 2's exception). A Doc's FileRef hashes its
     /// `ArtifactBodyPackage` bytes, so it carries the `bodyRevision` generation 1 gives the same package

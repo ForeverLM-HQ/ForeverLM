@@ -338,7 +338,7 @@ enum CloudKitMapping {
 
     /// A fetched or saved record as a value: every encrypted key (`encryptedValues.allKeys()`) and
     /// every plain one, never a fixed list, so the old container's records keep fields such as
-    /// `userModificationDate` (WP4b's correction for WP5).
+    /// `userModificationDate`.
     static func record(_ ck: CKRecord) -> CloudRecord {
         var record = CloudRecord(id: CloudRecordID(ck.recordID), recordType: ck.recordType, systemFields: systemFields(of: ck))
         record.changeTag = ck.recordChangeTag

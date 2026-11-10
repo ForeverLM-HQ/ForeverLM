@@ -955,101 +955,59 @@ struct MeetingRecordingReaderView: View {
     // MARK: Video pane sizing (mirrors the YouTube reader's stacked layout)
 
     private func videoHeight(in size: CGSize) -> CGFloat {
-        let height: CGFloat
-        if let draggedVideoHeight {
-            height = draggedVideoHeight
-        } else if storedVideoFraction > 0 {
-            height = size.height * CGFloat(storedVideoFraction)
-        } else {
-            height = min(size.width * 9.0 / 16.0, size.height * 0.55)
-        }
-        return Self.clampedVideoHeight(height, in: size)
+        VideoPaneSplit.height(
+            in: size,
+            dragged: draggedVideoHeight,
+            storedFraction: storedVideoFraction,
+            minVideo: Self.minVideoHeight,
+            minTranscript: Self.minTranscriptHeight
+        )
     }
 
     private static func clampedVideoHeight(_ height: CGFloat, in size: CGSize) -> CGFloat {
-        let maxHeight = max(minVideoHeight, size.height - minTranscriptHeight)
-        return min(max(height, minVideoHeight), maxHeight)
+        VideoPaneSplit.clampedHeight(height, in: size, minVideo: minVideoHeight, minTranscript: minTranscriptHeight)
     }
 
     private func videoResizeHandle(in size: CGSize) -> some View {
-        Rectangle()
-            .fill(Color.clear)
-            .frame(height: 8)
-            .frame(maxWidth: .infinity)
-            .overlay { Divider() }
-            .contentShape(Rectangle())
-            .cursor(.resizeUpDown)
-            .onTapGesture(count: 2) { storedVideoFraction = 0 }
-            .gesture(
-                // Global space: the handle moves with the video's bottom edge while
-                // dragging, so a local-space translation would feed back into itself
-                // and stutter.
-                DragGesture(minimumDistance: 1, coordinateSpace: .global)
-                    .onChanged { value in
-                        let start = dragStartVideoHeight ?? videoHeight(in: size)
-                        dragStartVideoHeight = start
-                        draggedVideoHeight = Self.clampedVideoHeight(start + value.translation.height, in: size)
-                    }
-                    .onEnded { _ in
-                        if let height = draggedVideoHeight, size.height > 0 {
-                            storedVideoFraction = Double(height / size.height)
-                        }
-                        dragStartVideoHeight = nil
-                        draggedVideoHeight = nil
-                    }
-            )
+        VideoStackedResizeHandle(
+            paneLength: size.height,
+            dragged: $draggedVideoHeight,
+            dragStart: $dragStartVideoHeight,
+            current: { videoHeight(in: size) },
+            clamp: { Self.clampedVideoHeight($0, in: size) },
+            onReset: { storedVideoFraction = 0 },
+            onCommit: { storedVideoFraction = $0 }
+        )
     }
 
     /// The recording column's width when the transcript is beside it.
     private func videoWidth(in size: CGSize) -> CGFloat {
-        let width: CGFloat
-        if let draggedVideoWidth {
-            width = draggedVideoWidth
-        } else if storedVideoWidthFraction > 0 {
-            width = size.width * CGFloat(storedVideoWidthFraction)
-        } else {
-            width = size.width * 0.5
-        }
-        return Self.clampedVideoWidth(width, in: size)
+        VideoPaneSplit.width(
+            in: size,
+            dragged: draggedVideoWidth,
+            storedFraction: storedVideoWidthFraction,
+            minVideo: Self.minVideoPaneWidth,
+            minTranscript: Self.minTranscriptPaneWidth
+        )
     }
 
     private static func clampedVideoWidth(_ width: CGFloat, in size: CGSize) -> CGFloat {
-        let maxWidth = max(minVideoPaneWidth, size.width - minTranscriptPaneWidth)
-        return min(max(width, minVideoPaneWidth), maxWidth)
+        VideoPaneSplit.clampedWidth(width, in: size, minVideo: minVideoPaneWidth, minTranscript: minTranscriptPaneWidth)
     }
 
     /// The side-by-side counterpart of `videoResizeHandle`: a vertical divider,
     /// dragged horizontally; double-click returns to the automatic split.
     private func videoWidthResizeHandle(in size: CGSize) -> some View {
-        Rectangle()
-            .fill(Color.clear)
-            .frame(width: Self.sideBySideHandleWidth)
-            .frame(maxHeight: .infinity)
-            .overlay {
-                // A Divider in this context draws horizontally; the column
-                // split needs an explicit vertical hairline.
-                Rectangle()
-                    .fill(Color(nsColor: .separatorColor))
-                    .frame(width: 1)
-            }
-            .contentShape(Rectangle())
-            .cursor(.resizeLeftRight)
-            .onTapGesture(count: 2) { storedVideoWidthFraction = 0 }
-            .gesture(
-                DragGesture(minimumDistance: 1, coordinateSpace: .global)
-                    .onChanged { value in
-                        let start = dragStartVideoWidth ?? videoWidth(in: size)
-                        dragStartVideoWidth = start
-                        draggedVideoWidth = Self.clampedVideoWidth(start + value.translation.width, in: size)
-                    }
-                    .onEnded { _ in
-                        if let width = draggedVideoWidth, size.width > 0 {
-                            storedVideoWidthFraction = Double(width / size.width)
-                        }
-                        dragStartVideoWidth = nil
-                        draggedVideoWidth = nil
-                    }
-            )
+        VideoSideBySideResizeHandle(
+            handleWidth: Self.sideBySideHandleWidth,
+            paneLength: size.width,
+            dragged: $draggedVideoWidth,
+            dragStart: $dragStartVideoWidth,
+            current: { videoWidth(in: size) },
+            clamp: { Self.clampedVideoWidth($0, in: size) },
+            onReset: { storedVideoWidthFraction = 0 },
+            onCommit: { storedVideoWidthFraction = $0 }
+        )
     }
 
     // MARK: Watch progress (same cadence and gates as the YouTube reader)
@@ -1248,9 +1206,8 @@ struct MeetingRecordingPlayerView: NSViewRepresentable {
 }
 
 /// The bar that says, above everything else, that Google Drive cannot read the
-/// meeting folders. A meeting recording that will not load used to explain
-/// itself in one line of small text over a black box; this is the same fact
-/// where nobody can miss it, with the repair beside it. It draws nothing while
+/// meeting folders. It puts that fact where nobody can miss it, with the
+/// repair beside it. It draws nothing while
 /// Drive is healthy, and it re-checks whenever a connection changes.
 struct GoogleDriveHealthBanner: View {
     /// The Drive account the content belongs to; nil answers for the connection

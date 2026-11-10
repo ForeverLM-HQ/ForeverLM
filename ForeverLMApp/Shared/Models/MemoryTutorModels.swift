@@ -407,7 +407,7 @@ enum MemoryReviewScheduler {
 
     static func dueDate(for stat: MemoryReviewStat) -> Date {
         let days = intervalDays(reviewCount: stat.reviewCount, lastScore: stat.lastScore)
-        return stat.lastReviewedAt.addingTimeInterval(days * 86_400)
+        return stat.lastReviewedAt.addingTimeInterval(days * MemoryTutorScheduler.secondsPerDay)
     }
 
     /// The sources fading hardest right now, most-overdue first. Only items whose
@@ -417,7 +417,7 @@ enum MemoryReviewScheduler {
         let due: [MemoryReviewDueItem] = stats.compactMap { stat in
             let dueAt = dueDate(for: stat)
             guard now >= dueAt else { return nil }
-            let days = Int(now.timeIntervalSince(dueAt) / 86_400)
+            let days = Int(now.timeIntervalSince(dueAt) / MemoryTutorScheduler.secondsPerDay)
             return MemoryReviewDueItem(
                 sourceID: stat.sourceID,
                 title: stat.title,
@@ -468,9 +468,9 @@ enum MemoryReviewScheduler {
         order: IntakeOrder = .mostOverdueFirst
     ) -> [MemoryReviewNewItem] {
         let items: [MemoryReviewNewItem] = candidates.compactMap { candidate in
-            let dueAt = candidate.consumedAt.addingTimeInterval(firstReviewDelayDays * 86_400)
+            let dueAt = candidate.consumedAt.addingTimeInterval(firstReviewDelayDays * MemoryTutorScheduler.secondsPerDay)
             guard now >= dueAt else { return nil }
-            let days = Int(now.timeIntervalSince(dueAt) / 86_400)
+            let days = Int(now.timeIntervalSince(dueAt) / MemoryTutorScheduler.secondsPerDay)
             return MemoryReviewNewItem(
                 sourceID: candidate.sourceID,
                 title: candidate.title,

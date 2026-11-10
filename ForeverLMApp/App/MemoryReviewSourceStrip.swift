@@ -1,9 +1,6 @@
 // The memory review source strip, its chips and the source turn row.
 import SwiftUI
 import Combine
-import UniformTypeIdentifiers
-import PDFKit
-import WebKit
 import AppKit
 
 /// The material a day's memory review covers, pinned above its transcript.

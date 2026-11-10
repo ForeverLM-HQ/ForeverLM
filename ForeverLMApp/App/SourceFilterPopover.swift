@@ -526,7 +526,7 @@ struct HiddenItemsPage: View {
     @State private var expansionOverrides: [String: Bool] = [:]
     /// Measured height of the list, so the popover can follow it. A popover
     /// sizes its content once when it opens; a `ScrollView` left to size
-    /// itself never asks it to grow, so expanding a group used to draw the
+    /// itself never asks it to grow, so expanding a group would draw the
     /// episodes below the popover's edge.
     @State private var listHeight: CGFloat?
     /// The list scrolls once it is taller than this.

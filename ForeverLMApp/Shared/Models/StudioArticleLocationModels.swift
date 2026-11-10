@@ -1,15 +1,6 @@
 // StudioArticle local-path, PDF and web-location members, moved out of Models.swift.
 
 import Foundation
-import CryptoKit
-import SwiftUI
-import UniformTypeIdentifiers
-import CoreTransferable
-#if os(macOS)
-import AppKit
-#elseif canImport(UIKit)
-import UIKit
-#endif
 
 extension StudioArticle {
     /// Record that a caller has already verified a local file at `rawPath`.

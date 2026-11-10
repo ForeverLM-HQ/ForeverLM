@@ -10,22 +10,22 @@ struct PublishedDocStatus: Equatable, Sendable {
     let publishedAt: Date
     let updatedAt: Date
     /// The page is not open to anyone with the link: it is shared with specific
-    /// readers, or (legacy) guarded by a password.
+    /// readers, or guarded by a password set before reader lists existed.
     let isProtected: Bool
     /// The email addresses the page is shared with, normalised as the site
-    /// stores them. Empty for an open page and for a legacy password page.
+    /// stores them. Empty for an open page and for a password page.
     var readers: [String] = []
-    /// Legacy: the share password of a page protected before reader lists
-    /// existed, returned only to the authenticated owner. Nil otherwise.
+    /// The share password of a page protected before reader lists existed,
+    /// returned only to the authenticated owner. Nil otherwise.
     let password: String?
     /// The address was chosen by the writer rather than drawn at random.
     var isCustomSlug: Bool = false
 }
 
 /// What a publish does to who can read the page. `keep` leaves whatever the
-/// page has (open, for a first publish; a legacy password stays a password);
+/// page has (open, for a first publish; a password stays a password);
 /// `open` lets anyone with the link read it; `readers` shares it with exactly
-/// those addresses, replacing a legacy password.
+/// those addresses, replacing a password.
 enum DocPageAccess: Equatable, Sendable {
     case keep
     case open
@@ -163,7 +163,7 @@ enum DocPublishing {
         docLinks: [String: String] = [:]
     ) -> PreviewInput {
         let collapsedTitle = title.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).joined(separator: " ")
-        let formatter = ISO8601DateFormatter()
+        let formatter = KnowledgeStore.iso8601Formatter
         return PreviewInput(
             title: collapsedTitle.isEmpty ? "Untitled" : collapsedTitle,
             markdown: markdown,
@@ -296,7 +296,7 @@ enum DocPublishing {
     ) async throws -> String {
         var payload: [String: Any] = ["title": title, "markdown": markdown]
         if let pageURL { payload["url"] = pageURL.absoluteString }
-        if let publishedAt { payload["published_at"] = ISO8601DateFormatter().string(from: publishedAt) }
+        if let publishedAt { payload["published_at"] = KnowledgeStore.iso8601Formatter.string(from: publishedAt) }
         let body = try JSONSerialization.data(withJSONObject: payload)
         guard let sessionToken, !sessionToken.isEmpty else { throw DocPublishingError.signedOut }
         var request = URLRequest(url: baseURL.appendingPathComponent("api/publish/preview"))
@@ -392,6 +392,6 @@ enum DocPublishing {
         let fractional = ISO8601DateFormatter()
         fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         if let date = fractional.date(from: string) { return date }
-        return ISO8601DateFormatter().date(from: string)
+        return KnowledgeStore.iso8601Formatter.date(from: string)
     }
 }

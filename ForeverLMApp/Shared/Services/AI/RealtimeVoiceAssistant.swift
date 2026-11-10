@@ -364,7 +364,7 @@ enum RealtimeVoiceLibrarySearch {
                 }
             }
             if let last = item.lastAttentionAt {
-                let days = max(0, now.timeIntervalSince(last) / 86_400)
+                let days = max(0, now.timeIntervalSince(last) / MemoryTutorScheduler.secondsPerDay)
                 score += 3 / (1 + days)
             }
             return (item, score)

@@ -702,7 +702,7 @@ enum ArticleSpeechAudioCache {
     /// store is the durable cache — these files exist only to avoid re-billing a
     /// TTS request — so old entries are safe to drop, and without eviction the
     /// directory grows forever. Blocking file I/O — never call on the main actor.
-    static func pruneStaleEntries(olderThan interval: TimeInterval = 60 * 24 * 60 * 60) {
+    static func pruneStaleEntries(olderThan interval: TimeInterval = 60 * MemoryTutorScheduler.secondsPerDay) {
         let fileManager = FileManager.default
         guard let entries = try? fileManager.contentsOfDirectory(
             at: cacheDirectory(),

@@ -60,7 +60,7 @@ enum CourseUpkeep {
         try recordTeamIdentities(courseID: courseID, teamZones: teamZones, connection: connection)
     }
 
-    /// A team's course lives in the space its team becomes (§13.7, WP15): its lessons, quizzes and lesson
+    /// A team's course lives in the space its team becomes (§13.7): its lessons, quizzes and lesson
     /// Entries get `ck_identity` rows in that zone, as the course itself did (`deriveWireIDs`), so the
     /// feeder holds their changes until the space has a root instead of sending them into `Library`.
     static func recordTeamIdentities(courseID: String, teamZones: [String: String], connection: SQLiteConnection) throws {
@@ -74,7 +74,7 @@ enum CourseUpkeep {
             if let id = row.text(0) { children.append((.quiz, id)) }
         }
         // A lesson Entry is named by its source's wire id (a team's copy goes by the canonical personal
-        // id, §4.3, WP15), and its row by the copy's local id.
+        // id, §4.3), and its row by the copy's local id.
         var entries: [(wire: String, local: String)] = []
         try connection.query("""
             SELECT i.lecture_id, i.source_id, COALESCE(i.span_slot, 1), COALESCE(s.wire_key, i.source_id) FROM course_lecture_items i
@@ -93,10 +93,7 @@ enum CourseUpkeep {
                 "DELETE FROM ck_identity WHERE zone_key = ? AND record_type = ? AND local_id = ? AND wire_id <> ?",
                 [.text(zone), .text(child.type.rawValue), .text(child.local), .text(child.wire)]
             )
-            try connection.execute("""
-                INSERT INTO ck_identity (zone_key, record_type, wire_id, local_id) VALUES (?, ?, ?, ?)
-                ON CONFLICT(zone_key, record_type, wire_id) DO UPDATE SET local_id = excluded.local_id
-            """, [.text(zone), .text(child.type.rawValue), .text(child.wire), .text(child.local)])
+            try connection.recordIdentity(zoneKey: zone, recordType: child.type.rawValue, wireID: child.wire, localID: child.local)
         }
     }
 }

@@ -250,10 +250,7 @@ extension KnowledgeStore {
             bind(stmt, 8, Self.encodeDiscussedIdeaIDs(discussed))
         }
         // Generation 2: the new body is laid out again as the ReadingState's `understanding` satellite.
-        try execute("""
-            INSERT INTO ck_backfill_queue (kind, target, enqueued_at) VALUES (?, ?, ?)
-            ON CONFLICT(kind, target) DO UPDATE SET attempts = 0, last_error = NULL
-        """, [.text(Self.understandingBackfillKind), .text(key), .real(now.timeIntervalSinceReferenceDate)])
+        try queueUnderstandingSatellite(key: key, now: now)
 
         return UnderstandingDocument(
             sourceID: sourceID,
@@ -336,10 +333,7 @@ extension KnowledgeStore {
             bind(stmt, 8, Self.encodeDiscussedIdeaIDs(entry?.discussedIdeaIDs ?? []))
         }
         // Generation 2: the new body travels as the ReadingState's `understanding` satellite.
-        try execute("""
-            INSERT INTO ck_backfill_queue (kind, target, enqueued_at) VALUES (?, ?, ?)
-            ON CONFLICT(kind, target) DO UPDATE SET attempts = 0, last_error = NULL
-        """, [.text(Self.understandingBackfillKind), .text(key), .real(now.timeIntervalSinceReferenceDate)])
+        try queueUnderstandingSatellite(key: key, now: now)
 
         return UnderstandingDocument(
             sourceID: sourceID,
@@ -408,5 +402,14 @@ extension KnowledgeStore {
             try? FileManager.default.removeItem(atPath: path)
         }
         return document
+    }
+
+    /// Queues the Understanding document of `key` to be laid out again as its ReadingState's
+    /// `understanding` satellite; an item already queued starts its attempts over.
+    private func queueUnderstandingSatellite(key: String, now: Date) throws {
+        try execute("""
+            INSERT INTO ck_backfill_queue (kind, target, enqueued_at) VALUES (?, ?, ?)
+            ON CONFLICT(kind, target) DO UPDATE SET attempts = 0, last_error = NULL
+        """, [.text(Self.understandingBackfillKind), .text(key), .real(now.timeIntervalSinceReferenceDate)])
     }
 }

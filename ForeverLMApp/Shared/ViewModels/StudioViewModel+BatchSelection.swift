@@ -1,15 +1,9 @@
 import Foundation
-import CryptoKit
-import Observation
 import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
-import SwiftUI
 import AppKit
-import SQLite3
-import WebKit
-import Darwin
 
 extension StudioViewModel {
 
@@ -108,7 +102,11 @@ extension StudioViewModel {
                         committedIDs.insert(article.id)
                     } catch {
                         let wasHidden = priorHiddenStates[article.id] ?? false
-                        try? await self.storage.setSourceHidden(article.id, hidden: wasHidden)
+                        do {
+                            try await self.storage.setSourceHidden(article.id, hidden: wasHidden)
+                        } catch {
+                            self.logger.error("setSourceHidden failed: \(error.localizedDescription, privacy: .public)")
+                        }
                         if let index = self.articles.firstIndex(where: { $0.id == article.id }) {
                             self.articles[index].isHidden = wasHidden
                         }
@@ -267,7 +265,11 @@ extension StudioViewModel {
                 } catch {
                     for id in hiddenIDs {
                         let wasHidden = priorHiddenStates[id] ?? false
-                        try? await self.storage.setSourceHidden(id, hidden: wasHidden)
+                        do {
+                            try await self.storage.setSourceHidden(id, hidden: wasHidden)
+                        } catch {
+                            self.logger.error("setSourceHidden failed: \(error.localizedDescription, privacy: .public)")
+                        }
                         if let index = self.articles.firstIndex(where: { $0.id == id }) {
                             self.articles[index].isHidden = wasHidden
                         }
@@ -282,7 +284,7 @@ extension StudioViewModel {
     private func deleteBookFiles(groupName: String, sources: [StudioArticle]) async {
         let booksDir = (knowledgeBasePath as NSString).appendingPathComponent("Books")
         let storedPaths = sources.compactMap { $0.localFilePath ?? $0.url }
-        let legacyFolderName = storedPaths.first.flatMap { Self.bookFolderName(fromStoredPath: $0) }
+        let storedFolderName = storedPaths.first.flatMap { Self.bookFolderName(fromStoredPath: $0) }
         let sanitizedGroupName = groupName
             .replacingOccurrences(of: " ", with: "")
             .replacingOccurrences(of: ":", with: "")
@@ -291,8 +293,8 @@ extension StudioViewModel {
             let fileManager = FileManager.default
             do {
                 let candidates = (try? fileManager.contentsOfDirectory(atPath: booksDir)) ?? []
-                if let legacyFolderName,
-                   let entry = candidates.first(where: { $0.lowercased() == legacyFolderName }) {
+                if let storedFolderName,
+                   let entry = candidates.first(where: { $0.lowercased() == storedFolderName }) {
                     try fileManager.removeItem(atPath: (booksDir as NSString).appendingPathComponent(entry))
                 } else {
                     for entry in candidates {

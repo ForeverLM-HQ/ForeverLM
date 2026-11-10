@@ -1,8 +1,6 @@
 // KnowledgeStore: deleting and archiving sources, and moving what duplicates held.
 import Foundation
 import SQLite3
-import OSLog
-import CloudKit
 
 extension KnowledgeStore {
 
@@ -411,8 +409,8 @@ extension KnowledgeStore {
     /// the id the canonical source gives that day (`sourceActivityDayID`, so a
     /// device syncing the same day derives the same row).
     ///
-    /// This used to copy the rows under their old ids with an upsert on
-    /// `(source_id, day_start)`. The row being copied was still in the table, so
+    /// The rows are moved, not copied under their old ids with an upsert on
+    /// `(source_id, day_start)`: the row being copied is still in the table, so
     /// whenever the duplicate had a day the canonical did not, the copy hit the
     /// primary key instead of the upsert's target and the whole merge failed —
     /// which is how Merge Same-Day Sessions refused two standup calls that had

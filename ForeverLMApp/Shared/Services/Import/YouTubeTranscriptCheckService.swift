@@ -116,7 +116,11 @@ actor YouTubeTranscriptCheckService {
         let parts = Self.transcriptParts(of: stored)
         guard Self.isTimed(parts.body) else {
             // No transcript yet, or text that was never timed captions.
-            try? await storage.completeYouTubeTranscriptCheck(sourceID: sourceID)
+            do {
+                try await storage.completeYouTubeTranscriptCheck(sourceID: sourceID)
+            } catch {
+                logger.error("Could not complete the YouTube transcript check: \(error.localizedDescription, privacy: .public)")
+            }
             return .answered
         }
 
@@ -124,19 +128,31 @@ actor YouTubeTranscriptCheckService {
         do {
             captions = try await fetchCaptions(candidate.url)
         } catch YouTubeTranscriptError.noTranscriptAvailable {
-            try? await storage.completeYouTubeTranscriptCheck(sourceID: sourceID)
+            do {
+                try await storage.completeYouTubeTranscriptCheck(sourceID: sourceID)
+            } catch {
+                logger.error("Could not complete the YouTube transcript check: \(error.localizedDescription, privacy: .public)")
+            }
             return .answered
         } catch YouTubeTranscriptError.invalidURL {
-            try? await storage.completeYouTubeTranscriptCheck(sourceID: sourceID)
+            do {
+                try await storage.completeYouTubeTranscriptCheck(sourceID: sourceID)
+            } catch {
+                logger.error("Could not complete the YouTube transcript check: \(error.localizedDescription, privacy: .public)")
+            }
             return .answered
         } catch {
             // An interrupted drain is not a failed fetch: leave the row as it
             // is, so the next drain fetches again without counting an attempt.
             guard !Task.isCancelled else { return .unanswered }
-            try? await storage.recordYouTubeTranscriptCheckFailure(
-                sourceID: sourceID,
-                message: error.localizedDescription
-            )
+            do {
+                try await storage.recordYouTubeTranscriptCheckFailure(
+                    sourceID: sourceID,
+                    message: error.localizedDescription
+                )
+            } catch {
+                logger.error("Could not record the YouTube transcript check failure: \(error.localizedDescription, privacy: .public)")
+            }
             return .unanswered
         }
         guard !Task.isCancelled else { return .unanswered }
@@ -147,12 +163,20 @@ actor YouTubeTranscriptCheckService {
         }.value
         guard let checkedText else {
             logger.notice("Kept the transcript of \(sourceID, privacy: .public): it does not hold to its captions")
-            try? await storage.completeYouTubeTranscriptCheck(sourceID: sourceID)
+            do {
+                try await storage.completeYouTubeTranscriptCheck(sourceID: sourceID)
+            } catch {
+                logger.error("Could not complete the YouTube transcript check: \(error.localizedDescription, privacy: .public)")
+            }
             return .answered
         }
         let content = parts.lead + checkedText.text + parts.tail
         guard Self.differs(content, from: stored) else {
-            try? await storage.completeYouTubeTranscriptCheck(sourceID: sourceID)
+            do {
+                try await storage.completeYouTubeTranscriptCheck(sourceID: sourceID)
+            } catch {
+                logger.error("Could not complete the YouTube transcript check: \(error.localizedDescription, privacy: .public)")
+            }
             return .answered
         }
 
@@ -176,10 +200,14 @@ actor YouTubeTranscriptCheckService {
             logger.error(
                 "Could not record the transcript check for \(sourceID, privacy: .public): \(error.localizedDescription, privacy: .public)"
             )
-            try? await storage.recordYouTubeTranscriptCheckFailure(
-                sourceID: sourceID,
-                message: error.localizedDescription
-            )
+            do {
+                try await storage.recordYouTubeTranscriptCheckFailure(
+                    sourceID: sourceID,
+                    message: error.localizedDescription
+                )
+            } catch {
+                logger.error("Could not record the YouTube transcript check failure: \(error.localizedDescription, privacy: .public)")
+            }
             return .unanswered
         }
     }

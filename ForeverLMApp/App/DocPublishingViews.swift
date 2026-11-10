@@ -34,7 +34,7 @@ struct PublishDocSheet: View {
     private var isSignedIn: Bool { ManagedAI.isSignedIn }
     private var isRestrictedAlready: Bool { existing?.isProtected == true }
     /// A page still guarded by a password set before reader lists existed.
-    private var hasLegacyPassword: Bool { existing?.isProtected == true && existing?.readers.isEmpty == true }
+    private var isGuardedByPassword: Bool { existing?.isProtected == true && existing?.readers.isEmpty == true }
 
     /// The address to send: nil when the field is empty or names the page's
     /// current address, the normalised slug when it is a valid new one, and
@@ -145,7 +145,7 @@ struct PublishDocSheet: View {
                         .accessibilityLabel("Reader email addresses")
                     Text(readersAreInvalid
                          ? "One of these is not an email address."
-                         : hasLegacyPassword
+                         : isGuardedByPassword
                            ? "This page is still guarded by its old password\(existing?.password.map { " (\($0))" } ?? ""). Listing readers replaces it; turning the switch off opens the page to anyone with the link."
                          : "Each reader enters their address on the page and follows the link that is emailed to them; the page then remembers them for thirty days. Removing an address shuts them out at once.")
                         .font(.system(size: 11))

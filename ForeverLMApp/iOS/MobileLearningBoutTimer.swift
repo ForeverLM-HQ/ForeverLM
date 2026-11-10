@@ -10,8 +10,8 @@ import WidgetKit
 /// and iOS gives a phone no way to hear about that unless the app is woken by a
 /// push. The App ID has the Push Notifications capability now; the app gains
 /// `aps-environment` and the `remote-notification` background mode with the
-/// schema-v2 sync that registers for them (docs/cloudkit-schema-design.md, D36,
-/// WP19), and nothing here subscribes to the bout.
+/// schema-v2 sync that registers for them (docs/cloudkit-schema-design.md, D36),
+/// and nothing here subscribes to the bout.
 ///
 /// So this refreshes on every event the phone *does* get for free — becoming
 /// active, the existing background-refresh task, and the learner opening the

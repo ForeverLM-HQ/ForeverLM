@@ -22,7 +22,7 @@ struct MobileNotebookHomeView: View {
     @EnvironmentObject private var vm: MobileAudioReviewViewModel
     /// The Planner's bout, when one is running on a Mac.
     @ObservedObject private var boutTimer = MobileLearningBoutTimer.shared
-    /// The Space, whose menu item shows once the phone's pages can open here (generation 2).
+    /// The Space, whose menu item shows once the phone's pages can open here.
     @Environment(MobileSpaceStore.self) private var spaceStore
     @ObservedObject private var railStore = MobileNotebookRailStore.shared
 
@@ -100,8 +100,7 @@ struct MobileNotebookCollectionChip: View {
 }
 
 /// A gallery card's ▶ (or ⏸) for the notebook's audio overview, a spinner
-/// while that audio is being made, as the Mac's card draws it
-/// (`NotebookCardPlayButton`). A card with no overview draws nothing here:
+/// while that audio is being made, as the Mac's card draws it. A card with no overview draws nothing here:
 /// the waveform that talked with the notebook went on 2026-10-06.
 private struct MobileNotebookCardPlayButton: View {
     let overviewIsPlaying: Bool
@@ -145,7 +144,7 @@ extension NotebookTint {
     }
 }
 
-/// One notebook in Home's gallery on iPad, the Mac's `NotebookGalleryCard`,
+/// One notebook in Home's gallery on iPad, the Mac's gallery card,
 /// drawn as NotebookLM draws its own: a card in the notebook's soft colour
 /// (`NotebookTint`), its emoji large in the corner, its name under it and
 /// "12 sources · 2 hr ago", and ▶ in its bottom-right corner while it has an

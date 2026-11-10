@@ -1,5 +1,3 @@
-import Foundation
-
 // MARK: - Who seeds (docs/cloudkit-schema-design.md §13.4 step 1, §13.5)
 
 /// What the personal root says about the seed (`seed`, `seedClaim`, §3.5.1).

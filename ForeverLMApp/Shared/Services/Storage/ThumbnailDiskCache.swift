@@ -19,12 +19,12 @@ final class ThumbnailDiskCache: @unchecked Sendable {
     /// main actor) never block on JPEG encoding or disk I/O.
     private let ioQueue = DispatchQueue(label: "com.foreverlm.thumbnail-disk-cache", qos: .utility)
 
-    /// Individually these files are nothing, but nothing ever removed one, and
-    /// a library that keeps gaining sources keeps gaining thumbnails. Half a
+    /// Individually these files are nothing, but a library that keeps gaining
+    /// sources keeps gaining thumbnails, and without a cap none would ever go. Half a
     /// year, capped at 250 MB, outlasts any thumbnail a reader still scrolls
     /// past; anything evicted is re-fetched the next time its row is drawn.
     private static let diskBudget: Int64 = 250 * 1024 * 1024
-    private static let lifetime: TimeInterval = 180 * 24 * 60 * 60
+    private static let lifetime: TimeInterval = 180 * MemoryTutorScheduler.secondsPerDay
 
     /// Read and written only on `ioQueue`, which is what keeps the sweep to one
     /// per launch without a lock.

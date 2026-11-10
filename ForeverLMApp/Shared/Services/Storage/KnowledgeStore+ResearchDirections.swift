@@ -4,8 +4,8 @@ import SQLite3
 // MARK: - Directions (docs/directions-design.md)
 //
 // One row a Direction in `research_directions`, its evidence as JSON in the
-// same row; each travels as one `ResearchDirection` CloudKit record
-// (`CloudKitResearchDirectionPayload`). A Direction is proposed by a search
+// same row; each travels as one `ResearchDirection` CloudKit record.
+// A Direction is proposed by a search
 // and answered by the learner, and both are writes here: every one is queued
 // for sync at once and republishes the whole record.
 //

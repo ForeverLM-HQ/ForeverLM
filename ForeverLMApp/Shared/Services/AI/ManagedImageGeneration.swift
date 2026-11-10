@@ -135,7 +135,7 @@ enum ManagedImageGeneration {
         }
     }
 
-    private static func withOptionalSource<T: Sendable>(
+    static func withOptionalSource<T: Sendable>(
         _ source: AIUsageSource?,
         _ body: @Sendable () async throws -> T
     ) async throws -> T {
@@ -271,14 +271,18 @@ enum ManagedImageGeneration {
         if (report.providerReportedCost ?? 0) <= 0 {
             _ = try? await ImageGenerationDirectory.priced(model)
         }
-        try? await AIUsageTracker.shared.record(
-            provider: "OpenRouter",
-            model: model.id,
-            operation: "image_generation",
-            report: report,
-            task: AIUsageAttribution.task ?? "image_generation",
-            generationID: generationID
-        )
+        do {
+            try await AIUsageTracker.shared.record(
+                provider: "OpenRouter",
+                model: model.id,
+                operation: "image_generation",
+                report: report,
+                task: AIUsageAttribution.task ?? "image_generation",
+                generationID: generationID
+            )
+        } catch {
+            logger.error("Could not record the image usage: \(error.localizedDescription, privacy: .public)")
+        }
     }
 }
 

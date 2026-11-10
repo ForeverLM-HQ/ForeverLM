@@ -76,8 +76,8 @@ enum AIModelQualification {
     /// A pass is asked again after a month, so a model OpenRouter later
     /// restricts drops out; a failure after a day, so one that recovers comes
     /// back.
-    static let passLifetime: TimeInterval = 30 * 24 * 60 * 60
-    static let failureLifetime: TimeInterval = 24 * 60 * 60
+    static let passLifetime: TimeInterval = 30 * MemoryTutorScheduler.secondsPerDay
+    static let failureLifetime: TimeInterval = MemoryTutorScheduler.secondsPerDay
     static let taskLabel = "model_qualification"
 
     private static let lock = NSLock()

@@ -1,16 +1,10 @@
 // Extracting paper and article metadata, titles and authors.
 
 import Foundation
-import CryptoKit
-import Observation
 import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
-import SwiftUI
-import AppKit
-import SQLite3
-import WebKit
 import Darwin
 
 extension StudioViewModel {
@@ -502,7 +496,7 @@ extension StudioViewModel {
     /// Returns once the metadata itself is attested and on disk. The cleanup is
     /// a full-document model pass that takes tens of seconds, so it runs in the
     /// returned task rather than under the caller's await: the Edit Details
-    /// sheet used to sit on a disabled Save button for the whole pass, showing
+    /// sheet would sit on a disabled Save button for the whole pass, showing
     /// "Cleaning up paper text…" in the sidebar while the learner waited for a
     /// dialog that had nothing left to do. The row moves to Processing for the
     /// duration instead. `nil` means no cleanup was started — either the paper

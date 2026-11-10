@@ -473,7 +473,11 @@ struct CourseGeneratorService: Sendable {
             }
             try await storage.saveCourseOutline(courseName: courseID, lectures: lectures, items: items)
         } catch {
-            _ = try? await storage.deleteCourseGroup(name: courseID)
+            do {
+                try await storage.deleteCourseGroup(name: courseID)
+            } catch {
+                Self.logger.error("Could not remove the unfinished course: \(error.localizedDescription, privacy: .public)")
+            }
             throw error
         }
 
@@ -524,7 +528,7 @@ struct CourseGeneratorService: Sendable {
     /// carries the schedule.
     static func scheduleDeadline(days: [Date], start: Date, calendar: Calendar = .current) -> Date {
         let lastDay = days.last ?? calendar.startOfDay(for: start)
-        return calendar.date(byAdding: .day, value: 1, to: lastDay) ?? lastDay.addingTimeInterval(86_400)
+        return calendar.date(byAdding: .day, value: 1, to: lastDay) ?? lastDay.addingTimeInterval(MemoryTutorScheduler.secondsPerDay)
     }
 
     /// The notebook that follows the course holds the course subscription and

@@ -1,11 +1,10 @@
 // The rail items and the hidden rail items.
 import SwiftUI
 import AppKit
-import UniformTypeIdentifiers
 
 /// A rail row above the notebooks the learner may take off the rail: New
 /// chat, Memory, Browser, Library and the Space. Memory is one row like
-/// the others since 2026-09-22 (the product owner: it "just needs to be part of that
+/// the others (the product owner, 2026-09-22: it "just needs to be part of that
 /// list"), not a row of its own over the notebooks. The Notebooks header,
 /// the chats and the footer are the rail's skeleton and stay.
 ///
@@ -23,7 +22,7 @@ import UniformTypeIdentifiers
 /// - Goals and Ideas (`goals`, `ideas`) became Artifacts chips on 2026-09-29
 ///   (the product owner: "maybe ideas and goals should live under artifacts").
 /// - Activity, Courses and Artifacts (`activity`, `courses`, `artifacts`)
-///   left with shell stage 4 (2026-10-01; docs/notebooks-design.md, "The
+///   left (2026-10-01; docs/notebooks-design.md, "The
 ///   rail"): the rail leads with the notebooks, where the learner works.
 ///   Activity is reached from the menu bar's Today menu and the Now chip's
 ///   popover; the courses (a course lives in no notebook; 2026-10-03) are
@@ -140,11 +139,8 @@ struct StudioRailHiddenItems: Equatable {
     }
 
     /// The icon rail's rows, Codex's: Home, then Spaces, Memory, Library and
-    /// Plugins, in that order, less any the learner hid. The Space led the
-    /// places since the Notebooks home, which led until 2026-10-09, went; a
-    /// + for a new chat led them from 2026-10-13 until Home took its place
-    /// (2026-10-16), and Plugins came out of Settings under the Library on
-    /// 2026-10-13. New chat is Home's sidebar's row alone.
+    /// Plugins, in that order, less any the learner hid. Plugins sit under the Library. New chat
+    /// is Home's sidebar's row alone.
     static let railOrder: [StudioRailItem] = [.home, .space, .memory, .library, .plugins]
 
     /// The rows at the top of Home's sidebar: New chat and the Browser.

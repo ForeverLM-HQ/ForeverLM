@@ -134,8 +134,7 @@ actor MobileMemoryReviewStore {
     }
 
     private func requiredWriter() async throws -> MobileRecordWriter {
-        guard let writer = await recordWriter() else { throw MobileRecordWriterError.zoneNotHeld }
-        return writer
+        try await MobileRecordWriter.required(from: recordWriter)
     }
 
     // MARK: - Reading
@@ -203,11 +202,6 @@ actor MobileMemoryReviewStore {
         }
         guard let review = try await fetch(sessionID: sessionID) else { throw MobileMemoryReviewStoreError.malformedRecord(sessionID) }
         return review
-    }
-
-    /// The same id the Mac derives for an exchange it saves without one.
-    static func exchangeID(sessionID: String, sequence: Int) -> String {
-        "\(sessionID)::exchange::\(String(format: "%04d", sequence))"
     }
 
     /// The review as the replica holds it: the Chat (its `title` is the topic, `ended` reads as

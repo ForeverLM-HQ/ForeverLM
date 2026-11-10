@@ -1,8 +1,6 @@
 // KnowledgeStore: listening heard elsewhere, and putting, moving, finishing and forgetting scheduled sources.
 import Foundation
 import SQLite3
-import OSLog
-import CloudKit
 
 extension KnowledgeStore {
 
@@ -298,7 +296,7 @@ extension KnowledgeStore {
         }
         let calendar = Calendar.current
         let dayStart = calendar.startOfDay(for: day)
-        let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart.addingTimeInterval(24 * 60 * 60)
+        let dayEnd = calendar.date(byAdding: .day, value: 1, to: dayStart) ?? dayStart.addingTimeInterval(MemoryTutorScheduler.secondsPerDay)
         let dayLabel = DayPlan.dateString(for: dayStart)
 
         try exec("BEGIN IMMEDIATE")
@@ -377,7 +375,7 @@ extension KnowledgeStore {
     ) throws {
         let now = Date()
         let plannedDay = Calendar.current.startOfDay(for: plannedAt)
-        let dayEnd = plannedDay.addingTimeInterval(24 * 60 * 60)
+        let dayEnd = plannedDay.addingTimeInterval(MemoryTutorScheduler.secondsPerDay)
         var placementID = ""
         try exec("BEGIN IMMEDIATE")
         do {

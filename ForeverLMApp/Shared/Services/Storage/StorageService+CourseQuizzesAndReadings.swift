@@ -1,6 +1,5 @@
 // StorageService: course quizzes and textbook readings.
 import Foundation
-import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif

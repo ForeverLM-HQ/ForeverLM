@@ -210,14 +210,7 @@ struct MobileAccountWall: View {
 
     var body: some View {
         VStack(spacing: MobileDesign.Spacing.xLarge) {
-            // The brand mark itself. This slot used to hold a `waveform` glyph on
-            // an accent circle, matched to `MobileTalkHero` — the hero from when
-            // the phone was voice-only. That hero was deleted in August 2026, so
-            // the first screen of the app was showing a stock Apple symbol in
-            // stock Apple blue (`Color.accentColor` has no colorset on iOS and
-            // falls back to system blue) on behalf of a screen that no longer
-            // existed. `BrandMark` is the shipped artwork, from
-            // `brand/foreverlm-logo-transparent-tight.png`.
+            // The brand mark itself: `ForeverLMMark` is the shipped artwork.
             //
             // Drifting, not still: the colour wanders inside the loops while the
             // shape holds. It is ambient rather than a progress signal — the

@@ -1,8 +1,8 @@
 import Foundation
 
-// The member's highlights on the phone under generation 2 (docs/cloudkit-schema-design.md §3.5.17, D18;
-// §14.2 WP20c): one Highlight record per mark in `Library`, written as the web's generation-2 writer
-// writes it (`saveSourceHighlight`) and read in the shape the Mac's `HighlightProjection` (WP12b) writes:
+// The member's highlights on the phone (docs/cloudkit-schema-design.md §3.5.17, D18): one Highlight
+// record per mark in `Library`, written as the web's writer writes it (`saveSourceHighlight`) and read
+// in the shape the Mac's `HighlightProjection` writes:
 // the locator `{t: "pdf", page, quads}` for a PDF mark, else `{t: "text"}`, both with the text anchor
 // (`offset`, `len`, `quote`, `prefix`, `suffix`) and a mark on pictures with its `images`; `refs` the cited
 // references and the since-publication update. A highlight is never taken by its source going (D18).

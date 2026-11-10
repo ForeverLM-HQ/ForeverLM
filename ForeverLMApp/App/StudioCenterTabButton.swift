@@ -2,11 +2,7 @@
 
 import SwiftUI
 import Combine
-import UniformTypeIdentifiers
-import PDFKit
-import WebKit
 import AppKit
-import OSLog
 
 /// One tab in a center group's strip.
 struct StudioCenterTabButton: View {
@@ -330,10 +326,10 @@ struct SourceDragPreview: View {
         HStack(alignment: .top, spacing: 10) {
             ZStack {
                 RoundedRectangle(cornerRadius: 7)
-                    .fill(sourceTypeColor.opacity(0.14))
-                Image(systemName: isMissing ? "questionmark" : sourceTypeIcon)
+                    .fill(sourceType.tintColor.opacity(0.14))
+                Image(systemName: isMissing ? "questionmark" : sourceType.symbolName)
                     .zoomedSystemFont(size: 18, weight: .medium)
-                    .foregroundStyle(sourceTypeColor)
+                    .foregroundStyle(sourceType.tintColor)
             }
             .frame(width: 38, height: 38)
 
@@ -373,33 +369,5 @@ struct SourceDragPreview: View {
                 .stroke(Color.primary.opacity(0.10), lineWidth: 1)
         }
         .opacity(0.92)
-    }
-
-    private var sourceTypeIcon: String {
-        switch sourceType {
-        case .article, .unclassified: return "doc.richtext"
-        case .paper: return "doc.text.magnifyingglass"
-        case .podcast: return "headphones"
-        case .book: return "book.closed"
-        case .course: return "graduationcap"
-        case .meeting: return "person.2.wave.2"
-        case .video: return "play.rectangle"
-        case .xPost: return "bubble.left"
-        case .manual: return "link"
-        }
-    }
-
-    private var sourceTypeColor: Color {
-        switch sourceType {
-        case .article, .unclassified: return .blue
-        case .paper: return .purple
-        case .podcast: return .orange
-        case .book: return .green
-        case .course: return .indigo
-        case .meeting: return .teal
-        case .video: return .red
-        case .xPost: return .primary
-        case .manual: return .secondary
-        }
     }
 }

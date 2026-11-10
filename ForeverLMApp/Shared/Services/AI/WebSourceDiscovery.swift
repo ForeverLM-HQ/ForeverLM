@@ -314,7 +314,7 @@ enum WebSourceDiscovery {
         [
             "Search for: \(query)",
             "Number of sources: up to \(count)",
-            "Today: \(String(ISO8601DateFormatter().string(from: date).prefix(10)))",
+            "Today: \(String(KnowledgeStore.iso8601Formatter.string(from: date).prefix(10)))",
         ].joined(separator: "\n")
     }
 

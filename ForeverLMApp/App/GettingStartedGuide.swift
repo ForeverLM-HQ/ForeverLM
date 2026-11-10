@@ -1,5 +1,4 @@
 import AppKit
-import AVFoundation
 import SwiftUI
 import UniformTypeIdentifiers
 
@@ -150,9 +149,8 @@ struct GettingStartedGuide: View {
         }
     }
 
-    /// The bar and the ×. Progress was told three ways until 2026-10-06 — the
-    /// section's name in capitals, "3 of 7" and the bar — and the bar alone
-    /// says it (product owner, 2026-10-06: "fewer buttons and bells and whistles").
+    /// The bar and the ×. The bar alone tells the progress — no section name
+    /// in capitals, no "3 of 7" (product owner, 2026-10-06: "fewer buttons and bells and whistles").
     private var header: some View {
         HStack(spacing: 12) {
             progressBar
@@ -237,7 +235,7 @@ struct GettingStartedGuide: View {
             case .subscriptions: subscriptionsStep
             case .fullDiskAccess: fullDiskAccessStep
             case .moreSources: moreSourcesStep
-            // Pages of More sources since 2026-09-24.
+            // Pages of More sources.
             case .books: booksStep
             case .courses: coursesStep
             case .meetings: meetingsStep

@@ -1,7 +1,5 @@
 import Foundation
 import SQLite3
-import OSLog
-import CloudKit
 
 /// One parsed turn of an imported external review chat. A tutor prompt
 /// (`question`), the learner's reply (`answer`), and optional tutor feedback

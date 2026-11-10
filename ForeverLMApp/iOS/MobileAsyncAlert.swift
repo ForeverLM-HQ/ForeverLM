@@ -1,14 +1,6 @@
 // The alerts the phone raises on its own schedule, and their queue.
 
-import AVFoundation
-import Combine
-import CryptoKit
-import MediaPlayer
-import OSLog
-import SwiftUI
-import CloudKit
-import SQLite3
-import WidgetKit
+import Foundation
 
 /// The alerts the phone raises on its own schedule, and the order in which they
 /// are allowed on screen.

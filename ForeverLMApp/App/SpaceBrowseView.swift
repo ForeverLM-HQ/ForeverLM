@@ -3,7 +3,7 @@ import AppKit
 import SwiftUI
 
 /// One thing the Space lists: a page, a linked Google Doc, a site, a mnemonic
-/// reading in no notebook, a canvas, a list, a picture, or since 2026-10-09 a
+/// reading in no notebook, a canvas, a list, a picture, a
 /// notebook or a course, listed under All (docs/docs-design.md, "The Space");
 /// or a chat, which Home's list alone shows; or one of the learner's spaces
 /// while it is in Trash, which Trash alone lists.

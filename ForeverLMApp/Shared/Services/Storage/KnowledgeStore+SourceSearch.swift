@@ -1,8 +1,6 @@
 // KnowledgeStore: searching source content by text and keywords.
 import Foundation
 import SQLite3
-import OSLog
-import CloudKit
 
 extension KnowledgeStore {
 

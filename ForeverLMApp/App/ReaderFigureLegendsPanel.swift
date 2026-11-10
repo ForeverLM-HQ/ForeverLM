@@ -188,10 +188,10 @@ struct ReaderFigureLegendsPanel: View {
                 .controlSize(.small)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .unreadable(let message):
-            centered(message)
+            ReaderPanelMessage(text: message)
         case .ready:
             if entries.isEmpty {
-                centered("No figures found in this paper")
+                ReaderPanelMessage(text: "No figures found in this paper")
             } else {
                 list
             }
@@ -266,20 +266,6 @@ struct ReaderFigureLegendsPanel: View {
         )
     }
 
-    private func centered(_ text: String) -> some View {
-        VStack {
-            Spacer()
-            Text(text)
-                .font(.callout)
-                .foregroundStyle(.secondary)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.disabled)
-            Spacer()
-        }
-        .padding(.horizontal, 18)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
 }
 
 /// The ⋯ menu's entry for the panel, beside Linked References.

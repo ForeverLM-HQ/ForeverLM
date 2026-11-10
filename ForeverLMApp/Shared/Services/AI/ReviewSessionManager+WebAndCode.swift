@@ -1,9 +1,6 @@
 // Part of ReviewSessionManager: code, browser and web search tools.
 
 import Foundation
-import Observation
-import PDFKit
-import os
 
 extension ReviewSessionManager {
     /// Run the chat's `run_code` tool: the script on the Mac, then every

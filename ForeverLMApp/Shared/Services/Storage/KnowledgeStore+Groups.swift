@@ -1,7 +1,5 @@
 import Foundation
 import SQLite3
-import OSLog
-import CloudKit
 
 extension KnowledgeStore {
 
@@ -400,8 +398,8 @@ extension KnowledgeStore {
 
     /// Hide the course sources `courseSourceIDsWithoutCourse()` finds, so "not in
     /// a course" and "not surfaced anywhere" stay the same statement. Removing a
-    /// course used to leave its own PDFs and notes behind as active library rows
-    /// no list could show — 104 of them, from twelve courses, on the first
+    /// course would otherwise leave its own PDFs and notes behind as active library
+    /// rows no list could show — 104 of them, from twelve courses, on the first
     /// library that hit it.
     ///
     /// Hidden rather than archived: the source keeps its text and its place, the
@@ -1303,12 +1301,11 @@ extension KnowledgeStore {
     /// Re-file one bounded batch of Zoom cloud recordings as the meeting sessions they always were,
     /// each in the meeting series for the Zoom account that hosted it.
     ///
-    /// Zoom used to be a sidebar tab of its own, so a recording was stored as a
-    /// `video` and told apart from a YouTube one by its URL shape. That made the
-    /// tab axis the provider again — the mistake the Google Drive and Read AI
-    /// tabs were merged to undo — and it left a recording unable to sit in the
-    /// recurring series it was an occurrence of, because series live in Meetings
-    /// and the recording was not a meeting.
+    /// A recording stored as a `video` and told apart from a YouTube one by its URL
+    /// shape would make the tab axis the provider again — the mistake the Google
+    /// Drive and Read AI tabs were merged to undo — and would leave it unable to
+    /// sit in the recurring series it is an occurrence of, because series live in
+    /// Meetings and a `video` is not a meeting.
     ///
     /// Three writes per recording: the type on `sources`, the row moved from
     /// `videos` to `meeting_sources`, and membership of a series. The series is

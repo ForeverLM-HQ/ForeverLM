@@ -104,7 +104,7 @@ struct StudioSelectionBackground: View {
 /// draws it: a dark pill beside the button, after a short pause, nothing under
 /// it but its name. AppKit's `.help` tooltip waits over a second, is a small
 /// grey box and never appears at all while a drag is armed on the button, so
-/// the icon strip used to be nameless (product owner, 2026-10-10: "these buttons …
+/// the icon strip would be nameless (product owner, 2026-10-10: "these buttons …
 /// should have like a name when you hover over them").
 ///
 /// It lives in its own borderless panel so it floats over the content card,

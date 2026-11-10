@@ -1,6 +1,6 @@
 import Foundation
 
-// MARK: - Ask the Canvas: proposals on the plane (WP-B1)
+// MARK: - Ask the Canvas: proposals on the plane
 //
 // docs/sensemaking-design.md, "Ask the Canvas". The learner asks a selection
 // one of the questions of `CanvasAskTool`; ForeverLM's answer is a set of

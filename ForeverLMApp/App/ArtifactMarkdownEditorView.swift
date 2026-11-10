@@ -122,8 +122,8 @@ struct ArtifactAttachmentInsertion: Identifiable, Equatable {
 }
 
 /// One formatting action of the page menu's Format items. The editor runs the
-/// same Milkdown command its selection bar runs (the bar has carried
-/// formatting since 2026-10-06, docs/ui-design.md "Quiet chrome"), so the
+/// same Milkdown command its selection bar runs (the bar carries
+/// formatting, docs/ui-design.md "Quiet chrome"), so the
 /// menu, the bar and the ⌘B / ⌘I / ⌥⌘X / ⌘E keymaps remain one behaviour.
 enum ArtifactFormatCommand: String, Hashable, Identifiable, Sendable {
     case bold
@@ -292,7 +292,7 @@ final class ArtifactEditorWebView: WKWebView {
     /// those so it can be dropped into a browser as a file. AppKit therefore
     /// chooses the web view as the drag's destination and never consults a
     /// SwiftUI drop target wrapped around it — which is why dropping a source
-    /// on a doc did nothing in the Mac app until 2026-09-03 while working in
+    /// on a doc would do nothing in the Mac app while working in
     /// the browser harness. In fact WebKit's drag hit test claims every drag
     /// over the view whatever it carries, so a doc or Notebook drag — which
     /// carries only its own type — meets the same fate. So the web view owns
@@ -1939,7 +1939,7 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             switch request.action {
             case .format(let command):
                 webView.evaluateJavaScript(
-                    "window.foreverLMArtifactEditor.runFormatCommand(\(Self.jsonString(command.rawValue)));"
+                    "window.foreverLMArtifactEditor.runFormatCommand(\(ChatMarkdownView.jsonString(command.rawValue)));"
                 ) { [weak self] _, error in
                     if let error {
                         self?.reportError("Could not apply the formatting: \(error.localizedDescription)")
@@ -2055,9 +2055,9 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
                 let script: String
                 do {
                     let markdown = try await respond(request)
-                    script = "window.foreverLMArtifactEditor.completeAIEdit(\(Self.jsonString(request.requestID)), { markdown: \(Self.jsonString(markdown)) });"
+                    script = "window.foreverLMArtifactEditor.completeAIEdit(\(ChatMarkdownView.jsonString(request.requestID)), { markdown: \(ChatMarkdownView.jsonString(markdown)) });"
                 } catch {
-                    script = "window.foreverLMArtifactEditor.failAIEdit(\(Self.jsonString(request.requestID)), \(Self.jsonString(error.localizedDescription)));"
+                    script = "window.foreverLMArtifactEditor.failAIEdit(\(ChatMarkdownView.jsonString(request.requestID)), \(ChatMarkdownView.jsonString(error.localizedDescription)));"
                 }
                 guard let webView, self != nil else { return }
                 webView.evaluateJavaScript(script) { _, _ in }
@@ -2096,7 +2096,7 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
 
         /// `insertFileAttachment`'s call: the file as the editor links it.
         static func fileInsertionScript(_ file: ArtifactFileAttachment) -> String {
-            "window.foreverLMArtifactEditor.insertFileAttachment({ token: \(jsonString(file.token)), name: \(jsonString(file.name)), size: \(file.size) });"
+            "window.foreverLMArtifactEditor.insertFileAttachment({ token: \(ChatMarkdownView.jsonString(file.token)), name: \(ChatMarkdownView.jsonString(file.name)), size: \(file.size) });"
         }
 
         /// Draw the picture the writer described and hand it to the editor,
@@ -2139,12 +2139,12 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             ]
             let data = (try? JSONEncoder().encode(payload)) ?? Data("{}".utf8)
             let json = String(data: data, encoding: .utf8) ?? "{}"
-            return "window.foreverLMArtifactEditor.completeImageGeneration(\(jsonString(requestID)), \(json));"
+            return "window.foreverLMArtifactEditor.completeImageGeneration(\(ChatMarkdownView.jsonString(requestID)), \(json));"
         }
 
         /// `failAIEdit`'s call: the panel the request came from says why.
         static func aiEditFailureScript(requestID: String, message: String) -> String {
-            "window.foreverLMArtifactEditor.failAIEdit(\(jsonString(requestID)), \(jsonString(message)));"
+            "window.foreverLMArtifactEditor.failAIEdit(\(ChatMarkdownView.jsonString(requestID)), \(ChatMarkdownView.jsonString(message)));"
         }
 
         /// What the host can do for the slash menu's rows that are not the
@@ -2161,13 +2161,13 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
 
         /// `completePastedLineJoining`'s call: what each break was, in order.
         static func pastedLineJoiningScript(requestID: String, breaks: [PastedLineJoining.Break]) -> String {
-            let list = breaks.map { jsonString($0.rawValue) }.joined(separator: ", ")
-            return "window.foreverLMArtifactEditor.completePastedLineJoining(\(jsonString(requestID)), [\(list)]);"
+            let list = breaks.map { ChatMarkdownView.jsonString($0.rawValue) }.joined(separator: ", ")
+            return "window.foreverLMArtifactEditor.completePastedLineJoining(\(ChatMarkdownView.jsonString(requestID)), [\(list)]);"
         }
 
         /// `forgetPastedLineJoining`'s call: no answer is coming for this paste.
         static func forgetPastedLineJoiningScript(requestID: String) -> String {
-            "window.foreverLMArtifactEditor.forgetPastedLineJoining(\(jsonString(requestID)));"
+            "window.foreverLMArtifactEditor.forgetPastedLineJoining(\(ChatMarkdownView.jsonString(requestID)));"
         }
 
         /// Name the Docs model to the panel's ForeverLM mark, which shows once
@@ -2180,7 +2180,7 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
                 }.value
                 guard let self, self.isReady, let webView else { return }
                 webView.evaluateJavaScript(
-                    "window.foreverLMArtifactEditor.setAIEditModel({ name: \(Self.jsonString(name)) });"
+                    "window.foreverLMArtifactEditor.setAIEditModel({ name: \(ChatMarkdownView.jsonString(name)) });"
                 ) { _, _ in }
             }
         }
@@ -2193,7 +2193,7 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
                 guard let webView else { return }
                 await DocsModelMenu.present(in: webView, below: rect) { [weak webView] message in
                     webView?.evaluateJavaScript(
-                        "window.foreverLMArtifactEditor.refuseAIEditModel(\(Self.jsonString(message)));"
+                        "window.foreverLMArtifactEditor.refuseAIEditModel(\(ChatMarkdownView.jsonString(message)));"
                     ) { _, _ in }
                 }
             }
@@ -2238,7 +2238,7 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
         }
 
         private func deliverActiveComment(in webView: WKWebView, reveal: Bool) {
-            let id = activeCommentID.map(Self.jsonString) ?? "null"
+            let id = activeCommentID.map(ChatMarkdownView.jsonString) ?? "null"
             webView.evaluateJavaScript("window.foreverLMArtifactEditor.setActiveComment(\(id), { reveal: \(reveal) });")
         }
 
@@ -2252,14 +2252,9 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
         /// takes only when the doc is not the one it already holds.
         private func setMarkdownScript() -> String {
             let foldState = foldDocumentID.map { docID in
-                "{ key: \(Self.jsonString(docID)), folds: \(Self.jsonString(ArtifactOutlineFolds.folds(for: docID))) }"
+                "{ key: \(ChatMarkdownView.jsonString(docID)), folds: \(ChatMarkdownView.jsonString(ArtifactOutlineFolds.folds(for: docID))) }"
             } ?? "null"
-            return "window.foreverLMArtifactEditor.setMarkdown(\(Self.jsonString(latestSwiftMarkdown)), \(foldState));"
-        }
-
-        private static func jsonString(_ value: String) -> String {
-            let data = (try? JSONEncoder().encode(value)) ?? Data("\"\"".utf8)
-            return String(data: data, encoding: .utf8) ?? "\"\""
+            return "window.foreverLMArtifactEditor.setMarkdown(\(ChatMarkdownView.jsonString(latestSwiftMarkdown)), \(foldState));"
         }
 
         /// The page width goes in before `create`, so the first paint is
@@ -2271,7 +2266,7 @@ struct ArtifactMarkdownEditorView: NSViewRepresentable {
             pageWidthAdjustable: Bool = false
         ) -> String {
             pageWidthScript(pageMaxWidth, adjustable: pageWidthAdjustable)
-                + " window.foreverLMArtifactEditor.create(\(jsonString(markdown)), \(Double(fontSize))); true;"
+                + " window.foreverLMArtifactEditor.create(\(ChatMarkdownView.jsonString(markdown)), \(Double(fontSize))); true;"
         }
 
         /// Whether the host holds a picture the page cannot draw yet. Only

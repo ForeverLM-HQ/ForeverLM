@@ -70,7 +70,11 @@ extension StudioViewModel {
             )
         } catch {
             logger.error("Could not put book \(bookID, privacy: .public) back into one file: \(error.localizedDescription)")
-            try? await storage.failBookFileMerge(bookID: bookID, message: error.localizedDescription)
+            do {
+                try await storage.failBookFileMerge(bookID: bookID, message: error.localizedDescription)
+            } catch {
+                logger.error("failBookFileMerge failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 

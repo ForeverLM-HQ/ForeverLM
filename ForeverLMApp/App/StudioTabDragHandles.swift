@@ -1,12 +1,8 @@
 // The drag handles for centre tabs and source tabs, and the drag ghost image.
 
 import SwiftUI
-import Combine
 import UniformTypeIdentifiers
-import PDFKit
-import WebKit
 import AppKit
-import OSLog
 
 /// An AppKit-owned mouse surface for one center tab. SwiftUI's `.onDrag`
 /// cannot reliably start a drag in the titlebar band: AppKit interprets the

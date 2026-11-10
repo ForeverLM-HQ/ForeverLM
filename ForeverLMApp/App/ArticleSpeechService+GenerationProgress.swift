@@ -1,13 +1,7 @@
 // Recording the progress of foreground and detached audio generation.
 #if os(macOS)
-import AVFoundation
-import CryptoKit
 import Foundation
-import MediaPlayer
-import os
-import PDFKit
 import SwiftUI
-import WebKit
 
 extension ArticleSpeechService {
     /// Re-reads the stored configuration at the start of a listening session,

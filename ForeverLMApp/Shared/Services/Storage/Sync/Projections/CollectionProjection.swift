@@ -16,8 +16,8 @@ enum CollectionRows: Equatable, Sendable {
 /// The Collection record's projection (§3.5.5). Following a feed, channel or playlist (whether it
 /// refreshes and auto-imports), a hidden show or group, and a meeting folder on this Mac's disk are
 /// per member or per device, so `auto_import`, `is_hidden`, `last_refreshed_at` and
-/// `local_folder_path` are not on the record (following becomes `Mark(following)` in WP12b).
-/// A Collection in a space is kept in the replica and projected by the space packages (WP15), since
+/// `local_folder_path` are not on the record (following becomes `Mark(following)`).
+/// A Collection in a space is kept in the replica and projected by the space packages, since
 /// these tables hold no space copies.
 struct CollectionProjection: RecordProjection {
     var recordType: SyncRecordType { .collection }
@@ -267,16 +267,9 @@ enum BookCovers {
             return try forget(bookID: bookID, connection: connection)
         }
         // A payload that changed starts the attempts over; the same one keeps what its failures spent.
-        try connection.execute("""
-            INSERT INTO ck_backfill_queue (kind, target, payload_json, enqueued_at) VALUES (?, ?, ?, ?)
-            ON CONFLICT(kind, target) DO UPDATE SET
-                attempts = CASE WHEN ck_backfill_queue.payload_json IS excluded.payload_json THEN ck_backfill_queue.attempts ELSE 0 END,
-                last_error = CASE WHEN ck_backfill_queue.payload_json IS excluded.payload_json THEN ck_backfill_queue.last_error END,
-                payload_json = excluded.payload_json
-        """, [
-            .text(queueKind), .text(bookID), .text(String(decoding: SyncJSON.object([role: file.value]).serialized(), as: UTF8.self)),
-            .real(Date().timeIntervalSinceReferenceDate),
-        ])
+        try connection.queueBackfillKeepingAttempts(
+            kind: queueKind, target: bookID, payload: String(decoding: SyncJSON.object([role: file.value]).serialized(), as: UTF8.self)
+        )
     }
 
     /// True unless `heldPath` is a cover this Mac can read: its own file, or the fetched copy of this very
@@ -406,9 +399,9 @@ struct BookCoverPublisher {
 /// A playlist's members as `Entry` records (`containerKind = playlist`) in `Catalog`, one per
 /// `group_members` row whose group is a playlist (`playlist_` + its address, the id
 /// `videoPlaylistID(for:)` and the MCP's `youtubePlaylistGroupID` mint). A book's or meeting series'
-/// membership is its Source's `collectionID`; a course's is its lesson item (WP9).
+/// membership is its Source's `collectionID`; a course's is its lesson item.
 ///
-/// The registry holds one projection per record type: `EntryProjection` (WP8) is the Entry projection
+/// The registry holds one projection per record type: `EntryProjection` is the Entry projection
 /// and reads a playlist's Entries through this one.
 struct PlaylistEntryProjection: RecordProjection {
     struct Rows: Equatable, Sendable {

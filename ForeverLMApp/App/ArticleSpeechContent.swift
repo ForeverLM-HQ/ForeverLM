@@ -1,6 +1,5 @@
 #if os(macOS)
 import Foundation
-import os
 import PDFKit
 import SwiftUI
 
@@ -876,7 +875,13 @@ final class AutomaticSourceAudioGenerationService: ObservableObject {
         // automatic audio covers are queued as their text arrives, so a
         // source already in the library when its switch went on is queued
         // here, and a later pass (app activation retries) finds it prepared.
-        try? await storage.queueSourceListenableContentPreparation(sourceID: source.id)
+        do {
+            try await storage.queueSourceListenableContentPreparation(sourceID: source.id)
+        } catch {
+            articleSpeechLogger.error(
+                "Could not queue narration preparation for \(source.id, privacy: .public): \(error.localizedDescription, privacy: .public)"
+            )
+        }
         throw CloudArticleTTS.GenerationError.invalidSelection(
             "Automatic audio is waiting for prepared narration."
         )
@@ -892,7 +897,7 @@ enum ArticleSpeechDiagnostics {
     private static let maxLogBytes = 2_000_000
 
     static func append(_ line: String) {
-        let timestamp = ISO8601DateFormatter().string(from: Date())
+        let timestamp = KnowledgeStore.iso8601Formatter.string(from: Date())
         let entry = "\(timestamp) \(line)\n"
         Task.detached(priority: .utility) {
             do {

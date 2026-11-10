@@ -1,9 +1,6 @@
 // Part of ReviewSessionManager: course quiz chats and their scripted tools.
 
 import Foundation
-import Observation
-import PDFKit
-import os
 
 extension ReviewSessionManager {
     /// Start a course quiz as a chat (docs/lecture-quiz-design.md, "Taking a

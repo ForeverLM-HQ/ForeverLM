@@ -143,7 +143,7 @@ struct DeepResearchService: Sendable {
 
         let system = AITask.deepResearch.effectivePrompt ?? Prompts.deepResearch
         let workflowID = "deep-research-\(UUID().uuidString.lowercased())"
-        let researchDate = String(ISO8601DateFormatter().string(from: Date()).prefix(10))
+        let researchDate = String(KnowledgeStore.iso8601Formatter.string(from: Date()).prefix(10))
         var notes = ""
         let result = try await AIUsageAttribution.$sessionID.withValue(workflowID) {
             try await AIUsageAttribution.$activityID.withValue(workflowID) {
@@ -191,7 +191,7 @@ struct DeepResearchService: Sendable {
 
         let system = AITask.deepResearch.effectivePrompt ?? Prompts.deepResearch
         let workflowID = "deep-research-\(UUID().uuidString.lowercased())"
-        let researchDate = String(ISO8601DateFormatter().string(from: Date()).prefix(10))
+        let researchDate = String(KnowledgeStore.iso8601Formatter.string(from: Date()).prefix(10))
         var passes: [DeepResearchPass] = []
         passes.reserveCapacity(Self.lenses.count)
 

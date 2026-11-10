@@ -1,9 +1,6 @@
 // Part of ReviewSessionManager: attached context, images and video moments.
 
 import Foundation
-import Observation
-import PDFKit
-import os
 
 extension ReviewSessionManager {
     func addContextSources(_ articles: [StudioArticle]) async {

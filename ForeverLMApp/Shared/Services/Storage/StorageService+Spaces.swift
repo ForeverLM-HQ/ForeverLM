@@ -6,10 +6,10 @@ import OSLog
 /// Under generation 2 a team is a space of the library container: the Mac's team entry points
 /// (`createTeam`, `renameTeam`, the invitation link, the roster, leaving and deleting) run here on
 /// `SpaceService` and `ShareService`, and never touch the old container, whose paths stay generation
-/// 1's until WP30. Sharing into a team copies through generation 1's copy writers, and the copies then
+/// 1's. Sharing into a team copies through generation 1's copy writers, and the copies then
 /// take their wire ids and identities in the space (`keepTeamCopiesForGeneration2`); what is filed
 /// under the original afterwards does not follow (§9.4: one notebook is edited in place, so there is
-/// no follow-on). Moving a notebook into a space the learner owns is WP15b's `SpaceMoveJob`.
+/// no follow-on). Moving a notebook into a space the learner owns is `SpaceMoveJob`'s.
 extension StorageService {
     /// This account as a space's root names its owner.
     private func spaceOwner(_ coordinator: SyncCoordinator) async throws -> SyncPerson {
@@ -181,7 +181,7 @@ extension StorageService {
     }
 
     /// Sharing a notebook into a space this account owns moves it there (D21, §5.3): the move is a
-    /// `Job(moveToSpace)` that a Mac's `SpaceMoveJob` (WP15b) runs. The notebook keeps its id.
+    /// `Job(moveToSpace)` that a Mac's `SpaceMoveJob` runs. The notebook keeps its id.
     @discardableResult
     func requestMoveIntoSpace(_ notebookID: String, teamID: String) throws -> String {
         let store = try notebookFilesKnowledgeStore()

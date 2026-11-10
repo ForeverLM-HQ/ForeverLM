@@ -1,5 +1,3 @@
-import Foundation
-
 // MARK: - Schema 163, the personal records: Device and the import-blocked shows (§12.7)
 
 extension KnowledgeStore {

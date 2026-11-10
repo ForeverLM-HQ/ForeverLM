@@ -83,7 +83,7 @@ struct ReplicaRecord: Equatable, Sendable {
 ///
 /// An inbound apply runs in `apply(_:)`: one `BEGIN IMMEDIATE` transaction that inserts the
 /// `ck_apply_guard` row, writes the replica rows and the projection rows the closure writes, deletes
-/// the guard row and commits. The outbox triggers (installed by the generation-2 activation, WP4c)
+/// the guard row and commits. The outbox triggers (installed by the generation-2 activation)
 /// fire only while no guard row exists, so what an apply writes is never sent back; the guard is
 /// never held across transactions, so a write made on any other connection, or on this one before or
 /// after the apply, is always enqueued.
@@ -127,7 +127,7 @@ final class ReplicaStore {
             "CREATE INDEX IF NOT EXISTS idx_ck_records_wire ON ck_records(zone_key, record_type, wire_id)",
         ]),
         // A record applied before a local parent it needs, waiting for it (§5.7). The parent table's
-        // readiness trigger sets `ready` when the parent row arrives (WP4c).
+        // readiness trigger sets `ready` when the parent row arrives.
         ReplicaSchemaTable("ck_unprojected", [
             ("zone_key", "TEXT NOT NULL"),
             ("record_name", "TEXT NOT NULL"),
@@ -388,5 +388,21 @@ final class ReplicaStore {
             )
         }
         return found
+    }
+}
+
+extension SQLiteConnection {
+    /// The device's stamp clock (`ck_clock`); nil before it exists.
+    func loadStampClock() throws -> StampClock? {
+        guard let json = try scalarText("SELECT clock_json FROM ck_clock WHERE id = 1") else { return nil }
+        return try? JSONDecoder().decode(StampClock.self, from: Data(json.utf8))
+    }
+
+    func saveStampClock(_ clock: StampClock, now: Date) throws {
+        let json = String(decoding: try JSONEncoder().encode(clock), as: UTF8.self)
+        try execute("""
+            INSERT INTO ck_clock (id, clock_json, updated_at) VALUES (1, ?, ?)
+            ON CONFLICT(id) DO UPDATE SET clock_json = excluded.clock_json, updated_at = excluded.updated_at
+        """, [.text(json), .real(now.timeIntervalSinceReferenceDate)])
     }
 }

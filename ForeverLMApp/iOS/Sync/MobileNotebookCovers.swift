@@ -3,15 +3,14 @@ import ImageIO
 import SwiftUI
 import UIKit
 
-// A notebook's AI-drawn cover on the iPhone (docs/cloudkit-schema-design.md D53, §3.5.6 `files`, §5.9,
-// §14.2 WP31b). The cover, `Notebook.files.cover`, is drawn by a Mac (WP31's `NotebookCoverService`): when
+// A notebook's AI-drawn cover on the iPhone (docs/cloudkit-schema-design.md D53, §3.5.6 `files`, §5.9). The
+// cover, `Notebook.files.cover`, is drawn by a Mac (`NotebookCoverService`): when
 // the learner makes a notebook there, from a claimed `Job(makeDerived, nb:<id>, {derived: "cover"})` for one
 // made on the phone or through the hosted MCP, and once for every notebook that has none (the backfill). The
 // phone draws nothing itself and never runs the backfill or writes its marker. It shows the cover where it
 // drew the title's emoji, bare as the Mac shows it (`NotebookCoverCutout`; docs/notebooks-design.md, "A cover
 // is drawn bare"), the emoji while the cover is missing or still arriving, and asks a Mac for a cover when the
-// learner makes a notebook here. Generation 2 only: generation 1 has no `Notebook.files`, so the emoji shows
-// and nothing is asked.
+// learner makes a notebook here.
 
 /// What the phone says to a Mac about a cover.
 enum MobileNotebookCover {
@@ -165,7 +164,7 @@ final class MobileNotebookCoverImages: ObservableObject {
         if let observer { NotificationCenter.default.removeObserver(observer) }
     }
 
-    /// The notebook's cover; nil for none, under generation 1, and until its bytes are here (offline, not
+    /// The notebook's cover; nil for none, and until its bytes are here (offline, not
     /// uploaded yet): the caller shows the emoji, and asks again when the replica changes.
     func picture(forNotebook notebookID: String) async -> MobileNotebookCoverPicture? {
         guard let satellites = await MobileSatellites.current() else { return nil }

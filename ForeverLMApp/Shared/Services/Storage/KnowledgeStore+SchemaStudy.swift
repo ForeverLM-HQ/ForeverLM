@@ -1,6 +1,3 @@
-import Foundation
-import SQLite3
-
 extension KnowledgeStore {
 
     /// Walkthroughs, Ideas, Atlases, Directions, Skills and the day-close state.

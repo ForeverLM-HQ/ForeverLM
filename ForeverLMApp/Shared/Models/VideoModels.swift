@@ -1,15 +1,6 @@
 // Video and YouTube models, moved out of Models.swift.
 
 import Foundation
-import CryptoKit
-import SwiftUI
-import UniformTypeIdentifiers
-import CoreTransferable
-#if os(macOS)
-import AppKit
-#elseif canImport(UIKit)
-import UIKit
-#endif
 
 enum YouTubeURLMetadata {
     static func isYouTubeURL(_ urlString: String) -> Bool {

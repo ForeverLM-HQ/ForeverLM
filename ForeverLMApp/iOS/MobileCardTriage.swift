@@ -5,7 +5,7 @@ import Foundation
 // Check's Keep, Edit and Skip write, and what a kept card's menu writes — Edit Card, Start Over, Always
 // Ask in Its Own Words, Retire, and the card review's This Asks Something Else. The Mac's writers
 // (`MemoryCardTriageWriter`, `MemoryCardEditWriter`, `recordMemoryCardAskedSomethingElse`) decide the
-// same things over its store; here every write is a patch on the card's generation-2 `Card` record
+// same things over its store; here every write is a patch on the card's `Card` record
 // through the phone's writer (`MobileCardRecords`), so nothing reaches a deck row.
 
 /// Writes what the learner decided in To Check, one card at a time, in the order decided. A decision

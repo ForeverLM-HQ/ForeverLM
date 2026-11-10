@@ -1,7 +1,6 @@
 import AppKit
 import SwiftUI
 import PDFKit
-import UniformTypeIdentifiers
 import WebKit
 
 enum ReaderLinkHoverFeedback {

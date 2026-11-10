@@ -1,14 +1,9 @@
 import Foundation
-import CryptoKit
 import Observation
 import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
-import SwiftUI
-import AppKit
-import SQLite3
-import WebKit
 import Darwin
 
 /// View model for the Reading List Studio — manages the article queue,
@@ -549,7 +544,7 @@ class StudioViewModel {
 
     /// The notebook lists, built once per change to what they read. Rows read
     /// them by the hundred — every chat row in the rail, every item the Space
-    /// lists — and each read used to filter every goal and rebuild the order
+    /// lists — and an uncached read filters every goal and rebuilds the order
     /// (build 210's stalls, 2026-10-11: `notebooks` in 9 of them).
     private var notebookLists: NotebookLists {
         let key = currentNotebookListsKey
@@ -582,7 +577,7 @@ class StudioViewModel {
 
     /// The row of the retired exceptions list: every notebook was on the
     /// rail unless the learner took it off. Read by nothing since the rail
-    /// went compact (2026-10-03, `NotebookPins`), and no longer synced
+    /// went compact (2026-10-03, `NotebookPins`), and not synced
     /// (`SyncedPreferenceKeys.excluded`).
     static let unpinnedNotebooksPreferenceKey = "studio.unpinnedProjects"
 
@@ -1523,8 +1518,8 @@ class StudioViewModel {
 
     /// Unpins each integration tab exactly once per account.
     ///
-    /// A brand-new library used to open with Google Drive, Read AI, Zoom and X
-    /// already pinned, which reads as "these apps are set up" to someone who has
+    /// A brand-new library does not open with Google Drive, Read AI, Zoom and X
+    /// already pinned, which would read as "these apps are set up" to someone who has
     /// connected nothing. Sources for those tabs can only arrive through an
     /// account sign-in or a registered ingest plugin, so the tab waits for
     /// evidence the integration is in use: `pinIntegrationTabsInUse()` pins one
@@ -1946,7 +1941,7 @@ class StudioViewModel {
     /// import's line in the Mac strip's work icon (a banner of its own until
     /// 2026-10-06, `StudioWorkButton`). The import (playlist scrape → AI title
     /// cleanup → per-lecture insert) can run ~a minute before the course first
-    /// appears in the sidebar, and used to give the user no feedback at all.
+    /// appears in the sidebar, and would give the user no feedback at all without it.
     var playlistImportStatus: String?
     /// True once the learner has hidden the import's line for the import that
     /// is running (product owner, 2026-09-21: the "Fetching lecture transcripts…"
@@ -2217,7 +2212,7 @@ class StudioViewModel {
     }
 
     /// A Studio window that has never navigated its own Reader renders the
-    /// app-wide selection, so a click in one window used to change what every
+    /// app-wide selection, so a click in one window would change what every
     /// other open window was reading — the same source, opened in two places.
     /// Before that selection moves, hand each of the other windows the source it
     /// is showing right now, so only the window being acted in follows.

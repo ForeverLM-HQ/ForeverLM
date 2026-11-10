@@ -259,12 +259,6 @@ enum BackgroundAIDailyCap {
         return day
     }
 
-    /// A stable name for the local day, for the once-a-day notice.
-    static func dayKey(for date: Date, calendar: Calendar = .current) -> String {
-        let parts = calendar.dateComponents([.year, .month, .day], from: date)
-        return String(format: "%04d-%02d-%02d", parts.year ?? 0, parts.month ?? 0, parts.day ?? 0)
-    }
-
     enum Status: Equatable, Sendable {
         case off
         case under(spentUSD: Double, capUSD: Double)
@@ -349,7 +343,7 @@ actor BackgroundAIBudget {
         let status = BackgroundAIDailyCap.status(spentUSD: spent, capUSD: cap)
         var firstNotice = false
         if status.isReached {
-            let key = BackgroundAIDailyCap.dayKey(for: now, calendar: calendar)
+            let key = DailyNote.dayKey(for: now, calendar: calendar)
             if defaults.string(forKey: BackgroundAIDailyCap.noticeDayKey) != key {
                 defaults.set(key, forKey: BackgroundAIDailyCap.noticeDayKey)
                 firstNotice = true

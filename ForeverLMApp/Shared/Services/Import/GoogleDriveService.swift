@@ -1113,7 +1113,7 @@ actor GoogleDriveService {
     /// keeps the meetings anyone is actually working through instant while
     /// bounding a directory that used to only grow.
     private static let recordingCacheBudget: Int64 = 2 * 1024 * 1024 * 1024
-    private static let recordingCacheLifetime: TimeInterval = 14 * 24 * 60 * 60
+    private static let recordingCacheLifetime: TimeInterval = 14 * MemoryTutorScheduler.secondsPerDay
 
     private static var recordingCacheDirectory: URL? {
         guard let root = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else {
@@ -1330,7 +1330,7 @@ actor GoogleDriveService {
             field: .tokenExpiry,
             accountID: accountID
         ),
-           let expiryDate = ISO8601DateFormatter().date(from: expiry),
+           let expiryDate = KnowledgeStore.iso8601Formatter.date(from: expiry),
            expiryDate.timeIntervalSinceNow > 60,
            let token = KeychainService.googleDriveCredential(
             field: .accessToken,
@@ -1476,7 +1476,7 @@ actor GoogleDriveService {
         }
         if let value = tokens.expiresIn {
             KeychainService.saveGoogleDriveCredential(
-                ISO8601DateFormatter().string(from: Date().addingTimeInterval(TimeInterval(value))),
+                KnowledgeStore.iso8601Formatter.string(from: Date().addingTimeInterval(TimeInterval(value))),
                 field: .tokenExpiry,
                 accountID: accountID
             )

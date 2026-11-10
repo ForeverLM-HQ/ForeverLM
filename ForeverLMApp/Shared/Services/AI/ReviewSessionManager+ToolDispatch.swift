@@ -1,9 +1,6 @@
 // Part of ReviewSessionManager: parsing and running app tool calls.
 
 import Foundation
-import Observation
-import PDFKit
-import os
 
 extension ReviewSessionManager {
     func parseSynthesisToolCall(_ response: String) -> SynthesisToolCall? {

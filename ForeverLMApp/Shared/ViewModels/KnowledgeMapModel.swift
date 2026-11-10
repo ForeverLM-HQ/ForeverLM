@@ -190,7 +190,7 @@ final class KnowledgeMapModel {
     /// The renderer's last error, shown in place of the map.
     var rendererError: String?
 
-    // MARK: Memory (WP-B2)
+    // MARK: Memory
     /// The Memory layer's marks and a review in place (KnowledgeMapModel+Memory.swift).
     let memory = KnowledgeMapMemory()
 
@@ -211,7 +211,7 @@ final class KnowledgeMapModel {
     @ObservationIgnored private var captionCache: [Int: String] = [:]
     @ObservationIgnored private var summaryRequest = 0
 
-    // MARK: Proposals (WP-B1)
+    // MARK: Proposals
 
     /// ForeverLM's answer to the learner's last Ask, drawn dotted until each
     /// proposal is kept or dismissed; nil when none shows, and never while a
@@ -334,7 +334,7 @@ final class KnowledgeMapModel {
     /// the folder's stamp and `picturesRevision` it was read at, and the cards.
     @ObservationIgnored var pictureLibrary: (stamp: Int, revision: Int, cards: [KnowledgeMapPictureCard])?
 
-    // MARK: Faces (WP-B1)
+    // MARK: Faces
 
     /// The written faces of the drawn source cards, by ref
     /// (`KnowledgeMapModel+Faces.swift`).
@@ -769,7 +769,7 @@ final class KnowledgeMapModel {
     // MARK: Arranging on the learner's word
 
     // What the learner asks a chat or an assistant to do on the plane
-    // (MCPTools+Canvas.swift): each is one write of theirs, an Undo step like
+    // (MCPTools+KnowledgeMap.swift): each is one write of theirs, an Undo step like
     // a drag. Cards already placed elsewhere move.
 
     private typealias Spot = KnowledgeMapArranging.Spot
@@ -1335,7 +1335,7 @@ final class KnowledgeMapModel {
             known: { nodesByRef[$0.description] != nil }
         )
         guard !laid.positions.isEmpty else { throw LensError.noKnownItems }
-        clearProposals() // Proposals (WP-B1): a lens and proposals never show together.
+        clearProposals() // A lens and proposals never show together.
         lens = laid
         lensRevision &+= 1
         return laid

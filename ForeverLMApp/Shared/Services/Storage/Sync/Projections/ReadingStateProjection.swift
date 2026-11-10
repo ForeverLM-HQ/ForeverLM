@@ -51,7 +51,7 @@ struct ReadingStateRow: Equatable, Sendable {
             "SELECT \(columns.joined(separator: ", ")) FROM reading_states WHERE wire_id = ?", [.text(wireID)]
         ) { values in
             var loaded = ReadingStateRow(wireID: wireID)
-            loaded.locator = Self.json(values.text(0))
+            loaded.locator = SyncJSON.stored(values.text(0))
             loaded.position = values.integer(1)
             loaded.readAt = values.real(2)
             loaded.reviewDepth = values.text(3)
@@ -60,13 +60,13 @@ struct ReadingStateRow: Equatable, Sendable {
             loaded.completedAt = values.real(6)
             loaded.consumedAt = values.real(7)
             loaded.lastReadAt = values.real(8)
-            loaded.listen = Self.json(values.text(9))
-            loaded.media = Self.json(values.text(10))
+            loaded.listen = SyncJSON.stored(values.text(9))
+            loaded.media = SyncJSON.stored(values.text(10))
             loaded.watchedSeconds = values.real(11)
-            loaded.lastContext = Self.json(values.text(12))
-            loaded.walkVariants = Self.json(values.text(13))?.objectValue ?? [:]
-            loaded.discussed = Self.json(values.text(14))?.arrayValue?.compactMap(\.stringValue)
-            loaded.understanding = Self.json(values.text(15))
+            loaded.lastContext = SyncJSON.stored(values.text(12))
+            loaded.walkVariants = SyncJSON.stored(values.text(13))?.objectValue ?? [:]
+            loaded.discussed = SyncJSON.stored(values.text(14))?.arrayValue?.compactMap(\.stringValue)
+            loaded.understanding = SyncJSON.stored(values.text(15))
             loaded.understandingPath = values.text(16)
             row = loaded
         }
@@ -81,20 +81,11 @@ struct ReadingStateRow: Equatable, Sendable {
             VALUES (?\(String(repeating: ", ?", count: Self.columns.count)))
             ON CONFLICT(wire_id) DO UPDATE SET \(assignments)
         """, [
-            .text(wireID), .text(Self.text(locator)), .integer(position), .real(readAt), .text(reviewDepth), .integer(furthestEpoch),
-            .real(furthest), .real(completedAt), .real(consumedAt), .real(lastReadAt), .text(Self.text(listen)), .text(Self.text(media)),
-            .real(watchedSeconds), .text(Self.text(lastContext)), .text(walkVariants.isEmpty ? nil : Self.text(.object(walkVariants))),
-            .text(discussed.map { Self.text(.array($0.map(SyncJSON.string))) } ?? nil), .text(Self.text(understanding)), .text(understandingPath),
+            .text(wireID), .text(SyncJSON.storedText(locator)), .integer(position), .real(readAt), .text(reviewDepth), .integer(furthestEpoch),
+            .real(furthest), .real(completedAt), .real(consumedAt), .real(lastReadAt), .text(SyncJSON.storedText(listen)), .text(SyncJSON.storedText(media)),
+            .real(watchedSeconds), .text(SyncJSON.storedText(lastContext)), .text(walkVariants.isEmpty ? nil : SyncJSON.storedText(.object(walkVariants))),
+            .text(discussed.map { SyncJSON.storedText(.array($0.map(SyncJSON.string))) } ?? nil), .text(SyncJSON.storedText(understanding)), .text(understandingPath),
         ])
-    }
-
-    static func json(_ text: String?) -> SyncJSON? {
-        text.flatMap { try? SyncJSON(parsing: Data($0.utf8)) }
-    }
-
-    static func text(_ json: SyncJSON?) -> String? {
-        guard let json, !json.isNull else { return nil }
-        return String(decoding: json.serialized(), as: UTF8.self)
     }
 }
 
@@ -191,7 +182,7 @@ enum ReadingLocatorCodec {
 /// at}`, outcomes as raw strings so one a later build adds survives.
 enum WalkProgressCodec {
     static func wire(progressJSON: String) -> SyncJSON? {
-        guard let object = ReadingStateRow.json(progressJSON)?.objectValue else { return nil }
+        guard let object = SyncJSON.stored(progressJSON)?.objectValue else { return nil }
         var walk: [String: SyncJSON] = [
             "revealedBeats": object["revealed_beats"] ?? .object([:]),
             "playedStepIDs": object["played_step_ids"] ?? .array([]),
@@ -309,7 +300,7 @@ struct ReadingStateProjection: RecordProjection {
         rows.walkJSON = try connection.scalarText("SELECT progress_json FROM walkthrough_progress WHERE subject_id = ?", [.text(targetID)])
         rows.understandingDiscussed = try connection.scalarText(
             "SELECT discussed_idea_ids FROM source_understanding WHERE source_id = ?", [.text(targetID)]
-        ).map { ReadingStateRow.json($0)?.arrayValue?.compactMap(\.stringValue) ?? [] }
+        ).map { SyncJSON.stored($0)?.arrayValue?.compactMap(\.stringValue) ?? [] }
         return rows
     }
 
@@ -390,7 +381,7 @@ struct ReadingStateProjection: RecordProjection {
             if try connection.scalarInteger("SELECT EXISTS(SELECT 1 FROM source_understanding WHERE source_id = ?)", [.text(targetID)]) == 1 {
                 try connection.execute(
                     "UPDATE source_understanding SET discussed_idea_ids = ? WHERE source_id = ?",
-                    [.text(ReadingStateRow.text(.array(members.map(SyncJSON.string)))), .text(targetID)]
+                    [.text(SyncJSON.storedText(.array(members.map(SyncJSON.string)))), .text(targetID)]
                 )
                 state.discussed = nil
             } else {

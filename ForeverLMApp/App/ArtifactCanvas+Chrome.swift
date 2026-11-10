@@ -1,9 +1,7 @@
 // ArtifactCanvas: the Space helpers, toolbar, page menus and page actions.
 
 import AppKit
-import PDFKit
 import SwiftUI
-import UniformTypeIdentifiers
 
 extension ArtifactCanvas {
     // MARK: - The Space
@@ -819,8 +817,8 @@ extension ArtifactCanvas {
     private func pageCodexItems(for artifact: ArtifactRecord, toolPillShown: Bool) -> some View {
         let isOwn = artifact.teamID == nil
         // The Space sidebar beside the page, out of the way and back. The key
-        // is also held by an invisible button (`pagesShortcut`), since a
-        // menu's shortcut does not run while the menu is shut.
+        // is also held by an invisible button, since a menu's shortcut does not
+        // run while the menu is shut.
         if spaceSidebarFitsPane {
             Button {
                 togglePagesSidebar()

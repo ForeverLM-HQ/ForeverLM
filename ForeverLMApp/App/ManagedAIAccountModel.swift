@@ -447,10 +447,9 @@ final class ManagedAIAccountModel {
 
     /// Pull the server ledger the first time this launch sees credits empty.
     ///
-    /// Opening the Usage pane used to be the only event that reconciled
-    /// accounting, so a balance could empty without the on-device ledger ever
-    /// learning what spent it — `last_ledger_id` sat at 0 while months of
-    /// spending accumulated. Running out is exactly when that history has to be
+    /// Reconciling accounting only when the Usage pane opens would let a
+    /// balance empty without the on-device ledger ever learning what spent it —
+    /// `last_ledger_id` would sit at 0 while months of spending accumulated. Running out is exactly when that history has to be
     /// there. Once per launch: the transition can be observed repeatedly, by
     /// every refused request as well as by each balance refresh.
     private func reconcileUsageAfterExhaustion() {
@@ -635,8 +634,8 @@ final class ManagedAIAccountModel {
               let freeUntil = access.freeUntil else { return }
         let remaining = freeUntil.timeIntervalSince(ManagedAI.serverNow)
         guard remaining > 0 else { return }
-        let toNextDay = remaining.truncatingRemainder(dividingBy: 86_400)
-        let delay = (toNextDay > 0 ? toNextDay : 86_400) + 1
+        let toNextDay = remaining.truncatingRemainder(dividingBy: MemoryTutorScheduler.secondsPerDay)
+        let delay = (toNextDay > 0 ? toNextDay : MemoryTutorScheduler.secondsPerDay) + 1
         let endsTheFreeDays = delay >= remaining
         freeDaysTick = Task { [weak self] in
             try? await Task.sleep(for: .seconds(delay))
@@ -947,9 +946,8 @@ enum AppleIdentityToken {
             }
         }
 
-        /// Every rejection below used to surface as the same "invalid response",
-        /// which left a failed first sign-in on a fresh Mac undiagnosable. Each
-        /// one now says which check failed; the token itself is never logged.
+        /// Each rejection below says which check failed, so a failed first
+        /// sign-in on a fresh Mac can be diagnosed; the token itself is never logged.
         private static let logger = Logger(
             subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM",
             category: "AppleSignIn"

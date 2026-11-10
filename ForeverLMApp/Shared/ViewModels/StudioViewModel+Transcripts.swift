@@ -1,14 +1,10 @@
 import Foundation
-import CryptoKit
-import Observation
 import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
-import SwiftUI
 import AppKit
 import SQLite3
-import WebKit
 import Darwin
 
 extension StudioViewModel {
@@ -97,7 +93,11 @@ extension StudioViewModel {
                 articles[idx2].title = title
             }
             if let idx2 = articles.firstIndex(where: { $0.id == articleId }) {
-                try? await storage.saveSource(articles[idx2])
+                do {
+                    try await storage.saveSource(articles[idx2])
+                } catch {
+                    logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+                }
             }
             return
         }
@@ -139,7 +139,11 @@ extension StudioViewModel {
                 automaticFormattingAllowed: allowsAutomaticFormatting
                     && hasLikedVideoFormattingConsent
             )
-            try? await storage.saveSource(articles[idx2])
+            do {
+                try await storage.saveSource(articles[idx2])
+            } catch {
+                logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+            }
 
             // YouTube caption streams often arrive as one unpunctuated block.
             // Use the transcript-formatting task to add punctuation, paragraphs,
@@ -166,7 +170,7 @@ extension StudioViewModel {
                 await officialChaptersTask,
                 to: baseTranscript
             )
-            // Slides are no longer captured at ingest. Capturing them streams the
+            // Slides are not captured at ingest. Capturing them streams the
             // video to grab full-resolution frames — minutes of work on a long
             // lecture — and most videos are never opened for their slides. It is
             // now opt-in per video: the reader's "Show slides" button calls
@@ -181,7 +185,11 @@ extension StudioViewModel {
             articles[idx3].wordCount = transcript.split(separator: " ").count
             articles[idx3].state = .ready
             articles[idx3].errorMessage = nil
-            try? await storage.saveSource(articles[idx3])
+            do {
+                try await storage.saveSource(articles[idx3])
+            } catch {
+                logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+            }
             queueSourceEmbeddingRefreshIfReady(articleId)
         } catch {
             guard let idx2 = articles.firstIndex(where: { $0.id == articleId }) else { return }
@@ -197,7 +205,11 @@ extension StudioViewModel {
             // text the learner had, and `reformatYouTubeTranscript` puts the
             // row back from it, so that failure stays in memory.
             if !forceRefresh {
-                try? await storage.saveSource(articles[idx2])
+                do {
+                    try await storage.saveSource(articles[idx2])
+                } catch {
+                    logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+                }
             }
         }
     }
@@ -344,7 +356,11 @@ extension StudioViewModel {
             if articles[idx].state != .error || articles[idx].errorMessage?.contains(ZoomTranscriptWait.waitingMarker) == true {
                 articles[idx].state = .error
                 articles[idx].errorMessage = "Zoom never published a transcript for this recording. Right-click the session and choose Get Transcript to transcribe the recording itself."
-                try? await storage.saveSource(articles[idx])
+                do {
+                    try await storage.saveSource(articles[idx])
+                } catch {
+                    logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+                }
             }
             return
         }
@@ -387,7 +403,11 @@ extension StudioViewModel {
             await assignZoomMeetingSeries(to: &adopted, explicit: false)
             if let current = articles.firstIndex(where: { $0.id == articleId }) {
                 articles[current] = adopted
-                try? await storage.saveSource(adopted)
+                do {
+                    try await storage.saveSource(adopted)
+                } catch {
+                    logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+                }
             }
         }
 
@@ -401,7 +421,11 @@ extension StudioViewModel {
             articles[idx].wordCount = cachedTranscript.split(separator: " ").count
             articles[idx].state = .ready
             articles[idx].errorMessage = nil
-            try? await storage.saveSource(articles[idx])
+            do {
+                try await storage.saveSource(articles[idx])
+            } catch {
+                logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+            }
             return
         }
 
@@ -418,7 +442,11 @@ extension StudioViewModel {
             articles[idx2].wordCount = result.transcript.split(separator: " ").count
             articles[idx2].state = .ready
             articles[idx2].errorMessage = nil
-            try? await storage.saveSource(articles[idx2])
+            do {
+                try await storage.saveSource(articles[idx2])
+            } catch {
+                logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+            }
             queueSourceEmbeddingRefreshIfReady(articleId)
             MeetingActionItemExtractor.shared.noteTranscriptReady(sourceID: articleId)
             logger.info("Zoom transcript stored for \(articleId, privacy: .public)")
@@ -455,7 +483,11 @@ extension StudioViewModel {
                 articles[idx2].state = .error
                 articles[idx2].errorMessage = "Zoom transcript unavailable: \(error.localizedDescription)"
             }
-            try? await storage.saveSource(articles[idx2])
+            do {
+                try await storage.saveSource(articles[idx2])
+            } catch {
+                logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+            }
             logger.info("Zoom transcript not stored (\(request == .automatic ? "automatic" : "requested", privacy: .public)): \(error.localizedDescription)")
         }
     }
@@ -565,8 +597,8 @@ extension StudioViewModel {
         queueSourceEmbeddingRefreshIfReady(articleId)
     }
 
-    /// Fetch a bounded number of YouTube transcripts in parallel. Bulk imports used to
-    /// run this serially, which made large playlist/course sections painfully slow.
+    /// Fetch a bounded number of YouTube transcripts in parallel. Running it serially
+    /// would make large playlist/course sections painfully slow.
     func fetchYouTubeTranscriptsConcurrently(
         for articleIds: [String],
         allowsAutomaticFormatting: Bool = true
@@ -765,7 +797,11 @@ extension StudioViewModel {
             articles[idx].state = .ready
             articles[idx].errorMessage = nil
             if !persistedReadyState {
-                try? await storage.saveSource(articles[idx])
+                do {
+                    try await storage.saveSource(articles[idx])
+                } catch {
+                    logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+                }
             }
             queueSourceEmbeddingRefreshIfReady(result.id)
 
@@ -778,7 +814,11 @@ extension StudioViewModel {
             }
             articles[idx].state = .error
             articles[idx].errorMessage = message
-            try? await storage.saveSource(articles[idx])
+            do {
+                try await storage.saveSource(articles[idx])
+            } catch {
+                logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 
@@ -929,6 +969,39 @@ extension StudioViewModel {
         return nil
     }
 
+    /// A model's JSON reply with the Markdown code fence around it, if any, taken off.
+    nonisolated static func unfencedModelJSON(_ response: String) -> String {
+        var json = response.trimmingCharacters(in: .whitespacesAndNewlines)
+        if json.hasPrefix("```") {
+            json = json.components(separatedBy: "\n").dropFirst().joined(separator: "\n")
+            if json.hasSuffix("```") {
+                json = String(json.dropLast(3)).trimmingCharacters(in: .whitespacesAndNewlines)
+            }
+        }
+        return json
+    }
+
+    /// A transcript cut into pieces of at most 50,000 characters for formatting,
+    /// each ending at the last sentence break before the limit. Input context is
+    /// cheap; only output needs to be small.
+    nonisolated static func transcriptFormattingChunks(_ text: String) -> [String] {
+        let chunkSize = 50_000
+        guard text.count > chunkSize else { return [text] }
+        var result: [String] = []
+        var start = text.startIndex
+        while start < text.endIndex {
+            let end = text.index(start, offsetBy: chunkSize, limitedBy: text.endIndex) ?? text.endIndex
+            var breakAt = end
+            if end < text.endIndex,
+               let dotRange = text[start..<end].range(of: ". ", options: .backwards) {
+                breakAt = text.index(after: dotRange.lowerBound)
+            }
+            result.append(String(text[start..<breakAt]))
+            start = breakAt
+        }
+        return result
+    }
+
     /// Cut a caption stream into pieces of at most `maxCharacters`, each ending
     /// at the last sentence break before the limit — else the last comma, else
     /// the last space — so a lecture formats in a handful of calls.
@@ -1027,25 +1100,7 @@ extension StudioViewModel {
         )
 
         // Chunk large transcripts. Input context is cheap; only output needs to be small.
-        let chunkSize = 50_000
-        let chunks: [String]
-        if speakerNamedRaw.count <= chunkSize {
-            chunks = [speakerNamedRaw]
-        } else {
-            var result: [String] = []
-            var start = speakerNamedRaw.startIndex
-            while start < speakerNamedRaw.endIndex {
-                let end = speakerNamedRaw.index(start, offsetBy: chunkSize, limitedBy: speakerNamedRaw.endIndex) ?? speakerNamedRaw.endIndex
-                var breakAt = end
-                if end < speakerNamedRaw.endIndex,
-                   let dotRange = speakerNamedRaw[start..<end].range(of: ". ", options: .backwards) {
-                    breakAt = speakerNamedRaw.index(after: dotRange.lowerBound)
-                }
-                result.append(String(speakerNamedRaw[start..<breakAt]))
-                start = breakAt
-            }
-            chunks = result
-        }
+        let chunks = Self.transcriptFormattingChunks(speakerNamedRaw)
 
         // Process chunks in parallel.
         let indexed = Array(chunks.enumerated())
@@ -1250,13 +1305,7 @@ extension StudioViewModel {
     }
 
     func parseSpeakerNameMapping(_ response: String, validSpeakerIDs: Set<String>) -> [String: String] {
-        var json = response.trimmingCharacters(in: .whitespacesAndNewlines)
-        if json.hasPrefix("```") {
-            json = json.components(separatedBy: "\n").dropFirst().joined(separator: "\n")
-            if json.hasSuffix("```") {
-                json = String(json.dropLast(3)).trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        }
+        let json = Self.unfencedModelJSON(response)
 
         guard let data = json.data(using: .utf8),
               let decoded = try? JSONDecoder().decode([String: String].self, from: data) else {
@@ -1522,10 +1571,10 @@ extension StudioViewModel {
     /// 1. Text already stored in the database is read for every missing source
     ///    in one query and published in one `articles` assignment. This is the
     ///    common case — the transcript of a video imported hours ago — and it
-    ///    costs a database read, nothing more. It used to go through
-    ///    `fetchContent`, whose per-source path re-fetched, re-checked and
-    ///    re-saved on the way to the same row, and a send sat at "Getting your
-    ///    sources ready" for 80 seconds with the text on disk the whole time.
+    ///    costs a database read, nothing more. It does not go through
+    ///    `fetchContent`, whose per-source path re-fetches, re-checks and
+    ///    re-saves on the way to the same row, which would hold a send at
+    ///    "Getting your sources ready" for 80 seconds with the text on disk.
     /// 2. Only a source with nothing stored — a video dropped on the chat before
     ///    its transcript ever downloaded — goes through its ingestion path, and
     ///    `progress` names it, so the wait says what it is waiting on.

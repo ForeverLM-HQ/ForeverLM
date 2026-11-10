@@ -1,8 +1,6 @@
 // KnowledgeStore: reading position, watched state, hidden state and link lookups of a source.
 import Foundation
 import SQLite3
-import OSLog
-import CloudKit
 
 extension KnowledgeStore {
 

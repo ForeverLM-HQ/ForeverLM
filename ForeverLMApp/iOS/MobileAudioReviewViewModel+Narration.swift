@@ -1,14 +1,7 @@
 // Narration download, automatic audio and reading a source aloud.
 
-import AVFoundation
-import Combine
-import CryptoKit
+import Foundation
 import MediaPlayer
-import OSLog
-import SwiftUI
-import CloudKit
-import SQLite3
-import WidgetKit
 
 extension MobileAudioReviewViewModel {
     /// Whether ready-to-play narration audio for this source is already on the

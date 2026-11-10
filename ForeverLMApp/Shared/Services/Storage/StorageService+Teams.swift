@@ -822,12 +822,8 @@ enum NotebookShareError: LocalizedError, Equatable {
 enum TeamError: LocalizedError {
     case unknownTeam(String)
     case shareUnavailable(String)
-    case notATeamShare
     case ownerCannotLeave
     case memberCannotDelete
-    /// CloudKit created the zone but refused the zone-wide share; the zone was
-    /// deleted again and no team exists.
-    case shareRefused(name: String, underlying: Error)
 
     var errorDescription: String? {
         switch self {
@@ -835,10 +831,6 @@ enum TeamError: LocalizedError {
             return "Team \(id) is not on this Mac."
         case .shareUnavailable(let name):
             return "The invitation link for \(name) could not be read from iCloud."
-        case .shareRefused(let name, let underlying):
-            return "iCloud refused to create the share for “\(name)”, so the team was not created. \(underlying.localizedDescription)"
-        case .notATeamShare:
-            return "This link is not a ForeverLM team invitation."
         case .ownerCannotLeave:
             return "You own this team. Delete it instead of leaving it."
         case .memberCannotDelete:

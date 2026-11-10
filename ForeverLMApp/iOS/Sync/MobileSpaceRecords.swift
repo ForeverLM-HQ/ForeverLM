@@ -1,11 +1,11 @@
 import Foundation
 
-// The Space's records under generation 2 (docs/cloudkit-schema-design.md §3.5.3, §3.5.15, §3.5.30;
+// The Space's records (docs/cloudkit-schema-design.md §3.5.3, §3.5.15, §3.5.30;
 // docs/docs-design.md, "The Space"): a page is an Artifact in the learner's `Library` (a team's in its
 // space), its text the `body` satellite, and the learner's grouping of pages four kinds of account
 // Setting the catalog leaves out (`pageSpace.`, `page.space.`, `page.pinned.`, `page.parent.`). Read
-// from the replica's index with the pending patches laid over, and written as the web's generation-2
-// writer writes them (`library-mutations-v2.js`: `createArtifact`, `writeArtifact`, `renameArtifact`,
+// from the replica's index with the pending patches laid over, and written as the web's
+// writer writes them (`createArtifact`, `writeArtifact`, `renameArtifact`,
 // `setArtifactArchived`, `deleteArtifact`), so every client makes the same records.
 
 // MARK: - A page's body
@@ -90,7 +90,7 @@ extension MobileProjection {
     }
 }
 
-/// What the phone's Space shows under generation 2 (§3.5.15, D33): its pages from the index columns of
+/// What the phone's Space shows (§3.5.15, D33): its pages from the index columns of
 /// `m_artifacts`, with no payload decoded but each space's root, and the learner's grouping from the
 /// four kinds of Setting. Unlike a notebook's Studio (`MobileReadModels.artifacts`), it keeps the pages
 /// in Trash and every kind the Mac's Space lists (`MobileSpaceListing.isSpaceRecord`).

@@ -205,7 +205,7 @@ struct PaperReferenceSummary: Equatable, Sendable {
         self.title = Self.nonBlank(stored?.title) ?? Self.printedTitle(in: text)
     }
 
-    private static func nonBlank(_ value: String?) -> String? {
+    static func nonBlank(_ value: String?) -> String? {
         guard let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines), !trimmed.isEmpty else { return nil }
         return trimmed
     }

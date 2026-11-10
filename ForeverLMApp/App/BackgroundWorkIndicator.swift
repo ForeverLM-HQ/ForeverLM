@@ -74,9 +74,9 @@ struct BackgroundWorkItem: Identifiable, Equatable {
     }
 }
 
-/// A narration that ended and has not been dismissed: what the sidebar's
-/// audio panel used to report, now beside the running work (product owner,
-/// 2026-10-08: "it should be in the bottom left as a status indicator").
+/// A narration that ended and has not been dismissed, shown beside the
+/// running work (product owner, 2026-10-08: "it should be in the bottom left
+/// as a status indicator").
 struct FinishedNarration: Identifiable, Equatable {
     let id: String
     let title: String

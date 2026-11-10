@@ -36,7 +36,11 @@ extension StudioViewModel {
             articles[idx].content = cached
             articles[idx].wordCount = cached.split(separator: " ").count
             articles[idx].state = .ready
-            try? await storage.saveSource(articles[idx])
+            do {
+                try await storage.saveSource(articles[idx])
+            } catch {
+                logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+            }
             return
         }
 
@@ -60,7 +64,11 @@ extension StudioViewModel {
             guard let idx = articles.firstIndex(where: { $0.id == articleId }) else { return }
             articles[idx].state = .error
             articles[idx].errorMessage = stopped ? Self.teachableTranscriptStoppedMessage : error.localizedDescription
-            try? await storage.saveSource(articles[idx])
+            do {
+                try await storage.saveSource(articles[idx])
+            } catch {
+                logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 
@@ -79,7 +87,11 @@ extension StudioViewModel {
                           articles[idx].content == nil else { continue }
                     articles[idx].state = .error
                     articles[idx].errorMessage = Self.teachableTranscriptStoppedMessage
-                    try? await storage.saveSource(articles[idx])
+                    do {
+                        try await storage.saveSource(articles[idx])
+                    } catch {
+                        logger.error("saveSource failed: \(error.localizedDescription, privacy: .public)")
+                    }
                 }
                 return
             }

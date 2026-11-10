@@ -1,5 +1,3 @@
-import Foundation
-
 /// `resolveSource()` (§4.2): a duplicate's loser keeps `mergedInto` for ever as a redirect to its
 /// winner, and everything that names the loser and never changes (a highlight, a card's deck and
 /// anchors, a sitting's answers, a reply's citations) is read through this walk, so it shows on the

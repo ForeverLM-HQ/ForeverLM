@@ -1,7 +1,6 @@
 // The strip drop delegate and the rail button rows.
 import SwiftUI
 import AppKit
-import UniformTypeIdentifiers
 
 // MARK: - Rows
 

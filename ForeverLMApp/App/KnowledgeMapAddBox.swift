@@ -1,6 +1,5 @@
 import AppKit
 import SwiftUI
-import UniformTypeIdentifiers
 
 // MARK: - Adding to the canvas: the add box, and the list the find field shares
 //

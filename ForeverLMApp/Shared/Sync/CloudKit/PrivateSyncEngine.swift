@@ -57,7 +57,7 @@ extension PrivateSyncLocalState {
         try project(record)
     }
 
-    /// A store with no domain tables has nowhere to write it; its writer (the iPhone's, WP19) does.
+    /// A store with no domain tables has nowhere to write it; its writer (the iPhone's) does.
     func recordLocalWrite(_ patch: RecordPatch) throws {}
 
     func unprojectableTypes() -> Set<SyncRecordType> { [] }
@@ -69,7 +69,7 @@ extension PrivateSyncLocalState {
 }
 
 /// A local store that is the replica alone, with no domain tables and no outbox: the iPhone's shape
-/// until its writer arrives (WP19), and what the engine's suites run the bootstrap, purge and audit
+/// until its writer arrives, and what the engine's suites run the bootstrap, purge and audit
 /// on. Acknowledgements write the replica; there is nothing to project.
 final class ReplicaOnlySyncStore: PrivateSyncLocalStore, PrivateSyncLocalState, @unchecked Sendable {
     let connection: SQLiteConnection
@@ -138,8 +138,7 @@ extension ReplicaStore {
 
     /// The device's stamp clock (`ck_clock`, §6.3); nil before it exists.
     func loadClock() throws -> StampClock? {
-        guard let json = try connection.scalarText("SELECT clock_json FROM ck_clock WHERE id = 1") else { return nil }
-        return try? JSONDecoder().decode(StampClock.self, from: Data(json.utf8))
+        try connection.loadStampClock()
     }
 
     /// Whether the device has no server offset yet: it cannot mint a stamp, so it sends nothing until one
@@ -150,11 +149,7 @@ extension ReplicaStore {
     }
 
     func saveClock(_ clock: StampClock, now: Date = Date()) throws {
-        let json = String(decoding: try JSONEncoder().encode(clock), as: UTF8.self)
-        try connection.execute("""
-            INSERT INTO ck_clock (id, clock_json, updated_at) VALUES (1, ?, ?)
-            ON CONFLICT(id) DO UPDATE SET clock_json = excluded.clock_json, updated_at = excluded.updated_at
-        """, [.text(json), .real(now.timeIntervalSinceReferenceDate)])
+        try connection.saveStampClock(clock, now: now)
     }
 
     /// Records one server time (an acknowledged save's modification date) against the local time the
@@ -792,13 +787,7 @@ actor PrivateSyncEngine {
 
     /// Reads the moves the personal root lists (D51) before anything is written or applied.
     func refreshMoveMaps() async throws {
-        guard let (root, salt) = try await store.perform({ state -> (SyncEnvelope, Data)? in
-            guard let root = try state.replica.personalRoot()?.envelope,
-                  let salt = root.fields["salt"]?.stringValue.flatMap(RecordNaming.salt(base64:))
-            else { return nil }
-            return (root, salt)
-        }) else { return }
-        await moveMaps.refresh(from: root, fetch: MoveMapIndex.transportFetch(transport, salt: salt))
+        try await moveMaps.refreshFromPersonalRoot(store: store, transport: transport)
     }
 
     /// Fetches one zone to its end. Returns whether the pass started from a nil token and completed.

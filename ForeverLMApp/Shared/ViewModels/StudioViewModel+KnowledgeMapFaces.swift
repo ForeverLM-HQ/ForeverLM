@@ -1,6 +1,6 @@
 import Foundation
 
-// MARK: - Written faces: the background pass (WP-B1, docs/sensemaking-design.md)
+// MARK: - Written faces: the background pass (docs/sensemaking-design.md)
 //
 // In the rhythm of the Canvas Summaries: two seconds after the cards or the
 // layout settle, the drawn source cards' stored faces are read and shown, and

@@ -1,9 +1,5 @@
 // The chat header control button and the composer chip button and chip.
 import SwiftUI
-import Combine
-import UniformTypeIdentifiers
-import PDFKit
-import WebKit
 import AppKit
 
 /// A chat header's trailing control, which works in the titlebar band too

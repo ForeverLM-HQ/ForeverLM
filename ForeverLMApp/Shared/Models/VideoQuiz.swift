@@ -3,7 +3,7 @@ import Foundation
 /// Grading a typed quiz answer: what the grader is sent, how its reply is
 /// checked, and what happens when it stumbles. Used by a course quiz taken in
 /// a chat (docs/lecture-quiz-design.md). The file keeps the name of the video
-/// checkpoint quiz it was written for, which was removed on 2026-09-28.
+/// checkpoint quiz it was written for.
 
 /// How a quiz answer gets graded when the grader stumbles (product owner,
 /// 2026-09-27, of an answer the grading model sent back unreadable: "there

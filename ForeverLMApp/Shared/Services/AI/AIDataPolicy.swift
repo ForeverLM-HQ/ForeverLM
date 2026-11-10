@@ -635,6 +635,20 @@ actor OpenRouterRegionalEndpoints {
         return endpoints
     }
 
+    /// A price OpenRouter quotes per token, as USD per 1M tokens; nil for a
+    /// missing, negative or non-numeric one. OpenRouter quotes per token in
+    /// decimal strings; the binary product ("0.0000004" × 1e6) is 0.3999…, so
+    /// it settles to a millionth of a dollar per 1M tokens, far below any list
+    /// price.
+    static func usdPerMTokens(_ value: Any?) -> Double? {
+        let perToken: Double?
+        if let string = value as? String { perToken = Double(string) }
+        else if let number = value as? NSNumber { perToken = number.doubleValue }
+        else { perToken = nil }
+        guard let perToken, perToken.isFinite, perToken >= 0 else { return nil }
+        return (perToken * 1_000_000 * 1_000_000).rounded() / 1_000_000
+    }
+
     /// Nil when the body is not an endpoints listing, so a changed shape is
     /// a failed read rather than an empty region.
     static func parse(_ data: Data) -> [Endpoint]? {
@@ -642,14 +656,6 @@ actor OpenRouterRegionalEndpoints {
               let payload = root["data"] as? [String: Any],
               let rows = payload["endpoints"] as? [[String: Any]]
         else { return nil }
-        func usdPerMTokens(_ value: Any?) -> Double? {
-            let perToken: Double?
-            if let string = value as? String { perToken = Double(string) }
-            else if let number = value as? NSNumber { perToken = number.doubleValue }
-            else { perToken = nil }
-            guard let perToken, perToken.isFinite, perToken >= 0 else { return nil }
-            return (perToken * 1_000_000 * 1_000_000).rounded() / 1_000_000
-        }
         var seen = Set<String>()
         return rows.compactMap { row in
             guard let tag = (row["tag"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines).lowercased(),
@@ -781,7 +787,7 @@ enum AIFreeModelPrices {
 /// OpenRouter opens up again comes back to the pickers.
 enum AIFreeModelRestrictions {
     static let recordKey = "aiFreeModelRestrictions.refusedAt.v1"
-    static let retention: TimeInterval = 7 * 24 * 60 * 60
+    static let retention: TimeInterval = 7 * MemoryTutorScheduler.secondsPerDay
     private static let lock = NSLock()
 
     /// The `:free` id an OpenRouter refusal names as limited to its listed

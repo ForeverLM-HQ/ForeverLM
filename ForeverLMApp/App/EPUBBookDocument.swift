@@ -5,8 +5,8 @@ import Foundation
 /// way it scrolls through a PDF book (`BookPDFAssembly`).
 ///
 /// An EPUB import stores one file per chapter under the book's `Chapters`
-/// folder, and the reader used to show one of them at a time: the end of a
-/// chapter was a footer to click, and Find stopped there. Here every chapter's
+/// folder, and showing one at a time would make the end of a
+/// chapter a footer to click and stop Find there. So every chapter's
 /// body is copied, in reading order, into one page, each inside its own
 /// `<section data-flm-chapter="<source id>">`. The chapter stays the unit
 /// everything is stored in — its highlights are anchored in its own section's

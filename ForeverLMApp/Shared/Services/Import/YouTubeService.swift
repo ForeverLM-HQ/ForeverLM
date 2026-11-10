@@ -711,7 +711,7 @@ actor YouTubeService {
         let withFractional = ISO8601DateFormatter()
         withFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         if let date = withFractional.date(from: raw) { return date }
-        return ISO8601DateFormatter().date(from: raw)
+        return KnowledgeStore.iso8601Formatter.date(from: raw)
     }
 
     // MARK: - Networking
@@ -772,7 +772,7 @@ actor YouTubeService {
 
     private func accessToken(accountID: String) async throws -> String {
         if let expiry = KeychainService.youtubeCredential(field: .tokenExpiry, accountID: accountID),
-           let expiryDate = ISO8601DateFormatter().date(from: expiry),
+           let expiryDate = KnowledgeStore.iso8601Formatter.date(from: expiry),
            expiryDate.timeIntervalSinceNow > 60,
            let accessToken = KeychainService.youtubeCredential(field: .accessToken, accountID: accountID),
            !accessToken.isEmpty {
@@ -937,7 +937,7 @@ actor YouTubeService {
         if let expiresIn = tokens.expiresIn {
             let expiry = Date().addingTimeInterval(TimeInterval(expiresIn))
             KeychainService.saveYouTubeCredential(
-                ISO8601DateFormatter().string(from: expiry),
+                KnowledgeStore.iso8601Formatter.string(from: expiry),
                 field: .tokenExpiry,
                 accountID: accountID
             )

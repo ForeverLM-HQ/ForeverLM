@@ -147,7 +147,7 @@ public enum TutorContract {
     /// `memory_review` one of its rewordings once it has been remembered twice,
     /// by `MemoryCardWording.asked`) and that wording is recorded as the
     /// attempt's prompt. Its variation is the app's, not the tutor's: rewordings
-    /// made and checked once at the day close (`CardVariationPass`), which vary
+    /// made and checked once at the day close (the Card Variation task), which vary
     /// the question and keep the answer.
     public static let questionQualityInstructions = """
     Every question you compose, in any review, must be:

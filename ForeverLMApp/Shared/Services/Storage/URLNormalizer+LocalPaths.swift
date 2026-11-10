@@ -1,5 +1,3 @@
-import Foundation
-
 extension URLNormalizer {
     /// URL normalization v1 as the Mac computes it: a local file path normalizes against this
     /// Mac's content roots (`StorageService.relativeSourcePath`), so the same file on two Macs

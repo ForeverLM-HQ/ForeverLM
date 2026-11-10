@@ -1,5 +1,3 @@
-import Foundation
-
 // MARK: - Schema 161: the memory records' local tables (docs/cloudkit-schema-design.md §12.7)
 
 extension KnowledgeStore {

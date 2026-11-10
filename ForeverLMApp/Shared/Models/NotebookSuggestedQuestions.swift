@@ -13,7 +13,7 @@ import Foundation
 /// `notebook.questions.<notebookID>` (a JSON string, the way
 /// `notebook.naming.<notebookID>` is kept): per member, so a team's notebook
 /// never carries one member's questions, and one row a notebook, so the
-/// iPhone can name it from the notebook's id. Under generation 2 it is an
+/// iPhone can name it from the notebook's id. It is an
 /// account Setting the settings catalog leaves out (`leftOut`): only the
 /// guide writes it, never `set_app_setting`. Foundation-only, so every client
 /// compiles the same rules.

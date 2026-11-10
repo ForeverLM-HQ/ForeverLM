@@ -1,5 +1,3 @@
-import Foundation
-
 /// A field's stamp (§3.2 rule 3): `L1759400000123.0001.k3f7ab2q` is the policy letter, 13-digit
 /// epoch milliseconds (server-corrected, §6.3), a 4-digit counter and the 8-character device id.
 ///

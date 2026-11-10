@@ -154,7 +154,7 @@ extension AIService {
         config: AITaskConfig
     ) async throws -> [String] {
         guard !candidates.isEmpty else { return [] }
-        let dateFormatter = ISO8601DateFormatter()
+        let dateFormatter = KnowledgeStore.iso8601Formatter
         let candidateLines = candidates.map { candidate in
             let description = candidate.description?
                 .trimmingCharacters(in: .whitespacesAndNewlines)

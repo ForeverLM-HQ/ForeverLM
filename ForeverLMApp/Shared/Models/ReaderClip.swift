@@ -100,7 +100,7 @@ enum ReaderClip {
         return Double(anchor.width) / Double(anchor.height)
     }
 
-    /// The clip under the id its source is shown by: under generation 2 a
+    /// The clip under the id its source is shown by: a
     /// mark is kept on the source's wire id, which a team's copy shares.
     static func filed(_ highlight: SourceHighlight, under sourceID: String) -> SourceHighlight {
         guard highlight.sourceID != sourceID else { return highlight }

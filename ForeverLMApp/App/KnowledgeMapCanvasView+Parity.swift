@@ -1,8 +1,6 @@
 import AppKit
 import Foundation
 import Observation
-import OSLog
-import WebKit
 
 // MARK: - The Canvas's side of the Heptabase parity build
 //

@@ -130,7 +130,7 @@ struct ReportOptionsSheet: View {
 
             if isLoading || errorMessage != nil {
                 Divider()
-                statusRow
+                SourcesReadingStatusRow(errorMessage: errorMessage)
             }
         }
         .frame(width: 520)
@@ -264,28 +264,6 @@ struct ReportOptionsSheet: View {
         }
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier(needsInstruction ? "report-sheet.instruction" : "report-sheet.focus")
-    }
-
-    @ViewBuilder
-    private var statusRow: some View {
-        HStack(spacing: 10) {
-            if let errorMessage {
-                Image(systemName: "exclamationmark.triangle")
-                    .foregroundStyle(.orange)
-                Text(errorMessage)
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(3)
-            } else {
-                ProgressView().controlSize(.small)
-                Text("Reading the sources")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-            }
-            Spacer()
-        }
-        .padding(.horizontal, 20)
-        .padding(.vertical, 12)
     }
 
     // MARK: Actions

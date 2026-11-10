@@ -1,6 +1,5 @@
 // The sidebar row for a Zoom recording awaiting conversion.
 import SwiftUI
-import UniformTypeIdentifiers
 import AppKit
 
 /// One Zoom recording on this Mac that only Zoom can convert, with the two

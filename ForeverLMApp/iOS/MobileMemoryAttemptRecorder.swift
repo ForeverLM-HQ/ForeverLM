@@ -17,8 +17,7 @@ actor MobileMemoryAttemptRecorder {
     }
 
     private func requiredWriter() async throws -> MobileRecordWriter {
-        guard let writer = await recordWriter() else { throw MobileRecordWriterError.zoneNotHeld }
-        return writer
+        try await MobileRecordWriter.required(from: recordWriter)
     }
 
     /// The canonical record name of an attempt (the Mac's `CloudKitRecordMapper.recordName(for:

@@ -1,6 +1,5 @@
 // StorageService: paper reference lists, registered paper titles and YouTube transcript checks.
 import Foundation
-import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif

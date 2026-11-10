@@ -351,9 +351,9 @@ enum VideoCitedPaperWindow {
 
 /// The papers read off one slide, listed under its thumbnail in the transcript.
 ///
-/// The only place a slide's citations are offered. They also used to float over the video in
-/// a chip keyed to playback, which put a panel on top of the slide being read and then took
-/// the suggestion away again the moment the talk cut to the next frame. Against the frame it
+/// The only place a slide's citations are offered. They do not float over the video in
+/// a chip keyed to playback: that puts a panel on top of the slide being read and takes
+/// the suggestion away the moment the talk cuts to the next frame. Against the frame it
 /// was printed on, a citation is visible without playback, actionable without leaving the
 /// page, and still there when the reader scrolls back to it.
 ///

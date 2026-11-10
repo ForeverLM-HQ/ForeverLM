@@ -116,10 +116,14 @@ actor ArticleChromeRefilterService {
             logger.warning(
                 "Could not refilter \(candidate.title, privacy: .public): \(message, privacy: .public)"
             )
-            try? await storage.recordArticleChromeRefilterFailure(
-                sourceID: candidate.sourceID,
-                message: message
-            )
+            do {
+                try await storage.recordArticleChromeRefilterFailure(
+                    sourceID: candidate.sourceID,
+                    message: message
+                )
+            } catch {
+                logger.error("Could not record the article chrome refilter failure: \(error.localizedDescription, privacy: .public)")
+            }
             return nil
         }
     }

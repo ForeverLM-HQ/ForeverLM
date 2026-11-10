@@ -1,9 +1,6 @@
 // Drop handling for the notebook source pool: sources, PDFs as papers, and the pool drop delegate.
 import SwiftUI
-import Combine
 import UniformTypeIdentifiers
-import PDFKit
-import WebKit
 import AppKit
 
 enum NotebookSourceDropHandler {

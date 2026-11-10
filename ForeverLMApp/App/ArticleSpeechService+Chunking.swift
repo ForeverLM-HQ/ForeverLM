@@ -1,13 +1,8 @@
 // Splitting narration into chunks and the chunk limits per provider.
 #if os(macOS)
 import AVFoundation
-import CryptoKit
 import Foundation
-import MediaPlayer
-import os
-import PDFKit
 import SwiftUI
-import WebKit
 
 extension ArticleSpeechService {
     /// Splits already-cleaned narration text into provider-sized chunks. Takes
@@ -230,7 +225,7 @@ extension ArticleSpeechService {
 
     /// How many opening chunks stay at the lead size. Three short requests get
     /// audio playing and keep the buffer ahead of the playhead through the first
-    /// minute, which is where a fresh source used to run dry.
+    /// minute, which is where a fresh source is most likely to run dry.
     nonisolated static func leadChunkCount(for provider: MacArticleSpeechMode) -> Int {
         switch provider {
         case .apple:

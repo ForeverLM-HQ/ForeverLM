@@ -1,5 +1,4 @@
 #if os(macOS)
-import PDFKit
 import SwiftUI
 
 // MARK: - Levels in the Reader

@@ -997,7 +997,7 @@ enum ReviewSlashCommandParser {
             if DayPlan.isValidDateString(lowered) {
                 // A date the app itself passed in.
                 let today = DayPlan.dateString(for: now, calendar: calendar)
-                let tomorrow = DayPlan.dateString(for: now.addingTimeInterval(86_400), calendar: calendar)
+                let tomorrow = DayPlan.dateString(for: now.addingTimeInterval(MemoryTutorScheduler.secondsPerDay), calendar: calendar)
                 switch lowered {
                 case today: opening = "Plan today on my clock."
                 case tomorrow: opening = "Plan tomorrow on my clock."
@@ -1065,7 +1065,7 @@ enum ReviewSlashCommandParser {
     }
 
     /// Whether `/settings <token>` asks for the plugins, which are a place of
-    /// their own rather than a Settings pane since 2026-10-13.
+    /// their own rather than a Settings pane.
     static func namesPlugins(_ token: String) -> Bool {
         ["plugins", "plugin", "connectors", "connector", "external"].contains(token.lowercased())
     }

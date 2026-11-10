@@ -1,4 +1,3 @@
-import Foundation
 import SQLite3
 
 /// One paper whose title waits to be checked against the title its DOI is

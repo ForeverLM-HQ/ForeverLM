@@ -1,8 +1,6 @@
 // What to do after setup, and the iCloud storage notices.
 import AppKit
-import AVFoundation
 import SwiftUI
-import UniformTypeIdentifiers
 
 // MARK: - After setup
 

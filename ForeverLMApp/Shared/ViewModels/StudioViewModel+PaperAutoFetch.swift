@@ -1,16 +1,11 @@
 // Resolving missing paper PDFs and the automatic fetch and metadata queues.
 
 import Foundation
-import CryptoKit
-import Observation
 import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
-import SwiftUI
 import AppKit
-import SQLite3
-import WebKit
 import Darwin
 
 extension StudioViewModel {
@@ -252,7 +247,7 @@ extension StudioViewModel {
 
     /// Recover a paper's text from a preserved extraction or its saved PDF,
     /// through the same cleanup/metadata gates so CloudKit receives the
-    /// canonical `sourceContentAsset` CarPlay uses.
+    /// canonical content.
     ///
     /// A paper is a PDF. When every PDF route is blocked this leaves the row
     /// asking for the file: the publisher's page is never read as the paper on

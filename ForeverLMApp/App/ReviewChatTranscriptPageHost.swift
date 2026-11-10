@@ -1,9 +1,6 @@
 // The web page host that draws the chat transcript.
 import SwiftUI
 import Combine
-import UniformTypeIdentifiers
-import PDFKit
-import WebKit
 import AppKit
 
 /// The one-page transcript's view of the chat: the messages as page blocks,

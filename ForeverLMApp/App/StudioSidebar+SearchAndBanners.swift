@@ -1,6 +1,5 @@
 // The source sidebar's search row, banners and lazy source list.
 import SwiftUI
-import UniformTypeIdentifiers
 import AppKit
 
 extension StudioSidebar {

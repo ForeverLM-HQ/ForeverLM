@@ -1,16 +1,11 @@
 // Downloading, attaching and merging paper PDFs.
 
 import Foundation
-import CryptoKit
-import Observation
 import OSLog
 #if canImport(PDFKit)
 import PDFKit
 #endif
-import SwiftUI
 import AppKit
-import SQLite3
-import WebKit
 import Darwin
 
 extension StudioViewModel {
@@ -109,9 +104,9 @@ extension StudioViewModel {
         let progressPrefix: String? = (userInitiated || forceAIForMissingAuthor) ? "" : nil
         // The PDF's first page is the source of truth, and the Paper Metadata
         // model reads it for the title, authors, venue, year and DOI in one call.
-        // The publisher landing page and the Crossref/OpenAlex cascade used to run
-        // first, one request after another with 15-second timeouts each; a slow
-        // nature.com or a rate-limited catalog held the row under "Looking up
+        // The publisher landing page and the Crossref/OpenAlex cascade are not asked
+        // first: one request after another with 15-second timeouts each would let a slow
+        // nature.com or a rate-limited catalog hold the row under "Looking up
         // paper metadata…" for over a minute before the model was even asked.
         // Nothing waits on the network now. `extractPaperMetadataWithAI` publishes
         // its own "Extracting paper metadata…" caption once the page text is read.

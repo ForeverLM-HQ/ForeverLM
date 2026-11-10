@@ -311,7 +311,7 @@ private struct ReviewChatReasoningParagraph: View, Equatable {
 /// took on the way — its thinking and its tool calls — gathered into one
 /// "Worked for" fold where the first of them ran, and the pages it wrote as
 /// cards under that fold (docs/chat-design.md, "One line for the work").
-/// ChatGPT draws a reply the same way; until 2026-10-06 one reply could stack
+/// ChatGPT draws a reply the same way; one reply never stacks
 /// "Thought for 8s", "Sources in context", "Thought for 3s" and "Activity · 4
 /// steps" above its answer.
 enum ReviewChatAnswerLayout {

@@ -107,7 +107,7 @@ enum MobileSatelliteHolder {
     static func space(_ zoneKey: String) -> String { "space:\(zoneKey)" }
 }
 
-/// The phone's satellites on demand, under generation 2 (docs/cloudkit-schema-design.md §2.3, §3.5.30,
+/// The phone's satellites on demand (docs/cloudkit-schema-design.md §2.3, §3.5.30,
 /// §8b): a record's FileRef is found where the phone holds the record, the learner's own copy first,
 /// and its bytes are fetched by name through `BlobStore` the first time something opens them, then
 /// read from disk. Opening writes nothing synced (P9). Two screens asking for the same satellite share
@@ -537,7 +537,7 @@ enum MobileNarrationChunks {
     }
 }
 
-/// A course's quizzes under generation 2 (§3.5.11): each a Quiz record in the course's zone, its
+/// A course's quizzes (§3.5.11): each a Quiz record in the course's zone, its
 /// questions (and its drawn picture) satellites the phone fetches when the course page opens, never at
 /// launch. What a quiz covers is a set of lessons, put in the course's lesson order.
 enum MobileCourseQuizzes {
