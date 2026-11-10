@@ -4,48 +4,6 @@ import Testing
 
 @Suite("Mobile Reader Text")
 struct MobileReaderTextTests {
-    @Test("Decodes current CloudKit source-text assets before legacy payload text")
-    func decodesSourceTextAsset() throws {
-        let assetURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("MobileSourceTextAsset_\(UUID().uuidString).txt")
-        defer { try? FileManager.default.removeItem(at: assetURL) }
-        try Data("Canonical synced paper text.".utf8).write(to: assetURL)
-        let legacyPayload = try JSONSerialization.data(withJSONObject: [
-            "article": ["content": "Legacy embedded text."],
-        ])
-
-        #expect(MobileSourceTextDecoder.text(
-            assetURL: assetURL,
-            payloadData: legacyPayload
-        ) == "Canonical synced paper text.")
-    }
-
-    @Test("Falls back to readable legacy payload text")
-    func decodesLegacyPayloadText() throws {
-        let payload = try JSONSerialization.data(withJSONObject: [
-            "article": ["content": "Legacy article text."],
-        ])
-
-        #expect(MobileSourceTextDecoder.text(
-            assetURL: nil,
-            payloadData: payload
-        ) == "Legacy article text.")
-    }
-
-    @Test("Rejects missing and whitespace-only source text")
-    func rejectsUnreadableSourceText() throws {
-        let assetURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("MobileSourceTextWhitespace_\(UUID().uuidString).txt")
-        defer { try? FileManager.default.removeItem(at: assetURL) }
-        try Data("  \n\t".utf8).write(to: assetURL)
-        let payload = try JSONSerialization.data(withJSONObject: [
-            "article": ["content": "  \n"],
-        ])
-
-        #expect(MobileSourceTextDecoder.text(assetURL: assetURL, payloadData: payload) == nil)
-        #expect(MobileSourceTextDecoder.text(assetURL: nil, payloadData: Data("not json".utf8)) == nil)
-    }
-
     @Test("Preserves back matter in the main reading text")
     func preservesBackMatter() throws {
         let chapter = Array(

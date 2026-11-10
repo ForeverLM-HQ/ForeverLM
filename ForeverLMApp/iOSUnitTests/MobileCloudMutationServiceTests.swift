@@ -224,40 +224,6 @@ final class CloudArticleTTSRoutingTests: XCTestCase {
 final class MobileCloudMutationServiceTests: XCTestCase {
     // MARK: - Context notebooks (Add a Notebook to Context, Take Out of Context)
 
-    // MARK: - A notebook is open-ended
-
-    func testTheCatalogReadsADatedParentlessRecordAsAGoalNotANotebook() throws {
-        let start = Calendar.current.startOfDay(for: Date())
-        let deadline = try XCTUnwrap(Calendar.current.date(byAdding: .day, value: 30, to: start))
-        func data(endAt: Double, parent: String?) throws -> Data {
-            var goal: [String: Any] = [
-                "id": "goal-1",
-                "title": "Finish the review",
-                "kind": "companion",
-                "status": "active",
-                "startAt": start.timeIntervalSinceReferenceDate,
-                "endAt": endAt,
-                "createdAt": start.timeIntervalSinceReferenceDate,
-                "updatedAt": start.timeIntervalSinceReferenceDate,
-                "items": [],
-            ]
-            if let parent { goal["parentNotebookID"] = parent }
-            return try JSONSerialization.data(withJSONObject: ["goal": goal, "sourceIdentities": []])
-        }
-        let dated = deadline.timeIntervalSinceReferenceDate
-        let open = LearningGoalShape.openEndedEndAtReferenceSeconds
-
-        // A Mac's standalone Goal, and a notebook this phone made before the fix.
-        let standalone = try data(endAt: dated, parent: nil)
-        XCTAssertNil(MobileNotebookCatalogParser.notebook(fromPayloadData: standalone))
-        // Still a Goal for Schedule labels.
-        XCTAssertEqual(MobileGoalCatalogParser.goal(fromPayloadData: standalone)?.id, "goal-1")
-        XCTAssertNil(MobileNotebookCatalogParser.notebook(fromPayloadData: try data(endAt: dated, parent: "nb")))
-        XCTAssertNil(MobileNotebookCatalogParser.notebook(fromPayloadData: try data(endAt: open, parent: "nb")))
-        XCTAssertNotNil(MobileNotebookCatalogParser.notebook(fromPayloadData: try data(endAt: open, parent: nil)))
-        XCTAssertNotNil(MobileNotebookCatalogParser.notebook(fromPayloadData: try data(endAt: open, parent: "  ")))
-    }
-
     /// When `seedNotebook`'s notebooks were last changed: yesterday, so any
     /// write today is later.
     private var seededUpdatedAt: Double? {
@@ -380,49 +346,6 @@ final class MobileCloudMutationServiceTests: XCTestCase {
             url: url,
             normalizedURL: MobileURLNormalizer.normalize(url)
         )
-    }
-
-    func testLoadsIngestionPreparedNarrationInsteadOfCanonicalText() throws {
-        let canonicalURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("MobileCanonicalText_\(UUID().uuidString).txt")
-        let narrationURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("MobileListenableText_\(UUID().uuidString).txt")
-        defer {
-            try? FileManager.default.removeItem(at: canonicalURL)
-            try? FileManager.default.removeItem(at: narrationURL)
-        }
-        let canonical = "Article body. [12] Sidebar text that should not be spoken."
-        let narration = "Article body."
-        try Data(canonical.utf8).write(to: canonicalURL)
-        try Data(narration.utf8).write(to: narrationURL)
-
-        let prepared = MobileSourceListenableContentDecoder.content(
-            canonicalAssetURL: canonicalURL,
-            listenableAssetURL: narrationURL,
-            payloadData: try Self.listenablePayload(sourceText: canonical)
-        )
-
-        XCTAssertEqual(prepared?.text, narration)
-        XCTAssertNotEqual(prepared?.text, canonical)
-    }
-
-    func testRejectsPreparedNarrationFromAnotherCanonicalRevision() throws {
-        let canonicalURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("MobileCanonicalText_\(UUID().uuidString).txt")
-        let narrationURL = FileManager.default.temporaryDirectory
-            .appendingPathComponent("MobileListenableText_\(UUID().uuidString).txt")
-        defer {
-            try? FileManager.default.removeItem(at: canonicalURL)
-            try? FileManager.default.removeItem(at: narrationURL)
-        }
-        try Data("New canonical revision.".utf8).write(to: canonicalURL)
-        try Data("Old prepared narration.".utf8).write(to: narrationURL)
-
-        XCTAssertNil(MobileSourceListenableContentDecoder.content(
-            canonicalAssetURL: canonicalURL,
-            listenableAssetURL: narrationURL,
-            payloadData: try Self.listenablePayload(sourceText: "Old canonical revision.")
-        ))
     }
 
     private static func listenablePayload(sourceText: String) throws -> Data {

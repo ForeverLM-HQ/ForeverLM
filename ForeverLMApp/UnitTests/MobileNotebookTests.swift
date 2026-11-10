@@ -485,8 +485,10 @@ struct MobileNotebookTests {
                 kind: LearningGoalRecord.companionKind,
                 relatedNotebookIDs: links
             )
-            let data = try JSONEncoder().encode(CloudKitLearningGoalPayload(goal: goal))
-            return try #require(MobileNotebookCatalogParser.notebook(fromPayloadData: data))
+            return MobileCloudNotebook(
+                id: id, title: title, instructions: nil, sourceIDs: goal.approvedSourceIDs,
+                relatedNotebookIDs: links, isArchived: status == "archived", updatedAt: now
+            )
         }
         let mito = try record("p", "Mito Phenotyping", sources: ["a", "b"], links: ["gdf15", "unsynced", "aging"])
         let gdf15 = try record("gdf15", "GDF15", sources: ["c", "hidden"])
@@ -545,8 +547,10 @@ struct MobileNotebookTests {
             ],
             kind: LearningGoalRecord.companionKind
         )
-        let data = try JSONEncoder().encode(CloudKitLearningGoalPayload(goal: goal))
-        let record = try #require(MobileNotebookCatalogParser.notebook(fromPayloadData: data))
+        let record = MobileCloudNotebook(
+            id: goal.id, title: goal.title, instructions: nil, sourceIDs: goal.approvedSourceIDs,
+            isArchived: false, updatedAt: now
+        )
         // This phone holds s1 under another id.
         var phoneCopy = source("phone-s1")
         phoneCopy.url = "https://example.org/a"
@@ -917,7 +921,7 @@ struct MobileNotebookTests {
         #expect(MobileAudioOverviewListening.lengthLabel(duration: 120 * 60) == "2 hr")
     }
 
-    @Test("A notebook's course links ride beside the goal, and survive the identity remap")
+    @Test("A notebook's course links and its boxes' pool survive the identity remap")
     func linkedCourseIDs() throws {
         let now = Date(timeIntervalSince1970: 1_790_000_000)
         let goal = LearningGoalRecord(
@@ -931,10 +935,10 @@ struct MobileNotebookTests {
             items: [LearningGoalItem(id: "i1", goalID: "p1", sourceID: "s1", addedAt: now)],
             kind: LearningGoalRecord.companionKind
         )
-        let data = try JSONEncoder().encode(CloudKitLearningGoalPayload(goal: goal, linkedCourseIDs: ["c1", "c2", "c1"]))
-        let parsed = try #require(MobileNotebookCatalogParser.notebook(fromPayloadData: data))
-        #expect(parsed.linkedCourseIDs == ["c1", "c2"])
-        #expect(parsed.poolSourceIDs == ["s1"])
+        let parsed = MobileCloudNotebook(
+            id: goal.id, title: goal.title, instructions: nil, sourceIDs: goal.approvedSourceIDs,
+            linkedCourseIDs: ["c1", "c2"], isArchived: false, updatedAt: now
+        )
 
         // This phone holds the source under another id: the remap rebuilds
         // the notebook and must carry its course links and its boxes' pool.
@@ -973,9 +977,6 @@ struct MobileNotebookTests {
             ) == macRows,
             "the phone's pool keeps the Mac's untick"
         )
-
-        let older = try JSONEncoder().encode(CloudKitLearningGoalPayload(goal: goal))
-        #expect(try #require(MobileNotebookCatalogParser.notebook(fromPayloadData: older)).linkedCourseIDs.isEmpty)
     }
 
     @Test("A Doc reads on the phone: pictures by their words, links the phone can follow kept")

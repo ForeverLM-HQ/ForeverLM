@@ -853,40 +853,6 @@ struct MobileCloudArtifact: Identifiable, Equatable, Sendable {
     }
 }
 
-enum MobileArtifactCatalogParser {
-    /// nil for a record that is not current (archived) or cannot be read.
-    static func artifact(fromPayloadData data: Data) -> MobileCloudArtifact? {
-        guard let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let artifact = object["artifact"] as? [String: Any],
-              let id = (artifact["id"] as? String)?.trimmingCharacters(in: .whitespacesAndNewlines), !id.isEmpty,
-              let title = artifact["title"] as? String else { return nil }
-        if let archived = artifact["archivedAt"], !(archived is NSNull) { return nil }
-        var seenLinks = Set<String>()
-        let linked = ((artifact["linkedNotebookIDs"] as? [String]) ?? [])
-            .filter { !$0.isEmpty && seenLinks.insert($0).inserted }
-        var seenSources = Set<String>()
-        let sources = ((artifact["sourceIDs"] as? [String]) ?? [])
-            .filter { !$0.isEmpty && seenSources.insert($0).inserted }
-        let linkedURL = (artifact["linkedURL"] as? String)
-            .flatMap { $0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : $0 }
-        let createdAt = MobileCatalogDateParser.decode(artifact["createdAt"])
-        return MobileCloudArtifact(
-            id: id,
-            title: title,
-            kind: (artifact["kind"] as? String).flatMap { $0.isEmpty ? nil : $0 },
-            homeNotebookID: (artifact["homeNotebookID"] as? String).flatMap { $0.isEmpty ? nil : $0 },
-            linkedNotebookIDs: linked,
-            sourceIDs: sources,
-            linkedURL: linkedURL,
-            isDraft: (artifact["isDraft"] as? Bool) ?? false,
-            teamID: (artifact["teamID"] as? String).flatMap { $0.isEmpty ? nil : $0 },
-            createdAt: createdAt,
-            updatedAt: MobileCatalogDateParser.decode(artifact["updatedAt"]) ?? createdAt ?? .distantPast,
-            bodyRevision: (object["bodyRevision"] as? String).flatMap { $0.isEmpty ? nil : $0 }
-        )
-    }
-}
-
 /// A Doc's Markdown made readable on the phone, which has no Doc editor:
 /// a picture becomes "[picture: its alt text]", a link to something only
 /// the Mac opens (another Doc, a chat, a quiz, a picture) keeps its words,
