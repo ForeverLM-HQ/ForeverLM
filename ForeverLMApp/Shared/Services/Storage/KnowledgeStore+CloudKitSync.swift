@@ -100,27 +100,6 @@ extension KnowledgeStore {
         }
     }
 
-    func loadPreferenceForSync(_ key: String) throws -> CloudKitPreferencePayload? {
-        var payload: CloudKitPreferencePayload?
-        try queryBind("""
-            SELECT key, value, updated_at
-            FROM user_preferences
-            WHERE key = ?
-            LIMIT 1
-        """, bind: { stmt in
-            bind(stmt, 1, key)
-        }) { stmt in
-            guard let persistedKey = self.string(stmt, 0),
-                  let value = self.string(stmt, 1) else { return }
-            payload = CloudKitPreferencePayload(
-                key: persistedKey,
-                valuePlistXML: value,
-                updatedAt: Date(timeIntervalSinceReferenceDate: sqlite3_column_double(stmt, 2))
-            )
-        }
-        return payload
-    }
-
     /// Every stored preference as `key -> plist XML`. Used to rehydrate
     /// `UserDefaults` after a remote change; small enough (tens of short strings)
     /// to load wholesale rather than tracking which keys the sync touched.

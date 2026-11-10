@@ -11,7 +11,7 @@ struct GenerationActivationTests {
 
     /// A library left by a generation-1 build at `version`, opened by generation 2 as the next launch
     /// would: the open copies it to `knowledge.pre-v2.db` and migrates it.
-    private static func generation2Store(_ name: String, version: Int32? = 153) throws -> (root: URL, store: KnowledgeStore) {
+    private static func generation2Store(_ name: String, version: Int32? = 174) throws -> (root: URL, store: KnowledgeStore) {
         let root = try Schema154Fixture.temporaryRoot(name)
         try Schema154Fixture.makeLibrary(at: root, version: version)
         Schema154Fixture.newLaunch(root)
@@ -146,7 +146,7 @@ struct GenerationActivationTests {
 
     @Test("The copy step 1 took is recorded with the user_version read from the copy")
     func copyIsRecorded() throws {
-        let (root, store) = try Self.generation2Store("copy", version: 153)
+        let (root, store) = try Self.generation2Store("copy", version: 174)
         defer { try? FileManager.default.removeItem(at: root) }
         #expect(try store.scalarInteger("PRAGMA user_version") == Int64(KnowledgeStore.schemaVersion), "the store itself migrated")
         #expect(Schema154Fixture.scalar(at: root, "PRAGMA user_version", file: "knowledge.pre-v2.db") == "153")

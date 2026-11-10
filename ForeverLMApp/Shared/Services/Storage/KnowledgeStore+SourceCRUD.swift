@@ -1214,41 +1214,6 @@ extension KnowledgeStore {
         try archivePaperIdentityDuplicate(duplicateID, replacingWith: canonicalID)
     }
 
-    /// Podcast rows whose stored text is an episode's web page rather than a
-    /// transcript: every active podcast filed under an `http(s)` address, since
-    /// no transcript path ever writes to such a row. Their text and its
-    /// derivatives go, and they queue for the transcript pipeline, which now
-    /// resolves them to their public Apple Podcasts episode. Returns how many
-    /// rows were demoted.
-    func demotePodcastEpisodesHoldingPageText() throws -> Int {
-        var sourceIDs: [String] = []
-        try queryBind("""
-            SELECT p.source_id
-            FROM podcasts p
-            JOIN sources s ON s.id = p.source_id
-            WHERE s.status = ?
-              AND (p.url LIKE 'http://%' OR p.url LIKE 'https://%')
-              AND (
-                  s.state = ?
-                  OR EXISTS (SELECT 1 FROM source_content sc WHERE sc.source_id = p.source_id)
-              )
-        """, bind: { stmt in
-            self.bind(stmt, 1, SourceStatus.active.rawValue)
-            self.bind(stmt, 2, StudioArticleState.ready.rawValue)
-        }) { stmt in
-            if let id = self.string(stmt, 0) { sourceIDs.append(id) }
-        }
-        for sourceID in sourceIDs {
-            try clearSourceText(sourceID)
-            try execBind("UPDATE sources SET state = ?, error_message = NULL WHERE id = ?") { stmt in
-                self.bind(stmt, 1, StudioArticleState.queued.rawValue)
-                self.bind(stmt, 2, sourceID)
-            }
-            noteStoreChanged()
-        }
-        return sourceIDs.count
-    }
-
     /// The fraction of an existing transcript a replacement must keep before it
     /// is treated as data loss rather than an edit.
     ///

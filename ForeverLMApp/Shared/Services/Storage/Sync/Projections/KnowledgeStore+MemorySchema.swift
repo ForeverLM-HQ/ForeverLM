@@ -3,10 +3,6 @@ import Foundation
 // MARK: - Schema 161: the memory records' local tables (docs/cloudkit-schema-design.md §12.7)
 
 extension KnowledgeStore {
-    /// The schema version that lays down the memory tables (WP13). Every step from 154 on is a step of its
-    /// own, so this number and the pins move together when earlier packages land before it.
-    static let memorySchemaVersion: Int32 = 161
-
     /// The tables schema 161 adds, created empty: DDL only, like every step from 154 on. Generation 1
     /// never reads or writes them; the generation-2 activation fills them from generation-1 truth
     /// (`memoryActivationDerivations`), and from then on the memory projections and the generation-2
@@ -121,11 +117,4 @@ extension KnowledgeStore {
         }
     }
 
-    /// Schema 161's proof before the stamp: every table has its shape, so a same-named table of
-    /// another shape fails here and the migration rolls back.
-    func probeMemorySchema() throws {
-        for table in Self.memorySyncTables {
-            try query(table.probe) { _ in }
-        }
-    }
 }

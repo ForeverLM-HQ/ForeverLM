@@ -42,14 +42,6 @@ extension KnowledgeStore {
         }
     }
 
-    /// Schema 159's proof before the stamp: every table has its shape, and `global_artifacts` its body
-    /// pointer.
-    func probeSchema159() throws {
-        for table in Self.artifactSyncTables {
-            try query(table.probe) { _ in }
-        }
-        try query("SELECT body_ref FROM global_artifacts LIMIT 0") { _ in }
-    }
 }
 
 // MARK: - The activation's derivation for Artifacts (§13.3 step 3c)

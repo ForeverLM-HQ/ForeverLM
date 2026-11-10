@@ -873,11 +873,6 @@ actor StorageService {
         return adopted
     }
 
-    func zoomMeetingAdoptionQueueCount() throws -> Int {
-        try ensureStoreExists()
-        return try knowledgeStore().zoomMeetingAdoptionQueueCount()
-    }
-
     /// Returns the sources whose text actually changed, so the caller can drop
     /// its in-memory copies and let them reload from canonical storage.
     func drainSourceTextReferenceRepairBatch(limit: Int = 50) throws -> [String] {
@@ -900,11 +895,6 @@ actor StorageService {
     func drainStoredSoftHyphenRepairBatch(limit: Int = 50) throws -> StoredSoftHyphenRepairBatch {
         try ensureStoreExists()
         return try knowledgeStore().drainStoredSoftHyphenRepairBatch(limit: limit)
-    }
-
-    func storedSoftHyphenRepairQueueCount() throws -> Int {
-        try ensureStoreExists()
-        return try knowledgeStore().storedSoftHyphenRepairQueueCount()
     }
 
     /// One batch of the word count repair. The counts it wrote are returned so

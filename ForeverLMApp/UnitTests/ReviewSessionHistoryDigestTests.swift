@@ -60,19 +60,6 @@ struct ReviewSessionHistoryDigestTests {
         return value
     }
 
-    /// A released v87 store is today's shape minus the digest table, which is
-    /// the entire schema delta. The chat is written first so the fixture holds
-    /// what a real v87 store held: a long conversation and no saved summary.
-    private static func makeVersion87Store(
-        at root: URL,
-        populate: (KnowledgeStore) throws -> Void
-    ) throws {
-        let store = try KnowledgeStore(storeDirectory: root)
-        try populate(store)
-        try store.execForTesting("DROP TABLE review_session_history_digests")
-        try store.execForTesting("PRAGMA user_version = 87")
-    }
-
     @discardableResult
     private static func addChat(to store: KnowledgeStore, sessionID: String, turns: Int) throws -> [ReviewExchangeRecord] {
         try store.createReviewSession(id: sessionID, topic: "A long chat", sourceIDs: [])

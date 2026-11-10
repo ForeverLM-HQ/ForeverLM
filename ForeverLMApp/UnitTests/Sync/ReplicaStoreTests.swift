@@ -47,8 +47,9 @@ struct ReplicaStoreTests {
         }
         #expect(ReplicaStore.sharedTables.count == 13)
         #expect(KnowledgeStore.macReplicaTables.count == 11)
-        #expect(Set(KnowledgeStore.replicaTables.map(\.name)).count == 24)
-        #expect(KnowledgeStore.replicaTables.allSatisfy { $0.name.hasPrefix("ck_") })
+        let replicaTables = ReplicaStore.sharedTables + KnowledgeStore.macReplicaTables
+        #expect(Set(replicaTables.map(\.name)).count == 24)
+        #expect(replicaTables.allSatisfy { $0.name.hasPrefix("ck_") })
     }
 
     @Test("An apply writes the replica and projection rows together, under a guard no other connection sees")

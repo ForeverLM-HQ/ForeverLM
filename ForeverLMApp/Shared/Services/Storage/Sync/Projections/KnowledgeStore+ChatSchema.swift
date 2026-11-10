@@ -22,12 +22,6 @@ extension KnowledgeStore {
         ("review_exchanges", "cited_source_ids", "TEXT"),
     ]
 
-    /// Schema 158's proof before the stamp: every column is there.
-    func probeSchema158() throws {
-        for column in Self.chatSyncColumns {
-            try query("SELECT \(column.name) FROM \(column.table) LIMIT 0") { _ in }
-        }
-    }
 }
 
 // MARK: - The activation's derivations for chats (§13.3 step 3c)

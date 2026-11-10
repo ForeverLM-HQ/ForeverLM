@@ -282,17 +282,6 @@ struct BookFileStorageTests {
         #expect(try store.dueBookFileMerges(limit: 10).isEmpty)
     }
 
-    @Test("Only a book with a chapter that is a PDF of its own is queued for the merge")
-    func queuesSplitBooks() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        try Self.addChapter(store, "split-1", book: "split", path: "Books/Split/Chapters/01 One.pdf")
-        try Self.addChapter(store, "epub-1", book: "epub", path: "Books/Epub/Chapters/text/part1.xhtml")
-        try Self.addChapter(store, "one-1", book: "one", path: "Books/One/One.pdf", pages: 0..<5)
-        try Self.addChapter(store, "gone-1", book: "gone", path: "Books/Gone/Chapters/01 Old.pdf", status: "archived")
-        #expect(try store.enqueueSplitBookMerge() == 1)
-        #expect(try store.dueBookFileMerges(limit: 10) == ["split"])
-    }
-
     @Test("A merged book's chapters point at their pages, keeping their search and figure indexes, and leave the queue")
     func pointsChapters() throws {
         let store = try KnowledgeStore(inMemory: true)
@@ -399,111 +388,6 @@ struct BookFileStorageTests {
         try store.execForTesting("UPDATE sources SET status = 'active' WHERE id = 'old-water'")
         #expect(store.archivedBookChapter(bookID: Self.bookID, title: "Water") == nil)
         #expect(store.archivedBookChapter(bookID: "another-book", title: "Ions") == nil)
-    }
-}
-
-/// The schema-169 step from the released shape (168): the chapters' page columns and the merge
-/// queue, and every split book of the learner's own library queued by id.
-@Suite("Schema 169 migration", .serialized)
-struct BookFileMigrationTests {
-    private func makeReleasedLibrary(at root: URL, extraBooks: Int = 0) throws {
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-        try store.execForTesting("""
-            INSERT INTO books (id, title) VALUES ('split', 'Split'), ('epub', 'Epub');
-            INSERT INTO sources (id, date_added, state, source_type, status) VALUES
-                ('split-1', 0, 'ready', 'book', 'active'), ('split-2', 0, 'ready', 'book', 'active'),
-                ('epub-1', 0, 'ready', 'book', 'active'), ('team-1', 0, 'ready', 'book', 'active');
-            UPDATE sources SET team_id = 'team' WHERE id = 'team-1';
-            INSERT INTO book_sources (source_id, url, local_file_path, title) VALUES
-                ('split-1', 'Books/Split/Chapters/01 One.pdf', 'Books/Split/Chapters/01 One.pdf', 'One'),
-                ('split-2', 'Books/Split/Chapters/02 Two.pdf', 'Books/Split/Chapters/02 Two.pdf', 'Two'),
-                ('epub-1', 'Books/Epub/Chapters/part1.xhtml', 'Books/Epub/Chapters/part1.xhtml', 'Part'),
-                ('team-1', 'Books/Team/Chapters/01 One.pdf', 'Books/Team/Chapters/01 One.pdf', 'One');
-            INSERT INTO group_members (source_id, group_id, sort_index) VALUES
-                ('split-1', 'split', 0), ('split-2', 'split', 1), ('epub-1', 'epub', 0), ('team-1', 'team-book', 0);
-            INSERT INTO books (id, title) VALUES ('team-book', 'Team');
-        """)
-        if extraBooks > 0 {
-            try store.execForTesting("""
-                WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < \(extraBooks * 25))
-                INSERT INTO sources (id, date_added, state, source_type, status) SELECT printf('ch-%06d', i), i, 'ready', 'book', 'active' FROM n;
-                WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < \(extraBooks * 25))
-                INSERT INTO book_sources (source_id, url, local_file_path, title)
-                SELECT printf('ch-%06d', i), printf('Books/B%d/Chapters/%02d.pdf', i / 25, i % 25),
-                       printf('Books/B%d/Chapters/%02d.pdf', i / 25, i % 25), printf('Chapter %d', i) FROM n;
-                WITH RECURSIVE n(i) AS (SELECT 0 UNION ALL SELECT i + 1 FROM n WHERE i < \(extraBooks))
-                INSERT INTO books (id, title) SELECT printf('book-%d', i), printf('Book %d', i) FROM n;
-                WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < \(extraBooks * 25))
-                INSERT INTO group_members (source_id, group_id, sort_index) SELECT printf('ch-%06d', i), printf('book-%d', i / 25), i % 25 FROM n;
-            """)
-        }
-        try store.execForTesting("""
-            DROP TABLE book_file_merge_queue;
-            DROP VIEW IF EXISTS source_projection;
-            ALTER TABLE book_sources DROP COLUMN page_count;
-            ALTER TABLE book_sources DROP COLUMN page_start;
-            PRAGMA user_version = 168;
-        """)
-    }
-
-    private func reopen(_ root: URL) throws -> KnowledgeStore {
-        Schema154Fixture.newLaunch(root)
-        return try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-    }
-
-    @Test("Adds the page columns, queues every split book of the learner's own by id, reads no file, publishes nothing")
-    func queuesSplitBooks() throws {
-        let root = try Schema154Fixture.temporaryRoot("book-files-168")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try makeReleasedLibrary(at: root)
-
-        let migrated = try reopen(root)
-
-        #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
-        #expect(KnowledgeStore.schemaVersion == 175)
-        #expect(try migrated.holdsBookFileSchema())
-        #expect(
-            Set(try migrated.dueBookFileMerges(limit: 10)) == ["split", "epub"],
-            "a team's copy of a PDF book is not queued; an unpacked EPUB book is, by schema 170"
-        )
-        // The library is whole and on screen while the merge waits; nothing points at pages yet.
-        #expect(Set(try migrated.loadActiveSources().map(\.id)).isSuperset(of: ["split-1", "split-2", "epub-1"]))
-        #expect(try migrated.loadSourceForSync("split-1")?.bookPages == nil)
-    }
-
-    @Test("Queues books by id at production scale, well under a second")
-    func scaleRegression() throws {
-        let root = try Schema154Fixture.temporaryRoot("book-files-scale")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try makeReleasedLibrary(at: root, extraBooks: 400)
-
-        let started = ContinuousClock.now
-        let migrated = try reopen(root)
-        let elapsed = started.duration(to: .now)
-
-        #expect(elapsed < .seconds(1))
-        // 400 × 25 chapters fall in 401 books (book-0 … book-400), with "split" and, by schema 170,
-        // the unpacked "epub".
-        #expect(try migrated.scalarInteger("SELECT COUNT(*) FROM book_file_merge_queue") == 401 + 2)
-    }
-
-    @Test("A failed step rolls back and leaves the released library as it was")
-    func rollsBack() throws {
-        let root = try Schema154Fixture.temporaryRoot("book-files-rollback")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try makeReleasedLibrary(at: root)
-        // A same-named queue of another shape, which `CREATE TABLE IF NOT EXISTS` keeps: the probe
-        // fails inside the migration.
-        var database: OpaquePointer?
-        #expect(sqlite3_open(root.appendingPathComponent("knowledge.db").path, &database) == SQLITE_OK)
-        #expect(sqlite3_exec(database, "CREATE TABLE book_file_merge_queue (unexpected TEXT)", nil, nil, nil) == SQLITE_OK)
-        sqlite3_close(database)
-
-        #expect(throws: (any Error).self) { _ = try reopen(root) }
-
-        #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == 168)
-        #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM pragma_table_info('book_sources') WHERE name = 'page_start'") == 0)
-        #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM book_sources") == 4)
     }
 }
 
@@ -629,23 +513,6 @@ struct BookChapterSyncTests {
 /// `book_import_finish_queue`, which a quit does not lose.
 @Suite("Book import finish queue", .serialized)
 struct BookImportFinishQueueTests {
-    @Test("Schema 171 adds the queue empty from 170 and publishes nothing")
-    func migrationFrom170() throws {
-        let root = try Schema154Fixture.temporaryRoot("book-import-finish-170")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-        // A store as schema 170 left it: everything but the queue.
-        try store.execForTesting("DROP TABLE book_import_finish_queue; PRAGMA user_version = 170;")
-
-        Schema154Fixture.newLaunch(root)
-        let migrated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-
-        #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
-        #expect(KnowledgeStore.schemaVersion == 175)
-        #expect(try migrated.holdsBookImportFinishQueue())
-        #expect(try migrated.dueBookImportFinishes(limit: 10).isEmpty)
-    }
-
     @Test("A book waits until it is dropped; three failures park it until it is added again")
     func queueKeepsABookUntilFinished() throws {
         let root = try Schema154Fixture.temporaryRoot("book-import-finish-queue")
@@ -921,7 +788,6 @@ struct BookFileIdentityTests {
     @Test("A file names one book; a removed book's files are forgotten; folders in use include removed chapters and covers")
     func digestRecord() throws {
         let store = try KnowledgeStore(inMemory: true)
-        #expect(try store.holdsBookFileDigests())
         try store.recordBookFileDigest("aaa", bookID: "ONE")
         try store.recordBookFileDigest("bbb", bookID: "ONE")
         #expect(try store.bookID(forFileDigest: "aaa") == "ONE")
@@ -943,22 +809,26 @@ struct BookFileIdentityTests {
         """)
         #expect(try store.bookFolderNamesInUse() == ["covered", "removed book", "elsewhere"])
     }
+}
 
-    @Test("Schema 173 adds the record of added files empty from 172, and nothing of it syncs")
-    func migrationFrom172() throws {
-        let root = try Schema154Fixture.temporaryRoot("book-file-digests-172")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-        // A store as schema 172 left it: everything but the record.
-        try store.execForTesting("DROP TABLE book_file_digests; PRAGMA user_version = 172;")
-
-        Schema154Fixture.newLaunch(root)
-        let migrated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-
-        #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
-        #expect(KnowledgeStore.schemaVersion == 175)
-        #expect(try migrated.holdsBookFileDigests())
-        #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM book_file_digests") == 0)
-        try migrated.recordBookFileDigest("abc", bookID: "BOOK")
+/// What schema 169 staged once: every book of the learner's own whose chapters are PDFs of their own,
+/// for the merge drain these tests exercise. The step went with schema 174's floor.
+extension KnowledgeStore {
+    @discardableResult
+    func enqueueSplitBookMerge() throws -> Int {
+        try execute("""
+            INSERT INTO book_file_merge_queue (book_id, enqueued_at)
+            SELECT DISTINCT gm.group_id, ?
+            FROM group_members gm
+            JOIN books b ON b.id = gm.group_id
+            JOIN book_sources bs ON bs.source_id = gm.source_id
+            JOIN sources s ON s.id = gm.source_id
+            WHERE s.team_id IS NULL
+              AND s.status = 'active'
+              AND bs.page_start IS NULL
+              AND LOWER(COALESCE(bs.local_file_path, '')) LIKE '%.pdf'
+            ON CONFLICT(book_id) DO NOTHING
+        """, [.real(Date().timeIntervalSinceReferenceDate)])
+        return Int(try scalarInteger("SELECT COUNT(*) FROM book_file_merge_queue") ?? 0)
     }
 }

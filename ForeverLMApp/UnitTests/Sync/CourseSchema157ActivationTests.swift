@@ -6,7 +6,8 @@ import Testing
 /// generation-2 columns and the member's Enrollments from the `course.focus.*` rows, run twice and after
 /// generation-1 edits; and the focus, which generation 1 keeps as a preference row and generation 2 as
 /// the member's Enrollment.
-extension CourseSchema157MigrationTests {
+@Suite("Schema 157 activation")
+struct CourseSchema157ActivationTests {
     typealias F = NotebookSyncFixture
 
     static func setPreference(_ store: KnowledgeStore, _ key: String, _ value: Any?) throws {

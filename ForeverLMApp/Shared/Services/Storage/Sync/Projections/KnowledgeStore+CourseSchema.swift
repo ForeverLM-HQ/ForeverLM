@@ -3,12 +3,10 @@ import Foundation
 // MARK: - Schema 157: what the Course, Lesson, Quiz and Enrollment records need (§12.7)
 
 extension KnowledgeStore {
-    /// The table schema 157 adds (docs/cloudkit-schema-design.md §12.7), created empty: DDL only, like
-    /// every step from 154 on. Its columns on the course tables (`courses.created_at`, the order keys,
-    /// an item's span and slot, a quiz's revision) are added with the rest in
-    /// `addMissingColumnsForCurrentSchema`. Generation 1 never reads or writes any of it; the
-    /// generation-2 activation fills it from generation-1 truth (`courseActivationDerivations`), and
-    /// from then on the course projections and the generation-2 upkeep keep it.
+    /// The table schema 157 added (docs/cloudkit-schema-design.md §12.7), created empty, with its columns
+    /// on the course tables (`courses.created_at`, the order keys, an item's span and slot, a quiz's
+    /// revision) in those tables' own definitions. The generation-2 activation fills it
+    /// (`courseActivationDerivations`), and from then on the course projections and the upkeep keep it.
     static let courseSyncTables: [ReplicaSchemaTable] = [
         // The member's own Enrollment in one course (§3.5.12), keyed by the course's wire id with no
         // foreign key: per-member state outlives the course it is about (D18). Made only by an explicit
@@ -25,16 +23,6 @@ extension KnowledgeStore {
         ]),
     ]
 
-    /// The course tables' columns schema 157 adds, for its proof and its fixtures.
-    static let courseSyncColumns: [(table: String, column: String)] = [
-        ("courses", "created_at"),
-        ("course_lectures", "order_key"),
-        ("course_lecture_items", "order_key"),
-        ("course_lecture_items", "span_json"),
-        ("course_lecture_items", "span_slot"),
-        ("course_quizzes", "revision"),
-    ]
-
     /// Creates schema 157's table where missing: empty, DDL only.
     func createCourseSyncTables() throws {
         for table in Self.courseSyncTables {
@@ -45,17 +33,6 @@ extension KnowledgeStore {
         }
     }
 
-    /// Schema 157's proof before the stamp: the table has its shape, every added column is there, and
-    /// the back-pointer view reads.
-    func probeSchema157() throws {
-        for table in Self.courseSyncTables {
-            try query(table.probe) { _ in }
-        }
-        for added in Self.courseSyncColumns {
-            try query("SELECT \(added.column) FROM \(added.table) LIMIT 0") { _ in }
-        }
-        try query("SELECT notebook_id, child_type, child_table, child_id FROM ck_notebook_children LIMIT 0") { _ in }
-    }
 }
 
 // MARK: - The activation's derivations for courses (§13.3 step 3c)

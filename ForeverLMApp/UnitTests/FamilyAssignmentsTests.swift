@@ -266,37 +266,6 @@ struct FamilyAssignmentsTests {
         return value
     }
 
-    /// The released v136 shape: `teams` without `family_plan_code`. Dropping
-    /// the column rather than lowering the stamp is what makes the forward
-    /// step actually run its ALTER.
-    private static func reshapeToVersion136(_ store: KnowledgeStore) throws {
-        try store.execForTesting("DROP VIEW IF EXISTS source_projection")
-        try store.execForTesting("ALTER TABLE teams DROP COLUMN family_plan_code")
-        try store.execForTesting("PRAGMA user_version = 136")
-    }
-
-    @Test("A production-sized library migrates in well under a second")
-    func migrationCostDoesNotFollowTheLibrary() throws {
-        let root = try Self.temporaryRoot("schema-v137-scale")
-        defer { try? FileManager.default.removeItem(at: root) }
-        do {
-            let store = try KnowledgeStore(storeDirectory: root)
-            for index in 0..<3_000 {
-                try store.saveSource(Self.source(id: "src-\(index)", url: "https://example.com/\(index)", title: "Source \(index)"))
-            }
-            for index in 0..<20 {
-                _ = try Self.makeTeam(store, id: "team-\(index)")
-            }
-            try Self.reshapeToVersion136(store)
-        }
-        let started = Date()
-        let migrated = try KnowledgeStore(storeDirectory: root)
-        let elapsed = Date().timeIntervalSince(started)
-        #expect(elapsed < 1, "took \(elapsed) s")
-        #expect(try migrated.loadTeams().count == 20)
-        #expect(try migrated.loadActiveSources().count == 3_000, "sources stay visible")
-    }
-
     // MARK: Sealing
 
     @Test("A key sealed to a child's device opens only with that device's private key")

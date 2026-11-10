@@ -469,31 +469,6 @@ struct PaperReferenceStorageTests {
         """)
     }
 
-    @Test("Schema 174 adds both tables empty from 173, queues the papers that have a file by id, and syncs nothing")
-    func migrationFrom173() throws {
-        let (store, root) = try store("paper-references-173")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try addPaper(store, "with-file")
-        try addPaper(store, "no-file", path: nil)
-        // A store as schema 173 left it: everything but the two tables.
-        try store.execForTesting("""
-            DROP TABLE paper_references;
-            DROP TABLE paper_reference_reads;
-            PRAGMA user_version = 173;
-        """)
-
-        Schema154Fixture.newLaunch(root)
-        let migrated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-
-        #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
-        #expect(KnowledgeStore.schemaVersion == 175)
-        #expect(try migrated.holdsPaperReferenceTables())
-        #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM paper_references") == 0)
-        #expect(try migrated.paperReferenceReadCandidates(limit: 10).map(\.sourceID) == ["with-file"])
-        // The papers are still all there.
-        #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM papers") == 2)
-    }
-
     @Test("A paper's queue row is made once, left alone once read from the same file, and queued again by a new file")
     func queueLifecycle() throws {
         let (store, root) = try store("paper-references-queue")

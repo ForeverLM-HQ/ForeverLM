@@ -201,10 +201,8 @@ extension KnowledgeStore {
     /// The sources whose file can carry a figure index: a paper's row and a
     /// book chapter's, which hold the PDF's path and a title. Book chapters
     /// joined the figure index on 2026-09-19 so a chapter's walkthrough can
-    /// outline its figures; the historical migration staging
-    /// (`enqueueHistoricalPaperFigureIndex`) stays papers-only on purpose, so
-    /// no launch indexes a library's books unasked — a chapter is indexed when
-    /// something asks for its figures. A chapter of a book kept as one file is
+    /// outline its figures. No launch indexes a library's books unasked: a
+    /// chapter is indexed when something asks for its figures. A chapter of a book kept as one file is
     /// its pages of the book's file, in the stored form `SourcePDFPages`
     /// reads (`Books/…/Book.pdf#pages=12..<40`): the index's figures count
     /// pages from the chapter's first, and a chapter whose pages change is a
@@ -564,33 +562,6 @@ extension KnowledgeStore {
             ))
         }
         return result
-    }
-
-    /// Version-41 migration staging. This is one indexed, set-based metadata
-    /// insert: no PDF is opened, hashed, or rendered in the migration.
-    func enqueueHistoricalPaperFigureIndex() throws -> Int {
-        try execBind("""
-            INSERT INTO paper_figure_index_queue
-                (source_id, target_version, enqueued_at, attempt_count, last_error, pdf_path)
-            SELECT p.source_id, ?, ?, 0, NULL, p.local_file_path
-            FROM papers p
-            JOIN sources s ON s.id = p.source_id
-            WHERE s.status = 'active'
-              AND p.local_file_path IS NOT NULL
-              AND TRIM(p.local_file_path) != ''
-              AND LOWER(p.local_file_path) LIKE '%.pdf'
-            ON CONFLICT(source_id) DO UPDATE SET
-                target_version = MAX(paper_figure_index_queue.target_version, excluded.target_version),
-                pdf_path = excluded.pdf_path
-        """) { stmt in
-            sqlite3_bind_int(stmt, 1, Int32(PaperFigureIndexContract.currentVersion))
-            sqlite3_bind_double(stmt, 2, Date().timeIntervalSinceReferenceDate)
-        }
-        var count = 0
-        try query("SELECT COUNT(*) FROM paper_figure_index_queue") { stmt in
-            count = Int(sqlite3_column_int64(stmt, 0))
-        }
-        return count
     }
 
     /// Strip the stale figure image links from a bounded slice of stored source

@@ -1570,63 +1570,6 @@ struct PaperWalkthroughGeneratorTests {
 
 // MARK: - Schema
 
-/// The forward migration from the last released shape and its rollback.
-@Suite("Walkthrough schema migration")
-struct PaperWalkthroughSchemaMigrationTests {
-
-    private static func temporaryRoot(_ name: String) throws -> URL {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("foreverlm-\(name)-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return root
-    }
-
-    private static func scalarInt(at root: URL, _ sql: String) -> Int {
-        var db: OpaquePointer?
-        guard sqlite3_open_v2(root.appendingPathComponent("knowledge.db").path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { return -1 }
-        defer { sqlite3_close(db) }
-        var statement: OpaquePointer?
-        var value = -1
-        if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK,
-           sqlite3_step(statement) == SQLITE_ROW {
-            value = Int(sqlite3_column_int64(statement, 0))
-        }
-        sqlite3_finalize(statement)
-        return value
-    }
-
-    private static func userVersion(at root: URL) -> Int32 { Int32(scalarInt(at: root, "PRAGMA user_version")) }
-
-    private static func tableExists(at root: URL, _ table: String) -> Bool {
-        scalarInt(at: root, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = '\(table)'") == 1
-    }
-
-    /// Every released build up to v121 wrote a store with no walkthrough table
-    /// and, from schema 123 on, no word for what kind of hour a block is.
-    private static func reshapeToVersion121(_ store: KnowledgeStore) throws {
-        try store.execForTesting("DROP VIEW IF EXISTS source_projection")
-        try store.execForTesting("DROP TABLE IF EXISTS source_walkthroughs")
-        try store.execForTesting("ALTER TABLE time_blocks DROP COLUMN purpose")
-        try store.execForTesting("PRAGMA user_version = 121")
-    }
-
-    @Test("A same-named table of another shape rolls the migration back and leaves the store at 121")
-    func rollback() throws {
-        let root = try Self.temporaryRoot("schema-v122-rollback")
-        defer { try? FileManager.default.removeItem(at: root) }
-        do {
-            let store = try KnowledgeStore(storeDirectory: root)
-            try Self.reshapeToVersion121(store)
-            try store.execForTesting("CREATE TABLE source_walkthroughs (id INTEGER PRIMARY KEY, blob TEXT)")
-        }
-        #expect(throws: (any Error).self) {
-            _ = try KnowledgeStore(storeDirectory: root)
-        }
-        #expect(Self.userVersion(at: root) == 121)
-        #expect(Self.scalarInt(at: root, "SELECT COUNT(*) FROM pragma_table_info('source_walkthroughs') WHERE name = 'blob'") == 1)
-    }
-}
-
 // MARK: - Panel locator
 
 /// A synthetic two-panel figure page whose panels print the words a plot
@@ -3120,54 +3063,6 @@ struct PaperFigureMentionTests {
 }
 
 // MARK: - Schema 131: lessons become walkthroughs
-
-/// The one-day Lessons feature (schema 130) folded into walkthroughs
-/// (2026-09-23): a store that reached 130 converts its lesson rows into
-/// walkthroughs, archives the lesson artifacts and drops the table.
-@Suite("Walkthrough schema 131: lesson adoption")
-struct WalkthroughLessonAdoptionMigrationTests {
-
-    private static func temporaryRoot(_ name: String) throws -> URL {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("foreverlm-\(name)-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return root
-    }
-
-    private static func scalarInt(at root: URL, _ sql: String) -> Int {
-        var db: OpaquePointer?
-        guard sqlite3_open_v2(root.appendingPathComponent("knowledge.db").path, &db, SQLITE_OPEN_READONLY, nil) == SQLITE_OK else { return -1 }
-        defer { sqlite3_close(db) }
-        var statement: OpaquePointer?
-        var value = -1
-        if sqlite3_prepare_v2(db, sql, -1, &statement, nil) == SQLITE_OK,
-           sqlite3_step(statement) == SQLITE_ROW {
-            value = Int(sqlite3_column_int64(statement, 0))
-        }
-        sqlite3_finalize(statement)
-        return value
-    }
-
-    /// The lesson as schema 130's `PaperLesson` encoded it.
-    private static let lessonJSON = """
-    {"version":1,"source_id":"%SOURCE%","source_sha256":"%SHA%","title":"Sodium as an energy problem","generated_at":"2026-09-22T20:00:00Z","author":"app","chapters":[{"id":"ch-1","title":"The energy hit","claim":"Raising sodium lowers ATP.","moments":[{"id":"ch-1-m1","kind":"context","text":"Cells keep sodium low.","more":[{"label":"What is NCLX?","text":"The exchanger.","from_paper":false}]},{"id":"ch-1-m2","kind":"look","text":"Look at panel a.","anchor":{"figure_label":"Figure 2","panel_label":"a","page_number":4},"source_mention":"ATP fell (Fig. 2a)."},{"id":"ch-1-m3","kind":"predict","text":"Where do the bars land?","anchor":{"figure_label":"Figure 2","panel_label":"b","page_number":4},"question":{"answer":"Lower.","key_points":["lower"]}},{"id":"ch-1-m4","kind":"find","text":"Which panel is the control?","anchor":{"figure_label":"Figure 2","page_number":4},"question":{"answer":"Panel b.","key_points":[],"target_panel":"b"}},{"id":"ch-1-m5","kind":"explain","text":"Why does ATP fall?","question":{"answer":"The pump spends it.","key_points":["pump"]}}]}]}
-    """
-
-    @Test("A store that never had the lesson table migrates past 131 untouched")
-    func noTableNoWork() async throws {
-        let root = try Self.temporaryRoot("schema-131-none")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let storage = StorageService(storeRoot: root)
-        let article = try await seedArticle(storage, content: paperText)
-        do {
-            let store = try KnowledgeStore(storeDirectory: root)
-            try store.execForTesting("PRAGMA user_version = 129")
-        }
-        let migrated = try KnowledgeStore(storeDirectory: root)
-        #expect(Self.scalarInt(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
-        #expect(try migrated.loadPaperWalkthrough(article.id) == nil)
-    }
-}
 
 // MARK: - Card pictures and animation cards
 

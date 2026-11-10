@@ -532,85 +532,6 @@ struct BackgroundAISpendTests {
     }
 
     // MARK: - Schema 135
-
-    @Test("Schema 135 adds the two hold tables to a 134 store and holds nothing already queued")
-    func version135CreatesTheHoldTables() throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("BackgroundAISpendMigration_\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
-        let count = BackgroundAIBulkQueue.learnerDecisionThreshold + 20
-        do {
-            let store = try KnowledgeStore(storeDirectory: root)
-            for index in 0..<count {
-                var article = StudioArticle(
-                    url: "https://example.com/v135/\(index)",
-                    title: "V135 \(index)",
-                    sourceType: .article
-                )
-                article.content = "V135 \(index)\n\nBody."
-                article.state = .ready
-                try store.saveSource(article)
-            }
-            try store.execForTesting("DROP TABLE IF EXISTS background_ai_bulk_job_sources")
-            try store.execForTesting("DROP TABLE IF EXISTS background_ai_bulk_jobs")
-            try store.execForTesting("PRAGMA user_version = 134")
-        }
-
-        let migrated = try KnowledgeStore(storeDirectory: root)
-        var version: Int32 = 0
-        try migrated.query("PRAGMA user_version") { stmt in version = sqlite3_column_int(stmt, 0) }
-        #expect(version == KnowledgeStore.schemaVersion)
-        #expect(KnowledgeStore.schemaVersion == 175)
-        #expect(try migrated.pendingBackgroundAIBulkJobs().isEmpty, "nothing is backfilled")
-        #expect(try migrated.canonicalContentCleanupCandidates(limit: 500).count == count,
-                "rows an older re-queue left keep draining")
-        #expect(try migrated.loadSources().count == count)
-    }
-
-    @Test("A failed schema-135 step leaves the store at 134 with its data")
-    func version135RollsBackOnFailure() throws {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("BackgroundAISpendRollback_\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        defer { try? FileManager.default.removeItem(at: root) }
-        do {
-            let store = try KnowledgeStore(storeDirectory: root)
-            var article = StudioArticle(url: "https://example.com/v135-rollback", title: "Rollback", sourceType: .article)
-            article.content = "Rollback\n\nBody."
-            article.state = .ready
-            try store.saveSource(article)
-        }
-        let path = root.appendingPathComponent("knowledge.db").path
-        var database: OpaquePointer?
-        #expect(sqlite3_open(path, &database) == SQLITE_OK)
-        #expect(sqlite3_exec(database, "DROP TABLE IF EXISTS background_ai_bulk_job_sources", nil, nil, nil) == SQLITE_OK)
-        #expect(sqlite3_exec(database, "DROP TABLE IF EXISTS background_ai_bulk_jobs", nil, nil, nil) == SQLITE_OK)
-        // A same-named table of another shape makes the step fail.
-        #expect(sqlite3_exec(database, "CREATE TABLE background_ai_bulk_jobs (incompatible TEXT)", nil, nil, nil) == SQLITE_OK)
-        #expect(sqlite3_exec(database, "PRAGMA user_version = 134", nil, nil, nil) == SQLITE_OK)
-        sqlite3_close(database)
-
-        #expect(throws: (any Error).self) { _ = try KnowledgeStore(storeDirectory: root) }
-
-        #expect(sqlite3_open(path, &database) == SQLITE_OK)
-        defer { sqlite3_close(database) }
-        var statement: OpaquePointer?
-        var storedVersion: Int32 = 0
-        if sqlite3_prepare_v2(database, "PRAGMA user_version", -1, &statement, nil) == SQLITE_OK,
-           sqlite3_step(statement) == SQLITE_ROW {
-            storedVersion = sqlite3_column_int(statement, 0)
-        }
-        sqlite3_finalize(statement)
-        #expect(storedVersion == 134)
-        var kept = 0
-        if sqlite3_prepare_v2(database, "SELECT COUNT(*) FROM sources", -1, &statement, nil) == SQLITE_OK,
-           sqlite3_step(statement) == SQLITE_ROW {
-            kept = Int(sqlite3_column_int64(statement, 0))
-        }
-        sqlite3_finalize(statement)
-        #expect(kept == 1, "the library survives the failed migration")
-    }
 }
 
 private actor SpendByDay {
@@ -628,5 +549,52 @@ private final class GateRecordingDrafter: CardDraftingBackend, @unchecked Sendab
     func draftCards(system: String, user: String, maxTokens: Int, source: AIUsageSource, route: CardDraftingRoute) async throws -> [CardDraftingModelCard] {
         lock.withLock { count += 1 }
         return []
+    }
+}
+
+/// A content-version bump's re-queue, as a migration step makes one: every ready source whose
+/// cleaner version is behind is staged for canonical clean-up, through the hold the tests above
+/// exercise. The steps that did this for real went with schema 174's floor; the hold stays for
+/// the next bump.
+extension KnowledgeStore {
+    func enqueueHistoricalCanonicalContentCleanup(
+        reason: String,
+        affectedSources: BulkRequeueAffectedSources
+    ) throws -> Int {
+        try holdingBulkRequeue(into: .canonicalCleanup, reason: reason, affectedSources: affectedSources) {
+            let targetVersion = Int32(PaperContentPreparationMetadata.currentVersion)
+            try execBind("""
+                INSERT INTO canonical_content_cleanup_queue
+                    (source_id, target_version, enqueued_at, attempt_count, last_error)
+                SELECT s.id, ?, ?, 0, NULL
+                FROM sources s
+                JOIN source_content sc ON sc.source_id = s.id
+                LEFT JOIN paper_content_preparations pp ON pp.source_id = s.id
+                LEFT JOIN article_content_preparations ap ON ap.source_id = s.id
+                WHERE s.state = 'ready'
+                  AND s.status = 'active'
+                  AND TRIM(sc.content) != ''
+                  AND (
+                        (s.source_type = 'paper' AND COALESCE(pp.cleaner_version, 0) < ?)
+                     OR (s.source_type IN ('article', 'manual', 'unclassified')
+                         AND COALESCE(ap.cleaner_version, 0) < ?)
+                  )
+                ON CONFLICT(source_id) DO UPDATE SET
+                    target_version = MAX(target_version, excluded.target_version),
+                    enqueued_at = excluded.enqueued_at,
+                    attempt_count = 0,
+                    last_error = NULL
+            """) { stmt in
+                sqlite3_bind_int(stmt, 1, targetVersion)
+                sqlite3_bind_double(stmt, 2, Date().timeIntervalSinceReferenceDate)
+                sqlite3_bind_int(stmt, 3, targetVersion)
+                sqlite3_bind_int(stmt, 4, targetVersion)
+            }
+            var count = 0
+            try query("SELECT COUNT(*) FROM canonical_content_cleanup_queue") { stmt in
+                count = Int(sqlite3_column_int64(stmt, 0))
+            }
+            return count
+        }
     }
 }

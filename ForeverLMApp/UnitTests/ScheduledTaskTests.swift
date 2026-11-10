@@ -575,52 +575,6 @@ struct ScheduledTaskTests {
         #expect(decoded.isAwaitingRetry)
     }
 
-    @Test("A production-sized library with years of receipts migrates to 146 in well under a second")
-    func migrationTo146Scales() throws {
-        let root = temporaryRoot("ScheduledTaskMigration146Scale")
-        defer { try? FileManager.default.removeItem(at: root) }
-        do {
-            let store = try KnowledgeStore(storeDirectory: root)
-            try store.execForTesting("BEGIN IMMEDIATE")
-            try store.execForTesting("""
-                WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < 20000)
-                INSERT INTO sources (id, date_added, state, source_type, status)
-                SELECT printf('source-%05d', n), n, 'ready', 'article', 'active' FROM seq;
-                WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < 20000)
-                INSERT INTO articles (source_id, url, normalized_url, title, domain)
-                SELECT printf('source-%05d', n), printf('https://example.com/%05d', n),
-                       printf('example.com/%05d', n), printf('Source %05d', n), 'example.com' FROM seq;
-                WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < 50)
-                INSERT INTO scheduled_tasks (id, title, instruction, created_at, updated_at)
-                SELECT printf('task-%02d', n), printf('Task %02d', n), 'Go.', 0, 0 FROM seq;
-                WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < 1000)
-                INSERT INTO scheduled_task_runs (id, task_id, occurrence_at, started_at, status)
-                SELECT printf('run-%04d', n), printf('task-%02d', 1 + n % 50), n * 86400.0, n * 86400.0, 'succeeded' FROM seq;
-                COMMIT;
-            """)
-            try Self.reshapeToVersion145(store)
-        }
-
-        let started = ContinuousClock.now
-        let migrated = try KnowledgeStore(storeDirectory: root)
-        let elapsed = started.duration(to: .now)
-        // Two ALTER TABLE ADD COLUMNs with constant defaults: no row is read
-        // or rewritten, so the cost cannot follow the library.
-        #expect(elapsed < .seconds(1))
-        #expect(sqliteScalar(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
-        #expect(scalar(migrated, "SELECT COUNT(*) FROM source_projection") == 20_000, "sources stay visible")
-        #expect(scalar(migrated, "SELECT COUNT(*) FROM scheduled_task_runs WHERE attempt = 1 AND retry_at IS NULL") == 1_000)
-    }
-
-    /// The released v145 shape: `scheduled_task_runs` as schema 72 created
-    /// it, without `attempt` and `retry_at`. Dropping the columns rather than
-    /// lowering the stamp is what makes the forward step run its ALTERs.
-    private static func reshapeToVersion145(_ store: KnowledgeStore) throws {
-        try store.execForTesting("ALTER TABLE scheduled_task_runs DROP COLUMN retry_at")
-        try store.execForTesting("ALTER TABLE scheduled_task_runs DROP COLUMN attempt")
-        try store.execForTesting("PRAGMA user_version = 145")
-    }
-
     private static let retryColumns = """
         SELECT COUNT(*) FROM pragma_table_info('scheduled_task_runs') WHERE name IN ('attempt', 'retry_at')
         """
@@ -635,41 +589,6 @@ struct ScheduledTaskTests {
     }
 
     // MARK: - Helpers
-
-    /// The real version-71 shape. Version 72 adds two brand-new tables and
-    /// changes nothing else, so dropping exactly those two tables reproduces the
-    /// released schema rather than approximating it.
-    private func makeVersion71Fixture(sourceCount: Int) throws -> URL {
-        let root = temporaryRoot("ScheduledTaskV71Fixture")
-        let store = try KnowledgeStore(storeDirectory: root)
-        try store.execForTesting("BEGIN IMMEDIATE")
-        do {
-            try store.execForTesting("""
-                WITH RECURSIVE seq(n) AS (
-                    SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < \(sourceCount)
-                )
-                INSERT INTO sources (id, date_added, state, source_type, status)
-                SELECT printf('source-%05d', n), n, 'ready', 'article', 'active' FROM seq;
-                WITH RECURSIVE seq(n) AS (
-                    SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < \(sourceCount)
-                )
-                INSERT INTO articles (source_id, url, normalized_url, title, domain)
-                SELECT printf('source-%05d', n), printf('https://example.com/%05d', n),
-                       printf('example.com/%05d', n), printf('Source %05d', n),
-                       'example.com' FROM seq;
-                INSERT INTO learning_goals (id, title, start_at, end_at, created_at, updated_at, status)
-                VALUES ('notebook-a', 'Immunology', 0, 0, 0, 0, 'active');
-                DROP TABLE scheduled_task_runs;
-                DROP TABLE scheduled_tasks;
-                PRAGMA user_version = 71;
-                COMMIT;
-            """)
-        } catch {
-            try? store.execForTesting("ROLLBACK")
-            throw error
-        }
-        return root
-    }
 
     private func temporaryRoot(_ name: String) -> URL {
         FileManager.default.temporaryDirectory

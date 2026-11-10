@@ -930,8 +930,6 @@ extension KnowledgeStore {
 
     // MARK: - Schema 168: where each full-text row is
 
-    static let sourceFTSRowsSchemaVersion: Int32 = 168
-
     /// `source_fts_rows` holds the rowid of each source's full-text row, so `replaceSourceFTS` and
     /// `deleteSourceFTS`, the only writers of `source_fts`, find the row by rowid. It is a table
     /// of its own rather than a column of `source_fts_state` because a source's stamp is dropped
@@ -957,35 +955,6 @@ extension KnowledgeStore {
         """)
     }
 
-    /// Stage the record of the full-text rows written before schema 168. One row; the full-text
-    /// table is not read.
-    func enqueueSourceFTSRowBackfill() throws {
-        try execBind("""
-            INSERT INTO source_fts_row_backfill (singleton, after_rowid, enqueued_at)
-            VALUES (1, 0, ?)
-            ON CONFLICT(singleton) DO NOTHING
-        """) { stmt in
-            sqlite3_bind_double(stmt, 1, Date().timeIntervalSinceReferenceDate)
-        }
-    }
-
-    /// Fails when a table of the same name and another shape was there before
-    /// `CREATE TABLE IF NOT EXISTS`, so the migration rolls back.
-    func probeSourceFTSRowTables() throws {
-        try query("SELECT source_id, fts_rowid FROM source_fts_rows LIMIT 0") { _ in }
-        try query("SELECT singleton, after_rowid, enqueued_at FROM source_fts_row_backfill LIMIT 0") { _ in }
-    }
-
-    func holdsSourceFTSRowTables() throws -> Bool {
-        var holds = false
-        try query("""
-            SELECT COUNT(*) = 2 FROM sqlite_master
-            WHERE type = 'table' AND name IN ('source_fts_rows', 'source_fts_row_backfill')
-        """) { stmt in
-            holds = sqlite3_column_int(stmt, 0) != 0
-        }
-        return holds
-    }
 }
 
 

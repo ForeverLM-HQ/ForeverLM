@@ -3,10 +3,6 @@ import Foundation
 // MARK: - Schema 160: the member's reading state (docs/cloudkit-schema-design.md §12.7, §3.5.18)
 
 extension KnowledgeStore {
-    /// The schema version that lays down `reading_states` (WP12). Every step from 154 on is a step of its
-    /// own, so this number and the pins move together when other packages' steps land beside it.
-    static let readingSchemaVersion: Int32 = 160
-
     /// The table schema 160 adds, created empty: DDL only, like every step from 154 on. Generation 1
     /// never reads or writes it (the `sources` columns stay its truth); the generation-2 activation fills
     /// it from generation-1 truth (`readingActivationDerivations`), and from then on the Reader's
@@ -53,10 +49,4 @@ extension KnowledgeStore {
         }
     }
 
-    /// Schema 160's proof before the stamp: the table has its shape.
-    func probeReadingSchema() throws {
-        for table in Self.readingSyncTables {
-            try query(table.probe) { _ in }
-        }
-    }
 }

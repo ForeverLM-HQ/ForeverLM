@@ -2365,27 +2365,6 @@ extension KnowledgeStore {
         return count
     }
 
-    /// Schema 172's columns on `podcast_transcript_cleanup_queue`.
-    static let podcastTranscriptFormattingColumns: [(table: String, name: String, definition: String)] = [
-        // NULL on every existing row is the truth: each owes the ad pass alone.
-        ("podcast_transcript_cleanup_queue", "format_input_sha256", "TEXT"),
-        // 0 on every existing row is the truth: no row was the learner's ask.
-        ("podcast_transcript_cleanup_queue", "learner_asked", "INTEGER NOT NULL DEFAULT 0"),
-    ]
-
-    func holdsPodcastTranscriptFormattingColumns() throws -> Bool {
-        let existing = try tableColumnNames("podcast_transcript_cleanup_queue")
-        return Self.podcastTranscriptFormattingColumns.allSatisfy { existing.contains($0.name) }
-    }
-
-    /// Inside the caller's transaction.
-    func addPodcastTranscriptFormattingColumns() throws {
-        let existing = try tableColumnNames("podcast_transcript_cleanup_queue")
-        for column in Self.podcastTranscriptFormattingColumns where !existing.contains(column.name) {
-            try exec("ALTER TABLE \(column.table) ADD COLUMN \(column.name) \(column.definition)")
-        }
-    }
-
     /// Until 2026-09-03 the cleanup request asked OpenRouter to turn reasoning
     /// off entirely, and first-generation GPT-5 models refused with a 400
     /// ("Reasoning is mandatory for this endpoint and cannot be disabled").

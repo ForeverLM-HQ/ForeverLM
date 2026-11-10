@@ -154,9 +154,6 @@ extension KnowledgeStore {
         ], constraints: ["PRIMARY KEY (job_id, record_type, wire_id)"]),
     ]
 
-    /// Every `ck_*` table of the Mac's store.
-    static var replicaTables: [ReplicaSchemaTable] { ReplicaStore.sharedTables + macReplicaTables }
-
     /// `wire_key` on the five tables that can hold a space copy (§4.3): the logical id every v2 join
     /// reads, which is the row's own id while `wire_id` is NULL (every row before the generation-2
     /// activation, and every row generation-1 code inserts), so no row drops out of a join.
@@ -282,16 +279,6 @@ extension KnowledgeStore {
         "CREATE INDEX IF NOT EXISTS idx_notebook_files_notebook_role ON notebook_files(notebook_id, role)",
     ])
 
-    static let perMemberTablesWithoutContentKeys: [PerMemberTable] = [
-        sourceHighlightsTable,
-        hiddenSourcesTable,
-        hiddenPodcastEpisodesTable,
-        visiblePodcastEpisodeOverridesTable,
-        visibleYouTubeVideoOverridesTable,
-        sourceUnderstandingTable,
-        notebookFilesTable,
-    ]
-
     func createPerMemberTable(_ table: PerMemberTable) throws {
         try exec(table.createStatement)
         for index in table.indexes {
@@ -299,134 +286,10 @@ extension KnowledgeStore {
         }
     }
 
-    /// Schema 154's one table rewrite: each per-member table that still has a foreign key to a content
-    /// table (or, for `notebook_files`, a NOT NULL `notebook_id`) is rebuilt without it, row for row and
-    /// column for column, inside the migration's transaction. Nothing references these tables, so
-    /// `foreign_keys` stays on. The old table is renamed away, the canonical one created, every row
-    /// copied in one set-based statement, the old one dropped, and its indexes and triggers made again;
-    /// a column the canonical table lacks is kept. Tables already in shape (a fresh store, or one this
-    /// step already ran on) are left alone. Returns the rows each rebuilt table holds.
-    @discardableResult
-    func rebuildPerMemberTablesWithoutContentForeignKeys() throws -> [String: Int] {
-        var legacyAlterTable: Int32 = 1
-        try query("PRAGMA legacy_alter_table") { legacyAlterTable = sqlite3_column_int($0, 0) }
-        // Renaming the old table away must not rewrite `source_projection`, which names these tables;
-        // this is SQLite's default for this connection, said out loud for the length of the rebuild.
-        try exec("PRAGMA legacy_alter_table = ON")
-        defer { try? exec("PRAGMA legacy_alter_table = \(legacyAlterTable)") }
-
-        var kept: [String: Int] = [:]
-        for table in Self.perMemberTablesWithoutContentKeys {
-            guard try perMemberTableNeedsRebuild(table.name) else { continue }
-            let columns = try storedColumns(table.name)
-            var others: [String] = []
-            try queryBind("""
-                SELECT sql FROM sqlite_master
-                WHERE tbl_name = ? AND type IN ('index', 'trigger') AND sql IS NOT NULL
-                ORDER BY type, name
-            """, bind: { statement in self.bind(statement, 1, table.name) }) { statement in
-                if let sql = self.string(statement, 0) { others.append(sql) }
-            }
-            let rowsBefore = try rowCount(table.name)
-            let retired = "\(table.name)__pre154"
-            try exec("ALTER TABLE \(table.name) RENAME TO \(retired)")
-            try exec(table.createStatement)
-            let canonical = Set(try storedColumns(table.name).map(\.name))
-            for column in columns where !canonical.contains(column.name) {
-                try exec("ALTER TABLE \(table.name) ADD COLUMN \(Self.quotedIdentifier(column.name)) \(column.declaration)")
-            }
-            let names = columns.map { Self.quotedIdentifier($0.name) }.joined(separator: ", ")
-            try exec("INSERT INTO \(table.name) (\(names)) SELECT \(names) FROM \(retired)")
-            try exec("DROP TABLE \(retired)")
-            for index in table.indexes {
-                try exec(index)
-            }
-            let canonicalIndexNames = Set(table.indexes.compactMap(Self.createdObjectName))
-            for sql in others where !canonicalIndexNames.contains(Self.createdObjectName(sql) ?? "") {
-                try exec(sql)
-            }
-            let rowsAfter = try rowCount(table.name)
-            let stillKeyed = try perMemberTableNeedsRebuild(table.name)
-            guard rowsAfter == rowsBefore, !stillKeyed else {
-                throw KnowledgeStoreError.invalidData(
-                    "Schema 154 rebuilt \(table.name) with \(rowsAfter) of its \(rowsBefore) rows; the migration rolls back."
-                )
-            }
-            kept[table.name] = rowsAfter
-        }
-        return kept
-    }
-
-    private static func quotedIdentifier(_ name: String) -> String {
-        "\"" + name.replacingOccurrences(of: "\"", with: "\"\"") + "\""
-    }
-
-    /// Whether a per-member table still has a foreign key, or `notebook_files` a NOT NULL notebook.
-    func perMemberTableNeedsRebuild(_ table: String) throws -> Bool {
-        var foreignKeys = 0
-        try queryBind("SELECT COUNT(*) FROM pragma_foreign_key_list(?)", bind: { statement in
-            self.bind(statement, 1, table)
-        }) { foreignKeys = Int(sqlite3_column_int($0, 0)) }
-        guard foreignKeys == 0 else { return true }
-        guard table == Self.notebookFilesTable.name else { return false }
-        var notebookRequired = false
-        try query("SELECT \"notnull\" FROM pragma_table_info('notebook_files') WHERE name = 'notebook_id'") {
-            notebookRequired = sqlite3_column_int($0, 0) != 0
-        }
-        return notebookRequired
-    }
-
-    /// The table's stored columns in order, generated ones excluded, each with the declaration an
-    /// ALTER TABLE ADD COLUMN can carry over (type and default).
-    private func storedColumns(_ table: String) throws -> [(name: String, declaration: String)] {
-        var columns: [(name: String, declaration: String)] = []
-        try queryBind("SELECT name, type, dflt_value, hidden FROM pragma_table_xinfo(?) ORDER BY cid", bind: { statement in
-            self.bind(statement, 1, table)
-        }) { statement in
-            guard sqlite3_column_int(statement, 3) == 0, let name = self.string(statement, 0) else { return }
-            var declaration = self.string(statement, 1) ?? ""
-            if let defaultValue = self.string(statement, 2) {
-                declaration += " DEFAULT \(defaultValue)"
-            }
-            columns.append((name: name, declaration: declaration))
-        }
-        return columns
-    }
-
     private func rowCount(_ table: String) throws -> Int {
         var count = 0
         try query("SELECT COUNT(*) FROM \(table)") { count = Int(sqlite3_column_int64($0, 0)) }
         return count
-    }
-
-    /// The name a `CREATE INDEX` or `CREATE TRIGGER` statement gives its object.
-    private static func createdObjectName(_ sql: String) -> String? {
-        let words = sql.split(whereSeparator: \.isWhitespace).map(String.init)
-        guard let kind = words.firstIndex(where: { ["INDEX", "TRIGGER"].contains($0.uppercased()) }) else { return nil }
-        var position = kind + 1
-        if words.count > position + 2, words[position].uppercased() == "IF", words[position + 1].uppercased() == "NOT" {
-            position += 3
-        }
-        guard words.indices.contains(position) else { return nil }
-        return words[position].trimmingCharacters(in: CharacterSet(charactersIn: "\"`[]"))
-    }
-
-    /// Schema 154's proofs before the stamp: every `ck_*` table has its shape (a same-named table of
-    /// another shape fails here and the migration rolls back), and no per-member table keeps a
-    /// foreign key to content.
-    func probeSchema154() throws {
-        for table in Self.replicaTables {
-            try query(table.probe) { _ in }
-        }
-        for table in Self.wireKeyedTables {
-            try query("SELECT wire_id, wire_key FROM \(table) LIMIT 0") { _ in }
-        }
-        try query("SELECT entity_kind, merged_into, fold_kind, moving_to, moved_to FROM learning_goals LIMIT 0") { _ in }
-        for table in Self.perMemberTablesWithoutContentKeys {
-            guard try !perMemberTableNeedsRebuild(table.name) else {
-                throw KnowledgeStoreError.invalidData("Schema 154 left a foreign key on \(table.name).")
-            }
-        }
     }
 
     // MARK: - A deleted notebook's files

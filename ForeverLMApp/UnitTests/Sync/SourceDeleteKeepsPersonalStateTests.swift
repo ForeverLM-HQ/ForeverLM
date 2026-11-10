@@ -9,7 +9,7 @@ import Testing
 /// WP7, WP8, WP10, WP12 and WP12b add their projections' cases to their own suites.
 @Suite("Source delete keeps personal state")
 struct SourceDeleteKeepsPersonalStateTests {
-    private static let kinds = Schema154Fixture.releasedPerMemberTables.map(\.name).filter { $0 != "notebook_files" }
+    private static let kinds = Schema154Fixture.perMemberTableNames.filter { $0 != "notebook_files" }
 
     private static func rows(_ store: KnowledgeStore, of sourceID: String) throws -> [String: Int] {
         var rows: [String: Int] = [:]

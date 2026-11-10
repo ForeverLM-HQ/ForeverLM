@@ -85,15 +85,6 @@ extension KnowledgeStore {
         try exec(Self.notebookChildrenView)
     }
 
-    /// Schema 156's proof before the stamp: every table and the view have their shape, and
-    /// `learning_goal_items` has its order key.
-    func probeSchema156() throws {
-        for table in Self.notebookSyncTables {
-            try query(table.probe) { _ in }
-        }
-        try query("SELECT order_key FROM learning_goal_items LIMIT 0") { _ in }
-        try query("SELECT notebook_id, child_type, child_table, child_id FROM ck_notebook_children LIMIT 0") { _ in }
-    }
 }
 
 // MARK: - The activation's derivations for notebooks (§13.3 step 3c)

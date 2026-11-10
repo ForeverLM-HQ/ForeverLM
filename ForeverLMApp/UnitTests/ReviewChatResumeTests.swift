@@ -2659,37 +2659,6 @@ struct ChatModelTuningPersistenceTests {
         SELECT COUNT(*) FROM pragma_table_info('review_sessions') WHERE name IN ('model_effort', 'model_speed')
         """
 
-    @Test(
-        "A released store gains a chat's effort and speed and keeps every chat as it was",
-        arguments: [Int32(146), Int32(147), Int32(148)]
-    )
-    func version149AddsColumns(from released: Int32) throws {
-        let root = try Self.temporaryRoot("schema-v149-from-\(released)")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try Self.createReleasedLibrary(at: root, version: released)
-        #expect(Self.scalar(at: root, "PRAGMA user_version") == "\(released)")
-        #expect(Self.scalar(at: root, Self.tuningColumns) == "0")
-
-        let migrated = try KnowledgeStore(storeDirectory: root)
-        #expect(Self.scalar(at: root, "PRAGMA user_version") == "\(KnowledgeStore.schemaVersion)")
-        #expect(KnowledgeStore.schemaVersion == 175)
-        #expect(Self.scalar(at: root, Self.tuningColumns) == "2")
-
-        // The chat is whole, on its model, at the model's default: no chat
-        // kept a pick before the columns.
-        #expect(try migrated.loadActiveSources().map(\.id) == ["src-a"], "sources stay visible")
-        #expect(try migrated.loadReviewSessionLinks().map(\.id) == ["old-chat"])
-        #expect(try migrated.loadReviewSessionExchanges(sessionID: "old-chat").count == 1)
-        #expect(try migrated.loadReviewSessionModelRoute(sessionID: "old-chat") == Self.route(Self.opus, effort: nil, speed: nil))
-
-        // And the columns take a pick straight away.
-        try migrated.updateReviewSessionModel(
-            sessionID: "old-chat", modelProvider: Self.provider, modelID: Self.opus,
-            modelEffort: AIEffort.max.rawValue, modelSpeed: nil
-        )
-        #expect(try migrated.loadReviewSessionModelRoute(sessionID: "old-chat")?.modelEffort == "max")
-    }
-
     @Test("A production-sized library with thousands of chats migrates to 149 in well under a second")
     func version149Scales() throws {
         let root = try Self.temporaryRoot("schema-v149-scale")

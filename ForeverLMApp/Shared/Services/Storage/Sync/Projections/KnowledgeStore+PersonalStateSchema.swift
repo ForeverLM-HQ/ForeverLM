@@ -3,11 +3,6 @@ import Foundation
 // MARK: - Schema 163, the personal records: Device and the import-blocked shows (§12.7)
 
 extension KnowledgeStore {
-    /// The schema version that lays down `devices` and `blocked_podcast_shows` (WP12b), the step after
-    /// WP14's tasks (162). Every step from 154 on is a step of its own, so this number and the pins
-    /// move together when other packages' steps land beside it.
-    static let personalStateSchemaVersion: Int32 = 163
-
     /// The tables schema 163 adds for the Device record and the `importBlocked` Mark (docs/cloudkit-schema-design.md
     /// §3.5.2, §3.5.19), created empty: DDL only, like every step from 154 on. Generation 1 never reads or
     /// writes them (its `connectorHealth.*` and `podcasts.blockedShows` preference rows stay its truth); the
@@ -49,10 +44,4 @@ extension KnowledgeStore {
         }
     }
 
-    /// Schema 163's proof for these tables before the stamp: each has its shape.
-    func probePersonalStateSchema() throws {
-        for table in Self.personalStateSyncTables {
-            try query(table.probe) { _ in }
-        }
-    }
 }

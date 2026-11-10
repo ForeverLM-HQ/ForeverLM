@@ -14,18 +14,6 @@ struct BookFileChapterRow: Equatable, Sendable {
 }
 
 extension KnowledgeStore {
-    static let bookFilesSchemaVersion: Int32 = 169
-    /// EPUB books are one file too: schema 170 queues the books still unpacked.
-    static let epubBookFilesSchemaVersion: Int32 = 170
-
-    /// `book_sources.page_start` and `page_count`, for a store an older build
-    /// held below 154, which never ran the column list (`createSchema`).
-    func addBookPageColumns() throws {
-        let existing = try tableColumnNamesIncludingGenerated("book_sources")
-        for column in ["page_start", "page_count"] where !existing.contains(column) {
-            try exec("ALTER TABLE book_sources ADD COLUMN \(column) INTEGER")
-        }
-    }
 
     /// The books whose chapters are still files of their own, one row a book,
     /// until `BookFileMerge` has put the book back into one file. Local-only:
@@ -41,57 +29,6 @@ extension KnowledgeStore {
                 last_error TEXT
             )
         """)
-    }
-
-    /// Queues every book of the learner's own library with an active chapter
-    /// that is a PDF file of its own. Set-based over `group_members`; reads no
-    /// file. Returns the queue's length.
-    @discardableResult
-    func enqueueSplitBookMerge() throws -> Int {
-        try execute("""
-            INSERT INTO book_file_merge_queue (book_id, enqueued_at)
-            SELECT DISTINCT gm.group_id, ?
-            FROM group_members gm
-            JOIN books b ON b.id = gm.group_id
-            JOIN book_sources bs ON bs.source_id = gm.source_id
-            JOIN sources s ON s.id = gm.source_id
-            WHERE s.team_id IS NULL
-              AND s.status = 'active'
-              AND bs.page_start IS NULL
-              AND LOWER(COALESCE(bs.local_file_path, '')) LIKE '%.pdf'
-            ON CONFLICT(book_id) DO NOTHING
-        """, [.real(Date().timeIntervalSinceReferenceDate)])
-        return Int(try scalarInteger("SELECT COUNT(*) FROM book_file_merge_queue") ?? 0)
-    }
-
-    /// Queues every book with a chapter that is a document of an unpacked EPUB
-    /// (`…/Chapters/<entry>.xhtml`): `BookFileMerge` packs the folder back into
-    /// the book's one file (`EPUBBookFiles`). A team's copy shares the folder,
-    /// so a book held only through a team is queued too. Set-based; reads no
-    /// file. Returns the queue's length.
-    @discardableResult
-    func enqueueUnpackedEPUBBooks() throws -> Int {
-        try execute("""
-            INSERT INTO book_file_merge_queue (book_id, enqueued_at)
-            SELECT DISTINCT gm.group_id, ?
-            FROM group_members gm
-            JOIN books b ON b.id = gm.group_id
-            JOIN book_sources bs ON bs.source_id = gm.source_id
-            JOIN sources s ON s.id = gm.source_id
-            WHERE s.status = 'active'
-              AND bs.local_file_path LIKE '%/\(EPUBBookFiles.rootName)/%'
-              AND (LOWER(bs.local_file_path) LIKE '%.xhtml' OR LOWER(bs.local_file_path) LIKE '%.html'
-                   OR LOWER(bs.local_file_path) LIKE '%.htm')
-            ON CONFLICT(book_id) DO NOTHING
-        """, [.real(Date().timeIntervalSinceReferenceDate)])
-        return Int(try scalarInteger("SELECT COUNT(*) FROM book_file_merge_queue") ?? 0)
-    }
-
-    /// Fails when a table or column of another shape was there before, so the
-    /// migration rolls back.
-    func probeBookFileSchema() throws {
-        try query("SELECT page_start, page_count FROM book_sources LIMIT 0") { _ in }
-        try query("SELECT book_id, enqueued_at, attempts, last_error FROM book_file_merge_queue LIMIT 0") { _ in }
     }
 
     func holdsBookFileSchema() throws -> Bool {
@@ -266,8 +203,6 @@ struct BookImportFinishJob: Equatable, Sendable {
 }
 
 extension KnowledgeStore {
-    static let bookImportFinishSchemaVersion: Int32 = 171
-
     /// The books added on this Mac that are still to be finished, one row a
     /// book. Local-only: the Mac that added a book finishes it, and what the
     /// work changes (the chapters, the book's details, its file's text) reaches
@@ -284,15 +219,6 @@ extension KnowledgeStore {
                 last_error TEXT
             )
         """)
-    }
-
-    /// Fails when a table of another shape was there before, so the migration
-    /// rolls back.
-    func probeBookImportFinishQueue() throws {
-        try query("""
-            SELECT book_id, book_file_path, whole_book_source_id, kind, enqueued_at, attempts, last_error
-            FROM book_import_finish_queue LIMIT 0
-        """) { _ in }
     }
 
     func holdsBookImportFinishQueue() throws -> Bool {
@@ -360,8 +286,6 @@ extension KnowledgeStore {
 // MARK: - Which book a file is (schema 173)
 
 extension KnowledgeStore {
-    static let bookFileDigestsSchemaVersion: Int32 = 173
-
     /// The sha256 of every file a book was added from on this Mac, one row a
     /// file: what tells the same file added again from another book that has
     /// the same title. The library's copy cannot say it, since the import
@@ -378,18 +302,6 @@ extension KnowledgeStore {
             )
         """)
         try exec("CREATE INDEX IF NOT EXISTS idx_book_file_digests_book ON book_file_digests(book_id)")
-    }
-
-    /// Fails when a table of another shape was there before, so the migration
-    /// rolls back.
-    func probeBookFileDigests() throws {
-        try query("SELECT sha256, book_id, recorded_at FROM book_file_digests LIMIT 0") { _ in }
-    }
-
-    func holdsBookFileDigests() throws -> Bool {
-        try scalarInteger(
-            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'book_file_digests'"
-        ) == 1
     }
 
     /// Records that the file with `sha256` is the book `bookID`. A file that

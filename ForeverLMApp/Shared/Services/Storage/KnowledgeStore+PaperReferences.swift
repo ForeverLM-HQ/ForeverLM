@@ -44,8 +44,6 @@ struct PaperReferenceReadCandidate: Equatable, Sendable {
 /// local. The iPhone, which does no ingestion, can read the satellite once it has a Reader for it.
 extension KnowledgeStore {
 
-    static let paperReferencesSchemaVersion: Int32 = 174
-
     /// A paper whose catalogs did not answer this many reads in a row is left alone. Its row
     /// stays as the record of what was tried, and an assistant can still fill the list.
     static let maximumPaperReferenceReadAttempts = 5
@@ -90,43 +88,6 @@ extension KnowledgeStore {
             CREATE INDEX IF NOT EXISTS idx_paper_reference_reads_queue
             ON paper_reference_reads(state, attempt_count, enqueued_at)
         """)
-    }
-
-    /// Fails when tables of another shape were there before, so the migration rolls back.
-    func probePaperReferenceTables() throws {
-        try query("""
-            SELECT source_id, ordinal, label, entry_text, title, authors, journal, year, doi, url,
-                   link_origin, catalog_checked_at, updated_at
-            FROM paper_references LIMIT 0
-        """) { _ in }
-        try query("""
-            SELECT source_id, state, pdf_path, parser_version, enqueued_at, attempt_count, last_error,
-                   read_at, entry_count, linked_count, authored_by
-            FROM paper_reference_reads LIMIT 0
-        """) { _ in }
-    }
-
-    func holdsPaperReferenceTables() throws -> Bool {
-        try scalarInteger("""
-            SELECT COUNT(*) FROM sqlite_master
-            WHERE type = 'table' AND name IN ('paper_references', 'paper_reference_reads')
-        """) == 2
-    }
-
-    /// Schema 174: every paper with a file is queued once for the post-launch read of its
-    /// reference list (`PaperReferenceLinkService`). One set-based INSERT over `papers`, ids
-    /// only: the migration opens no PDF and asks no catalog.
-    @discardableResult
-    func enqueuePaperReferenceReadsForExistingPapers() throws -> Int {
-        try execute("""
-            INSERT INTO paper_reference_reads (source_id, state, enqueued_at)
-            SELECT p.source_id, 'queued', ?
-            FROM papers p
-            JOIN sources s ON s.id = p.source_id
-            WHERE COALESCE(p.local_file_path, '') <> ''
-            ON CONFLICT(source_id) DO NOTHING
-        """, [.real(Date().timeIntervalSinceReferenceDate)])
-        return try paperReferenceReadQueueCount()
     }
 
     // MARK: Queue

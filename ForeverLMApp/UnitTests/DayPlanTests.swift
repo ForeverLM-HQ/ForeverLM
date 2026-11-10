@@ -577,47 +577,6 @@ struct DayPlanTests {
 
     // MARK: - Storage
 
-    @Test("Schema 128 gives a calendar block's import-written notes to the location column and leaves the learner's notes alone")
-    func locationColumnMigratesFromSchema127() throws {
-        let root = temporaryRoot("DayPlanLocationMigration")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let date = "2026-09-20"
-        let meetingID: String, seriesID: String, handID: String, roomID: String
-        do {
-            let store = try KnowledgeStore(storeDirectory: root)
-            // Build 127's import wrote the Meet link, or the room, into the notes.
-            let meeting = try store.addTimeBlock(TimeBlock(dayPlanID: date, startMinute: 540, endMinute: 615, title: "Acme Longevity Nexus", notes: "https://meet.google.com/aaa-bbbb-ccc", calendarEventID: "google:primary/nexus", calendarEventURL: "https://calendar.google.com/event?eid=1"))
-            let room = try store.addTimeBlock(TimeBlock(dayPlanID: date, startMinute: 800, endMinute: 830, title: "Dentist", notes: "Main St", calendarEventID: "apple:CAL-1/EV-1"))
-            // A meeting series' occurrence and a hand-drawn block: the notes are the learner's.
-            let series = try store.addTimeBlock(TimeBlock(dayPlanID: date, startMinute: 660, endMinute: 675, title: "Standup", notes: "Ask about the atlas", calendarEventID: "meeting:zoom:examplefellowship.zoom.us/2026-09-20"))
-            let hand = try store.addTimeBlock(TimeBlock(dayPlanID: date, startMinute: 720, endMinute: 780, title: "Write", notes: "Section 2"))
-            (meetingID, seriesID, handID, roomID) = (meeting.id, series.id, hand.id, room.id)
-            // Back to the exact shape build 127 (schema 127) wrote: no location column.
-            try store.execForTesting("DROP VIEW IF EXISTS source_projection")
-            try store.execForTesting("ALTER TABLE time_blocks DROP COLUMN location")
-            try store.execForTesting("PRAGMA user_version = 127")
-        }
-
-        let migrated = try KnowledgeStore(storeDirectory: root)
-        var version: Int32 = 0
-        try migrated.query("PRAGMA user_version") { stmt in version = sqlite3_column_int(stmt, 0) }
-        #expect(version == KnowledgeStore.schemaVersion)
-        let detail = try #require(try migrated.loadDayPlan(date))
-        let byID = Dictionary(uniqueKeysWithValues: detail.blocks.map { ($0.id, $0) })
-        #expect(byID[meetingID]?.location == "https://meet.google.com/aaa-bbbb-ccc")
-        #expect(byID[meetingID]?.notes == nil, "the notes fall free for what to bring up")
-        #expect(byID[meetingID]?.links.map(\.label) == ["Join Google Meet"])
-        #expect(byID[roomID]?.location == "Main St" && byID[roomID]?.locationText == "Main St" && byID[roomID]?.notes == nil)
-        #expect(byID[seriesID]?.notes == "Ask about the atlas" && byID[seriesID]?.location == nil, "a series' notes were never the import's")
-        #expect(byID[handID]?.notes == "Section 2" && byID[handID]?.location == nil)
-
-        // The column works at once, and a block reads back what was written.
-        var placed = try #require(byID[handID])
-        placed.location = "Room 4.12"
-        _ = try migrated.updateTimeBlock(placed)
-        #expect(try migrated.loadDayPlan(date)?.blocks.first { $0.id == handID }?.location == "Room 4.12")
-    }
-
     @Test("A day has one plan: every edit lands on the block's own row, and a delete tombstones it")
     func editsLandInPlace() throws {
         let root = temporaryRoot("DayPlanInPlace")

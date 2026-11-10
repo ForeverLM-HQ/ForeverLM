@@ -247,74 +247,9 @@ struct PreferenceSyncTests {
 
         try store.writePreference(key: "studio.showSearchPanel", valuePlistXML: xml)
 
-        let payload = try #require(try store.loadPreferenceForSync("studio.showSearchPanel"))
+        let payload = try #require(try store.preferenceRow("studio.showSearchPanel"))
         #expect(payload.key == "studio.showSearchPanel")
         #expect(PreferenceStore.decodePlist(payload.valuePlistXML) as? Bool == true)
-    }
-
-    @Test("Legacy model choices migrate into durable preference rows")
-    func legacyModelChoicesMigrate() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        let migrated = try store.migratePersistedModelPreferences([
-            "ai_provider": "OpenRouter",
-            "openrouter_model": "anthropic/claude-opus-4.8",
-            "aiBackground.model.OpenRouter": "openai/gpt-5.6",
-            "aiTask.paperMetadata.model": "google/gemini-3.1-pro",
-            "aiTask.chat.model": "session-only",
-            "studio.hiddenTabs": ["slack"],
-        ])
-
-        #expect(migrated == 4)
-        let values = try store.loadAllPreferences()
-        #expect(PreferenceStore.decodePlist(try #require(values["ai_provider"])) as? String == "OpenRouter")
-        #expect(PreferenceStore.decodePlist(try #require(values["openrouter_model"])) as? String == "anthropic/claude-opus-4.8")
-        #expect(PreferenceStore.decodePlist(try #require(values["aiBackground.model.OpenRouter"])) as? String == "openai/gpt-5.6")
-        #expect(PreferenceStore.decodePlist(try #require(values["aiTask.paperMetadata.model"])) as? String == "google/gemini-3.1-pro")
-        #expect(values["aiTask.chat.model"] == nil)
-        #expect(values["studio.hiddenTabs"] == nil)
-    }
-
-    @Test("Legacy meeting folder images become durable without overwriting sync state")
-    func legacyMeetingFolderImagesMigrateOnce() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        // The step runs on a store from before schema 175, which still has generation 1's bookkeeping.
-        try Schema154Fixture.restoreGeneration1Tables(store)
-        let strandedKey = MeetingMetadata.folderImagePreferenceKey(for: "nexus")
-        let durableKey = MeetingMetadata.folderImagePreferenceKey(for: "weekly")
-        let tombstonedKey = MeetingMetadata.folderImagePreferenceKey(for: "retired")
-        let durableURL = "https://example.com/durable.png"
-
-        try store.writePreference(
-            key: durableKey,
-            valuePlistXML: try #require(PreferenceStore.encodePlist(durableURL))
-        )
-        try store.execBind("""
-            INSERT INTO sync_metadata (
-                entity_type, logical_key, record_name,
-                user_modification_at, is_deleted
-            ) VALUES ('preference', ?, 'deleted-record', 1, 1)
-        """) { statement in
-            store.bind(statement, 1, tombstonedKey)
-        }
-
-        let migrated = try store.migrateMeetingFolderImagePreferences([
-            strandedKey: "https://example.com/acme.png",
-            durableKey: "https://example.com/stale.png",
-            tombstonedKey: "https://example.com/resurrected.png",
-            "unrelated.preference": "ignored",
-        ])
-
-        #expect(migrated == 1)
-        let values = try store.loadAllPreferences()
-        #expect(
-            PreferenceStore.decodePlist(try #require(values[strandedKey])) as? String
-                == "https://example.com/acme.png"
-        )
-        #expect(
-            PreferenceStore.decodePlist(try #require(values[durableKey])) as? String
-                == durableURL
-        )
-        #expect(values[tombstonedKey] == nil)
     }
 
     @Test("The reader layout and the rail's hidden rows follow the account")
@@ -368,45 +303,6 @@ struct PreferenceSyncTests {
         }
     }
 
-    @Test("v116 adopts a local display preference once, and never over a synced choice or a tombstone")
-    func adoptsNewlySyncedDisplayPreferences() throws {
-        let store = try KnowledgeStore(inMemory: true)
-        // The step runs on a store from before schema 175, which still has generation 1's bookkeeping.
-        try Schema154Fixture.restoreGeneration1Tables(store)
-        let stranded = "reader.youtubeTranscriptBesideVideo"
-        let durable = "studio.navigation.chatsExpanded.v1"
-        let tombstoned = StudioRailHiddenItems.storageKey
-
-        // Already chosen on the other Mac: that choice wins over this Mac's local value.
-        try store.writePreference(
-            key: durable,
-            valuePlistXML: try #require(PreferenceStore.encodePlist(false))
-        )
-        // Cleared on the other Mac: a tombstone must not be resurrected.
-        try store.execBind("""
-            INSERT INTO sync_metadata (
-                entity_type, logical_key, record_name,
-                user_modification_at, is_deleted
-            ) VALUES ('preference', ?, 'deleted-record', 1, 1)
-        """) { statement in
-            store.bind(statement, 1, tombstoned)
-        }
-
-        let adopted = try store.adoptNewlySyncedDisplayPreferences([
-            stranded: false,
-            durable: true,
-            tombstoned: "browser,planner",
-            "studio.navigationRailWidth": 260,
-        ])
-
-        #expect(adopted == 1)
-        let values = try store.loadAllPreferences()
-        #expect(PreferenceStore.decodePlist(try #require(values[stranded])) as? Bool == false)
-        #expect(PreferenceStore.decodePlist(try #require(values[durable])) as? Bool == false)
-        #expect(values[tombstoned] == nil)
-        #expect(values["studio.navigationRailWidth"] == nil, "a device-local key is never adopted")
-    }
-
     @Test("Rewriting a key updates in place rather than duplicating")
     func rewriteUpdatesInPlace() throws {
         let store = try KnowledgeStore(inMemory: true)
@@ -415,7 +311,7 @@ struct PreferenceSyncTests {
         try store.writePreference(key: "uiZoomStep", valuePlistXML: try #require(PreferenceStore.encodePlist(6)))
 
         #expect(try store.loadAllPreferences().keys.sorted() == ["uiZoomStep"])
-        let payload = try #require(try store.loadPreferenceForSync("uiZoomStep"))
+        let payload = try #require(try store.preferenceRow("uiZoomStep"))
         #expect(PreferenceStore.decodePlist(payload.valuePlistXML) as? Int == 6)
     }
 
@@ -494,7 +390,7 @@ struct PreferenceSyncTests {
 
         try store.deletePreference(key: "showReadStatus")
 
-        #expect(try store.loadPreferenceForSync("showReadStatus") == nil)
+        #expect(try store.preferenceRow("showReadStatus") == nil)
         #expect(try store.loadAllPreferences().isEmpty)
     }
 
@@ -562,15 +458,15 @@ struct PreferenceSyncTests {
         #expect(report.unreadable == [garbageKey])
 
         // Canonical now: exactly what encodePlist writes, tabs and newline included.
-        let repaired = try #require(try store.loadPreferenceForSync(brokenKey))
+        let repaired = try #require(try store.preferenceRow(brokenKey))
         #expect(repaired.valuePlistXML == PreferenceStore.encodePlist(url))
         #expect(PreferenceStore.decodePlist(repaired.valuePlistXML) as? String == url)
         // Untouched: the sound row, the empty "no value" row, the garbage it
         // cannot read, and the row for a key nothing hydrates.
-        let sound = try store.loadPreferenceForSync(soundKey)
-        let garbage = try store.loadPreferenceForSync(garbageKey)
-        let empty = try store.loadPreferenceForSync(emptyKey)
-        let local = try store.loadPreferenceForSync(localKey)
+        let sound = try store.preferenceRow(soundKey)
+        let garbage = try store.preferenceRow(garbageKey)
+        let empty = try store.preferenceRow(emptyKey)
+        let local = try store.preferenceRow(localKey)
         #expect(sound?.valuePlistXML == soundXML)
         #expect(garbage?.valuePlistXML == "not a plist")
         #expect(empty?.valuePlistXML == "")
@@ -612,5 +508,12 @@ struct PreferenceSyncTests {
         // merge, so a shared record would drop one of the two edits.
         #expect(a != b)
         #expect(CloudKitRecordMapper.recordName(for: .preference, logicalKey: "uiZoomStep") == a)
+    }
+}
+
+private extension KnowledgeStore {
+    /// One `user_preferences` row as it is stored, read through the live reader.
+    func preferenceRow(_ key: String) throws -> (key: String, valuePlistXML: String)? {
+        try loadAllPreferences()[key].map { (key: key, valuePlistXML: $0) }
     }
 }

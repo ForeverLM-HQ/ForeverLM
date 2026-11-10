@@ -3,15 +3,10 @@ import Foundation
 // MARK: - Schema 162: what the Task, Job and Automation records need (§12.7)
 
 extension KnowledgeStore {
-    /// The step that adds the Task, Job and Automation records' table and columns.
-    static let tasksSchemaVersion: Int32 = 162
-
-    /// The table schema 162 adds (docs/cloudkit-schema-design.md §12.7), created empty: DDL only, like
-    /// every step from 154 on. Its columns on today's tables (a task's board key, an automation's runner,
-    /// a run's ring slot) are added with the rest in `addMissingColumnsForCurrentSchema`. Generation 1
-    /// never reads or writes any of it; the generation-2 activation fills the columns from generation-1
-    /// truth (`tasksActivationDerivations`), and from then on the Task, Job and Automation projections,
-    /// the generation-2 upkeep and `MacJobRunner` keep them.
+    /// The table schema 162 added (docs/cloudkit-schema-design.md §12.7), created empty, with its columns on
+    /// today's tables (a task's board key, an automation's runner, a run's ring slot) in those tables' own
+    /// definitions. The generation-2 activation fills the columns (`tasksActivationDerivations`), and from
+    /// then on the Task, Job and Automation projections, the upkeep and `MacJobRunner` keep them.
     static let tasksSyncTables: [ReplicaSchemaTable] = [
         // One row per Job record (§3.5.28): work a Mac does for the iPhone, the web or the hosted MCP,
         // claimed by compare-and-set. Private to the member, so no foreign key. Times are Cocoa seconds,
@@ -35,13 +30,6 @@ extension KnowledgeStore {
         ]),
     ]
 
-    /// Today's tables' columns schema 162 adds, for its proof and its fixtures.
-    static let tasksSyncColumns: [(table: String, column: String)] = [
-        ("notebook_tasks", "order_key"),
-        ("scheduled_tasks", "runner_device_id"),
-        ("scheduled_task_runs", "ring_slot"),
-    ]
-
     /// Creates schema 162's table where missing: empty, DDL only.
     func createTasksSyncTables() throws {
         for table in Self.tasksSyncTables {
@@ -52,15 +40,6 @@ extension KnowledgeStore {
         }
     }
 
-    /// Schema 162's proof before the stamp: the table has its shape and every added column is there.
-    func probeTasksSchema() throws {
-        for table in Self.tasksSyncTables {
-            try query(table.probe) { _ in }
-        }
-        for added in Self.tasksSyncColumns {
-            try query("SELECT \(added.column) FROM \(added.table) LIMIT 0") { _ in }
-        }
-    }
 }
 
 // MARK: - The activation's derivations for tasks and automations (§13.3 step 3c)

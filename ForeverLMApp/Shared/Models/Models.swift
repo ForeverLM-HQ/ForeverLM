@@ -4710,8 +4710,7 @@ struct LearningGoalRecord: Identifiable, Codable, Equatable {
     /// is an ordinary thing to want ("I want to understand Zara's thesis work"
     /// names no source pool) and parentlessness alone can no longer tell the
     /// two apart. Schema 120 promoted every parentless companion record
-    /// created before Goals shipped (`KnowledgeStore.goalsShippedAt`) to
-    /// `openEndedEndAt`, so a dated parentless record is a Goal the learner
+    /// created before Goals shipped (2026-09-19) to `openEndedEndAt`, so a dated parentless record is a Goal the learner
     /// set and never a Notebook from an older build — including one that an
     /// older build received over sync and has yet to migrate.
     var isNotebook: Bool {

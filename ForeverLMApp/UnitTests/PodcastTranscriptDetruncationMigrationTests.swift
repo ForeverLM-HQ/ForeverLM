@@ -152,50 +152,6 @@ struct PodcastTranscriptDetruncationMigrationTests {
         return ids
     }
 
-    @Test(
-        "Version 167 queues every episode the new audit can measure, whatever schema 85's marker says",
-        arguments: [Int32(164), Int32(165)]
-    )
-    func version167QueuesMeasurableEpisodes(from released: Int32) throws {
-        let root = try Self.temporaryRoot("schema-v167-from-\(released)")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try Self.makeReleasedStore(at: root, version: released, populate: Self.populateLibrary)
-        try Self.stampReleasedState(at: root)
-        #expect(Self.scalar(at: root, "PRAGMA user_version") == "\(released)")
-        #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM sqlite_master WHERE name = 'podcast_transcript_audits'") == "0")
-
-        let migrated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-        #expect(Self.scalar(at: root, "PRAGMA user_version") == "\(KnowledgeStore.schemaVersion)")
-
-        #expect(Self.queuedIDs(at: root) == ["apple-ttmlless", "capped-marked", "exhausted", "hidden-ttml", "hydrated-marked"])
-        // Every queued row starts its attempts afresh, schema 85's spent one included.
-        #expect(Self.scalar(at: root, """
-            SELECT COUNT(*) FROM podcast_transcript_detruncation_queue
-            WHERE attempt_count = 0 AND last_error IS NULL AND retry_after IS NULL
-        """) == "5")
-        // The audit's record starts empty, and the retired marker is read by
-        // nothing and rewritten by nothing: no `podcasts` row is touched.
-        #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM podcast_transcript_audits") == "0")
-        #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM podcasts WHERE detruncated_ttml_sha256 = 'schema-85-marker'") == "4")
-
-        // The drain's two kinds of work: measured against stored TTML, or
-        // against one fetch of Apple's, by the episode's public id.
-        let local = try migrated.podcastTranscriptDetruncationCandidates(fetchingTTML: false, limit: 50)
-        #expect(Set(local.map(\.sourceID)) == ["capped-marked", "exhausted", "hidden-ttml", "hydrated-marked"])
-        #expect(local.allSatisfy { $0.appleTrackID == nil })
-        #expect(local.first { $0.sourceID == "hidden-ttml" }?.allowsFormatting == false)
-        #expect(local.first { $0.sourceID == "capped-marked" }?.allowsFormatting == true)
-        let fetches = try migrated.podcastTranscriptDetruncationCandidates(fetchingTTML: true, limit: 50)
-        #expect(fetches.map(\.sourceID) == ["apple-ttmlless"])
-        #expect(fetches.first?.appleTrackID == 1_000_745_466_204)
-        #expect(try migrated.podcastTranscriptDetruncationQueueCount() == 5)
-
-        // Every source survives the upgrade with its text while the audit is
-        // pending, and nothing is republished: the step stages local work only.
-        #expect(try migrated.loadSources().count == 11)
-        #expect(try migrated.loadSourceContent("capped-marked") == Self.transcript)
-    }
-
     @Test("On a store with the outbox triggers the step records nothing in the outbox")
     func version167SendsNothingToTheOutbox() throws {
         let root = try Self.temporaryRoot("schema-v167-generation-2")
@@ -235,45 +191,6 @@ struct PodcastTranscriptDetruncationMigrationTests {
         #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM podcasts WHERE detruncated_ttml_sha256 = 'schema-85-marker'") == "4")
         #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM sqlite_master WHERE name = 'podcast_transcript_audits'") == "0")
         #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM pragma_table_info('podcast_transcript_detruncation_queue') WHERE name = 'retry_after'") == "0")
-    }
-
-    @Test("A library far larger than any real one migrates to 167 in well under a second")
-    func version167Scales() throws {
-        let root = try Self.temporaryRoot("schema-v167-scale")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try Self.makeReleasedStore(at: root, version: 165) { store in
-            // 5,000 episodes, half with a 20 KB TTML (100 MB of TTML, which the
-            // step must not read) and half without, all public Apple episodes.
-            try store.execForTesting("""
-                BEGIN IMMEDIATE;
-                WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < 5000)
-                INSERT INTO sources (id, date_added, state, source_type, status)
-                SELECT printf('pod-%05d', n), n, 'ready', 'podcast', 'active' FROM seq;
-                WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < 5000)
-                INSERT INTO podcasts (source_id, url, normalized_url, title, domain, raw_ttml)
-                SELECT printf('pod-%05d', n), printf('apple-podcast://episode/%d', 1000000000000 + n),
-                       printf('apple-podcast://episode/%d', 1000000000000 + n), printf('Episode %d', n), 'A Show',
-                       CASE WHEN n % 2 = 0 THEN printf('<tt>%.*c</tt>', 20000, 'x') END
-                FROM seq;
-                WITH RECURSIVE seq(n) AS (SELECT 1 UNION ALL SELECT n + 1 FROM seq WHERE n < 5000)
-                INSERT INTO source_content (source_id, content)
-                SELECT printf('pod-%05d', n), printf('Episode %d. %.*c', n, 4000, 'w') FROM seq;
-                COMMIT;
-            """)
-        }
-
-        let started = ContinuousClock.now
-        let migrated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-        let elapsed = started.duration(to: .now)
-        // DDL on two local tables and one INSERT … SELECT by primary keys:
-        // `octet_length` and a `source_content` key lookup read no text.
-        #expect(elapsed < .seconds(1))
-        #expect(Self.scalar(at: root, "PRAGMA user_version") == "\(KnowledgeStore.schemaVersion)")
-        #expect(Self.scalar(at: root, "SELECT COUNT(*) FROM podcast_transcript_detruncation_queue") == "5000")
-        var visible = 0
-        try migrated.query("SELECT COUNT(*) FROM source_projection") { visible = Int(sqlite3_column_int($0, 0)) }
-        #expect(visible == 5_000, "sources stay visible")
-        #expect(try migrated.podcastTranscriptDetruncationQueueCount() == 5_000)
     }
 
     @Test("An audited or hydrated episode is not queued again, and a new transcript without TTML is")

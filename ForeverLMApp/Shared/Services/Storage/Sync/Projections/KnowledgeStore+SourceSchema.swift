@@ -81,13 +81,6 @@ extension KnowledgeStore {
         }
     }
 
-    /// Schema 155's proof before the stamp: every table has its shape, so a same-named table of
-    /// another shape fails here and the migration rolls back.
-    func probeSchema155() throws {
-        for table in Self.sourceSyncTables {
-            try query(table.probe) { _ in }
-        }
-    }
 }
 
 // MARK: - The activation's derivations for sources and collections (§13.3 step 3c)

@@ -25,20 +25,6 @@ struct PodcastTranscriptCleanupMigrationTests {
         return article
     }
 
-    /// The released v76 shape is exactly today's minus the two tables this
-    /// version adds, because that is the entire schema delta. Populating first
-    /// and dropping after keeps the fixture's rows production-shaped.
-    private static func makeVersion76Store(
-        at root: URL,
-        populate: (KnowledgeStore) throws -> Void
-    ) throws {
-        let store = try KnowledgeStore(storeDirectory: root)
-        try populate(store)
-        try store.execForTesting("DROP TABLE podcast_transcript_cleanup_queue")
-        try store.execForTesting("DROP TABLE podcast_transcript_preparations")
-        try store.execForTesting("PRAGMA user_version = 76")
-    }
-
     private static func userVersion(at root: URL) -> Int32 {
         var db: OpaquePointer?
         guard sqlite3_open_v2(
@@ -475,33 +461,6 @@ struct PodcastTranscriptFormattingQueueTests {
             row = (store.string(stmt, 0), Int(sqlite3_column_int(stmt, 1)), Int(sqlite3_column_int(stmt, 2)), store.string(stmt, 3))
         }
         return row
-    }
-
-    @Test("Schema 172 adds the formatting columns to a 171 queue and keeps every row as an ad pass")
-    func migrationFrom171() throws {
-        let root = try Schema154Fixture.temporaryRoot("podcast-formatting-171")
-        defer { try? FileManager.default.removeItem(at: root) }
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-        try store.saveSource(Self.episode(id: "queued-before"))
-        try store.saveTranscript("queued-before", Self.raw)
-        // A store as schema 171 left it: the queue without its two columns.
-        try store.execForTesting("""
-            ALTER TABLE podcast_transcript_cleanup_queue DROP COLUMN learner_asked;
-            ALTER TABLE podcast_transcript_cleanup_queue DROP COLUMN format_input_sha256;
-            PRAGMA user_version = 171;
-        """)
-        #expect(try !store.holdsPodcastTranscriptFormattingColumns())
-
-        Schema154Fixture.newLaunch(root)
-        let migrated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-
-        #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
-        #expect(KnowledgeStore.schemaVersion == 175)
-        #expect(try migrated.holdsPodcastTranscriptFormattingColumns())
-        let row = try #require(try Self.queueRow(migrated, "queued-before"))
-        #expect(row.formatSHA == nil && row.learnerAsked == 0)
-        let candidate = try #require(try migrated.podcastTranscriptCleanupCandidates(limit: 5).first)
-        #expect(candidate.sourceID == "queued-before" && !candidate.formatsTranscript)
     }
 
     @Test("A raw transcript is ready at once and owes the formatting pass for exactly that text")

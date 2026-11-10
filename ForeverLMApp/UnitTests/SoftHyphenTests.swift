@@ -480,102 +480,6 @@ struct StoredSoftHyphensTests {
     }
 }
 
-/// The schema-166 step: the queue, and every source of the learner's own library staged by
-/// id, from both released shapes — 165 (build 188) and 164 (builds 180 to 187).
-@Suite("Schema 166 migration", .serialized)
-struct StoredSoftHyphenRepairMigrationTests {
-    /// A library in a released shape: today's store without the 166 queue, stamped `version`;
-    /// at 164 also without 165's three sensemaking tables. Five sources of the learner's own
-    /// (two holding soft hyphens, one the literal entity, one archived, one with no text yet)
-    /// and a team's copy, plus `extraSources` papers of a few kilobytes each.
-    private func makeReleasedLibrary(at root: URL, version: Int32, extraSources: Int = 0) throws {
-        let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-        try StoredText.addSource(store, "paper-shy", content: StoredText.content)
-        try StoredText.addSource(store, "article-entity", type: "article", title: "An article", content: "The mito&shy;chondrion, and &shy; itself.")
-        try StoredText.addSource(store, "article-clean", type: "article", title: "Clean", content: "Nothing to repair here.")
-        try StoredText.addSource(store, "book-archived", type: "book", title: "A chapter", content: "calcu\u{00AD} lation", status: "archived")
-        try StoredText.addSource(store, "paper-queued", title: "Not fetched yet", content: nil)
-        try StoredText.addSource(store, "team-copy", title: "A team's copy", content: StoredText.content, teamID: "team-1")
-        if extraSources > 0 {
-            try store.execForTesting("""
-                WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < \(extraSources))
-                INSERT INTO sources (id, date_added, state, source_type, status) SELECT printf('paper-%05d', i), i, 'ready', 'paper', 'active' FROM n;
-                WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < \(extraSources))
-                INSERT INTO papers (source_id, url, title) SELECT printf('paper-%05d', i), printf('https://example.org/%d', i), printf('Paper %d', i) FROM n;
-                WITH RECURSIVE n(i) AS (SELECT 1 UNION ALL SELECT i + 1 FROM n WHERE i < \(extraSources))
-                INSERT INTO source_content (source_id, content)
-                SELECT printf('paper-%05d', i), printf('%s life%sspan', hex(randomblob(2000)), CASE WHEN i % 40 = 0 THEN char(173) ELSE '' END) FROM n;
-            """)
-        }
-        try store.execForTesting("""
-            DROP TABLE source_text_soft_hyphen_repair_queue;
-            \(version < 165 ? "DROP INDEX IF EXISTS idx_atlases_updated; DROP TABLE atlases; DROP TABLE source_levels; DROP TABLE source_faces;" : "")
-            PRAGMA user_version = \(version);
-        """)
-    }
-
-    private func reopen(_ root: URL) throws -> KnowledgeStore {
-        Schema154Fixture.newLaunch(root)
-        return try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
-    }
-
-    @Test("Stages every source of the learner's own library by id, reads no text, and publishes nothing", arguments: [Int32(164), Int32(165)])
-    func stagesTheLibrary(from released: Int32) throws {
-        let root = try Schema154Fixture.temporaryRoot("soft-hyphens-\(released)")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try makeReleasedLibrary(at: root, version: released)
-
-        let migrated = try reopen(root)
-
-        #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == Int(KnowledgeStore.schemaVersion))
-        #expect(try migrated.storedSoftHyphenRepairQueueCount() == 5)
-        #expect(try StoredText.count(migrated, "SELECT COUNT(*) FROM source_text_soft_hyphen_repair_queue WHERE source_id = 'team-copy'") == 0,
-                "a team's copy is left to the library it is shared from")
-        // The library is whole and on screen while the repair waits; the text is untouched.
-        #expect(Set(try migrated.loadActiveSources().map(\.id)) == ["paper-shy", "article-entity", "article-clean", "paper-queued"])
-        #expect(try migrated.loadSourceContent("paper-shy") == StoredText.content)
-        #expect(try migrated.loadSourceContent("article-entity") == "The mito&shy;chondrion, and &shy; itself.")
-        #expect(try StoredText.paidWork(migrated) == 0)
-        // 164 gains 165's tables on the way.
-        #expect(try StoredText.count(migrated, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name IN ('atlases', 'source_levels', 'source_faces')") == 3)
-    }
-
-    @Test("Stages ids alone at production scale, well under a second")
-    func scaleRegression() throws {
-        let root = try Schema154Fixture.temporaryRoot("soft-hyphens-scale")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try makeReleasedLibrary(at: root, version: 165, extraSources: 5_000)
-
-        let started = ContinuousClock.now
-        let migrated = try reopen(root)
-        let elapsed = started.duration(to: .now)
-
-        #expect(elapsed < .seconds(1))
-        #expect(try migrated.storedSoftHyphenRepairQueueCount() == 5_005)
-        #expect(try migrated.loadSourceContent("paper-00040")?.unicodeScalars.contains("\u{00AD}") == true, "the migration reads no text")
-    }
-
-    @Test("A failed step rolls back and leaves the released library as it was")
-    func rollsBack() throws {
-        let root = try Schema154Fixture.temporaryRoot("soft-hyphens-rollback")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try makeReleasedLibrary(at: root, version: 165)
-        // A same-named queue of another shape, which `CREATE TABLE IF NOT EXISTS` keeps: the
-        // probe fails inside the migration.
-        var database: OpaquePointer?
-        #expect(sqlite3_open(root.appendingPathComponent("knowledge.db").path, &database) == SQLITE_OK)
-        #expect(sqlite3_exec(database, "CREATE TABLE source_text_soft_hyphen_repair_queue (unexpected TEXT)", nil, nil, nil) == SQLITE_OK)
-        sqlite3_close(database)
-
-        #expect(throws: (any Error).self) { _ = try reopen(root) }
-
-        #expect(Schema154Fixture.count(at: root, "PRAGMA user_version") == 165)
-        #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM sources") == 6)
-        #expect(Schema154Fixture.scalar(at: root, "SELECT content FROM source_content WHERE source_id = 'paper-shy'") == StoredText.content)
-        #expect(Schema154Fixture.count(at: root, "SELECT COUNT(*) FROM pragma_table_info('source_text_soft_hyphen_repair_queue') WHERE name = 'unexpected'") == 1)
-    }
-}
-
 /// The post-launch half of schema 166.
 @Suite("Stored soft hyphen repair")
 struct StoredSoftHyphenRepairDrainTests {
@@ -876,5 +780,28 @@ struct StoredSoftHyphenRepairLaunchTests {
         let article = try #require(vm.articles.first)
         #expect(article.content == nil, "the old text is read again from storage")
         #expect(article.paperContentSHA256 == StoredText.sha(StoredText.repairedRaw))
+    }
+}
+
+/// What schema 166 staged once: every source of the learner's own library, for the drain these tests
+/// exercise. The step went with schema 174's floor; text another Mac publishes still reaches the queue.
+extension KnowledgeStore {
+    @discardableResult
+    func enqueueStoredSoftHyphenRepair() throws -> Int {
+        try execute("""
+            INSERT INTO source_text_soft_hyphen_repair_queue (source_id, enqueued_at)
+            SELECT s.id, ? FROM sources s
+            WHERE s.team_id IS NULL
+            ON CONFLICT(source_id) DO NOTHING
+        """, [.real(Date().timeIntervalSinceReferenceDate)])
+        return try storedSoftHyphenRepairQueueCount()
+    }
+
+    func storedSoftHyphenRepairQueueCount() throws -> Int {
+        let holdsQueue = try scalarInteger(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'source_text_soft_hyphen_repair_queue'"
+        ) == 1
+        guard holdsQueue else { return 0 }
+        return Int(try scalarInteger("SELECT COUNT(*) FROM source_text_soft_hyphen_repair_queue") ?? 0)
     }
 }

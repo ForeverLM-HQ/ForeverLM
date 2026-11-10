@@ -258,56 +258,6 @@ struct Schema150MigrationTests {
         #expect(F.scalar(at: root, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'idx_courses_home_notebook'") == "1")
     }
 
-    @Test(
-        "A released store gains a course's notebook and keeps every course, link and source as it was",
-        arguments: [Int32(148), Int32(149)]
-    )
-    func version150AddsColumn(from released: Int32) throws {
-        let root = try F.temporaryRoot("v150-from-\(released)")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try Self.createReleasedLibrary(at: root, version: released)
-        #expect(F.scalar(at: root, "PRAGMA user_version") == "\(released)")
-        #expect(F.scalar(at: root, Self.homeColumn) == "0")
-
-        let migrated = try KnowledgeStore(storeDirectory: root)
-        #expect(F.scalar(at: root, "PRAGMA user_version") == "\(KnowledgeStore.schemaVersion)")
-        #expect(KnowledgeStore.schemaVersion == 175)
-        #expect(F.scalar(at: root, Self.homeColumn) == "1")
-        #expect(F.scalar(at: root, "SELECT COUNT(*) FROM sqlite_master WHERE type = 'index' AND name = 'idx_courses_home_notebook'") == "1")
-
-        // No course had a home; nothing is homed by the migration.
-        #expect(F.scalar(at: root, "SELECT COUNT(*) FROM courses WHERE home_notebook_id IS NOT NULL") == "0")
-        #expect(try migrated.loadCourseGroups()["aging"]?.title == "Systems Aging")
-        let landscape = try #require(try migrated.loadLearningGoals().first { $0.title == "Landscape of Aging" })
-        #expect(try migrated.linkedCourseIDsForNotebook(goalID: landscape.id) == ["aging"])
-        #expect(Set(try migrated.loadActiveSources().map(\.id)) == ["src-1", "src-2"], "sources stay visible")
-    }
-
-    @Test("A schema 150 migration that fails leaves the v149 store and its courses as they were")
-    func version150RollsBack() throws {
-        let root = try F.temporaryRoot("v150-rollback")
-        defer { try? FileManager.default.removeItem(at: root) }
-        try Self.createReleasedLibrary(at: root, version: 149)
-        // An object named `courses` that no ALTER can extend.
-        var database: OpaquePointer?
-        #expect(sqlite3_open(root.appendingPathComponent("knowledge.db").path, &database) == SQLITE_OK)
-        if let database {
-            #expect(sqlite3_exec(database, """
-                ALTER TABLE courses RENAME TO courses_kept;
-                CREATE VIEW courses AS SELECT id, title FROM courses_kept;
-            """, nil, nil, nil) == SQLITE_OK)
-            sqlite3_close(database)
-        }
-
-        #expect(throws: (any Error).self) {
-            _ = try KnowledgeStore(storeDirectory: root)
-        }
-        #expect(F.scalar(at: root, "PRAGMA user_version") == "149")
-        #expect(F.scalar(at: root, "SELECT COUNT(*) FROM courses_kept") == "1")
-        #expect(F.scalar(at: root, "SELECT COUNT(*) FROM sources") == "2")
-        #expect(F.scalar(at: root, "SELECT COUNT(*) FROM pragma_table_info('courses_kept') WHERE name = 'home_notebook_id'") == "0")
-    }
-
     @Test("A production-sized library migrates to 150 in well under a second")
     func version150Scales() throws {
         let root = try F.temporaryRoot("v150-scale")

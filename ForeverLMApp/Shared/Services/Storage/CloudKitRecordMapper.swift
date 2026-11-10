@@ -405,39 +405,6 @@ struct CloudKitCoursePayload: Codable, Sendable {
     }
 }
 
-/// One synced user preference. The logical key is the preference key itself, so
-/// each setting is its own CloudKit record and two Macs editing two different
-/// settings never contend.
-///
-/// `valuePlistXML` is an XML property list rather than a JSON value because the
-/// plist type system *is* the UserDefaults type system: JSON cannot distinguish
-/// Bool from Int, and `object(forKey:) as? Bool` returns nil for a value that
-/// round-tripped into a plain NSNumber, silently reverting the setting.
-struct CloudKitPreferencePayload: Codable, Sendable {
-    let key: String
-    let valuePlistXML: String
-    let updatedAt: Date
-
-    enum CodingKeys: String, CodingKey {
-        case key
-        case valuePlistXML
-        case updatedAt
-    }
-
-    init(key: String, valuePlistXML: String, updatedAt: Date) {
-        self.key = key
-        self.valuePlistXML = valuePlistXML
-        self.updatedAt = updatedAt
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        key = try container.decode(String.self, forKey: .key)
-        valuePlistXML = try container.decodeIfPresent(String.self, forKey: .valuePlistXML) ?? ""
-        updatedAt = try container.decodeIfPresent(Date.self, forKey: .updatedAt) ?? Date()
-    }
-}
-
 struct CloudKitSourceIdentityPayload: Codable, Sendable {
     let sourceID: String
     let url: String?

@@ -1300,31 +1300,6 @@ extension KnowledgeStore {
 
 extension KnowledgeStore {
 
-    /// Stage historical Zoom recordings set-wise during version 79. Per-source
-    /// relationship and sync work belongs to the post-launch drain below.
-    @discardableResult
-    func enqueueZoomMeetingAdoption() throws -> Int {
-        let now = Date().timeIntervalSinceReferenceDate
-        try execBind("""
-            INSERT INTO zoom_meeting_adoption_queue (source_id, enqueued_at)
-            SELECT source_id, ?
-            FROM videos
-            WHERE url LIKE '%zoom.us/rec/%' OR url LIKE '%zoom.us/recording/%'
-            ON CONFLICT(source_id) DO NOTHING
-        """) { stmt in
-            sqlite3_bind_double(stmt, 1, now)
-        }
-        return try zoomMeetingAdoptionQueueCount()
-    }
-
-    func zoomMeetingAdoptionQueueCount() throws -> Int {
-        var count = 0
-        try query("SELECT COUNT(*) FROM zoom_meeting_adoption_queue") { stmt in
-            count = Int(sqlite3_column_int64(stmt, 0))
-        }
-        return count
-    }
-
     /// Re-file one bounded batch of Zoom cloud recordings as the meeting sessions they always were,
     /// each in the meeting series for the Zoom account that hosted it.
     ///

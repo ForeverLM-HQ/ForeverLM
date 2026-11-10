@@ -107,27 +107,6 @@ struct StoredSoftHyphenRepairBatch: Equatable, Sendable {
 extension KnowledgeStore {
     static let storedSoftHyphenRepairQueue = "source_text_soft_hyphen_repair_queue"
 
-    /// Schema 166: every source of the learner's own library staged once, by id,
-    /// in one set-based INSERT. The migration reads no text: which few hold a soft
-    /// hyphen is the drain's question. A team's copy is left to the library it was
-    /// shared from: it is a record of the team's zone, which a read-only member
-    /// cannot write.
-    @discardableResult
-    func enqueueStoredSoftHyphenRepair() throws -> Int {
-        try execute("""
-            INSERT INTO source_text_soft_hyphen_repair_queue (source_id, enqueued_at)
-            SELECT s.id, ? FROM sources s
-            WHERE s.team_id IS NULL
-            ON CONFLICT(source_id) DO NOTHING
-        """, [.real(Date().timeIntervalSinceReferenceDate)])
-        return try storedSoftHyphenRepairQueueCount()
-    }
-
-    func storedSoftHyphenRepairQueueCount() throws -> Int {
-        guard try holdsStoredSoftHyphenRepairQueue() else { return 0 }
-        return Int(try scalarInteger("SELECT COUNT(*) FROM source_text_soft_hyphen_repair_queue") ?? 0)
-    }
-
     /// False on a store held at 153 for want of room for its rollback copy,
     /// which has not reached 166's queue yet: there is nothing to drain there.
     private func holdsStoredSoftHyphenRepairQueue() throws -> Bool {

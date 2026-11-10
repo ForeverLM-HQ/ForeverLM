@@ -6,7 +6,8 @@ import Testing
 /// the Entries' order keys, the research questions' rows, the member's NotebookStates from the
 /// preference rows and `notebook_resolution`, run twice and after generation-1 edits; and no notes base
 /// from the local text (R8-1).
-extension NotebookSchema156MigrationTests {
+@Suite("Schema 156 activation")
+struct NotebookSchema156ActivationTests {
     typealias F = NotebookSyncFixture
 
     /// A preference row as `PreferenceStore` mirrors one into `user_preferences`.

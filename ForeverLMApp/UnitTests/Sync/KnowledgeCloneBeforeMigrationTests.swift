@@ -51,7 +51,7 @@ struct KnowledgeCloneBeforeMigrationTests {
     func cleanCheckpointClones() throws {
         let root = try Schema154Fixture.temporaryRoot("clone")
         defer { try? FileManager.default.removeItem(at: root) }
-        try Schema154Fixture.makeLibrary(at: root, version: 153)
+        try Schema154Fixture.makeLibrary(at: root, version: 174)
         let writer = try SQLiteHandle(path: root.appendingPathComponent("knowledge.db").path)
         try writer.execute("INSERT INTO sources (id, date_added) VALUES ('src-in-the-wal', 9)")
         let record = try KnowledgeRollbackCopy.take(.beforeSchema154, ofStoreAt: root)
@@ -72,7 +72,7 @@ struct KnowledgeCloneBeforeMigrationTests {
     func busyCheckpointBacksUp() throws {
         let root = try Schema154Fixture.temporaryRoot("backup")
         defer { try? FileManager.default.removeItem(at: root) }
-        try Schema154Fixture.makeLibrary(at: root, version: 153)
+        try Schema154Fixture.makeLibrary(at: root, version: 174)
         let path = root.appendingPathComponent("knowledge.db").path
         let reader = try SQLiteHandle(path: path)
         let writer = try SQLiteHandle(path: path)
@@ -91,7 +91,7 @@ struct KnowledgeCloneBeforeMigrationTests {
     func concurrentWriterCannotTear() throws {
         let root = try Schema154Fixture.temporaryRoot("torn")
         defer { try? FileManager.default.removeItem(at: root) }
-        try Schema154Fixture.makeLibrary(at: root, version: 153)
+        try Schema154Fixture.makeLibrary(at: root, version: 174)
         let path = root.appendingPathComponent("knowledge.db").path
         try SQLiteHandle(path: path).executeScript("CREATE TABLE ledger (id INTEGER PRIMARY KEY, amount INTEGER NOT NULL, pad BLOB)")
         let shared = Shared()
@@ -144,7 +144,7 @@ struct KnowledgeCloneBeforeMigrationTests {
     func quickCheckIsRecorded() throws {
         let root = try Schema154Fixture.temporaryRoot("check")
         defer { try? FileManager.default.removeItem(at: root) }
-        try Schema154Fixture.makeLibrary(at: root, version: 153)
+        try Schema154Fixture.makeLibrary(at: root, version: 174)
         let record = try KnowledgeRollbackCopy.take(.beforeSchema154, ofStoreAt: root)
         #expect(record.quickCheck == nil)
         let checked = KnowledgeRollbackCopy.check(record, in: root)
@@ -164,7 +164,7 @@ struct KnowledgeCloneBeforeMigrationTests {
         #expect(KnowledgeRollbackCopy.recorded(.beforeSchema154, in: root)?.passedQuickCheck == false)
     }
 
-    @Test("A store's first generation-2 launch copies it before its migrations", arguments: [Int32(148), Int32(150), Int32(153)])
+    @Test("A store's first generation-2 launch copies it before its migrations", arguments: [Int32(174)])
     func generation2CopiesFirst(_ version: Int32) throws {
         let root = try Schema154Fixture.temporaryRoot("gen2-\(version)")
         defer { try? FileManager.default.removeItem(at: root) }
@@ -190,7 +190,7 @@ struct KnowledgeCloneBeforeMigrationTests {
     func unrecordedCopyIsReplaced() throws {
         let root = try Schema154Fixture.temporaryRoot("stale")
         defer { try? FileManager.default.removeItem(at: root) }
-        try Schema154Fixture.makeLibrary(at: root, version: 153)
+        try Schema154Fixture.makeLibrary(at: root, version: 174)
         let stale = root.appendingPathComponent("knowledge.pre-v2.db")
         try Data("not a database".utf8).write(to: stale)
         try Data("junk".utf8).write(to: URL(fileURLWithPath: stale.path + "-wal"))
@@ -226,7 +226,7 @@ struct KnowledgeCloneBeforeMigrationTests {
         do {
             let store = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
             #expect(store.rollbackCopy == nil)
-            try Schema154Fixture.restoreReleasedShape(store, version: 153)
+            try Schema154Fixture.restoreSchema174Shape(store)
         }
         let migrated = try KnowledgeStore(storeDirectory: root, freeSpace: Schema154Fixture.roomy)
         #expect(migrated.rollbackCopy == nil && migrated.rollbackCopyFailure == nil)
@@ -238,7 +238,7 @@ struct KnowledgeCloneBeforeMigrationTests {
     func concurrentOpensCopyOnce() throws {
         let root = try Schema154Fixture.temporaryRoot("gate")
         defer { try? FileManager.default.removeItem(at: root) }
-        try Schema154Fixture.makeLibrary(at: root, version: 153)
+        try Schema154Fixture.makeLibrary(at: root, version: 174)
         let opens = Opens()
         DispatchQueue.concurrentPerform(iterations: 6) { _ in
             do {
@@ -257,7 +257,7 @@ struct KnowledgeCloneBeforeMigrationTests {
     func generation2RefusesWithoutRoom() throws {
         let root = try Schema154Fixture.temporaryRoot("room-gen2")
         defer { try? FileManager.default.removeItem(at: root) }
-        try Schema154Fixture.makeLibrary(at: root, version: 153)
+        try Schema154Fixture.makeLibrary(at: root, version: 174)
         do {
             _ = try KnowledgeStore(storeDirectory: root, freeSpace: { _ in 1_000_000_000 })
             Issue.record("generation 2 opened a store it could not copy")
