@@ -3317,14 +3317,6 @@ actor StorageService {
             placements: placements
         )
         scheduleCloudKitSync(.immediate)
-        // The chapters joined every Notebook that follows the course; a Notebook
-        // shared with a team passes them on (teams-design.md, decision 10).
-        let read = Array(Set(placements.map(\.chapterSourceID))).sorted()
-        // Never throws: the readings are saved, and a follow-on that fails is
-        // logged by the propagation, not turned into an error about them.
-        for notebookID in (try? store.notebookIDsLinkedToCourse(courseID)) ?? [] {
-            propagateNotebookSourcesToTeams(notebookID: notebookID, sourceIDs: read)
-        }
         return items
     }
 
@@ -4178,7 +4170,6 @@ actor StorageService {
     func updateReviewSessionTitle(sessionID: String, title: String) throws {
         try knowledgeStore().updateReviewSessionTitle(sessionID: sessionID, title: title)
         scheduleCloudKitSync(.soon)
-        propagateChatToTeams(sessionID: sessionID)
     }
 
     /// Swap in the AI-suggested title only if the learner has not renamed the
@@ -4195,7 +4186,6 @@ actor StorageService {
         )
         if replaced {
             scheduleCloudKitSync(.soon)
-            propagateChatToTeams(sessionID: sessionID)
         }
         return replaced
     }
@@ -4203,7 +4193,6 @@ actor StorageService {
     func updateReviewSessionGoal(sessionID: String, goalID: String?) throws {
         try knowledgeStore().updateReviewSessionGoal(sessionID: sessionID, goalID: goalID)
         scheduleCloudKitSync(.soon)
-        propagateChatToTeams(sessionID: sessionID)
     }
 
     /// Hides a chat from the sidebar on every Mac signed into this account, or
@@ -4285,7 +4274,6 @@ actor StorageService {
             sourceRefs: sourceRefs
         )
         scheduleCloudKitSync(.soon)
-        propagateChatToTeams(sessionID: sessionID)
         return sequence
     }
 
@@ -4303,7 +4291,6 @@ actor StorageService {
             contextContent: contextContent
         )
         scheduleCloudKitSync(.soon)
-        propagateChatToTeams(sessionID: sessionID)
         return sequence
     }
 
@@ -4330,7 +4317,6 @@ actor StorageService {
         )
         if answered != nil {
             scheduleCloudKitSync(.soon)
-            propagateChatToTeams(sessionID: sessionID)
         }
         return answered
     }
@@ -4343,13 +4329,11 @@ actor StorageService {
             endedAt: endedAt
         )
         scheduleCloudKitSync(.immediate)
-        propagateChatToTeams(sessionID: sessionID)
     }
 
     func reopenReviewSession(sessionID: String) throws {
         try knowledgeStore().reopenReviewSession(sessionID: sessionID)
         scheduleCloudKitSync(.immediate)
-        propagateChatToTeams(sessionID: sessionID)
     }
 
     @discardableResult
@@ -4431,7 +4415,6 @@ actor StorageService {
             }
         }
         scheduleCloudKitSync(.immediate)
-        propagateChatToTeams(sessionID: id)
         return outcome
     }
 
@@ -4458,7 +4441,6 @@ actor StorageService {
             field: field
         )
         scheduleCloudKitSync(.immediate)
-        propagateChatToTeams(sessionID: sessionID)
     }
 
     func deleteReviewSession(_ sessionId: String) throws {
@@ -4478,7 +4460,6 @@ actor StorageService {
     func updateReviewSessionSources(sessionID: String, sourceIDs: [String]) throws {
         try knowledgeStore().updateReviewSessionSources(sessionID: sessionID, sourceIDs: sourceIDs)
         scheduleCloudKitSync(.immediate)
-        propagateChatToTeams(sessionID: sessionID)
     }
 
     func loadLearningGoals() throws -> [LearningGoalRecord] {
@@ -4618,9 +4599,6 @@ actor StorageService {
     func setCompanionItemReviewState(goalID: String, sourceIDs: [String], state: LearningGoalItemReviewState) throws {
         try knowledgeStore().setCompanionItemReviewState(goalID: goalID, sourceIDs: sourceIDs, state: state)
         scheduleCloudKitSync(.immediate)
-        if state == .approved {
-            propagateNotebookSourcesToTeams(notebookID: goalID, sourceIDs: sourceIDs)
-        }
     }
 
     func removeCompanionSources(goalID: String, sourceIDs: [String]) throws {
@@ -4663,10 +4641,6 @@ actor StorageService {
             artifactID: artifactID
         )
         scheduleCloudKitSync(.immediate)
-        if let parentNotebookID, teamID == nil {
-            propagateNestedGoalToTeams(goalID: goal.id)
-            propagateNotebookSourcesToTeams(notebookID: parentNotebookID, sourceIDs: seedSourceIDs)
-        }
         return goal
     }
 
@@ -4867,7 +4841,6 @@ actor StorageService {
         let sourceIDs = try sourceIDsForGoalLibrary(goalID: goalID, sourceIDs)
         let added = try knowledgeStore().addCompanionSeedSources(goalID: goalID, sourceIDs: sourceIDs)
         scheduleCloudKitSync(.immediate)
-        propagateNotebookSourcesToTeams(notebookID: goalID, sourceIDs: sourceIDs)
         return added
     }
 
@@ -4880,7 +4853,6 @@ actor StorageService {
             sourceIDs: sourceIDs
         )
         scheduleCloudKitSync(.immediate)
-        propagateNotebookSourcesToTeams(notebookID: goalID, sourceIDs: sourceIDs)
         return added
     }
 
@@ -4912,9 +4884,6 @@ actor StorageService {
         let store = try knowledgeStore()
         let added = try store.followCourse(courseID: courseID, notebookID: notebookID)
         scheduleCloudKitSync(.immediate)
-        if added > 0 {
-            propagateNotebookSourcesToTeams(notebookID: notebookID, sourceIDs: try store.sourceIDsForCourse(courseID))
-        }
         return added
     }
 
@@ -4924,9 +4893,6 @@ actor StorageService {
         let store = try knowledgeStore()
         let made = try store.makeStudyNotebook(courseID: courseID)
         scheduleCloudKitSync(.immediate)
-        if made.sourcesAdded > 0 {
-            propagateNotebookSourcesToTeams(notebookID: made.notebookID, sourceIDs: try store.sourceIDsForCourse(courseID))
-        }
         return made
     }
 
@@ -4953,9 +4919,6 @@ actor StorageService {
     func setLearningGoalParentNotebook(goalID: String, parentNotebookID: String?) throws {
         try knowledgeStore().setLearningGoalParentNotebook(goalID: goalID, parentNotebookID: parentNotebookID)
         scheduleCloudKitSync(.immediate)
-        if parentNotebookID != nil {
-            propagateNestedGoalToTeams(goalID: goalID)
-        }
     }
 
     /// Archive a source: mark as archived, delete content and embeddings,

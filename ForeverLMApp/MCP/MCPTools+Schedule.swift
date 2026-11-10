@@ -422,9 +422,6 @@ extension MCPDataStore {
                         heldBefore[pool] = Set(try store.loadLearningGoal(pool)?.approvedSourceIDs ?? [])
                     }
                     _ = try store.addCompanionSeedSources(goalID: scheduleGoal.id, sourceIDs: joiningPool)
-                    followTeamShares { storage in
-                        await storage.propagateNotebookSourcesToTeams(notebookID: scheduleGoal.id, sourceIDs: joiningPool)
-                    }
                     var arrivals: [String: [String]] = [:]
                     for (pool, held) in heldBefore {
                         arrivals[pool] = (try store.loadLearningGoal(pool)?.approvedSourceIDs ?? []).filter { !held.contains($0) }

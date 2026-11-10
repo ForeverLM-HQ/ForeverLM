@@ -179,12 +179,10 @@ extension StorageService {
         return result
     }
 
-    /// A reading of the learner's own, filed in a notebook shared with a
-    /// team, follows it there whole as its sources are written: the team's
-    /// copy is made by the ordinary follow-on (`propagateDocToTeams`), and
-    /// rewritten here each time a source's questions land, since a reading's
-    /// copy is never edited in the team — nobody's answers are in it, only
-    /// the questions. Never throws: the learner's own write has happened.
+    /// A reading of the learner's own that a team holds a copy of (made when
+    /// its notebook was shared with the team) is rewritten here each time a
+    /// source's questions land, since a reading's copy is never edited in the
+    /// team — nobody's answers are in it, only the questions. Never throws: the learner's own write has happened.
     private func refreshMnemonicReadingTeamCopies(_ readingID: String, store: KnowledgeStore) {
         do {
             guard let reading = try store.loadArtifact(readingID), reading.teamID == nil else { return }

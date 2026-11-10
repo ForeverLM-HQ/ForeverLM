@@ -760,8 +760,7 @@ extension KnowledgeStore {
 
         var items: [LearningGoalItem] = []
         if includeSources {
-            // Only the notebook's sources travel, the rule the follow-on
-            // (`propagateNotebookSourcesToTeams`) keeps: a suggestion still
+            // Only the notebook's approved sources travel: a suggestion still
             // awaiting the learner's verdict is theirs to decide on first, and
             // a source they removed is not copied into the team at all. The
             // copy used to take every item and leave its approval behind, and
@@ -824,7 +823,7 @@ extension KnowledgeStore {
         if includeDocs {
             // An audio overview stays in its author's library: its script and
             // audio live on a carrier source there, so a team copy would play
-            // nothing (as `teamNotebooksAwaitingDoc` keeps it from following).
+            // nothing.
             // A source's draft deck of cards to check is the member's own
             // memory state and never enters a team record (the listing leaves
             // it out; this holds for one an older build linked to a Notebook).
@@ -1492,144 +1491,12 @@ extension KnowledgeStore {
         }
     }
 
-    /// Sources just added to a Notebook follow it into every team holding the
-    /// Notebook: each is copied unless the team already has it, and joins the
-    /// team copy's membership. Only approved items travel; a suggestion still
-    /// awaiting the learner's verdict is theirs to decide on first. A nested
-    /// Goal passes the addition up to its Notebook, as `addCompanionSeedSources`
-    /// does for the originals. Returns the ids of the teams whose copy changed.
-    @discardableResult
-    func propagateNotebookSourcesToTeams(
-        notebookID: String,
-        sourceIDs: [String],
-        fileCopy: (_ relativePath: String, _ teamID: String) throws -> String?
-    ) throws -> Set<String> {
-        let wanted = Set(sourceIDs)
-        guard !wanted.isEmpty,
-              let original = try loadLearningGoal(notebookID),
-              original.teamID == nil else { return [] }
-        var changed = Set<String>()
-        for team in try teamsHoldingNotebook(notebookID) {
-            let copyID = TeamContentIdentity.notebookID(teamID: team.id, originalNotebookID: notebookID)
-            guard let copy = try loadLearningGoal(copyID) else { continue }
-            let held = Set(copy.items.map(\.sourceID))
-            var added = false
-            for item in original.items where wanted.contains(item.sourceID) {
-                guard item.reviewState == nil
-                        || item.reviewState == LearningGoalItemReviewState.approved.rawValue,
-                      let source = try loadSourceWithoutContent(item.sourceID) else { continue }
-                let teamSourceID = try teamSourceCopyID(teamID: team.id, url: source.url)
-                if try !sourceExists(teamSourceID) {
-                    _ = try copySourceIntoTeam(sourceID: item.sourceID, teamID: team.id) { path in
-                        try fileCopy(path, team.id)
-                    }
-                }
-                guard !held.contains(teamSourceID) else { continue }
-                try saveLearningGoalItem(LearningGoalItem(
-                    id: TeamContentIdentity.notebookID(teamID: team.id, originalNotebookID: item.id),
-                    goalID: copyID,
-                    sourceID: teamSourceID,
-                    addedAt: item.addedAt,
-                    origin: item.origin,
-                    relevance: item.relevance,
-                    sequence: item.sequence
-                ), goalID: copyID, ignoreDuplicates: true)
-                added = true
-            }
-            if added {
-                try touchLearningGoal(copyID)
-                changed.insert(team.id)
-            }
-        }
-        if let parentNotebookID = original.parentNotebookID {
-            changed.formUnion(try propagateNotebookSourcesToTeams(
-                notebookID: parentNotebookID,
-                sourceIDs: sourceIDs,
-                fileCopy: fileCopy
-            ))
-        }
-        return changed
-    }
-
-    /// A Goal newly nested under a shared Notebook follows it into each team
-    /// holding the Notebook, sources and chats included, the way the Notebook's
-    /// Goals did when it was shared. Returns the ids of the teams that gained it.
-    @discardableResult
-    func propagateNestedGoalToTeams(
-        goalID: String,
-        fileCopy: (_ relativePath: String, _ teamID: String) throws -> String?
-    ) throws -> Set<String> {
-        guard let goal = try loadLearningGoal(goalID),
-              goal.teamID == nil,
-              let parentNotebookID = goal.parentNotebookID else { return [] }
-        var changed = Set<String>()
-        for team in try teamsHoldingNotebook(parentNotebookID) {
-            let copyID = TeamContentIdentity.notebookID(teamID: team.id, originalNotebookID: goalID)
-            guard try loadLearningGoal(copyID) == nil else { continue }
-            _ = try copyNotebookIntoTeam(
-                notebookID: goalID,
-                teamID: team.id,
-                includeSources: true,
-                includeDocs: false,
-                includeChats: true,
-                fileCopy: { path in try fileCopy(path, team.id) },
-                artifactCopy: { _, _ in nil }
-            )
-            changed.insert(team.id)
-        }
-        return changed
-    }
-
-    /// Where a Doc filed under shared Notebooks still has to go: each editable
-    /// team holding one of its Notebooks whose copy of the Doc is missing or not
-    /// yet filed under that team Notebook, with the team Notebook ids to file it
-    /// beneath. The caller copies the body and the row (`shareArtifact`).
-    func teamNotebooksAwaitingDoc(artifactID: String) throws -> [(team: TeamRecord, teamNotebookIDs: [String])] {
-        guard let artifact = try loadArtifact(artifactID), artifact.teamID == nil else { return [] }
-        // A Google Doc follows its Notebook: its text copy is the document. A
-        // ForeverLM site, a Claude artifact, a Codex site or an animation is a
-        // page under its publisher's access policy, which filing under a
-        // Notebook does not extend; a Site reaches the team by being published
-        // into the team's Notebook, or by Share with Team, which copies the
-        // page itself and opens a ForeverLM site to the roster. None of those
-        // follow on their own.
-        if artifact.isAnimation { return [] }
-        // An audio overview's script and audio live on a carrier source in
-        // its author's library; a copy in the team would play nothing.
-        if try isAudioOverview(artifact) { return [] }
-        // A source's draft deck of cards to check is the member's own memory
-        // state (docs/teams-design.md rule 7), whatever a Notebook links it to.
-        if artifact.isCardDeck { return [] }
-        if let rawURL = artifact.linkedURL, LinkedPage.kind(ofURLString: rawURL) != .googleDoc { return [] }
-        var pending: [String: (team: TeamRecord, teamNotebookIDs: [String])] = [:]
-        for notebookID in artifact.linkedNotebookIDs {
-            guard try loadLearningGoal(notebookID)?.teamID == nil else { continue }
-            for team in try teamsHoldingNotebook(notebookID) {
-                let teamNotebookID = TeamContentIdentity.notebookID(teamID: team.id, originalNotebookID: notebookID)
-                let copyID = try teamArtifactCopyID(teamID: team.id, original: artifact)
-                if let copy = try loadArtifact(copyID), copy.linkedNotebookIDs.contains(teamNotebookID) { continue }
-                var entry = pending[team.id] ?? (team: team, teamNotebookIDs: [])
-                if !entry.teamNotebookIDs.contains(teamNotebookID) {
-                    entry.teamNotebookIDs.append(teamNotebookID)
-                }
-                pending[team.id] = entry
-            }
-        }
-        return pending.keys.sorted().compactMap { pending[$0] }
-    }
-
     /// The learner's own chats filed under a Notebook that a team share carries:
     /// conversations with something said in them. A memory review, a graded
     /// review and a chat nobody wrote in are not shared; the first two are the
     /// learner's assessment (decision 7 in docs/teams-design.md).
     func teamShareableChatIDs(notebookID: String) throws -> [String] {
         try teamShareableChats(where: "goal_id = ?", bind: notebookID).map(\.id)
-    }
-
-    /// The Notebook a chat would follow into teams, or nil when the chat is not
-    /// one a team share carries.
-    func teamShareableChatNotebookID(sessionID: String) throws -> String? {
-        try teamShareableChats(where: "id = ?", bind: sessionID).first?.notebookID
     }
 
     private func teamShareableChats(where clause: String, bind value: String) throws -> [(id: String, notebookID: String)] {
@@ -1655,21 +1522,5 @@ extension KnowledgeStore {
             rows.append((id: id, notebookID: notebookID))
         }
         return rows
-    }
-
-    /// A chat under a shared Notebook keeps its team transcripts current: the
-    /// snapshot is rewritten for every team holding the Notebook. Run after
-    /// anything that changes the conversation or where it is filed. Returns the
-    /// ids of the teams whose transcript was rewritten.
-    @discardableResult
-    func propagateChatToTeams(sessionID: String) throws -> Set<String> {
-        guard let notebookID = try teamShareableChatNotebookID(sessionID: sessionID) else { return [] }
-        var changed = Set<String>()
-        for team in try teamsHoldingNotebook(notebookID) {
-            let teamNotebookID = TeamContentIdentity.notebookID(teamID: team.id, originalNotebookID: notebookID)
-            _ = try snapshotChatIntoTeam(sessionID: sessionID, teamID: team.id, notebookID: teamNotebookID)
-            changed.insert(team.id)
-        }
-        return changed
     }
 }

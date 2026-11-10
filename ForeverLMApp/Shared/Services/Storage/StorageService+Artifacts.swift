@@ -101,9 +101,6 @@ extension StorageService {
             throw error
         }
         invalidateArtifactContext(for: artifact.linkedNotebookIDs)
-        if resolvedTeamID == nil {
-            propagateDocToTeams(artifactID: artifact.id)
-        }
         return ArtifactMarkdownSnapshot(
             artifact: artifact,
             markdown: markdown,
@@ -187,9 +184,6 @@ extension StorageService {
             throw error
         }
         invalidateArtifactContext(for: artifact.linkedNotebookIDs)
-        if resolvedTeamID == nil {
-            propagateDocToTeams(artifactID: artifact.id)
-        }
         return artifact
     }
 
@@ -264,9 +258,6 @@ extension StorageService {
             throw error
         }
         invalidateArtifactContext(for: artifact.linkedNotebookIDs)
-        if artifact.teamID == nil {
-            propagateDocToTeams(artifactID: artifact.id)
-        }
         return artifact
     }
 
@@ -564,7 +555,6 @@ extension StorageService {
         updated.updatedAt = Date()
         try store.saveArtifactRecord(updated)
         invalidateArtifactContext(for: updated.linkedNotebookIDs)
-        propagateDocToTeams(artifactID: artifactID)
         return ArtifactMarkdownSnapshot(
             artifact: updated,
             markdown: text,
@@ -655,7 +645,6 @@ extension StorageService {
         updated.updatedAt = Date()
         try notebookFilesKnowledgeStore().saveArtifactRecord(updated)
         invalidateArtifactContext(for: updated.linkedNotebookIDs)
-        propagateDocToTeams(artifactID: artifactID)
         return ArtifactMarkdownSnapshot(
             artifact: updated,
             markdown: markdown,
@@ -736,7 +725,6 @@ extension StorageService {
         artifact.updatedAt = Date()
         try store.saveArtifactRecord(artifact)
         invalidateArtifactContext(for: previousNotebookIDs + artifact.linkedNotebookIDs)
-        propagateDocToTeams(artifactID: artifactID)
         return artifact
     }
 
@@ -819,9 +807,8 @@ extension StorageService {
     /// notebook, grounded on the sources it was written from, with the recipe
     /// as its body — under the id the caller reserved. A failed save leaves
     /// neither behind. An overview is the author's own: it is made in their
-    /// own notebooks, and it does not follow a shared notebook into a team
-    /// (`KnowledgeStore.teamNotebooksAwaitingDoc`), since its audio lives on a
-    /// carrier in the author's library.
+    /// own notebooks, and a team share leaves it out, since its audio lives on
+    /// a carrier in the author's library.
     func saveAudioOverview(
         artifactID: String,
         title rawTitle: String,

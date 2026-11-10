@@ -564,65 +564,6 @@ extension StorageService {
         return try await spaceInvitationLink(teamID: team.id)
     }
 
-    // MARK: - Additions follow a shared Notebook
-
-    // A Notebook shared with a team is not a one-time copy: what the learner
-    // files under the original afterwards (a source, a nested Goal, a Doc, a
-    // chat and its later turns) reaches every team that holds the Notebook.
-    // Each write path that files something under a Notebook calls one of these
-    // after its own row is saved. They never throw: the learner's own write has
-    // already happened, and a team follow-on that fails is logged, not turned
-    // into an error about the thing they just did.
-
-    func propagateNotebookSourcesToTeams(notebookID: String, sourceIDs: [String]) {
-        guard !sourceIDs.isEmpty else { return }
-        followTeamShares("sources of Notebook \(notebookID)") { store in
-            try store.propagateNotebookSourcesToTeams(notebookID: notebookID, sourceIDs: sourceIDs) { path, teamID in
-                try self.copyFileIntoTeam(relativePath: path, teamID: teamID)
-            }
-        }
-    }
-
-    func propagateNestedGoalToTeams(goalID: String) {
-        followTeamShares("Goal \(goalID)") { store in
-            try store.propagateNestedGoalToTeams(goalID: goalID) { path, teamID in
-                try self.copyFileIntoTeam(relativePath: path, teamID: teamID)
-            }
-        }
-    }
-
-    /// A Doc filed under a shared Notebook follows it once it has a body; an
-    /// empty Doc waits for its first save so the team never receives a blank.
-    func propagateDocToTeams(artifactID: String) {
-        followTeamShares("Doc \(artifactID)") { store in
-            let pending = try store.teamNotebooksAwaitingDoc(artifactID: artifactID)
-            guard !pending.isEmpty else { return [] }
-            let snapshot = try self.artifactMarkdown(artifactID)
-            guard !snapshot.markdown.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return [] }
-            var changed = Set<String>()
-            for entry in pending {
-                _ = try self.shareArtifact(
-                    artifactID,
-                    withTeam: entry.team.id,
-                    linkedTeamNotebookIDs: entry.teamNotebookIDs,
-                    scheduleSync: false
-                )
-                changed.insert(entry.team.id)
-            }
-            return changed
-        }
-    }
-
-    func propagateChatToTeams(sessionID: String) {
-        followTeamShares("chat \(sessionID)") { store in
-            try store.propagateChatToTeams(sessionID: sessionID)
-        }
-    }
-
-    private func followTeamShares(_: String, _: (KnowledgeStore) throws -> Set<String>) {
-        // A notebook is edited in place: nothing follows (§9.4).
-    }
-
     // MARK: - Share requests
 
     /// A request one editor answers on behalf of the team: the request and the

@@ -306,14 +306,6 @@ extension MCPDataStore {
             notAdded = filing.refused
         } else {
             added = try store.addCompanionSeedSources(goalID: goal.id, sourceIDs: ids)
-            // Additions follow a shared Notebook: the Goal's own pool, and the
-            // Notebook's when the Goal is tagged to one.
-            let pools = [goal.id] + (goal.parentNotebookID.map { [$0] } ?? [])
-            followTeamShares { storage in
-                for pool in pools {
-                    await storage.propagateNotebookSourcesToTeams(notebookID: pool, sourceIDs: ids)
-                }
-            }
         }
         let refreshed = try store.loadLearningGoal(goal.id) ?? goal
         var payload: [String: Any] = [
@@ -468,10 +460,6 @@ extension MCPDataStore {
         let store = try knowledgeStore()
         if !approveIDs.isEmpty {
             try store.setCompanionItemReviewState(goalID: goal.id, sourceIDs: approveIDs, state: .approved)
-            let notebookID = goal.id
-            followTeamShares { storage in
-                await storage.propagateNotebookSourcesToTeams(notebookID: notebookID, sourceIDs: approveIDs)
-            }
         }
         if !rejectIDs.isEmpty {
             try store.setCompanionItemReviewState(goalID: goal.id, sourceIDs: rejectIDs, state: .rejected)
@@ -514,10 +502,6 @@ extension MCPDataStore {
             heldBefore[pool] = Set(try store.loadLearningGoal(pool)?.approvedSourceIDs ?? [])
         }
         let added = try store.addCompanionSeedSources(goalID: goal.id, sourceIDs: ids)
-        let notebookID = goal.id
-        followTeamShares { storage in
-            await storage.propagateNotebookSourcesToTeams(notebookID: notebookID, sourceIDs: ids)
-        }
         let skipped = ids.count - added
         let refreshed = try store.loadLearningGoal(goal.id) ?? goal
         var arrivals: [String: [String]] = [:]

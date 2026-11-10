@@ -58,16 +58,6 @@ extension MCPDataStore {
         case source, notebook, doc, chat, course
     }
 
-    /// Additions to a Notebook a team holds follow it (docs/teams-design.md,
-    /// decision 10). Tools that file something under a Notebook through this
-    /// store's own SQLite connection hand the follow-on to StorageService,
-    /// which owns the files a team copy needs; the tool's reply does not wait
-    /// for the team copies.
-    func followTeamShares(_ work: @escaping @Sendable (StorageService) async -> Void) {
-        let storage = notebookFileStorage
-        Task(priority: .utility) { await work(storage) }
-    }
-
     /// `rightsAnswer` is the call's `rights_affirmed_by_learner`, which the
     /// registry's dispatch always passes; a caller that is not an assistant's
     /// call (the copy's own tests) passes nil and is not asked.

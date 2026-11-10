@@ -1564,15 +1564,6 @@ extension MCPDataStore {
             ? "Course '\(displayTitle)'."
             : "Updated course '\(displayTitle)': \(changedFields.joined(separator: ", "))."
         if let notebook = follow, let added {
-            // A personal notebook shared with teams passes what joined it on,
-            // as any addition does (teams-design.md, decision 10).
-            if notebook.teamID == nil, added > 0 {
-                let notebookID = notebook.id
-                let joined = try store.sourceIDsForCourse(courseID)
-                followTeamShares { storage in
-                    await storage.propagateNotebookSourcesToTeams(notebookID: notebookID, sourceIDs: joined)
-                }
-            }
             let joined = added > 0 ? " \(added) of its source\(added == 1 ? "" : "s") joined it." : ""
             answer += " Notebook ‘\(notebook.title)’ follows the course now.\(joined) The course itself lives in no Notebook."
         }

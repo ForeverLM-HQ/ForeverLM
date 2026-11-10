@@ -1413,7 +1413,6 @@ struct ArtifactPersistenceTests {
         try store.saveArtifactRecord(asDoc)
         #expect(try store.loadArtifact(deckID)?.isCardDeck == true)
         #expect(try await storage.loadArtifacts(notebookID: notebook.id).map(\.id) == [doc.id])
-        #expect(try store.teamNotebooksAwaitingDoc(artifactID: deckID).isEmpty)
         _ = try await storage.saveCardDrafts(
             [card("Which gradient drives the synthase?", quote: "a proton gradient")],
             sourceID: "src-deck", sourceTitle: "Mitochondria"

@@ -4417,7 +4417,6 @@ extension MCPDataStore {
             }
         }
         try store.updateReviewSessionSources(sessionID: id, sourceIDs: sourceIDs)
-        followTeamShares { storage in await storage.propagateChatToTeams(sessionID: id) }
         var message = "Updated review session \(id) to \(sourceIDs.count) linked source\(sourceIDs.count == 1 ? "" : "s")."
         if !removedFromReview.isEmpty {
             message += " Removed \(removedFromReview.count) source\(removedFromReview.count == 1 ? "" : "s") from today's memory review; "
@@ -4483,9 +4482,6 @@ extension MCPDataStore {
         }
         guard let updated = try store.loadReviewSessionForSync(id) else {
             throw MCPError.notFound("Review session not found: \(id).")
-        }
-        if title != nil || notebookID != nil {
-            followTeamShares { storage in await storage.propagateChatToTeams(sessionID: id) }
         }
         let hiddenAt = try store.reviewSessionHiddenAt(sessionID: id)
         let placement = updated.goalID == nil
