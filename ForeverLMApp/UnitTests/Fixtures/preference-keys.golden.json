@@ -1,0 +1,2432 @@
+{
+  "keys": [
+    {
+      "name": "AppleActionOnDoubleClick",
+      "reason": "a macOS setting of the Mac's own, which ForeverLM only reads",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "CloudKitSync.didRepublishBookCovers.v4",
+      "reason": "one-shot republish marker for this Mac",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "CloudKitSync.didRepublishMeetingIcons.v1",
+      "reason": "one-shot republish marker for this Mac",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "CloudKitSync.didRepublishPaperThumbnails.v1",
+      "reason": "one-shot republish marker for this Mac",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "CloudKitSync.lastContainerEnvironment.v2",
+      "reason": "which container this Mac last synced against",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "CloudKitSync.lastContainerIdentifier.v1",
+      "reason": "which container this Mac last synced against",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "StorageService.didAdoptBookFolderNames.v1",
+      "reason": "one-shot adoption marker",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "account.aboutYou",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "account.displayName",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "account.showsCompCrown",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "activityPaneLayout",
+      "reason": "how this Mac's day activity pane is laid out",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "ai.usage.ledger_last_failure",
+      "reason": "diagnostics counters",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "ai.usage.ledger_write_failures",
+      "reason": "diagnostics counters",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "aiBackground.meetingsMayUseFree",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "familyMember"
+      ]
+    },
+    {
+      "name": "aiBackground.model",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "familyMember"
+      ]
+    },
+    {
+      "name": "aiBackground.provider",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "familyMember"
+      ]
+    },
+    {
+      "name": "aiBackground.usageConsented",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "familyMember"
+      ]
+    },
+    {
+      "name": "aiCapabilities.openRouterReasoningEfforts",
+      "reason": "remote capability cache, refetched",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "aiCapabilities.openRouterReleaseDate",
+      "reason": "remote capability cache, refetched",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "aiCapabilities.openRouterVision",
+      "reason": "remote capability cache, refetched",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "aiFreeModelRestrictions.refusedAt.v1",
+      "reason": "device-local backoff: when a free model last refused this device",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "aiModelPriceWatch.announcedEnded.v1",
+      "reason": "the ended free offers this Mac has already announced",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "aiModelPriceWatch.lastSeen.v1",
+      "reason": "what this Mac last saw each free model cost",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "aiModelQualification.v1",
+      "reason": "this device's record of the model test runs it made",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "aiPricing.openRouterRemotePrices",
+      "reason": "remote price cache",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "aiPricing.openRouterRemotePricesFetchedAt",
+      "reason": "remote price cache",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "aiPrivacy.denyDataCollection",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "phoneWritable"
+      ]
+    },
+    {
+      "name": "aiPrivacy.openRouterTrainingSlugs",
+      "reason": "remote observation cache: the hosts this device saw train on prompts",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "aiRoute.background",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "aiRoute.background.multimodal",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "aiRoute.defaultChat",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "aiRoute.defaultChat.effort",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "aiRoute.defaultChat.speed",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "aiRoute.docs",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "aiRoute.textRoutingMode",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "aiSpend.backgroundDailyCapNoticeDay",
+      "reason": "the day this Mac last said the background cap was reached",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "aiSpend.backgroundDailyCapUSD",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "aiSpend.stoppedSteps",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "aiTask.chat.effort",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "familyMember"
+      ]
+    },
+    {
+      "name": "aiTask.chat.model",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "familyMember"
+      ]
+    },
+    {
+      "name": "aiTask.chat.provider",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "familyMember"
+      ]
+    },
+    {
+      "name": "aiTask.chat.speed",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "familyMember"
+      ]
+    },
+    {
+      "name": "ai_provider",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "anthropic_model",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "anthropic_model_explicitly_picked",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "appUpdate.lastNotifiedBuild",
+      "reason": "which update this Mac has already offered",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "backgroundModels.shortlist.images",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "backgroundModels.shortlist.text",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "browser.profiles.v1",
+      "reason": "a profile names a data store on this disk; a synced list would name jars another Mac does not have",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "browser.session.v1",
+      "reason": "which tabs are open in this Mac's browser window",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "calendar.groups",
+      "reason": "which of this Mac's calendars belong to which group; calendars are named per Mac",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "cerebras_model",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "chat.recentModels",
+      "reason": "the models this Mac's chat picker used last",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "chat.slowFreeModelOffer.dismissed",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "chat.unread.v1",
+      "reason": "device-local: the chats this Mac shows as unread",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "chatModels.enabledIDs",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "chatModels.openRouterCustom",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "chatModels.shortlist",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "cohortReview.dismissedSignatures.v1",
+      "reason": "\"not right now\" is about the machine being sat at; syncing it would let a dismissal here swallow the phone's morning nudge",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "discovery.browserAccessPromptDismissed",
+      "reason": "whether this Mac's browser-access prompt was dismissed; the permission is per Mac",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "discovery.podcastAccessPromptDismissed",
+      "reason": "whether this Mac's podcast-access prompt was dismissed; the permission is per Mac",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "docs.outlineFolds",
+      "reason": "view state of each doc on this Mac, not a setting",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "enrichedChapterTitles",
+      "reason": "cache keyed by local PDF path",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "fireworks_model",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "focus.nudgeBackOnTrack",
+      "reason": "whether this Mac watches for drift; it is about the screen being sat at",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "focus.readScreen",
+      "reason": "whether this Mac may read its own screen for the drift watcher",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "foreverlm.grader.v1",
+      "reason": "which grader this phone's review uses",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "gemini_model",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "gettingStarted.aiSubscriptions",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "gettingStarted.completed",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "gettingStarted.completedSteps",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "gettingStarted.dismissed",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "gettingStarted.suggestionsArmed",
+      "reason": "device-local as it stands: declared with the synced wrapper but never listed as synced, so it never left this Mac; whether it should follow the account is undecided",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "gettingStarted.suggestionsDone",
+      "reason": "device-local as it stands: declared with the synced wrapper but never listed as synced, so it never left this Mac; whether it should follow the account is undecided",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "gettingStarted.welcomeSeen",
+      "reason": "device-local as it stands: declared with the synced wrapper but never listed as synced, so it never left this Mac; whether it should follow the account is undecided",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "groq_model",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "images.drawNotebookCovers.automatic",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "generation2Only"
+      ]
+    },
+    {
+      "name": "images.drawQuizPictures.automatic",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "images.generateIcons",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "images.generateIcons.automatic",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "images.model",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "images.source",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "images.style",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "installer.keptImagePaths",
+      "reason": "installer images on this Mac's disk",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "ios.listen.automaticallyContinuesBooks",
+      "reason": "iPhone-local: whether this phone plays the next chapter of a book",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "ios.listen.hasAskedToAutomaticallyContinueBooks",
+      "reason": "iPhone-local: one-shot marker that this phone asked about continuing books",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "ios.listen.playbackSpeed",
+      "reason": "iPhone-local: this phone's listening speed",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "ios.notebooks.lastOpenedNotebookID",
+      "reason": "iPhone-local: the notebook this phone reopens",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "ios.notebooks.lastOpenedProjectID",
+      "reason": "iPhone-local: the notebook this phone reopened, under the name before notebooks; read once and cleared",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "ios.offline.savedSourceIDs",
+      "reason": "iPhone-local: the sources kept on this phone for offline reading",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "ios.readAloud.confirmsEstimatedCost",
+      "reason": "iPhone-local: whether this phone confirms a narration's cost",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "ios.readAloud.model",
+      "reason": "iPhone-local: the speech model this phone last used; the account's pick is the synced model row",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "ios.reader.fontScale",
+      "reason": "iPhone-local: this phone's reader text size",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "ios.siri.pendingCommand",
+      "reason": "iPhone-local: a Siri command waiting for this phone's app to open",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "ios.space.pagesExpanded.v1",
+      "reason": "iPhone-local: which pages' subpages this phone's Space shows",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "ios.space.recents.v1",
+      "reason": "iPhone-local: this phone's Space Recents",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "ios.space.sort",
+      "reason": "iPhone-local: the sort in this phone's Space",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "journals.notifyOnMatch.v1",
+      "reason": "device-local like the journal feeds it announces; a banner is about the Mac that found the article",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "keychain.retiredProductFileVaultAdopted",
+      "reason": "one-shot adoption marker",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "knowledgeMap.library.v1",
+      "reason": "view state of this Mac's canvas",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "knowledgeMap.minimap.v1",
+      "reason": "view state of this Mac's canvas",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "knowledgeMap.openCanvasID",
+      "reason": "the canvas this Mac last had open",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "knowledgeMap.summaryCache.v1",
+      "reason": "cache of generated summaries, rebuilt on demand",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "knowledgeMap.writtenFaces.enabled",
+      "reason": "whether this Mac's canvas writes card faces; never listed as synced",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "library.showsRecent.v1",
+      "reason": "how this Mac's Library lists its sources",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "license.activationDeviceID",
+      "reason": "identifies this Mac (retired license rail)",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "license.fallbackDeviceID",
+      "reason": "identifies this Mac (retired license rail)",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "loadingIndicator.speed",
+      "reason": "device-local animation pace, read directly on both platforms",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "macos.tts.apple.voiceIdentifier",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "macos.tts.confirmCostBeforeListening",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "macos.tts.elevenlabs.voice",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "macos.tts.gemini.voice",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "macos.tts.groq.voice",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "macos.tts.local_qwen3.instructions",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "macos.tts.local_qwen3.voice",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "macos.tts.openai.instructions",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "macos.tts.openai.voice",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "macos.tts.openrouter.voice",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "phoneWritable"
+      ]
+    },
+    {
+      "name": "macos.tts.speed",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "macos.tts.together.voice",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "macos.tts.xai.voice",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "managedAI.appAccess",
+      "reason": "cache of server-held account state",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "managedAI.comp.textRouter",
+      "reason": "cache of server-held account state",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "managedAI.creditsAreEmpty",
+      "reason": "cache of server-held account state",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "managedAI.modelAccess",
+      "reason": "cache of server-held account state",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "managedAI.serverClockOffset",
+      "reason": "this device's clock against the server's",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "mcpCloudflareTunnelURL",
+      "reason": "per-machine tunnel",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "mcp_oauth_pairing_code",
+      "reason": "single-use",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "meetingListOrder",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "meetings.removedGroupIdentities",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "meetings.removedGroupTitles",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "meetings.transcribeWhenGoogleDidNot",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "memory.autoDraft.failures.v1",
+      "reason": "device-local retry backoff for background card drafting",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "memory.autoDraft.lastRun.v1",
+      "reason": "this device's last background card drafting run",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "memory.auto_draft_cards",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "memory.draftBanner.ledger.v1",
+      "reason": "which sources this Mac's morning cards banner has told, and the banner it has queued with this Mac's notification centre",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "memory.draftNudge.putOffOn.v1",
+      "reason": "the day this Mac's Cards to check card was put off",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "memory.draft_nudges",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "memory.new_cards_per_day",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "memoryReview.activity.deviceID.v1",
+      "reason": "identifies this device's memory_review_activity rows",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "memoryReview.budgetMinutes.v1",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "phoneWritable"
+      ]
+    },
+    {
+      "name": "memoryReview.cardsFinishedDay",
+      "reason": "the day this Mac's card review ran out of cards",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "memoryReview.dailyPreparation.enabled.v1",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "phoneWritable"
+      ]
+    },
+    {
+      "name": "memoryReview.dailyPreparation.hour.v1",
+      "reason": "device-local hour for the daily review preparation",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "memoryReview.dailyPreparation.lastAttempt.v1",
+      "reason": "this device's preparation receipt for today",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "memoryReview.dailyPreparation.offerDecided.v1",
+      "reason": "one-shot marker: the in-chat offer was answered here",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "memoryReview.dailyPreparation.offerShown.v1",
+      "reason": "how many planning waits showed the in-chat offer here",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "memoryReview.sessionEnd",
+      "reason": "when this Mac's last memory review session ended",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "memoryReviewLayout",
+      "reason": "how this device lays out the memory review",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "meta_model",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "metadataVisibility",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "notebook.sources.sort",
+      "reason": "the sort of this Mac's notebook Sources column",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "notebook.sourcesColumnWidth",
+      "reason": "absolute pixels, display-dependent",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "notebooks.home.layout.v1",
+      "reason": "device-local: Grid or List on this device's Home",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "notebooks.home.sort.v1",
+      "reason": "device-local: the sort on this device's Home",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "notebooks.home.sortReversed.v1",
+      "reason": "device-local: the sort's direction on this device's Home",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "notepad.pageColumnWidth",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "notifications.readMarks.v1",
+      "reason": "device-local: what this Mac's bell shows as read",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "nvidia_model",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "openRouterAudioPrices.readAt.v1",
+      "reason": "remote price cache for speech models",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "openRouterAudioPrices.table.v1",
+      "reason": "remote price cache for speech models",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "openai_model",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "openai_model_explicitly_picked",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "openrouter_model",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "pendingMigrationV1Done",
+      "reason": "one-shot marker",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "planner.dayHours.end.v1",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "planner.dayHours.start.v1",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "planner.forcePlanningTheDay",
+      "reason": "a switch for checking the Plan your day ask on this Mac",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "planner.planTheDay.answeredOn",
+      "reason": "the day this Mac's Plan your day ask was last answered",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "planner.planTheDay.askedOn",
+      "reason": "the day this Mac last asked to plan the day",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "planner.planTheDay.chatOpenedOn",
+      "reason": "the day this Mac last opened the planning chat",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "planner.suggestPlanningTheDay",
+      "reason": "whether this Mac asks to plan the day; asked on the Mac being sat at",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "podcastSortMode",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "podcasts.blockedShows",
+      "scope": "account",
+      "synced": false,
+      "traits": [
+        "record"
+      ]
+    },
+    {
+      "name": "podcasts.followedShows",
+      "reason": "a follow only adds episodes that already reach every Mac through sync, so a per-Mac follow costs nothing",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "podcasts.youtubeFallbackShows",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "preferenceStore.unconfirmedWrites",
+      "reason": "bookkeeping for this Mac's own unfinished writes",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "preferredBrowser",
+      "reason": "defaults-write escape hatch",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "quickAssistant.shortcut",
+      "reason": "this Mac's keyboard shortcut for the quick assistant",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "readAloud.autoGenerate.allowPaidVoices",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "readAloud.autoGenerate.articles",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "phoneWritable"
+      ]
+    },
+    {
+      "name": "readAloud.autoGenerate.books",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "phoneWritable"
+      ]
+    },
+    {
+      "name": "readAloud.autoGenerate.constraint.article",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "readAloud.autoGenerate.constraint.book",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "readAloud.autoGenerate.constraint.course",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "readAloud.autoGenerate.constraint.explainer",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "readAloud.autoGenerate.constraint.paper",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "readAloud.autoGenerate.courses",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "phoneWritable"
+      ]
+    },
+    {
+      "name": "readAloud.autoGenerate.explainers",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "phoneWritable"
+      ]
+    },
+    {
+      "name": "readAloud.autoGenerate.papers",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "phoneWritable"
+      ]
+    },
+    {
+      "name": "readAloud.costConfirmation.suppressedModels.v1",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "phoneWritable"
+      ]
+    },
+    {
+      "name": "reader.meetingTranscriptBesideVideo",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "reader.meetingTranscriptHidden",
+      "reason": "view state: whether this Mac's meeting reader hides the transcript",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "reader.meetingVideoPaneFraction",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "reader.meetingVideoPaneWidthFraction",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "reader.recentSourceIDs",
+      "reason": "cache; deliberately out of the sync pipeline",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "reader.videoQuizCheckpoints",
+      "reason": "retired with the video checkpoint quiz; never read",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "reader.youtubeTranscriptBesideVideo",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "reader.youtubeVideoPaneFraction",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "reader.youtubeVideoPaneWidthFraction",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "readerOriginalPageColors",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "readingList.importSince",
+      "reason": "per-Mac Reading List backlog cutoff from setup; qualifies the per-Mac browser choice",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "readingList.importWindow",
+      "reason": "per-Mac Reading List backlog choice from setup; names the cutoff above",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "readingListBrave",
+      "reason": "per-Mac browser choice from setup; each Mac has its own browsers",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "readingListChrome",
+      "reason": "per-Mac browser choice from setup; each Mac has its own browsers",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "readingListSafari",
+      "reason": "per-Mac browser choice from setup; each Mac has its own browsers",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "retiredDefaultsCleanup.v1",
+      "reason": "one-shot cleanup marker: this Mac's preferences hold no retired keys",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "retiredGoogleCalendarGrantsPurged.v1",
+      "reason": "one-shot cleanup marker",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "retiredProviderDataPurged.v1",
+      "reason": "one-shot cleanup marker",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "retiredQuestionCalibrationCleared.v1",
+      "reason": "one-shot cleanup marker",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "retiredReminderNotificationsCleared.v1",
+      "reason": "one-shot cleanup marker",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "review.questionCalibration.v1",
+      "reason": "retired with the chat's thumbs; cleared once, never read",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "scheduledTasks.keepMacAwake",
+      "reason": "device-local: whether this Mac stays awake for scheduled tasks",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "screenRecordMode.confirmedAdmin",
+      "reason": "admin-only filming scope; must reach no other device or account",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "screenRecordMode.cutoff",
+      "reason": "admin-only filming scope; must reach no other device or account",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "screenRecordMode.enabled",
+      "reason": "admin-only filming scope; must reach no other device or account",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "screenRecordMode.imageIDs",
+      "reason": "admin-only filming scope; must reach no other device or account",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "screenRecordMode.librarySources",
+      "reason": "admin-only filming scope; must reach no other device or account",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "screenRecordMode.meetingGroupIDs",
+      "reason": "admin-only filming scope; must reach no other device or account",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "screenRecordMode.notebookID",
+      "reason": "admin-only filming scope; must reach no other device or account",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "screenRecordMode.sourceIDs",
+      "reason": "admin-only filming scope; must reach no other device or account",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "sharing.rightsAffirmation",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "phoneWritable"
+      ]
+    },
+    {
+      "name": "showReadStatus",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "showReviewedStatus",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "showSyncSubtitles",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "sourceIdeas.extractionFailures.v1",
+      "reason": "device-local retry backoff for idea extraction",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "space.boardLens",
+      "reason": "which lens this Mac's Board shows",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "space.groupByCollection",
+      "reason": "device-local: whether this Mac's Space groups All under its collections",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "space.layout",
+      "reason": "device-local: List or Grid in this Mac's Space",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "space.pagesExpanded",
+      "reason": "device-local: which pages' subpages this Mac's Space lists show",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "space.recents.v1",
+      "reason": "device-local: the Space sidebar's Recents on this Mac",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "space.sidebar.recentsFolded",
+      "reason": "whether this Mac's Space sidebar folds its Recents",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "space.sidebarHidden",
+      "reason": "device-local: whether this Mac's Space sidebar is hidden",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "space.sort",
+      "reason": "device-local: the sort in this Mac's Space",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "stt_local_server_url",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "stt_model_assemblyai",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "stt_model_cartesia",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "stt_model_groq",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "stt_model_media",
+      "reason": "the model this Mac transcribes media files with; never listed as synced",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "stt_model_openai",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "stt_model_openrouter",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "stt_model_tailscale",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "stt_model_whisperkit",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "stt_model_wispr",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "stt_provider",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "studio.activeMCPNotebookID",
+      "reason": "which Notebook this Mac's own MCP endpoint serves",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "studio.activeTeamID",
+      "reason": "the team space this Mac's windows last showed",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "studio.applePodcastDiscoveryScope",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "studio.assistantIntegrationsEnabled",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "studio.assistantOverlay.height",
+      "reason": "absolute pixels, display-dependent",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "studio.assistantOverlay.width",
+      "reason": "absolute pixels, display-dependent",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "studio.centerTabGroups.v1",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "studio.chatOrder",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "studio.chatPoppedOut",
+      "reason": "transient window state",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "studio.courseOrder",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "studio.excludedKnowledgeSourceTabs",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "studio.expandedPanel",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "studio.hiddenTabs",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "studio.integrationTabUnpinDefaultsApplied",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "studio.integrationTabsUnpinnedByDefault",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "studio.lastSessionResumesContent",
+      "reason": "this Mac's window restore",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "studio.lastSessionWindows",
+      "reason": "this Mac's window restore",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "studio.learningProgressPanelHeight",
+      "reason": "absolute pixels, display-dependent",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "studio.mcpContextTrayHeight",
+      "reason": "absolute pixels, display-dependent",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "studio.movableOverlay.pageSideChat.dock",
+      "reason": "dragged overlay positions, absolute pixels",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "studio.navigation.chatsExpanded.v1",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "studio.navigation.expandedProjectIDs.v1",
+      "scope": "account",
+      "synced": false,
+      "traits": [
+        "record"
+      ]
+    },
+    {
+      "name": "studio.navigation.hiddenChatsExpanded.v1",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "studio.navigation.hiddenFooterItems.v1",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "studio.navigation.hiddenItems.v1",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "studio.navigation.shortcuts.v1",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "studio.navigation.stripFooterOrder.v1",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "studio.navigation.stripOrder.v1",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "studio.navigationRailVisible",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "studio.navigationRailWidth",
+      "reason": "absolute pixels, display-dependent",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "studio.notebookLastWorked.v1",
+      "reason": "device-local: the notebook each new window on this Mac opens in",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "studio.pinnedNotebooks.v1",
+      "scope": "account",
+      "synced": false,
+      "traits": [
+        "record"
+      ]
+    },
+    {
+      "name": "studio.projectOrder",
+      "scope": "account",
+      "synced": false,
+      "traits": [
+        "record"
+      ]
+    },
+    {
+      "name": "studio.readerPoppedOut",
+      "reason": "transient window state",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "studio.recordingPrivacyCutoff",
+      "reason": "retired user-facing recording privacy boundary",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "studio.reviewSessionPanelHeight",
+      "reason": "absolute pixels, display-dependent",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "studio.showMCPStatusLight",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "studio.showSearchPanel",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "studio.showSourceTabLabels",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "studio.sourceTabBarLayout",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "studio.sourceTabIconSize",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "studio.sourcesPanelWidth",
+      "reason": "absolute pixels, display-dependent",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "studio.tabOrder",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "studio.unpinnedProjects",
+      "reason": "retired with the rail that listed every notebook; never read",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "studio.zoomLocalRecordingAutoConversions",
+      "reason": "which of this Mac's recordings it has already converted",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "studio.zoomLocalRecordingIgnoredFolders",
+      "reason": "folders on this Mac's disk",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "studio.zoomLocalTranscriptFolder",
+      "reason": "a folder on this Mac's disk",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "sync.spaceLastOpenedAtByTeam",
+      "reason": "when this device last opened each team space; orders its own fetches",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "thinkFirst.askedSources.v1",
+      "reason": "the sources whose gist this Mac has already asked about",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "thinkFirst.counts.v1",
+      "reason": "how often each Think first moment was answered or skipped here",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "thinkFirst.level",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "together_model",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "trial.startDate",
+      "reason": "retired 7-day-trial marker; stays out of the sync rail",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "tts_local_server_url",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "tts_model_apple",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "tts_model_cartesia",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "tts_model_elevenlabs",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "tts_model_gemini",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "tts_model_groq",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "tts_model_local_mac",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "tts_model_openai",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "tts_model_openrouter",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration",
+        "phoneWritable"
+      ]
+    },
+    {
+      "name": "tts_model_tailscale",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "tts_model_together",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "tts_model_xai",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "tts_provider",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration",
+        "phoneWritable"
+      ]
+    },
+    {
+      "name": "uiZoomStep",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "updates.betaReleases",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "updates.runningBuildIsBeta.v1",
+      "reason": "which channel the build running on this Mac came from",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "userCourseNames",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "userMeetingGroupNames",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "videoSortMode",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "videos.model",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "videos.resolution",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "voiceMode.voice",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "phoneWritable"
+      ]
+    },
+    {
+      "name": "webLinks.opensIn",
+      "reason": "whether this Mac's links open in its Browser pane or in this Mac's own default browser",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "whatsNew.lastSeenBuild",
+      "reason": "which What's New this Mac has shown; each Mac updates on its own schedule",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "widget.today.snapshot",
+      "reason": "the Today widget's snapshot, kept in the app group's suite on this phone",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "workingNotes.enabled.v1",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "xai_model",
+      "scope": "account",
+      "synced": true,
+      "traits": [
+        "modelConfiguration"
+      ]
+    },
+    {
+      "name": "youtube.autoImportEnabled",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    },
+    {
+      "name": "youtube.hiddenChannels",
+      "reason": "retired: migrated into the hidden-channels table, which syncs, and then removed",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "youtube.likedTranscriptFormattingEnabled",
+      "scope": "account",
+      "synced": true,
+      "traits": []
+    }
+  ],
+  "prefixes": [
+    {
+      "prefix": "CK",
+      "reason": "a foreign domain's keys that land in the app's defaults (CloudKit)",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "prefix": "NSNavPanel",
+      "reason": "AppKit open/save panel state",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "prefix": "NSOSPLastRootDirectory",
+      "reason": "AppKit open/save panel state",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "prefix": "NSSplitView",
+      "reason": "AppKit splitter geometry",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "prefix": "NSWindow Frame",
+      "reason": "AppKit window geometry, about 180 of these in the plist",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "prefix": "SK",
+      "reason": "a foreign domain's keys that land in the app's defaults (StoreKit)",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "prefix": "SU",
+      "reason": "a foreign domain's keys that land in the app's defaults (Sparkle)",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "prefix": "ai.usage.ledger_",
+      "reason": "diagnostics counters",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "prefix": "aiBackground.",
+      "scope": "account",
+      "synced": true
+    },
+    {
+      "prefix": "aiBackups.",
+      "scope": "account",
+      "synced": true
+    },
+    {
+      "prefix": "aiCapabilities.",
+      "reason": "remote capability cache, refetched",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "prefix": "aiHost.",
+      "scope": "account",
+      "synced": true
+    },
+    {
+      "prefix": "aiPricing.",
+      "reason": "remote price cache, ~50 KB",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "prefix": "aiRoute.task.",
+      "scope": "account",
+      "synced": true
+    },
+    {
+      "prefix": "aiSeeded.task.",
+      "scope": "account",
+      "synced": true
+    },
+    {
+      "prefix": "aiTask.",
+      "scope": "account",
+      "synced": true
+    },
+    {
+      "prefix": "billing_trial_start_",
+      "reason": "anti-tamper",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "prefix": "cards.state.",
+      "record": "card",
+      "scope": "account",
+      "synced": true
+    },
+    {
+      "prefix": "chat.pinned.",
+      "scope": "account",
+      "synced": true
+    },
+    {
+      "prefix": "com.apple.",
+      "reason": "a foreign domain's keys that land in the app's defaults (Apple frameworks)",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "prefix": "connectorHealth.",
+      "record": "device",
+      "scope": "account",
+      "synced": false
+    },
+    {
+      "prefix": "course.focus.",
+      "record": "enrollment",
+      "scope": "account",
+      "synced": false
+    },
+    {
+      "prefix": "courseQuiz.score.",
+      "record": "sitting",
+      "scope": "account",
+      "synced": true
+    },
+    {
+      "prefix": "ios.",
+      "reason": "iOS-local; reader progress must never sync back",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "prefix": "kAOSUI",
+      "reason": "a foreign domain's keys that land in the app's defaults (Apple Account UI)",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "prefix": "lectureQuiz.score.",
+      "record": "sitting",
+      "scope": "account",
+      "synced": true
+    },
+    {
+      "prefix": "listen.position.",
+      "record": "readingState",
+      "scope": "account",
+      "synced": false
+    },
+    {
+      "prefix": "map.layout.",
+      "scope": "account",
+      "synced": true
+    },
+    {
+      "prefix": "meetingFolder.image.",
+      "scope": "account",
+      "synced": true
+    },
+    {
+      "phoneWritable": true,
+      "prefix": "memory.reviewDepth.type.",
+      "scope": "account",
+      "synced": true
+    },
+    {
+      "prefix": "notebook.chatContextNotebooks.",
+      "record": "notebookState",
+      "scope": "account",
+      "synced": false
+    },
+    {
+      "prefix": "notebook.chatExcluded.",
+      "record": "notebookState",
+      "scope": "account",
+      "synced": false
+    },
+    {
+      "prefix": "notebook.collections.",
+      "record": "notebookState",
+      "scope": "account",
+      "synced": false
+    },
+    {
+      "prefix": "notebook.naming.",
+      "scope": "account",
+      "synced": true
+    },
+    {
+      "prefix": "notebook.questions.",
+      "scope": "account",
+      "synced": true
+    },
+    {
+      "prefix": "notebook.thinkFirst.",
+      "scope": "account",
+      "synced": true
+    },
+    {
+      "prefix": "notebookCollection.",
+      "scope": "account",
+      "synced": true
+    },
+    {
+      "prefix": "openai_slides_skill_",
+      "reason": "cache",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "prefix": "page.parent.",
+      "scope": "account",
+      "synced": true
+    },
+    {
+      "prefix": "page.pinned.",
+      "scope": "account",
+      "synced": true
+    },
+    {
+      "prefix": "page.space.",
+      "scope": "account",
+      "synced": true
+    },
+    {
+      "prefix": "pageSpace.",
+      "scope": "account",
+      "synced": true
+    },
+    {
+      "prefix": "pageSpaceTrash.",
+      "scope": "account",
+      "synced": true
+    },
+    {
+      "phoneWritable": true,
+      "prefix": "readAloud.voiceRating.",
+      "scope": "account",
+      "synced": true
+    },
+    {
+      "prefix": "reader.pdfRotations.",
+      "scope": "account",
+      "synced": true
+    },
+    {
+      "prefix": "screenRecordMode.",
+      "reason": "admin-only filming scope; must reach no other device or account",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "prefix": "securityBookmark_",
+      "reason": "security-scoped bookmarks are machine-local",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "prefix": "spaceList.",
+      "scope": "account",
+      "synced": true
+    },
+    {
+      "prefix": "spaceListItem.",
+      "scope": "account",
+      "synced": true
+    },
+    {
+      "prefix": "studio.movableOverlay.",
+      "reason": "dragged overlay positions, absolute pixels",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "prefix": "studio.workspaceView.",
+      "scope": "account",
+      "synced": true
+    },
+    {
+      "prefix": "usage_daily_total_",
+      "reason": "cache",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "prefix": "usage_records_",
+      "reason": "cache",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "prefix": "walkthroughDeck.position.",
+      "reason": "where this phone left each walkthrough deck",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "prefix": "x_bookmarks_",
+      "reason": "sync cursor",
+      "scope": "device",
+      "synced": false
+    }
+  ]
+}

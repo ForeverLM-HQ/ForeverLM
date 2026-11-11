@@ -154,6 +154,9 @@ targets:
       - name: Enforce AI Model Routing
         script: "/bin/sh \"${SRCROOT}/scripts/check_ai_model_routing.sh\""
         basedOnDependencyAnalysis: false
+      - name: Enforce Preference Keys
+        script: "/bin/sh \"${SRCROOT}/scripts/check_preference_keys.sh\""
+        basedOnDependencyAnalysis: false
     sources:
       - Shared
       - MCP
@@ -332,7 +335,12 @@ targets:
       - name: Enforce AI Model Routing
         script: "/bin/sh \"${SRCROOT}/scripts/check_ai_model_routing.sh\""
         basedOnDependencyAnalysis: false
+      - name: Enforce Preference Keys
+        script: "/bin/sh \"${SRCROOT}/scripts/check_preference_keys.sh\""
+        basedOnDependencyAnalysis: false
     sources:
+      # Every preference key, declared once for both platforms (`Prefs`), and the typed access to them.
+      - Shared/Preferences
       - iOS/ForeverLMMobileApp.swift
       - iOS/MobileDesign.swift
       - iOS/MobileKeychainService.swift
@@ -497,6 +505,7 @@ targets:
       - iOS/MobileOfflineLibrary.swift
       - iOS/MobileOfflineViews.swift
       - iOS/MobileModelPreferenceStore.swift
+      - iOS/MobileModelPreferenceStore+Typed.swift
       - iOS/MobileSourcePDFView.swift
       - iOS/MobilePaperFigureView.swift
       # XCUITest self-check line (DEBUG-only; launch-argument gated).
