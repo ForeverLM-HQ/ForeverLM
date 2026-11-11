@@ -157,10 +157,10 @@ enum JournalWatch {
     /// Off by default: the learner opts in from Settings → Journals, and the
     /// key stays on this Mac because a banner is about the machine that found
     /// the article, not the account (`SyncedPreferenceKeys.excluded`).
-    static let notifyOnMatchKey = "journals.notifyOnMatch.v1"
+    static let notifyOnMatchKey = Prefs.Planner.journalsNotifyOnMatch.name
 
     static var notifiesOnMatch: Bool {
-        UserDefaults.standard.bool(forKey: notifyOnMatchKey)
+        Preferences.value(Prefs.Planner.journalsNotifyOnMatch) ?? false
     }
 
     /// Splits a pasted block into candidate URLs: one per line, or several on

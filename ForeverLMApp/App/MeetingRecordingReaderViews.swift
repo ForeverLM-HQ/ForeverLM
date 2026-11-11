@@ -217,19 +217,19 @@ struct MeetingRecordingReaderView: View {
     /// already read, so an untranscribed session is a reason to look at the Doc,
     /// not a reason to pay for speech-to-text. See
     /// `StudioViewModel.isMeetingOwnTranscriptionEnabled`.
-    @SyncedStorage(StudioViewModel.meetingOwnTranscriptionEnabledKey)
-    private var canTranscribeOwnRecordings = false
-    @SyncedStorage(wrappedValue: 0, "reader.meetingVideoPaneFraction") private var storedVideoFraction: Double
+    @PreferenceStorage(Prefs.Meetings.transcribeWhenGoogleDidNot)
+    private var canTranscribeOwnRecordings
+    @PreferenceStorage(Prefs.Readers.meetingVideoPaneFraction) private var storedVideoFraction
     @State private var draggedVideoHeight: CGFloat?
     @State private var dragStartVideoHeight: CGFloat?
 
     /// Layout choice: the transcript beside the recording instead of below it,
     /// as the video reader offers (`reader.youtubeTranscriptBesideVideo`). Off
     /// by default, so a meeting opens as it always has.
-    @SyncedStorage(wrappedValue: false, "reader.meetingTranscriptBesideVideo") private var transcriptBesideVideo: Bool
+    @PreferenceStorage(Prefs.Readers.meetingTranscriptBesideVideo) private var transcriptBesideVideo
     /// The recording column's width as a fraction of the pane when the
     /// transcript is beside it; 0 means automatic.
-    @SyncedStorage(wrappedValue: 0, "reader.meetingVideoPaneWidthFraction") private var storedVideoWidthFraction: Double
+    @PreferenceStorage(Prefs.Readers.meetingVideoPaneWidthFraction) private var storedVideoWidthFraction
     @State private var draggedVideoWidth: CGFloat?
     @State private var dragStartVideoWidth: CGFloat?
 
@@ -237,7 +237,7 @@ struct MeetingRecordingReaderView: View {
     /// taking the whole pane (a notebook beside it holds the notes). Off by
     /// default; the recording's corner button and the bar's button toggle it.
     /// Kept on this Mac, not synced: it follows the window's room, not the account.
-    @AppStorage("reader.meetingTranscriptHidden") private var hidesTranscript = false
+    @AppStorage(Prefs.Readers.meetingTranscriptHidden) private var hidesTranscript
 
     private static let minVideoPaneWidth: CGFloat = 280
     private static let minTranscriptPaneWidth: CGFloat = 340

@@ -45,7 +45,7 @@ extension Prefs {
         static let browserProfiles = DeviceKey<Any?>("browser.profiles.v1", coding: .any, reason: "a profile names a data store on this disk; a synced list would name jars another Mac does not have")
         static let browserSession = DeviceKey<Any?>("browser.session.v1", coding: .any, reason: "which tabs are open in this Mac's browser window")
         /// Caches and sync cursors — refetched or rebuilt, and meaningless elsewhere.
-        static let retiredRecentSourceIDs = DeviceKey<Any?>.unread("reader.recentSourceIDs", reason: "cache; deliberately out of the sync pipeline")
+        static let recentSourceIDs = DeviceKey<[String]?>("reader.recentSourceIDs", reason: "cache; deliberately out of the sync pipeline")
         static let retiredEnrichedChapterTitles = DeviceKey<Any?>.unread("enrichedChapterTitles", reason: "cache keyed by local PDF path")
         /// Synced until 2026-09-28: the Quiz me switch on a video's transcript
         /// bar. The checkpoint quiz it turned on is gone (a course quiz is taken
@@ -68,7 +68,7 @@ extension Prefs {
             webLinksOpenIn.erased,
             browserProfiles.erased,
             browserSession.erased,
-            retiredRecentSourceIDs.erased,
+            recentSourceIDs.erased,
             retiredEnrichedChapterTitles.erased,
             retiredVideoQuizCheckpoints.erased,
         ]

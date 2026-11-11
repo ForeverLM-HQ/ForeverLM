@@ -22,25 +22,41 @@ enum KnowledgeMapRows {
 
     /// The row as stored; nil when there is none, which is no canvas.
     static func storedLayout(mapID: String) -> KnowledgeMapLayout? {
-        KnowledgeMapLayout(preferenceValue: defaults.object(forKey: KnowledgeMap.layoutPreferenceKey(mapID: mapID)))
+        KnowledgeMapLayout(preferenceValue: defaults.object(forKey: Prefs.Families.mapLayout.name(mapID)))
     }
 
     /// Every canvas the rows hold now. The keys are built at runtime, so one
     /// scan of the defaults finds them.
     static func canvases() -> KnowledgeMapCanvases {
-        let rows = defaults.dictionaryRepresentation().filter { key, _ in
-            key.hasPrefix(KnowledgeMap.layoutKeyPrefix)
+        let family = Prefs.Families.mapLayout
+        var rows: [String: Any] = [:]
+        for (mapID, value) in family.rows(in: defaults) {
+            if let value { rows[family.name(mapID)] = value }
         }
         return KnowledgeMapCanvases(rows: rows)
     }
 
     /// Removes a canvas's row: Delete Forever.
     static func remove(mapID: String) {
-        let key = KnowledgeMap.layoutPreferenceKey(mapID: mapID)
+        let key = Prefs.Families.mapLayout.key(mapID)
         if let override = overrideDefaults {
-            override.defaults.removeObject(forKey: key)
+            override.defaults.removeObject(forKey: key.name)
         } else {
-            PreferenceStore.remove(forKey: key)
+            Preferences.reset(key)
+        }
+    }
+
+    /// A display switch this Mac keeps (the minimap, the Library sidebar): off
+    /// until turned on.
+    static func flag(_ key: DeviceKey<Bool?>) -> Bool {
+        defaults.bool(forKey: key.name)
+    }
+
+    static func setFlag(_ value: Bool, for key: DeviceKey<Bool?>) {
+        if let override = overrideDefaults {
+            override.defaults.set(value, forKey: key.name)
+        } else {
+            Preferences.set(value, for: key)
         }
     }
 
@@ -51,12 +67,12 @@ enum KnowledgeMapRows {
         var layout = layout(mapID: mapID)
         change(&layout)
         layout.pruneTombstones(now: now.timeIntervalSince1970)
-        let key = KnowledgeMap.layoutPreferenceKey(mapID: mapID)
+        let key = Prefs.Families.mapLayout.key(mapID)
         if let override = overrideDefaults {
-            override.defaults.set(layout.preferenceValue, forKey: key)
+            override.defaults.set(layout.preferenceValue, forKey: key.name)
         } else {
             // `PreferenceStore` drops a write that changes nothing.
-            PreferenceStore.set(layout.preferenceValue, forKey: key)
+            Preferences.set(layout.preferenceValue, for: key)
         }
         return layout
     }
@@ -233,12 +249,10 @@ final class KnowledgeMapModel {
 
     /// Whether the minimap shows in the corner of the plane: this Mac's
     /// choice, remembered here and never synced, off until turned on.
-    static let minimapPreferenceKey = "knowledgeMap.minimap.v1"
-
-    var showsMinimap = KnowledgeMapRows.defaults.bool(forKey: KnowledgeMapModel.minimapPreferenceKey) {
+    var showsMinimap = KnowledgeMapRows.flag(Prefs.KnowledgeMap.showsMinimap) {
         didSet {
             guard showsMinimap != oldValue else { return }
-            KnowledgeMapRows.defaults.set(showsMinimap, forKey: Self.minimapPreferenceKey)
+            KnowledgeMapRows.setFlag(showsMinimap, for: Prefs.KnowledgeMap.showsMinimap)
             displayRevision &+= 1
         }
     }
@@ -257,12 +271,10 @@ final class KnowledgeMapModel {
     /// Whether the Library sidebar shows beside the plane: this Mac's choice,
     /// remembered here and never synced, closed until it is opened. It steps
     /// aside during a review in place without changing the choice.
-    static let libraryPreferenceKey = "knowledgeMap.library.v1"
-
-    var showsLibrary = KnowledgeMapRows.defaults.bool(forKey: KnowledgeMapModel.libraryPreferenceKey) {
+    var showsLibrary = KnowledgeMapRows.flag(Prefs.KnowledgeMap.showsLibrary) {
         didSet {
             guard showsLibrary != oldValue else { return }
-            KnowledgeMapRows.defaults.set(showsLibrary, forKey: Self.libraryPreferenceKey)
+            KnowledgeMapRows.setFlag(showsLibrary, for: Prefs.KnowledgeMap.showsLibrary)
         }
     }
 
@@ -417,7 +429,7 @@ final class KnowledgeMapModel {
         ) { [weak self] note in
             let keys = note.userInfo?[PreferenceStore.changedKeysKey] as? Set<String> ?? []
             MainActor.assumeIsolated {
-                guard let self, keys.contains(KnowledgeMap.layoutPreferenceKey(mapID: self.mapID)) else { return }
+                guard let self, keys.contains(Prefs.Families.mapLayout.name(self.mapID)) else { return }
                 self.reloadLayout()
             }
         }

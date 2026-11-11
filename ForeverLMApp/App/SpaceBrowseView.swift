@@ -102,7 +102,7 @@ enum SpaceScope: String, CaseIterable, Identifiable {
 enum SpaceSort: String, CaseIterable, Identifiable {
     case created, activity, name
 
-    static let preferenceKey = "space.sort"
+    static let preferenceKey = Prefs.Space.sort.name
     /// The order a Mac that never chose one lists in.
     static let standard: SpaceSort = .activity
 
@@ -129,10 +129,10 @@ enum SpaceSort: String, CaseIterable, Identifiable {
 enum SpaceLayout: String {
     case list, grid
 
-    static let preferenceKey = "space.layout"
+    static let preferenceKey = Prefs.Space.layout.name
     /// All grouped under its collections' headings (the sort and filter
     /// menu's Group by Collection): this Mac's choice, like the layout.
-    static let groupsByCollectionKey = "space.groupByCollection"
+    static let groupsByCollectionKey = Prefs.Space.groupByCollection.name
 }
 
 /// The rows chosen in a Space list, as Codex's Space selects several pages
@@ -392,8 +392,8 @@ struct SpaceBrowseView: View {
     let onLink: (ArtifactSection) -> Void
     let onNewSpace: () -> Void
 
-    @AppStorage(SpaceLayout.preferenceKey) private var layout: SpaceLayout = .list
-    @AppStorage(SpaceSort.preferenceKey) private var sort: SpaceSort = SpaceSort.standard
+    @AppStorage(Prefs.Space.layout, default: SpaceLayout.list) private var layout: SpaceLayout
+    @AppStorage(Prefs.Space.sort, default: SpaceSort.standard) private var sort: SpaceSort
     @State private var scope: SpaceScope = .all
     @State private var notebookFilter: ArtifactsNotebookFilter = .all
     @State private var images: [GeneratedImageStore.ImageGroup] = []
@@ -406,14 +406,14 @@ struct SpaceBrowseView: View {
     @State private var movingChat: ReviewSessionRecord?
     /// The pages whose subpages the list shows, as their ids joined by commas:
     /// this Mac's own arrangement, like Recents' fold (`space.pagesExpanded`).
-    @AppStorage("space.pagesExpanded") private var expandedPagesRaw = ""
+    @AppStorage(Prefs.Space.pagesExpanded) private var expandedPagesRaw
     /// The records Delete Forever or Empty Trash asks about.
     @State private var deletingForever: [String] = []
     /// The list whose Rename… its own name's menu asked for.
     @State private var renamingList: SpaceList?
     @State private var listWidth: CGFloat = 0
     /// All under its collections' headings (`SpaceLayout.groupsByCollectionKey`).
-    @AppStorage(SpaceLayout.groupsByCollectionKey) private var groupsByCollection = false
+    @AppStorage(Prefs.Space.groupByCollection) private var groupsByCollection
     /// The question a notebook's menu asked, answered on its row or card.
     @State private var notebookDialog: SpaceNotebookDialog?
     /// The chat Delete… asks about.

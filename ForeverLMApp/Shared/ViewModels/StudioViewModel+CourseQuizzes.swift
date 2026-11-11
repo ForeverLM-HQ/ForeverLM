@@ -302,7 +302,7 @@ extension StudioViewModel {
             courseQuizScores[id] = nil
             courseQuizSittings[id] = nil
             courseQuizFinishedSittings[id] = nil
-            PreferenceStore.remove(forKey: LectureQuizScore.preferenceKey(courseQuizID: id))
+            Preferences.reset(Prefs.Families.courseQuizScore.key(id))
             await refreshCourseOutline()
         } catch {
             showToast("Couldn't remove the quiz: \(error.localizedDescription)")
@@ -316,7 +316,7 @@ extension StudioViewModel {
     func recordCourseQuizScore(_ score: LectureQuizScore, quizID: String) {
         let kept = score.recorded(after: courseQuizScores[quizID])
         courseQuizScores[quizID] = kept
-        PreferenceStore.set(kept.preferenceValue, forKey: LectureQuizScore.preferenceKey(courseQuizID: quizID))
+        Preferences.set(kept.preferenceValue, for: Prefs.Families.courseQuizScore.key(quizID))
     }
 
     /// The quiz with its questions timed where their quotes are said, worked

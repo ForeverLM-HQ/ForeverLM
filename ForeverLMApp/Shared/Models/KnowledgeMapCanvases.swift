@@ -139,19 +139,21 @@ struct KnowledgeMapCanvases: Equatable, Sendable {
 /// choice and never synced, like the window's place in the Space: which
 /// canvas is open is an arrangement, not a fact about the canvas.
 enum KnowledgeMapOpenCanvas {
-    static let preferenceKey = "knowledgeMap.openCanvasID"
-
     /// The defaults the layout rows are read from: a test's own while it
     /// binds them (`KnowledgeMapRows.overrideDefaults`).
     private static var defaults: UserDefaults { KnowledgeMapRows.overrideDefaults?.defaults ?? .standard }
 
     static var storedID: String? {
-        defaults.string(forKey: preferenceKey).flatMap { $0.isEmpty ? nil : $0 }
+        defaults.string(forKey: Prefs.KnowledgeMap.openCanvasID.name).flatMap { $0.isEmpty ? nil : $0 }
     }
 
     static func remember(_ canvasID: String) {
         guard storedID != canvasID else { return }
-        defaults.set(canvasID, forKey: preferenceKey)
+        if let override = KnowledgeMapRows.overrideDefaults {
+            override.defaults.set(canvasID, forKey: Prefs.KnowledgeMap.openCanvasID.name)
+        } else {
+            Preferences.set(canvasID, for: Prefs.KnowledgeMap.openCanvasID)
+        }
     }
 
     /// The canvas a launch opens: the one this Mac had open while it is

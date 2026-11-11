@@ -17,7 +17,7 @@ import Observation
 @MainActor
 final class SpaceRecents {
     static let shared = SpaceRecents()
-    static let preferenceKey = "space.recents.v1"
+    static let preferenceKey = Prefs.Space.recents.name
     /// How many openings are remembered; the sidebar shows the first few that
     /// still exist.
     static let capacity = 40

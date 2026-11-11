@@ -861,11 +861,11 @@ extension MCPDataStore {
         // The quiz's first pass is kept with the new sitting, as the app keeps
         // it (`StudioViewModel.recordCourseQuizScore`): a worse retake leaves
         // the lectures after the quiz open.
-        let scoreKey = LectureQuizScore.preferenceKey(courseQuizID: quiz.id)
-        let previous = UserDefaults.standard.object(forKey: scoreKey).flatMap(LectureQuizScore.init(preferenceValue:))
+        let scoreKey = Prefs.Families.courseQuizScore.key(quiz.id)
+        let previous = Preferences.value(scoreKey).flatMap(LectureQuizScore.init(preferenceValue:))
         let score = LectureQuizScore(right: sittingScore.right, total: sittingScore.total, takenAt: now)
             .recorded(after: previous)
-        PreferenceStore.set(score.preferenceValue, forKey: scoreKey)
+        Preferences.set(score.preferenceValue, for: scoreKey)
         // A correction to a completed sitting completes it again, with the
         // score it has now.
         try store.completeReviewSession(sessionID: target.sessionID, overallScore: score.fractionRight, summary: score.label)

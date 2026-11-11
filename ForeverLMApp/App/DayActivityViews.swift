@@ -32,8 +32,8 @@ struct DayActivityReaderPane: View {
     @Environment(StudioViewModel.self) private var vm
 
     private let model = DayModel.shared
-    @SyncedStorage(PlannerDayHours.startKey) private var dayStartHour: Int = PlannerDayHours.defaultStart
-    @SyncedStorage(PlannerDayHours.endKey) private var dayEndHour: Int = PlannerDayHours.defaultEnd
+    @PreferenceStorage(Prefs.Planner.dayStart, default: PlannerDayHours.defaultStart) private var dayStartHour: Int
+    @PreferenceStorage(Prefs.Planner.dayEnd, default: PlannerDayHours.defaultEnd) private var dayEndHour: Int
 
     var body: some View {
         content
@@ -185,7 +185,7 @@ struct ActivityLogPane: View {
     @Environment(StudioViewModel.self) private var vm
 
     private let model = DayModel.shared
-    @AppStorage(DayActivityLayout.storageKey) private var layout: DayActivityLayout = .bySource
+    @AppStorage(Prefs.Planner.activityPaneLayout, default: DayActivityLayout.bySource) private var layout: DayActivityLayout
     @State private var actionErrorMessage: String?
 
     var body: some View {
@@ -590,7 +590,7 @@ enum DayActivityLayout: String, CaseIterable, Identifiable {
     /// Every day's time spent, newest first, a month at a time.
     case history
 
-    static let storageKey = "activityPaneLayout"
+    static let storageKey = Prefs.Planner.activityPaneLayout.name
 
     var id: String { rawValue }
 
@@ -612,7 +612,7 @@ enum DayActivityLayout: String, CaseIterable, Identifiable {
 
     /// What the pane will draw: the stored choice, By Source when none.
     static var stored: DayActivityLayout {
-        UserDefaults.standard.string(forKey: storageKey).flatMap(DayActivityLayout.init(rawValue:)) ?? .bySource
+        Preferences.value(Prefs.Planner.activityPaneLayout).flatMap(DayActivityLayout.init(rawValue:)) ?? .bySource
     }
 }
 

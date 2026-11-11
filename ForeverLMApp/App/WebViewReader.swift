@@ -276,7 +276,7 @@ struct WebViewReader: NSViewRepresentable {
     @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
     /// The reader's opt-out from the forced-dark pass. A page with a dark design
     /// of its own is unaffected either way: this only ever governs the inversion.
-    @SyncedStorage(ReaderDarkMode.originalPageColorsKey) private var originalPageColors = false
+    @PreferenceStorage(Prefs.Readers.originalPageColors) private var originalPageColors
 
     private var darkensPage: Bool {
         ReaderDarkMode.darkensPage(in: colorScheme, originalPageColors: originalPageColors)

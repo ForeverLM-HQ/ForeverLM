@@ -22,7 +22,7 @@ import Observation
 /// 7), so no schema change. Foundation-only, so the web's twin
 /// (`library-chat-marks.js`) runs the same cases.
 struct ChatPins: Equatable, Sendable {
-    static let preferenceKeyPrefix = "chat.pinned."
+    static let preferenceKeyPrefix = Prefs.Families.chatPins.prefix
 
     /// Each pinned chat's place, by session id: higher lists first.
     private(set) var pinnedAt: [String: Int]
@@ -244,7 +244,7 @@ final class ChatReadMarks {
 
     /// The unread chats' ids, as a String array. This Mac's alone
     /// (`SyncedPreferenceKeys.excluded`).
-    nonisolated static let defaultsKey = "chat.unread.v1"
+    nonisolated static let defaultsKey = Prefs.Studio.chatUnreadMarks.name
 
     /// The unread chats' ids: the one part the rows observe, so a window
     /// switching chats redraws nothing unless a mark changed.

@@ -13,11 +13,11 @@ private enum StudioOverlayMetrics {
 
 enum StudioMovableOverlay {
     static func offsetXKey(for storageID: String) -> String {
-        "studio.movableOverlay.\(storageID).offsetX"
+        Prefs.Families.movableOverlay.name("\(storageID).offsetX")
     }
 
     static func offsetYKey(for storageID: String) -> String {
-        "studio.movableOverlay.\(storageID).offsetY"
+        Prefs.Families.movableOverlay.name("\(storageID).offsetY")
     }
 
     static func clampedOffset(
@@ -539,7 +539,7 @@ final class CornerNoticeTray {
 
     /// The read marks: each kind's raw value to what it was about when it
     /// was marked. This Mac's alone (`SyncedPreferenceKeys.excluded`).
-    nonisolated static let readMarksKey = "notifications.readMarks.v1"
+    nonisolated static let readMarksKey = Prefs.Studio.noticeReadMarks.name
 
     private(set) var tucked: Set<CornerNoticeKind> = []
     /// What each kind was about when it was marked read (`CornerNoticeKind.subject`).

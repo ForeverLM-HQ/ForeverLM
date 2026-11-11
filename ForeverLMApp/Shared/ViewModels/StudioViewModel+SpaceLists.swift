@@ -17,38 +17,24 @@ enum SpaceListRows {
     private static var defaults: UserDefaults { PageSpaceRows.overrideDefaults?.defaults ?? .standard }
 
     static func read() -> SpaceLists {
-        let rows = defaults.dictionaryRepresentation().filter { key, _ in
-            key.hasPrefix(SpaceLists.listPreferenceKeyPrefix) || key.hasPrefix(SpaceLists.itemPreferenceKeyPrefix)
-        }
+        let rows = PageSpaceRows.storedRows(of: Prefs.Families.spaceList, in: defaults)
+            .merging(PageSpaceRows.storedRows(of: Prefs.Families.spaceListItem, in: defaults)) { first, _ in first }
         return SpaceLists(rows: rows)
     }
 
     /// Writes a list's row; nil removes it.
     static func writeList(_ list: SpaceList?, listID: String) {
-        write(list.map(SpaceLists.rowValue), forKey: SpaceLists.listKey(listID: listID))
+        write(list.map(SpaceLists.rowValue), for: Prefs.Families.spaceList.key(listID))
     }
 
     /// Writes a record's row; nil removes it, as no row means a goal or an
     /// idea in no list.
     static func writeItem(_ listID: String?, recordID: String) {
-        write(listID, forKey: SpaceLists.itemKey(recordID: recordID))
+        write(listID, for: Prefs.Families.spaceListItem.key(recordID))
     }
 
-    private static func write(_ value: String?, forKey key: String) {
-        if let override = PageSpaceRows.overrideDefaults {
-            if let value {
-                override.defaults.set(value, forKey: key)
-            } else {
-                override.defaults.removeObject(forKey: key)
-            }
-            return
-        }
-        // `PreferenceStore` drops a write that changes nothing.
-        if let value {
-            PreferenceStore.set(value, forKey: key)
-        } else {
-            PreferenceStore.remove(forKey: key)
-        }
+    private static func write(_ value: String?, for key: AccountKey<Any?>) {
+        PageSpaceRows.writeRow(value, for: key, override: PageSpaceRows.overrideDefaults?.defaults)
     }
 }
 

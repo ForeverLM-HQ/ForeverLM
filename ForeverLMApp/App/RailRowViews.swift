@@ -83,7 +83,7 @@ struct RailButtonRow: View {
     let action: () -> Void
     @Environment(StudioWindowState.self) private var windowState
     @Environment(\.openWindow) private var openWindow
-    @SyncedStorage(wrappedValue: "", StudioRailHiddenItems.storageKey) private var hiddenRailItemsStorage: String
+    @PreferenceStorage(Prefs.Rail.hiddenItems) private var hiddenRailItemsStorage: String
     @State private var hovering = false
 
     var body: some View {
@@ -257,9 +257,9 @@ struct RailMoreButton: View {
 /// from coming back.
 struct RailItemVisibilityMenu: View {
     @Environment(StudioViewModel.self) private var vm
-    @SyncedStorage(wrappedValue: "", StudioRailHiddenItems.storageKey) private var hiddenRailItemsStorage: String
-    @SyncedStorage(wrappedValue: "", StudioRailShortcuts.storageKey) private var railShortcutsStorage: String
-    @SyncedStorage(wrappedValue: "", StudioStripFooterHiddenItems.storageKey) private var hiddenFooterItemsStorage: String
+    @PreferenceStorage(Prefs.Rail.hiddenItems) private var hiddenRailItemsStorage: String
+    @PreferenceStorage(Prefs.Rail.shortcuts) private var railShortcutsStorage: String
+    @PreferenceStorage(Prefs.Rail.hiddenFooterItems) private var hiddenFooterItemsStorage: String
 
     var body: some View {
         let hidden = StudioRailHiddenItems(storage: hiddenRailItemsStorage)

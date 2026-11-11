@@ -117,14 +117,12 @@ final class MemoryReviewEngagementTracker {
         isCommitted = false
         guard cardsFinishedDay != today else { return }
         cardsFinishedDay = today
-        UserDefaults.standard.set(today, forKey: Self.cardsFinishedDefaultsKey)
+        Preferences.set(today, for: Prefs.Memory.cardsFinishedDay)
         logger.info("Today's cards ran out; the day's review is done")
     }
 
-    private static let cardsFinishedDefaultsKey = "memoryReview.cardsFinishedDay"
-
     private static func loadCardsFinishedDay(for day: String) -> String? {
-        guard let stored = UserDefaults.standard.string(forKey: cardsFinishedDefaultsKey), stored == day else { return nil }
+        guard let stored = Preferences.value(Prefs.Memory.cardsFinishedDay), stored == day else { return nil }
         return stored
     }
 
@@ -157,10 +155,8 @@ final class MemoryReviewEngagementTracker {
         isCommitted = false
     }
 
-    private static let sessionEndDefaultsKey = "memoryReview.sessionEnd"
-
     private static func loadSessionEnd(for day: String) -> MemoryReviewSessionEnd? {
-        guard let data = UserDefaults.standard.data(forKey: sessionEndDefaultsKey),
+        guard let data = Preferences.value(Prefs.Memory.sessionEnd),
               let end = try? JSONDecoder().decode(MemoryReviewSessionEnd.self, from: data),
               end.applies(to: day) else { return nil }
         return end
@@ -168,7 +164,7 @@ final class MemoryReviewEngagementTracker {
 
     private static func saveSessionEnd(_ end: MemoryReviewSessionEnd) {
         guard let data = try? JSONEncoder().encode(end) else { return }
-        UserDefaults.standard.set(data, forKey: sessionEndDefaultsKey)
+        Preferences.set(data, for: Prefs.Memory.sessionEnd)
     }
 
     // MARK: - Configuration

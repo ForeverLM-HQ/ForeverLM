@@ -940,7 +940,7 @@ enum PageSideChatDock: String {
     case left
     case right
 
-    static let key = "studio.movableOverlay.pageSideChat.dock"
+    static let key = Prefs.MCP.pageSideChatDock.name
 
     var alignment: Alignment { self == .left ? .bottomLeading : .bottomTrailing }
     var anchor: UnitPoint { self == .left ? .bottomLeading : .bottomTrailing }
@@ -975,7 +975,7 @@ struct PageSideChatLayer: View {
     @Environment(StudioViewModel.self) private var vm
     @Environment(StudioWindowState.self) private var windowState
     @Environment(\.pageSideChatHosting) private var hosting
-    @SyncedStorage("uiZoomStep") private var uiZoomStep = UIZoom.defaultStep
+    @PreferenceStorage(Prefs.Studio.zoomStep, default: UIZoom.defaultStep) private var uiZoomStep
 
     /// The page the card is open for, and what it was last told about it.
     @State private var openPageID: String?
@@ -983,7 +983,7 @@ struct PageSideChatLayer: View {
     @State private var isMinimized = false
     @State private var chats: [ReviewSessionRecord] = []
     @State private var paneSize: CGSize = .zero
-    @AppStorage(PageSideChatDock.key) private var dockRaw = PageSideChatDock.right.rawValue
+    @PreferenceStorage(Prefs.MCP.pageSideChatDock, default: PageSideChatDock.right.rawValue) private var dockRaw: String
     /// How far the grip has dragged the card, until it lets go.
     @State private var dockDrag: CGFloat = 0
 

@@ -12,8 +12,8 @@ struct GoalStatusBadge: View {
     let goal: LearningGoalRecord
     /// Screen record mode (admin only) films no warning labels, so an overdue
     /// Goal reads by its date instead of in red.
-    @AppStorage(ScreenRecordMode.enabledKey) private var screenRecordOn = false
-    @AppStorage(ScreenRecordMode.confirmedAdminKey) private var screenRecordAdmin = false
+    @AppStorage(Prefs.Lifecycle.screenRecordEnabled) private var screenRecordOn
+    @AppStorage(Prefs.Lifecycle.screenRecordConfirmedAdmin) private var screenRecordAdmin
 
     /// What the badge says, or nil when the date says enough.
     /// `filmsNoWarnings` is Screen record mode: an overdue Goal then reads

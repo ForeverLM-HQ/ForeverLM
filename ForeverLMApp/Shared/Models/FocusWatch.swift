@@ -32,28 +32,28 @@ import Foundation
 /// or `set_day_settings nudge_back_on_track`): it asks macOS for
 /// Accessibility, which only the learner can grant.
 enum FocusWatch {
-    static let settingKey = "focus.nudgeBackOnTrack"
+    static let settingKey = Prefs.Planner.nudgeBackOnTrack.name
 
     static var isEnabled: Bool {
-        UserDefaults.standard.bool(forKey: settingKey)
+        Preferences.value(Prefs.Planner.nudgeBackOnTrack)
     }
 
     static func setEnabled(_ enabled: Bool) {
-        UserDefaults.standard.set(enabled, forKey: settingKey)
+        Preferences.set(enabled, for: Prefs.Planner.nudgeBackOnTrack)
         NotificationCenter.default.post(name: .focusWatchSettingDidChange, object: nil)
     }
 
     /// Read the Window Too: the judge also reads the words in the window in
     /// front. Device-local, off until switched on; needs Screen Recording.
     /// Does nothing while the watcher is off.
-    static let readsScreenKey = "focus.readScreen"
+    static let readsScreenKey = Prefs.Planner.focusReadsScreen.name
 
     static var readsScreen: Bool {
-        UserDefaults.standard.bool(forKey: readsScreenKey)
+        Preferences.value(Prefs.Planner.focusReadsScreen)
     }
 
     static func setReadsScreen(_ reads: Bool) {
-        UserDefaults.standard.set(reads, forKey: readsScreenKey)
+        Preferences.set(reads, for: Prefs.Planner.focusReadsScreen)
         NotificationCenter.default.post(name: .focusWatchSettingDidChange, object: nil)
     }
 

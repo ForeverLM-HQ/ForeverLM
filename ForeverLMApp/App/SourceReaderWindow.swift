@@ -12,7 +12,7 @@ struct SourceReaderWindow: View {
     @Environment(\.openWindow) private var openWindow
     @Environment(\.colorScheme) private var colorScheme
     /// Written here and read by every reader that would otherwise invert a page.
-    @SyncedStorage(ReaderDarkMode.originalPageColorsKey) private var originalPageColors = false
+    @PreferenceStorage(Prefs.Readers.originalPageColors) private var originalPageColors
     @State private var selectedText = ""
     @State private var findState = ReaderFindState()
     /// A video's and a podcast's own commands, published by their readers for

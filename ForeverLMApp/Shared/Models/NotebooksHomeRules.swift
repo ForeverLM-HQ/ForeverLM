@@ -39,7 +39,7 @@ protocol NotebookHomeListing {
 /// so a window that would have opened it shows the home instead of the
 /// notebook worked in before it; the oldest ids go once `capacity` is passed.
 struct NotebookRecency: Equatable, Sendable {
-    static let preferenceKey = "studio.notebookLastWorked.v1"
+    static let preferenceKey = Prefs.Space.notebookLastWorked.name
     /// How many notebooks are remembered; the oldest go first.
     static let capacity = 200
 
@@ -209,8 +209,8 @@ enum NotebooksHomeSort: String, CaseIterable, Identifiable, Sendable {
 /// (`SyncedPreferenceKeys.excluded`); a value another build wrote that this
 /// one does not read is Recent.
 struct NotebooksHomeOrder: Equatable, Sendable {
-    static let sortPreferenceKey = "notebooks.home.sort.v1"
-    static let reversedPreferenceKey = "notebooks.home.sortReversed.v1"
+    static let sortPreferenceKey = Prefs.Space.notebooksHomeSort.name
+    static let reversedPreferenceKey = Prefs.Space.notebooksHomeSortReversed.name
 
     var sort: NotebooksHomeSort
     var isReversed: Bool
@@ -246,7 +246,7 @@ struct NotebooksHomeOrder: Equatable, Sendable {
 /// home), or a dense sortable list for a large library (product owner,
 /// 2026-10-03). Device-local, with the order.
 enum NotebooksHomeLayout: String, CaseIterable, Identifiable, Sendable {
-    static let preferenceKey = "notebooks.home.layout.v1"
+    static let preferenceKey = Prefs.Space.notebooksHomeLayout.name
 
     case grid
     case list
@@ -444,7 +444,7 @@ struct NotebookRail: Equatable, Sendable {
 /// and Recent in the rail, a pin is the few the learner keeps at hand, so
 /// nothing is pinned until they pin it.
 enum NotebookPins {
-    static let preferenceKey = "studio.pinnedNotebooks.v1"
+    static let preferenceKey = Prefs.Studio.pinnedNotebooks.name
 
     /// The list once `notebookID` is pinned or unpinned: ids the library no
     /// longer knows (`knownIDs`) leave on the way, so a deleted notebook's id

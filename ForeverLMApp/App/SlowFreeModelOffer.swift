@@ -13,7 +13,7 @@ enum SlowFreeModelWait {
 
     /// Don't Ask Again. Synced (`SyncedPreferenceKeys.synced`), so a learner
     /// who said it once is not asked on their other Mac either.
-    static let dismissedKey = "chat.slowFreeModelOffer.dismissed"
+    static let dismissedKey = Prefs.Rail.slowFreeModelOfferDismissed.name
 
     static func shouldOffer(
         isOnFreeModel: Bool,
@@ -43,7 +43,7 @@ struct SlowFreeModelOffer: View {
     /// False when it can no longer be asked again.
     let askAgain: () -> Bool
 
-    @SyncedStorage(SlowFreeModelWait.dismissedKey) private var isDismissed = false
+    @PreferenceStorage(Prefs.Rail.slowFreeModelOfferDismissed) private var isDismissed
     /// The paid models the chat's picker lists, loaded off-main.
     @State private var paidEntries: [AIModelCatalogEntry] = []
     /// A model picked for the first time is tested before it is selected,

@@ -26,7 +26,7 @@ enum SharingRightsRow {
     private static var defaults: UserDefaults { overrideDefaults?.defaults ?? .standard }
 
     private static var rowValue: Any? {
-        defaults.object(forKey: SharingRightsAffirmation.preferenceKey)
+        defaults.object(forKey: Prefs.Account.sharingRightsAffirmation.name)
     }
 
     /// The learner's affirmation as stored, when the row reads.
@@ -46,9 +46,9 @@ enum SharingRightsRow {
     static func affirm(at date: Date = Date()) -> SharingRightsAffirmation {
         let affirmation = SharingRightsAffirmation(affirmedAt: date)
         if let override = overrideDefaults {
-            override.defaults.set(affirmation.rowValue, forKey: SharingRightsAffirmation.preferenceKey)
+            override.defaults.set(affirmation.rowValue, forKey: Prefs.Account.sharingRightsAffirmation.name)
         } else {
-            PreferenceStore.set(affirmation.rowValue, forKey: SharingRightsAffirmation.preferenceKey)
+            Preferences.set(affirmation.rowValue, for: Prefs.Account.sharingRightsAffirmation)
         }
         return affirmation
     }

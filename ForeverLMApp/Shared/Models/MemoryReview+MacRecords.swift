@@ -9,19 +9,24 @@ import Foundation
 extension MemoryReviewDepth {
     /// The chosen default for a kind of source, or nil when none was chosen.
     static func typeDefault(sourceType: String) -> MemoryReviewDepth? {
-        UserDefaults.standard.string(forKey: typePreferenceKey(sourceType: sourceType))
+        Preferences.value(typeKey(sourceType: sourceType))
             .flatMap(MemoryReviewDepth.init(rawValue:))
     }
 
     /// Sets or clears the default for a kind of source. Written through
     /// `PreferenceStore` so the other devices hear "keep podcasts quick" too.
     static func setTypeDefault(_ depth: MemoryReviewDepth?, sourceType: String) {
-        let key = typePreferenceKey(sourceType: sourceType)
+        let key = typeKey(sourceType: sourceType)
         if let depth {
-            PreferenceStore.set(depth.rawValue, forKey: key)
+            Preferences.set(depth.rawValue, for: key)
         } else {
-            PreferenceStore.remove(forKey: key)
+            Preferences.reset(key)
         }
+    }
+
+    /// The row of a kind of source, named as `typePreferenceKey(sourceType:)` names it.
+    private static func typeKey(sourceType: String) -> AccountKey<String?> {
+        Prefs.Families.reviewDepthByType.key(sourceType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())
     }
 
     /// The depth a source is reviewed at: its own, else its type's, else the

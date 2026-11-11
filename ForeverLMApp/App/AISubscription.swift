@@ -15,7 +15,7 @@ enum AISubscription: String, CaseIterable, Identifiable, Hashable {
     case other
 
     /// Synced: what someone pays for follows the account, not the Mac.
-    static let storageKey = "gettingStarted.aiSubscriptions"
+    static let storageKey = Prefs.Rail.aiSubscriptions.name
     private static let noneAnswer = "none"
 
     var id: String { rawValue }

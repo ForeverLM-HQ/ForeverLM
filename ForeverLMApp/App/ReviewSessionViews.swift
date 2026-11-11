@@ -560,7 +560,7 @@ struct ReviewSessionLinkedSourcesControl: View {
     let linkedSources: [StudioArticle]
     let onOpenSource: (StudioArticle) -> Void
 
-    @SyncedStorage("metadataVisibility") private var metadataVisibility = MetadataVisibilitySettings()
+    @PreferenceStorage(Prefs.Studio.metadataVisibility, default: MetadataVisibilitySettings()) private var metadataVisibility
     @State private var isPopoverPresented = false
 
     var body: some View {

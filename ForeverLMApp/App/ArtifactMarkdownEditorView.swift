@@ -454,27 +454,30 @@ final class ArtifactEditorWebView: WKWebView {
 /// it. Device-local (`SyncedPreferenceKeys.excluded`): how one reader left a
 /// doc on one screen, not a fact about the doc.
 enum ArtifactOutlineFolds {
-    static let key = "docs.outlineFolds"
+    static let key = Prefs.Readers.outlineFolds.name
 
     /// The doc's folds as the editor last reported them; empty when nothing in
     /// it is folded.
     static func folds(for docID: String, defaults: UserDefaults = .standard) -> String {
-        (defaults.dictionary(forKey: key)?[docID] as? String) ?? ""
+        let all = Preferences.withStorage(defaults) { Preferences.value(Prefs.Readers.outlineFolds) }
+        return (all?[docID] as? String) ?? ""
     }
 
     /// An empty value unfolds the doc and drops its entry.
     static func set(_ folds: String, for docID: String, defaults: UserDefaults = .standard) {
-        var all = defaults.dictionary(forKey: key) ?? [:]
-        if folds.isEmpty {
-            guard all.removeValue(forKey: docID) != nil else { return }
-        } else {
-            guard all[docID] as? String != folds else { return }
-            all[docID] = folds
-        }
-        if all.isEmpty {
-            defaults.removeObject(forKey: key)
-        } else {
-            defaults.set(all, forKey: key)
+        Preferences.withStorage(defaults) {
+            var all = Preferences.value(Prefs.Readers.outlineFolds) ?? [:]
+            if folds.isEmpty {
+                guard all.removeValue(forKey: docID) != nil else { return }
+            } else {
+                guard all[docID] as? String != folds else { return }
+                all[docID] = folds
+            }
+            if all.isEmpty {
+                Preferences.reset(Prefs.Readers.outlineFolds)
+            } else {
+                Preferences.set(all, for: Prefs.Readers.outlineFolds)
+            }
         }
     }
 }
@@ -493,7 +496,7 @@ enum ArtifactOutlineFolds {
 ///
 /// Stored as the column's width in points, `0` for a page that fills the pane.
 enum ArtifactPageWidth {
-    static let key = "notepad.pageColumnWidth"
+    static let key = Prefs.Readers.pageColumnWidth.name
 
     /// A readable line at the page's type size, and the stylesheet's default.
     static let standard: Double = 760

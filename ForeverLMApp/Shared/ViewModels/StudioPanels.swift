@@ -644,7 +644,6 @@ final class StudioWindowState: Identifiable {
     }
 
     static let sceneStorageKey = "studio.window.workspace.v1"
-    private static let navigationRailVisibilityKey = "studio.navigationRailVisible"
 
     let id: UUID
     var persistenceRevision = 0
@@ -662,7 +661,7 @@ final class StudioWindowState: Identifiable {
             }
             noteReaderCover(from: oldValue)
             recordPersistentChange {
-                PreferenceStore.set(reconciled.persistedRepresentation, forKey: "studio.centerTabGroups.v1")
+                Preferences.set(reconciled.persistedRepresentation, for: Prefs.Studio.centerTabGroups)
             }
         }
     }
@@ -733,9 +732,9 @@ final class StudioWindowState: Identifiable {
     var navigationRailVisible: Bool {
         didSet {
             recordPersistentChange {
-                PreferenceStore.set(
+                Preferences.set(
                     navigationRailVisible,
-                    forKey: Self.navigationRailVisibilityKey
+                    for: Prefs.Studio.navigationRailVisible
                 )
             }
         }
@@ -1274,13 +1273,10 @@ final class StudioWindowState: Identifiable {
     init(id: UUID = UUID(), snapshot: Snapshot? = nil) {
         self.id = id
 
-        let storedGroups = UserDefaults.standard
-            .stringArray(forKey: "studio.centerTabGroups.v1")
+        let storedGroups = Preferences.value(Prefs.Studio.centerTabGroups)
             .flatMap(StudioCenterTabGroups.fromPersisted)
             ?? .defaultLayout
-        let storedNavigation = UserDefaults.standard.object(
-            forKey: Self.navigationRailVisibilityKey
-        ) as? Bool ?? true
+        let storedNavigation = Preferences.value(Prefs.Studio.navigationRailVisible) ?? true
 
         // `didSet` does not run in an initializer, so the beta-feature rule it
         // applies is applied here to the layout a window opens with.
@@ -1617,7 +1613,7 @@ struct StudioSavedWorkspaceWindow: Codable, Equatable {
 /// session every time either one quit. Named workspaces are the synced concept;
 /// this is the unnamed one that only means something here.
 enum StudioLastSessionStore {
-    static let preferenceKey = "studio.lastSessionWindows"
+    static let preferenceKey = Prefs.Studio.lastSessionWindows.name
 
     /// More Studio windows than anyone arranges by hand. The store is capped
     /// here, and the coordinator closes live windows past it, because a saved
@@ -1652,11 +1648,11 @@ enum StudioLastSessionStore {
             clear()
             return
         }
-        UserDefaults.standard.set(data, forKey: preferenceKey)
+        Preferences.set(data, for: Prefs.Studio.lastSessionWindows)
     }
 
     static func load() -> [StudioSavedWorkspaceWindow] {
-        guard let data = UserDefaults.standard.data(forKey: preferenceKey),
+        guard let data = Preferences.value(Prefs.Studio.lastSessionWindows),
               let windows = try? JSONDecoder().decode([StudioSavedWorkspaceWindow].self, from: data)
         else { return [] }
         return normalized(windows)
@@ -1677,21 +1673,21 @@ enum StudioLastSessionStore {
     }
 
     static func clear() {
-        UserDefaults.standard.removeObject(forKey: preferenceKey)
+        Preferences.reset(Prefs.Studio.lastSessionWindows)
     }
 
     /// Set when the app is about to quit for a relaunch it started itself, so
     /// the next launch knows to put the saved content back and not only the
     /// layout. Read once and cleared: a launch after that is an ordinary one.
-    static let resumeContentKey = "studio.lastSessionResumesContent"
+    static let resumeContentKey = Prefs.Studio.lastSessionResumesContent.name
 
     static func requestContentResume() {
-        UserDefaults.standard.set(true, forKey: resumeContentKey)
+        Preferences.set(true, for: Prefs.Studio.lastSessionResumesContent)
     }
 
     static func consumeContentResumeRequest() -> Bool {
-        let requested = UserDefaults.standard.bool(forKey: resumeContentKey)
-        UserDefaults.standard.removeObject(forKey: resumeContentKey)
+        let requested = Preferences.value(Prefs.Studio.lastSessionResumesContent) ?? false
+        Preferences.reset(Prefs.Studio.lastSessionResumesContent)
         return requested
     }
 }
@@ -1699,14 +1695,14 @@ enum StudioLastSessionStore {
 /// A named, synced whole-app workspace arrangement. Each view occupies its own
 /// preference row so independently saved notebooks cannot overwrite one another.
 struct StudioSavedWorkspaceView: Identifiable, Equatable {
-    static let preferenceKeyPrefix = "studio.workspaceView."
+    static let preferenceKeyPrefix = Prefs.Families.workspaceViews.prefix
 
     let id: String
     var name: String
     var createdAt: Double
     var windows: [StudioSavedWorkspaceWindow]
 
-    var preferenceKey: String { Self.preferenceKeyPrefix + id }
+    var preferenceKey: String { Prefs.Families.workspaceViews.name(id) }
     var snapshot: StudioWindowState.Snapshot { windows[0].snapshot }
 
     var propertyList: [String] {
@@ -1806,7 +1802,7 @@ final class StudioWorkspaceViewStore {
     }
 
     func reload() {
-        views = UserDefaults.standard.dictionaryRepresentation()
+        views = Preferences.storage.rows(withPrefix: Prefs.Families.workspaceViews.prefix)
             .compactMap { key, value in
                 StudioSavedWorkspaceView(preferenceKey: key, value: value)
             }
@@ -1839,7 +1835,7 @@ final class StudioWorkspaceViewStore {
             createdAt: existing?.createdAt ?? Date().timeIntervalSince1970,
             windows: windows
         )
-        PreferenceStore.set(saved.propertyList, forKey: saved.preferenceKey)
+        Preferences.set(saved.propertyList, for: Prefs.Families.workspaceViews.key(saved.id))
         reload()
         return true
     }
@@ -1860,13 +1856,13 @@ final class StudioWorkspaceViewStore {
         guard !taken else { return false }
         var renamed = view
         renamed.name = name
-        PreferenceStore.set(renamed.propertyList, forKey: renamed.preferenceKey)
+        Preferences.set(renamed.propertyList, for: Prefs.Families.workspaceViews.key(renamed.id))
         reload()
         return true
     }
 
     func delete(_ view: StudioSavedWorkspaceView) {
-        PreferenceStore.remove(forKey: view.preferenceKey)
+        Preferences.reset(Prefs.Families.workspaceViews.key(view.id))
         reload()
     }
 }
@@ -1998,7 +1994,7 @@ enum StudioSidebarTab: String, CaseIterable, Codable {
     case videos = "YouTube"
     case xPosts = "X"
 
-    static let knowledgeExclusionPreferenceKey = "studio.excludedKnowledgeSourceTabs"
+    static let knowledgeExclusionPreferenceKey = Prefs.Studio.excludedKnowledgeSourceTabs.name
 
     /// Restores tabs saved before the Videos → YouTube rename, and before the
     /// Google Drive, Read AI and Zoom tabs were folded back into one Meetings
@@ -2049,7 +2045,7 @@ enum StudioSidebarTab: String, CaseIterable, Codable {
 
     static func excludedKnowledgeTabs(in defaults: UserDefaults = .standard) -> Set<StudioSidebarTab> {
         Set(
-            (defaults.stringArray(forKey: knowledgeExclusionPreferenceKey) ?? [])
+            (defaults.stringArray(forKey: Prefs.Studio.excludedKnowledgeSourceTabs.name) ?? [])
                 .compactMap { fromPersistedRawValue($0) }
         )
     }
@@ -2113,13 +2109,13 @@ enum StudioSidebarTab: String, CaseIterable, Codable {
     /// tab is unpinned twice. Synced: a rebuild lands in a fresh preferences
     /// container, and a marker that does not survive that turns a one-time
     /// default into one the learner has to override after every build.
-    static let integrationUnpinAppliedPreferenceKey = "studio.integrationTabUnpinDefaultsApplied"
+    static let integrationUnpinAppliedPreferenceKey = Prefs.Studio.integrationTabUnpinDefaultsApplied.name
 
     /// Names the integration tabs Studio unpinned on its own and the learner
     /// has not touched since — the only tabs eligible to be pinned back when
     /// the integration turns out to be in use. Synced for the same reason: it
     /// says which of the unpinned tabs are still Studio's call.
-    static let autoUnpinnedIntegrationTabsPreferenceKey = "studio.integrationTabsUnpinnedByDefault"
+    static let autoUnpinnedIntegrationTabsPreferenceKey = Prefs.Studio.integrationTabsUnpinnedByDefault.name
 
     /// Plural noun for use mid-sentence ("Search 12 articles", "Refresh YouTube videos").
     /// Brand names keep their casing instead of being lowercased.

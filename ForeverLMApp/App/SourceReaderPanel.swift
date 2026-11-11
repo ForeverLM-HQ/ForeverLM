@@ -20,7 +20,7 @@ struct SourceReaderPanel: View {
     @Environment(\.colorScheme) private var colorScheme
     @Environment(\.uiZoomScale) private var uiZoomScale
     /// Written here and read by every reader that would otherwise invert a page.
-    @SyncedStorage(ReaderDarkMode.originalPageColorsKey) private var originalPageColors = false
+    @PreferenceStorage(Prefs.Readers.originalPageColors) private var originalPageColors
     private let dragVisibility = StudioDragVisibility.shared
     @State private var selectedText = ""
     /// Go to Page, open from the overflow menu or its shortcut.
@@ -2336,13 +2336,12 @@ struct PodcastTranscriptRecoveryActions: View {
 @Observable
 final class ReaderRecentsStore {
     static let shared = ReaderRecentsStore()
-    private static let defaultsKey = "reader.recentSourceIDs"
     private static let capacity = 24
 
     private(set) var sourceIDs: [String]
 
     private init() {
-        sourceIDs = UserDefaults.standard.stringArray(forKey: Self.defaultsKey) ?? []
+        sourceIDs = Preferences.value(Prefs.Readers.recentSourceIDs) ?? []
     }
 
     func record(_ sourceID: String) {
@@ -2353,7 +2352,7 @@ final class ReaderRecentsStore {
         }
         guard ids != sourceIDs else { return }
         sourceIDs = ids
-        UserDefaults.standard.set(ids, forKey: Self.defaultsKey)
+        Preferences.set(ids, for: Prefs.Readers.recentSourceIDs)
     }
 }
 

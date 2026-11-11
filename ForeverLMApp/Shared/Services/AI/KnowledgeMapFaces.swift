@@ -140,11 +140,9 @@ enum KnowledgeMapFaces {
 
     /// Written Faces in the Canvas's view controls: remembered on this Mac
     /// only, on until the learner turns it off.
-    static let enabledKey = "knowledgeMap.writtenFaces.enabled"
-
     static var isEnabledOnThisMac: Bool {
-        get { UserDefaults.standard.object(forKey: enabledKey) as? Bool ?? true }
-        set { UserDefaults.standard.set(newValue, forKey: enabledKey) }
+        get { Preferences.value(Prefs.KnowledgeMap.writtenFacesEnabled) ?? true }
+        set { Preferences.set(newValue, for: Prefs.KnowledgeMap.writtenFacesEnabled) }
     }
 }
 

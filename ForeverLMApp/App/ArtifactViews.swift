@@ -224,9 +224,9 @@ struct ArtifactCanvas: View {
     /// editor takes it (docs/notes-graph-design.md).
     @State var pendingBlockReveal: ArtifactBlockRevealRequest?
     @SyncedStorage var isArtifactListVisible: Bool
-    @SyncedStorage(ArtifactPageWidth.key) var pageWidth = ArtifactPageWidth.standard
+    @PreferenceStorage(Prefs.Readers.pageColumnWidth, default: ArtifactPageWidth.standard) var pageWidth
     /// The learner's name, for the initials on the page's top line.
-    @SyncedStorage(wrappedValue: "", MacAccountUser.displayNamePreferenceKey) var savedDisplayName: String
+    @PreferenceStorage(Prefs.Account.displayName) var savedDisplayName
     @Environment(\.uiZoomScale) var uiZoomScale
     /// What the pane's swap control and close claim of the top line's trailing
     /// end; the page's own controls stop short of it.
@@ -236,7 +236,7 @@ struct ArtifactCanvas: View {
     @Environment(\.studioCenterPaneHeaderLeadingInset) private var headerLeadingInset
     /// The learner's choice to keep the Space sidebar out of the way; this
     /// Mac's, shared with the Space home.
-    @AppStorage("space.sidebarHidden") var spaceSidebarHiddenByLearner = false
+    @AppStorage(Prefs.Space.sidebarHidden) var spaceSidebarHiddenByLearner
     /// The Space's own search, apart from the side list's.
     @State var spaceSearchText = ""
     @State var spaceSearchFocusRequest = 0

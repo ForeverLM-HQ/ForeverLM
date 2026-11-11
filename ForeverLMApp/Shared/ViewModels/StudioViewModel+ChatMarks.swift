@@ -16,30 +16,12 @@ enum ChatPinRows {
     private static var defaults: UserDefaults { PageSpaceRows.overrideDefaults?.defaults ?? .standard }
 
     static func read() -> ChatPins {
-        let rows = defaults.dictionaryRepresentation().filter { key, _ in
-            key.hasPrefix(ChatPins.preferenceKeyPrefix)
-        }
-        return ChatPins(rows: rows)
+        ChatPins(rows: PageSpaceRows.storedRows(of: Prefs.Families.chatPins, in: defaults))
     }
 
     /// Writes a chat's row; nil removes it.
     static func write(_ value: String?, sessionID: String) {
-        let key = ChatPins.key(sessionID: sessionID)
-        if let override = PageSpaceRows.overrideDefaults {
-            if let value {
-                override.defaults.set(value, forKey: key)
-            } else {
-                override.defaults.removeObject(forKey: key)
-            }
-            return
-        }
-        // `PreferenceStore` drops a write that changes nothing, so the same
-        // row written again never becomes a CloudKit save.
-        if let value {
-            PreferenceStore.set(value, forKey: key)
-        } else {
-            PreferenceStore.remove(forKey: key)
-        }
+        PageSpaceRows.writeRow(value, for: Prefs.Families.chatPins.key(sessionID), override: PageSpaceRows.overrideDefaults?.defaults)
     }
 }
 

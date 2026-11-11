@@ -19,39 +19,39 @@ import Foundation
 enum MemoryCardSettings {
     /// How many new cards a day's review introduces (`MemoryCardQueue`); it
     /// also sets how many sources are drafted in the background a day.
-    static let newCardsPerDayKey = MemoryCardQueue.newPerDayPreferenceKey
+    static let newCardsPerDayKey = Prefs.Memory.newCardsPerDay.name
     /// Whether ForeverLM drafts cards in the background as sources are
     /// finished. Off until the learner turns it on: a source's card is the
     /// learner's to write (product owner, 2026-11-08: "It shouldn't just be
     /// AI making those cards"; `WrittenCard.swift`), which retires decisions
     /// v5, 3's default.
-    static let autoDraftKey = "memory.auto_draft_cards"
+    static let autoDraftKey = Prefs.Memory.autoDraftCards.name
     /// Whether the "Cards to check" corner card is shown. Its Don't Ask Again
     /// turns it off.
-    static let draftNudgesKey = "memory.draft_nudges"
+    static let draftNudgesKey = Prefs.Memory.draftNudges.name
 
     static func newCardsPerDay(defaults: UserDefaults = .standard) -> Int {
-        MemoryCardQueue.newPerDay(stored: (defaults.object(forKey: newCardsPerDayKey) as? NSNumber)?.intValue)
+        MemoryCardQueue.newPerDay(stored: Preferences.withStorage(defaults) { Preferences.value(Prefs.Memory.newCardsPerDay) })
     }
 
     static func setNewCardsPerDay(_ count: Int) {
-        PreferenceStore.set(MemoryCardQueue.clampNewPerDay(count), forKey: newCardsPerDayKey)
+        Preferences.set(MemoryCardQueue.clampNewPerDay(count), for: Prefs.Memory.newCardsPerDay)
     }
 
     static func autoDraftsCards(defaults: UserDefaults = .standard) -> Bool {
-        (defaults.object(forKey: autoDraftKey) as? NSNumber)?.boolValue ?? false
+        Preferences.withStorage(defaults) { Preferences.value(Prefs.Memory.autoDraftCards) }
     }
 
     static func setAutoDraftsCards(_ on: Bool) {
-        PreferenceStore.set(on, forKey: autoDraftKey)
+        Preferences.set(on, for: Prefs.Memory.autoDraftCards)
     }
 
     static func showsDraftNudges(defaults: UserDefaults = .standard) -> Bool {
-        (defaults.object(forKey: draftNudgesKey) as? NSNumber)?.boolValue ?? true
+        Preferences.withStorage(defaults) { Preferences.value(Prefs.Memory.draftNudges) }
     }
 
     static func setShowsDraftNudges(_ on: Bool) {
-        PreferenceStore.set(on, forKey: draftNudgesKey)
+        Preferences.set(on, for: Prefs.Memory.draftNudges)
     }
 }
 
@@ -217,7 +217,6 @@ enum AutomaticCardDrafting {
 /// day so the next trigger does not bill the same call, and named in the day
 /// close's status line. A source the daily cap stopped is not a failure.
 enum AutomaticCardDraftingFailures {
-    static let key = "memory.autoDraft.failures.v1"
     static let retryInterval: TimeInterval = MemoryTutorScheduler.secondsPerDay
 
     struct Record: Equatable, Sendable {
@@ -234,19 +233,18 @@ enum AutomaticCardDraftingFailures {
         now: Date = Date(),
         defaults: UserDefaults = .standard
     ) {
-        var entries = pruned(defaults.dictionary(forKey: key) as? [String: [String: Any]] ?? [:], now: now)
+        var entries = pruned(stored(defaults), now: now)
         entries[sourceID] = [
             "title": String(title.prefix(200)),
             "at": now.timeIntervalSinceReferenceDate,
             "message": String(message.prefix(300)),
         ]
-        defaults.set(entries, forKey: key)
+        Preferences.withStorage(defaults) { Preferences.set(entries, for: Prefs.Memory.autoDraftFailures) }
     }
 
     /// The failures still in their retry interval, newest first.
     static func recent(now: Date = Date(), defaults: UserDefaults = .standard) -> [Record] {
-        let entries = defaults.dictionary(forKey: key) as? [String: [String: Any]] ?? [:]
-        return pruned(entries, now: now).compactMap { sourceID, entry in
+        return pruned(stored(defaults), now: now).compactMap { sourceID, entry in
             guard let at = entry["at"] as? Double else { return nil }
             return Record(
                 sourceID: sourceID,
@@ -259,9 +257,14 @@ enum AutomaticCardDraftingFailures {
     }
 
     static func clear(sourceID: String, defaults: UserDefaults = .standard) {
-        guard var entries = defaults.dictionary(forKey: key) as? [String: [String: Any]],
-              entries.removeValue(forKey: sourceID) != nil else { return }
-        defaults.set(entries, forKey: key)
+        var entries = stored(defaults)
+        guard entries.removeValue(forKey: sourceID) != nil else { return }
+        Preferences.withStorage(defaults) { Preferences.set(entries, for: Prefs.Memory.autoDraftFailures) }
+    }
+
+    private static func stored(_ defaults: UserDefaults) -> [String: [String: Any]] {
+        let table = Preferences.withStorage(defaults) { Preferences.value(Prefs.Memory.autoDraftFailures) }
+        return table as? [String: [String: Any]] ?? [:]
     }
 
     private static func pruned(_ entries: [String: [String: Any]], now: Date) -> [String: [String: Any]] {
@@ -276,8 +279,6 @@ enum AutomaticCardDraftingFailures {
 /// What this Mac's last background drafting run did, for the corner card's
 /// "2 more sources to come" and `get_memory_review_settings`.
 struct AutomaticCardDraftingRun: Codable, Equatable, Sendable {
-    static let key = "memory.autoDraft.lastRun.v1"
-
     var at: Date
     var draftedCards: Int
     var draftedSources: Int
@@ -285,13 +286,13 @@ struct AutomaticCardDraftingRun: Codable, Equatable, Sendable {
     var waiting: Int
 
     static func last(defaults: UserDefaults = .standard) -> AutomaticCardDraftingRun? {
-        guard let data = defaults.data(forKey: key) else { return nil }
+        guard let data = Preferences.withStorage(defaults, { Preferences.value(Prefs.Memory.autoDraftLastRun) }) else { return nil }
         return try? JSONDecoder().decode(AutomaticCardDraftingRun.self, from: data)
     }
 
     func record(defaults: UserDefaults = .standard) {
         guard let data = try? JSONEncoder().encode(self) else { return }
-        defaults.set(data, forKey: Self.key)
+        Preferences.withStorage(defaults) { Preferences.set(data, for: Prefs.Memory.autoDraftLastRun) }
     }
 
     /// What still waits, as of `now`: a count a day or more old says nothing
@@ -403,13 +404,11 @@ enum CardsToCheckNudge {
 
     /// The day this Mac put the card off: × or Go Through Them. Device-local,
     /// like "Plan your day?"'s ledger: the card is asked on this Mac.
-    static let putOffKey = "memory.draftNudge.putOffOn.v1"
-
     static func putOffDay(defaults: UserDefaults = .standard) -> String? {
-        defaults.string(forKey: putOffKey)
+        Preferences.withStorage(defaults) { Preferences.value(Prefs.Memory.draftNudgePutOffOn) }
     }
 
     static func putOff(on day: String, defaults: UserDefaults = .standard) {
-        defaults.set(day, forKey: putOffKey)
+        Preferences.withStorage(defaults) { Preferences.set(day, for: Prefs.Memory.draftNudgePutOffOn) }
     }
 }

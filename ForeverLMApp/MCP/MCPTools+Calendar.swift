@@ -651,7 +651,7 @@ extension MCPDataStore {
             "day_end_hour": window.upperBound,
             "day_hours": "The learner's day runs \(DayPlan.clockString(minute: window.lowerBound * 60))–\(DayPlan.clockString(minute: window.upperBound * 60)): what get_calendar_events counts free time inside, and the hours the Activity pane's clock draws. Follows the account to the learner's other Macs.",
             "suggest_planning_the_day": PlanTheDay.isEnabled,
-            "force_planning_the_day": UserDefaults.standard.bool(forKey: PlanTheDay.forcedKey),
+            "force_planning_the_day": Preferences.value(Prefs.Planner.forcePlanningTheDay),
             "force_planning_note": "Off unless the learner turned on Make Me Plan: on, a morning with nothing planned opens the planning chat by itself the first time the learner is at the Mac, and the card cannot be closed until the calendar holds a plan. It does nothing while suggest_planning_the_day is false.",
             "suggest_planning_scope": planningScope,
             "notifications_status": notifications.rawValue,
@@ -739,7 +739,7 @@ extension MCPDataStore {
                 PlanTheDay.setEnabled(suggestPlanningTheDay)
             }
             if let forcePlanningTheDay {
-                changed = UserDefaults.standard.bool(forKey: PlanTheDay.forcedKey) != forcePlanningTheDay || changed
+                changed = Preferences.value(Prefs.Planner.forcePlanningTheDay) != forcePlanningTheDay || changed
                 PlanTheDay.setForced(forcePlanningTheDay)
             }
             if let nudgeBackOnTrack {

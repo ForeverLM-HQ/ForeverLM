@@ -213,10 +213,10 @@ struct NotebookSourcePoolView: View {
     /// The notebook workspace's actions; nil for the Notebook page's pool.
     var column: NotebookSourcePoolColumnActions? = nil
 
-    @SyncedStorage("metadataVisibility") private var metadataVisibility = MetadataVisibilitySettings()
+    @PreferenceStorage(Prefs.Studio.metadataVisibility, default: MetadataVisibilitySettings()) private var metadataVisibility
     @State private var sourceSearchText = ""
     /// How the sources are ordered (`NotebookSourceSort`), this Mac's choice.
-    @AppStorage(NotebookSourceSort.preferenceKey) private var sourceSort: NotebookSourceSort = NotebookSourceSort.standard
+    @AppStorage(Prefs.Readers.notebookSourcesSort, default: NotebookSourceSort.standard) private var sourceSort
     /// Where the notebook column's field searches: the notebook and the
     /// library as you type, or the web or PubMed on Return.
     @State private var searchScope: NotebookSourcesSearchScope = .library
@@ -1312,7 +1312,7 @@ private struct NotebookAddSourcesPicker: View {
     let goal: LearningGoalRecord
     let onDismiss: () -> Void
 
-    @SyncedStorage("metadataVisibility") private var metadataVisibility = MetadataVisibilitySettings()
+    @PreferenceStorage(Prefs.Studio.metadataVisibility, default: MetadataVisibilitySettings()) private var metadataVisibility
     @State private var query = ""
     @State private var results: [SourceSearchResult] = []
     @State private var isSearching = false

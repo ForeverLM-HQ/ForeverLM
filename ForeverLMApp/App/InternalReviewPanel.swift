@@ -105,13 +105,13 @@ struct InternalReviewPanelContent: View {
     @Environment(StudioWindowState.self) var windowState: StudioWindowState?
     @Environment(\.openWindow) var openWindow
     @Environment(\.studioTitlebarBandHeight) var titlebarBandHeight
-    @SyncedStorage("uiZoomStep") var uiZoomStep = UIZoom.defaultStep
+    @PreferenceStorage(Prefs.Studio.zoomStep, default: UIZoom.defaultStep) var uiZoomStep
     let dragVisibility = StudioDragVisibility.shared
     /// The daily time budget, which is also the day's goal; the idle screen's
     /// Memory check row says how long the review is planned to take, and the
     /// Memory row's badge counts the same number down.
-    @SyncedStorage(wrappedValue: MemoryReviewBudget.defaultMinutes, MemoryReviewBudget.preferenceKey)
-    var memoryBudgetMinutes: Int
+    @PreferenceStorage(Prefs.Memory.budgetMinutes, default: MemoryReviewBudget.defaultMinutes)
+    var memoryBudgetMinutes
     /// This panel's identity with the day's goal clock, minted once per view.
     /// The review moves between hosts when the window gives itself over to it
     /// and back, which builds a new panel around the same session manager
@@ -206,7 +206,7 @@ struct InternalReviewPanelContent: View {
     /// More details pressed on a reply whose lane already exists: the lane is
     /// asked to open rather than a second one being sent.
     @State var laneExpansionRequest: ReviewChatLaneExpansionRequest?
-    @SyncedStorage("metadataVisibility") var metadataVisibility = MetadataVisibilitySettings()
+    @PreferenceStorage(Prefs.Studio.metadataVisibility, default: MetadataVisibilitySettings()) var metadataVisibility
     /// The Doc each answer went into with Save to note, by the answer's block
     /// id (a message id, so a reopened chat starts with none). In memory only.
     @State var answerNoteDocIDs: [UUID: String] = [:]
@@ -230,7 +230,7 @@ struct InternalReviewPanelContent: View {
     /// the one being answered.
     @State var memoryReviewCardIndex: Int?
     /// Whether a memory review is drawn as cards or as its conversation.
-    @AppStorage(MemoryReviewLayout.storageKey) var memoryReviewLayoutRaw = MemoryReviewLayout.cards.rawValue
+    @AppStorage(Prefs.Memory.reviewLayout, default: MemoryReviewLayout.cards.rawValue) var memoryReviewLayoutRaw
     /// The chat panel's height, which the walkthrough card takes at most a
     /// share of.
     @State var transcriptPanelHeight: CGFloat = 0

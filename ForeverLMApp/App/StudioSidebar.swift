@@ -73,11 +73,11 @@ struct StudioSidebar: View, Equatable {
     @State var isProcessingPapersExpanded = true
     @State var isPapersWithoutPDFExpanded = false
     @State var isPaywalledPapersExpanded = false
-    @SyncedStorage("metadataVisibility") var metadataVisibility = MetadataVisibilitySettings()
-    @SyncedStorage("studio.sourceTabBarLayout") var sourceTabBarLayout: SourceTabBarLayout = .compact
-    @SyncedStorage("studio.showSourceTabLabels") var showSourceTabLabels = true
-    @SyncedStorage("studio.sourceTabIconSize") var sourceTabIconSize: SourceTabIconSize = .medium
-    @SyncedStorage("studio.assistantIntegrationsEnabled") var assistantIntegrationsEnabled = true
+    @PreferenceStorage(Prefs.Studio.metadataVisibility, default: MetadataVisibilitySettings()) var metadataVisibility
+    @PreferenceStorage(Prefs.Studio.sourceTabBarLayout, default: SourceTabBarLayout.compact) var sourceTabBarLayout
+    @PreferenceStorage(Prefs.Studio.showSourceTabLabels) var showSourceTabLabels
+    @PreferenceStorage(Prefs.Studio.sourceTabIconSize, default: SourceTabIconSize.medium) var sourceTabIconSize
+    @PreferenceStorage(Prefs.MCP.assistantIntegrationsEnabled) var assistantIntegrationsEnabled
     /// The source type being dragged to a new position in the tab bar, and the
     /// tab whose slot it would take. Both paths that can start the drag — the
     /// in-band AppKit handle and the SwiftUI `.onDrag` used everywhere else —

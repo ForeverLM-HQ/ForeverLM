@@ -231,7 +231,7 @@ enum SharedDocs {
 /// Which space the sync walks first (§2.2): the team or family library on screen, then the others by
 /// when this Mac last opened them. When a library was opened is device-local and never synced.
 enum SpaceFetchPriority {
-    static let lastOpenedDefaultsKey = "sync.spaceLastOpenedAtByTeam"
+    static let lastOpenedDefaultsKey = Prefs.Lifecycle.spaceLastOpenedAtByTeam.name
 
     static func lastOpenedByTeam(defaults: UserDefaults = .standard) -> [String: Date] {
         let stored = defaults.dictionary(forKey: lastOpenedDefaultsKey) as? [String: Double] ?? [:]

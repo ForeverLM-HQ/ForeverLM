@@ -1404,7 +1404,7 @@ struct PDFKitInlineView: NSViewRepresentable {
     @Environment(\.colorScheme) private var colorScheme
     /// The reader's opt-out, for a paper whose figures are worth reading the way
     /// they were published.
-    @SyncedStorage(ReaderDarkMode.originalPageColorsKey) private var originalPageColors = false
+    @PreferenceStorage(Prefs.Readers.originalPageColors) private var originalPageColors
     @Environment(\.readerOpensCitedSource) private var opensCitedSource
 
     private var darkensPage: Bool {

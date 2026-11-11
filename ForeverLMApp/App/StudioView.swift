@@ -28,11 +28,11 @@ struct StudioView: View {
     @State private var handledCreditsEmptyEpisode = false
     /// Read here as well as by the day's clock, so switching "Plan your
     /// day?" off in Settings or over MCP takes the card down at once.
-    @AppStorage(PlanTheDay.settingKey) private var asksToPlanTheDay = true
+    @AppStorage(Prefs.Planner.suggestPlanningTheDay) private var asksToPlanTheDay
     /// The Space sidebar the learner hid, which the one sidebar toggle folds
     /// together with Home's sidebar.
-    @AppStorage("space.sidebarHidden") private var spaceSidebarHiddenByLearner = false
-    @SyncedStorage("uiZoomStep") private var uiZoomStep = UIZoom.defaultStep
+    @AppStorage(Prefs.Space.sidebarHidden) private var spaceSidebarHiddenByLearner
+    @PreferenceStorage(Prefs.Studio.zoomStep, default: UIZoom.defaultStep) private var uiZoomStep
     /// The bout whose write-up sheet this window shows (`requestBoutWriteUp`).
     @State private var writeUpBoutID: String?
     /// The bout waiting for its goal in this window's start sheet
@@ -40,9 +40,9 @@ struct StudioView: View {
     @State private var boutStartRequest: BoutStartRequest?
     /// Whether the left navigation rail is shown. Toggled from the sidebar
     /// button pinned next to the macOS traffic lights; persisted across launches.
-    @SyncedStorage("gettingStarted.completed") private var gettingStartedCompleted = false
-    @SyncedStorage("gettingStarted.dismissed") private var gettingStartedDismissed = false
-    @SyncedStorage("aiBackground.usageConsented") private var backgroundAIUsageConsented = false
+    @PreferenceStorage(Prefs.Rail.gettingStartedCompleted) private var gettingStartedCompleted
+    @PreferenceStorage(Prefs.Rail.gettingStartedDismissed) private var gettingStartedDismissed
+    @PreferenceStorage(Prefs.Models.backgroundUsageConsented) private var backgroundAIUsageConsented
     @State private var showGettingStarted = false
     @State private var whatsNew = WhatsNewCenter.shared
     @State private var studioAssistantSessions = StudioAssistantSessionStore()

@@ -18,16 +18,9 @@ import Foundation
 enum DailyReviewPreparation {
     /// Synced. Listed in `SyncedPreferenceKeys.synced`; the phone reads the
     /// same key through `DailyReviewPreparationKeys`.
-    static let enabledKey = DailyReviewPreparationKeys.enabled
+    static let enabledKey = Prefs.Memory.dailyPreparationEnabled.name
     /// Device-local. Listed in `SyncedPreferenceKeys.excluded` with its reason.
-    static let hourKey = DailyReviewPreparationKeys.hour
-    /// Device-local. Set once the learner has taken the in-chat offer or
-    /// touched the Settings switch; the offer is then never made again.
-    static let offerDecidedKey = "memoryReview.dailyPreparation.offerDecided.v1"
-    /// Device-local. How many planning waits have shown the offer. The offer
-    /// has no "no" button — a wait is not the place to demand an answer — so
-    /// being shown `maxOfferShowings` times without being taken is the answer.
-    static let offerShownCountKey = "memoryReview.dailyPreparation.offerShown.v1"
+    static let hourKey = Prefs.Memory.dailyPreparationHour.name
     static let maxOfferShowings = 3
 
     static let defaultHour = DailyReviewPreparationKeys.defaultHour
@@ -40,37 +33,42 @@ enum DailyReviewPreparation {
     // MARK: - Settings
 
     static var isEnabled: Bool {
-        UserDefaults.standard.bool(forKey: enabledKey)
+        Preferences.value(Prefs.Memory.dailyPreparationEnabled)
     }
 
     static func setEnabled(_ enabled: Bool) {
-        PreferenceStore.set(enabled, forKey: enabledKey)
+        Preferences.set(enabled, for: Prefs.Memory.dailyPreparationEnabled)
     }
 
     static var hour: Int {
-        get { clampHour(UserDefaults.standard.object(forKey: hourKey) as? Int ?? defaultHour) }
-        set { UserDefaults.standard.set(clampHour(newValue), forKey: hourKey) }
+        get { clampHour(Preferences.value(Prefs.Memory.dailyPreparationHour) ?? defaultHour) }
+        set { Preferences.set(clampHour(newValue), for: Prefs.Memory.dailyPreparationHour) }
     }
 
     static func clampHour(_ hour: Int) -> Int {
         DailyReviewPreparationTiming.clampHour(hour)
     }
 
+    /// Device-local. Set once the learner has taken the in-chat offer or
+    /// touched the Settings switch; the offer is then never made again.
     static var offerDecided: Bool {
-        UserDefaults.standard.bool(forKey: offerDecidedKey)
+        Preferences.value(Prefs.Memory.dailyPreparationOfferDecided) ?? false
     }
 
     static func markOfferDecided() {
-        UserDefaults.standard.set(true, forKey: offerDecidedKey)
+        Preferences.set(true, for: Prefs.Memory.dailyPreparationOfferDecided)
     }
 
+    /// Device-local. How many planning waits have shown the offer. The offer
+    /// has no "no" button — a wait is not the place to demand an answer — so
+    /// being shown `maxOfferShowings` times without being taken is the answer.
     static var offerShownCount: Int {
-        UserDefaults.standard.integer(forKey: offerShownCountKey)
+        Preferences.value(Prefs.Memory.dailyPreparationOfferShownCount) ?? 0
     }
 
     /// Called once per planning wait that actually showed the offer.
     static func recordOfferShown() {
-        UserDefaults.standard.set(offerShownCount + 1, forKey: offerShownCountKey)
+        Preferences.set(offerShownCount + 1, for: Prefs.Memory.dailyPreparationOfferShownCount)
     }
 
     /// Whether the chat should offer preparation while a review is being
@@ -127,15 +125,15 @@ extension MemoryReviewBudget {
     /// The learner's daily budget as this Mac knows it: the synced row's local
     /// mirror in `UserDefaults`, the default when nothing was ever set.
     static var minutes: Int {
-        guard let stored = UserDefaults.standard.object(forKey: preferenceKey) as? NSNumber else {
+        guard let stored = Preferences.value(Prefs.Memory.budgetMinutes) else {
             return defaultMinutes
         }
-        return clamp(stored.intValue)
+        return clamp(stored)
     }
 
     /// Written through `PreferenceStore`, so the other Mac and the phone see
     /// the same number.
     static func setMinutes(_ minutes: Int) {
-        PreferenceStore.set(clamp(minutes), forKey: preferenceKey)
+        Preferences.set(clamp(minutes), for: Prefs.Memory.budgetMinutes)
     }
 }

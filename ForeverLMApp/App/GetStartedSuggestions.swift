@@ -35,7 +35,7 @@ struct GetStartedSuggestions: View {
         }
     }
 
-    static let armedKey = "gettingStarted.suggestionsArmed"
+    static let armedKey = Prefs.Rail.suggestionsArmed.name
     static let allDone = Suggestion.allCases.reduce(0) { $0 | $1.bit }
 
     static func isShowing(armed: Bool, doneBits: Int) -> Bool {
@@ -43,8 +43,8 @@ struct GetStartedSuggestions: View {
     }
 
     @Environment(StudioViewModel.self) private var vm
-    @SyncedStorage(Self.armedKey) private var isArmed = false
-    @SyncedStorage("gettingStarted.suggestionsDone") private var doneBits = 0
+    @PreferenceStorage(Prefs.Rail.suggestionsArmed) private var isArmed
+    @PreferenceStorage(Prefs.Rail.suggestionsDone) private var doneBits
 
     /// The source the first two suggestions are about, newest first.
     var source: StudioArticle?

@@ -112,7 +112,7 @@ struct ShellCommandHost: ViewModifier {
     @Environment(StudioViewModel.self) private var vm
     @Environment(StudioWindowState.self) private var windowState
     @Environment(\.openWindow) private var openWindow
-    @SyncedStorage("uiZoomStep") private var uiZoomStep = UIZoom.defaultStep
+    @PreferenceStorage(Prefs.Studio.zoomStep, default: UIZoom.defaultStep) private var uiZoomStep
     /// Reopens the chat and the source a place in the window's history showed.
     let reopen: (StudioWindowPlace) -> Void
 
@@ -280,10 +280,9 @@ struct ShellCommandHost: ViewModifier {
                 // As the View menu's item and the sidebar toggle: Home's
                 // sidebar and the Space's fold together, never the strip,
                 // and a place with no sidebar gets Home's beside it.
-                let defaults = UserDefaults.standard
-                let shown = !windowState.sidebarToggleReadsShown(spaceSidebarHidden: defaults.bool(forKey: "space.sidebarHidden"))
+                let shown = !windowState.sidebarToggleReadsShown(spaceSidebarHidden: Preferences.value(Prefs.Space.sidebarHidden))
                 if let spaceHidden = windowState.setSidebarShownFromToggle(shown) {
-                    defaults.set(spaceHidden, forKey: "space.sidebarHidden")
+                    Preferences.set(spaceHidden, for: Prefs.Space.sidebarHidden)
                 }
             }
         case .back:
@@ -423,7 +422,7 @@ extension View {
 struct CommandMenuPanel: View {
     @Environment(StudioViewModel.self) private var vm
     @Environment(StudioWindowState.self) private var windowState
-    @SyncedStorage(wrappedValue: false, BetaReleases.preferenceKey) private var signedUpForBetas: Bool
+    @PreferenceStorage(Prefs.Lifecycle.betaReleases) private var signedUpForBetas: Bool
     let dismiss: () -> Void
     let perform: (ShellCommand) -> Void
 

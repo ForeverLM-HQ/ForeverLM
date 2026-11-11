@@ -32,15 +32,15 @@ enum NotebookCollectionRows {
     static func read() -> NotebookCollections {
         // Generation 2: memberships are the member's `NotebookState.collections`; the names stay
         // `notebookCollection.*` Settings (schema v2 §3.5.3, §3.5.20).
-        let names = NotebookCollections(rows: defaults.dictionaryRepresentation().filter { key, _ in
-            key.hasPrefix(NotebookCollections.namePreferenceKeyPrefix)
-        }).names
+        let names = NotebookCollections(
+            rows: PageSpaceRows.storedRows(of: Prefs.Families.notebookCollectionName, in: defaults)
+        ).names
         return NotebookCollections(names: names, memberships: NotebookStateStore.current().collections)
     }
 
     /// Writes a collection's name row; nil removes it.
     static func writeName(_ name: String?, collectionID: String) {
-        write(name, forKey: NotebookCollections.nameKey(collectionID: collectionID))
+        write(name, for: Prefs.Families.notebookCollectionName.key(collectionID))
     }
 
     /// Writes a notebook's row; an empty list removes it, as no row means a
@@ -64,22 +64,8 @@ enum NotebookCollectionRows {
         forget(notebookID: mergedID)
     }
 
-    private static func write(_ value: Any?, forKey key: String) {
-        if let override = overrideDefaults {
-            if let value {
-                override.defaults.set(value, forKey: key)
-            } else {
-                override.defaults.removeObject(forKey: key)
-            }
-            return
-        }
-        // `PreferenceStore` drops a write that changes nothing, so the same
-        // row written again never becomes a CloudKit save.
-        if let value {
-            PreferenceStore.set(value, forKey: key)
-        } else {
-            PreferenceStore.remove(forKey: key)
-        }
+    private static func write(_ value: Any?, for key: AccountKey<Any?>) {
+        PageSpaceRows.writeRow(value, for: key, override: overrideDefaults?.defaults)
     }
 }
 

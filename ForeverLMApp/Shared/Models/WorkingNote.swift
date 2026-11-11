@@ -283,16 +283,16 @@ enum WorkingNoteConsolidation {
 /// Synced (`SyncedPreferenceKeys`): a statement about the learner, not the
 /// Mac it was said on.
 enum WorkingNotesPreference {
-    static let enabledKey = "workingNotes.enabled.v1"
+    static let enabledKey = Prefs.Memory.workingNotesEnabled.name
 
     static func isEnabled(defaults: UserDefaults = .standard) -> Bool {
-        (defaults.object(forKey: enabledKey) as? NSNumber)?.boolValue ?? true
+        (defaults.object(forKey: Prefs.Memory.workingNotesEnabled.name) as? NSNumber)?.boolValue ?? true
     }
 
     static var isEnabled: Bool { isEnabled(defaults: .standard) }
 
     static func setEnabled(_ enabled: Bool) {
-        PreferenceStore.set(enabled, forKey: enabledKey)
+        Preferences.set(enabled, for: Prefs.Memory.workingNotesEnabled)
     }
 }
 

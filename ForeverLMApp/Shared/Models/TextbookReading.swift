@@ -104,16 +104,16 @@ extension CourseLearnerContext {
 enum LearnerProfile {
     /// Synced: the learner's background, the same on every Mac and for every
     /// course. Asked by Add Textbook; `account.about_you` over MCP.
-    static let aboutYouPreferenceKey = "account.aboutYou"
+    static let aboutYouPreferenceKey = Prefs.Account.aboutYou.name
     /// Synced, one row per course (`course.focus.<courseID>`), so focusing two
     /// courses on two Macs never collides.
-    static let courseFocusPreferenceKeyPrefix = "course.focus."
+    static let courseFocusPreferenceKeyPrefix = Prefs.Families.courseFocus.prefix
 
     static let maximumAboutYouLength = 4_000
     static let maximumFocusLength = 1_000
 
     static var aboutYou: String {
-        (UserDefaults.standard.string(forKey: aboutYouPreferenceKey) ?? "")
+        (Preferences.value(Prefs.Account.aboutYou) ?? "")
             .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
@@ -130,9 +130,9 @@ enum LearnerProfile {
         guard text.count <= maximumAboutYouLength else { return false }
         guard text != aboutYou else { return true }
         if text.isEmpty {
-            PreferenceStore.remove(forKey: aboutYouPreferenceKey)
+            Preferences.reset(Prefs.Account.aboutYou)
         } else {
-            PreferenceStore.set(text, forKey: aboutYouPreferenceKey)
+            Preferences.set(text, for: Prefs.Account.aboutYou)
         }
         return true
     }

@@ -234,7 +234,7 @@ struct NotebookAddSourcesSheet: View {
     @Environment(\.dismiss) private var dismiss
     let goal: LearningGoalRecord
 
-    @SyncedStorage("metadataVisibility") private var metadataVisibility = MetadataVisibilitySettings()
+    @PreferenceStorage(Prefs.Studio.metadataVisibility, default: MetadataVisibilitySettings()) private var metadataVisibility
     @State private var query = ""
     @State private var results: [SourceSearchResult] = []
     @State private var isSearching = false

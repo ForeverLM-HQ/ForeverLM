@@ -421,7 +421,7 @@ struct SpaceSidebar: View {
     @State private var renamingList: SpaceList?
     /// Recents folds under its header, as ChatGPT's does. This Mac's own
     /// arrangement, like the list it folds.
-    @AppStorage("space.sidebar.recentsFolded") private var recentsFolded = false
+    @AppStorage(Prefs.Space.sidebarRecentsFolded) private var recentsFolded
 
     private var recents: SpaceRecents { SpaceRecents.shared }
 
@@ -1588,7 +1588,7 @@ struct SpaceFrame<Content: View>: View {
     /// The window this pane is in. Absent outside a Studio window.
     @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
     @Environment(\.studioCenterPaneHeaderLeadingInset) private var headerLeadingInset
-    @AppStorage("space.sidebarHidden") private var sidebarHiddenByLearner = false
+    @AppStorage(Prefs.Space.sidebarHidden) private var sidebarHiddenByLearner
     @State private var paneWidth: CGFloat = 0
     @State private var linkSection: ArtifactSection?
     @State private var linkedArtifactID: String?

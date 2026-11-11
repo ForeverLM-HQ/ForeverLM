@@ -332,22 +332,20 @@ extension StudioViewModel {
     /// That does not loop: `set` drops writes whose value already matches what is
     /// in `UserDefaults`, and these values came from `UserDefaults` a line earlier.
     func reloadSyncedPreferences() {
-        let defaults = UserDefaults.standard
-
-        if let raw = defaults.string(forKey: "podcastSortMode"),
+        if let raw = Preferences.value(Prefs.Studio.podcastSortMode),
            let mode = PodcastSortMode(rawValue: raw), mode != podcastSortMode {
             podcastSortMode = mode
         }
-        if let raw = defaults.string(forKey: "videoSortMode"),
+        if let raw = Preferences.value(Prefs.Studio.videoSortMode),
            let mode = VideoSortMode(rawValue: raw), mode != videoSortMode {
             videoSortMode = mode
         }
-        if let raw = defaults.string(forKey: "meetingListOrder"),
+        if let raw = Preferences.value(Prefs.Studio.meetingListOrder),
            let order = MeetingListOrder(rawValue: raw), order != meetingListOrder {
             meetingListOrder = order
         }
         let youtubeFallbackShows = Set(
-            defaults.stringArray(forKey: Self.podcastYouTubeFallbackShowsKey) ?? []
+            Preferences.value(Prefs.Discovery.youtubeFallbackShows) ?? []
         )
         if youtubeFallbackShows != podcastYouTubeFallbackShows {
             podcastYouTubeFallbackShows = youtubeFallbackShows
@@ -412,24 +410,22 @@ extension StudioViewModel {
         if ignoredZoomRecordings != zoomLocalRecordingIgnoredFolders {
             zoomLocalRecordingIgnoredFolders = ignoredZoomRecordings
         }
-        if let raw = defaults.stringArray(forKey: "studio.hiddenTabs") {
+        if let raw = Preferences.value(Prefs.Studio.hiddenTabs) {
             let tabs = Set(raw.compactMap { StudioSidebarTab.fromPersistedRawValue($0) })
             if tabs != hiddenTabs { hiddenTabs = tabs }
         }
         // Reseeded alongside the pinned set, never after it: this is the record
         // of which of those unpins were Studio's own, and a stale copy lets
         // `pinIntegrationTabsInUse()` undo one the learner performed.
-        if let raw = defaults.stringArray(
-            forKey: StudioSidebarTab.autoUnpinnedIntegrationTabsPreferenceKey
-        ) {
+        if let raw = Preferences.value(Prefs.Studio.integrationTabsUnpinnedByDefault) as? [String] {
             let tabs = Set(raw.compactMap { StudioSidebarTab.fromPersistedRawValue($0) })
             if tabs != autoUnpinnedIntegrationTabs { autoUnpinnedIntegrationTabs = tabs }
         }
-        if let raw = defaults.stringArray(forKey: StudioSidebarTab.knowledgeExclusionPreferenceKey) {
+        if let raw = Preferences.value(Prefs.Studio.excludedKnowledgeSourceTabs) {
             let tabs = Set(raw.compactMap { StudioSidebarTab.fromPersistedRawValue($0) })
             if tabs != excludedKnowledgeTabs { excludedKnowledgeTabs = tabs }
         }
-        if let raw = defaults.stringArray(forKey: "studio.tabOrder") {
+        if let raw = Preferences.value(Prefs.Studio.tabOrder) {
             // Reconcile before comparing: a synced order that names only some of
             // the tabs is an arrangement, not a membership list, and adopting it
             // verbatim would drop the rest of the tab bar.
@@ -438,27 +434,27 @@ extension StudioViewModel {
             )
             if !order.isEmpty, order != tabOrder { tabOrder = order }
         }
-        if let raw = defaults.stringArray(forKey: "studio.centerTabGroups.v1"),
+        if let raw = Preferences.value(Prefs.Studio.centerTabGroups),
            let groups = StudioCenterTabGroups.fromPersisted(raw) {
             applySyncedCenterTabGroupsDefault(groups)
         }
-        if let order = defaults.stringArray(forKey: "studio.courseOrder"), order != courseOrder {
+        if let order = Preferences.value(Prefs.Studio.courseOrder), order != courseOrder {
             courseOrder = order
         }
-        if let order = defaults.stringArray(forKey: "studio.projectOrder"), order != notebookOrder {
+        if let order = Preferences.value(Prefs.Studio.notebookOrder), order != notebookOrder {
             notebookOrder = order
         }
-        let pinnedIDs = defaults.stringArray(forKey: NotebookPins.preferenceKey) ?? []
+        let pinnedIDs = Preferences.value(Prefs.Studio.pinnedNotebooks) ?? []
         if pinnedIDs != pinnedNotebookIDs {
             pinnedNotebookIDs = pinnedIDs
         }
-        if let order = defaults.stringArray(forKey: StudioViewModel.chatOrderPreferenceKey),
+        if let order = Preferences.value(Prefs.Studio.chatOrder),
            order != chatOrder {
             chatOrder = order
         }
-        let expanded = defaults.string(forKey: "studio.expandedPanel").flatMap(StudioExpandedPanel.init(rawValue:))
+        let expanded = Preferences.value(Prefs.Studio.expandedPanel).flatMap(StudioExpandedPanel.init(rawValue:))
         if expanded != expandedPanel { expandedPanel = expanded }
-        if let value = defaults.object(forKey: "studio.showSearchPanel") as? Bool, value != showSearchPanel {
+        if let value = Preferences.value(Prefs.Studio.showSearchPanel), value != showSearchPanel {
             showSearchPanel = value
         }
 

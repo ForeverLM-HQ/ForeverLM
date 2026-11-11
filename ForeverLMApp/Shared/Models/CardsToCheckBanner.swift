@@ -191,17 +191,15 @@ enum CardsToCheckBanner {
 
     // MARK: Storage
 
-    /// Device-local, listed in `SyncedPreferenceKeys.excluded`.
-    static let ledgerKey = "memory.draftBanner.ledger.v1"
-
+    /// Device-local (`Prefs.Memory.draftBannerLedger`).
     static func loadLedger(defaults: UserDefaults = .standard) -> Ledger {
-        guard let data = defaults.data(forKey: ledgerKey),
+        guard let data = Preferences.withStorage(defaults, { Preferences.value(Prefs.Memory.draftBannerLedger) }),
               let ledger = try? JSONDecoder().decode(Ledger.self, from: data) else { return Ledger() }
         return ledger
     }
 
     static func save(_ ledger: Ledger, defaults: UserDefaults = .standard) {
         guard let data = try? JSONEncoder().encode(ledger) else { return }
-        defaults.set(data, forKey: ledgerKey)
+        Preferences.withStorage(defaults) { Preferences.set(data, for: Prefs.Memory.draftBannerLedger) }
     }
 }

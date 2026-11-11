@@ -174,7 +174,7 @@ struct YouTubeVideoReaderView: View {
     /// Persisted video-pane height as a fraction of the reader pane; 0 means auto.
     /// The user drags the divider under the video to change it and double-clicks
     /// the divider to go back to auto.
-    @SyncedStorage(wrappedValue: 0, "reader.youtubeVideoPaneFraction") private var storedVideoFraction: Double
+    @PreferenceStorage(Prefs.Readers.youtubeVideoPaneFraction) private var storedVideoFraction
     /// Live height while the divider is being dragged; nil when idle.
     @State private var draggedVideoHeight: CGFloat?
     @State private var dragStartVideoHeight: CGFloat?
@@ -183,9 +183,9 @@ struct YouTubeVideoReaderView: View {
     /// default — a talk's slides and the words that go with them deserve as
     /// much of the pane as the player. The key is versioned because the old
     /// one holds the opt-in era's `false` for anyone who ever hit the toggle.
-    @SyncedStorage(wrappedValue: true, "reader.youtubeTranscriptBesideVideo") private var videoBesideTranscript: Bool
+    @PreferenceStorage(Prefs.Readers.youtubeTranscriptBesideVideo) private var videoBesideTranscript
     /// Persisted video-column width as a fraction of the reader pane; 0 means auto.
-    @SyncedStorage(wrappedValue: 0, "reader.youtubeVideoPaneWidthFraction") private var storedVideoWidthFraction: Double
+    @PreferenceStorage(Prefs.Readers.youtubeVideoPaneWidthFraction) private var storedVideoWidthFraction
     /// Live width while the side-by-side divider is being dragged; nil when idle.
     @State private var draggedVideoWidth: CGFloat?
     @State private var dragStartVideoWidth: CGFloat?

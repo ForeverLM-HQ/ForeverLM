@@ -629,18 +629,18 @@ struct LectureQuizScore: Equatable, Sendable {
         )
     }
 
-    static let preferenceKeyPrefix = "lectureQuiz.score."
+    static let preferenceKeyPrefix = Prefs.Families.lectureQuizScore.prefix
 
     static func preferenceKey(sourceID: String) -> String {
-        preferenceKeyPrefix + sourceID
+        Prefs.Families.lectureQuizScore.name(sourceID)
     }
 
     /// `courseQuiz.score.<quizID>`: the latest sitting of a stored course
     /// quiz (`CourseQuiz`), kept the same way, one row per quiz.
-    static let courseQuizPreferenceKeyPrefix = "courseQuiz.score."
+    static let courseQuizPreferenceKeyPrefix = Prefs.Families.courseQuizScore.prefix
 
     static func preferenceKey(courseQuizID: String) -> String {
-        courseQuizPreferenceKeyPrefix + courseQuizID
+        Prefs.Families.courseQuizScore.name(courseQuizID)
     }
 
     /// The preference row's value: a property-list dictionary.

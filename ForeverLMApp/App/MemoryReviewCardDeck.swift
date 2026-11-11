@@ -12,7 +12,7 @@ enum MemoryReviewLayout: String, CaseIterable, Identifiable {
     /// The whole transcript, as every other chat draws it.
     case conversation
 
-    static let storageKey = "memoryReviewLayout"
+    static let storageKey = Prefs.Memory.reviewLayout.name
 
     var id: String { rawValue }
 
@@ -28,7 +28,7 @@ enum MemoryReviewLayout: String, CaseIterable, Identifiable {
 
     /// What the review will draw: the stored choice, cards when none.
     static var stored: MemoryReviewLayout {
-        UserDefaults.standard.string(forKey: storageKey).flatMap(MemoryReviewLayout.init(rawValue:)) ?? .cards
+        Preferences.value(Prefs.Memory.reviewLayout).flatMap(MemoryReviewLayout.init(rawValue:)) ?? .cards
     }
 }
 

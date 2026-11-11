@@ -31,7 +31,7 @@ enum MemoryCardStateStore {
     /// Generation 1's row for a deck in `defaults`: what storage reads on a store that is not activated
     /// for generation 2 (`StorageService.cardDeckStates`).
     static func preferenceRow(deckID: String, defaults: UserDefaults) -> MemoryCardDeckState {
-        defaults.object(forKey: MemoryCardDeckState.preferenceKey(deckID: deckID))
+        Preferences.withStorage(defaults) { Preferences.value(Prefs.Families.cardDeckState.key(deckID)) }
             .flatMap(MemoryCardDeckState.init(preferenceValue:))
             ?? MemoryCardDeckState()
     }
@@ -67,17 +67,12 @@ enum MemoryCardStateStore {
             }
             return deck
         }
+        let key = Prefs.Families.cardDeckState.key(deckID)
         return MemoryCardDeckState.updating(
             deckID: deckID,
             local: local,
-            read: { defaults.object(forKey: $0) },
-            write: { value, key in
-                if defaults === UserDefaults.standard {
-                    PreferenceStore.set(value, forKey: key)
-                } else {
-                    defaults.set(value, forKey: key)
-                }
-            },
+            read: { _ in Preferences.withStorage(defaults) { Preferences.value(key) } },
+            write: { value, _ in Preferences.withStorage(defaults) { Preferences.set(value, for: key) } },
             change
         )
     }

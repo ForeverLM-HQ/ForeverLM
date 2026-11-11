@@ -52,11 +52,11 @@ struct StudioNavigationRail: View {
     /// not a layout they chose.
     @State private var revealedChatCounts: [String: Int] = [:]
     @State private var showsAccountMenu = false
-    @SyncedStorage(wrappedValue: "", StudioRailHiddenItems.storageKey) private var hiddenRailItemsStorage: String
+    @PreferenceStorage(Prefs.Rail.hiddenItems) private var hiddenRailItemsStorage: String
     private var hiddenRailItems: StudioRailHiddenItems { StudioRailHiddenItems(storage: hiddenRailItemsStorage) }
-    @SyncedStorage(wrappedValue: "", StudioRailShortcuts.storageKey) private var railShortcutsStorage: String
+    @PreferenceStorage(Prefs.Rail.shortcuts) private var railShortcutsStorage: String
     private var railShortcuts: StudioRailShortcuts { StudioRailShortcuts(storage: railShortcutsStorage) }
-    @SyncedStorage(wrappedValue: "", StudioStripFooterHiddenItems.storageKey) private var hiddenFooterItemsStorage: String
+    @PreferenceStorage(Prefs.Rail.hiddenFooterItems) private var hiddenFooterItemsStorage: String
     /// A Space place is being dragged over the strip, which keeps it at the
     /// end of its shortcuts unless it is over one of them.
     @State private var shortcutDropIsTargeted = false
@@ -65,16 +65,16 @@ struct StudioNavigationRail: View {
     @State private var stripDropBefore: StudioStripEntry?
     /// The order the learner dragged the strip's top icons and its footer's
     /// icons into (`StudioStripOrder`).
-    @SyncedStorage(wrappedValue: "", StudioStripOrder.topStorageKey) private var stripTopOrderStorage: String
-    @SyncedStorage(wrappedValue: "", StudioStripOrder.footerStorageKey) private var stripFooterOrderStorage: String
+    @PreferenceStorage(Prefs.Rail.stripOrder) private var stripTopOrderStorage: String
+    @PreferenceStorage(Prefs.Rail.stripFooterOrder) private var stripFooterOrderStorage: String
     @State private var mcpLauncher = MCPServerLauncher.shared
-    @SyncedStorage(AssistantIntegrationSettings.enabledKey) private var assistantIntegrationsEnabled = true
-    @SyncedStorage(AssistantIntegrationSettings.statusLightVisibleKey) private var showsMCPStatusLight = true
+    @PreferenceStorage(Prefs.MCP.assistantIntegrationsEnabled) private var assistantIntegrationsEnabled
+    @PreferenceStorage(Prefs.MCP.showStatusLight) private var showsMCPStatusLight
     /// Observed so a rename, here or on another client, redraws the footer.
-    @SyncedStorage(wrappedValue: "", MacAccountUser.displayNamePreferenceKey) private var savedDisplayName: String
-    @SyncedStorage(MacAccountUser.showsCompCrownPreferenceKey) private var showsCompCrown = true
-    @AppStorage(PlanTheDay.settingKey) private var asksToPlanTheDay = true
-    @SyncedStorage(wrappedValue: true, MemoryCardSettings.draftNudgesKey) private var showsDraftNudges: Bool
+    @PreferenceStorage(Prefs.Account.displayName) private var savedDisplayName: String
+    @PreferenceStorage(Prefs.Account.showsCompCrown) private var showsCompCrown
+    @AppStorage(Prefs.Planner.suggestPlanningTheDay) private var asksToPlanTheDay
+    @PreferenceStorage(Prefs.Memory.draftNudges) private var showsDraftNudges: Bool
     /// What the learner's own key has spent since local midnight, in USD, read
     /// from the usage ledger each time the account menu opens. Nil until read.
     /// The name the rail shows: the stand-in while Screen record mode films.
@@ -91,7 +91,7 @@ struct StudioNavigationRail: View {
     static let maxRailWidth: CGFloat = 720
 
     /// Persisted rail width; the user drags the trailing edge to resize.
-    @AppStorage("studio.navigationRailWidth") private var storedRailWidth: Double = Double(Self.defaultRailWidth)
+    @AppStorage(Prefs.Rail.width, default: Double(Self.defaultRailWidth)) private var storedRailWidth: Double
     /// Live width while the trailing edge is being dragged; nil when idle.
     @State private var draggedRailWidth: CGFloat?
     @State private var dragStartRailWidth: CGFloat?
@@ -118,13 +118,13 @@ struct StudioNavigationRail: View {
         min(max(value, minRailWidth), maxRailWidth)
     }
 
-    static let widthKey = "studio.navigationRailWidth"
+    static let widthKey = Prefs.Rail.width.name
 
     /// A width the learner dragged themselves, or nil while the rail has never
     /// been resized. Absent means the golden width is free to follow the
     /// window; a stored value is a deliberate override and outranks it.
     private static var draggedWidthPreference: CGFloat? {
-        (UserDefaults.standard.object(forKey: widthKey) as? Double).map { CGFloat($0) }
+        Preferences.value(Prefs.Rail.width).map { CGFloat($0) }
     }
 
     /// The width this rail opens at: the learner's own if they ever dragged it,
@@ -228,17 +228,16 @@ struct StudioNavigationRail: View {
             }
         }
         .onChange(of: expandedNotebookIDs) { _, ids in
-            PreferenceStore.set(ids.sorted(), forKey: Self.expandedNotebookIDsKey)
+            Preferences.set(ids.sorted(), for: Prefs.Rail.expandedNotebookIDs)
             NotebookSidebarSync.setExpanded(ids)
         }
-        // The folds the rail keeps in `@SyncedStorage` redraw themselves when a
+        // The folds the rail keeps in `@PreferenceStorage` redraw themselves when a
         // remote change lands; this one is a `Set` seeded once into `@State`, so
         // it has to be reseeded explicitly or the other Mac's change would not
         // show until the next launch — the difference `PreferenceStore` warns
         // about for exactly this shape of reader.
         .onReceive(NotificationCenter.default.publisher(for: PreferenceStore.didChangeRemotely)) { note in
-            let changed = note.userInfo?[PreferenceStore.changedKeysKey] as? Set<String>
-            guard changed?.contains(Self.expandedNotebookIDsKey) ?? true else { return }
+            guard PreferenceStore.notification(note, mayHaveChanged: Prefs.Rail.expandedNotebookIDs) else { return }
             let stored = Self.storedExpandedNotebookIDs()
             if stored != expandedNotebookIDs { expandedNotebookIDs = stored }
         }
@@ -958,18 +957,16 @@ struct StudioNavigationRail: View {
         }
     }
 
-    private static let expandedNotebookIDsKey = "studio.navigation.expandedProjectIDs.v1"
-
     /// Whether the loose chats show beneath the Chats header. Open by default
     /// so a learner who has never folded it finds the chats; it folds so a long history of chats
     /// outside Notebooks stops pushing the account row's neighbours around.
-    @SyncedStorage(wrappedValue: true, "studio.navigation.chatsExpanded.v1") private var isChatsExpanded: Bool
+    @PreferenceStorage(Prefs.Rail.chatsExpanded) private var isChatsExpanded: Bool
     /// Whether the Hidden fold under Chats is open. Closed by default: a chat
     /// is hidden to be out of the way, and the fold's count says it is there.
-    @SyncedStorage(wrappedValue: false, "studio.navigation.hiddenChatsExpanded.v1") private var isHiddenChatsExpanded: Bool
+    @PreferenceStorage(Prefs.Rail.hiddenChatsExpanded) private var isHiddenChatsExpanded: Bool
 
     private static func storedExpandedNotebookIDs() -> Set<String> {
-        Set(UserDefaults.standard.stringArray(forKey: expandedNotebookIDsKey) ?? [])
+        Set(Preferences.value(Prefs.Rail.expandedNotebookIDs) ?? [])
     }
 
     /// Folds are kept for every active notebook, not only those with a row
@@ -1020,7 +1017,7 @@ struct StudioNavigationRail: View {
                 // Double-click clears the override rather than writing the
                 // fallback width, so the rail goes back to tracking the
                 // window's golden ratio instead of freezing at 360.
-                UserDefaults.standard.removeObject(forKey: Self.widthKey)
+                Preferences.reset(Prefs.Rail.width)
             }
             .gesture(
                 // Global space: the handle moves with the rail's edge while

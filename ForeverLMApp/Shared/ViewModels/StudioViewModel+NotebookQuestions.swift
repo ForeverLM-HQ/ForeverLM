@@ -23,18 +23,18 @@ enum NotebookSuggestedQuestionRows {
 
     static func kept(notebookID: String) -> NotebookSuggestedQuestions.Kept? {
         NotebookSuggestedQuestions.Kept.decoded(
-            defaults.object(forKey: NotebookSuggestedQuestions.preferenceKey(notebookID: notebookID))
+            defaults.object(forKey: Prefs.Families.notebookQuestions.name(notebookID))
         )
     }
 
     static func setKept(_ kept: NotebookSuggestedQuestions.Kept, notebookID: String) {
-        let key = NotebookSuggestedQuestions.preferenceKey(notebookID: notebookID)
+        let key = Prefs.Families.notebookQuestions.key(notebookID)
         if let override = overrideDefaults {
-            override.defaults.set(kept.encoded, forKey: key)
+            override.defaults.set(kept.encoded, forKey: key.name)
             return
         }
         // `PreferenceStore` drops a write that changes nothing.
-        PreferenceStore.set(kept.encoded, forKey: key)
+        Preferences.set(kept.encoded, for: key)
     }
 }
 

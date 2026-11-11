@@ -453,11 +453,11 @@ struct ForeverLMApp: App {
     /// future surface all read the same sign-in state, so signing out in Settings re-walls
     /// the app immediately instead of leaving a stale unlocked window behind.
     @State private var managedAIAccount = ManagedAIAccountModel()
-    @SyncedStorage("uiZoomStep") private var uiZoomStep = UIZoom.defaultStep
-    @SyncedStorage("studio.assistantIntegrationsEnabled") private var assistantIntegrationsEnabled = true
+    @PreferenceStorage(Prefs.Studio.zoomStep, default: UIZoom.defaultStep) private var uiZoomStep
+    @PreferenceStorage(Prefs.MCP.assistantIntegrationsEnabled) private var assistantIntegrationsEnabled
     /// Observed so the Canvas and Atlas menu items come and go with the beta
     /// sign-up (`BetaFeatures`).
-    @SyncedStorage(wrappedValue: false, BetaReleases.preferenceKey) private var signedUpForBetas: Bool
+    @PreferenceStorage(Prefs.Lifecycle.betaReleases) private var signedUpForBetas: Bool
     private var showsCanvas: Bool { BetaFeatures.showsCanvas(signedUpForBetas: signedUpForBetas) }
     @Environment(\.scenePhase) private var scenePhase
     private let appUpdateController = AppUpdateController()
@@ -803,7 +803,7 @@ struct ForeverLMApp: App {
             }
 
             CommandGroup(after: .toolbar) {
-                Button(activeWindowState?.sidebarToggleReadsShown(spaceSidebarHidden: UserDefaults.standard.bool(forKey: "space.sidebarHidden")) == false ? "Show Navigation Sidebar" : "Hide Navigation Sidebar") {
+                Button(activeWindowState?.sidebarToggleReadsShown(spaceSidebarHidden: Preferences.value(Prefs.Space.sidebarHidden)) == false ? "Show Navigation Sidebar" : "Hide Navigation Sidebar") {
                     guard let state = activeWindowState else { return }
                     withAnimation(.easeInOut(duration: 0.22)) {
                         // As the sidebar toggle does: Home's sidebar and the
@@ -811,10 +811,9 @@ struct ForeverLMApp: App {
                         // sidebar stepping aside for a memory review comes
                         // back on asking, and a place with no sidebar of its
                         // own, the Library's, gets Home's beside it.
-                        let defaults = UserDefaults.standard
-                        let shown = !state.sidebarToggleReadsShown(spaceSidebarHidden: defaults.bool(forKey: "space.sidebarHidden"))
+                        let shown = !state.sidebarToggleReadsShown(spaceSidebarHidden: Preferences.value(Prefs.Space.sidebarHidden))
                         if let spaceHidden = state.setSidebarShownFromToggle(shown) {
-                            defaults.set(spaceHidden, forKey: "space.sidebarHidden")
+                            Preferences.set(spaceHidden, for: Prefs.Space.sidebarHidden)
                         }
                     }
                 }
@@ -1250,7 +1249,7 @@ private struct StudioWindowRoot: View {
     @State private var hasRestoredSnapshot = false
     /// The beta sign-up (`BetaFeatures`): when it turns off, here, from MCP or
     /// on another Mac, a Canvas or Atlas pane on screen leaves the window.
-    @SyncedStorage(wrappedValue: false, BetaReleases.preferenceKey) private var signedUpForBetas: Bool
+    @PreferenceStorage(Prefs.Lifecycle.betaReleases) private var signedUpForBetas: Bool
     @Environment(\.openWindow) private var openWindow
     @Environment(StudioViewModel.self) private var vm
 

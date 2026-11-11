@@ -21,14 +21,14 @@ enum PlanTheDay {
     /// from the pane, from the card's or the notification's Don't Ask Again,
     /// or over MCP. Device-local, like the reading review: the question is
     /// asked on this Mac.
-    static let settingKey = "planner.suggestPlanningTheDay"
+    static let settingKey = Prefs.Planner.suggestPlanningTheDay.name
 
     static var isEnabled: Bool {
-        UserDefaults.standard.object(forKey: settingKey) as? Bool ?? true
+        Preferences.value(Prefs.Planner.suggestPlanningTheDay)
     }
 
     static func setEnabled(_ enabled: Bool) {
-        UserDefaults.standard.set(enabled, forKey: settingKey)
+        Preferences.set(enabled, for: Prefs.Planner.suggestPlanningTheDay)
     }
 
     /// Settings › Chat › Day, under the switch above: Make Me Plan. Off
@@ -40,14 +40,14 @@ enum PlanTheDay {
     /// morning, and the question stands until the calendar holds a plan: only
     /// planning, or this switch, lifts it. It needs the question asked at all,
     /// so it does nothing while `isEnabled` is off.
-    static let forcedKey = "planner.forcePlanningTheDay"
+    static let forcedKey = Prefs.Planner.forcePlanningTheDay.name
 
     static var isForced: Bool {
-        isEnabled && UserDefaults.standard.bool(forKey: forcedKey)
+        isEnabled && Preferences.value(Prefs.Planner.forcePlanningTheDay)
     }
 
     static func setForced(_ forced: Bool) {
-        UserDefaults.standard.set(forced, forKey: forcedKey)
+        Preferences.set(forced, for: Prefs.Planner.forcePlanningTheDay)
     }
 
     /// The learner has touched the Mac this recently: the notification is for
@@ -137,37 +137,33 @@ enum PlanTheDay {
     /// notification went out, or after the learner saw it with the app in
     /// front, until they answer or close it.
     enum Ledger {
-        /// The day the question was put to the learner: seen with ForeverLM
-        /// in front, or said as a notification. At most one notification a day.
-        static let key = "planner.planTheDay.askedOn"
-        /// The day the learner answered: planned from the card or the
-        /// notification, or closed the card for the day.
-        static let answeredKey = "planner.planTheDay.answeredOn"
         /// The day a forced question opened the planning chat by itself.
-        static let chatOpenedKey = "planner.planTheDay.chatOpenedOn"
-
         static func chatWasOpened(on date: String, defaults: UserDefaults = .standard) -> Bool {
-            defaults.string(forKey: chatOpenedKey) == date
+            defaults.string(forKey: Prefs.Planner.planTheDayChatOpenedOn.name) == date
         }
 
         static func markChatOpened(on date: String, defaults: UserDefaults = .standard) {
-            defaults.set(date, forKey: chatOpenedKey)
+            defaults.set(date, forKey: Prefs.Planner.planTheDayChatOpenedOn.name)
         }
 
+        /// The day the question was put to the learner: seen with ForeverLM
+        /// in front, or said as a notification. At most one notification a day.
         static func wasAsked(on date: String, defaults: UserDefaults = .standard) -> Bool {
-            defaults.string(forKey: key) == date
+            defaults.string(forKey: Prefs.Planner.planTheDayAskedOn.name) == date
         }
 
         static func markAsked(on date: String, defaults: UserDefaults = .standard) {
-            defaults.set(date, forKey: key)
+            defaults.set(date, forKey: Prefs.Planner.planTheDayAskedOn.name)
         }
 
+        /// The day the learner answered: planned from the card or the
+        /// notification, or closed the card for the day.
         static func wasAnswered(on date: String, defaults: UserDefaults = .standard) -> Bool {
-            defaults.string(forKey: answeredKey) == date
+            defaults.string(forKey: Prefs.Planner.planTheDayAnsweredOn.name) == date
         }
 
         static func markAnswered(on date: String, defaults: UserDefaults = .standard) {
-            defaults.set(date, forKey: answeredKey)
+            defaults.set(date, forKey: Prefs.Planner.planTheDayAnsweredOn.name)
         }
     }
 }

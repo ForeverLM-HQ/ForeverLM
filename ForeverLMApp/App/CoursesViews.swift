@@ -741,7 +741,7 @@ enum CoursePathOpening {
 struct CoursePathRow: View {
     @Environment(StudioViewModel.self) private var vm
     @Environment(StudioWindowState.self) private var windowState
-    @SyncedStorage(AssistantIntegrationSettings.enabledKey) private var assistantIntegrationsEnabled = true
+    @PreferenceStorage(Prefs.MCP.assistantIntegrationsEnabled) private var assistantIntegrationsEnabled
     let courseID: String
     let entry: CoursePathEntry
     let state: CourseStepState
@@ -1335,7 +1335,7 @@ private struct CourseNotebookMenuItems: View {
 struct CourseMenuItems: View {
     @Environment(StudioViewModel.self) private var vm
     @Environment(CourseActionsModel.self) private var actions
-    @SyncedStorage(AssistantIntegrationSettings.enabledKey) private var assistantIntegrationsEnabled = true
+    @PreferenceStorage(Prefs.MCP.assistantIntegrationsEnabled) private var assistantIntegrationsEnabled
     let courseID: String
 
     var body: some View {

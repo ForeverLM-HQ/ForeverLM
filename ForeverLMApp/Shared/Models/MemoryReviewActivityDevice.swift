@@ -10,14 +10,12 @@ import Foundation
 /// telling one device's row from another's: a reinstall becomes a new device,
 /// and its old row still counts towards the days it was written on.
 enum MemoryReviewActivityDevice {
-    static let preferenceKey = "memoryReview.activity.deviceID.v1"
-
     static var id: String {
-        if let existing = UserDefaults.standard.string(forKey: preferenceKey), !existing.isEmpty {
+        if let existing = Preferences.value(Prefs.Memory.activityDeviceID), !existing.isEmpty {
             return existing
         }
         let minted = UUID().uuidString.lowercased()
-        UserDefaults.standard.set(minted, forKey: preferenceKey)
+        Preferences.set(minted, for: Prefs.Memory.activityDeviceID)
         return minted
     }
 }

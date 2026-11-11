@@ -121,8 +121,8 @@ struct MCPSettingsDetailView: View {
     @State private var copied: String?
     @State private var hostedStartInProgress = false
     @State private var stopInProgress = false
-    @SyncedStorage(AssistantIntegrationSettings.enabledKey) private var assistantIntegrationsEnabled = true
-    @SyncedStorage(AssistantIntegrationSettings.statusLightVisibleKey) private var showsMCPStatusLight = true
+    @PreferenceStorage(Prefs.MCP.assistantIntegrationsEnabled) private var assistantIntegrationsEnabled
+    @PreferenceStorage(Prefs.MCP.showStatusLight) private var showsMCPStatusLight
 
     @Environment(ManagedAIAccountModel.self) private var account
 

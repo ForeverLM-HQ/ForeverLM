@@ -124,7 +124,7 @@ enum KnowledgeMapSummaries {
     /// each Map model decoded on the main actor when it was made. The first
     /// read moves an older build's copy here and removes the key
     /// (`loadCache(fileURL:movingFrom:)`).
-    static let cacheKey = "knowledgeMap.summaryCache.v1"
+    static let cacheKey = Prefs.KnowledgeMap.summaryCache.name
 
     /// Production, Dev and First Run each keep theirs beside their own library.
     static var cacheFileURL: URL {
@@ -162,9 +162,9 @@ enum KnowledgeMapSummaries {
     /// and this read answers with what both hold.
     static func loadCache(fileURL: URL, movingFrom defaults: UserDefaults?) -> [String: Summary] {
         let onFile = readCache(at: fileURL)
-        guard let defaults, let stored = defaults.data(forKey: cacheKey) else { return onFile }
+        guard let defaults, let stored = defaults.data(forKey: Prefs.KnowledgeMap.summaryCache.name) else { return onFile }
         guard let moved = try? JSONDecoder().decode([String: Summary].self, from: stored) else {
-            defaults.removeObject(forKey: cacheKey)
+            defaults.removeObject(forKey: Prefs.KnowledgeMap.summaryCache.name)
             return onFile
         }
         let fileExists = FileManager.default.fileExists(atPath: fileURL.path)
@@ -182,7 +182,7 @@ enum KnowledgeMapSummaries {
         } catch {
             return cache
         }
-        defaults.removeObject(forKey: cacheKey)
+        defaults.removeObject(forKey: Prefs.KnowledgeMap.summaryCache.name)
         return cache
     }
 

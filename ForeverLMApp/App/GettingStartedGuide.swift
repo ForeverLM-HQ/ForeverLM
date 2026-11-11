@@ -9,23 +9,23 @@ struct GettingStartedGuide: View {
     @Environment(ManagedAIAccountModel.self) private var account
     @Binding var isPresented: Bool
 
-    @SyncedStorage("gettingStarted.completed") private var isCompleted = false
-    @SyncedStorage("gettingStarted.dismissed") private var isDismissed = false
-    @SyncedStorage("gettingStarted.completedSteps") private var completedSteps = 0
+    @PreferenceStorage(Prefs.Rail.gettingStartedCompleted) private var isCompleted
+    @PreferenceStorage(Prefs.Rail.gettingStartedDismissed) private var isDismissed
+    @PreferenceStorage(Prefs.Rail.gettingStartedCompletedSteps) private var completedSteps
     /// Set by the welcome's Get Started. The first step's Relaunch comes back
     /// with no step done yet, and must land on that step, not replay the
     /// story. Kept on this Mac: the relaunch it bridges is this Mac's.
-    @SyncedStorage("gettingStarted.welcomeSeen") private var welcomeSeen = false
-    @SyncedStorage(GetStartedSuggestions.armedKey) private var arrivalSuggestionsArmed = false
-    @SyncedStorage("aiBackground.usageConsented") private var hasConsentedToBackgroundAIUsage = false
+    @PreferenceStorage(Prefs.Rail.welcomeSeen) private var welcomeSeen
+    @PreferenceStorage(Prefs.Rail.suggestionsArmed) private var arrivalSuggestionsArmed
+    @PreferenceStorage(Prefs.Models.backgroundUsageConsented) private var hasConsentedToBackgroundAIUsage
     /// The AI step's two pages. `modelsReady` is the models page's word that
     /// the set is taken and OpenRouter will run it, which Continue waits for.
     @State private var aiPage: AIStepPage = .key
     @State private var modelsReady = false
     @State private var showsKeyField = false
-    @SyncedStorage(AISubscription.storageKey) private var aiSubscriptionAnswer = ""
-    @SyncedStorage(StudioViewModel.youtubeLikedTranscriptFormattingKey)
-    private var automaticallyFormatLikedVideoTranscripts = false
+    @PreferenceStorage(Prefs.Rail.aiSubscriptions) private var aiSubscriptionAnswer
+    @PreferenceStorage(Prefs.Discovery.youtubeLikedTranscriptFormattingEnabled, default: false)
+    private var automaticallyFormatLikedVideoTranscripts
 
     @State private var step: GettingStartedStep = .enhancements
     /// The pages opened past the step's question, newest last; empty on the
@@ -1951,7 +1951,7 @@ struct GettingStartedGuide: View {
                 panel.message = "Choose the folder Zoom saves its recordings to"
             }
             guard let url = urls.first else { return }
-            UserDefaults.standard.set(url.path, forKey: StudioViewModel.zoomLocalTranscriptFolderKey)
+            Preferences.set(url.path, for: Prefs.Meetings.zoomLocalTranscriptFolder)
             zoomFolder = StudioViewModel.zoomLocalTranscriptCustomFolder
             vm.zoomLocalTranscriptFolderDidChange()
         }

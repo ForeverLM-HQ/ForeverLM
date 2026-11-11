@@ -34,8 +34,8 @@ final class PDFPageRotationController {
         self.document = document
         self.owner = PDFPageRotationOwner(runs: runs)
         for run in owner.runs {
-            let key = PDFPageRotations.key(sourceID: run.sourceID)
-            let row = PDFPageRotations(storedValue: UserDefaults.standard.object(forKey: key))
+            let key = Prefs.Families.pdfRotations.key(run.sourceID)
+            let row = PDFPageRotations(storedValue: Preferences.value(key))
             guard !row.isEmpty else { continue }
             rows[run.sourceID] = row
             for (pageInSource, degrees) in row.turns {
@@ -65,7 +65,7 @@ final class PDFPageRotationController {
         rows[home.sourceID] = row
         apply(row.degrees(of: home.pageInSource), toPageAt: index)
         // The row's absence is an upright source; the store drops a no-op.
-        PreferenceStore.set(row.storedValue, forKey: PDFPageRotations.key(sourceID: home.sourceID))
+        Preferences.set(row.storedValue, for: Prefs.Families.pdfRotations.key(home.sourceID))
         relayout(keeping: page)
     }
 

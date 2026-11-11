@@ -95,7 +95,7 @@ enum StudioRailItem: String, CaseIterable, Identifiable {
 /// — the Notebooks header's included, so the way back never disappears with the
 /// rows.
 struct StudioRailHiddenItems: Equatable {
-    static let storageKey = "studio.navigation.hiddenItems.v1"
+    static let storageKey = Prefs.Rail.hiddenItems.name
 
     var items: Set<StudioRailItem>
 

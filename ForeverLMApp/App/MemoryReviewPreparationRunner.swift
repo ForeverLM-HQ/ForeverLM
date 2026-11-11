@@ -124,8 +124,6 @@ final class MemoryReviewPreparationRunner {
         return attempt.day
     }
 
-    private static let lastAttemptKey = "memoryReview.dailyPreparation.lastAttempt.v1"
-
     private(set) var lastAttempt: Attempt?
     private(set) var isPreparing = false
     /// When the armed timer fires next, for Settings to show.
@@ -298,12 +296,12 @@ final class MemoryReviewPreparationRunner {
     private func record(_ attempt: Attempt) {
         lastAttempt = attempt
         if let data = try? JSONEncoder().encode(attempt) {
-            UserDefaults.standard.set(data, forKey: Self.lastAttemptKey)
+            Preferences.set(data, for: Prefs.Memory.dailyPreparationLastAttempt)
         }
     }
 
     private static func loadLastAttempt() -> Attempt? {
-        guard let data = UserDefaults.standard.data(forKey: lastAttemptKey) else { return nil }
+        guard let data = Preferences.value(Prefs.Memory.dailyPreparationLastAttempt) else { return nil }
         return try? JSONDecoder().decode(Attempt.self, from: data)
     }
 }

@@ -55,7 +55,7 @@ enum NotebookWorkspaceSizing {
     /// only: absolute points, so display-dependent, like the rail's
     /// (`SyncedPreferenceKeys.excluded`). Absent until the first drag, and a
     /// double-click on the edge removes it: the column then takes its share.
-    static let sourcesWidthPreferenceKey = "notebook.sourcesColumnWidth"
+    static let sourcesWidthPreferenceKey = Prefs.Readers.notebookSourcesColumnWidth.name
 
     /// An open side column's width in a workspace `totalWidth` wide.
     static func sideWidth(totalWidth: CGFloat) -> CGFloat {
@@ -212,10 +212,10 @@ struct NotebookWorkspaceView: View {
     @Environment(\.studioCenterPaneHeaderLeadingInset) private var headerLeadingInset
     @Environment(\.studioPanelTrailingOverflow) private var outerTrailingOverflow
     @Environment(\.openWindow) private var openWindow
-    @SyncedStorage("uiZoomStep") private var uiZoomStep = UIZoom.defaultStep
+    @PreferenceStorage(Prefs.Studio.zoomStep, default: UIZoom.defaultStep) private var uiZoomStep
     /// Observed so Atlas of This Notebook comes and goes with the beta
     /// sign-up (`BetaFeatures`).
-    @SyncedStorage(wrappedValue: false, BetaReleases.preferenceKey) private var signedUpForBetas: Bool
+    @PreferenceStorage(Prefs.Lifecycle.betaReleases) private var signedUpForBetas
 
     let workspace: NotebookWorkspace
     /// The window's own tabbed panes, the notebook's center.
@@ -238,7 +238,7 @@ struct NotebookWorkspaceView: View {
     /// The Sources column's width as the learner last dragged it, on this
     /// Mac; nil until the first drag, and again after a double-click on the
     /// edge, when the column takes its share of the window.
-    @AppStorage(NotebookWorkspaceSizing.sourcesWidthPreferenceKey) private var storedSourcesWidth: Double?
+    @AppStorage(Prefs.Readers.notebookSourcesColumnWidth) private var storedSourcesWidth
     /// The width a drag of the column's edge asks for while it runs; nil when
     /// idle. Written to `storedSourcesWidth` once, when the drag ends.
     @State private var draggedSourcesWidth: CGFloat?

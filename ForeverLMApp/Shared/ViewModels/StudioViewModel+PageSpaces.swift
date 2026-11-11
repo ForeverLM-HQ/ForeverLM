@@ -29,47 +29,62 @@ enum PageSpaceRows {
     /// The spaces the rows hold now. The keys are built at runtime, so one
     /// scan of the defaults finds them; only the two prefixes are kept.
     static func read() -> PageSpaces {
-        let rows = defaults.dictionaryRepresentation().filter { key, _ in
-            key.hasPrefix(PageSpaces.namePreferenceKeyPrefix)
-                || key.hasPrefix(PageSpaces.membershipPreferenceKeyPrefix)
-                || key.hasPrefix(PageSpaces.trashPreferenceKeyPrefix)
-        }
+        let rows = storedRows(of: Prefs.Families.pageSpaceName, in: defaults)
+            .merging(storedRows(of: Prefs.Families.pageSpaceMembership, in: defaults)) { first, _ in first }
+            .merging(storedRows(of: Prefs.Families.pageSpaceTrash, in: defaults)) { first, _ in first }
         return PageSpaces(rows: rows)
     }
 
-    /// Writes a space's trash row; nil removes it, as no row means a space in
-    /// use.
-    static func writeTrash(_ value: String?, spaceID: String) {
-        write(value, forKey: PageSpaces.trashKey(spaceID: spaceID))
+    /// Every stored row of a family of account rows, by its full key. One
+    /// scan of the defaults; the families of the Space's rows are all read
+    /// this way.
+    static func storedRows(of family: AccountFamily<String, Any?>, in defaults: UserDefaults) -> [String: Any] {
+        var rows: [String: Any] = [:]
+        for (id, value) in family.rows(in: defaults) {
+            if let value { rows[family.name(id)] = value }
+        }
+        return rows
     }
 
-    /// Writes a space's name row; nil removes it.
-    static func writeName(_ name: String?, spaceID: String) {
-        write(name, forKey: PageSpaces.nameKey(spaceID: spaceID))
-    }
-
-    /// Writes a page's row; nil removes it, as no row means a page in no
-    /// space.
-    static func writeMembership(_ spaceID: String?, pageID: String) {
-        write(spaceID, forKey: PageSpaces.membershipKey(pageID: pageID))
-    }
-
-    private static func write(_ value: String?, forKey key: String) {
-        if let override = overrideDefaults {
+    /// Writes one row of a family; nil removes it. A test's own defaults
+    /// (`override`) take the write and nothing reaches the sync rail.
+    static func writeRow(_ value: Any?, for key: AccountKey<Any?>, override: UserDefaults?) {
+        if let override {
             if let value {
-                override.defaults.set(value, forKey: key)
+                override.set(value, forKey: key.name)
             } else {
-                override.defaults.removeObject(forKey: key)
+                override.removeObject(forKey: key.name)
             }
             return
         }
         // `PreferenceStore` drops a write that changes nothing, so the same
         // row written again never becomes a CloudKit save.
         if let value {
-            PreferenceStore.set(value, forKey: key)
+            Preferences.set(value, for: key)
         } else {
-            PreferenceStore.remove(forKey: key)
+            Preferences.reset(key)
         }
+    }
+
+    /// Writes a space's trash row; nil removes it, as no row means a space in
+    /// use.
+    static func writeTrash(_ value: String?, spaceID: String) {
+        write(value, for: Prefs.Families.pageSpaceTrash.key(spaceID))
+    }
+
+    /// Writes a space's name row; nil removes it.
+    static func writeName(_ name: String?, spaceID: String) {
+        write(name, for: Prefs.Families.pageSpaceName.key(spaceID))
+    }
+
+    /// Writes a page's row; nil removes it, as no row means a page in no
+    /// space.
+    static func writeMembership(_ spaceID: String?, pageID: String) {
+        write(spaceID, for: Prefs.Families.pageSpaceMembership.key(pageID))
+    }
+
+    private static func write(_ value: String?, for key: AccountKey<Any?>) {
+        writeRow(value, for: key, override: overrideDefaults?.defaults)
     }
 }
 
@@ -80,28 +95,12 @@ enum PagePinRows {
     private static var defaults: UserDefaults { PageSpaceRows.overrideDefaults?.defaults ?? .standard }
 
     static func read() -> PagePins {
-        let rows = defaults.dictionaryRepresentation().filter { key, _ in
-            key.hasPrefix(PagePins.preferenceKeyPrefix)
-        }
-        return PagePins(rows: rows)
+        PagePins(rows: PageSpaceRows.storedRows(of: Prefs.Families.pagePins, in: defaults))
     }
 
     /// Writes a page's row; nil removes it.
     static func write(_ value: String?, pageID: String) {
-        let key = PagePins.key(pageID: pageID)
-        if let override = PageSpaceRows.overrideDefaults {
-            if let value {
-                override.defaults.set(value, forKey: key)
-            } else {
-                override.defaults.removeObject(forKey: key)
-            }
-            return
-        }
-        if let value {
-            PreferenceStore.set(value, forKey: key)
-        } else {
-            PreferenceStore.remove(forKey: key)
-        }
+        PageSpaceRows.writeRow(value, for: Prefs.Families.pagePins.key(pageID), override: PageSpaceRows.overrideDefaults?.defaults)
     }
 }
 
@@ -113,28 +112,12 @@ enum PageParentRows {
     private static var defaults: UserDefaults { PageSpaceRows.overrideDefaults?.defaults ?? .standard }
 
     static func read() -> PageParents {
-        let rows = defaults.dictionaryRepresentation().filter { key, _ in
-            key.hasPrefix(PageParents.preferenceKeyPrefix)
-        }
-        return PageParents(rows: rows)
+        PageParents(rows: PageSpaceRows.storedRows(of: Prefs.Families.pageParents, in: defaults))
     }
 
     /// Writes a child's row; nil removes it.
     static func write(_ parentID: String?, pageID: String) {
-        let key = PageParents.key(pageID: pageID)
-        if let override = PageSpaceRows.overrideDefaults {
-            if let parentID {
-                override.defaults.set(parentID, forKey: key)
-            } else {
-                override.defaults.removeObject(forKey: key)
-            }
-            return
-        }
-        if let parentID {
-            PreferenceStore.set(parentID, forKey: key)
-        } else {
-            PreferenceStore.remove(forKey: key)
-        }
+        PageSpaceRows.writeRow(parentID, for: Prefs.Families.pageParents.key(pageID), override: PageSpaceRows.overrideDefaults?.defaults)
     }
 }
 
@@ -553,19 +536,19 @@ extension StudioViewModel {
     /// may have changed").
     func reloadGroupingRows(afterRemoteChangeOf keys: Set<String>) {
         let prefixes = [
-            PageSpaces.namePreferenceKeyPrefix,
-            PageSpaces.membershipPreferenceKeyPrefix,
-            PageSpaces.trashPreferenceKeyPrefix,
-            PagePins.preferenceKeyPrefix,
-            ChatPins.preferenceKeyPrefix,
-            PageParents.preferenceKeyPrefix,
-            NotebookCollections.namePreferenceKeyPrefix,
-            NotebookCollections.membershipPreferenceKeyPrefix,
+            Prefs.Families.pageSpaceName.prefix,
+            Prefs.Families.pageSpaceMembership.prefix,
+            Prefs.Families.pageSpaceTrash.prefix,
+            Prefs.Families.pagePins.prefix,
+            Prefs.Families.chatPins.prefix,
+            Prefs.Families.pageParents.prefix,
+            Prefs.Families.notebookCollectionName.prefix,
+            Prefs.Families.notebookCollectionMembership.prefix,
             // A canvas is its layout row: one made, renamed or put in Trash
             // on another Mac lists here once it lands.
-            KnowledgeMap.layoutKeyPrefix,
-            SpaceLists.listPreferenceKeyPrefix,
-            SpaceLists.itemPreferenceKeyPrefix,
+            Prefs.Families.mapLayout.prefix,
+            Prefs.Families.spaceList.prefix,
+            Prefs.Families.spaceListItem.prefix,
         ]
         guard keys.isEmpty || keys.contains(where: { key in prefixes.contains(where: key.hasPrefix) }) else { return }
         refreshCanvasesFromRows()

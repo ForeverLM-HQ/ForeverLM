@@ -551,7 +551,7 @@ final class SourceReaderTitleDragHandleView: NSView, NSDraggingSource {
     /// system setting the Dock pane writes.
     private func performTitlebarDoubleClickAction() {
         guard let window else { return }
-        switch UserDefaults.standard.string(forKey: "AppleActionOnDoubleClick") {
+        switch Preferences.value(Prefs.System.actionOnDoubleClick) {
         case "Minimize":
             window.performMiniaturize(nil)
         case "None":

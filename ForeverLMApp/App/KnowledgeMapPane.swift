@@ -37,7 +37,7 @@ struct KnowledgeMapPane: View {
     // MARK: The Space beside the canvas
     /// The learner's choice to keep the Space sidebar out of the way, shared
     /// with the Space and its pages; this Mac's.
-    @AppStorage("space.sidebarHidden") private var spaceSidebarHiddenByLearner = false
+    @AppStorage(Prefs.Space.sidebarHidden) private var spaceSidebarHiddenByLearner
     @State private var paneWidth: CGFloat = 0
     @State private var renamingCanvas: KnowledgeMapCanvas?
     @State private var linkSection: ArtifactSection?

@@ -51,34 +51,39 @@ enum ThinkFirstMoment: String, CaseIterable, Codable, Sendable {
 
 enum ThinkFirst {
     /// The library's level, an account Setting (`set_app_setting think_first.level`).
-    static let levelKey = "thinkFirst.level"
+    static let levelKey = Prefs.Planner.thinkFirstLevel.name
     /// One notebook's own level over the library's, an account Setting written
     /// by the notebook's settings and `update_notebook`'s `think_first`.
-    static let notebookKeyPrefix = "notebook.thinkFirst."
+    static let notebookKeyPrefix = Prefs.Families.notebookThinkFirst.prefix
 
     static func notebookKey(_ notebookID: String) -> String {
-        notebookKeyPrefix + notebookID
+        Prefs.Families.notebookThinkFirst.name(notebookID)
     }
 
     /// The library's level. Absent is Off, as the design says; a word this
     /// build does not know (a level a newer build added) is read as Off too,
     /// so an older Mac never asks where it cannot say why.
     static func libraryLevel(defaults: UserDefaults = .standard) -> ThinkFirstLevel {
-        defaults.string(forKey: levelKey).flatMap(ThinkFirstLevel.init(rawValue:)) ?? .off
+        defaults.string(forKey: Prefs.Planner.thinkFirstLevel.name).flatMap(ThinkFirstLevel.init(rawValue:)) ?? .off
     }
 
     static func setLibraryLevel(_ level: ThinkFirstLevel) {
-        PreferenceStore.set(level.rawValue, forKey: levelKey)
+        Preferences.set(level.rawValue, for: Prefs.Planner.thinkFirstLevel)
     }
 
     /// The notebook's own level, or nil when it follows the library's.
     static func notebookLevel(_ notebookID: String, defaults: UserDefaults = .standard) -> ThinkFirstLevel? {
-        defaults.string(forKey: notebookKey(notebookID)).flatMap(ThinkFirstLevel.init(rawValue:))
+        defaults.string(forKey: Prefs.Families.notebookThinkFirst.name(notebookID)).flatMap(ThinkFirstLevel.init(rawValue:))
     }
 
     /// Nil takes the notebook's own level away, so it follows the library's.
     static func setNotebookLevel(_ level: ThinkFirstLevel?, notebookID: String) {
-        PreferenceStore.set(level?.rawValue, forKey: notebookKey(notebookID))
+        let key = Prefs.Families.notebookThinkFirst.key(notebookID)
+        if let level {
+            Preferences.set(level.rawValue, for: key)
+        } else {
+            Preferences.reset(key)
+        }
     }
 
     /// The level that applies: the notebook's own when it has one, else the
@@ -109,21 +114,21 @@ enum ThinkFirst {
 /// which at worst asks once more on the other one. The oldest fall off past
 /// `limit`, which also only asks again.
 enum ThinkFirstAskedSources {
-    static let preferenceKey = "thinkFirst.askedSources.v1"
+    static let preferenceKey = Prefs.Planner.thinkFirstAskedSources.name
     static let limit = 2000
 
     static func contains(_ sourceID: String, defaults: UserDefaults = .standard) -> Bool {
-        (defaults.stringArray(forKey: preferenceKey) ?? []).contains(sourceID)
+        (defaults.stringArray(forKey: Prefs.Planner.thinkFirstAskedSources.name) ?? []).contains(sourceID)
     }
 
     static func insert(_ sourceID: String, defaults: UserDefaults = .standard) {
-        var asked = defaults.stringArray(forKey: preferenceKey) ?? []
+        var asked = defaults.stringArray(forKey: Prefs.Planner.thinkFirstAskedSources.name) ?? []
         guard !asked.contains(sourceID) else { return }
         asked.append(sourceID)
         if asked.count > limit {
             asked.removeFirst(asked.count - limit)
         }
-        defaults.set(asked, forKey: preferenceKey)
+        defaults.set(asked, forKey: Prefs.Planner.thinkFirstAskedSources.name)
     }
 }
 
@@ -132,7 +137,7 @@ enum ThinkFirstAskedSources {
 /// in five is the wrong moment, and the record should say so and drop it.
 /// Device-local on purpose: a count is enough, and nothing needs it elsewhere.
 enum ThinkFirstTally {
-    static let countsKey = "thinkFirst.counts.v1"
+    static let countsKey = Prefs.Planner.thinkFirstCounts.name
 
     struct Count: Equatable, Sendable {
         var answered = 0
@@ -150,16 +155,16 @@ enum ThinkFirstTally {
     }
 
     static func record(_ moment: ThinkFirstMoment, answered: Bool, defaults: UserDefaults = .standard) {
-        var stored = defaults.dictionary(forKey: countsKey) as? [String: [String: Int]] ?? [:]
+        var stored = defaults.dictionary(forKey: Prefs.Planner.thinkFirstCounts.name) as? [String: [String: Int]] ?? [:]
         var row = stored[moment.rawValue] ?? [:]
         let field = answered ? "answered" : "skipped"
         row[field, default: 0] += 1
         stored[moment.rawValue] = row
-        defaults.set(stored, forKey: countsKey)
+        defaults.set(stored, forKey: Prefs.Planner.thinkFirstCounts.name)
     }
 
     static func counts(defaults: UserDefaults = .standard) -> [ThinkFirstMoment: Count] {
-        let stored = defaults.dictionary(forKey: countsKey) as? [String: [String: Int]] ?? [:]
+        let stored = defaults.dictionary(forKey: Prefs.Planner.thinkFirstCounts.name) as? [String: [String: Int]] ?? [:]
         var counts: [ThinkFirstMoment: Count] = [:]
         for moment in ThinkFirstMoment.allCases {
             let row = stored[moment.rawValue] ?? [:]
