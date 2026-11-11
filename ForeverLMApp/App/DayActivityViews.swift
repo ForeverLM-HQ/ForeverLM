@@ -32,8 +32,8 @@ struct DayActivityReaderPane: View {
     @Environment(StudioViewModel.self) private var vm
 
     private let model = DayModel.shared
-    @AppStorage(PlannerDayHours.startKey) private var dayStartHour: Int = PlannerDayHours.defaultStart
-    @AppStorage(PlannerDayHours.endKey) private var dayEndHour: Int = PlannerDayHours.defaultEnd
+    @SyncedStorage(PlannerDayHours.startKey) private var dayStartHour: Int = PlannerDayHours.defaultStart
+    @SyncedStorage(PlannerDayHours.endKey) private var dayEndHour: Int = PlannerDayHours.defaultEnd
 
     var body: some View {
         content

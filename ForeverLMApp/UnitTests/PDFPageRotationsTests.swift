@@ -206,7 +206,3 @@ struct PDFPageRotationControllerTests {
         #expect(try key("f", .command).readerPageTurnShortcut == nil)
     }
 }
-
-private extension Array {
-    subscript(safe index: Int) -> Element? { indices.contains(index) ? self[index] : nil }
-}

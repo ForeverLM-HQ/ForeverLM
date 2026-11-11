@@ -88,9 +88,9 @@ struct SettingsDaySection: View {
     private var readsWindowToo = false
     private var focusWatcher: FocusWatcher { FocusWatcher.shared }
     /// Synced: the learner's day is the same on every Mac.
-    @AppStorage(PlannerDayHours.startKey)
+    @SyncedStorage(PlannerDayHours.startKey)
     private var dayStartHour: Int = PlannerDayHours.defaultStart
-    @AppStorage(PlannerDayHours.endKey)
+    @SyncedStorage(PlannerDayHours.endKey)
     private var dayEndHour: Int = PlannerDayHours.defaultEnd
 
     /// The end hours the picker offers: after the chosen start, so the two

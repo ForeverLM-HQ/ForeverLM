@@ -470,6 +470,12 @@ struct RefetchSourceContentTests {
         for type in [StudioSourceType.paper, .xPost, .video] {
             #expect(route("https://example.com/item", type) == .plainFetch)
         }
+        // A video's text is its transcript, never its page: YouTube and Zoom
+        // recordings are fetched again the way fetch_video_transcript fetches.
+        #expect(route("https://www.youtube.com/watch?v=dQw4w9WgXcQ", .video) == .videoTranscript)
+        #expect(route("https://zoom.us/rec/share/abc", .video) == .videoTranscript)
+        #expect(route("https://zoom.us/rec/share/abc", .meeting) == .videoTranscript)
+        #expect(route("https://www.youtube.com/watch?v=dQw4w9WgXcQ", .article) == .websiteRefresh)
         // A podcast's text is its transcript, never its page: both an Apple
         // episode and a row filed under the episode's page are hydrated again.
         #expect(route("apple-podcast://episode/1000745466204", .podcast) == .podcastTranscript)

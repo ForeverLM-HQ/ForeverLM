@@ -327,6 +327,9 @@ extension MCPDataStore {
         /// the way hydration fetches one. Its address is an Apple episode, or
         /// a page that is not a transcript.
         case podcastTranscript
+        /// A YouTube video or a Zoom recording: its transcript fetched again
+        /// from the video. Its page's text is never its transcript.
+        case videoTranscript
         /// Every other type: its text fetched from its address.
         case plainFetch
     }
@@ -338,6 +341,13 @@ extension MCPDataStore {
         // A source a Gemini Notebook held only as text is stored under the
         // notebook's address, and that address fetched is Google's page.
         if GeminiNotebookService.isNotebookURL(article.url) { return .geminiNotebookText }
+        // The sources fetch_video_transcript reads: a video on YouTube or a
+        // Zoom recording, and a meeting session held as a Zoom recording.
+        let isZoom = ZoomRecordingService.isZoomRecordingURL(article.url)
+        if (article.sourceType == .video && (YouTubeTranscriptService.isYouTubeURL(article.url) || isZoom))
+            || (article.sourceType == .meeting && isZoom) {
+            return .videoTranscript
+        }
         switch article.sourceType {
         case .article, .manual, .unclassified:
             return PaperService.isDirectPDFURL(article.url) ? .pdfAddress : .websiteRefresh
@@ -383,6 +393,9 @@ extension MCPDataStore {
             throw MCPError.invalidInput(
                 "'\(article.title)' is addressed to a PDF file, not a web page, so there is no page to refetch: ForeverLM reads its text from the PDF."
             )
+        case .videoTranscript:
+            // The stored transcript stays unless the fetch brings a new one.
+            return try await fetchVideoTranscript(sourceID: id, fetchAgain: true)
         case .podcastTranscript, .plainFetch:
             break
         }

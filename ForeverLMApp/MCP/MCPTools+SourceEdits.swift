@@ -5,8 +5,10 @@ extension MCPDataStore {
     /// A download (YouTube, a Zoom recording) holds no store gate
     /// (`MCPToolRegistry.selfGatedToolNames`): the source is checked, and a transcript
     /// already stored marked ready, in one short stretch held alone, and what a
-    /// download brought is saved in another.
-    func fetchVideoTranscript(sourceID: String, passcode: String? = nil) async throws -> String {
+    /// download brought is saved in another. `fetchAgain` is
+    /// `refetch_source_content`: the stored transcript is not answered with,
+    /// and it stays until the download brings a new one.
+    func fetchVideoTranscript(sourceID: String, passcode: String? = nil, fetchAgain: Bool = false) async throws -> String {
         enum Start {
             case notFound
             case cached(StudioArticle)
@@ -27,7 +29,8 @@ extension MCPDataStore {
                 throw MCPError.invalidInput("fetch_video_transcript currently supports YouTube URLs, Zoom recording links and Teachable lectures.")
             }
 
-            if let cachedTranscript = try store.loadSourceContent(sourceID),
+            if !fetchAgain,
+               let cachedTranscript = try store.loadSourceContent(sourceID),
                !cachedTranscript.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 article.content = cachedTranscript
                 article.wordCount = cachedTranscript.split(separator: " ").count
@@ -43,7 +46,7 @@ extension MCPDataStore {
         case .notFound:
             throw MCPError.notFound("Source not found: \(sourceID)")
         case .cached(let cached):
-            return "Transcript already cached for '\(cached.title)' (\(cached.wordCount ?? 0) words)"
+            return "Transcript already cached for '\(cached.title)' (\(cached.wordCount ?? 0) words). refetch_source_content fetches it again from the video."
         case .download(let found):
             article = found
         }

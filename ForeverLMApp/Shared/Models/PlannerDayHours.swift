@@ -12,7 +12,8 @@ import Foundation
 /// about where a block may go: a block outside it, drawn from a chat or on
 /// the other Mac, widens the clock to hold it (`DayPlanDetail.clockHourRange`).
 enum PlannerDayHours {
-    /// Listed in `SyncedPreferenceKeys.synced`.
+    /// Listed in `SyncedPreferenceKeys.synced`: every writer goes through
+    /// `PreferenceStore` or `@SyncedStorage`, which is what sends a change on.
     static let startKey = "planner.dayHours.start.v1"
     static let endKey = "planner.dayHours.end.v1"
 
@@ -27,12 +28,12 @@ enum PlannerDayHours {
 
     static var start: Int {
         get { clampStart(UserDefaults.standard.object(forKey: startKey) as? Int ?? defaultStart) }
-        set { UserDefaults.standard.set(clampStart(newValue), forKey: startKey) }
+        set { PreferenceStore.set(clampStart(newValue), forKey: startKey) }
     }
 
     static var end: Int {
         get { clampEnd(UserDefaults.standard.object(forKey: endKey) as? Int ?? defaultEnd) }
-        set { UserDefaults.standard.set(clampEnd(newValue), forKey: endKey) }
+        set { PreferenceStore.set(clampEnd(newValue), forKey: endKey) }
     }
 
     /// The stored window with its two ends put in order: a start at or past
