@@ -114,8 +114,13 @@ struct MobileHomeDashboard<Top: View>: View {
 
             Spacer(minLength: MobileDesign.Spacing.medium)
 
-            suggestions
-            composer
+            // On an iPad the rows and the composer keep a readable measure in
+            // the middle, as ChatGPT's do, instead of a field a thousand points wide.
+            VStack(spacing: 0) {
+                suggestions
+                composer
+            }
+            .mobileReadableWidth()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
