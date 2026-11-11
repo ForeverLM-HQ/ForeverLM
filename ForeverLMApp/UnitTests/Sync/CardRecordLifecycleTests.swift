@@ -219,7 +219,7 @@ struct CardRecordLifecycleTests {
     }
 
     @Test("An item from before cards stays this Mac's to check when its Card arrives from another device saying kept")
-    func legacyItemStaysToCheck() async throws {
+    func itemFromBeforeCardsStaysToCheck() async throws {
         let (root, store) = try F.makeStore("legacy")
         defer { try? FileManager.default.removeItem(at: root) }
         try F.item(store, id: "legacy-1", target: "What is an uncoupler? — A protein that lets protons leak.")

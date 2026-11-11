@@ -884,12 +884,6 @@ struct ChatQueuedMessagesTests {
 @Suite("Side chats side by side")
 @MainActor
 struct StudioSideChatSplitTests {
-    private static func makeViewModel() -> StudioViewModel {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("SideChatSplit_\(UUID().uuidString)")
-        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return StudioViewModel(storageService: StorageService(storeRoot: root))
-    }
-
     /// Keeps the developer's synced layout out of the test's rearranging.
     private static func capturedLayout() -> () -> Void {
         let key = "studio.centerTabGroups.v1"
@@ -915,7 +909,7 @@ struct StudioSideChatSplitTests {
     func chatSplitsIntoSideChats() {
         let restore = Self.capturedLayout()
         defer { restore() }
-        let vm = Self.makeViewModel()
+        let vm = makeViewModel()
         let window = vm.activeWindowState
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
             .init(tabs: [.artifacts, .chat, .reader], activeTab: .chat, openTabs: [.chat]),
@@ -948,7 +942,7 @@ struct StudioSideChatSplitTests {
     func parkedChatMovesBeside() {
         let restore = Self.capturedLayout()
         defer { restore() }
-        let vm = Self.makeViewModel()
+        let vm = makeViewModel()
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
             .init(tabs: [.artifacts, .chat, .reader], activeTab: .artifacts, openTabs: [.artifacts]),
         ])
@@ -963,7 +957,7 @@ struct StudioSideChatSplitTests {
     func readerSplitsIntoSideReader() {
         let restore = Self.capturedLayout()
         defer { restore() }
-        let vm = Self.makeViewModel()
+        let vm = makeViewModel()
         let window = vm.activeWindowState
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
             .init(tabs: [.artifacts, .reader, .chat], activeTab: .reader, openTabs: [.reader]),
@@ -994,7 +988,7 @@ struct StudioSideChatSplitTests {
     func browserSplitsIntoSideBrowser() {
         let restore = Self.capturedLayout()
         defer { restore() }
-        let vm = Self.makeViewModel()
+        let vm = makeViewModel()
         let window = vm.activeWindowState
         vm.centerTabGroups = StudioCenterTabGroups(groups: [
             .init(tabs: [.artifacts, .browser, .chat], activeTab: .browser, openTabs: [.browser]),

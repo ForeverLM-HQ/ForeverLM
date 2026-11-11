@@ -810,9 +810,9 @@ extension MCPDataStoreTests {
         #expect((twice["message"] as? String)?.contains("already") == true)
     }
 
-    @Test("memoryReview reserves one legacy intake slot beside four due concepts")
+    @Test("memoryReview reserves one source-level intake slot beside four due concepts")
     func memoryReviewMatchesSharedFiveItemSelection() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let knowledge = try store.knowledgeStore()
@@ -865,12 +865,12 @@ extension MCPDataStoreTests {
             )
         }
 
-        let legacyContent = "A legacy source-level review must become a concept trace."
+        let sourceLevelContent = "A legacy source-level review must become a concept trace."
         try insertSource(
             dbPath: dbPath,
             id: "legacy-intake-source",
             title: "Legacy intake",
-            content: legacyContent
+            content: sourceLevelContent
         )
         try knowledge.createReviewSession(
             id: "legacy-intake-session",
@@ -903,18 +903,18 @@ extension MCPDataStoreTests {
             )
         )
         let conceptItems = try #require(payload["memory_items"] as? [[String: Any]])
-        let legacyItems = try #require(payload["items"] as? [[String: Any]])
+        let intakeItems = try #require(payload["items"] as? [[String: Any]])
         let newItems = try #require(payload["new_items"] as? [[String: Any]])
 
         #expect(conceptItems.count == 4)
-        #expect(legacyItems.count == 1)
-        #expect(legacyItems.first?["source_id"] as? String == "legacy-intake-source")
+        #expect(intakeItems.count == 1)
+        #expect(intakeItems.first?["source_id"] as? String == "legacy-intake-source")
         #expect(newItems.isEmpty)
     }
 
     @Test("memoryReview operation id reuses one session and rejects changed arguments")
     func memoryReviewStartIsIdempotentByOperationID() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let knowledge = try store.knowledgeStore()
@@ -1094,7 +1094,7 @@ extension MCPDataStoreTests {
 
     @Test("memoryReview replay resolves a portable first-review card after source id remap")
     func memoryReviewReplayResolvesPortableFirstReviewSource() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let knowledge = try store.knowledgeStore()
@@ -1163,7 +1163,7 @@ extension MCPDataStoreTests {
 
     @Test("memory review completion marks only the source actually attempted")
     func memoryReviewStopAfterOneLeavesUntouchedQueueSourcesEligible() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let knowledge = try store.knowledgeStore()
@@ -1271,9 +1271,9 @@ extension MCPDataStoreTests {
         #expect(nextIDs.contains(untouchedID))
     }
 
-    @Test("memoryReview cannot consume legacy state without graded concept evidence")
+    @Test("memoryReview cannot consume source-level state without graded concept evidence")
     func memoryReviewRejectsEmptyEvidenceCompletion() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let knowledge = try store.knowledgeStore()
@@ -1389,7 +1389,7 @@ extension MCPDataStoreTests {
 
     @Test("failed-only memory evidence cannot consume review or Schedule state")
     func memoryReviewRejectsFailedOnlyEvidenceCompletion() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath)
             .appendingPathComponent("knowledge.db").path
@@ -1466,7 +1466,7 @@ extension MCPDataStoreTests {
 
     @Test("Concurrent memory review and completion mutations serialize one shared connection")
     func concurrentMemoryReviewAndCompletionMutationsSerialize() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let content = "Retrieval must happen before feedback to expose accessible knowledge."

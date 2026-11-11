@@ -799,8 +799,8 @@ struct LearningGoalPersistenceTests {
         }
     }
 
-    @Test("Editing settings of a legacy Schedule goal is rejected")
-    func updateSettingsRejectsLegacyGoal() throws {
+    @Test("Editing settings of a plain Schedule goal is rejected")
+    func updateSettingsRejectsPlainGoal() throws {
         let store = try KnowledgeStore(inMemory: true)
         let goal = try store.createLearningGoal(
             title: "This Week",
@@ -1289,7 +1289,7 @@ fileprivate struct NotebookHoldings {
     }
 }
 
-// MARK: - Legacy plain-goal fixture
+// MARK: - Plain-goal fixture
 
 extension KnowledgeStore {
     /// Writes a plain goal (`kind IS NULL`), the shape older builds stored the

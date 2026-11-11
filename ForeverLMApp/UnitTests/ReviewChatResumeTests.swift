@@ -2359,7 +2359,7 @@ struct ReviewSessionLoadedSourcesTests {
     }
 
     @Test("A chat from before the loaded set was kept reopens on what it cited")
-    func legacyChatReopensOnCitations() {
+    func chatWithoutLoadedSetReopensOnCitations() {
         let reload = ReviewSessionManager.sourceIDsToReloadOnResume(
             remembered: nil,
             attached: ["src-a", "src-b", "src-c"],
@@ -2373,8 +2373,8 @@ struct ReviewSessionLoadedSourcesTests {
         #expect(reload == ["src-b"])
     }
 
-    @Test("A legacy chat with one attached source reopens holding it even when no turn linked it")
-    func legacySingleSourceChatReopensLoaded() {
+    @Test("A chat with no recorded loaded set and one attached source reopens holding it even when no turn linked it")
+    func singleSourceChatWithoutLoadedSetReopensLoaded() {
         let reload = ReviewSessionManager.sourceIDsToReloadOnResume(
             remembered: nil,
             attached: ["src-paper"],
@@ -2383,8 +2383,8 @@ struct ReviewSessionLoadedSourcesTests {
         #expect(reload == ["src-paper"])
     }
 
-    @Test("A legacy Notebook pool that cited nothing stays catalog")
-    func legacyPoolStaysCatalog() {
+    @Test("A Notebook pool with no recorded loaded set that cited nothing stays catalog")
+    func poolWithoutLoadedSetStaysCatalog() {
         let reload = ReviewSessionManager.sourceIDsToReloadOnResume(
             remembered: nil,
             attached: (1...20).map { "src-\($0)" },

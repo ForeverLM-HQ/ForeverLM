@@ -16,13 +16,6 @@ struct SidebarDerivedStateCacheTests {
 
     // MARK: - Fixtures
 
-    private func makeViewModel() -> StudioViewModel {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("SidebarDerivedStateCacheTests_\(UUID().uuidString)", isDirectory: true)
-        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return StudioViewModel(storageService: StorageService(storeRoot: root))
-    }
-
     private func paper(_ url: String, _ title: String, doi: String? = nil, pdf: String? = nil) -> StudioArticle {
         var paper = StudioArticle(url: url, title: title, sourceType: .paper)
         paper.state = .ready

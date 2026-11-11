@@ -10,15 +10,6 @@ import Testing
 @Suite("Notes graph MCP tools")
 struct NotesGraphMCPTests {
 
-    private func makeStore() throws -> (MCPDataStore, String) {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("notes_graph_mcp_\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let store = MCPDataStore(dbPath: directory.appendingPathComponent("knowledge.db").path)
-        _ = try store.knowledgeStore()
-        return (store, directory.path)
-    }
-
     private func cleanup(_ path: String) {
         try? FileManager.default.removeItem(atPath: path)
     }
@@ -262,7 +253,7 @@ struct NotesGraphMCPTests {
 
     @Test("Bad arguments come back as errors through the registry, before anything is read or written")
     func refusalsThroughTheRegistry() async throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let registry = MCPToolRegistry(store: store)
 
@@ -293,7 +284,7 @@ struct NotesGraphMCPTests {
 
     @Test("get_daily_note says a day has no note, and makes none unless asked")
     func dailyNoteMissing() async throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let registry = MCPToolRegistry(store: store)
         let outcome = await registry.callToolDetailed(name: "get_daily_note", arguments: ["date": "2026-10-05"])
@@ -312,7 +303,7 @@ struct NotesGraphMCPTests {
     /// a day's new note and a page made by its title start empty.
     @Test("read_doc reads an empty Doc, and still bounds a length asked for")
     func readDocReadsAnEmptyDoc() async throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let snapshot = try await store.notebookFileStorage.createArtifact(
             title: "A page made by its title",
@@ -337,7 +328,7 @@ struct NotesGraphMCPTests {
 
     @Test("read_doc with resolve_references reads references as their words; without it, as stored")
     func readDocResolvesReferences() async throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let storage = store.notebookFileStorage
         let claims = try await storage.createArtifact(
@@ -381,7 +372,7 @@ struct NotesGraphMCPTests {
 
     @Test("append_to_daily_note makes the day's note and adds each addition at its end")
     func appendMakesAndAppends() async throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let registry = MCPToolRegistry(store: store)
 
@@ -420,7 +411,7 @@ struct NotesGraphMCPTests {
 
     @Test("get_daily_note with create makes the day's empty note once")
     func dailyNoteCreate() async throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let registry = MCPToolRegistry(store: store)
         let made = try json(await registry.callTool(
@@ -442,7 +433,7 @@ struct NotesGraphMCPTests {
 
     @Test("get_linked_references lists the blocks that link a Doc or a block, and get_block reads one")
     func linkedReferencesAndBlocks() async throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let storage = store.notebookFileStorage
         let claims = try await storage.createArtifact(

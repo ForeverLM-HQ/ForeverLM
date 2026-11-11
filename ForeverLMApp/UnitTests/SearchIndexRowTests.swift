@@ -6,11 +6,6 @@ import Foundation
 import SQLite3
 @testable import ForeverLM
 
-/// Creates an in-memory KnowledgeStore for unit testing.
-private func makeInMemoryStore() throws -> KnowledgeStore {
-    try KnowledgeStore(inMemory: true)
-}
-
 /// Helper: create a StudioArticle with sensible defaults for testing.
 private func makeArticle(url: String, title: String? = nil) -> StudioArticle {
     var article = StudioArticle(url: url, title: title)
@@ -44,7 +39,7 @@ struct EmbeddingPrefixDeleteTests {
 
     @Test("One source's chunks go; an id sharing its leading characters or differing in case keeps its own")
     func deletesOneSourceExactly() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let neighbours = ["src_ab", "src_A", "SRC_A", "src_", "src_a_"]
         for id in ["src_a"] + neighbours {
             try Self.save(store, Self.chunk(id, 0))
@@ -72,7 +67,7 @@ struct EmbeddingPrefixDeleteTests {
 
     @Test("A source id holding LIKE's wildcards matches only itself")
     func wildcardsAreLiteral() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         for id in ["a_b%c", "aXbYYc", "a_b%cd"] {
             try Self.save(store, Self.chunk(id))
         }
@@ -84,7 +79,7 @@ struct EmbeddingPrefixDeleteTests {
 
     @Test("Given a model, only that model's chunks of the source go")
     func deletesOneModel() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         for model in ["m", "n"] {
             try Self.save(store, Self.chunk("src_a"), model: model)
             try Self.save(store, Self.chunk("src_ab"), model: model)
@@ -106,7 +101,7 @@ struct EmbeddingPrefixDeleteTests {
         #expect(KnowledgeStore.textPrefixUpperBound("\u{10FFFF}") == nil)
         #expect(KnowledgeStore.textPrefixUpperBound("") == nil)
 
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let texts = ["", "a", "A", "ab", "a\u{D7FF}", "a\u{D7FF}x", "a\u{E000}", "a\u{FFFF}", "a\u{10000}",
                      "a\u{10FFFF}", "a\u{10FFFF}z", "b", "e", "e\u{301}", "é", "ê"]
         for prefix in ["a", "a\u{D7FF}", "a\u{10FFFF}", "e", "é", ""] {
@@ -153,7 +148,7 @@ struct SourceFTSRowTests {
 
     @Test("Deleting one source's row leaves every other source's, an id sharing its leading characters or differing in case included")
     func deleteLeavesOtherSources() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         for id in ["src_a", "src_ab", "src_A", "src_"] {
             try store.replaceSourceFTS(sourceID: id, title: "Title of \(id)", author: "", body: "mitochondria")
         }
@@ -169,7 +164,7 @@ struct SourceFTSRowTests {
 
     @Test("Writing a source's row again replaces it: one row, the new words, under its new rowid")
     func replaceKeepsOneRow() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         try store.replaceSourceFTS(sourceID: "src_a", title: "First", author: "", body: "glycolysis")
         try store.replaceSourceFTS(sourceID: "src_ab", title: "Neighbour", author: "", body: "glycolysis")
         try store.replaceSourceFTS(sourceID: "src_a", title: "Second", author: "", body: "oxphos")
@@ -182,7 +177,7 @@ struct SourceFTSRowTests {
 
     @Test("A stamp dropped to have the row written again keeps the rowid, so the rewrite replaces the row")
     func droppedStampKeepsTheRowid() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         try store.replaceSourceFTS(sourceID: "src_a", title: "A <i>marked</i> title", author: "", body: "")
         // What a repaired title does (`restoreRegisteredPaperTitle`, the schema-144 folds).
         try store.execute("DELETE FROM source_fts_state WHERE source_id = 'src_a'")
@@ -196,7 +191,7 @@ struct SourceFTSRowTests {
 
     @Test("A rowid the map should not hold takes no other source's row")
     func staleRowidTakesNothing() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         try store.replaceSourceFTS(sourceID: "src_a", title: "A", author: "", body: "")
         try store.replaceSourceFTS(sourceID: "src_b", title: "B", author: "", body: "")
         try store.execute("""
@@ -211,7 +206,7 @@ struct SourceFTSRowTests {
 
     @Test("Inside a caller's transaction the row, its rowid and its stamp roll back together")
     func joinsTheCallersTransaction() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         try store.replaceSourceFTS(sourceID: "src_a", title: "Kept", author: "", body: "")
         try store.replaceSourceFTS(sourceID: "src_b", title: "Also kept", author: "", body: "")
 
@@ -229,7 +224,7 @@ struct SourceFTSRowTests {
 
     @Test("A rewrite that fails partway leaves the old row, its rowid and its stamp as they were")
     func failedRewriteChangesNothing() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         try store.replaceSourceFTS(sourceID: "src_a", title: "Kept", author: "", body: "")
         try store.execute("CREATE TEMP TRIGGER refuse_stamp BEFORE INSERT ON source_fts_state BEGIN SELECT RAISE(ABORT, 'refused'); END")
 
@@ -253,7 +248,7 @@ struct SourceFTSRowBackfillTests {
     /// kept, `stampless` ones with their stamp dropped since, and the record staged as the
     /// migration stages it.
     private static func storeWithOldRows(_ ids: [String], stampless: Set<String> = []) throws -> KnowledgeStore {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         for id in ids {
             try store.execute(
                 "INSERT INTO source_fts (source_id, title, author, body) VALUES (?, ?, '', 'mitochondria')",
@@ -325,7 +320,7 @@ struct SourceFTSRowBackfillTests {
 
     @Test("Two rows for one source keep the later")
     func twoRowsKeepTheLater() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         try store.execute("""
             INSERT INTO source_fts (source_id, title, author, body) VALUES
                 ('src_a', 'Earlier', '', 'glycolysis'),
@@ -344,7 +339,7 @@ struct SourceFTSRowBackfillTests {
 
     @Test("With nothing staged, a source with no rowid kept has no row, and no row is read to look for one")
     func nothingStagedLooksNowhere() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         // Planted: a row no rowid names, which only a write outside `replaceSourceFTS` leaves. A
         // delete that still read every row's id would find and take it.
         try store.execute("INSERT INTO source_fts (source_id, title, author, body) VALUES ('planted', 'Planted', '', 'glycolysis')")
@@ -418,7 +413,7 @@ struct SourceOutOfSearchTests {
 
     @Test("Archiving takes the whole of a source out of search, and another source keeps all of its own")
     func archiveTakesItAll() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let archived = try Self.indexedSource(store, "archived", word: "telomere")
         let kept = try Self.indexedSource(store, "kept", word: "telomere")
         #expect(try Self.held(store, archived) == Self.everything)
@@ -433,7 +428,7 @@ struct SourceOutOfSearchTests {
 
     @Test("Deleting takes the full-text row and the stamps too, not only the vectors")
     func deleteTakesItAll() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let deleted = try Self.indexedSource(store, "deleted", word: "mitophagy")
 
         try store.deleteSourceRows(deleted)
@@ -444,7 +439,7 @@ struct SourceOutOfSearchTests {
 
     @Test("Clearing a source's text takes its full-text row with the vectors, so the old words are not found")
     func clearedTextLeavesNoRow() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let cleared = try Self.indexedSource(store, "cleared", word: "glycolysis")
 
         try store.clearSourceDerivedData(cleared)
@@ -455,7 +450,7 @@ struct SourceOutOfSearchTests {
 
     @Test("An archive or a delete that took nothing with it is found, and dropping its rows leaves the active sources alone")
     func sweepFindsWhatSyncLeft() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let active = try Self.indexedSource(store, "active", word: "ketone")
         let archivedBySync = try Self.indexedSource(store, "archived-by-sync", word: "ketone")
         let deletedBySync = try Self.indexedSource(store, "deleted-by-sync", word: "ketone")
@@ -478,7 +473,7 @@ struct SourceOutOfSearchTests {
 
     @Test("An archived source holding only vectors, as older builds left them, is found too, a page at a time")
     func vectorsAloneAreFound() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var ids: [String] = []
         for name in ["a", "b", "c"] {
             let id = try Self.indexedSource(store, name, word: "lactate")

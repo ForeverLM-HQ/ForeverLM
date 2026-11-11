@@ -2,10 +2,6 @@ import Testing
 import Foundation
 @testable import ForeverLM
 
-private func makeStore() throws -> KnowledgeStore {
-    try KnowledgeStore(inMemory: true)
-}
-
 @discardableResult
 private func insert(
     _ store: KnowledgeStore,
@@ -30,7 +26,7 @@ struct ArtifactReferenceCardTests {
 
     @Test("An address saved verbatim is in the library")
     func exactURL() throws {
-        let store = try makeStore()
+        let store = try TestStores.inMemory()
         let saved = try insert(store, url: "https://example.com/essays/mitochondria", type: .article)
         #expect(store.activeSourceID(forReferenceURL: "https://example.com/essays/mitochondria") == saved.id)
         #expect(store.activeSourceID(forReferenceURL: "https://example.com/essays/other") == nil)
@@ -38,7 +34,7 @@ struct ArtifactReferenceCardTests {
 
     @Test("A source card's private address is answered by id, exact or by a prefix only one source has")
     func sourceAddressByID() throws {
-        let store = try makeStore()
+        let store = try TestStores.inMemory()
         let saved = try insert(store, url: "https://example.com/essays/mitochondria", type: .article)
         let other = try insert(store, url: "https://example.com/essays/other", type: .article)
         #expect(store.activeSourceID(forReferenceURL: "foreverlm://source/\(saved.id)") == saved.id)
@@ -61,7 +57,7 @@ struct ArtifactReferenceCardTests {
 
     @Test("Tracking parameters do not hide a saved article")
     func normalizedURL() throws {
-        let store = try makeStore()
+        let store = try TestStores.inMemory()
         let saved = try insert(store, url: "https://example.com/essays/mitochondria", type: .article)
         #expect(
             store.activeSourceID(forReferenceURL: "https://example.com/essays/mitochondria?utm_source=newsletter")
@@ -71,7 +67,7 @@ struct ArtifactReferenceCardTests {
 
     @Test("A paper is found through its DOI whichever address the reference uses")
     func doiAcrossAddresses() throws {
-        let store = try makeStore()
+        let store = try TestStores.inMemory()
         let saved = try insert(
             store,
             url: "https://doi.org/10.1038/s41586-021-03819-2",
@@ -84,7 +80,7 @@ struct ArtifactReferenceCardTests {
 
     @Test("A preprint's version suffix is not part of its identity")
     func doiVersionSuffix() throws {
-        let store = try makeStore()
+        let store = try TestStores.inMemory()
         let versioned = try insert(
             store,
             url: "https://www.biorxiv.org/content/10.1101/2022.07.20.500902v1",
@@ -103,7 +99,7 @@ struct ArtifactReferenceCardTests {
 
     @Test("A v after a letter is part of the DOI: two Oxford papers of one year stay two papers")
     func doiLetterBeforeV() throws {
-        let store = try makeStore()
+        let store = try TestStores.inMemory()
         // 2015 Oxford DOIs carry the year letter v. Saved under a publisher address, so only the
         // DOI can match them.
         let ensembl = try insert(
@@ -124,7 +120,7 @@ struct ArtifactReferenceCardTests {
 
     @Test("Research Square and preprints.org versions are one preprint, with or without the version")
     func doiPreprintServerVersions() throws {
-        let store = try makeStore()
+        let store = try TestStores.inMemory()
         let researchSquare = try insert(
             store,
             url: "https://www.researchsquare.com/article/rs-4356493/v1",
@@ -144,7 +140,7 @@ struct ArtifactReferenceCardTests {
 
     @Test("The journal version of a saved preprint is the saved preprint")
     func publishedDOI() throws {
-        let store = try makeStore()
+        let store = try TestStores.inMemory()
         let preprint = try insert(
             store,
             url: "https://www.biorxiv.org/content/10.1101/2024.11.04.615786v3",
@@ -156,7 +152,7 @@ struct ArtifactReferenceCardTests {
 
     @Test("An arXiv paper matches its abstract and PDF addresses, but not a longer identifier")
     func arxivIdentifier() throws {
-        let store = try makeStore()
+        let store = try TestStores.inMemory()
         let saved = try insert(store, url: "https://arxiv.org/abs/1706.03762")
         #expect(store.activeSourceID(forReferenceURL: "https://arxiv.org/pdf/1706.03762v5") == saved.id)
         #expect(store.activeSourceID(forReferenceURL: "https://arxiv.org/abs/1706.03762v2") == saved.id)
@@ -165,7 +161,7 @@ struct ArtifactReferenceCardTests {
 
     @Test("An arXiv paper imported as a PDF is found through arXiv's DataCite DOI")
     func arxivDataCiteDOI() throws {
-        let store = try makeStore()
+        let store = try TestStores.inMemory()
         // A PDF import records the DOI and a local path, never the arXiv address.
         let imported = try insert(
             store,
@@ -183,7 +179,7 @@ struct ArtifactReferenceCardTests {
 
     @Test("A Nature paper's PDF hosted on another site is the saved paper")
     func natureArticleIDOffHost() throws {
-        let store = try makeStore()
+        let store = try TestStores.inMemory()
         // Imported from the PDF: the library's file path is its address, and
         // the DOI is what the record knows about where it came from.
         let saved = try insert(store, url: "Papers/10.1038_s41467-025-66778-6.pdf", doi: "10.1038/s41467-025-66778-6")
@@ -200,7 +196,7 @@ struct ArtifactReferenceCardTests {
 
     @Test("A Springer or BMC paper with the same id shape is matched by its own DOI only")
     func springerNatureIDSuffixIsPublisherAgnostic() throws {
-        let store = try makeStore()
+        let store = try TestStores.inMemory()
         let bmc = try insert(store, url: "Papers/10.1186_s13059-024-03200-1.pdf", doi: "10.1186/s13059-024-03200-1")
         #expect(store.activeSourceID(forReferenceURL: "https://lab.example/pdfs/s13059-024-03200-1.pdf") == bmc.id)
         #expect(store.activeSourceID(forReferenceURL: "https://lab.example/pdfs/s41467-024-03200-1.pdf") == nil)
@@ -211,7 +207,7 @@ struct ArtifactReferenceCardTests {
     /// library, and the team's copy is not in My Library's answer.
     @Test("A team Doc's card asks the team library, a My Library Doc's asks My Library")
     func libraryScope() throws {
-        let store = try makeStore()
+        let store = try TestStores.inMemory()
         let now = Date()
         let team = TeamRecord(
             id: "team-1",
@@ -252,7 +248,7 @@ struct ArtifactReferenceCardTests {
 
     @Test("An archived source is not in the library")
     func archivedSource() throws {
-        let store = try makeStore()
+        let store = try TestStores.inMemory()
         let saved = try insert(store, url: "https://doi.org/10.1038/s41586-021-03819-2", doi: "10.1038/s41586-021-03819-2")
         try store.archiveSource(saved.id)
         #expect(store.activeSourceID(forReferenceURL: "https://doi.org/10.1038/s41586-021-03819-2") == nil)

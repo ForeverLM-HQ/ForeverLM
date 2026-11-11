@@ -225,8 +225,8 @@ struct ChatSourceImageRenderingTests {
             url: "https://doi.org/10.1/d", slideTimeSeconds: 317, slideImagePath: "Slides/video/slide-8.jpg"
         )
         // A row saved before frame paths were kept is placed by its time.
-        let legacy = VideoCitedPaper(
-            id: "legacy", sourceID: "video", title: "Legacy row",
+        let unframed = VideoCitedPaper(
+            id: "unframed", sourceID: "video", title: "Legacy row",
             url: "https://doi.org/10.1/e", slideTimeSeconds: 317.2
         )
         let otherVideo = VideoCitedPaper(
@@ -235,10 +235,10 @@ struct ChatSourceImageRenderingTests {
         )
 
         let listed = ChatSourceImage.citedPapers(
-            from: [added, onOffer, unresolved, dismissed, otherSlide, legacy, otherVideo],
+            from: [added, onOffer, unresolved, dismissed, otherSlide, unframed, otherVideo],
             on: frame
         )
-        try #require(listed.map(\.id) == ["added", "offer", "legacy"])
+        try #require(listed.map(\.id) == ["added", "offer", "unframed"])
         #expect(listed[0].sourceID == "paper-a")
         #expect(listed[0].canAdd == false)
         #expect(listed[1].sourceID == nil)

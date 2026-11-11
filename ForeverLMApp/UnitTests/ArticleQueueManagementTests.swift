@@ -507,8 +507,8 @@ struct ArticleQueueManagementTests {
         #expect(vm.papersWithoutPDFBadgeCount == 1)
     }
 
-    @Test("papers without PDF badge ignores legacy paywall error marker")
-    func papersWithoutPDFBadgeIgnoresLegacyPaywallErrorMarker() async {
+    @Test("papers without PDF badge ignores a paper marked paywalled by its error message")
+    func papersWithoutPDFBadgeIgnoresPaywallErrorMessage() async {
         let vm = makeViewModel()
         var paywalled = makeArticle(url: "https://paper.com/paywall-error", title: "Paywall Error", sourceType: .paper)
         paywalled.errorMessage = "paywall"
@@ -1105,7 +1105,7 @@ struct ArticleQueueManagementTests {
         #expect(ArticleSpeechContent.canAttemptRead(fullyReady))
     }
 
-    @Test("paper cleanup failures explain the purpose and preserve legacy details")
+    @Test("paper cleanup failures explain the purpose and keep the failure detail")
     func paperCleanupFailureMessageIsActionable() {
         var paper = makeArticle(
             url: "https://paper.com/cleanup-message",

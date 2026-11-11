@@ -9,14 +9,6 @@ import UniformTypeIdentifiers
 // MARK: - Fixtures
 
 private enum HomingMCPFixtures {
-    static func makeStore() throws -> (MCPDataStore, KnowledgeStore, URL) {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("mcp_homing_test_\(UUID().uuidString)", isDirectory: true)
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let store = MCPDataStore(dbPath: directory.appendingPathComponent("knowledge.db").path)
-        return (store, try store.knowledgeStore(), directory)
-    }
-
     @discardableResult
     static func notebook(_ store: KnowledgeStore, _ title: String, sources: [String] = [], teamID: String? = nil) throws -> LearningGoalRecord {
         try store.createCompanionGoal(
@@ -91,7 +83,7 @@ struct NotebookHomingMCPTests {
 
     @Test("list_courses names the Notebooks that follow each course and keeps the ones a Notebook follows")
     func listCourses() throws {
-        let (mcp, store, root) = try F.makeStore()
+        let (mcp, store, root) = try TestStores.mcpWithKnowledge()
         defer { try? FileManager.default.removeItem(at: root) }
         try store.saveCourseGroup(name: "course-first", metadata: CourseMetadata(title: "First followed"))
         try store.saveCourseGroup(name: "course-second", metadata: CourseMetadata(title: "Second followed"))
@@ -123,7 +115,7 @@ struct NotebookHomingMCPTests {
 
     @Test("create_course lets the Notebook named follow it; update_course links another and unlink_notebook_id stops one")
     func createAndFollowCourse() throws {
-        let (mcp, store, root) = try F.makeStore()
+        let (mcp, store, root) = try TestStores.mcpWithKnowledge()
         defer { try? FileManager.default.removeItem(at: root) }
         let first = try F.notebook(store, "First")
         let second = try F.notebook(store, "Second")
@@ -156,7 +148,7 @@ struct NotebookHomingMCPTests {
 
     @Test("A course is refused before it is made for an archived Notebook or a team's")
     func courseRefusals() async throws {
-        let (mcp, store, root) = try F.makeStore()
+        let (mcp, store, root) = try TestStores.mcpWithKnowledge()
         defer { try? FileManager.default.removeItem(at: root) }
         let archived = try F.notebook(store, "Archived")
         try store.setLearningGoalStatus(goalID: archived.id, status: .archived)
@@ -192,7 +184,7 @@ struct NotebookHomingMCPTests {
 
     @Test("A course import's Notebook is checked against the course's library before anything is imported")
     func importsRefuseAnotherLibrarysNotebook() async throws {
-        let (mcp, store, root) = try F.makeStore()
+        let (mcp, store, root) = try TestStores.mcpWithKnowledge()
         defer { try? FileManager.default.removeItem(at: root) }
         let team = try F.team(store)
         let teamNotebook = try F.notebook(store, "Team's", teamID: team.id)
@@ -229,7 +221,7 @@ struct NotebookHomingMCPTests {
 
     @Test("A link update_course refuses leaves the course's metadata as it was")
     func refusedLinkWritesNothing() throws {
-        let (mcp, store, root) = try F.makeStore()
+        let (mcp, store, root) = try TestStores.mcpWithKnowledge()
         defer { try? FileManager.default.removeItem(at: root) }
         try store.saveCourseGroup(name: "course-1", metadata: CourseMetadata(title: "Bioenergetics"))
         let team = try F.team(store)
@@ -244,7 +236,7 @@ struct NotebookHomingMCPTests {
 
     @Test("list_ideas keeps the Ideas linked to a Notebook or to one of its Goals")
     func listIdeas() throws {
-        let (mcp, store, root) = try F.makeStore()
+        let (mcp, store, root) = try TestStores.mcpWithKnowledge()
         defer { try? FileManager.default.removeItem(at: root) }
         let notebook = try F.notebook(store, "Notebook")
         let other = try F.notebook(store, "Other")
@@ -267,7 +259,7 @@ struct NotebookHomingMCPTests {
 
     @Test("list_animations keeps the animations filed in a Notebook, not the ones that only explain its sources")
     func listAnimations() async throws {
-        let (mcp, store, root) = try F.makeStore()
+        let (mcp, store, root) = try TestStores.mcpWithKnowledge()
         defer { try? FileManager.default.removeItem(at: root) }
         try F.source(store, "src-1")
         let notebook = try F.notebook(store, "Notebook", sources: ["src-1"])
@@ -288,7 +280,7 @@ struct NotebookHomingMCPTests {
 
     @Test("list_walkthroughs keeps the walks of a Notebook's sources, a team Notebook's copy included")
     func listWalkthroughs() async throws {
-        let (mcp, store, root) = try F.makeStore()
+        let (mcp, store, root) = try TestStores.mcpWithKnowledge()
         defer { try? FileManager.default.removeItem(at: root) }
         let text = "Sleep pressure rises across the day."
         try F.source(store, "src-in", content: text)
@@ -320,7 +312,7 @@ struct NotebookHomingMCPTests {
 
     @Test("A picture saved into a Notebook lives there, keeps it through revisions, and lists under it")
     func imagesLiveInANotebook() async throws {
-        let (mcp, store, root) = try F.makeStore()
+        let (mcp, store, root) = try TestStores.mcpWithKnowledge()
         defer { try? FileManager.default.removeItem(at: root) }
         let notebook = try F.notebook(store, "Notebook")
         let other = try F.notebook(store, "Other")

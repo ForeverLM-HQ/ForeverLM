@@ -58,13 +58,13 @@ struct RecordNamingTests {
         #expect(SyncIdentity.collectionID(kind: "podcastShow", externalKey: "example.com/feed.xml").hasPrefix("col_"))
     }
 
-    @Test("A new device id is 8 base32 characters and never legacy22")
+    @Test("A new device id is 8 base32 characters and never the migrated-history id")
     func deviceIDs() {
         for _ in 0..<200 {
             let id = SyncIdentity.newDeviceID()
             #expect(SyncStamp.isValidDeviceID(id))
             #expect(id != SyncIdentity.migratedHistoryDeviceID)
         }
-        #expect(SyncStamp.isValidDeviceID(SyncIdentity.migratedHistoryDeviceID), "legacy22 is base32, so it must be refused explicitly")
+        #expect(SyncStamp.isValidDeviceID(SyncIdentity.migratedHistoryDeviceID), "the migrated-history id is base32, so it must be refused explicitly")
     }
 }

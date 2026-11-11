@@ -147,16 +147,6 @@ struct PaperWalkthroughFigureIndexTests {
 @Suite("MCP walkthrough tools")
 struct MCPWalkthroughToolsTests {
 
-    private func makeStore() throws -> (MCPDataStore, String) {
-        let tmpDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("mcp_walkthrough_test_\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
-        let dbPath = tmpDir.appendingPathComponent("knowledge.db").path
-        let store = MCPDataStore(dbPath: dbPath)
-        _ = try store.knowledgeStore()
-        return (store, tmpDir.path)
-    }
-
     private func parseJSON(_ text: String) throws -> [String: Any] {
         guard let object = try JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any] else {
             throw MCPError.invalidInput("Expected a JSON object, got: \(text.prefix(200))")
@@ -183,7 +173,7 @@ struct MCPWalkthroughToolsTests {
 
     @Test("save_walkthrough on an article refuses the figure anchor by name, keeps the passage, and get, then delete, read it back")
     func articleRoundTrip() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { try? FileManager.default.removeItem(atPath: tmpPath) }
         let article = try seed(store, type: .article, url: "https://example.com/post", title: "A post")
 
@@ -215,7 +205,7 @@ struct MCPWalkthroughToolsTests {
 
     @Test("list_walkthroughs names every walk with its source, counts and status, and is empty until one is saved")
     func listTool() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { try? FileManager.default.removeItem(atPath: tmpPath) }
         let empty = try parseJSON(try await store.listWalkthroughs())
         #expect(empty["count"] as? Int == 0)
@@ -241,7 +231,7 @@ struct MCPWalkthroughToolsTests {
 
     @Test("save_walkthrough on a PDF chapter takes figure anchors; a chapter whose PDF is unread keeps the words and names the index")
     func chapterSave() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { try? FileManager.default.removeItem(atPath: tmpPath) }
         let chapter = try seed(store, type: .book, url: "Books/Sleep/Chapters/03.pdf", title: "Chapter 3", file: "Books/Sleep/Chapters/03.pdf", group: "Sleep")
 
@@ -259,7 +249,7 @@ struct MCPWalkthroughToolsTests {
 
     @Test("A podcast is refused with the qualifying kinds named, and generate_walkthrough refuses a source that is not ready")
     func refusals() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { try? FileManager.default.removeItem(atPath: tmpPath) }
         let podcast = try seed(store, type: .podcast, url: "https://example.com/episode", title: "An episode")
         await #expect(throws: MCPError.self) {
@@ -277,7 +267,7 @@ struct MCPWalkthroughToolsTests {
 
     @Test("save_walkthrough keeps a step's cited works, checks a library id, and get_walkthrough says which the library holds")
     func citedWorksRoundTrip() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { try? FileManager.default.removeItem(atPath: tmpPath) }
         let article = try seed(store, type: .article, url: "https://example.com/letter", title: "A letter")
         let held = try seed(store, type: .article, url: "https://example.com/held-essay", title: "The held essay")
@@ -334,15 +324,6 @@ Image: Videos/59GAgPbcQVg/slide_001.jpg
 /// the Reader holds the player there, and only an assistant writes one.
 @Suite("Video walkthroughs")
 struct VideoWalkthroughTests {
-
-    private func makeStore() throws -> (MCPDataStore, String) {
-        let tmpDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("mcp_video_walkthrough_test_\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
-        let store = MCPDataStore(dbPath: tmpDir.appendingPathComponent("knowledge.db").path)
-        _ = try store.knowledgeStore()
-        return (store, tmpDir.path)
-    }
 
     private func parseJSON(_ text: String) throws -> [String: Any] {
         guard let object = try JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any] else {
@@ -428,7 +409,7 @@ struct VideoWalkthroughTests {
 
     @Test("save_walkthrough on a video keeps each step's moment, places a quote where the talk says it, names a moment past the talk or unreadable, and get reads at back")
     func saveAndGet() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { try? FileManager.default.removeItem(atPath: tmpPath) }
         let talk = video()
         try store.knowledgeStore().saveSource(talk)
@@ -471,7 +452,7 @@ struct VideoWalkthroughTests {
 
     @Test("generate_walkthrough leaves a video to save_walkthrough, and get_walkthrough on a video with none says so")
     func writerRefusesVideos() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { try? FileManager.default.removeItem(atPath: tmpPath) }
         let talk = video()
         try store.knowledgeStore().saveSource(talk)
@@ -578,16 +559,6 @@ struct AnimationWalkthroughStorageTests {
 @Suite("MCP walkthrough tools: animations")
 struct MCPAnimationWalkthroughToolsTests {
 
-    private func makeStore() throws -> (MCPDataStore, String) {
-        let tmpDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("mcp_animation_walkthrough_test_\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
-        let dbPath = tmpDir.appendingPathComponent("knowledge.db").path
-        let store = MCPDataStore(dbPath: dbPath)
-        _ = try store.knowledgeStore()
-        return (store, tmpDir.path)
-    }
-
     private func parseJSON(_ text: String) throws -> [String: Any] {
         guard let object = try JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any] else {
             throw MCPError.invalidInput("Expected a JSON object, got: \(text.prefix(200))")
@@ -607,7 +578,7 @@ struct MCPAnimationWalkthroughToolsTests {
 
     @Test("save_walkthrough with animation saves an animation walk keyed to the artifact, whose steps pin the page; get and delete read it back")
     func animationWalk() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { try? FileManager.default.removeItem(atPath: tmpPath) }
         let animation = try await store.notebookFileStorage.createLinkedArtifact(
             url: URL(string: "foreverlm-site://pmf-two-components/")!, title: "One force, two components",
@@ -661,7 +632,7 @@ struct MCPAnimationWalkthroughToolsTests {
 
     @Test("A source's step shows a saved animation by id; a Site, an unknown handle, both subjects at once and a stepless reference are refused")
     func referencesAndRefusals() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { try? FileManager.default.removeItem(atPath: tmpPath) }
         let article = try seedArticle(store)
         let animation = try await store.notebookFileStorage.createLinkedArtifact(

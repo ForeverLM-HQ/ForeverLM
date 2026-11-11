@@ -638,8 +638,8 @@ struct MemoryTutorPersistenceTests {
         #expect(beforeABlock.entries.first?.notebookID == "notebook-b")
     }
 
-    @Test("First concept intake bootstraps due legacy reviews and excludes retired identities")
-    func firstConceptIntakeIncludesLegacyHistory() async throws {
+    @Test("First concept intake bootstraps due source-level reviews and excludes retired identities")
+    func firstConceptIntakeIncludesSourceLevelHistory() async throws {
         let service = try StorageService(inMemory: true)
         let now = Date(timeIntervalSinceReferenceDate: 2_000_000)
 
@@ -696,8 +696,8 @@ struct MemoryTutorPersistenceTests {
         #expect(!intake.map(\.sourceID).contains(represented.id))
     }
 
-    @Test("Legacy memory stats keep hidden sources; hiding is visual only")
-    func legacyMemoryStatsKeepHiddenSources() throws {
+    @Test("Source-level memory stats keep hidden sources; hiding is visual only")
+    func sourceLevelMemoryStatsKeepHiddenSources() throws {
         let store = try KnowledgeStore(inMemory: true)
         var hidden = StudioArticle(
             url: "https://example.com/hidden-legacy-memory",
@@ -1659,8 +1659,8 @@ struct MemoryTutorCloudKitTests {
             == MemoryTutorScheduler.firstEligibleAt(createdAt: item.createdAt))
     }
 
-    @Test("Legacy review aggregates count only successfully graded memory anchors")
-    func legacyReviewAggregatesIgnoreFailedMemoryAttempts() throws {
+    @Test("Source-level review aggregates count only successfully graded memory anchors")
+    func sourceLevelReviewAggregatesIgnoreFailedMemoryAttempts() throws {
         let store = try KnowledgeStore(inMemory: true)
         let sourceIDs = ["aggregate-graded", "aggregate-failed", "aggregate-failed-only"]
         for sourceID in sourceIDs {

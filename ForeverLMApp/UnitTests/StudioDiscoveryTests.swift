@@ -1203,7 +1203,7 @@ struct PodcastModernSchemaLookupTests {
         guard sqlite3_open(dbPath, &db) == SQLITE_OK else {
             throw PodcastMetadataLookupTests.TestError.dbCreationFailed
         }
-        // Shared episode/podcast columns present, but neither legacy columns
+        // Shared episode/podcast columns present, but neither the older columns
         // nor the modern enclosure/description tables exist.
         sqlite3_exec(db, """
             CREATE TABLE ZMTPODCAST (

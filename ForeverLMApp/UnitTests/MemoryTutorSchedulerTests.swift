@@ -642,10 +642,10 @@ struct MemoryTutorSchedulerTests {
         #expect(selected.orderedIDs.prefix(2).allSatisfy { $0.hasPrefix("recent-") })
     }
 
-    @Test("First-review intake is never spent entirely on the legacy backlog")
+    @Test("First-review intake is never spent entirely on the source-level backlog")
     func firstReviewIntakeSplitsBetweenBuckets() {
         let now = Date(timeIntervalSince1970: 2_000_000_000)
-        // More long-overdue legacy refreshes than the whole daily cap: the shape
+        // More long-overdue source-level refreshes than the whole daily cap: the shape
         // that used to consume the budget before intake was even computed.
         let refreshStats = (0..<12).map { index in
             MemoryReviewStat(
@@ -679,13 +679,13 @@ struct MemoryTutorSchedulerTests {
         // Most recently consumed leads.
         #expect(intake.first?.sourceID == "fresh-0")
         // A bucket that cannot fill its share hands it to the other.
-        let legacyOnly = MemoryReviewScheduler.firstReviewIntake(
+        let backlogOnly = MemoryReviewScheduler.firstReviewIntake(
             sourceStats: refreshStats,
             freshCandidates: [],
             now: now,
             limit: 5
         )
-        #expect(legacyOnly.count == 5)
+        #expect(backlogOnly.count == 5)
     }
 
     @Test("A resumed opening turn is not mistaken for an unrecorded memory answer")

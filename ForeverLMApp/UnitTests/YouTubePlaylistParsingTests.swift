@@ -4,7 +4,7 @@ import Foundation
 
 // MARK: - YouTube playlist page parsing
 
-/// YouTube serves playlist pages in two markups: the legacy shape
+/// YouTube serves playlist pages in two markups: the renderer shape
 /// (`playlistVideoRenderer` entries inside a `playlistVideoListRenderer`, paged
 /// by `continuationItemRenderer`) and the lockup shape rolled out in 2026
 /// (`lockupViewModel` entries directly in the item section, paged by
@@ -66,7 +66,7 @@ struct YouTubePlaylistParsingTests {
         #expect(items.first?.videoId == "rmVRLeJRkl4")
         #expect(items.first?.title == "Lecture 1 - Intro & Word Vectors")
         // watchEndpoint.index is 0-based; the parser exposes the 1-based
-        // position the legacy markup displayed.
+        // position the renderer markup displayed.
         #expect(items.map(\.playlistIndex) == [1, 2])
         #expect(items.first?.channelTitle == "Stanford Online")
         #expect(continuation == "LOCKUP_TOKEN")
@@ -107,8 +107,8 @@ struct YouTubePlaylistParsingTests {
         #expect(items.map(\.videoId) == ["rmVRLeJRkl4"])
     }
 
-    @Test("Legacy playlist page markup still parses")
-    func parsesLegacyPage() throws {
+    @Test("Playlist page markup with video renderers parses")
+    func parsesRendererPage() throws {
         let wrapped = """
         [{"playlistVideoListRenderer": {"contents": [
           {"playlistVideoRenderer": {
@@ -117,7 +117,7 @@ struct YouTubePlaylistParsingTests {
             "index": {"simpleText": "1"},
             "shortBylineText": {"runs": [{"text": "Old Channel"}]}
           }},
-          {"continuationItemRenderer": {"continuationEndpoint": {"continuationCommand": {"token": "LEGACY_TOKEN"}}}}
+          {"continuationItemRenderer": {"continuationEndpoint": {"continuationCommand": {"token": "RENDERER_TOKEN"}}}}
         ]}}]
         """
         let page = try playlistPage(sectionContents: wrapped)
@@ -129,7 +129,7 @@ struct YouTubePlaylistParsingTests {
         #expect(items.first?.title == "Old Style Lecture")
         #expect(items.first?.playlistIndex == 1)
         #expect(items.first?.channelTitle == "Old Channel")
-        #expect(continuation == "LEGACY_TOKEN")
+        #expect(continuation == "RENDERER_TOKEN")
     }
 
     @Test("Continuation responses parse in both markups")
@@ -145,16 +145,16 @@ struct YouTubePlaylistParsingTests {
         #expect(lockupItems.first?.playlistIndex == 101)
         #expect(lockupNext == "LOCKUP_TOKEN")
 
-        let legacyResponse = try json("""
+        let rendererResponse = try json("""
         {"onResponseReceivedActions": [{"appendContinuationItemsAction": {"continuationItems": [
           {"playlistVideoRenderer": {"videoId": "abc123def45", "title": {"runs": [{"text": "Old"}]}, "index": {"simpleText": "101"}}},
-          {"continuationItemRenderer": {"continuationEndpoint": {"continuationCommand": {"token": "LEGACY_NEXT"}}}}
+          {"continuationItemRenderer": {"continuationEndpoint": {"continuationCommand": {"token": "RENDERER_NEXT"}}}}
         ]}}]}
         """)
-        let (legacyItems, legacyNext) = YouTubePlaylistService.parseContinuationItems(from: legacyResponse)
-        #expect(legacyItems.count == 1)
-        #expect(legacyItems.first?.playlistIndex == 101)
-        #expect(legacyNext == "LEGACY_NEXT")
+        let (rendererItems, rendererNext) = YouTubePlaylistService.parseContinuationItems(from: rendererResponse)
+        #expect(rendererItems.count == 1)
+        #expect(rendererItems.first?.playlistIndex == 101)
+        #expect(rendererNext == "RENDERER_NEXT")
     }
 
     @Test("A page with no recognizable entries yields nothing")

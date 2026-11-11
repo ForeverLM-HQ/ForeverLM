@@ -649,7 +649,7 @@ struct CoursePlaylistImportTests {
             likedURLKeys: feedWithIt
         ))
 
-        // Videos in playlist groups (courses, legacy follows) are left alone.
+        // Videos in playlist groups (courses and playlist follows) are left alone.
         let playlistVideo = makeArticle(
             url: "https://www.youtube.com/watch?v=PLAYLIST123",
             title: "Lecture 3",

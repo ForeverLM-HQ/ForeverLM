@@ -137,13 +137,6 @@ struct MeetingSessionIdentityTests {
 @MainActor
 struct MeetingFolderBoundaryTests {
 
-    private func makeViewModel() -> StudioViewModel {
-        let tmp = FileManager.default.temporaryDirectory
-            .appendingPathComponent("MeetingBoundaryTests_\(UUID().uuidString)")
-        try? FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
-        return StudioViewModel(storageService: StorageService(storeRoot: tmp))
-    }
-
     @Test("an import skips folders that are series of their own")
     func linkedFoldersAreExcluded() {
         let vm = makeViewModel()
@@ -373,13 +366,6 @@ struct MeetingGroupDeletionTests {
 @Suite("Meeting group deletion in the sidebar")
 @MainActor
 struct MeetingGroupDeletionViewModelTests {
-
-    private func makeViewModel() -> StudioViewModel {
-        let tmp = FileManager.default.temporaryDirectory
-            .appendingPathComponent("MeetingDeletionTests_\(UUID().uuidString)")
-        try? FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
-        return StudioViewModel(storageService: StorageService(storeRoot: tmp))
-    }
 
     @Test("a deleted series leaves no row behind to unhide")
     func deletedSeriesLeavesNoRow() async {

@@ -352,7 +352,7 @@ struct CrossWindowStudioDropTests {
         // selection lands, not about fetching.
         let sent = makeArticle(url: "https://example.com/sent", title: "Sent away").with(content: "Sent away, already read.")
         vm.articles = [reading, sent]
-        // The acting window shows its source the legacy way: no local choice of
+        // The acting window shows its source by the app-wide selection: no local choice of
         // its own, so it renders whatever the global selection points at.
         let acting = StudioWindowState()
         vm.selectedArticleId = reading.id
@@ -668,8 +668,8 @@ struct CrossWindowStudioDropTests {
         )
     }
 
-    @Test("A window's first local selection preserves its displayed legacy source")
-    func firstWindowSelectionCapturesLegacySource() async {
+    @Test("A window's first local selection preserves its displayed source")
+    func firstWindowSelectionCapturesDisplayedSource() async {
         let destination = StudioWindowState()
         let vm = makeViewModel()
         vm.selectedArticleId = "previously-visible-source"

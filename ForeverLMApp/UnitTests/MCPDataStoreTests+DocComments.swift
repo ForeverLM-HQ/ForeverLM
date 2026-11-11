@@ -12,7 +12,7 @@ import SQLite3
 extension MCPDataStoreTests {
     @Test("Comment tools: a thread on a quote signed Assistant, a reply, resolve, edit, delete, and a team page refused")
     func mcpDocComments() async throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let created = try parseJSON(try await store.createArtifact(
             title: "Cells",

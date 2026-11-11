@@ -6,11 +6,6 @@ import Foundation
 import SQLite3
 @testable import ForeverLM
 
-/// Creates an in-memory KnowledgeStore for unit testing.
-private func makeInMemoryStore() throws -> KnowledgeStore {
-    try KnowledgeStore(inMemory: true)
-}
-
 /// Helper: create a StudioArticle with sensible defaults for testing.
 private func makeArticle(url: String, title: String? = nil) -> StudioArticle {
     var article = StudioArticle(url: url, title: title)
@@ -109,7 +104,7 @@ struct StoredHTMLCharacterReferenceRepairTests {
 
     @Test("Draining decodes the staged text and republishes the source")
     func drainDecodesAndRepublishes() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = makeArticle(url: "https://example.com/entities", title: "Entities")
         article.content = Self.escaped
         article.state = .ready
@@ -132,7 +127,7 @@ struct StoredHTMLCharacterReferenceRepairTests {
 
     @Test("Draining leaves text without references alone")
     func drainLeavesCleanTextAlone() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let text = "AT&T, Q&A, and a lone & walk through unchanged."
         var article = makeArticle(url: "https://example.com/clean", title: "Clean")
         article.content = text
@@ -150,7 +145,7 @@ struct StoredHTMLCharacterReferenceRepairTests {
 
     @Test("A staged source whose content is gone leaves the queue")
     func drainClearsOrphanedQueueRows() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let article = makeArticle(url: "https://example.com/orphan", title: "Orphan")
         try store.saveSource(article)
         try store.execForTesting("DELETE FROM source_content")

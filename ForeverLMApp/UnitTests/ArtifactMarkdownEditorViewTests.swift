@@ -332,9 +332,9 @@ struct ArtifactMarkdownEditorViewTests {
         #expect(json.contains("\"sourceID\":\"chapter-1\""))
         #expect(json.contains("\"bookID\":\"book-how-life-works\""))
 
-        let legacyJSON = Data(#"{"sourceID":"chapter-1","title":"Genes"}"#.utf8)
-        let legacyCitation = try JSONDecoder().decode(ArtifactSourceCitation.self, from: legacyJSON)
-        #expect(legacyCitation.bookID == nil)
+        let bareJSON = Data(#"{"sourceID":"chapter-1","title":"Genes"}"#.utf8)
+        let bareCitation = try JSONDecoder().decode(ArtifactSourceCitation.self, from: bareJSON)
+        #expect(bareCitation.bookID == nil)
     }
 }
 

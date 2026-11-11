@@ -42,14 +42,14 @@ struct ForeverLMRuntimeIdentityTests {
     }
 }
 
-@Suite("Legacy FeynmanLM identity adoption")
-struct LegacyIdentityAdoptionTests {
+@Suite("Identity adoption from the retired app")
+struct IdentityAdoptionTests {
     @Test("Moves a retired library when ForeverLM has no knowledge database")
     func movesRetiredLibraryWhenCurrentIsMissing() throws {
         let env = try Sandbox()
         defer { env.tearDown() }
 
-        try env.writeKnowledgeDatabase(at: env.retiredAppSupport, contents: "legacy-library")
+        try env.writeKnowledgeDatabase(at: env.retiredAppSupport, contents: "retired-library")
         try env.writeFile(
             at: env.retiredAppSupport.appendingPathComponent("Content/Papers/a.pdf"),
             contents: "pdf"
@@ -62,7 +62,7 @@ struct LegacyIdentityAdoptionTests {
         #expect(LegacyIdentityAdoption.hasKnowledgeDatabase(at: env.currentAppSupport))
         #expect(!FileManager.default.fileExists(atPath: env.retiredAppSupport.path))
         #expect(try env.read(env.currentAppSupport.appendingPathComponent("Content/Papers/a.pdf")) == "pdf")
-        #expect(try env.read(env.currentAppSupport.appendingPathComponent(".appdata/knowledge.db")) == "legacy-library")
+        #expect(try env.read(env.currentAppSupport.appendingPathComponent(".appdata/knowledge.db")) == "retired-library")
     }
 
     @Test("Moves a retired library over an empty ForeverLM stub")
@@ -75,14 +75,14 @@ struct LegacyIdentityAdoptionTests {
             at: env.currentAppSupport.appendingPathComponent("Diagnostics/note.txt"),
             contents: "stub"
         )
-        try env.writeKnowledgeDatabase(at: env.retiredAppSupport, contents: "legacy-library")
+        try env.writeKnowledgeDatabase(at: env.retiredAppSupport, contents: "retired-library")
 
         let report = LegacyIdentityAdoption.adopt(locations: env.locations, defaults: env.defaults)
 
         #expect(report.movedAppSupport)
         #expect(report.preservedCurrentStub != nil)
         #expect(LegacyIdentityAdoption.hasKnowledgeDatabase(at: env.currentAppSupport))
-        #expect(try env.read(env.currentAppSupport.appendingPathComponent(".appdata/knowledge.db")) == "legacy-library")
+        #expect(try env.read(env.currentAppSupport.appendingPathComponent(".appdata/knowledge.db")) == "retired-library")
         if let stub = report.preservedCurrentStub {
             let aside = env.currentAppSupport.deletingLastPathComponent().appendingPathComponent(stub)
             #expect(try env.read(aside.appendingPathComponent("Diagnostics/note.txt")) == "stub")
@@ -95,14 +95,14 @@ struct LegacyIdentityAdoptionTests {
         defer { env.tearDown() }
 
         try env.writeKnowledgeDatabase(at: env.currentAppSupport, contents: "current-library")
-        try env.writeKnowledgeDatabase(at: env.retiredAppSupport, contents: "legacy-library")
+        try env.writeKnowledgeDatabase(at: env.retiredAppSupport, contents: "retired-library")
 
         let report = LegacyIdentityAdoption.adopt(locations: env.locations, defaults: env.defaults)
 
         #expect(!report.movedAppSupport)
         #expect(report.skippedBecauseCurrentLibraryExists)
         #expect(try env.read(env.currentAppSupport.appendingPathComponent(".appdata/knowledge.db")) == "current-library")
-        #expect(try env.read(env.retiredAppSupport.appendingPathComponent(".appdata/knowledge.db")) == "legacy-library")
+        #expect(try env.read(env.retiredAppSupport.appendingPathComponent(".appdata/knowledge.db")) == "retired-library")
     }
 
     @Test("Copies missing UserDefaults keys from the retired suite once")
@@ -111,13 +111,13 @@ struct LegacyIdentityAdoptionTests {
         defer { env.tearDown() }
 
         let retired = try #require(UserDefaults(suiteName: env.retiredSuite))
-        retired.set("from-legacy", forKey: "onlyInLegacy")
-        retired.set("legacy-zoom", forKey: "uiZoomStep")
+        retired.set("from-retired", forKey: "onlyInRetired")
+        retired.set("retired-zoom", forKey: "uiZoomStep")
         env.defaults.set("current-zoom", forKey: "uiZoomStep")
 
         let first = LegacyIdentityAdoption.adopt(locations: env.locations, defaults: env.defaults)
         #expect(first.copiedDefaultsKeys == 1)
-        #expect(env.defaults.string(forKey: "onlyInLegacy") == "from-legacy")
+        #expect(env.defaults.string(forKey: "onlyInRetired") == "from-retired")
         #expect(env.defaults.string(forKey: "uiZoomStep") == "current-zoom")
 
         retired.set("later", forKey: "addedAfterCopy")
@@ -173,11 +173,11 @@ struct LegacyIdentityAdoptionTests {
         try Data().write(
             to: env.currentAppSupport.appendingPathComponent(".appdata/knowledge.db")
         )
-        try env.writeKnowledgeDatabase(at: env.retiredAppSupport, contents: "legacy-library")
+        try env.writeKnowledgeDatabase(at: env.retiredAppSupport, contents: "retired-library")
 
         let report = LegacyIdentityAdoption.adopt(locations: env.locations, defaults: env.defaults)
         #expect(report.movedAppSupport)
-        #expect(try env.read(env.currentAppSupport.appendingPathComponent(".appdata/knowledge.db")) == "legacy-library")
+        #expect(try env.read(env.currentAppSupport.appendingPathComponent(".appdata/knowledge.db")) == "retired-library")
     }
 
     private struct Sandbox {
@@ -193,14 +193,14 @@ struct LegacyIdentityAdoptionTests {
 
         init() throws {
             let root = FileManager.default.temporaryDirectory
-                .appendingPathComponent("legacy-identity-\(UUID().uuidString)", isDirectory: true)
+                .appendingPathComponent("identity-adoption-\(UUID().uuidString)", isDirectory: true)
             try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
             currentAppSupport = root.appendingPathComponent("ForeverLM", isDirectory: true)
             retiredAppSupport = root.appendingPathComponent("FeynmanLM", isDirectory: true)
             currentAppGroup = root.appendingPathComponent("group.com.foreverlm", isDirectory: true)
             retiredAppGroup = root.appendingPathComponent("group.com.feynmanlm.shared", isDirectory: true)
-            retiredSuite = "legacy.identity.retired.\(UUID().uuidString)"
-            defaultsSuite = "legacy.identity.current.\(UUID().uuidString)"
+            retiredSuite = "identity.adoption.retired.\(UUID().uuidString)"
+            defaultsSuite = "identity.adoption.current.\(UUID().uuidString)"
             guard let defaults = UserDefaults(suiteName: defaultsSuite) else {
                 throw CocoaError(.fileNoSuchFile)
             }

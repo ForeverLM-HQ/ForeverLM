@@ -55,7 +55,7 @@ struct MemoryReviewSessionTests {
     }
 
     @Test("A review titled the old way shows its date from the id; a renamed one keeps its name")
-    func legacyTitleReadsDateFromID() {
+    func memoryPrefixedTitleReadsDateFromID() {
         let shown = MemoryReviewSession.displayTitle(
             storedTitle: "Memory · 4 Sep", sessionID: "memory-2026-09-04", calendar: utc
         )

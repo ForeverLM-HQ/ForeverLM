@@ -156,7 +156,7 @@ extension MCPDataStoreTests {
     /// outside the caller's pool comes back.
     @Test("read next ranks unread sources by closeness to recent reading")
     func readNextRanksUnreadSourcesByRecentReading() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let ks = try store.knowledgeStore()
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
@@ -213,7 +213,7 @@ extension MCPDataStoreTests {
 
     @Test("read next offers nothing when nothing was read recently")
     func readNextIsEmptyWithoutRecentReading() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let ks = try store.knowledgeStore()
         try ks.saveEmbedding(
@@ -238,7 +238,7 @@ extension MCPDataStoreTests {
     /// rarity-weighted fusion must still put the exact match on top.
     @Test("exact rare-term match outranks a semantically-similar-but-wrong source")
     func searchSourcesSemanticRareTermBeatsSemanticNoise() async throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
 
@@ -291,7 +291,7 @@ extension MCPDataStoreTests {
     /// the bare term.
     @Test("a rare term still leads when wrapped in a natural-language question")
     func searchSourcesSemanticRareTermSurvivesConversationalPhrasing() async throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
 
@@ -339,7 +339,7 @@ extension MCPDataStoreTests {
     /// semantic similarity only to break ties.
     @Test("a targeted paper lookup prefers author plus topic coverage over one surname hit")
     func searchSourcesSemanticPaperLookupCombinesAuthorAndTopicConstraints() async throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
 
@@ -411,7 +411,7 @@ extension MCPDataStoreTests {
     /// tie fell to the semantic branch. Between equal counts, the rarer terms win.
     @Test("a tie on constraint count goes to the source matching the rarer terms")
     func searchSourcesSemanticConstraintTieGoesToRarerTerms() async throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
 
@@ -464,7 +464,7 @@ extension MCPDataStoreTests {
 
     @Test("searchSourcesSemantic centers evidence on matched text")
     func searchSourcesSemanticCentersEvidenceOnMatchedText() async throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let opening = (0..<120).map { "opening\($0)" }.joined(separator: " ")
@@ -492,7 +492,7 @@ extension MCPDataStoreTests {
 
     @Test("startReviewSession links source when topic is a quiz prompt")
     func startReviewSessionLinksSourceFromQuizPrompt() async throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
 
@@ -516,7 +516,7 @@ extension MCPDataStoreTests {
 
     @Test("start_review_session operation id reuses one exact session")
     func startReviewSessionIsIdempotentByOperationID() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         try insertSource(
@@ -598,7 +598,7 @@ extension MCPDataStoreTests {
 
     @Test("import_review_chat appends a later chunk to the session the first chunk made")
     func importReviewChatAppendsChunks() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         try insertSource(dbPath: dbPath, id: "chunk-source-a", title: "Chunk source A", content: "First chunk source.")
@@ -757,7 +757,7 @@ extension MCPDataStoreTests {
         // wrote before answering: "it only saved a summary to foreverlm; not
         // the whole chat. it should do the whole chat … it can probably just do
         // that based on the json file on disk right?"
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         try insertSource(dbPath: dbPath, id: "src_paper", title: "MitoSpace", content: "Lattice light-sheet volumes.")
@@ -899,7 +899,7 @@ extension MCPDataStoreTests {
         // the afternoon, then brought level with its session file at seven
         // with more source_ids. It was drawn 14:26–19:04, 278 minutes, and
         // every added source came back reviewed, done and read.
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         try insertSource(dbPath: dbPath, id: "src_first", title: "First", content: "First paper.")
@@ -956,7 +956,7 @@ extension MCPDataStoreTests {
 
     @Test("forget_source_activity takes back a review recorded in error: the automatic entry, its activity day and the read stamp go on every device, a podcast's included")
     func forgetSourceActivityTakesBackAWrongReview() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         try insertSource(dbPath: dbPath, id: "src_paper", title: "A paper", content: "A paper.")
@@ -997,7 +997,7 @@ extension MCPDataStoreTests {
 
     @Test("forget_source_activity changes nothing when any source has a plan, activity on another day, or nothing recorded")
     func forgetSourceActivityRefusesWhatItWouldWronglyErase() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         for id in ["src_planned", "src_history", "src_wrong", "src_untouched"] {
@@ -1043,7 +1043,7 @@ extension MCPDataStoreTests {
 
     @Test("import_review_chat files a first import directly under an explicit Notebook")
     func importReviewChatFilesUnderNotebook() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         try insertSource(
@@ -1126,7 +1126,7 @@ extension MCPDataStoreTests {
 
     @Test("Review sessions link to a Notebook only when notebook id is explicit")
     func reviewSessionsRequireExplicitNotebookAttribution() async throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         try insertSource(
@@ -1184,7 +1184,7 @@ extension MCPDataStoreTests {
 
     @Test("startReviewSession binds to the host chat session instead of creating a phantom one")
     func startReviewSessionBindsToHostSession() async throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
 
@@ -1215,7 +1215,7 @@ extension MCPDataStoreTests {
 
     @Test("startReviewSession bound to a host chat ignores a caller idempotency key")
     func startReviewSessionIgnoresOperationIDForHostSession() async throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
 
@@ -1246,7 +1246,7 @@ extension MCPDataStoreTests {
 
     @Test("a blank operation_id from a remote caller means no idempotency key")
     func blankOperationIDMeansNone() async throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         try insertSource(dbPath: dbPath, id: "source-a", title: "Metabolism", content: "Glycolysis yields ATP.")
@@ -1261,7 +1261,7 @@ extension MCPDataStoreTests {
 
     @Test("endReviewSession with a host chat ends that chat and does not duplicate its transcript")
     func endReviewSessionUsesHostSession() throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
 
@@ -1296,7 +1296,7 @@ extension MCPDataStoreTests {
 
     @Test("end_review_session rejects missing, nonfinite, boolean, and out-of-range scores")
     func endReviewSessionRequiresStrictScore() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let sessionID = "strict-score-session"
@@ -1332,7 +1332,7 @@ extension MCPDataStoreTests {
 
     @Test("replaying whole session completion preserves endedAt, quiz count, gaps, and transcript")
     func endReviewSessionCompletionIsIdempotent() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         try insertSource(
@@ -1420,7 +1420,7 @@ extension MCPDataStoreTests {
 
     @Test("memoryReview returns durable concept IDs, reasons, rubrics, and anchors")
     func memoryReviewReturnsConceptPlan() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let content = "Retrieval practice strengthens later access more than passive rereading."

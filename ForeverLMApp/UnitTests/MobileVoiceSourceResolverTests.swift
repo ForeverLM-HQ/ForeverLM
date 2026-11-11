@@ -786,7 +786,7 @@ struct MobilePaywallShelfTests {
         )
     }
 
-    @Test("The column and the legacy error-message sentinel both mark a paywall")
+    @Test("The column and the error-message sentinel both mark a paywall")
     func foldsBothMarkers() {
         #expect(MobilePaywallShelf.isPaywalled(column: true, errorMessage: nil))
         #expect(MobilePaywallShelf.isPaywalled(column: nil, errorMessage: "paywall"))
@@ -1073,7 +1073,7 @@ struct MobileSourceFilePathTests {
         ) == "Papers/research.pdf")
     }
 
-    @Test("A legacy local PDF URL is used when localFilePath is absent")
+    @Test("A local PDF URL is used when localFilePath is absent")
     func fallsBackToURL() {
         #expect(MobileSourceFilePath.relativePDFPath(
             localFilePath: nil,

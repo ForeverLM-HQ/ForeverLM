@@ -76,10 +76,10 @@ struct SlideFrameExtractionTests {
         #expect(slide.timeSeconds == 120)
     }
 
-    /// Content written before ranges existed carries a single timestamp per heading. It
-    /// parses as an open-ended window for the display layer to close at the next slide.
-    @Test("Parses a legacy single-timestamp heading as an open window")
-    func parsesLegacySlideHeading() throws {
+    /// A heading with a single timestamp parses as an open-ended window for the display
+    /// layer to close at the next slide.
+    @Test("Parses a single-timestamp heading as an open window")
+    func parsesSingleTimestampSlideHeading() throws {
         let content = """
         Transcript body.
 

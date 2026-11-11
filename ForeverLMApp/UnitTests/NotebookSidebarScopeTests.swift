@@ -48,13 +48,6 @@ struct NotebookSidebarScopeTests {
         )
     }
 
-    private func makeViewModel() -> StudioViewModel {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("NotebookSidebarScopeTests_\(UUID().uuidString)", isDirectory: true)
-        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return StudioViewModel(storageService: StorageService(storeRoot: root))
-    }
-
     // MARK: - The membership index
 
     @Test("The index holds each active notebook's approved sources, named as the rows name them")

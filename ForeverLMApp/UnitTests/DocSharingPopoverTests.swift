@@ -182,16 +182,6 @@ struct DocSharingPopoverTests {
 /// `list_docs` says the popover's sentence as `published_access_summary`.
 @Suite("Doc sharing over MCP")
 struct DocSharingMCPTests {
-    private func makeStore() throws -> (MCPDataStore, String) {
-        let tmpDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("doc_sharing_mcp_test_\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
-        // Generation 1's teams (zones of the old container); a space needs a running sync coordinator.
-        let store = MCPDataStore(dbPath: tmpDir.appendingPathComponent("knowledge.db").path)
-        _ = try store.knowledgeStore()
-        return (store, tmpDir.path)
-    }
-
     private func parseJSON(_ text: String) throws -> [String: Any] {
         guard let object = try JSONSerialization.jsonObject(with: Data(text.utf8)) as? [String: Any] else {
             throw MCPError.invalidInput("Expected a JSON object, got: \(text.prefix(200))")

@@ -3,7 +3,7 @@ import Testing
 @testable import ForeverLM
 
 /// Memory under generation 2 (docs/cloudkit-schema-design.md D23, §3.5.13, §3.5.24, §8c, §14.2 WP19b): the
-/// history grid's minutes from the ActivityLog fold, every device's log and the legacy per-device clocks
+/// history grid's minutes from the ActivityLog fold, every device's log and the per-device clocks
 /// summed, and its days from the day-named memory Chats, as the Memory screen draws them; and the memory
 /// review's candidates from the replica's sources, activity days and highlights.
 @Suite("iPhone memory read models", .serialized)
@@ -11,24 +11,24 @@ struct MobileMemoryModelTests {
     typealias F = MobileReadModelFixture
     static let goalNow: TimeInterval = 15 * 60
 
-    static func log(_ day: String, device: String, seconds: Double?, legacy: [String: (active: Double, goal: Double)] = [:]) throws -> SyncEnvelope {
+    static func log(_ day: String, device: String, seconds: Double?, perDevice: [String: (active: Double, goal: Double)] = [:]) throws -> SyncEnvelope {
         var fields: [String: SyncJSON] = ["day": .string(day), "deviceID": .string(device)]
         if let seconds { fields["review"] = .object(["seconds": .number(seconds), "cardsAnswered": SyncJSON(3)]) }
-        if !legacy.isEmpty {
-            fields["reviewByDevice"] = .object(legacy.mapValues { .object(["activeSeconds": .number($0.active), "goalSeconds": .number($0.goal)]) })
+        if !perDevice.isEmpty {
+            fields["reviewByDevice"] = .object(perDevice.mapValues { .object(["activeSeconds": .number($0.active), "goalSeconds": .number($0.goal)]) })
         }
         return try MobileSyncFixture.envelope(.activityLog, "al:\(day):\(device)", fields)
     }
 
-    @Test("The minutes fold every device's log and the legacy clocks of each old device, a legacy day by the goal it had")
+    @Test("The minutes fold every device's log and the per-device clocks of each earlier device, a day by the goal it had")
     func activityFold() async throws {
         let replica = try await F.replica(spaceName: nil)
         try await MobileSyncFixture.apply([
-            (F.library, try Self.log("2026-09-01", device: "legacy22", seconds: nil, legacy: ["mac-old": (600, 1_200), "ipad-old": (300, 1_200)])),
+            (F.library, try Self.log("2026-09-01", device: "legacy22", seconds: nil, perDevice: ["mac-old": (600, 1_200), "ipad-old": (300, 1_200)])),
             (F.library, try Self.log("2026-10-02", device: "phoneaaa", seconds: 420)),
             (F.library, try Self.log("2026-10-02", device: "macbbbbb", seconds: 500)),
             (F.library, try Self.log("2026-10-03", device: "macbbbbb", seconds: nil)),
-            (F.library, try Self.log("2026-10-01", device: "legacy22", seconds: nil, legacy: ["mac-old": (200, 600)])),
+            (F.library, try Self.log("2026-10-01", device: "legacy22", seconds: nil, perDevice: ["mac-old": (200, 600)])),
             (F.library, try Self.log("2026-10-01", device: "phoneaaa", seconds: 100)),
         ], to: replica)
         let rows = try await MobileReadModels.reviewActivity(MobileProjection(replica: replica), goalSecondsNow: Self.goalNow)

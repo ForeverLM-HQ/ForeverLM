@@ -327,10 +327,10 @@ struct ChatSideQuestionTests {
             isMoreDetails: false, aboutReply: "Picard's patients show inefficient energy transformation."
         ))
 
-        let legacy = ChatSideQuestion.parse(contextContent: "<flm_side_question/>\nOpen question: Why not dysfunction?\n\n> a passage")
-        #expect(legacy == .init(isSideQuestion: true, openQuestion: "Why not dysfunction?", referenceContext: "> a passage"))
-        #expect(!legacy.isMoreDetails)
-        #expect(legacy.aboutReply == nil)
+        let bare = ChatSideQuestion.parse(contextContent: "<flm_side_question/>\nOpen question: Why not dysfunction?\n\n> a passage")
+        #expect(bare == .init(isSideQuestion: true, openQuestion: "Why not dysfunction?", referenceContext: "> a passage"))
+        #expect(!bare.isMoreDetails)
+        #expect(bare.aboutReply == nil)
     }
 
     @Test("A reply is named by its first paragraph, in plain text, cut to a line")

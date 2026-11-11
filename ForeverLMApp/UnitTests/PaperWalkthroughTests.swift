@@ -415,7 +415,7 @@ struct PaperWalkthroughValidationTests {
     }
 
     @Test("A walkthrough saved with multiple-choice questions reads back as open questions, graded against the option marked correct")
-    func legacyQuizDecodes() throws {
+    func multipleChoiceQuizDecodesAsOpenQuestion() throws {
         let json = """
         {"version": 1, "source_id": "src", "source_sha256": "sha", "title": "Walk", "author": "app",
          "generated_at": "2026-09-18T10:00:00Z",
@@ -435,7 +435,7 @@ struct PaperWalkthroughValidationTests {
         let reencoded = try PaperWalkthroughCoding.json(decoded)
         #expect(reencoded.contains("\"answer\""))
         #expect(!reencoded.contains("\"options\""))
-        // A legacy quiz whose correct index points nowhere still yields its explanation.
+        // A multiple-choice quiz whose correct index points nowhere still yields its explanation.
         #expect(PaperWalkthroughQuiz.legacyReferenceAnswer(options: ["a"], correctIndex: 7, explanation: "Because.") == "Because.")
         #expect(PaperWalkthroughQuiz.legacyReferenceAnswer(options: [], correctIndex: nil, explanation: "") == "")
     }

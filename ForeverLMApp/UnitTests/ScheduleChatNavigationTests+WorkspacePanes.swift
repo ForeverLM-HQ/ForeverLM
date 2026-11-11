@@ -42,13 +42,13 @@ extension ScheduleChatNavigationTests {
 
         // Ignore the retired Voice and Goal tokens in old preference values,
         // and fall back to the first live tab.
-        let legacy = StudioCenterTabGroups.fromPersisted([
+        let retiredTokens = StudioCenterTabGroups.fromPersisted([
             "voice|chat*",
             "goal*|reader|notebooks",
         ])
-        #expect(legacy?.groups[0].tabs == [.chat])
-        #expect(legacy?.groups[1].tabs == [.reader, .artifacts, .tasks, .activity, .activityLog, .goals, .courses, .ideas, .notepad, .sites, .browser, .videos, .animations, .memory, .knowledgeMap, .atlas, .library, .plugins])
-        #expect(legacy?.groups[1].activeTab == .reader)
+        #expect(retiredTokens?.groups[0].tabs == [.chat])
+        #expect(retiredTokens?.groups[1].tabs == [.reader, .artifacts, .tasks, .activity, .activityLog, .goals, .courses, .ideas, .notepad, .sites, .browser, .videos, .animations, .memory, .knowledgeMap, .atlas, .library, .plugins])
+        #expect(retiredTokens?.groups[1].activeTab == .reader)
 
         // Older builds allowed four panes. Loading that arrangement folds the
         // extras into the overflow cap without losing any permanent tabs.
@@ -691,7 +691,7 @@ extension ScheduleChatNavigationTests {
             normalizedWidth: 1,
             normalizedHeight: 1
         )
-        let legacyPlacement = StudioWindowPlacement(
+        let stalePlacement = StudioWindowPlacement(
             displayID: "stale-id",
             displayName: "Same Monitor",
             displayIndex: 1,
@@ -702,7 +702,7 @@ extension ScheduleChatNavigationTests {
         )
 
         #expect(StudioWorkspaceDisplayResolver.index(for: stableIdentity, among: displays) == 1)
-        #expect(StudioWorkspaceDisplayResolver.index(for: legacyPlacement, among: displays) == 1)
+        #expect(StudioWorkspaceDisplayResolver.index(for: stalePlacement, among: displays) == 1)
     }
 
     @Test("whole workspace restore reapplies existing windows and queues missing ones")

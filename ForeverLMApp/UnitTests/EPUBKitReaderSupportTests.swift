@@ -48,8 +48,8 @@ struct EPUBKitReaderSupportTests {
         #expect(!FileManager.default.fileExists(atPath: resolvedFromChaptersRoot))
     }
 
-    @Test("Strips legacy HTML5 doctype from combined chapter XHTML")
-    func stripsLegacyHTML5DoctypeFromCombinedChapterXHTML() throws {
+    @Test("Strips the HTML5 doctype from combined chapter XHTML")
+    func stripsHTML5DoctypeFromCombinedChapterXHTML() throws {
         let root = URL(fileURLWithPath: NSTemporaryDirectory())
             .appendingPathComponent("epubkit-normalize-xhtml-\(UUID().uuidString)", isDirectory: true)
         defer { try? FileManager.default.removeItem(at: root) }

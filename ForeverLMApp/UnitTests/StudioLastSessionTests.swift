@@ -122,11 +122,11 @@ struct StudioLastSessionTests {
         // existed still decodes.
         StudioLastSessionStore.save([.init(snapshot: snapshot, placement: nil, content: content)])
         #expect(StudioLastSessionStore.load().first?.content == content)
-        let legacy = try? JSONDecoder().decode(
+        let withoutContent = try? JSONDecoder().decode(
             StudioSavedWorkspaceWindow.self,
             from: Data(#"{"snapshot":{"centerTabGroups":["chat*"],"showSourcesPanel":true,"collapsedPanelIDs":[],"navigationRailVisible":true}}"#.utf8)
         )
-        #expect(legacy?.content == nil)
+        #expect(withoutContent?.content == nil)
 
         // An ordinary launch with one saved window leaves the window to
         // SwiftUI, content included.
@@ -504,22 +504,22 @@ struct StudioLastSessionTests {
     func notebookComesBackWithItsWindow() throws {
         // A scene snapshot an older build wrote has no notebook key: it still
         // decodes, keeps its layout, and the window holds no notebook.
-        let legacyJSON = #"{"centerTabGroups":["notebooks*","reader*"],"showSourcesPanel":true,"collapsedPanelIDs":["sources"],"navigationRailVisible":false}"#
-        let legacy = try JSONDecoder().decode(StudioWindowState.Snapshot.self, from: Data(legacyJSON.utf8))
-        #expect(legacy.notebook == nil)
-        #expect(legacy.centerTabGroups == ["notebooks*", "reader*"])
-        #expect(legacy.navigationRailVisible == false)
-        let restoredLegacy = StudioWindowState()
-        restoredLegacy.restore(from: legacyJSON)
-        #expect(restoredLegacy.notebook == nil)
-        #expect(restoredLegacy.snapshot == StudioWindowState(snapshot: legacy).snapshot)
+        let bareJSON = #"{"centerTabGroups":["notebooks*","reader*"],"showSourcesPanel":true,"collapsedPanelIDs":["sources"],"navigationRailVisible":false}"#
+        let bare = try JSONDecoder().decode(StudioWindowState.Snapshot.self, from: Data(bareJSON.utf8))
+        #expect(bare.notebook == nil)
+        #expect(bare.centerTabGroups == ["notebooks*", "reader*"])
+        #expect(bare.navigationRailVisible == false)
+        let restoredBare = StudioWindowState()
+        restoredBare.restore(from: bareJSON)
+        #expect(restoredBare.notebook == nil)
+        #expect(restoredBare.snapshot == StudioWindowState(snapshot: bare).snapshot)
 
         // So does a last-session record from before notebooks.
-        let legacyRecord = try JSONDecoder().decode(
+        let bareRecord = try JSONDecoder().decode(
             StudioSavedWorkspaceWindow.self,
-            from: Data(#"{"snapshot":\#(legacyJSON)}"#.utf8)
+            from: Data(#"{"snapshot":\#(bareJSON)}"#.utf8)
         )
-        #expect(legacyRecord.snapshot == legacy)
+        #expect(bareRecord.snapshot == bare)
 
         // A newer build's notebook, with a document and a key this build does
         // not know, still reopens, and the window keeps its layout.

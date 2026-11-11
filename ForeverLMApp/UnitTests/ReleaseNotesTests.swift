@@ -142,8 +142,8 @@ struct ReleaseNotesTests {
         #expect(allBold.detail == "Clicking a citation in a PDF shows its reference card in place.")
     }
 
-    @Test("An older bullet splits on a short first colon, and keeps a long or quoted one whole")
-    func highlightFromLegacyBullet() {
+    @Test("A bullet splits on a short first colon, and keeps a long or quoted one whole")
+    func highlightFromColonBullet() {
         let split = ReleaseNotesHighlight(bullet: "A Memory row in the rail: one review per day over what you took in")
         #expect(split.title == "A Memory row in the rail")
         #expect(split.detail == "One review per day over what you took in")

@@ -14,7 +14,7 @@ extension MCPDataStoreTests {
 
     @Test("addSource rejects paper bypasses that cannot run the mandatory LLM gate")
     func addSourceRejectsPaperBypass() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
         #expect(throws: MCPError.self) {
@@ -33,7 +33,7 @@ extension MCPDataStoreTests {
 
     @Test("addSource creates a course source with parent_group")
     func addSourceToCourse() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
         let result = try store.addSource(
@@ -50,7 +50,7 @@ extension MCPDataStoreTests {
 
     @Test("addSource refuses a course source with no course to belong to")
     func addSourceRejectsCourselessCourseSource() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
         // The Courses tab lists courses, so course material outside one would be
@@ -80,7 +80,7 @@ extension MCPDataStoreTests {
 
     @Test("addSource without content sets state to queued")
     func addSourceWithoutContent() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
         _ = try store.addSource(
@@ -99,7 +99,7 @@ extension MCPDataStoreTests {
 
     @Test("listSources groups book chapters under book headings")
     func listSourcesGroupsBookChapters() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
 
@@ -150,7 +150,7 @@ extension MCPDataStoreTests {
 
     @Test("deleteSource removes source and content")
     func deleteSource() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
         let result = try store.addSource(
@@ -174,7 +174,7 @@ extension MCPDataStoreTests {
 
     @Test("deleteSource of an unknown ID is an error, so the call reports isError")
     func deleteSourceNotFound() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
         #expect(throws: MCPError.self) { try store.deleteSource("nonexistent-id") }
@@ -191,7 +191,7 @@ extension MCPDataStoreTests {
 
     @Test("updateSource changes title and author")
     func updateSourceMetadata() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
         let paper = StudioArticle(
@@ -219,7 +219,7 @@ extension MCPDataStoreTests {
 
     @Test("updateSource with content sets state to ready")
     func updateSourceWithContent() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
         let addResult = try store.addSource(
@@ -246,7 +246,7 @@ extension MCPDataStoreTests {
 
     @Test("getSourceContent resolves the unique source prefixes returned in citations")
     func getSourceContentResolvesUniquePrefix() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
         let addResult = try store.addSource(
@@ -268,7 +268,7 @@ extension MCPDataStoreTests {
 
     @Test("MCP saves a pre-generated review guide against an exact source revision")
     func savesPreGeneratedSourceReviewGuide() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let content = "Canonical source text about a causal mechanism and its main limitation."
@@ -309,7 +309,7 @@ extension MCPDataStoreTests {
 
     @Test("MCP rejects a pre-generated review guide after source content changes")
     func rejectsStalePreGeneratedSourceReviewGuide() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         try insertSource(
@@ -337,7 +337,7 @@ extension MCPDataStoreTests {
 
     @Test("updateSource of an unknown ID is an error")
     func updateSourceNotFound() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
         #expect(throws: MCPError.self) {
@@ -353,7 +353,7 @@ extension MCPDataStoreTests {
 
     @Test("updateSource with no fields returns no-op message")
     func updateSourceNoFields() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
         let addResult = try store.addSource(
@@ -378,7 +378,7 @@ extension MCPDataStoreTests {
 
     @Test("source action tools update paywall, hidden, and context state")
     func sourceActionToolsUpdateSourceState() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
 
@@ -409,7 +409,7 @@ extension MCPDataStoreTests {
 
     @Test("paywall recheck is a no-op when the catalog has no eligible papers")
     func paywallRecheckNoEligiblePapers() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
         let ordinaryPaper = StudioArticle(
@@ -446,7 +446,7 @@ extension MCPDataStoreTests {
 
     @Test("A paywalled URL import keeps the paper as a paywalled row with its bibliography")
     func paywalledURLImportSavesPaywalledPaper() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
         let sourceURL = "https://doi.org/10.1126/science.1077780"
@@ -501,7 +501,7 @@ extension MCPDataStoreTests {
     /// and an interstitial's never does.
     @Test("A paywalled Elsevier DOI import takes the Crossref title, not the interstitial's")
     func paywalledElsevierImportPrefersCrossrefTitleOverRedirecting() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
         let sourceURL = "https://doi.org/10.1016/j.cmet.2022.02.001"
@@ -544,7 +544,7 @@ extension MCPDataStoreTests {
 
     @Test("A paywalled import with a Crossref record takes its title over the page's")
     func paywalledImportPrefersCrossrefTitleWheneverPresent() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
         // The page-metadata fetch now yields nothing for a redirect page, so
@@ -609,7 +609,7 @@ extension MCPDataStoreTests {
 
     @Test("An interstitial title with no Crossref record falls back to the URL, not 'Redirecting'")
     func paywalledImportNeverKeepsInterstitialTitle() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
         let sourceURL = "https://doi.org/10.1016/j.cmet.2022.02.001"
@@ -640,7 +640,7 @@ extension MCPDataStoreTests {
 
     @Test("A paywall-shaped failure with no paper identity adds nothing")
     func paywalledURLImportWithoutIdentitySavesNothing() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
         let sourceURL = "https://example.com/some/page"
@@ -661,7 +661,7 @@ extension MCPDataStoreTests {
 
     @Test("attachPDFToPaper fails closed when the PDF has no readable paper text")
     func attachPDFToPaperRequiresReadablePaperText() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let paperURL = "https://example.com/attach-paper"
@@ -696,7 +696,7 @@ extension MCPDataStoreTests {
 
     @Test("removeSource dismisses and archives a normal source")
     func removeSourceArchivesAndDismisses() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
 
@@ -720,7 +720,7 @@ extension MCPDataStoreTests {
 
     @Test("unarchiveSource reverses removal without leaving a dismissal tombstone")
     func unarchiveSourceClearsRemovalDismissal() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let url = "https://example.com/restore-me"
@@ -745,7 +745,7 @@ extension MCPDataStoreTests {
 
     @Test("searchSourcesSemantic returns nearest embedded sources first")
     func searchSourcesSemanticRanksResults() async throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
 
@@ -794,7 +794,7 @@ extension MCPDataStoreTests {
 
     @Test("Discovery suggests only what the model judges to fit, and a Notebook made from a chat takes the chat in")
     func discoveryKeepsJudgedFitAndFilesTheCallingChat() async throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
 
@@ -904,7 +904,7 @@ extension MCPDataStoreTests {
 
     @Test("Discovery seeded by a Notebook's own source ranks what shares its rare words first")
     func discoverySeededBySourceRanksSharedRareTermsFirst() async throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let store = MCPDataStore(dbPath: dbPath, sourceEmbeddingProvider: { _ in Self.seededDiscoveryQuery })
@@ -943,7 +943,7 @@ extension MCPDataStoreTests {
 
     @Test("A Notebook made from a chat starts with the sources the chat discussed, and they steer its suggestions")
     func notebookFromChatIsSeededByWhatTheChatDiscussed() async throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let judged = JudgedCandidates()
@@ -998,7 +998,7 @@ extension MCPDataStoreTests {
 
     @Test("A Notebook made from a chat takes every source the chat linked or read, past the discovery seed limit")
     func notebookFromChatTakesEverySourceLinkedOrRead() async throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let store = MCPDataStore(dbPath: dbPath)
@@ -1032,7 +1032,7 @@ extension MCPDataStoreTests {
 
     @Test("A Notebook made from a chat takes in the Pages the chat wrote")
     func notebookFromChatFilesTheChatsPages() async throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let store = MCPDataStore(dbPath: dbPath)
@@ -1083,7 +1083,7 @@ extension MCPDataStoreTests {
 
     @Test("searchSourcesSemantic filters a relative-date meeting lookup deterministically")
     func searchSourcesSemanticFiltersMeetingDateWithoutEmbeddingGuesswork() async throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
 
@@ -1146,7 +1146,7 @@ extension MCPDataStoreTests {
 
     @Test("A source search takes back the timestamp it printed, and says which axis found nothing")
     func searchSourcesSemanticRoundTripsItsOwnPrintedDate() async throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
 
@@ -1201,7 +1201,7 @@ extension MCPDataStoreTests {
 
     @Test("searchSourcesSemantic omits sources already in the excluded Notebook")
     func searchSourcesSemanticExcludesNotebookSources() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
 
@@ -1258,7 +1258,7 @@ extension MCPDataStoreTests {
 
     @Test("searchSourcesSemantic can restrict results to a Notebook's approved pool")
     func searchSourcesSemanticRestrictsToNotebookSources() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
 
@@ -1313,7 +1313,7 @@ extension MCPDataStoreTests {
 
     @Test("searchSourcesSemantic reports when no embeddings pass threshold")
     func searchSourcesSemanticNoResults() async throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
 
@@ -1336,7 +1336,7 @@ extension MCPDataStoreTests {
 
     @Test("searchSourcesSemantic includes exact acronym text matches")
     func searchSourcesSemanticIncludesAcronymTextMatches() async throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
 
@@ -1485,7 +1485,7 @@ extension MCPDataStoreTests {
 
     @Test("body-text search finds a term written the other way round")
     func searchSourcesSemanticFindsHyphenationVariants() async throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
 
@@ -1538,7 +1538,7 @@ extension MCPDataStoreTests {
 
     @Test("the scan that stands in for an unbuilt index reads both spellings too")
     func searchSourcesSemanticScanFallbackFindsHyphenationVariants() async throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
 
@@ -1573,7 +1573,7 @@ extension MCPDataStoreTests {
 
     @Test("exact DOI lookup returns a paper without relying on token search")
     func searchSourcesSemanticFindsExactDOI() async throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
 
@@ -1600,7 +1600,7 @@ extension MCPDataStoreTests {
 
     @Test("nearby query terms outrank the same terms scattered through a source")
     func searchSourcesSemanticUsesTermProximity() async throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let nearBody = "alpha beta gamma " + String(repeating: "padding ", count: 20)

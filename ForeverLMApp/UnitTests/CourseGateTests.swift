@@ -64,22 +64,16 @@ struct CourseGateTests {
         )
         #expect(LectureQuizScore(preferenceValue: score.preferenceValue) == score)
 
-        let legacy = LectureQuizScore(preferenceValue: ["right": 3, "total": 4, "takenAt": 50.0] as [String: Any])
-        #expect(legacy?.passedAt == nil)
-        #expect(legacy?.hasPassed == true, "a legacy row's own score still says it passed")
-        let after = LectureQuizScore(right: 0, total: 4, takenAt: Date(timeIntervalSince1970: 60)).recorded(after: legacy)
+        let unstamped = LectureQuizScore(preferenceValue: ["right": 3, "total": 4, "takenAt": 50.0] as [String: Any])
+        #expect(unstamped?.passedAt == nil)
+        #expect(unstamped?.hasPassed == true, "a row without a pass date still says it passed by its own score")
+        let after = LectureQuizScore(right: 0, total: 4, takenAt: Date(timeIntervalSince1970: 60)).recorded(after: unstamped)
         #expect(after.passedAt == Date(timeIntervalSince1970: 50))
     }
 
     // MARK: The gate over a course
 
     private let courseID = "bioenergetics"
-
-    private func makeViewModel() -> StudioViewModel {
-        let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("CourseGateTests_\(UUID().uuidString)")
-        try? FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
-        return StudioViewModel(storageService: StorageService(storeRoot: tmp))
-    }
 
     private func quiz(lectureID: String) -> CourseQuiz {
         CourseQuiz(

@@ -6,11 +6,6 @@ import Foundation
 import SQLite3
 @testable import ForeverLM
 
-/// Creates an in-memory KnowledgeStore for unit testing.
-private func makeInMemoryStore() throws -> KnowledgeStore {
-    try KnowledgeStore(inMemory: true)
-}
-
 /// Helper: create a StudioArticle with sensible defaults for testing.
 private func makeArticle(url: String, title: String? = nil) -> StudioArticle {
     var article = StudioArticle(url: url, title: title)
@@ -21,7 +16,7 @@ private func makeArticle(url: String, title: String? = nil) -> StudioArticle {
 extension SourcePersistenceTests {
     @Test("source review dates come from completed reviews and Schedule items")
     func testSourceReviewDates() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = StudioArticle(
             url: "https://example.com/review-me",
             title: "Review Me",
@@ -92,7 +87,7 @@ extension SourcePersistenceTests {
 
     @Test("review eligibility follows equivalent paper DOI records")
     func reviewEligibilityFollowsEquivalentPaperDOIRecords() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let doi = "10.1101/2026.01.02.123456"
         var detectedPaper = StudioArticle(
             url: "https://doi.org/\(doi)",
@@ -131,7 +126,7 @@ extension SourcePersistenceTests {
 
     @Test("review sessions store the last in-app model used")
     func reviewSessionsStoreLastModelUsed() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
 
         try store.createReviewSession(
             id: "session-model",
@@ -162,7 +157,7 @@ extension SourcePersistenceTests {
 
     @Test("CloudKit review sessions remap linked sources by identity")
     func cloudKitReviewSessionsRemapLinkedSourcesByIdentity() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let localSourceID = "local-review-source"
         let remoteSourceID = "remote-review-source"
         let url = "https://example.com/same-review-source"
@@ -227,7 +222,7 @@ extension SourcePersistenceTests {
 
     @Test("CloudKit review sessions defer missing Source links until the Source arrives")
     func cloudKitReviewSessionsDeferMissingSourceLinks() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let sourceID = "later-source"
         let sessionID = "session-before-source-order"
 
@@ -271,9 +266,9 @@ extension SourcePersistenceTests {
         #expect(try store.sourceHasLinkedChatSession(sourceID))
     }
 
-    @Test("CloudKit review goal presence preserves legacy links and explicit null clears")
+    @Test("CloudKit review goal presence keeps the link when the field is absent and explicit null clears")
     func cloudKitReviewGoalPresenceIsLossless() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
 
         func payload(goalID: String?) -> CloudKitReviewSessionPayload {
             CloudKitReviewSessionPayload(
@@ -300,22 +295,22 @@ extension SourcePersistenceTests {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.sortedKeys]
         let explicitNullData = try encoder.encode(payload(goalID: nil))
-        var legacyObject = try #require(
+        var absentFieldObject = try #require(
             JSONSerialization.jsonObject(with: explicitNullData) as? [String: Any]
         )
-        #expect(legacyObject.keys.contains("goalID"))
-        #expect(legacyObject["goalID"] is NSNull)
+        #expect(absentFieldObject.keys.contains("goalID"))
+        #expect(absentFieldObject["goalID"] is NSNull)
 
         // A pre-goalID client omitted the field. Updating other session content
         // must not silently detach an existing Notebook relationship.
-        legacyObject.removeValue(forKey: "goalID")
-        let legacyData = try JSONSerialization.data(withJSONObject: legacyObject)
-        let legacyPayload = try JSONDecoder().decode(
+        absentFieldObject.removeValue(forKey: "goalID")
+        let absentFieldData = try JSONSerialization.data(withJSONObject: absentFieldObject)
+        let absentFieldPayload = try JSONDecoder().decode(
             CloudKitReviewSessionPayload.self,
-            from: legacyData
+            from: absentFieldData
         )
-        #expect(!legacyPayload.goalIDFieldIsPresent)
-        try store.saveReviewSessionRecord(legacyPayload)
+        #expect(!absentFieldPayload.goalIDFieldIsPresent)
+        try store.saveReviewSessionRecord(absentFieldPayload)
         #expect(try store.loadReviewSessionLinks().first {
             $0.id == "goal-presence-session"
         }?.goalID == "goal-linked")
@@ -336,7 +331,7 @@ extension SourcePersistenceTests {
 
     @Test("CloudKit preserves and updates a source-less mobile chat")
     func cloudKitPreservesAndUpdatesSourceLessMobileChat() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let startedAt = Date(timeIntervalSinceReferenceDate: 100)
         let endedAt = Date(timeIntervalSinceReferenceDate: 200)
 
@@ -438,7 +433,7 @@ extension SourcePersistenceTests {
 
     @Test("CloudKit review session payload preserves its Goal link")
     func cloudKitReviewSessionPayloadPreservesGoalLink() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         try store.createReviewSession(
             id: "goal-linked-session",
             topic: "Goal review",
@@ -453,7 +448,7 @@ extension SourcePersistenceTests {
 
     @Test("CloudKit learning goals remap item sources by identity")
     func cloudKitLearningGoalsRemapItemSourcesByIdentity() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let localSourceID = "local-scheduled-source"
         let remoteSourceID = "remote-scheduled-source"
         let url = "https://example.com/same-scheduled-source"
@@ -515,7 +510,7 @@ extension SourcePersistenceTests {
     /// Goal rather than a Notebook.
     @Test("CloudKit learning goals keep their parent Notebook")
     func cloudKitLearningGoalsKeepParent() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let start = Date(timeIntervalSinceReferenceDate: 100)
         let end = Date(timeIntervalSinceReferenceDate: 100 + 7 * 24 * 60 * 60)
 
@@ -562,7 +557,7 @@ extension SourcePersistenceTests {
     /// questions never reach the other Mac.
     @Test("CloudKit learning goals carry their research questions")
     func cloudKitLearningGoalsCarryResearchQuestions() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let start = Date(timeIntervalSinceReferenceDate: 100)
         let end = Date(timeIntervalSinceReferenceDate: 100 + 7 * 24 * 60 * 60)
         let questions = [
@@ -604,7 +599,7 @@ extension SourcePersistenceTests {
 
     @Test("Goal lifecycle status is explicit, not inferred from the deadline")
     func goalLifecycleStatusIsExplicit() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let start = Date(timeIntervalSinceReferenceDate: 0)
         let passed = Date(timeIntervalSinceReferenceDate: 1000)
 
@@ -653,7 +648,7 @@ extension SourcePersistenceTests {
     /// path, so every companion goal reported 0% done regardless of work finished.
     @Test("Completing a scheduled source marks it complete on the goal too")
     func completionMirrorsOntoGoalItems() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = StudioArticle(
             url: "https://example.com/mito-transfer",
             title: "Mitochondrial transfer",
@@ -699,7 +694,7 @@ extension SourcePersistenceTests {
 
     @Test("Source activity creates one pending calendar entry and preserves existing plans")
     func sourceActivityCreatesIdempotentCalendarEntry() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var active = StudioArticle(
             url: "https://example.com/active-reading",
             title: "Active reading",
@@ -755,7 +750,7 @@ extension SourcePersistenceTests {
 
     @Test("Consumption history reports each day's activity without claiming completion")
     func consumptionHistoryReportsActivityDays() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var read = StudioArticle(
             url: "https://example.com/history-read",
             title: "History read",
@@ -802,7 +797,7 @@ extension SourcePersistenceTests {
 
     @Test("Starting a review atomically adds its sources to the calendar")
     func reviewStartAddsCalendarEntries() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = StudioArticle(
             url: "https://example.com/review-start",
             title: "Review start",
@@ -831,7 +826,7 @@ extension SourcePersistenceTests {
 
     @Test("Re-parenting validates the target is a top-level Notebook")
     func reparentingValidatesTarget() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let start = Date(timeIntervalSinceReferenceDate: 0)
         let end = Date(timeIntervalSinceReferenceDate: 10_000)
 
@@ -887,7 +882,7 @@ extension SourcePersistenceTests {
 
     @Test("active review sessions are linked but not reviewed")
     func activeReviewSessionIsLinkedButNotReviewed() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = StudioArticle(
             url: "https://example.com/active-review",
             title: "Active Review",
@@ -911,7 +906,7 @@ extension SourcePersistenceTests {
 
     @Test("reopen review session only writes completed sessions")
     func reopenReviewSessionOnlyWritesCompletedSessions() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
 
         try store.createReviewSession(
             id: "session-active",
@@ -937,7 +932,7 @@ extension SourcePersistenceTests {
 
     @Test("relative file path round-trips")
     func testRelativeFilePathRoundTrips() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = makeArticle(url: "https://example.com/paper.pdf", title: "Paper")
         article.localFilePath = "Documents/papers/paper.pdf"
         try store.insertSourceIfNew(&article)

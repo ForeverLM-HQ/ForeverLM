@@ -8,14 +8,6 @@ import Testing
 @Suite("MCP course quiz tools", .serialized)
 struct MCPCourseQuizToolTests {
 
-    private func makeStore() throws -> (MCPDataStore, KnowledgeStore, URL) {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("mcp_course_quiz_\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        let store = MCPDataStore(dbPath: root.appendingPathComponent("knowledge.db").path)
-        return (store, try store.knowledgeStore(), root)
-    }
-
     /// A two-lecture course with a transcript source on the first lecture.
     private func seedCourse(_ knowledge: KnowledgeStore) throws -> (courseID: String, lectures: [CourseSession], sourceID: String) {
         try knowledge.saveCourseGroup(name: "bioenergetics", metadata: CourseMetadata(title: "Bioenergetics"))
@@ -46,7 +38,7 @@ struct MCPCourseQuizToolTests {
 
     @Test("A saved checkpoint shows in get_course after its last lecture, and get_course_quiz hides answers unless asked")
     func saveAndRead() throws {
-        let (store, knowledge, root) = try makeStore()
+        let (store, knowledge, root) = try TestStores.mcpWithKnowledge()
         defer { try? FileManager.default.removeItem(at: root) }
         let seeded = try seedCourse(knowledge)
 
@@ -96,7 +88,7 @@ struct MCPCourseQuizToolTests {
 
     @Test("A question on a timed transcript is timed where its quote is said, over start_seconds, and a stored one is read out that way")
     func quoteTimesTheQuestion() throws {
-        let (store, knowledge, root) = try makeStore()
+        let (store, knowledge, root) = try TestStores.mcpWithKnowledge()
         defer { try? FileManager.default.removeItem(at: root) }
         let seeded = try seedCourse(knowledge)
         var video = StudioArticle(
@@ -135,7 +127,7 @@ struct MCPCourseQuizToolTests {
 
     @Test("A practice quiz takes the ladder's place for its lecture, and saving again replaces it")
     func practiceReplaces() throws {
-        let (store, knowledge, root) = try makeStore()
+        let (store, knowledge, root) = try TestStores.mcpWithKnowledge()
         defer { try? FileManager.default.removeItem(at: root) }
         let seeded = try seedCourse(knowledge)
         let arguments: [String: Any] = [
@@ -157,7 +149,7 @@ struct MCPCourseQuizToolTests {
 
     @Test("A rewritten quiz shows its current question count and labels an old short score as previous-version history")
     func rewrittenQuizLabelsOldScore() throws {
-        let (store, knowledge, root) = try makeStore()
+        let (store, knowledge, root) = try TestStores.mcpWithKnowledge()
         defer { try? FileManager.default.removeItem(at: root) }
         let seeded = try seedCourse(knowledge)
         let base: [String: Any] = [
@@ -188,7 +180,7 @@ struct MCPCourseQuizToolTests {
 
     @Test("Bad input is refused by name")
     func refusals() throws {
-        let (store, knowledge, root) = try makeStore()
+        let (store, knowledge, root) = try TestStores.mcpWithKnowledge()
         defer { try? FileManager.default.removeItem(at: root) }
         let seeded = try seedCourse(knowledge)
         #expect(throws: MCPError.self) {
@@ -210,7 +202,7 @@ struct MCPCourseQuizToolTests {
 
     @Test("A quiz lists its learning points first, and one left without a question is refused by name")
     func learningPointsCovered() throws {
-        let (store, knowledge, root) = try makeStore()
+        let (store, knowledge, root) = try TestStores.mcpWithKnowledge()
         defer { try? FileManager.default.removeItem(at: root) }
         let seeded = try seedCourse(knowledge)
         let practice: [String: Any] = [
@@ -254,7 +246,7 @@ struct MCPCourseQuizToolTests {
 
     @Test("A sitting in the assistant's chat keeps the score and sends a miss to Memory")
     func recordResult() async throws {
-        let (store, knowledge, root) = try makeStore()
+        let (store, knowledge, root) = try TestStores.mcpWithKnowledge()
         defer { try? FileManager.default.removeItem(at: root) }
         let seeded = try seedCourse(knowledge)
         _ = try store.saveCourseQuiz(arguments: [
@@ -289,7 +281,7 @@ struct MCPCourseQuizToolTests {
 
     @Test("A question on a source with text is refused without a quote its text contains, and a quote of the page's words reaches Memory")
     func quotesAnchorInMemory() async throws {
-        let (store, knowledge, root) = try makeStore()
+        let (store, knowledge, root) = try TestStores.mcpWithKnowledge()
         defer { try? FileManager.default.removeItem(at: root) }
         let seeded = try seedCourse(knowledge)
         // The Wolf et al. cristae paper's text as it is stored: the PDF's
@@ -344,7 +336,7 @@ struct MCPCourseQuizToolTests {
 
     @Test("Answers recorded a call at a time build one sitting, under way in the app until its last answer completes it")
     func recordIteratively() async throws {
-        let (store, knowledge, root) = try makeStore()
+        let (store, knowledge, root) = try TestStores.mcpWithKnowledge()
         defer { try? FileManager.default.removeItem(at: root) }
         let seeded = try seedCourse(knowledge)
         _ = try store.saveCourseQuiz(arguments: [
@@ -423,7 +415,7 @@ struct MCPCourseQuizToolTests {
 
     @Test("finish completes a sitting the learner stopped, the questions left skipped, and new_sitting starts over")
     func finishAndStartOver() async throws {
-        let (store, knowledge, root) = try makeStore()
+        let (store, knowledge, root) = try TestStores.mcpWithKnowledge()
         defer { try? FileManager.default.removeItem(at: root) }
         let seeded = try seedCourse(knowledge)
         _ = try store.saveCourseQuiz(arguments: [
@@ -473,7 +465,7 @@ struct MCPCourseQuizToolTests {
 
     @Test("Saving a quiz again with a question added ahead keeps each question's id, and so its Memory item")
     func resaveKeepsMemoryItems() async throws {
-        let (store, knowledge, root) = try makeStore()
+        let (store, knowledge, root) = try TestStores.mcpWithKnowledge()
         defer { try? FileManager.default.removeItem(at: root) }
         let seeded = try seedCourse(knowledge)
         let asked = question(
@@ -513,8 +505,8 @@ struct MCPCourseQuizToolTests {
     }
 
     @Test("Saving over a quiz stored with positional ids keeps a repeated question's id")
-    func resaveKeepsLegacyIDs() throws {
-        let (store, knowledge, root) = try makeStore()
+    func resaveKeepsPositionalIDs() throws {
+        let (store, knowledge, root) = try TestStores.mcpWithKnowledge()
         defer { try? FileManager.default.removeItem(at: root) }
         let seeded = try seedCourse(knowledge)
         let id = CourseQuizPlanning.testID(courseID: seeded.courseID)
@@ -540,7 +532,7 @@ struct MCPCourseQuizToolTests {
 
     @Test("Removing a quiz leaves the rest of the course alone")
     func delete() throws {
-        let (store, knowledge, root) = try makeStore()
+        let (store, knowledge, root) = try TestStores.mcpWithKnowledge()
         defer { try? FileManager.default.removeItem(at: root) }
         let seeded = try seedCourse(knowledge)
         _ = try store.saveCourseQuiz(arguments: ["course_id": seeded.courseID, "learning_points": learningPoints, "kind": "test", "questions": [question("Q?")]])
@@ -553,7 +545,7 @@ struct MCPCourseQuizToolTests {
 
     @Test("Renaming a quiz changes only its title and symbol")
     func rename() throws {
-        let (store, knowledge, root) = try makeStore()
+        let (store, knowledge, root) = try TestStores.mcpWithKnowledge()
         defer { try? FileManager.default.removeItem(at: root) }
         let seeded = try seedCourse(knowledge)
         _ = try store.saveCourseQuiz(arguments: [
@@ -575,7 +567,7 @@ struct MCPCourseQuizToolTests {
 
     @Test("A course with no lecture text has nothing to quiz, said before anything is spent")
     func nothingToQuiz() async throws {
-        let (store, knowledge, root) = try makeStore()
+        let (store, knowledge, root) = try TestStores.mcpWithKnowledge()
         defer { try? FileManager.default.removeItem(at: root) }
         try knowledge.saveCourseGroup(name: "empty", metadata: CourseMetadata(title: "Empty"))
         try knowledge.saveCourseLecture(CourseSession(courseName: "empty", number: 1, title: "Nothing yet"))
@@ -713,19 +705,11 @@ struct CourseChatOutlineTests {
 /// picture away, each without touching the question.
 @Suite("MCP course quiz pictures", .serialized)
 struct MCPCourseQuizPictureToolTests {
-    private func makeStore() throws -> (MCPDataStore, KnowledgeStore, URL) {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("mcp_course_quiz_pictures_\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        let store = MCPDataStore(dbPath: root.appendingPathComponent("knowledge.db").path)
-        return (store, try store.knowledgeStore(), root)
-    }
-
     private static let png = Data(base64Encoded: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")!
 
     @Test("A picture made in another app is pinned by image_id, listed by get_course_quiz, replaced by a brief and taken away alone")
     func storedPictureLifecycle() async throws {
-        let (store, knowledge, root) = try makeStore()
+        let (store, knowledge, root) = try TestStores.mcpWithKnowledge()
         defer { try? FileManager.default.removeItem(at: root) }
         try knowledge.saveCourseGroup(name: "bioenergetics", metadata: CourseMetadata(title: "Bioenergetics"))
         let lecture = CourseSession(courseName: "bioenergetics", number: 1, title: "Proton circuits")

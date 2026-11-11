@@ -137,7 +137,7 @@ struct DocPublishingServiceTests {
         )
         #expect(recorder.requests.first?.url?.path == "/api/publish/docs")
         #expect(statuses["doc-a"]?.url.absoluteString == "https://foreverlm.com/share/report-a")
-        #expect(statuses["doc-b"]?.password == "secret", "a legacy page still reports the password it answers to")
+        #expect(statuses["doc-b"]?.password == "secret", "a page published without a reader list still reports the password it answers to")
         #expect(statuses["doc-b"]?.readers == [])
         #expect(statuses["doc-c"]?.readers == ["one@example.com", "two@example.org"])
         #expect(statuses["doc-c"]?.password == nil)

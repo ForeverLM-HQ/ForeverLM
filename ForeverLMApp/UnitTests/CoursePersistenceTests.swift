@@ -395,11 +395,11 @@ struct CoursePersistenceTests {
             sourceIDs: []
         )
 
-        let legacyPayload = CloudKitLearningGoalPayload(
+        let payload = CloudKitLearningGoalPayload(
             goal: try #require(try store.loadLearningGoal(notebook.id)),
             sourceIdentities: []
         )
-        try store.saveLearningGoalRecord(legacyPayload)
+        try store.saveLearningGoalRecord(payload)
         #expect(try store.linkedCourseIDsForNotebook(goalID: notebook.id) == ["physics-course"])
 
         let clearingPayload = CloudKitLearningGoalPayload(
@@ -736,7 +736,7 @@ struct CourselessCourseSourceTests {
         #expect(try store.loadSourceContent("handout") == "Handout text")
     }
 
-    /// 2026-09-27: a hidden legacy course keyed by a book's own id was deleted,
+    /// 2026-09-27: a hidden course keyed by a book's own id was deleted,
     /// and every chapter of Molecular Biology of the Cell left the book.
     @Test("Deleting a course that shares a book's id leaves the book's chapters in it")
     func deletingCourseSharingBookIDKeepsChapters() throws {

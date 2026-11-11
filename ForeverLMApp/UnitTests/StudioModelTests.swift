@@ -485,8 +485,8 @@ struct StudioArticlePropertyTests {
         #expect(article.isPaywalledPaper)
     }
 
-    @Test("isPaywalledPaper detects legacy paywall error marker")
-    func isPaywalledPaperWithLegacyErrorMarker() {
+    @Test("isPaywalledPaper detects the paywall error-message marker")
+    func isPaywalledPaperWithErrorMarker() {
         var article = StudioArticle(url: "https://nature.com/articles/abc", sourceType: .paper)
         article.state = .ready
         article.errorMessage = "paywall"
@@ -1999,7 +1999,7 @@ struct VideoWatchProgressTests {
     private static let markTime = Date(timeIntervalSinceReferenceDate: 812_345_678)
 
     @Test("Progress without an epoch encodes exactly as it always did")
-    func legacyEncodingUnchanged() {
+    func encodingWithoutEpochIsUnchanged() {
         #expect(
             VideoWatchProgress(positionSeconds: 300, watchedSeconds: 600, durationSeconds: 900).encoded
                 == #"{"durationSeconds":900,"positionSeconds":300,"watchedSeconds":600}"#
@@ -2453,12 +2453,12 @@ struct SourceConsumptionTests {
             kinds: [.reading], completedKinds: [], maxFraction: 0.5, engagedSeconds: 90
         )
         #expect(measured.engagedTime == 90)
-        let legacy = SourceActivityDay(
+        let unmeasured = SourceActivityDay(
             id: "l", sourceID: "s", dayStart: first, firstActivityAt: first, lastActivityAt: last,
             kinds: [.reading], completedKinds: [], maxFraction: 0.5
         )
-        #expect(legacy.engagedTime == 420)
-        #expect(SourceActivityDay.engagedSeconds(in: [measured, legacy]) == 510)
+        #expect(unmeasured.engagedTime == 420)
+        #expect(SourceActivityDay.engagedSeconds(in: [measured, unmeasured]) == 510)
         #expect(SourceActivityDay.clampSeconds(.nan) == 0)
         #expect(SourceActivityDay.clampSeconds(-4) == 0)
         #expect(SourceActivityDay.clampSeconds(100_000) == 86_400)
@@ -2522,8 +2522,8 @@ struct SourceActivityDayDepthTests {
     }
 
     @Test("A pre-v66 payload without maxFraction still decodes")
-    func decodesLegacyPayload() throws {
-        let legacy = """
+    func decodesPayloadWithoutMaxFraction() throws {
+        let json = """
         {
           "id": "activity-1",
           "sourceID": "source-1",
@@ -2536,7 +2536,7 @@ struct SourceActivityDayDepthTests {
         """
         let decoded = try JSONDecoder().decode(
             SourceActivityDay.self,
-            from: Data(legacy.utf8)
+            from: Data(json.utf8)
         )
         #expect(decoded.maxFraction == 0)
         #expect(decoded.kinds == [.listening])

@@ -38,7 +38,7 @@ extension MCPDataStoreTests {
 
     @Test("set_notebook_source_selection ticks and unticks a Notebook's sources for its chats, never its membership")
     func notebookSourceSelectionSetsInChat() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let goal = try makeSelectionNotebook(store: store, tmpPath: tmpPath)
 
@@ -90,7 +90,7 @@ extension MCPDataStoreTests {
 
     @Test("set_notebook_source_selection refuses a source outside the Notebook, a missing source_ids, and an unknown mode, writing nothing")
     func notebookSourceSelectionRefusals() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let goal = try makeSelectionNotebook(store: store, tmpPath: tmpPath)
 
@@ -119,7 +119,7 @@ extension MCPDataStoreTests {
 
     @Test("deleting a Notebook drops its chat selection row")
     func deleteNotebookForgetsChatSelection() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let goal = try makeSelectionNotebook(store: store, tmpPath: tmpPath)
 
@@ -162,7 +162,7 @@ extension MCPDataStoreTests {
 
     @Test("list_notebook_sources lists a context notebook's sources after the Notebook's own, read by its chats only once put in")
     func listNotebookSourcesMarksContextNotebooks() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let goal = try makeSelectionNotebook(store: store, tmpPath: tmpPath)
         let context = try makeContextNotebook(store: store, tmpPath: tmpPath, for: goal)
@@ -240,7 +240,7 @@ extension MCPDataStoreTests {
 
     @Test("get_notebook_context reads a context notebook's sources and notes only once it is in the Notebook's chats, and says what it leaves out")
     func getNotebookContextFollowsContextNotebooks() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let goal = try makeSelectionNotebook(store: store, tmpPath: tmpPath)
         let context = try makeContextNotebook(store: store, tmpPath: tmpPath, for: goal)
@@ -269,7 +269,7 @@ extension MCPDataStoreTests {
 
     @Test("get notebook context includes emergent state and source content")
     func getNotebookContextIncludesEmergentState() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         try insertSource(dbPath: dbPath, id: "src-1", title: "Core paper", content: "Important mechanism.")
@@ -434,7 +434,7 @@ extension MCPDataStoreTests {
 
     @Test("get_source_settings and set_source_settings are Settings › Sources")
     func sourceSettingsToolsDriveTheSourcesPane() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let defaults = UserDefaults.standard
         let hiddenKey = "studio.hiddenTabs"
@@ -534,7 +534,7 @@ extension MCPDataStoreTests {
         // in Zoom put Zoom's unknown-source dialog on screen at every launch.
         // The list and the row's two buttons are the whole surface; nothing
         // opens Zoom but the learner's word, here or in the app.
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { try? FileManager.default.removeItem(atPath: tmpPath) }
 
         let tools = MCPToolRegistry(store: store).tools
@@ -581,7 +581,7 @@ extension MCPDataStoreTests {
         // The paid voice is priced by OpenRouter's catalog, which unit tests
         // pin (`AudioPriceFixture`) rather than read.
         try await OpenRouterAudioPrices.$pinnedTable.withValue(AudioPriceFixture.table) {
-            let (store, tmpPath) = try makeStore()
+            let (store, tmpPath) = try TestStores.mcp()
             defer { cleanup(tmpPath) }
             let defaults = UserDefaults.standard
             var keys = SourceAudioAutomation.automatable.map(\.preferenceKey)
@@ -714,7 +714,7 @@ extension MCPDataStoreTests {
     /// starting it here would reach the speech queue.
     @Test("generate_explainer saves the script beside its source with the writer handed in")
     func generateExplainerWritesTheScriptWithAnInjectedWriter() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let kstore = try store.knowledgeStore()
         try Self.seedReadySource(
@@ -751,7 +751,7 @@ extension MCPDataStoreTests {
     /// runs — a real write here would store a key in the iCloud Keychain.
     @Test("get_own_router_key and set_own_router_key are AI Usage › API keys")
     func ownRouterKeyToolsDriveTheAIUsagePane() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         defer { ManagedAI.ownKeyOverrideForTesting = nil }
 
@@ -815,7 +815,7 @@ extension MCPDataStoreTests {
 
     @Test("save_animation keeps the files in the library like a site, files the record under Animations linked to its sources, writes a player page around a lone video, reads a local file, updates by id, and refuses a Site's id")
     func mcpSaveAnimation() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let kstore = try store.knowledgeStore()
         let paperURL = "https://doi.org/10.1093/cvr/cvaf001"
@@ -1046,7 +1046,7 @@ extension MCPDataStoreTests {
 
     @Test("update_space makes, fills, moves, renames and deletes a space; list_spaces and list_docs read it")
     func mcpPageSpaces() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let aging = try await createdDocID(store, title: "Aging clocks", markdown: "# Aging clocks")
         let bio = try await createdDocID(store, title: "Bioelectric fields", markdown: "# Bioelectric fields")
@@ -1118,7 +1118,7 @@ extension MCPDataStoreTests {
 
     @Test("update_space trash and restore: a space in Trash leaves list_spaces for in_trash, takes no pages, and comes back with them")
     func mcpPageSpaceTrash() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let page = try await createdDocID(store, title: "Field notes", markdown: "# Field notes")
 
@@ -1156,7 +1156,7 @@ extension MCPDataStoreTests {
 
     @Test("update_space refuses an unknown action, a blank name, a missing space, an unknown Doc and a team's page, writing nothing")
     func mcpPageSpaceRefusals() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let page = try await createdDocID(store, title: "Mine", markdown: "# Mine")
         let team = try await createdTeamPage(store, markdown: "# Team")
@@ -1199,7 +1199,7 @@ extension MCPDataStoreTests {
 
     @Test("list_doc_versions lists this Mac's versions newest first and reads one; restore_doc_version restores and keeps the body it replaced")
     func mcpDocVersions() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let docID = try await createdDocID(store, title: "Landscape", markdown: "# Landscape\n\nOne.")
         let empty = try parseJSON(try await store.listDocVersions(artifactID: docID))
@@ -1257,7 +1257,7 @@ extension MCPDataStoreTests {
 
     @Test("restore_doc_version refuses a team's page and a linked page, as the app's Version History does")
     func mcpDocVersionRefusals() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         // A team's page: its versions are listed, never restored here.
         let team = try await createdTeamPage(store, markdown: "# Team\n\nOne.")

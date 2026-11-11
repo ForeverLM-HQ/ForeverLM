@@ -10,12 +10,6 @@ import Testing
 @Suite("Staged podcast match")
 @MainActor
 struct StagedPodcastMatchTests {
-    private func makeViewModel() -> StudioViewModel {
-        let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("StagedPodcastMatchTests_\(UUID().uuidString)")
-        try? FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
-        return StudioViewModel(storageService: StorageService(storeRoot: tmp))
-    }
-
     private let match = PodcastFinderService.PodcastMatch(
         podcastName: "BiotechTV - News",
         episodeTitle: "Roche will pay Manifold Bio $55M up front",

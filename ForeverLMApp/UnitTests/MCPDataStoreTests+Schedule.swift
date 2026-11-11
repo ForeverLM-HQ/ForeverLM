@@ -12,7 +12,7 @@ import SQLite3
 extension MCPDataStoreTests {
     @Test("getSchedule returns the active week plan")
     func getScheduleReturnsPlan() throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         // The schedule is a continuous calendar whose rendered week is always the
@@ -62,7 +62,7 @@ extension MCPDataStoreTests {
 
     @Test("getSchedule recognizes source ids stored on session rows")
     func getScheduleRecognizesSessionSourceIDs() throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let calendar = Calendar.current
@@ -95,7 +95,7 @@ extension MCPDataStoreTests {
 
     @Test("getSchedule can omit completed items")
     func getScheduleOmitsCompletedItems() throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let calendar = Calendar.current
@@ -131,7 +131,7 @@ extension MCPDataStoreTests {
 
     @Test("getTodaySources returns content for today's pending sources only")
     func getTodaySourcesReturnsContent() throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let calendar = Calendar.current
@@ -171,7 +171,7 @@ extension MCPDataStoreTests {
 
     @Test("getTodaySources truncates long content per source")
     func getTodaySourcesTruncatesContent() throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let calendar = Calendar.current
@@ -199,7 +199,7 @@ extension MCPDataStoreTests {
 
     @Test("getTodaySources loads any Schedule day, including completed sources and past weeks")
     func getTodaySourcesSupportsDateAndPastWeeks() throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let calendar = Calendar.current
@@ -262,7 +262,7 @@ extension MCPDataStoreTests {
 
     @Test("getTodaySources can load actual completion activity independently of planned day")
     func getTodaySourcesSupportsCompletionDateBasis() throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let calendar = Calendar.current
@@ -313,7 +313,7 @@ extension MCPDataStoreTests {
 
     @Test("getTodaySources uses daily activity rather than planned or completed dates")
     func getTodaySourcesSupportsActivityDateBasis() throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let calendar = Calendar.current
@@ -362,7 +362,7 @@ extension MCPDataStoreTests {
     /// in it on the day it was played, not only ForeverLM's own player's log.
     @Test("getTodaySources lists an episode played in Apple Podcasts as that day's listening")
     func getTodaySourcesListsApplePodcastsListening() throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let calendar = Calendar.current
@@ -408,7 +408,7 @@ extension MCPDataStoreTests {
 
     @Test("Loading source content for an external chat records today's chat activity")
     func getSourceContentRecordsChatActivityWhenRequested() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         try insertSource(
@@ -432,7 +432,7 @@ extension MCPDataStoreTests {
     /// transaction inside another's and fail.
     @Test("Source reads that record chat activity run together without failing inside each other")
     func parallelSourceReadsRecordTheirActivity() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let count = 8
@@ -472,7 +472,7 @@ extension MCPDataStoreTests {
 
     @Test("getSchedule tags placements with their Goals and Notebooks, never a plain goal")
     func getScheduleTagsGoalsAndNotebooks() throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let calendar = Calendar.current
@@ -507,7 +507,7 @@ extension MCPDataStoreTests {
 
     @Test("Google Docs interface placeholders are not exposed as source content")
     func googleDocsInterfacePlaceholderIsRejected() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let placeholder = """
@@ -541,7 +541,7 @@ extension MCPDataStoreTests {
 
     @Test("assignSourcesToDay moves existing items")
     func assignSourcesToDayMovesExistingItems() async throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let calendar = Calendar.current
@@ -589,7 +589,7 @@ extension MCPDataStoreTests {
     /// destructive operation. It now gets placed and tagged in one call.
     @Test("assignSourcesToDay places a pool source that has no placement yet")
     func assignSourcesToDayPlacesUnscheduledPoolSource() async throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let calendar = Calendar.current
@@ -632,7 +632,7 @@ extension MCPDataStoreTests {
     /// promised.
     @Test("assignSourcesToDay tags a source already on the Schedule for another goal")
     func assignSourcesToDayTagsSourcePlacedForAnotherGoal() async throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let calendar = Calendar.current
@@ -682,7 +682,7 @@ extension MCPDataStoreTests {
     /// no foreign key by design.
     @Test("assignSourcesToDay rejects sources that do not exist")
     func assignSourcesToDayRejectsUnknownSource() async throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let calendar = Calendar(identifier: .gregorian)
@@ -712,7 +712,7 @@ extension MCPDataStoreTests {
 
     @Test("assignSourcesToDay places a source untagged when no goal is named")
     func assignSourcesToDayPlacesUntaggedWithoutGoal() async throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let calendar = Calendar.current
@@ -737,7 +737,7 @@ extension MCPDataStoreTests {
 
     @Test("unscheduleSources with a goal removes that goal's items")
     func unscheduleSourcesFromGoal() throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let calendar = Calendar.current
@@ -774,7 +774,7 @@ extension MCPDataStoreTests {
 
     @Test("clearScheduleDay with a goal removes its pending sources on that day")
     func clearScheduleDayForGoal() throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let calendar = Calendar.current
@@ -813,7 +813,7 @@ extension MCPDataStoreTests {
 
     @Test("setSourceCompletion marks done and reopens")
     func setSourceCompletionMarksDoneAndReopens() throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let calendar = Calendar.current
@@ -864,7 +864,7 @@ extension MCPDataStoreTests {
 
     @Test("unscheduleSources with no goal takes the placement off the Schedule, whatever serves it")
     func unscheduleSourcesWithoutGoal() throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let calendar = Calendar.current
@@ -900,7 +900,7 @@ extension MCPDataStoreTests {
 
     @Test("clearScheduleDay and markScheduleDayDone with no goal cover every source on the day")
     func dayToolsWithoutGoalCoverTheWholeDay() async throws {
-        let (_, tmpPath) = try makeStore()
+        let (_, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         let calendar = Calendar.current

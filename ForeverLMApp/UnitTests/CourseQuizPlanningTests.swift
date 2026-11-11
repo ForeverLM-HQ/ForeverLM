@@ -321,7 +321,7 @@ struct CourseQuizPlanningTests {
     }
 
     @Test("A rewrite keeps the positional id a quiz stored before content ids for the same question")
-    func rewriteKeepsLegacyIDs() {
+    func rewriteKeepsPositionalIDs() {
         let stored = [
             CourseQuizQuestion(
                 id: "q1", sourceID: "video-1", firstLine: 2, lastLine: 2, startSeconds: 30,
@@ -1728,13 +1728,13 @@ struct CourseQuizPictureTests {
 
         // A deck stored before windows had ends keeps its one time: the
         // stored frame's own, taken mid-run.
-        let legacy = """
+        let positional = """
         ## Extracted video slide frames
 
         ### Slide frame 1 [2:05]
         Image: Videos/old/Slides/slide_001_000125s.jpg
         """
-        let old = CourseQuizPictures.slides(from: legacy, sourceID: "old", byMoment: true)
+        let old = CourseQuizPictures.slides(from: positional, sourceID: "old", byMoment: true)
         #expect(old.map(\.reference.location) == [.moment(125)])
         #expect(try #require(CourseQuizPictures.block(old, heading: "Slides:")).contains("[S1 · 2:05] (no words recognized)"))
     }

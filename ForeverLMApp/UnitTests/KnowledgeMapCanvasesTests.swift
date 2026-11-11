@@ -155,13 +155,6 @@ struct KnowledgeMapCanvasActTests {
         }
     }
 
-    private func makeViewModel() -> StudioViewModel {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("KnowledgeMapCanvasActTests_\(UUID().uuidString)", isDirectory: true)
-        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return StudioViewModel(storageService: StorageService(storeRoot: root))
-    }
-
     @Test("New Canvas writes a named row at once, filed in the space asked for, and opening it gives it a model of its own")
     func createAndOpen() throws {
         try withCanvasDefaults { defaults in

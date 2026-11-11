@@ -21,15 +21,6 @@ struct MCPHighlightToolsTests {
     sessions back to back, even when the total time is identical.
     """
 
-    private func makeStore() throws -> (MCPDataStore, String) {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("mcp_highlight_test_\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let store = MCPDataStore(dbPath: directory.appendingPathComponent("knowledge.db").path)
-        _ = try store.knowledgeStore()
-        return (store, directory.path)
-    }
-
     private func cleanup(_ path: String) {
         try? FileManager.default.removeItem(atPath: path)
     }
@@ -87,7 +78,7 @@ struct MCPHighlightToolsTests {
 
     @Test("A quoted passage is anchored to the source's own wording")
     func createAnchorsToSourceText() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let sourceID = try seedArticle(in: store)
 
@@ -119,7 +110,7 @@ struct MCPHighlightToolsTests {
 
     @Test("A re-spaced quote stores the passage as the document reads it")
     func createNormalizesWhitespace() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let sourceID = try seedArticle(in: store)
 
@@ -140,7 +131,7 @@ struct MCPHighlightToolsTests {
 
     @Test("A passage that is not in the source is refused, not placed approximately")
     func createRefusesUnfoundQuote() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let sourceID = try seedArticle(in: store)
 
@@ -157,7 +148,7 @@ struct MCPHighlightToolsTests {
 
     @Test("Marking the same passage twice is refused with the existing ID")
     func createRefusesDuplicatePassage() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let sourceID = try seedArticle(in: store)
 
@@ -189,7 +180,7 @@ struct MCPHighlightToolsTests {
 
     @Test("A picture is marked by its URL, with no words, and listed with the picture")
     func createMarksPictureByURL() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let sourceID = try seedArticle(in: store)
 
@@ -243,7 +234,7 @@ struct MCPHighlightToolsTests {
 
     @Test("A quote and a picture together make one mark on both; a relative or blob URL is refused; nothing at all is refused")
     func createMarksWordsAndPicture() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let sourceID = try seedArticle(in: store)
 
@@ -273,7 +264,7 @@ struct MCPHighlightToolsTests {
 
     @Test("An unknown color is refused rather than silently defaulted")
     func createRefusesUnknownColor() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let sourceID = try seedArticle(in: store)
 
@@ -289,7 +280,7 @@ struct MCPHighlightToolsTests {
 
     @Test("A source with no stored text cannot carry a mark")
     func createRequiresStoredText() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let sourceID = try seedArticle(
             in: store,
@@ -312,7 +303,7 @@ struct MCPHighlightToolsTests {
 
     @Test("Listing returns the learner's marks oldest first with their notes")
     func listReturnsMarksInReadingOrder() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let sourceID = try seedArticle(in: store)
 
@@ -342,7 +333,7 @@ struct MCPHighlightToolsTests {
 
     @Test("An empty library reports no marks rather than failing")
     func listOnUnmarkedSource() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let sourceID = try seedArticle(in: store)
 
@@ -354,7 +345,7 @@ struct MCPHighlightToolsTests {
 
     @Test("An unknown source is reported as missing")
     func listRejectsUnknownSource() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
 
         #expect(throws: MCPError.self) {
@@ -364,7 +355,7 @@ struct MCPHighlightToolsTests {
 
     @Test("Search matches passage text and note text across sources")
     func searchSpansTheLibrary() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let firstID = try seedArticle(in: store)
         let secondID = try seedArticle(
@@ -404,7 +395,7 @@ struct MCPHighlightToolsTests {
 
     @Test("Search keeps one marker color across the library, so the follow-ups can be listed")
     func searchFiltersByColor() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let firstID = try seedArticle(in: store)
         let secondID = try seedArticle(
@@ -443,7 +434,7 @@ struct MCPHighlightToolsTests {
 
     @Test("A LIKE metacharacter in the query matches itself")
     func searchEscapesLikeMetacharacters() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let sourceID = try seedArticle(in: store)
 
@@ -461,7 +452,7 @@ struct MCPHighlightToolsTests {
 
     @Test("Search honours its limit")
     func searchRespectsLimit() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let sourceID = try seedArticle(in: store)
 
@@ -485,7 +476,7 @@ struct MCPHighlightToolsTests {
 
     @Test("Updating rewrites the note and color and keeps the passage")
     func updateRewritesNote() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let sourceID = try seedArticle(in: store)
 
@@ -514,7 +505,7 @@ struct MCPHighlightToolsTests {
 
     @Test("An empty note clears it back to a bare highlight")
     func updateClearsNote() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let sourceID = try seedArticle(in: store)
 
@@ -534,7 +525,7 @@ struct MCPHighlightToolsTests {
 
     @Test("An update with nothing to change is refused")
     func updateRequiresAField() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let sourceID = try seedArticle(in: store)
 
@@ -556,7 +547,7 @@ struct MCPHighlightToolsTests {
 
     @Test("Deleting removes the mark and reports what was removed")
     func deleteRemovesMark() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let sourceID = try seedArticle(in: store)
 
@@ -583,7 +574,7 @@ struct MCPHighlightToolsTests {
 
     @Test("Every highlight tool is reachable by name through the tool registry")
     func toolsDispatchByName() async throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let sourceID = try seedArticle(in: store)
         let registry = MCPToolRegistry(store: store)
@@ -683,7 +674,7 @@ struct MCPHighlightToolsTests {
 
     @Test("Highlights and notes saved inside a PDF arrive as the paper's highlights, once")
     func importsMarksSavedInThePDF() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let sourceID = try seedArticle(in: store)
 
@@ -809,7 +800,7 @@ struct MCPHighlightToolsTests {
 
     @Test("A mark links the chat its note came from, and every listing says so")
     func createLinksNamedChat() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let sourceID = try seedArticle(in: store)
         let chatID = try importResearchChat(in: store, sourceID: sourceID)
@@ -838,7 +829,7 @@ struct MCPHighlightToolsTests {
 
     @Test("A chat link names the chat as its bare id does")
     func createAcceptsChatLink() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let sourceID = try seedArticle(in: store)
         let chatID = try importResearchChat(in: store, sourceID: sourceID)
@@ -856,7 +847,7 @@ struct MCPHighlightToolsTests {
 
     @Test("A chat that does not exist is refused, and nothing is marked")
     func createRefusesUnknownChat() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let sourceID = try seedArticle(in: store)
 
@@ -874,7 +865,7 @@ struct MCPHighlightToolsTests {
 
     @Test("A mark made from a chat inside ForeverLM links that chat")
     func createFromInAppChatLinksIt() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let sourceID = try seedArticle(in: store)
         let chatID = try importResearchChat(in: store, sourceID: sourceID)
@@ -902,7 +893,7 @@ struct MCPHighlightToolsTests {
 
     @Test("update_source_highlight links a chat, unlinks it with an empty session_id, and leaves the note alone")
     func updateLinksAndUnlinksChat() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let sourceID = try seedArticle(in: store)
         let chatID = try importResearchChat(in: store, sourceID: sourceID)
@@ -933,7 +924,7 @@ struct MCPHighlightToolsTests {
 
     @Test("A research chat saved with mark_reviewed false leaves the Schedule alone; a review still checks its sources off")
     func researchChatLeavesScheduleAlone() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let researched = try seedArticle(in: store)
         let reviewed = try seedArticle(in: store, url: "https://example.com/reviewed", title: "Reviewed")
@@ -973,7 +964,7 @@ struct MCPHighlightToolsTests {
         // 2026-09-28: a chat imported with mark_reviewed false had seven
         // sources linked by later calls with session_id, and every one came
         // back reviewed, placed on the Schedule done and stamped read.
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let first = try seedArticle(in: store, url: "https://example.com/first", title: "First")
         let added = try seedArticle(in: store, url: "https://example.com/added", title: "Added")
@@ -1027,7 +1018,7 @@ struct MCPHighlightToolsTests {
 
     @Test("A chat with no kind reads as the review its first import defaulted to, until a call says it is not one")
     func chatWithoutAKindLearnsItIsNotAReview() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let first = try seedArticle(in: store, url: "https://example.com/first", title: "First")
         let between = try seedArticle(in: store, url: "https://example.com/between", title: "Between")
@@ -1079,7 +1070,7 @@ struct MCPHighlightToolsTests {
 
     @Test("The store keeps a mark's chat through saves and links")
     func storeKeepsChatLink() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let sourceID = try seedArticle(in: store)
         let knowledge = try store.knowledgeStore()
@@ -1150,15 +1141,6 @@ struct MCPHighlightToolsTests {
 /// it is kept, and what the tools report.
 @Suite("Highlight cited papers")
 struct HighlightReferenceTests {
-    private func makeStore() throws -> (MCPDataStore, String) {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("mcp_highlight_refs_\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let store = MCPDataStore(dbPath: directory.appendingPathComponent("knowledge.db").path)
-        _ = try store.knowledgeStore()
-        return (store, directory.path)
-    }
-
     private func seedArticle(in store: MCPDataStore, url: String) throws -> String {
         _ = try store.addSource(
             url: url,
@@ -1199,7 +1181,7 @@ struct HighlightReferenceTests {
 
     @Test("The store keeps a mark's papers through saves and links")
     func storeKeepsReferences() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { try? FileManager.default.removeItem(atPath: path) }
         let sourceID = try seedArticle(in: store, url: "https://example.com/retrieval-practice")
         let knowledge = try store.knowledgeStore()
@@ -1221,7 +1203,7 @@ struct HighlightReferenceTests {
 
     @Test("create_source_highlight keeps the papers a note cites and says which the library holds")
     func createCitesPapers() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { try? FileManager.default.removeItem(atPath: path) }
         let sourceID = try seedArticle(in: store, url: "https://example.com/retrieval-practice")
 
@@ -1254,7 +1236,7 @@ struct HighlightReferenceTests {
 
     @Test("A paper with no DOI or address, too many papers, or a list that is not one is refused")
     func referencesAreValidated() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { try? FileManager.default.removeItem(atPath: path) }
         let sourceID = try seedArticle(in: store, url: "https://example.com/retrieval-practice")
 
@@ -1282,7 +1264,7 @@ struct HighlightReferenceTests {
 
     @Test("update_source_highlight replaces the papers, clears them with an empty list, and leaves the note alone")
     func updateReplacesReferences() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { try? FileManager.default.removeItem(atPath: path) }
         let sourceID = try seedArticle(in: store, url: "https://example.com/retrieval-practice")
         let created = try json(try store.createSourceHighlight(
@@ -1309,15 +1291,6 @@ struct HighlightReferenceTests {
 /// learner's note.
 @Suite("Highlight since-publication update")
 struct HighlightPublicationUpdateTests {
-    private func makeStore() throws -> (MCPDataStore, String) {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("mcp_highlight_update_\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let store = MCPDataStore(dbPath: directory.appendingPathComponent("knowledge.db").path)
-        _ = try store.knowledgeStore()
-        return (store, directory.path)
-    }
-
     private func seedArticle(in store: MCPDataStore) throws -> String {
         let url = "https://example.com/metformin"
         _ = try store.addSource(
@@ -1342,7 +1315,7 @@ struct HighlightPublicationUpdateTests {
 
     @Test("create and update write the update beside the note, and never over it")
     func updateStandsBesideTheNote() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { try? FileManager.default.removeItem(atPath: path) }
         let sourceID = try seedArticle(in: store)
         let created = try json(try store.createSourceHighlight(
@@ -1388,7 +1361,7 @@ struct HighlightPublicationUpdateTests {
 
     @Test("An update past the limit is refused")
     func updateLengthIsLimited() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { try? FileManager.default.removeItem(atPath: path) }
         let sourceID = try seedArticle(in: store)
         #expect(throws: MCPError.self) {

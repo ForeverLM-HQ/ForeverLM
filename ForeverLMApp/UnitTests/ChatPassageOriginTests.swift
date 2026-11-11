@@ -34,7 +34,7 @@ struct ChatPassageOriginTests {
     }
 
     @Test("A block from before the source line names no source, but still reads")
-    func legacyBlockWithoutSource() {
+    func blockWithoutSourceLine() {
         let stored = "Selected passage:\n> SS31 / elamipretide\n\nContext: Mitochondrial phenotyping"
         let passage = ChatPassageOrigin.parse(contextContent: stored)
         #expect(passage?.quote == "SS31 / elamipretide")

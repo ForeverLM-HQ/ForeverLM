@@ -709,8 +709,8 @@ struct SlideCitationServiceTests {
 
     /// A bare array is the older reply shape, and what a user's custom prompt override still
     /// returns. It stays visible while signalling that the fallback classifier is needed.
-    @Test("Treats a legacy array reply as a slide")
-    func decodesLegacyArrayAsSlide() throws {
+    @Test("Treats a bare array reply as a slide")
+    func decodesBareArrayAsSlide() throws {
         let read = try SlideCitationService.decodeReply(
             #"[{"title": "A paper", "authors": null, "year": null, "journal": null, "doi": null}]"#
         )
@@ -1063,7 +1063,7 @@ struct VideoCitedPaperWindowTests {
     /// A row saved before frame paths were kept still has a timestamp, which is enough to
     /// place it in the margin.
     @Test("Falls back to the timestamp for a paper with no frame path")
-    func groupsLegacyPaperByTimestamp() {
+    func groupsPaperWithoutFramePathByTimestamp() {
         let slides = [
             slide(1, windows: [window(100, 160)]),
             slide(2, windows: [window(500, 560)]),

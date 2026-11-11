@@ -556,9 +556,9 @@ struct PaperWalkthroughPanelIdentityTests {
     before any is tested. Figure 3 lays out the search space and the funnel from all of biology to validation.
     """
 
-    /// `panelLetter` as it stood before named panels had an identity: the
-    /// last character of the label, upper-cased.
-    static func legacyPanelLetter(_ label: String) -> String? {
+    /// The letter-only reading of a panel label: the last character of the
+    /// label, upper-cased.
+    static func letterOnlyPanelLetter(_ label: String) -> String? {
         let trimmed = label.trimmingCharacters(in: .whitespacesAndNewlines)
             .trimmingCharacters(in: CharacterSet(charactersIn: "()[]."))
         guard let last = trimmed.last, last.isLetter else { return nil }
@@ -572,9 +572,9 @@ struct PaperWalkthroughPanelIdentityTests {
         let lettered = ["a", "A", "(a)", "(B)", "b.", "[c]", "  d  ", "1a", "1A", "Figure 2B", "Fig. 3e", "Fig. S2b",
                         "Extended Data Fig. 3a", "panel b", "Panel B", "panels c and d", "b–d", "a, b", "(a) and (b)", "i", "v"]
         for label in lettered {
-            #expect(PaperWalkthroughValidation.panelLetter(label) == Self.legacyPanelLetter(label), "\(label)")
-            #expect(PaperWalkthroughValidation.panelKey(label) == Self.legacyPanelLetter(label), "\(label)")
-            #expect(PaperWalkthroughValidation.panelDisplayName(label) == Self.legacyPanelLetter(label), "\(label)")
+            #expect(PaperWalkthroughValidation.panelLetter(label) == Self.letterOnlyPanelLetter(label), "\(label)")
+            #expect(PaperWalkthroughValidation.panelKey(label) == Self.letterOnlyPanelLetter(label), "\(label)")
+            #expect(PaperWalkthroughValidation.panelDisplayName(label) == Self.letterOnlyPanelLetter(label), "\(label)")
         }
         #expect(PaperWalkthroughValidation.panelLetter("(c)") == "C")
         #expect(PaperWalkthroughValidation.panelLetter("Figure 2B") == "B")

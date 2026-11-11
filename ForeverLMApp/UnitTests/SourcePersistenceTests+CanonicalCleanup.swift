@@ -6,11 +6,6 @@ import Foundation
 import SQLite3
 @testable import ForeverLM
 
-/// Creates an in-memory KnowledgeStore for unit testing.
-private func makeInMemoryStore() throws -> KnowledgeStore {
-    try KnowledgeStore(inMemory: true)
-}
-
 /// Helper: create a StudioArticle with sensible defaults for testing.
 private func makeArticle(url: String, title: String? = nil) -> StudioArticle {
     var article = StudioArticle(url: url, title: title)
@@ -19,9 +14,9 @@ private func makeArticle(url: String, title: String? = nil) -> StudioArticle {
 }
 
 extension SourcePersistenceTests {
-    @Test("Legacy ready articles enter the resumable canonical cleanup queue")
-    func legacyArticleQueuesCanonicalCleanup() throws {
-        let store = try makeInMemoryStore()
+    @Test("Ready articles enter the resumable canonical cleanup queue")
+    func readyArticleQueuesCanonicalCleanup() throws {
+        let store = try TestStores.inMemory()
         var article = StudioArticle(
             url: "https://example.com/legacy-article",
             title: "Legacy Article",
@@ -57,7 +52,7 @@ extension SourcePersistenceTests {
         #expect(try store.loadArticleContentPreparation(article.id)?.raw == article.content)
         #expect(try store.canonicalContentCleanupQueueCount() == 0)
         // Once cleanup commits, the next review request can use the cleaned
-        // article without ever exposing the legacy raw extraction.
+        // article without ever exposing the raw extraction.
         try store.ensureSourceReviewGuidePreparation(sourceID: article.id)
         let review = try #require(try store.sourceReviewGuideCandidate(sourceID: article.id))
         #expect(review.content == clean)
@@ -67,7 +62,7 @@ extension SourcePersistenceTests {
 
     @Test("Transcript-backed sources can prepare a review from canonical content")
     func transcriptBackedSourceCanPrepareReviewGuide() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let transcript = "A complete transcript explaining the experiment and its result."
         var video = StudioArticle(
             url: "https://www.youtube.com/watch?v=reviewable",
@@ -88,7 +83,7 @@ extension SourcePersistenceTests {
 
     @Test("Canonical cleanup selects a distinct bounded batch for parallel preparation")
     func canonicalCleanupSelectsDistinctBatch() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         for index in 1...5 {
             var article = StudioArticle(
                 url: "https://example.com/cleanup-batch-\(index)",
@@ -109,7 +104,7 @@ extension SourcePersistenceTests {
 
     @Test("Canonical cleanup prioritizes the newest eligible sources")
     func canonicalCleanupPrioritizesNewestSources() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var older = StudioArticle(
             url: "https://example.com/older-cleanup",
             title: "Older Cleanup",
@@ -135,7 +130,7 @@ extension SourcePersistenceTests {
 
     @Test("Transient article cleanup is durable pending work and promotes only after cleanup")
     func transientArticleCleanupRetriesDurably() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let raw = "Running head\nThe useful article body.\nPublisher footer"
         var article = StudioArticle(
             url: "https://example.com/transient-cleanup",
@@ -189,7 +184,7 @@ extension SourcePersistenceTests {
 
     @Test("The pending-only candidate batch leaves historical re-clean rows behind")
     func pendingOnlyCandidatesSkipHistoricalRows() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var historical = StudioArticle(
             url: "https://example.com/historical-cleanup",
             title: "Historical Cleanup",
@@ -221,7 +216,7 @@ extension SourcePersistenceTests {
 
     @Test("Publishing without clean-up makes a queued article readable from its raw text")
     func publishingWithoutCleanupPromotesAQueuedArticle() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let raw = "Running head\nThe useful article body.\nPublisher footer"
         var article = StudioArticle(
             url: "https://example.com/dev-raw-publish",
@@ -250,7 +245,7 @@ extension SourcePersistenceTests {
 
     @Test("Publishing without clean-up counts a queued paper as ingested")
     func publishingWithoutCleanupCompletesAPaper() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let raw = "## Abstract\nA complete paper body long enough to publish.\nReferences"
         var paper = StudioArticle(
             url: "https://example.com/dev-raw-paper.pdf",
@@ -286,7 +281,7 @@ extension SourcePersistenceTests {
 
     @Test("Publishing without clean-up never touches a historical re-clean row")
     func publishingWithoutCleanupIgnoresHistoricalRows() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let clean = "Already readable body."
         var historical = StudioArticle(
             url: "https://example.com/historical-untouched",
@@ -357,7 +352,7 @@ extension SourcePersistenceTests {
 
     @Test("Permanent pending cleanup failure becomes an explicit source error")
     func permanentPendingCleanupFailureIsVisible() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = StudioArticle(
             url: "https://example.com/permanent-cleanup",
             title: "Permanent Cleanup",
@@ -381,7 +376,7 @@ extension SourcePersistenceTests {
 
     @Test("Completed canonical cleanup clears a stale timeout without another AI pass")
     func completedCleanupClearsStaleTimeout() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let raw = "Navigation\nA complete article body.\nPublisher footer"
         let clean = "A Return to the Beginning\n\nA complete article body."
         var article = StudioArticle(
@@ -414,7 +409,7 @@ extension SourcePersistenceTests {
 
     @Test("Canonical cleanup prunes historical work after a source is archived")
     func canonicalCleanupPrunesArchivedQueueRows() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = StudioArticle(
             url: "https://example.com/stale-archived-cleanup",
             title: "Stale Archived Cleanup",
@@ -435,7 +430,7 @@ extension SourcePersistenceTests {
 
     @Test("Cleanup failures never retire source text by attempt count")
     func canonicalCleanupFailuresRemainRetriable() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = StudioArticle(
             url: "https://example.com/paywalled-post",
             title: "Paywalled Post",
@@ -469,7 +464,7 @@ extension SourcePersistenceTests {
 
     @Test("A failed cleanup waits out its retry delay, and its attempts run out")
     func canonicalCleanupRetriesAreBounded() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = StudioArticle(
             url: "https://example.com/rate-limited-paper",
             title: "Rate Limited Paper",
@@ -539,7 +534,7 @@ extension SourcePersistenceTests {
 
     @Test("Canonical cleanup commits before listenable-content preparation is queued, for an automatic-audio kind")
     func canonicalCleanupQueuesSecondListenableSave() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         store.automaticAudioSourceTypes = { ["article"] }
         var article = StudioArticle(
             url: "https://example.com/two-stage-source",
@@ -562,7 +557,7 @@ extension SourcePersistenceTests {
 
     @Test("A clean-up commit queues no paid Listen preparation unless automatic audio covers the kind")
     func cleanupCommitDoesNotQueueListenPreparation() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         // Automatic audio covers papers only: the article must not be queued.
         store.automaticAudioSourceTypes = { ["paper"] }
         var article = StudioArticle(
@@ -609,7 +604,7 @@ extension SourcePersistenceTests {
 
     @Test("An import queues no paid Listen preparation until automatic audio asks for it")
     func importDoesNotQueueListenPreparation() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         store.automaticAudioSourceTypes = { [] }
         var paper = StudioArticle(
             url: "https://example.com/read-not-heard",
@@ -657,7 +652,7 @@ extension SourcePersistenceTests {
 
     @Test("Listenable content is source-bound, persisted, and invalidated by new canonical text")
     func listenableContentLifecycle() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         // Listen is queued ahead of a listener only for automatic-audio kinds.
         store.automaticAudioSourceTypes = { ["paper"] }
         var paper = StudioArticle(
@@ -718,7 +713,7 @@ extension SourcePersistenceTests {
 
     @Test("An unchanged cleaned paper still replaces a stale narration contract")
     func unchangedPaperRequeuesStaleNarrationContract() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         // Listen is queued ahead of a listener only for automatic-audio kinds.
         store.automaticAudioSourceTypes = { ["paper"] }
         var paper = StudioArticle(
@@ -757,7 +752,7 @@ extension SourcePersistenceTests {
 
     @Test("Listenable preparation selects a distinct bounded batch")
     func listenableContentBatchSelection() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         // Listen is queued ahead of a listener only for automatic-audio kinds.
         store.automaticAudioSourceTypes = { ["paper"] }
         var sourceIDs: [String] = []
@@ -792,7 +787,7 @@ extension SourcePersistenceTests {
 
     @Test("Books do not queue generated listenable content")
     func booksDoNotQueueListenableContent() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var book = StudioArticle(
             url: "Books/chapter.xhtml",
             title: "A Chapter",
@@ -808,7 +803,7 @@ extension SourcePersistenceTests {
 
     @Test("Reader notes persist quote anchors, edits, colors, and deletion")
     func readerNotePersistenceRoundTrip() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = makeArticle(url: "https://example.com/reader-note", title: "Reader Note")
         article.content = "Before the important result after the important result."
         article.state = .ready

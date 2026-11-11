@@ -6,16 +6,6 @@ import Testing
 
 @Suite("MCP source audio tools")
 struct MCPSourceAudioToolsTests {
-    private func makeStore() throws -> (MCPDataStore, String) {
-        let tmpDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("mcp_audio_test_\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
-        let dbPath = tmpDir.appendingPathComponent("knowledge.db").path
-        let store = MCPDataStore(dbPath: dbPath)
-        _ = try store.knowledgeStore()
-        return (store, tmpDir.path)
-    }
-
     private func cleanup(_ path: String) {
         try? FileManager.default.removeItem(atPath: path)
     }
@@ -84,7 +74,7 @@ struct MCPSourceAudioToolsTests {
 
     @Test("a call that selects nothing is refused before touching the library")
     func emptySelectionIsRefused() async throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         await #expect(throws: MCPError.self) {
             try await store.generateSourceAudio(
@@ -96,7 +86,7 @@ struct MCPSourceAudioToolsTests {
 
     @Test("a book expands to its chapters in reading order and every book means every book")
     func bookExpansion() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         try seed(store, id: "ch2", title: "Chapter 2", type: .book, group: "book-a", sortIndex: 2)
         try seed(store, id: "ch1", title: "Chapter 1", type: .book, group: "book-a", sortIndex: 1)
@@ -141,7 +131,7 @@ struct MCPSourceAudioToolsTests {
 
     @Test("unknown sources and books are named in the error")
     func unknownSelectionsAreNamed() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         try seed(store, id: "ch1", title: "Chapter 1", type: .book, group: "book-a", sortIndex: 1)
 
@@ -164,7 +154,7 @@ struct MCPSourceAudioToolsTests {
 
     @Test("a source text-to-speech cannot narrate is skipped with a reason instead of failing the batch")
     func unnarratableSourceIsSkipped() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         // A podcast has its own audio; naming it explicitly is a skip, not an error.
         try seed(store, id: "pod", title: "Episode", type: .podcast)
@@ -181,7 +171,7 @@ struct MCPSourceAudioToolsTests {
 
     @Test("status and cancel answer for an idle queue")
     func idleQueueStatusAndCancel() async throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         try seed(store, id: "art", title: "An article", type: .article)
 

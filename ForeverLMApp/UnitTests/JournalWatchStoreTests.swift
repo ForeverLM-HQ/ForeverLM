@@ -8,10 +8,6 @@ import Testing
 @Suite("Journal watch store")
 struct JournalWatchStoreTests {
 
-    private func makeStore() throws -> KnowledgeStore {
-        try KnowledgeStore(inMemory: true)
-    }
-
     private static func item(_ url: String, title: String, doi: String? = nil, published: Date? = nil) -> ParsedJournalItem {
         ParsedJournalItem(url: url, title: title, summary: "Summary of \(title)", authors: ["A. Author"], doi: doi, journal: "Nature", publishedAt: published)
     }
@@ -25,7 +21,7 @@ struct JournalWatchStoreTests {
 
     @Test("Following twice returns the same feed; unfollowing forgets its pending suggestions but keeps its decided verdicts")
     func followAndUnfollow() throws {
-        let store = try makeStore()
+        let store = try TestStores.inMemory()
         let first = try store.addJournalFeed(feedURL: "https://www.nature.com/nrm.rss", title: "Nature Reviews MCB", siteURL: "https://www.nature.com/nrm")
         #expect(first.inserted)
         let again = try store.addJournalFeed(feedURL: "https://www.nature.com/nrm.rss", title: "Renamed", siteURL: nil)
@@ -65,7 +61,7 @@ struct JournalWatchStoreTests {
 
     @Test("Articles are recorded once by URL, across fetches and across feeds")
     func itemsAreIdempotent() throws {
-        let store = try makeStore()
+        let store = try TestStores.inMemory()
         let nature = try store.addJournalFeed(feedURL: "https://www.nature.com/nature.rss", title: "Nature", siteURL: nil).feed
         let subject = try store.addJournalFeed(feedURL: "https://www.nature.com/subjects/cell-biology.rss", title: "Cell biology", siteURL: nil).feed
         let items = [
@@ -99,7 +95,7 @@ struct JournalWatchStoreTests {
 
     @Test("Verdicts become pending suggestions once; a dismissal is a tombstone; acceptance records the source")
     func matches() throws {
-        let store = try makeStore()
+        let store = try TestStores.inMemory()
         let feed = try store.addJournalFeed(feedURL: "https://www.nature.com/nature.rss", title: "Nature", siteURL: nil).feed
         let published = Date(timeIntervalSinceReferenceDate: 800_000_000)
         try store.recordJournalFeedItems(feedID: feed.id, items: [
@@ -139,7 +135,7 @@ struct JournalWatchStoreTests {
 
     @Test("Judging marks articles seen; pruning drops old unmatched ones and keeps matched ones")
     func judgingAndPruning() throws {
-        let store = try makeStore()
+        let store = try TestStores.inMemory()
         let feed = try store.addJournalFeed(feedURL: "https://www.nature.com/nature.rss", title: "Nature", siteURL: nil).feed
         try store.recordJournalFeedItems(feedID: feed.id, items: [
             Self.item("https://www.nature.com/articles/old-matched", title: "Old matched"),
@@ -159,7 +155,7 @@ struct JournalWatchStoreTests {
 
     @Test("An announced article already in the library is recognised by URL or by DOI")
     func libraryLookup() throws {
-        let store = try makeStore()
+        let store = try TestStores.inMemory()
         try store.saveSource(Self.article(id: "src-url", url: "https://www.nature.com/articles/known?utm_source=feed", title: "Known"))
         try store.saveSource(Self.article(id: "src-doi", url: "https://doi.org/10.1038/s41586-026-00001-1", title: "Known paper", type: .paper, doi: "10.1038/s41586-026-00001-1"))
 

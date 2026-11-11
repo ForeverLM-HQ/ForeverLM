@@ -6,11 +6,6 @@ import Foundation
 import SQLite3
 @testable import ForeverLM
 
-/// Creates an in-memory KnowledgeStore for unit testing.
-private func makeInMemoryStore() throws -> KnowledgeStore {
-    try KnowledgeStore(inMemory: true)
-}
-
 /// Helper: create a StudioArticle with sensible defaults for testing.
 private func makeArticle(url: String, title: String? = nil) -> StudioArticle {
     var article = StudioArticle(url: url, title: title)
@@ -30,7 +25,7 @@ struct FullTextAnalyzerStatisticsTests {
 
     @Test("both spellings of a term count toward one document frequency")
     func documentFrequencyCountsBothSpellings() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
 
         try store.replaceSourceFTS(
             sourceID: "source-hyphenated",
@@ -452,7 +447,7 @@ struct StorageServicePersistenceTests {
 
     @Test("Meeting groups and artifacts round-trip")
     func meetingGroupsAndArtifactsRoundTrip() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         try store.saveMeetingGroup(
             name: "acme",
             metadata: MeetingMetadata(
@@ -494,7 +489,7 @@ struct StorageServicePersistenceTests {
 
     @Test("Merging meeting groups moves relationships and preserves an incoming import alias")
     func meetingGroupMergeIsAtomicAndDurable() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         try store.saveMeetingGroup(
             name: "read-ai-weekly",
             metadata: MeetingMetadata(title: "Weekly Sync from Read AI")
@@ -552,7 +547,7 @@ struct UnreviewedConsumedSourceTests {
 
     @Test("Only consumed sources are offered for a first review")
     func onlyConsumedSourcesQualify() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
 
         let untouched = makeConsumableSource(url: "https://example.com/untouched", title: "Untouched")
         let read = makeConsumableSource(url: "https://example.com/read", title: "Read")
@@ -575,7 +570,7 @@ struct UnreviewedConsumedSourceTests {
 
     @Test("An already-reviewed source is not new, however it was reviewed")
     func reviewedSourcesAreExcluded() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let article = makeConsumableSource(url: "https://example.com/reviewed", title: "Reviewed")
         try store.saveSource(article)
         try store.updateSourceReadAt(sourceID: article.id, readAt: Date(timeIntervalSinceReferenceDate: 780_000_000))
@@ -594,7 +589,7 @@ struct UnreviewedConsumedSourceTests {
 
     @Test("Text-less sources never enter the bucket; hidden ones do, because hiding is visual only")
     func ineligibleSourcesAreExcluded() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let readAt = Date(timeIntervalSinceReferenceDate: 780_000_000)
 
         let hidden = makeConsumableSource(url: "https://example.com/hidden", title: "Hidden")
@@ -614,7 +609,7 @@ struct UnreviewedConsumedSourceTests {
 
     @Test("Restricting to a Notebook's sources scopes the bucket")
     func restrictScopesResults() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let readAt = Date(timeIntervalSinceReferenceDate: 780_000_000)
 
         let inNotebook = makeConsumableSource(url: "https://example.com/in", title: "In notebook")
@@ -630,7 +625,7 @@ struct UnreviewedConsumedSourceTests {
 
     @Test("An unheard podcast episode is not offered; a completed one is")
     func podcastsNeedAnExplicitReadMark() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let unheard = makeConsumableSource(
             url: "https://example.com/ep-1",
             title: "Episode 1",
@@ -652,7 +647,7 @@ struct UnreviewedConsumedSourceTests {
 
     @Test("A mostly-played episode is offered even though nothing marked it read")
     func substantialListeningQualifiesWithoutReadAt() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let abandoned = makeConsumableSource(
             url: "https://example.com/ep-abandoned",
             title: "Abandoned after the intro",
@@ -690,7 +685,7 @@ struct UnreviewedConsumedSourceTests {
 
     @Test("Depth keeps the furthest point reached, not the latest sample")
     func depthMergesWithMax() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let episode = makeConsumableSource(
             url: "https://example.com/ep-merge",
             title: "Merged depth",
@@ -717,7 +712,7 @@ struct UnreviewedConsumedSourceTests {
 
     @Test("Finishing a source records full depth whatever sampling last saw")
     func completionRecordsFullDepth() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let episode = makeConsumableSource(
             url: "https://example.com/ep-complete",
             title: "Completed",
@@ -746,7 +741,7 @@ struct UnreviewedConsumedSourceTests {
 
     @Test("External chapter range completion is atomic and records listening for every chapter")
     func externalChapterCompletionIsAtomic() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let chapters = (1...4).map { number in
             makeConsumableSource(
                 url: "https://example.com/book/chapter-\(number)",
@@ -774,7 +769,7 @@ struct UnreviewedConsumedSourceTests {
         })
         #expect(try store.loadSources().allSatisfy { $0.readAt == day })
 
-        let rollbackStore = try makeInMemoryStore()
+        let rollbackStore = try TestStores.inMemory()
         try rollbackStore.saveSource(chapters[0])
         #expect(throws: (any Error).self) {
             try rollbackStore.recordScheduledSourceCompletions(
@@ -789,7 +784,7 @@ struct UnreviewedConsumedSourceTests {
 
     @Test("Merely opening a source still proves nothing")
     func openingWithoutDepthIsNotConsumption() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let opened = makeConsumableSource(url: "https://example.com/opened", title: "Opened")
         try store.saveSource(opened)
 

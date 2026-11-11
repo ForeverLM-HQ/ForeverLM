@@ -89,13 +89,6 @@ struct SpaceListActTests {
         }
     }
 
-    private func makeViewModel() -> StudioViewModel {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("SpaceListActTests_\(UUID().uuidString)", isDirectory: true)
-        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return StudioViewModel(storageService: StorageService(storeRoot: root))
-    }
-
     @Test("A list is made with its rows at once, in the space asked for, holding what it was given")
     func create() throws {
         try withListDefaults { defaults in

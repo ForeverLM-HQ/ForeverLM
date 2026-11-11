@@ -28,9 +28,9 @@ extension MCPDataStoreTests {
         #expect(required.isEmpty)
 
         // A client holding the schema this tool shipped with keeps working.
-        let legacy = MCPToolRegistry.searchAddedWindow(["date_from": "2026-08-01", "date_to": "2026-08-31"])
-        #expect(legacy.from == "2026-08-01")
-        #expect(legacy.to == "2026-08-31")
+        let shipped = MCPToolRegistry.searchAddedWindow(["date_from": "2026-08-01", "date_to": "2026-08-31"])
+        #expect(shipped.from == "2026-08-01")
+        #expect(shipped.to == "2026-08-31")
         let current = MCPToolRegistry.searchAddedWindow(["added_from": "2026-08-02", "date_from": "2026-08-01"])
         #expect(current.from == "2026-08-02")
         #expect(MCPToolRegistry.searchAddedWindow([:]).from == nil)
@@ -169,7 +169,7 @@ extension MCPDataStoreTests {
 
     @Test("create_notebook stays open-ended and refuses a deadline before writing")
     func createNotebookCannotBecomeInvisibleGoal() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
         let created = try await store.createNotebook(
@@ -214,7 +214,7 @@ extension MCPDataStoreTests {
 
     @Test("MCP creates and revision-safely edits Notebook Markdown artifacts")
     func mcpEditsNotebookMarkdownArtifacts() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let knowledge = try store.knowledgeStore()
         let notebook = try knowledge.createCompanionGoal(
@@ -269,7 +269,7 @@ extension MCPDataStoreTests {
 
     @Test("MCP edits one canonical artifact across linked Notebooks")
     func mcpEditsGlobalArtifacts() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let knowledge = try store.knowledgeStore()
         let first = try knowledge.createCompanionGoal(
@@ -402,7 +402,7 @@ extension MCPDataStoreTests {
 
     @Test("MCP moves a Doc to the Trash and removes a linked Google Doc from Docs")
     func mcpDeletesDocs() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let created = try parseJSON(try await store.createArtifact(
             title: "Working notes", homeNotebookID: nil, notebookIDs: [], markdown: "# Notes"
@@ -433,7 +433,7 @@ extension MCPDataStoreTests {
 
     @Test("MCP links a Google Doc into Docs and unlinks it into a Markdown doc")
     func mcpLinksAndUnlinksGoogleDocs() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         await #expect(throws: (any Error).self) {
             _ = try await store.linkGoogleDocArtifact(
@@ -490,7 +490,7 @@ extension MCPDataStoreTests {
 
     @Test("MCP links a Claude artifact and a Codex site, with an initial text copy, and reports their kinds")
     func mcpLinksClaudeArtifactsAndCodexSites() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         // Any other website, and a site on its own domain, is refused.
         await #expect(throws: (any Error).self) {
@@ -587,7 +587,7 @@ extension MCPDataStoreTests {
 
     @Test("write_doc and edit_doc with publish save the Doc and say when there is no page to update")
     func mcpPublishFlagWithoutAPage() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let created = try parseJSON(try await store.createArtifact(
             title: "Landscape", homeNotebookID: nil, notebookIDs: [], markdown: "# Landscape\n\nDraft."
@@ -624,7 +624,7 @@ extension MCPDataStoreTests {
 
     @Test("A Doc write never saves a picture line the Doc cannot show, and an older such line never blocks an edit")
     func mcpDocWriteKeepsOnlyPicturesItCanShow() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let picture = "![Figure 1](foreverlm://image/src_missing/page/1)"
 
@@ -653,12 +653,12 @@ extension MCPDataStoreTests {
 
         // A line the Doc already carried — saved before Docs kept their
         // pictures — stays as it was while the rest of the Doc is edited.
-        let legacy = try await store.notebookFileStorage.writeArtifactMarkdown(
+        let saved = try await store.notebookFileStorage.writeArtifactMarkdown(
             artifactID: docID, markdown: "# Paper\n\n\(picture)\n\nText.", expectedRevision: revision
         )
         let edited = try parseJSON(try await store.editArtifact(
             artifactID: docID, edits: [.init(find: "Text.", replace: "Edited.")], append: nil,
-            expectedRevision: legacy.revision
+            expectedRevision: saved.revision
         ))
         #expect(edited["replacements"] as? Int == 1)
         let notShown = try #require(edited["pictures_not_shown"] as? [[String: Any]])
@@ -669,7 +669,7 @@ extension MCPDataStoreTests {
 
     @Test("MCP renames a chat and files it under a Notebook")
     func mcpUpdatesReviewSession() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let knowledge = try store.knowledgeStore()
         let notebook = try knowledge.createCompanionGoal(
@@ -718,7 +718,7 @@ extension MCPDataStoreTests {
 
     @Test("MCP hides a chat from the sidebar on every Mac and shows it again")
     func mcpHidesReviewSession() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let knowledge = try store.knowledgeStore()
         let sessionID = "session-hide-\(UUID().uuidString)"
@@ -780,7 +780,7 @@ extension MCPDataStoreTests {
 
     @Test("MCP marks a source read and unread, only where the app tracks it")
     func mcpSetsSourceRead() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         _ = try store.addSource(
             url: "https://example.com/read-me", title: "Read me", sourceType: "article",
@@ -812,7 +812,7 @@ extension MCPDataStoreTests {
 
     @Test("MCP marks a video not watched and watched, as the Sources sidebar does")
     func mcpSetsVideoWatched() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let knowledge = try store.knowledgeStore()
         var video = StudioArticle(
@@ -863,7 +863,7 @@ extension MCPDataStoreTests {
 
     @Test("MCP merges meeting series and deletes one with its sessions")
     func mcpMergesAndDeletesMeetingGroups() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let knowledge = try store.knowledgeStore()
         try knowledge.saveMeetingGroup(name: "Lab Meeting", metadata: MeetingMetadata())
@@ -910,7 +910,7 @@ extension MCPDataStoreTests {
 
     @Test("MCP folds a series' same-day sessions into one, and answers nothing_to_merge the second time")
     func mcpMergesSameDayMeetingSessions() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let knowledge = try store.knowledgeStore()
         let group = "Robin <> Zara standup"
@@ -999,7 +999,7 @@ extension MCPDataStoreTests {
 
     @Test("A linked Google Doc is read-only through the doc tools")
     func mcpLinkedDocIsReadOnly() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let url = try LinkedGoogleDoc.canonicalEditURL(from: "https://docs.google.com/document/d/1AbC/edit?usp=sharing")
         let linked = try await store.notebookFileStorage.createLinkedArtifact(

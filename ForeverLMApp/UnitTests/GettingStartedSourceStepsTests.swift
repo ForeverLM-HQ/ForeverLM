@@ -119,7 +119,7 @@ struct GettingStartedSourceStepsTests {
         #expect(result.status == .appNotInstalled)
     }
 
-    /// A legacy-layout Apple Podcasts database: every column discovery's
+    /// An older-layout Apple Podcasts database: every column discovery's
     /// schema check and episode projection read.
     private static func podcastLibrary() throws -> String {
         let path = FileManager.default.temporaryDirectory

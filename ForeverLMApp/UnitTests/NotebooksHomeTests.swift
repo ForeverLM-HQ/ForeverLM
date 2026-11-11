@@ -468,13 +468,6 @@ struct NotebookRailTests {
 @Suite("The Space and Library routing")
 @MainActor
 struct NotebooksHomeRoutingTests {
-    private func makeViewModel() -> StudioViewModel {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("NotebooksHomeRoutingTests_\(UUID().uuidString)", isDirectory: true)
-        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return StudioViewModel(storageService: StorageService(storeRoot: root))
-    }
-
     private static let templateKeys = [
         "studio.centerTabGroups.v1",
         "studio.navigationRailVisible",

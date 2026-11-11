@@ -181,7 +181,7 @@ struct MCPProtocolTests {
         #expect(error["code"] as? Int == -32001)
         #expect((error["message"] as? String)?.contains("mcp:ingest") == true)
 
-        // A legacy alias cannot slip past the gate either.
+        // A tool alias cannot slip past the gate either.
         let aliasRefusal = await MCPProtocolHandler.shared.handleRequest(
             try request(
                 method: "tools/call",

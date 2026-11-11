@@ -10,16 +10,6 @@ import Foundation
 /// the settings tests touch the process-wide preference keys the pane reads.
 @Suite("AI usage report and AI task settings over MCP", .serialized)
 struct AIUsageReportToolsTests {
-    private func makeStore() throws -> (MCPDataStore, String) {
-        let tmpDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("ai_usage_report_test_\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
-        let dbPath = tmpDir.appendingPathComponent("knowledge.db").path
-        let store = MCPDataStore(dbPath: dbPath)
-        _ = try store.knowledgeStore()
-        return (store, tmpDir.path)
-    }
-
     private func cleanup(_ path: String) {
         try? FileManager.default.removeItem(atPath: path)
     }
@@ -85,7 +75,7 @@ struct AIUsageReportToolsTests {
 
     @Test("get_ai_usage_report groups the ledger by task, model and day, and never invents a price")
     func reportGroupsLedger() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         defer { ManagedAI.ownKeyOverrideForTesting = nil }
         ManagedAI.ownKeyOverrideForTesting = .some(nil)
@@ -206,7 +196,7 @@ struct AIUsageReportToolsTests {
 
     @Test("get_ai_task_settings and set_ai_task_settings are Settings › AI Models")
     func settingsRoundTrip() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         defer { ManagedAI.ownKeyOverrideForTesting = nil }
         ManagedAI.ownKeyOverrideForTesting = .some(nil)
@@ -411,7 +401,7 @@ struct AIUsageReportToolsTests {
 
     @Test("target docs gives Docs a model of their own, and takes it back")
     func docsTarget() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         defer { ManagedAI.ownKeyOverrideForTesting = nil }
         ManagedAI.ownKeyOverrideForTesting = .some(nil)
@@ -473,7 +463,7 @@ struct AIUsageReportToolsTests {
 
     @Test("target backups sets a setting's backup models, as Use as Backup does")
     func backupsTarget() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         defer { ManagedAI.ownKeyOverrideForTesting = nil }
         ManagedAI.ownKeyOverrideForTesting = .some(nil)
@@ -556,7 +546,7 @@ struct AIUsageReportToolsTests {
 
     @Test("backups_for chat sets the backups a scheduled task's run walks, and a typed chat walks none")
     func chatBackupsTarget() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         defer { ManagedAI.ownKeyOverrideForTesting = nil }
         ManagedAI.ownKeyOverrideForTesting = .some(nil)

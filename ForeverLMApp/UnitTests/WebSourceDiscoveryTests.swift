@@ -805,14 +805,6 @@ struct NotebookDiscoverTests {
 @Suite("discover_sources")
 struct DiscoverSourcesToolTests {
 
-    private func makeStore() throws -> (MCPDataStore, String) {
-        let root = FileManager.default.temporaryDirectory.appendingPathComponent("discover_sources_\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        let store = MCPDataStore(dbPath: root.appendingPathComponent("knowledge.db").path)
-        _ = try store.knowledgeStore()
-        return (store, root.path)
-    }
-
     private func services(
         log: WebSourceDiscoveryTests.CallLog,
         webAvailable: Bool = true,
@@ -856,7 +848,7 @@ struct DiscoverSourcesToolTests {
 
     @Test("An unknown or archived Notebook, a bad count or unknown sources, are refused before anything is searched")
     func refusesBadInputBeforeSearching() async throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { try? FileManager.default.removeItem(atPath: path) }
         let log = WebSourceDiscoveryTests.CallLog()
         let services = services(log: log)
@@ -886,7 +878,7 @@ struct DiscoverSourcesToolTests {
 
     @Test("A model with no web search is refused before anything is spent, pointing at search_literature")
     func refusesWebSearchItCannotPayFor() async throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { try? FileManager.default.removeItem(atPath: path) }
         let notebook = try store.knowledgeStore().createCompanionGoal(
             title: "Ageing", topic: "Ageing", startAt: Date(), endAt: LearningGoalRecord.openEndedEndAt,
@@ -908,7 +900,7 @@ struct DiscoverSourcesToolTests {
 
     @Test("Candidates say what the library and the Notebook already hold, and what was set aside")
     func marksCandidates() async throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { try? FileManager.default.removeItem(atPath: path) }
         let ks = try store.knowledgeStore()
         let url = "https://example.org/held"

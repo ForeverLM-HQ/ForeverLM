@@ -173,14 +173,6 @@ struct PaperPDFImportPresentationTests {
     }
 }
 
-@MainActor
-func makeViewModel() -> StudioViewModel {
-    let tmp = FileManager.default.temporaryDirectory.appendingPathComponent("StudioVMTests_\(UUID().uuidString)")
-    try? FileManager.default.createDirectory(at: tmp, withIntermediateDirectories: true)
-    let service = StorageService(storeRoot: tmp)
-    return StudioViewModel(storageService: service)
-}
-
 /// A paper's body: long enough, and body text rather than front matter.
 let paperBodyText = "## Abstract\n" + String(
     repeating: "The complex adopts a closed conformation upon binding its substrate, "

@@ -77,7 +77,7 @@ struct BookFolderReferenceRewriteTests {
         let store = try KnowledgeStore(inMemory: true)
         var ch1 = makeChapter(taggedName, file: "01.xhtml", group: "book-1")
         // Books imported before the private container was retired carry the
-        // absolute legacy path in `domain`.
+        // absolute path in `domain`.
         ch1.domain = "/Users/x/Library/Mobile Documents/iCloud~com~feynmanlm/Documents/FeynmanLM/Books/\(taggedName)/Chapters/01.xhtml"
         let ch2 = makeChapter(taggedName, file: "02.xhtml", group: "book-1")
         let other = makeChapter("Immune", file: "01.xhtml", group: "book-2")

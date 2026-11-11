@@ -194,13 +194,6 @@ struct NotebookCollectionsRowTests {
 @Suite("Notebook collections: the Notebooks home")
 @MainActor
 struct NotebookCollectionsViewModelTests {
-    private func makeViewModel() -> StudioViewModel {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("NotebookCollectionsTests_\(UUID().uuidString)", isDirectory: true)
-        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return StudioViewModel(storageService: StorageService(storeRoot: root))
-    }
-
     private func notebook(_ id: String, in vm: StudioViewModel, archived: Bool = false) -> LearningGoalRecord {
         LearningGoalRecord(
             id: id,
@@ -285,15 +278,6 @@ struct NotebookCollectionsViewModelTests {
 
 @Suite("Notebook collections: MCP")
 struct NotebookCollectionsMCPTests {
-    private func makeStore() throws -> (MCPDataStore, String) {
-        let tmpDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("mcp_collections_\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
-        let store = MCPDataStore(dbPath: tmpDir.appendingPathComponent("knowledge.db").path)
-        _ = try store.knowledgeStore()
-        return (store, tmpDir.path)
-    }
-
     private func notebook(_ title: String, store: MCPDataStore) throws -> LearningGoalRecord {
         try store.knowledgeStore().createCompanionGoal(
             title: title,
@@ -312,7 +296,7 @@ struct NotebookCollectionsMCPTests {
 
     @Test("update_notebook_collection makes, fills, renames and deletes a collection; list_notebook_collections reads it")
     func lifecycle() async throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { try? FileManager.default.removeItem(atPath: path) }
         let bio = try notebook("Bioelectricity", store: store)
         let aging = try notebook("Aging", store: store)
@@ -358,7 +342,7 @@ struct NotebookCollectionsMCPTests {
 
     @Test("update_notebook_collection refuses an unknown action, a blank name, a missing collection and a non-Notebook, writing nothing")
     func refusals() async throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { try? FileManager.default.removeItem(atPath: path) }
         let bio = try notebook("Bioelectricity", store: store)
 

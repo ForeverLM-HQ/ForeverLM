@@ -47,7 +47,7 @@ struct MobileLearningBoutStoreTests {
     func olderSnapshotDecodes() throws {
         let older = try PropertyListDecoder().decode(
             MobileTodayWidgetSnapshot.self,
-            from: try PropertyListEncoder().encode(LegacySnapshot(
+            from: try PropertyListEncoder().encode(SnapshotWithoutBoutClock(
                 pendingCount: 2, nextTitle: "A paper", memoryDueCount: 3, nextMemoryTarget: "Retrieval", updatedAt: Date()
             ))
         )
@@ -62,7 +62,7 @@ struct MobileLearningBoutStoreTests {
 
     /// The shape the app group held before the bout's clock was added to it,
     /// when the widget still named the next card by its target.
-    private struct LegacySnapshot: Encodable {
+    private struct SnapshotWithoutBoutClock: Encodable {
         let pendingCount: Int
         let nextTitle: String?
         let memoryDueCount: Int

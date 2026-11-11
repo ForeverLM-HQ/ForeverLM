@@ -6,11 +6,6 @@ import Foundation
 import SQLite3
 @testable import ForeverLM
 
-/// Creates an in-memory KnowledgeStore for unit testing.
-private func makeInMemoryStore() throws -> KnowledgeStore {
-    try KnowledgeStore(inMemory: true)
-}
-
 /// Helper: create a StudioArticle with sensible defaults for testing.
 private func makeArticle(url: String, title: String? = nil) -> StudioArticle {
     var article = StudioArticle(url: url, title: title)
@@ -21,7 +16,7 @@ private func makeArticle(url: String, title: String? = nil) -> StudioArticle {
 extension SourcePersistenceTests {
     @Test("updateSourceType migrates article to paper and queues source sync")
     func updateSourceTypeMigratesArticleToPaperAndQueuesSourceSync() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = makeArticle(url: "https://example.com/research-note", title: "Research Note")
         article.author = "Ada Lovelace"
 
@@ -39,7 +34,7 @@ extension SourcePersistenceTests {
 
     @Test("Paywall status persists and queues source sync")
     func paywallStatusPersistsAndQueuesSourceSync() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var paper = StudioArticle(
             url: "https://www.nature.com/articles/example",
             title: "Paywalled Paper",
@@ -63,7 +58,7 @@ extension SourcePersistenceTests {
 
     @Test("A paywall suspicion persists with the paper, queues sync, and clears when written back nil")
     func paywallSuspicionPersistsAndClears() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var paper = StudioArticle(
             url: "https://pubmed.ncbi.nlm.nih.gov/12345678/",
             title: "Suspected Paper",
@@ -89,7 +84,7 @@ extension SourcePersistenceTests {
 
     @Test("Remote paper keeps original URL when local PDF is attached")
     func remotePaperKeepsOriginalURLWhenLocalPDFAttached() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let remoteURL = "https://www.nature.com/articles/35016601"
         var paper = StudioArticle(
             url: remoteURL,
@@ -127,7 +122,7 @@ extension SourcePersistenceTests {
 
     @Test("Video cited papers are stored with their video")
     func videoCitedPapersAreQueuedForSync() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let video = makeArticle(url: "https://youtube.com/watch?v=cited", title: "Talk")
         try store.saveSource(video)
 
@@ -145,7 +140,7 @@ extension SourcePersistenceTests {
 
     @Test("A linked source keeps its kind and context through the store")
     func linkedSourceCandidateRoundTrip() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let article = makeArticle(url: "https://example.substack.com/p/post", title: "A post")
         try store.saveSource(article)
 
@@ -166,7 +161,7 @@ extension SourcePersistenceTests {
 
     @Test("A hidden podcast show is stored by its name")
     func hiddenPodcastShowsAreQueuedForSync() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
 
         try store.setPodcastShowHidden("Example Show", hidden: true)
 
@@ -175,7 +170,7 @@ extension SourcePersistenceTests {
 
     @Test("Hidden podcast show marks matching episodes hidden")
     func hiddenPodcastShowMarksMatchingEpisodesHidden() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var podcast = StudioArticle(
             url: "apple-podcast://episode/1001",
             title: "Episode 1001",
@@ -197,7 +192,7 @@ extension SourcePersistenceTests {
 
     @Test("Unhiding a show reveals the episodes hidden after it and keeps the ones hidden before")
     func unhidingAShowRevealsEpisodesHiddenAfterIt() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var chosen = StudioArticle(url: "apple-podcast://episode/2001", title: "Skipped on purpose", sourceType: .podcast)
         chosen.domain = "Example Show"
         var consequence = StudioArticle(url: "apple-podcast://episode/2002", title: "Hidden with the show", sourceType: .podcast)
@@ -229,7 +224,7 @@ extension SourcePersistenceTests {
 
     @Test("Private podcast dedup recognizes local UUID changes")
     func privatePodcastDedupRecognizesLocalUUIDChanges() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let playedAt = Date(timeIntervalSinceReferenceDate: 800_000_000)
         var first = StudioArticle(
             url: "apple-podcast://episode/local/first-local-id",
@@ -255,7 +250,7 @@ extension SourcePersistenceTests {
 
     @Test("Hidden YouTube channels hide videos and allow overrides")
     func hiddenYouTubeChannelVisibilityAndSync() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var video = StudioArticle(
             url: "https://www.youtube.com/watch?v=hidden-channel",
             title: "Channel video",
@@ -360,7 +355,7 @@ extension SourcePersistenceTests {
 
     @Test("A source filed into two groups still projects exactly one row")
     func sourceInTwoGroupsNotebooksOneRow() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let article = makeArticle(url: "https://example.com/two-groups", title: "Two Groups")
         try store.saveSource(article)
 
@@ -390,7 +385,7 @@ extension SourcePersistenceTests {
 
     @Test("Dismissing a source archives matching active source")
     func dismissingSourceArchivesMatchingActiveSource() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let article = makeArticle(url: "https://example.com/dismiss-me", title: "Dismiss Me")
 
         try store.saveSource(article)
@@ -405,7 +400,7 @@ extension SourcePersistenceTests {
 
     @Test("Book metadata keeps ID and title separate")
     func bookMetadataKeepsIDAndTitleSeparate() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let uuid = "91dd38ad-7356-5d08-b691-a44493dff38a"
 
         try store.saveBookMetadata(groupName: uuid, title: uuid, coverPath: "Books/Immune/cover.jpg")
@@ -418,7 +413,7 @@ extension SourcePersistenceTests {
 
     @Test("Single book metadata save persists author")
     func singleBookMetadataSavePersistsAuthor() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let uuid = "91dd38ad-7356-5d08-b691-a44493dff38a"
 
         try store.saveBookMetadata(
@@ -438,9 +433,9 @@ extension SourcePersistenceTests {
         #expect(try store.scalarText("SELECT cover_path FROM books WHERE id = ?", [.text(uuid)]) == "Books/Immune/cover.jpg")
     }
 
-    @Test("Remote book payload applies to legacy book table")
-    func remoteBookPayloadAppliesToLegacyBookTable() throws {
-        let store = try makeInMemoryStore()
+    @Test("Remote book payload applies to a book table with only the base columns")
+    func remoteBookPayloadAppliesToBaseColumnBookTable() throws {
+        let store = try TestStores.inMemory()
         let uuid = "2113A94E-BCC1-4670-9AAC-8E38EE9D7234"
         try store.execForTesting("DROP VIEW IF EXISTS source_projection")
         try store.execForTesting("DROP TABLE books")
@@ -476,7 +471,7 @@ extension SourcePersistenceTests {
 
     @Test("A book record keeps the title it was written with")
     func remoteBookPayloadPreservesPayloadTitle() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let uuid = "91dd38ad-7356-5d08-b691-a44493dff38a"
 
         try store.saveBookRecord(
@@ -498,7 +493,7 @@ extension SourcePersistenceTests {
 
     @Test("Book subtitle and edition round-trip through single-field saves")
     func bookSubtitleAndEditionRoundTripThroughFieldSaves() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let uuid = "91dd38ad-7356-5d08-b691-a44493dff38a"
         try store.saveBookMetadata(groupName: uuid, title: "Tidal Notes", coverPath: nil)
 
@@ -560,7 +555,7 @@ extension SourcePersistenceTests {
 
     @Test("insertSourceIfNew skips existing active source")
     func testInsertSourceIfNewSkipsExistingActiveSource() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article1 = makeArticle(url: "https://example.com/post-1", title: "Original Title")
         let inserted1 = try store.insertSourceIfNew(&article1)
         #expect(inserted1)
@@ -576,7 +571,7 @@ extension SourcePersistenceTests {
 
     @Test("saving grouped source replaces stale group membership")
     func savingGroupedSourceReplacesStaleGroupMembership() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let oldGroup = "Immune"
         let newGroup = "91dd38ad-7356-5d08-b691-a44493dff38a"
         var chapter = StudioArticle(
@@ -598,7 +593,7 @@ extension SourcePersistenceTests {
 
     @Test("book chapter lookup finds archived source by local file path")
     func bookChapterLookupFindsArchivedSourceByLocalFilePath() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let relativePath = "Books/Test Book/Chapters/ForeverLMCombinedChapters/01 Introduction.xhtml"
         var chapter = StudioArticle(
             url: relativePath,
@@ -619,7 +614,7 @@ extension SourcePersistenceTests {
 
     @Test("a team's copy of a paper does not stand in for the learner's own row")
     func teamCopyDoesNotBlockOwnImport() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let url = "https://pmc.ncbi.nlm.nih.gov/articles/PMC2924931/"
         // A team's copy has a team-scoped id, as sharing makes it; a paper's own id is minted from its
         // address, so a copy left on that id would be the learner's own row.
@@ -641,7 +636,7 @@ extension SourcePersistenceTests {
 
     @Test("Paper identity merge archives the duplicate and preserves relationships")
     func paperIdentityMergePreservesRelationships() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var canonical = StudioArticle(
             url: "https://www.nature.com/articles/s42255-024-01200-x",
             title: "Recommendations for mitochondria transfer and transplantation nomenclature and characterization",
@@ -715,7 +710,7 @@ extension SourcePersistenceTests {
 
     @Test("insertSourceIfNew skips archived source")
     func testInsertSourceIfNewSkipsArchivedSource() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = makeArticle(url: "https://example.com/post-1", title: "Original")
         try store.insertSourceIfNew(&article)
 
@@ -728,7 +723,7 @@ extension SourcePersistenceTests {
 
     @Test("archiveSource cascades to content")
     func testArchiveCascadesContent() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = makeArticle(url: "https://example.com/post-1", title: "Post")
         article.content = "Full text content of the article."
         try store.insertSourceIfNew(&article)
@@ -745,7 +740,7 @@ extension SourcePersistenceTests {
 
     @Test("archiveSource does not delete other sources")
     func testArchiveDoesNotDeleteOtherSources() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article1 = makeArticle(url: "https://example.com/post-1", title: "Post 1")
         var article2 = makeArticle(url: "https://example.com/post-2", title: "Post 2")
         try store.insertSourceIfNew(&article1)
@@ -764,7 +759,7 @@ extension SourcePersistenceTests {
 
     @Test("normalized URL prevents duplicates")
     func testNormalizedURLPreventsDuplicates() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         // Two URLs that normalize to the same value (trailing slash difference)
         var article1 = makeArticle(url: "https://example.com/post", title: "Without Slash")
         var article2 = makeArticle(url: "https://example.com/post/", title: "With Slash")
@@ -783,7 +778,7 @@ extension SourcePersistenceTests {
 
     @Test("YouTube URL variants do not create duplicate video sources")
     func youtubeURLVariantsDoNotCreateDuplicateVideoSources() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var original = StudioArticle(
             url: "https://youtu.be/abc123",
             title: "Original",
@@ -805,7 +800,7 @@ extension SourcePersistenceTests {
 
     @Test("YouTube video title is preserved before persistence")
     func youtubeVideoTitleIsPreservedBeforePersistence() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = StudioArticle(
             url: "https://www.youtube.com/watch?v=abc123",
             title: "My Lecture - YouTube",
@@ -822,7 +817,7 @@ extension SourcePersistenceTests {
 
     @Test("loadActiveSources excludes archived")
     func testLoadActiveSourcesExcludesArchived() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article1 = makeArticle(url: "https://example.com/post-1", title: "Post 1")
         var article2 = makeArticle(url: "https://example.com/post-2", title: "Post 2")
         try store.insertSourceIfNew(&article1)

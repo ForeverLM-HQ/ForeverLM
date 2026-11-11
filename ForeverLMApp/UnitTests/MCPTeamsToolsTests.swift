@@ -12,19 +12,6 @@ import Testing
 @Suite("MCP Teams tools")
 struct MCPTeamsToolsTests {
 
-    private func makeStore() throws -> (MCPDataStore, String) {
-        let tmpDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("mcp_teams_test_\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
-        let dbPath = tmpDir.appendingPathComponent("knowledge.db").path
-        // Generation 1's teams (zones of the old container); under generation 2 a team is a space
-        // that needs a running sync coordinator, which SpaceTestFixture's suites cover.
-        let store = MCPDataStore(dbPath: dbPath)
-        // The real schema, exactly as production creates it.
-        _ = try store.knowledgeStore()
-        return (store, tmpDir.path)
-    }
-
     private func cleanup(_ path: String) {
         try? FileManager.default.removeItem(atPath: path)
     }
@@ -136,7 +123,7 @@ struct MCPTeamsToolsTests {
 
     @Test("share_notebook refuses a read-only member, naming the owner, before it asks anything; an unknown notebook is not found")
     func shareNotebookRefusesReadOnly() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let knowledge = try store.knowledgeStore()
         let team = try saveReadOnlyTeam(store, id: "team-ro", name: "Theirs")
@@ -178,7 +165,7 @@ struct MCPTeamsToolsTests {
 
     @Test("A read-only team refuses share_with_team and every task write, with an explanation")
     func readOnlyTeamRefusesWrites() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let knowledge = try store.knowledgeStore()
         try knowledge.saveSource(readySource(id: "src-1", url: "https://example.com/one", title: "One"))

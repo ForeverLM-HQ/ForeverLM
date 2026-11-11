@@ -7,15 +7,6 @@ import Testing
 @Suite("MCP course tools")
 struct MCPCourseToolsTests {
 
-    private func makeStore() throws -> (MCPDataStore, String) {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("mcp_course_test_\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let store = MCPDataStore(dbPath: directory.appendingPathComponent("knowledge.db").path)
-        _ = try store.knowledgeStore()
-        return (store, directory.path)
-    }
-
     private func cleanup(_ path: String) {
         try? FileManager.default.removeItem(atPath: path)
     }
@@ -55,7 +46,7 @@ struct MCPCourseToolsTests {
 
     @Test("listCourses exposes stable IDs and getCourse exposes lecture item IDs")
     func listAndInspectCourse() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let knowledgeStore = try store.knowledgeStore()
         let courseID = "stanford-cs336"
@@ -116,7 +107,7 @@ struct MCPCourseToolsTests {
 
     @Test("papers can be associated with a lecture and retrieved with metadata")
     func associateAndGetLecturePapers() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let knowledgeStore = try store.knowledgeStore()
         let courseID = "course-ml"
@@ -177,7 +168,7 @@ struct MCPCourseToolsTests {
 
     @Test("paper association is idempotent and rejects non-paper sources")
     func paperAssociationValidatesSourceTypeAndDuplicates() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let knowledgeStore = try store.knowledgeStore()
         let lecture = CourseSession(
@@ -223,7 +214,7 @@ struct MCPCourseToolsTests {
 
     @Test("add_paper_to_lecture's assigned_reading sets whether an attached paper is assigned reading or only cited")
     func paperAssociationSetsAssignedReading() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let knowledgeStore = try store.knowledgeStore()
         let lecture = CourseSession(id: "lecture-1", courseName: "course-1", number: 1)
@@ -254,7 +245,7 @@ struct MCPCourseToolsTests {
 
     @Test("finding lecture papers fails before external work when the lecture has no readable material")
     func lecturePaperFindingRequiresReadableMaterial() async throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let knowledgeStore = try store.knowledgeStore()
         let lecture = CourseSession(
@@ -347,7 +338,7 @@ struct MCPCourseToolsTests {
 
     @Test("finding lecture papers reports recorded candidates without importing or attaching them")
     func lecturePaperFindingDoesNotAttach() async throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let knowledgeStore = try store.knowledgeStore()
         let (lecture, paper, citation) = try seedScannedLecture(knowledgeStore)
@@ -367,7 +358,7 @@ struct MCPCourseToolsTests {
 
     @Test("ingesting chosen lecture papers attaches a held candidate to the lecture as a citation")
     func lecturePaperIngestionAttachesChosenCandidate() async throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let knowledgeStore = try store.knowledgeStore()
         let (lecture, paper, citation) = try seedScannedLecture(knowledgeStore)
@@ -395,7 +386,7 @@ struct MCPCourseToolsTests {
 
     @Test("ingesting lecture papers attaches the ones named as assigned reading as reading, and a re-ingest never demotes")
     func lecturePaperIngestionAssignsReading() async throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let knowledgeStore = try store.knowledgeStore()
         let (lecture, paper, citation) = try seedScannedLecture(knowledgeStore)
@@ -427,7 +418,7 @@ struct MCPCourseToolsTests {
 
     @Test("assigned_reading_ids outside cited_paper_ids is refused before any import")
     func lecturePaperIngestionRefusesStrayAssignedReading() async throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let knowledgeStore = try store.knowledgeStore()
         let (lecture, paper, citation) = try seedScannedLecture(knowledgeStore)
@@ -448,7 +439,7 @@ struct MCPCourseToolsTests {
 
     @Test("ingesting lecture papers requires the candidates the learner chose")
     func lecturePaperIngestionRequiresChosenCandidates() async throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let knowledgeStore = try store.knowledgeStore()
         let (lecture, _, _) = try seedScannedLecture(knowledgeStore)
@@ -463,7 +454,7 @@ struct MCPCourseToolsTests {
 
     @Test("ingesting lecture papers refuses a candidate from outside the lecture before any import")
     func lecturePaperIngestionRefusesForeignCandidate() async throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let knowledgeStore = try store.knowledgeStore()
         let (lecture, paper, citation) = try seedScannedLecture(knowledgeStore)
@@ -500,7 +491,7 @@ struct MCPCourseToolsTests {
 
     @Test("ingesting lecture papers skips a dismissed candidate and says why")
     func lecturePaperIngestionSkipsDismissedCandidate() async throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let knowledgeStore = try store.knowledgeStore()
         let (lecture, _, citation) = try seedScannedLecture(knowledgeStore, citationStatus: .dismissed)
@@ -517,7 +508,7 @@ struct MCPCourseToolsTests {
 
     @Test("createCourseLecture resolves one existing display title to its stable ID")
     func lectureCreationResolvesUniqueTitle() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let knowledgeStore = try store.knowledgeStore()
         let courseID = "course-stable-id"
@@ -546,7 +537,7 @@ struct MCPCourseToolsTests {
 
     @Test("ambiguous display titles fail while an exact stable ID still wins")
     func ambiguousCourseTitlesFail() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let knowledgeStore = try store.knowledgeStore()
 
@@ -581,9 +572,9 @@ struct MCPCourseToolsTests {
         #expect(try knowledgeStore.loadCourseLectures().first?.courseName == "stanford-course")
     }
 
-    @Test("legacy course_name lookup does not mistake another course's ID for the title")
-    func legacyCourseNameDoesNotPreferStableID() throws {
-        let (store, path) = try makeStore()
+    @Test("course_name lookup does not mistake another course's ID for the title")
+    func courseNameDoesNotPreferStableID() throws {
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let knowledgeStore = try store.knowledgeStore()
 
@@ -612,7 +603,7 @@ struct MCPCourseToolsTests {
 
     @Test("createCourse refuses a normalized duplicate title")
     func createCourseRejectsDuplicateTitle() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let knowledgeStore = try store.knowledgeStore()
 
@@ -647,7 +638,7 @@ struct MCPCourseToolsTests {
 
     @Test("course parent-group resolution rejects ambiguous titles")
     func courseSourceGroupingRejectsAmbiguousTitles() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let knowledgeStore = try store.knowledgeStore()
 
@@ -674,7 +665,7 @@ struct MCPCourseToolsTests {
 
     @Test("updateCourse changes metadata only for an exact stable ID")
     func updateCourseMetadata() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let knowledgeStore = try store.knowledgeStore()
         let courseID = "stanford-cs336"
@@ -715,7 +706,7 @@ struct MCPCourseToolsTests {
 
     @Test("deleteCourse requires a stable ID, keeps a video and hides course-only material")
     func deleteCoursePreservesSources() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let knowledgeStore = try store.knowledgeStore()
         let courseID = "stanford-cs336"
@@ -806,7 +797,7 @@ struct MCPCourseToolsTests {
 
     @Test("add_source refuses a YouTube playlist and names import_youtube_playlist")
     func addSourceRefusesPlaylist() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
 
         // An assistant told to ingest a playlist filed its page as a course
@@ -839,7 +830,7 @@ struct MCPCourseToolsTests {
 
     @Test("a course add_source names for the first time gets a UUID, not its title")
     func addSourceMintsStableCourseID() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let knowledgeStore = try store.knowledgeStore()
 
@@ -896,7 +887,7 @@ struct MCPCourseToolsTests {
         #expect(MCPToolRegistry.annotations(for: "import_youtube_playlist")["openWorldHint"] as? Bool == true)
         #expect(MCPToolRegistry.annotations(for: "import_youtube_playlist")["readOnlyHint"] as? Bool == false)
 
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         await #expect(throws: MCPError.self) {
             _ = try await store.importYouTubePlaylistMCP(url: "https://www.youtube.com/watch?v=abc", courseID: nil)

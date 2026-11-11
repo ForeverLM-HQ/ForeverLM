@@ -12,7 +12,7 @@ import SQLite3
 extension MCPDataStoreTests {
     @Test("save_site keeps the files in the library with a text copy, and nothing goes on the web")
     func mcpSaveSite() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
         // The files are checked before anything is stored.
@@ -141,7 +141,7 @@ extension MCPDataStoreTests {
     /// `list_source_artifacts`, the tool behind the app's Linked in menu.
     @Test("list_source_artifacts lists the Docs and animations linked to a source, and how")
     func mcpListSourceArtifacts() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         try insertSource(dbPath: dbPath, id: "paper-1", title: "The paper", content: "Body of the paper.", url: "https://doi.org/10.1000/paper-1")
@@ -193,7 +193,7 @@ extension MCPDataStoreTests {
     /// passage the page has twice, or not at all, is refused.
     @Test("replace_site_text changes one passage of a page in the library and keeps every other file")
     func mcpReplaceSiteText() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let saved = try parseJSON(try await store.saveSite(
             site: nil, title: "Atlas",
@@ -254,7 +254,7 @@ extension MCPDataStoreTests {
 
     @Test("An update carries only the files that change: stored files are kept, remove_files drops, replace_all replaces, and read_site_file without a path lists the files")
     func mcpSaveSitePartialUpdate() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let first = try parseJSON(try await store.saveSite(
             site: nil, title: "Mitochondrial Therapeutics Atlas", html: "<h1>Atlas</h1>",
@@ -340,7 +340,7 @@ extension MCPDataStoreTests {
 
     @Test("save_site draws the library's banner cards: each linked source's thumbnail and one card script join the files, every page loads it once, a source linked by its web address gets the same card, and a copy passed back is remade")
     func mcpSaveSiteSourceCards() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let kstore = try store.knowledgeStore()
 
@@ -508,7 +508,7 @@ extension MCPDataStoreTests {
 
     @Test("adopt_page makes a linked Codex site ForeverLM's own published page, never reaching foreverlm.com in tests")
     func mcpAdoptPage() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let site = try parseJSON(try await store.linkPageArtifact(
             urlString: "mitochondrial-therapeutics-atlas.learner-1234.chatgpt.site",
@@ -607,7 +607,7 @@ extension MCPDataStoreTests {
 
     @Test("A doc converted to a Google Doc reads as google_doc and read-only through the doc tools")
     func mcpConvertedDocIsReadOnly() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let created = try parseJSON(try await store.createArtifact(
             title: "Own words", homeNotebookID: nil, notebookIDs: [], markdown: "# Mine\n\nKept."
@@ -668,7 +668,7 @@ extension MCPDataStoreTests {
 
     @Test("edit_doc changes passages of a Doc in place without carrying its body")
     func mcpEditDocReplacesPassagesInPlace() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { try? FileManager.default.removeItem(atPath: tmpPath) }
         let created = try parseJSON(try await store.createArtifact(
             title: "TechBio report",
@@ -762,7 +762,7 @@ extension MCPDataStoreTests {
 
     @Test("edit_doc lands on a Doc the learner is typing in, and refuses only an edit whose own passage changed")
     func mcpEditDocAppliesToTheNewerBody() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let created = try parseJSON(try await store.createArtifact(
             title: "Engineered human resilience",
@@ -832,7 +832,7 @@ extension MCPDataStoreTests {
 
     @Test("MCP can archive and restore a Notebook without deleting its context")
     func mcpNotebookArchiveIsNonDestructive() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         try insertSource(
@@ -894,7 +894,7 @@ extension MCPDataStoreTests {
 
     @Test("update_notebook summary sets, reports, and clears the card description")
     func updateNotebookSummary() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let knowledge = try store.knowledgeStore()
         let notebook = try knowledge.createCompanionGoal(
@@ -961,7 +961,7 @@ extension MCPDataStoreTests {
     /// way to delete goals also"): the Goal goes, a Notebook is refused.
     @Test("delete_learning_goal removes a Goal, refuses a Notebook, and names a missing id")
     func deleteLearningGoalOverMCP() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let knowledge = try store.knowledgeStore()
         let notebook = try knowledge.createCompanionGoal(

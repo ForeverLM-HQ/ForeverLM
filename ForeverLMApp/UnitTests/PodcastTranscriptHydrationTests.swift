@@ -192,8 +192,8 @@ struct PodcastTranscriptFormattingAnnotationTests {
         #expect(formatted == transcript)
     }
 
-    @Test("legacy breakpoint-only responses remain supported")
-    func legacyBreakPointResponseStillWorks() {
+    @Test("breakpoint-only responses are formatted too")
+    func breakPointOnlyResponseIsFormatted() {
         let transcript = "The host finishes the introduction. The guest begins the explanation."
         let response = """
         ```json

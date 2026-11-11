@@ -483,13 +483,9 @@ struct StoredSoftHyphensTests {
 /// The post-launch half of schema 166.
 @Suite("Stored soft hyphen repair")
 struct StoredSoftHyphenRepairDrainTests {
-    private func makeStore() throws -> KnowledgeStore {
-        try KnowledgeStore(inMemory: true)
-    }
-
     @Test("Repairs a paper's text and keeps what was made from it, with the repaired text's hashes")
     func repairsAndRestamps() throws {
-        let store = try makeStore()
+        let store = try TestStores.inMemory()
         let id = "paper-1"
         let oldHash = StoredText.sha(StoredText.content)
         let newHash = StoredText.sha(StoredText.repairedContent)
@@ -536,7 +532,7 @@ struct StoredSoftHyphenRepairDrainTests {
 
     @Test("Leaves what was made from older text, and a raw extraction its hash no longer attests, as they were")
     func leavesStaleDerivatives() throws {
-        let store = try makeStore()
+        let store = try TestStores.inMemory()
         let id = "paper-stale"
         let older = StoredText.sha("an older text")
         try StoredText.addSource(store, id, content: StoredText.content)
@@ -567,7 +563,7 @@ struct StoredSoftHyphenRepairDrainTests {
         "canonical_content_cleanup_queue", "podcast_transcript_cleanup_queue", "source_listenable_content_queue",
     ])
     func busySourcesWait(queue: String) throws {
-        let store = try makeStore()
+        let store = try TestStores.inMemory()
         try StoredText.addSource(store, "busy", type: "article", title: "Busy", content: StoredText.content)
         try StoredText.addSource(store, "clean", type: "article", title: "Clean", content: "Nothing to repair.")
         try store.execute("INSERT INTO \(queue) (source_id, target_version, enqueued_at) VALUES ('busy', 1, 1)")
@@ -585,7 +581,7 @@ struct StoredSoftHyphenRepairDrainTests {
 
     @Test("A second pass changes nothing and queues no paid work, and a batch of clean sources is still progress")
     func idempotent() throws {
-        let store = try makeStore()
+        let store = try TestStores.inMemory()
         try StoredText.addSource(store, "paper-1", content: StoredText.content)
         try StoredText.addPreparation(store, "paper-1", raw: StoredText.raw, rawSHA: StoredText.sha(StoredText.raw), cleanSHA: StoredText.sha(StoredText.content))
         for index in 0..<120 {
@@ -613,7 +609,7 @@ struct StoredSoftHyphenRepairDrainTests {
 
     @Test("A batch repairs one source and leaves the rest of its window to the next, so the storage lane is never held long")
     func oneRepairPerBatch() throws {
-        let store = try makeStore()
+        let store = try TestStores.inMemory()
         for id in ["paper-a", "paper-b", "paper-c"] {
             try StoredText.addSource(store, id, content: StoredText.content)
         }
@@ -628,7 +624,7 @@ struct StoredSoftHyphenRepairDrainTests {
 
     @Test("An article's literal &shy; goes where it splits a word; a mention of it stays")
     func articleEntity() throws {
-        let store = try makeStore()
+        let store = try TestStores.inMemory()
         let content = "The mito&shy;chondrion's regeneration-&shy;associated genes. Pages write &shy; to hint."
         let repaired = "The mitochondrion's regeneration-associated genes. Pages write &shy; to hint."
         try StoredText.addSource(store, "article-1", type: "article", title: "An article", content: content)
@@ -643,7 +639,7 @@ struct StoredSoftHyphenRepairDrainTests {
 
     @Test("A title alone is repaired with its full-text row; the text and its embeddings stay")
     func titleAlone() throws {
-        let store = try makeStore()
+        let store = try TestStores.inMemory()
         // The one production title that held one, stored before titles dropped them.
         let title = "Plasma GDF15 affects long-\u{00AD} term dementia risk"
         try StoredText.addSource(store, "paper-title", title: title, content: "A clean text.")
@@ -660,7 +656,7 @@ struct StoredSoftHyphenRepairDrainTests {
 
     @Test("A podcast transcript's input is repaired under its own hash")
     func podcastInput() throws {
-        let store = try makeStore()
+        let store = try TestStores.inMemory()
         let input = "[SPEAKER_1]\nWe talked about life\u{00AD}span."
         let clean = "[SPEAKER_1]\nWe talked about lifespan."
         try StoredText.addSource(store, "podcast-1", type: "podcast", title: "An episode", content: nil)
@@ -679,7 +675,7 @@ struct StoredSoftHyphenRepairDrainTests {
 
     @Test("A store without the queue has nothing to drain")
     func missingQueue() throws {
-        let store = try makeStore()
+        let store = try TestStores.inMemory()
         try store.execForTesting("DROP TABLE source_text_soft_hyphen_repair_queue")
         #expect(try store.drainStoredSoftHyphenRepairBatch(limit: 50) == .empty)
         #expect(try store.storedSoftHyphenRepairQueueCount() == 0)

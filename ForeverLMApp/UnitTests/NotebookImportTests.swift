@@ -364,12 +364,6 @@ struct CalendarEventLinkTests {
 @Suite("Importing a link into a notebook")
 @MainActor
 struct NotebookImportLinkTests {
-    private func makeViewModel() -> StudioViewModel {
-        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("NotebookImportTests_\(UUID().uuidString)")
-        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return StudioViewModel(storageService: StorageService(storeRoot: dir))
-    }
-
     @Test("A link the library already holds joins the notebook without a second row, then reads as already in it")
     func heldLinkJoinsNotebook() async throws {
         // Adding to a notebook makes it the active Notebook, a shared default.

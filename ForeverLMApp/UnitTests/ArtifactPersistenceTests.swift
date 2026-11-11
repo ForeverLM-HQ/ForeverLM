@@ -550,7 +550,7 @@ struct ArtifactPersistenceTests {
         let current = try #require(try store.loadReviewSessionForSync("chat-a"))
         // What a pre-v84 client sends back: no docLinks key at all, and a
         // transcript with the context stripped out of every message.
-        let legacy = CloudKitReviewSessionPayload(
+        let withoutDocLinks = CloudKitReviewSessionPayload(
             id: current.id,
             topic: current.topic,
             startedAt: current.startedAt,
@@ -576,9 +576,9 @@ struct ArtifactPersistenceTests {
                 )
             }
         )
-        #expect(legacy.docLinks == nil)
+        #expect(withoutDocLinks.docLinks == nil)
 
-        try store.saveReviewSessionRecord(legacy)
+        try store.saveReviewSessionRecord(withoutDocLinks)
 
         #expect(try store.artifactChatLinks(sessionID: "chat-a").count == 1)
         #expect(try store.loadReviewSessionExchanges(sessionID: "chat-a").first?.contextContent
@@ -663,8 +663,8 @@ struct ArtifactPersistenceTests {
     }
 
     @Test("Artifact payloads default old records to production")
-    func legacyArtifactPayloadDefaultsToProduction() throws {
-        let data = try JSONEncoder().encode(LegacyArtifactRecord(
+    func payloadWithoutKindDefaultsToProduction() throws {
+        let data = try JSONEncoder().encode(BareArtifactRecord(
             id: "legacy-production",
             title: "Already published",
             homeNotebookID: nil,
@@ -879,11 +879,11 @@ struct ArtifactPersistenceTests {
         let json = try #require(JSONSerialization.jsonObject(with: encoded) as? [String: Any])
         #expect(json["linkedURL"] as? String == "https://docs.google.com/document/d/1AbC/edit")
         #expect(try JSONDecoder().decode(ArtifactRecord.self, from: encoded) == exported.artifact)
-        let legacy = try JSONEncoder().encode(LegacyArtifactRecord(
-            id: "legacy", title: "Older", homeNotebookID: nil, linkedNotebookIDs: [],
+        let bare = try JSONEncoder().encode(BareArtifactRecord(
+            id: "bare", title: "Older", homeNotebookID: nil, linkedNotebookIDs: [],
             createdAt: Date(timeIntervalSinceReferenceDate: 1), updatedAt: Date(timeIntervalSinceReferenceDate: 2)
         ))
-        #expect(try JSONDecoder().decode(ArtifactRecord.self, from: legacy).isLinked == false)
+        #expect(try JSONDecoder().decode(ArtifactRecord.self, from: bare).isLinked == false)
     }
 
     @Test("Renaming a page named by its heading renames the heading too, and a page without one keeps its body")
@@ -996,11 +996,11 @@ struct ArtifactPersistenceTests {
         #expect(relinked.linkedURL == "https://docs.google.com/document/d/1AbC/edit")
     }
 
-    private struct LegacyArtifactPayload: Encodable {
+    private struct BareArtifactPayload: Encodable {
         let artifact: ArtifactRecord
     }
 
-    private struct LegacyArtifactRecord: Encodable {
+    private struct BareArtifactRecord: Encodable {
         let id: String
         let title: String
         let homeNotebookID: String?

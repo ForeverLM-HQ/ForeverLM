@@ -4,11 +4,6 @@ import Foundation
 import SQLite3
 @testable import ForeverLM
 
-/// Creates an in-memory KnowledgeStore for unit testing.
-private func makeInMemoryStore() throws -> KnowledgeStore {
-    try KnowledgeStore(inMemory: true)
-}
-
 /// Helper: create a StudioArticle with sensible defaults for testing.
 private func makeArticle(url: String, title: String? = nil) -> StudioArticle {
     var article = StudioArticle(url: url, title: title)
@@ -38,7 +33,7 @@ struct SourcePersistenceTests {
 
     @Test("Paper figure index persists portable page relationships and invalidates with the PDF")
     func paperFigureIndexLifecycle() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var paper = StudioArticle(
             url: "https://example.com/visual-paper",
             title: "Visual Paper",
@@ -105,7 +100,7 @@ struct SourcePersistenceTests {
         // A supplement joined to a paper moves it to a new file. Its index,
         // built from the old file, no longer names every figure, so the
         // figure tools must read it again rather than take it as stored.
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var paper = StudioArticle(
             url: "https://example.com/supplemented-paper",
             title: "Supplemented Paper",
@@ -138,7 +133,7 @@ struct SourcePersistenceTests {
 
     @Test("Paper figure preparation selects only the explicitly requested source")
     func paperFigurePreparationSelectsRequestedSource() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var first = StudioArticle(
             url: "https://example.com/first-visual-paper",
             title: "First Visual Paper",
@@ -183,7 +178,7 @@ struct SourcePersistenceTests {
 
     @Test("Ready sources require durable readable text")
     func readySourcesRequireDurableReadableText() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var paper = StudioArticle(
             url: "https://example.com/textless-paper",
             title: "Textless Paper",
@@ -216,7 +211,7 @@ struct SourcePersistenceTests {
 
     @Test("A review request, not a save, prepares and persists a versioned guide")
     func reviewRequestPreparesAndPersistsReviewGuide() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let raw = "Publisher header\n\nCanonical source text about a causal mechanism.\n\nReferences\nNoise"
         let clean = "Canonical source text about a causal mechanism."
         var paper = StudioArticle(
@@ -293,7 +288,7 @@ struct SourcePersistenceTests {
 
     @Test("A guide from an earlier generator keeps its paper out of the preparation queue")
     func earlierGeneratorGuideIsNotRegenerated() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let raw = "Publisher header\n\nCanonical text about an earlier generator.\n\nReferences\nNoise"
         let clean = "Canonical text about an earlier generator."
         var paper = StudioArticle(
@@ -336,7 +331,7 @@ struct SourcePersistenceTests {
 
     @Test("A cleanup that re-read the paper's PDF commits the complete extraction as its raw text")
     func cleanupCommitsFreshPDFExtraction() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         // An older build stopped PDF extraction at 50,000 characters, mid-word.
         let capped = "Useful mechanism and resu"
         var paper = StudioArticle(
@@ -431,7 +426,7 @@ struct SourcePersistenceTests {
         let cut = try #require(complete.range(of: "Paragraph 4 expl"))
         let capped = String(complete[..<cut.upperBound])
 
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = StudioArticle(
             url: "https://example.com/the-illustrated-model",
             title: "The Illustrated Model",
@@ -556,7 +551,7 @@ struct SourcePersistenceTests {
 
     @Test("Text holding U+0000 is stored and read back whole, so its hash still names it")
     func textPastNULRoundTripsThroughStorage() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let raw = Self.extractionWithUnmappedGlyphs
         let clean = "A t-statistic t=\u{0000}43.49 confirms the scienti\u{0000}c claim.\nMethods and results follow."
         var paper = Self.paperForTextFidelity(url: "https://example.com/nul-round-trip")
@@ -590,7 +585,7 @@ struct SourcePersistenceTests {
 
     @Test("A cleanup commit keeps a fresh PDF extraction past its first U+0000, and word count agrees with the stored text")
     func cleanupCommitKeepsExtractionPastNUL() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         // What the stored row held: the extraction cut at its first U+0000.
         let stub = "Abstract.\u{000C}A t-statistic t="
         var paper = Self.paperForTextFidelity(url: "https://example.com/nul-cleanup")
@@ -636,7 +631,7 @@ struct SourcePersistenceTests {
 
     @Test("A preparation whose hash does not name its raw text is refused, and nothing is written")
     func mismatchedPreparationIsRefused() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let full = Self.extractionWithUnmappedGlyphs
         var paper = Self.paperForTextFidelity(url: "https://example.com/nul-mismatch")
         paper.installPreparedPaperContent(
@@ -668,7 +663,7 @@ struct SourcePersistenceTests {
 
     @Test("Paper review waits for cleanup and receives only the cleaned derivative")
     func paperReviewWaitsForCanonicalCleanup() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let raw = "Publisher footer\n\nUseful mechanism and result.\n\nReferences\nCitation noise"
         var paper = StudioArticle(
             url: "https://example.com/pending-cleanup-paper",
@@ -678,7 +673,7 @@ struct SourcePersistenceTests {
             journal: "Nature",
             publishedYear: "2026"
         )
-        // Model a legacy ready paper whose raw extraction is still its readable
+        // Model a ready paper whose raw extraction is still its readable
         // snapshot. The version-0 preparation is what durably schedules cleanup;
         // current writes may not claim a paper is ready with unattested text.
         paper.installPreparedPaperContent(
@@ -728,7 +723,7 @@ struct SourcePersistenceTests {
 
     @Test("insertSourceIfNew inserts a new source")
     func testInsertSourceIfNewInsertsNewSource() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = makeArticle(url: "https://example.com/post-1", title: "Post 1")
         let inserted = try store.insertSourceIfNew(&article)
         #expect(inserted)
@@ -739,7 +734,7 @@ struct SourcePersistenceTests {
 
     @Test("Article read status round-trips through SQLite")
     func articleReadStatusRoundTrips() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = makeArticle(url: "https://example.com/read-test", title: "Read Test")
         article.sourceType = .article
         try store.saveSource(article)
@@ -760,7 +755,7 @@ struct SourcePersistenceTests {
 
     @Test("Hidden source attribute round-trips for every source type")
     func hiddenSourceRoundTripsForEverySourceType() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let sourceTypes: [StudioSourceType] = [
             .article, .paper, .podcast, .book, .course, .meeting, .video, .xPost, .manual, .unclassified
         ]
@@ -783,7 +778,7 @@ struct SourcePersistenceTests {
 
     @Test("Saving source metadata preserves existing hidden source state")
     func saveSourcePreservesExistingHiddenState() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let article = makeArticle(url: "https://example.com/hidden", title: "Hidden")
 
         try store.saveSource(article)
@@ -796,7 +791,7 @@ struct SourcePersistenceTests {
 
     @Test("Video playlist metadata persists")
     func videoPlaylistMetadataPersistsAndQueuesSync() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let metadata = VideoPlaylistMetadata(
             title: "Quantum Biology Conference",
             playlistURL: "https://www.youtube.com/playlist?list=PL-quantum-bio",
@@ -811,7 +806,7 @@ struct SourcePersistenceTests {
 
     @Test("Unchanged YouTube feed metadata does not queue source sync")
     func unchangedYouTubeFeedMetadataDoesNotQueueSync() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let playlistID = "liked-feed"
         try store.saveVideoPlaylistGroup(
             id: playlistID,
@@ -851,7 +846,7 @@ struct SourcePersistenceTests {
 
     @Test("AI-extracted paper metadata persists and queues source sync")
     func aiExtractedPaperMetadataPersistsAndQueuesSourceSync() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var paper = StudioArticle(
             url: "Papers/example.pdf",
             title: "Unresolved Paper",
@@ -886,7 +881,7 @@ struct SourcePersistenceTests {
 
     @Test("Ready paper persistence requires a durable LLM attestation")
     func readyPaperPersistenceRequiresLLMAttestation() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var paper = StudioArticle(
             url: "Papers/unattested.pdf",
             title: "Unattested Paper",
@@ -907,7 +902,7 @@ struct SourcePersistenceTests {
 
     @Test("Paper is fully prepared only after durable Listen content commits")
     func paperFullReadinessRequiresListenableContent() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var paper = StudioArticle(
             url: "Papers/listen-ready.pdf",
             title: "Listen-ready Paper",
@@ -950,7 +945,7 @@ struct SourcePersistenceTests {
     /// then reporting that the source was still preparing.
     @Test("A failed metadata gate still queues Listen preparation")
     func unattestedPaperQueuesListenableContentPreparation() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         // Listen is queued ahead of a listener only for automatic-audio kinds.
         store.automaticAudioSourceTypes = { ["paper"] }
         var paper = StudioArticle(
@@ -985,7 +980,7 @@ struct SourcePersistenceTests {
     /// put it back.
     @Test("A save without in-memory text keeps queued Listen preparation")
     func savingWithoutInMemoryTextKeepsQueuedListenablePreparation() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         // Listen is queued ahead of a listener only for automatic-audio kinds.
         store.automaticAudioSourceTypes = { ["paper"] }
         var paper = StudioArticle(
@@ -1017,7 +1012,7 @@ struct SourcePersistenceTests {
 
     @Test("Paper persistence trims authors without parsing human-written names")
     func paperPersistencePreservesAuthorMeaning() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var paper = StudioArticle(
             url: "https://example.com/single-author-paper",
             title: "Single Author Paper",
@@ -1033,7 +1028,7 @@ struct SourcePersistenceTests {
 
     @Test("Queued paper extraction is retained raw but hidden from downstream source content")
     func queuedPaperStagesRawContent() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var paper = StudioArticle(
             url: "https://example.com/queued-paper",
             title: "Queued Paper",
@@ -1053,7 +1048,7 @@ struct SourcePersistenceTests {
 
     @Test("Ready paper persists clean canonical text and raw extraction separately")
     func preparedPaperPersistsRawAndCleanContent() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let raw = "Journal furniture\n\nCanonical Paper\n\nAbstract body\n\nReferences\n1. Noise"
         let clean = "Canonical Paper\n\nAbstract body"
         var paper = StudioArticle(
@@ -1089,7 +1084,7 @@ struct SourcePersistenceTests {
 
     @Test("Ready article persists clean canonical text and raw extraction separately")
     func preparedArticlePersistsRawAndCleanContent() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let raw = "Site navigation\n\nCanonical Article\n\nSubstantive body\n\nRelated stories"
         let clean = "Canonical Article\n\nSubstantive body"
         var article = StudioArticle(

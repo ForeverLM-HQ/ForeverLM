@@ -335,7 +335,7 @@ struct DayPlanTests {
     }
 
     @Test("A tombstone, or a row an older build left behind in a column, is not part of the day's plan")
-    func legacyColumnRowsAreNotCurrent() {
+    func supersededAndDeletedRowsAreNotCurrent() {
         var left = TimeBlock(dayPlanID: "2026-09-09", startMinute: 540, endMinute: 630, title: "Write", revision: 1)
         #expect(left.isCurrent)
         left.supersededInRevision = 2
@@ -501,8 +501,8 @@ struct DayPlanTests {
     }
 
     @Test("A day an older build redrew reads as its last column, and edits there land in place")
-    func legacyRedrawnDayEditsInPlace() throws {
-        let root = temporaryRoot("DayPlanLegacyColumns")
+    func redrawnDayEditsInPlace() throws {
+        let root = temporaryRoot("DayPlanColumns")
         defer { try? FileManager.default.removeItem(at: root) }
         let store = try KnowledgeStore(storeDirectory: root)
         let date = "2026-09-09"

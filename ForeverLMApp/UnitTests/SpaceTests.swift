@@ -205,13 +205,6 @@ struct SpaceNotebooksTests {
         #expect(items.first { $0.id == "page-1" }?.kind == .page)
     }
 
-    private func makeViewModel() -> StudioViewModel {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("SpaceNotebooksTests_\(UUID().uuidString)", isDirectory: true)
-        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return StudioViewModel(storageService: StorageService(storeRoot: root))
-    }
-
     private func notebook(_ id: String, archived: Bool = false, at seconds: TimeInterval = 0, teamID: String?) -> LearningGoalRecord {
         let date = Date(timeIntervalSince1970: 1_790_000_000 + seconds)
         return LearningGoalRecord(

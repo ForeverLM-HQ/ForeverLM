@@ -122,8 +122,8 @@ struct MemoryReviewChatHandoffTests {
         #expect(handoff.sourceIDs == ["src-a", "src-b"])
     }
 
-    @Test("A legacy 'Memory · ' title reads as the review's date, like the rail row")
-    func legacyTitle() {
+    @Test("A 'Memory · ' title reads as the review's date, like the rail row")
+    func memoryPrefixedTitle() {
         let handoff = MemoryReviewChatHandoff(
             exchange: Self.exchange(),
             reviewTitle: "Memory · 7 Sep",

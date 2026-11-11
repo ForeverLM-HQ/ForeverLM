@@ -134,13 +134,6 @@ struct WindowNotebookTests {
         )
     }
 
-    private func makeViewModel() -> StudioViewModel {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("WindowNotebookTests_\(UUID().uuidString)", isDirectory: true)
-        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return StudioViewModel(storageService: StorageService(storeRoot: root))
-    }
-
     private static let templateKeys = [
         "studio.centerTabGroups.v1",
         "studio.navigationRailVisible",
@@ -367,13 +360,6 @@ struct WindowNotebookTests {
 @Suite("Notebook in the window's tabs")
 @MainActor
 struct NotebookRoutingTests {
-
-    private func makeViewModel() -> StudioViewModel {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("NotebookRoutingTests_\(UUID().uuidString)", isDirectory: true)
-        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return StudioViewModel(storageService: StorageService(storeRoot: root))
-    }
 
     private static let templateKeys = [
         "studio.centerTabGroups.v1",

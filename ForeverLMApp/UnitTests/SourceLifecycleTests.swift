@@ -2,10 +2,6 @@ import Testing
 import Foundation
 @testable import ForeverLM
 
-private func makeInMemoryStore() throws -> KnowledgeStore {
-    try KnowledgeStore(inMemory: true)
-}
-
 private func makeArticle(url: String, title: String? = nil, sourceType: StudioSourceType = .article) -> StudioArticle {
     var article = StudioArticle(url: url, title: title, sourceType: sourceType)
     article.normalizedURL = URLNormalizer.normalize(url)
@@ -19,7 +15,7 @@ struct SourceLifecycleTests {
 
     @Test("archiveSource sets status to archived")
     func archiveSourceSetsStatusToArchived() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = makeArticle(url: "https://example.com/post-1", title: "Post 1")
         try store.insertSourceIfNew(&article)
 
@@ -32,7 +28,7 @@ struct SourceLifecycleTests {
 
     @Test("archiveSource deletes content")
     func archiveSourceDeletesContent() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = makeArticle(url: "https://example.com/post-2", title: "Post 2")
         try store.insertSourceIfNew(&article)
         try store.saveTranscript(article.id, "Some transcript text here.")
@@ -53,7 +49,7 @@ struct SourceLifecycleTests {
         // advertise a nine-thousand-word transcript they no longer had: nothing
         // requeues a source that reports success, so it is invisible as a
         // problem to every consumer downstream.
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = makeArticle(url: "https://example.com/talk", title: "A Talk", sourceType: .video)
         article.content = "Nine thousand words of transcript."
         article.state = .ready
@@ -71,7 +67,7 @@ struct SourceLifecycleTests {
     func unarchiveReturnsSourceToTheFetchQueue() throws {
         // The liked-YouTube sweep archives and revives in bulk on a background
         // pass, so this round trip runs over the whole liked library at once.
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = makeArticle(url: "https://example.com/liked", title: "Liked Video", sourceType: .video)
         article.content = "Transcript text."
         article.state = .ready
@@ -91,7 +87,7 @@ struct SourceLifecycleTests {
     func archiveKeepsStateForSourcesWithAKnownFailure() throws {
         // A paywalled paper legitimately has no text. Requeuing it would retry
         // a fetch that cannot succeed, on every archive round trip.
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var paper = makeArticle(url: "https://example.com/paywalled", title: "Paywalled", sourceType: .paper)
         paper.state = .error
         paper.errorMessage = "paywall"
@@ -105,7 +101,7 @@ struct SourceLifecycleTests {
 
     @Test("a stale podcast metadata save cannot demote a stored transcript")
     func storedPodcastTranscriptStaysReady() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var episode = makeArticle(
             url: "apple-podcast://episode/12345",
             title: "Finished episode",
@@ -126,7 +122,7 @@ struct SourceLifecycleTests {
 
     @Test("YouTube recovery atomically preserves podcast identity and records transcript provenance")
     func youtubePodcastTranscriptRecoveryPersistsProvenance() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var episode = makeArticle(
             url: "apple-podcast://episode/12345",
             title: "A paid podcast episode",
@@ -162,7 +158,7 @@ struct SourceLifecycleTests {
 
     @Test("YouTube podcast recovery rolls back when the target is not a podcast")
     func youtubePodcastTranscriptRecoveryRejectsOtherSources() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = makeArticle(url: "https://example.com/article", title: "Article")
         try store.insertSourceIfNew(&article)
 
@@ -180,14 +176,14 @@ struct SourceLifecycleTests {
 
     @Test("archiveSource on non-existent ID does not crash")
     func archiveSourceNonExistentID() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         try store.archiveSource("non-existent-id-12345")
         // Should complete without throwing
     }
 
     @Test("archiving already-archived source is idempotent")
     func archiveSourceIdempotent() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = makeArticle(url: "https://example.com/post-3", title: "Post 3")
         try store.insertSourceIfNew(&article)
 
@@ -201,7 +197,7 @@ struct SourceLifecycleTests {
 
     @Test("archived source excluded from loadActiveSources but included in loadSources")
     func archivedSourceVisibility() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article1 = makeArticle(url: "https://example.com/active", title: "Active")
         var article2 = makeArticle(url: "https://example.com/archived", title: "Archived")
         try store.insertSourceIfNew(&article1)
@@ -221,7 +217,7 @@ struct SourceLifecycleTests {
 
     @Test("clearSourceDerivedData deletes content but source remains active")
     func clearDerivedDataDeletesContentKeepsActive() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = makeArticle(url: "https://example.com/clear-1", title: "Clear 1")
         try store.insertSourceIfNew(&article)
         try store.saveTranscript(article.id, "Content to clear.")
@@ -238,7 +234,7 @@ struct SourceLifecycleTests {
 
     @Test("source still appears in loadActiveSources after clearing derived data")
     func clearDerivedDataSourceStillActive() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = makeArticle(url: "https://example.com/clear-2", title: "Clear 2")
         try store.insertSourceIfNew(&article)
         try store.saveTranscript(article.id, "Will be cleared.")
@@ -252,7 +248,7 @@ struct SourceLifecycleTests {
 
     @Test("clearSourceDerivedData is no-op on source without content")
     func clearDerivedDataNoOpWithoutContent() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = makeArticle(url: "https://example.com/clear-3", title: "Clear 3")
         try store.insertSourceIfNew(&article)
 
@@ -268,7 +264,7 @@ struct SourceLifecycleTests {
 
     @Test("A whole-book source keeps its self-group while it is a book")
     func wholeBookKeepsSelfGroup() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var book = makeArticle(url: "https://example.com/whole-book.pdf", title: "Whole Book", sourceType: .book)
         book.parentGroup = book.id
         try store.insertSourceIfNew(&book)
@@ -279,7 +275,7 @@ struct SourceLifecycleTests {
 
     @Test("Reclassifying a whole-book source to paper drops the self-group and book metadata")
     func reclassifiedWholeBookDropsSelfGroupAndMetadata() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var book = makeArticle(url: "https://arxiv.org/abs/2602.05993", title: "A Paper", sourceType: .book)
         book.parentGroup = book.id
         try store.insertSourceIfNew(&book)
@@ -297,7 +293,7 @@ struct SourceLifecycleTests {
 
     @Test("Reclassifying a chapter of a real book leaves the book's metadata intact")
     func reclassifiedChapterLeavesRealBookIntact() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var chapter = makeArticle(url: "https://example.com/ch1", title: "Chapter 1", sourceType: .book)
         chapter.parentGroup = "Real Book"
         try store.insertSourceIfNew(&chapter)
@@ -312,7 +308,7 @@ struct SourceLifecycleTests {
 
     @Test("unarchiveSourcesByParentGroup unarchives sources in group")
     func unarchiveByGroup() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = makeArticle(url: "https://example.com/chapter-1", title: "Chapter 1", sourceType: .book)
         article.parentGroup = "My Book"
         try store.insertSourceIfNew(&article)
@@ -333,7 +329,7 @@ struct SourceLifecycleTests {
 
     @Test("unarchiveSourcesByParentGroup does not affect sources in different group")
     func unarchiveByGroupDoesNotAffectOtherGroups() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var bookA = makeArticle(url: "https://example.com/book-a-ch1", title: "Book A Ch1", sourceType: .book)
         bookA.parentGroup = "Book A"
         try store.insertSourceIfNew(&bookA)
@@ -359,7 +355,7 @@ struct SourceLifecycleTests {
 
     @Test("unarchiveSourcesByParentGroup does not affect active sources")
     func unarchiveByGroupNoOpOnActive() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = makeArticle(url: "https://example.com/active-chapter", title: "Active Chapter", sourceType: .book)
         article.parentGroup = "Active Book"
         try store.insertSourceIfNew(&article)
@@ -374,7 +370,7 @@ struct SourceLifecycleTests {
 
     @Test("unarchiveSourcesByParentGroup is no-op when group has no archived sources")
     func unarchiveByGroupNoOpForEmptyGroup() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
 
         // No sources at all in this group
         try store.unarchiveSourcesByParentGroup("Nonexistent Group")
@@ -387,7 +383,7 @@ struct SourceLifecycleTests {
 
     @Test("deleteSource removes source entirely")
     func deleteSourceRemovesEntirely() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = makeArticle(url: "https://example.com/delete-1", title: "Delete 1")
         try store.insertSourceIfNew(&article)
 
@@ -399,7 +395,7 @@ struct SourceLifecycleTests {
 
     @Test("deleteSource is no-op on non-existent ID")
     func deleteSourceNoOpNonExistent() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
 
         // Should not throw
         try store.deleteSource("non-existent-id-99999")
@@ -410,7 +406,7 @@ struct SourceLifecycleTests {
 
     @Test("deleteSource removes content along with source")
     func deleteSourceRemovesContent() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var article = makeArticle(url: "https://example.com/delete-2", title: "Delete 2")
         try store.insertSourceIfNew(&article)
         try store.saveTranscript(article.id, "Content that should be deleted.")
@@ -432,7 +428,7 @@ struct SourceLifecycleTests {
 
     @Test("dismissSource records URL")
     func dismissSourceRecordsURL() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         try store.dismissSource(url: "https://example.com/dismissed", title: "Dismissed Article")
 
         let dismissed = try store.loadDismissedSourceURLs()
@@ -441,7 +437,7 @@ struct SourceLifecycleTests {
 
     @Test("isSourceDismissed returns true for dismissed URL")
     func isSourceDismissedTrue() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         try store.dismissSource(url: "https://example.com/dismissed", title: "Dismissed")
 
         #expect(store.isSourceDismissed(url: "https://example.com/dismissed"))
@@ -449,14 +445,14 @@ struct SourceLifecycleTests {
 
     @Test("isSourceDismissed returns false for non-dismissed URL")
     func isSourceDismissedFalse() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
 
         #expect(!store.isSourceDismissed(url: "https://example.com/not-dismissed"))
     }
 
     @Test("loadDismissedSourceURLs returns all dismissed URLs")
     func loadDismissedSourceURLsReturnsAll() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         try store.dismissSource(url: "https://example.com/a", title: "A")
         try store.dismissSource(url: "https://example.com/b", title: "B")
         try store.dismissSource(url: "https://example.com/c", title: nil)
@@ -467,7 +463,7 @@ struct SourceLifecycleTests {
 
     @Test("insertSourceIfNew rejects dismissed URL")
     func insertSourceIfNewRejectsDismissed() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         try store.dismissSource(url: "https://example.com/rejected", title: "Rejected")
 
         var article = makeArticle(url: "https://example.com/rejected", title: "Should Not Insert")
@@ -480,7 +476,7 @@ struct SourceLifecycleTests {
 
     @Test("insertSourceIfNew rejects normalized dismissed paper URL")
     func insertSourceIfNewRejectsNormalizedDismissedPaperURL() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         try store.dismissSource(url: "https://arxiv.org/abs/1706.03762", title: "Attention Is All You Need")
 
         var paper = makeArticle(url: "https://arxiv.org/pdf/1706.03762.pdf", title: "Attention Is All You Need")
@@ -495,7 +491,7 @@ struct SourceLifecycleTests {
 
     @Test("full lifecycle: insert, add content, archive, unarchive — content deleted but source active")
     func fullLifecycle() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
 
         // Insert source with a parent group
         var article = makeArticle(url: "https://example.com/lifecycle", title: "Lifecycle Test", sourceType: .book)
@@ -530,7 +526,7 @@ struct SourceLifecycleTests {
 
     @Test("dismiss then re-insert is rejected")
     func dismissThenReinsertRejected() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
 
         // First insert the source
         var article = makeArticle(url: "https://example.com/dismiss-reinsert", title: "Original")
@@ -677,7 +673,7 @@ struct UnarchiveMatchingURLTests {
 
     @Test("an explicit re-add preempts a dismissal that has not arrived yet")
     func explicitReAddPreemptsDelayedDismissal() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let url = "https://example.com/paper-awaiting-old-dismissal"
 
         #expect(!store.isSourceDismissed(url: url))
@@ -743,7 +739,7 @@ struct SourceWordCountTests {
 
     @Test("a podcast transcript saved by hydration, a refetch or a rewrite carries its count")
     func saveTranscriptWritesThePodcastCount() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var episode = makeArticle(url: "apple-podcast://episode/39", title: "Bioelectric Computation", sourceType: .podcast)
         episode.domain = "Example Show"
         try store.saveSource(episode)
@@ -760,7 +756,7 @@ struct SourceWordCountTests {
 
     @Test("saveTranscript counts into whichever per-type table holds the source")
     func saveTranscriptWritesOtherTypesCount() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         let video = makeArticle(url: "https://example.org/lecture", title: "A Lecture", sourceType: .video)
         try store.saveSource(video)
         try store.saveTranscript(video.id, "Four words of captions.")
@@ -769,7 +765,7 @@ struct SourceWordCountTests {
 
     @Test("a podcast save without its text keeps the count stored with the text")
     func metadataSaveKeepsTheStoredCount() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var episode = makeArticle(url: "apple-podcast://episode/40", title: "An Episode", sourceType: .podcast)
         try store.saveSource(episode)
         try store.saveTranscript(episode.id, Self.transcript)
@@ -791,7 +787,7 @@ struct SourceWordCountTests {
 
     @Test("a podcast with no stored text keeps the count its save names")
     func podcastWithoutTextKeepsTheSavedCount() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         var episode = makeArticle(url: "apple-podcast://episode/41", title: "Not fetched", sourceType: .podcast)
         episode.wordCount = 7
         try store.saveSource(episode)
@@ -800,7 +796,7 @@ struct SourceWordCountTests {
 
     @Test("the repair counts stored text whose count is missing or zero, once, and leaves team copies alone")
     func repairCountsMissingCounts() throws {
-        let store = try makeInMemoryStore()
+        let store = try TestStores.inMemory()
         func seed(_ id: String, _ type: StudioSourceType, text: String, count: Int64?) throws {
             let source = StudioArticle(url: "https://example.org/\(id)", title: id, sourceType: type, id: id)
             try store.saveSource(source)

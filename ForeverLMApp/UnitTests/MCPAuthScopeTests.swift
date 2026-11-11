@@ -79,7 +79,7 @@ struct MCPAuthScopeTests {
         #expect(!MCPToolRegistry.isToolAllowed("import_paper_from_url", scope: .ingest))
         // Bulk removal is a full-scope cleanup tool, never a plugin's own.
         #expect(!MCPToolRegistry.isToolAllowed("remove_connector_sources", scope: .ingest))
-        // Legacy aliases resolve before the check, so an old name can't slip past.
+        // Tool aliases resolve before the check, so an old name can't slip past.
         #expect(!MCPToolRegistry.isToolAllowed("start_review_session", scope: .ingest))
 
         #expect(MCPToolRegistry.isToolAllowed("delete_source", scope: .full))

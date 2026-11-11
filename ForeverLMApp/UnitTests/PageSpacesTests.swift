@@ -152,13 +152,6 @@ struct PageSpacesRowTests {
 @Suite("Spaces of pages: the Mac")
 @MainActor
 struct PageSpacesMacTests {
-    private func makeViewModel() -> StudioViewModel {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("PageSpacesTests_\(UUID().uuidString)", isDirectory: true)
-        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return StudioViewModel(storageService: StorageService(storeRoot: root))
-    }
-
     private func page(_ id: String, kind: ArtifactKind? = nil, teamID: String? = nil) -> ArtifactRecord {
         let date = Date(timeIntervalSince1970: 1_790_000_000)
         return ArtifactRecord(id: id, title: id, homeNotebookID: nil, linkedNotebookIDs: [], teamID: teamID, kind: kind, createdAt: date, updatedAt: date)
@@ -370,13 +363,6 @@ struct PageSpacesMacTests {
 @Suite("Pinned pages")
 @MainActor
 struct PagePinsTests {
-    private func makeViewModel() -> StudioViewModel {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("PagePinsTests_\(UUID().uuidString)", isDirectory: true)
-        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return StudioViewModel(storageService: StorageService(storeRoot: root))
-    }
-
     private func page(_ id: String, teamID: String? = nil) -> ArtifactRecord {
         let date = Date(timeIntervalSince1970: 1_790_000_000)
         return ArtifactRecord(id: id, title: id, homeNotebookID: nil, linkedNotebookIDs: [], teamID: teamID, kind: nil, createdAt: date, updatedAt: date)
@@ -684,13 +670,6 @@ struct PageParentsTests {
 @Suite("Subpages: the Mac's writes")
 @MainActor
 struct PageParentsMacTests {
-    private func makeViewModel() -> StudioViewModel {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("PageParentsMacTests_\(UUID().uuidString)", isDirectory: true)
-        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return StudioViewModel(storageService: StorageService(storeRoot: root))
-    }
-
     private func page(
         _ id: String,
         teamID: String? = nil,

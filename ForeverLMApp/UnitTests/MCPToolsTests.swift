@@ -238,32 +238,13 @@ struct MCPOAuthWaitingPageTests {
 @Suite("MCP Data Store", .cardWordingPasses)
 struct MCPDataStoreTests {
 
-    /// Create a temporary DB with the required schema and return the store + path.
-    func makeStore() throws -> (MCPDataStore, String) {
-        let tmpDir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("mcp_test_\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: tmpDir, withIntermediateDirectories: true)
-        let dbPath = tmpDir.appendingPathComponent("knowledge.db").path
-        let store = MCPDataStore(dbPath: dbPath)
-
-        // Install the real schema by opening the store against the fresh, empty
-        // file: createSchema takes its full creation path and stamps
-        // user_version, so these tests always run on exactly the schema
-        // production creates. (A hand-written schema copy used to live here; it
-        // drifted stale — no user_version stamp, missing newer columns — and
-        // tripped the schema-version gate added in July 2026.)
-        _ = try store.knowledgeStore()
-
-        return (store, tmpDir.path)
-    }
-
     func cleanup(_ path: String) {
         try? FileManager.default.removeItem(atPath: path)
     }
 
     @Test("A chat is filed under a Goal as well as a Notebook, and a pool of sources still refuses a Goal")
     func chatFiledUnderGoal() async throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let ks = try store.knowledgeStore()
         let now = Date()
@@ -321,7 +302,7 @@ struct MCPDataStoreTests {
     /// under the recording Notebook stays off screen (560f8a8).
     @Test("Screen record mode narrows the connector's listings to the recording Notebook and the take's own work")
     func screenRecordModeNarrowsListings() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let ks = try store.knowledgeStore()
         let cutoff = Date().addingTimeInterval(5)
@@ -438,7 +419,7 @@ struct MCPDataStoreTests {
     /// unarchived. The production store held 11 such orphaned placements.
     @Test("reads a source whose re-import left an orphaned Schedule placement behind")
     func adoptsOrphanedScheduledSourcePlacement() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let kstore = try store.knowledgeStore()
         try Self.seedReadySource(
@@ -475,7 +456,7 @@ struct MCPDataStoreTests {
 
     @Test("A share request is made, listed with can_fulfil, answered with My Library's copy, and closed for everyone")
     func shareRequestTools() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let kstore = try store.knowledgeStore()
         let now = Date()
@@ -547,7 +528,7 @@ struct MCPDataStoreTests {
 
     @Test("Sharing a Doc carries the cited sources only this library holds by default, and reports what travelled")
     func shareDocWithCitedSources() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let kstore = try store.knowledgeStore()
         let now = Date()
@@ -603,7 +584,7 @@ struct MCPDataStoreTests {
 
     @Test("A day accepts YYYY-MM-DD or an ISO8601 timestamp, and still refuses impossible ones")
     func scheduleDateAcceptsBothSpellings() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try #require(TimeZone(identifier: "America/Los_Angeles"))
@@ -633,7 +614,7 @@ struct MCPDataStoreTests {
 
     @Test("A day accepts the timestamp spellings the tools themselves print back")
     func scheduleDateAcceptsPrintedTimestamps() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try #require(TimeZone(identifier: "America/Los_Angeles"))
@@ -672,7 +653,7 @@ struct MCPDataStoreTests {
 
     @Test("A day accepts today, yesterday and tomorrow on the Mac's clock")
     func scheduleDateAcceptsRelativeDayWords() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         var calendar = Calendar(identifier: .gregorian)
         calendar.timeZone = try #require(TimeZone(identifier: "America/Los_Angeles"))
@@ -694,7 +675,7 @@ struct MCPDataStoreTests {
 
     @Test("A bare year is refused, and the refusal names the field and the value")
     func scheduleDateRefusesBareYearByName() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let calendar = Calendar(identifier: .gregorian)
 
@@ -719,7 +700,7 @@ struct MCPDataStoreTests {
 
     @Test("A source search dated with a year says which axis the date is on")
     func sourceSearchDateRefusalNamesTheAddedAxis() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
         // The search filters on the day a source was added, not when it was
@@ -741,7 +722,7 @@ struct MCPDataStoreTests {
         // The product owner (2026-09-09): "codex sites should always obviously be ingested
         // as a 'site' not as an article". Content passed with it changes nothing:
         // the page is a site whatever the caller read off it.
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let site = "https://techbio-companies-landscape.learner-1234.chatgpt.site/"
 
@@ -792,7 +773,7 @@ struct MCPDataStoreTests {
     /// save is the channel from the start.
     @Test("add_source files a YouTube video under its uploader's channel, and under the host only when none was found")
     func addSourceFilesVideoUnderItsChannel() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
         _ = try store.addSource(
@@ -852,7 +833,7 @@ struct MCPDataStoreTests {
         // a source in foreverlm". These are the two addresses the plugin
         // labelled "ForeverLM Convoke Bio" pushed that day; content changes
         // nothing, a query result is not a page whatever the caller read.
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let result = "https://platform.convoke.bio/mcp#foreverlm-7e5456abb77e57b4e1e45b41"
         let synced = "https://platform.convoke.bio/mcp?foreverlm_sync=fb2cc9b56d17b44f1f08d5df"
@@ -888,7 +869,7 @@ struct MCPDataStoreTests {
 
     @Test("Plugin adds stamp origin and label from the authenticated client")
     func pluginAddsStampProvenance() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
         let result = try store.addSource(
@@ -924,7 +905,7 @@ struct MCPDataStoreTests {
 
     @Test("A chapter added without its book is refused, not filed loose")
     func addSourceRequiresBookGroup() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
         let chapterPath = "Books/Radical Life Extension/Chapters/02 1) The Current Situation.xhtml"
@@ -957,7 +938,7 @@ struct MCPDataStoreTests {
 
     @Test("A podcast host's link is filed as an episode to look up, whatever type the caller gave")
     func podcastHostLinkIsFiledAsPodcast() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
         // 2026-10-02: with no podcast to pick, an assistant filed an Apple
@@ -1012,7 +993,7 @@ struct MCPDataStoreTests {
 
     @Test("Branded meeting plugins preserve their provider origin")
     func meetingPluginPreservesProviderOrigin() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
         _ = try store.addSource(
@@ -1048,7 +1029,7 @@ struct MCPDataStoreTests {
 
     @Test("Plugin paper inbox accepts only that plugin's staged PDFs")
     func pluginPaperInboxIsConfined() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
         let response = try store.getConnectorInbox(connectorLabel: "Test Paper Plugin")
@@ -1088,7 +1069,7 @@ struct MCPDataStoreTests {
 
     @Test("Plugin paper URLs reject local and private targets")
     func pluginPaperURLsRejectPrivateTargets() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
         #expect(try store.validatePluginPaperURL("doi:10.1000/example") == "https://doi.org/10.1000/example")
@@ -1113,7 +1094,7 @@ struct MCPDataStoreTests {
 
     @Test("Ingest updates are confined to the plugin's own sources")
     func ingestUpdatesConfinedToOwnSources() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
         _ = try store.addSource(
@@ -1161,7 +1142,7 @@ struct MCPDataStoreTests {
 
     @Test("add_sources batches per-item results and respects the cap")
     func addSourcesBatchesPerItem() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
         _ = try store.addSource(
@@ -1199,7 +1180,7 @@ struct MCPDataStoreTests {
 
     @Test("A plugin meeting is dated by occurred_at and filed under its series by parent_group")
     func addSourceDatesMeetingByOccurredAtAndFilesItUnderItsSeries() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let kstore = try store.knowledgeStore()
         let occurred = try #require(MCPDataStore.parseFlexibleTimestamp("2026-08-19T16:54:00Z"))
@@ -1267,7 +1248,7 @@ struct MCPDataStoreTests {
 
     @Test("add_source will not bring back a source the learner removed")
     func addSourceHonoursTheLearnersRemoval() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let kstore = try store.knowledgeStore()
         let url = "https://examplefellowship.zoom.us/rec/share/ExampleShareAAAA0000111122223333"
@@ -1319,7 +1300,7 @@ struct MCPDataStoreTests {
 
     @Test("add_source will not stand a removed meeting series back up")
     func addSourceHonoursARemovedMeetingSeries() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let kstore = try store.knowledgeStore()
         let identityKey = StudioViewModel.removedMeetingGroupIdentitiesKey
@@ -1390,7 +1371,7 @@ struct MCPDataStoreTests {
 
     @Test("A re-push with update_existing corrects a meeting's date and series")
     func addSourcesUpdateExistingCorrectsMeetingDateAndSeries() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let kstore = try store.knowledgeStore()
         let url = "https://app.read.ai/analytics/meetings/01J1BIOSTASIS0806"
@@ -1451,7 +1432,7 @@ struct MCPDataStoreTests {
 
     @Test("remove_connector_sources removes exactly the plugin's sources")
     func removePluginSourcesRemovesOwnOnly() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
 
         _ = try store.addSource(
@@ -1483,7 +1464,7 @@ struct MCPDataStoreTests {
 
     @Test("Knowledge exclusions follow source-family policy; hiding is visual and excludes nothing")
     func knowledgeSearchExcludedSourceIDs() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
 
@@ -1566,7 +1547,7 @@ struct MCPDataStoreTests {
 
     @Test("Keyword search still sees hidden sources; an excluded family is skipped and its cap counts only what it shows")
     func keywordSearchSeesHiddenSourcesAndSkipsExcludedFamilies() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
 
@@ -1616,7 +1597,7 @@ struct MCPDataStoreTests {
 
     @Test("The article family covers manually added and unclassified web pages")
     func keywordSearchArticleFamilyCoversWebPageStates() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
 
@@ -1659,7 +1640,7 @@ struct MCPDataStoreTests {
 
     @Test("Keyword search reads only the named sources, takes 30 keywords, and names the ones found nowhere")
     func keywordSearchScopesToNamedSources() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
 
@@ -1708,7 +1689,7 @@ struct MCPDataStoreTests {
 
     @Test("Keyword search finds a keyword that is not ASCII, and ASCII keywords the text spells with ligatures")
     func keywordSearchFoldsCaseBeyondASCII() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
 
@@ -1779,7 +1760,7 @@ struct MCPDataStoreTests {
     /// it prints the minute so same-day imports read in order.
     @Test("filter_sources by type alone lists the most recently added first, with the time it was added")
     func filterSourcesLatestOfAType() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         try insertSource(dbPath: dbPath, id: "video-morning", title: "Morning upload", content: "a", sourceType: "video")
@@ -1820,7 +1801,7 @@ struct MCPDataStoreTests {
     /// has to be exhaustive.
     @Test("filter_sources lists every episode of a show and every paper by an author; a show scopes both searches")
     func filterSourcesByShowAndAuthor() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         try insertSource(dbPath: dbPath, id: "ep-rutter", title: "How Mitochondria Control Your Metabolism | Dr. Jared Rutter",
@@ -1888,7 +1869,7 @@ struct MCPDataStoreTests {
     /// read the chapter rows.
     @Test("filter_sources finds a book's chapters by the book's title and author")
     func filterSourcesFindsBookChaptersByBookTitleAndAuthor() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         try insertSource(dbPath: dbPath, id: "chapter-5", title: "5) Proton Power", content: "chemiosmosis", sourceType: "book")

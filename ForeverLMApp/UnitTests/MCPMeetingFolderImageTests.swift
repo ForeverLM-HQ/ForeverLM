@@ -42,15 +42,6 @@ struct MCPMeetingFolderImageTests {
         )
     }
 
-    private func makeStore() throws -> (MCPDataStore, String) {
-        let directory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("mcp_meeting_image_test_\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        let store = MCPDataStore(dbPath: directory.appendingPathComponent("knowledge.db").path)
-        _ = try store.knowledgeStore()
-        return (store, directory.path)
-    }
-
     private func cleanup(_ path: String) {
         try? FileManager.default.removeItem(atPath: path)
     }
@@ -157,7 +148,7 @@ struct MCPMeetingFolderImageTests {
 
     @Test("An id no meeting folder has is refused, and says where ids come from")
     func unknownGroupIsRefused() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         try seedGroup(in: store, id: "group-a", title: "[EF] Comp Bio Reading Group")
 
@@ -175,7 +166,7 @@ struct MCPMeetingFolderImageTests {
 
     @Test("Getting an unknown group is a real tool error")
     func unknownGroupReadIsRefused() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
 
         #expect(throws: MCPError.self) {
@@ -214,7 +205,7 @@ struct MCPMeetingFolderImageTests {
 
     @Test("group_id is required")
     func emptyGroupIsRefused() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         #expect(throws: MCPError.self) {
             _ = try store.setMeetingFolderImage(groupID: "  ", imageURL: nil)
@@ -225,7 +216,7 @@ struct MCPMeetingFolderImageTests {
 
     @Test("The chosen image is reported back by both meeting reads")
     func readsReportTheChosenImage() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let groupID = "image-report-\(UUID().uuidString)"
         try seedGroup(in: store, id: groupID, title: "[EF] Aging Biology Study Group")
@@ -248,7 +239,7 @@ struct MCPMeetingFolderImageTests {
 
     @Test("A folder with no image of its own reports none")
     func readsStaySilentWithoutAnImage() throws {
-        let (store, path) = try makeStore()
+        let (store, path) = try TestStores.mcp()
         defer { cleanup(path) }
         let groupID = "no-image-\(UUID().uuidString)"
         try seedGroup(in: store, id: groupID, title: "[EF] Biostasis Working Group Sync")

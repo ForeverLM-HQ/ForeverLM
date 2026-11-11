@@ -619,22 +619,22 @@ extension ArticleQueueManagementTests {
         ])
     }
 
-    @Test("group drag transfer preserves source IDs and decodes legacy name-only payloads")
-    func groupDragTransferPreservesSourceIDsAndDecodesLegacyNameOnlyPayloads() throws {
+    @Test("group drag transfer preserves source IDs and decodes name-only payloads")
+    func groupDragTransferPreservesSourceIDsAndDecodesNameOnlyPayloads() throws {
         let transfer = StudioGroupTransfer(groupName: "course", sourceIDs: ["lecture-1", "lecture-2"])
         let decoded = try JSONDecoder().decode(
             StudioGroupTransfer.self,
             from: JSONEncoder().encode(transfer)
         )
-        let legacy = try JSONDecoder().decode(
+        let nameOnly = try JSONDecoder().decode(
             StudioGroupTransfer.self,
             from: Data(#"{"groupName":"course"}"#.utf8)
         )
 
         #expect(decoded.groupName == "course")
         #expect(decoded.sourceIDs == ["lecture-1", "lecture-2"])
-        #expect(legacy.groupName == "course")
-        #expect(legacy.sourceIDs == nil)
+        #expect(nameOnly.groupName == "course")
+        #expect(nameOnly.sourceIDs == nil)
     }
 
     @Test("group display title names a book by its title, never by its group key")

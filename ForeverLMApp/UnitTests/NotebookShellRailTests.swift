@@ -369,13 +369,6 @@ struct SpaceTabTests {
         #expect(parked.swapping(.goals, for: .goals) == nil)
     }
 
-    private func makeViewModel() -> StudioViewModel {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("SpaceTabTests_\(UUID().uuidString)", isDirectory: true)
-        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return StudioViewModel(storageService: StorageService(storeRoot: root))
-    }
-
     @Test("The view model swaps the Space's tab in the window asked, and a notebook stays open around it")
     func viewModelShowsTheTab() {
         let restore = capturingWindowDefaults()
@@ -528,13 +521,6 @@ struct CourseNotebookRefusalCopyTests {
 @Suite("Courses open where the learner is")
 @MainActor
 struct CourseRoutingTests {
-    private func makeViewModel() -> StudioViewModel {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("CourseRoutingTests_\(UUID().uuidString)", isDirectory: true)
-        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return StudioViewModel(storageService: StorageService(storeRoot: root))
-    }
-
     private func window(_ tabs: [StudioCenterTab] = [.reader, .chat, .courses, .artifacts]) -> StudioWindowState {
         let window = StudioWindowState()
         window.centerTabGroups = StudioCenterTabGroups(groups: [.init(tabs: tabs, activeTab: tabs[0])])
@@ -589,13 +575,6 @@ struct CourseRoutingTests {
 @Suite("Add to Notebook choices")
 @MainActor
 struct NotebookChoicesViewModelTests {
-    private func makeViewModel() -> StudioViewModel {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("NotebookChoicesViewModelTests_\(UUID().uuidString)", isDirectory: true)
-        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return StudioViewModel(storageService: StorageService(storeRoot: root))
-    }
-
     @Test("The notebooks holding most of a thing's sources come first; an archived notebook takes nothing")
     func suggestedFirst() {
         let vm = makeViewModel()

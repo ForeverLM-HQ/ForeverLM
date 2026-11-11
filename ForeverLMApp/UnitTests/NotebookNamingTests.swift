@@ -177,13 +177,6 @@ struct NotebookNamingFlowTests {
         }
     }
 
-    private func makeViewModel() -> StudioViewModel {
-        let root = FileManager.default.temporaryDirectory
-            .appendingPathComponent("NotebookNamingFlowTests_\(UUID().uuidString)", isDirectory: true)
-        try? FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
-        return StudioViewModel(storageService: StorageService(storeRoot: root))
-    }
-
     private func papers(_ vm: StudioViewModel, _ titles: [String]) async throws -> [StudioArticle] {
         let made = titles.enumerated().map { index, title in
             StudioArticle(url: "https://doi.org/10.1000/naming-\(UUID().uuidString)-\(index)", title: title, sourceType: .paper)

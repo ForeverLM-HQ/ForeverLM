@@ -199,7 +199,7 @@ struct CrossWindowReaderNavigationTests {
             StudioWindowRegistry.shared.unregister(there)
             StudioWindowRegistry.shared.unregister(here)
         }
-        // This window is reading the legacy way: no local choice of its own, so
+        // This window is reading by the app-wide selection: no local choice of its own, so
         // it renders whatever the app-wide selection points at.
         vm.selectedArticleId = "reading-here"
 

@@ -16,7 +16,7 @@ extension MCPDataStoreTests {
     /// name, rename it, refuse a taken or built-in name, and delete it.
     @Test("The skill tools write from a SKILL.md, read by name, refuse a taken name and delete")
     func skillToolsOverMCP() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let knowledge = try store.knowledgeStore()
         for name in ["list_skills", "get_skill", "save_skill", "delete_skill"] {
@@ -93,7 +93,7 @@ extension MCPDataStoreTests {
     /// back with the links resolved, and put it away rather than lose it.
     @Test("The Ideas tools jot, link, list, archive and delete, and refuse a link to nothing")
     func ideaToolsOverMCP() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let knowledge = try store.knowledgeStore()
         for name in ["list_ideas", "create_idea", "update_idea", "link_idea", "unlink_idea", "delete_idea"] {
@@ -184,7 +184,7 @@ extension MCPDataStoreTests {
     /// name it.
     @Test("A source kept from AI is linked without its title")
     func ideaLinkRespectsTheKnowledgeBoundary() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let knowledge = try store.knowledgeStore()
         var episode = StudioArticle(
@@ -360,7 +360,7 @@ extension MCPDataStoreTests {
     /// "allow me to drag sources onto goals ... and via mcp").
     @Test("add_goal_sources puts sources on a Goal and the Notebook it is tagged to, skips repeats, and refuses a Notebook, an unknown source and an empty list")
     func addGoalSourcesOverMCP() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let knowledge = try store.knowledgeStore()
         let def = try #require(MCPToolRegistry.shared.tools.first { $0.name == "add_goal_sources" })
@@ -437,7 +437,7 @@ extension MCPDataStoreTests {
 
     @Test("A Goal is for a Doc or Site over MCP: create_learning_goal takes artifact_id, rows answer artifact, update_learning_goal unlinks, an unknown id is refused")
     func goalArtifactOverMCP() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let knowledge = try store.knowledgeStore()
         let create = try #require(MCPToolRegistry.shared.tools.first { $0.name == "create_learning_goal" })
@@ -509,7 +509,7 @@ extension MCPDataStoreTests {
 
     @Test("A Goal stands on its own over MCP: no notebook_id to create it, list_goals has it, list_notebooks does not, and a tag can come and go")
     func standaloneGoalOverMCP() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let knowledge = try store.knowledgeStore()
         let create = try #require(MCPToolRegistry.shared.tools.first { $0.name == "create_learning_goal" })
@@ -563,7 +563,7 @@ extension MCPDataStoreTests {
 
     @Test("list_goals counts the days a Goal has left the way the Goals tab does: 0 on the day it falls due, never one more")
     func goalDaysRemainingMatchTheRail() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let knowledge = try store.knowledgeStore()
         let calendar = Calendar.current
@@ -604,7 +604,7 @@ extension MCPDataStoreTests {
 
     @Test("Goals reorder over MCP: reorder_goals places the listed first, the rest follow as they read, list_goals reads the order, an empty list is deadline order again, and a Notebook or a finished Goal is refused")
     func reorderGoalsOverMCP() async throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let knowledge = try store.knowledgeStore()
         let tool = try #require(MCPToolRegistry.shared.tools.first { $0.name == "reorder_goals" })
@@ -688,7 +688,7 @@ extension MCPDataStoreTests {
 
     @Test("Each window's notebook is discoverable, frontmost first, but never an implicit tool target")
     func windowNotebooksAreNotImplicitToolTargets() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         try insertSource(dbPath: dbPath, id: "front-source", title: "Front reading", content: "Front text.")
@@ -737,7 +737,7 @@ extension MCPDataStoreTests {
 
     @Test("open question tools create, list, and update notebook gaps")
     func openQuestionToolsRoundTrip() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         try insertSource(dbPath: dbPath, id: "src-1", title: "Paper A", content: "Mechanism details.")
@@ -785,7 +785,7 @@ extension MCPDataStoreTests {
 
     @Test("list notebook sources includes derived understanding state")
     func listNotebookSourcesIncludesUnderstandingState() throws {
-        let (store, tmpPath) = try makeStore()
+        let (store, tmpPath) = try TestStores.mcp()
         defer { cleanup(tmpPath) }
         let dbPath = URL(fileURLWithPath: tmpPath).appendingPathComponent("knowledge.db").path
         try insertSource(dbPath: dbPath, id: "src-new", title: "Fresh", content: "Unread.")
