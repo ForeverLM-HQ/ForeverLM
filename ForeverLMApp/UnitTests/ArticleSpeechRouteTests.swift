@@ -160,12 +160,23 @@ struct SpeechDirectoryTests {
         let fish = try #require(options.first { $0.id == "fish-audio/s2.1-pro" })
         #expect(fish.voices.map(\.id) == ArticleSpeechCatalog.fishS21Voices.map(\.id))
 
-        // Seed Audio lists none and nothing names one: the request leaves
-        // `voice` out, and its unit size keeps under its two-minute cap.
-        let seed = try #require(options.first { $0.id == "bytedance-seed/seed-audio-1-0" })
-        #expect(!seed.takesVoice)
-        #expect(seed.summary.hasPrefix(ArticleSpeechCatalog.providerDefaultVoiceName))
-        #expect(seed.chunkLimit == ArticleSpeechCatalog.seedAudioChunkLimit)
+        // Seed Audio lists none and nothing names one, so it is not offered:
+        // a request without a voice lets the provider pick the speaker, a
+        // different one per request (product owner, 2026-11-11).
+        #expect(!options.contains { $0.id == "bytedance-seed/seed-audio-1-0" })
+        #expect(!options.contains { !$0.takesVoice })
+    }
+
+    @Test("a request that names no voice is refused before it is sent")
+    func everyRequestNamesAVoice() {
+        for voice in [nil, "", "  "] as [String?] {
+            #expect(throws: CloudArticleTTS.GenerationError.self) {
+                _ = try CloudArticleTTS.speechRequest(
+                    text: "Two sentences. One voice.",
+                    selection: CloudArticleTTS.Selection(model: ArticleSpeechCatalog.defaultModelID, voice: voice)
+                )
+            }
+        }
     }
 
     /// A Fish request with no reference voice is spoken by a different random
@@ -179,14 +190,6 @@ struct SpeechDirectoryTests {
         let drama = try #require(ArticleSpeechCatalog.options(fromDirectory: rows).first)
         #expect(drama.takesVoice)
         #expect(drama.defaultVoiceID == ArticleSpeechCatalog.fishS21Voices.first?.id)
-
-        let request = try CloudArticleTTS.speechRequest(
-            text: "Two sentences. One voice.",
-            selection: CloudArticleTTS.Selection(model: drama.id, voice: drama.defaultVoiceID)
-        )
-        let body = try #require(request.httpBody)
-        let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
-        #expect(payload["voice"] as? String == ArticleSpeechCatalog.fishS21Voices.first?.id)
     }
 
     @Test("a model the overlay does not know is offered with nothing about it guessed")
@@ -220,7 +223,6 @@ struct SpeechDirectoryTests {
             "deepgram/aura-2",                      // $30 / 1M characters
             "google/gemini-3.1-flash-tts-preview",  // tokens: no per-character rate
             "acme/new-voice",                       // unpriced
-            "bytedance-seed/seed-audio-1-0",        // per minute of audio
         ])
     }
 
@@ -292,11 +294,11 @@ struct SpeechDirectoryTests {
         }
         #expect(manifest(model: "google/gemini-3.8-flash-tts").usesSupportedPlaybackFormat)
         #expect(!manifest(model: "canopylabs/orpheus-3b-0.1-ft").usesSupportedPlaybackFormat)
-        // Fish audio made with no reference voice changes speaker every
-        // request, so it is made again; with one it plays.
+        // Audio made with no voice named changes speaker every request, so it
+        // is made again; with one it plays.
         #expect(!manifest(model: "fish-audio/drama-3", voice: "").usesSupportedPlaybackFormat)
         #expect(manifest(model: "fish-audio/drama-3", voice: "b347db033a6549378b48d00acb0d06cd").usesSupportedPlaybackFormat)
-        // A model with no voice list at all is still one voice per recording.
-        #expect(manifest(model: "bytedance-seed/seed-audio-1-0", voice: "").usesSupportedPlaybackFormat)
+        // Any audio made with no voice named is made again, whatever its model.
+        #expect(!manifest(model: "bytedance-seed/seed-audio-1-0", voice: "").usesSupportedPlaybackFormat)
     }
 }

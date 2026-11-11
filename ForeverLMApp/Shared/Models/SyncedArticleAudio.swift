@@ -197,14 +197,13 @@ struct SyncedArticleAudioManifest: Codable, Equatable, Identifiable {
                 && narrationPreparationSignature != nil)
     }
 
-    /// False for Fish Audio audio made with no reference voice: each of its
-    /// requests was spoken by a different random speaker, so the recording
-    /// changes voice every few sentences and is made again
-    /// (`ArticleSpeechModelOption.init(directoryRow:)`). Only the audio:
-    /// its prepared narration text (`usesCurrentNarration`) is still reused.
+    /// False for audio made with no voice named: the provider picked the
+    /// speaker for each request, so the recording can change voice every few
+    /// sentences (Fish Audio's Drama 3 did, 2026-11-11), and it is made again
+    /// (`ArticleSpeechModelOption.takesVoice`). Only the audio: its prepared
+    /// narration text (`usesCurrentNarration`) is still reused.
     var speaksInOneVoice: Bool {
-        !ArticleSpeechCatalog.isFishAudioModel(model)
-            || !voice.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        !voice.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
     /// Device preferences select future generations; they do not invalidate a

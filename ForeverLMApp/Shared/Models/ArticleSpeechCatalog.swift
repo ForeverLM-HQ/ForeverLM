@@ -238,8 +238,12 @@ struct ArticleSpeechModelOption: Identifiable, Hashable, Sendable {
         )
     }
 
-    /// Whether a request names a voice. False for a model with no voice list,
-    /// whose request leaves `voice` out.
+    /// Whether this model has a voice a request can name. Every request names
+    /// one: a request without a voice is spoken by whatever speaker the
+    /// provider picks, which can change from one request to the next
+    /// (product owner, 2026-11-11: "Make sure for every request there is a
+    /// speaker actually set"). A model without one is not offered
+    /// (`options(fromDirectory:)`).
     var takesVoice: Bool { !voices.isEmpty }
 
     var defaultVoiceID: String? { voices.first?.id }
@@ -248,7 +252,6 @@ struct ArticleSpeechModelOption: Identifiable, Hashable, Sendable {
     var summary: String {
         let voiceCount: String
         switch voices.count {
-        case 0: voiceCount = ArticleSpeechCatalog.providerDefaultVoiceName
         case 1: voiceCount = "1 voice"
         default: voiceCount = "\(voices.count) voices"
         }
@@ -1135,10 +1138,6 @@ enum ArticleSpeechCatalog {
     static let defaultVoiceID = "Kore"
     static let grokModelID = "x-ai/grok-voice-tts-1.0"
 
-    /// What a picker calls the voice of a model with no voice list: the
-    /// provider's own, chosen by OpenRouter's adapter when `voice` is left out.
-    static let providerDefaultVoiceName = "Default voice"
-
     /// Gemini's prebuilt voices, with the one-word character Google gives
     /// each. IDs are wire values; the names and details are display only.
     static let geminiVoices: [ArticleSpeechVoice] = [
@@ -1695,8 +1694,11 @@ enum ArticleSpeechCatalog {
         let options = rows.compactMap { row -> ArticleSpeechModelOption? in
             let key = row.id.lowercased()
             guard !isRetiredModel(row.id), seen.insert(key).inserted else { return nil }
-            if let option = known[key] { return option.merged(with: row) }
-            return ArticleSpeechModelOption(directoryRow: row)
+            let option = known[key].map { $0.merged(with: row) }
+                ?? ArticleSpeechModelOption(directoryRow: row)
+            // No voice to name, no request: the provider would pick the
+            // speaker, a different one per request (`takesVoice`).
+            return option.takesVoice ? option : nil
         }
         return options.sorted(by: cheapestFirst)
     }
@@ -1777,7 +1779,6 @@ enum ArticleSpeechCatalog {
     /// list, so a manifest written by an older build still reads sensibly.
     static func voiceLabel(model modelID: String, voice voiceID: String) -> String {
         let option = self.model(id: modelID)
-        if voiceID.isEmpty, let option, !option.takesVoice { return providerDefaultVoiceName }
         if let name = option?.voice(id: voiceID)?.name { return name }
         return listedVoiceName(voiceID)
     }
@@ -2882,13 +2883,7 @@ final class ArticleSpeechPreferences: ObservableObject {
     }
 
     func voiceName(forModel modelID: String) -> String {
-        guard let voice = voiceID(forModel: modelID) else {
-            // A model with no voice list speaks in its provider's own voice.
-            if let model = ArticleSpeechCatalog.model(id: modelID), !model.takesVoice {
-                return ArticleSpeechCatalog.providerDefaultVoiceName
-            }
-            return "Unavailable"
-        }
+        guard let voice = voiceID(forModel: modelID) else { return "Unavailable" }
         return ArticleSpeechCatalog.voiceSettingsLabel(model: modelID, voice: voice)
     }
 

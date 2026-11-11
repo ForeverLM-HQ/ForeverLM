@@ -35,18 +35,12 @@ enum CloudArticleTTS {
     /// model's list is a request the provider rejects.
     struct Selection: Sendable, Equatable {
         let model: String
-        /// Optional at the type boundary for decoding older selections, and
-        /// nil for a model with no voice list, whose request names none. Every
-        /// other request validates that it carries a catalog voice.
+        /// Optional at the type boundary for decoding older selections. Every
+        /// request validates that it carries a catalog voice (`speechRequest`).
         let voice: String?
 
         var voiceLabel: String {
-            guard let voice else {
-                if let option = ArticleSpeechCatalog.model(id: model), !option.takesVoice {
-                    return ArticleSpeechCatalog.providerDefaultVoiceName
-                }
-                return "Unavailable"
-            }
+            guard let voice else { return "Unavailable" }
             return ArticleSpeechCatalog.voiceLabel(model: model, voice: voice)
         }
     }
@@ -871,14 +865,10 @@ enum CloudArticleTTS {
         guard let model = ArticleSpeechCatalog.model(id: selection.model) else {
             throw GenerationError.badResponse(unavailableModelMessage(selection.model))
         }
+        // Every request names its speaker. Without one the provider picks,
+        // and can pick a different speaker for each request of one source.
         let voice = selection.voice?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
-        if model.takesVoice {
-            guard !voice.isEmpty, model.voice(id: voice) != nil else {
-                throw GenerationError.invalidSelection("Choose the voice again in Settings.")
-            }
-        } else if !voice.isEmpty {
-            // OpenRouter lists no voices for this model, so a voice id is one
-            // nothing sourced; the request leaves `voice` out instead.
+        guard !voice.isEmpty, model.voice(id: voice) != nil else {
             throw GenerationError.invalidSelection("Choose the voice again in Settings.")
         }
         // One route for every model, Grok and Gemini included: OpenRouter's
@@ -889,8 +879,8 @@ enum CloudArticleTTS {
             "model": selection.model,
             "input": text,
             "response_format": model.responseFormat.rawValue,
+            "voice": voice,
         ]
-        if model.takesVoice { payload["voice"] = voice }
         var request = URLRequest(url: openRouterEndpoint)
         request.httpMethod = "POST"
         request.timeoutInterval = requestTimeout

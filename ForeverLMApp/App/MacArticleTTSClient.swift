@@ -119,12 +119,10 @@ enum MacArticleTTSClient {
             throw MacArticleTTSError.badResponse(MacArticleSpeechSettings.unavailableModelMessage(model))
         }
         let trimmedVoice = voice.trimmingCharacters(in: .whitespacesAndNewlines)
-        // A model with no voice list names none: OpenRouter's adapter speaks
-        // in the provider's own voice when `voice` is left out.
-        let resolvedVoice: String? = modelOption.takesVoice
-            ? ArticleSpeechCatalog.resolvedVoiceID(trimmedVoice, forModel: model)
-            : nil
-        if modelOption.takesVoice, resolvedVoice?.isEmpty ?? true {
+        // Every request names its speaker. Without one the provider picks,
+        // and can pick a different speaker for each request of one source.
+        guard let resolvedVoice = ArticleSpeechCatalog.resolvedVoiceID(trimmedVoice, forModel: model),
+              !resolvedVoice.isEmpty else {
             throw MacArticleTTSError.badResponse(
                 "\(modelOption.name) lists no voice ForeverLM can send. Choose another text-to-speech model in Settings › Voice."
             )
@@ -134,12 +132,12 @@ enum MacArticleTTSClient {
             "model": model,
             "input": text,
             "response_format": modelOption.responseFormat.rawValue,
+            "voice": resolvedVoice,
         ]
-        if let resolvedVoice { payload["voice"] = resolvedVoice }
         return try await postJSONAudio(
             providerName: "OpenRouter",
             model: model,
-            cacheParts: ["macos", "openrouter", model, resolvedVoice ?? "", modelOption.responseFormat.rawValue, text],
+            cacheParts: ["macos", "openrouter", model, resolvedVoice, modelOption.responseFormat.rawValue, text],
             url: URL(string: "https://openrouter.ai/api/v1/audio/speech")!,
             headers: ["Authorization": "Bearer \(apiKey)"],
             payload: payload,
