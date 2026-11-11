@@ -262,7 +262,7 @@ struct ArticleSpeechModelOption: Identifiable, Hashable, Sendable {
 
     /// Where a request for this model goes before `ManagedAI.rewrite`.
     var speechEndpoint: URL {
-        speaksThroughOpenAI ? ManagedAI.openAISpeechURL : ArticleSpeechCatalog.openRouterSpeechURL
+        speaksThroughOpenAI ? ManagedAI.openAISpeechURL : OpenRouterAPI.audioSpeech
     }
 
     var defaultVoiceID: String? { voices.first?.id }
@@ -449,7 +449,7 @@ enum OpenRouterAudioDirectory {
         case transcription
 
         var url: URL {
-            URL(string: "https://openrouter.ai/api/v1/models?output_modalities=\(rawValue)")!
+            OpenRouterAPI.models(outputModality: rawValue)
         }
     }
 
@@ -801,7 +801,7 @@ enum OpenRouterAudioPrices {
     /// Lowercased slug (`:free` variants under their own id) → price.
     typealias Table = [String: Price]
 
-    static let catalogURL = URL(string: "https://openrouter.ai/api/frontend/v1/catalog/models")!
+    static let catalogURL = OpenRouterAPI.frontendCatalogModels
 
     /// What a price label says when OpenRouter has not priced a model in a
     /// unit ForeverLM reads: never blank, which reads as free.
@@ -1176,7 +1176,6 @@ enum ArticleSpeechCatalog {
     ]
     static let defaultVoiceID = "Kore"
     static let grokModelID = "x-ai/grok-voice-tts-1.0"
-    static let openRouterSpeechURL = URL(string: "https://openrouter.ai/api/v1/audio/speech")!
 
     /// Listen on OpenAI (product owner, 2026-11-11: "DO do a direct openai
     /// route too"). OpenRouter lists no OpenAI voice, and OpenAI retires its

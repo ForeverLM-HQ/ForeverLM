@@ -93,7 +93,7 @@ enum ManagedImageGeneration {
 
     private static let logger = Logger(subsystem: "com.foreverlm", category: "ImageGeneration")
 
-    static let imagesURL = URL(string: "https://openrouter.ai/api/v1/images")!
+    static let imagesURL = OpenRouterAPI.images
 
     /// Draws one picture.
     ///

@@ -171,7 +171,7 @@ enum VideoGenerationCatalog {
         "black-forest-labs/flux-3-video",
     ]
 
-    static let directoryURL = URL(string: "https://openrouter.ai/api/v1/videos/models")!
+    static let directoryURL = OpenRouterAPI.videoModels
 
     /// The ids stored before 2026-09-27, when Veo was filmed on Google's own
     /// API, and the OpenRouter slug each became.

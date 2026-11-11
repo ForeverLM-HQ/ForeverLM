@@ -422,7 +422,7 @@ actor OpenRouterEndpointTierCatalog {
         let path = slug
             .trimmingCharacters(in: .whitespacesAndNewlines)
             .addingPercentEncoding(withAllowedCharacters: .urlPathAllowed) ?? slug
-        guard let url = URL(string: "https://openrouter.ai/api/v1/models/\(path)/endpoints") else {
+        guard let url = OpenRouterAPI.endpoints(forModel: path) else {
             throw URLError(.badURL)
         }
         var request = URLRequest(url: url)
@@ -604,7 +604,7 @@ actor OpenRouterModelSpeedCatalog {
     }
 
     private static func fetchSpeeds(permaslug: String, variant: String) async throws -> [OpenRouterEndpointSpeed] {
-        var components = URLComponents(string: "https://openrouter.ai/api/frontend/v1/stats/endpoint")
+        var components = URLComponents(url: OpenRouterAPI.frontendEndpointStats, resolvingAgainstBaseURL: false)
         components?.queryItems = [
             URLQueryItem(name: "latencyMetric", value: "latency"),
             URLQueryItem(name: "perfWorkload", value: "text_generation"),
@@ -1447,7 +1447,7 @@ extension AIService {
     /// Tool support is still read from each row's `supported_parameters`
     /// (`OpenRouterDirectoryModel.supportsTools`), and every consumer that
     /// needs a tool-capable model filters on it.
-    static let openRouterDirectoryURL = URL(string: "https://openrouter.ai/api/v1/models?sort=most-popular")!
+    static let openRouterDirectoryURL = OpenRouterAPI.modelsMostPopular
 
     /// Fetch OpenRouter's full public model directory with display names,
     /// per-token prices, and context windows — backs the "search all
@@ -1461,9 +1461,7 @@ extension AIService {
             return request
         }()
         let promotionRequest: URLRequest = {
-            var request = URLRequest(
-                url: URL(string: "https://openrouter.ai/api/frontend/v1/catalog/models")!
-            )
+            var request = URLRequest(url: OpenRouterAPI.frontendCatalogModels)
             request.httpMethod = "GET"
             return request
         }()

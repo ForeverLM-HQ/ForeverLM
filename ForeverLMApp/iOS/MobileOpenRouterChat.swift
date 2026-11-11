@@ -100,7 +100,7 @@ enum MobileOpenRouterChat {
         OpenRouterRoutePreference.applyOwnKeyLabEndpoint(to: &payload, regionEndpointTags: route.regionEndpointTags)
         OpenRouterRoutePreference.applyFastestCachingRoute(to: &payload, regionEndpointTags: route.regionEndpointTags)
         return try managedRequest(
-            url: URL(string: "https://openrouter.ai/api/v1/chat/completions")!,
+            url: OpenRouterAPI.chatCompletions,
             payload: payload,
             route: route
         )

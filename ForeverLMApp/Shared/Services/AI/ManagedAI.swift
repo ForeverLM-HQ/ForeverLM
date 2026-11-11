@@ -435,7 +435,7 @@ enum ManagedAI {
         router: OwnKeyRouter,
         session: URLSession = .shared
     ) async throws -> OwnKeyCheck {
-        var request = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/key")!)
+        var request = URLRequest(url: OpenRouterAPI.key)
         request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = 15
         let (_, response) = try await session.data(for: request)
@@ -499,7 +499,7 @@ enum ManagedAI {
     /// without an OpenRouter key; throws when OpenRouter cannot say.
     static func freeModelDailyRequests(session: URLSession = .shared) async throws -> FreeModelDailyRequests? {
         guard let own = ownKey, own.router == .openRouter else { return nil }
-        var request = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/key")!)
+        var request = URLRequest(url: OpenRouterAPI.key)
         request.setValue("Bearer \(own.key)", forHTTPHeaderField: "Authorization")
         request.timeoutInterval = 15
         let (data, response) = try await session.data(for: request)

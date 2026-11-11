@@ -704,6 +704,7 @@ targets:
       - Shared/Models/MemoryContourGrade.swift
       - Shared/Services/AI/AIProviderErrorText.swift
       - Shared/Services/AI/AIDataPolicy.swift
+      - Shared/Services/AI/OpenRouterAPI.swift
       - Shared/Services/AI/SSEByteLines.swift
       - Shared/Services/AI/Prompts.swift
       # The portable tutor contract's tools as request JSON (the memory

@@ -158,7 +158,6 @@ enum CloudArticleTTS {
     /// finish; `NetworkPathAvailability` is what keeps a device with no network
     /// at all from ever spending this.
     static let resourceTimeout: TimeInterval = 300
-    static let openRouterEndpoint = URL(string: "https://openrouter.ai/api/v1/audio/speech")!
 
     /// The session every speech request travels on.
     ///
@@ -1008,7 +1007,7 @@ enum CloudArticleTTS {
                 if (200..<300).contains(http.statusCode) {
                     // OpenRouter billed this attempt even if the audio is
                     // rejected below, so the row goes in first.
-                    if http.url?.host?.lowercased() == openRouterEndpoint.host {
+                    if http.url?.host?.lowercased() == OpenRouterAPI.audioSpeech.host {
                         recordOwnKeySpeech(response: http, model: selection.model, characters: text.count)
                     }
                     return try validatedSpeechResponse(
@@ -1751,7 +1750,7 @@ extension CloudArticleTTS {
         id: String,
         delays: [UInt64] = generationLookupDelaysMilliseconds
     ) async -> Double? {
-        guard var components = URLComponents(string: "https://openrouter.ai/api/v1/generation") else { return nil }
+        guard var components = URLComponents(url: OpenRouterAPI.generation, resolvingAgainstBaseURL: false) else { return nil }
         components.queryItems = [URLQueryItem(name: "id", value: id)]
         guard let url = components.url else { return nil }
         var previous: UInt64 = 0
@@ -1774,7 +1773,7 @@ extension CloudArticleTTS {
         request.timeoutInterval = 20
         // Bound for openrouter.ai, so `rewrite` sends it there on the own key.
         ManagedAI.rewrite(&request)
-        guard request.url?.host?.lowercased() == openRouterEndpoint.host,
+        guard request.url?.host?.lowercased() == OpenRouterAPI.audioSpeech.host,
               let (data, response) = try? await URLSession.shared.data(for: request),
               (response as? HTTPURLResponse)?.statusCode == 200,
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return nil }

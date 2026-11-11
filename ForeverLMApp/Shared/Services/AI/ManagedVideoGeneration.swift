@@ -239,7 +239,7 @@ enum ManagedVideoGeneration {
 
     // MARK: - OpenRouter, on the learner's own key
 
-    static let openRouterVideosURL = URL(string: "https://openrouter.ai/api/v1/videos")!
+    static let openRouterVideosURL = OpenRouterAPI.videos
 
     private struct OpenRouterJob: Decodable {
         struct Usage: Decodable { let cost: Double? }

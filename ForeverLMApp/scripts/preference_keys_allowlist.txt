@@ -16,7 +16,7 @@
 2	App/ReadingListBrowser.swift
 1	App/SharingRightsSheet.swift
 2	App/SpaceRecents.swift
-3	App/SyncedStorage.swift
+3	App/SyncedStorageObserver.swift
 4	App/WhatsNewSheet.swift
 1	MCP/MCPOAuth.swift
 6	MCP/MCPTools+AppSettings.swift

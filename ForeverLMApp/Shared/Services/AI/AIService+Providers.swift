@@ -638,7 +638,7 @@ extension AIService {
     static func openAICompatibleChatEndpoint(for provider: AIProvider) -> String? {
         switch provider {
         case .openRouter, .groq, .cerebras, .together, .fireworks, .nvidia:
-            return "https://openrouter.ai/api/v1/chat/completions"
+            return OpenRouterAPI.chatCompletions.absoluteString
         case .anthropic, .openai, .gemini, .xai, .meta:
             return nil
         }

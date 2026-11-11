@@ -187,15 +187,15 @@ enum ImageGenerationCatalog {
         "krea/krea-2-medium",
     ]
 
-    static let directoryURL = URL(string: "https://openrouter.ai/api/v1/images/models")!
+    static let directoryURL = OpenRouterAPI.imageModels
 
     /// OpenRouter's general directory filtered to image output: where a
     /// model whose endpoint record lists no price (Krea's, Meta's Muse, on
     /// 2026-09-27) still has its published image-output rate per token.
-    static let pricedDirectoryURL = URL(string: "https://openrouter.ai/api/v1/models?output_modalities=image")!
+    static let pricedDirectoryURL = OpenRouterAPI.models(outputModality: "image")
 
     static func endpointsURL(forModel id: String) -> URL? {
-        URL(string: "https://openrouter.ai/api/v1/images/models/\(id)/endpoints")
+        OpenRouterAPI.imageModelEndpoints(id: id)
     }
 
     /// The ids stored before 2026-09-27, when a picture went to its maker's

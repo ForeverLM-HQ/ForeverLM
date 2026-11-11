@@ -110,7 +110,7 @@ enum ManagedTranscriptionClient {
         return retiredModelIDs[trimmed.lowercased()] ?? trimmed
     }
 
-    static let openRouterEndpoint = URL(string: "https://openrouter.ai/api/v1/audio/transcriptions")!
+    static let openRouterEndpoint = OpenRouterAPI.audioTranscriptions
 
     /// One route for every model: OpenRouter's transcription endpoint under
     /// the model's slug. `ManagedAI.rewrite` sends it to OpenRouter on the

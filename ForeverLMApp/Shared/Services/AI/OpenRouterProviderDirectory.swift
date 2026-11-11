@@ -43,7 +43,7 @@ struct OpenRouterProviderLocation: Sendable, Equatable {
 actor OpenRouterProviderDirectory {
     static let shared = OpenRouterProviderDirectory()
 
-    private static let url = URL(string: "https://openrouter.ai/api/v1/providers")!
+    private static let url = OpenRouterAPI.providers
     /// A provider's country rarely changes, so a list half a day old is fine.
     private static let freshnessInterval: TimeInterval = 12 * 60 * 60
 

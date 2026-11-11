@@ -164,7 +164,7 @@ actor PromptCacheDiagnostic {
     }
 
     private func send(_ body: Data) async throws -> Data {
-        var request = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/chat/completions")!)
+        var request = URLRequest(url: OpenRouterAPI.chatCompletions)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("ForeverLM Cache Diagnostic", forHTTPHeaderField: "X-Title")

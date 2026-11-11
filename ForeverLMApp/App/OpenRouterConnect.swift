@@ -100,7 +100,7 @@ enum OpenRouterConnect {
         }
         struct Response: Decodable { let key: String }
 
-        var request = URLRequest(url: URL(string: "https://openrouter.ai/api/v1/auth/keys")!)
+        var request = URLRequest(url: OpenRouterAPI.authKeys)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(Body(code: code, code_verifier: verifier, code_challenge_method: "S256"))
