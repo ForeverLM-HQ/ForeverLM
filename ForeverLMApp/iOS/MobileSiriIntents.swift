@@ -81,14 +81,13 @@ extension Notification.Name {
 final class MobileSiriCommandCenter {
     static let shared = MobileSiriCommandCenter()
 
-    private let key = "ios.siri.pendingCommand"
     private let encoder = JSONEncoder()
     private let decoder = JSONDecoder()
 
     private init() {}
 
     var hasPendingCommand: Bool {
-        UserDefaults.standard.data(forKey: key) != nil
+        Preferences.value(Prefs.Mobile.siriPendingCommand) != nil
     }
 
     func enqueue(_ command: MobileSiriCommand) {
@@ -96,18 +95,18 @@ final class MobileSiriCommandCenter {
             return
         }
 
-        UserDefaults.standard.set(data, forKey: key)
+        Preferences.set(data, for: Prefs.Mobile.siriPendingCommand)
         NotificationCenter.default.post(name: .mobileSiriCommandQueued, object: nil)
     }
 
     func takePendingCommand() -> MobileSiriCommand? {
-        guard let data = UserDefaults.standard.data(forKey: key),
+        guard let data = Preferences.value(Prefs.Mobile.siriPendingCommand),
               let command = try? decoder.decode(MobileSiriCommand.self, from: data) else {
-            UserDefaults.standard.removeObject(forKey: key)
+            Preferences.reset(Prefs.Mobile.siriPendingCommand)
             return nil
         }
 
-        UserDefaults.standard.removeObject(forKey: key)
+        Preferences.reset(Prefs.Mobile.siriPendingCommand)
         return command
     }
 }

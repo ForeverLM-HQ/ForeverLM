@@ -53,23 +53,32 @@ actor XBookmarkService {
 
     // MARK: - Sync State (persisted in UserDefaults, one cursor pair per account)
 
+    /// The member names are the ones `XAccountBook.newestIDKey` and `.lastSyncKey` build.
+    private nonisolated static func newestIDPreference(accountID: String) -> DeviceKey<Any?> {
+        Prefs.Families.xBookmarks.key("newest_id.\(accountID)")
+    }
+
+    private nonisolated static func lastSyncPreference(accountID: String) -> DeviceKey<Any?> {
+        Prefs.Families.xBookmarks.key("last_sync.\(accountID)")
+    }
+
     /// The newest tweet ID from the account's last successful sync.
     /// On subsequent syncs, we stop paginating when we hit this ID.
     private func newestSeenTweetId(accountID: String) -> String? {
-        UserDefaults.standard.string(forKey: XAccountBook.newestIDKey(accountID: accountID))
+        Preferences.value(Self.newestIDPreference(accountID: accountID)) as? String
     }
 
     private func setNewestSeenTweetId(_ id: String, accountID: String) {
-        UserDefaults.standard.set(id, forKey: XAccountBook.newestIDKey(accountID: accountID))
+        Preferences.set(id, for: Self.newestIDPreference(accountID: accountID))
     }
 
     nonisolated func lastSyncDate(accountID: String) -> Date? {
-        let ts = UserDefaults.standard.double(forKey: XAccountBook.lastSyncKey(accountID: accountID))
+        let ts = (Preferences.value(Self.lastSyncPreference(accountID: accountID)) as? NSNumber)?.doubleValue ?? 0
         return ts > 0 ? Date(timeIntervalSince1970: ts) : nil
     }
 
     private func setLastSyncDate(_ date: Date, accountID: String) {
-        UserDefaults.standard.set(date.timeIntervalSince1970, forKey: XAccountBook.lastSyncKey(accountID: accountID))
+        Preferences.set(date.timeIntervalSince1970, for: Self.lastSyncPreference(accountID: accountID))
     }
 
     // MARK: - Accounts
@@ -118,8 +127,8 @@ actor XBookmarkService {
     nonisolated func signOut(accountID: String) {
         KeychainService.deleteXAccountCredentials(accountID: accountID)
         KeychainService.xAccounts = XAccountBook.encode(XAccountBook.removing(id: accountID, from: accounts))
-        UserDefaults.standard.removeObject(forKey: XAccountBook.newestIDKey(accountID: accountID))
-        UserDefaults.standard.removeObject(forKey: XAccountBook.lastSyncKey(accountID: accountID))
+        Preferences.reset(Self.newestIDPreference(accountID: accountID))
+        Preferences.reset(Self.lastSyncPreference(accountID: accountID))
     }
 
     /// X no longer honours the account's tokens. They go, the account stays

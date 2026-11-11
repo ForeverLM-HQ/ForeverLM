@@ -30,25 +30,25 @@ import SQLite3
 //   is the same scope, not a second mechanism.
 
 enum ScreenRecordMode {
-    static let enabledKey = "screenRecordMode.enabled"
-    static let notebookIDKey = "screenRecordMode.notebookID"
-    static let cutoffKey = "screenRecordMode.cutoff"
+    static let enabledKey = Prefs.Lifecycle.screenRecordEnabled.name
+    static let notebookIDKey = Prefs.Lifecycle.screenRecordNotebookID.name
+    static let cutoffKey = Prefs.Lifecycle.screenRecordCutoff.name
     /// Whether the library's public sources show too (`ScreenRecordScope.isPublicLibrarySource`).
-    static let librarySourcesKey = "screenRecordMode.librarySources"
+    static let librarySourcesKey = Prefs.Lifecycle.screenRecordLibrarySources.name
     /// Images kept on screen although they were drawn before the take: an
     /// image carries no Notebook or source to earn a pass by.
-    static let imageIDsKey = "screenRecordMode.imageIDs"
+    static let imageIDsKey = Prefs.Lifecycle.screenRecordImageIDs.name
     /// Older public library sources kept on screen although the library held
     /// them before the take (`ScreenRecordScope.keptSourceIDs`).
-    static let sourceIDsKey = "screenRecordMode.sourceIDs"
+    static let sourceIDsKey = Prefs.Lifecycle.screenRecordSourceIDs.name
     /// Meeting folders whose sessions show although meetings never count as
     /// public: a seminar series the admin chooses to film.
-    static let meetingGroupIDsKey = "screenRecordMode.meetingGroupIDs"
+    static let meetingGroupIDsKey = Prefs.Lifecycle.screenRecordMeetingGroupIDs.name
     /// The last admin answer the proxy gave this Mac's signed-in account.
     /// Written only from a balance that loaded, cleared on sign-out, and left
     /// alone by a transient failure, so a network blip mid-take does not drop
     /// the scope and put the private library on screen.
-    static let confirmedAdminKey = "screenRecordMode.confirmedAdmin"
+    static let confirmedAdminKey = Prefs.Lifecycle.screenRecordConfirmedAdmin.name
 
     /// Posted on the main thread whenever the switch, the Notebook, or the
     /// admin answer changes. Studio windows re-derive their scope from it.
@@ -75,17 +75,22 @@ enum ScreenRecordMode {
         let defaults: UserDefaults
     }
 
-    private static var defaults: UserDefaults { overrideDefaults?.defaults ?? .standard }
+    /// Runs a typed read or write against the bound test defaults, or the
+    /// Mac's own when none is bound.
+    private static func scoped<Result>(_ body: () -> Result) -> Result {
+        guard let override = overrideDefaults else { return body() }
+        return Preferences.withStorage(override.defaults, body)
+    }
 
     /// Whether this account may see and use the mode at all.
     static var isAvailable: Bool {
-        defaults.bool(forKey: confirmedAdminKey)
+        scoped { Preferences.value(Prefs.Lifecycle.screenRecordConfirmedAdmin) }
     }
 
     /// The stored switch, whatever the account. Only Settings and the MCP
     /// entry read it directly; everything that filters asks `isEffective`.
     static var isStoredOn: Bool {
-        defaults.bool(forKey: enabledKey)
+        scoped { Preferences.value(Prefs.Lifecycle.screenRecordEnabled) }
     }
 
     /// The one gate: the switch is on and the proxy has said this account is
@@ -97,10 +102,9 @@ enum ScreenRecordMode {
     /// The Notebook whose sources stay on screen, or nil for "none": then only
     /// safe public captures and work made after the cutoff show.
     static var notebookID: String? {
-        guard let id = defaults.string(forKey: notebookIDKey)?
-            .trimmingCharacters(in: .whitespacesAndNewlines),
-              !id.isEmpty else { return nil }
-        return id
+        let id = scoped { Preferences.value(Prefs.Lifecycle.screenRecordNotebookID) }
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return id.isEmpty ? nil : id
     }
 
     /// The product owner, 2026-09-24: "the source is not necessarily need to be hidden
@@ -110,26 +114,26 @@ enum ScreenRecordMode {
     /// public videos. Meetings, X posts, uploads and private hosts still do
     /// not, and the learner's own chats, Docs and Goals are unaffected.
     static var showsLibrarySources: Bool {
-        defaults.bool(forKey: librarySourcesKey)
+        scoped { Preferences.value(Prefs.Lifecycle.screenRecordLibrarySources) }
     }
 
     /// The images kept on screen whatever their date (`imageIDsKey`).
     static var imageIDs: [String] {
-        (defaults.stringArray(forKey: imageIDsKey) ?? [])
+        (scoped { Preferences.value(Prefs.Lifecycle.screenRecordImageIDs) } ?? [])
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
     }
 
     /// The older public library sources kept on screen (`sourceIDsKey`).
     static var sourceIDs: [String] {
-        (defaults.stringArray(forKey: sourceIDsKey) ?? [])
+        (scoped { Preferences.value(Prefs.Lifecycle.screenRecordSourceIDs) } ?? [])
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
     }
 
     /// The meeting folders kept on screen (`meetingGroupIDsKey`).
     static var meetingGroupIDs: [String] {
-        (defaults.stringArray(forKey: meetingGroupIDsKey) ?? [])
+        (scoped { Preferences.value(Prefs.Lifecycle.screenRecordMeetingGroupIDs) } ?? [])
             .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
             .filter { !$0.isEmpty }
     }
@@ -138,7 +142,7 @@ enum ScreenRecordMode {
     /// the take's own work and shows.
     static var cutoff: Date? {
         guard isEffective else { return nil }
-        if isStoredOn, let stored = defaults.object(forKey: cutoffKey) as? Date {
+        if isStoredOn, let stored = scoped({ Preferences.value(Prefs.Lifecycle.screenRecordCutoff) }) {
             return stored
         }
         #if RECORDING_PRIVACY
@@ -164,11 +168,11 @@ enum ScreenRecordMode {
     static func setEnabled(_ enabled: Bool, now: Date = Date()) {
         guard enabled != isStoredOn else { return }
         if enabled {
-            defaults.set(now, forKey: cutoffKey)
+            scoped { Preferences.set(now, for: Prefs.Lifecycle.screenRecordCutoff) }
         } else {
-            defaults.removeObject(forKey: cutoffKey)
+            scoped { Preferences.reset(Prefs.Lifecycle.screenRecordCutoff) }
         }
-        defaults.set(enabled, forKey: enabledKey)
+        scoped { Preferences.set(enabled, for: Prefs.Lifecycle.screenRecordEnabled) }
         postChange()
     }
 
@@ -177,16 +181,16 @@ enum ScreenRecordMode {
         let next = (trimmed?.isEmpty ?? true) ? nil : trimmed
         guard next != self.notebookID else { return }
         if let next {
-            defaults.set(next, forKey: notebookIDKey)
+            scoped { Preferences.set(next, for: Prefs.Lifecycle.screenRecordNotebookID) }
         } else {
-            defaults.removeObject(forKey: notebookIDKey)
+            scoped { Preferences.reset(Prefs.Lifecycle.screenRecordNotebookID) }
         }
         postChange()
     }
 
     static func setShowsLibrarySources(_ shows: Bool) {
         guard shows != showsLibrarySources else { return }
-        defaults.set(shows, forKey: librarySourcesKey)
+        scoped { Preferences.set(shows, for: Prefs.Lifecycle.screenRecordLibrarySources) }
         postChange()
     }
 
@@ -197,9 +201,9 @@ enum ScreenRecordMode {
             .filter { !$0.isEmpty && seen.insert($0).inserted }
         guard next != imageIDs else { return }
         if next.isEmpty {
-            defaults.removeObject(forKey: imageIDsKey)
+            scoped { Preferences.reset(Prefs.Lifecycle.screenRecordImageIDs) }
         } else {
-            defaults.set(next, forKey: imageIDsKey)
+            scoped { Preferences.set(next, for: Prefs.Lifecycle.screenRecordImageIDs) }
         }
         postChange()
     }
@@ -211,9 +215,9 @@ enum ScreenRecordMode {
             .filter { !$0.isEmpty && seen.insert($0).inserted }
         guard next != sourceIDs else { return }
         if next.isEmpty {
-            defaults.removeObject(forKey: sourceIDsKey)
+            scoped { Preferences.reset(Prefs.Lifecycle.screenRecordSourceIDs) }
         } else {
-            defaults.set(next, forKey: sourceIDsKey)
+            scoped { Preferences.set(next, for: Prefs.Lifecycle.screenRecordSourceIDs) }
         }
         postChange()
     }
@@ -225,9 +229,9 @@ enum ScreenRecordMode {
             .filter { !$0.isEmpty && seen.insert($0).inserted }
         guard next != meetingGroupIDs else { return }
         if next.isEmpty {
-            defaults.removeObject(forKey: meetingGroupIDsKey)
+            scoped { Preferences.reset(Prefs.Lifecycle.screenRecordMeetingGroupIDs) }
         } else {
-            defaults.set(next, forKey: meetingGroupIDsKey)
+            scoped { Preferences.set(next, for: Prefs.Lifecycle.screenRecordMeetingGroupIDs) }
         }
         postChange()
     }
@@ -236,7 +240,7 @@ enum ScreenRecordMode {
     /// calls this; nothing else decides who is an admin.
     static func recordAdminStatus(_ isAdmin: Bool) {
         guard isAdmin != isAvailable else { return }
-        defaults.set(isAdmin, forKey: confirmedAdminKey)
+        scoped { Preferences.set(isAdmin, for: Prefs.Lifecycle.screenRecordConfirmedAdmin) }
         postChange()
     }
 

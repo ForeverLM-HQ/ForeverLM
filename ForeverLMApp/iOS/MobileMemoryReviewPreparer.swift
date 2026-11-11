@@ -100,7 +100,7 @@ actor MobileMemoryReviewPreparer {
         // The learner's daily time budget, the same synced row the Mac reads;
         // the default when it was never set or CloudKit cannot be reached.
         let budgetMinutes = MemoryReviewBudget.clamp(
-            (try? await MobileModelPreferenceStore.shared.int(forKey: MemoryReviewBudget.preferenceKey))
+            (try? await MobileModelPreferenceStore.shared.valueOrDefault(for: Prefs.Memory.budgetMinutes))
                 .flatMap { $0 } ?? MemoryReviewBudget.defaultMinutes
         )
         let selection = CohortSelector.select(candidates: candidates, now: now, budgetMinutes: budgetMinutes)
@@ -185,7 +185,9 @@ actor MobileMemoryReviewPreparer {
             let cloudSource = sourcesByID[source.sourceID]
             let highlights = await catalog.currentSourceHighlights(sourceID: source.sourceID)
             let typeDefault = (try? await MobileModelPreferenceStore.shared
-                .string(forKey: MemoryReviewDepth.typePreferenceKey(sourceType: source.sourceType)))
+                .valueOrDefault(for: Prefs.Families.reviewDepthByType.key(
+                    source.sourceType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                )))
                 .flatMap { MemoryReviewDepth(rawValue: $0) }
             // The phone holds no understanding documents, so it knows of no
             // discussed ideas and the split is a no-op here: every idea stays

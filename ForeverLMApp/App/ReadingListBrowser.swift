@@ -56,20 +56,20 @@ enum ReadingListBrowser: String, CaseIterable, Identifiable, Hashable {
     /// keeps every install from before setup asked; a fresh setup writes all
     /// three off (`holdUntilChosen`) so nothing is imported until the learner
     /// picks a browser in the Articles or Papers step, or in Settings → Sources.
-    var enabledKey: String {
+    var enabledPreference: DeviceKey<Bool?> {
         switch self {
-        case .safari: return "readingListSafari"
-        case .chrome: return "readingListChrome"
-        case .brave: return "readingListBrave"
+        case .safari: return Prefs.Discovery.readingListSafari
+        case .chrome: return Prefs.Discovery.readingListChrome
+        case .brave: return Prefs.Discovery.readingListBrave
         }
     }
 
     var isEnabled: Bool {
-        DefaultsEscapeHatch.bool(forKey: enabledKey, default: true)
+        DefaultsEscapeHatch.bool(forKey: enabledPreference.name, default: true)
     }
 
     func setEnabled(_ enabled: Bool) {
-        UserDefaults.standard.set(enabled, forKey: enabledKey)
+        Preferences.set(enabled, for: enabledPreference)
     }
 
     static var enabled: Set<ReadingListBrowser> {
@@ -94,8 +94,8 @@ enum ReadingListBrowser: String, CaseIterable, Identifiable, Hashable {
     /// First launch: turn off every browser this Mac has no answer for, so the
     /// setup guide's choice is the only thing that starts an import.
     static func holdUntilChosen(defaults: UserDefaults = .standard) {
-        for browser in allCases where defaults.object(forKey: browser.enabledKey) == nil {
-            defaults.set(false, forKey: browser.enabledKey)
+        for browser in allCases where defaults.object(forKey: browser.enabledPreference.name) == nil {
+            defaults.set(false, forKey: browser.enabledPreference.name)
         }
     }
 }

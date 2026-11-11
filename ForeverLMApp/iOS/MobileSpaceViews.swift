@@ -317,8 +317,8 @@ struct MobileSpacePlaceList: View {
     @State private var actions = MobileSpaceActions()
     @State private var query = ""
     /// Which pages show their subpages: this device's, as the Mac's `space.pagesExpanded` is.
-    @AppStorage(MobileSpaceExpansion.defaultsKey) private var expandedRaw = ""
-    @AppStorage("ios.space.sort") private var sortRaw = MobileSpaceSort.standard.rawValue
+    @AppStorage(Prefs.Mobile.spacePagesExpanded) private var expandedRaw
+    @AppStorage(Prefs.Mobile.spaceSort, default: MobileSpaceSort.standard.rawValue) private var sortRaw
 
     private var sort: MobileSpaceSort { MobileSpaceSort(rawValue: sortRaw) ?? .standard }
     private var title: String { MobileSpacePlaceTitle.title(place, store: store) }
@@ -707,8 +707,6 @@ enum MobileSpaceDateText {
 /// Which pages show their subpages in a list: this device's own arrangement, kept as ids one to a
 /// line, and opened when New Subpage makes a page under one.
 enum MobileSpaceExpansion {
-    static let defaultsKey = "ios.space.pagesExpanded.v1"
-
     static func ids(_ raw: String) -> Set<String> {
         Set(raw.split(separator: "\n").map(String.init))
     }
@@ -718,9 +716,11 @@ enum MobileSpaceExpansion {
     }
 
     static func expand(_ pageID: String, defaults: UserDefaults = .standard) {
-        var current = ids(defaults.string(forKey: defaultsKey) ?? "")
-        guard current.insert(pageID).inserted else { return }
-        defaults.set(raw(current), forKey: defaultsKey)
+        Preferences.withStorage(defaults) {
+            var current = ids(Preferences.value(Prefs.Mobile.spacePagesExpanded))
+            guard current.insert(pageID).inserted else { return }
+            Preferences.set(raw(current), for: Prefs.Mobile.spacePagesExpanded)
+        }
     }
 }
 

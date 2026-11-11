@@ -47,16 +47,16 @@ final class MobileMemoryReviewScheduler: ObservableObject {
     var hour: Int {
         get {
             DailyReviewPreparationTiming.clampHour(
-                UserDefaults.standard.object(forKey: DailyReviewPreparationKeys.hour) as? Int
+                Preferences.value(Prefs.Memory.dailyPreparationHour)
                     ?? DailyReviewPreparationKeys.defaultHour
             )
         }
-        set { UserDefaults.standard.set(DailyReviewPreparationTiming.clampHour(newValue), forKey: DailyReviewPreparationKeys.hour) }
+        set { Preferences.set(DailyReviewPreparationTiming.clampHour(newValue), for: Prefs.Memory.dailyPreparationHour) }
     }
 
     /// The synced switch, read through the account's preference rows.
     func isEnabled() async -> Bool {
-        (try? await MobileModelPreferenceStore.shared.bool(forKey: DailyReviewPreparationKeys.enabled)) ?? false
+        (try? await MobileModelPreferenceStore.shared.valueOrDefault(for: Prefs.Memory.dailyPreparationEnabled)) ?? false
     }
 
     // MARK: - Registration

@@ -47,7 +47,9 @@ struct MobileMemoryReviewGrading {
         var depths: [String: MemoryReviewDepth] = [:]
         for source in sources {
             let typeDefault = (try? await MobileModelPreferenceStore.shared
-                .string(forKey: MemoryReviewDepth.typePreferenceKey(sourceType: source.sourceType)))
+                .valueOrDefault(for: Prefs.Families.reviewDepthByType.key(
+                    source.sourceType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                )))
                 .flatMap { MemoryReviewDepth(rawValue: $0) }
             depths[source.id] = MemoryReviewDepth.effective(sourceDepth: nil, typeDefault: typeDefault)
         }
@@ -161,9 +163,11 @@ struct MobileMemoryReviewGrading {
             applied.depthBySource[sourceID] = depth
         } else if let sourceType = sourceType?.lowercased(), !sourceType.isEmpty {
             do {
-                try await MobileModelPreferenceStore.shared.setString(
+                try await MobileModelPreferenceStore.shared.set(
                     depth.rawValue,
-                    forKey: MemoryReviewDepth.typePreferenceKey(sourceType: sourceType)
+                    for: Prefs.Families.reviewDepthByType.key(
+                        sourceType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+                    )
                 )
             } catch {
                 Logger(subsystem: "com.foreverlm.mobile", category: "MemoryReviewGrading")

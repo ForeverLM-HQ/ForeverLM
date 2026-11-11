@@ -26,7 +26,7 @@ final class WhatsNewCenter {
     static let shared = WhatsNewCenter()
 
     /// The build whose notes were last presented (or deliberately skipped).
-    static let lastSeenBuildKey = "whatsNew.lastSeenBuild"
+    static let lastSeenBuildKey = Prefs.Lifecycle.whatsNewLastSeenBuild.name
     /// The public changelog, bundled from `docs-site/changelog.md`.
     static let changelogResourceName = "changelog"
     static let fullChangelogURL = URL(string: "https://docs.foreverlm.com/changelog")!

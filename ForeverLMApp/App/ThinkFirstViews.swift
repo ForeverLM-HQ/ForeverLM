@@ -11,18 +11,18 @@ struct NotebookThinkFirstMenu: View {
     /// Observed so the menu follows another Mac, the web or MCP; written
     /// through `ThinkFirst.setNotebookLevel`, which removes the row to follow
     /// the library again.
-    @SyncedStorage private var stored: String
-    @SyncedStorage(wrappedValue: ThinkFirstLevel.off, ThinkFirst.levelKey)
+    @PreferenceStorage private var stored: Any?
+    @PreferenceStorage(Prefs.Planner.thinkFirstLevel, default: ThinkFirstLevel.off)
     private var libraryLevel: ThinkFirstLevel
 
     init(notebookID: String) {
         self.notebookID = notebookID
-        _stored = SyncedStorage(wrappedValue: "", ThinkFirst.notebookKey(notebookID))
+        _stored = PreferenceStorage(Prefs.Families.notebookThinkFirst.key(notebookID))
     }
 
     private var selection: Binding<ThinkFirstLevel?> {
         Binding(
-            get: { ThinkFirstLevel(rawValue: stored) },
+            get: { (stored as? String).flatMap(ThinkFirstLevel.init(rawValue:)) },
             set: { ThinkFirst.setNotebookLevel($0, notebookID: notebookID) }
         )
     }

@@ -14,8 +14,6 @@ enum MobileReaderPreferences {
     static let fontScaleStep = 0.15
     static let defaultFontScale = 1.0
 
-    fileprivate static let fontScaleKey = "ios.reader.fontScale"
-
     static func clampedFontScale(_ value: Double) -> Double {
         guard value.isFinite, value > 0 else { return defaultFontScale }
         return min(max(value, fontScaleRange.lowerBound), fontScaleRange.upperBound)
@@ -379,10 +377,8 @@ final class MobileSourceReaderViewModel: ObservableObject {
         sourceID: String,
         savedFraction: Double?
     ) -> MobileReaderDocument {
-        let defaults = UserDefaults.standard
         let scale = MobileReaderPreferences.clampedFontScale(
-            defaults.object(forKey: MobileReaderPreferences.fontScaleKey) as? Double
-                ?? MobileReaderPreferences.defaultFontScale
+            Preferences.value(Prefs.Mobile.readerFontScale) ?? MobileReaderPreferences.defaultFontScale
         )
         let fraction = min(max(savedFraction ?? 0, 0), 1)
 
@@ -447,7 +443,7 @@ final class MobileSourceReaderViewModel: ObservableObject {
         fontScale = next
 
         Task.detached(priority: .utility) {
-            UserDefaults.standard.set(next, forKey: MobileReaderPreferences.fontScaleKey)
+            Preferences.set(next, for: Prefs.Mobile.readerFontScale)
         }
         if var page = bookPage {
             // A book page resizes its text in place, keeping every chapter it
@@ -847,10 +843,8 @@ final class MobileSourceReaderViewModel: ObservableObject {
     /// The reader's text size, the opened chapter's saved position, and the
     /// empty book page built at that size.
     private nonisolated static func bookOpening(sourceID: String, savedFraction: Double?) -> (fontScale: Double, fraction: Double, shell: String) {
-        let defaults = UserDefaults.standard
         let scale = MobileReaderPreferences.clampedFontScale(
-            defaults.object(forKey: MobileReaderPreferences.fontScaleKey) as? Double
-                ?? MobileReaderPreferences.defaultFontScale
+            Preferences.value(Prefs.Mobile.readerFontScale) ?? MobileReaderPreferences.defaultFontScale
         )
         let fraction = min(max(savedFraction ?? 0, 0), 1)
         return (scale, fraction, MobileReaderText.bookDocumentHTML(fontScale: scale))

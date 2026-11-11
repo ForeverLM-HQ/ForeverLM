@@ -269,7 +269,7 @@ extension StudioViewModel {
     }
 
     func saveUserCourseNames() {
-        PreferenceStore.set(Array(userCourseNames), forKey: "userCourseNames")
+        Preferences.set(Array(userCourseNames), for: Prefs.Studio.userCourseNames)
     }
 
     func courseDisplayName(_ groupName: String) -> String {

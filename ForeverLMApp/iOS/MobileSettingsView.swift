@@ -8,8 +8,8 @@ import SwiftUI
 struct MobileSettingsView: View {
     @Environment(MobileAccountGateModel.self) private var account
     @ObservedObject private var offline = MobileOfflineLibrary.shared
-    @AppStorage(LoadingIndicatorSpeed.key)
-    private var thinkingMarkSpeed: Double = LoadingIndicatorSpeed.defaultValue
+    @AppStorage(Prefs.Planner.loadingIndicatorSpeed, default: LoadingIndicatorSpeed.defaultValue)
+    private var thinkingMarkSpeed: Double
     @State private var showsDeleteConfirmation = false
     @State private var showsSignOutConfirmation = false
     @State private var showsDeleteAuthorization = false
@@ -28,8 +28,8 @@ struct MobileSettingsView: View {
     // the last pick this phone saw until the row answers.
     @State private var voiceModeVoice = RealtimeVoiceDefaults.resolvedVoice(MobileRealtimeVoicePick.lastSeen)
     @State private var voiceModeError: String?
-    @AppStorage(DailyReviewPreparationKeys.hour)
-    private var prepareDailyReviewHour: Int = DailyReviewPreparationKeys.defaultHour
+    @AppStorage(Prefs.Memory.dailyPreparationHour, default: DailyReviewPreparationKeys.defaultHour)
+    private var prepareDailyReviewHour: Int
     @ObservedObject private var reviewScheduler = MobileMemoryReviewScheduler.shared
     /// The library's move and sync (`MobileSyncNotice`).
     @ObservedObject private var librarySync = MobileLibrarySyncStatusModel.shared
@@ -280,7 +280,7 @@ struct MobileSettingsView: View {
         .task {
             do {
                 denyDataCollection = try await MobileModelPreferenceStore.shared
-                    .bool(forKey: AIDataPolicy.denyDataCollectionKey) ?? false
+                    .valueOrDefault(for: Prefs.AIPolicy.denyDataCollection) ?? false
             } catch {
                 dataPolicyError = error.localizedDescription
             }
@@ -288,9 +288,9 @@ struct MobileSettingsView: View {
         .task {
             do {
                 prepareDailyReview = try await MobileModelPreferenceStore.shared
-                    .bool(forKey: DailyReviewPreparationKeys.enabled) ?? false
+                    .valueOrDefault(for: Prefs.Memory.dailyPreparationEnabled)
                 if let minutes = try await MobileModelPreferenceStore.shared
-                    .int(forKey: MemoryReviewBudget.preferenceKey) {
+                    .valueOrDefault(for: Prefs.Memory.budgetMinutes) {
                     reviewBudgetMinutes = MemoryReviewBudget.clamp(minutes)
                 }
             } catch {
@@ -300,7 +300,7 @@ struct MobileSettingsView: View {
         .task {
             do {
                 let stored = try await MobileModelPreferenceStore.shared
-                    .string(forKey: RealtimeVoiceDefaults.voicePreferenceKey)
+                    .valueOrDefault(for: Prefs.ReadAloud.voiceModeVoice)
                 MobileRealtimeVoicePick.remember(stored)
                 voiceModeVoice = RealtimeVoiceDefaults.resolvedVoice(stored)
             } catch {
@@ -331,9 +331,9 @@ struct MobileSettingsView: View {
                 voiceModeVoice = picked
                 Task {
                     do {
-                        try await MobileModelPreferenceStore.shared.setString(
+                        try await MobileModelPreferenceStore.shared.set(
                             picked,
-                            forKey: RealtimeVoiceDefaults.voicePreferenceKey
+                            for: Prefs.ReadAloud.voiceModeVoice
                         )
                         MobileRealtimeVoicePick.remember(picked)
                         voiceModeError = nil
@@ -355,9 +355,9 @@ struct MobileSettingsView: View {
                 denyDataCollection = enabled
                 Task {
                     do {
-                        try await MobileModelPreferenceStore.shared.setBool(
+                        try await MobileModelPreferenceStore.shared.set(
                             enabled,
-                            forKey: AIDataPolicy.denyDataCollectionKey
+                            for: Prefs.AIPolicy.denyDataCollection
                         )
                         dataPolicyError = nil
                     } catch {
@@ -378,9 +378,9 @@ struct MobileSettingsView: View {
                 prepareDailyReview = enabled
                 Task {
                     do {
-                        try await MobileModelPreferenceStore.shared.setBool(
+                        try await MobileModelPreferenceStore.shared.set(
                             enabled,
-                            forKey: DailyReviewPreparationKeys.enabled
+                            for: Prefs.Memory.dailyPreparationEnabled
                         )
                         memorySettingsError = nil
                         // The daily quiz reminder stays on either way
@@ -405,9 +405,9 @@ struct MobileSettingsView: View {
                 reviewBudgetMinutes = minutes
                 Task {
                     do {
-                        try await MobileModelPreferenceStore.shared.setInt(
+                        try await MobileModelPreferenceStore.shared.set(
                             MemoryReviewBudget.clamp(minutes),
-                            forKey: MemoryReviewBudget.preferenceKey
+                            for: Prefs.Memory.budgetMinutes
                         )
                         memorySettingsError = nil
                         // Today's cards (and the widget's count) follow the
@@ -442,10 +442,10 @@ struct MobileTextToSpeechSettingsView: View {
 
 private struct MobileTextToSpeechSettingsControls: View {
     @ObservedObject private var textToSpeech = ArticleSpeechPreferences.shared
-    @AppStorage(MobileBookPlaybackPreferences.automaticallyContinuesKey)
-    private var automaticallyContinuesBooks = false
-    @AppStorage(MobileBookPlaybackPreferences.hasAskedToAutomaticallyContinueKey)
-    private var hasChosenBookContinuation = false
+    @AppStorage(Prefs.Mobile.automaticallyContinuesBooks)
+    private var automaticallyContinuesBooks: Bool
+    @AppStorage(Prefs.Mobile.hasAskedToAutomaticallyContinueBooks)
+    private var hasChosenBookContinuation: Bool
     @State private var preferenceSyncError: String?
     @State private var suppressedCostModelIDs: Set<String> = []
     /// The account did not take or give the model pick; shown under the
@@ -548,13 +548,12 @@ private struct MobileTextToSpeechSettingsControls: View {
                 prioritizedModelID: textToSpeech.modelID
             )
             do {
-                let suppressed = try await MobileModelPreferenceStore.shared.stringArray(
-                    forKey: TextToSpeechCostConfirmationPreferences.suppressedModelIDsKey
-                ) ?? []
+                let suppressed = try await MobileModelPreferenceStore.shared
+                    .valueOrDefault(for: Prefs.ReadAloud.costConfirmationSuppressedModels) ?? []
                 suppressedCostModelIDs = Set(suppressed)
                 UserDefaults.standard.set(
                     suppressed.sorted(),
-                    forKey: TextToSpeechCostConfirmationPreferences.suppressedModelIDsKey
+                    forKey: Prefs.ReadAloud.costConfirmationSuppressedModels.name
                 )
                 preferenceSyncError = nil
             } catch {
@@ -595,10 +594,7 @@ private struct MobileTextToSpeechSettingsControls: View {
             },
             set: { confirms in
                 if confirms {
-                    UserDefaults.standard.set(
-                        true,
-                        forKey: MobileTextToSpeechPricingPreferences.confirmsEstimatedCostKey
-                    )
+                    Preferences.set(true, for: Prefs.Mobile.readAloudConfirmsEstimatedCost)
                 }
                 let updated = TextToSpeechCostConfirmationPreferences.updatedSuppressedModelIDs(
                     suppressedCostModelIDs,
@@ -608,13 +604,13 @@ private struct MobileTextToSpeechSettingsControls: View {
                 suppressedCostModelIDs = Set(updated)
                 UserDefaults.standard.set(
                     updated,
-                    forKey: TextToSpeechCostConfirmationPreferences.suppressedModelIDsKey
+                    forKey: Prefs.ReadAloud.costConfirmationSuppressedModels.name
                 )
                 Task {
                     do {
-                        try await MobileModelPreferenceStore.shared.setStringArray(
+                        try await MobileModelPreferenceStore.shared.set(
                             updated,
-                            forKey: TextToSpeechCostConfirmationPreferences.suppressedModelIDsKey
+                            for: Prefs.ReadAloud.costConfirmationSuppressedModels
                         )
                         preferenceSyncError = nil
                     } catch {
@@ -1389,11 +1385,11 @@ private struct MobileTextToSpeechVoiceListView: View {
     private func setRating(_ rating: ArticleSpeechVoiceRating, voiceID: String) {
         ratings[voiceID] = rating
         ratingError = nil
-        let key = ArticleSpeechVoiceRating.preferenceKey(modelID: modelID, voiceID: voiceID)
-        UserDefaults.standard.set(rating.rawValue, forKey: key)
+        let key = Prefs.Families.voiceRating.key("\(modelID)|\(voiceID)")
+        UserDefaults.standard.set(rating.rawValue, forKey: key.name)
         Task {
             do {
-                try await MobileModelPreferenceStore.shared.setString(rating.rawValue, forKey: key)
+                try await MobileModelPreferenceStore.shared.set(rating.rawValue, for: key)
             } catch {
                 ratingError = error.localizedDescription
             }
@@ -1405,8 +1401,8 @@ private struct MobileTextToSpeechVoiceListView: View {
         let modelID = modelID
         let voiceIDs = ArticleSpeechCatalog.voices(forModel: modelID).map(\.id)
         for voiceID in voiceIDs {
-            let key = ArticleSpeechVoiceRating.preferenceKey(modelID: modelID, voiceID: voiceID)
-            if let local = UserDefaults.standard.string(forKey: key)
+            let key = Prefs.Families.voiceRating.key("\(modelID)|\(voiceID)")
+            if let local = UserDefaults.standard.string(forKey: key.name)
                 .flatMap(ArticleSpeechVoiceRating.init(rawValue:)) {
                 ratings[voiceID] = local
             }
@@ -1418,12 +1414,12 @@ private struct MobileTextToSpeechVoiceListView: View {
             var pending = voiceIDs.makeIterator()
             func enqueue() {
                 guard let voiceID = pending.next() else { return }
-                let key = ArticleSpeechVoiceRating.preferenceKey(modelID: modelID, voiceID: voiceID)
+                let key = Prefs.Families.voiceRating.key("\(modelID)|\(voiceID)")
                 group.addTask {
                     // Bound before the tuple: see AGENTS.md on tuples around an await in a task.
                     let result: Result<String?, Error>
                     do {
-                        let raw = try await MobileModelPreferenceStore.shared.string(forKey: key)
+                        let raw = try await MobileModelPreferenceStore.shared.valueOrDefault(for: key)
                         result = .success(raw)
                     } catch {
                         result = .failure(error)
@@ -1439,7 +1435,7 @@ private struct MobileTextToSpeechVoiceListView: View {
                         ratings[voiceID] = remote
                         UserDefaults.standard.set(
                             raw,
-                            forKey: ArticleSpeechVoiceRating.preferenceKey(modelID: modelID, voiceID: voiceID)
+                            forKey: Prefs.Families.voiceRating.key("\(modelID)|\(voiceID)").name
                         )
                     }
                     enqueue()

@@ -22,8 +22,6 @@ struct PreferenceKeyAliasTests {
         (Prefs.Account.showsCompCrown.name, MacAccountUser.showsCompCrownPreferenceKey),
         (Prefs.Account.aboutYou.name, LearnerProfile.aboutYouPreferenceKey),
         (Prefs.Account.sharingRightsAffirmation.name, SharingRightsAffirmation.preferenceKey),
-        (Prefs.Models.chatModelsEnabledIDs.name, MobileOfferedChatModels.enabledIDsKey),
-        (Prefs.Models.chatModelsOpenRouterCustom.name, MobileOfferedChatModels.customModelsKey),
         (Prefs.Models.ttsProvider.name, ArticleSpeechSelection.syncedProviderKey),
         (Prefs.Models.ttsModelOpenRouter.name, ArticleSpeechSelection.syncedModelKey),
         (Prefs.Models.backgroundUsageConsented.name, KeychainService.backgroundAIUsageConsentKey),

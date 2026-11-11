@@ -267,7 +267,7 @@ extension StudioViewModel {
     nonisolated static func meetingFolderImageURLsFromDefaults(
         _ defaults: UserDefaults = .standard
     ) -> [String: String] {
-        let prefix = MeetingMetadata.folderImagePreferenceKeyPrefix
+        let prefix = Prefs.Families.meetingFolderImage.prefix
         var images: [String: String] = [:]
         for (key, value) in defaults.dictionaryRepresentation()
         where key.hasPrefix(prefix) {
@@ -289,11 +289,11 @@ extension StudioViewModel {
     /// that a local path only resolves on the Mac holding the file, while a web
     /// address follows the account to every client.
     func setMeetingFolderImageURL(_ raw: String?, for groupName: String) {
-        let key = MeetingMetadata.folderImagePreferenceKey(for: groupName)
+        let key = Prefs.Families.meetingFolderImage.key(groupName)
         let trimmed = (raw ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else {
             meetingFolderImageURLs.removeValue(forKey: groupName)
-            PreferenceStore.remove(forKey: key)
+            Preferences.reset(key)
             return
         }
         let normalized = Self.normalizedMeetingFolderImageURL(trimmed)
@@ -302,7 +302,7 @@ extension StudioViewModel {
             return
         }
         meetingFolderImageURLs[groupName] = normalized
-        PreferenceStore.set(normalized, forKey: key)
+        Preferences.set(normalized, for: key)
     }
 
     nonisolated static func normalizedMeetingFolderImageURL(_ value: String) -> String {
@@ -478,7 +478,7 @@ extension StudioViewModel {
 
     // MARK: - Google Drive meetings
 
-    nonisolated static let meetingOwnTranscriptionEnabledKey = "meetings.transcribeWhenGoogleDidNot"
+    nonisolated static let meetingOwnTranscriptionEnabledKey = Prefs.Meetings.transcribeWhenGoogleDidNot.name
 
     /// Whether ForeverLM may run speech-to-text over a meeting recording itself.
     ///
@@ -494,7 +494,7 @@ extension StudioViewModel {
     /// and a value synced in from the user's other Mac lands in `UserDefaults`
     /// without passing through this type.
     nonisolated static var isMeetingOwnTranscriptionEnabled: Bool {
-        UserDefaults.standard.bool(forKey: meetingOwnTranscriptionEnabledKey)
+        Preferences.value(Prefs.Meetings.transcribeWhenGoogleDidNot)
     }
 
     /// The path for adding a meeting folder: one Google sign-in (read-only Drive
@@ -1158,18 +1158,18 @@ extension StudioViewModel {
     /// Synced (see `SyncedPreferenceKeys`) so a removal on one Mac also stops
     /// the other Mac's background passes, which would otherwise resurrect the
     /// group and sync it straight back.
-    nonisolated static let removedMeetingGroupTitlesKey = "meetings.removedGroupTitles"
+    nonisolated static let removedMeetingGroupTitlesKey = Prefs.Meetings.removedGroupTitles.name
 
     /// Stable plugin/group identities for removals. Titles remain as a
     /// compatibility guard for local and older removals, but they are mutable
     /// presentation and cannot be the identity of a Google Drive folder.
-    nonisolated static let removedMeetingGroupIdentitiesKey = "meetings.removedGroupIdentities"
+    nonisolated static let removedMeetingGroupIdentitiesKey = Prefs.Meetings.removedGroupIdentities.name
 
     /// Oldest removals fall off first; the list stays bounded because it syncs.
     nonisolated private static let removedMeetingGroupTitlesCap = 200
 
     nonisolated static func loadRemovedMeetingGroupTitles() -> [String] {
-        UserDefaults.standard.stringArray(forKey: removedMeetingGroupTitlesKey) ?? []
+        Preferences.value(Prefs.Meetings.removedGroupTitles) ?? []
     }
 
     /// Whether `titles` covers `title` — trimmed and case-insensitive, the same
@@ -1227,7 +1227,7 @@ extension StudioViewModel {
     }
 
     nonisolated static func loadRemovedMeetingGroupIdentities() -> [String] {
-        UserDefaults.standard.stringArray(forKey: removedMeetingGroupIdentitiesKey) ?? []
+        Preferences.value(Prefs.Meetings.removedGroupIdentities) ?? []
     }
 
     nonisolated static func isMeetingGroupRemoved(
@@ -1261,12 +1261,12 @@ extension StudioViewModel {
         metadata: MeetingMetadata
     ) {
         recordRemovedMeetingGroupTitle(metadata.title ?? groupID)
-        PreferenceStore.set(
+        Preferences.set(
             removedMeetingGroupIdentities(
                 loadRemovedMeetingGroupIdentities(),
                 recording: meetingGroupRemovalIdentities(groupID: groupID, metadata: metadata)
             ),
-            forKey: removedMeetingGroupIdentitiesKey
+            for: Prefs.Meetings.removedGroupIdentities
         )
     }
 
@@ -1275,31 +1275,31 @@ extension StudioViewModel {
         metadata: MeetingMetadata
     ) {
         liftRemovedMeetingGroupTitle(metadata.title ?? groupID)
-        PreferenceStore.set(
+        Preferences.set(
             removedMeetingGroupIdentities(
                 loadRemovedMeetingGroupIdentities(),
                 lifting: meetingGroupRemovalIdentities(groupID: groupID, metadata: metadata)
             ),
-            forKey: removedMeetingGroupIdentitiesKey
+            for: Prefs.Meetings.removedGroupIdentities
         )
     }
 
     nonisolated static func recordRemovedMeetingGroupTitle(_ title: String) {
-        PreferenceStore.set(
+        Preferences.set(
             removedMeetingGroupTitles(loadRemovedMeetingGroupTitles(), recording: title),
-            forKey: removedMeetingGroupTitlesKey
+            for: Prefs.Meetings.removedGroupTitles
         )
     }
 
     nonisolated static func liftRemovedMeetingGroupTitle(_ title: String) {
-        PreferenceStore.set(
+        Preferences.set(
             removedMeetingGroupTitles(loadRemovedMeetingGroupTitles(), lifting: title),
-            forKey: removedMeetingGroupTitlesKey
+            for: Prefs.Meetings.removedGroupTitles
         )
     }
 
     func saveUserMeetingGroupNames() {
-        PreferenceStore.set(Array(userMeetingGroupNames), forKey: "userMeetingGroupNames")
+        Preferences.set(Array(userMeetingGroupNames), for: Prefs.Meetings.userGroupNames)
     }
 
 }

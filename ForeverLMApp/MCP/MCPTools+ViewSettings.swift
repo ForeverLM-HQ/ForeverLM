@@ -20,12 +20,12 @@ extension MCPDataStore {
     /// One remembered preference as an entry: its key, its kind, what it reads as when the key is
     /// absent, and what a write must be (a choice's options, a number's range, an integer or not).
     @MainActor
-    private static func preferenceEntry(
+    private static func preferenceEntry<Value>(
         id: String,
         pane: String,
         title: String,
         detail: String,
-        key: String,
+        key: AccountKey<Value>,
         kind: AppSettingEntry.Kind,
         absent: Any,
         integer: Bool = false,
@@ -39,47 +39,58 @@ extension MCPDataStore {
             detail: detail,
             reach: .account,
             kind: kind,
-            preferenceKeys: [key],
+            preferenceKeys: [key.name],
             options: options.isEmpty ? nil : { options.map { ["value": $0.value, "label": $0.label] } },
             read: {
-                let stored = UserDefaults.standard.object(forKey: key)
+                let stored = Preferences.storage.object(forKey: key.name)
                 switch kind {
                 case .boolean: return stored as? Bool ?? absent
                 case .number: return (stored as? NSNumber)?.doubleValue ?? absent
                 case .choice, .text: return stored as? String ?? absent
-                case .stringList: return UserDefaults.standard.stringArray(forKey: key) ?? absent
+                case .stringList: return stored as? [String] ?? absent
                 }
             },
             write: { value in
                 switch kind {
                 case .boolean:
-                    PreferenceStore.set(try AppSettingEntry.bool(value, id), forKey: key)
+                    Preferences.set(try Self.storable(try AppSettingEntry.bool(value, id), as: key, id: id), for: key)
                 case let .number(min, max, _):
                     let number = try AppSettingEntry.number(value, id)
                     guard number.isFinite, number >= min, number <= max, !integer || number == number.rounded() else {
                         throw MCPError.invalidInput("\(id) takes \(integer ? "a whole number" : "a number") from \(min) to \(max).")
                     }
-                    PreferenceStore.set(integer ? Int(number) as Any : number as Any, forKey: key)
+                    let stored: Any = Value.self == Int.self || Value.self == Int?.self ? Int(number) : number
+                    Preferences.set(try Self.storable(stored, as: key, id: id), for: key)
                 case .choice:
                     let choice = try AppSettingEntry.string(value, id)
                     guard optionValues.contains(choice) else {
                         throw MCPError.invalidInput("\(id) takes one of: \(optionValues.joined(separator: ", ")).")
                     }
-                    PreferenceStore.set(choice, forKey: key)
+                    Preferences.set(try Self.storable(choice, as: key, id: id), for: key)
                 case .text:
-                    PreferenceStore.set(try AppSettingEntry.string(value, id), forKey: key)
+                    Preferences.set(try Self.storable(try AppSettingEntry.string(value, id), as: key, id: id), for: key)
                 case .stringList:
-                    PreferenceStore.set(try AppSettingEntry.strings(value, id), forKey: key)
+                    Preferences.set(try Self.storable(try AppSettingEntry.strings(value, id), as: key, id: id), for: key)
                 }
             }
         )
     }
 
+    /// The value as the key's own type, which is what a typed write takes. The entries below pair
+    /// each kind with a key of the matching type, so this holds; it throws rather than store
+    /// something of another type.
+    private static func storable<Value>(_ stored: Any, as key: AccountKey<Value>, id: String) throws -> Value {
+        guard let value = stored as? Value else {
+            throw MCPError.invalidInput("\(id) cannot be stored under \(key.name).")
+        }
+        return value
+    }
+
     /// A text value that holds JSON, refused unless it parses as a JSON object (or, for a list of
     /// hidden rows, an array) the way the control that writes it would have produced.
     @MainActor
-    private static func jsonTextEntry(
-        id: String, pane: String, title: String, detail: String, key: String, absent: String, isArray: Bool = false
+    private static func jsonTextEntry<Value>(
+        id: String, pane: String, title: String, detail: String, key: AccountKey<Value>, absent: String, isArray: Bool = false
     ) -> AppSettingEntry {
         AppSettingEntry(
             id: id,
@@ -88,15 +99,15 @@ extension MCPDataStore {
             detail: detail,
             reach: .account,
             kind: .text,
-            preferenceKeys: [key],
-            read: { UserDefaults.standard.string(forKey: key) ?? absent },
+            preferenceKeys: [key.name],
+            read: { Preferences.storage.object(forKey: key.name) as? String ?? absent },
             write: { value in
                 let text = try AppSettingEntry.string(value, id)
                 let parsed = try? JSONSerialization.jsonObject(with: Data(text.utf8))
                 guard isArray ? parsed is [Any] : parsed is [String: Any] else {
                     throw MCPError.invalidInput("\(id) takes a JSON \(isArray ? "array" : "object") as text.")
                 }
-                PreferenceStore.set(text, forKey: key)
+                Preferences.set(try Self.storable(text, as: key, id: id), for: key)
             }
         )
     }
@@ -227,53 +238,53 @@ extension MCPDataStore {
             preferenceEntry(
                 id: "sources.podcast_sort_mode", pane: "Sources sidebar › Podcasts filter (no pane)", title: "Podcast sort",
                 detail: "How podcast episodes sort in the Sources sidebar: by date, or grouped by podcast channel.",
-                key: "podcastSortMode", kind: .choice, absent: PodcastSortMode.date.rawValue,
+                key: Prefs.Studio.podcastSortMode, kind: .choice, absent: PodcastSortMode.date.rawValue,
                 options: PodcastSortMode.allCases.map { ($0.rawValue, $0.title) }
             ),
             preferenceEntry(
                 id: "sources.video_sort_mode", pane: "Sources sidebar › Videos filter (no pane)", title: "Video sort",
                 detail: "How videos sort in the Sources sidebar: by when the learner liked them, or by their own publication date.",
-                key: "videoSortMode", kind: .choice, absent: VideoSortMode.liked.rawValue,
+                key: Prefs.Studio.videoSortMode, kind: .choice, absent: VideoSortMode.liked.rawValue,
                 options: VideoSortMode.allCases.map { ($0.rawValue, $0.title) }
             ),
             preferenceEntry(
                 id: "sources.meeting_list_order", pane: "Sources sidebar › Meetings, By Date toggle beside the search", title: "Meetings list order",
                 detail: "How the Meetings tab lists sessions: one row per series (bySeries), or every session on its own row, newest first (byDate).",
-                key: "meetingListOrder", kind: .choice, absent: MeetingListOrder.bySeries.rawValue,
+                key: Prefs.Studio.meetingListOrder, kind: .choice, absent: MeetingListOrder.bySeries.rawValue,
                 options: MeetingListOrder.allCases.map { ($0.rawValue, $0.title) }
             ),
             preferenceEntry(
                 id: "sources.apple_podcast_discovery_scope", pane: "Sources › Podcasts (no pane)", title: "Apple Podcasts discovery",
                 detail: "Which Apple Podcasts episodes discovery reads: only the ones the learner listened to, those downloaded or listened to, or only the ones played to the end.",
-                key: ApplePodcastDiscoveryScope.defaultsKey, kind: .choice, absent: ApplePodcastDiscoveryScope.listened.rawValue,
+                key: Prefs.Discovery.applePodcastDiscoveryScope, kind: .choice, absent: ApplePodcastDiscoveryScope.listened.rawValue,
                 options: ApplePodcastDiscoveryScope.allCases.map { ($0.rawValue, $0.rawValue) }
             ),
             preferenceEntry(
                 id: "sources.youtube_fallback_shows", pane: "Sources › Podcasts (no pane)", title: "Podcasts matched on YouTube",
                 detail: "The shows whose episodes are matched on YouTube when their feed carries no transcript, by show name. The whole list is replaced.",
-                key: "podcasts.youtubeFallbackShows", kind: .stringList, absent: [String]()
+                key: Prefs.Discovery.youtubeFallbackShows, kind: .stringList, absent: [String]()
             ),
             preferenceEntry(
                 id: "sources.tab_bar_layout", pane: "Sources sidebar › tab bar (no pane)", title: "Source tab bar layout",
                 detail: "Compact keeps the source types in one narrow row; roomy shows them across two rows with larger icons.",
-                key: "studio.sourceTabBarLayout", kind: .choice, absent: SourceTabBarLayout.compact.rawValue,
+                key: Prefs.Studio.sourceTabBarLayout, kind: .choice, absent: SourceTabBarLayout.compact.rawValue,
                 options: SourceTabBarLayout.allCases.map { ($0.rawValue, $0.title) }
             ),
             preferenceEntry(
                 id: "sources.show_tab_labels", pane: "Sources sidebar › tab bar (no pane)", title: "Show source tab labels",
                 detail: "Whether the source tabs show their labels beside the icons. On by default.",
-                key: "studio.showSourceTabLabels", kind: .boolean, absent: true
+                key: Prefs.Studio.showSourceTabLabels, kind: .boolean, absent: true
             ),
             preferenceEntry(
                 id: "sources.tab_icon_size", pane: "Sources sidebar › tab bar (no pane)", title: "Source tab icon size",
                 detail: "The size of the source tabs' icons, and with it the tab bar's height.",
-                key: "studio.sourceTabIconSize", kind: .choice, absent: SourceTabIconSize.medium.rawValue,
+                key: Prefs.Studio.sourceTabIconSize, kind: .choice, absent: SourceTabIconSize.medium.rawValue,
                 options: SourceTabIconSize.allCases.map { ($0.rawValue, $0.title) }
             ),
             preferenceEntry(
                 id: "sources.tab_order", pane: "Sources sidebar › tab bar (no pane)", title: "Source tab order",
                 detail: "The source tab bar's order, as source type ids (the values source_type takes). Types the list leaves out follow in their usual order. The whole list is replaced.",
-                key: "studio.tabOrder", kind: .stringList, absent: [String]()
+                key: Prefs.Studio.tabOrder, kind: .stringList, absent: [String]()
             ),
         ]
     }
@@ -286,18 +297,18 @@ extension MCPDataStore {
             preferenceEntry(
                 id: "appearance.zoom_step", pane: "View › Zoom (no pane)", title: "Zoom",
                 detail: "The app-wide zoom step, from \(UIZoom.minStep) (smallest) to \(UIZoom.maxStep) (largest); the default is \(UIZoom.defaultStep). The View menu's Zoom In and Zoom Out move it by one.",
-                key: "uiZoomStep", kind: .number(min: Double(UIZoom.minStep), max: Double(UIZoom.maxStep), step: 1),
+                key: Prefs.Studio.zoomStep, kind: .number(min: Double(UIZoom.minStep), max: Double(UIZoom.maxStep), step: 1),
                 absent: Double(UIZoom.defaultStep), integer: true
             ),
             jsonTextEntry(
                 id: "appearance.metadata_visibility", pane: "Sources sidebar › filter popover (no pane)", title: "Metadata shown in lists",
                 detail: "Which metadata fields each source type's rows hide, as a JSON object of source type id to the list of hidden field ids, such as {\"podcast\":[\"duration\"]}. Everything shows by default, so only hidden fields are stored; {} shows all.",
-                key: "metadataVisibility", absent: "{}"
+                key: Prefs.Studio.metadataVisibility, absent: "{}"
             ),
             preferenceEntry(
                 id: "appearance.reader_original_page_colors", pane: "Reader › Dark Mode (no pane)", title: "Original page colors",
                 detail: "Read sources as they were published rather than darkened in Dark Mode. Off by default: Dark Mode still means a dark page.",
-                key: ReaderDarkMode.originalPageColorsKey, kind: .boolean, absent: false
+                key: Prefs.Readers.originalPageColors, kind: .boolean, absent: false
             ),
         ]
     }
@@ -310,104 +321,104 @@ extension MCPDataStore {
             preferenceEntry(
                 id: "window.show_search_panel", pane: "Window › Search panel (no pane)", title: "Show the Search panel",
                 detail: "Whether a new Studio window shows its Search panel. On by default.",
-                key: "studio.showSearchPanel", kind: .boolean, absent: true
+                key: Prefs.Studio.showSearchPanel, kind: .boolean, absent: true
             ),
             preferenceEntry(
                 id: "window.navigation_rail_visible", pane: "Window › Navigation rail (no pane)", title: "Show the navigation rail",
                 detail: "Whether a new Studio window shows the navigation rail. On by default.",
-                key: "studio.navigationRailVisible", kind: .boolean, absent: true
+                key: Prefs.Studio.navigationRailVisible, kind: .boolean, absent: true
             ),
             preferenceEntry(
                 id: "window.expanded_panel", pane: "Window (no pane)", title: "Expanded panel",
                 detail: "Which Studio panel is expanded to fill the window: sources, reader or search; none leaves them side by side.",
-                key: "studio.expandedPanel", kind: .choice, absent: "none",
+                key: Prefs.Studio.expandedPanel, kind: .choice, absent: "none",
                 options: [("none", "None"), ("sources", "Sources"), ("reader", "Reader"), ("search", "Search")]
             ),
             preferenceEntry(
                 id: "window.center_tab_groups", pane: "Window (no pane)", title: "Center tab groups",
                 detail: "The center pane's tab groups, in the stored form the window writes (strings). The whole list is replaced; one the window cannot read falls back to its default layout.",
-                key: "studio.centerTabGroups.v1", kind: .stringList, absent: [String]()
+                key: Prefs.Studio.centerTabGroups, kind: .stringList, absent: [String]()
             ),
             preferenceEntry(
                 id: "window.chat_order", pane: "Navigation rail › Chats (no pane)", title: "Chat order",
                 detail: "The order the learner gave the chats in the navigation rail, as chat ids; chats it leaves out keep their usual place. The whole list is replaced.",
-                key: "studio.chatOrder", kind: .stringList, absent: [String]()
+                key: Prefs.Studio.chatOrder, kind: .stringList, absent: [String]()
             ),
             preferenceEntry(
                 id: "window.course_order", pane: "Courses tab (no pane)", title: "Course order",
                 detail: "The Courses tab's order, as course ids, account-wide. The whole list is replaced.",
-                key: "studio.courseOrder", kind: .stringList, absent: [String]()
+                key: Prefs.Studio.courseOrder, kind: .stringList, absent: [String]()
             ),
             preferenceEntry(
                 id: "window.rail_chats_expanded", pane: "Navigation rail › Chats (no pane)", title: "Chats section open",
                 detail: "Whether the navigation rail's Chats section is open. On by default.",
-                key: "studio.navigation.chatsExpanded.v1", kind: .boolean, absent: true
+                key: Prefs.Rail.chatsExpanded, kind: .boolean, absent: true
             ),
             preferenceEntry(
                 id: "window.rail_hidden_chats_expanded", pane: "Navigation rail › Chats (no pane)", title: "Hidden chats section open",
                 detail: "Whether the navigation rail's Hidden chats section is open. Off by default.",
-                key: "studio.navigation.hiddenChatsExpanded.v1", kind: .boolean, absent: false
+                key: Prefs.Rail.hiddenChatsExpanded, kind: .boolean, absent: false
             ),
             AppSettingEntry(
                 id: "window.rail_hidden_items", pane: "Navigation rail (no pane)", title: "Hidden rail rows",
                 detail: "The navigation rail's rows the learner hid, as a JSON array of row ids (\(StudioRailItem.allCases.map(\.rawValue).joined(separator: ", "))). [] shows every row.",
-                reach: .account, kind: .text, preferenceKeys: [StudioRailHiddenItems.storageKey],
-                read: { Self.railHiddenItemsJSON(UserDefaults.standard.string(forKey: StudioRailHiddenItems.storageKey) ?? "") },
+                reach: .account, kind: .text, preferenceKeys: [Prefs.Rail.hiddenItems.name],
+                read: { Self.railHiddenItemsJSON(Preferences.value(Prefs.Rail.hiddenItems)) },
                 write: { value in
                     let text = try AppSettingEntry.string(value, "window.rail_hidden_items")
-                    PreferenceStore.set(try Self.railHiddenItemsStorage(fromJSON: text), forKey: StudioRailHiddenItems.storageKey)
+                    Preferences.set(try Self.railHiddenItemsStorage(fromJSON: text), for: Prefs.Rail.hiddenItems)
                 }
             ),
             AppSettingEntry(
                 id: "window.rail_shortcuts", pane: "Navigation rail (no pane)", title: "Icon strip shortcuts",
                 detail: "The places kept on the icon strip, as a JSON array of place ids (\(StudioRailShortcut.offered(listsCanvases: true).map(\.key).joined(separator: ", "))). [] keeps none. Where each stands is window.rail_order.",
-                reach: .account, kind: .text, preferenceKeys: [StudioRailShortcuts.storageKey],
-                read: { Self.railShortcutsJSON(UserDefaults.standard.string(forKey: StudioRailShortcuts.storageKey) ?? "") },
+                reach: .account, kind: .text, preferenceKeys: [Prefs.Rail.shortcuts.name],
+                read: { Self.railShortcutsJSON(Preferences.value(Prefs.Rail.shortcuts)) },
                 write: { value in
                     let text = try AppSettingEntry.string(value, "window.rail_shortcuts")
-                    PreferenceStore.set(try Self.railShortcutsStorage(fromJSON: text), forKey: StudioRailShortcuts.storageKey)
+                    Preferences.set(try Self.railShortcutsStorage(fromJSON: text), for: Prefs.Rail.shortcuts)
                 }
             ),
             AppSettingEntry(
                 id: "window.rail_order", pane: "Navigation rail (no pane)", title: "Icon strip order",
                 detail: "The order of the icon strip's top icons, its rows and the places kept there, as a JSON array of ids (\(Self.stripOrderIDs(footer: false).joined(separator: ", "))). An icon not listed stands after the one before it in the strip's own order; [] is the strip's own order.",
-                reach: .account, kind: .text, preferenceKeys: [StudioStripOrder.topStorageKey],
-                read: { Self.stripOrderJSON(UserDefaults.standard.string(forKey: StudioStripOrder.topStorageKey) ?? "") },
+                reach: .account, kind: .text, preferenceKeys: [Prefs.Rail.stripOrder.name],
+                read: { Self.stripOrderJSON(Preferences.value(Prefs.Rail.stripOrder)) },
                 write: { value in
                     let text = try AppSettingEntry.string(value, "window.rail_order")
-                    PreferenceStore.set(
+                    Preferences.set(
                         try Self.stripOrderStorage(fromJSON: text, footer: false, setting: "window.rail_order"),
-                        forKey: StudioStripOrder.topStorageKey
+                        for: Prefs.Rail.stripOrder
                     )
                 }
             ),
             AppSettingEntry(
                 id: "window.rail_footer_hidden_items", pane: "Navigation rail (no pane)", title: "Hidden icon strip footer icons",
                 detail: "The icon strip's bottom icons the learner hid, as a JSON array of icon ids (\(StudioStripFooterItem.allCases.map(\.rawValue).joined(separator: ", "))). [] shows every icon.",
-                reach: .account, kind: .text, preferenceKeys: [StudioStripFooterHiddenItems.storageKey],
-                read: { Self.stripFooterHiddenJSON(UserDefaults.standard.string(forKey: StudioStripFooterHiddenItems.storageKey) ?? "") },
+                reach: .account, kind: .text, preferenceKeys: [Prefs.Rail.hiddenFooterItems.name],
+                read: { Self.stripFooterHiddenJSON(Preferences.value(Prefs.Rail.hiddenFooterItems)) },
                 write: { value in
                     let text = try AppSettingEntry.string(value, "window.rail_footer_hidden_items")
-                    PreferenceStore.set(try Self.stripFooterHiddenStorage(fromJSON: text), forKey: StudioStripFooterHiddenItems.storageKey)
+                    Preferences.set(try Self.stripFooterHiddenStorage(fromJSON: text), for: Prefs.Rail.hiddenFooterItems)
                 }
             ),
             AppSettingEntry(
                 id: "window.rail_footer_order", pane: "Navigation rail (no pane)", title: "Icon strip footer order",
                 detail: "The order of the icon strip's bottom icons as a JSON array of ids (\(Self.stripOrderIDs(footer: true).joined(separator: ", "))). An icon not listed stands after the one before it in the strip's own order; [] is the strip's own order.",
-                reach: .account, kind: .text, preferenceKeys: [StudioStripOrder.footerStorageKey],
-                read: { Self.stripOrderJSON(UserDefaults.standard.string(forKey: StudioStripOrder.footerStorageKey) ?? "") },
+                reach: .account, kind: .text, preferenceKeys: [Prefs.Rail.stripFooterOrder.name],
+                read: { Self.stripOrderJSON(Preferences.value(Prefs.Rail.stripFooterOrder)) },
                 write: { value in
                     let text = try AppSettingEntry.string(value, "window.rail_footer_order")
-                    PreferenceStore.set(
+                    Preferences.set(
                         try Self.stripOrderStorage(fromJSON: text, footer: true, setting: "window.rail_footer_order"),
-                        forKey: StudioStripOrder.footerStorageKey
+                        for: Prefs.Rail.stripFooterOrder
                     )
                 }
             ),
             preferenceEntry(
                 id: "window.integration_tab_unpin_applied", pane: "Window (no pane)", title: "Integration tabs already unpinned",
                 detail: "Which integration tabs Studio's one-time unpin has already run for, as their ids. Taking one out lets the unpin run for it again. The whole list is replaced.",
-                key: StudioSidebarTab.integrationUnpinAppliedPreferenceKey, kind: .stringList, absent: [String]()
+                key: Prefs.Studio.integrationTabUnpinDefaultsApplied, kind: .stringList, absent: [String]()
             ),
         ]
     }
@@ -421,37 +432,37 @@ extension MCPDataStore {
             preferenceEntry(
                 id: "reader.youtube_transcript_beside_video", pane: "Reader › Videos (no pane)", title: "Transcript beside the video",
                 detail: "Whether a video's transcript sits beside it rather than below it.",
-                key: "reader.youtubeTranscriptBesideVideo", kind: .boolean, absent: true
+                key: Prefs.Readers.youtubeTranscriptBesideVideo, kind: .boolean, absent: true
             ),
             preferenceEntry(
                 id: "reader.youtube_video_pane_fraction", pane: "Reader › Videos (no pane)", title: "Video share of the pane",
                 detail: "The video's share of the reader pane when the transcript is below it, from 0 to 1; 0 means automatic.",
-                key: "reader.youtubeVideoPaneFraction", kind: fraction, absent: 0.0
+                key: Prefs.Readers.youtubeVideoPaneFraction, kind: fraction, absent: 0.0
             ),
             preferenceEntry(
                 id: "reader.youtube_video_pane_width_fraction", pane: "Reader › Videos (no pane)", title: "Video share of the pane's width",
                 detail: "The video's share of the reader pane's width when the transcript is beside it, from 0 to 1; 0 means automatic.",
-                key: "reader.youtubeVideoPaneWidthFraction", kind: fraction, absent: 0.0
+                key: Prefs.Readers.youtubeVideoPaneWidthFraction, kind: fraction, absent: 0.0
             ),
             preferenceEntry(
                 id: "reader.meeting_video_pane_fraction", pane: "Reader › Meetings (no pane)", title: "Meeting recording share of the pane",
                 detail: "A meeting recording's share of the reader pane, from 0 to 1; 0 means automatic.",
-                key: "reader.meetingVideoPaneFraction", kind: fraction, absent: 0.0
+                key: Prefs.Readers.meetingVideoPaneFraction, kind: fraction, absent: 0.0
             ),
             preferenceEntry(
                 id: "reader.meeting_transcript_beside_video", pane: "Reader › Meetings (no pane)", title: "Meeting transcript beside the recording",
                 detail: "Whether a meeting's transcript sits beside its recording rather than below it. Off by default.",
-                key: "reader.meetingTranscriptBesideVideo", kind: .boolean, absent: false
+                key: Prefs.Readers.meetingTranscriptBesideVideo, kind: .boolean, absent: false
             ),
             preferenceEntry(
                 id: "reader.meeting_video_pane_width_fraction", pane: "Reader › Meetings (no pane)", title: "Meeting recording share of the pane's width",
                 detail: "The recording's share of the reader pane's width when the transcript is beside it, from 0 to 1; 0 means automatic.",
-                key: "reader.meetingVideoPaneWidthFraction", kind: fraction, absent: 0.0
+                key: Prefs.Readers.meetingVideoPaneWidthFraction, kind: fraction, absent: 0.0
             ),
             preferenceEntry(
                 id: "docs.page_width", pane: "Doc editor (no pane)", title: "Doc page width",
                 detail: "How wide a Doc's page is drawn, in points: 760 is Standard, 1040 Wide, and 0 fills the pane (Full Width). Any width from 400 can be set; the learner drags the page's edges for the same.",
-                key: ArtifactPageWidth.key, kind: .number(min: 0, max: 4000, step: 1),
+                key: Prefs.Readers.pageColumnWidth, kind: .number(min: 0, max: 4000, step: 1),
                 absent: ArtifactPageWidth.standard, integer: true
             ),
         ]
@@ -465,57 +476,57 @@ extension MCPDataStore {
             preferenceEntry(
                 id: "mcp.assistant_integrations_enabled", pane: "MCP", title: "Let assistants reach ForeverLM",
                 detail: "Whether assistants may reach ForeverLM over MCP at all. On by default; turning it off closes the connection on every Mac of the account, this call's own connection included, so ask the learner first.",
-                key: "studio.assistantIntegrationsEnabled", kind: .boolean, absent: true
+                key: Prefs.MCP.assistantIntegrationsEnabled, kind: .boolean, absent: true
             ),
             preferenceEntry(
                 id: "getting_started.completed", pane: "Getting Started (no pane)", title: "Getting Started done",
                 detail: "Whether Getting Started is done.",
-                key: "gettingStarted.completed", kind: .boolean, absent: false
+                key: Prefs.Rail.gettingStartedCompleted, kind: .boolean, absent: false
             ),
             preferenceEntry(
                 id: "getting_started.dismissed", pane: "Getting Started (no pane)", title: "Getting Started put away",
                 detail: "Whether Getting Started was put away.",
-                key: "gettingStarted.dismissed", kind: .boolean, absent: false
+                key: Prefs.Rail.gettingStartedDismissed, kind: .boolean, absent: false
             ),
             preferenceEntry(
                 id: "getting_started.completed_steps", pane: "Getting Started (no pane)", title: "Getting Started steps done",
                 detail: "Getting Started's finished steps, one bit each: bit 0 is the first step.",
-                key: "gettingStarted.completedSteps", kind: .number(min: 0, max: 1_048_575, step: 1), absent: 0.0, integer: true
+                key: Prefs.Rail.gettingStartedCompletedSteps, kind: .number(min: 0, max: 1_048_575, step: 1), absent: 0.0, integer: true
             ),
             preferenceEntry(
                 id: "getting_started.ai_subscriptions", pane: "Getting Started (no pane)", title: "AI apps the learner pays for",
                 detail: "Which AI apps the learner pays for, as setup asked: a comma-separated list of claude, chatgpt, grok, gemini or other, or none.",
-                key: "gettingStarted.aiSubscriptions", kind: .text, absent: ""
+                key: Prefs.Rail.aiSubscriptions, kind: .text, absent: ""
             ),
             preferenceEntry(
                 id: "background_ai.usage_consented", pane: "Getting Started › Background AI (no pane)", title: "Background AI usage agreed",
                 detail: "Whether the learner agreed to background AI usage in Getting Started. It lets background work run on the account's spend, so set it only on the learner's own say-so.",
-                key: KeychainService.backgroundAIUsageConsentKey, kind: .boolean, absent: false
+                key: Prefs.Models.backgroundUsageConsented, kind: .boolean, absent: false
             ),
             preferenceEntry(
                 id: "chat.slow_free_model_offer_dismissed", pane: "Chat (no pane)", title: "Stop offering to leave a slow free model",
                 detail: "Whether the learner chose Don't Ask Again on the offer to leave a slow free chat model. Off brings the offer back.",
-                key: SlowFreeModelWait.dismissedKey, kind: .boolean, absent: false
+                key: Prefs.Rail.slowFreeModelOfferDismissed, kind: .boolean, absent: false
             ),
             preferenceEntry(
                 id: "courses.user_names", pane: "Sources sidebar › Courses (no pane)", title: "Course group names",
                 detail: "The course group names the learner made, by name. The whole list is replaced.",
-                key: "userCourseNames", kind: .stringList, absent: [String]()
+                key: Prefs.Studio.userCourseNames, kind: .stringList, absent: [String]()
             ),
             preferenceEntry(
                 id: "meetings.user_group_names", pane: "Sources sidebar › Meetings (no pane)", title: "Meeting group names",
                 detail: "The meeting group names the learner made, by name. The whole list is replaced.",
-                key: "userMeetingGroupNames", kind: .stringList, absent: [String]()
+                key: Prefs.Meetings.userGroupNames, kind: .stringList, absent: [String]()
             ),
             preferenceEntry(
                 id: "meetings.removed_group_titles", pane: "Sources sidebar › Meetings (no pane)", title: "Meeting groups deleted, by title",
                 detail: "The meeting groups the learner deleted, by title, so an import never brings one back. Taking a title out lets an import make that group again. The whole list is replaced.",
-                key: StudioViewModel.removedMeetingGroupTitlesKey, kind: .stringList, absent: [String]()
+                key: Prefs.Meetings.removedGroupTitles, kind: .stringList, absent: [String]()
             ),
             preferenceEntry(
                 id: "meetings.removed_group_identities", pane: "Sources sidebar › Meetings (no pane)", title: "Meeting groups deleted, by identity",
                 detail: "The meeting groups the learner deleted, by identity. Taking one out lets an import make that group again. The whole list is replaced.",
-                key: StudioViewModel.removedMeetingGroupIdentitiesKey, kind: .stringList, absent: [String]()
+                key: Prefs.Meetings.removedGroupIdentities, kind: .stringList, absent: [String]()
             ),
         ]
     }
@@ -567,30 +578,30 @@ extension MCPDataStore {
             preferenceEntry(
                 id: "chat.default_effort", pane: "Chat › effort control (no pane)", title: "Default chat effort",
                 detail: "The effort last chosen from a chat's effort control; a chat with no effort of its own starts on it. none is no reasoning at all. A model that does not offer the effort uses its nearest one.",
-                key: AIModelPreferenceKey.defaultChatEffort, kind: .choice, absent: "",
+                key: Prefs.Models.defaultChatEffort, kind: .choice, absent: "",
                 options: AIEffort.allCases.map { ($0.rawValue, $0.rawValue) }
             ),
             preferenceEntry(
                 id: "chat.default_speed", pane: "Chat › speed control (no pane)", title: "Default chat speed",
                 detail: "The speed last chosen from a chat's speed control; a chat with no speed of its own starts on it. Absent is standard. A model whose OpenRouter hosts have no such tier runs at standard speed, and the choice is kept for the next model that has it.",
-                key: AIModelPreferenceKey.defaultChatSpeed, kind: .choice, absent: "",
+                key: Prefs.Models.defaultChatSpeed, kind: .choice, absent: "",
                 options: AISpeed.allCases.filter { $0 != .standard }.map { ($0.rawValue, $0.rawValue) }
             ),
             preferenceEntry(
                 id: "ai.text_routing_mode", pane: "AI Models (no pane)", title: "Text routing",
                 detail: "How text requests are routed. ForeverLM has one router, OpenRouter; the account's managed state sets this, and nothing else is offered.",
-                key: AIModelPreferenceKey.textRoutingMode, kind: .choice, absent: AITextRoutingMode.shippedDefault.rawValue,
+                key: Prefs.Models.textRoutingMode, kind: .choice, absent: AITextRoutingMode.shippedDefault.rawValue,
                 options: AITextRoutingMode.allCases.map { ($0.rawValue, $0.rawValue) }
             ),
             preferenceEntry(
                 id: "ai.anthropic_model_picked", pane: "AI Models (no pane)", title: "Anthropic model picked by hand",
                 detail: "Whether the learner picked Anthropic's model by hand rather than taking the default. Off lets a newer default replace it.",
-                key: "anthropic_model_explicitly_picked", kind: .boolean, absent: false
+                key: Prefs.Models.anthropicModelExplicitlyPicked, kind: .boolean, absent: false
             ),
             preferenceEntry(
                 id: "ai.openai_model_picked", pane: "AI Models (no pane)", title: "OpenAI model picked by hand",
                 detail: "Whether the learner picked OpenAI's model by hand rather than taking the default. Off lets a newer default replace it.",
-                key: "openai_model_explicitly_picked", kind: .boolean, absent: false
+                key: Prefs.Models.openAIModelExplicitlyPicked, kind: .boolean, absent: false
             ),
         ]
     }
@@ -603,12 +614,12 @@ extension MCPDataStore {
             preferenceEntry(
                 id: "read_aloud.openai_instructions", pane: "Voice › Text to Speech (no pane)", title: "OpenAI speaking instructions",
                 detail: "Hand-written speaking instructions sent with each text-to-speech request to OpenAI's voices, such as the pace and tone to read in. Empty sends none.",
-                key: MacArticleSpeechSettings.openAIInstructionsDefaultsKey, kind: .text, absent: ""
+                key: Prefs.ReadAloud.openAIInstructions, kind: .text, absent: ""
             ),
             preferenceEntry(
                 id: "read_aloud.local_qwen3_instructions", pane: "Voice › Text to Speech (no pane)", title: "Local server speaking instructions",
                 detail: "Hand-written speaking instructions sent with each text-to-speech request to the local Qwen3 server. Empty sends none.",
-                key: MacArticleSpeechSettings.localQwen3InstructionsDefaultsKey, kind: .text, absent: ""
+                key: Prefs.ReadAloud.localQwen3Instructions, kind: .text, absent: ""
             ),
             AppSettingEntry(
                 id: "read_aloud.apple_model", pane: "Voice › Text to Speech (no pane)", title: "On-device engine model",

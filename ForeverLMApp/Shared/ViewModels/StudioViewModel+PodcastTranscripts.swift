@@ -548,8 +548,6 @@ private final class PodcastFeedEnclosureParser: NSObject, XMLParserDelegate {
 
 extension StudioViewModel {
 
-    nonisolated static let podcastYouTubeFallbackShowsKey = "podcasts.youtubeFallbackShows"
-
     // A transcript the retired 50,000-character import cap cut is found and
     // restored by the completeness audit (`PodcastTranscriptDetruncationService`,
     // schema 167), which measures where each transcript stops in its episode's
@@ -674,10 +672,7 @@ extension StudioViewModel {
         } else {
             podcastYouTubeFallbackShows.remove(key)
         }
-        PreferenceStore.set(
-            podcastYouTubeFallbackShows.sorted(),
-            forKey: Self.podcastYouTubeFallbackShowsKey
-        )
+        Preferences.set(podcastYouTubeFallbackShows.sorted(), for: Prefs.Discovery.youtubeFallbackShows)
     }
 
     nonisolated static func podcastYouTubeSearchQuery(for article: StudioArticle) -> String {

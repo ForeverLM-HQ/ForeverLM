@@ -11,7 +11,7 @@ import os
 /// every note the learner added or asked ForeverLM to keep, and every chat is
 /// handed, is here, one sentence each.
 struct WorkingNotesSettingsSection: View {
-    @SyncedStorage(wrappedValue: true, WorkingNotesPreference.enabledKey)
+    @PreferenceStorage(Prefs.Memory.workingNotesEnabled)
     private var keepsNotes: Bool
     @State private var noteCount: Int?
     @State private var isReviewing = false

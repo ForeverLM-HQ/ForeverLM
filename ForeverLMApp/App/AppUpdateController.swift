@@ -52,16 +52,16 @@ enum AppUpdatePhase: Equatable {
 /// out again does not downgrade: Sparkle never installs an older build, so a
 /// Mac on a beta stays on it until production passes it.
 enum BetaReleases {
-    static let preferenceKey = "updates.betaReleases"
+    static let preferenceKey = Prefs.Lifecycle.betaReleases.name
     /// The `<sparkle:channel>` value `release_macos.sh --beta` publishes under.
     static let channel = "beta"
 
     static var isSignedUp: Bool {
-        UserDefaults.standard.bool(forKey: preferenceKey)
+        Preferences.value(Prefs.Lifecycle.betaReleases)
     }
 
     static func setSignedUp(_ signedUp: Bool) {
-        PreferenceStore.set(signedUp, forKey: preferenceKey)
+        Preferences.set(signedUp, for: Prefs.Lifecycle.betaReleases)
     }
 
     /// What `SPUUpdaterDelegate.allowedChannels(for:)` answers. Empty means
@@ -83,7 +83,7 @@ enum BetaReleases {
 /// word at the next read. A build the feed does not list (a Dev build) is
 /// none.
 enum RunningBuildChannel {
-    static let preferenceKey = "updates.runningBuildIsBeta.v1"
+    static let preferenceKey = Prefs.Lifecycle.runningBuildIsBeta.name
 
     static var runningBuild: String {
         Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion") as? String ?? ""
@@ -93,7 +93,7 @@ enum RunningBuildChannel {
         // ForeverLM Dev carries the cut's build number but is not the binary
         // the feed published.
         guard !ForeverLMRuntimeIdentity.isDevelopment else { return false }
-        return isBeta(stored: UserDefaults.standard.string(forKey: preferenceKey), build: runningBuild)
+        return isBeta(stored: Preferences.value(Prefs.Lifecycle.runningBuildIsBeta) as? String, build: runningBuild)
     }
 
     /// The stored answer applies to `build` only.
@@ -107,7 +107,7 @@ enum RunningBuildChannel {
 
     /// Whether this Mac holds an answer for the running build yet.
     static var isKnown: Bool {
-        UserDefaults.standard.string(forKey: preferenceKey)?.hasPrefix("\(runningBuild):") == true
+        (Preferences.value(Prefs.Lifecycle.runningBuildIsBeta) as? String)?.hasPrefix("\(runningBuild):") == true
     }
 
     /// Reads the feed the app updates from and keeps its answer for the
@@ -133,7 +133,7 @@ enum RunningBuildChannel {
             let answer = AppcastFeed.isBeta(build: build, in: data)
             DispatchQueue.main.async {
                 if let answer {
-                    UserDefaults.standard.set(storedValue(isBeta: answer, build: build), forKey: preferenceKey)
+                    Preferences.set(storedValue(isBeta: answer, build: build), for: Prefs.Lifecycle.runningBuildIsBeta)
                 }
                 completion?()
             }
@@ -189,8 +189,8 @@ enum BetaFeatures {
         showsCanvas(signedUpForBetas: BetaReleases.isSignedUp)
     }
 
-    /// For a view that observes the sign-up itself (`@SyncedStorage` of
-    /// `BetaReleases.preferenceKey`), so it redraws when the sign-up changes.
+    /// For a view that observes the sign-up itself (`@PreferenceStorage` of
+    /// `Prefs.Lifecycle.betaReleases`), so it redraws when the sign-up changes.
     static func showsCanvas(signedUpForBetas: Bool) -> Bool {
         showsCanvas(signedUpForBetas: signedUpForBetas, inDevBuild: isBuildingHere)
     }
@@ -276,7 +276,6 @@ enum InstallerImage {
 
     /// Image paths the learner chose to keep, so a mounted installer is asked
     /// about once. Device-local: another Mac has its own installer.
-    private static let keptImagesKey = "installer.keptImagePaths"
     private static let logger = Logger(subsystem: "com.foreverlm", category: "InstallerImage")
 
     /// The mounted images in `hdiutil info -plist` output that carry a copy of
@@ -322,7 +321,7 @@ enum InstallerImage {
         // Let the window come up first; the question is not what the launch is for.
         try? await Task.sleep(for: .seconds(3))
         let appFileName = bundle.bundleURL.lastPathComponent
-        let kept = Set(UserDefaults.standard.stringArray(forKey: keptImagesKey) ?? [])
+        let kept = Set(Preferences.value(Prefs.Lifecycle.installerKeptImagePaths) ?? [])
         let mounted = await Task.detached(priority: .utility) { () -> [Mounted] in
             let info = (try? run(["info", "-plist"])).flatMap {
                 try? PropertyListSerialization.propertyList(from: $0, format: nil) as? [String: Any]
@@ -341,7 +340,7 @@ enum InstallerImage {
         alert.addButton(withTitle: "Move to Trash")
         alert.addButton(withTitle: "Keep")
         guard alert.runModal() == .alertFirstButtonReturn else {
-            UserDefaults.standard.set(Array(kept.union([installer.imagePath])), forKey: keptImagesKey)
+            Preferences.set(Array(kept.union([installer.imagePath])), for: Prefs.Lifecycle.installerKeptImagePaths)
             return
         }
         do {
@@ -417,7 +416,6 @@ final class AppUpdateController: NSObject, ObservableObject {
     /// The build the user has already been told about. Checks now run hourly and
     /// keep finding the same version until they act on it; without this they
     /// would be notified again every hour.
-    private static let lastNotifiedBuildKey = "appUpdate.lastNotifiedBuild"
 
     @Published private(set) var phase: AppUpdatePhase = .idle
     @Published private(set) var canCheckForUpdates = false
@@ -654,10 +652,7 @@ final class AppUpdateController: NSObject, ObservableObject {
         // offering a beta build should fall back to what production offers.
         // The watcher hears the preference store name the key; it never reads
         // defaults on the other writes the process makes.
-        betaSignupWatcher = PreferenceKeyWatcher(
-            key: BetaReleases.preferenceKey,
-            read: { BetaReleases.isSignedUp }
-        ) { [weak self] signedUp in
+        betaSignupWatcher = PreferenceKeyWatcher(Prefs.Lifecycle.betaReleases) { [weak self] signedUp in
             self?.checkForUpdatesAfterBetaSignupChange(signedUp)
         }
     }
@@ -710,7 +705,7 @@ final class AppUpdateController: NSObject, ObservableObject {
     /// could sit unseen indefinitely. The banner is what actually reaches
     /// someone, and macOS keeps it in Notification Center after it fades.
     private func notifyUpdateAvailable(displayVersion: String, buildVersion: String) {
-        guard UserDefaults.standard.string(forKey: Self.lastNotifiedBuildKey) != buildVersion else { return }
+        guard (Preferences.value(Prefs.Lifecycle.appUpdateLastNotifiedBuild) as? String) != buildVersion else { return }
 
         let center = UNUserNotificationCenter.current()
         center.getNotificationSettings { [weak self] settings in
@@ -745,7 +740,7 @@ final class AppUpdateController: NSObject, ObservableObject {
         )
         UNUserNotificationCenter.current().add(request) { error in
             guard error == nil else { return }
-            UserDefaults.standard.set(buildVersion, forKey: Self.lastNotifiedBuildKey)
+            Preferences.set(buildVersion, for: Prefs.Lifecycle.appUpdateLastNotifiedBuild)
         }
     }
 

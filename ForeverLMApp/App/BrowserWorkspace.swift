@@ -35,7 +35,7 @@ struct BrowserProfile: Codable, Identifiable, Hashable, Sendable {
 @MainActor
 @Observable
 final class BrowserProfileStore {
-    static let profilesKey = "browser.profiles.v1"
+    static let profilesKey = Prefs.Readers.browserProfiles.name
 
     /// The app's one profile list: every window's Browser pane and every
     /// linked page read the same jars, so a profile made in one window is
@@ -250,7 +250,7 @@ struct BrowserSessionSnapshot: Codable, Equatable {
 @MainActor
 @Observable
 final class BrowserWorkspace {
-    static let sessionKey = "browser.session.v1"
+    static let sessionKey = Prefs.Readers.browserSession.name
 
     /// New tabs start here. The Library profile, so a page saved from the
     /// start of a session lands where the readers can use its cookies.
@@ -1538,10 +1538,10 @@ enum WebLinkDestination: String, CaseIterable, Identifiable {
 /// Browser") keep their word and do not come here.
 enum WebLinkOpening {
     /// This Mac's choice; never synced (`SyncedPreferenceKeys.excluded`).
-    static let preferenceKey = "webLinks.opensIn"
+    static let preferenceKey = Prefs.Readers.webLinksOpenIn.name
 
     static var destination: WebLinkDestination {
-        destination(stored: UserDefaults.standard.string(forKey: preferenceKey))
+        destination(stored: Preferences.value(Prefs.Readers.webLinksOpenIn))
     }
 
     /// The Browser pane unless this Mac chose otherwise.
@@ -1550,7 +1550,7 @@ enum WebLinkOpening {
     }
 
     static func setDestination(_ destination: WebLinkDestination) {
-        UserDefaults.standard.set(destination.rawValue, forKey: preferenceKey)
+        Preferences.set(destination.rawValue, for: Prefs.Readers.webLinksOpenIn)
     }
 
     /// An http or https address with a host: the only links the Browser pane

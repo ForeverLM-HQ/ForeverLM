@@ -3,7 +3,7 @@ import os
 
 enum MCPRuntimePreferences {
     static var assistantIntegrationsEnabled: Bool {
-        UserDefaults.standard.object(forKey: "studio.assistantIntegrationsEnabled") as? Bool ?? true
+        Preferences.value(Prefs.MCP.assistantIntegrationsEnabled)
     }
 }
 

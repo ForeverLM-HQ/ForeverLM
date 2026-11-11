@@ -552,7 +552,7 @@ enum MobileSpaceListing {
 final class MobileSpaceRecents {
     static let shared = MobileSpaceRecents()
     /// This phone's own key, its entries in the Mac's shape (`SpaceRecents.preferenceKey`'s).
-    static let preferenceKey = "ios.space.recents.v1"
+    static let preferenceKey = Prefs.Mobile.spaceRecents.name
     static let capacity = 40
     /// How many the sidebar shows.
     static let shown = 8
@@ -604,7 +604,9 @@ final class MobileSpaceRecents {
     /// The entries a `save()` left in `defaults`, in the Mac's shape (`{k, id, t}`, a page being an
     /// `artifact`); none for nil, an absent key or a shape this build does not read.
     static func load(from defaults: UserDefaults?) -> [Item] {
-        guard let raw = defaults?.array(forKey: preferenceKey) as? [[String: Any]] else { return [] }
+        guard let defaults,
+              let raw = Preferences.withStorage(defaults, { Preferences.value(Prefs.Mobile.spaceRecents) }) as? [[String: Any]]
+        else { return [] }
         var seen = Set<String>()
         return raw.compactMap { entry -> Item? in
             guard (entry["k"] as? String ?? "artifact") == "artifact", let id = entry["id"] as? String, !id.isEmpty,
@@ -616,6 +618,8 @@ final class MobileSpaceRecents {
     }
 
     private func save() {
-        defaults?.set(items.map { ["k": "artifact", "id": $0.id, "t": $0.openedAt.timeIntervalSince1970] as [String: Any] }, forKey: Self.preferenceKey)
+        guard let defaults else { return }
+        let entries = items.map { ["k": "artifact", "id": $0.id, "t": $0.openedAt.timeIntervalSince1970] as [String: Any] }
+        Preferences.withStorage(defaults) { Preferences.set(entries, for: Prefs.Mobile.spaceRecents) }
     }
 }

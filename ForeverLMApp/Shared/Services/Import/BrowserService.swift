@@ -59,7 +59,7 @@ enum BrowserService {
     /// preference domain it landed in — the sandboxed and non-sandboxed builds read
     /// different files, and `defaults` targets the sandboxed one.
     static var currentPreference: BrowserPreference {
-        guard let raw = DefaultsEscapeHatch.string(forKey: "preferredBrowser"),
+        guard let raw = DefaultsEscapeHatch.string(forKey: Prefs.Discovery.preferredBrowser.name),
               let pref = BrowserPreference(rawValue: raw) else {
             return .sourceOrigin
         }

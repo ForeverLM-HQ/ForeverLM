@@ -94,7 +94,7 @@ final class MobileNotebookRailStore: ObservableObject {
     /// Writes a `[String]` row by key.
     typealias WriteRow = @Sendable (String, [String]) async throws -> Void
 
-    static let notebookOrderPreferenceKey = "studio.projectOrder"
+    static let notebookOrderPreferenceKey = Prefs.Studio.notebookOrder.name
 
     static let shared = MobileNotebookRailStore()
 

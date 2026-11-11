@@ -680,19 +680,21 @@ enum MobileWalkthroughPayloadParser {
 /// there. A convenience of this phone alone: it is not synced, and a deck
 /// left on its last card opens at the cover again.
 enum MobileWalkthroughDeckPosition {
-    private static func key(_ sourceID: String) -> String { "walkthroughDeck.position.\(sourceID)" }
+    private static func key(_ sourceID: String) -> DeviceKey<Any?> { Prefs.Families.walkthroughDeckPosition.key(sourceID) }
 
     static func restored(sourceID: String, cardCount: Int, defaults: UserDefaults = .standard) -> Int {
-        let saved = defaults.integer(forKey: key(sourceID))
+        let saved = Preferences.withStorage(defaults) { (Preferences.value(key(sourceID)) as? NSNumber)?.intValue ?? 0 }
         guard saved > 0, saved < cardCount - 1 else { return 0 }
         return saved
     }
 
     static func save(_ position: Int, sourceID: String, cardCount: Int, defaults: UserDefaults = .standard) {
-        if position <= 0 || position >= cardCount - 1 {
-            defaults.removeObject(forKey: key(sourceID))
-        } else {
-            defaults.set(position, forKey: key(sourceID))
+        Preferences.withStorage(defaults) {
+            if position <= 0 || position >= cardCount - 1 {
+                Preferences.reset(key(sourceID))
+            } else {
+                Preferences.set(position, for: key(sourceID))
+            }
         }
     }
 }

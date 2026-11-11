@@ -33,7 +33,6 @@ extension StorageService {
 
     // MARK: - Book folder adoption
 
-    private static let bookFolderAdoptionDefaultsKey = "StorageService.didAdoptBookFolderNames.v1"
     private nonisolated(unsafe) static var bookFolderAdoptionIsRunning = false
     private static let bookFolderAdoptionLock = NSLock()
 
@@ -131,7 +130,7 @@ extension StorageService {
     /// one — a folder that would not move — runs again next launch.
     static func scheduleBookFolderAdoptionAfterLaunch(storage: StorageService) {
         guard !ForeverLMRuntimeIdentity.isTestHost else { return }
-        guard !UserDefaults.standard.bool(forKey: bookFolderAdoptionDefaultsKey) else { return }
+        guard !(Preferences.value(Prefs.Lifecycle.bookFolderNamesAdopted) ?? false) else { return }
         Task.detached(priority: .utility) {
             let shouldProceed = bookFolderAdoptionLock.withLock { () -> Bool in
                 if bookFolderAdoptionIsRunning { return false }
@@ -157,7 +156,7 @@ extension StorageService {
                     )
                 }
                 if report.isComplete {
-                    UserDefaults.standard.set(true, forKey: bookFolderAdoptionDefaultsKey)
+                    Preferences.set(true, for: Prefs.Lifecycle.bookFolderNamesAdopted)
                 } else {
                     logger.error(
                         "Book folders: \(report.skippedBecauseDestinationExists.count) skipped (clean name taken), \(report.failed.count) failed, \(report.unresolvedReferences.count) unresolved; will retry next launch"

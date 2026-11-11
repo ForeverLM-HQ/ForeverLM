@@ -28,7 +28,7 @@ enum SettingsLayout {
 /// Your name, the one every client shows: edited as a draft and saved on
 /// Return or when the field loses focus, so typing is not a sync per key.
 struct SettingsNameSection: View {
-    @SyncedStorage(wrappedValue: "", MacAccountUser.displayNamePreferenceKey)
+    @PreferenceStorage(Prefs.Account.displayName)
     private var savedDisplayName: String
     @State private var displayNameDraft = ""
     @FocusState private var displayNameFocused: Bool
@@ -77,21 +77,21 @@ struct SettingsNameSection: View {
 /// planning chat.
 struct SettingsDaySection: View {
     /// This Mac's: the card and the notification ask on this Mac.
-    @AppStorage(PlanTheDay.settingKey)
-    private var suggestPlanningTheDay = true
-    @AppStorage(PlanTheDay.forcedKey)
-    private var forcePlanningTheDay = false
+    @AppStorage(Prefs.Planner.suggestPlanningTheDay)
+    private var suggestPlanningTheDay: Bool
+    @AppStorage(Prefs.Planner.forcePlanningTheDay)
+    private var forcePlanningTheDay: Bool
     /// This Mac's: it watches this Mac's screen.
-    @AppStorage(FocusWatch.settingKey)
-    private var nudgesBackOnTrack = false
-    @AppStorage(FocusWatch.readsScreenKey)
-    private var readsWindowToo = false
+    @AppStorage(Prefs.Planner.nudgeBackOnTrack)
+    private var nudgesBackOnTrack: Bool
+    @AppStorage(Prefs.Planner.focusReadsScreen)
+    private var readsWindowToo: Bool
     private var focusWatcher: FocusWatcher { FocusWatcher.shared }
     /// Synced: the learner's day is the same on every Mac.
-    @SyncedStorage(PlannerDayHours.startKey)
-    private var dayStartHour: Int = PlannerDayHours.defaultStart
-    @SyncedStorage(PlannerDayHours.endKey)
-    private var dayEndHour: Int = PlannerDayHours.defaultEnd
+    @PreferenceStorage(Prefs.Planner.dayStart, default: PlannerDayHours.defaultStart)
+    private var dayStartHour: Int
+    @PreferenceStorage(Prefs.Planner.dayEnd, default: PlannerDayHours.defaultEnd)
+    private var dayEndHour: Int
 
     /// The end hours the picker offers: after the chosen start, so the two
     /// pickers cannot be set into a day that ends before it begins.
@@ -223,7 +223,7 @@ struct SettingsDaySection: View {
 /// Think first's level for the library (`ThinkFirst`), synced so the picker
 /// follows another Mac, the web or MCP.
 struct SettingsThinkFirstSection: View {
-    @SyncedStorage(wrappedValue: ThinkFirstLevel.off, ThinkFirst.levelKey)
+    @PreferenceStorage(Prefs.Planner.thinkFirstLevel, default: ThinkFirstLevel.off)
     private var thinkFirstLevel: ThinkFirstLevel
 
     var body: some View {
@@ -251,7 +251,7 @@ struct SettingsThinkFirstSection: View {
 /// another Mac or MCP; `AppUpdateController` sees the change and checks the
 /// feed again. A small switch under the version in Settings' sidebar.
 struct SettingsBetaReleasesToggle: View {
-    @SyncedStorage(wrappedValue: false, BetaReleases.preferenceKey)
+    @PreferenceStorage(Prefs.Lifecycle.betaReleases)
     private var betaReleasesSignedUp: Bool
 
     var body: some View {
@@ -271,18 +271,18 @@ struct SettingsBetaReleasesToggle: View {
 /// The daily memory review: its length, the day's new cards, background card
 /// drafting and today's review readied ahead.
 struct SettingsMemoryReviewSection: View {
-    @SyncedStorage(wrappedValue: MemoryReviewBudget.defaultMinutes, MemoryReviewBudget.preferenceKey)
+    @PreferenceStorage(Prefs.Memory.budgetMinutes, default: MemoryReviewBudget.defaultMinutes)
     private var budgetMinutes: Int
-    @SyncedStorage(wrappedValue: false, DailyReviewPreparation.enabledKey)
+    @PreferenceStorage(Prefs.Memory.dailyPreparationEnabled)
     private var prepareDaily: Bool
-    @AppStorage(DailyReviewPreparation.hourKey)
-    private var readyHour: Int = DailyReviewPreparation.defaultHour
+    @AppStorage(Prefs.Memory.dailyPreparationHour, default: DailyReviewPreparation.defaultHour)
+    private var readyHour: Int
     /// Synced: the day's new cards, background drafting, and the corner card.
-    @SyncedStorage(wrappedValue: MemoryCardQueue.defaultNewPerDay, MemoryCardSettings.newCardsPerDayKey)
+    @PreferenceStorage(Prefs.Memory.newCardsPerDay, default: MemoryCardQueue.defaultNewPerDay)
     private var newCardsPerDay: Int
-    @SyncedStorage(wrappedValue: false, MemoryCardSettings.autoDraftKey)
+    @PreferenceStorage(Prefs.Memory.autoDraftCards)
     private var autoDraftsCards: Bool
-    @SyncedStorage(wrappedValue: true, MemoryCardSettings.draftNudgesKey)
+    @PreferenceStorage(Prefs.Memory.draftNudges)
     private var showsDraftNudges: Bool
     /// macOS's answer about ForeverLM's notifications: read when the section
     /// appears and each time the app comes forward, since the learner may

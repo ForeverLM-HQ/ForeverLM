@@ -15,8 +15,8 @@ struct GoogleDriveConnectionSettingsView: View {
     @State private var defaultAccountID: String?
     @State private var isWorking = false
     @State private var statusMessage: String?
-    @SyncedStorage(StudioViewModel.meetingOwnTranscriptionEnabledKey)
-    private var ownTranscriptionEnabled = false
+    @PreferenceStorage(Prefs.Meetings.transcribeWhenGoogleDidNot)
+    private var ownTranscriptionEnabled
 
     /// The meeting folders each connected account reads, by account id.
     private var foldersByAccount: GoogleDriveFolderAttribution {
@@ -897,8 +897,8 @@ struct YouTubeConnectionSettingsView: View {
     @State private var pendingLikedImportPolicy: YouTubeLikedImportPolicy?
     @State private var channelInput = ""
     @State private var isFollowingChannel = false
-    @SyncedStorage(StudioViewModel.youtubeLikedTranscriptFormattingKey)
-    private var automaticallyFormatLikedVideoTranscripts = false
+    @PreferenceStorage(Prefs.Discovery.youtubeLikedTranscriptFormattingEnabled, default: false)
+    private var automaticallyFormatLikedVideoTranscripts
 
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {

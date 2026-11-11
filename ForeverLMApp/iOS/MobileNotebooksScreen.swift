@@ -40,9 +40,9 @@ struct MobileNotebooksScreen: View {
     /// What the screen shows: all, Uncategorized or one collection. View
     /// state only, never synced.
     @State private var filter: NotebooksHomeFilter
-    @AppStorage(NotebooksHomeLayout.preferenceKey) private var storedLayout = NotebooksHomeLayout.grid.rawValue
-    @AppStorage(NotebooksHomeOrder.sortPreferenceKey) private var storedSort = NotebooksHomeSort.recent.rawValue
-    @AppStorage(NotebooksHomeOrder.reversedPreferenceKey) private var storedReversed = false
+    @AppStorage(Prefs.Space.notebooksHomeLayout, default: NotebooksHomeLayout.grid.rawValue) private var storedLayout
+    @AppStorage(Prefs.Space.notebooksHomeSort, default: NotebooksHomeSort.recent.rawValue) private var storedSort
+    @AppStorage(Prefs.Space.notebooksHomeSortReversed) private var storedReversed
 
     init(filter: NotebooksHomeFilter, open: @escaping (MobileShellRoute) -> Void) {
         _filter = State(initialValue: filter)

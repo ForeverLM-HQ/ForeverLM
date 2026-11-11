@@ -53,20 +53,20 @@ extension StudioViewModel {
 
     // MARK: - Auto-import preference
 
-    nonisolated static let youtubeAutoImportEnabledKey = "youtube.autoImportEnabled"
+    nonisolated static let youtubeAutoImportEnabledKey = Prefs.Discovery.youtubeAutoImportEnabled.name
     nonisolated static let youtubeLikedTranscriptFormattingKey =
-        "youtube.likedTranscriptFormattingEnabled"
+        Prefs.Discovery.youtubeLikedTranscriptFormattingEnabled.name
 
     /// Liked-video history can contain thousands of videos, and formatting one
     /// long transcript can fan out into several billed LLM calls. Keep that
     /// bulk work off until the learner explicitly opts in. Raw captions are
     /// still fetched and stored, so search and per-video reading keep working.
     nonisolated static var isLikedYouTubeTranscriptFormattingEnabled: Bool {
-        UserDefaults.standard.bool(forKey: youtubeLikedTranscriptFormattingKey)
+        Preferences.value(Prefs.Discovery.youtubeLikedTranscriptFormattingEnabled) ?? false
     }
 
     nonisolated static func setLikedYouTubeTranscriptFormattingEnabled(_ enabled: Bool) {
-        PreferenceStore.set(enabled, forKey: youtubeLikedTranscriptFormattingKey)
+        Preferences.set(enabled, for: Prefs.Discovery.youtubeLikedTranscriptFormattingEnabled)
     }
 
     /// Queued content work can outlive the playlist refresh that created it and
@@ -142,7 +142,7 @@ extension StudioViewModel {
     /// value when never set.
     nonisolated static var isYouTubeAutoImportEnabled: Bool {
         KeychainService.loadBool(.youtubeAutoImportEnabled)
-            ?? UserDefaults.standard.bool(forKey: youtubeAutoImportEnabledKey)
+            ?? (Preferences.value(Prefs.Discovery.youtubeAutoImportEnabled) ?? false)
     }
 
     /// Persist the YouTube auto-import preference to the synced Keychain (so it
@@ -154,7 +154,7 @@ extension StudioViewModel {
         Task.detached(priority: .userInitiated) {
             KeychainService.saveBool(enabled, for: .youtubeAutoImportEnabled)
         }
-        PreferenceStore.set(enabled, forKey: youtubeAutoImportEnabledKey)
+        Preferences.set(enabled, for: Prefs.Discovery.youtubeAutoImportEnabled)
     }
 
     /// Browser Reading Lists never become video or X post sources — liking a

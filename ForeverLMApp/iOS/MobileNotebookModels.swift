@@ -59,7 +59,7 @@ enum MobilePreferencePlist {
 enum MobileNotebookChatSelection {
     typealias Selection = NotebookChatContext.Selection
 
-    static let preferenceKeyPrefix = "notebook.chatExcluded."
+    static let preferenceKeyPrefix = Prefs.Families.notebookChatExcluded.prefix
 
     /// The unticked row's key.
     static func preferenceKey(notebookID: String) -> String {
@@ -581,7 +581,7 @@ enum MobileNotebookOrdering {
 /// longer opens it: the phone starts on Home, where the library is the first
 /// row (2026-10-25).
 enum MobileNotebookResume {
-    static let defaultsKey = "ios.notebooks.lastOpenedNotebookID"
+    static let defaultsKey = Prefs.Mobile.lastOpenedNotebookID.name
 }
 
 /// Where the last notebook is remembered: this device's defaults, never a
@@ -592,24 +592,30 @@ struct MobileLastNotebookStore {
     static var standard: MobileLastNotebookStore { MobileLastNotebookStore(defaults: .standard) }
 
     var notebookID: String? {
-        if let stored = defaults.string(forKey: MobileNotebookResume.defaultsKey) { return stored }
-        // Remembered before a notebook stopped being called a project.
-        guard let retired = defaults.string(forKey: "ios.notebooks.lastOpenedProjectID") else { return nil }
-        defaults.set(retired, forKey: MobileNotebookResume.defaultsKey)
-        defaults.removeObject(forKey: "ios.notebooks.lastOpenedProjectID")
-        return retired
+        Preferences.withStorage(defaults) {
+            if let stored = Preferences.value(Prefs.Mobile.lastOpenedNotebookID) { return stored }
+            // Remembered before a notebook stopped being called a project.
+            guard let retired = Preferences.value(Prefs.Mobile.retiredLastOpenedNotebookID) else { return nil }
+            Preferences.set(retired, for: Prefs.Mobile.lastOpenedNotebookID)
+            Preferences.reset(Prefs.Mobile.retiredLastOpenedNotebookID)
+            return retired
+        }
     }
 
     func remember(_ notebookID: String) {
-        guard defaults.string(forKey: MobileNotebookResume.defaultsKey) != notebookID else { return }
-        defaults.set(notebookID, forKey: MobileNotebookResume.defaultsKey)
+        Preferences.withStorage(defaults) {
+            guard Preferences.value(Prefs.Mobile.lastOpenedNotebookID) != notebookID else { return }
+            Preferences.set(notebookID, for: Prefs.Mobile.lastOpenedNotebookID)
+        }
     }
 
     /// Forgets the notebook when it is the one remembered (archived or
     /// deleted from this phone).
     func forget(_ notebookID: String) {
-        guard defaults.string(forKey: MobileNotebookResume.defaultsKey) == notebookID else { return }
-        defaults.removeObject(forKey: MobileNotebookResume.defaultsKey)
+        Preferences.withStorage(defaults) {
+            guard Preferences.value(Prefs.Mobile.lastOpenedNotebookID) == notebookID else { return }
+            Preferences.reset(Prefs.Mobile.lastOpenedNotebookID)
+        }
     }
 }
 
@@ -1810,9 +1816,6 @@ struct MobileChatModelChoice: Identifiable, Equatable, Hashable, Sendable {
 /// account's default chat model leads. Nothing is offered that the learner
 /// did not offer: with no row the chip holds the default alone.
 enum MobileOfferedChatModels {
-    static let enabledIDsKey = "chatModels.enabledIDs"
-    static let customModelsKey = "chatModels.openRouterCustom"
-
     /// The catalog's slash tokens for the hosts a phone request can name, to
     /// the provider names a route carries (`AIProvider.rawValue` on the Mac).
     static let providerBySlashToken: [String: String] = [

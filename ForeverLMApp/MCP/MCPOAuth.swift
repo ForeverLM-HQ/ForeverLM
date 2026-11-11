@@ -1639,10 +1639,11 @@ actor MCPOAuthProvider {
             statusDetail: cleanDetail
         )
         if let provider = MeetingProvider.forPluginLabel(connectorLabel(forClientID: clientID)) {
-            PreferenceStore.set(state.rawValue, forKey: "connectorHealth.\(provider.rawValue).state")
-            PreferenceStore.set(now.timeIntervalSince1970, forKey: "connectorHealth.\(provider.rawValue).lastSeenAt")
+            let health = Prefs.Families.connectorHealth
+            Preferences.set(state.rawValue, for: health.key("\(provider.rawValue).state"))
+            Preferences.set(now.timeIntervalSince1970, for: health.key("\(provider.rawValue).lastSeenAt"))
             if state == .healthy {
-                PreferenceStore.set(now.timeIntervalSince1970, forKey: "connectorHealth.\(provider.rawValue).lastSuccessfulSyncAt")
+                Preferences.set(now.timeIntervalSince1970, for: health.key("\(provider.rawValue).lastSuccessfulSyncAt"))
             }
             // Generation 2: the health is this Mac's Device record's, not a synced preference.
             ConnectorHealthSync.mirror()
@@ -1672,8 +1673,9 @@ actor MCPOAuthProvider {
         if let provider = dynamicClients[clientID]
             .map({ Self.sanitizedPluginLabel($0.clientName ?? clientID) })
             .flatMap(MeetingProvider.forPluginLabel) {
-            PreferenceStore.set(UserPluginHealthState.needsReconnect.rawValue, forKey: "connectorHealth.\(provider.rawValue).state")
-            PreferenceStore.set(Date().timeIntervalSince1970, forKey: "connectorHealth.\(provider.rawValue).lastSeenAt")
+            let health = Prefs.Families.connectorHealth
+            Preferences.set(UserPluginHealthState.needsReconnect.rawValue, for: health.key("\(provider.rawValue).state"))
+            Preferences.set(Date().timeIntervalSince1970, for: health.key("\(provider.rawValue).lastSeenAt"))
             ConnectorHealthSync.mirror()
         }
         accessTokens = accessTokens.filter { $0.value.clientID != clientID }

@@ -23,7 +23,7 @@ struct MobileMemoryReviewView: View {
     @FocusState private var isComposerFocused: Bool
     /// Cards or conversation, remembered on this phone. The Mac keeps its
     /// own under the same key.
-    @AppStorage("memoryReviewLayout") private var layoutRaw = "cards"
+    @AppStorage(Prefs.Memory.reviewLayout, default: "cards") private var layoutRaw: String
     /// The card swiped back to; nil for the newest, the one being answered.
     @State private var selectedCard: Int?
 

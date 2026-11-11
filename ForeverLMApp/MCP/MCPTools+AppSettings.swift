@@ -354,8 +354,8 @@ extension MCPDataStore {
                 reach: .account,
                 kind: .boolean,
                 preferenceKeys: [AssistantIntegrationSettings.statusLightVisibleKey],
-                read: { UserDefaults.standard.object(forKey: AssistantIntegrationSettings.statusLightVisibleKey) as? Bool ?? true },
-                write: { PreferenceStore.set(try AppSettingEntry.bool($0, "mcp.show_status_light"), forKey: AssistantIntegrationSettings.statusLightVisibleKey) }
+                read: { Preferences.value(Prefs.MCP.showStatusLight) },
+                write: { Preferences.set(try AppSettingEntry.bool($0, "mcp.show_status_light"), for: Prefs.MCP.showStatusLight) }
             ),
             AppSettingEntry(
                 id: "updates.beta_releases",
@@ -541,13 +541,13 @@ extension MCPDataStore {
                 reach: .thisMac,
                 kind: .number(min: LoadingIndicatorSpeed.minimum, max: LoadingIndicatorSpeed.maximum, step: LoadingIndicatorSpeed.step),
                 preferenceKeys: [LoadingIndicatorSpeed.key],
-                read: { LoadingIndicatorSpeed.clamped(UserDefaults.standard.object(forKey: LoadingIndicatorSpeed.key) as? Double) },
+                read: { LoadingIndicatorSpeed.clamped(Preferences.value(Prefs.Planner.loadingIndicatorSpeed)) },
                 write: { value in
                     let speed = try AppSettingEntry.number(value, "appearance.thinking_mark_speed")
                     guard LoadingIndicatorSpeed.range.contains(speed) else {
                         throw MCPError.invalidInput("appearance.thinking_mark_speed runs from \(LoadingIndicatorSpeed.minimum) to \(LoadingIndicatorSpeed.maximum).")
                     }
-                    UserDefaults.standard.set(LoadingIndicatorSpeed.clamped(speed), forKey: LoadingIndicatorSpeed.key)
+                    Preferences.set(LoadingIndicatorSpeed.clamped(speed), for: Prefs.Planner.loadingIndicatorSpeed)
                 }
             ),
         ]
@@ -609,7 +609,7 @@ extension MCPDataStore {
                     guard let layout = DayActivityLayout.allCases.first(where: { $0.mcpValue == raw }) else {
                         throw MCPError.invalidInput("activity.layout takes one of: \(DayActivityLayout.allCases.map(\.mcpValue).joined(separator: ", ")).")
                     }
-                    UserDefaults.standard.set(layout.rawValue, forKey: DayActivityLayout.storageKey)
+                    Preferences.set(layout.rawValue, for: Prefs.Planner.activityPaneLayout)
                 }
             ),
         ]
@@ -642,7 +642,7 @@ extension MCPDataStore {
                     guard let layout = MemoryReviewLayout.allCases.first(where: { $0.mcpValue == raw }) else {
                         throw MCPError.invalidInput("memory.review_layout takes one of: \(MemoryReviewLayout.allCases.map(\.mcpValue).joined(separator: ", ")).")
                     }
-                    UserDefaults.standard.set(layout.rawValue, forKey: MemoryReviewLayout.storageKey)
+                    Preferences.set(layout.rawValue, for: Prefs.Memory.reviewLayout)
                 }
             ),
         ]
@@ -893,7 +893,7 @@ extension MCPDataStore {
                 detail: "Which browsers' Reading Lists this Mac imports: any of safari, chrome, brave. Turning one on imports its list at once (as far back as sources.reading_list_import_window reaches); turning one off stops new imports and keeps what it brought in.",
                 reach: .thisMac,
                 kind: .stringList,
-                preferenceKeys: ReadingListBrowser.allCases.map(\.enabledKey),
+                preferenceKeys: ReadingListBrowser.allCases.map { $0.enabledPreference.name },
                 read: { ReadingListBrowser.allCases.filter(\.isEnabled).map(\.rawValue) },
                 write: { value in
                     let names = try AppSettingEntry.strings(value, "sources.reading_list_browsers")
@@ -948,7 +948,7 @@ extension MCPDataStore {
                     let raw = try AppSettingEntry.string(value, "sources.zoom_transcript_folder")
                         .trimmingCharacters(in: .whitespacesAndNewlines)
                     if raw.isEmpty {
-                        UserDefaults.standard.removeObject(forKey: StudioViewModel.zoomLocalTranscriptFolderKey)
+                        Preferences.reset(Prefs.Meetings.zoomLocalTranscriptFolder)
                     } else {
                         let path = (raw as NSString).expandingTildeInPath
                         var isDirectory: ObjCBool = false
@@ -957,7 +957,7 @@ extension MCPDataStore {
                               isDirectory.boolValue else {
                             throw MCPError.invalidInput("\(raw) is not a folder on this Mac.")
                         }
-                        UserDefaults.standard.set(path, forKey: StudioViewModel.zoomLocalTranscriptFolderKey)
+                        Preferences.set(path, for: Prefs.Meetings.zoomLocalTranscriptFolder)
                     }
                     AppModelBridge.studio?.zoomLocalTranscriptFolderDidChange()
                 }
@@ -972,9 +972,9 @@ extension MCPDataStore {
                 preferenceKeys: [StudioViewModel.meetingOwnTranscriptionEnabledKey],
                 read: { StudioViewModel.isMeetingOwnTranscriptionEnabled },
                 write: {
-                    PreferenceStore.set(
+                    Preferences.set(
                         try AppSettingEntry.bool($0, "google_drive.transcribe_when_google_did_not"),
-                        forKey: StudioViewModel.meetingOwnTranscriptionEnabledKey
+                        for: Prefs.Meetings.transcribeWhenGoogleDidNot
                     )
                 }
             ),
@@ -1005,16 +1005,16 @@ extension MCPDataStore {
                 reach: .thisMac,
                 kind: .boolean,
                 preferenceKeys: [JournalWatch.notifyOnMatchKey],
-                read: { UserDefaults.standard.bool(forKey: JournalWatch.notifyOnMatchKey) },
+                read: { Preferences.value(Prefs.Planner.journalsNotifyOnMatch) ?? false },
                 write: { value in
                     let enabled = try AppSettingEntry.bool(value, "feeds.notify_on_match")
                     if enabled {
                         guard await JournalWatchNotifications.requestAuthorization() else {
-                            UserDefaults.standard.set(false, forKey: JournalWatch.notifyOnMatchKey)
+                            Preferences.set(false, for: Prefs.Planner.journalsNotifyOnMatch)
                             throw MCPError.invalidInput("macOS refused notifications for ForeverLM; the learner can allow them in System Settings › Notifications.")
                         }
                     }
-                    UserDefaults.standard.set(enabled, forKey: JournalWatch.notifyOnMatchKey)
+                    Preferences.set(enabled, for: Prefs.Planner.journalsNotifyOnMatch)
                 }
             ),
         ]

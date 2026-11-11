@@ -20,8 +20,8 @@ extension StudioViewModel {
 
     // MARK: - Source Discovery
 
-    nonisolated static let browserAccessPromptDismissedKey = "discovery.browserAccessPromptDismissed"
-    nonisolated static let podcastAccessPromptDismissedKey = "discovery.podcastAccessPromptDismissed"
+    nonisolated static let browserAccessPromptDismissedKey = Prefs.Discovery.browserAccessPromptDismissed.name
+    nonisolated static let podcastAccessPromptDismissedKey = Prefs.Discovery.podcastAccessPromptDismissed.name
 
     func startProtectedSourceAutoSyncIfReady() {
         guard hasCompletedInitialQueueLoad else { return }
@@ -652,9 +652,9 @@ extension StudioViewModel {
     /// the current per-browser settings. Does filesystem existence checks —
     /// call off the main actor.
     nonisolated static func readingListWatchRoots() -> [String] {
-        let safariEnabled = DefaultsEscapeHatch.bool(forKey: "readingListSafari", default: true)
-        let chromeEnabled = DefaultsEscapeHatch.bool(forKey: "readingListChrome", default: true)
-        let braveEnabled = DefaultsEscapeHatch.bool(forKey: "readingListBrave", default: true)
+        let safariEnabled = DefaultsEscapeHatch.bool(forKey: Prefs.Discovery.readingListSafari.name, default: true)
+        let chromeEnabled = DefaultsEscapeHatch.bool(forKey: Prefs.Discovery.readingListChrome.name, default: true)
+        let braveEnabled = DefaultsEscapeHatch.bool(forKey: Prefs.Discovery.readingListBrave.name, default: true)
         let homeDir = BookmarkAccessManager.realHomeDirectory
 
         var candidates: [String] = []
@@ -809,9 +809,9 @@ extension StudioViewModel {
         guard !isLoadingQueue else { return nil }
 
         return ReadingListAutoSyncBase(
-            safariEnabled: DefaultsEscapeHatch.bool(forKey: "readingListSafari", default: true),
-            chromeEnabled: DefaultsEscapeHatch.bool(forKey: "readingListChrome", default: true),
-            braveEnabled: DefaultsEscapeHatch.bool(forKey: "readingListBrave", default: true),
+            safariEnabled: DefaultsEscapeHatch.bool(forKey: Prefs.Discovery.readingListSafari.name, default: true),
+            chromeEnabled: DefaultsEscapeHatch.bool(forKey: Prefs.Discovery.readingListChrome.name, default: true),
+            braveEnabled: DefaultsEscapeHatch.bool(forKey: Prefs.Discovery.readingListBrave.name, default: true),
             homeDir: realHomeDirectory,
             articles: articles,
             storage: storage
@@ -1403,9 +1403,9 @@ extension StudioViewModel {
 
         // Browser reading lists → articles (and papers detected from URLs)
         if Self.discoveryScanIncludesBrowserReadingLists(tab) {
-            let safariEnabled = DefaultsEscapeHatch.bool(forKey: "readingListSafari", default: true)
-            let chromeEnabled = DefaultsEscapeHatch.bool(forKey: "readingListChrome", default: true)
-            let braveEnabled = DefaultsEscapeHatch.bool(forKey: "readingListBrave", default: true)
+            let safariEnabled = DefaultsEscapeHatch.bool(forKey: Prefs.Discovery.readingListSafari.name, default: true)
+            let chromeEnabled = DefaultsEscapeHatch.bool(forKey: Prefs.Discovery.readingListChrome.name, default: true)
+            let braveEnabled = DefaultsEscapeHatch.bool(forKey: Prefs.Discovery.readingListBrave.name, default: true)
             let homeDir = realHomeDirectory
 
             setStep("Syncing browser Reading Lists…")
@@ -1493,7 +1493,7 @@ extension StudioViewModel {
             needsPodcastAccess = accessIsBlocked
             if !accessIsBlocked {
                 podcastAccessPromptDismissed = false
-                UserDefaults.standard.removeObject(forKey: Self.podcastAccessPromptDismissedKey)
+                Preferences.reset(Prefs.Discovery.podcastAccessPromptDismissed)
             }
         }
     }
@@ -1513,12 +1513,12 @@ extension StudioViewModel {
 
     func dismissBrowserAccessPrompt() {
         browserAccessPromptDismissed = true
-        UserDefaults.standard.set(true, forKey: Self.browserAccessPromptDismissedKey)
+        Preferences.set(true, for: Prefs.Discovery.browserAccessPromptDismissed)
     }
 
     func dismissPodcastAccessPrompt() {
         podcastAccessPromptDismissed = true
-        UserDefaults.standard.set(true, forKey: Self.podcastAccessPromptDismissedKey)
+        Preferences.set(true, for: Prefs.Discovery.podcastAccessPromptDismissed)
     }
 
     func discoveryWarnings(for tab: StudioSidebarTab?) -> [String] {
@@ -2405,10 +2405,10 @@ extension StudioViewModel {
     /// Apple Podcasts holds for them, not only the listened ones. Kept in the
     /// preference store like the discovery scope, since it steers a Mac-only
     /// import rather than describing a source.
-    nonisolated static let followedPodcastShowsKey = "podcasts.followedShows"
+    nonisolated static let followedPodcastShowsKey = Prefs.Discovery.followedPodcastShows.name
 
     nonisolated static func followedPodcastShowNames() -> Set<String> {
-        Set(UserDefaults.standard.stringArray(forKey: followedPodcastShowsKey) ?? [])
+        Set(Preferences.value(Prefs.Discovery.followedPodcastShows) ?? [])
     }
 
     var followedPodcastShows: Set<String> {
@@ -2433,7 +2433,7 @@ extension StudioViewModel {
         unblockPodcastShow(trimmed, silently: true)
         var names = followedPodcastShows
         names.insert(trimmed)
-        PreferenceStore.set(names.sorted(), forKey: Self.followedPodcastShowsKey)
+        Preferences.set(names.sorted(), for: Prefs.Discovery.followedPodcastShows)
         followedPodcastShowsVersion &+= 1
         return await importAllEpisodes(ofShow: trimmed)
     }
@@ -2448,9 +2448,9 @@ extension StudioViewModel {
         var names = followedPodcastShows
         guard names.remove(trimmed) != nil else { return }
         if names.isEmpty {
-            PreferenceStore.remove(forKey: Self.followedPodcastShowsKey)
+            Preferences.reset(Prefs.Discovery.followedPodcastShows)
         } else {
-            PreferenceStore.set(names.sorted(), forKey: Self.followedPodcastShowsKey)
+            Preferences.set(names.sorted(), for: Prefs.Discovery.followedPodcastShows)
         }
         followedPodcastShowsVersion &+= 1
         if !silently {

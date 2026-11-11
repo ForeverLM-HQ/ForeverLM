@@ -8,13 +8,13 @@ import AppKit
 /// The Mac account name supplies the first value; the synced preference is the
 /// durable authority after the user edits it on any client.
 enum MacAccountUser {
-    static let displayNamePreferenceKey = "account.displayName"
+    static let displayNamePreferenceKey = Prefs.Account.displayName.name
     /// Synced: whether the account menu shows a complimentary account's
     /// "Usage is paid for" row with its crown, and the web's footer its crown
     /// (the Mac's account button carries none). On unless
     /// the learner hides them, for a screenshot or a recording; Settings ›
     /// AI Usage still says who pays.
-    static let showsCompCrownPreferenceKey = "account.showsCompCrown"
+    static let showsCompCrownPreferenceKey = Prefs.Account.showsCompCrown.name
     /// The web Studio's name field takes the same length.
     static let maximumDisplayNameLength = 120
 
@@ -26,7 +26,7 @@ enum MacAccountUser {
     }()
 
     static var fullName: String? {
-        resolvedFullName(saved: UserDefaults.standard.string(forKey: displayNamePreferenceKey))
+        resolvedFullName(saved: Preferences.value(Prefs.Account.displayName))
     }
 
     /// The name to show for a saved preference value. A view that observes the
@@ -40,10 +40,10 @@ enum MacAccountUser {
     }
 
     static func seedSyncedDisplayNameIfNeeded() {
-        let saved = UserDefaults.standard.string(forKey: displayNamePreferenceKey)?
+        let saved = Preferences.value(Prefs.Account.displayName)
             .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard saved?.isEmpty != false, let systemFullName else { return }
-        PreferenceStore.set(systemFullName, forKey: displayNamePreferenceKey)
+        guard saved.isEmpty, let systemFullName else { return }
+        Preferences.set(systemFullName, for: Prefs.Account.displayName)
     }
 
     /// The name as it would be saved: trimmed, and nil when there is nothing
@@ -60,16 +60,16 @@ enum MacAccountUser {
     @discardableResult
     static func setDisplayName(_ raw: String) -> Bool {
         guard let name = normalizedDisplayName(raw) else { return false }
-        PreferenceStore.set(name, forKey: displayNamePreferenceKey)
+        Preferences.set(name, for: Prefs.Account.displayName)
         return true
     }
 
     static var showsCompCrown: Bool {
-        UserDefaults.standard.object(forKey: showsCompCrownPreferenceKey) as? Bool ?? true
+        Preferences.value(Prefs.Account.showsCompCrown)
     }
 
     static func setShowsCompCrown(_ shows: Bool) {
-        PreferenceStore.set(shows, forKey: showsCompCrownPreferenceKey)
+        Preferences.set(shows, for: Prefs.Account.showsCompCrown)
     }
 
     /// Shown in place of the learner's name while Screen record mode is on. A
@@ -91,7 +91,7 @@ enum MacAccountUser {
     /// First given name, for casual greetings ("Good morning, the product owner"), or
     /// the stand-in while Screen record mode is on.
     static var firstName: String? {
-        leadingName(of: displayedFullName(saved: UserDefaults.standard.string(forKey: displayNamePreferenceKey)))
+        leadingName(of: displayedFullName(saved: Preferences.value(Prefs.Account.displayName)))
     }
 
     static func leadingName(of fullName: String?) -> String? {

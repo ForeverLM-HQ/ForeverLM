@@ -677,9 +677,9 @@ extension MCPDataStore {
             return row["title"] as? String ?? trimmedID
         }
 
-        let key = MeetingMetadata.folderImagePreferenceKey(for: trimmedID)
+        let key = Prefs.Families.meetingFolderImage.key(trimmedID)
         guard let resolved = try Self.resolvedMeetingFolderImage(imageURL) else {
-            PreferenceStore.remove(forKey: key)
+            Preferences.reset(key)
             return try jsonString([
                 "updated": true,
                 "group_id": trimmedID,
@@ -689,7 +689,7 @@ extension MCPDataStore {
             ] as [String: Any])
         }
 
-        PreferenceStore.set(resolved, forKey: key)
+        Preferences.set(resolved, for: key)
         return try jsonString([
             "updated": true,
             "group_id": trimmedID,
@@ -748,12 +748,12 @@ extension MCPDataStore {
             func tabs(_ key: String) -> Set<StudioSidebarTab> {
                 Set((defaults.stringArray(forKey: key) ?? []).compactMap(StudioSidebarTab.fromPersistedRawValue))
             }
-            let rawOrder = defaults.stringArray(forKey: "studio.tabOrder") ?? []
+            let rawOrder = defaults.stringArray(forKey: Prefs.Studio.tabOrder.name) ?? []
             return SourceFamilySettings(
                 order: StudioSidebarTab.reconciledOrder(rawOrder.compactMap(StudioSidebarTab.fromPersistedRawValue)),
-                hidden: tabs("studio.hiddenTabs"),
+                hidden: tabs(Prefs.Studio.hiddenTabs.name),
                 excludedFromKnowledge: StudioSidebarTab.excludedKnowledgeTabs(in: defaults),
-                autoUnpinnedIntegrationTabs: tabs(StudioSidebarTab.autoUnpinnedIntegrationTabsPreferenceKey)
+                autoUnpinnedIntegrationTabs: tabs(Prefs.Studio.integrationTabsUnpinnedByDefault.name)
             )
         }
 
@@ -1001,9 +1001,9 @@ extension MCPDataStore {
                 } else {
                     settings.excludedFromKnowledge.insert(tab)
                 }
-                PreferenceStore.set(
+                Preferences.set(
                     settings.excludedFromKnowledge.map(\.rawValue).sorted(),
-                    forKey: StudioSidebarTab.knowledgeExclusionPreferenceKey
+                    for: Prefs.Studio.excludedKnowledgeSourceTabs
                 )
                 changed.append("include_in_search_and_ai")
             }
@@ -1022,14 +1022,14 @@ extension MCPDataStore {
                     }
                     settings.hidden.insert(tab)
                 }
-                PreferenceStore.set(settings.hidden.map(\.rawValue).sorted(), forKey: "studio.hiddenTabs")
+                Preferences.set(settings.hidden.map(\.rawValue).sorted(), for: Prefs.Studio.hiddenTabs)
                 // Either way the tab is the learner's call from now on, exactly
                 // as showTab/hideTab record it: Studio must not pin an
                 // integration tab back on its own after this.
                 if settings.autoUnpinnedIntegrationTabs.remove(tab) != nil {
-                    PreferenceStore.set(
+                    Preferences.set(
                         settings.autoUnpinnedIntegrationTabs.map(\.rawValue).sorted(),
-                        forKey: StudioSidebarTab.autoUnpinnedIntegrationTabsPreferenceKey
+                        for: Prefs.Studio.integrationTabsUnpinnedByDefault
                     )
                 }
                 changed.append("pinned")

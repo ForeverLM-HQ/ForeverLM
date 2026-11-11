@@ -80,10 +80,10 @@ extension StudioViewModel {
     /// Machine-local on purpose: a path is a fact about one Mac, so this is
     /// plain `UserDefaults` and never `SyncedStorage`, which would push this
     /// Mac's path onto the other one.
-    static let zoomLocalTranscriptFolderKey = "studio.zoomLocalTranscriptFolder"
+    static let zoomLocalTranscriptFolderKey = Prefs.Meetings.zoomLocalTranscriptFolder.name
 
     nonisolated static var zoomLocalTranscriptCustomFolder: String? {
-        let stored = UserDefaults.standard.string(forKey: zoomLocalTranscriptFolderKey)?
+        let stored = Preferences.value(Prefs.Meetings.zoomLocalTranscriptFolder)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard let stored, !stored.isEmpty else { return nil }
         return (stored as NSString).expandingTildeInPath
@@ -239,14 +239,14 @@ extension StudioViewModel {
     /// not happen, a recording not worth transcribing. Paths on this Mac, so
     /// plain `UserDefaults` like the folder preference and never synced; a
     /// folder that is gone drops out on the next write.
-    nonisolated static let zoomLocalRecordingIgnoredFoldersKey = "studio.zoomLocalRecordingIgnoredFolders"
+    nonisolated static let zoomLocalRecordingIgnoredFoldersKey = Prefs.Meetings.zoomLocalRecordingIgnoredFolders.name
 
     /// The 2026-09-19 per-launch request counter, retired with the background
     /// request itself; a pass clears it so old builds' state does not linger.
     nonisolated static let zoomLocalRecordingConversionRequestsKey = "studio.zoomLocalRecordingConversionRequests"
 
     nonisolated static func zoomLocalRecordingIgnoredFoldersFromDefaults() -> Set<String> {
-        Set(UserDefaults.standard.stringArray(forKey: zoomLocalRecordingIgnoredFoldersKey) ?? [])
+        Set(Preferences.value(Prefs.Meetings.zoomLocalRecordingIgnoredFolders) ?? [])
     }
 
     /// Write the ignore list, dropping folders that no longer exist so the
@@ -254,9 +254,9 @@ extension StudioViewModel {
     nonisolated static func saveZoomLocalRecordingIgnoredFolders(_ folders: Set<String>) {
         let kept = folders.filter { FileManager.default.fileExists(atPath: $0) }.sorted()
         if kept.isEmpty {
-            UserDefaults.standard.removeObject(forKey: zoomLocalRecordingIgnoredFoldersKey)
+            Preferences.reset(Prefs.Meetings.zoomLocalRecordingIgnoredFolders)
         } else {
-            UserDefaults.standard.set(kept, forKey: zoomLocalRecordingIgnoredFoldersKey)
+            Preferences.set(kept, for: Prefs.Meetings.zoomLocalRecordingIgnoredFolders)
         }
     }
 
@@ -1642,18 +1642,18 @@ extension StudioViewModel {
 
     /// Folder path → automatic conversions made, on this Mac. Plain
     /// `UserDefaults` like the ignore list, pruned of folders that are gone.
-    nonisolated static let zoomLocalRecordingAutoConversionsKey = "studio.zoomLocalRecordingAutoConversions"
+    nonisolated static let zoomLocalRecordingAutoConversionsKey = Prefs.Meetings.zoomLocalRecordingAutoConversions.name
 
     nonisolated static func zoomLocalRecordingAutoConversionsFromDefaults() -> [String: Int] {
-        UserDefaults.standard.dictionary(forKey: zoomLocalRecordingAutoConversionsKey) as? [String: Int] ?? [:]
+        Preferences.value(Prefs.Meetings.zoomLocalRecordingAutoConversions) as? [String: Int] ?? [:]
     }
 
     nonisolated static func saveZoomLocalRecordingAutoConversions(_ attempts: [String: Int]) {
         let kept = attempts.filter { FileManager.default.fileExists(atPath: $0.key) }
         if kept.isEmpty {
-            UserDefaults.standard.removeObject(forKey: zoomLocalRecordingAutoConversionsKey)
+            Preferences.reset(Prefs.Meetings.zoomLocalRecordingAutoConversions)
         } else {
-            UserDefaults.standard.set(kept, forKey: zoomLocalRecordingAutoConversionsKey)
+            Preferences.set(kept, for: Prefs.Meetings.zoomLocalRecordingAutoConversions)
         }
     }
 

@@ -116,7 +116,7 @@ struct CalendarGroup: Codable, Equatable, Hashable, Identifiable, Sendable {
 /// choice (calendar identifiers are this Mac's), and the reading that puts a
 /// block in one.
 enum CalendarGroups {
-    static let defaultsKey = "calendar.groups"
+    static let defaultsKey = Prefs.Planner.calendarGroups.name
 
     static func load(from defaults: UserDefaults = .standard) -> [CalendarGroup] {
         guard let data = defaults.data(forKey: defaultsKey),

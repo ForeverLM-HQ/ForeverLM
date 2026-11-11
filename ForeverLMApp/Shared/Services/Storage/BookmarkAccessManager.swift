@@ -15,13 +15,17 @@ final class BookmarkAccessManager: @unchecked Sendable {
     private let logger = Logger(subsystem: "com.foreverlm", category: "BookmarkAccess")
 
     enum BookmarkKey: String, CaseIterable, Sendable {
-        /// The raw values are the keys already stored in `UserDefaults`; keep
-        /// them so a grant the user made earlier stays readable.
-        case appDataLibrary = "securityBookmark_appDataLibrary"
-        case safariBookmarks = "securityBookmark_safariBookmarks"
-        case podcastsContainer = "securityBookmark_podcastsContainer"
-        case chromeData = "securityBookmark_chromeData"
-        case braveData = "securityBookmark_braveData"
+        /// The raw values are the member ids of `Prefs.Families.securityBookmark`,
+        /// so the stored keys stay the ones already in `UserDefaults` and a
+        /// grant the user made earlier stays readable.
+        case appDataLibrary
+        case safariBookmarks
+        case podcastsContainer
+        case chromeData
+        case braveData
+
+        /// The bookmark's stored row; its value is the bookmark's `Data`.
+        var preference: DeviceKey<Any?> { Prefs.Families.securityBookmark.key(rawValue) }
     }
 
     /// URLs currently being accessed via startAccessingSecurityScopedResource.
@@ -51,7 +55,7 @@ final class BookmarkAccessManager: @unchecked Sendable {
 
     /// Whether a stored bookmark exists and can be resolved.
     func hasAccess(for key: BookmarkKey) -> Bool {
-        guard let data = UserDefaults.standard.data(forKey: key.rawValue) else {
+        guard let data = (Preferences.value(key.preference) as? Data) else {
             return false
         }
 
@@ -71,7 +75,7 @@ final class BookmarkAccessManager: @unchecked Sendable {
                     includingResourceValuesForKeys: nil,
                     relativeTo: nil
                 ) {
-                    UserDefaults.standard.set(refreshed, forKey: key.rawValue)
+                    Preferences.set(refreshed, for: key.preference)
                 }
             }
             return true
@@ -86,7 +90,7 @@ final class BookmarkAccessManager: @unchecked Sendable {
     /// when done.
     @discardableResult
     func resolveBookmark(for key: BookmarkKey) -> URL? {
-        guard let data = UserDefaults.standard.data(forKey: key.rawValue) else {
+        guard let data = (Preferences.value(key.preference) as? Data) else {
             logger.info("[\(key.rawValue)] No bookmark data in UserDefaults")
             return nil
         }
@@ -111,7 +115,7 @@ final class BookmarkAccessManager: @unchecked Sendable {
                     includingResourceValuesForKeys: nil,
                     relativeTo: nil
                 ) {
-                    UserDefaults.standard.set(refreshed, forKey: key.rawValue)
+                    Preferences.set(refreshed, for: key.preference)
                 }
             }
 
@@ -146,7 +150,7 @@ final class BookmarkAccessManager: @unchecked Sendable {
     /// Diagnostic: test bookmark end-to-end by resolving, accessing, and reading a file.
     func diagnose(for key: BookmarkKey) {
         logger.info("=== BOOKMARK DIAGNOSTIC: \(key.rawValue) ===")
-        guard let data = UserDefaults.standard.data(forKey: key.rawValue) else {
+        guard let data = (Preferences.value(key.preference) as? Data) else {
             logger.error("DIAG: No bookmark data stored")
             return
         }

@@ -87,9 +87,9 @@ enum SourceDiscovery {
         case lastMonth
         case fromNowOn
 
-        static let sinceKey = "readingList.importSince"
+        static let sinceKey = Prefs.Discovery.readingListImportSince.name
         /// Which option set `sinceKey`, so Setup and Settings show it.
-        static let windowKey = "readingList.importWindow"
+        static let windowKey = Prefs.Discovery.readingListImportWindow.name
         static let recentDays = 30
 
         var id: String { rawValue }
@@ -105,7 +105,7 @@ enum SourceDiscovery {
         }
 
         static var storedCutoff: Date? {
-            let seconds = UserDefaults.standard.double(forKey: sinceKey)
+            let seconds = Preferences.value(Prefs.Discovery.readingListImportSince) ?? 0
             return seconds > 0 ? Date(timeIntervalSince1970: seconds) : nil
         }
 
@@ -120,17 +120,17 @@ enum SourceDiscovery {
         /// The option last chosen, or nil when none was: then every page is
         /// imported, as it was before Setup asked.
         static var chosen: ReadingListImportWindow? {
-            UserDefaults.standard.string(forKey: windowKey).flatMap(ReadingListImportWindow.init(rawValue:))
+            Preferences.value(Prefs.Discovery.readingListImportWindow).flatMap(ReadingListImportWindow.init(rawValue:))
         }
 
         /// Choose how far back the import reaches, measured from now. The one
         /// writer for Setup, Settings and `set_app_setting`.
         static func choose(_ window: ReadingListImportWindow, now: Date = Date()) {
-            UserDefaults.standard.set(window.rawValue, forKey: windowKey)
+            Preferences.set(window.rawValue, for: Prefs.Discovery.readingListImportWindow)
             if let cutoff = window.cutoff(now: now) {
-                UserDefaults.standard.set(cutoff.timeIntervalSince1970, forKey: sinceKey)
+                Preferences.set(cutoff.timeIntervalSince1970, for: Prefs.Discovery.readingListImportSince)
             } else {
-                UserDefaults.standard.removeObject(forKey: sinceKey)
+                Preferences.reset(Prefs.Discovery.readingListImportSince)
             }
         }
 
@@ -826,10 +826,10 @@ enum SourceDiscovery {
     /// It is synced — `SyncedPreferenceKeys` says why it has to be.
     /// Under generation 2 the list is this Mac's, and each show's block
     /// travels as its `Mark(importBlocked)` (`BlockedShowsSync`).
-    static let blockedPodcastShowsPreferenceKey = "podcasts.blockedShows"
+    static let blockedPodcastShowsPreferenceKey = Prefs.Discovery.blockedPodcastShows.name
 
     static func blockedPodcastShowNames() -> Set<String> {
-        Set(UserDefaults.standard.stringArray(forKey: blockedPodcastShowsPreferenceKey) ?? [])
+        Set(Preferences.value(Prefs.Discovery.blockedPodcastShows) ?? [])
     }
 
     static func isPodcastShowBlocked(_ showName: String) -> Bool {
@@ -856,9 +856,9 @@ enum SourceDiscovery {
             guard names.count != before else { return false }
         }
         if names.isEmpty {
-            PreferenceStore.remove(forKey: blockedPodcastShowsPreferenceKey)
+            Preferences.reset(Prefs.Discovery.blockedPodcastShows)
         } else {
-            PreferenceStore.set(names.sorted(), forKey: blockedPodcastShowsPreferenceKey)
+            Preferences.set(names.sorted(), for: Prefs.Discovery.blockedPodcastShows)
         }
         // Generation 2: a block is the member's `Mark(importBlocked)`, kept beside this Mac's list.
         BlockedShowsSync.mirror(names)
