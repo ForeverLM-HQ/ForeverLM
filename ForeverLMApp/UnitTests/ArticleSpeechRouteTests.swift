@@ -55,6 +55,44 @@ struct OwnOpenRouterKeyMediaRouteTests {
         }
     }
 
+    /// Listen on OpenAI (product owner, 2026-11-11): OpenRouter lists no OpenAI
+    /// voice, so the proxy speaks gpt-realtime-2.1-mini itself.
+    @Test("an OpenAI voice is read through the proxy's own route")
+    func openAIVoiceGoesThroughTheProxy() throws {
+        let openAI = try #require(ArticleSpeechCatalog.model(id: ArticleSpeechCatalog.openAIRealtimeModelID))
+        #expect(openAI.speaksThroughOpenAI)
+        #expect(openAI.wireModelID == "gpt-realtime-2.1-mini")
+        #expect(openAI.defaultVoiceID == "marin")
+        #expect(openAI.responseFormat == .pcm)
+        #expect(openAI.priceLabel == "Included")
+        #expect(openAI.ratePerMillionCharacters == 0)
+
+        // Even on the learner's own OpenRouter key, the request stays on the
+        // proxy: OpenRouter cannot serve it.
+        ManagedAI.ownKeyOverrideForTesting = .some(
+            ManagedAI.OwnKey(router: .openRouter, key: "sk-or-test-key")
+        )
+        defer { ManagedAI.ownKeyOverrideForTesting = nil }
+        let request = try CloudArticleTTS.speechRequest(
+            text: "Two sentences. One voice.",
+            selection: CloudArticleTTS.Selection(model: openAI.id, voice: "cedar")
+        )
+        #expect(request.url?.absoluteString == "https://ai.foreverlm.com/v1/openai/speech")
+        #expect(request.value(forHTTPHeaderField: "Authorization") != "Bearer sk-or-test-key")
+        let body = try #require(request.httpBody)
+        let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        #expect(payload["model"] as? String == "gpt-realtime-2.1-mini")
+        #expect(payload["voice"] as? String == "cedar")
+        #expect(payload["response_format"] as? String == "pcm")
+
+        // OpenRouter models keep their own endpoint and slug.
+        let gemini = try CloudArticleTTS.speechRequest(
+            text: "Two sentences. One voice.",
+            selection: CloudArticleTTS.Selection(model: ArticleSpeechCatalog.defaultModelID, voice: "Kore")
+        )
+        #expect(gemini.url?.absoluteString == "https://openrouter.ai/api/v1/audio/speech")
+    }
+
     @Test("an own OpenRouter key takes GPT-4o mini transcription to OpenRouter")
     func ownKeyTranscriptionLeavesOpenAIRoute() {
         ManagedAI.ownKeyOverrideForTesting = .some(
@@ -187,7 +225,7 @@ struct SpeechDirectoryTests {
         let rows = try OpenRouterAudioDirectory.rows(fromDirectory: Data(#"""
         {"data":[{"id":"fish-audio/drama-3","name":"Fish Audio: Drama 3","supported_voices":null}]}
         """#.utf8), kind: .speech)
-        let drama = try #require(ArticleSpeechCatalog.options(fromDirectory: rows).first)
+        let drama = try #require(ArticleSpeechCatalog.options(fromDirectory: rows).first { $0.id == "fish-audio/drama-3" })
         #expect(drama.takesVoice)
         #expect(drama.defaultVoiceID == ArticleSpeechCatalog.fishS21Voices.first?.id)
     }
@@ -218,6 +256,7 @@ struct SpeechDirectoryTests {
             try Self.options().map(\.id)
         }
         #expect(ids == [
+            ArticleSpeechCatalog.openAIRealtimeModelID, // Included: $0 to the learner
             "heygen/heygen-voice-1-turbo:free",     // Free
             "fish-audio/s2.1-pro",                  // $15 / 1M UTF-8 bytes
             "deepgram/aura-2",                      // $30 / 1M characters

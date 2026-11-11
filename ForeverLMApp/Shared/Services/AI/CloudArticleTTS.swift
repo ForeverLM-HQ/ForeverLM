@@ -876,12 +876,12 @@ enum CloudArticleTTS {
         // it straight to OpenRouter on the learner's own key, or through the
         // managed proxy, which prices it from OpenRouter's directory.
         var payload: [String: Any] = [
-            "model": selection.model,
+            "model": model.wireModelID,
             "input": text,
             "response_format": model.responseFormat.rawValue,
             "voice": voice,
         ]
-        var request = URLRequest(url: openRouterEndpoint)
+        var request = URLRequest(url: model.speechEndpoint)
         request.httpMethod = "POST"
         request.timeoutInterval = requestTimeout
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -1154,6 +1154,10 @@ enum CloudArticleTTS {
             "spend_cap_reached",
             "managed_disabled",
             "upstream_unconfigured",
+            // OpenAI voices (`POST /v1/openai/speech`): the day's reading
+            // allowance, or voice switched off on the server.
+            "narration_allowance_reached",
+            "realtime_unavailable",
         ].contains(error.code)
     }
 

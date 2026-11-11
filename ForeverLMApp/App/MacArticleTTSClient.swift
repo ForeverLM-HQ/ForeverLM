@@ -128,17 +128,17 @@ enum MacArticleTTSClient {
             )
         }
 
-        var payload: [String: Any] = [
-            "model": model,
+        let payload: [String: Any] = [
+            "model": modelOption.wireModelID,
             "input": text,
             "response_format": modelOption.responseFormat.rawValue,
             "voice": resolvedVoice,
         ]
         return try await postJSONAudio(
-            providerName: "OpenRouter",
+            providerName: modelOption.speaksThroughOpenAI ? "OpenAI" : "OpenRouter",
             model: model,
             cacheParts: ["macos", "openrouter", model, resolvedVoice, modelOption.responseFormat.rawValue, text],
-            url: URL(string: "https://openrouter.ai/api/v1/audio/speech")!,
+            url: modelOption.speechEndpoint,
             headers: ["Authorization": "Bearer \(apiKey)"],
             payload: payload,
             transcodePCM: modelOption.responseFormat == .pcm

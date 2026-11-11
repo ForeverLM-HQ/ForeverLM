@@ -246,6 +246,21 @@ struct ArticleSpeechModelOption: Identifiable, Hashable, Sendable {
     /// (`options(fromDirectory:)`).
     var takesVoice: Bool { !voices.isEmpty }
 
+    /// Spoken by OpenAI through ForeverLM's proxy rather than through
+    /// OpenRouter, which lists no OpenAI voice (`ArticleSpeechCatalog.openAIRealtimeModelID`).
+    var speaksThroughOpenAI: Bool { id == ArticleSpeechCatalog.openAIRealtimeModelID }
+
+    /// The model name the request carries: the OpenRouter slug, or for an
+    /// OpenAI voice OpenAI's own id.
+    var wireModelID: String {
+        speaksThroughOpenAI ? String(id.dropFirst("openai/".count)) : id
+    }
+
+    /// Where a request for this model goes before `ManagedAI.rewrite`.
+    var speechEndpoint: URL {
+        speaksThroughOpenAI ? ManagedAI.openAISpeechURL : ArticleSpeechCatalog.openRouterSpeechURL
+    }
+
     var defaultVoiceID: String? { voices.first?.id }
 
     /// "30 voices · 70+ languages · long-form", for a card's help text.
@@ -265,14 +280,17 @@ struct ArticleSpeechModelOption: Identifiable, Hashable, Sendable {
     /// Nothing is converted: a per-character figure made from a token price
     /// would be a guess presented as a price.
     var ratePerMillionCharacters: Double? {
-        OpenRouterAudioPrices.speechUSDPerMillionCharacters(slug: id)
+        ArticleSpeechCatalog.ratePerMillionCharacters(forModel: id)
     }
 
     /// The card's line, in the unit OpenRouter bills the model by: "Free",
     /// "$15 / 1M characters", "$1 / $20 per 1M tokens", "$0.15 / minute of
     /// audio" — or "Price unknown", never a guess.
     var priceLabel: String {
-        OpenRouterAudioPrices.label(slug: id, kind: .speech) ?? OpenRouterAudioPrices.unknownPriceLabel
+        // ForeverLM's own OpenAI credits pay for it, and the learner is
+        // charged nothing, as for voice mode.
+        if speaksThroughOpenAI { return "Included" }
+        return OpenRouterAudioPrices.label(slug: id, kind: .speech) ?? OpenRouterAudioPrices.unknownPriceLabel
     }
 
     func voice(id: String) -> ArticleSpeechVoice? {
@@ -1137,6 +1155,32 @@ enum ArticleSpeechCatalog {
     ]
     static let defaultVoiceID = "Kore"
     static let grokModelID = "x-ai/grok-voice-tts-1.0"
+    static let openRouterSpeechURL = URL(string: "https://openrouter.ai/api/v1/audio/speech")!
+
+    /// Listen on OpenAI (product owner, 2026-11-11: "DO do a direct openai
+    /// route too"). OpenRouter lists no OpenAI voice, and OpenAI retires its
+    /// speech models on 2027-01-06 for gpt-realtime-2.1-mini, which speaks
+    /// only over the Realtime API. The proxy reads each section aloud on it
+    /// (`POST /v1/openai/speech`, foreverlm-ai-proxy `realtime-narration.js`)
+    /// and answers with 24 kHz PCM, paid by ForeverLM's OpenAI credits. A
+    /// reading that strays from the text comes back 422, and the section is
+    /// read again in halves.
+    static let openAIRealtimeModelID = "openai/gpt-realtime-2.1-mini"
+
+    /// gpt-realtime-2.1-mini's voices (developers.openai.com, 2026-11-11);
+    /// OpenAI recommends marin and cedar, so they lead.
+    static let openAIRealtimeVoices: [ArticleSpeechVoice] = [
+        .init("marin", "Marin", detail: "Recommended"),
+        .init("cedar", "Cedar", detail: "Recommended"),
+        .init("alloy", "Alloy"),
+        .init("ash", "Ash"),
+        .init("ballad", "Ballad"),
+        .init("coral", "Coral"),
+        .init("echo", "Echo"),
+        .init("sage", "Sage"),
+        .init("shimmer", "Shimmer"),
+        .init("verse", "Verse"),
+    ]
 
     /// Gemini's prebuilt voices, with the one-word character Google gives
     /// each. IDs are wire values; the names and details are display only.
@@ -1384,6 +1428,17 @@ enum ArticleSpeechCatalog {
     /// OpenRouter's (`OpenRouterAudioPrices`). Offered as they stand before
     /// the directory has been read; laid over its rows after.
     static let curatedModels: [ArticleSpeechModelOption] = [
+        .init(
+            id: openAIRealtimeModelID,
+            name: "GPT Realtime 2.1 Mini",
+            detail: "OpenAI · multilingual",
+            maker: "OpenAI",
+            voices: openAIRealtimeVoices,
+            languages: .multilingual,
+            responseFormat: .pcm,
+            chunkLimit: realtimeChunkLimit,
+            leadChunkLimit: standardLeadChunkLimit
+        ),
         .init(
             id: "fish-audio/s2.1-pro-free:free",
             name: "Fish Audio S2.1 Pro Free",
@@ -1700,7 +1755,9 @@ enum ArticleSpeechCatalog {
             // speaker, a different one per request (`takesVoice`).
             return option.takesVoice ? option : nil
         }
-        return options.sorted(by: cheapestFirst)
+        // OpenAI's voices are not on OpenRouter's list; the proxy speaks them.
+        let openAI = curatedModels.filter { $0.speaksThroughOpenAI && seen.insert($0.id.lowercased()).inserted }
+        return (options + openAI).sorted(by: cheapestFirst)
     }
 
     /// Cheapest first by OpenRouter's per-character price; a model with no
@@ -1729,7 +1786,10 @@ enum ArticleSpeechCatalog {
     /// with a retired model still prices while OpenRouter lists it. Nil for a
     /// model OpenRouter does not bill by the character, or has not priced.
     static func ratePerMillionCharacters(forModel modelID: String) -> Double? {
-        OpenRouterAudioPrices.speechUSDPerMillionCharacters(slug: modelID)
+        // An OpenAI voice charges the learner nothing: ForeverLM's OpenAI
+        // credits pay for it (`openAIRealtimeModelID`).
+        if modelID == openAIRealtimeModelID { return 0 }
+        return OpenRouterAudioPrices.speechUSDPerMillionCharacters(slug: modelID)
     }
 
     /// The price line for a slug, in OpenRouter's unit, or "Price unknown".
