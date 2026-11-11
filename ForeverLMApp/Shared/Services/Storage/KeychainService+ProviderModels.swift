@@ -11,15 +11,11 @@ extension KeychainService {
 
     /// Set once the user explicitly picks an Anthropic model, so a deliberate
     /// re-pick of the retired default is honored instead of remapped.
-    private static let anthropicModelPickedDefaultsKey = "anthropic_model_explicitly_picked"
-
     private static let defaultOpenAIModel = AIModelDefaults.defaultOpenAI
 
     /// The persisted OpenAI default before GPT-5.6 — same shadowing problem as
     /// the retired Anthropic default above, and no longer offered in pickers.
     private static let retiredOpenAIDefaultModel = "gpt-5.5"
-
-    private static let openAIModelPickedDefaultsKey = "openai_model_explicitly_picked"
 
     private static let defaultGroqModel = "openai/gpt-oss-120b"
 
@@ -70,7 +66,7 @@ extension KeychainService {
 
     static var aiProvider: AIProvider {
         get {
-            if let route = storedRoute(forKey: AIModelPreferenceKey.defaultChatRoute),
+            if let route = storedRoute(Prefs.Models.defaultChatRoute),
                let provider = AIProvider(rawValue: route.provider) {
                 return provider
             }
@@ -115,7 +111,7 @@ extension KeychainService {
             // copy of the retired default follows the current default (Sonnet 5)
             // unless the user explicitly picked it after this build.
             if stored == retiredAnthropicDefaultModel,
-               !UserDefaults.standard.bool(forKey: anthropicModelPickedDefaultsKey) {
+               Preferences.value(Prefs.Models.anthropicModelExplicitlyPicked) != true {
                 return defaultAnthropicModel
             }
             return stored
@@ -125,7 +121,7 @@ extension KeychainService {
             if trimmed.isEmpty { delete(.anthropicModel) }
             else {
                 save(trimmed, for: .anthropicModel)
-                PreferenceStore.set(true, forKey: anthropicModelPickedDefaultsKey)
+                Preferences.set(true, for: Prefs.Models.anthropicModelExplicitlyPicked)
             }
         }
     }
@@ -137,7 +133,7 @@ extension KeychainService {
             // retired default follows the current default (GPT-5.6 Sol) unless
             // the user explicitly picked it after this build.
             if stored == retiredOpenAIDefaultModel,
-               !UserDefaults.standard.bool(forKey: openAIModelPickedDefaultsKey) {
+               Preferences.value(Prefs.Models.openAIModelExplicitlyPicked) != true {
                 return defaultOpenAIModel
             }
             return stored
@@ -147,7 +143,7 @@ extension KeychainService {
             if trimmed.isEmpty { delete(.openAIModel) }
             else {
                 save(trimmed, for: .openAIModel)
-                PreferenceStore.set(true, forKey: openAIModelPickedDefaultsKey)
+                Preferences.set(true, for: Prefs.Models.openAIModelExplicitlyPicked)
             }
         }
     }
@@ -234,7 +230,7 @@ extension KeychainService {
     }
 
     static func model(for provider: AIProvider) -> String {
-        if let route = storedRoute(forKey: AIModelPreferenceKey.defaultChatRoute),
+        if let route = storedRoute(Prefs.Models.defaultChatRoute),
            route.provider == provider.rawValue {
             return route.model
         }

@@ -222,9 +222,7 @@ extension AITask {
 enum BackgroundAIDailyCap {
     /// Synced: the cap is the learner's decision about their account's spend,
     /// and every Mac on the account reads the same ledger.
-    static let preferenceKey = "aiSpend.backgroundDailyCapUSD"
-    /// Local to this Mac: the day it last told the learner the cap was reached.
-    static let noticeDayKey = "aiSpend.backgroundDailyCapNoticeDay"
+    static let preferenceKey = Prefs.Spend.backgroundDailyCapUSD.name
     /// The largest cap chat may set. Billing's own monthly limit tops out at
     /// $250 (`set_billing_settings`), and a daily background ceiling above the
     /// largest monthly one the account offers limits nothing.
@@ -234,7 +232,7 @@ enum BackgroundAIDailyCap {
 
     /// The cap in dollars, or nil when it is off.
     static func capUSD(defaults: UserDefaults = .standard) -> Double? {
-        guard let number = defaults.object(forKey: preferenceKey) as? NSNumber else { return nil }
+        guard let number = defaults.object(forKey: Prefs.Spend.backgroundDailyCapUSD.name) as? NSNumber else { return nil }
         let value = number.doubleValue
         guard value.isFinite, value > 0 else { return nil }
         return value
@@ -243,9 +241,9 @@ enum BackgroundAIDailyCap {
     /// nil or zero turns the cap off.
     static func setCapUSD(_ value: Double?) {
         if let value, value.isFinite, value > 0 {
-            PreferenceStore.set(min(value, maximumUSD), forKey: preferenceKey)
+            Preferences.set(min(value, maximumUSD), for: Prefs.Spend.backgroundDailyCapUSD)
         } else {
-            PreferenceStore.remove(forKey: preferenceKey)
+            Preferences.reset(Prefs.Spend.backgroundDailyCapUSD)
         }
         NotificationCenter.default.post(name: didChange, object: nil)
     }
@@ -344,8 +342,8 @@ actor BackgroundAIBudget {
         var firstNotice = false
         if status.isReached {
             let key = DailyNote.dayKey(for: now, calendar: calendar)
-            if defaults.string(forKey: BackgroundAIDailyCap.noticeDayKey) != key {
-                defaults.set(key, forKey: BackgroundAIDailyCap.noticeDayKey)
+            if defaults.string(forKey: Prefs.Spend.backgroundDailyCapNoticeDay.name) != key {
+                defaults.set(key, forKey: Prefs.Spend.backgroundDailyCapNoticeDay.name)
                 firstNotice = true
             }
         }

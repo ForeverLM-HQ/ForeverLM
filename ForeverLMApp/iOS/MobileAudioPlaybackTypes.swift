@@ -46,7 +46,6 @@ enum MobileAudioPlaybackSpeed {
     static let maximum: Float = 3.0
     /// The span a voice agent may pick from: the first and last presets.
     static let agentRange: ClosedRange<Double> = Double(options.first!)...Double(options.last!)
-    static let defaultsKey = "ios.listen.playbackSpeed"
 
     static func clamped(_ speed: Float) -> Float {
         min(max(speed, minimum), maximum)
@@ -69,17 +68,17 @@ enum MobileAudioPlaybackSpeed {
 }
 
 enum MobileBookPlaybackPreferences {
-    static let automaticallyContinuesKey = "ios.listen.automaticallyContinuesBooks"
-    static let hasAskedToAutomaticallyContinueKey = "ios.listen.hasAskedToAutomaticallyContinueBooks"
+    static let automaticallyContinuesKey = Prefs.Mobile.automaticallyContinuesBooks.name
+    static let hasAskedToAutomaticallyContinueKey = Prefs.Mobile.hasAskedToAutomaticallyContinueBooks.name
 
     static var automaticallyContinues: Bool {
-        get { UserDefaults.standard.bool(forKey: automaticallyContinuesKey) }
-        set { UserDefaults.standard.set(newValue, forKey: automaticallyContinuesKey) }
+        get { Preferences.value(Prefs.Mobile.automaticallyContinuesBooks) }
+        set { Preferences.set(newValue, for: Prefs.Mobile.automaticallyContinuesBooks) }
     }
 
     static var hasAskedToAutomaticallyContinue: Bool {
-        get { UserDefaults.standard.bool(forKey: hasAskedToAutomaticallyContinueKey) }
-        set { UserDefaults.standard.set(newValue, forKey: hasAskedToAutomaticallyContinueKey) }
+        get { Preferences.value(Prefs.Mobile.hasAskedToAutomaticallyContinueBooks) }
+        set { Preferences.set(newValue, for: Prefs.Mobile.hasAskedToAutomaticallyContinueBooks) }
     }
 }
 

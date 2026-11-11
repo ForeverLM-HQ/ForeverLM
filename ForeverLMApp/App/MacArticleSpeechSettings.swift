@@ -97,15 +97,13 @@ enum MacArticleSpeechSpeed {
     static let defaultSpeed = 1.0
     static let minimum = 0.25
     static let maximum = 2.0
-    private static let defaultsKey = "macos.tts.speed"
 
     static var stored: Double {
         get {
-            let storedSpeed = UserDefaults.standard.object(forKey: defaultsKey) as? Double
-            return clamped(storedSpeed ?? defaultSpeed)
+            return clamped(Preferences.value(Prefs.ReadAloud.speed) ?? defaultSpeed)
         }
         set {
-            PreferenceStore.set(clamped(newValue), forKey: defaultsKey)
+            Preferences.set(clamped(newValue), for: Prefs.ReadAloud.speed)
         }
     }
 
@@ -353,19 +351,8 @@ enum MacArticleSpeechSettings {
     static let defaultLocalQwen3Model = "qwen3-tts"
     static let defaultLocalQwen3Voice = "Ryan"
     static let defaultLocalQwen3ServerURL = "http://127.0.0.1:8000"
-    static let openAIInstructionsDefaultsKey = "macos.tts.openai.instructions"
-    static let localQwen3InstructionsDefaultsKey = "macos.tts.local_qwen3.instructions"
-    // Shared with the phone, which reads and writes the same account row.
-    private static let openRouterVoiceDefaultsKey = ArticleSpeechSelection.syncedVoiceKey
-    private static let confirmCostBeforeListeningDefaultsKey = "macos.tts.confirmCostBeforeListening"
-    private static let appleVoiceDefaultsKey = "macos.tts.apple.voiceIdentifier"
-    private static let groqVoiceDefaultsKey = "macos.tts.groq.voice"
-    private static let openAIVoiceDefaultsKey = "macos.tts.openai.voice"
-    private static let togetherAIVoiceDefaultsKey = "macos.tts.together.voice"
-    private static let elevenLabsVoiceDefaultsKey = "macos.tts.elevenlabs.voice"
-    private static let xaiVoiceDefaultsKey = "macos.tts.xai.voice"
-    private static let geminiVoiceDefaultsKey = "macos.tts.gemini.voice"
-    private static let localQwen3VoiceDefaultsKey = "macos.tts.local_qwen3.voice"
+    static let openAIInstructionsDefaultsKey = Prefs.ReadAloud.openAIInstructions.name
+    static let localQwen3InstructionsDefaultsKey = Prefs.ReadAloud.localQwen3Instructions.name
 
     static let openAIVoices = [
         "alloy", "ash", "ballad", "coral", "echo", "fable", "nova",
@@ -588,7 +575,7 @@ enum MacArticleSpeechSettings {
 
     static var openRouterVoice: String {
         get {
-            let stored = UserDefaults.standard.string(forKey: openRouterVoiceDefaultsKey) ?? defaultOpenRouterVoice
+            let stored = Preferences.value(Prefs.ReadAloud.openRouterVoice) ?? defaultOpenRouterVoice
             // Resolve the stored value against the current model, so a voice
             // from another model (or an empty value) becomes that model's real
             // default before it can reach the managed endpoint.
@@ -597,7 +584,7 @@ enum MacArticleSpeechSettings {
         set {
             let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return }
-            PreferenceStore.set(trimmed, forKey: openRouterVoiceDefaultsKey)
+            Preferences.set(trimmed, for: Prefs.ReadAloud.openRouterVoice)
         }
     }
 
@@ -619,23 +606,23 @@ enum MacArticleSpeechSettings {
 
     static var groqVoice: String {
         get {
-            let stored = UserDefaults.standard.string(forKey: groqVoiceDefaultsKey) ?? defaultGroqVoice
+            let stored = Preferences.value(Prefs.ReadAloud.groqVoice) ?? defaultGroqVoice
             let trimmed = stored.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.isEmpty { return defaultGroqVoice }
             if trimmed.contains("PlayAI") {
-                PreferenceStore.set(defaultGroqVoice, forKey: groqVoiceDefaultsKey)
+                Preferences.set(defaultGroqVoice, for: Prefs.ReadAloud.groqVoice)
                 return defaultGroqVoice
             }
             let available = voices(for: .groq, model: groqModel)
             if !available.contains(trimmed) {
-                PreferenceStore.set(defaultGroqVoice, forKey: groqVoiceDefaultsKey)
+                Preferences.set(defaultGroqVoice, for: Prefs.ReadAloud.groqVoice)
                 return defaultGroqVoice
             }
             return trimmed
         }
         set {
             let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            PreferenceStore.set(trimmed.isEmpty ? defaultGroqVoice : trimmed, forKey: groqVoiceDefaultsKey)
+            Preferences.set(trimmed.isEmpty ? defaultGroqVoice : trimmed, for: Prefs.ReadAloud.groqVoice)
         }
     }
 
@@ -661,12 +648,12 @@ enum MacArticleSpeechSettings {
 
     static var openAIVoice: String {
         get {
-            let stored = UserDefaults.standard.string(forKey: openAIVoiceDefaultsKey) ?? defaultOpenAIVoice
+            let stored = Preferences.value(Prefs.ReadAloud.openAIVoice) ?? defaultOpenAIVoice
             return openAIVoices(for: openAIModel).contains(stored) ? stored : defaultOpenAIVoice
         }
         set {
             let voice = openAIVoices(for: openAIModel).contains(newValue) ? newValue : defaultOpenAIVoice
-            PreferenceStore.set(voice, forKey: openAIVoiceDefaultsKey)
+            Preferences.set(voice, for: Prefs.ReadAloud.openAIVoice)
         }
     }
 
@@ -688,18 +675,18 @@ enum MacArticleSpeechSettings {
 
     static var togetherAIVoice: String {
         get {
-            let stored = UserDefaults.standard.string(forKey: togetherAIVoiceDefaultsKey) ?? defaultTogetherAIVoice
+            let stored = Preferences.value(Prefs.ReadAloud.togetherVoice) ?? defaultTogetherAIVoice
             let trimmed = stored.trimmingCharacters(in: .whitespacesAndNewlines)
             let available = voices(for: .togetherAI, model: togetherAIModel)
             guard !trimmed.isEmpty, available.isEmpty || available.contains(trimmed) else {
-                PreferenceStore.set(defaultTogetherAIVoice, forKey: togetherAIVoiceDefaultsKey)
+                Preferences.set(defaultTogetherAIVoice, for: Prefs.ReadAloud.togetherVoice)
                 return defaultTogetherAIVoice
             }
             return trimmed
         }
         set {
             let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            PreferenceStore.set(trimmed.isEmpty ? defaultTogetherAIVoice : trimmed, forKey: togetherAIVoiceDefaultsKey)
+            Preferences.set(trimmed.isEmpty ? defaultTogetherAIVoice : trimmed, for: Prefs.ReadAloud.togetherVoice)
         }
     }
 
@@ -714,12 +701,12 @@ enum MacArticleSpeechSettings {
 
     static var elevenLabsVoice: String {
         get {
-            let stored = UserDefaults.standard.string(forKey: elevenLabsVoiceDefaultsKey) ?? defaultElevenLabsVoice
+            let stored = Preferences.value(Prefs.ReadAloud.elevenLabsVoice) ?? defaultElevenLabsVoice
             return stored.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? defaultElevenLabsVoice : stored
         }
         set {
             let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            PreferenceStore.set(trimmed.isEmpty ? defaultElevenLabsVoice : trimmed, forKey: elevenLabsVoiceDefaultsKey)
+            Preferences.set(trimmed.isEmpty ? defaultElevenLabsVoice : trimmed, for: Prefs.ReadAloud.elevenLabsVoice)
         }
     }
 
@@ -734,14 +721,14 @@ enum MacArticleSpeechSettings {
 
     static var xaiVoice: String {
         get {
-            let stored = UserDefaults.standard.string(forKey: xaiVoiceDefaultsKey) ?? defaultXAIVoice
+            let stored = Preferences.value(Prefs.ReadAloud.xaiVoice) ?? defaultXAIVoice
             let trimmed = stored.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.isEmpty { return defaultXAIVoice }
             return trimmed.lowercased()
         }
         set {
             let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            PreferenceStore.set(trimmed.isEmpty ? defaultXAIVoice : trimmed, forKey: xaiVoiceDefaultsKey)
+            Preferences.set(trimmed.isEmpty ? defaultXAIVoice : trimmed, for: Prefs.ReadAloud.xaiVoice)
         }
     }
 
@@ -756,14 +743,14 @@ enum MacArticleSpeechSettings {
 
     static var geminiVoice: String {
         get {
-            let stored = UserDefaults.standard.string(forKey: geminiVoiceDefaultsKey) ?? defaultGeminiVoice
+            let stored = Preferences.value(Prefs.ReadAloud.geminiVoice) ?? defaultGeminiVoice
             let trimmed = stored.trimmingCharacters(in: .whitespacesAndNewlines)
             if trimmed.isEmpty { return defaultGeminiVoice }
             return geminiVoices.contains(trimmed) ? trimmed : defaultGeminiVoice
         }
         set {
             let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            PreferenceStore.set(trimmed.isEmpty ? defaultGeminiVoice : trimmed, forKey: geminiVoiceDefaultsKey)
+            Preferences.set(trimmed.isEmpty ? defaultGeminiVoice : trimmed, for: Prefs.ReadAloud.geminiVoice)
         }
     }
 
@@ -791,13 +778,13 @@ enum MacArticleSpeechSettings {
 
     static var localQwen3Voice: String {
         get {
-            let stored = UserDefaults.standard.string(forKey: localQwen3VoiceDefaultsKey) ?? defaultLocalQwen3Voice
+            let stored = Preferences.value(Prefs.ReadAloud.localQwen3Voice) ?? defaultLocalQwen3Voice
             let trimmed = stored.trimmingCharacters(in: .whitespacesAndNewlines)
             return trimmed.isEmpty ? defaultLocalQwen3Voice : trimmed
         }
         set {
             let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
-            PreferenceStore.set(trimmed.isEmpty ? defaultLocalQwen3Voice : trimmed, forKey: localQwen3VoiceDefaultsKey)
+            Preferences.set(trimmed.isEmpty ? defaultLocalQwen3Voice : trimmed, for: Prefs.ReadAloud.localQwen3Voice)
         }
     }
 
@@ -982,10 +969,10 @@ enum MacArticleSpeechSettings {
     /// than voice, so changing voices never resurrects or broadens a dismissal.
     static var confirmCostBeforeListening: Bool {
         get {
-            (UserDefaults.standard.object(forKey: confirmCostBeforeListeningDefaultsKey) as? Bool) ?? true
+            Preferences.value(Prefs.ReadAloud.confirmCostBeforeListening) ?? true
         }
         set {
-            PreferenceStore.set(newValue, forKey: confirmCostBeforeListeningDefaultsKey)
+            Preferences.set(newValue, for: Prefs.ReadAloud.confirmCostBeforeListening)
         }
     }
 
@@ -1000,13 +987,13 @@ enum MacArticleSpeechSettings {
         if confirms, !confirmCostBeforeListening {
             confirmCostBeforeListening = true
         }
-        PreferenceStore.set(
+        Preferences.set(
             TextToSpeechCostConfirmationPreferences.updatedSuppressedModelIDs(
                 TextToSpeechCostConfirmationPreferences.suppressedModelIDs,
                 confirms: confirms,
                 modelID: model
             ),
-            forKey: TextToSpeechCostConfirmationPreferences.suppressedModelIDsKey
+            for: Prefs.ReadAloud.costConfirmationSuppressedModels
         )
     }
 
@@ -1019,8 +1006,8 @@ enum MacArticleSpeechSettings {
     }
 
     static func setAutomaticallyGenerates(_ enabled: Bool, sourceType: String) {
-        guard let key = SourceAudioAutomation.preferenceKey(for: sourceType) else { return }
-        PreferenceStore.set(enabled, forKey: key)
+        guard let key = SourceAudioAutomation.automatableType(for: sourceType)?.key else { return }
+        Preferences.set(enabled, for: key)
         NotificationCenter.default.post(name: .automaticSourceAudioPreferencesChanged, object: nil)
     }
 
@@ -1032,7 +1019,7 @@ enum MacArticleSpeechSettings {
     }
 
     static func setAllowsPaidAutomaticVoices(_ allowed: Bool) {
-        PreferenceStore.set(allowed, forKey: SourceAudioAutomation.paidVoiceConsentPreferenceKey)
+        Preferences.set(allowed, for: Prefs.ReadAloud.autoGenerateAllowPaidVoices)
         NotificationCenter.default.post(name: .automaticSourceAudioPreferencesChanged, object: nil)
     }
 
@@ -1067,24 +1054,24 @@ enum MacArticleSpeechSettings {
     }
 
     static func setAutomaticGenerationConstraint(_ constraint: String, sourceType: String) {
-        guard let key = SourceAudioAutomation.constraintPreferenceKey(for: sourceType) else { return }
+        guard let key = SourceAudioAutomation.automatableType(for: sourceType)?.constraintKey else { return }
         let value = constraint.trimmingCharacters(in: .whitespacesAndNewlines)
-        if value.isEmpty { PreferenceStore.remove(forKey: key) }
-        else { PreferenceStore.set(value, forKey: key) }
+        if value.isEmpty { Preferences.reset(key) }
+        else { Preferences.set(value, for: key) }
         NotificationCenter.default.post(name: .automaticSourceAudioPreferencesChanged, object: nil)
     }
 
     static var appleVoiceIdentifier: String? {
         get {
-            guard let stored = UserDefaults.standard.string(forKey: appleVoiceDefaultsKey),
+            guard let stored = Preferences.value(Prefs.ReadAloud.appleVoiceIdentifier),
                   !stored.isEmpty else { return nil }
             return stored
         }
         set {
             if let newValue, !newValue.isEmpty {
-                PreferenceStore.set(newValue, forKey: appleVoiceDefaultsKey)
+                Preferences.set(newValue, for: Prefs.ReadAloud.appleVoiceIdentifier)
             } else {
-                PreferenceStore.remove(forKey: appleVoiceDefaultsKey)
+                Preferences.reset(Prefs.ReadAloud.appleVoiceIdentifier)
             }
         }
     }

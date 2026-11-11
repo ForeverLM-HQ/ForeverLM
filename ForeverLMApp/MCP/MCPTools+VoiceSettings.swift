@@ -35,7 +35,7 @@ extension MCPDataStore {
     // MARK: Voice mode
 
     private static func voiceModeVoiceEntry() -> AppSettingEntry {
-        let key = RealtimeVoiceDefaults.voicePreferenceKey
+        let key = Prefs.ReadAloud.voiceModeVoice
         return AppSettingEntry(
             id: "voice_mode.voice",
             pane: "Voice › Voice mode",
@@ -43,21 +43,21 @@ extension MCPDataStore {
             detail: "The voice ForeverLM speaks in during a voice mode conversation, on the Mac, the iPhone and CarPlay. Applies from the next conversation. Voice mode runs on ForeverLM's own credits, so no voice costs the learner anything.",
             reach: .account,
             kind: .choice,
-            preferenceKeys: [key],
+            preferenceKeys: [key.name],
             options: {
                 RealtimeVoiceDefaults.voices.map { id -> [String: Any] in
                     ["value": id, "label": RealtimeVoiceDefaults.voiceLabel(id)]
                 }
             },
             read: {
-                RealtimeVoiceDefaults.resolvedVoice(UserDefaults.standard.string(forKey: key))
+                RealtimeVoiceDefaults.resolvedVoice(Preferences.value(key))
             },
             write: { value in
                 let voice = try AppSettingEntry.string(value, "voice_mode.voice")
                 guard RealtimeVoiceDefaults.voices.contains(voice) else {
                     throw MCPError.invalidInput("voice_mode.voice takes one of: \(RealtimeVoiceDefaults.voices.joined(separator: ", ")).")
                 }
-                PreferenceStore.set(voice, forKey: key)
+                Preferences.set(voice, for: key)
             }
         )
     }
@@ -255,7 +255,7 @@ extension MCPDataStore {
                           max: MacArticleSpeechSpeed.options.last ?? MacArticleSpeechSpeed.maximum,
                           step: 0.25),
             // `MacArticleSpeechSpeed`'s key is private to it.
-            preferenceKeys: ["macos.tts.speed"],
+            preferenceKeys: [Prefs.ReadAloud.speed.name],
             options: {
                 MacArticleSpeechSpeed.options.map { speed -> [String: Any] in ["value": speed, "label": MacArticleSpeechSpeed.label(for: speed)] }
             },
@@ -277,7 +277,7 @@ extension MCPDataStore {
             reach: .account,
             kind: .boolean,
             // The global switch's key is private to `MacArticleSpeechSettings`.
-            preferenceKeys: ["macos.tts.confirmCostBeforeListening", TextToSpeechCostConfirmationPreferences.suppressedModelIDsKey],
+            preferenceKeys: [Prefs.ReadAloud.confirmCostBeforeListening.name, Prefs.ReadAloud.costConfirmationSuppressedModels.name],
             read: {
                 let provider = MacArticleSpeechSettings.provider
                 return MacArticleSpeechSettings.confirmsCostBeforeListening(for: textToSpeechModelID(for: provider))
@@ -379,7 +379,11 @@ extension MCPDataStore {
             kind: .choice,
             // The providers `read_aloud.model` covers; the voice keys are
             // private to `MacArticleSpeechSettings`.
-            preferenceKeys: ["openrouter", "groq", "openai", "together", "elevenlabs", "xai", "gemini"].map { "macos.tts.\($0).voice" },
+            preferenceKeys: [
+                Prefs.ReadAloud.openRouterVoice.name, Prefs.ReadAloud.groqVoice.name, Prefs.ReadAloud.openAIVoice.name,
+                Prefs.ReadAloud.togetherVoice.name, Prefs.ReadAloud.elevenLabsVoice.name, Prefs.ReadAloud.xaiVoice.name,
+                Prefs.ReadAloud.geminiVoice.name,
+            ],
             options: {
                 let provider = MacArticleSpeechSettings.provider
                 let model = MacArticleSpeechSettings.model(for: provider)
@@ -427,7 +431,7 @@ extension MCPDataStore {
             detail: "The on-device voice text-to-speech speaks in (free). An empty string is the System Voice.",
             reach: .account,
             kind: .choice,
-            preferenceKeys: ["macos.tts.apple.voiceIdentifier"],
+            preferenceKeys: [Prefs.ReadAloud.appleVoiceIdentifier.name],
             options: {
                 [["value": "", "label": "System Voice"] as [String: Any]]
                     + MacArticleSpeechSettings.appleVoices.map { voice -> [String: Any] in
@@ -485,7 +489,7 @@ extension MCPDataStore {
                 detail: "The voice name the local server expects (free). An empty string goes back to \(MacArticleSpeechSettings.defaultLocalQwen3Voice).",
                 reach: .account,
                 kind: .text,
-                preferenceKeys: ["macos.tts.local_qwen3.voice"],
+                preferenceKeys: [Prefs.ReadAloud.localQwen3Voice.name],
                 read: { MacArticleSpeechSettings.localQwen3Voice },
                 write: { value in
                     MacArticleSpeechSettings.setVoice(try AppSettingEntry.string(value, "read_aloud.local_voice"), for: .localQwen3)
@@ -499,12 +503,11 @@ extension MCPDataStore {
     /// synced preference per model/voice pair, removed for no rating.
     @MainActor
     private static func textToSpeechVoiceRatingEntry() -> AppSettingEntry {
-        func ratingKey() -> String {
+        func ratingKey() -> AccountKey<String?> {
             let provider = MacArticleSpeechSettings.provider
-            return ArticleSpeechVoiceRating.preferenceKey(
-                modelID: textToSpeechModelID(for: provider),
-                voiceID: MacArticleSpeechSettings.voice(for: provider)
-            )
+            let modelID = textToSpeechModelID(for: provider)
+            let voiceID = MacArticleSpeechSettings.voice(for: provider)
+            return Prefs.Families.voiceRating.key("\(modelID)|\(voiceID)")
         }
         return AppSettingEntry(
             id: "read_aloud.voice_rating",
@@ -513,7 +516,7 @@ extension MCPDataStore {
             detail: "The learner's thumbs up or down on the currently selected text-to-speech voice with the selected model, or none. Only the learner's own taste; it changes nothing that is billed.",
             reach: .account,
             kind: .choice,
-            preferenceKeys: [ratingKey()],
+            preferenceKeys: [ratingKey().name],
             options: {
                 [
                     ["value": "up", "label": "Thumbs up"],
@@ -522,16 +525,16 @@ extension MCPDataStore {
                 ]
             },
             read: {
-                UserDefaults.standard.string(forKey: ratingKey())
+                Preferences.value(ratingKey())
                     .flatMap(ArticleSpeechVoiceRating.init(rawValue:))?.rawValue ?? "none"
             },
             write: { value in
                 let raw = try AppSettingEntry.string(value, "read_aloud.voice_rating")
                 let key = ratingKey()
                 if raw == "none" {
-                    PreferenceStore.remove(forKey: key)
+                    Preferences.reset(key)
                 } else if let rating = ArticleSpeechVoiceRating(rawValue: raw) {
-                    PreferenceStore.set(rating.rawValue, forKey: key)
+                    Preferences.set(rating.rawValue, for: key)
                 } else {
                     throw MCPError.invalidInput("read_aloud.voice_rating takes one of: up, down, none.")
                 }

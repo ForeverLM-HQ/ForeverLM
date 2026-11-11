@@ -17,7 +17,7 @@ enum MacArticleSpeechVoicePreviewCache {
         switch provider {
         case .openAI:
             if model.contains("gpt-4o-mini-tts") {
-                let instructions = UserDefaults.standard.string(forKey: MacArticleSpeechSettings.openAIInstructionsDefaultsKey)
+                let instructions = Preferences.value(Prefs.ReadAloud.openAIInstructions)
                     ?? "Read in a calm, natural audiobook style with gentle pacing, clear pronunciation, and low intensity suitable for bedtime listening."
                 parts.append(instructions)
             }
@@ -25,7 +25,7 @@ enum MacArticleSpeechVoicePreviewCache {
             parts.append(model.hasPrefix("canopylabs/orpheus") ? "wav" : "mp3")
         case .localQwen3:
             parts.append(MacArticleSpeechSettings.localQwen3ServerURL)
-            let instructions = UserDefaults.standard.string(forKey: MacArticleSpeechSettings.localQwen3InstructionsDefaultsKey)
+            let instructions = Preferences.value(Prefs.ReadAloud.localQwen3Instructions)
                 ?? "Read in a calm, natural audiobook style with gentle pacing, clear pronunciation, and low intensity suitable for bedtime listening."
             parts.append(instructions)
         default:

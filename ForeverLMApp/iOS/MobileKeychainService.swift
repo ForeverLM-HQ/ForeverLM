@@ -94,11 +94,10 @@ enum KeychainService {
     /// now live only in the managed proxy; keeping old synchronized copies on a
     /// phone would serve no feature and needlessly retain secrets.
     static func purgeRetiredProviderData() {
-        let completionKey = "retiredProviderDataPurged.v1"
-        guard !UserDefaults.standard.bool(forKey: completionKey) else { return }
+        guard Preferences.value(Prefs.Lifecycle.retiredProviderDataPurged) != true else { return }
         delete(.openAIAPIKey)
         delete(.anthropicAPIKey)
-        UserDefaults.standard.set(true, forKey: completionKey)
+        Preferences.set(true, for: Prefs.Lifecycle.retiredProviderDataPurged)
     }
 
     static func save(_ value: String, for key: Key) {

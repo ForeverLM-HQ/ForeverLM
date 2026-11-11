@@ -579,7 +579,7 @@ class StudioViewModel {
     /// rail unless the learner took it off. Read by nothing since the rail
     /// went compact (2026-10-03, `NotebookPins`), and not synced
     /// (`SyncedPreferenceKeys.excluded`).
-    static let unpinnedNotebooksPreferenceKey = "studio.unpinnedProjects"
+    static let unpinnedNotebooksPreferenceKey = Prefs.Studio.retiredUnpinnedNotebooks.name
 
     /// The notebooks the learner pinned to the rail's Pinned section, in the
     /// order they were pinned (`NotebookPins`). Pinning is presentation, not
@@ -592,13 +592,13 @@ class StudioViewModel {
     /// team member's pins must not be everyone else's.
     var pinnedNotebookIDs: [String] = {
         StudioViewModel.deduplicated(
-            UserDefaults.standard.stringArray(forKey: NotebookPins.preferenceKey) ?? []
+            Preferences.value(Prefs.Studio.pinnedNotebooks) ?? []
         )
     }() {
         didSet {
-            PreferenceStore.set(
+            Preferences.set(
                 StudioViewModel.deduplicated(pinnedNotebookIDs),
-                forKey: NotebookPins.preferenceKey
+                for: Prefs.Studio.pinnedNotebooks
             )
             // Generation 2: the pins are the member's NotebookStates.
             NotebookSidebarSync.setPinned(pinnedNotebookIDs)
@@ -687,7 +687,7 @@ class StudioViewModel {
     /// synced as its own CloudKit preference record, so the rail and gallery keep
     /// the same order after relaunch and across Macs.
     var notebookOrder: [String] = {
-        let raw = UserDefaults.standard.stringArray(forKey: "studio.projectOrder") ?? []
+        let raw = Preferences.value(Prefs.Studio.notebookOrder) ?? []
         return raw.reduce(into: [String]()) { result, notebookID in
             if !result.contains(notebookID) {
                 result.append(notebookID)
@@ -700,7 +700,7 @@ class StudioViewModel {
                     result.append(notebookID)
                 }
             }
-            PreferenceStore.set(deduplicated, forKey: "studio.projectOrder")
+            Preferences.set(deduplicated, for: Prefs.Studio.notebookOrder)
             // Generation 2: the order is the member's NotebookStates' sidebar keys.
             NotebookSidebarSync.setOrder(deduplicated)
         }
@@ -708,7 +708,7 @@ class StudioViewModel {
 
     // MARK: - Chat order
 
-    static let chatOrderPreferenceKey = "studio.chatOrder"
+    static let chatOrderPreferenceKey = Prefs.Studio.chatOrder.name
 
     /// User-defined chat ordering for the navigation rail, persisted in SQLite and
     /// synced as its own CloudKit preference record so a rearranged rail survives
@@ -722,14 +722,14 @@ class StudioViewModel {
     /// "created since the last rearrangement".
     var chatOrder: [String] = {
         StudioViewModel.deduplicated(
-            UserDefaults.standard.stringArray(forKey: StudioViewModel.chatOrderPreferenceKey) ?? []
+            Preferences.value(Prefs.Studio.chatOrder) ?? []
         )
     }() {
         didSet {
             chatOrderRevision &+= 1
-            PreferenceStore.set(
+            Preferences.set(
                 StudioViewModel.deduplicated(chatOrder),
-                forKey: StudioViewModel.chatOrderPreferenceKey
+                for: Prefs.Studio.chatOrder
             )
         }
     }
@@ -863,7 +863,7 @@ class StudioViewModel {
     /// Canonical show names whose future transcript recovery should begin on
     /// YouTube instead of repeating an Apple lookup the learner knows will fail.
     var podcastYouTubeFallbackShows: Set<String> = Set(
-        UserDefaults.standard.stringArray(forKey: "podcasts.youtubeFallbackShows") ?? []
+        Preferences.value(Prefs.Discovery.youtubeFallbackShows) ?? []
     )
     /// YouTube uploader names hidden by the learner. Loaded from the synced
     /// `hidden_youtube_channels` table so future imports stay hidden too.
@@ -875,12 +875,8 @@ class StudioViewModel {
     /// syncing it would hide a real warning on another Mac with different TCC
     /// state. Dismissal is durable because intermittent local reads must not
     /// resurrect a warning the learner already chose to hide.
-    var browserAccessPromptDismissed = UserDefaults.standard.bool(
-        forKey: StudioViewModel.browserAccessPromptDismissedKey
-    )
-    var podcastAccessPromptDismissed = UserDefaults.standard.bool(
-        forKey: StudioViewModel.podcastAccessPromptDismissedKey
-    )
+    var browserAccessPromptDismissed = (Preferences.value(Prefs.Discovery.browserAccessPromptDismissed) as? Bool) ?? false
+    var podcastAccessPromptDismissed = (Preferences.value(Prefs.Discovery.podcastAccessPromptDismissed) as? Bool) ?? false
     /// Groups of biorxiv papers with multiple versions saved (same DOI base, different vN).
     /// Each element is (title, newerID, olderIDs) — user can tap "Fix" to keep only the latest.
     var paperVersionConflicts: [(title: String, newerID: String, olderIDs: [String])] = []
@@ -905,21 +901,21 @@ class StudioViewModel {
         get { sidebarStore.sourceCardFilter }
         set { sidebarStore.sourceCardFilter = newValue }
     }
-    var podcastSortMode: PodcastSortMode = PodcastSortMode(rawValue: UserDefaults.standard.string(forKey: "podcastSortMode") ?? "") ?? .date {
+    var podcastSortMode: PodcastSortMode = PodcastSortMode(rawValue: Preferences.value(Prefs.Studio.podcastSortMode) ?? "") ?? .date {
         didSet {
-            PreferenceStore.set(podcastSortMode.rawValue, forKey: "podcastSortMode")
+            Preferences.set(podcastSortMode.rawValue, for: Prefs.Studio.podcastSortMode)
             resetDisplayLimits()
         }
     }
-    var videoSortMode: VideoSortMode = VideoSortMode(rawValue: UserDefaults.standard.string(forKey: "videoSortMode") ?? "") ?? .liked {
+    var videoSortMode: VideoSortMode = VideoSortMode(rawValue: Preferences.value(Prefs.Studio.videoSortMode) ?? "") ?? .liked {
         didSet {
-            PreferenceStore.set(videoSortMode.rawValue, forKey: "videoSortMode")
+            Preferences.set(videoSortMode.rawValue, for: Prefs.Studio.videoSortMode)
             resetDisplayLimits()
         }
     }
-    var meetingListOrder: MeetingListOrder = MeetingListOrder(rawValue: UserDefaults.standard.string(forKey: "meetingListOrder") ?? "") ?? .bySeries {
+    var meetingListOrder: MeetingListOrder = MeetingListOrder(rawValue: Preferences.value(Prefs.Studio.meetingListOrder) ?? "") ?? .bySeries {
         didSet {
-            PreferenceStore.set(meetingListOrder.rawValue, forKey: "meetingListOrder")
+            Preferences.set(meetingListOrder.rawValue, for: Prefs.Studio.meetingListOrder)
             resetDisplayLimits()
         }
     }
@@ -1042,17 +1038,17 @@ class StudioViewModel {
     /// One library at a time; switching reloads sources, Notebooks, Docs and
     /// chats for that namespace. Persisted so a relaunch reopens the same one.
     var activeTeamID: String? = {
-        let raw = UserDefaults.standard.string(forKey: StudioViewModel.activeTeamPreferenceKey)
+        let raw = Preferences.value(Prefs.Studio.activeTeamID)
         return raw?.isEmpty == false ? raw : nil
     }() {
         didSet {
-            UserDefaults.standard.set(activeTeamID ?? "", forKey: StudioViewModel.activeTeamPreferenceKey)
+            Preferences.set(activeTeamID ?? "", for: Prefs.Studio.activeTeamID)
             // Which team's courses the Courses home lists depends on it.
             allCourseGroupNamesCache = nil
             visibleCourseGroupNamesCache = nil
         }
     }
-    static let activeTeamPreferenceKey = "studio.activeTeamID"
+    static let activeTeamPreferenceKey = Prefs.Studio.activeTeamID.name
     /// Every team this account owns or joined, for the switcher and the menus.
     var teams: [TeamRecord] = []
     /// The Docs shared through a Doc space, by Doc id: the ones this account shares and the ones
@@ -1468,13 +1464,13 @@ class StudioViewModel {
     /// persisted from here — `didSet` does not run for a property initializer —
     /// so the learner's durable choice survives to be hydrated over this.
     var hiddenTabs: Set<StudioSidebarTab> = {
-        let raw = UserDefaults.standard.stringArray(forKey: "studio.hiddenTabs") ?? []
+        let raw = Preferences.value(Prefs.Studio.hiddenTabs) ?? []
         let stored = Set(raw.compactMap { StudioSidebarTab.fromPersistedRawValue($0) })
         return stored.union(StudioViewModel.integrationTabUnpinState().pending)
     }() {
         didSet {
             let raw = Array(hiddenTabs.map(\.rawValue))
-            PreferenceStore.set(raw, forKey: "studio.hiddenTabs")
+            Preferences.set(raw, for: Prefs.Studio.hiddenTabs)
         }
     }
 
@@ -1490,15 +1486,13 @@ class StudioViewModel {
     /// preferences container forgot that the learner had unpinned Read AI or
     /// Zoom by hand and pinned both back as soon as their sources loaded.
     var autoUnpinnedIntegrationTabs: Set<StudioSidebarTab> = {
-        let raw = UserDefaults.standard.stringArray(
-            forKey: StudioSidebarTab.autoUnpinnedIntegrationTabsPreferenceKey
-        ) ?? []
+        let raw = (Preferences.value(Prefs.Studio.integrationTabsUnpinnedByDefault) as? [String]) ?? []
         return Set(raw.compactMap { StudioSidebarTab.fromPersistedRawValue($0) })
     }() {
         didSet {
-            PreferenceStore.set(
+            Preferences.set(
                 autoUnpinnedIntegrationTabs.map(\.rawValue).sorted(),
-                forKey: StudioSidebarTab.autoUnpinnedIntegrationTabsPreferenceKey
+                for: Prefs.Studio.integrationTabsUnpinnedByDefault
             )
         }
     }
@@ -1506,9 +1500,8 @@ class StudioViewModel {
     /// Which integration tabs have already had their one-time unpin, and which
     /// are still owed one. Pure read, safe from a property initializer.
     static func integrationTabUnpinState() -> (applied: Set<String>, pending: [StudioSidebarTab]) {
-        let defaults = UserDefaults.standard
         let applied = Set(
-            defaults.stringArray(forKey: StudioSidebarTab.integrationUnpinAppliedPreferenceKey) ?? []
+            Preferences.value(Prefs.Studio.integrationTabUnpinDefaultsApplied) ?? []
         )
         let pending = StudioSidebarTab.allCases.filter {
             $0.requiresIntegrationSetup && !applied.contains($0.rawValue)
@@ -1549,9 +1542,9 @@ class StudioViewModel {
             hidden.insert(tab)
             autoUnpinned.insert(tab)
         }
-        PreferenceStore.set(
+        Preferences.set(
             applied.sorted(),
-            forKey: StudioSidebarTab.integrationUnpinAppliedPreferenceKey
+            for: Prefs.Studio.integrationTabUnpinDefaultsApplied
         )
         if autoUnpinned != autoUnpinnedIntegrationTabs {
             autoUnpinnedIntegrationTabs = autoUnpinned
@@ -1564,7 +1557,7 @@ class StudioViewModel {
     /// User-defined tab ordering (synced across devices via iCloud KVS).
     /// Contains all tabs; new tabs added to the enum are placed automatically.
     var tabOrder: [StudioSidebarTab] = {
-        let raw = UserDefaults.standard.stringArray(forKey: "studio.tabOrder") ?? []
+        let raw = Preferences.value(Prefs.Studio.tabOrder) ?? []
         return StudioSidebarTab.reconciledOrder(raw.compactMap { StudioSidebarTab.fromPersistedRawValue($0) })
     }() {
         didSet {
@@ -1577,7 +1570,7 @@ class StudioViewModel {
             // the write below must not depend on that assignment landing first.
             let reconciled = StudioSidebarTab.reconciledOrder(tabOrder)
             if reconciled != tabOrder { tabOrder = reconciled }
-            PreferenceStore.set(reconciled.map(\.rawValue), forKey: "studio.tabOrder")
+            Preferences.set(reconciled.map(\.rawValue), for: Prefs.Studio.tabOrder)
         }
     }
 
@@ -1592,9 +1585,9 @@ class StudioViewModel {
     /// knowledge results without losing it or changing the Sources panel.
     var excludedKnowledgeTabs: Set<StudioSidebarTab> = StudioSidebarTab.excludedKnowledgeTabs() {
         didSet {
-            PreferenceStore.set(
+            Preferences.set(
                 Array(excludedKnowledgeTabs.map(\.rawValue)).sorted(),
-                forKey: StudioSidebarTab.knowledgeExclusionPreferenceKey
+                for: Prefs.Studio.excludedKnowledgeSourceTabs
             )
             sourceSearchResults.removeAll()
             readerSearchBestMatches.removeAll()
@@ -1675,7 +1668,7 @@ class StudioViewModel {
 
     /// User-defined course ordering for the Courses home (synced across devices via iCloud KVS).
     var courseOrder: [String] = {
-        let raw = UserDefaults.standard.stringArray(forKey: "studio.courseOrder") ?? []
+        let raw = Preferences.value(Prefs.Studio.courseOrder) ?? []
         return raw.reduce(into: [String]()) { result, courseName in
             if !result.contains(courseName) {
                 result.append(courseName)
@@ -1690,14 +1683,14 @@ class StudioViewModel {
                     result.append(courseName)
                 }
             }
-            PreferenceStore.set(raw, forKey: "studio.courseOrder")
+            Preferences.set(raw, for: Prefs.Studio.courseOrder)
         }
     }
 
     /// User-created course IDs (persisted in UserDefaults). Auto-discovered courses
     /// don't need to be here — they're identified by sourceType/discoveryOrigin.
     var userCourseNames: Set<String> = {
-        let arr = UserDefaults.standard.stringArray(forKey: "userCourseNames") ?? []
+        let arr = Preferences.value(Prefs.Studio.userCourseNames) ?? []
         return Set(arr)
     }()
 
@@ -1781,7 +1774,7 @@ class StudioViewModel {
 
     /// User-created meeting group IDs (persisted in UserDefaults).
     var userMeetingGroupNames: Set<String> = {
-        let arr = UserDefaults.standard.stringArray(forKey: "userMeetingGroupNames") ?? []
+        let arr = Preferences.value(Prefs.Meetings.userGroupNames) ?? []
         return Set(arr)
     }()
 
@@ -1817,14 +1810,14 @@ class StudioViewModel {
 
     /// Which Studio column is temporarily expanded to take over the layout.
     var expandedPanel: StudioExpandedPanel? = {
-        guard let raw = UserDefaults.standard.string(forKey: "studio.expandedPanel") else { return nil }
+        guard let raw = Preferences.value(Prefs.Studio.expandedPanel) else { return nil }
         return StudioExpandedPanel(rawValue: raw)
     }() {
         didSet {
             if let expandedPanel {
-                PreferenceStore.set(expandedPanel.rawValue, forKey: "studio.expandedPanel")
+                Preferences.set(expandedPanel.rawValue, for: Prefs.Studio.expandedPanel)
             } else {
-                PreferenceStore.remove(forKey: "studio.expandedPanel")
+                Preferences.reset(Prefs.Studio.expandedPanel)
             }
         }
     }
@@ -1841,8 +1834,8 @@ class StudioViewModel {
     /// search results) reveals it, and its toolbar/idle close button hides it
     /// again. Transient — a fresh launch always starts without it.
     var showReaderPanel = false
-    var showSearchPanel: Bool = UserDefaults.standard.object(forKey: "studio.showSearchPanel") as? Bool ?? true {
-        didSet { PreferenceStore.set(showSearchPanel, forKey: "studio.showSearchPanel") }
+    var showSearchPanel: Bool = Preferences.value(Prefs.Studio.showSearchPanel) ?? true {
+        didSet { Preferences.set(showSearchPanel, for: Prefs.Studio.showSearchPanel) }
     }
 
     /// Whether the docked Chat surface is on screen — i.e. the Chat tab is the
@@ -2397,19 +2390,17 @@ class StudioViewModel {
 /// never synced. The key predates windows holding their own notebooks, when
 /// it was also what MCP read; it is kept so the choice survives.
 enum ActiveNotebookPreference {
-    static let defaultsKey = "studio.activeMCPNotebookID"
-
     static var notebookID: String? {
         get {
-            guard let value = UserDefaults.standard.string(forKey: defaultsKey)?
+            guard let value = Preferences.value(Prefs.MCP.activeNotebookID)?
                 .trimmingCharacters(in: .whitespacesAndNewlines), !value.isEmpty else { return nil }
             return value
         }
         set {
             if let clean = newValue?.trimmingCharacters(in: .whitespacesAndNewlines), !clean.isEmpty {
-                UserDefaults.standard.set(clean, forKey: defaultsKey)
+                Preferences.set(clean, for: Prefs.MCP.activeNotebookID)
             } else {
-                UserDefaults.standard.removeObject(forKey: defaultsKey)
+                Preferences.reset(Prefs.MCP.activeNotebookID)
             }
         }
     }

@@ -297,28 +297,77 @@ enum KeychainService {
     /// OAuth *client IDs* also stay put despite not being secret: they already ride
     /// iCloud Keychain paired with secrets that don't, and splitting a pair strands
     /// a synced ID next to an unsynced secret.
-    private static let preferenceBackedKeys: Set<Key> = [
-        .aiProvider,
-        .anthropicModel, .openAIModel, .groqModel, .cerebrasModel, .xaiModel,
-        .geminiModel, .metaModel, .togetherModel, .fireworksModel, .nvidiaModel,
-        .openRouterModel,
-        .sttProvider, .sttModelMedia,
-        .sttModelOpenAI, .sttModelGroq, .sttModelOpenRouter, .sttModelWispr,
-        .sttModelWhisperKit, .sttModelAssemblyAI, .sttModelCartesia,
-        .sttModelTailscale, .sttLocalServerURL,
-        .ttsProvider,
-        .ttsModelApple, .ttsModelOpenAI, .ttsModelGroq, .ttsModelElevenLabs,
-        .ttsModelTogetherAI, .ttsModelLocalMac, .ttsModelXAI, .ttsModelOpenRouter,
-        .ttsModelGemini, .ttsModelCartesia, .ttsModelTailscale, .ttsLocalServerURL,
-    ]
+    /// The preference row behind a `Key` that is a selection, typed. Every other key
+    /// is a credential or a toggle and stays in the Keychain. A test holds each
+    /// `rawValue` of the keys below to the declared name.
+    private enum PreferenceSlot {
+        case account(AccountKey<String?>)
+        case device(DeviceKey<String?>)
+
+        var stored: String? {
+            switch self {
+            case let .account(key): return Preferences.value(key)
+            case let .device(key): return Preferences.value(key)
+            }
+        }
+
+        func write(_ value: String?) {
+            switch self {
+            case let .account(key): Preferences.set(value, for: key)
+            case let .device(key): Preferences.set(value, for: key)
+            }
+        }
+    }
+
+    private static func preferenceSlot(for key: Key) -> PreferenceSlot? {
+        switch key {
+        case .aiProvider: return .account(Prefs.Models.aiProvider)
+        case .anthropicModel: return .account(Prefs.Models.anthropicModel)
+        case .openAIModel: return .account(Prefs.Models.openAIModel)
+        case .groqModel: return .account(Prefs.Models.groqModel)
+        case .cerebrasModel: return .account(Prefs.Models.cerebrasModel)
+        case .xaiModel: return .account(Prefs.Models.xaiModel)
+        case .geminiModel: return .account(Prefs.Models.geminiModel)
+        case .metaModel: return .account(Prefs.Models.metaModel)
+        case .togetherModel: return .account(Prefs.Models.togetherModel)
+        case .fireworksModel: return .account(Prefs.Models.fireworksModel)
+        case .nvidiaModel: return .account(Prefs.Models.nvidiaModel)
+        case .openRouterModel: return .account(Prefs.Models.openRouterModel)
+        case .sttProvider: return .account(Prefs.Models.sttProvider)
+        case .sttModelOpenAI: return .account(Prefs.Models.sttModelOpenAI)
+        case .sttModelGroq: return .account(Prefs.Models.sttModelGroq)
+        case .sttModelOpenRouter: return .account(Prefs.Models.sttModelOpenRouter)
+        case .sttModelWispr: return .account(Prefs.Models.sttModelWispr)
+        case .sttModelWhisperKit: return .account(Prefs.Models.sttModelWhisperKit)
+        case .sttModelAssemblyAI: return .account(Prefs.Models.sttModelAssemblyAI)
+        case .sttModelCartesia: return .account(Prefs.Models.sttModelCartesia)
+        case .sttModelTailscale: return .account(Prefs.Models.sttModelTailscale)
+        case .sttLocalServerURL: return .account(Prefs.Models.sttLocalServerURL)
+        case .ttsProvider: return .account(Prefs.Models.ttsProvider)
+        case .ttsModelApple: return .account(Prefs.Models.ttsModelApple)
+        case .ttsModelOpenAI: return .account(Prefs.Models.ttsModelOpenAI)
+        case .ttsModelGroq: return .account(Prefs.Models.ttsModelGroq)
+        case .ttsModelElevenLabs: return .account(Prefs.Models.ttsModelElevenLabs)
+        case .ttsModelTogetherAI: return .account(Prefs.Models.ttsModelTogetherAI)
+        case .ttsModelLocalMac: return .account(Prefs.Models.ttsModelLocalMac)
+        case .ttsModelXAI: return .account(Prefs.Models.ttsModelXAI)
+        case .ttsModelOpenRouter: return .account(Prefs.Models.ttsModelOpenRouter)
+        case .ttsModelGemini: return .account(Prefs.Models.ttsModelGemini)
+        case .ttsModelCartesia: return .account(Prefs.Models.ttsModelCartesia)
+        case .ttsModelTailscale: return .account(Prefs.Models.ttsModelTailscale)
+        case .ttsLocalServerURL: return .account(Prefs.Models.ttsLocalServerURL)
+        case .sttModelMedia: return .device(Prefs.Models.sttModelMedia)
+        default: return nil
+        }
+    }
 
     private static func isPreferenceBacked(_ key: Key) -> Bool {
-        preferenceBackedKeys.contains(key)
+        preferenceSlot(for: key) != nil
     }
 
     static func save(_ value: String, for key: Key) {
         clearIndividualMiss(key)
-        if isPreferenceBacked(key) {
+        if let slot = preferenceSlot(for: key) {
             // The Keychain copy is deliberately left in place rather than deleted:
             // `load` prefers UserDefaults, so it can never shadow this write, and
             // leaving it keeps a downgrade to a build without this routing working.
@@ -327,11 +376,7 @@ enum KeychainService {
             // Empty is stored as absent, matching `loadVaultValue`'s `!value.isEmpty`
             // guard. Callers rely on it: `load(.ttsModelOpenRouter) ?? defaultModel`
             // must yield the default for a cleared field, not "".
-            if value.isEmpty {
-                PreferenceStore.remove(forKey: key.rawValue)
-            } else {
-                PreferenceStore.set(value, forKey: key.rawValue)
-            }
+            slot.write(value.isEmpty ? nil : value)
             return
         }
         #if os(macOS)
@@ -424,8 +469,8 @@ enum KeychainService {
     #endif
     
     static func load(_ key: Key) -> String? {
-        if isPreferenceBacked(key) {
-            if let value = UserDefaults.standard.string(forKey: key.rawValue), !value.isEmpty {
+        if let slot = preferenceSlot(for: key) {
+            if let value = slot.stored, !value.isEmpty {
                 return value
             }
             // Not migrated yet: promote the existing Keychain value on first read,
@@ -433,7 +478,7 @@ enum KeychainService {
             // forbids migrations that run at launch, and this costs one read per key
             // per install rather than a startup pass.
             guard let migrated = loadFromKeychain(key) else { return nil }
-            PreferenceStore.set(migrated, forKey: key.rawValue)
+            slot.write(migrated)
             return migrated
         }
         return loadFromKeychain(key)
@@ -676,7 +721,7 @@ enum KeychainService {
         let settle = vaultLockDepth == 0 && retiredFileVaultSettlePending
         if settle { retiredFileVaultSettlePending = false }
         vaultLock.unlock()
-        if settle { UserDefaults.standard.set(true, forKey: retiredFileVaultAdoptedKey) }
+        if settle { Preferences.persist(true, for: Prefs.Lifecycle.retiredFileVaultAdopted) }
         return result
     }
 
@@ -785,8 +830,6 @@ enum KeychainService {
     /// the login keychain is never asked for it again. Bundle IDs differ per
     /// profile, so `UserDefaults.standard` already scopes this to Dev or Release,
     /// and each adopts independently.
-    private static let retiredFileVaultAdoptedKey = "keychain.retiredProductFileVaultAdopted"
-
     /// Held under `vaultLock`. `retiredFileVaultSettledThisLaunch` answers the lookup at once; the defaults write waits
     /// for `withVaultLock` to release the lock.
     private static var vaultLockDepth = 0
@@ -826,7 +869,7 @@ enum KeychainService {
         if allowFileBased,
            sharedAccessGroup != nil,
            !retiredFileVaultSettledThisLaunch,
-           !UserDefaults.standard.bool(forKey: retiredFileVaultAdoptedKey) {
+           Preferences.value(Prefs.Lifecycle.retiredFileVaultAdopted) != true {
             queries.append(vaultQuery(service: retiredService, account: retiredVaultAccount, accessGroup: retiredSharedAccessGroup, dataProtection: false))
             queries.append(vaultQuery(service: retiredService, account: retiredVaultAccount, accessGroup: nil, dataProtection: false))
         }
@@ -1210,11 +1253,11 @@ enum KeychainService {
 
     static func delete(_ key: Key) {
         clearIndividualMiss(key)
-        if isPreferenceBacked(key) {
+        if let slot = preferenceSlot(for: key) {
             // Clear both stores: leaving the pre-migration Keychain copy behind
             // would let `load` promote it again on the next read and resurrect a
             // selection the user just reset.
-            PreferenceStore.remove(forKey: key.rawValue)
+            slot.write(nil)
         }
         #if os(macOS)
         if case .refused(let status) = deleteVaultValue(for: key) {

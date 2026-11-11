@@ -754,8 +754,8 @@ extension MobileAudioReviewViewModel {
         // by asking rather than silently spending.
         var suppressedCostModels: [String] = []
         do {
-            suppressedCostModels = try await MobileModelPreferenceStore.shared.stringArray(
-                forKey: TextToSpeechCostConfirmationPreferences.suppressedModelIDsKey
+            suppressedCostModels = try await MobileModelPreferenceStore.shared.valueOrDefault(
+                for: Prefs.ReadAloud.costConfirmationSuppressedModels
             ) ?? []
         } catch {
             Self.logger.error("Reading the suppressed cost confirmations failed: \(error.localizedDescription, privacy: .public)")

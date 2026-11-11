@@ -1198,12 +1198,9 @@ enum AIProviderPricing {
         return remotePriceGenerationValue
     }
 
-    private static let remotePricesDefaultsKey = "aiPricing.openRouterRemotePrices"
-    private static let remotePricesFetchedAtKey = "aiPricing.openRouterRemotePricesFetchedAt"
-
     /// When the remote table was last fetched from the network; nil = never.
     static var remotePricesFetchedAt: Date? {
-        UserDefaults.standard.object(forKey: remotePricesFetchedAtKey) as? Date
+        Preferences.value(Prefs.Spend.remotePricesFetchedAt)
     }
 
     /// Loads the persisted remote price table into memory. Idempotent and
@@ -1217,7 +1214,7 @@ enum AIProviderPricing {
         defer { remotePriceLock.unlock() }
         guard !didLoadPersistedRemotePrices else { return }
         didLoadPersistedRemotePrices = true
-        guard let data = UserDefaults.standard.data(forKey: remotePricesDefaultsKey),
+        guard let data = Preferences.value(Prefs.Spend.remotePrices),
               let table = try? JSONDecoder().decode([String: RemoteModelPrice].self, from: data)
         else { return }
         remotePricesBySlug = table
@@ -1236,9 +1233,9 @@ enum AIProviderPricing {
         if changed { remotePriceGenerationValue &+= 1 }
         remotePriceLock.unlock()
         if let data = try? JSONEncoder().encode(table) {
-            UserDefaults.standard.set(data, forKey: remotePricesDefaultsKey)
+            Preferences.set(data, for: Prefs.Spend.remotePrices)
         }
-        UserDefaults.standard.set(fetchedAt, forKey: remotePricesFetchedAtKey)
+        Preferences.set(fetchedAt, for: Prefs.Spend.remotePricesFetchedAt)
         return changed
     }
 
@@ -1772,10 +1769,6 @@ final class AIInFlightCalls: @unchecked Sendable {
     /// settings nor other tests' calls.
     @TaskLocal static var current: AIInFlightCalls = .shared
 
-    /// Synced: a stop is the learner's decision about the account's spend, and
-    /// every Mac on it runs the same background queues.
-    static let stoppedStepsKey = "aiSpend.stoppedSteps"
-
     /// Steps of a chat the learner is typing in: listed nowhere, since the chat
     /// shows them and has its own Stop. A scheduled task's chat is its own row.
     static let chatTurnSteps: Set<String> = ["chat", "chat_quiz_grading", "deep_research_chat"]
@@ -1786,12 +1779,12 @@ final class AIInFlightCalls: @unchecked Sendable {
         let write: @Sendable ([String]) -> Void
 
         static let preferences = StoppedStepsStore(
-            read: { UserDefaults.standard.stringArray(forKey: AIInFlightCalls.stoppedStepsKey) ?? [] },
+            read: { Preferences.value(Prefs.Spend.stoppedSteps) ?? [] },
             write: { steps in
                 if steps.isEmpty {
-                    PreferenceStore.remove(forKey: AIInFlightCalls.stoppedStepsKey)
+                    Preferences.reset(Prefs.Spend.stoppedSteps)
                 } else {
-                    PreferenceStore.set(steps, forKey: AIInFlightCalls.stoppedStepsKey)
+                    Preferences.set(steps, for: Prefs.Spend.stoppedSteps)
                 }
             }
         )

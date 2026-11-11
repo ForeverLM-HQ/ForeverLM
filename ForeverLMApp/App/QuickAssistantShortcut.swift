@@ -45,7 +45,7 @@ struct QuickAssistantShortcut: Equatable {
 
     /// This Mac's choice. Never synced: another Mac may have another keyboard,
     /// and another app there may own the combination.
-    static let storageKey = "quickAssistant.shortcut"
+    static let storageKey = Prefs.Planner.quickAssistantShortcut.name
     /// Stored for a learner who turned the shortcut off.
     static let offValue = "off"
 
@@ -53,12 +53,14 @@ struct QuickAssistantShortcut: Equatable {
     /// off. Never set means the default; a stored value this build cannot read
     /// is treated as off rather than guessed at.
     static func stored(in defaults: UserDefaults = .standard) -> QuickAssistantShortcut? {
-        guard let raw = defaults.string(forKey: storageKey) else { return .default }
+        guard let raw = Preferences.withStorage(defaults, { Preferences.value(Prefs.Planner.quickAssistantShortcut) }) else { return .default }
         return try? parse(raw)
     }
 
     static func store(_ shortcut: QuickAssistantShortcut?, in defaults: UserDefaults = .standard) {
-        defaults.set(shortcut?.serialized ?? offValue, forKey: storageKey)
+        Preferences.withStorage(defaults) {
+            Preferences.set(shortcut?.serialized ?? offValue, for: Prefs.Planner.quickAssistantShortcut)
+        }
     }
 
     // MARK: Keys

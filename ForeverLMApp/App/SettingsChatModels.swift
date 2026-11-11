@@ -1086,9 +1086,18 @@ enum ChatModelLists {
 /// `chat.your_models`, `background.your_models_text` and
 /// `background.your_models_images` write them.
 enum ChatModelShortlist {
-    static let preferenceKey = "chatModels.shortlist"
-    static let backgroundTextKey = "backgroundModels.shortlist.text"
-    static let backgroundImagesKey = "backgroundModels.shortlist.images"
+    static let preferenceKey = Prefs.Models.chatModelsShortlist.name
+    static let backgroundTextKey = Prefs.Models.backgroundShortlistText.name
+    static let backgroundImagesKey = Prefs.Models.backgroundShortlistImages.name
+
+    /// The three lists the pane keeps, by the name callers hold.
+    private static func listKey(_ name: String) -> AccountKey<[String]?> {
+        switch name {
+        case backgroundTextKey: Prefs.Models.backgroundShortlistText
+        case backgroundImagesKey: Prefs.Models.backgroundShortlistImages
+        default: Prefs.Models.chatModelsShortlist
+        }
+    }
 
     /// The Background list a slot shows: its kind's.
     static func backgroundKey(readsImages: Bool) -> String {
@@ -1100,7 +1109,7 @@ enum ChatModelShortlist {
 
     /// Nil until the learner first edits the list.
     static func stored(key: String) -> [String]? {
-        UserDefaults.standard.stringArray(forKey: key).map(normalized)
+        Preferences.value(listKey(key)).map(normalized)
     }
 
     /// The list as it stands, for a reader that has no directory to resolve
@@ -1122,12 +1131,12 @@ enum ChatModelShortlist {
     }
 
     static func save(_ slugs: [String], key: String = preferenceKey) {
-        PreferenceStore.set(normalized(slugs), forKey: key)
+        Preferences.set(normalized(slugs), for: listKey(key))
     }
 
     /// Forgets the learner's list, so the suggested picks show again.
     static func restoreSuggested(key: String = preferenceKey) {
-        PreferenceStore.remove(forKey: key)
+        Preferences.reset(listKey(key))
     }
 
     /// Lowercased, trimmed, each slug once, in the order first given.

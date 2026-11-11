@@ -42,7 +42,7 @@ final class ScheduledTaskRunner {
     /// (`ScheduledTaskWakePolicy`): the Tasks pane's ⋯ › Keep This Mac
     /// Awake for Tasks (not a button in its header), and
     /// `tasks.keep_mac_awake` over MCP. This Mac only.
-    private(set) var keepsMacAwake = UserDefaults.standard.bool(forKey: ScheduledTaskWakePolicy.keepMacAwakeKey)
+    private(set) var keepsMacAwake = Preferences.value(Prefs.Planner.keepMacAwakeForScheduledTasks) ?? false
     /// The chat each running task is generating in, so `stop` can end it.
     @ObservationIgnored private var runningManagers: [String: ReviewSessionManager] = [:]
     /// Runs `stop` ended, recorded as stopped rather than as a finished chat.
@@ -215,7 +215,7 @@ final class ScheduledTaskRunner {
     /// The Tasks pane's Keep This Mac Awake for Tasks: whether this Mac holds off idle sleep
     /// while a task is due (`ScheduledTaskWakePolicy`). Never syncs.
     func setKeepsMacAwake(_ keepsMacAwake: Bool) {
-        UserDefaults.standard.set(keepsMacAwake, forKey: ScheduledTaskWakePolicy.keepMacAwakeKey)
+        Preferences.set(keepsMacAwake, for: Prefs.Planner.keepMacAwakeForScheduledTasks)
         self.keepsMacAwake = keepsMacAwake
         updateWakeHold()
     }

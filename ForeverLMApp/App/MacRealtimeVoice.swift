@@ -20,7 +20,7 @@ enum MacRealtimeVoice {
         // The synced row is hydrated into UserDefaults on the Mac.
         let controller = RealtimeVoiceController(
             platformAudio: MacRealtimeVoicePlatformAudio(),
-            readVoice: { UserDefaults.standard.string(forKey: RealtimeVoiceDefaults.voicePreferenceKey) }
+            readVoice: { Preferences.value(Prefs.ReadAloud.voiceModeVoice) }
         )
         controller.onFinished = { finished in
             save(finished)

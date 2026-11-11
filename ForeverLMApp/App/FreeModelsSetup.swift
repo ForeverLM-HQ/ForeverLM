@@ -701,12 +701,6 @@ enum AIModelPriceWatch {
         }
     }
 
-    /// Device-local, like the price table it sits beside: each Mac reads the
-    /// directory and notifies for itself.
-    static let recordKey = "aiModelPriceWatch.lastSeen.v1"
-    /// The free models reported as ended on first sight (`compare`'s
-    /// `announced`), kept while the settings still name them.
-    static let announcedKey = "aiModelPriceWatch.announcedEnded.v1"
     static let identifierPrefix = "com.foreverlm.modelprice."
     /// The banner for a free model that ended, when it was not switched on
     /// its own, asks whether to switch: this action does it.
@@ -720,6 +714,33 @@ enum AIModelPriceWatch {
     /// float that round-trips through JSON never reads as a rise.
     static let tolerance = 0.000_1
     private static let lock = NSLock()
+
+    /// What the watch keeps between reads: the last record of each watched
+    /// model's price, and the free models reported as ended on first sight
+    /// (`compare`'s `announced`), kept while the settings still name them.
+    /// Device-local, like the price table it sits beside: each Mac reads the
+    /// directory and notifies for itself.
+    private struct WatchState {
+        var previous: [String: Seen]
+        var announced: Set<String>
+    }
+
+    nonisolated(unsafe) private static var cachedState: WatchState?
+
+    /// The stored state, read with `lock` released and published under it (a
+    /// defaults read must not happen while a lock is held).
+    private static func loadedState() -> WatchState {
+        if let cached = lock.withLock({ cachedState }) { return cached }
+        let previous = Preferences.value(Prefs.Models.priceWatchLastSeen)
+            .flatMap { try? JSONDecoder().decode([String: Seen].self, from: $0) } ?? [:]
+        let announced = Set(Preferences.value(Prefs.Models.priceWatchAnnouncedEnded) ?? [])
+        let stored = WatchState(previous: previous, announced: announced)
+        return lock.withLock {
+            if let cachedState { return cachedState }
+            cachedState = stored
+            return stored
+        }
+    }
 
     /// Compares one directory read with the previous record. Returns the
     /// changes to announce and the record to keep: only watched models, a
@@ -809,20 +830,26 @@ enum AIModelPriceWatch {
         // would otherwise record prices and could raise banners mid-run.
         guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else { return }
         let watched = watchedModelIDs()
-        let changes: [Change] = lock.withLock {
-            let previous = UserDefaults.standard.data(forKey: recordKey)
-                .flatMap { try? JSONDecoder().decode([String: Seen].self, from: $0) } ?? [:]
-            let announced = Set(UserDefaults.standard.stringArray(forKey: announcedKey) ?? [])
-            let result = compare(watched: watched, previous: previous, directory: directory, announced: announced)
-            if result.record != previous, let data = try? JSONEncoder().encode(result.record) {
-                UserDefaults.standard.set(data, forKey: recordKey)
-            }
+        let stored = loadedState()
+        // The comparison and the in-memory copy change under the lock; the
+        // stored rows are written after it is released.
+        let (changes, recordToWrite, announcedToWrite): ([Change], [String: Seen]?, [String]?) = lock.withLock {
+            let state = cachedState ?? stored
+            let result = compare(watched: watched, previous: state.previous, directory: directory, announced: state.announced)
             let lowered = Set(watched.map { $0.lowercased() })
-            let kept = announced.union(result.changes.filter(\.endsFree).map { $0.modelID.lowercased() }).intersection(lowered)
-            if kept != announced {
-                UserDefaults.standard.set(kept.sorted(), forKey: announcedKey)
-            }
-            return result.changes
+            let kept = state.announced.union(result.changes.filter(\.endsFree).map { $0.modelID.lowercased() }).intersection(lowered)
+            cachedState = WatchState(previous: result.record, announced: kept)
+            return (
+                result.changes,
+                result.record != state.previous ? result.record : nil,
+                kept != state.announced ? kept.sorted() : nil
+            )
+        }
+        if let recordToWrite, let data = try? JSONEncoder().encode(recordToWrite) {
+            Preferences.set(data, for: Prefs.Models.priceWatchLastSeen)
+        }
+        if let announcedToWrite {
+            Preferences.set(announcedToWrite, for: Prefs.Models.priceWatchAnnouncedEnded)
         }
         guard !changes.isEmpty else { return }
         Task.detached(priority: .utility) {

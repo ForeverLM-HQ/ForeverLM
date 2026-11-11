@@ -72,7 +72,6 @@ enum AIModelQualification {
         var testedAt: Date
     }
 
-    static let recordKey = "aiModelQualification.v1"
     /// A pass is asked again after a month, so a model OpenRouter later
     /// restricts drops out; a failure after a day, so one that recovers comes
     /// back.
@@ -80,7 +79,21 @@ enum AIModelQualification {
     static let failureLifetime: TimeInterval = MemoryTutorScheduler.secondsPerDay
     static let taskLabel = "model_qualification"
 
-    private static let lock = NSLock()
+    /// One in-memory copy of the table per defaults object (the standard one in
+    /// the app, a suite of its own in a test), so no defaults call is made
+    /// while a lock is held: the copy changes under the memo's lock and the
+    /// stored table is written after it is released.
+    nonisolated(unsafe) private static let memos = NSMapTable<UserDefaults, PreferenceMemo<Data?>>.weakToStrongObjects()
+    private static let memosLock = NSLock()
+
+    private static func memo(for defaults: UserDefaults) -> PreferenceMemo<Data?> {
+        memosLock.withLock {
+            if let memo = memos.object(forKey: defaults) { return memo }
+            let memo = PreferenceMemo(Prefs.Models.qualification)
+            memos.setObject(memo, forKey: defaults)
+            return memo
+        }
+    }
 
     // MARK: Store
 
@@ -92,13 +105,16 @@ enum AIModelQualification {
         slug.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }
 
+    private static func decoded(_ data: Data?) -> [String: Record] {
+        data.flatMap { try? JSONDecoder().decode([String: Record].self, from: $0) } ?? [:]
+    }
+
     private static func table(_ defaults: UserDefaults) -> [String: Record] {
-        defaults.data(forKey: recordKey)
-            .flatMap { try? JSONDecoder().decode([String: Record].self, from: $0) } ?? [:]
+        Preferences.withStorage(defaults) { decoded(memo(for: defaults).value) }
     }
 
     static func record(slug: String, role: Role, defaults: UserDefaults = .standard) -> Record? {
-        lock.withLock { table(defaults)[key(slug: slug, role: role)] }
+        table(defaults)[key(slug: slug, role: role)]
     }
 
     static func status(slug: String, role: Role, defaults: UserDefaults = .standard) -> Status {
@@ -125,11 +141,13 @@ enum AIModelQualification {
     }
 
     static func store(_ record: Record, slug: String, role: Role, defaults: UserDefaults = .standard) {
-        lock.withLock {
-            var current = table(defaults)
-            current[key(slug: slug, role: role)] = record
-            if let data = try? JSONEncoder().encode(current) {
-                defaults.set(data, forKey: recordKey)
+        Preferences.withStorage(defaults) {
+            _ = memo(for: defaults).update { stored in
+                var current = decoded(stored)
+                current[key(slug: slug, role: role)] = record
+                if let data = try? JSONEncoder().encode(current) {
+                    stored = data
+                }
             }
         }
     }

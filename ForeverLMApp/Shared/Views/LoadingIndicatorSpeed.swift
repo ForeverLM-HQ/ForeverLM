@@ -15,7 +15,7 @@ import Foundation
 /// iPhone has no synchronous view of the synced preference rows. The key is
 /// named in `SyncedPreferenceKeys.excluded` so the boundary review sees it.
 enum LoadingIndicatorSpeed {
-    static let key = "loadingIndicator.speed"
+    static let key = Prefs.Planner.loadingIndicatorSpeed.name
 
     static let defaultValue: Double = 1
     static let minimum: Double = 0.25
@@ -51,6 +51,6 @@ enum LoadingIndicatorSpeed {
     }
 
     static func stored(in defaults: UserDefaults = .standard) -> Double {
-        clamped(defaults.object(forKey: key) as? Double)
+        clamped(Preferences.withStorage(defaults) { Preferences.value(Prefs.Planner.loadingIndicatorSpeed) })
     }
 }

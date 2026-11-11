@@ -179,7 +179,7 @@ enum MacArticleTTSClient {
         case .openAI:
             let availableVoices = MacArticleSpeechSettings.openAIVoices(for: model)
             let resolvedVoice = availableVoices.contains(voice) ? voice : MacArticleSpeechSettings.defaultOpenAIVoice
-            let instructions = UserDefaults.standard.string(forKey: MacArticleSpeechSettings.openAIInstructionsDefaultsKey)
+            let instructions = Preferences.value(Prefs.ReadAloud.openAIInstructions)
                 ?? "Read in a calm, natural audiobook style with gentle pacing, clear pronunciation, and low intensity suitable for bedtime listening."
             let speedValue = MacArticleSpeechSpeed.clamped(speed)
             return [
@@ -220,7 +220,7 @@ enum MacArticleTTSClient {
             let trimmedVoice = voice.trimmingCharacters(in: .whitespacesAndNewlines)
             let resolvedVoice = trimmedVoice.isEmpty ? MacArticleSpeechSettings.defaultLocalQwen3Voice : trimmedVoice
             let speedValue = min(max(MacArticleSpeechSpeed.clamped(speed), 0.25), 4.0)
-            let instructions = UserDefaults.standard.string(forKey: MacArticleSpeechSettings.localQwen3InstructionsDefaultsKey)
+            let instructions = Preferences.value(Prefs.ReadAloud.localQwen3Instructions)
                 ?? "Read in a calm, natural audiobook style with gentle pacing, clear pronunciation, and low intensity suitable for bedtime listening."
             let trimmedInstructions = instructions.trimmingCharacters(in: .whitespacesAndNewlines)
             return [

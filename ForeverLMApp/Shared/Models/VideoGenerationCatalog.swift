@@ -171,9 +171,6 @@ enum VideoGenerationCatalog {
         "black-forest-labs/flux-3-video",
     ]
 
-    /// The preference key holding the learner's chosen model (Settings › Videos).
-    static let storedModelKey = "videos.model"
-
     static let directoryURL = URL(string: "https://openrouter.ai/api/v1/videos/models")!
 
     /// The ids stored before 2026-09-27, when Veo was filmed on Google's own
@@ -446,8 +443,7 @@ enum VideoGenerationDirectory {
     /// "Yes, apply the same switch-and-notify to the video models").
     private static func settleStoredChoice(in models: [VideoGenerationModel]) {
         guard !models.isEmpty else { return }
-        let key = VideoGenerationCatalog.storedModelKey
-        let stored = UserDefaults.standard.string(forKey: key)
+        let stored = Preferences.value(Prefs.Imaging.videoModel)
             .map(VideoGenerationCatalog.canonicalID)
             .flatMap { $0.isEmpty ? nil : $0 }
         let wanted = stored ?? VideoGenerationCatalog.defaultModelID
@@ -455,7 +451,7 @@ enum VideoGenerationDirectory {
               let replacement = VideoGenerationCatalog.replacement(in: models) else { return }
         guard switching.withLock({ $0.insert(wanted).inserted }) else { return }
         replacedChoices.withLock { $0[wanted] = replacement.id }
-        PreferenceStore.set(replacement.id, forKey: key)
+        Preferences.set(replacement.id, for: Prefs.Imaging.videoModel)
         switching.withLock { _ = $0.remove(wanted) }
         let message = "OpenRouter no longer serves \(wanted) for video, so ForeverLM switched to \(replacement.name). You can pick another in Settings › Videos."
         DispatchQueue.main.async {

@@ -5,7 +5,7 @@ import SwiftUI
 /// quick assistant over any app. This Mac's own; `set_app_setting`'s
 /// `quick_assistant.shortcut` writes the same value.
 struct QuickAssistantSettingsSection: View {
-    @AppStorage(QuickAssistantShortcut.storageKey) private var storedShortcut: String?
+    @AppStorage(Prefs.Planner.quickAssistantShortcut) private var storedShortcut: String?
     @State private var isRecording = false
     @State private var keyMonitor: Any?
     @State private var refusal: String?

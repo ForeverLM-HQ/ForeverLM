@@ -202,7 +202,7 @@ final class ExplainerVideoGenerationCoordinator: ObservableObject {
     static func filmingChoice() async -> (VideoGenerationModel, VideoGenerationCatalog.Resolution)? {
         do {
             let model = try await VideoGenerationDirectory.resolve(MacVideoGenerationSettings.model)
-            let stored = UserDefaults.standard.string(forKey: MacVideoGenerationSettings.resolutionKey)
+            let stored = Preferences.value(Prefs.Imaging.videoResolution)
             return (model, VideoGenerationCatalog.resolvedResolution(stored, for: model))
         } catch {
             let alert = NSAlert()

@@ -779,20 +779,20 @@ enum ApplePodcastDiscoveryScope: String, CaseIterable, Identifiable {
     case downloadedOrListened
     case completed
 
-    static let defaultsKey = "studio.applePodcastDiscoveryScope"
+    static let defaultsKey = Prefs.Discovery.applePodcastDiscoveryScope.name
 
     var id: String { rawValue }
 
     static var current: ApplePodcastDiscoveryScope {
         get {
-            guard let raw = UserDefaults.standard.string(forKey: defaultsKey),
+            guard let raw = Preferences.value(Prefs.Discovery.applePodcastDiscoveryScope),
                   let scope = ApplePodcastDiscoveryScope(rawValue: raw) else {
                 return .listened
             }
             return scope
         }
         set {
-            PreferenceStore.set(newValue.rawValue, forKey: defaultsKey)
+            Preferences.set(newValue.rawValue, for: Prefs.Discovery.applePodcastDiscoveryScope)
         }
     }
 

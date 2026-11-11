@@ -13,7 +13,7 @@ import Foundation
 /// passing, clears the way. Transport failures are not remembered: a rate
 /// limit at 7:00 says nothing about 7:05.
 enum SourceIdeaExtractionFailures {
-    static let key = "sourceIdeas.extractionFailures.v1"
+    static let key = Prefs.Memory.ideaExtractionFailures.name
     static let retryInterval: TimeInterval = MemoryTutorScheduler.secondsPerDay
 
     struct Record: Equatable, Sendable {

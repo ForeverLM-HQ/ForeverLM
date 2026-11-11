@@ -366,7 +366,7 @@ extension MobileAudioReviewViewModel {
         // generation that uses it says so.
         ArticleSpeechSelection.repairAfterDirectoryRead()
         ArticleSpeechPreferences.shared.reloadFromStorage()
-        let storedModel = UserDefaults.standard.string(forKey: ArticleSpeechSelection.modelDefaultsKey)?
+        let storedModel = Preferences.value(Prefs.Mobile.readAloudModel)?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         guard ArticleSpeechCatalog.isDirectoryBacked
                 || storedModel.isEmpty
@@ -494,7 +494,7 @@ extension MobileAudioReviewViewModel {
     func refreshPaidAutomaticVoiceConsent() async {
         do {
             allowsPaidAutomaticVoices = try await MobileModelPreferenceStore.shared
-                .bool(forKey: SourceAudioAutomation.paidVoiceConsentPreferenceKey) ?? false
+                .valueOrDefault(for: Prefs.ReadAloud.autoGenerateAllowPaidVoices) ?? false
             paidAutomaticVoiceConsentIsKnown = true
         } catch {
             allowsPaidAutomaticVoices = false

@@ -100,10 +100,10 @@ struct MobileNarrationDownloadProgress: Equatable {
 enum MobileTextToSpeechPricingPreferences {
     /// Device-local presentation preference. Automatic generation remains an
     /// explicit Settings opt-in and never blocks on a modal confirmation.
-    static let confirmsEstimatedCostKey = "ios.readAloud.confirmsEstimatedCost"
+    static let confirmsEstimatedCostKey = Prefs.Mobile.readAloudConfirmsEstimatedCost.name
 
     static var confirmsEstimatedCost: Bool {
-        (UserDefaults.standard.object(forKey: confirmsEstimatedCostKey) as? Bool) ?? true
+        Preferences.value(Prefs.Mobile.readAloudConfirmsEstimatedCost) ?? true
     }
 }
 

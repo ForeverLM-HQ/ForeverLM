@@ -45,7 +45,7 @@ extension MobileAudioReviewViewModel {
         await MobileNotebookCoverRequest.requestIfWanted(
             notebookID: id,
             writer: writer,
-            automatic: { try await preferences.bool(forKey: MobileNotebookCover.automaticSettingKey) }
+            automatic: { try await preferences.value(for: Prefs.Imaging.drawNotebookCoversAutomatic) }
         )
     }
 

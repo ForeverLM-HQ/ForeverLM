@@ -109,9 +109,9 @@ extension StudioViewModel {
                 return lhs.dateAdded > rhs.dateAdded
             }
         if sidebarTab == .articles {
-            let safariEnabled = DefaultsEscapeHatch.bool(forKey: "readingListSafari", default: true)
-            let chromeEnabled = DefaultsEscapeHatch.bool(forKey: "readingListChrome", default: true)
-            let braveEnabled = DefaultsEscapeHatch.bool(forKey: "readingListBrave", default: true)
+            let safariEnabled = DefaultsEscapeHatch.bool(forKey: Prefs.Discovery.readingListSafari.name, default: true)
+            let chromeEnabled = DefaultsEscapeHatch.bool(forKey: Prefs.Discovery.readingListChrome.name, default: true)
+            let braveEnabled = DefaultsEscapeHatch.bool(forKey: Prefs.Discovery.readingListBrave.name, default: true)
             tabItems = tabItems.filter { article in
                 switch article.discoveryOrigin {
                 case .safari: return safariEnabled

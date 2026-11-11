@@ -1175,18 +1175,22 @@ private final class MacArticleSpeechVoiceRatingStore: ObservableObject {
         if let remoteObserver { NotificationCenter.default.removeObserver(remoteObserver) }
     }
 
+    /// The row of one voice's rating: the family's prefix, then the model and the voice.
+    private static func key(modelID: String, voiceID: String) -> AccountKey<String?> {
+        Prefs.Families.voiceRating.key("\(modelID)|\(voiceID)")
+    }
+
     func rating(modelID: String, voiceID: String) -> ArticleSpeechVoiceRating? {
         _ = revision
-        let key = ArticleSpeechVoiceRating.preferenceKey(modelID: modelID, voiceID: voiceID)
-        return UserDefaults.standard.string(forKey: key).flatMap(ArticleSpeechVoiceRating.init(rawValue:))
+        return Preferences.value(Self.key(modelID: modelID, voiceID: voiceID)).flatMap(ArticleSpeechVoiceRating.init(rawValue:))
     }
 
     func toggle(_ rating: ArticleSpeechVoiceRating, modelID: String, voiceID: String) {
-        let key = ArticleSpeechVoiceRating.preferenceKey(modelID: modelID, voiceID: voiceID)
+        let key = Self.key(modelID: modelID, voiceID: voiceID)
         if self.rating(modelID: modelID, voiceID: voiceID) == rating {
-            PreferenceStore.remove(forKey: key)
+            Preferences.reset(key)
         } else {
-            PreferenceStore.set(rating.rawValue, forKey: key)
+            Preferences.set(rating.rawValue, for: key)
         }
         revision &+= 1
     }
@@ -1717,9 +1721,7 @@ struct VoiceModeVoicePicker: View {
     @State private var voice = Self.stored
 
     private static var stored: String {
-        RealtimeVoiceDefaults.resolvedVoice(
-            UserDefaults.standard.string(forKey: RealtimeVoiceDefaults.voicePreferenceKey)
-        )
+        RealtimeVoiceDefaults.resolvedVoice(Preferences.value(Prefs.ReadAloud.voiceModeVoice))
     }
 
     var body: some View {
@@ -1727,7 +1729,7 @@ struct VoiceModeVoicePicker: View {
             get: { voice },
             set: { picked in
                 voice = picked
-                PreferenceStore.set(picked, forKey: RealtimeVoiceDefaults.voicePreferenceKey)
+                Preferences.set(picked, for: Prefs.ReadAloud.voiceModeVoice)
             }
         )) {
             ForEach(RealtimeVoiceDefaults.voices, id: \.self) { id in

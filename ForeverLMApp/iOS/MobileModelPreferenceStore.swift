@@ -49,10 +49,10 @@ actor MobileModelPreferenceStore {
     /// (`AIModelCatalog.isOffered`): none whose host trains on prompts while
     /// the Data & Privacy switch is on. The default is returned on its own too.
     func offeredChatModels() async throws -> (choices: [MobileChatModelChoice], defaultChoice: MobileChatModelChoice?) {
-        let hidesTrainingModels = try await bool(forKey: AIDataPolicy.denyDataCollectionKey) ?? false
+        let hidesTrainingModels = try await valueOrDefault(for: Prefs.AIPolicy.denyDataCollection) ?? false
         let defaultPreference = try await chatRoutePreference()
-        let enabled = try await stringArray(forKey: MobileOfferedChatModels.enabledIDsKey)
-        let custom = try await data(forKey: MobileOfferedChatModels.customModelsKey)
+        let enabled = try await valueOrDefault(for: Prefs.Models.chatModelsEnabledIDs)
+        let custom = try await valueOrDefault(for: Prefs.Models.chatModelsOpenRouterCustom)
         let names = MobileOfferedChatModels.customNames(from: custom)
         let defaultID = "\(defaultPreference.provider)|\(defaultPreference.model)"
         let choices = MobileOfferedChatModels.choices(
@@ -133,7 +133,7 @@ actor MobileModelPreferenceStore {
         let routingMode = try await textRoutingMode()
         // The account's data-policy switch travels with the route so the
         // synchronous request builders need no store of their own.
-        let deniesDataCollection = try await bool(forKey: AIDataPolicy.denyDataCollectionKey) ?? false
+        let deniesDataCollection = try await valueOrDefault(for: Prefs.AIPolicy.denyDataCollection) ?? false
 
         if task == .chat {
             let preference: AIModelRoutePreference
@@ -256,27 +256,27 @@ actor MobileModelPreferenceStore {
     }
 
     private func providerAndModelChatRoute() async throws -> AIModelRoutePreference? {
-        guard let storedProvider = try await fetchPreference("ai_provider") as? String else { return nil }
+        guard let storedProvider = try await valueOrDefault(for: Prefs.Models.aiProvider) else { return nil }
         let provider = try providerLabel(storedProvider)
-        let modelKey: String
+        let modelKey: AccountKey<String?>
         switch provider {
-        case "Anthropic (Claude)": modelKey = "anthropic_model"
-        case "OpenAI (GPT)": modelKey = "openai_model"
-        case "Google (Gemini)": modelKey = "gemini_model"
-        case "xAI (Grok)": modelKey = "xai_model"
-        case "OpenRouter": modelKey = "openrouter_model"
-        case "Meta (Muse Spark)": modelKey = "meta_model"
+        case "Anthropic (Claude)": modelKey = Prefs.Models.anthropicModel
+        case "OpenAI (GPT)": modelKey = Prefs.Models.openAIModel
+        case "Google (Gemini)": modelKey = Prefs.Models.geminiModel
+        case "xAI (Grok)": modelKey = Prefs.Models.xaiModel
+        case "OpenRouter": modelKey = Prefs.Models.openRouterModel
+        case "Meta (Muse Spark)": modelKey = Prefs.Models.metaModel
         default: throw MobileModelRouteError.unsupportedProvider(provider)
         }
-        let model = try await fetchPreference(modelKey) as? String ?? defaultModel(for: provider)
+        let model = try await valueOrDefault(for: modelKey) ?? defaultModel(for: provider)
         return AIModelRoutePreference(provider: provider, model: model)
     }
 
     private func providerAndModelBackgroundRoute() async throws -> AIModelRoutePreference? {
-        guard let provider = try await fetchPreference("aiBackground.provider") as? String else { return nil }
-        let perProviderKey = "aiBackground.model.\(provider)"
+        guard let provider = try await valueOrDefault(for: Prefs.Models.backgroundProvider) else { return nil }
+        let perProviderKey = Prefs.Families.aiBackground.name("model.\(provider)")
         let model: String
-        if let selected = try await fetchPreference(perProviderKey) as? String {
+        if let selected = try await string(forKey: perProviderKey) {
             model = selected
         } else {
             model = defaultModel(for: provider)

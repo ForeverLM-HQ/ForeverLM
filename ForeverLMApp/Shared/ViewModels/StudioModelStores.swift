@@ -186,13 +186,12 @@ final class StudioSidebarStore {
     /// (`StudioViewModel.recentlyAddedSources`) — in place of `sidebarTab`'s
     /// list. Picking a kind's tab turns it off. Remembered on this Mac, so a
     /// Library left on Recent opens on it again.
-    var showsRecent: Bool = UserDefaults.standard.bool(forKey: StudioSidebarStore.showsRecentPreferenceKey) {
+    var showsRecent: Bool = Preferences.value(Prefs.Studio.libraryShowsRecent) ?? false {
         didSet {
             guard showsRecent != oldValue else { return }
-            UserDefaults.standard.set(showsRecent, forKey: Self.showsRecentPreferenceKey)
+            Preferences.set(showsRecent, for: Prefs.Studio.libraryShowsRecent)
         }
     }
-    static let showsRecentPreferenceKey = "library.showsRecent.v1"
     /// How many rows Recent draws before its Show More.
     var recentDisplayLimit: Int = 60
     /// The query every source list filters on. While the learner types it trails

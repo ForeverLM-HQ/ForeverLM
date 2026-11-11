@@ -17,27 +17,27 @@ enum NotebookNamingRows {
     private static var defaults: UserDefaults { overrideDefaults?.defaults ?? .standard }
 
     static func mark(notebookID: String) -> NotebookNaming.Mark? {
-        NotebookNaming.Mark.decoded(defaults.object(forKey: NotebookNaming.preferenceKey(notebookID: notebookID)))
+        NotebookNaming.Mark.decoded(defaults.object(forKey: Prefs.Families.notebookNaming.name(notebookID)))
     }
 
     /// Writes a notebook's row; nil removes it, which is a name ForeverLM
     /// leaves alone from then on.
     static func setMark(_ mark: NotebookNaming.Mark?, notebookID: String) {
-        let key = NotebookNaming.preferenceKey(notebookID: notebookID)
+        let key = Prefs.Families.notebookNaming.key(notebookID)
         if let override = overrideDefaults {
             if let mark {
-                override.defaults.set(mark.encoded, forKey: key)
+                override.defaults.set(mark.encoded, forKey: key.name)
             } else {
-                override.defaults.removeObject(forKey: key)
+                override.defaults.removeObject(forKey: key.name)
             }
             return
         }
         // `PreferenceStore` drops a write that changes nothing, so the same
         // row written again never becomes a CloudKit save.
         if let mark {
-            PreferenceStore.set(mark.encoded, forKey: key)
+            Preferences.set(mark.encoded, for: key)
         } else {
-            PreferenceStore.remove(forKey: key)
+            Preferences.reset(key)
         }
     }
 
@@ -45,9 +45,8 @@ enum NotebookNamingRows {
     /// so one scan of the defaults finds them.
     static func marks() -> [String: NotebookNaming.Mark] {
         var result: [String: NotebookNaming.Mark] = [:]
-        for (key, value) in defaults.dictionaryRepresentation() where key.hasPrefix(NotebookNaming.preferenceKeyPrefix) {
-            let notebookID = String(key.dropFirst(NotebookNaming.preferenceKeyPrefix.count))
-            guard !notebookID.isEmpty, let mark = NotebookNaming.Mark.decoded(value) else { continue }
+        for (notebookID, value) in Prefs.Families.notebookNaming.rows(in: defaults) {
+            guard let mark = NotebookNaming.Mark.decoded(value) else { continue }
             result[notebookID] = mark
         }
         return result

@@ -322,7 +322,7 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     @Published var reviewGrader: MobileReviewGrader {
         didSet {
             guard reviewGrader != oldValue else { return }
-            UserDefaults.standard.set(reviewGrader.rawValue, forKey: MobileReviewGrader.defaultsKey)
+            Preferences.set(reviewGrader.rawValue, for: Prefs.Mobile.reviewGrader)
         }
     }
     // Resolved at the start of each review from reviewGrader; held for the whole
@@ -339,7 +339,7 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
     var reviewExchanges: [MobileReviewRecordedExchange] = []
 
     override init() {
-        let storedSpeed = UserDefaults.standard.object(forKey: MobileAudioPlaybackSpeed.defaultsKey) as? Float
+        let storedSpeed = Preferences.value(Prefs.Mobile.playbackSpeed)
         speed = MobileAudioPlaybackSpeed.clamped(storedSpeed ?? 1.0)
         apiKeyText = ""
         anthropicKeyText = ""
@@ -351,7 +351,7 @@ final class MobileAudioReviewViewModel: NSObject, ObservableObject {
         // the guards that read these never see the placeholder.
         hasOpenAIKey = false
         hasAnthropicKey = false
-        let storedGrader = UserDefaults.standard.string(forKey: MobileReviewGrader.defaultsKey)
+        let storedGrader = Preferences.value(Prefs.Mobile.reviewGrader)
         reviewGrader = storedGrader.flatMap(MobileReviewGrader.init(rawValue:)) ?? .default
         super.init()
         // Checkpoint-by-checkpoint sync progress from the catalog actor. The

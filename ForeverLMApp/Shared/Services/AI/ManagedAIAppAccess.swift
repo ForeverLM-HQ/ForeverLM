@@ -382,21 +382,19 @@ extension ManagedAI {
         )
     }
 
-    private static let appAccessKey = "managedAI.appAccess"
-
     /// The last access the proxy reported, kept per device so an offline
     /// launch still knows it: a paid account never locks for being offline.
     /// Nil until a worker that reports plans has answered.
     static var appAccess: AppAccess? {
         get {
-            guard let data = UserDefaults.standard.data(forKey: appAccessKey) else { return nil }
+            guard let data = Preferences.value(Prefs.Models.managedAppAccess) else { return nil }
             return try? JSONDecoder().decode(AppAccess.self, from: data)
         }
         set {
             if let newValue, let data = try? JSONEncoder().encode(newValue) {
-                UserDefaults.standard.set(data, forKey: appAccessKey)
+                Preferences.set(data, for: Prefs.Models.managedAppAccess)
             } else {
-                UserDefaults.standard.removeObject(forKey: appAccessKey)
+                Preferences.reset(Prefs.Models.managedAppAccess)
             }
         }
     }
@@ -413,13 +411,11 @@ extension ManagedAI {
 
     // MARK: - The proxy's clock
 
-    private static let serverClockOffsetKey = "managedAI.serverClockOffset"
-
     /// The proxy's clock minus this device's, as last read from a response's
     /// `Date` header. The free days end on the proxy's clock, so setting this
     /// device's clock back does not extend them.
     static var serverClockOffset: TimeInterval {
-        UserDefaults.standard.double(forKey: serverClockOffsetKey)
+        Preferences.value(Prefs.Models.managedServerClockOffset) ?? 0
     }
 
     /// Now, on the proxy's clock as last read.
@@ -432,7 +428,7 @@ extension ManagedAI {
         guard let header, let serverDate = httpDate(header) else { return }
         let offset = serverDate.timeIntervalSince(receivedAt)
         guard abs(offset - serverClockOffset) > 5 else { return }
-        UserDefaults.standard.set(offset, forKey: serverClockOffsetKey)
+        Preferences.set(offset, for: Prefs.Models.managedServerClockOffset)
     }
 
     static func httpDate(_ string: String) -> Date? {

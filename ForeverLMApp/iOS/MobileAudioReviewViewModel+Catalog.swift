@@ -596,8 +596,8 @@ extension MobileAudioReviewViewModel {
     /// keeps the value last read; a learner who never set one has the
     /// product's default, the Mac's.
     private func refreshMemoryReviewPreferences() async {
-        async let budgetRead = Self.syncedIntRead(MemoryReviewBudget.preferenceKey)
-        async let newCardsRead = Self.syncedIntRead(MemoryCardQueue.newPerDayPreferenceKey)
+        async let budgetRead = Self.syncedIntRead(Prefs.Memory.budgetMinutes)
+        async let newCardsRead = Self.syncedIntRead(Prefs.Memory.newCardsPerDay)
         let budget = await budgetRead
         let newCards = await newCardsRead
         let refreshed = memoryReviewPreferences.refreshed(budgetRead: budget, newCardsRead: newCards)
@@ -608,9 +608,9 @@ extension MobileAudioReviewViewModel {
 
     /// One synced whole number's read: nil when the learner never set it, a
     /// failure when iCloud did not answer.
-    private nonisolated static func syncedIntRead(_ key: String) async -> Result<Int?, Error> {
+    private nonisolated static func syncedIntRead(_ key: AccountKey<Int?>) async -> Result<Int?, Error> {
         do {
-            return .success(try await MobileModelPreferenceStore.shared.int(forKey: key))
+            return .success(try await MobileModelPreferenceStore.shared.valueOrDefault(for: key))
         } catch {
             return .failure(error)
         }

@@ -1102,7 +1102,7 @@ enum ChatRecentModels {
         let effort: String?
     }
 
-    static let defaultsKey = "chat.recentModels"
+    static let defaultsKey = Prefs.Models.chatRecentModels.name
     /// Rows kept; the chip's own model is one of them and is not listed.
     static let limit = 4
 
@@ -1114,7 +1114,7 @@ enum ChatRecentModels {
     }
 
     static func load(defaults: UserDefaults = .standard) -> [Entry] {
-        guard let data = defaults.data(forKey: defaultsKey),
+        guard let data = Preferences.withStorage(defaults, { Preferences.value(Prefs.Models.chatRecentModels) }),
               let list = try? JSONDecoder().decode([Entry].self, from: data) else { return [] }
         return list
     }
@@ -1124,7 +1124,7 @@ enum ChatRecentModels {
     static func record(_ entry: Entry, defaults: UserDefaults = .standard) -> [Entry] {
         let list = adding(entry, to: load(defaults: defaults))
         if let data = try? JSONEncoder().encode(list) {
-            defaults.set(data, forKey: defaultsKey)
+            Preferences.withStorage(defaults) { Preferences.set(data, for: Prefs.Models.chatRecentModels) }
         }
         return list
     }

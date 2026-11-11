@@ -1672,10 +1672,10 @@ enum ManagedAI {
     /// the proxy refusing a call for want of credit. Defaults to false — an app
     /// that has never asked must not behave as though the account were empty.
     static var creditsAreEmpty: Bool {
-        get { UserDefaults.standard.bool(forKey: creditsAreEmptyKey) }
+        get { Preferences.value(Prefs.Models.managedCreditsAreEmpty) ?? false }
         set {
-            let wasEmpty = UserDefaults.standard.bool(forKey: creditsAreEmptyKey)
-            UserDefaults.standard.set(newValue, forKey: creditsAreEmptyKey)
+            let wasEmpty = Preferences.value(Prefs.Models.managedCreditsAreEmpty) ?? false
+            Preferences.set(newValue, for: Prefs.Models.managedCreditsAreEmpty)
             // Announce the edge, not the state: both writers (a balance fetch
             // and an operator grant) can report a healthy balance repeatedly,
             // and only the transition out of empty is a new fact for paused
@@ -1686,10 +1686,6 @@ enum ManagedAI {
             }
         }
     }
-
-    /// Device-local: a balance is per-account, but "what did this Mac last see"
-    /// is not something to sync onto another device's launch.
-    private static let creditsAreEmptyKey = "managedAI.creditsAreEmpty"
 
     /// Records the account's transport policy from the two places that learn it:
     /// signing in and fetching the balance.
@@ -1717,13 +1713,13 @@ enum ManagedAI {
     /// Never a synced preference: this is server policy for one account, not a
     /// choice to carry onto another device's launch.
     static var requiredTextRouterToken: String? {
-        get { UserDefaults.standard.string(forKey: requiredTextRouterKey) }
+        get { Preferences.value(Prefs.Models.managedRequiredTextRouter) }
         set {
             guard let newValue, !newValue.isEmpty else {
-                UserDefaults.standard.removeObject(forKey: requiredTextRouterKey)
+                Preferences.reset(Prefs.Models.managedRequiredTextRouter)
                 return
             }
-            UserDefaults.standard.set(newValue, forKey: requiredTextRouterKey)
+            Preferences.set(newValue, for: Prefs.Models.managedRequiredTextRouter)
         }
     }
 
@@ -1735,8 +1731,6 @@ enum ManagedAI {
         guard let token = requiredTextRouterToken else { return nil }
         return AITextRoutingMode(serverToken: token)
     }
-
-    private static let requiredTextRouterKey = "managedAI.comp.textRouter"
 
     private static func send<T: Decodable>(_ request: URLRequest) async throws -> T {
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -1829,7 +1823,6 @@ struct AIModelAccess: Codable, Equatable, Sendable {
         return makers.contains { $0.lowercased() == id[..<slash] }
     }
 
-    static let defaultsKey = "managedAI.modelAccess"
     private static let lock = NSLock()
     nonisolated(unsafe) private static var cache: AIModelAccess??
 
@@ -1842,7 +1835,7 @@ struct AIModelAccess: Codable, Equatable, Sendable {
     /// Read outside the lock: UserDefaults is never touched under one.
     private static var stored: AIModelAccess? {
         if let cached = lock.withLock({ cache }) { return cached }
-        let loaded = UserDefaults.standard.data(forKey: defaultsKey)
+        let loaded = Preferences.value(Prefs.Models.managedModelAccess)
             .flatMap { try? JSONDecoder().decode(AIModelAccess.self, from: $0) }
         lock.withLock { if cache == nil { cache = .some(loaded) } }
         return loaded
@@ -1852,9 +1845,9 @@ struct AIModelAccess: Codable, Equatable, Sendable {
     static func store(_ access: AIModelAccess?) {
         guard stored != access else { return }
         if let access, let data = try? JSONEncoder().encode(access) {
-            UserDefaults.standard.set(data, forKey: defaultsKey)
+            Preferences.set(data, for: Prefs.Models.managedModelAccess)
         } else {
-            UserDefaults.standard.removeObject(forKey: defaultsKey)
+            Preferences.reset(Prefs.Models.managedModelAccess)
         }
         lock.withLock { cache = .some(access) }
         // `.aiProviderDidChange` by its name, which this file shares with

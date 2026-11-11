@@ -58,7 +58,11 @@ enum AIDataPolicy {
     /// synced row lands in `UserDefaults`, so this is the account's answer; the
     /// phone does not rely on it and reads the row directly.
     static var deniesDataCollection: Bool {
-        UserDefaults.standard.bool(forKey: denyDataCollectionKey)
+        // The account key's value as this device holds it. `Preferences.value`
+        // is the Mac's read; the phone compiles this file too, so the stored
+        // object is decoded through the key.
+        let key = Prefs.AIPolicy.denyDataCollection
+        return key.coding.decode(Preferences.storage.object(forKey: key.name)).flatMap { $0 } ?? false
     }
 
     /// The same switch, read for what it hides: models whose hosts train.
@@ -88,7 +92,6 @@ enum AIDataPolicy {
 
     /// Device-local, like the directory's other capability tables: every
     /// device reads the same catalog.
-    static let observedTrainingSlugsKey = "aiPrivacy.openRouterTrainingSlugs"
     private static let observedTrainingLock = NSLock()
     nonisolated(unsafe) private static var observedTrainingCache: Set<String>?
 
@@ -100,7 +103,7 @@ enum AIDataPolicy {
     /// that trains today; one whose first host trains while another does not
     /// is labelled, and hidden by the switch, all the same.
     static var observedTrainingSlugs: Set<String> {
-        observedTrainingLock.withLock { loadedObservedTrainingSlugs() }
+        loadedObservedTrainingSlugs()
     }
 
     /// Stores a catalog read's answer in place of the last one. Returns
@@ -108,22 +111,28 @@ enum AIDataPolicy {
     @discardableResult
     static func recordObservedTrainingSlugs(_ slugs: Set<String>) -> Bool {
         let normalized = Set(slugs.map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() })
+        let current = loadedObservedTrainingSlugs()
         let changed: Bool = observedTrainingLock.withLock {
-            guard loadedObservedTrainingSlugs() != normalized else { return false }
+            guard (observedTrainingCache ?? current) != normalized else { return false }
             observedTrainingCache = normalized
             return true
         }
         guard changed else { return false }
-        UserDefaults.standard.set(normalized.sorted(), forKey: observedTrainingSlugsKey)
+        Preferences.set(normalized.sorted(), for: Prefs.AIPolicy.observedTrainingSlugs)
         return true
     }
 
-    /// Caller holds `observedTrainingLock`. Nothing stored reads as none.
+    /// The slugs. The first read takes the stored set with
+    /// `observedTrainingLock` released (a defaults read must not happen under a
+    /// lock) and publishes it under the lock. Nothing stored reads as none.
     private static func loadedObservedTrainingSlugs() -> Set<String> {
-        if let observedTrainingCache { return observedTrainingCache }
-        let stored = Set(UserDefaults.standard.stringArray(forKey: observedTrainingSlugsKey) ?? [])
-        observedTrainingCache = stored
-        return stored
+        if let cached = observedTrainingLock.withLock({ observedTrainingCache }) { return cached }
+        let stored = Set(Preferences.value(Prefs.AIPolicy.observedTrainingSlugs) ?? [])
+        return observedTrainingLock.withLock {
+            if let observedTrainingCache { return observedTrainingCache }
+            observedTrainingCache = stored
+            return stored
+        }
     }
 
     // MARK: - Request shaping
@@ -414,14 +423,21 @@ struct OpenRouterHostPreference: Codable, Equatable, Sendable {
         return moved.isValid ? moved : nil
     }
 
-    static let keyPrefix = "aiHost."
+    static let keyPrefix = Prefs.Families.openRouterHost.prefix
+
+    private static func hostKey(slot: String, slug: String) -> AccountKey<Any?> {
+        Prefs.Families.openRouterHost.key("\(slot)|\(slug.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())")
+    }
 
     static func key(slot: String, slug: String) -> String {
-        "\(keyPrefix)\(slot)|\(slug.trimmingCharacters(in: .whitespacesAndNewlines).lowercased())"
+        hostKey(slot: slot, slug: slug).name
     }
 
     static func stored(slot: String, slug: String) -> OpenRouterHostPreference? {
-        UserDefaults.standard.string(forKey: key(slot: slot, slug: slug)).flatMap(decoded)
+        // The Mac reads the row from defaults; the phone compiles this file
+        // too, so the stored object is decoded through the key.
+        let key = hostKey(slot: slot, slug: slug)
+        return (key.coding.decode(Preferences.storage.object(forKey: key.name)).flatMap { $0 } as? String).flatMap(decoded)
     }
 
     /// A stored row's JSON text, as the Mac writes it and the phone reads it
@@ -475,15 +491,15 @@ struct OpenRouterHostPreference: Codable, Equatable, Sendable {
     #if os(macOS)
     /// The phone compiles this file without `PreferenceStore`. Nil is Automatic.
     static func set(_ preference: OpenRouterHostPreference?, slot: String, slug: String) {
-        let key = key(slot: slot, slug: slug)
+        let key = hostKey(slot: slot, slug: slug)
         guard let preference, preference.isValid,
               let data = try? JSONEncoder().encode(preference),
               let text = String(data: data, encoding: .utf8)
         else {
-            PreferenceStore.remove(forKey: key)
+            Preferences.reset(key)
             return
         }
-        PreferenceStore.set(text, forKey: key)
+        Preferences.set(text, for: key)
     }
     #endif
 
@@ -786,9 +802,23 @@ enum AIFreeModelPrices {
 /// price table. A refusal is kept for a week and then forgotten, so a model
 /// OpenRouter opens up again comes back to the pickers.
 enum AIFreeModelRestrictions {
-    static let recordKey = "aiFreeModelRestrictions.refusedAt.v1"
     static let retention: TimeInterval = 7 * MemoryTutorScheduler.secondsPerDay
-    private static let lock = NSLock()
+
+    /// One in-memory copy of the table per defaults object (the standard one in
+    /// the app, a suite of its own in a test), so no defaults call is made
+    /// while a lock is held: the copy changes under the memo's lock and the
+    /// stored table is written after it is released.
+    nonisolated(unsafe) private static let memos = NSMapTable<UserDefaults, PreferenceMemo<[String: Any]?>>.weakToStrongObjects()
+    private static let memosLock = NSLock()
+
+    private static func memo(for defaults: UserDefaults) -> PreferenceMemo<[String: Any]?> {
+        memosLock.withLock {
+            if let memo = memos.object(forKey: defaults) { return memo }
+            let memo = PreferenceMemo(Prefs.AIPolicy.freeModelRefusals)
+            memos.setObject(memo, forKey: defaults)
+            return memo
+        }
+    }
 
     /// The `:free` id an OpenRouter refusal names as limited to its listed
     /// apps; nil for any other error.
@@ -809,25 +839,30 @@ enum AIFreeModelRestrictions {
     static func record(_ id: String, now: Date = Date(), defaults: UserDefaults = .standard) -> Bool {
         let key = normalized(id)
         guard !key.isEmpty else { return false }
-        return lock.withLock {
-            var table = current(now: now, defaults: defaults)
-            let isNew = table[key] == nil
-            table[key] = now.timeIntervalSince1970
-            defaults.set(table, forKey: recordKey)
+        return Preferences.withStorage(defaults) {
+            var isNew = false
+            memo(for: defaults).update { stored in
+                var table = current(now: now, stored: stored)
+                isNew = table[key] == nil
+                table[key] = now.timeIntervalSince1970
+                stored = table
+            }
             return isNew
         }
     }
 
     static func isRestricted(_ id: String, now: Date = Date(), defaults: UserDefaults = .standard) -> Bool {
         let key = normalized(id)
-        return lock.withLock { current(now: now, defaults: defaults)[key] != nil }
+        return Preferences.withStorage(defaults) {
+            current(now: now, stored: memo(for: defaults).value)[key] != nil
+        }
     }
 
     /// The refusals younger than `retention`.
-    private static func current(now: Date, defaults: UserDefaults) -> [String: Double] {
-        let stored = defaults.dictionary(forKey: recordKey) as? [String: Double] ?? [:]
+    private static func current(now: Date, stored: [String: Any]?) -> [String: Double] {
+        let table = stored as? [String: Double] ?? [:]
         let cutoff = now.timeIntervalSince1970 - retention
-        return stored.filter { $0.value > cutoff }
+        return table.filter { $0.value > cutoff }
     }
 
     private static func normalized(_ id: String) -> String {

@@ -55,7 +55,7 @@ extension Prefs {
         /// narration, so the next device resumes there. One row per source; the
         /// file beside the audio in iCloud Drive is the offline copy and this
         /// is the one that actually arrives in time. See `ListeningPositionSync`.
-        static let listeningPosition = AccountFamily<String, Any?>(prefix: "listen.position.", coding: .any, .record(.readingState))
+        static let listeningPosition = AccountFamily<String, String?>(prefix: "listen.position.", .record(.readingState))
         /// `notebook.chatExcluded.<notebookID>` — the sources a notebook's chats
         /// leave out, as the learner unticked them. Per member like the course
         /// focus above, so a team's copy never carries it; one row per notebook

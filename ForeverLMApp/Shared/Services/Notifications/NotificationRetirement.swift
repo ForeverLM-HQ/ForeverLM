@@ -12,13 +12,11 @@ import UserNotifications
 /// sweep, which is what keeps a first-run sweep from cancelling a bout the
 /// learner had already started. The sweep does not run again afterwards.
 enum NotificationRetirement {
-    private static let completionKey = "retiredReminderNotificationsCleared.v1"
-
     static func cancelAll() {
-        guard !UserDefaults.standard.bool(forKey: completionKey) else { return }
+        guard !(Preferences.value(Prefs.Lifecycle.retiredReminderNotificationsCleared) ?? false) else { return }
         let center = UNUserNotificationCenter.current()
         center.removeAllPendingNotificationRequests()
         center.removeAllDeliveredNotifications()
-        UserDefaults.standard.set(true, forKey: completionKey)
+        Preferences.set(true, for: Prefs.Lifecycle.retiredReminderNotificationsCleared)
     }
 }

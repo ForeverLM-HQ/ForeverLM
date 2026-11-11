@@ -175,7 +175,7 @@ struct AIDataPolicySettingsView: View {
                 get: { deniesDataCollection },
                 set: { enabled in
                     deniesDataCollection = enabled
-                    PreferenceStore.set(enabled, forKey: AIDataPolicy.denyDataCollectionKey)
+                    Preferences.set(enabled, for: Prefs.AIPolicy.denyDataCollection)
                     AIModelCatalog.dataPolicyDidChange()
                 }
             ))
@@ -187,8 +187,7 @@ struct AIDataPolicySettingsView: View {
                 .fixedSize(horizontal: false, vertical: true)
         }
         .onReceive(NotificationCenter.default.publisher(for: PreferenceStore.didChangeRemotely)) { note in
-            guard let keys = note.userInfo?[PreferenceStore.changedKeysKey] as? Set<String>,
-                  keys.contains(AIDataPolicy.denyDataCollectionKey) else { return }
+            guard PreferenceStore.notification(note, mayHaveChanged: Prefs.AIPolicy.denyDataCollection) else { return }
             deniesDataCollection = AIDataPolicy.deniesDataCollection
         }
         // Get Started and MCP write the switch on this Mac too.
@@ -215,10 +214,10 @@ private struct ScreenRecordingSettingsSection: View {
     }
 
     @Environment(StudioViewModel.self) private var vm
-    @AppStorage(ScreenRecordMode.confirmedAdminKey) private var isAdmin = false
-    @AppStorage(ScreenRecordMode.enabledKey) private var isOn = false
-    @AppStorage(ScreenRecordMode.notebookIDKey) private var notebookID = ""
-    @AppStorage(ScreenRecordMode.librarySourcesKey) private var showsLibrarySources = false
+    @AppStorage(Prefs.Lifecycle.screenRecordConfirmedAdmin) private var isAdmin: Bool
+    @AppStorage(Prefs.Lifecycle.screenRecordEnabled) private var isOn: Bool
+    @AppStorage(Prefs.Lifecycle.screenRecordNotebookID) private var notebookID: String
+    @AppStorage(Prefs.Lifecycle.screenRecordLibrarySources) private var showsLibrarySources: Bool
     @State private var shownMeetingGroupIDs = Set(ScreenRecordMode.meetingGroupIDs)
 
     var body: some View {

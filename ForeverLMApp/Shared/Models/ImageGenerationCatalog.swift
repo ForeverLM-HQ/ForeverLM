@@ -187,9 +187,6 @@ enum ImageGenerationCatalog {
         "krea/krea-2-medium",
     ]
 
-    /// The preference key holding the learner's chosen model (Settings › Images).
-    static let storedModelKey = "images.model"
-
     static let directoryURL = URL(string: "https://openrouter.ai/api/v1/images/models")!
 
     /// OpenRouter's general directory filtered to image output: where a
@@ -836,8 +833,7 @@ enum ImageGenerationDirectory {
     /// needs to switch to another one and notify the user").
     private static func settleStoredChoice(in models: [ImageGenerationModel]) {
         guard !models.isEmpty else { return }
-        let key = ImageGenerationCatalog.storedModelKey
-        let stored = UserDefaults.standard.string(forKey: key)
+        let stored = Preferences.value(Prefs.Imaging.imageModel)
             .map(ImageGenerationCatalog.canonicalID)
             .flatMap { $0.isEmpty ? nil : $0 }
         let wanted = stored ?? ImageGenerationCatalog.defaultModelID
@@ -845,7 +841,7 @@ enum ImageGenerationDirectory {
               let replacement = ImageGenerationCatalog.replacement(in: models) else { return }
         guard switching.withLock({ $0.insert(wanted).inserted }) else { return }
         replacedChoices.withLock { $0[wanted] = replacement.id }
-        PreferenceStore.set(replacement.id, forKey: key)
+        Preferences.set(replacement.id, for: Prefs.Imaging.imageModel)
         switching.withLock { _ = $0.remove(wanted) }
         let message = "OpenRouter no longer serves \(wanted) for images, so ForeverLM switched to \(replacement.name). You can pick another in Settings › Images."
         DispatchQueue.main.async {

@@ -11,29 +11,29 @@ import SwiftUI
 /// starts from is written by the Explainer Writing route, which stays in that
 /// list.
 enum MacVideoGenerationSettings {
-    static let modelKey = VideoGenerationCatalog.storedModelKey
-    static let resolutionKey = "videos.resolution"
+    static let modelKey = Prefs.Imaging.videoModel.name
+    static let resolutionKey = Prefs.Imaging.videoResolution.name
 
     /// The stored choice. Before OpenRouter's directory has been read this
     /// launch it is a stand-in named by its slug, and a read starts; filming
     /// resolves it either way (`VideoGenerationDirectory.resolve`).
     static var model: VideoGenerationModel {
         VideoGenerationDirectory.warm()
-        return VideoGenerationCatalog.resolvedModel(id: UserDefaults.standard.string(forKey: modelKey))
+        return VideoGenerationCatalog.resolvedModel(id: Preferences.value(Prefs.Imaging.videoModel))
     }
 
     /// Stores a model OpenRouter's last directory read lists.
     static func setModel(_ id: String) {
         guard let model = VideoGenerationCatalog.model(id: id) else { return }
-        PreferenceStore.set(model.id, forKey: modelKey)
+        Preferences.set(model.id, for: Prefs.Imaging.videoModel)
     }
 
     static var resolution: VideoGenerationCatalog.Resolution {
-        VideoGenerationCatalog.resolvedResolution(UserDefaults.standard.string(forKey: resolutionKey), for: model)
+        VideoGenerationCatalog.resolvedResolution(Preferences.value(Prefs.Imaging.videoResolution), for: model)
     }
 
     static func setResolution(_ resolution: VideoGenerationCatalog.Resolution) {
-        PreferenceStore.set(resolution.rawValue, forKey: resolutionKey)
+        Preferences.set(resolution.rawValue, for: Prefs.Imaging.videoResolution)
     }
 }
 
@@ -44,9 +44,9 @@ enum MacVideoGenerationSettings {
 /// are read when the pane opens (product owner, 2026-09-27: "why don't we have all
 /// of them shown here?").
 struct VideoGenerationSettingsDetailView: View {
-    @SyncedStorage(wrappedValue: VideoGenerationCatalog.defaultModelID, MacVideoGenerationSettings.modelKey)
+    @PreferenceStorage(Prefs.Imaging.videoModel, default: VideoGenerationCatalog.defaultModelID)
     private var modelID: String
-    @SyncedStorage(wrappedValue: VideoGenerationCatalog.Resolution.hd.rawValue, MacVideoGenerationSettings.resolutionKey)
+    @PreferenceStorage(Prefs.Imaging.videoResolution, default: VideoGenerationCatalog.Resolution.hd.rawValue)
     private var resolutionID: String
     @State private var models: [VideoGenerationModel] = VideoGenerationDirectory.snapshot
     /// OpenRouter's promotions, by lowercased slug: the video directory

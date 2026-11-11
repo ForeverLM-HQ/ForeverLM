@@ -53,12 +53,11 @@ enum SettingsScope: Hashable {
 }
 
 enum AssistantIntegrationSettings {
-    static let enabledKey = "studio.assistantIntegrationsEnabled"
-    static let statusLightVisibleKey = "studio.showMCPStatusLight"
+    static let enabledKey = Prefs.MCP.assistantIntegrationsEnabled.name
+    static let statusLightVisibleKey = Prefs.MCP.showStatusLight.name
 
     static var isEnabled: Bool {
-        guard UserDefaults.standard.object(forKey: enabledKey) != nil else { return true }
-        return UserDefaults.standard.bool(forKey: enabledKey)
+        Preferences.value(Prefs.MCP.assistantIntegrationsEnabled)
     }
 }
 
@@ -1120,9 +1119,9 @@ private struct SourcesSettingsDetailView: View {
 
     private func setZoomFolder(_ path: String?) {
         if let path {
-            UserDefaults.standard.set(path, forKey: StudioViewModel.zoomLocalTranscriptFolderKey)
+            Preferences.set(path, for: Prefs.Meetings.zoomLocalTranscriptFolder)
         } else {
-            UserDefaults.standard.removeObject(forKey: StudioViewModel.zoomLocalTranscriptFolderKey)
+            Preferences.reset(Prefs.Meetings.zoomLocalTranscriptFolder)
         }
         zoomFolder = path
         zoomFolderContents = nil
@@ -1372,8 +1371,8 @@ struct SettingsMoreInfoButton<Content: View>: View {
 /// says the mode is on, so the recorded window itself carries no badge. Shown
 /// only once the proxy has confirmed this account as an admin.
 struct ScreenRecordModeMenuItem: View {
-    @AppStorage(ScreenRecordMode.confirmedAdminKey) private var isAdmin = false
-    @AppStorage(ScreenRecordMode.enabledKey) private var isOn = false
+    @AppStorage(Prefs.Lifecycle.screenRecordConfirmedAdmin) private var isAdmin: Bool
+    @AppStorage(Prefs.Lifecycle.screenRecordEnabled) private var isOn: Bool
 
     var body: some View {
         if isAdmin {

@@ -13,30 +13,26 @@ private let usageLedgerLogger = Logger(subsystem: "com.foreverlm", category: "AI
 /// reaches a billable response, silently continuing without its durable record
 /// is not an acceptable success state.
 enum AIUsageLedgerHealth {
-    static let failureCountKey = "ai.usage.ledger_write_failures"
-    static let lastFailureKey = "ai.usage.ledger_last_failure"
-
     static func noteFailure(_ error: Error, provider: String, model: String, operation: String) {
         usageLedgerLogger.error("Usage ledger write failed for \(provider, privacy: .public)/\(model, privacy: .public) \(operation, privacy: .public): \(error.localizedDescription, privacy: .public)")
-        let defaults = UserDefaults.standard
-        defaults.set(defaults.integer(forKey: failureCountKey) + 1, forKey: failureCountKey)
-        defaults.set(
+        Preferences.set(failureCount + 1, for: Prefs.Spend.ledgerWriteFailures)
+        Preferences.set(
             "\(provider)/\(model) \(operation): \(error.localizedDescription)",
-            forKey: lastFailureKey
+            for: Prefs.Spend.ledgerLastFailure
         )
     }
 
     static var failureCount: Int {
-        UserDefaults.standard.integer(forKey: failureCountKey)
+        Preferences.value(Prefs.Spend.ledgerWriteFailures) ?? 0
     }
 
     static var lastFailureDescription: String? {
-        UserDefaults.standard.string(forKey: lastFailureKey)
+        Preferences.value(Prefs.Spend.ledgerLastFailure)
     }
 
     static func reset() {
-        UserDefaults.standard.removeObject(forKey: failureCountKey)
-        UserDefaults.standard.removeObject(forKey: lastFailureKey)
+        Preferences.reset(Prefs.Spend.ledgerWriteFailures)
+        Preferences.reset(Prefs.Spend.ledgerLastFailure)
     }
 }
 

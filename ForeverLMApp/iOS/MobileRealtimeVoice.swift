@@ -204,19 +204,19 @@ enum MobileRealtimeVoice {
 /// wait, and when it does not answer in time the last pick this phone saw is
 /// used. A late answer still lands in that copy for the next conversation.
 enum MobileRealtimeVoicePick {
-    private static let key = RealtimeVoiceDefaults.voicePreferenceKey
+    private static let key = Prefs.ReadAloud.voiceModeVoice
     private static let wait: Duration = .milliseconds(1500)
 
     /// The pick this phone last saw, kept beside the account row.
     static var lastSeen: String? {
-        UserDefaults.standard.string(forKey: key)
+        UserDefaults.standard.string(forKey: key.name)
     }
 
     static func remember(_ voice: String?) {
         if let voice {
-            UserDefaults.standard.set(voice, forKey: key)
+            UserDefaults.standard.set(voice, forKey: key.name)
         } else {
-            UserDefaults.standard.removeObject(forKey: key)
+            UserDefaults.standard.removeObject(forKey: key.name)
         }
     }
 
@@ -231,7 +231,7 @@ enum MobileRealtimeVoicePick {
         return await withCheckedContinuation { (continuation: CheckedContinuation<String?, Never>) in
             Task.detached {
                 do {
-                    let voice = try await MobileModelPreferenceStore.shared.string(forKey: key)
+                    let voice = try await MobileModelPreferenceStore.shared.valueOrDefault(for: key)
                     remember(voice)
                     if claim() { continuation.resume(returning: voice) }
                 } catch {

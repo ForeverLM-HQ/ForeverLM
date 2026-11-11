@@ -17,10 +17,10 @@ import OSLog
 /// library content, and the `ios.` prefix keeps it out of the account preference
 /// sync rail.
 enum MobileOfflinePins {
-    static let storageKey = "ios.offline.savedSourceIDs"
-
     static func saved(defaults: UserDefaults = .standard) -> Set<String> {
-        Set(defaults.stringArray(forKey: storageKey) ?? [])
+        Preferences.withStorage(defaults) {
+            Set(Preferences.value(Prefs.Mobile.offlineSavedSourceIDs) ?? [])
+        }
     }
 
     static func contains(_ sourceID: String, defaults: UserDefaults = .standard) -> Bool {
@@ -28,7 +28,9 @@ enum MobileOfflinePins {
     }
 
     static func write(_ sourceIDs: Set<String>, defaults: UserDefaults = .standard) {
-        defaults.set(sourceIDs.sorted(), forKey: storageKey)
+        Preferences.withStorage(defaults) {
+            Preferences.set(sourceIDs.sorted(), for: Prefs.Mobile.offlineSavedSourceIDs)
+        }
     }
 }
 

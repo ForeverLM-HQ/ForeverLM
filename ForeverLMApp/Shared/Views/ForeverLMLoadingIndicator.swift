@@ -57,7 +57,7 @@ struct ForeverLMLoadingIndicator: View {
     var speed: Double? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @AppStorage(LoadingIndicatorSpeed.key) private var storedSpeed: Double = LoadingIndicatorSpeed.defaultValue
+    @AppStorage(Prefs.Planner.loadingIndicatorSpeed, default: LoadingIndicatorSpeed.defaultValue) private var storedSpeed: Double
 
     /// How wide the coloured band is, as a fraction of the mark's width.
     private static let sheenSpan: CGFloat = 0.30

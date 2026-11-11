@@ -451,7 +451,6 @@ extension MCPDataStore {
     static let retiredAITaskSettingsArguments = ["task", "effort", "speed", "reset"]
 
     static func aiTaskSettingsPayload(includeCatalogue: Bool) -> [String: Any] {
-        let defaults = UserDefaults.standard
         let chatProvider = KeychainService.aiProvider
         let chatModel = KeychainService.model(for: chatProvider)
         var defaultModel = aiRouteJSON(AITaskModelRoute(provider: chatProvider, model: chatModel))
@@ -465,7 +464,7 @@ extension MCPDataStore {
         var backgroundText = aiRouteJSON(KeychainService.displayedBackgroundTaskRoute)
         backgroundText["is_shipped_default"] = KeychainService.backgroundTaskProvider == nil
         var backgroundMultimodal = aiRouteJSON(KeychainService.displayedBackgroundMultimodalTaskRoute)
-        backgroundMultimodal["is_shipped_default"] = defaults.object(forKey: AIModelPreferenceKey.backgroundMultimodalRoute) == nil
+        backgroundMultimodal["is_shipped_default"] = !Preferences.isSet(Prefs.Models.backgroundMultimodalRoute)
 
         let tasks: [[String: Any]] = AITask.advancedTasks.map { task in
             var json = aiTaskRouteJSON(for: task)
@@ -554,12 +553,9 @@ extension MCPDataStore {
 
     /// Every stored host choice (`OpenRouterHostPreference`), as `hosts`.
     static func aiHostPreferencesJSON() -> [[String: Any]] {
-        let prefix = OpenRouterHostPreference.keyPrefix
-        return UserDefaults.standard.dictionaryRepresentation().keys
-            .filter { $0.hasPrefix(prefix) }
+        Prefs.Families.openRouterHost.rows().keys
             .sorted()
-            .compactMap { key -> [String: Any]? in
-                let rest = key.dropFirst(prefix.count)
+            .compactMap { rest -> [String: Any]? in
                 guard let bar = rest.firstIndex(of: "|") else { return nil }
                 let slot = String(rest[..<bar])
                 let slug = String(rest[rest.index(after: bar)...])
@@ -975,7 +971,7 @@ extension MCPDataStore {
                 throw MCPError.invalidInput("target data_privacy takes hide_training_models alone, not a selection.")
             }
             if AIModelCatalog.hidesTrainingModels != hide {
-                PreferenceStore.set(hide, forKey: AIDataPolicy.denyDataCollectionKey)
+                Preferences.set(hide, for: Prefs.AIPolicy.denyDataCollection)
                 AIModelCatalog.dataPolicyDidChange()
                 changed.append("hide_training_models")
             }

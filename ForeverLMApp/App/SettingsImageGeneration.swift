@@ -12,61 +12,59 @@ import SwiftUI
 enum MacImageGenerationSettings {
     /// Whether ForeverLM may pay to draw anything at all. Off until asked for:
     /// every other way a source gets its thumbnail is free, and this one is not.
-    static let enabledKey = "images.generateIcons"
+    static let enabledKey = Prefs.Imaging.generateIcons.name
     /// Whether a meeting imported from now on gets an icon without being asked.
     /// Meaningless while `enabledKey` is false.
-    static let automaticForNewMeetingsKey = "images.generateIcons.automatic"
+    static let automaticForNewMeetingsKey = Prefs.Imaging.generateIconsAutomatic.name
     /// Whether a course quiz gets its picture as soon as it is written.
     /// Independent of `enabledKey`, which governs meeting icons; a quiz's
     /// picture was always drawn on the learner's request, and writing the
     /// quiz is that request.
-    static let automaticForNewQuizzesKey = "images.drawQuizPictures.automatic"
+    static let automaticForNewQuizzesKey = Prefs.Imaging.drawQuizPicturesAutomatic.name
     /// Whether a notebook made one at a time gets its cover drawn without
     /// being asked, and whether the one-time cover backfill runs (schema v2
     /// D53, §5.9). Generation 2 only: generation 1 has no cover to write.
-    static let automaticForNewNotebooksKey = "images.drawNotebookCovers.automatic"
-    static let modelKey = ImageGenerationCatalog.storedModelKey
-    static let styleKey = "images.style"
-    static let sourceKey = "images.source"
+    static let automaticForNewNotebooksKey = Prefs.Imaging.drawNotebookCoversAutomatic.name
+    static let modelKey = Prefs.Imaging.imageModel.name
+    static let styleKey = Prefs.Imaging.imageStyle.name
+    static let sourceKey = Prefs.Imaging.imageSource.name
 
     static var isEnabled: Bool {
-        UserDefaults.standard.bool(forKey: enabledKey)
+        Preferences.value(Prefs.Imaging.generateIcons) ?? false
     }
 
     static func setEnabled(_ enabled: Bool) {
-        PreferenceStore.set(enabled, forKey: enabledKey)
+        Preferences.set(enabled, for: Prefs.Imaging.generateIcons)
     }
 
     /// Defaults to true so that turning the feature on is one decision rather
     /// than two. It only takes effect once the feature is on.
     static var generatesForNewMeetings: Bool {
-        guard UserDefaults.standard.object(forKey: automaticForNewMeetingsKey) != nil else { return true }
-        return UserDefaults.standard.bool(forKey: automaticForNewMeetingsKey)
+        Preferences.value(Prefs.Imaging.generateIconsAutomatic) ?? true
     }
 
     static func setGeneratesForNewMeetings(_ enabled: Bool) {
-        PreferenceStore.set(enabled, forKey: automaticForNewMeetingsKey)
+        Preferences.set(enabled, for: Prefs.Imaging.generateIconsAutomatic)
     }
 
     /// Defaults to true (product owner, 2026-09-26: quizzes between lectures get
     /// their picture without a second ask).
     static var drawsForNewQuizzes: Bool {
-        guard UserDefaults.standard.object(forKey: automaticForNewQuizzesKey) != nil else { return true }
-        return UserDefaults.standard.bool(forKey: automaticForNewQuizzesKey)
+        Preferences.value(Prefs.Imaging.drawQuizPicturesAutomatic)
     }
 
     static func setDrawsForNewQuizzes(_ enabled: Bool) {
-        PreferenceStore.set(enabled, forKey: automaticForNewQuizzesKey)
+        Preferences.set(enabled, for: Prefs.Imaging.drawQuizPicturesAutomatic)
     }
 
     /// Defaults to false: a notebook keeps its emoji until the learner draws a
     /// cover (product owner, 2026-10-17: "but by default use emojis").
     static var drawsNotebookCovers: Bool {
-        UserDefaults.standard.bool(forKey: automaticForNewNotebooksKey)
+        Preferences.value(Prefs.Imaging.drawNotebookCoversAutomatic)
     }
 
     static func setDrawsNotebookCovers(_ enabled: Bool) {
-        PreferenceStore.set(enabled, forKey: automaticForNewNotebooksKey)
+        Preferences.set(enabled, for: Prefs.Imaging.drawNotebookCoversAutomatic)
     }
 
     /// The stored choice. Before OpenRouter's directory has been read this
@@ -74,24 +72,24 @@ enum MacImageGenerationSettings {
     /// starts; drawing resolves it either way (`ImageGenerationDirectory.resolve`).
     static var model: ImageGenerationModel {
         ImageGenerationDirectory.warm()
-        return ImageGenerationCatalog.resolvedModel(id: UserDefaults.standard.string(forKey: modelKey))
+        return ImageGenerationCatalog.resolvedModel(id: Preferences.value(Prefs.Imaging.imageModel))
     }
 
     /// Stores a model OpenRouter's last directory read lists.
     static func setModel(_ id: String) {
         guard let model = ImageGenerationCatalog.model(id: id) else { return }
-        PreferenceStore.set(model.id, forKey: modelKey)
+        Preferences.set(model.id, for: Prefs.Imaging.imageModel)
     }
 
     /// Defaults to preferring a real thumbnail: it is the free answer, and the
     /// one a learner who never opens this pane is better served by.
     static var source: ImageGenerationCatalog.Source {
-        UserDefaults.standard.string(forKey: sourceKey)
+        Preferences.value(Prefs.Imaging.imageSource)
             .flatMap(ImageGenerationCatalog.Source.init(rawValue:)) ?? .preferThumbnail
     }
 
     static func setSource(_ source: ImageGenerationCatalog.Source) {
-        PreferenceStore.set(source.rawValue, forKey: sourceKey)
+        Preferences.set(source.rawValue, for: Prefs.Imaging.imageSource)
     }
 
     /// What the acquisition path should actually do. A drawing preference means
@@ -102,12 +100,12 @@ enum MacImageGenerationSettings {
     }
 
     static var style: ImageGenerationCatalog.Style {
-        UserDefaults.standard.string(forKey: styleKey)
+        Preferences.value(Prefs.Imaging.imageStyle)
             .flatMap(ImageGenerationCatalog.Style.init(rawValue:)) ?? .emblem
     }
 
     static func setStyle(_ style: ImageGenerationCatalog.Style) {
-        PreferenceStore.set(style.rawValue, forKey: styleKey)
+        Preferences.set(style.rawValue, for: Prefs.Imaging.imageStyle)
     }
 }
 
@@ -121,11 +119,11 @@ enum MacImageGenerationSettings {
 /// read when the pane opens (product owner, 2026-09-27: "you have to include way
 /// more image models").
 struct ImageGenerationSettingsDetailView: View {
-    @SyncedStorage(wrappedValue: ImageGenerationCatalog.defaultModelID, MacImageGenerationSettings.modelKey)
+    @PreferenceStorage(Prefs.Imaging.imageModel, default: ImageGenerationCatalog.defaultModelID)
     private var modelID: String
-    @SyncedStorage(wrappedValue: true, MacImageGenerationSettings.automaticForNewQuizzesKey)
+    @PreferenceStorage(Prefs.Imaging.drawQuizPicturesAutomatic)
     private var drawsForNewQuizzes: Bool
-    @SyncedStorage(wrappedValue: false, MacImageGenerationSettings.automaticForNewNotebooksKey)
+    @PreferenceStorage(Prefs.Imaging.drawNotebookCoversAutomatic)
     private var drawsNotebookCovers: Bool
     /// Seeded from the last read so a reopened pane draws at once; the
     /// `.task` below refreshes it, then fills in the prices.

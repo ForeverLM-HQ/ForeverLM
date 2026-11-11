@@ -311,7 +311,7 @@ struct ArticleSpeechPlaybackPosition: Codable, Equatable {
 enum ListeningPositionSync {
     /// `listen.position.<sourceID>` — one record per source, so two devices
     /// listening to two different sources never contend.
-    static let preferenceKeyPrefix = "listen.position."
+    static let preferenceKeyPrefix = Prefs.Families.listeningPosition.prefix
 
     /// How often a device that is still playing republishes to the account. A
     /// pause, a skip, a stop, or leaving the app publishes immediately; this
@@ -319,7 +319,7 @@ enum ListeningPositionSync {
     static let accountSaveInterval: TimeInterval = 15
 
     static func preferenceKey(sourceID: String) -> String {
-        preferenceKeyPrefix + sourceID
+        Prefs.Families.listeningPosition.name(sourceID)
     }
 
     static func sourceID(fromPreferenceKey key: String) -> String? {
@@ -591,8 +591,8 @@ enum SyncedArticleAudioStore {
     /// The account copy as it stands in `UserDefaults`, kept current by the
     /// preference sync rail (`PreferenceStore.applyInbound`).
     static func loadAccountPlaybackPosition(sourceID: String) -> ArticleSpeechPlaybackPosition? {
-        let key = ListeningPositionSync.preferenceKey(sourceID: sourceID)
-        guard let encoded = UserDefaults.standard.string(forKey: key) else { return nil }
+        let key = Prefs.Families.listeningPosition.key(sourceID)
+        guard let encoded = Preferences.value(key) else { return nil }
         return ListeningPositionSync.decode(encoded)
     }
 
@@ -604,11 +604,11 @@ enum SyncedArticleAudioStore {
         sourceID: String
     ) async {
         guard let encoded = ListeningPositionSync.encode(position) else { return }
-        PreferenceStore.set(encoded, forKey: ListeningPositionSync.preferenceKey(sourceID: sourceID))
+        Preferences.set(encoded, for: Prefs.Families.listeningPosition.key(sourceID))
     }
 
     static func clearAccountPlaybackPosition(sourceID: String) {
-        PreferenceStore.remove(forKey: ListeningPositionSync.preferenceKey(sourceID: sourceID))
+        Preferences.reset(Prefs.Families.listeningPosition.key(sourceID))
     }
     #else
     /// The account copy, fetched from CloudKit. The phone keeps no local
@@ -618,10 +618,10 @@ enum SyncedArticleAudioStore {
         sourceID: String,
         timeout: Duration = .seconds(4)
     ) async -> ArticleSpeechPlaybackPosition? {
-        let key = ListeningPositionSync.preferenceKey(sourceID: sourceID)
+        let key = Prefs.Families.listeningPosition.key(sourceID)
         return await withTaskGroup(of: ArticleSpeechPlaybackPosition?.self) { group in
             group.addTask {
-                guard let encoded = try? await MobileModelPreferenceStore.shared.string(forKey: key) else {
+                guard let encoded = try? await MobileModelPreferenceStore.shared.valueOrDefault(for: key) else {
                     return nil
                 }
                 return ListeningPositionSync.decode(encoded)
@@ -653,9 +653,9 @@ enum SyncedArticleAudioStore {
     ) async {
         guard let encoded = ListeningPositionSync.encode(position) else { return }
         do {
-            try await MobileModelPreferenceStore.shared.setString(
+            try await MobileModelPreferenceStore.shared.set(
                 encoded,
-                forKey: ListeningPositionSync.preferenceKey(sourceID: sourceID)
+                for: Prefs.Families.listeningPosition.key(sourceID)
             )
         } catch {
             logger.error("Saving the listening position to the account failed: \(error.localizedDescription, privacy: .public)")
@@ -663,10 +663,10 @@ enum SyncedArticleAudioStore {
     }
 
     static func clearAccountPlaybackPosition(sourceID: String) {
-        let key = ListeningPositionSync.preferenceKey(sourceID: sourceID)
+        let key = Prefs.Families.listeningPosition.key(sourceID)
         Task.detached(priority: .utility) {
             do {
-                try await MobileModelPreferenceStore.shared.removeValue(forKey: key)
+                try await MobileModelPreferenceStore.shared.reset(key)
             } catch {
                 logger.error("Clearing the listening position from the account failed: \(error.localizedDescription, privacy: .public)")
             }

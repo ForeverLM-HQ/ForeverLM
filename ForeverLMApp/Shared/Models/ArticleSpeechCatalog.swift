@@ -9,10 +9,14 @@ import NaturalLanguage
 /// back. The array is sorted before persistence so two clients serialize the
 /// same set identically for preference sync.
 enum TextToSpeechCostConfirmationPreferences {
-    static let suppressedModelIDsKey = "readAloud.costConfirmation.suppressedModels.v1"
+    static let suppressedModelIDsKey = Prefs.ReadAloud.costConfirmationSuppressedModels.name
 
     static var suppressedModelIDs: Set<String> {
+        #if os(macOS)
+        Set(Preferences.value(Prefs.ReadAloud.costConfirmationSuppressedModels) ?? [])
+        #else
         Set(UserDefaults.standard.stringArray(forKey: suppressedModelIDsKey) ?? [])
+        #endif
     }
 
     static func confirmsEstimatedCost(for modelID: String) -> Bool {
@@ -517,8 +521,8 @@ enum OpenRouterAudioDirectory {
     /// The rows with the generation they belong to, read together.
     static func snapshot(_ kind: Kind) -> (rows: [OpenRouterAudioModelRow]?, generation: UInt64) {
         guard !isRunningUnitTests else { return (nil, 0) }
+        ensurePersistedLoaded(kind)
         return lock.withLock {
-            loadPersistedIfNeeded(kind)
             let entry = entries[kind]
             // A subsidized account sees only what its access covers (`AIModelAccess`).
             return (entry?.rows?.filter { AIModelAccess.allows(slug: $0.id) }, entry?.generation ?? 0)
@@ -528,8 +532,8 @@ enum OpenRouterAudioDirectory {
     /// Whether the last read is recent enough to answer without another.
     static func isFresh(_ kind: Kind, now: Date = Date()) -> Bool {
         guard !isRunningUnitTests else { return false }
+        ensurePersistedLoaded(kind)
         return lock.withLock {
-            loadPersistedIfNeeded(kind)
             guard let entry = entries[kind], entry.rows != nil, let readAt = entry.readAt else { return false }
             return now.timeIntervalSince(readAt) < freshness
         }
@@ -644,8 +648,8 @@ enum OpenRouterAudioDirectory {
     /// pickers when it changed what they list.
     fileprivate static func store(_ rows: [OpenRouterAudioModelRow], kind: Kind) {
         let now = Date()
+        ensurePersistedLoaded(kind)
         let changed: Bool = lock.withLock {
-            loadPersistedIfNeeded(kind)
             var entry = entries[kind] ?? Entry()
             entry.loadedPersisted = true
             let changed = entry.rows != rows
@@ -665,20 +669,28 @@ enum OpenRouterAudioDirectory {
         }
     }
 
-    /// Called under `lock`. Adopts the read an earlier launch kept, once.
-    private static func loadPersistedIfNeeded(_ kind: Kind) {
-        var entry = entries[kind] ?? Entry()
-        guard !entry.loadedPersisted else { return }
-        entry.loadedPersisted = true
-        if entry.rows == nil,
-           let data = UserDefaults.standard.data(forKey: rowsDefaultsKey(kind)),
+    /// Adopts the read an earlier launch kept, once. Defaults are read here,
+    /// outside `lock`; only the adoption happens under it.
+    private static func ensurePersistedLoaded(_ kind: Kind) {
+        let alreadyLoaded = lock.withLock { entries[kind]?.loadedPersisted ?? false }
+        guard !alreadyLoaded else { return }
+        var persisted: (rows: [OpenRouterAudioModelRow], readAt: Date?)?
+        if let data = UserDefaults.standard.data(forKey: rowsDefaultsKey(kind)),
            let rows = try? JSONDecoder().decode([OpenRouterAudioModelRow].self, from: data),
            !rows.isEmpty {
-            entry.rows = rows
-            entry.readAt = UserDefaults.standard.object(forKey: readAtDefaultsKey(kind)) as? Date
-            entry.generation &+= 1
+            persisted = (rows, UserDefaults.standard.object(forKey: readAtDefaultsKey(kind)) as? Date)
         }
-        entries[kind] = entry
+        lock.withLock {
+            var entry = entries[kind] ?? Entry()
+            guard !entry.loadedPersisted else { return }
+            entry.loadedPersisted = true
+            if entry.rows == nil, let persisted {
+                entry.rows = persisted.rows
+                entry.readAt = persisted.readAt
+                entry.generation &+= 1
+            }
+            entries[kind] = entry
+        }
     }
 }
 
@@ -797,10 +809,8 @@ enum OpenRouterAudioPrices {
     static var current: Table {
         if let pinnedTable { return pinnedTable }
         if OpenRouterAudioDirectory.isRunningUnitTests { return [:] }
-        return lock.withLock {
-            loadPersistedIfNeeded()
-            return stored
-        }
+        ensurePersistedLoaded()
+        return lock.withLock { stored }
     }
 
     /// Bumped when a read changes a price, so lists ordered by price are
@@ -1022,10 +1032,8 @@ enum OpenRouterAudioPrices {
     /// it is stale); otherwise waits for one.
     static func prepare() async {
         guard !OpenRouterAudioDirectory.isRunningUnitTests else { return }
-        let hasTable = lock.withLock {
-            loadPersistedIfNeeded()
-            return !stored.isEmpty
-        }
+        ensurePersistedLoaded()
+        let hasTable = lock.withLock { !stored.isEmpty }
         if hasTable {
             if !isFresh {
                 Task.detached(priority: .utility) { await refresh() }
@@ -1038,8 +1046,6 @@ enum OpenRouterAudioPrices {
     // MARK: Storage
 
     static let freshnessInterval: TimeInterval = OpenRouterAudioDirectory.freshness
-    private static let defaultsKey = "openRouterAudioPrices.table.v1"
-    private static let fetchedAtKey = "openRouterAudioPrices.readAt.v1"
     private static let lock = NSLock()
     nonisolated(unsafe) private static var stored: Table = [:]
     nonisolated(unsafe) private static var fetchedAt: Date?
@@ -1047,8 +1053,8 @@ enum OpenRouterAudioPrices {
     nonisolated(unsafe) private static var generationValue: UInt64 = 0
 
     static var isFresh: Bool {
-        lock.withLock {
-            loadPersistedIfNeeded()
+        ensurePersistedLoaded()
+        return lock.withLock {
             guard !stored.isEmpty, let fetchedAt else { return false }
             return Date().timeIntervalSince(fetchedAt) < freshnessInterval
         }
@@ -1066,15 +1072,24 @@ enum OpenRouterAudioPrices {
         return parseCatalog(data)
     }
 
-    /// Caller holds `lock`.
-    private static func loadPersistedIfNeeded() {
-        guard !didLoadPersisted else { return }
-        didLoadPersisted = true
-        fetchedAt = UserDefaults.standard.object(forKey: fetchedAtKey) as? Date
-        if let data = UserDefaults.standard.data(forKey: defaultsKey),
+    /// Adopts the read an earlier launch kept, once. Defaults are read here,
+    /// outside `lock`; only the adoption happens under it.
+    private static func ensurePersistedLoaded() {
+        guard !lock.withLock({ didLoadPersisted }) else { return }
+        let readAt = Preferences.value(Prefs.ReadAloud.audioPricesReadAt)
+        var persisted: Table?
+        if let data = Preferences.value(Prefs.ReadAloud.audioPricesTable),
            let table = try? JSONDecoder().decode(Table.self, from: data) {
-            stored = table
-            generationValue &+= 1
+            persisted = table
+        }
+        lock.withLock {
+            guard !didLoadPersisted else { return }
+            didLoadPersisted = true
+            fetchedAt = readAt
+            if let persisted {
+                stored = persisted
+                generationValue &+= 1
+            }
         }
     }
 
@@ -1082,8 +1097,8 @@ enum OpenRouterAudioPrices {
     /// changed.
     fileprivate static func store(_ table: Table) {
         let now = Date()
+        ensurePersistedLoaded()
         let changed = lock.withLock {
-            loadPersistedIfNeeded()
             let changed = stored != table
             stored = table
             fetchedAt = now
@@ -1091,9 +1106,9 @@ enum OpenRouterAudioPrices {
             return changed
         }
         if let data = try? JSONEncoder().encode(table) {
-            UserDefaults.standard.set(data, forKey: defaultsKey)
+            Preferences.set(data, for: Prefs.ReadAloud.audioPricesTable)
         }
-        UserDefaults.standard.set(now, forKey: fetchedAtKey)
+        Preferences.set(now, for: Prefs.ReadAloud.audioPricesReadAt)
         guard changed else { return }
         DispatchQueue.main.async {
             NotificationCenter.default.post(name: .openRouterAudioDirectoryDidChange, object: "prices")
@@ -2321,11 +2336,11 @@ enum SourceAudioAutomation {
         }
     }
 
-    static let articlesPreferenceKey = "readAloud.autoGenerate.articles"
-    static let papersPreferenceKey = "readAloud.autoGenerate.papers"
-    static let booksPreferenceKey = "readAloud.autoGenerate.books"
-    static let coursesPreferenceKey = "readAloud.autoGenerate.courses"
-    static let explainersPreferenceKey = "readAloud.autoGenerate.explainers"
+    static let articlesPreferenceKey = Prefs.ReadAloud.autoGenerateArticles.name
+    static let papersPreferenceKey = Prefs.ReadAloud.autoGeneratePapers.name
+    static let booksPreferenceKey = Prefs.ReadAloud.autoGenerateBooks.name
+    static let coursesPreferenceKey = Prefs.ReadAloud.autoGenerateCourses.name
+    static let explainersPreferenceKey = Prefs.ReadAloud.autoGenerateExplainers.name
 
     /// The kind an explainer's switch is keyed by. Not a `StudioSourceType`:
     /// an explainer is an article-typed row told apart by its URL.
@@ -2388,41 +2403,58 @@ enum SourceAudioAutomation {
         /// The automation kind: a raw `StudioSourceType`, or `explainerKind`.
         /// Named for the four entries that are types; read it as the kind.
         let sourceType: String
-        let preferenceKey: String
+        /// The kind's switch, and the standing instruction that narrows what
+        /// it narrates.
+        let key: AccountKey<Bool?>
+        let constraintKey: AccountKey<String?>
+        var preferenceKey: String { key.name }
         /// Matches the Studio tab, so the switch names what the learner sees.
         let switchTitle: String
         /// What one of them is called in a sentence — a book's sources are
         /// chapters, not books, and the counts have to say so.
         let singular: String
         let plural: String
+
+        static func == (lhs: AutomatableType, rhs: AutomatableType) -> Bool {
+            lhs.sourceType == rhs.sourceType
+                && lhs.key.name == rhs.key.name
+                && lhs.constraintKey.name == rhs.constraintKey.name
+                && lhs.switchTitle == rhs.switchTitle
+                && lhs.singular == rhs.singular
+                && lhs.plural == rhs.plural
+        }
     }
 
     /// The automatable types, in the order settings lists them.
     static let automatable: [AutomatableType] = [
         AutomatableType(
             sourceType: "article",
-            preferenceKey: articlesPreferenceKey,
+            key: Prefs.ReadAloud.autoGenerateArticles,
+            constraintKey: Prefs.ReadAloud.autoGenerateConstraintArticle,
             switchTitle: "Articles",
             singular: "article",
             plural: "articles"
         ),
         AutomatableType(
             sourceType: "paper",
-            preferenceKey: papersPreferenceKey,
+            key: Prefs.ReadAloud.autoGeneratePapers,
+            constraintKey: Prefs.ReadAloud.autoGenerateConstraintPaper,
             switchTitle: "Papers",
             singular: "paper",
             plural: "papers"
         ),
         AutomatableType(
             sourceType: "book",
-            preferenceKey: booksPreferenceKey,
+            key: Prefs.ReadAloud.autoGenerateBooks,
+            constraintKey: Prefs.ReadAloud.autoGenerateConstraintBook,
             switchTitle: "Books",
             singular: "book chapter",
             plural: "book chapters"
         ),
         AutomatableType(
             sourceType: "course",
-            preferenceKey: coursesPreferenceKey,
+            key: Prefs.ReadAloud.autoGenerateCourses,
+            constraintKey: Prefs.ReadAloud.autoGenerateConstraintCourse,
             switchTitle: "Courses",
             singular: "course document",
             plural: "course documents"
@@ -2433,7 +2465,8 @@ enum SourceAudioAutomation {
         // this switch (`kind(forSourceType:url:)`), never under Articles.
         AutomatableType(
             sourceType: explainerKind,
-            preferenceKey: explainersPreferenceKey,
+            key: Prefs.ReadAloud.autoGenerateExplainers,
+            constraintKey: Prefs.ReadAloud.autoGenerateConstraintExplainer,
             switchTitle: "Explainers",
             singular: "explainer",
             plural: "explainers"
@@ -2446,10 +2479,10 @@ enum SourceAudioAutomation {
     /// Account-level consent to let automatic audio use a priced voice. Synced,
     /// so granting it on one device authorizes the others; each device still
     /// spends at whatever rate its own text-to-speech selection carries.
-    static let paidVoiceConsentPreferenceKey = "readAloud.autoGenerate.allowPaidVoices"
+    static let paidVoiceConsentPreferenceKey = Prefs.ReadAloud.autoGenerateAllowPaidVoices.name
 
     static func allowsPaidVoices(defaults: UserDefaults = .standard) -> Bool {
-        defaults.bool(forKey: paidVoiceConsentPreferenceKey)
+        defaults.bool(forKey: Prefs.ReadAloud.autoGenerateAllowPaidVoices.name)
     }
 
     /// Whether automatic generation may run with this selection.
@@ -2491,24 +2524,23 @@ enum SourceAudioAutomation {
     }
 
     static func constraintPreferenceKey(for sourceType: String) -> String? {
-        guard automatableType(for: sourceType) != nil else { return nil }
-        return "readAloud.autoGenerate.constraint.\(sourceType.lowercased())"
+        automatableType(for: sourceType)?.constraintKey.name
     }
 
     static func constraint(
         for sourceType: String,
         defaults: UserDefaults = .standard
     ) -> String? {
-        guard let key = constraintPreferenceKey(for: sourceType),
-              let value = defaults.string(forKey: key)?
+        guard let key = automatableType(for: sourceType)?.constraintKey,
+              let value = defaults.string(forKey: key.name)?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
               !value.isEmpty else { return nil }
         return value
     }
 
     static func isEnabled(for sourceType: String, defaults: UserDefaults = .standard) -> Bool {
-        guard let key = preferenceKey(for: sourceType) else { return false }
-        return defaults.bool(forKey: key)
+        guard let key = automatableType(for: sourceType)?.key else { return false }
+        return defaults.bool(forKey: key.name)
     }
 
     /// The automatable kinds whose switch is on.
@@ -2821,7 +2853,7 @@ extension Notification.Name {
 /// first (`OpenRouterAudioDirectory.prepare`): a model picked from a live
 /// list is not in the list this build records.
 enum ArticleSpeechSelection {
-    static let modelDefaultsKey = "ios.readAloud.model"
+    static let modelDefaultsKey = Prefs.Mobile.readAloudModel.name
 
     /// The account rows the Mac's Settings already write for the same choice —
     /// `KeychainService.Key.ttsModelOpenRouter`, `MacArticleSpeechSettings`'
@@ -2829,9 +2861,9 @@ enum ArticleSpeechSelection {
     /// these same rows, so a model picked on either device is the one the
     /// other narrates with; its own `ios.readAloud.*` defaults are the device
     /// copy that `CloudArticleTTS` reads off the main actor.
-    static let syncedModelKey = "tts_model_openrouter"
-    static let syncedVoiceKey = "macos.tts.openrouter.voice"
-    static let syncedProviderKey = "tts_provider"
+    static let syncedModelKey = Prefs.Models.ttsModelOpenRouter.name
+    static let syncedVoiceKey = Prefs.ReadAloud.openRouterVoice.name
+    static let syncedProviderKey = Prefs.Models.ttsProvider.name
     /// `MacArticleSpeechMode.openRouter.rawValue`: the one provider the shared
     /// catalog is served through, and the only one the Mac's picker offers.
     static let syncedProvider = "openrouter"

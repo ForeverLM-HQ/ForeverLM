@@ -25,7 +25,7 @@ extension KeychainService {
             return ManagedAI.requiredTextRoutingMode ?? .shippedDefault
         }
         set {
-            PreferenceStore.set(newValue.rawValue, forKey: AIModelPreferenceKey.textRoutingMode)
+            Preferences.set(newValue.rawValue, for: Prefs.Models.textRoutingMode)
             NotificationCenter.default.post(name: .aiProviderDidChange, object: nil)
         }
     }
@@ -89,8 +89,21 @@ extension KeychainService {
         model: AIModelDefaults.visionOpenRouter
     )
 
-    static func storedRoute(forKey key: String) -> AIModelRoutePreference? {
-        guard let data = UserDefaults.standard.data(forKey: key),
+    static func storedRoute(_ key: AccountKey<Data?>) -> AIModelRoutePreference? {
+        decodedRoute(Preferences.value(key))
+    }
+
+    static func storedRoute(_ key: AccountKey<Any?>) -> AIModelRoutePreference? {
+        decodedRoute(Preferences.value(key) as? Data)
+    }
+
+    /// The `aiRoute.task.<task>` row: the model the learner gave one task.
+    private static func taskRouteKey(_ task: AITask) -> AccountKey<Any?> {
+        Prefs.Families.aiTaskRoute.key(task.rawValue)
+    }
+
+    private static func decodedRoute(_ stored: Data?) -> AIModelRoutePreference? {
+        guard let data = stored,
               let route = try? JSONDecoder().decode(AIModelRoutePreference.self, from: data),
               route.isValid,
               let provider = AIProvider(rawValue: route.provider),
@@ -100,41 +113,51 @@ extension KeychainService {
         return route
     }
 
-    private static func storedRouteIsInvalid(_ key: String) -> Bool {
-        UserDefaults.standard.object(forKey: key) != nil && storedRoute(forKey: key) == nil
+    private static func storedRouteIsInvalid(_ key: AccountKey<Data?>) -> Bool {
+        Preferences.isSet(key) && storedRoute(key) == nil
+    }
+
+    private static func storedRouteIsInvalid(_ key: AccountKey<Any?>) -> Bool {
+        Preferences.isSet(key) && storedRoute(key) == nil
     }
 
     private static func modelRouteConfigurationIsInvalid(for task: AITask) -> Bool {
         let effectiveTask = task.followsChatRoute ? AITask.chat : task
 
         if effectiveTask == .chat {
-            let taskKey = AIModelPreferenceKey.taskRoute(.chat)
+            let taskKey = taskRouteKey(.chat)
             if storedRouteIsInvalid(taskKey) { return true }
-            if UserDefaults.standard.object(forKey: taskKey) != nil { return false }
-            if storedRouteIsInvalid(AIModelPreferenceKey.defaultChatRoute) { return true }
-            guard UserDefaults.standard.object(forKey: AIModelPreferenceKey.defaultChatRoute) == nil,
+            if Preferences.isSet(taskKey) { return false }
+            if storedRouteIsInvalid(Prefs.Models.defaultChatRoute) { return true }
+            guard !Preferences.isSet(Prefs.Models.defaultChatRoute),
                   let raw = load(.aiProvider) else { return false }
             return !["anthropic", "openai", "xai", "gemini", "meta", "openrouter"].contains(raw)
         }
 
         // A model the learner set for this task that cannot be read fails the
         // task closed rather than quietly running Background's.
-        if storedRouteIsInvalid(AIModelPreferenceKey.taskRoute(effectiveTask)) { return true }
+        if storedRouteIsInvalid(taskRouteKey(effectiveTask)) { return true }
 
         if effectiveTask.usesMultimodalBackgroundModelDefault {
-            return storedRouteIsInvalid(AIModelPreferenceKey.backgroundMultimodalRoute)
+            return storedRouteIsInvalid(Prefs.Models.backgroundMultimodalRoute)
         }
 
-        if storedRouteIsInvalid(AIModelPreferenceKey.backgroundRoute) { return true }
-        guard UserDefaults.standard.object(forKey: AIModelPreferenceKey.backgroundRoute) == nil,
-              let raw = UserDefaults.standard.string(forKey: "aiBackground.provider") else { return false }
+        if storedRouteIsInvalid(Prefs.Models.backgroundRoute) { return true }
+        guard !Preferences.isSet(Prefs.Models.backgroundRoute),
+              let raw = Preferences.value(Prefs.Models.backgroundProvider) else { return false }
         guard let provider = AIProvider(rawValue: raw) else { return true }
         return !provider.canServeStoredSelection
     }
 
-    private static func saveRoute(_ route: AIModelRoutePreference, forKey key: String) {
+    private static func saveRoute(_ route: AIModelRoutePreference, to key: AccountKey<Data?>) {
         guard route.isValid, let data = try? JSONEncoder().encode(route) else { return }
-        PreferenceStore.set(data, forKey: key)
+        Preferences.set(data, for: key)
+        NotificationCenter.default.post(name: .aiProviderDidChange, object: nil)
+    }
+
+    private static func saveRoute(_ route: AIModelRoutePreference, to key: AccountKey<Any?>) {
+        guard route.isValid, let data = try? JSONEncoder().encode(route) else { return }
+        Preferences.set(data, for: key)
         NotificationCenter.default.post(name: .aiProviderDidChange, object: nil)
     }
 
@@ -143,7 +166,7 @@ extension KeychainService {
         guard !trimmed.isEmpty else { return }
         saveRoute(
             AIModelRoutePreference(provider: provider.rawValue, model: trimmed),
-            forKey: AIModelPreferenceKey.defaultChatRoute
+            to: Prefs.Models.defaultChatRoute
         )
         // The per-provider model and the provider slot are the "last model per
         // provider" store the pickers read; the atomic route above is the
@@ -157,11 +180,11 @@ extension KeychainService {
         guard !trimmed.isEmpty else { return }
         saveRoute(
             AIModelRoutePreference(provider: provider.rawValue, model: trimmed),
-            forKey: AIModelPreferenceKey.backgroundRoute
+            to: Prefs.Models.backgroundRoute
         )
-        PreferenceStore.set(provider.rawValue, forKey: "aiBackground.provider")
-        PreferenceStore.set(trimmed, forKey: backgroundTaskModelKey(for: provider))
-        PreferenceStore.remove(forKey: "aiBackground.model")
+        Preferences.set(provider.rawValue, for: Prefs.Models.backgroundProvider)
+        Preferences.set(trimmed, for: backgroundTaskModelKey(for: provider))
+        Preferences.reset(Prefs.Models.retiredBackgroundModel)
     }
 
     static func setBackgroundMultimodalTaskRoute(provider: AIProvider, model: String) {
@@ -169,7 +192,7 @@ extension KeychainService {
         guard !trimmed.isEmpty else { return }
         saveRoute(
             AIModelRoutePreference(provider: provider.rawValue, model: trimmed),
-            forKey: AIModelPreferenceKey.backgroundMultimodalRoute
+            to: Prefs.Models.backgroundMultimodalRoute
         )
     }
 
@@ -196,7 +219,7 @@ extension KeychainService {
     /// whose free period ended (`ownRoute` hides that one).
     static func storedOwnRoute(for task: AITask) -> AITaskModelRoute? {
         guard canHaveOwnRoute(task),
-              let stored = storedRoute(forKey: AIModelPreferenceKey.taskRoute(task)),
+              let stored = storedRoute(taskRouteKey(task)),
               let provider = AIProvider(rawValue: stored.provider) else { return nil }
         return AITaskModelRoute(provider: provider, model: stored.model)
     }
@@ -216,7 +239,7 @@ extension KeychainService {
     static func setOwnRoute(_ route: AITaskModelRoute?, for task: AITask) {
         guard canHaveOwnRoute(task) else { return }
         guard let route else {
-            PreferenceStore.remove(forKey: AIModelPreferenceKey.taskRoute(task))
+            Preferences.reset(taskRouteKey(task))
             NotificationCenter.default.post(name: .aiProviderDidChange, object: nil)
             return
         }
@@ -224,14 +247,16 @@ extension KeychainService {
         guard !trimmed.isEmpty else { return }
         saveRoute(
             AIModelRoutePreference(provider: route.provider.rawValue, model: trimmed),
-            forKey: AIModelPreferenceKey.taskRoute(task)
+            to: taskRouteKey(task)
         )
     }
 
     /// The synced mark that Canvas Voice was given its starting model, so a
     /// learner who sends it back to Background is not given it again, here
     /// or on another Mac (`aiSeeded.task.<task>`).
-    static let canvasVoiceSeededKey = "aiSeeded.task." + AITask.canvasVoice.rawValue
+    private static func seededKey(_ task: AITask) -> AccountKey<Any?> {
+        Prefs.Families.aiSeededTask.key(task.rawValue)
+    }
 
     /// Gives Canvas Voice its starting model (`AIModelDefaults.canvasVoice`)
     /// as a model of its own, once for the account, when it has none: speaking
@@ -242,16 +267,14 @@ extension KeychainService {
     /// any model the learner set.
     static func seedCanvasVoiceRoute() {
         guard canHaveOwnRoute(.canvasVoice),
-              !UserDefaults.standard.bool(forKey: canvasVoiceSeededKey),
-              storedRoute(forKey: AIModelPreferenceKey.taskRoute(.canvasVoice)) == nil else { return }
-        PreferenceStore.set(true, forKey: canvasVoiceSeededKey)
+              Preferences.value(seededKey(.canvasVoice)) as? Bool != true,
+              storedRoute(taskRouteKey(.canvasVoice)) == nil else { return }
+        Preferences.set(true, for: seededKey(.canvasVoice))
         setOwnRoute(AITaskModelRoute(provider: .openRouter, model: AIModelDefaults.canvasVoice), for: .canvasVoice)
     }
 
     /// The synced mark that Card Answer Check was given its starting model
     /// (`aiSeeded.task.<task>`), as Canvas Voice's.
-    static let cardAnswerCheckSeededKey = "aiSeeded.task." + AITask.cardAnswerCheck.rawValue
-
     /// Gives Card Answer Check its starting model
     /// (`AIModelDefaults.cardAnswerCheck`) as a model of its own, once for the
     /// account, when it has none. Check followed the chat's model, which can
@@ -259,25 +282,23 @@ extension KeychainService {
     /// change. It then shows, and is changed, in Settings › Background › Tasks.
     static func seedCardAnswerCheckRoute() {
         guard canHaveOwnRoute(.cardAnswerCheck),
-              !UserDefaults.standard.bool(forKey: cardAnswerCheckSeededKey),
-              storedRoute(forKey: AIModelPreferenceKey.taskRoute(.cardAnswerCheck)) == nil else { return }
-        PreferenceStore.set(true, forKey: cardAnswerCheckSeededKey)
+              Preferences.value(seededKey(.cardAnswerCheck)) as? Bool != true,
+              storedRoute(taskRouteKey(.cardAnswerCheck)) == nil else { return }
+        Preferences.set(true, for: seededKey(.cardAnswerCheck))
         setOwnRoute(AITaskModelRoute(provider: .openRouter, model: AIModelDefaults.cardAnswerCheck), for: .cardAnswerCheck)
     }
 
     /// The synced mark that Go Deeper was given its starting model
     /// (`aiSeeded.task.<task>`), as Card Answer Check's.
-    static let goDeeperSeededKey = "aiSeeded.task." + AITask.cardGoDeeper.rawValue
-
     /// Gives Go Deeper its starting model (`AIModelDefaults.goDeeper`) as a
     /// model of its own, once for the account, when it has none: it followed
     /// the chat's model and could not be changed. Changed afterwards in
     /// Settings › Background › Tasks.
     static func seedGoDeeperRoute() {
         guard canHaveOwnRoute(.cardGoDeeper),
-              !UserDefaults.standard.bool(forKey: goDeeperSeededKey),
-              storedRoute(forKey: AIModelPreferenceKey.taskRoute(.cardGoDeeper)) == nil else { return }
-        PreferenceStore.set(true, forKey: goDeeperSeededKey)
+              Preferences.value(seededKey(.cardGoDeeper)) as? Bool != true,
+              storedRoute(taskRouteKey(.cardGoDeeper)) == nil else { return }
+        Preferences.set(true, for: seededKey(.cardGoDeeper))
         setOwnRoute(AITaskModelRoute(provider: .openRouter, model: AIModelDefaults.goDeeper), for: .cardGoDeeper)
     }
 
@@ -289,7 +310,7 @@ extension KeychainService {
     /// Default Model. Never the chat on screen's own pick: a model tried in
     /// one chat is not a choice about docs.
     static var docsRoute: AITaskModelRoute? {
-        guard let route = storedRoute(forKey: AIModelPreferenceKey.docsRoute),
+        guard let route = storedRoute(Prefs.Models.docsRoute),
               let provider = AIProvider(rawValue: route.provider) else { return nil }
         return AITaskModelRoute(provider: provider, model: route.model)
     }
@@ -305,7 +326,7 @@ extension KeychainService {
     /// Default Model.
     static func setDocsRoute(_ route: AITaskModelRoute?) {
         guard let route else {
-            PreferenceStore.remove(forKey: AIModelPreferenceKey.docsRoute)
+            Preferences.reset(Prefs.Models.docsRoute)
             NotificationCenter.default.post(name: .aiProviderDidChange, object: nil)
             return
         }
@@ -313,7 +334,7 @@ extension KeychainService {
         guard !trimmed.isEmpty else { return }
         saveRoute(
             AIModelRoutePreference(provider: route.provider.rawValue, model: trimmed),
-            forKey: AIModelPreferenceKey.docsRoute
+            to: Prefs.Models.docsRoute
         )
     }
 
@@ -324,7 +345,7 @@ extension KeychainService {
     /// cannot be read fails closed instead of quietly running the Default Model.
     static func resolveDocsConfig() -> AITaskConfig? {
         guard ManagedAI.isSignedIn else { return nil }
-        guard !storedRouteIsInvalid(AIModelPreferenceKey.docsRoute) else { return nil }
+        guard !storedRouteIsInvalid(Prefs.Models.docsRoute) else { return nil }
         if docsRoute == nil, modelRouteConfigurationIsInvalid(for: .chat) { return nil }
         guard !AICreditEntitlement.isOutOfCredits else { return nil }
         let route = displayedDocsRoute
@@ -366,15 +387,14 @@ extension KeychainService {
     /// `defaultBackgroundTaskRoute`.
     static var backgroundTaskProvider: AIProvider? {
         get {
-            if let route = storedRoute(forKey: AIModelPreferenceKey.backgroundRoute) {
+            if let route = storedRoute(Prefs.Models.backgroundRoute) {
                 return AIProvider(rawValue: route.provider)
             }
-            guard let raw = UserDefaults.standard.string(forKey: "aiBackground.provider") else { return nil }
+            guard let raw = Preferences.value(Prefs.Models.backgroundProvider) else { return nil }
             return AIProvider.allCases.first { $0.rawValue == raw }
         }
         set {
-            if let newValue { PreferenceStore.set(newValue.rawValue, forKey: "aiBackground.provider") }
-            else { PreferenceStore.remove(forKey: "aiBackground.provider") }
+            Preferences.set(newValue?.rawValue, for: Prefs.Models.backgroundProvider)
             NotificationCenter.default.post(name: .aiProviderDidChange, object: nil)
         }
     }
@@ -401,7 +421,7 @@ extension KeychainService {
     /// Background › Multimodal: the persisted vision route or the explicit
     /// shipped default.
     static var displayedBackgroundMultimodalTaskRoute: AITaskModelRoute {
-        guard let route = storedRoute(forKey: AIModelPreferenceKey.backgroundMultimodalRoute),
+        guard let route = storedRoute(Prefs.Models.backgroundMultimodalRoute),
               let provider = AIProvider(rawValue: route.provider) else {
             return defaultBackgroundMultimodalTaskRoute
         }
@@ -445,25 +465,25 @@ extension KeychainService {
     // The pick is stored per provider. A single shared slot meant switching
     // providers had to clear it, so leaving a provider and coming back read as
     // "never picked" and silently reverted to that provider's chat default.
-    private static func backgroundTaskModelKey(for provider: AIProvider) -> String {
-        "aiBackground.model.\(provider.rawValue)"
+    private static func backgroundTaskModelKey(for provider: AIProvider) -> AccountKey<Any?> {
+        Prefs.Families.aiBackground.key("model.\(provider.rawValue)")
     }
 
     /// The background-task model picked for a specific provider, or nil when that
     /// provider has never been given one.
     static func backgroundTaskModel(for provider: AIProvider) -> String? {
-        if let route = storedRoute(forKey: AIModelPreferenceKey.backgroundRoute),
+        if let route = storedRoute(Prefs.Models.backgroundRoute),
            route.provider == provider.rawValue {
             return route.model
         }
-        return UserDefaults.standard.string(forKey: backgroundTaskModelKey(for: provider))
+        return Preferences.value(backgroundTaskModelKey(for: provider)) as? String
     }
 
     static func setBackgroundTaskModel(_ model: String?, for provider: AIProvider) {
         let key = backgroundTaskModelKey(for: provider)
-        if let model, !model.isEmpty { PreferenceStore.set(model, forKey: key) }
-        else { PreferenceStore.remove(forKey: key) }
-        PreferenceStore.remove(forKey: "aiBackground.model")
+        if let model, !model.isEmpty { Preferences.set(model, for: key) }
+        else { Preferences.reset(key) }
+        Preferences.reset(Prefs.Models.retiredBackgroundModel)
         NotificationCenter.default.post(name: .aiProviderDidChange, object: nil)
     }
 
@@ -570,7 +590,7 @@ extension KeychainService {
         chatSessionProvider = provider
         chatModelLock.unlock()
         // Drop any override persisted before chat picks became session-scoped.
-        PreferenceStore.remove(forKey: "aiTask.chat.provider")
+        Preferences.reset(Prefs.Models.chatTaskProvider)
         NotificationCenter.default.post(name: .aiProviderDidChange, object: nil)
     }
 
@@ -588,7 +608,7 @@ extension KeychainService {
         chatSessionModel = (model?.isEmpty == false) ? model : nil
         chatModelLock.unlock()
         // Drop any override persisted before chat picks became session-scoped.
-        PreferenceStore.remove(forKey: "aiTask.chat.model")
+        Preferences.reset(Prefs.Models.chatTaskModel)
         NotificationCenter.default.post(name: .aiProviderDidChange, object: nil)
     }
 
@@ -617,11 +637,11 @@ extension KeychainService {
     /// new model does not offer it.
     static var chosenChatEffort: AIEffort? {
         get {
-            UserDefaults.standard.string(forKey: AIModelPreferenceKey.defaultChatEffort)
+            Preferences.value(Prefs.Models.defaultChatEffort)
                 .flatMap(AIEffort.init(rawValue:))
         }
         set {
-            PreferenceStore.set(newValue?.rawValue, forKey: AIModelPreferenceKey.defaultChatEffort)
+            Preferences.set(newValue?.rawValue, for: Prefs.Models.defaultChatEffort)
         }
     }
 
@@ -654,7 +674,7 @@ extension KeychainService {
         chatModelLock.lock()
         chatSessionEffort = effort
         chatModelLock.unlock()
-        PreferenceStore.remove(forKey: "aiTask.chat.effort")
+        Preferences.reset(Prefs.Models.chatTaskEffort)
         NotificationCenter.default.post(name: .aiProviderDidChange, object: nil)
     }
 
@@ -692,13 +712,13 @@ extension KeychainService {
     /// because a new model has no such tier.
     static var chosenChatSpeed: AISpeed? {
         get {
-            UserDefaults.standard.string(forKey: AIModelPreferenceKey.defaultChatSpeed)
+            Preferences.value(Prefs.Models.defaultChatSpeed)
                 .flatMap(AISpeed.init(rawValue:))
                 .flatMap { $0 == .standard ? nil : $0 }
         }
         set {
             let stored = newValue == .standard ? nil : newValue
-            PreferenceStore.set(stored?.rawValue, forKey: AIModelPreferenceKey.defaultChatSpeed)
+            Preferences.set(stored?.rawValue, for: Prefs.Models.defaultChatSpeed)
         }
     }
 
@@ -711,7 +731,7 @@ extension KeychainService {
         chatModelLock.lock()
         chatSessionSpeed = speed
         chatModelLock.unlock()
-        PreferenceStore.remove(forKey: "aiTask.chat.speed")
+        Preferences.reset(Prefs.Models.chatTaskSpeed)
         NotificationCenter.default.post(name: .aiProviderDidChange, object: nil)
     }
 
@@ -726,19 +746,18 @@ extension KeychainService {
     /// Explicit permission for automatic LLM work to consume the learner's AI
     /// credits. This syncs with the account through the `aiBackground.` prefix.
     static var hasConsentedToBackgroundAIUsage: Bool {
-        get { UserDefaults.standard.bool(forKey: backgroundAIUsageConsentKey) }
-        set { PreferenceStore.set(newValue, forKey: backgroundAIUsageConsentKey) }
+        get { Preferences.value(Prefs.Models.backgroundUsageConsented) }
+        set { Preferences.set(newValue, for: Prefs.Models.backgroundUsageConsented) }
     }
 
-    static let backgroundAIUsageConsentKey = "aiBackground.usageConsented"
+    static let backgroundAIUsageConsentKey = Prefs.Models.backgroundUsageConsented.name
 
     /// Remove credentials from the retired client-side provider integrations
     /// and all former direct-Meta trial flags.
     /// This fixed-size upgrade cleanup runs once per installation; no request
     /// path can read these values after the update.
     static func purgeRetiredProviderData() {
-        let completionKey = "retiredProviderDataPurged.v1"
-        guard !UserDefaults.standard.bool(forKey: completionKey) else { return }
+        guard Preferences.value(Prefs.Lifecycle.retiredProviderDataPurged) != true else { return }
 
         for key: Key in [
             .anthropicAPIKey, .openAIAPIKey, .groqAPIKey, .cerebrasAPIKey,
@@ -749,15 +768,15 @@ extension KeychainService {
         ] {
             delete(key)
         }
-        for key in [
-            "aiBackground.metaFreeTrial.active",
-            "aiBackground.metaFreeTrial.startedAt",
-            "aiBackground.metaFreeTrial.exhausted",
-            "aiBackground.metaFreeTrial.limitUSD",
+        for member in [
+            "metaFreeTrial.active",
+            "metaFreeTrial.startedAt",
+            "metaFreeTrial.exhausted",
+            "metaFreeTrial.limitUSD",
         ] {
-            PreferenceStore.remove(forKey: key)
+            Preferences.reset(Prefs.Families.aiBackground.key(member))
         }
-        UserDefaults.standard.set(true, forKey: completionKey)
+        Preferences.set(true, for: Prefs.Lifecycle.retiredProviderDataPurged)
     }
 
     /// Chat and reviews are initiated directly by the learner. On the
@@ -795,7 +814,7 @@ extension KeychainService {
 
     /// Get the custom prompt override for a specific AI task, or nil to use the built-in default.
     static func taskPrompt(_ task: AITask) -> String? {
-        UserDefaults.standard.string(forKey: "aiTask.\(task.rawValue).prompt")
+        Preferences.value(Prefs.Families.aiTask.key("\(task.rawValue).prompt")) as? String
     }
 
     /// The provider and model a task will actually use: a background task's

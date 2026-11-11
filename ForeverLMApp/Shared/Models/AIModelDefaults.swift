@@ -379,8 +379,6 @@ enum AIModelListPrice {
 /// default set; everything else in the catalog is opt-in, stored as an
 /// *enabled* set the user grows by ticking models in Settings.
 enum AIModelCatalog {
-    private static let enabledIDsKey = "chatModels.enabledIDs"
-
     /// The models the pickers offer before the user opts into more: the
     /// recommended default plus one strong pick per major lab.
     private static let defaultEnabledIDs: Set<String> = Set(
@@ -512,8 +510,7 @@ enum AIModelCatalog {
     nonisolated(unsafe) private static var cachedCatalogSnapshot: CatalogSnapshot?
 
     private static func catalogSnapshot() -> CatalogSnapshot {
-        let defaults = UserDefaults.standard
-        let customData = defaults.data(forKey: customModelsKey)
+        let customData = Preferences.value(Prefs.Models.chatModelsOpenRouterCustom)
         let generation = AIProviderPricing.remotePriceGeneration
         let releaseDateGeneration = openRouterReleaseDateGeneration
         catalogSnapshotLock.lock()
@@ -1017,10 +1014,8 @@ enum AIModelCatalog {
         var supportsVision: Bool?
     }
 
-    private static let customModelsKey = "chatModels.openRouterCustom"
-
     static var customOpenRouterModels: [CustomOpenRouterModel] {
-        guard let data = UserDefaults.standard.data(forKey: customModelsKey) else { return [] }
+        guard let data = Preferences.value(Prefs.Models.chatModelsOpenRouterCustom) else { return [] }
         let decoded = (try? JSONDecoder().decode([CustomOpenRouterModel].self, from: data)) ?? []
         // A directory model can become pinned in a later app release. Keep its
         // existing enabled ID, but stop treating the now-built-in card as a
@@ -1039,13 +1034,11 @@ enum AIModelCatalog {
     /// (`AIModelPriceRefresher.ingest`). A device-local derived cache, not user
     /// intent, so it lives in plain `UserDefaults` like the remote price table:
     /// it does not sync, and there is nothing to reconcile across devices.
-    private static let openRouterVisionKey = "aiCapabilities.openRouterVision"
-
     /// Whether a directory slug was last seen accepting image input. `nil` means
     /// no fetch has recorded it yet — callers treat that as unknown and do not
     /// warn, so a capable model is never wrongly flagged before the first fetch.
     static func openRouterModelSupportsVision(_ slug: String) -> Bool? {
-        guard let data = UserDefaults.standard.data(forKey: openRouterVisionKey),
+        guard let data = Preferences.value(Prefs.Models.openRouterVision),
               let table = try? JSONDecoder().decode([String: Bool].self, from: data)
         else { return nil }
         return table[slug]
@@ -1055,7 +1048,7 @@ enum AIModelCatalog {
     /// or drifted fetch never erases a good one, matching the price cache.
     static func cacheOpenRouterVision(_ table: [String: Bool]) {
         guard !table.isEmpty, let data = try? JSONEncoder().encode(table) else { return }
-        UserDefaults.standard.set(data, forKey: openRouterVisionKey)
+        Preferences.set(data, for: Prefs.Models.openRouterVision)
     }
 
     // MARK: - Directory context windows
@@ -1065,14 +1058,15 @@ enum AIModelCatalog {
     /// This is the authority for what OpenRouter serves: the request budgeter
     /// and the context gauge read it rather than assuming a window. Device-
     /// local derived cache, like the vision snapshot above.
-    static let openRouterContextLengthKey = "aiCapabilities.openRouterContextLength"
+    private static let openRouterContextLength = Prefs.Families.aiCapabilities.key("openRouterContextLength")
+    static let openRouterContextLengthKey = openRouterContextLength.name
 
     static func openRouterDirectoryContextLength(_ slug: String) -> Int? {
-        directoryContextLength(slug, key: openRouterContextLengthKey)
+        directoryContextLength(slug, key: openRouterContextLength)
     }
 
-    private static func directoryContextLength(_ id: String, key: String) -> Int? {
-        guard let data = UserDefaults.standard.data(forKey: key),
+    private static func directoryContextLength(_ id: String, key: DeviceKey<Any?>) -> Int? {
+        guard let data = Preferences.value(key) as? Data,
               let table = try? JSONDecoder().decode([String: Int].self, from: data),
               let length = table[id.lowercased()], length > 0
         else { return nil }
@@ -1083,16 +1077,16 @@ enum AIModelCatalog {
     /// empty table is ignored so a failed or drifted fetch never erases a
     /// good one, matching the price and vision caches.
     static func cacheOpenRouterContextLengths(_ table: [String: Int]) {
-        cacheDirectoryContextLengths(table, key: openRouterContextLengthKey)
+        cacheDirectoryContextLengths(table, key: openRouterContextLength)
     }
 
-    private static func cacheDirectoryContextLengths(_ table: [String: Int], key: String) {
+    private static func cacheDirectoryContextLengths(_ table: [String: Int], key: DeviceKey<Any?>) {
         let normalized = table.reduce(into: [String: Int]()) { result, entry in
             guard entry.value > 0 else { return }
             result[entry.key.lowercased()] = entry.value
         }
         guard !normalized.isEmpty, let data = try? JSONEncoder().encode(normalized) else { return }
-        UserDefaults.standard.set(data, forKey: key)
+        Preferences.set(data, for: key)
     }
 
     // MARK: - Directory release dates
@@ -1105,8 +1099,6 @@ enum AIModelCatalog {
     /// the fetch that first lists it. Device-local derived cache, like the
     /// context-window table above, with an in-memory copy because the sorted
     /// catalog consults it from view bodies.
-    static let openRouterReleaseDateKey = "aiCapabilities.openRouterReleaseDate"
-
     private static let openRouterReleaseDateLock = NSLock()
     nonisolated(unsafe) private static var openRouterReleaseDateTable: [String: Double]?
     nonisolated(unsafe) private static var openRouterReleaseDateGenerationValue: UInt64 = 0
@@ -1120,7 +1112,7 @@ enum AIModelCatalog {
     /// When OpenRouter's directory first listed a slug; nil until a fetch has
     /// recorded it. Callers treat nil as unknown, never as "old".
     static func openRouterDirectoryReleaseDate(_ slug: String) -> Date? {
-        let table = openRouterReleaseDateLock.withLock { loadedOpenRouterReleaseDateTable() }
+        let table = loadedOpenRouterReleaseDateTable()
         return table[slug.lowercased()].map { Date(timeIntervalSince1970: $0) }
     }
 
@@ -1137,26 +1129,31 @@ enum AIModelCatalog {
             result[entry.key.lowercased()] = seconds
         }
         guard !normalized.isEmpty, let data = try? JSONEncoder().encode(normalized) else { return false }
+        let current = loadedOpenRouterReleaseDateTable()
         let changed: Bool = openRouterReleaseDateLock.withLock {
-            let current = loadedOpenRouterReleaseDateTable()
-            guard current != normalized else { return false }
+            guard (openRouterReleaseDateTable ?? current) != normalized else { return false }
             openRouterReleaseDateTable = normalized
             openRouterReleaseDateGenerationValue &+= 1
             return true
         }
         guard changed else { return false }
-        UserDefaults.standard.set(data, forKey: openRouterReleaseDateKey)
+        Preferences.set(data, for: Prefs.Models.openRouterReleaseDate)
         return true
     }
 
-    /// Caller holds `openRouterReleaseDateLock`. The first read decodes the
-    /// persisted table; an absent table reads as empty, not as a failure.
+    /// The release-date table. The first read decodes the persisted table with
+    /// `openRouterReleaseDateLock` released (a defaults read must not happen
+    /// under a lock) and publishes it under the lock; an absent table reads as
+    /// empty, not as a failure.
     private static func loadedOpenRouterReleaseDateTable() -> [String: Double] {
-        if let table = openRouterReleaseDateTable { return table }
-        let table = UserDefaults.standard.data(forKey: openRouterReleaseDateKey)
+        if let table = openRouterReleaseDateLock.withLock({ openRouterReleaseDateTable }) { return table }
+        let stored = Preferences.value(Prefs.Models.openRouterReleaseDate)
             .flatMap { try? JSONDecoder().decode([String: Double].self, from: $0) } ?? [:]
-        openRouterReleaseDateTable = table
-        return table
+        return openRouterReleaseDateLock.withLock {
+            if let table = openRouterReleaseDateTable { return table }
+            openRouterReleaseDateTable = stored
+            return stored
+        }
     }
 
     // MARK: - Directory reasoning efforts
@@ -1168,8 +1165,6 @@ enum AIModelCatalog {
     /// effort control or a level upstream gets it here on the next fetch.
     /// Device-local derived cache with an in-memory copy, because the
     /// composer's effort control consults it from a view body.
-    static let openRouterReasoningEffortsKey = "aiCapabilities.openRouterReasoningEfforts"
-
     private static let openRouterReasoningEffortsLock = NSLock()
     nonisolated(unsafe) private static var openRouterReasoningEffortsTable: [String: OpenRouterReasoningEfforts]?
 
@@ -1181,7 +1176,7 @@ enum AIModelCatalog {
 
     private static var currentOpenRouterReasoningEfforts: [String: OpenRouterReasoningEfforts] {
         if let override = openRouterReasoningEffortsOverride { return override }
-        return openRouterReasoningEffortsLock.withLock { loadedOpenRouterReasoningEffortsTable() }
+        return loadedOpenRouterReasoningEffortsTable()
     }
 
     /// Whether any catalog read has been recorded. A stored table is never
@@ -1207,24 +1202,29 @@ enum AIModelCatalog {
             result[entry.key.lowercased()] = entry.value
         }
         guard !normalized.isEmpty, let data = try? JSONEncoder().encode(normalized) else { return false }
+        let current = loadedOpenRouterReasoningEffortsTable()
         let changed: Bool = openRouterReasoningEffortsLock.withLock {
-            guard loadedOpenRouterReasoningEffortsTable() != normalized else { return false }
+            guard (openRouterReasoningEffortsTable ?? current) != normalized else { return false }
             openRouterReasoningEffortsTable = normalized
             return true
         }
         guard changed else { return false }
-        UserDefaults.standard.set(data, forKey: openRouterReasoningEffortsKey)
+        Preferences.set(data, for: Prefs.Models.openRouterReasoningEfforts)
         return true
     }
 
-    /// Caller holds `openRouterReasoningEffortsLock`. An absent table reads as
-    /// empty, not as a failure.
+    /// The effort table. The first read decodes the persisted table with
+    /// `openRouterReasoningEffortsLock` released and publishes it under the
+    /// lock. An absent table reads as empty, not as a failure.
     private static func loadedOpenRouterReasoningEffortsTable() -> [String: OpenRouterReasoningEfforts] {
-        if let table = openRouterReasoningEffortsTable { return table }
-        let table = UserDefaults.standard.data(forKey: openRouterReasoningEffortsKey)
+        if let table = openRouterReasoningEffortsLock.withLock({ openRouterReasoningEffortsTable }) { return table }
+        let stored = Preferences.value(Prefs.Models.openRouterReasoningEfforts)
             .flatMap { try? JSONDecoder().decode([String: OpenRouterReasoningEfforts].self, from: $0) } ?? [:]
-        openRouterReasoningEffortsTable = table
-        return table
+        return openRouterReasoningEffortsLock.withLock {
+            if let table = openRouterReasoningEffortsTable { return table }
+            openRouterReasoningEffortsTable = stored
+            return stored
+        }
     }
 
     /// Context window captured from OpenRouter's directory when the user
@@ -1277,9 +1277,9 @@ enum AIModelCatalog {
 
     private static func persistCustomModels(_ models: [CustomOpenRouterModel]) {
         if models.isEmpty {
-            PreferenceStore.remove(forKey: customModelsKey)
+            Preferences.reset(Prefs.Models.chatModelsOpenRouterCustom)
         } else if let data = try? JSONEncoder().encode(models) {
-            PreferenceStore.set(data, forKey: customModelsKey)
+            Preferences.set(data, for: Prefs.Models.chatModelsOpenRouterCustom)
         }
     }
 
@@ -1330,7 +1330,7 @@ enum AIModelCatalog {
     /// joined at read time as well as write time, so preferences written by an
     /// older build cannot leave the current default hidden.
     static var enabledIDs: Set<String> {
-        var stored = UserDefaults.standard.stringArray(forKey: enabledIDsKey).map { Set($0) }
+        var stored = Preferences.value(Prefs.Models.chatModelsEnabledIDs).map { Set($0) }
             ?? defaultEnabledIDs
         let oldMuseID = AIModelCatalogEntry(
             maker: .meta,
@@ -1406,7 +1406,7 @@ enum AIModelCatalog {
         requiredDefaultID: String? = defaultEntry?.id
     ) {
         let normalized = includingRequiredDefault(ids, requiredDefaultID: requiredDefaultID)
-        PreferenceStore.set(normalized.sorted(), forKey: enabledIDsKey)
+        Preferences.set(normalized.sorted(), for: Prefs.Models.chatModelsEnabledIDs)
     }
 }
 

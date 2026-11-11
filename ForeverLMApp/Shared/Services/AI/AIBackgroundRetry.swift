@@ -142,7 +142,7 @@ enum AIBackupModels {
     /// Synced: `aiBackups.<slot>` holds a JSON array of provider and model
     /// pairs, in order. Slots are `ModelPickerSlot` ids: `chat`,
     /// `background.text` and `background.images`.
-    static let keyPrefix = "aiBackups."
+    static let keyPrefix = Prefs.Families.aiBackups.prefix
     /// The most backups a setting may list, from Settings or over MCP
     /// (product owner, 2026-09-27: "please allow 10 backups for models that fail;
     /// not just 2"). What a learner may set, not what is set for them: a
@@ -154,7 +154,7 @@ enum AIBackupModels {
         let model: String
     }
 
-    static func key(slot: String) -> String { keyPrefix + slot }
+    static func key(slot: String) -> String { Prefs.Families.aiBackups.name(slot) }
 
     /// The Chat model's slot, `ModelPickerSlot.chat.id`. Only a scheduled
     /// task's run walks it.
@@ -193,8 +193,7 @@ enum AIBackupModels {
     /// Every slot that lists backups.
     static func allStored(defaults: UserDefaults = .standard) -> [String: [AITaskModelRoute]] {
         var result: [String: [AITaskModelRoute]] = [:]
-        for key in defaults.dictionaryRepresentation().keys where key.hasPrefix(keyPrefix) {
-            let slot = String(key.dropFirst(keyPrefix.count))
+        for slot in Prefs.Families.aiBackups.rows(in: defaults).keys {
             let routes = stored(slot: slot, defaults: defaults)
             if !routes.isEmpty { result[slot] = routes }
         }
@@ -206,9 +205,9 @@ enum AIBackupModels {
         let routes = normalized(routes)
         let rows = routes.map { StoredRoute(provider: $0.provider.rawValue, model: $0.model) }
         if rows.isEmpty {
-            PreferenceStore.remove(forKey: key(slot: slot))
+            Preferences.reset(Prefs.Families.aiBackups.key(slot))
         } else if let data = try? JSONEncoder().encode(rows), let text = String(data: data, encoding: .utf8) {
-            PreferenceStore.set(text, forKey: key(slot: slot))
+            Preferences.set(text, for: Prefs.Families.aiBackups.key(slot))
         }
         NotificationCenter.default.post(name: .aiProviderDidChange, object: nil)
     }
@@ -550,7 +549,7 @@ actor AIRequestPacer {
 enum MeetingModels {
     /// Synced, with the rest of `aiBackground.`: Setup's answer. False, the
     /// recommendation, keeps meetings on a paid model.
-    static let mayUseFreeKey = "aiBackground.meetingsMayUseFree"
+    static let mayUseFreeKey = Prefs.Models.meetingsMayUseFree.name
 
     /// Setup's one sentence on why meetings stay on a paid model.
     static let privacyReason = "A meeting's transcript holds private conversations, and free models' providers may keep and train on what is sent."
@@ -561,11 +560,11 @@ enum MeetingModels {
     }
 
     static var mayUseFree: Bool {
-        UserDefaults.standard.bool(forKey: mayUseFreeKey)
+        Preferences.value(Prefs.Models.meetingsMayUseFree) ?? false
     }
 
     static func setMayUseFree(_ allowed: Bool) {
-        PreferenceStore.set(allowed, forKey: mayUseFreeKey)
+        Preferences.set(allowed, for: Prefs.Models.meetingsMayUseFree)
         NotificationCenter.default.post(name: .aiProviderDidChange, object: nil)
     }
 

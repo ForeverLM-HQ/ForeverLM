@@ -270,7 +270,7 @@ extension MobileAudioReviewViewModel {
 
     func setSpeed(_ newSpeed: Float) {
         speed = MobileAudioPlaybackSpeed.clamped(newSpeed)
-        UserDefaults.standard.set(speed, forKey: MobileAudioPlaybackSpeed.defaultsKey)
+        Preferences.set(speed, for: Prefs.Mobile.playbackSpeed)
         if isPlaying {
             player.rate = speed
         }

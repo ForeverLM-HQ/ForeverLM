@@ -1228,7 +1228,7 @@ extension MCPDataStore {
                 return row
             },
             "is_checking": runner.isChecking,
-            "notify_on_match": UserDefaults.standard.bool(forKey: JournalWatch.notifyOnMatchKey),
+            "notify_on_match": Preferences.value(Prefs.Planner.journalsNotifyOnMatch) ?? false,
             "tools": "follow_journal_feed, unfollow_journal_feed, run_settings_action check_feeds_now, set_app_setting feeds.notify_on_match",
         ]
         if let summary = runner.lastCheckSummary { payload["last_check_summary"] = summary }

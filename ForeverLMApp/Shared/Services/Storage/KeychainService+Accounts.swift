@@ -139,8 +139,7 @@ extension KeychainService {
     /// grant go. Deleting a synced item deletes it on the learner's other
     /// Macs too, which is the point.
     static func purgeRetiredGoogleCalendarGrants() {
-        let completionKey = "retiredGoogleCalendarGrantsPurged.v1"
-        guard !UserDefaults.standard.bool(forKey: completionKey) else { return }
+        guard Preferences.value(Prefs.Lifecycle.retiredGoogleCalendarGrantsPurged) != true else { return }
         if let raw = load(.googleCalendarAccounts), let data = raw.data(using: .utf8),
            let accounts = try? JSONSerialization.jsonObject(with: data) as? [[String: Any]] {
             for account in accounts {
@@ -157,7 +156,7 @@ extension KeychainService {
         ] {
             delete(key)
         }
-        UserDefaults.standard.set(true, forKey: completionKey)
+        Preferences.set(true, for: Prefs.Lifecycle.retiredGoogleCalendarGrantsPurged)
     }
 
     // MARK: Account-scoped synchronized items
