@@ -197,6 +197,16 @@ struct SyncedArticleAudioManifest: Codable, Equatable, Identifiable {
                 && narrationPreparationSignature != nil)
     }
 
+    /// False for Fish Audio audio made with no reference voice: each of its
+    /// requests was spoken by a different random speaker, so the recording
+    /// changes voice every few sentences and is made again
+    /// (`ArticleSpeechModelOption.init(directoryRow:)`). Only the audio:
+    /// its prepared narration text (`usesCurrentNarration`) is still reused.
+    var speaksInOneVoice: Bool {
+        !ArticleSpeechCatalog.isFishAudioModel(model)
+            || !voice.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+    }
+
     /// Device preferences select future generations; they do not invalidate a
     /// supported, content-matched recording that another device already made.
     /// Nor does OpenRouter's list: the speech catalog follows its directory
@@ -206,6 +216,7 @@ struct SyncedArticleAudioManifest: Codable, Equatable, Identifiable {
     var usesSupportedPlaybackFormat: Bool {
         schemaVersion == Self.schemaVersion
             && usesCurrentNarration
+            && speaksInOneVoice
             && !ArticleSpeechCatalog.isRetiredModel(model)
             && !model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !chunks.isEmpty
@@ -892,6 +903,7 @@ enum SyncedArticleAudioStore {
         guard let manifest = try? decoder.decode(SyncedArticleAudioManifest.self, from: data),
               manifest.schemaVersion == SyncedArticleAudioManifest.schemaVersion,
               manifest.usesCurrentNarration,
+              manifest.speaksInOneVoice,
               hasAllChunks(for: manifest) else {
             return nil
         }

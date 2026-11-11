@@ -170,19 +170,29 @@ struct ArticleSpeechModelOption: Identifiable, Hashable, Sendable {
     /// and with nothing about it guessed: its languages are unstated, it is
     /// asked for MP3, and it narrates in ForeverLM's untuned units. Its price
     /// is OpenRouter's, like every model's (`OpenRouterAudioPrices`).
+    ///
+    /// A Fish Audio row with no voice list is the exception: a Fish request
+    /// that names no reference voice is spoken by a different random speaker
+    /// each time, so a paper narrated in several requests changed voice every
+    /// few sentences (Drama 3 on the iPhone, 2026-11-11). It takes the Fish
+    /// reference voice every other Fish model takes (`fishS21Voices`).
     init(directoryRow row: OpenRouterAudioModelRow) {
+        let takesFishReference = row.supportedVoices.isEmpty
+            && ArticleSpeechCatalog.isFishAudioModel(row.id)
         self.init(
             id: row.id,
             name: row.name,
             detail: nil,
             maker: row.maker,
-            voices: row.supportedVoices.map {
-                ArticleSpeechVoice($0, ArticleSpeechCatalog.listedVoiceName($0))
-            },
+            voices: takesFishReference
+                ? ArticleSpeechCatalog.fishS21Voices
+                : row.supportedVoices.map {
+                    ArticleSpeechVoice($0, ArticleSpeechCatalog.listedVoiceName($0))
+                },
             languages: .unstated,
             chunkLimit: ArticleSpeechCatalog.untunedChunkLimit,
             leadChunkLimit: ArticleSpeechCatalog.untunedLeadChunkLimit,
-            curatedVoiceCount: 0
+            curatedVoiceCount: takesFishReference ? nil : 0
         )
     }
 
@@ -1246,7 +1256,8 @@ enum ArticleSpeechCatalog {
     /// Fish Audio reference IDs rather than a closed voice list. Selene is the
     /// reference each Fish model page's own playable example sends (checked
     /// for S1, S2 Pro and S2.1 Pro on 2026-09-27), so it is the one voice
-    /// anything names for them.
+    /// anything names for them, and for any Fish model the directory adds
+    /// (Drama 3): without a reference, each request picks its own speaker.
     static let fishS21Voices: [ArticleSpeechVoice] = [
         .init(
             "b347db033a6549378b48d00acb0d06cd",
@@ -1331,6 +1342,13 @@ enum ArticleSpeechCatalog {
     static let geminiChunkLimit = 800
     static let standardChunkLimit = 4_000
     static let fishChunkLimit = 3_000
+
+    /// Fish Audio's models, which OpenRouter lists with no voices: a request
+    /// to one must name a reference voice or each request speaks with a
+    /// different one.
+    static func isFishAudioModel(_ modelID: String) -> Bool {
+        modelID.lowercased().hasPrefix("fish-audio/")
+    }
     static let realtimeChunkLimit = 2_000
     // Flux's free route babbled and truncated on ~1,950-character units on
     // 2026-09-09 (two units of a 44-unit paper came back as nonsense, one came

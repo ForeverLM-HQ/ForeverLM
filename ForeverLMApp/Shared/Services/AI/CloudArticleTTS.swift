@@ -662,6 +662,7 @@ enum CloudArticleTTS {
         guard let manifest = try? decoder.decode(SyncedArticleAudioManifest.self, from: data),
               manifest.schemaVersion == SyncedArticleAudioManifest.schemaVersion,
               manifest.usesCurrentNarration,
+              manifest.speaksInOneVoice,
               !ArticleSpeechCatalog.isRetiredModel(manifest.model),
               manifest.contentSignature == signature,
               (try? SyncedArticleAudioStore.chunkURLs(for: manifest)) != nil else {

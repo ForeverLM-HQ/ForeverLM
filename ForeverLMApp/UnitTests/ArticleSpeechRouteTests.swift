@@ -168,6 +168,27 @@ struct SpeechDirectoryTests {
         #expect(seed.chunkLimit == ArticleSpeechCatalog.seedAudioChunkLimit)
     }
 
+    /// A Fish request with no reference voice is spoken by a different random
+    /// speaker each time: a paper narrated by Drama 3 changed voice every few
+    /// sentences on the iPhone (2026-11-11).
+    @Test("a Fish model the overlay does not know still takes the Fish reference voice")
+    func uncuratedFishModelTakesTheReferenceVoice() throws {
+        let rows = try OpenRouterAudioDirectory.rows(fromDirectory: Data(#"""
+        {"data":[{"id":"fish-audio/drama-3","name":"Fish Audio: Drama 3","supported_voices":null}]}
+        """#.utf8), kind: .speech)
+        let drama = try #require(ArticleSpeechCatalog.options(fromDirectory: rows).first)
+        #expect(drama.takesVoice)
+        #expect(drama.defaultVoiceID == ArticleSpeechCatalog.fishS21Voices.first?.id)
+
+        let request = try CloudArticleTTS.speechRequest(
+            text: "Two sentences. One voice.",
+            selection: CloudArticleTTS.Selection(model: drama.id, voice: drama.defaultVoiceID)
+        )
+        let body = try #require(request.httpBody)
+        let payload = try #require(JSONSerialization.jsonObject(with: body) as? [String: Any])
+        #expect(payload["voice"] as? String == ArticleSpeechCatalog.fishS21Voices.first?.id)
+    }
+
     @Test("a model the overlay does not know is offered with nothing about it guessed")
     func unknownModelIsOfferedHonestly() throws {
         let acme = try #require(try Self.options().first { $0.id == "acme/new-voice" })
@@ -247,7 +268,7 @@ struct SpeechDirectoryTests {
     /// or this device has yet read — the model that made it.
     @Test("a recording plays whatever model made it, unless that model was retired")
     func playbackDoesNotDependOnTheDirectory() {
-        func manifest(model: String) -> SyncedArticleAudioManifest {
+        func manifest(model: String, voice: String = "Kore") -> SyncedArticleAudioManifest {
             SyncedArticleAudioManifest(
                 schemaVersion: SyncedArticleAudioManifest.schemaVersion,
                 sourceID: "article-1",
@@ -257,8 +278,8 @@ struct SpeechDirectoryTests {
                 sourceURL: "https://example.com/article",
                 provider: ArticleSpeechCatalog.provider,
                 model: model,
-                voice: "Kore",
-                voiceLabel: "Kore",
+                voice: voice,
+                voiceLabel: voice,
                 contentSignature: "content-signature",
                 totalCharacters: 120,
                 createdAt: Date(),
@@ -271,5 +292,11 @@ struct SpeechDirectoryTests {
         }
         #expect(manifest(model: "google/gemini-3.8-flash-tts").usesSupportedPlaybackFormat)
         #expect(!manifest(model: "canopylabs/orpheus-3b-0.1-ft").usesSupportedPlaybackFormat)
+        // Fish audio made with no reference voice changes speaker every
+        // request, so it is made again; with one it plays.
+        #expect(!manifest(model: "fish-audio/drama-3", voice: "").usesSupportedPlaybackFormat)
+        #expect(manifest(model: "fish-audio/drama-3", voice: "b347db033a6549378b48d00acb0d06cd").usesSupportedPlaybackFormat)
+        // A model with no voice list at all is still one voice per recording.
+        #expect(manifest(model: "bytedance-seed/seed-audio-1-0", voice: "").usesSupportedPlaybackFormat)
     }
 }
