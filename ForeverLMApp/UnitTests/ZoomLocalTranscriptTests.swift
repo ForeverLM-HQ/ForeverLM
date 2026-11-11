@@ -770,4 +770,43 @@ struct RecordingSpeechLevelTests {
     func noSpeechReadsPlainly() {
         #expect(MeetingTranscriptionService.TranscriptionError.noSpeech.errorDescription == "The recording has no speech in it.")
     }
+
+    @Test("a filed recording without a transcript is found again, so the watcher can finish it")
+    func filedRecordingWithoutTranscriptIsFound() throws {
+        func artifact(_ source: String, _ kind: MeetingArtifactKind, path: String?) -> MeetingArtifact {
+            MeetingArtifact(
+                id: "\(source):\(kind.rawValue)",
+                sourceId: source,
+                groupId: "Robin <> Zara standup",
+                kind: kind,
+                title: "x",
+                url: nil,
+                localFilePath: path,
+                mimeType: nil,
+                modifiedAt: nil,
+                sortIndex: 0
+            )
+        }
+        let untranscribed = "/Users/robin/Documents/Zoom/2026-11-09 08.31.24 Robin __ Zara/audio1.m4a"
+        let transcribed = "/Users/robin/Documents/Zoom/2026-11-10 08.29.34 Robin __ Zara/audio2.m4a"
+        let artifacts = [
+            artifact("src_a", .recording, path: untranscribed),
+            artifact("src_b", .recording, path: transcribed),
+            artifact("src_b", .transcript, path: nil),
+        ]
+
+        let waiting = try #require(StudioViewModel.zoomLocalFiledRecording(
+            folderName: "2026-11-09 08.31.24 Robin __ Zara", artifacts: artifacts
+        ))
+        #expect(waiting == .init(sourceID: "src_a", hasTranscriptArtifact: false))
+
+        let done = try #require(StudioViewModel.zoomLocalFiledRecording(
+            folderName: "2026-11-10 08.29.34 Robin __ Zara", artifacts: artifacts
+        ))
+        #expect(done == .init(sourceID: "src_b", hasTranscriptArtifact: true))
+
+        #expect(StudioViewModel.zoomLocalFiledRecording(
+            folderName: "2026-11-11 08.32.27 Robin __ Zara", artifacts: artifacts
+        ) == nil)
+    }
 }

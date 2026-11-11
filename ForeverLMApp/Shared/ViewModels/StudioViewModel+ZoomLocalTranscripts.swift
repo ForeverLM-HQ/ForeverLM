@@ -574,6 +574,27 @@ extension StudioViewModel {
         }
     }
 
+    /// What the stored rows say of a recording folder: not filed (nil), or
+    /// filed as a session, with whether that session already has a transcript
+    /// artifact. The folder's name decides, across every series, because a
+    /// session moved or folded by hand keeps its recording row.
+    struct ZoomLocalFiledRecording: Equatable, Sendable {
+        let sourceID: String
+        let hasTranscriptArtifact: Bool
+    }
+
+    nonisolated static func zoomLocalFiledRecording(
+        folderName: String,
+        artifacts: [MeetingArtifact]
+    ) -> ZoomLocalFiledRecording? {
+        guard let recording = artifacts.first(where: { artifact in
+            guard artifact.kind == .recording, let path = artifact.localFilePath else { return false }
+            return ((path as NSString).deletingLastPathComponent as NSString).lastPathComponent == folderName
+        }) else { return nil }
+        let hasTranscript = artifacts.contains { $0.sourceId == recording.sourceId && $0.kind == .transcript }
+        return ZoomLocalFiledRecording(sourceID: recording.sourceId, hasTranscriptArtifact: hasTranscript)
+    }
+
     /// The series a topic belongs to: the group titled exactly that, or else
     /// the one group whose title begins with it as a word. The second rule is
     /// for a series renamed in the calendar — "Alan <> Zara standup" became
@@ -1101,12 +1122,24 @@ extension StudioViewModel {
                 // moved into the standup series and folded in, and a look at
                 // that series' own rows alone would have filed the recording
                 // again and paid to transcribe it a second time.
+                //
+                // Filed is not the same as transcribed, though. A session whose
+                // transcription failed or was cut short (the app quit mid-call)
+                // keeps its recording row and no transcript, and skipping it
+                // here left it so for good: the 2026-11-09 standup sat with
+                // only its file name until it was transcribed by hand on 11-11.
+                // Such a session is taken further, as it is, in its own series.
                 let folderName = (folder.path as NSString).lastPathComponent
                 let filed = try await storage.loadMeetingArtifacts()
-                if filed.contains(where: { artifact in
-                    guard artifact.kind == .recording, let path = artifact.localFilePath else { return false }
-                    return ((path as NSString).deletingLastPathComponent as NSString).lastPathComponent == folderName
-                }) { continue }
+                var filedWithoutTranscript: StudioArticle?
+                if let filedRecording = Self.zoomLocalFiledRecording(folderName: folderName, artifacts: filed) {
+                    if filedRecording.hasTranscriptArtifact { continue }
+                    guard var stored = try await storage.loadSourceWithoutContent(filedRecording.sourceID),
+                          stored.status == .active else { continue }
+                    stored.content = await storage.loadSourceContent(filedRecording.sourceID)
+                    if MeetingContent.contains(section: .transcript, in: stored.content) { continue }
+                    filedWithoutTranscript = stored
+                }
                 // A call nobody spoke in is not a meeting: it is not filed,
                 // its planner block is not marked done, and nothing is sent to
                 // be transcribed, since a speech model makes something up for
@@ -1120,7 +1153,9 @@ extension StudioViewModel {
                     continue
                 }
                 let groupID: String
-                if let existingGroupID {
+                if let filedGroup = filedWithoutTranscript?.parentGroup, !filedGroup.isEmpty {
+                    groupID = filedGroup
+                } else if let existingGroupID {
                     groupID = existingGroupID
                 } else {
                     try await storage.saveMeetingGroup(name: topic, metadata: MeetingMetadata(title: topic))
@@ -1135,7 +1170,9 @@ extension StudioViewModel {
                 let sessionTitle = Self.readAISessionKey(title: name, date: folder.startedAt, includeTime: true)
 
                 var article: StudioArticle
-                if let existing = try await storage.sourceExistsByURL(url) {
+                if let filedWithoutTranscript {
+                    article = filedWithoutTranscript
+                } else if let existing = try await storage.sourceExistsByURL(url) {
                     // Filed already — by an earlier pass, or by hand over MCP
                     // under the same key. Only a session still without its
                     // transcript is taken further; a removed one is left be.
