@@ -516,7 +516,7 @@ extension StudioViewModel {
                 guard taken < share, passages.count < limit else { return }
                 if let chunkID, !usedChunks.insert(chunkID).inserted { return }
                 if texts[sourceID] == nil {
-                    guard let text = try? await storage.situatedSourceText(sourceID) else { return }
+                    guard let text = await loggedLookup("source text", { try await storage.situatedSourceText(sourceID) }) else { return }
                     texts[sourceID] = text
                 }
                 guard let text = texts[sourceID] else { return }

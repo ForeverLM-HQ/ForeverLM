@@ -1,4 +1,7 @@
+import os
 import SwiftUI
+
+private let backgroundSpendLogger = Logger(subsystem: "com.foreverlm", category: "BackgroundAISpend")
 
 /// AI Usage › Spending: the daily cap on background AI, as a row
 /// in the Spending card. Off unless the learner sets an amount; covers calls paid
@@ -59,6 +62,11 @@ struct BackgroundAIDailyCapRow: View {
 
     private func loadSpentToday() async {
         let day = BackgroundAIDailyCap.localDay(containing: Date())
-        spentTodayUSD = try? await StorageService().backgroundAISpendUSD(from: day.start, to: day.end)
+        do {
+            spentTodayUSD = try await StorageService().backgroundAISpendUSD(from: day.start, to: day.end)
+        } catch {
+            backgroundSpendLogger.error("Reading today's background spend failed: \(error.localizedDescription, privacy: .public)")
+            spentTodayUSD = nil
+        }
     }
 }

@@ -324,6 +324,17 @@ extension StudioViewModel {
         return tally
     }
 
+    /// Inserts a source unless one is already there; false when it was not
+    /// inserted, a storage failure included (which is logged).
+    private func insertSourceIfNewLogged(_ article: inout StudioArticle) async -> Bool {
+        do {
+            return try await storage.insertSourceIfNew(&article)
+        } catch {
+            logger.error("Inserting a playlist source failed: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+    }
+
     /// Remove the course group a playlist import created for itself when no
     /// lecture could be attached to it.
     func discardEmptyPlaylistCourse(_ courseName: String) async {
@@ -489,7 +500,7 @@ extension StudioViewModel {
             // after removing) gets past this map and may revive the row below.
             let dismissalDates: [String: Date]
             if unarchivesExistingSources {
-                let stored = (try? await storage.loadDismissedSourceDates()) ?? [:]
+                let stored = (await loggedRead("dismissed source dates") { try await storage.loadDismissedSourceDates() }) ?? [:]
                 dismissalDates = await Task.detached(priority: .userInitiated) {
                     Self.dismissalDatesByIdentityKey(stored)
                 }.value
@@ -601,7 +612,7 @@ extension StudioViewModel {
                     article.artworkURL = article.youtubeThumbnailURL
                     article.likedAt = item.likedAt
                     article.videoPublishedAt = item.videoPublishedAt
-                    let inserted = (try? await storage.insertSourceIfNew(&article)) == true
+                    let inserted = await insertSourceIfNewLogged(&article)
                     if inserted {
                         // `working` is never published directly (refreshArticles()
                         // reloads at the end), so append instead of front-insert to
@@ -620,7 +631,7 @@ extension StudioViewModel {
                         if !reloadedFromStorage {
                             reloadedFromStorage = true
                             working = preservingLoadedContent(
-                                in: (try? await storage.loadLibrarySources().sources) ?? working,
+                                in: (await loggedRead("library sources") { try await storage.loadLibrarySources().sources }) ?? working,
                                 preservingFrom: working
                             )
                             identityIndex = await Self.detachedSourceIdentityIndex(from: working)
@@ -641,10 +652,9 @@ extension StudioViewModel {
                             // the row on the next inbound sync. Leaving it
                             // once made a re-liked video vanish silently no
                             // matter how often it was liked again.
-                            let revivedID = (try? await storage.unarchiveSourceMatchingURL(
-                                item.url,
-                                clearingDismissal: true
-                            )) ?? nil
+                            let revivedID = await loggedLookup("an archived source to revive") {
+                                try await storage.unarchiveSourceMatchingURL(item.url, clearingDismissal: true)
+                            }
                             if let revivedID {
                                 // Missing from the active library but present as an
                                 // archived row: this sync archived it when the video
@@ -657,7 +667,7 @@ extension StudioViewModel {
                                 transcriptFetchIds.append(revivedID)
                                 revived += 1
                                 touched += 1
-                            } else if (try? await storage.insertSourceIfNew(&article)) == true {
+                            } else if await insertSourceIfNewLogged(&article) {
                                 // Nothing to revive, so the dismissal was the only
                                 // thing that failed the insert above. It is gone
                                 // now: bring the video back in this pass rather than

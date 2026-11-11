@@ -318,15 +318,24 @@ struct CourseGeneratorService: Sendable {
         // marked, so the planner builds on it rather than on whatever ranked.
         collect(request.chosenSourceIDs)
         let chosen = try await makeBriefs(sourceIDs: orderedIDs, origin: .chosen)
-        let topicVector = try? await backend.embedQuery(request.topic)
+        let topicVector = await embedForSearch(request.topic)
         collect(await search(request.topic, vector: topicVector, limit: Self.librarySearchLimit))
         if !request.learnerNotes.isEmpty {
             let combined = "\(request.topic). \(request.learnerNotes)"
-            let vector = try? await backend.embedQuery(combined)
+            let vector = await embedForSearch(combined)
             collect(await search(combined, vector: vector, limit: Self.librarySearchLimit / 2))
         }
         let searched = Array(orderedIDs.dropFirst(request.chosenSourceIDs.count))
         return chosen + (try await makeBriefs(sourceIDs: searched, origin: .library))
+    }
+
+    private func embedForSearch(_ text: String) async -> [Float]? {
+        do {
+            return try await backend.embedQuery(text)
+        } catch {
+            Self.logger.error("Embedding the course topic failed, searching by keyword only: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
     }
 
     private func search(_ query: String, vector: [Float]?, limit: Int) async -> [String] {
@@ -343,7 +352,13 @@ struct CourseGeneratorService: Sendable {
         guard !sourceIDs.isEmpty else { return [] }
         let articles = try await storage.loadPersistedSources(ids: sourceIDs)
         let byID = Dictionary(articles.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
-        let ideas = (try? await storage.loadSourceIdeas(sourceIDs: sourceIDs)) ?? [:]
+        let ideas: [String: [SourceIdea]]
+        do {
+            ideas = try await storage.loadSourceIdeas(sourceIDs: sourceIDs)
+        } catch {
+            Self.logger.error("Reading source ideas for the course briefs failed: \(error.localizedDescription, privacy: .public)")
+            ideas = [:]
+        }
         var briefs: [CourseSourceBrief] = []
         for sourceID in sourceIDs {
             guard let article = byID[sourceID], article.status == .active else { continue }

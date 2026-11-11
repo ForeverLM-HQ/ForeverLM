@@ -280,8 +280,14 @@ actor AIUsageTracker {
         guard !alreadyRunning else { return }
         defer { generationSweepLock.withLock { $0 = false } }
 
-        guard let waiting = try? await storage.aiUsageEventsAwaitingGenerationCost(limit: limit),
-              !waiting.isEmpty else { return }
+        let waiting: [(id: String, rawUsageJSON: String)]
+        do {
+            waiting = try await storage.aiUsageEventsAwaitingGenerationCost(limit: limit)
+        } catch {
+            usageLedgerLogger.error("Reading usage rows that await a generation cost failed: \(error.localizedDescription, privacy: .public)")
+            return
+        }
+        guard !waiting.isEmpty else { return }
         await withTaskGroup(of: (String, Double)?.self) { group in
             for row in waiting {
                 guard let generationID = CloudArticleTTS.generationID(inRawUsageJSON: row.rawUsageJSON) else { continue }
@@ -295,7 +301,12 @@ actor AIUsageTracker {
             var resolved = 0
             for await result in group {
                 guard let (id, cost) = result else { continue }
-                if (try? await storage.setAIUsageEventGenerationCost(id: id, costUSD: cost)) != nil { resolved += 1 }
+                do {
+                    try await storage.setAIUsageEventGenerationCost(id: id, costUSD: cost)
+                    resolved += 1
+                } catch {
+                    usageLedgerLogger.error("Saving a usage row's generation cost failed: \(error.localizedDescription, privacy: .public)")
+                }
             }
             if resolved > 0 {
                 usageLedgerLogger.info("Read OpenRouter's charge for \(resolved, privacy: .public) usage rows")

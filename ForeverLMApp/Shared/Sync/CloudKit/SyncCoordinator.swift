@@ -188,7 +188,12 @@ actor SyncCoordinator {
     /// A device with no server offset cannot mint a stamp, so it sends nothing: its bootstrap tries to learn
     /// one again (m4).
     private func lacksServerOffset() async -> Bool {
-        (try? await store.perform { try $0.replica.lacksServerOffset() }) ?? false
+        do {
+            return try await store.perform { try $0.replica.lacksServerOffset() }
+        } catch {
+            Self.logger.error("Reading whether the replica has a server offset failed: \(String(describing: error), privacy: .public)")
+            return false
+        }
     }
 
     /// Set while the engine is being made: this actor lets another `start()` in at the await below, and two

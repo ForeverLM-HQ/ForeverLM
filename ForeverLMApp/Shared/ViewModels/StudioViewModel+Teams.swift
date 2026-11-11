@@ -293,7 +293,7 @@ extension StudioViewModel {
             // The roster the share came back with is already in the store;
             // without this the new card reads "0 members" until the pane is
             // reopened (seen 2026-09-07 in the Dev build).
-            teamMembersByTeamID[team.id] = (try? await storage.loadTeamMembers(teamID: team.id)) ?? []
+            teamMembersByTeamID[team.id] = (await loggedRead("team members") { try await storage.loadTeamMembers(teamID: team.id) }) ?? []
             showToast("Created team \(team.name)")
             return team
         } catch {
@@ -352,7 +352,7 @@ extension StudioViewModel {
         } catch {
             // The cached roster is better than none; a fetch that failed
             // (offline, or a team with no share yet) is not worth a toast.
-            if let cached = try? await storage.loadTeamMembers(teamID: teamID) {
+            if let cached = await loggedRead("cached team members", { try await storage.loadTeamMembers(teamID: teamID) }) {
                 teamMembersByTeamID[teamID] = cached
             }
             logger.info("Team roster refresh for \(teamID) skipped: \(error.localizedDescription)")
@@ -521,7 +521,7 @@ extension StudioViewModel {
     /// onward.
     func teamsHoldingDoc(_ artifactID: String) async -> [TeamRecord] {
         guard activeTeamID == nil else { return [] }
-        return (try? await storage.teamsHoldingArtifact(artifactID)) ?? []
+        return (await loggedRead("teams holding artifact") { try await storage.teamsHoldingArtifact(artifactID) }) ?? []
     }
 
     /// Open a team's record listed in My Library (decision 18): a Doc opens
@@ -555,7 +555,7 @@ extension StudioViewModel {
     func openTeamCopy(ofDoc artifactID: String, inTeam teamID: String) async {
         // Resolved before the switch: the original is in the library open now.
         guard let original = artifacts.first(where: { $0.id == artifactID }) else { return }
-        guard let copyID = try? await storage.teamArtifactCopyID(teamID: teamID, original: original) else { return }
+        guard let copyID = await loggedRead("the team copy of a doc", { try await storage.teamArtifactCopyID(teamID: teamID, original: original) }) else { return }
         await setActiveTeam(teamID)
         guard activeTeamID == teamID else { return }
         if !artifacts.contains(where: { $0.id == copyID }) { await loadArtifacts() }
@@ -597,7 +597,7 @@ extension StudioViewModel {
     /// The teams holding a copy of a course of My Library.
     func teamsHoldingCourse(_ courseID: String) async -> [TeamRecord] {
         guard courseTeamIDs[courseID] == nil else { return [] }
-        return (try? await storage.teamsHoldingCourse(courseID)) ?? []
+        return (await loggedRead("teams holding course") { try await storage.teamsHoldingCourse(courseID) }) ?? []
     }
 
     /// Open a course from the Courses home in the library that holds its

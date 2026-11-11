@@ -228,14 +228,17 @@ extension StudioViewModel {
             )
             if longer.count > min(firstPageText.count, 6000) + 200 {
                 reportPaperIngestionStep(id, progressPrefix, "Reading further for paper metadata…")
-                if let second = try? await aiService.extractPaperMetadata(
-                    source: AIUsageSource(source: latest),
-                    url: latest.url,
-                    title: latest.title,
-                    firstPageText: longer,
-                    characterLimit: Self.paperLongLookCharacters,
-                    config: config
-                ) {
+                let secondLook = await loggedRead("paper metadata from a longer look") {
+                    try await aiService.extractPaperMetadata(
+                        source: AIUsageSource(source: latest),
+                        url: latest.url,
+                        title: latest.title,
+                        firstPageText: longer,
+                        characterLimit: Self.paperLongLookCharacters,
+                        config: config
+                    )
+                }
+                if let second = secondLook {
                     result = AIService.PaperMetadataResult(
                         title: first.title ?? second.title,
                         author: first.author ?? second.author,

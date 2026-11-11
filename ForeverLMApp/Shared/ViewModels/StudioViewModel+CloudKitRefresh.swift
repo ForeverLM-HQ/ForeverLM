@@ -165,9 +165,9 @@ extension StudioViewModel {
             guard let index = articles.firstIndex(where: { $0.id == id }) else { continue }
             var resumed = articles[index]
             if resumed.state == .ready {
-                let cleared = (try? await storage.clearCompletedCanonicalContentCleanupFailure(
-                    sourceID: id
-                )) ?? false
+                let cleared = (await loggedRead("the canonical content cleanup state") {
+                    try await storage.clearCompletedCanonicalContentCleanupFailure(sourceID: id)
+                }) ?? false
                 if cleared, let currentIndex = articles.firstIndex(where: { $0.id == id }) {
                     articles[currentIndex].errorMessage = nil
                     resumedCount += 1

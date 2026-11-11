@@ -1,6 +1,7 @@
 #if os(macOS)
 import Foundation
 import Observation
+import OSLog
 
 // MARK: - A mnemonic reading, open
 //
@@ -14,6 +15,8 @@ import Observation
 @MainActor
 @Observable
 final class MnemonicReadingModel {
+    private static let logger = Logger(subsystem: "com.foreverlm", category: "MnemonicReading")
+
     let readingID: String
     /// This opening of the reading: one answer per card per sitting, as the
     /// card review counts them.
@@ -90,8 +93,12 @@ final class MnemonicReadingModel {
             loadError = nil
             var titles: [String: String] = [:]
             for section in read.sections {
-                if let source = try? await storage.loadSourceWithoutContent(section.sourceID) {
-                    titles[section.sourceID] = source.title
+                do {
+                    if let source = try await storage.loadSourceWithoutContent(section.sourceID) {
+                        titles[section.sourceID] = source.title
+                    }
+                } catch {
+                    Self.logger.error("Reading a source's title failed: \(error.localizedDescription, privacy: .public)")
                 }
             }
             self.titles = titles
@@ -115,7 +122,14 @@ final class MnemonicReadingModel {
               storedTexts[sourceID] == nil, textsInFlight.insert(sourceID).inserted else { return }
         defer { textsInFlight.remove(sourceID) }
         let state: MnemonicReadingSourceText
-        if (try? await storage.loadSourceWithoutContent(sourceID)) == nil {
+        let stored: StudioArticle?
+        do {
+            stored = try await storage.loadSourceWithoutContent(sourceID)
+        } catch {
+            Self.logger.error("Reading a source for its reading failed: \(error.localizedDescription, privacy: .public)")
+            stored = nil
+        }
+        if stored == nil {
             state = .unavailable("This source is not in the library.")
         } else {
             let text = (await storage.loadSourceContent(sourceID) ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
@@ -146,8 +160,10 @@ final class MnemonicReadingModel {
             memory = [:]
             return
         }
-        if let read = try? await storage.mnemonicReadingMemory(for: questions) {
-            memory = read
+        do {
+            memory = try await storage.mnemonicReadingMemory(for: questions)
+        } catch {
+            Self.logger.error("Reading the questions' memory failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 

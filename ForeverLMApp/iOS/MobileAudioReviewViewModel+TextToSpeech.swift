@@ -2,8 +2,11 @@
 
 import Foundation
 import MediaPlayer
+import OSLog
 
 extension MobileAudioReviewViewModel {
+    nonisolated private static let logger = Logger(subsystem: "com.foreverlm.mobile", category: "AudioReviewSpeech")
+
     func resolveTextToSpeechCostConfirmation(approved: Bool) {
         guard let continuation = textToSpeechCostConfirmationContinuation else { return }
         textToSpeechCostConfirmationContinuation = nil
@@ -241,7 +244,11 @@ extension MobileAudioReviewViewModel {
             ArticleSpeechPreferences.shared.reloadFromStorage()
             // Best effort: the account row still names a model no device can
             // use, and every device repairs that on its own the same way.
-            try? await ArticleSpeechPreferences.shared.pushToAccount()
+            do {
+                try await ArticleSpeechPreferences.shared.pushToAccount()
+            } catch {
+                Self.logger.error("Pushing the repaired speech model to the account failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
         let selection = try CloudArticleTTS.currentSelection()
         CloudArticleTTS.testPickWhenDue(model: selection.model, voice: selection.voice ?? "")
@@ -745,9 +752,14 @@ extension MobileAudioReviewViewModel {
         // Confirmation suppression follows the account. Refresh immediately
         // before a potentially billable request; a CloudKit failure fails safe
         // by asking rather than silently spending.
-        let suppressedCostModels = (try? await MobileModelPreferenceStore.shared.stringArray(
-            forKey: TextToSpeechCostConfirmationPreferences.suppressedModelIDsKey
-        )) ?? []
+        var suppressedCostModels: [String] = []
+        do {
+            suppressedCostModels = try await MobileModelPreferenceStore.shared.stringArray(
+                forKey: TextToSpeechCostConfirmationPreferences.suppressedModelIDsKey
+            ) ?? []
+        } catch {
+            Self.logger.error("Reading the suppressed cost confirmations failed: \(error.localizedDescription, privacy: .public)")
+        }
         let confirmsSelectedModelCost = MobileTextToSpeechPricingPreferences.confirmsEstimatedCost
             && !suppressedCostModels.contains(resolvedSelection.model)
         let asksToConfirmCost = autoplay

@@ -343,7 +343,12 @@ actor MobileCloudSourceCatalog {
     func currentChatTranscriptTurns(sessionID: String) async -> [MobileChatTranscriptTurns.Turn]? {
         // Only this chat's exchanges are decoded, a page at a time.
         guard let zoneKey = replicaSnapshot?.chatZones[sessionID], let projection = await replicaProjection() else { return nil }
-        return try? await MobileReadModels.transcript(chatID: sessionID, zoneKey: zoneKey, projection: projection)
+        do {
+            return try await MobileReadModels.transcript(chatID: sessionID, zoneKey: zoneKey, projection: projection)
+        } catch {
+            Self.syncLogger.error("Reading a saved chat's transcript failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
     }
 
     /// Canonical concept-level memory state from the same durable zone mirror as

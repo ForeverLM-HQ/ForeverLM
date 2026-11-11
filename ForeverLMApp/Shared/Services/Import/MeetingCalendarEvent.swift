@@ -93,8 +93,15 @@ enum MeetingCalendarEvent {
     static func meetingTitles(on date: String, service: AppleCalendarService = .shared) async -> [String] {
         guard service.isConnected,
               let dayStart = DayPlan.startOfDay(date),
-              let dayEnd = Calendar.current.date(byAdding: .day, value: 1, to: dayStart),
-              let events = try? await service.shownEvents(from: dayStart, to: dayEnd) else { return [] }
+              let dayEnd = Calendar.current.date(byAdding: .day, value: 1, to: dayStart) else { return [] }
+        let events: [AppleCalendarEvent]
+        do {
+            events = try await service.shownEvents(from: dayStart, to: dayEnd)
+        } catch {
+            Logger(subsystem: "ForeverLM", category: "MeetingCalendarEvent")
+                .error("Reading the meeting titles for \(date, privacy: .public) failed: \(error.localizedDescription)")
+            return []
+        }
         return events.filter(\.holdsTime).map(\.title).filter { !$0.isEmpty }
     }
 

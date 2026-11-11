@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import os
 
 // MARK: - The Plugins place
 
@@ -239,6 +240,7 @@ struct PluginIncludesSection: View {
 /// shows what the plugin reads once it is connected, its own description
 /// until then.
 private struct PluginDirectoryView: View {
+    private static let logger = Logger(subsystem: "com.foreverlm", category: "PluginsPane")
     @Environment(StudioViewModel.self) private var vm
     let query: String
     let open: (PluginPage) -> Void
@@ -705,7 +707,12 @@ private struct PluginDirectoryView: View {
             isAppleCalendarConnected = status.appleCalendar
             let oauthProvider = await MCPOAuthProvider.sharedProvider()
             userPlugins = await oauthProvider.userPluginSummaries()
-            userPluginSourceCounts = (try? await vm.storage.activePluginSourceCounts()) ?? [:]
+            do {
+                userPluginSourceCounts = try await vm.storage.activePluginSourceCounts()
+            } catch {
+                Self.logger.error("Counting each plugin's sources failed: \(error.localizedDescription, privacy: .public)")
+                userPluginSourceCounts = [:]
+            }
         }
         Task {
             // A round trip to the gateway, so it runs apart from the Keychain

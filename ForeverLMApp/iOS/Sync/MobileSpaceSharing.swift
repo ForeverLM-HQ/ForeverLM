@@ -123,18 +123,25 @@ final class MobileSpaceShareModel: ObservableObject {
             return
         }
         let notebookID = notebookID
-        let found = try? await writer.read { write -> (Place, String?) in
-            guard let notebook = try? write.liveNotebook(notebookID) else { return (.gone, nil) }
-            let jobs = try write.jobs().filter { $0.fields["kind"]?.stringValue == "moveToSpace" && $0.fields["target"]?.stringValue == "nb:\(notebookID)" }
-            guard notebook.zone.isSpace, let row = try write.store.zone(key: notebook.zoneKey) else {
-                let moving = jobs.contains { ["queued", "running"].contains($0.fields["status"]?.stringValue ?? "") }
-                return (.personal(moving: moving), nil)
+        let found: (Place, String?)?
+        do {
+            found = try await writer.read { write -> (Place, String?) in
+                guard let notebook = try? write.liveNotebook(notebookID) else { return (.gone, nil) }
+                let jobs = try write.jobs().filter { $0.fields["kind"]?.stringValue == "moveToSpace" && $0.fields["target"]?.stringValue == "nb:\(notebookID)" }
+                guard notebook.zone.isSpace, let row = try write.store.zone(key: notebook.zoneKey) else {
+                    let moving = jobs.contains { ["queued", "running"].contains($0.fields["status"]?.stringValue ?? "") }
+                    return (.personal(moving: moving), nil)
+                }
+                let root = try write.store.record(zoneKey: notebook.zoneKey, recordName: SyncSchema.rootRecordName).flatMap { write.replica.decode($0.payload) }
+                // The move this phone asked for is done: the space's share sheet is shown once (§5.3).
+                let done = jobs.first { $0.fields["status"]?.stringValue == "done" && $0.fields["requestedBy"]?["device"]?.stringValue == write.deviceID }
+                return (.space(zoneKey: notebook.zoneKey, name: root?.fields["name"]?.stringValue, owned: row.database == .private,
+                               readOnly: row.permission == CloudShare.Permission.readOnly.rawValue), done?.id)
             }
-            let root = try write.store.record(zoneKey: notebook.zoneKey, recordName: SyncSchema.rootRecordName).flatMap { write.replica.decode($0.payload) }
-            // The move this phone asked for is done: the space's share sheet is shown once (§5.3).
-            let done = jobs.first { $0.fields["status"]?.stringValue == "done" && $0.fields["requestedBy"]?["device"]?.stringValue == write.deviceID }
-            return (.space(zoneKey: notebook.zoneKey, name: root?.fields["name"]?.stringValue, owned: row.database == .private,
-                           readOnly: row.permission == CloudShare.Permission.readOnly.rawValue), done?.id)
+        } catch {
+            Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "MobileShareAcceptance")
+                .error("Reading where the notebook lives failed: \(error.localizedDescription, privacy: .public)")
+            found = nil
         }
         place = found?.0 ?? .gone
         if let jobID = found?.1, case .space(_, _, true, _) = place, !presentedJobs.contains(jobID) {

@@ -1,4 +1,7 @@
 import Foundation
+import os
+
+private let realtimeVoiceUsageLogger = Logger(subsystem: "com.foreverlm", category: "RealtimeVoiceUsage")
 
 extension ManagedAI {
     /// A short-lived OpenAI Realtime credential, minted with the conversation's
@@ -329,17 +332,21 @@ extension ManagedAI {
             report.currency = "USD"
         }
         Task.detached(priority: .utility) {
-            try? await AIUsageTracker.shared.record(
-                provider: "OpenAI",
-                model: model,
-                operation: "realtime_voice",
-                report: report,
-                eventID: "rt-own:\(usage.responseID)",
-                task: "realtime_voice",
-                activityID: activityID,
-                subjectTitle: sourceTitle,
-                ownKey: true
-            )
+            do {
+                try await AIUsageTracker.shared.record(
+                    provider: "OpenAI",
+                    model: model,
+                    operation: "realtime_voice",
+                    report: report,
+                    eventID: "rt-own:\(usage.responseID)",
+                    task: "realtime_voice",
+                    activityID: activityID,
+                    subjectTitle: sourceTitle,
+                    ownKey: true
+                )
+            } catch {
+                realtimeVoiceUsageLogger.error("Recording the realtime voice usage failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 }

@@ -1,6 +1,7 @@
 #if os(macOS)
 import Foundation
 import SwiftUI
+import os
 
 /// The Mac's Walk Through action, shared by the reader toolbar, the ⋯ menu
 /// and a book's sidebar row: write the source's walkthrough, have the chat
@@ -13,6 +14,7 @@ import SwiftUI
 /// lacks some motion.
 @MainActor
 final class WalkthroughGenerationCoordinator: ObservableObject {
+    private nonisolated static let logger = Logger(subsystem: "com.foreverlm", category: "Walkthroughs")
     static let shared = WalkthroughGenerationCoordinator()
 
     struct Run: Identifiable, Equatable {
@@ -45,7 +47,12 @@ final class WalkthroughGenerationCoordinator: ObservableObject {
     /// Whether the source has a walkthrough row, current or stale. One query,
     /// so a menu can ask on open.
     nonisolated static func hasWalkthrough(for article: StudioArticle, storage: StorageService) async -> Bool {
-        (try? await storage.hasPaperWalkthrough(article.id)) ?? false
+        do {
+            return try await storage.hasPaperWalkthrough(article.id)
+        } catch {
+            logger.error("Checking for a walkthrough failed: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
     }
 
     /// Writes the source's walkthrough and returns when the run has ended,
@@ -65,7 +72,13 @@ final class WalkthroughGenerationCoordinator: ObservableObject {
     func generateMissing(for chapters: [StudioArticle], group groupName: String, in vm: StudioViewModel) async {
         guard batchRemaining(forGroup: groupName) == 0 else { return }
         let candidates = chapters.filter { PaperWalkthroughGeneratorService.canWalkThrough($0) }
-        let current = (try? await vm.storage.paperWalkthroughStatuses(for: candidates.map(\.id))) ?? [:]
+        let current: [String: PaperWalkthroughStatus]
+        do {
+            current = try await vm.storage.paperWalkthroughStatuses(for: candidates.map(\.id))
+        } catch {
+            Self.logger.error("Reading the walkthrough statuses failed: \(error.localizedDescription, privacy: .public)")
+            current = [:]
+        }
         let pending = candidates.filter { current[$0.id] != .ok && !isGenerating($0.id) }
         guard !pending.isEmpty else {
             vm.showToast(candidates.isEmpty

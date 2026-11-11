@@ -359,7 +359,13 @@ extension MCPDataStore {
         // makes the crop possible at all; it explains nothing and spends nothing.
         // An index built under older rules is read again, so an Extended Data
         // figure the old rules skipped is still cropped to its figure.
-        let figures = (try? await paperFigureIndexer.figuresForReading(sourceID: sourceID)) ?? []
+        let figures: [PaperFigureRecord]
+        do {
+            figures = try await paperFigureIndexer.figuresForReading(sourceID: sourceID)
+        } catch {
+            logger.error("Reading the paper's figure index failed: \(error.localizedDescription, privacy: .public)")
+            figures = []
+        }
         guard let path = article.resolvedFileLocation else {
             return .failure(SourceImageCatalog.Failure.fileUnavailable.message)
         }

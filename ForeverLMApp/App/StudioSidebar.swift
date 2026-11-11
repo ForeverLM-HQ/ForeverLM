@@ -529,7 +529,13 @@ struct StudioSidebar: View, Equatable {
             Button("Add") {
                 let url = alertText.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !url.isEmpty else { return }
-                Task { try? await vm.addArticle(url: url) }
+                Task {
+                    do {
+                        try await vm.addArticle(url: url)
+                    } catch {
+                        vm.showToast("Could not add the video: \(error.localizedDescription)")
+                    }
+                }
             }
         } message: {
             Text("Paste a YouTube video URL to add its transcript to your library.")
@@ -548,10 +554,14 @@ struct StudioSidebar: View, Equatable {
                     return
                 }
                 Task {
-                    try? await vm.addArticle(
-                        url: url,
-                        zoomPasscode: passcode.isEmpty ? nil : passcode
-                    )
+                    do {
+                        try await vm.addArticle(
+                            url: url,
+                            zoomPasscode: passcode.isEmpty ? nil : passcode
+                        )
+                    } catch {
+                        vm.showToast("Could not add the recording: \(error.localizedDescription)")
+                    }
                 }
             }
         } message: {

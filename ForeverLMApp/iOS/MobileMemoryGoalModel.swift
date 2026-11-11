@@ -66,7 +66,7 @@ final class MobileMemoryGoalModel: ObservableObject {
                 // The goal is a Setting and the minutes are the ActivityLog fold of every device, read
                 // from the replica (§3.5.24).
                 guard let session = await MobileSyncSession.startIfEnabled() else { return }
-                let budget: SyncJSON? = try? await session.projection.setting(MemoryReviewBudget.preferenceKey)
+                let budget: SyncJSON? = try await session.projection.setting(MemoryReviewBudget.preferenceKey)
                 // The Setting holds typed JSON (`{t: int, v: …}`), not a bare number.
                 let minutes = (MobileSettingValue.plist(budget) as? NSNumber)?.intValue ?? MemoryReviewBudget.defaultMinutes
                 let rows = try await MobileReadModels.reviewActivity(
@@ -77,6 +77,7 @@ final class MobileMemoryGoalModel: ObservableObject {
             } catch {
                 // Stay on what was known; a failed read must not flash the
                 // grid off and on.
+                Self.logger.error("Reading the review goal and activity failed: \(error.localizedDescription, privacy: .public)")
             }
         }
     }

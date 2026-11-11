@@ -317,11 +317,18 @@ final class ScheduledTaskRunner {
         // the catch-up window still produces the chat.
         guard ManagedAI.isSignedIn else { return }
 
-        guard let run = try? await storage.claimScheduledTaskOccurrence(
-            taskID: task.id,
-            occurrenceAt: occurrence,
-            deviceName: Self.deviceName
-        ) else {
+        let claim: ScheduledTaskRun?
+        do {
+            claim = try await storage.claimScheduledTaskOccurrence(
+                taskID: task.id,
+                occurrenceAt: occurrence,
+                deviceName: Self.deviceName
+            )
+        } catch {
+            logger.error("Failed to claim a scheduled task occurrence: \(error.localizedDescription, privacy: .public)")
+            return
+        }
+        guard let run = claim else {
             // Already claimed — by an earlier launch of this app, or by another
             // Mac whose record arrived first. Not an error.
             return
@@ -350,7 +357,14 @@ final class ScheduledTaskRunner {
             await reloadDetails()
             return
         }
-        guard let claimed = try? await storage.claimScheduledTaskRetry(runID: run.id) else {
+        let retry: ScheduledTaskRun?
+        do {
+            retry = try await storage.claimScheduledTaskRetry(runID: run.id)
+        } catch {
+            logger.error("Failed to claim a scheduled task retry: \(error.localizedDescription, privacy: .public)")
+            return
+        }
+        guard let claimed = retry else {
             // Taken by an earlier launch, superseded by a newer run, or the
             // task was paused since. Not an error.
             return
@@ -486,7 +500,13 @@ final class ScheduledTaskRunner {
                 now: Date()
             )
             if retryAt != nil, let liveSessionID = manager.currentSessionID, manager.canRetryLastGeneration {
-                let exchangeCount = (try? await storage.loadReviewSessionExchanges(sessionID: liveSessionID).count) ?? -1
+                let exchangeCount: Int
+                do {
+                    exchangeCount = try await storage.loadReviewSessionExchanges(sessionID: liveSessionID).count
+                } catch {
+                    logger.error("Failed to count the exchanges of a failed scheduled task chat: \(error.localizedDescription, privacy: .public)")
+                    exchangeCount = -1
+                }
                 chatsAwaitingRetry[run.id] = RetainedChat(
                     manager: manager,
                     sessionID: liveSessionID,
@@ -523,15 +543,27 @@ final class ScheduledTaskRunner {
     /// failed, still offering Retry, and not continued by hand since.
     private func chatIsAsItWasLeft(_ retained: RetainedChat) async -> Bool {
         guard retained.manager.currentSessionID == retained.sessionID,
-              retained.manager.canRetryLastGeneration,
-              let count = try? await storage.loadReviewSessionExchanges(sessionID: retained.sessionID).count
+              retained.manager.canRetryLastGeneration
         else { return false }
+        let count: Int
+        do {
+            count = try await storage.loadReviewSessionExchanges(sessionID: retained.sessionID).count
+        } catch {
+            logger.error("Failed to count the exchanges of a held scheduled task chat: \(error.localizedDescription, privacy: .public)")
+            return false
+        }
         return count == retained.exchangeCount
     }
 
     /// Republishes definitions and receipts without re-entering the drain.
     private func reloadDetails() async {
-        guard let loaded = try? await storage.loadScheduledTaskDetails() else { return }
+        let loaded: [ScheduledTaskDetail]
+        do {
+            loaded = try await storage.loadScheduledTaskDetails()
+        } catch {
+            logger.error("Failed to reload scheduled tasks: \(error.localizedDescription, privacy: .public)")
+            return
+        }
         publish(loaded)
     }
 

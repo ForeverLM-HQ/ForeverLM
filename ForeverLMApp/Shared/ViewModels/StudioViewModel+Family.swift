@@ -27,7 +27,7 @@ extension StudioViewModel {
     func refreshAssignableMembers() async {
         var result: [String: [TeamMemberRecord]] = [:]
         for team in teams where team.canEdit {
-            let members = ((try? await storage.loadTeamMembers(teamID: team.id)) ?? [])
+            let members = ((await loggedRead("team members") { try await storage.loadTeamMembers(teamID: team.id) }) ?? [])
                 .filter { !$0.isCurrentUser && $0.acceptanceStatus != "removed" }
             if !members.isEmpty { result[team.id] = members }
         }
@@ -63,7 +63,7 @@ extension StudioViewModel {
 
     func refreshAssignedToMe() async {
         let since = Calendar.current.startOfDay(for: Date())
-        let loaded = (try? await storage.loadAssignedToMe(recentlyDoneSince: since)) ?? []
+        let loaded = (await loggedRead("assigned to me") { try await storage.loadAssignedToMe(recentlyDoneSince: since) }) ?? []
         if loaded != assignedToMe { assignedToMe = loaded }
     }
 

@@ -216,7 +216,11 @@ struct ShareService {
         guard let share else { throw ShareServiceError.notShared }
         var me: String?
         if share.participants.contains(where: { $0.isCurrentUser || $0.user == CKCurrentUserDefaultName }) {
-            me = try? await transport.userRecordName()
+            do {
+                me = try await transport.userRecordName()
+            } catch {
+                Self.logger.error("Reading this account's record name failed: \(String(describing: error), privacy: .public)")
+            }
         }
         let members = share.participants.map { participant -> SpaceMember in
             let user = participant.user == CKCurrentUserDefaultName ? me ?? "" : participant.user ?? ""

@@ -35,7 +35,7 @@ extension StudioViewModel {
         // in memory has to be read again under the new scope.
         guard hasLoadedArtifactsOnce else { return }
         Task { [weak self] in
-            guard let self, let reloaded = try? await self.loadScopedArtifacts() else { return }
+            guard let self, let reloaded = await self.loggedRead("artifacts", { try await self.loadScopedArtifacts() }) else { return }
             self.artifacts = reloaded
         }
     }

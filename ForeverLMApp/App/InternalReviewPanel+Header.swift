@@ -785,9 +785,16 @@ extension InternalReviewPanelContent {
         let aboutSourceIDs = request.isAnimation
             ? (vm.artifacts.first(where: { $0.id == request.sourceID })?.sourceIDs ?? [])
             : [request.sourceID]
-        if !manager.isPlayingWalkthrough(of: request.sourceID),
-           let walkChatID = try? await vm.storage.loadWalkthroughProgress(request.sourceID)?.chatSessionID,
-           walkChatID != manager.currentSessionID {
+        let walkChatID: String?
+        if manager.isPlayingWalkthrough(of: request.sourceID) {
+            walkChatID = nil
+        } else {
+            let progress = await vm.loggedRead("the walkthrough's progress") {
+                try await vm.storage.loadWalkthroughProgress(request.sourceID)
+            }
+            walkChatID = (progress ?? nil)?.chatSessionID
+        }
+        if let walkChatID, walkChatID != manager.currentSessionID {
             if vm.reviewSessionLinks.isEmpty { await vm.loadReviewSessionLinks() }
             if vm.reviewSessionLinks.contains(where: { $0.id == walkChatID }) {
                 readsNotebookTicksLive = false
@@ -822,7 +829,7 @@ extension InternalReviewPanelContent {
         if vm.articlesById[sourceID] == nil {
             var artifact = vm.artifacts.first(where: { $0.id == sourceID })
             if artifact == nil {
-                artifact = try? await vm.storage.loadArtifact(sourceID)
+                artifact = await vm.loggedRead("the animation") { try await vm.storage.loadArtifact(sourceID) } ?? nil
             }
             guard let artifact, artifact.isAnimation else { return }
             guard await manager.loadWalkthrough(forAnimation: artifact) else {

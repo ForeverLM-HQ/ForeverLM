@@ -1,9 +1,12 @@
 // Catalog loading, sync status, notebook reads and card review reads.
 
 import Foundation
+import OSLog
 import WidgetKit
 
 extension MobileAudioReviewViewModel {
+    nonisolated private static let logger = Logger(subsystem: "com.foreverlm.mobile", category: "AudioReviewCatalog")
+
     /// Coalesce the three catalog projections into one widget write. Encoding,
     /// app-group UserDefaults, and WidgetCenter invalidation can all block, so
     /// the main actor only captures copy-on-write value snapshots here.
@@ -398,7 +401,12 @@ extension MobileAudioReviewViewModel {
         }
         let textStore = sourceTextStore
         let outcome = await MobileCardTriageWriter.apply(decisions, writer: writer) { sourceID in
-            try? await textStore.loadSourceText(sourceID: sourceID)
+            do {
+                return try await textStore.loadSourceText(sourceID: sourceID)
+            } catch {
+                Self.logger.error("Loading a source's text for the card change failed: \(error.localizedDescription, privacy: .public)")
+                return nil
+            }
         }
         await sourceCatalog.noteWrittenMemoryItems(outcome.kept)
         await refreshMemorySnapshot()
@@ -425,7 +433,11 @@ extension MobileAudioReviewViewModel {
         guard let old = await cardAnswerContext(memoryItemID: card.itemID)?.item else { throw MobileCardRecords.Refusal.gone }
         var texts: [String: String] = [:]
         for sourceID in Set(old.sources.map(\.sourceID)) {
-            if let text = try? await sourceTextStore.loadSourceText(sourceID: sourceID) { texts[sourceID] = text }
+            do {
+                texts[sourceID] = try await sourceTextStore.loadSourceText(sourceID: sourceID)
+            } catch {
+                Self.logger.error("Loading a source's text to start a card over failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
         let face = MobileCardEditWriter.revisedFace(card, edit: edit, wording: wording, newID: UUID().uuidString.lowercased())
         let now = Date()
@@ -684,8 +696,16 @@ extension MobileAudioReviewViewModel {
             let catalog = try await sourceCatalog.loadSources(forceRefresh: forceRefresh)
             // Same zone pass as the sources — refreshing here keeps the Notebooks
             // list and the book/course metadata as fresh as the sources they shape.
-            notebooks = (try? await sourceCatalog.loadNotebooks()) ?? notebooks
-            collections = (try? await sourceCatalog.loadCollections()) ?? collections
+            do {
+                notebooks = try await sourceCatalog.loadNotebooks()
+            } catch {
+                Self.logger.error("Loading the notebooks failed: \(error.localizedDescription, privacy: .public)")
+            }
+            do {
+                collections = try await sourceCatalog.loadCollections()
+            } catch {
+                Self.logger.error("Loading the collections failed: \(error.localizedDescription, privacy: .public)")
+            }
             audioOverviewRecords = await sourceCatalog.currentAudioOverviews()
             await publishNotebookCatalog()
             publishCatalogSources(catalog)

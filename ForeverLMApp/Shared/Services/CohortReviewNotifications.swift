@@ -1,4 +1,5 @@
 import Foundation
+import os
 import UserNotifications
 
 /// The one notification ForeverLM sends, and only when asked to.
@@ -8,6 +9,7 @@ import UserNotifications
 /// it on. `NotificationRetirement` keeps cancelling everything else.
 enum CohortReviewNotifications {
     static let requestIdentifier = "com.foreverlm.cohort-review.daily"
+    private static let logger = Logger(subsystem: "ForeverLM", category: "CohortReviewNotifications")
 
     /// Default off. The learner opts in; they do not discover one waiting. The
     /// switch is `DailyReviewPreparation`'s: the notification says the review
@@ -67,7 +69,11 @@ enum CohortReviewNotifications {
             trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
         )
         center.removePendingNotificationRequests(withIdentifiers: [requestIdentifier])
-        try? await center.add(request)
+        do {
+            try await center.add(request)
+        } catch {
+            logger.error("Scheduling the daily review reminder failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     static func cancel() {

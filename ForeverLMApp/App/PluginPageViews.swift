@@ -1,5 +1,6 @@
 import SwiftUI
 import AppKit
+import os
 import AuthenticationServices
 import Combine
 
@@ -1047,6 +1048,7 @@ private struct NotionPluginSettingsView: View {
 /// their real MCP URL filled in, and list connected plugins with their
 /// source counts and the two kill switches (remove access / remove sources).
 private struct UserPluginsSettingsDetailView: View {
+    private static let logger = Logger(subsystem: "com.foreverlm", category: "PluginSettings")
     @Environment(StudioViewModel.self) private var vm
 
     @State private var mcpURL: String?
@@ -1178,7 +1180,12 @@ private struct UserPluginsSettingsDetailView: View {
     private func reload() async {
         let oauthProvider = await MCPOAuthProvider.sharedProvider()
         plugins = await oauthProvider.userPluginSummaries()
-        sourceCounts = (try? await vm.storage.activePluginSourceCounts()) ?? [:]
+        do {
+            sourceCounts = try await vm.storage.activePluginSourceCounts()
+        } catch {
+            Self.logger.error("Counting each plugin's sources failed: \(error.localizedDescription, privacy: .public)")
+            sourceCounts = [:]
+        }
         let url = await Task.detached { KeychainService.load(.mcpTunnelURL) }.value
         mcpURL = (url?.isEmpty == false) ? url : nil
     }

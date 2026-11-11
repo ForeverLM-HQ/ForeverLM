@@ -127,7 +127,11 @@ final class LiveMeetingCapture: NSObject, SCStreamOutput, SCStreamDelegate, @unc
     /// learner picked in the system's sharing picker. Replaces an earlier pick.
     func watchSlides(filter: SCContentFilter) async throws {
         if let slideStream {
-            try? await slideStream.stopCapture()
+            do {
+                try await slideStream.stopCapture()
+            } catch {
+                LiveMeetingLog.capture.error("Stopping the earlier slide capture failed: \(error.localizedDescription, privacy: .public)")
+            }
             self.slideStream = nil
         }
         slideQueue.sync { detector = LiveMeetingSlideDetector() }
@@ -149,13 +153,23 @@ final class LiveMeetingCapture: NSObject, SCStreamOutput, SCStreamDelegate, @unc
 
     func stopWatchingSlides() async {
         guard let slideStream else { return }
-        try? await slideStream.stopCapture()
+        do {
+            try await slideStream.stopCapture()
+        } catch {
+            LiveMeetingLog.capture.error("Stopping the slide capture failed: \(error.localizedDescription, privacy: .public)")
+        }
         self.slideStream = nil
     }
 
     /// Stops recording and waits until the last words are transcribed.
     func stop() async {
-        if let audioStream { try? await audioStream.stopCapture() }
+        if let audioStream {
+            do {
+                try await audioStream.stopCapture()
+            } catch {
+                LiveMeetingLog.capture.error("Stopping the audio capture failed: \(error.localizedDescription, privacy: .public)")
+            }
+        }
         audioStream = nil
         await stopWatchingSlides()
         await withTaskGroup(of: Void.self) { group in

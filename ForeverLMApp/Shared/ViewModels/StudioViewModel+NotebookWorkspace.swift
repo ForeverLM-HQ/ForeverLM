@@ -243,8 +243,8 @@ extension StudioViewModel {
     /// "Add every source the chat linked or read, with no cap").
     func notebookSourceIDs(fromChat sessionID: String, openChatSourceIDs: [String] = []) async -> [String] {
         let given = reviewSessionLinks.first { $0.id == sessionID }?.sourceIDs ?? []
-        let linked = (try? await storage.chatDiscussedSourceIDs(sessionID: sessionID)) ?? []
-        let read = (try? await storage.loadReviewSessionLoadedSourceIDs(sessionID: sessionID)) ?? nil
+        let linked = (await loggedRead("chat discussed source ids") { try await storage.chatDiscussedSourceIDs(sessionID: sessionID) }) ?? []
+        let read = (await loggedRead("review session loaded source ids") { try await storage.loadReviewSessionLoadedSourceIDs(sessionID: sessionID) }) ?? nil
         var seen = Set<String>()
         return (openChatSourceIDs + given + linked + (read ?? []))
             .filter { articlesById[$0] != nil && seen.insert($0).inserted }

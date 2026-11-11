@@ -480,7 +480,14 @@ struct CourseQuizGeneratorService: Sendable {
     /// questions, one small call each on the route that wrote them. A quiz
     /// the namer fails on keeps its name and is tried again next run.
     func nameUnnamedQuizzes(courseID: String, material: CourseQuizMaterial, only: Set<String>? = nil) async -> [CourseQuiz] {
-        let unnamed = ((try? await storage.loadCourseQuizzes(courseID: courseID)) ?? []).filter { quiz in
+        let stored: [CourseQuiz]
+        do {
+            stored = try await storage.loadCourseQuizzes(courseID: courseID)
+        } catch {
+            courseQuizWriterLogger.error("Reading the course's quizzes to name them failed: \(error.localizedDescription, privacy: .public)")
+            stored = []
+        }
+        let unnamed = stored.filter { quiz in
             quiz.author == .foreverlm && quiz.symbol == nil && !quiz.questions.isEmpty
                 && (only?.contains(quiz.id) ?? true)
         }
@@ -989,7 +996,14 @@ struct CourseQuizGeneratorService: Sendable {
         courseTitle: String?,
         model: ImageGenerationModel
     ) async -> (drawn: Int, waiting: Int, failure: String?) {
-        guard let quiz = try? await storage.loadCourseQuiz(quizID) else { return (0, 0, nil) }
+        let loaded: CourseQuiz?
+        do {
+            loaded = try await storage.loadCourseQuiz(quizID)
+        } catch {
+            courseQuizWriterLogger.error("Reading quiz \(quizID, privacy: .public) to draw its pictures failed: \(error.localizedDescription, privacy: .public)")
+            return (0, 0, nil)
+        }
+        guard let quiz = loaded else { return (0, 0, nil) }
         let briefed = quiz.questions.filter { $0.picture?.isAwaitingDrawing == true }.count
         var drawn = 0
         for index in CourseQuizPictures.awaitingDrawing(in: quiz) {

@@ -739,7 +739,7 @@ extension StudioViewModel {
         if let kind, !kind.isEmpty { bookKinds[bookID] = kind }
 
         // An explicit re-import of a known book revives its chapter records.
-        let groupedChapterCount = (try? await storage.sourceCountByParentGroup(bookID)) ?? 0
+        let groupedChapterCount = (await loggedRead("source count by parent group") { try await storage.sourceCountByParentGroup(bookID) }) ?? 0
         var wholeBookSourceID: String?
         if groupedChapterCount > 0 {
             // A book added again reads as the chapters it has until the new
@@ -1442,7 +1442,7 @@ extension StudioViewModel {
 
     private func wholeBookState(of sourceID: String?) async -> WholeBookState {
         guard let sourceID else { return WholeBookState() }
-        let highlights = (try? await storage.sourceHighlights(sourceID: sourceID)) ?? []
+        let highlights = (await loggedRead("source highlights") { try await storage.sourceHighlights(sourceID: sourceID) }) ?? []
         let page = readingProgressStore.page(for: sourceID) ?? articlesById[sourceID]?.readingPositionPage
         return WholeBookState(highlights: highlights, pageReached: page.flatMap { $0 > 0 ? $0 : nil })
     }
@@ -2165,8 +2165,7 @@ extension StudioViewModel {
         existingID: String,
         replacement: StudioArticle
     ) async throws {
-        let persistedSources = try? await storage.loadSourcesForExport(sourceIDs: [existingID])
-        let persisted = persistedSources?.first
+        let persisted = try await storage.loadSourcesForExport(sourceIDs: [existingID]).first
         var updated = persisted ?? StudioArticle(
             url: replacement.url,
             title: replacement.title,

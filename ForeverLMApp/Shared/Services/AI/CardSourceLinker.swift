@@ -95,8 +95,12 @@ enum CardSourceLinker {
             var found: [CardSourceCandidate] = []
             for hit in hits where !own.contains(hit.sourceId) && (pool?.contains(hit.sourceId) ?? true) {
                 if texts[hit.sourceId] == nil {
-                    guard let text = try? await storage.situatedSourceText(hit.sourceId) else { continue }
-                    texts[hit.sourceId] = text
+                    do {
+                        texts[hit.sourceId] = try await storage.situatedSourceText(hit.sourceId)
+                    } catch {
+                        Self.logger.error("Reading source \(hit.sourceId, privacy: .public) for card source linking failed: \(error.localizedDescription, privacy: .public)")
+                        continue
+                    }
                 }
                 guard let text = texts[hit.sourceId] else { continue }
                 let chunks = SourceEmbeddingText.textChunks(from: text)
@@ -109,7 +113,12 @@ enum CardSourceLinker {
                 let excerpt = SituatedPassageCutter.excerpt(passage, query: query)
                 guard !excerpt.isEmpty else { continue }
                 if titles[hit.sourceId] == nil {
-                    titles[hit.sourceId] = (try? await storage.loadSourceWithoutContent(hit.sourceId))?.title ?? "Source"
+                    do {
+                        titles[hit.sourceId] = try await storage.loadSourceWithoutContent(hit.sourceId)?.title ?? "Source"
+                    } catch {
+                        Self.logger.error("Reading the title of source \(hit.sourceId, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
+                        titles[hit.sourceId] = "Source"
+                    }
                 }
                 found.append(CardSourceCandidate(sourceID: hit.sourceId, title: titles[hit.sourceId] ?? "Source", passage: excerpt))
                 if found.count == CardSourceLinking.candidatesPerCard { break }

@@ -172,7 +172,13 @@ actor RegisteredPaperTitleCheckService {
     }
 
     private func result(restored: [RestoredPaperTitle], checked: Int) async -> RegisteredPaperTitleCheckResult {
-        let remaining = (try? await storage.registeredPaperTitleQueueCount()) ?? 0
+        let remaining: Int
+        do {
+            remaining = try await storage.registeredPaperTitleQueueCount()
+        } catch {
+            logger.error("Could not count the registered-title queue: \(error.localizedDescription, privacy: .public)")
+            remaining = 0
+        }
         if checked > 0 {
             logger.info(
                 "Checked \(checked) paper title(s) against their registered titles, restored \(restored.count); \(remaining) remaining"

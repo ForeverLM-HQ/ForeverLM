@@ -129,7 +129,13 @@ actor ArticleChromeRefilterService {
     }
 
     private func result(processed: [String]) async -> ArticleChromeRefilterDrainResult {
-        let remaining = (try? await storage.articleChromeRefilterQueueCount()) ?? 0
+        let remaining: Int
+        do {
+            remaining = try await storage.articleChromeRefilterQueueCount()
+        } catch {
+            logger.error("Could not count the article chrome refilter queue: \(error.localizedDescription, privacy: .public)")
+            remaining = 0
+        }
         if !processed.isEmpty {
             logger.info(
                 "Refiltered \(processed.count) archived article(s); \(remaining) remaining"

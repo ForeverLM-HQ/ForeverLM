@@ -223,7 +223,11 @@ extension MCPDataStore {
                 )
             }
         } catch {
-            try? await saveFinishedLocalPaper(article)
+            do {
+                try await saveFinishedLocalPaper(article)
+            } catch {
+                logger.error("Saving the paper after its metadata failure did not work: \(error.localizedDescription, privacy: .public)")
+            }
             if Task.isCancelled || AITransientErrorClassifier.isCancellation(error) { throw error }
             throw MCPError.invalidInput(
                 "\(error.localizedDescription) The paper '\(article.title)' stays in the library with its PDF (id: \(article.id)), marked with this failure; extract_paper_metadata retries it."
@@ -673,7 +677,11 @@ extension MCPDataStore {
                 article.state = .queued
                 article.errorMessage = nil
                 let pending = article
-                try? await withStoreGate(.exclusive) { try knowledgeStore().saveSource(pending) }
+                do {
+                    try await withStoreGate(.exclusive) { try knowledgeStore().saveSource(pending) }
+                } catch {
+                    logger.error("Queuing the paper's staged text for cleanup failed: \(error.localizedDescription, privacy: .public)")
+                }
                 NotificationCenter.default.post(name: .derivedSourceWorkNeeded, object: nil)
                 throw error
             } catch {

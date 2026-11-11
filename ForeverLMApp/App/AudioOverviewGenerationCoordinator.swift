@@ -414,7 +414,8 @@ final class AudioOverviewGenerationCoordinator: ObservableObject {
         } else {
             vm.articles.insert(overview.carrier, at: 0)
         }
-        if let reloaded = try? await vm.loadScopedArtifacts() {
+        let reloaded = await vm.loggedRead("the Docs") { try await vm.loadScopedArtifacts() }
+        if let reloaded {
             vm.artifacts = reloaded
         }
     }

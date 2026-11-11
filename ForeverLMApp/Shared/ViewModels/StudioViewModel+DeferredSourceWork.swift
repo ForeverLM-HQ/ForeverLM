@@ -54,7 +54,7 @@ extension StudioViewModel {
             logger.error("Deferred Zoom meeting adoption paused: \(error.localizedDescription)")
         }
         guard !adoptedIDs.isEmpty else { return }
-        let refreshed = (try? await storage.loadPersistedSources(ids: adoptedIDs)) ?? []
+        let refreshed = (await loggedRead("persisted sources") { try await storage.loadPersistedSources(ids: adoptedIDs) }) ?? []
         let byID = Dictionary(uniqueKeysWithValues: refreshed.map { ($0.id, $0) })
         var updated = articles
         var changed = false
@@ -140,7 +140,7 @@ extension StudioViewModel {
         // extraction (`paperContentSHA256`, one of its identity keys). Assign once:
         // mutating `articles[index]` runs the array's didSet and rebuilds the
         // sidebar indexes for every element touched.
-        let refreshed = (try? await storage.loadPersistedSources(ids: Array(repairedIDs))) ?? []
+        let refreshed = (await loggedRead("persisted sources") { try await storage.loadPersistedSources(ids: Array(repairedIDs)) }) ?? []
         let byID = Dictionary(refreshed.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var updatedArticles = articles
         var didChange = false
@@ -507,7 +507,7 @@ extension StudioViewModel {
         rewrittenText: Set<String>
     ) async {
         guard !sourceIDs.isEmpty else { return }
-        let refreshedSources = (try? await storage.loadPersistedSources(ids: Array(sourceIDs))) ?? []
+        let refreshedSources = (await loggedRead("persisted sources") { try await storage.loadPersistedSources(ids: Array(sourceIDs)) }) ?? []
         let refreshedByID = Dictionary(refreshedSources.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var updatedArticles = articles
         var didChange = false

@@ -269,7 +269,12 @@ extension ArticleSpeechService {
     /// The account copy of a source's resume point under generation 2 (its ReadingState), read before
     /// playback is prepared; nil under generation 1, whose account copy `loadPlaybackPosition` reads.
     func accountListenPosition(sourceID: String) async -> ArticleSpeechPlaybackPosition? {
-        return try? await activityStorage.loadListenPosition(sourceID: sourceID)
+        do {
+            return try await activityStorage.loadListenPosition(sourceID: sourceID)
+        } catch {
+            articleSpeechLogger.error("Could not read the account resume point of \(sourceID, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
     }
 
     /// Forgets a source's resume point everywhere: the file beside the audio, the account copy and,

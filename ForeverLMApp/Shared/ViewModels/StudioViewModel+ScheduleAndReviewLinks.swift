@@ -396,7 +396,7 @@ extension StudioViewModel {
         do {
             learningGoals = try await storage.loadLearningGoals()
             // Which notebooks follow which course moves with the notebooks.
-            if let followers = try? await storage.loadCourseFollowers(), followers != courseFollowerNotebookIDs {
+            if let followers = await loggedRead("course followers", { try await storage.loadCourseFollowers() }), followers != courseFollowerNotebookIDs {
                 courseFollowerNotebookIDs = followers
             }
             if !hasLoadedLearningGoalsOnce { hasLoadedLearningGoalsOnce = true }
@@ -466,7 +466,7 @@ extension StudioViewModel {
     /// nil on a clean run.
     /// Most recent completed reviews for a goal, for the goal dashboard's history list.
     func companionRecentSessions(goalID: String, limit: Int = 4) async -> [CompanionSessionSummary] {
-        (try? await storage.companionRecentSessions(goalID: goalID, limit: limit)) ?? []
+        (await loggedRead("companion recent sessions") { try await storage.companionRecentSessions(goalID: goalID, limit: limit) }) ?? []
     }
 
 }

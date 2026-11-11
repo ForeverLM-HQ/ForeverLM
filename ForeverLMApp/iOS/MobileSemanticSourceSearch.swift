@@ -1,6 +1,7 @@
 import CloudKit
 import Foundation
 import NaturalLanguage
+import OSLog
 
 // On-device, Apple-native semantic search over sources — a lightweight iOS-only
 // ranker for Siri source resolution. It ranks a small in-memory list of synced
@@ -118,7 +119,14 @@ extension MobileSemanticSourceSearch {
             return await byTitles()
         }
         async let meaning = MobileMacSearch.sourceIDs(query: query, limit: limit)
-        let words = ((try? await session.textIndexer.search(query, limit: limit * 2)) ?? []).map(\.sourceID)
+        var wordHits: [MobileTextIndex.Hit] = []
+        do {
+            wordHits = try await session.textIndexer.search(query, limit: limit * 2)
+        } catch {
+            Logger(subsystem: "com.foreverlm.mobile", category: "SemanticSourceSearch")
+                .error("Searching the text index failed: \(error.localizedDescription, privacy: .public)")
+        }
+        let words = wordHits.map(\.sourceID)
         let found = pick(merged(meaning: await meaning ?? [], words: words), from: sources, limit: limit)
         return found.isEmpty ? await byTitles() : found
     }

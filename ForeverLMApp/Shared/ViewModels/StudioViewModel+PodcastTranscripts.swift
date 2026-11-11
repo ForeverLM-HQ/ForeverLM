@@ -129,6 +129,7 @@ actor PodcastTranscriptCleanupService {
 
     private let storage: StorageService
     private let aiService: AIService
+    private let log = Logger(subsystem: "com.foreverlm", category: "PodcastTranscriptCleanup")
     private let formatTranscript: TranscriptFormatter
     private let explicitlyAuthorizedConfig: AITaskConfig?
     /// `false` in a Dev build that has not opted in (`PaidSourceCleanupPolicy`).
@@ -244,12 +245,16 @@ actor PodcastTranscriptCleanupService {
                     } catch {
                         let message = error.localizedDescription
                         if firstError == nil { firstError = "\(candidate.title): \(message)" }
-                        try? await storage.recordPodcastTranscriptCleanupFailure(
-                            sourceID: candidate.sourceID,
-                            message: message,
-                            sourceSHA256: candidate.inputSHA256,
-                            consumesAttempt: false
-                        )
+                        do {
+                            try await storage.recordPodcastTranscriptCleanupFailure(
+                                sourceID: candidate.sourceID,
+                                message: message,
+                                sourceSHA256: candidate.inputSHA256,
+                                consumesAttempt: false
+                            )
+                        } catch {
+                            log.error("Recording a transcript cleanup failure failed: \(error.localizedDescription, privacy: .public)")
+                        }
                     }
                 case .failed(let failedCandidate, let message, let wasCancelled, let retryAfter):
                     // An interrupted pass is not an attempt. Recording it here
@@ -265,12 +270,16 @@ actor PodcastTranscriptCleanupService {
                             longestRetryAfter = max(longestRetryAfter ?? retryAfter, retryAfter)
                         }
                     }
-                    try? await storage.recordPodcastTranscriptCleanupFailure(
-                        sourceID: candidate.sourceID,
-                        message: message,
-                        sourceSHA256: candidate.inputSHA256,
-                        consumesAttempt: !transient
-                    )
+                    do {
+                        try await storage.recordPodcastTranscriptCleanupFailure(
+                            sourceID: candidate.sourceID,
+                            message: message,
+                            sourceSHA256: candidate.inputSHA256,
+                            consumesAttempt: !transient
+                        )
+                    } catch {
+                        log.error("Recording a transcript cleanup failure failed: \(error.localizedDescription, privacy: .public)")
+                    }
                 }
             }
         }
@@ -284,7 +293,12 @@ actor PodcastTranscriptCleanupService {
         processed: [String],
         error: String?
     ) async -> PodcastTranscriptCleanupDrainResult {
-        let remaining = (try? await storage.podcastTranscriptCleanupQueueCount()) ?? 0
+        var remaining = 0
+        do {
+            remaining = try await storage.podcastTranscriptCleanupQueueCount()
+        } catch {
+            log.error("Counting the transcript cleanup queue failed: \(error.localizedDescription, privacy: .public)")
+        }
         return PodcastTranscriptCleanupDrainResult(
             processedCount: processed.count,
             processedSourceIDs: processed,

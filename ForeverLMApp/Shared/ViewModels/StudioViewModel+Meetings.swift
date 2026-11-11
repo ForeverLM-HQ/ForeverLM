@@ -868,7 +868,7 @@ extension StudioViewModel {
     }
 
     private func meetingHasTranscript(_ article: StudioArticle) async -> Bool {
-        let loadedArtifacts = (try? await storage.loadMeetingArtifacts(sourceID: article.id)) ?? []
+        let loadedArtifacts = (await loggedRead("meeting artifacts") { try await storage.loadMeetingArtifacts(sourceID: article.id) }) ?? []
         let artifacts = meetingArtifactsBySourceId[article.id] ?? loadedArtifacts
         if artifacts.contains(where: { $0.kind == .transcript }) { return true }
         let content: String?
@@ -889,7 +889,7 @@ extension StudioViewModel {
     /// a recording is downloaded once and then shared by playback, on-device transcription,
     /// and slide extraction rather than fetched again per feature.
     func meetingRecordingURL(for sourceID: String) async throws -> URL {
-        let storedArtifacts = (try? await storage.loadMeetingArtifacts(sourceID: sourceID)) ?? []
+        let storedArtifacts = (await loggedRead("meeting artifacts") { try await storage.loadMeetingArtifacts(sourceID: sourceID) }) ?? []
         let artifacts = meetingArtifactsBySourceId[sourceID] ?? storedArtifacts
         guard let recording = artifacts.first(where: { $0.kind == .recording }) else {
             throw MeetingTranscriptError.noRecording
@@ -963,7 +963,7 @@ extension StudioViewModel {
             sortIndex: MeetingArtifactKind.transcript.sortRank
         )
         try await storage.saveMeetingArtifact(transcriptArtifact)
-        let storedArtifacts = (try? await storage.loadMeetingArtifacts(sourceID: sourceID)) ?? []
+        let storedArtifacts = (await loggedRead("meeting artifacts") { try await storage.loadMeetingArtifacts(sourceID: sourceID) }) ?? []
         let existingArtifacts = meetingArtifactsBySourceId[sourceID] ?? storedArtifacts
         var merged = existingArtifacts.filter { $0.id != transcriptArtifact.id }
         merged.append(transcriptArtifact)

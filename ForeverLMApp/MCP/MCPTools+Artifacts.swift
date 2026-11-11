@@ -16,7 +16,15 @@ extension MCPDataStore {
         }
         // Publication is owner-scoped server state, not Artifact metadata. A
         // failed/offline status projection must never hide the local Docs list.
-        let published = (try? await DocPublishing.statuses()) ?? [:]
+        let published: [String: PublishedDocStatus]
+        do {
+            published = try await DocPublishing.statuses()
+        } catch DocPublishingError.signedOut {
+            published = [:]
+        } catch {
+            logger.error("Reading the Docs' publication status failed: \(error.localizedDescription, privacy: .public)")
+            published = [:]
+        }
         // The teams holding a copy of each own Doc, for the sentence the app's
         // Share popover says (`DocSharing.summary`). Asked only when there are
         // teams at all; a team's own copy is not shared onward.
@@ -89,7 +97,11 @@ extension MCPDataStore {
                     expectedRevision: snapshot.revision
                 )
             } catch {
-                try? await notebookFileStorage.deleteArtifact(id)
+                do {
+                    try await notebookFileStorage.deleteArtifact(id)
+                } catch let cleanupError {
+                    logger.error("Removing the half-written Doc failed: \(cleanupError.localizedDescription, privacy: .public)")
+                }
                 throw error
             }
         }

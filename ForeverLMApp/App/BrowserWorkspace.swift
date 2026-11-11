@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import Observation
+import OSLog
 import Security
 import SwiftUI
 import WebKit
@@ -91,7 +92,12 @@ final class BrowserProfileStore {
         guard id != BrowserProfile.libraryID else { return }
         profiles.removeAll { $0.id == id }
         persist()
-        try? await WKWebsiteDataStore.remove(forIdentifier: id)
+        do {
+            try await WKWebsiteDataStore.remove(forIdentifier: id)
+        } catch {
+            Logger(subsystem: "com.foreverlm", category: "BrowserProfiles")
+                .error("Removing a browser profile's website data failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     func dataStore(for profile: BrowserProfile) -> WKWebsiteDataStore {

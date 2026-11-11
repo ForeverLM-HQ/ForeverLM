@@ -203,7 +203,7 @@ extension StudioViewModel {
         var captions: [String: String] = [:]
         let figureClips = clips.filter { ReaderClip.isClip($0) && ReaderClip.page(of: $0) != nil }
         for (sourceID, group) in Dictionary(grouping: figureClips, by: \.sourceID) {
-            guard let figures = try? await storage.paperFigures(sourceID: sourceID), !figures.isEmpty else { continue }
+            guard let figures = await loggedRead("paper figures", { try await storage.paperFigures(sourceID: sourceID) }), !figures.isEmpty else { continue }
             for clip in group {
                 let name = ReaderClip.title(of: clip).lowercased()
                 guard let figure = figures

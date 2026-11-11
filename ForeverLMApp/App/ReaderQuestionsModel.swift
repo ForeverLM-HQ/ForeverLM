@@ -1,6 +1,7 @@
 #if os(macOS)
 import Foundation
 import Observation
+import os
 
 // MARK: - A source's reading questions, in the Reader
 //
@@ -32,6 +33,7 @@ struct ReaderQuestionMarker: Equatable, Sendable {
 @MainActor
 @Observable
 final class ReaderQuestionsModel {
+    private static let logger = Logger(subsystem: "com.foreverlm", category: "ReaderQuestions")
     /// A question and the reading whose model answers it.
     struct Entry: Equatable {
         let question: MnemonicQuestion
@@ -92,7 +94,13 @@ final class ReaderQuestionsModel {
         var readingIDs: [String] = []
         // The oldest reading is read first, so a question two readings hold
         // is drawn once, from the first one made.
-        let linked = (try? await storage.mnemonicReadings(groundedOn: sourceIDs)) ?? []
+        let linked: [ArtifactRecord]
+        do {
+            linked = try await storage.mnemonicReadings(groundedOn: sourceIDs)
+        } catch {
+            Self.logger.error("Reading the mnemonic readings failed: \(error.localizedDescription, privacy: .public)")
+            linked = []
+        }
         for artifact in linked {
             readingIDs.append(artifact.id)
             let model = models[artifact.id] ?? MnemonicReadingModel(readingID: artifact.id)

@@ -628,8 +628,11 @@ extension StudioViewModel {
                 var article = articles[idx]
                 guard article.domain != channelName else { continue }
                 article.domain = channelName
-                if (try? await storage.saveSource(article)) != nil {
+                do {
+                    try await storage.saveSource(article)
                     updatedByID[article.id] = article
+                } catch {
+                    logger.error("Saving the channel name of a video failed: \(error.localizedDescription, privacy: .public)")
                 }
             }
         }
@@ -822,7 +825,7 @@ extension StudioViewModel {
         // lecture: archiving deletes source_content, which would silently wipe
         // the lecture transcript. StorageService is an actor, so this query
         // runs off the main actor.
-        let courseLectureItems = (try? await storage.loadCourseLectureItems()) ?? []
+        let courseLectureItems = (await loggedRead("course lecture items") { try await storage.loadCourseLectureItems() }) ?? []
         let courseLectureSourceIDs = Set(courseLectureItems.compactMap(\.sourceId))
         let idsToArchive = activeArticles
             .filter {
@@ -877,7 +880,7 @@ extension StudioViewModel {
         groupID: String,
         currentURLKeys: Set<String>
     ) async -> Int {
-        let courseLectureItems = (try? await storage.loadCourseLectureItems()) ?? []
+        let courseLectureItems = (await loggedRead("course lecture items") { try await storage.loadCourseLectureItems() }) ?? []
         let courseLectureSourceIDs = Set(courseLectureItems.compactMap(\.sourceId))
         let idsToArchive = activeArticles
             .filter {

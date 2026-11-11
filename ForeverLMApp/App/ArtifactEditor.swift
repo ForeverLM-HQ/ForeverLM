@@ -798,9 +798,11 @@ struct ArtifactEditor: View {
     /// block it draws back to the draft's lines. A resolution that would
     /// still move a line leaves the page on the draft as written.
     private func pageMarkdownForReaders(_ markdown: String) async -> String {
-        guard NotesGraphHostText.mayHoldGraphMarkup(markdown),
-              let resolved = try? await vm.storage.docGraphResolvedMarkdownKeepingLines(markdown, teamID: graphTeamID)
-        else { return markdown }
+        guard NotesGraphHostText.mayHoldGraphMarkup(markdown) else { return markdown }
+        let resolved = await vm.loggedRead("the page's embedded blocks") {
+            try await vm.storage.docGraphResolvedMarkdownKeepingLines(markdown, teamID: graphTeamID)
+        }
+        guard let resolved else { return markdown }
         return NotesGraphHostText.lineKeepingResolution(original: markdown, resolved: resolved)
     }
 
@@ -1410,7 +1412,7 @@ struct ArtifactEditor: View {
         if let snapshot {
             stored = snapshot
         } else {
-            stored = try? await vm.artifactMarkdown(artifact.id)
+            stored = await vm.loggedRead("the page") { try await vm.artifactMarkdown(artifact.id) }
         }
         chrome.sideChatRequest = PageSideChatOpening(
             page: sideChatPage(stored),
@@ -1827,7 +1829,7 @@ struct ArtifactEditor: View {
         // the editor's pause: the buttons that call this (Share, Duplicate,
         // Restore, Convert) never take focus from the page, so nothing has
         // told the pane about the last words yet.
-        try? await notesGraph.bridge.syncMarkdownFromPage()
+        try await notesGraph.bridge.syncMarkdownFromPage()
         // A save already in flight owns the revision; let it land first.
         while isSaving {
             try await Task.sleep(for: .milliseconds(50))
@@ -1864,7 +1866,10 @@ struct ArtifactEditor: View {
         snapshot = restored
         setDraft(restored.markdown)
         titleFollowsHeading = ArtifactMarkdownTitle.names(artifact.title, in: restored.markdown)
-        if let urls = try? await vm.artifactAttachmentDataURLs(artifact.id, markdown: restored.markdown) {
+        let restoredURLs = await vm.loggedRead("the restored page's pictures") {
+            try await vm.artifactAttachmentDataURLs(artifact.id, markdown: restored.markdown)
+        }
+        if let urls = restoredURLs {
             attachmentDataURLs = urls
         }
     }

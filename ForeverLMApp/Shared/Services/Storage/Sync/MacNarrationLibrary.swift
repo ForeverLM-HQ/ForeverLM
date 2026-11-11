@@ -227,7 +227,13 @@ actor MacNarrationLibrary {
     func roundSettled() async {
         guard let session = await session() else { return }
         if let carried = await carryFromICloudDrive(), !carried.carried.isEmpty { lastPointers = nil }
-        guard let pointers = try? await session.store.onStore({ try $0.narrationPointers() }) else { return }
+        let pointers: [String: String]
+        do {
+            pointers = try await session.store.onStore({ try $0.narrationPointers() })
+        } catch {
+            Self.logger.error("Reading the narration pointers failed: \(String(describing: error), privacy: .public)")
+            return
+        }
         guard pointers != lastPointers || clock().timeIntervalSince(lastFullPass) >= Self.fullPassEvery else { return }
         lastPointers = pointers
         await refresh()
@@ -265,17 +271,33 @@ actor MacNarrationLibrary {
         } else {
             locals = NarrationFolder.localStates()
             ids = Set(locals.keys)
-            ids.formUnion(((try? await session.store.onStore { try $0.narrationPointers() }) ?? [:]).keys)
+            do {
+                ids.formUnion(try await session.store.onStore { try $0.narrationPointers() }.keys)
+            } catch {
+                Self.logger.error("Reading the narration pointers for a pass failed: \(String(describing: error), privacy: .public)")
+            }
         }
         let sorted = ids.sorted().filter { !removals.contains($0) }
-        guard let views = try? await Self.views(sourceIDs: sorted, session: session) else { return }
+        let views: [String: MacNarrationView]
+        do {
+            views = try await Self.views(sourceIDs: sorted, session: session)
+        } catch {
+            Self.logger.error("Reading the narration views failed: \(String(describing: error), privacy: .public)")
+            return
+        }
         var uploads: [String] = []
         for id in sorted where !uploading.contains(id) {
             guard let view = views[id] else { continue }
             let local = locals[id]
             var action = NarrationPlan.action(local: local, replica: NarrationReplica(held: view.held, hash: view.file?.hash))
             if action == .compare, let local, let file = view.file {
-                let remote = try? await Self.manifest(file, session: session)
+                let remote: SyncedArticleAudioManifest?
+                do {
+                    remote = try await Self.manifest(file, session: session)
+                } catch {
+                    Self.logger.error("Reading a narration manifest from the replica failed: \(String(describing: error), privacy: .public)")
+                    remote = nil
+                }
                 let newer = remote.map { local.createdAt > $0.createdAt } == true
                 action = local.complete && newer ? .publish : .mirror
             }
@@ -295,7 +317,7 @@ actor MacNarrationLibrary {
         }
         switch publishing {
         case .awaiting:
-            for id in uploads { _ = try? await publish(sourceID: id) }
+            for id in uploads { await publishLoggingFailure(sourceID: id) }
         case .background:
             queueUploads(uploads)
         }
@@ -314,9 +336,17 @@ actor MacNarrationLibrary {
         while !waiting.isEmpty {
             let id = waiting.removeFirst()
             queued.remove(id)
-            _ = try? await publish(sourceID: id)
+            await publishLoggingFailure(sourceID: id)
         }
         draining = false
+    }
+
+    private func publishLoggingFailure(sourceID: String) async {
+        do {
+            _ = try await publish(sourceID: sourceID)
+        } catch {
+            Self.logger.error("Publishing a narration failed: \(String(describing: error), privacy: .public)")
+        }
     }
 
     private static func views(sourceIDs: [String], session: Session) async throws -> [String: MacNarrationView] {

@@ -95,7 +95,7 @@ extension StudioViewModel {
     func loadScreenRecordShownCourses() async {
         guard let scope = screenRecordScope else { return }
         // A read that fails shows no course: the mode's lists fail closed.
-        let shown = (try? await storage.screenRecordShownCourseIDs(scope: scope)) ?? []
+        let shown = (await loggedRead("screen record shown course ids") { try await storage.screenRecordShownCourseIDs(scope: scope) }) ?? []
         guard !Task.isCancelled, screenRecordScope == scope, screenRecordShownCourseIDs != shown else { return }
         screenRecordShownCourseIDs = shown
     }

@@ -394,13 +394,18 @@ enum PreferenceStore {
         // Nor a write an earlier run queued and lost: the model picked just
         // before a rebuild came back as the one before it (2026-09-25).
         let unconfirmed = await persistUnconfirmedWrites()
-        // A row this Mac holds but cannot read is not "not synced yet", and it
-        // used to be skipped without a word: the folder icon that "didn't sync"
-        // on 2026-08-31 was in the table the whole time, in a form the decoder
-        // rejected. Repair the one damage seen in the wild first, so the loop
-        // below reads the value and the outbox carries the clean row to the
-        // other Mac, and name whatever still cannot be read.
-        if let report = try? await syncStore.repairUnreadablePreferences() {
+        // A row this Mac holds but cannot read is not "not synced yet". Repair
+        // the one damage seen in the wild first, so the loop below reads the
+        // value and the outbox carries the clean row to the other Mac, and
+        // name whatever still cannot be read.
+        let repairReport: KnowledgeStore.PreferenceRepairReport?
+        do {
+            repairReport = try await syncStore.repairUnreadablePreferences()
+        } catch {
+            persistenceLogger.error("Repairing unreadable preference rows failed: \(error.localizedDescription, privacy: .public)")
+            repairReport = nil
+        }
+        if let report = repairReport {
             for key in report.repaired {
                 persistenceLogger.notice(
                     "Repaired unreadable preference row '\(key, privacy: .public)': re-encoded and queued for sync"
@@ -412,7 +417,13 @@ enum PreferenceStore {
                 )
             }
         }
-        guard let stored = try? await syncStore.allPreferences() else { return }
+        let stored: [String: String]
+        do {
+            stored = try await syncStore.allPreferences()
+        } catch {
+            persistenceLogger.error("Reading the stored preferences failed: \(error.localizedDescription, privacy: .public)")
+            return
+        }
         var decoded: [String: Any] = [:]
         for (key, xml) in stored {
             guard SyncedPreferenceKeys.isSynced(key) else { continue }

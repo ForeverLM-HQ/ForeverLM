@@ -112,7 +112,7 @@ extension StudioViewModel {
         let chunks = prepared.chunks
         let linkedCandidates = stored.candidates
 
-        let existing = (try? await storage.loadVideoCitedPapers(forSourceID: sourceID)) ?? []
+        let existing = (await loggedRead("video cited papers") { try await storage.loadVideoCitedPapers(forSourceID: sourceID) }) ?? []
         let existingKeys = Set(existing.map(\.dedupKey))
         // Rows an earlier read could not identify, by title. A rescan that now resolves one
         // — a catalog that has caught up, a better read of the entry — upgrades that row in

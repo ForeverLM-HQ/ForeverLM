@@ -209,7 +209,12 @@ final class JournalWatchRunner {
         }
         let now = Date()
         let due = feeds.filter { force || JournalWatch.isDue($0, now: now) }
-        let hasUnjudged = ((try? await storage.loadUnjudgedJournalItems(limit: 1)) ?? []).isEmpty == false
+        var hasUnjudged = false
+        do {
+            hasUnjudged = try await storage.loadUnjudgedJournalItems(limit: 1).isEmpty == false
+        } catch {
+            logger.error("Reading the unjudged journal articles failed: \(error.localizedDescription, privacy: .public)")
+        }
         guard !due.isEmpty || hasUnjudged else { return }
 
         isChecking = true
@@ -247,16 +252,24 @@ final class JournalWatchRunner {
             } catch {
                 failed += 1
                 logger.error("Journal fetch failed for \(feed.feedURL, privacy: .public): \(error.localizedDescription, privacy: .public)")
-                try? await storage.recordJournalFeedCheck(
-                    feedID: feed.id, at: Date(), succeeded: false, error: error.localizedDescription,
-                    etag: nil, lastModified: nil, title: nil
-                )
+                do {
+                    try await storage.recordJournalFeedCheck(
+                        feedID: feed.id, at: Date(), succeeded: false, error: error.localizedDescription,
+                        etag: nil, lastModified: nil, title: nil
+                    )
+                } catch {
+                    logger.error("Recording the failed check of \(feed.feedURL, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
+                }
             }
             checkingFeedIDs.remove(feed.id)
         }
 
         let newMatches = await judgeUnjudgedArticles()
-        _ = try? await storage.pruneJournalItems(olderThan: now.addingTimeInterval(-JournalWatch.itemRetention))
+        do {
+            _ = try await storage.pruneJournalItems(olderThan: now.addingTimeInterval(-JournalWatch.itemRetention))
+        } catch {
+            logger.error("Pruning old journal articles failed: \(error.localizedDescription, privacy: .public)")
+        }
 
         await reload()
         lastCheckAt = now
@@ -315,25 +328,38 @@ final class JournalWatchRunner {
         var candidates: [JournalFeedItem] = []
         var alreadyInLibrary: [String] = []
         for item in items {
-            if (try? await storage.journalItemExistsInLibrary(url: item.itemURL, doi: item.doi)) == true {
+            var inLibrary = false
+            do {
+                inLibrary = try await storage.journalItemExistsInLibrary(url: item.itemURL, doi: item.doi)
+            } catch {
+                logger.error("Checking whether \(item.itemURL, privacy: .public) is in the library failed: \(error.localizedDescription, privacy: .public)")
+            }
+            if inLibrary {
                 alreadyInLibrary.append(item.itemURL)
             } else {
                 candidates.append(item)
             }
         }
-        try? await storage.markJournalItemsJudged(alreadyInLibrary)
+        await markJudged(alreadyInLibrary)
         guard !candidates.isEmpty else {
             lastMatchingError = nil
             return []
         }
 
-        let goals = (try? await storage.loadLearningGoals()) ?? []
+        let goals: [LearningGoalRecord]
+        do {
+            goals = try await storage.loadLearningGoals()
+        } catch {
+            // Without the Notebooks, nothing can be matched and nothing is marked seen.
+            logger.error("Reading the Notebooks to judge journal articles failed: \(error.localizedDescription, privacy: .public)")
+            return []
+        }
         let notebooks = goals.filter { $0.isNotebook && !$0.isArchived }
         notebookTitles = Dictionary(uniqueKeysWithValues: notebooks.map { ($0.id, $0.title) })
         guard !notebooks.isEmpty else {
             // Nothing to match against: these articles are seen, not lost. A
             // Notebook created later is offered what is published from then on.
-            try? await storage.markJournalItemsJudged(candidates.map(\.itemURL))
+            await markJudged(candidates.map(\.itemURL))
             lastMatchingError = nil
             return []
         }
@@ -402,6 +428,14 @@ final class JournalWatchRunner {
         return newMatches
     }
 
+    private func markJudged(_ itemURLs: [String]) async {
+        do {
+            try await storage.markJournalItemsJudged(itemURLs)
+        } catch {
+            logger.error("Marking journal articles judged failed: \(error.localizedDescription, privacy: .public)")
+        }
+    }
+
     /// A dozen titles from the pool, spread across it, so the model sees the
     /// Notebook's range rather than its most recent corner.
     private func sampleSourceTitles(for goal: LearningGoalRecord) async -> [String] {
@@ -415,7 +449,13 @@ final class JournalWatchRunner {
             let stride = Double(ids.count) / Double(limit)
             sampled = (0..<limit).map { ids[min(ids.count - 1, Int(Double($0) * stride))] }
         }
-        let sources = (try? await storage.loadPersistedSources(ids: sampled)) ?? []
+        let sources: [StudioArticle]
+        do {
+            sources = try await storage.loadPersistedSources(ids: sampled)
+        } catch {
+            logger.error("Reading the Notebook's source titles failed: \(error.localizedDescription, privacy: .public)")
+            sources = []
+        }
         return sources.map(\.title).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }.filter { !$0.isEmpty }
     }
 
@@ -454,6 +494,7 @@ final class JournalWatchRunner {
 /// on in Settings → Journals; delivered at once rather than scheduled, so the
 /// one-time `NotificationRetirement` sweep never finds one pending.
 enum JournalWatchNotifications {
+    private static let logger = Logger(subsystem: "ForeverLM", category: "Journals")
     static let identifierPrefix = "com.foreverlm.journals.match."
     static let notebookIDKey = "notebookID"
 
@@ -485,7 +526,11 @@ enum JournalWatchNotifications {
             trigger: nil
         )
         center.removeDeliveredNotifications(withIdentifiers: [request.identifier])
-        try? await center.add(request)
+        do {
+            try await center.add(request)
+        } catch {
+            logger.error("Posting the journal notification failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     static func clear(notebookID: String) {

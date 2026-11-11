@@ -1385,7 +1385,7 @@ extension StudioViewModel {
         let article = articles[idx]
         articles[idx].state = .fetching
         let rawTTMLTranscript: String?
-        if let rawTTML = try? await storage.loadPodcastRawTTML(articleId) {
+        if let rawTTML = await loggedLookup("podcast transcript markup", { try await storage.loadPodcastRawTTML(articleId) }) {
             rawTTMLTranscript = await Self.extractPodcastTTMLTextOffMain(rawTTML)
         } else {
             rawTTMLTranscript = nil

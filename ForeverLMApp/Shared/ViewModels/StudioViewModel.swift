@@ -2262,6 +2262,26 @@ class StudioViewModel {
     let sourceService = SourceService.shared
     let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "Studio")
 
+    /// Runs a read whose failure the caller treats as "nothing there": the failure is
+    /// logged (cancellation is not) and the result is nil, so callers keep their own
+    /// empty value.
+    func loggedRead<T>(_ what: String, _ read: () async throws -> T) async -> T? {
+        await loggedLookup(what) { try await read() }
+    }
+
+    /// `loggedRead` for a read that may itself find nothing: both a failure and a
+    /// miss come back as nil, and only the failure is logged.
+    func loggedLookup<T>(_ what: String, _ read: () async throws -> T?) async -> T? {
+        do {
+            return try await read()
+        } catch is CancellationError {
+            return nil
+        } catch {
+            logger.error("Reading \(what, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+    }
+
     /// Keeps every source's chunk embedding present so semantic search can't silently
     /// miss a source. Fills the historical backlog and covers sources that arrive over
     /// CloudKit sync (which never pass through the ingest embed path). Triggered off the

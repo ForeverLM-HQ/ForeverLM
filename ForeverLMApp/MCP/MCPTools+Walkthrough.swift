@@ -185,7 +185,13 @@ extension MCPDataStore {
         } catch let error as PaperWalkthroughGenerationError {
             throw MCPError.invalidInput(error.localizedDescription)
         }
-        let figures = (try? await notebookFileStorage.paperFigures(sourceID: article.id)) ?? []
+        let figures: [PaperFigureRecord]
+        do {
+            figures = try await notebookFileStorage.paperFigures(sourceID: article.id)
+        } catch {
+            logger.error("Reading the paper's figures for the walkthrough result failed: \(error.localizedDescription, privacy: .public)")
+            figures = []
+        }
         var payload = Self.walkthroughPayload(result.walkthrough, source: article, includeSteps: true, figures: figures, citedSourceIDs: try walkthroughCitedSourceIDs(result.walkthrough))
         payload["status"] = result.replacedExisting ? "rewritten" : "written"
         payload["warnings"] = result.warnings
@@ -307,7 +313,13 @@ extension MCPDataStore {
         if walkthrough.needsSourceMentions, let text = await notebookFileStorage.loadSourceContent(article.id), !text.isEmpty {
             walkthrough = walkthrough.fillingSourceMentions(from: text)
         }
-        let figures = (try? await notebookFileStorage.paperFigures(sourceID: article.id)) ?? []
+        let figures: [PaperFigureRecord]
+        do {
+            figures = try await notebookFileStorage.paperFigures(sourceID: article.id)
+        } catch {
+            logger.error("Reading the paper's figures for the walkthrough result failed: \(error.localizedDescription, privacy: .public)")
+            figures = []
+        }
         var payload = Self.walkthroughPayload(
             walkthrough,
             source: article,
@@ -396,9 +408,14 @@ extension MCPDataStore {
         // pass has not run, so the coverage check below can hold the steps to
         // every panel.
         let allowsFigureAnchors = subject.article.map(PaperWalkthroughSubject.allowsFigureAnchors) ?? false
-        let records = allowsFigureAnchors && subject.article != nil
-            ? (try? await paperFigureIndexer.prepareStructure(sourceID: subject.id)) ?? []
-            : []
+        var records: [PaperFigureRecord] = []
+        if allowsFigureAnchors && subject.article != nil {
+            do {
+                records = try await paperFigureIndexer.prepareStructure(sourceID: subject.id)
+            } catch {
+                logger.error("Indexing the paper's figure captions failed, so the walkthrough has no figure anchors: \(error.localizedDescription, privacy: .public)")
+            }
+        }
         let figures = PaperWalkthroughGeneratorService.figureReferences(
             from: records,
             pdfPath: allowsFigureAnchors ? subject.article?.resolvedLocalPath : nil
@@ -640,7 +657,7 @@ extension MCPDataStore {
         let citedSourceIDs = try includeSteps ? walkthroughCitedSourceIDs(walkthrough) : [:]
         switch subject {
         case .source(let article):
-            let figures = includeSteps ? ((try? await notebookFileStorage.paperFigures(sourceID: article.id)) ?? []) : []
+            let figures = includeSteps ? (try await notebookFileStorage.paperFigures(sourceID: article.id)) : []
             return Self.walkthroughPayload(walkthrough, source: article, includeSteps: includeSteps, figures: figures, animations: resolvedAnimations, citedSourceIDs: citedSourceIDs)
         case .animation(let artifact):
             var payload = Self.walkthroughPayload(walkthrough, sourceTitle: artifact.title, includeSteps: includeSteps, animations: resolvedAnimations, citedSourceIDs: citedSourceIDs)

@@ -132,7 +132,12 @@ final class LearningBoutAlarms {
         case .notDetermined:
             guard !hasAskedForPermission else { return false }
             hasAskedForPermission = true
-            return (try? await center.requestAuthorization(options: [.alert, .sound])) ?? false
+            do {
+                return try await center.requestAuthorization(options: [.alert, .sound])
+            } catch {
+                logger.error("Asking for notification permission failed: \(error.localizedDescription, privacy: .public)")
+                return false
+            }
         default:
             return false
         }

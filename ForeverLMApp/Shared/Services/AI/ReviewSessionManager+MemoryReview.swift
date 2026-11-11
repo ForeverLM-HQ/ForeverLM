@@ -100,7 +100,13 @@ extension ReviewSessionManager {
         }
         guard let sourceType = typeOf(sourceID),
               MemoryReviewDepth.typeDefault(sourceType: sourceType) != .quick else { return nil }
-        let steers = (try? await storage.memoryReviewSteers(sessionID: sessionID)) ?? []
+        let steers: [(sourceID: String, steer: MemoryReviewSteer)]
+        do {
+            steers = try await storage.memoryReviewSteers(sessionID: sessionID)
+        } catch {
+            logger.error("Reading the memory review steers failed: \(error.localizedDescription, privacy: .public)")
+            steers = []
+        }
         let recent = Array(steers.suffix(3))
         guard recent.count == 3,
               recent.allSatisfy({ $0.steer == .next && typeOf($0.sourceID) == sourceType }) else { return nil }
@@ -852,8 +858,13 @@ extension ReviewSessionManager {
 
     func exchangeID(forSequence sequence: Int) async -> String? {
         guard let sessionID else { return nil }
-        return try? await storage.loadReviewSessionExchanges(sessionID: sessionID)
-            .first { $0.sequenceNumber == sequence }?
-            .id
+        do {
+            return try await storage.loadReviewSessionExchanges(sessionID: sessionID)
+                .first { $0.sequenceNumber == sequence }?
+                .id
+        } catch {
+            logger.error("Reading the review exchanges failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
     }
 }

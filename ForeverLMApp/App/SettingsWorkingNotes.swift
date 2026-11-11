@@ -1,4 +1,5 @@
 import SwiftUI
+import os
 
 // MARK: - Working notes (docs/planner-design.md, "The day is planned from a running log")
 
@@ -65,6 +66,7 @@ struct WorkingNotesSettingsSection: View {
 /// (`syncWorkingNotesMirror`) at once. Forget All also forgets the running
 /// summary of what they are working on (`resetWorkingLog`).
 struct WorkingNotesReviewSheet: View {
+    private static let logger = Logger(subsystem: "com.foreverlm", category: "WorkingNotes")
     @Environment(\.dismiss) private var dismiss
     @State private var notes: [WorkingNote] = []
     @State private var isLoaded = false
@@ -193,7 +195,11 @@ struct WorkingNotesReviewSheet: View {
 
     private func forgetAll() async {
         await storage.workingNotes().forgetAll()
-        try? await storage.resetWorkingLog()
+        do {
+            try await storage.resetWorkingLog()
+        } catch {
+            Self.logger.error("Resetting the working log failed: \(error.localizedDescription, privacy: .public)")
+        }
         await reload()
     }
 

@@ -1,4 +1,7 @@
 import Foundation
+import OSLog
+
+private let notesGraphLogger = Logger(subsystem: "com.foreverlm", category: "NotesGraph")
 
 // MARK: - The notes graph between the Docs pane and its editor
 //
@@ -788,7 +791,12 @@ enum NotesGraphEarlierDays {
                 read += 1
                 guard let dayKey = DailyNote.dayKey(ofID: record.id), dayKey < cursor else { continue }
                 cursor = dayKey
-                let body = ((try? await markdown(record.id)) ?? "")
+                var body = ""
+                do {
+                    body = try await markdown(record.id)
+                } catch {
+                    notesGraphLogger.error("Reading the daily note \(record.id, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
+                }
                 if !body.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                     days.append(NotesGraphWire.Day(
                         docID: record.id,

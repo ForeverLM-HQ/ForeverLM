@@ -121,7 +121,7 @@ extension StudioViewModel {
     /// mutating `articles[index]` runs the array's didSet and rebuilds the
     /// sidebar indexes for every element touched.
     private func refreshMergedChapters(_ sourceIDs: [String]) async {
-        let refreshed = (try? await storage.loadPersistedSources(ids: sourceIDs)) ?? []
+        let refreshed = (await loggedRead("persisted sources") { try await storage.loadPersistedSources(ids: sourceIDs) }) ?? []
         let byID = Dictionary(refreshed.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var updated = articles
         var changed = false

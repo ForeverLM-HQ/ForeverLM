@@ -64,7 +64,9 @@ extension InternalReviewPanelContent {
     /// into the field as the text it is.
     @MainActor
     func referencePastedCard(_ id: String) async {
-        let snapshot = try? await vm.memoryCardReviewSnapshot(scope: .allNotebooks, includesListings: true)
+        let snapshot = await vm.loggedRead("the cards") {
+            try await vm.memoryCardReviewSnapshot(scope: .allNotebooks, includesListings: true)
+        }
         let card: ChatReferencedCard?
         if let waiting = snapshot?.toCheck.first(where: { $0.cardID == id }) {
             card = ChatReferencedCard(

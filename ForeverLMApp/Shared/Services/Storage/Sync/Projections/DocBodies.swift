@@ -661,6 +661,7 @@ extension KnowledgeStore {
 /// makes one under generation 1.
 final class DocBodySync: SyncRoundHooks, @unchecked Sendable {
     nonisolated(unsafe) static weak var current: DocBodySync?
+    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "DocBodySync")
 
     let publisher: DocBodyPublisher
     let materializer: DocBodyMaterializer
@@ -671,11 +672,19 @@ final class DocBodySync: SyncRoundHooks, @unchecked Sendable {
     }
 
     func afterFetch() async {
-        _ = try? await materializer.materializeDue()
+        do {
+            _ = try await materializer.materializeDue()
+        } catch {
+            Self.logger.error("Bringing in the Doc bodies after a fetch failed: \(String(describing: error), privacy: .public)")
+        }
     }
 
     func beforeSend() async {
-        _ = try? await publisher.publishDue()
+        do {
+            _ = try await publisher.publishDue()
+        } catch {
+            Self.logger.error("Publishing the idle Doc bodies before a send failed: \(String(describing: error), privacy: .public)")
+        }
     }
 
     /// The Doc (or a notebook's Notes Doc) closed, was published or is about to be sent somewhere: its
@@ -683,7 +692,11 @@ final class DocBodySync: SyncRoundHooks, @unchecked Sendable {
     static func requestPublish(_ artifactID: String) {
         guard let sync = current else { return }
         Task.detached(priority: .utility) {
-            _ = try? await sync.publisher.publishNow(artifactID)
+            do {
+                _ = try await sync.publisher.publishNow(artifactID)
+            } catch {
+                Self.logger.error("Publishing a Doc body on request failed: \(String(describing: error), privacy: .public)")
+            }
         }
     }
 }

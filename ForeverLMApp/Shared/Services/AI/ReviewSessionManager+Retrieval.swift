@@ -401,8 +401,12 @@ extension ReviewSessionManager {
         pool: Set<String>
     ) async -> [SourceSearchHit] {
         let trimmed = query.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty, !pool.isEmpty,
-              let queryVector = try? await AppleTextEmbedder.embed(trimmed) else {
+        guard !trimmed.isEmpty, !pool.isEmpty else { return [] }
+        let queryVector: [Float]
+        do {
+            queryVector = try await AppleTextEmbedder.embed(trimmed)
+        } catch {
+            logger.error("Embedding the retrieval query failed: \(error.localizedDescription, privacy: .public)")
             return []
         }
         return await storage.searchSources(
@@ -527,7 +531,11 @@ extension ReviewSessionManager {
         // Semantic retrieval is one algorithm. If its model is unavailable, do
         // not silently substitute keyword scoring; preserve attachment order and
         // let the configured chat model work from the selected source text.
-        guard let queryVector = try? await AppleTextEmbedder.embed(trimmed) else {
+        let queryVector: [Float]
+        do {
+            queryVector = try await AppleTextEmbedder.embed(trimmed)
+        } catch {
+            logger.error("Embedding the source query failed, keeping attachment order: \(error.localizedDescription, privacy: .public)")
             return attachmentOrderedCandidates(limit: maxSources)
         }
 

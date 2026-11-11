@@ -1882,7 +1882,7 @@ extension StudioViewModel {
     }
 
     func loadPodcastRawTTML(for sourceId: String) async -> String? {
-        try? await storage.loadPodcastRawTTML(sourceId)
+        await loggedLookup("podcast transcript markup") { try await storage.loadPodcastRawTTML(sourceId) }
     }
 
     func shouldSearchForPaperAlternative(_ article: StudioArticle) -> Bool {
@@ -2783,7 +2783,7 @@ extension StudioViewModel {
         }
 
         defer { automaticReadCompletionInFlightIDs.remove(sourceID) }
-        let booked = (try? await storage.sourceEngagedSeconds(sourceID: sourceID)) ?? 0
+        let booked = (await loggedRead("source engaged seconds") { try await storage.sourceEngagedSeconds(sourceID: sourceID) }) ?? 0
         let engaged = booked + (readerEngagedPendingSeconds[sourceID] ?? 0)
         let floor = SourceConsumption.timeFloor(
             expectedSeconds: SourceConsumption.expectedSeconds(wordCount: article.wordCount),

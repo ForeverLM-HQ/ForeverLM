@@ -1,6 +1,7 @@
 #if os(macOS)
 import EventKit
 import SwiftUI
+import os
 
 // MARK: - The Plan in the Space
 //
@@ -25,6 +26,7 @@ import SwiftUI
 /// stepper through years, and the year's quarters, one of them open to its
 /// objectives and weeks.
 struct SpacePlanPage: View {
+    private static let logger = Logger(subsystem: "com.foreverlm", category: "SpacePlan")
     @Environment(StudioViewModel.self) private var vm
     @Environment(StudioWindowState.self) private var windowState: StudioWindowState?
 
@@ -123,12 +125,25 @@ struct SpacePlanPage: View {
             return
         }
         let groups = service.groups
-        let calendars = (try? await service.calendars()) ?? []
+        let calendars: [AppleCalendarListEntry]
+        do {
+            calendars = try await service.calendars()
+        } catch {
+            Self.logger.error("Reading the calendars failed: \(error.localizedDescription, privacy: .public)")
+            calendars = []
+        }
         var colors: [String: CalendarColor] = [:]
         for calendar in calendars { colors[calendar.id] = calendar.color }
         var looks: [String: PlanEventLook] = [:]
         if let monday = openWeek, let end = weekCalendar.date(byAdding: .day, value: 7, to: monday) {
-            for event in (try? await service.shownEvents(from: monday, to: end)) ?? [] {
+            let events: [AppleCalendarEvent]
+            do {
+                events = try await service.shownEvents(from: monday, to: end)
+            } catch {
+                Self.logger.error("Reading the week's calendar events failed: \(error.localizedDescription, privacy: .public)")
+                events = []
+            }
+            for event in events {
                 let group = CalendarGroups.group(calendarID: event.calendarID, title: event.title, notes: event.notes, in: groups)
                 looks[event.occurrenceKey] = PlanEventLook(
                     calendarColor: event.calendarColor,

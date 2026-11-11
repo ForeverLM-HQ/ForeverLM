@@ -98,22 +98,15 @@ struct ForeverLMMobileApp: App {
                 MobileLearningBoutTimer.shared.start()
             }
             .task(id: account.hasAccountAccess) {
-                // This preload used to run behind the wall on purpose, so that
-                // signing in landed on a populated list. It cannot: the catalog
-                // reads through the sync session, which builds its CKContainer, and CloudKit
-                // answers a container it will not serve by trapping the process
-                // rather than by throwing — there is no catch above it. On App
-                // Review's iPad, which had never signed in and so had no
-                // account persona to resolve the container against, that trap
-                // fired about 90ms into launch and 1.0 (24) came back rejected
-                // under 2.1 as "crashed on launch".
-                //
-                // Nothing here belongs to a signed-out device anyway; the
-                // catalog is the user's own private database. So wait for the
-                // gate to answer, and let the wall's `didSignIn` handler cover
-                // the populated-list case this was originally written for. A
-                // DEBUG preview draws a sample library and never syncs: an
-                // unsigned Simulator build has no iCloud to build one against.
+                // The catalog reads through the sync session, which builds its
+                // CKContainer, and CloudKit answers a container it will not
+                // serve by trapping the process rather than by throwing, so
+                // nothing may load before the gate has answered. A device that
+                // never signed in has no account persona to resolve the
+                // container against, and nothing here belongs to it anyway: the
+                // catalog is the user's own private database. The wall's
+                // `didSignIn` handler loads the list on sign-in. A DEBUG
+                // preview draws a sample library and never syncs.
                 guard account.hasAccountAccess == true, !showsPreview else { return }
                 // The sync (docs/cloudkit-schema-design.md §2.3), beside the catalog below.
                 if MobileSyncSession.isEnabled {
@@ -165,9 +158,8 @@ struct ForeverLMMobileApp: App {
                     MobileMemoryReviewScheduler.shared.scheduleNextRefresh()
                 }
                 guard hasCompletedInitialLoad else { return }
-                // The browsing screens used to pay for foreground staleness;
-                // the voice list now refreshes itself. Cheap: the
-                // catalog load is a coalesced zone-delta behind a snapshot.
+                // Cheap: the catalog load is a coalesced zone-delta behind a
+                // snapshot.
                 Task { await viewModel.load() }
                 Task { await viewModel.importPendingSharedSources() }
             }

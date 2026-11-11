@@ -146,7 +146,7 @@ extension StudioViewModel {
         let trimmedID: String
         if let loaded = loadedArticle(forLinkToken: token) {
             trimmedID = loaded.id
-        } else if let stored = try? await storage.resolveSourceID(forLinkToken: token) {
+        } else if let stored = await loggedLookup("a source link", { try await storage.resolveSourceID(forLinkToken: token) }) {
             trimmedID = stored
         } else {
             showToast("Source not found in library")
@@ -436,7 +436,7 @@ extension StudioViewModel {
     /// The animations that have a walkthrough, read again after one is saved
     /// or removed.
     func refreshArtifactWalkthroughIDs() async {
-        artifactIDsWithWalkthroughs = (try? await storage.artifactIDsWithWalkthroughs()) ?? []
+        artifactIDsWithWalkthroughs = (await loggedRead("artifact ids with walkthroughs") { try await storage.artifactIDsWithWalkthroughs() }) ?? []
     }
 
     /// The chat moved to a step with nothing to point at, or the tutor asked
@@ -650,8 +650,8 @@ extension StudioViewModel {
     /// link unavailable. This read never unarchives or otherwise mutates it.
     func persistedArticle(forLinkToken token: String) async -> StudioArticle? {
         if let loaded = loadedArticle(forLinkToken: token) { return loaded }
-        guard let sourceID = try? await storage.resolveSourceID(forLinkToken: token),
-              let article = try? await storage.loadPersistedSources(ids: [sourceID]).first else {
+        guard let sourceID = await loggedLookup("a source link", { try await storage.resolveSourceID(forLinkToken: token) }),
+              let article = await loggedLookup("a linked source", { try await storage.loadPersistedSources(ids: [sourceID]).first }) else {
             return nil
         }
         return article
@@ -674,7 +674,7 @@ extension StudioViewModel {
             for (address, id) in await storage.librarySourceIDs(forReferenceURLs: remaining) { matches[address] = id }
         }
         guard !matches.isEmpty else { return [:] }
-        let articles = (try? await storage.loadPersistedSources(ids: Array(Set(matches.values)))) ?? []
+        let articles = (await loggedRead("persisted sources") { try await storage.loadPersistedSources(ids: Array(Set(matches.values))) }) ?? []
         let byID = Dictionary(articles.map { ($0.id, $0) }, uniquingKeysWith: { first, _ in first })
         var resolved: [String: ChatSourceCard] = [:]
         var cards: [String: ChatSourceCard] = [:]

@@ -279,7 +279,13 @@ actor CutoverSeeder {
             """, [.text(PrivateSyncZones.libraryKey), .text(PrivateSyncZones.key(PrivateSyncZones.catalog))]) == 1
         }
         guard holds || takeover else { return .seed }
-        let manifest = (try? await SeedManifestReader(store: env.store, blobs: env.blobs).load()) ?? []
+        let manifest: Set<SeedManifestEntry>
+        do {
+            manifest = try await SeedManifestReader(store: env.store, blobs: env.blobs).load()
+        } catch {
+            Self.logger.error("Reading the seed manifest failed, reconciling without it: \(error.localizedDescription, privacy: .public)")
+            manifest = []
+        }
         return .reconcile(manifest: manifest, deltaPassKey: nil)
     }
 

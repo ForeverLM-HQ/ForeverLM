@@ -1,6 +1,7 @@
 import AVFoundation
 import CryptoKit
 import Foundation
+import os
 
 enum ArticleSpeechPCMTranscodeError: LocalizedError {
     case malformedPCM
@@ -426,6 +427,7 @@ struct ArticleSpeechGenerationProgress: Codable, Equatable, Sendable {
 }
 
 enum SyncedArticleAudioStore {
+    private static let logger = Logger(subsystem: "com.foreverlm", category: "SyncedArticleAudio")
     static let manifestFileName = "manifest.json"
     static let sourceTextFileName = "source-text.txt"
     static let chunksDirectoryName = "Chunks"
@@ -650,16 +652,24 @@ enum SyncedArticleAudioStore {
         sourceID: String
     ) async {
         guard let encoded = ListeningPositionSync.encode(position) else { return }
-        try? await MobileModelPreferenceStore.shared.setString(
-            encoded,
-            forKey: ListeningPositionSync.preferenceKey(sourceID: sourceID)
-        )
+        do {
+            try await MobileModelPreferenceStore.shared.setString(
+                encoded,
+                forKey: ListeningPositionSync.preferenceKey(sourceID: sourceID)
+            )
+        } catch {
+            logger.error("Saving the listening position to the account failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     static func clearAccountPlaybackPosition(sourceID: String) {
         let key = ListeningPositionSync.preferenceKey(sourceID: sourceID)
         Task.detached(priority: .utility) {
-            try? await MobileModelPreferenceStore.shared.removeValue(forKey: key)
+            do {
+                try await MobileModelPreferenceStore.shared.removeValue(forKey: key)
+            } catch {
+                logger.error("Clearing the listening position from the account failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
     #endif
@@ -773,7 +783,12 @@ enum SyncedArticleAudioStore {
         await folder.adopt(sourceID)
         guard let manifest = publishedManifest(sourceID: sourceID), manifest.usesSupportedPlaybackFormat,
               !hasLocalChunks(for: manifest) else { return }
-        try? await folder.materialize(manifest) { _ in }
+        do {
+            try await folder.materialize(manifest) { _ in }
+        } catch is CancellationError {
+        } catch {
+            logger.error("Bringing the narration from the replica into the working folder failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     static func saveSourceText(_ text: String, sourceID: String) throws {

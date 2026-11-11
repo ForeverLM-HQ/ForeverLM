@@ -628,7 +628,13 @@ extension MCPDataStore {
                 // Metadata extraction can fail loudly after the readable PDF has
                 // already been attached and persisted. That is still a successful
                 // paywall recovery, with an explicit metadata warning.
-                let reloaded = try? await withStoreGate(.shared) { try store.loadSourceForSync(article.id) }
+                let reloaded: StudioArticle?
+                do {
+                    reloaded = try await withStoreGate(.shared) { try store.loadSourceForSync(article.id) }
+                } catch {
+                    logger.error("Reloading the source after a failed recovery failed: \(error.localizedDescription, privacy: .public)")
+                    reloaded = nil
+                }
                 if let updated = reloaded,
                    updated.resolvedPDFPath != nil,
                    !updated.hasPaywallMarker {

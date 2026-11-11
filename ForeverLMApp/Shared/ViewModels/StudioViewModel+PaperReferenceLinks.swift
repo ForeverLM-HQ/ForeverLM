@@ -87,7 +87,7 @@ extension StudioViewModel {
                 "Reading the references of \(article.id, privacy: .public) failed: \(error.localizedDescription, privacy: .public)"
             )
         }
-        let stored = (try? await storage.loadPaperReferences(sourceID: article.id)) ?? []
+        let stored = (await loggedRead("paper references") { try await storage.loadPaperReferences(sourceID: article.id) }) ?? []
         return Self.citedPaperCandidates(from: stored, sourceID: article.id)
     }
 

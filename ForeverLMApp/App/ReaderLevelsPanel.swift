@@ -1,5 +1,6 @@
 #if os(macOS)
 import SwiftUI
+import os
 
 // MARK: - Levels in the Reader
 //
@@ -21,6 +22,7 @@ import SwiftUI
 @MainActor
 @Observable
 final class ReaderLevelsModel {
+    private static let logger = Logger(subsystem: "com.foreverlm", category: "ReaderLevels")
     enum Phase: Equatable {
         case loading
         /// No levels written for this source yet.
@@ -100,7 +102,13 @@ final class ReaderLevelsModel {
         // which is read before the levels show, so they are never shown first
         // and then taken away. Unreadable reads as none: the ask then comes,
         // and answering it writes the document again.
-        let takes = (try? await storage.thinkFirstTakes(sourceID: sourceID)) ?? []
+        let takes: [ThinkFirstTake]
+        do {
+            takes = try await storage.thinkFirstTakes(sourceID: sourceID)
+        } catch {
+            Self.logger.error("Reading the earlier takes failed: \(error.localizedDescription, privacy: .public)")
+            takes = []
+        }
         guard token == loadToken else { return }
         latestTake = takes.last
         asksFirst = thinksFirst && takes.isEmpty && !ThinkFirstAskedSources.contains(sourceID)

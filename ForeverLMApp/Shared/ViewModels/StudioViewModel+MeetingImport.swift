@@ -122,7 +122,7 @@ extension StudioViewModel {
         // leaves a removed session removed. An explicit import — the learner
         // choosing this folder again — is the one act that lifts a removal, so
         // it clears the tombstone first, with a synced deletion, and imports.
-        let dismissedURLs = (try? await storage.loadDismissedSourceURLs()) ?? []
+        let dismissedURLs = (await loggedRead("dismissed source urls") { try await storage.loadDismissedSourceURLs() }) ?? []
         if !dismissedURLs.isEmpty {
             for sessionKey in Array(grouped.keys) {
                 let sourceURL = "meeting://\(groupID)/\(Self.percentEncodedMeetingPathComponent(sessionKey))"
@@ -252,7 +252,7 @@ extension StudioViewModel {
             if let occurredAt = Self.meetingDate(from: sessionKey) {
                 article.dateAdded = occurredAt
             }
-            let storedPriorArtifacts = (try? await storage.loadMeetingArtifacts(sourceID: article.id)) ?? []
+            let storedPriorArtifacts = (await loggedRead("meeting artifacts") { try await storage.loadMeetingArtifacts(sourceID: article.id) }) ?? []
             let priorArtifacts = stagedArtifactsBySourceID[article.id] ?? storedPriorArtifacts
             let generatedTranscriptID = SourceIdentity.stableID(for: "\(article.id):generated:transcript")
             let priorContent = existingArticle?.content

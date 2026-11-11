@@ -39,7 +39,12 @@ extension StudioViewModel {
         let extraction = sourceIdeaExtractionService
         for sourceID in sourceIDs {
             guard await backgroundAISpendAllowed() else { return }
-            _ = try? await extraction.prepare(sourceID: sourceID)
+            do {
+                _ = try await extraction.prepare(sourceID: sourceID)
+            } catch is CancellationError {
+            } catch {
+                logger.error("Preparing a source's ideas for drafting failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
         guard MemoryCardSettings.autoDraftsCards() else { return }
         let report = await automaticCardDraftingPass().run(only: Set(sourceIDs))

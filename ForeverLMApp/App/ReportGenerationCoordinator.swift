@@ -1,5 +1,6 @@
 #if os(macOS)
 import Foundation
+import os
 import SwiftUI
 
 /// What the Report tile and menu open (`StudioViewModel.presentReportOptions`):
@@ -28,6 +29,7 @@ struct ReportOptionsTarget: Identifiable, Equatable {
 /// stopped run leaves nothing behind.
 @MainActor
 final class ReportGenerationCoordinator: ObservableObject {
+    private static let logger = Logger(subsystem: "com.foreverlm", category: "Reports")
     static let shared = ReportGenerationCoordinator()
 
     /// One report being written: the Doc id it will be saved under, its
@@ -243,8 +245,10 @@ final class ReportGenerationCoordinator: ObservableObject {
 
     /// The saved report in the open window's lists.
     func show(_ report: ReportResult, in vm: StudioViewModel) async {
-        if let reloaded = try? await vm.loadScopedArtifacts() {
-            vm.artifacts = reloaded
+        do {
+            vm.artifacts = try await vm.loadScopedArtifacts()
+        } catch {
+            Self.logger.error("Reloading the Docs after a report failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 
@@ -272,8 +276,14 @@ final class ReportGenerationCoordinator: ObservableObject {
         if let cached = recipeCache[artifact.id], cached.updatedAt == artifact.updatedAt {
             return cached.recipe
         }
-        guard artifact.kind == nil, !artifact.isLinked,
-              let snapshot = try? await storage.artifactMarkdown(artifact.id) else { return nil }
+        guard artifact.kind == nil, !artifact.isLinked else { return nil }
+        let snapshot: ArtifactMarkdownSnapshot
+        do {
+            snapshot = try await storage.artifactMarkdown(artifact.id)
+        } catch {
+            Self.logger.error("Reading a Doc's Markdown for its report recipe failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
         let recipe = ReportRecipe.parse(fromMarkdown: snapshot.markdown)
         recipeCache[artifact.id] = (artifact.updatedAt, recipe)
         return recipe

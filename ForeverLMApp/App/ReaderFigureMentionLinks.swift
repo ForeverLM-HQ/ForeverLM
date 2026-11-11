@@ -1,5 +1,6 @@
 #if os(macOS)
 import AppKit
+import os
 import PDFKit
 
 /// Figure mentions in a paper's text as links: a click on "Extended Data
@@ -18,6 +19,7 @@ import PDFKit
 /// there (Nature's own "Fig. 1" links only jump to the figure's page).
 @MainActor
 final class ReaderFigureMentionLinks {
+    private static let logger = Logger(subsystem: "com.foreverlm", category: "FigureMentions")
     static let annotationUserName = "foreverlm-figure-mention"
 
     private struct Target {
@@ -140,11 +142,15 @@ final class ReaderFigureMentionLinks {
             guard let vm else { return }
             var labels: [String] = []
             var resolver: WalkthroughAnchorResolver?
-            if let article = await vm.persistedArticle(forLinkToken: sourceID), article.sourceType == .paper,
-               let figures = try? await vm.paperFigureIndexer.figuresForReading(sourceID: sourceID) {
-                labels = figures.map(\.figureLabel)
-                let path = await Task.detached(priority: .userInitiated) { article.resolvedLocalPath }.value
-                resolver = WalkthroughAnchorResolver(figures: figures, pdfPath: path)
+            if let article = await vm.persistedArticle(forLinkToken: sourceID), article.sourceType == .paper {
+                do {
+                    let figures = try await vm.paperFigureIndexer.figuresForReading(sourceID: sourceID)
+                    labels = figures.map(\.figureLabel)
+                    let path = await Task.detached(priority: .userInitiated) { article.resolvedLocalPath }.value
+                    resolver = WalkthroughAnchorResolver(figures: figures, pdfPath: path)
+                } catch {
+                    Self.logger.error("Reading the paper's figure index failed: \(error.localizedDescription, privacy: .public)")
+                }
             }
             // Not when the document changed while the index was read.
             guard let self, self.loading.contains(sourceID) else { return }

@@ -236,10 +236,10 @@ extension StudioViewModel {
     /// A failed completion write leaves the optimistic flip wrong; storage is
     /// the truth, so read it back rather than guessing the prior state.
     private func revertLocalScheduleCompletion() async {
-        if let goals = try? await storage.loadLearningGoals() {
+        if let goals = await loggedRead("learning goals", { try await storage.loadLearningGoals() }) {
             learningGoals = goals
         }
-        if let sources = try? await storage.loadScheduledSources() {
+        if let sources = await loggedRead("scheduled sources", { try await storage.loadScheduledSources() }) {
             scheduledSources = sources
         }
     }

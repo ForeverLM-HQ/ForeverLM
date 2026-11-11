@@ -183,8 +183,20 @@ enum MacRealtimeAssistant {
 
         private func searchLibrary(_ query: String) async -> String {
             let storage = StorageService()
-            let sources = (try? await storage.loadActiveSources()) ?? []
-            let meetingGroups = (try? await storage.loadMeetingMetadata()) ?? [:]
+            let sources: [StudioArticle]
+            do {
+                sources = try await storage.loadActiveSources()
+            } catch {
+                MacRealtimeAssistant.logger.error("Reading the library for a voice search failed: \(error.localizedDescription, privacy: .public)")
+                sources = []
+            }
+            let meetingGroups: [String: MeetingMetadata]
+            do {
+                meetingGroups = try await storage.loadMeetingMetadata()
+            } catch {
+                MacRealtimeAssistant.logger.error("Reading the meeting groups for a voice search failed: \(error.localizedDescription, privacy: .public)")
+                meetingGroups = [:]
+            }
             let items = sources.map { article in
                 RealtimeVoiceLibraryItem(
                     id: article.id,
@@ -277,7 +289,14 @@ enum MacRealtimeAssistant {
 
         private func openSource(_ id: String) async -> String {
             let storage = StorageService()
-            guard let article = try? await storage.loadSourceWithoutContent(id) else {
+            let loaded: StudioArticle?
+            do {
+                loaded = try await storage.loadSourceWithoutContent(id)
+            } catch {
+                MacRealtimeAssistant.logger.error("Reading source \(id, privacy: .public) for the voice assistant failed: \(error.localizedDescription, privacy: .public)")
+                loaded = nil
+            }
+            guard let article = loaded else {
                 return #"{"error":"No source with that id. Use search_library to find it."}"#
             }
             guard let text = await storage.loadSourceContent(id),

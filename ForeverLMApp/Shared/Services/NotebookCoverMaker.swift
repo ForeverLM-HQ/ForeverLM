@@ -664,14 +664,18 @@ actor NotebookCoverService {
     /// The cover a notebook holds in the replica, by the id the Mac's rows use: what the display draws
     /// (`NotebookCoverImages`). Nil for none, and while the replica holds no record of the notebook.
     func pointer(ofRow rowID: String) async -> NotebookCoverPointer? {
-        let found = try? await store.perform { state -> NotebookCoverPointer? in
-            let connection = state.connection
-            guard let wireKey = try connection.scalarText("SELECT wire_key FROM learning_goals WHERE id = ?", [.text(rowID)]),
-                  let target = try NotebookCoverTarget.resolved(wireKey, connection: connection),
-                  let file = try NotebookCoverSubject.load(target, connection: connection)?.cover else { return nil }
-            return NotebookCoverPointer(file: file, target: target)
+        do {
+            return try await store.perform { state -> NotebookCoverPointer? in
+                let connection = state.connection
+                guard let wireKey = try connection.scalarText("SELECT wire_key FROM learning_goals WHERE id = ?", [.text(rowID)]),
+                      let target = try NotebookCoverTarget.resolved(wireKey, connection: connection),
+                      let file = try NotebookCoverSubject.load(target, connection: connection)?.cover else { return nil }
+                return NotebookCoverPointer(file: file, target: target)
+            }
+        } catch {
+            Self.logger.error("Reading a notebook's cover from the replica failed: \(String(describing: error), privacy: .public)")
+            return nil
         }
-        return found ?? nil
     }
 
     /// The bytes of a cover the replica names; nil while they cannot be fetched (offline, not arrived), and

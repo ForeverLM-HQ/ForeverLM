@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 /// One managed text completion from the phone, with the same route resolution,
 /// request shape, usage ledger, and model check every other phone call uses.
@@ -89,7 +90,12 @@ actor MobileMemoryReviewPreparer {
         let sessionID = MemoryReviewSession.sessionID(for: now)
         if let existing = try await store.fetch(sessionID: sessionID) { return existing }
 
-        _ = try? await catalog.loadSources()
+        do {
+            _ = try await catalog.loadSources()
+        } catch {
+            Logger(subsystem: "com.foreverlm.mobile", category: "MemoryReviewPreparer")
+                .error("Loading the sources for the review failed: \(error.localizedDescription, privacy: .public)")
+        }
         let candidates = await catalog.currentMemoryReviewCandidates(now: now)
         // The learner's daily time budget, the same synced row the Mac reads;
         // the default when it was never set or CloudKit cannot be reached.

@@ -770,7 +770,7 @@ extension StudioViewModel {
         guard await persistSource(articles[index], context: "Attach supplementary PDF", syncImmediately: true) else {
             throw SourceError.fetchFailed
         }
-        if let usedElsewhere = try? await storage.otherSourceUsesLocalFile(stored, excludingSourceID: articleId) {
+        if let usedElsewhere = await loggedRead("whether another source uses the replaced file", { try await storage.otherSourceUsesLocalFile(stored, excludingSourceID: articleId) }) {
             PaperSupplementPDF.removeReplacedFile(storedPath: stored, usedElsewhere: usedElsewhere)
         }
         kickSourceEmbeddingIndexing()

@@ -165,14 +165,24 @@ actor MobileNarrationLibrary {
         } else {
             locals = Self.localStates()
             ids = Set(locals.keys)
-            ids.formUnion((try? await session.satellites.projection.replica.read { replica -> [String] in
-                var found: [String] = []
-                try replica.connection.query("SELECT id FROM m_sources WHERE has_audio = 1", []) { found.append($0.text(0) ?? "") }
-                return found
-            }) ?? [])
+            do {
+                ids.formUnion(try await session.satellites.projection.replica.read { replica -> [String] in
+                    var found: [String] = []
+                    try replica.connection.query("SELECT id FROM m_sources WHERE has_audio = 1", []) { found.append($0.text(0) ?? "") }
+                    return found
+                })
+            } catch {
+                Self.logger.error("Listing the sources that have narration failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
         let sorted = ids.sorted()
-        guard let views = try? await Self.replicaViews(sourceIDs: sorted, writer: session.writer) else { return }
+        let views: [String: ReplicaView]
+        do {
+            views = try await Self.replicaViews(sourceIDs: sorted, writer: session.writer)
+        } catch {
+            Self.logger.error("Reading the narration records failed: \(error.localizedDescription, privacy: .public)")
+            return
+        }
         var uploads: [String] = []
         for id in sorted where !uploading.contains(id) {
             guard let view = views[id] else { continue }

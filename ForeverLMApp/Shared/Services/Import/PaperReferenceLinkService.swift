@@ -479,6 +479,11 @@ actor PaperReferenceLinkService {
     }
 
     private func remaining() async -> Int {
-        (try? await storage.paperReferenceReadQueueCount()) ?? 0
+        do {
+            return try await storage.paperReferenceReadQueueCount()
+        } catch {
+            referenceLinkLogger.error("Could not count the paper reference queue: \(error.localizedDescription, privacy: .public)")
+            return 0
+        }
     }
 }

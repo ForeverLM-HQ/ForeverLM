@@ -239,7 +239,7 @@ extension MCPDataStore {
             // Screen record mode (admin only); nil scope keeps every one.
             .filter { artifact in screenScope.map { screenRecordAllowsArtifact(artifact, scope: $0) } ?? true }
             .sorted { $0.updatedAt > $1.updatedAt }
-        let walked = (try? await notebookFileStorage.artifactIDsWithWalkthroughs()) ?? []
+        let walked = try await notebookFileStorage.artifactIDsWithWalkthroughs()
         var entries: [[String: Any]] = []
         for artifact in animations {
             var entry = artifactPayload(artifact)

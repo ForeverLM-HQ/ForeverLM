@@ -329,8 +329,7 @@ enum ReadLaterExportImportService {
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         if let date = iso.date(from: value) { return date }
-        iso.formatOptions = [.withInternetDateTime]
-        if let date = iso.date(from: value) { return date }
+        if let date = KnowledgeStore.iso8601Formatter.date(from: value) { return date }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
         formatter.timeZone = TimeZone(secondsFromGMT: 0)

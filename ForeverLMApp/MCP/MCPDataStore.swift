@@ -550,9 +550,16 @@ final class MCPDataStore {
         // the background and should settle at 0.
         // In a shared stretch of its own (`selfGatedToolNames`), so the wait
         // on CloudKit above never holds the gate.
-        if let coverage = try? await withStoreGate(.shared, {
-            try knowledgeStore().indexCoverage(model: StorageService.sourceEmbeddingModel)
-        }) {
+        let indexCoverage: (activeSources: Int, indexedSources: Int, ftsRows: Int, chunkVectors: Int)?
+        do {
+            indexCoverage = try await withStoreGate(.shared, {
+                try knowledgeStore().indexCoverage(model: StorageService.sourceEmbeddingModel)
+            })
+        } catch {
+            logger.error("Reading the search index coverage failed: \(error.localizedDescription, privacy: .public)")
+            indexCoverage = nil
+        }
+        if let coverage = indexCoverage {
             payload["search_index"] = [
                 "embedding_model": StorageService.sourceEmbeddingModel,
                 "active_sources": coverage.activeSources,

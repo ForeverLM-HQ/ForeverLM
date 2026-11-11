@@ -92,7 +92,7 @@ extension StudioViewModel {
             return
         }
 
-        let existing = (try? await storage.loadVideoCitedPapers(forSourceID: sourceID)) ?? []
+        let existing = (await loggedRead("video cited papers") { try await storage.loadVideoCitedPapers(forSourceID: sourceID) }) ?? []
         let existingKeys = Set(existing.map(\.dedupKey))
 
         do {

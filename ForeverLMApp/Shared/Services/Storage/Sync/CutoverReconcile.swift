@@ -140,6 +140,10 @@ actor CutoverReconcile {
         let now = env.clock()
         var patch = RecordPatch(.zoneRoot, id: SyncSchema.rootRecordName)
         patch.changes["seedClaim"] = .value(.object(["device": .string(env.deviceID), "leaseUntil": SyncJSON(SyncTime.milliseconds(now))]))
-        _ = try? await env.writer.save([MaintenanceWriter.Write(zone: library, patch: patch)])
+        do {
+            _ = try await env.writer.save([MaintenanceWriter.Write(zone: library, patch: patch)])
+        } catch {
+            Self.logger.error("Releasing the seed claim failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 }

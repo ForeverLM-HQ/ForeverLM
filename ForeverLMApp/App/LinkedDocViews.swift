@@ -561,7 +561,8 @@ struct LinkedDocView: View {
     private func refreshExport(force: Bool) async {
         let outcome = await vm.refreshLinkedDocExport(artifact.id, force: force)
         exportOutcome = outcome
-        if let snapshot = try? await vm.artifactMarkdown(artifact.id) {
+        let snapshot = await vm.loggedRead("the linked page") { try await vm.artifactMarkdown(artifact.id) }
+        if let snapshot {
             exportedCharacterCount = snapshot.markdown.count
         }
     }

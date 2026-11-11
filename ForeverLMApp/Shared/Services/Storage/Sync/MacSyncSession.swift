@@ -9,6 +9,7 @@ import OSLog
 /// notebook states, enrollments and card states the view models keep in memory, the sidebar's keys, the
 /// blocked shows, the Settings (`UserDefaults`), and the unticks that waited for their Entry's stamp.
 final class MacRoundHooks: SyncRoundHooks, @unchecked Sendable {
+    private static let logger = Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "MacRoundHooks")
     let docs: DocBodySync
     let store: MacPrivateSyncStore
     let satellites: SatelliteReader?
@@ -21,10 +22,18 @@ final class MacRoundHooks: SyncRoundHooks, @unchecked Sendable {
 
     func afterFetch() async {
         await docs.afterFetch()
-        try? await store.onStore { try $0.resolvePendingUnticks() }
+        do {
+            try await store.onStore { try $0.resolvePendingUnticks() }
+        } catch {
+            Self.logger.error("Resolving the pending unticks failed: \(String(describing: error), privacy: .public)")
+        }
         // This Mac's Device row is made once its clock names its device, which the activation's derivation
         // could not do when the clock did not exist yet.
-        try? await store.onStore { try $0.inDerivationTransaction { _ = try $0.ensureThisDeviceRow() } }
+        do {
+            try await store.onStore { try $0.inDerivationTransaction { _ = try $0.ensureThisDeviceRow() } }
+        } catch {
+            Self.logger.error("Making this Mac's Device row failed: \(String(describing: error), privacy: .public)")
+        }
         NotebookStateStore.reload()
         CourseEnrollmentStore.reload()
         MemoryCardStateStore.reload()
@@ -33,7 +42,13 @@ final class MacRoundHooks: SyncRoundHooks, @unchecked Sendable {
         await PreferenceStore.hydrateFromStore()
         // A Setting that arrived cleared left no row; its old value is still in `UserDefaults`.
         for key in InboundSettingRemovals.take().sorted() {
-            let stillAbsent = (try? await store.onStore { try $0.scalarInteger("SELECT EXISTS(SELECT 1 FROM user_preferences WHERE key = ?)", [.text(key)]) == 0 }) ?? false
+            let stillAbsent: Bool
+            do {
+                stillAbsent = try await store.onStore { try $0.scalarInteger("SELECT EXISTS(SELECT 1 FROM user_preferences WHERE key = ?)", [.text(key)]) == 0 }
+            } catch {
+                Self.logger.error("Checking whether a cleared Setting still has a row failed: \(String(describing: error), privacy: .public)")
+                stillAbsent = false
+            }
             if stillAbsent { PreferenceStore.applyInboundRemoval(forKey: key) }
         }
         // The records this round applied queued the satellites they point at (a quiz's questions, a chat's
@@ -434,11 +449,28 @@ actor MacSyncSession {
     /// A confirmation whose catch-up or claim a quit interrupted goes on where it stopped; nothing asks the
     /// learner twice (`HoldsMyLibraryFlow` keeps its progress in `library.holdsConfirmed`).
     private func resumeConfirmation() async {
-        guard let claimer = MigrationServices.shared.claimer,
-              (try? await store.onStore { try $0.holdsMyLibraryConfirmation() }) != nil else { return }
-        let reason = try? await store.perform { try CutoverJournal.read($0.connection).freshReason }
+        guard let claimer = MigrationServices.shared.claimer else { return }
+        let confirmation: Bool
+        do {
+            confirmation = try await store.onStore { try $0.holdsMyLibraryConfirmation() } != nil
+        } catch {
+            Self.logger.error("Reading the held library confirmation failed: \(String(describing: error), privacy: .public)")
+            return
+        }
+        guard confirmation else { return }
+        let reason: String?
+        do {
+            reason = try await store.perform { try CutoverJournal.read($0.connection).freshReason }
+        } catch {
+            Self.logger.error("Reading the cutover journal failed: \(String(describing: error), privacy: .public)")
+            return
+        }
         let flow = HoldsMyLibraryFlow(record: SessionHoldsMyLibraryRecord(store: store), claimer: claimer)
-        _ = try? await flow.confirm(freshReason: reason.flatMap(FreshReason.init(rawValue:)))
+        do {
+            _ = try await flow.confirm(freshReason: reason.flatMap(FreshReason.init(rawValue:)))
+        } catch {
+            Self.logger.error("Resuming the held library confirmation failed: \(String(describing: error), privacy: .public)")
+        }
     }
 
     // MARK: - This Mac holds my library
@@ -461,11 +493,15 @@ actor MacSyncSession {
     /// or not made yet.
     private func rootOutcome() async -> LibraryClaimOutcome {
         let deviceID = deviceID
-        let found = try? await store.perform { state -> LibraryClaimOutcome in
-            guard let root = try state.replica.personalRoot()?.envelope else { return .notYet }
-            return LibraryClaimOutcome.forRoot(CutoverRootState(root: root), me: deviceID, now: SyncTime.milliseconds(Date()))
+        do {
+            return try await store.perform { state -> LibraryClaimOutcome in
+                guard let root = try state.replica.personalRoot()?.envelope else { return .notYet }
+                return LibraryClaimOutcome.forRoot(CutoverRootState(root: root), me: deviceID, now: SyncTime.milliseconds(Date()))
+            }
+        } catch {
+            Self.logger.error("Reading the library root failed: \(String(describing: error), privacy: .public)")
+            return .notYet
         }
-        return found ?? .notYet
     }
 
     private func begin(client: ZoneBootstrap.Client) async throws {
@@ -546,7 +582,7 @@ actor MacSyncSession {
         await coordinator.setAfterRound { [weak self] in
             // A body that a space's walk pointed at (a shared Doc's, `DocSpaces`) is brought in now and not
             // a round later: the walk runs after the private fetch's own hook. One query when none waits.
-            _ = try? await docs.materializer.materializeDue()
+            await docs.afterFetch()
             _ = await jobs.pass()
             _ = await moves.afterRound()
             await self?.afterRound()
@@ -590,13 +626,24 @@ actor MacSyncSession {
         drain = nil
     }
 
+    /// Whether this Mac's sends are held for the seed. A read that fails counts as held, so nothing is sent
+    /// before the hold is known to be lifted.
+    private func sendsAreHeld() async -> Bool {
+        do {
+            return try await store.perform { try $0.replica.engineState(ReplicaStore.EngineScope.holdSendsForSeed) != nil }
+        } catch {
+            Self.logger.error("Reading the hold on this Mac's sends failed: \(String(describing: error), privacy: .public)")
+            return true
+        }
+    }
+
     /// Uploads the satellites of the sources this Mac ingested since the activation, so another Mac takes their
     /// text and PDF instead of ingesting them again (`InboundSourceFiles`). Only while this Mac's sends are not
     /// held: the seed lays out and uploads what existed at the cutover, and a held Mac's pointers could not be
     /// sent after their bytes.
     private func publishSourceFiles() async -> Int {
         guard let coordinator else { return 0 }
-        let held = (try? await store.perform { try $0.replica.engineState(ReplicaStore.EngineScope.holdSendsForSeed) != nil }) ?? true
+        let held = await sendsAreHeld()
         guard !held else { return 0 }
         let publisher = SourceFilePublisher(
             store: store, blobs: coordinator.blobs,
@@ -609,7 +656,7 @@ actor MacSyncSession {
     /// and the iPhone show them (`BookCovers`). Under the same hold as the publisher.
     private func publishBookCovers() async -> Int {
         guard let coordinator else { return 0 }
-        let held = (try? await store.perform { try $0.replica.engineState(ReplicaStore.EngineScope.holdSendsForSeed) != nil }) ?? true
+        let held = await sendsAreHeld()
         guard !held else { return 0 }
         let writer = MaintenanceWriter(
             transport: coordinator.transport, store: store, moveMaps: coordinator.engine.moveMaps, deviceID: deviceID, clock: { Date() }
@@ -622,7 +669,7 @@ actor MacSyncSession {
     /// hold as the publisher.
     private func publishCardPictures() async -> Int {
         guard let coordinator else { return 0 }
-        let held = (try? await store.perform { try $0.replica.engineState(ReplicaStore.EngineScope.holdSendsForSeed) != nil }) ?? true
+        let held = await sendsAreHeld()
         guard !held else { return 0 }
         let writer = MaintenanceWriter(
             transport: coordinator.transport, store: store, moveMaps: coordinator.engine.moveMaps, deviceID: deviceID, clock: { Date() }
@@ -634,7 +681,7 @@ actor MacSyncSession {
     /// bytes (`CutoverSatellites.restoreMissing`). Under the same hold as the publisher.
     private func restoreMissingSatellites() async {
         guard let coordinator else { return }
-        let held = (try? await store.perform { try $0.replica.engineState(ReplicaStore.EngineScope.holdSendsForSeed) != nil }) ?? true
+        let held = await sendsAreHeld()
         guard !held else { return }
         let satellites = CutoverSatellites(store: store, blobs: coordinator.blobs, pendingCount: { await coordinator.engine.pendingCount })
         do {
@@ -657,10 +704,18 @@ actor MacSyncSession {
             }
         }
         if let spaces = services.spaces {
-            try? await spaces.mirrorTeams()
+            do {
+                try await spaces.mirrorTeams()
+            } catch {
+                Self.logger.error("Mirroring the teams as spaces failed: \(String(describing: error), privacy: .public)")
+            }
             if Date().timeIntervalSince(lastPurge) > 6 * 3_600 {
                 lastPurge = Date()
-                _ = try? await spaces.purgeExpired()
+                do {
+                    _ = try await spaces.purgeExpired()
+                } catch {
+                    Self.logger.error("Purging expired spaces failed: \(String(describing: error), privacy: .public)")
+                }
             }
         }
         await remakeLostTeamSpaces()
@@ -676,7 +731,14 @@ actor MacSyncSession {
     /// once the cutover is finished and only for a team `TeamToSpace.isOwed` names.
     private func remakeLostTeamSpaces() async {
         guard let coordinator, holds, cutoverFinished else { return }
-        guard (try? await store.perform { try TeamToSpace.anyOwed(in: $0) }) == true else { return }
+        let owed: Bool
+        do {
+            owed = try await store.perform { try TeamToSpace.anyOwed(in: $0) }
+        } catch {
+            Self.logger.error("Checking for team spaces to make again failed: \(String(describing: error), privacy: .public)")
+            return
+        }
+        guard owed else { return }
         do {
             let owner = SyncPerson(user: try await coordinator.transport.userRecordName(), name: coordinator.shares.accountName ?? "")
             let passKey = "\(deviceID).\(CutoverSeeder.teamsPassID)"
@@ -693,7 +755,13 @@ actor MacSyncSession {
     /// (`CutoverSatellites.restoreMissing(inSpace:teamID:)`).
     private func restoreTeamSpaceSatellites() async {
         guard let coordinator, holds, cutoverFinished else { return }
-        let spaces = (try? await store.perform { try SpaceService.summaries($0.connection) }) ?? []
+        let spaces: [SpaceSummary]
+        do {
+            spaces = try await store.perform { try SpaceService.summaries($0.connection) }
+        } catch {
+            Self.logger.error("Reading the spaces to restore their satellites failed: \(String(describing: error), privacy: .public)")
+            spaces = []
+        }
         let pending: @Sendable () async -> Int = { await coordinator.engine.pendingCount }
         let satellites = CutoverSatellites(store: store, blobs: coordinator.blobs, pendingCount: pending)
         for space in spaces where space.isOwned && space.gone == nil && ["team", "family"].contains(space.kind ?? "") {
@@ -711,7 +779,11 @@ actor MacSyncSession {
         let passKey = "\(deviceID).\(CutoverSeeder.teamsPassID)"
         let writer = MaintenanceWriter(transport: coordinator?.transport ?? CloudKitTransport(containerIdentifier: container), store: store, moveMaps: coordinator?.engine.moveMaps ?? MoveMapIndex(), deviceID: deviceID, clock: { Date() })
         guard let blobs = coordinator?.blobs else { return }
-        _ = try? await SeedManifestWriter(store: store, blobs: blobs, writer: writer).flushDelta(passKey: passKey)
+        do {
+            _ = try await SeedManifestWriter(store: store, blobs: blobs, writer: writer).flushDelta(passKey: passKey)
+        } catch {
+            Self.logger.error("Writing the space delta manifest failed: \(String(describing: error), privacy: .public)")
+        }
     }
 
     // MARK: - The cutover
@@ -831,7 +903,13 @@ actor MacSyncSession {
     /// Once the root shows `seed.metadataCompleteAt`, the always-on MCP learns the account moved (`v2Ready`).
     private func reportMovedIfComplete(_ coordinator: SyncCoordinator) async {
         guard !movedReported else { return }
-        let complete = (try? await store.perform { try $0.replica.personalRoot()?.envelope.fields["seed"]?.objectValue?["metadataCompleteAt"] != nil }) ?? false
+        let complete: Bool
+        do {
+            complete = try await store.perform { try $0.replica.personalRoot()?.envelope.fields["seed"]?.objectValue?["metadataCompleteAt"] != nil }
+        } catch {
+            Self.logger.error("Reading whether the seed's metadata is complete failed: \(String(describing: error), privacy: .public)")
+            complete = false
+        }
         guard complete else { return }
         if await LibraryMovedReport.send(sessionToken: ManagedAI.requestSessionToken) { movedReported = true }
     }

@@ -253,8 +253,10 @@ actor SourceService {
         )
         request.setValue("text/plain,text/csv,*/*;q=0.8", forHTTPHeaderField: "Accept")
 
-        if let publicText = try? await fetchGoogleDocsText(using: request, kind: resource.kind) {
-            return publicText
+        do {
+            return try await fetchGoogleDocsText(using: request, kind: resource.kind)
+        } catch {
+            logger.info("The public Google Docs export did not answer: \(error.localizedDescription, privacy: .public)")
         }
 
         // Link-accessible files export as text above; private ones cannot be
@@ -1485,10 +1487,15 @@ actor SourceService {
         preferAuthenticatedBrowser: Bool = false
     ) async -> String? {
         #if os(macOS)
-        if preferAuthenticatedBrowser,
-           let authenticatedHTML = try? await WebViewContentExtractor.shared.extractHTML(from: url),
-           !authenticatedHTML.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            return authenticatedHTML
+        if preferAuthenticatedBrowser {
+            do {
+                let authenticatedHTML = try await WebViewContentExtractor.shared.extractHTML(from: url)
+                if !authenticatedHTML.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    return authenticatedHTML
+                }
+            } catch {
+                logger.error("Reading the page in the signed-in browser failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
         #endif
 
@@ -1527,7 +1534,13 @@ actor SourceService {
            Self.readableWordCount(ofHTML: fetchedHTML) >= Self.scriptRenderedPageWordThreshold {
             return fetchedHTML
         }
-        let renderedHTML = try? await WebViewContentExtractor.shared.extractHTML(from: url)
+        let renderedHTML: String?
+        do {
+            renderedHTML = try await WebViewContentExtractor.shared.extractHTML(from: url)
+        } catch {
+            logger.error("Reading the page in a browser failed: \(error.localizedDescription, privacy: .public)")
+            renderedHTML = nil
+        }
         return Self.fullerPageHTML(fetched: fetchedHTML, rendered: renderedHTML)
         #else
         return fetchedHTML

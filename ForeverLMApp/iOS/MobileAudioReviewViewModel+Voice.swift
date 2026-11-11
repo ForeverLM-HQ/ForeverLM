@@ -1,8 +1,11 @@
 // Siri, the voice agent and the source chat.
 
 import Foundation
+import OSLog
 
 extension MobileAudioReviewViewModel {
+    nonisolated private static let logger = Logger(subsystem: "com.foreverlm.mobile", category: "AudioReviewVoice")
+
     func beginSiriVoiceSessionIfNeeded() async {
         guard !isSiriVoiceSessionActive else { return }
         isSiriVoiceSessionActive = true
@@ -439,7 +442,11 @@ extension MobileAudioReviewViewModel {
     func speakWithoutListening(_ text: String) {
         Task { [weak self] in
             guard let self else { return }
-            try? await self.configureAudioSession()
+            do {
+                try await self.configureAudioSession()
+            } catch {
+                Self.logger.error("Configuring the audio session to speak failed: \(error.localizedDescription, privacy: .public)")
+            }
             await self.voice.stop()
             self.speech.speak(text, owner: .voiceTab)
         }
@@ -460,7 +467,11 @@ extension MobileAudioReviewViewModel {
         }
         Task { [weak self] in
             guard let self else { return }
-            try? await self.configureAudioSession()
+            do {
+                try await self.configureAudioSession()
+            } catch {
+                Self.logger.error("Configuring the audio session to speak failed: \(error.localizedDescription, privacy: .public)")
+            }
             await self.voice.stop()
             self.speech.speak(text, owner: .voiceTab)
         }

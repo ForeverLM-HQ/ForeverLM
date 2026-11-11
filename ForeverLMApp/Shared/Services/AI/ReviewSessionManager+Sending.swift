@@ -335,7 +335,7 @@ extension ReviewSessionManager {
             try await storage.deleteReviewExchangeMessage(
                 sessionID: sessionID, exchangeID: turn.exchangeID, field: .evaluation
             )
-            sequence = try? await storage.loadReviewSessionExchanges(sessionID: sessionID)
+            sequence = try await storage.loadReviewSessionExchanges(sessionID: sessionID)
                 .first { $0.id == turn.exchangeID }?.sequenceNumber
         } catch {
             endGenerationPreparation()

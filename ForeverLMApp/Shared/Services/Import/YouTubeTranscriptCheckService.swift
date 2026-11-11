@@ -274,7 +274,13 @@ actor YouTubeTranscriptCheckService {
     }
 
     private func result(rewritten: [RewrittenYouTubeTranscript], checked: Int) async -> YouTubeTranscriptCheckResult {
-        let remaining = (try? await storage.youTubeTranscriptCheckQueueCount()) ?? 0
+        let remaining: Int
+        do {
+            remaining = try await storage.youTubeTranscriptCheckQueueCount()
+        } catch {
+            logger.error("Could not count the YouTube transcript check queue: \(error.localizedDescription, privacy: .public)")
+            remaining = 0
+        }
         if checked > 0 {
             logger.info(
                 "Checked \(checked) YouTube transcript(s) against their captions, rewrote \(rewritten.count); \(remaining) remaining"

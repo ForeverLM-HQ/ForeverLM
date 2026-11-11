@@ -145,13 +145,17 @@ final class PodcastTranscriptDetruncationService {
                 let message = error.localizedDescription
                 if firstError == nil { firstError = "\(candidate.title): \(message)" }
                 let attempt = candidate.attemptCount + 1
-                try? await storage.recordPodcastTranscriptDetruncationFailure(
-                    sourceID: candidate.sourceID,
-                    message: message,
-                    retryAfter: Date().addingTimeInterval(
-                        KnowledgeStore.podcastTranscriptAuditRetryDelay(afterAttempt: attempt)
+                do {
+                    try await storage.recordPodcastTranscriptDetruncationFailure(
+                        sourceID: candidate.sourceID,
+                        message: message,
+                        retryAfter: Date().addingTimeInterval(
+                            KnowledgeStore.podcastTranscriptAuditRetryDelay(afterAttempt: attempt)
+                        )
                     )
-                )
+                } catch {
+                    log.error("Recording a transcript audit failure failed: \(error.localizedDescription, privacy: .public)")
+                }
             }
         }
 
@@ -277,7 +281,12 @@ final class PodcastTranscriptDetruncationService {
         verified: Int,
         error: String?
     ) async -> PodcastTranscriptDetruncationDrainResult {
-        let remaining = (try? await storage.podcastTranscriptDetruncationQueueCount()) ?? 0
+        var remaining = 0
+        do {
+            remaining = try await storage.podcastTranscriptDetruncationQueueCount()
+        } catch {
+            log.error("Counting the transcript audit queue failed: \(error.localizedDescription, privacy: .public)")
+        }
         return PodcastTranscriptDetruncationDrainResult(
             restoredCount: restored.count,
             verifiedCount: verified,

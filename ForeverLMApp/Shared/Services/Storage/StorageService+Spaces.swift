@@ -123,7 +123,15 @@ extension StorageService {
     /// Every Doc this Mac holds a shared Doc space for, by the Doc's id: the ones this account shares
     /// and the ones shared with it. Empty while sync is not running.
     func sharedDocStates() async -> [String: SharedDocState] {
-        guard let service = try? SpaceService.current(), let spaces = try? await service.list() else { return [:] }
+        guard let service = try? SpaceService.current() else { return [:] }
+        let spaces: [SpaceSummary]
+        do {
+            spaces = try await service.list()
+        } catch {
+            Logger(subsystem: Bundle.main.bundleIdentifier ?? "ForeverLM", category: "Teams")
+                .error("Listing the spaces for shared Docs failed: \(error.localizedDescription, privacy: .public)")
+            return [:]
+        }
         var states: [String: SharedDocState] = [:]
         for space in spaces where space.gone == nil && space.kind == "doc" && space.isShared {
             guard let artifactID = space.primaryID else { continue }

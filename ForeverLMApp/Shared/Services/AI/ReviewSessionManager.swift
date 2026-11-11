@@ -1087,7 +1087,13 @@ final class ReviewSessionManager {
             // Notebook pool that was only ever a catalog costs nothing here.
             // What was loaded is remembered per chat (schema 104); a chat from
             // before that is read off its transcript's citations.
-            let remembered = try? await storage.loadReviewSessionLoadedSourceIDs(sessionID: session.id)
+            let remembered: [String]?
+            do {
+                remembered = try await storage.loadReviewSessionLoadedSourceIDs(sessionID: session.id)
+            } catch {
+                logger.error("Reading the chat's remembered sources failed: \(error.localizedDescription, privacy: .public)")
+                remembered = nil
+            }
             let reload = Self.sourceIDsToReloadOnResume(
                 remembered: remembered,
                 attached: activeSourceIDs,
@@ -1115,7 +1121,12 @@ final class ReviewSessionManager {
             if MemoryReviewSession.isMemorySession(session.id) {
                 // The briefing rides in the session record (schema 89), so the
                 // tutor reopens onto the same plan and ideas it started with.
-                dailyPlanRationale = try? await storage.loadReviewSessionBriefing(sessionID: session.id)
+                do {
+                    dailyPlanRationale = try await storage.loadReviewSessionBriefing(sessionID: session.id)
+                } catch {
+                    logger.error("Reading the memory review briefing failed: \(error.localizedDescription, privacy: .public)")
+                    dailyPlanRationale = nil
+                }
                 // The record's list is the review's material, not the attached
                 // article pool: a chat reviewed as material has no article, so
                 // reading the pool here dropped it, and the grader then refused
@@ -1140,11 +1151,21 @@ final class ReviewSessionManager {
                 // what a chat engaged must stay narrowed when the review is
                 // reopened, and the briefing is the record of what was
                 // narrowed — the store still holds every idea the source has.
-                memoryReviewIdeasBySource = Self.gradableIdeas(
-                    (try? await storage.loadSourceIdeas(sourceIDs: material)) ?? [:],
-                    briefing: dailyPlanRationale
-                )
-                let depths = (try? await storage.loadSourceReviewDepths(sourceIDs: material)) ?? [:]
+                let storedIdeas: [String: [SourceIdea]]
+                do {
+                    storedIdeas = try await storage.loadSourceIdeas(sourceIDs: material)
+                } catch {
+                    logger.error("Reading the review's source ideas failed: \(error.localizedDescription, privacy: .public)")
+                    storedIdeas = [:]
+                }
+                memoryReviewIdeasBySource = Self.gradableIdeas(storedIdeas, briefing: dailyPlanRationale)
+                let depths: [String: MemoryReviewDepth]
+                do {
+                    depths = try await storage.loadSourceReviewDepths(sourceIDs: material)
+                } catch {
+                    logger.error("Reading the review's source depths failed: \(error.localizedDescription, privacy: .public)")
+                    depths = [:]
+                }
                 memoryReviewDepthBySource = Dictionary(material.map { sourceID in
                     // Material with no article is a chat: the only thing a
                     // memory review carries that is not a source.

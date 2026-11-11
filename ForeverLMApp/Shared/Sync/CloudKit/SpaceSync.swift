@@ -298,7 +298,11 @@ actor SpaceSync {
     /// keeps its row and the root its salt, so a pending write can still go to the copy), its token and
     /// passes go, and the gone mark tells the space packages, which keep or hide its local rows (§9.6).
     func spaceGone(_ zone: SpaceZone, reason: String) async throws {
-        try? await refreshMoveMapsFromServer()
+        do {
+            try await refreshMoveMapsFromServer()
+        } catch {
+            Self.logger.error("Refreshing the move maps before a space went failed: \(String(describing: error), privacy: .public)")
+        }
         let now = clock()
         let moveMaps = moveMaps
         try await store.perform { state in

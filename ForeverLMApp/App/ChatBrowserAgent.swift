@@ -270,7 +270,11 @@ final class StudioChatBrowserAgent: ChatBrowserAgent {
         case .top: script = "window.scrollTo(0, 0); true"
         case .bottom: script = "window.scrollTo(0, document.documentElement.scrollHeight); true"
         }
-        _ = try? await webView.evaluateJavaScript(script)
+        do {
+            _ = try await webView.evaluateJavaScript(script)
+        } catch {
+            logger.error("Scrolling the page failed: \(error.localizedDescription, privacy: .public)")
+        }
         try? await Task.sleep(for: .milliseconds(350))
         if let preview = await preview(of: webView) { onPreview(preview) }
         let outline = await outline(of: webView)
@@ -425,7 +429,14 @@ final class StudioChatBrowserAgent: ChatBrowserAgent {
             return .success(CGPoint(x: x, y: y))
         case .ref(let ref):
             let script = ChatBrowserScripts.locate(ref: ref)
-            guard let result = try? await webView.evaluateJavaScript(script) as? [String: Any] else {
+            let located: Any?
+            do {
+                located = try await webView.evaluateJavaScript(script)
+            } catch {
+                logger.error("Locating \(ref, privacy: .public) on the page failed: \(error.localizedDescription, privacy: .public)")
+                located = nil
+            }
+            guard let result = located as? [String: Any] else {
                 return .failure("Error: \(ref) is not a handle from the current page. Call browser_read_page and use a ref it returned.")
             }
             if let error = result["error"] as? String {
@@ -464,7 +475,14 @@ final class StudioChatBrowserAgent: ChatBrowserAgent {
         var outline = Outline()
         outline.title = webView.title ?? ""
         outline.url = webView.url?.absoluteString ?? ""
-        guard let result = try? await webView.evaluateJavaScript(ChatBrowserScripts.outline) as? [String: Any] else {
+        let outlineReply: Any?
+        do {
+            outlineReply = try await webView.evaluateJavaScript(ChatBrowserScripts.outline)
+        } catch {
+            logger.error("Reading the page outline failed: \(error.localizedDescription, privacy: .public)")
+            return outline
+        }
+        guard let result = outlineReply as? [String: Any] else {
             return outline
         }
         if let title = result["title"] as? String, !title.isEmpty { outline.title = title }

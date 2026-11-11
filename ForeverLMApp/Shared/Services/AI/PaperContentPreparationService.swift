@@ -1146,7 +1146,7 @@ actor CanonicalContentCleanupService {
     ///   and historical re-clean rows wait for the next day.
     func drain(backgroundSpendAllowed: Bool = true) async -> CanonicalContentCleanupDrainResult {
         guard !isDraining else {
-            let remaining = (try? await storage.canonicalContentCleanupQueueCount()) ?? 0
+            let remaining = await queuedCleanupCount()
             return CanonicalContentCleanupDrainResult(
                 processedCount: 0,
                 processedSourceIDs: [],
@@ -1320,11 +1320,18 @@ actor CanonicalContentCleanupService {
         _ candidate: CanonicalContentCleanupCandidate,
         message: String
     ) async -> Bool {
-        guard let attempts = try? await storage.recordCanonicalContentCleanupFailure(
-            sourceID: candidate.sourceID,
-            message: message,
-            sourceSHA256: candidate.storedTextSHA256
-        ), attempts >= CanonicalContentCleanupRetry.maximumAttempts else { return false }
+        let attempts: Int
+        do {
+            attempts = try await storage.recordCanonicalContentCleanupFailure(
+                sourceID: candidate.sourceID,
+                message: message,
+                sourceSHA256: candidate.storedTextSHA256
+            )
+        } catch {
+            logger.error("Could not record the content cleanup failure for source \(candidate.sourceID, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            return false
+        }
+        guard attempts >= CanonicalContentCleanupRetry.maximumAttempts else { return false }
         guard candidate.isPendingIngestion else {
             logger.notice(
                 """
@@ -1346,7 +1353,14 @@ actor CanonicalContentCleanupService {
     }
 
     private func nextRetryInSeconds() async -> Double? {
-        guard let due = try? await storage.nextCanonicalContentCleanupRetryDate() else { return nil }
+        let due: Date?
+        do {
+            due = try await storage.nextCanonicalContentCleanupRetryDate()
+        } catch {
+            logger.error("Reading the next content cleanup retry time failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
+        guard let due else { return nil }
         return max(0, due.timeIntervalSinceNow)
     }
 
@@ -1435,12 +1449,21 @@ actor CanonicalContentCleanupService {
         )
     }
 
+    private func queuedCleanupCount() async -> Int {
+        do {
+            return try await storage.canonicalContentCleanupQueueCount()
+        } catch {
+            logger.error("Counting the queued content cleanups failed: \(error.localizedDescription, privacy: .public)")
+            return 0
+        }
+    }
+
     private func result(
         processed: Int,
         processedSourceIDs: [String],
         error: String?
     ) async -> CanonicalContentCleanupDrainResult {
-        let remaining = (try? await storage.canonicalContentCleanupQueueCount()) ?? 0
+        let remaining = await queuedCleanupCount()
         return CanonicalContentCleanupDrainResult(
             processedCount: processed,
             processedSourceIDs: processedSourceIDs,

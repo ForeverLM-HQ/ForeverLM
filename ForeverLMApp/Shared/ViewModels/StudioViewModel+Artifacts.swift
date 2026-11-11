@@ -143,7 +143,7 @@ extension StudioViewModel {
                 markdown: body.markdown,
                 expectedRevision: snapshot.revision
             )
-            if let reloaded = try? await loadScopedArtifacts() { artifacts = reloaded }
+            if let reloaded = await loggedRead("artifacts", { try await loadScopedArtifacts() }) { artifacts = reloaded }
             return saved
         } catch {
             logger.error("Keeping doc \(artifact.id)'s pictures failed: \(error.localizedDescription)")
@@ -156,7 +156,7 @@ extension StudioViewModel {
     /// when the menu opens and off the main actor (docs/docs-design.md,
     /// "Linked in"). Hidden records stay out; archived ones are listed.
     func linkedArtifacts(forSource sourceID: String) async -> [StorageService.SourceArtifactLink] {
-        let links = (try? await storage.artifactsLinked(toSource: sourceID)) ?? []
+        let links = (await loggedRead("artifacts linked") { try await storage.artifactsLinked(toSource: sourceID) }) ?? []
         return links.filter { !$0.artifact.isHidden }
     }
 
@@ -164,7 +164,7 @@ extension StudioViewModel {
     /// into this Mac's, held beside the doc until the writer picks one
     /// (docs/teams-design.md, decision 12). nil when nothing is held.
     func artifactHeldRemoteMarkdown(_ artifactID: String) async -> String? {
-        try? await storage.artifactHeldRemoteMarkdown(artifactID)
+        await loggedLookup("held remote markdown") { try await storage.artifactHeldRemoteMarkdown(artifactID) }
     }
 
     func discardArtifactHeldRemoteMarkdown(_ artifactID: String) async {
@@ -715,7 +715,7 @@ extension StudioViewModel {
     /// the same one the web reads. Nil while sync is not running.
     func commentAuthorRecordName() async -> String? {
         guard let coordinator = SyncCoordinator.current else { return nil }
-        return try? await coordinator.transport.userRecordName()
+        return await loggedRead("the account record name") { try await coordinator.transport.userRecordName() }
     }
 
     func replyToArtifactComment(_ commentID: String, body: String) async throws -> ArtifactCommentRecord {

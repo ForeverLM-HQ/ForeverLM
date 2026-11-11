@@ -1,6 +1,7 @@
 import AppKit
 import Foundation
 import ImageIO
+import OSLog
 import UniformTypeIdentifiers
 
 /// A picture the chat transcript shows for a `foreverlm://image/…` reference.
@@ -9,6 +10,8 @@ import UniformTypeIdentifiers
 /// page with no file access, and the reference itself deliberately names no
 /// path. The bytes stay here so the Copy button and a drag out of the transcript
 /// put the very same image on the pasteboard.
+private let chatSourceImageLogger = Logger(subsystem: "com.foreverlm", category: "ChatSourceImage")
+
 struct ChatSourceImage: Encodable, Sendable {
     let data: Data
     let mediaType: String
@@ -299,11 +302,15 @@ struct ChatSourceImage: Encodable, Sendable {
                 SourceImageCatalog.renderMoment(moment)
             }.value
             if rendered == nil, YouTubeTranscriptService.isYouTubeURL(article.url) {
-                _ = try? await YouTubeSlideExtractionService.shared.captureMoment(
-                    videoURL: article.url,
-                    sourceID: article.id,
-                    seconds: seconds
-                )
+                do {
+                    _ = try await YouTubeSlideExtractionService.shared.captureMoment(
+                        videoURL: article.url,
+                        sourceID: article.id,
+                        seconds: seconds
+                    )
+                } catch {
+                    chatSourceImageLogger.error("Capturing the video moment failed: \(error.localizedDescription, privacy: .public)")
+                }
                 rendered = await Task.detached(priority: .userInitiated) {
                     SourceImageCatalog.renderMoment(moment)
                 }.value
@@ -355,7 +362,14 @@ extension ChatSourceImage {
     static func cardPictureJPEG(_ target: String, storage: StorageService) async -> Data? {
         guard let image = await resolved(
             token: target,
-            articleForSourceID: { sourceID in try? await storage.loadSourceWithoutContent(sourceID) },
+            articleForSourceID: { sourceID in
+                do {
+                    return try await storage.loadSourceWithoutContent(sourceID)
+                } catch {
+                    chatSourceImageLogger.error("Reading the source for a card picture failed: \(error.localizedDescription, privacy: .public)")
+                    return nil
+                }
+            },
             contentForSourceID: { sourceID in await storage.loadSourceContent(sourceID) }
         ) else { return nil }
         let data = image.data

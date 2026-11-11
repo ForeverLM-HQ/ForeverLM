@@ -437,7 +437,14 @@ actor MobileSatellites {
                 stopDownloading(space: zoneKey)
                 continue
             }
-            guard let signature = try? await spaceSignature(zoneKey), spacePasses[zoneKey] != signature else { continue }
+            let signature: String
+            do {
+                signature = try await spaceSignature(zoneKey)
+            } catch {
+                Self.logger.error("Reading a space's file list failed: \(error.localizedDescription, privacy: .public)")
+                continue
+            }
+            guard spacePasses[zoneKey] != signature else { continue }
             var complete = true
             do {
                 for satellite in try await spaceSatellites(zoneKey: zoneKey)

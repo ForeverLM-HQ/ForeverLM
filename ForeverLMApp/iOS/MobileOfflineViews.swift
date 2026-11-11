@@ -1,3 +1,4 @@
+import OSLog
 import SwiftUI
 
 // The three surfaces of Save Offline: the action (reader menu and row context
@@ -273,7 +274,13 @@ final class MobileOfflineChoicesModel: ObservableObject {
         guard let session = await MobileSyncSession.startIfEnabled() else { return }
         isAvailable = true
         searchesWholeLibrary = textChoice.wholeLibrary
-        let held = (try? await session.projection.spaces()) ?? []
+        var held: [MobileProjection.Space] = []
+        do {
+            held = try await session.projection.spaces()
+        } catch {
+            Logger(subsystem: "com.foreverlm.mobile", category: "OfflineChoices")
+                .error("Reading the spaces held on this phone failed: \(error.localizedDescription, privacy: .public)")
+        }
         spaces = held.map { SpaceRow(id: $0.zoneKey, name: Self.name(of: $0), isDownloaded: downloads.contains($0.zoneKey)) }
         for space in held {
             await measure(space.zoneKey, satellites: session.satellites)

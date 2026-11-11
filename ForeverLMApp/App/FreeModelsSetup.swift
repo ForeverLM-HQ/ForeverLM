@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 import UserNotifications
 
 /// OpenRouter's free models as ordinary picks, on the learner's own
@@ -656,6 +657,8 @@ enum FreeModelReplacement {
 /// banner says what moved; when nothing could move, the banner asks, and its
 /// Switch to a Free Model action tries again against a fresh directory read.
 enum AIModelPriceWatch {
+    private static let logger = Logger(subsystem: "com.foreverlm", category: "ModelPriceWatch")
+
     /// What one read said about a watched model, in USD per million tokens.
     struct Seen: Codable, Equatable, Sendable {
         let name: String
@@ -953,7 +956,11 @@ enum AIModelPriceWatch {
             trigger: nil
         )
         center.removeDeliveredNotifications(withIdentifiers: [request.identifier])
-        try? await center.add(request)
+        do {
+            try await center.add(request)
+        } catch {
+            logger.error("Posting the price notification failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     private static func registerCategory() async {

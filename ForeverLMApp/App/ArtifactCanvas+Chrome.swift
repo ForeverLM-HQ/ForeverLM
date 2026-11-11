@@ -1130,7 +1130,13 @@ extension ArtifactCanvas {
     /// page as it reads; the copy opens in this pane.
     private func duplicatePage(_ artifact: ArtifactRecord) {
         Task {
-            if selectedArtifactID == artifact.id { try? await docChrome.flushDraft?() }
+            if selectedArtifactID == artifact.id {
+                do {
+                    try await docChrome.flushDraft?()
+                } catch {
+                    vm.logger.error("Writing the typing on screen before duplicating failed: \(error.localizedDescription, privacy: .public)")
+                }
+            }
             guard let copy = await vm.duplicateArtifact(artifact.id) else { return }
             if artifacts.contains(where: { $0.id == copy.id }) {
                 searchText = ""

@@ -3,8 +3,11 @@
 import AVFoundation
 import Foundation
 import MediaPlayer
+import OSLog
 
 extension MobileAudioReviewViewModel {
+    nonisolated private static let logger = Logger(subsystem: "com.foreverlm.mobile", category: "AudioReviewPlayback")
+
     var canSeek: Bool {
         duration > 0
     }
@@ -152,7 +155,12 @@ extension MobileAudioReviewViewModel {
         let manifest = nextItem.manifest
         nextChapterPrefetchTask = Task.detached(priority: .utility) {
             guard !SyncedArticleAudioStore.hasLocalChunks(for: manifest) else { return }
-            try? await SyncedArticleAudioStore.materializeChunks(for: manifest) { _ in }
+            do {
+                try await SyncedArticleAudioStore.materializeChunks(for: manifest) { _ in }
+            } catch is CancellationError {
+            } catch {
+                Self.logger.error("Fetching the next chapter's audio ahead failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
     }
 

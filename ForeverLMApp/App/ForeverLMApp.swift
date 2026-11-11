@@ -1174,7 +1174,14 @@ struct ForeverLMApp: App {
                     .disabled(day.liveBout?.writtenAt != nil)
                     Button("Stop the Clock") {
                         guard let bout = DayModel.shared.liveBout else { return }
-                        Task { _ = try? await DayModel.shared.endBout(bout.id) }
+                        Task {
+                            do {
+                                _ = try await DayModel.shared.endBout(bout.id)
+                            } catch {
+                                Logger(subsystem: "com.foreverlm", category: "Day")
+                                    .error("Stopping the clock failed: \(error.localizedDescription, privacy: .public)")
+                            }
+                        }
                     }
                     .disabled(!day.isBoutRunning)
                 }

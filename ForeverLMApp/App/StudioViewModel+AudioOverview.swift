@@ -244,8 +244,10 @@ extension StudioViewModel {
             return
         }
         articles.removeAll { $0.id == carrierID }
-        if let reloaded = try? await loadScopedArtifacts() {
-            artifacts = reloaded
+        do {
+            artifacts = try await loadScopedArtifacts()
+        } catch {
+            logger.error("Reloading the Docs after deleting an audio overview failed: \(error.localizedDescription, privacy: .public)")
         }
     }
 }

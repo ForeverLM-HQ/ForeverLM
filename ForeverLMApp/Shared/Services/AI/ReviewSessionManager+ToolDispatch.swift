@@ -83,9 +83,15 @@ extension ReviewSessionManager {
     /// record rather than the tool's words, so a Notebook made without
     /// taking the chat in moves nothing.
     private func followNotebookThisChatMade() async {
-        guard let sessionID,
-              let notebookID = try? await storage.loadReviewSessionGoalID(sessionID: sessionID),
-              notebookID != notebookSourceScopeID else { return }
+        guard let sessionID else { return }
+        let recordedNotebookID: String?
+        do {
+            recordedNotebookID = try await storage.loadReviewSessionGoalID(sessionID: sessionID)
+        } catch {
+            logger.error("Reading the chat's Notebook failed: \(error.localizedDescription, privacy: .public)")
+            return
+        }
+        guard let notebookID = recordedNotebookID, notebookID != notebookSourceScopeID else { return }
         // `create_notebook` filed the Pages the chat's stored replies carry;
         // those this turn wrote before it wait for the reply, so they are
         // filed here. Missing one leaves a Page in no Notebook, as before.

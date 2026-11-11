@@ -164,7 +164,7 @@ extension StudioViewModel {
         await SlideFrameRestorer.shared.restore(slides, of: article, storage: storage)
 
         let existingKeys = Set(
-            (try? await storage.loadVideoCitedPapers(forSourceID: sourceID))?.map(\.dedupKey) ?? []
+            (await loggedRead("video cited papers") { try await storage.loadVideoCitedPapers(forSourceID: sourceID) })?.map(\.dedupKey) ?? []
         )
         do {
             let result = try await SlideCitationService.shared.scan(
@@ -214,7 +214,7 @@ extension StudioViewModel {
             showToast("Mentioned papers can only be read from a meeting.")
             return
         }
-        let loadedArtifacts = (try? await storage.loadMeetingArtifacts(sourceID: sourceID)) ?? []
+        let loadedArtifacts = (await loggedRead("meeting artifacts") { try await storage.loadMeetingArtifacts(sourceID: sourceID) }) ?? []
         let artifacts = meetingArtifactsBySourceId[sourceID] ?? loadedArtifacts
         if artifacts.contains(where: { $0.kind == .recording }) {
             do {
@@ -253,7 +253,7 @@ extension StudioViewModel {
             SlideCitationService.materialChunks(content)
         }.value
         let existingKeys = Set(
-            (try? await storage.loadVideoCitedPapers(forSourceID: sourceID))?.map(\.dedupKey) ?? []
+            (await loggedRead("video cited papers") { try await storage.loadVideoCitedPapers(forSourceID: sourceID) })?.map(\.dedupKey) ?? []
         )
 
         do {
@@ -315,7 +315,7 @@ extension StudioViewModel {
         slide: YouTubeSlideFrameContext
     ) async -> [VideoCitedPaper] {
         let existingKeys = Set(
-            (try? await storage.loadVideoCitedPapers(forSourceID: sourceID))?.map(\.dedupKey) ?? []
+            (await loggedRead("video cited papers") { try await storage.loadVideoCitedPapers(forSourceID: sourceID) })?.map(\.dedupKey) ?? []
         )
         do {
             guard let article = articles.first(where: { $0.id == sourceID }) else {
@@ -403,7 +403,7 @@ extension StudioViewModel {
 
         // Found as a paper the source already lists under another row: that row is the
         // one to act on, so this one is dismissed rather than shown twice.
-        let existing = (try? await storage.loadVideoCitedPapers(forSourceID: paper.sourceID)) ?? []
+        let existing = (await loggedRead("video cited papers") { try await storage.loadVideoCitedPapers(forSourceID: paper.sourceID) }) ?? []
         var updated = markingIfAlreadyInLibrary(found)
         if existing.contains(where: { $0.id != paper.id && $0.dedupKey == updated.dedupKey }) {
             updated.status = .dismissed
@@ -418,7 +418,7 @@ extension StudioViewModel {
     // MARK: - Reader actions
 
     func loadCitedPapers(forSourceID sourceID: String) async -> [VideoCitedPaper] {
-        (try? await storage.loadVideoCitedPapers(forSourceID: sourceID)) ?? []
+        (await loggedRead("video cited papers") { try await storage.loadVideoCitedPapers(forSourceID: sourceID) }) ?? []
     }
 
     /// Adds a cited source to the library through the normal add path, which types it off
@@ -455,7 +455,7 @@ extension StudioViewModel {
     /// showed, which knows the paper only by id. A candidate already added, or
     /// gone since the chat drew it, is left as it is.
     func importCitedPaper(id: String) async {
-        guard let paper = try? await storage.loadVideoCitedPaper(id: id), paper.status == .pending else { return }
+        guard let paper = await loggedLookup("a video cited paper", { try await storage.loadVideoCitedPaper(id: id) }), paper.status == .pending else { return }
         await importCitedPaper(paper)
     }
 
@@ -678,7 +678,7 @@ extension StudioViewModel {
             return WalkthroughCitationMatch(citation: citation, librarySourceID: id)
         }
         var lent = citation
-        let recorded = (try? await storage.loadVideoCitedPapers(forSourceID: walkedSourceID)) ?? []
+        let recorded = (await loggedRead("video cited papers") { try await storage.loadVideoCitedPapers(forSourceID: walkedSourceID) }) ?? []
         if let row = Self.recordedCitedPaper(matching: citation, in: recorded) {
             if lent.doi == nil, let doi = PaperWalkthroughCitation.normalizedDOI(row.doi) { lent.doi = doi }
             if lent.url == nil, let url = row.url, URL(string: url)?.scheme?.lowercased().hasPrefix("http") == true {

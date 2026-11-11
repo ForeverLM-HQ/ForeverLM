@@ -1,5 +1,8 @@
 import SwiftUI
 import AppKit
+import os
+
+private let aiUsageLogger = Logger(subsystem: "com.foreverlm", category: "AIUsage")
 
 // The AI Usage surface: the learner's own key, spending and limits, and the
 // activity by task. It opens from the rail's
@@ -1071,8 +1074,20 @@ struct AIActivitySettingsSection: View {
     private func reloadFilteredUsage(from storage: StorageService = StorageService()) async {
         let key = filterSelectionKey
         let filter = eventFilter
-        let totals = try? await storage.aiUsageEventTotals(filter: filter)
-        let loadedActivityGroups = (try? await storage.aiUsageTaskActivities(filter: filter)) ?? []
+        var totals: AIUsageEventTotals?
+        do {
+            totals = try await storage.aiUsageEventTotals(filter: filter)
+        } catch is CancellationError {
+        } catch {
+            aiUsageLogger.error("Reading the usage totals failed: \(error.localizedDescription, privacy: .public)")
+        }
+        var loadedActivityGroups: [AIUsageTaskActivitySummary] = []
+        do {
+            loadedActivityGroups = try await storage.aiUsageTaskActivities(filter: filter)
+        } catch is CancellationError {
+        } catch {
+            aiUsageLogger.error("Reading the usage activity failed: \(error.localizedDescription, privacy: .public)")
+        }
 
         // A newer range may have started another load while these
         // actor-isolated SQLite reads were in flight.
@@ -1096,12 +1111,18 @@ struct AIActivitySettingsSection: View {
 
         let key = filterSelectionKey
         let filter = eventFilter
-        let subjects = (try? await StorageService().aiUsageSubjectActivities(
-            task: summary.task,
-            filter: filter,
-            limit: Self.subjectPageSize,
-            offset: offset
-        )) ?? []
+        var subjects: [AIUsageSubjectActivitySummary] = []
+        do {
+            subjects = try await StorageService().aiUsageSubjectActivities(
+                task: summary.task,
+                filter: filter,
+                limit: Self.subjectPageSize,
+                offset: offset
+            )
+        } catch is CancellationError {
+        } catch {
+            aiUsageLogger.error("Reading the usage subjects failed: \(error.localizedDescription, privacy: .public)")
+        }
         guard key == filterSelectionKey,
               expandedActivityKeys.contains(summary.key),
               activityGroups.contains(where: { $0.key == summary.key }) else { return }
@@ -1208,7 +1229,13 @@ private struct AIUsageSpentToday: View {
         let filter = KnowledgeStore.AIUsageEventFilter(
             since: start, provider: nil, model: nil, operation: nil, task: nil, clientPlatform: nil
         )
-        totals = try? await StorageService().aiUsageEventTotals(filter: filter)
+        do {
+            totals = try await StorageService().aiUsageEventTotals(filter: filter)
+        } catch is CancellationError {
+        } catch {
+            aiUsageLogger.error("Reading today's usage totals failed: \(error.localizedDescription, privacy: .public)")
+            totals = nil
+        }
     }
 }
 

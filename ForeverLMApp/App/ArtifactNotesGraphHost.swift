@@ -377,10 +377,17 @@ final class ArtifactNotesGraphHost {
         let ids = days.flatMap { NotesGraphHostText.referencedBlockIDs(in: $0.markdown) }.filter { seen.insert($0).inserted }
         guard !ids.isEmpty else { return }
         let storage = vm.storage
+        let logger = vm.logger
         let docID = docID
         Task { [weak self] in
-            guard let blocks = try? await storage.docGraphBlocks(ids, teamID: nil), !blocks.isEmpty,
-                  let self, self.docID == docID else { return }
+            let blocks: [String: DocGraphBlock]
+            do {
+                blocks = try await storage.docGraphBlocks(ids, teamID: nil)
+            } catch {
+                logger.error("Reading the blocks the earlier days reference failed: \(error.localizedDescription, privacy: .public)")
+                return
+            }
+            guard !blocks.isEmpty, let self, self.docID == docID else { return }
             let titles = self.docTitles()
             let json = await NotesGraphWire.jsonOffMain(blocks.mapValues { NotesGraphWire.Block($0, docTitle: titles[$0.docID] ?? "") })
             guard self.docID == docID else { return }
@@ -467,7 +474,8 @@ final class ArtifactNotesGraphHost {
                     reply.setBlocks(await NotesGraphWire.jsonOffMain(blocks.mapValues { NotesGraphWire.Block($0, docTitle: titles[$0.docID] ?? "") }))
                     // The other doc changed on disk: every pane showing it,
                     // and this doc's graph, hear it through the library.
-                    if let reloaded = try? await vm.loadScopedArtifacts() { vm.artifacts = reloaded }
+                    let reloaded = await vm.loggedRead("the Docs") { try await vm.loadScopedArtifacts() }
+                    if let reloaded { vm.artifacts = reloaded }
                 } catch {
                     vm.showToast(error.localizedDescription)
                 }
@@ -570,8 +578,10 @@ final class ArtifactNotesGraphHost {
                 // A highlight opens its source at the passage, flashed.
                 var passage: String?
                 if let highlightID = link.highlightID {
-                    passage = (try? await storage.sourceHighlights(sourceID: link.sourceID))?
-                        .first { $0.id == highlightID }?.quote
+                    let highlights = await vm.loggedRead("the source's highlights") {
+                        try await storage.sourceHighlights(sourceID: link.sourceID)
+                    }
+                    passage = highlights?.first { $0.id == highlightID }?.quote
                 }
                 await vm.openLinkedSourceInReader(link.sourceID, passage: passage, beside: .notepad)
             }

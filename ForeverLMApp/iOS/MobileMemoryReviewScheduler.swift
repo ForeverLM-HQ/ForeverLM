@@ -1,5 +1,6 @@
 import BackgroundTasks
 import Foundation
+import OSLog
 import UserNotifications
 
 /// Prepares today's memory review chat on the phone, and sends the daily
@@ -131,7 +132,13 @@ final class MobileMemoryReviewScheduler: ObservableObject {
         guard await isEnabled() else { return .nothingToDo }
         guard ManagedAI.isSignedIn else { return .nothingToDo }
         let sessionID = MemoryReviewSession.sessionID(for: now)
-        let exists = ((try? await MobileMemoryReviewStore.shared.fetch(sessionID: sessionID)) ?? nil) != nil
+        var exists = false
+        do {
+            exists = try await MobileMemoryReviewStore.shared.fetch(sessionID: sessionID) != nil
+        } catch {
+            Logger(subsystem: "com.foreverlm.mobile", category: "MemoryReviewScheduler")
+                .error("Looking for today's prepared review failed: \(error.localizedDescription, privacy: .public)")
+        }
         let decision = DailyReviewPreparationTiming.decide(
             now: now,
             isEnabled: true,
@@ -196,7 +203,12 @@ final class MobileMemoryReviewScheduler: ObservableObject {
               pending.content.categoryIdentifier != notificationCategory,
               let content = pending.content.mutableCopy() as? UNMutableNotificationContent else { return }
         content.categoryIdentifier = notificationCategory
-        try? await center.add(UNNotificationRequest(identifier: notificationIdentifier, content: content, trigger: pending.trigger))
+        do {
+            try await center.add(UNNotificationRequest(identifier: notificationIdentifier, content: content, trigger: pending.trigger))
+        } catch {
+            Logger(subsystem: "com.foreverlm.mobile", category: "MemoryReviewScheduler")
+                .error("Adding the voice action to the pending reminder failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 
     /// The daily quiz reminder, on for every signed-in phone (product owner,
@@ -233,7 +245,12 @@ final class MobileMemoryReviewScheduler: ObservableObject {
             content: content,
             trigger: UNCalendarNotificationTrigger(dateMatching: components, repeats: true)
         )
-        try? await center.add(request)
+        do {
+            try await center.add(request)
+        } catch {
+            Logger(subsystem: "com.foreverlm.mobile", category: "MemoryReviewScheduler")
+                .error("Scheduling the daily review reminder failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 }
 

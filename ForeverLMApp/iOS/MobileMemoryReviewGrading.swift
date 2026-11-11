@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 /// What grading today's memory review needs beyond its record: the ideas of
 /// its sources, their titles, the notebooks holding them (an analogy's
@@ -25,7 +26,12 @@ struct MobileMemoryReviewGrading {
     /// Loads it for a review; it can wait on a catalog sync.
     static func load(for review: MobileMemoryReviewRecord, catalog: MobileCloudSourceCatalog = .shared) async -> Self {
         var grading = Self()
-        _ = try? await catalog.loadSources()
+        do {
+            _ = try await catalog.loadSources()
+        } catch {
+            Logger(subsystem: "com.foreverlm.mobile", category: "MemoryReviewGrading")
+                .error("Loading the sources for the review failed: \(error.localizedDescription, privacy: .public)")
+        }
         grading.ideasBySource = await catalog.currentSourceIdeas(sourceIDs: review.sourceIDs)
         let sources = await catalog.currentSources(ids: review.sourceIDs)
         grading.sourceTitles = Dictionary(sources.map { ($0.id, $0.title) }, uniquingKeysWith: { first, _ in first })
@@ -154,10 +160,15 @@ struct MobileMemoryReviewGrading {
         if let sourceID, review.sourceIDs.contains(sourceID) {
             applied.depthBySource[sourceID] = depth
         } else if let sourceType = sourceType?.lowercased(), !sourceType.isEmpty {
-            try? await MobileModelPreferenceStore.shared.setString(
-                depth.rawValue,
-                forKey: MemoryReviewDepth.typePreferenceKey(sourceType: sourceType)
-            )
+            do {
+                try await MobileModelPreferenceStore.shared.setString(
+                    depth.rawValue,
+                    forKey: MemoryReviewDepth.typePreferenceKey(sourceType: sourceType)
+                )
+            } catch {
+                Logger(subsystem: "com.foreverlm.mobile", category: "MemoryReviewGrading")
+                    .error("Saving the review depth for a kind of source failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
         return applied
     }

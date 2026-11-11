@@ -1,5 +1,6 @@
 import Combine
 import Foundation
+import OSLog
 
 // A typed or dictated conversation, streamed token by token and optionally read
 // back aloud: about one source (the Reader's Ask, a walkthrough's cards), or
@@ -895,7 +896,14 @@ final class MobileChatViewModel: ObservableObject {
             guard walkthrough != nil, !isResolvingRouteForSave else { return }
             isResolvingRouteForSave = true
             Task { [weak self, resolveSaveRoute] in
-                let route = try? await resolveSaveRoute()
+                let route: ResolvedAITextRoute?
+                do {
+                    route = try await resolveSaveRoute()
+                } catch {
+                    Logger(subsystem: "com.foreverlm.mobile", category: "Chat")
+                        .error("Resolving the model to save the chat under failed: \(error.localizedDescription, privacy: .public)")
+                    route = nil
+                }
                 guard let self else { return }
                 self.isResolvingRouteForSave = false
                 guard let route else { return }

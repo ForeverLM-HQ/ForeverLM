@@ -861,7 +861,7 @@ struct GoalSourcesPopover: View {
             storedRows = [:]
             return
         }
-        storedRows = (try? await vm.storage.sourceRowSummaries(for: unnamed)) ?? [:]
+        storedRows = await vm.loggedRead("the goal's stored sources") { try await vm.storage.sourceRowSummaries(for: unnamed) } ?? [:]
     }
 
     private func open(_ row: GoalSourceListing.Row) {

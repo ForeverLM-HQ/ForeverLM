@@ -80,7 +80,7 @@ extension StudioViewModel {
     /// The lists read the library's records again after a reading's source
     /// was written, so its row appears, and an open reading reads its body.
     func reloadArtifactsAfterMnemonicReadingWrite() async {
-        if let reloaded = try? await loadScopedArtifacts() {
+        if let reloaded = await loggedRead("artifacts", { try await loadScopedArtifacts() }) {
             artifacts = reloaded
         }
         readerQuestionsRevision &+= 1

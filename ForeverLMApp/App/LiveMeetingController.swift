@@ -135,7 +135,11 @@ final class LiveMeetingController {
             updatesTask = nil
             // The session was filed for a meeting that never ran: nothing was
             // heard, so it goes again rather than leaving an empty row.
-            try? await vm.storage.deleteSource(article.id)
+            do {
+                try await vm.storage.deleteSource(article.id)
+            } catch {
+                vm.logger.error("Removing the unrun meeting session failed: \(error.localizedDescription, privacy: .public)")
+            }
             await vm.refreshArticles()
             sourceID = nil
             groupID = nil

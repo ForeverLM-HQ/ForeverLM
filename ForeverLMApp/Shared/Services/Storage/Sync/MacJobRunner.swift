@@ -400,12 +400,16 @@ actor MacJobRunner {
 
     private func renewLease(_ id: String) async {
         let until = now().addingTimeInterval(Self.lease).timeIntervalSinceReferenceDate
-        try? await read { store in
-            guard let device = try store.generation2DeviceID() else { return }
-            try store.execute(
-                "UPDATE jobs SET lease_until = ? WHERE id = ? AND status = 'running' AND json_extract(claim_json, '$.device') = ?",
-                [.real(until), .text(id), .text(device)]
-            )
+        do {
+            try await read { store in
+                guard let device = try store.generation2DeviceID() else { return }
+                try store.execute(
+                    "UPDATE jobs SET lease_until = ? WHERE id = ? AND status = 'running' AND json_extract(claim_json, '$.device') = ?",
+                    [.real(until), .text(id), .text(device)]
+                )
+            }
+        } catch {
+            Self.logger.error("Renewing the lease on job \(id, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
         }
         await onChange?()
     }

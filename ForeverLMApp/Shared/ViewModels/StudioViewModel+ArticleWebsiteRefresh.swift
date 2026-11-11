@@ -320,7 +320,7 @@ extension StudioViewModel {
     /// archived source is not refreshed.
     private func sourceForWebsiteRefresh(_ articleId: String) async -> StudioArticle? {
         if let loaded = articles.first(where: { $0.id == articleId }) { return loaded }
-        guard let stored = try? await storage.loadSourceWithoutContent(articleId),
+        guard let stored = await loggedLookup("source for a website refresh", { try await storage.loadSourceWithoutContent(articleId) }),
               stored.status == .active else { return nil }
         return stored
     }

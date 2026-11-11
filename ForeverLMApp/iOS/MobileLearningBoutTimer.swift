@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 import SwiftUI
 import UIKit
 import UserNotifications
@@ -152,7 +153,12 @@ final class MobileLearningBoutTimer: ObservableObject {
                 repeats: false
             )
         )
-        try? await center.add(request)
+        do {
+            try await center.add(request)
+        } catch {
+            Logger(subsystem: "com.foreverlm.mobile", category: "LearningBoutTimer")
+                .error("Scheduling the break reminder failed: \(error.localizedDescription, privacy: .public)")
+        }
     }
 }
 

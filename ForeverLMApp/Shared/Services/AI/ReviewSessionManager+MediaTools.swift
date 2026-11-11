@@ -64,7 +64,13 @@ extension ReviewSessionManager {
         figureLabel: String,
         panelLabel: String?
     ) async -> WalkthroughResolvedAnchor? {
-        let path = (try? await storage.paperFigureIndexTarget(sourceID: sourceID))?.pdfPath
+        let path: String?
+        do {
+            path = try await storage.paperFigureIndexTarget(sourceID: sourceID)?.pdfPath
+        } catch {
+            logger.error("Reading the figure index target failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
         guard path != nil else { return nil }
         let resolver: WalkthroughAnchorResolver
         if let held = walkthroughResolver, walkthroughPlayback?.sourceID == sourceID,
@@ -408,7 +414,13 @@ extension ReviewSessionManager {
         // the crop possible at all; it explains nothing and spends nothing.
         // An index built under older rules is read again, so an Extended Data
         // figure the old rules skipped is still cropped to its figure.
-        let figures = (try? await paperFigureIndexer.figuresForReading(sourceID: sourceID)) ?? []
+        let figures: [PaperFigureRecord]
+        do {
+            figures = try await paperFigureIndexer.figuresForReading(sourceID: sourceID)
+        } catch {
+            logger.error("Reading the paper's figures failed: \(error.localizedDescription, privacy: .public)")
+            figures = []
+        }
         let listing = await Task.detached(priority: .userInitiated) { () -> Result<[SourceImageEntry], SourceImageCatalog.Failure> in
             guard let path = article.resolvedFileLocation else { return .failure(.fileUnavailable) }
             do {
@@ -901,7 +913,7 @@ extension ReviewSessionManager {
         }
         guard let attachedID else { return nil }
         if let loaded = activeArticles.first(where: { $0.id == attachedID }) { return loaded }
-        return try? await storage.loadPersistedSources(ids: [attachedID]).first
+        return await loadLibrarySource(id: attachedID)
     }
 
     /// The source a picture tool was asked about: an attached one first, by
@@ -917,7 +929,16 @@ extension ReviewSessionManager {
     /// the library's own PDF.
     func librarySourceArticle(forRequestedID requestedID: String) async -> StudioArticle? {
         if let attached = await attachedArticle(forRequestedID: requestedID) { return attached }
-        return try? await storage.loadPersistedSources(ids: [requestedID]).first
+        return await loadLibrarySource(id: requestedID)
+    }
+
+    private func loadLibrarySource(id: String) async -> StudioArticle? {
+        do {
+            return try await storage.loadPersistedSources(ids: [id]).first
+        } catch {
+            logger.error("Reading a source for a picture tool failed: \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
     }
 
     /// What the picture tools say about an ID that names nothing in the

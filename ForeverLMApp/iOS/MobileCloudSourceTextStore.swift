@@ -54,7 +54,11 @@ actor MobileCloudSourceTextStore {
             // Keep a saved source saved. Without this write-through, text the Mac
             // revised would live on in the durable copy for as long as the pin did.
             if MobileOfflinePins.contains(sourceID) {
-                try? await MobileOfflineSourceStore.shared.writeText(text, sourceID: sourceID)
+                do {
+                    try await MobileOfflineSourceStore.shared.writeText(text, sourceID: sourceID)
+                } catch {
+                    Self.logger.error("Refreshing the saved copy of a source's text failed: \(error.localizedDescription, privacy: .public)")
+                }
             }
             return text
         }

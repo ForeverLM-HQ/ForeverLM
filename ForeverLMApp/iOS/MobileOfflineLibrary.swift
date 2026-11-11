@@ -1,6 +1,7 @@
 import Combine
 import CryptoKit
 import Foundation
+import OSLog
 
 // Saving a source offline on the phone.
 //
@@ -244,6 +245,8 @@ enum MobileOfflineSaveError: LocalizedError {
 final class MobileOfflineLibrary: ObservableObject {
     static let shared = MobileOfflineLibrary()
 
+    private static let logger = Logger(subsystem: "com.foreverlm.mobile", category: "OfflineLibrary")
+
     enum SaveState: Equatable {
         case notSaved
         case saving
@@ -382,7 +385,11 @@ final class MobileOfflineLibrary: ObservableObject {
                     url: source.url
                 )
             ), downloaded.pages == nil {
-                _ = try? await store.savePDF(copyingFrom: downloaded.url, sourceID: source.id)
+                do {
+                    _ = try await store.savePDF(copyingFrom: downloaded.url, sourceID: source.id)
+                } catch {
+                    Self.logger.error("Keeping a chapter's PDF offline failed: \(error.localizedDescription, privacy: .public)")
+                }
             }
         } else if source.sourceType == "book",
                   let readerHTML = await MobileSourceFileStore.shared.fetchReaderHTML(
@@ -391,7 +398,11 @@ final class MobileOfflineLibrary: ObservableObject {
             // An EPUB chapter's figures only exist in its reader document. Its
             // absence is not a failure: a text-only book, or one from a Mac build
             // without chapter documents, saves as text alone.
-            try? await store.writeReaderHTML(readerHTML, sourceID: source.id)
+            do {
+                try await store.writeReaderHTML(readerHTML, sourceID: source.id)
+            } catch {
+                Self.logger.error("Keeping a chapter's reader page offline failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
 
         bytesBySourceID[source.id] = await store.byteCount(sourceID: source.id)
@@ -427,7 +438,11 @@ final class MobileOfflineLibrary: ObservableObject {
         let holder = MobileSatelliteHolder.source(source.id)
         if let narration = try? await satellites.source(source.id, matching: { $0.hasPrefix("audio.") }) {
             for satellite in [narration] + narration.children(role: "audioChunk") {
-                try? await satellites.keep(satellite, for: holder)
+                do {
+                    try await satellites.keep(satellite, for: holder)
+                } catch {
+                    Self.logger.error("Keeping a narration file offline failed: \(error.localizedDescription, privacy: .public)")
+                }
             }
         }
     }

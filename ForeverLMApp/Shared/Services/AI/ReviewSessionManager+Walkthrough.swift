@@ -362,7 +362,14 @@ extension ReviewSessionManager {
     @discardableResult
     func loadWalkthrough(for article: StudioArticle) async -> Bool {
         await whileOpeningWalkthrough(article.id) {
-            guard var loaded = try? await storage.loadPaperWalkthrough(article.id), loaded.isUsable else {
+            let stored: PaperWalkthrough?
+            do {
+                stored = try await storage.loadPaperWalkthrough(article.id)
+            } catch {
+                logger.error("Reading the paper walkthrough failed: \(error.localizedDescription, privacy: .public)")
+                stored = nil
+            }
+            guard var loaded = stored, loaded.isUsable else {
                 if walkthroughPlayback?.sourceID == article.id { clearWalkthroughPlayback() }
                 return false
             }
@@ -372,8 +379,20 @@ extension ReviewSessionManager {
             if loaded.needsSourceMentions, let text = await storage.loadSourceContent(article.id), !text.isEmpty {
                 loaded = loaded.fillingSourceMentions(from: text)
             }
-            var records = (try? await storage.paperFigures(sourceID: article.id)) ?? []
-            var target = try? await storage.paperFigureIndexTarget(sourceID: article.id)
+            var records: [PaperFigureRecord]
+            do {
+                records = try await storage.paperFigures(sourceID: article.id)
+            } catch {
+                logger.error("Reading the paper's figures for the walkthrough failed: \(error.localizedDescription, privacy: .public)")
+                records = []
+            }
+            var target: PaperFigureIndexCandidate?
+            do {
+                target = try await storage.paperFigureIndexTarget(sourceID: article.id)
+            } catch {
+                logger.error("Reading the figure index target for the walkthrough failed: \(error.localizedDescription, privacy: .public)")
+                target = nil
+            }
             // An index read by an older build is read again before the walk
             // shows it: the walk otherwise keeps that build's pages, like
             // Figure 1 of the EMBO cristae paper on its legend's page of prose
@@ -400,7 +419,14 @@ extension ReviewSessionManager {
     @discardableResult
     func loadWalkthrough(forAnimation artifact: ArtifactRecord) async -> Bool {
         await whileOpeningWalkthrough(artifact.id) {
-            guard let loaded = try? await storage.loadArtifactWalkthrough(artifact.id), loaded.isUsable else {
+            let stored: PaperWalkthrough?
+            do {
+                stored = try await storage.loadArtifactWalkthrough(artifact.id)
+            } catch {
+                logger.error("Reading the animation walkthrough failed: \(error.localizedDescription, privacy: .public)")
+                stored = nil
+            }
+            guard let loaded = stored, loaded.isUsable else {
                 if walkthroughPlayback?.sourceID == artifact.id { clearWalkthroughPlayback() }
                 return false
             }
@@ -432,7 +458,11 @@ extension ReviewSessionManager {
         var animations: [String: ArtifactRecord] = [:]
         for id in loaded.referencedAnimationIDs {
             if let own = subject.animation, own.id == id { animations[id] = own; continue }
-            if let record = try? await storage.loadArtifact(id) { animations[id] = record }
+            do {
+                if let record = try await storage.loadArtifact(id) { animations[id] = record }
+            } catch {
+                logger.error("Reading a walkthrough's animation failed: \(error.localizedDescription, privacy: .public)")
+            }
         }
         if var playback = walkthroughPlayback, playback.sourceID == subject.id {
             adoptWalkthroughResolver(for: subject, figures: records, pdfPath: path)
@@ -609,10 +639,28 @@ extension ReviewSessionManager {
               let marker = chatMessages.compactMap(\.walkthroughStep).last else { return }
         if let article = activeArticles.first(where: { $0.id == marker.sourceID }) {
             await loadWalkthrough(for: article)
-        } else if let article = try? await storage.loadSourceWithoutContent(marker.sourceID) {
-            await loadWalkthrough(for: article)
-        } else if let artifact = try? await storage.loadArtifact(marker.sourceID), artifact.isAnimation {
-            await loadWalkthrough(forAnimation: artifact)
+        } else {
+            let stored: StudioArticle?
+            do {
+                stored = try await storage.loadSourceWithoutContent(marker.sourceID)
+            } catch {
+                logger.error("Reading the walkthrough's source failed: \(error.localizedDescription, privacy: .public)")
+                stored = nil
+            }
+            if let article = stored {
+                await loadWalkthrough(for: article)
+                return
+            }
+            let artifact: ArtifactRecord?
+            do {
+                artifact = try await storage.loadArtifact(marker.sourceID)
+            } catch {
+                logger.error("Reading the walkthrough's animation failed: \(error.localizedDescription, privacy: .public)")
+                artifact = nil
+            }
+            if let artifact, artifact.isAnimation {
+                await loadWalkthrough(forAnimation: artifact)
+            }
         }
     }
 
@@ -1107,7 +1155,16 @@ extension ReviewSessionManager {
         case .source(let article): articles = [article]
         case .animation(let artifact):
             let ids = artifact.sourceIDs
-            articles = ids.isEmpty ? [] : ((try? await storage.loadPersistedSources(ids: ids)) ?? [])
+            if ids.isEmpty {
+                articles = []
+            } else {
+                do {
+                    articles = try await storage.loadPersistedSources(ids: ids)
+                } catch {
+                    logger.error("Reading the animation's grounding sources failed: \(error.localizedDescription, privacy: .public)")
+                    articles = []
+                }
+            }
         }
         if sessionID != nil || sessionActive {
             let missing = articles.filter { !activeSourceIDs.contains($0.id) }
@@ -1212,7 +1269,13 @@ extension ReviewSessionManager {
             return AppToolResult(text: "Error: focus_source_anchor needs a figure_label, a passage copied from the source, or a page_number.", isError: true)
         }
         let sourceID = article.id
-        var figures = (try? await storage.paperFigures(sourceID: sourceID)) ?? []
+        var figures: [PaperFigureRecord]
+        do {
+            figures = try await storage.paperFigures(sourceID: sourceID)
+        } catch {
+            logger.error("Reading the paper's figures for an anchor failed: \(error.localizedDescription, privacy: .public)")
+            figures = []
+        }
         var record: PaperFigureRecord?
         if let label = anchor.figureLabel {
             guard PaperWalkthroughSubject.allowsFigureAnchors(article) else {
@@ -1261,7 +1324,13 @@ extension ReviewSessionManager {
             anchor.passage = clipped
         }
 
-        let path = (try? await storage.paperFigureIndexTarget(sourceID: sourceID))?.pdfPath
+        let path: String?
+        do {
+            path = try await storage.paperFigureIndexTarget(sourceID: sourceID)?.pdfPath
+        } catch {
+            logger.error("Reading the figure index target for an anchor failed: \(error.localizedDescription, privacy: .public)")
+            path = nil
+        }
         let resolver: WalkthroughAnchorResolver
         if let held = walkthroughResolver, walkthroughPlayback?.sourceID == sourceID,
            held.matches(figures: figures, pdfPath: path) {

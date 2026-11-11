@@ -78,6 +78,15 @@ actor SourceListenableContentPreparationService {
         self.textToSpeechPreparation = PaperTextToSpeechPreparationService(aiService: aiService)
     }
 
+    private func queuedListenableCount() async -> Int {
+        do {
+            return try await storage.sourceListenableContentQueueCount()
+        } catch {
+            logger.error("Counting the queued listenable content failed: \(error.localizedDescription, privacy: .public)")
+            return 0
+        }
+    }
+
     /// - Parameter backgroundSpendAllowed: false once the learner's daily
     ///   background cap is reached; the queue waits for the next day. Listen
     ///   itself still prepares a source when the learner presses it.
@@ -86,7 +95,7 @@ actor SourceListenableContentPreparationService {
             return SourceListenableContentDrainResult(
                 processedCount: 0,
                 processedSourceIDs: [],
-                remainingCount: (try? await storage.sourceListenableContentQueueCount()) ?? 0,
+                remainingCount: await queuedListenableCount(),
                 errorMessage: nil
             )
         }
@@ -94,7 +103,7 @@ actor SourceListenableContentPreparationService {
             return SourceListenableContentDrainResult(
                 processedCount: 0,
                 processedSourceIDs: [],
-                remainingCount: (try? await storage.sourceListenableContentQueueCount()) ?? 0,
+                remainingCount: await queuedListenableCount(),
                 errorMessage: nil
             )
         }
@@ -110,7 +119,7 @@ actor SourceListenableContentPreparationService {
             return SourceListenableContentDrainResult(
                 processedCount: 0,
                 processedSourceIDs: [],
-                remainingCount: (try? await storage.sourceListenableContentQueueCount()) ?? 0,
+                remainingCount: await queuedListenableCount(),
                 errorMessage: error.localizedDescription
             )
         }
@@ -224,7 +233,7 @@ actor SourceListenableContentPreparationService {
         return SourceListenableContentDrainResult(
             processedCount: processed,
             processedSourceIDs: processedSourceIDs,
-            remainingCount: (try? await storage.sourceListenableContentQueueCount()) ?? 0,
+            remainingCount: await queuedListenableCount(),
             errorMessage: firstError
         )
     }

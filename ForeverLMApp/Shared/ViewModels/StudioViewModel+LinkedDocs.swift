@@ -275,7 +275,7 @@ extension StudioViewModel {
     func refreshLinkedDocExport(_ artifactID: String, force: Bool = false) async -> LinkedDocExportOutcome {
         var artifact = artifacts.first(where: { $0.id == artifactID })
         if artifact == nil {
-            let stored = try? await storage.loadArtifacts()
+            let stored = await loggedRead("artifacts") { try await storage.loadArtifacts() }
             artifact = stored?.first(where: { $0.id == artifactID })
         }
         guard let artifact, let kind = artifact.linkedKind, let linkedURL = artifact.linkedURL else {
@@ -321,7 +321,7 @@ extension StudioViewModel {
               !SourceService.isGoogleDocsInterfaceContent(text) else { return nil }
         var artifact = artifacts.first(where: { $0.id == artifactID })
         if artifact == nil {
-            let stored = try? await storage.loadArtifacts()
+            let stored = await loggedRead("artifacts") { try await storage.loadArtifacts() }
             artifact = stored?.first(where: { $0.id == artifactID })
         }
         guard let artifact, artifact.linkedKind == .googleDoc else { return nil }
@@ -345,7 +345,7 @@ extension StudioViewModel {
     /// down from iCloud) is not empty: nothing is written over what an open
     /// could not see.
     func linkedArtifactTextCopyIsEmpty(_ artifactID: String) async -> Bool {
-        guard let stored = try? await storage.artifactMarkdown(artifactID) else { return false }
+        guard let stored = await loggedRead("a doc's text copy", { try await storage.artifactMarkdown(artifactID) }) else { return false }
         return stored.markdown.isEmpty
     }
 
@@ -373,7 +373,7 @@ extension StudioViewModel {
         guard !text.isEmpty else { return false }
         var artifact = artifacts.first(where: { $0.id == artifactID })
         if artifact == nil {
-            let stored = try? await storage.loadArtifacts()
+            let stored = await loggedRead("artifacts") { try await storage.loadArtifacts() }
             artifact = stored?.first(where: { $0.id == artifactID })
         }
         guard let artifact, let kind = artifact.linkedKind, kind.textCopySource == .renderedPage else {

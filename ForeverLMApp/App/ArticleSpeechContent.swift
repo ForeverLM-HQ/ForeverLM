@@ -102,7 +102,12 @@ enum ArticleSpeechContent {
     }
 
     static func listenableContent(sourceID: String) async -> StoredSourceListenableContent? {
-        try? await storage.loadSourceListenableContent(sourceID)
+        do {
+            return try await storage.loadSourceListenableContent(sourceID)
+        } catch {
+            articleSpeechLogger.error("Could not read the listenable text of \(sourceID, privacy: .public): \(error.localizedDescription, privacy: .public)")
+            return nil
+        }
     }
 
     static func saveListenableContent(
