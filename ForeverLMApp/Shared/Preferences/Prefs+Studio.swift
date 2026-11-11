@@ -70,6 +70,17 @@ extension Prefs {
         /// and schema v2 maps the pins, not this.
         static let retiredUnpinnedNotebooks = DeviceKey<Any?>.unread("studio.unpinnedProjects", reason: "retired with the rail that listed every notebook; never read")
         static let retiredRecordingPrivacyCutoff = DeviceKey<Any?>.unread("studio.recordingPrivacyCutoff", reason: "retired user-facing recording privacy boundary")
+        static let unsentChatDrafts = DeviceKey<Data?>("chat.unsentDrafts", reason: "what this Mac's chat boxes held when they were left, JSON; a draft is typed on the Mac being sat at")
+        static let dismissedIdleSuggestions = DeviceKey<[String]?>("chat.dismissedIdleSuggestions", reason: "the idle chat suggestions hidden on this Mac; view chrome")
+        static let outputsSeenSince = DeviceKey<Date?>("notebook.outputs.seenSince.v1", reason: "when this Mac's Studio first listed notebook outputs; unread dots are this Mac's")
+        static let outputsSeenIDs = DeviceKey<[String]?>("notebook.outputs.seenIDs.v1", reason: "the notebook outputs opened on this Mac; unread dots are this Mac's")
+        /// Each Docs, Sites and Animations pane remembers whether its list shows,
+        /// per Mac. They were read through a wrapper that mirrors writes to the
+        /// account, but the keys were never listed as synced, so they have never
+        /// left the Mac.
+        static let docsListVisible = DeviceKey<Bool>("notepad.artifactListVisible", default: false, reason: "whether this Mac's Docs pane shows its list")
+        static let sitesListVisible = DeviceKey<Bool>("sites.listVisible", default: false, reason: "whether this Mac's Sites pane shows its list")
+        static let animationsListVisible = DeviceKey<Bool>("animations.listVisible", default: false, reason: "whether this Mac's Animations pane shows its list")
 
         static let all: [AnyPreferenceKey] = [
             hiddenTabs.erased,
@@ -113,6 +124,13 @@ extension Prefs {
             retiredReaderPoppedOut.erased,
             retiredUnpinnedNotebooks.erased,
             retiredRecordingPrivacyCutoff.erased,
+            unsentChatDrafts.erased,
+            dismissedIdleSuggestions.erased,
+            outputsSeenSince.erased,
+            outputsSeenIDs.erased,
+            docsListVisible.erased,
+            sitesListVisible.erased,
+            animationsListVisible.erased,
         ]
     }
 }

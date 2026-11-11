@@ -2,8 +2,7 @@ import SwiftUI
 
 /// A view's binding to one preference, by its typed key (`Prefs`).
 ///
-/// It is `SyncedStorage` with the key's name, default and stored shape taken
-/// from the declaration: the view re-renders only when its own key's value
+/// The key's name, default and stored shape are taken from the declaration: the view re-renders only when its own key's value
 /// changes (`SyncedStorageObserver`), a write goes to `UserDefaults.standard`
 /// and is mirrored to `PreferenceStore`, which queues an account key for the
 /// other devices and announces either kind to its watchers. A device key is

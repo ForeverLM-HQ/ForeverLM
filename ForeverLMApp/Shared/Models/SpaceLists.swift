@@ -83,8 +83,6 @@ struct SpaceList: Identifiable, Equatable, Hashable, Sendable {
 /// schema change. Foundation-only, like `PageSpaces`: the Mac and the macOS
 /// unit tests compile it.
 struct SpaceLists: Equatable, Sendable {
-    static let listPreferenceKeyPrefix = "spaceList."
-    static let itemPreferenceKeyPrefix = "spaceListItem."
     /// What every list id starts with: `lst-` and a lowercased UUID.
     static let idPrefix = "lst-"
 
@@ -126,19 +124,19 @@ struct SpaceLists: Equatable, Sendable {
 
     // MARK: Keys
 
-    static func listKey(listID: String) -> String { listPreferenceKeyPrefix + listID }
+    static func listKey(listID: String) -> String { Prefs.Families.spaceList.prefix + listID }
 
-    static func itemKey(recordID: String) -> String { itemPreferenceKeyPrefix + recordID }
+    static func itemKey(recordID: String) -> String { Prefs.Families.spaceListItem.prefix + recordID }
 
     static func listID(fromListKey key: String) -> String? {
-        guard key.hasPrefix(listPreferenceKeyPrefix) else { return nil }
-        let id = String(key.dropFirst(listPreferenceKeyPrefix.count))
+        guard key.hasPrefix(Prefs.Families.spaceList.prefix) else { return nil }
+        let id = String(key.dropFirst(Prefs.Families.spaceList.prefix.count))
         return id.isEmpty ? nil : id
     }
 
     static func recordID(fromItemKey key: String) -> String? {
-        guard key.hasPrefix(itemPreferenceKeyPrefix) else { return nil }
-        let id = String(key.dropFirst(itemPreferenceKeyPrefix.count))
+        guard key.hasPrefix(Prefs.Families.spaceListItem.prefix) else { return nil }
+        let id = String(key.dropFirst(Prefs.Families.spaceListItem.prefix.count))
         return id.isEmpty ? nil : id
     }
 

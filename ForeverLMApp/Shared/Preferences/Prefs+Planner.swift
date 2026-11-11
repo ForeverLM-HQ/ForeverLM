@@ -42,6 +42,17 @@ extension Prefs {
         /// synchronous view of the synced rows, and a logo's pace is not worth
         /// carrying across an account.
         static let loadingIndicatorSpeed = DeviceKey<Double?>("loadingIndicator.speed", reason: "device-local animation pace, read directly on both platforms")
+        /// The Mac's own Calendar as the day: the learner's switch (off until the
+        /// Settings pane turns it on; it keeps the name the Planner gave it, so a Mac
+        /// that had the calendar on keeps it on), which calendars the day is read
+        /// from and where new events go. Calendar and account identifiers are the Mac's.
+        static let appleCalendarEnabled = DeviceKey<Bool>("planner.appleCalendar.enabled", default: false, reason: "whether this Mac reads its Calendar; access is granted per Mac")
+        static let dayCalendarIDs = DeviceKey<[String]?>("calendar.dayCalendarIDs", reason: "calendar identifiers are this Mac's")
+        static let dayKnownAccountIDs = DeviceKey<[String]?>("calendar.dayKnownAccountIDs", reason: "the accounts signed in to this Mac when the learner chose")
+        static let newEventsCalendarID = DeviceKey<String?>("calendar.newEventsCalendarID", reason: "a calendar identifier on this Mac")
+        /// The Planner's own choice of Mac calendars, dropped on purpose: nothing reads them.
+        static let retiredAppleCalendarSelectedIDs = DeviceKey<Any?>.unread("planner.appleCalendar.selectedIDs", reason: "retired Planner calendar choice, cleared at launch")
+        static let retiredAppleCalendarKnownAccountIDs = DeviceKey<Any?>.unread("planner.appleCalendar.knownAccountIDs", reason: "retired Planner calendar choice, cleared at launch")
 
         static let all: [AnyPreferenceKey] = [
             dayStart.erased,
@@ -62,6 +73,12 @@ extension Prefs {
             journalsNotifyOnMatch.erased,
             keepMacAwakeForScheduledTasks.erased,
             loadingIndicatorSpeed.erased,
+            appleCalendarEnabled.erased,
+            dayCalendarIDs.erased,
+            dayKnownAccountIDs.erased,
+            newEventsCalendarID.erased,
+            retiredAppleCalendarSelectedIDs.erased,
+            retiredAppleCalendarKnownAccountIDs.erased,
         ]
     }
 }

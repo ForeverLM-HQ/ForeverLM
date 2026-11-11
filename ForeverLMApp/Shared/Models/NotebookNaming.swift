@@ -17,12 +17,11 @@ import Foundation
 /// description it names, so an edit from a device that never heard of the row
 /// is not overwritten either.
 enum NotebookNaming {
-    static let preferenceKeyPrefix = "notebook.naming."
     /// What a notebook is called until it is named.
     static let placeholderTitle = "New notebook"
 
     static func preferenceKey(notebookID: String) -> String {
-        preferenceKeyPrefix + notebookID
+        Prefs.Families.notebookNaming.prefix + notebookID
     }
 
     /// The name ForeverLM last put on a notebook: the placeholder while it is

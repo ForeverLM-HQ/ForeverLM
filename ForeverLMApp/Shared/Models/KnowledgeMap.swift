@@ -202,7 +202,6 @@ enum KnowledgeMap {
     /// it may carry no name and no date, having been written before either.
     static let firstCanvasID = "library"
     static let preferenceKeyPrefix = "map."
-    static let layoutKeyPrefix = "map.layout."
     /// What every canvas made in the Space is called by: `cnv-` and a
     /// lowercased UUID.
     static let canvasIDPrefix = "cnv-"
@@ -218,12 +217,12 @@ enum KnowledgeMap {
     }
 
     static func layoutPreferenceKey(mapID: String) -> String {
-        layoutKeyPrefix + mapID
+        Prefs.Families.mapLayout.prefix + mapID
     }
 
     static func mapID(fromLayoutKey key: String) -> String? {
-        guard key.hasPrefix(layoutKeyPrefix) else { return nil }
-        let id = String(key.dropFirst(layoutKeyPrefix.count))
+        guard key.hasPrefix(Prefs.Families.mapLayout.prefix) else { return nil }
+        let id = String(key.dropFirst(Prefs.Families.mapLayout.prefix.count))
         return id.isEmpty ? nil : id
     }
 

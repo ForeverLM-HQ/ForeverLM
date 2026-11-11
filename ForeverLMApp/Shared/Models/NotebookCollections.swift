@@ -48,8 +48,7 @@ struct NotebookCollectionSummary: Identifiable, Equatable, Sendable {
 /// and the macOS unit tests compile this one file; the web's twin is in
 /// library-notebooks.js.
 struct NotebookCollections: Equatable, Sendable {
-    static let namePreferenceKeyPrefix = "notebookCollection."
-    static let membershipPreferenceKeyPrefix = "notebook.collections."
+    static let namePreferenceKeyPrefix = Prefs.Families.notebookCollectionName.prefix
     /// What every collection id starts with: `nbc-` and a lowercased UUID.
     static let idPrefix = "nbc-"
     /// The longest name kept; a longer one is cut there.
@@ -95,7 +94,7 @@ struct NotebookCollections: Equatable, Sendable {
     }
 
     static func membershipKey(notebookID: String) -> String {
-        membershipPreferenceKeyPrefix + notebookID
+        Prefs.Families.notebookCollectionMembership.prefix + notebookID
     }
 
     static func collectionID(fromNameKey key: String) -> String? {
@@ -105,8 +104,8 @@ struct NotebookCollections: Equatable, Sendable {
     }
 
     static func notebookID(fromMembershipKey key: String) -> String? {
-        guard key.hasPrefix(membershipPreferenceKeyPrefix) else { return nil }
-        let id = String(key.dropFirst(membershipPreferenceKeyPrefix.count))
+        guard key.hasPrefix(Prefs.Families.notebookCollectionMembership.prefix) else { return nil }
+        let id = String(key.dropFirst(Prefs.Families.notebookCollectionMembership.prefix.count))
         return id.isEmpty ? nil : id
     }
 

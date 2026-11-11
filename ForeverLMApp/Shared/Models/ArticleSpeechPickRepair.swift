@@ -91,7 +91,7 @@ extension ArticleSpeechSelection {
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let storedModel = stored.isEmpty ? ArticleSpeechCatalog.defaultModelID : stored
         guard isDirectoryBacked || offered.contains(storedModel) else { return nil }
-        let storedVoice = defaults.string(forKey: voiceDefaultsKey(forModel: storedModel))?
+        let storedVoice = Preferences.withStorage(defaults) { Preferences.value(Prefs.Families.readAloudDeviceVoice.key(storedModel)) }?
             .trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
         let pick = resolvedPick(
             storedModel: storedModel,
@@ -107,10 +107,10 @@ extension ArticleSpeechSelection {
         // A voice is written only where it changes what is sent: for the
         // new model, or in place of a stored voice its model dropped. Nothing
         // stored already reads as the model's first voice.
-        let voiceKey = voiceDefaultsKey(forModel: pick.model)
-        let currentVoice = defaults.string(forKey: voiceKey) ?? ""
+        let voiceKey = Prefs.Families.readAloudDeviceVoice.key(pick.model)
+        let currentVoice = Preferences.withStorage(defaults) { Preferences.value(voiceKey) } ?? ""
         if !voices(pick.model).isEmpty, pick.voice != currentVoice, modelChanged || !currentVoice.isEmpty {
-            defaults.set(pick.voice, forKey: voiceKey)
+            Preferences.withStorage(defaults) { Preferences.set(pick.voice, for: voiceKey) }
         }
         return modelChanged
             ? Repair(oldModel: storedModel, newModel: pick.model, newVoice: pick.voice)

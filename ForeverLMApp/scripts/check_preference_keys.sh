@@ -18,9 +18,11 @@ set -eu
 #
 # What counts, on a line that is not a `//` comment:
 #   1. a defaults call: `UserDefaults.standard`, `UserDefaults(suiteName:`,
-#      `@AppStorage(`, `@SyncedStorage(`, `PreferenceStore.set(` / `.remove(` /
-#      `.mirrorExternalWrite(`, or a read, write or removal on a receiver whose
-#      name ends in `defaults`;
+#      `PreferenceStore.set(` / `.remove(` / `.mirrorExternalWrite(`, an
+#      `@AppStorage(` whose argument is not a typed key (`@AppStorage(Prefs.…)`
+#      is the typed form and does not count), or a read,
+#      write or removal on a receiver whose name ends in `defaults` whose key
+#      is not a typed one (`forKey: Prefs.…` does not count);
 #   2. a string literal that is a declared key's name, or that starts with a
 #      declared family's prefix (the names are read out of Shared/Preferences).
 # Plain grep, not rg: rg is not installed on the build Mac.
@@ -50,11 +52,15 @@ find App Shared MCP iOS -name '*.swift' -not -path 'Shared/Preferences/*' -print
     BEGIN {
       while ((getline line < names) > 0) name[line] = 1
       while ((getline line < prefixes) > 0) prefix[++prefixCount] = line
-      calls = "UserDefaults\\.standard|UserDefaults\\(suiteName:|@AppStorage\\(|@SyncedStorage\\(|PreferenceStore\\.(set|remove|mirrorExternalWrite)\\(|[Dd]efaults[?!]?\\.(set|removeObject|object|string|bool|integer|double|float|data|array|stringArray|dictionary|url)\\("
+      storage = "UserDefaults\\.standard|UserDefaults\\(suiteName:|PreferenceStore\\.(set|remove|mirrorExternalWrite)\\("
+      wrapper = "@AppStorage\\("
+      typedWrapper = "@AppStorage\\(Prefs\\."
+      defaultsCall = "[Dd]efaults[?!]?\\.(set|removeObject|object|string|bool|integer|double|float|data|array|stringArray|dictionary|url)\\("
+      typedKey = "forKey: Prefs\\."
     }
     /^[ \t]*\/\// { next }
     {
-      hit = ($0 ~ calls)
+      hit = ($0 ~ storage) || ($0 ~ wrapper && $0 !~ typedWrapper) || ($0 ~ defaultsCall && $0 !~ typedKey)
       if (!hit && index($0, "\"") > 0) {
         pieces = split($0, piece, "\"")
         for (i = 2; i <= pieces && !hit; i += 2) {

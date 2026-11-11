@@ -983,21 +983,17 @@ private struct NotebookCardsRow: View {
 final class NotebookOutputSeenTracker {
     static let shared = NotebookOutputSeenTracker()
 
-    private static let sinceKey = "notebook.outputs.seenSince.v1"
-    private static let idsKey = "notebook.outputs.seenIDs.v1"
-
     private(set) var state: NotebookOutputSeenState
 
     private init() {
-        let defaults = UserDefaults.standard
         let since: Date
-        if let stored = defaults.object(forKey: Self.sinceKey) as? Date {
+        if let stored = Preferences.value(Prefs.Studio.outputsSeenSince) {
             since = stored
         } else {
             since = Date()
-            defaults.set(since, forKey: Self.sinceKey)
+            Preferences.set(since, for: Prefs.Studio.outputsSeenSince)
         }
-        state = NotebookOutputSeenState(since: since, seenIDs: defaults.stringArray(forKey: Self.idsKey) ?? [])
+        state = NotebookOutputSeenState(since: since, seenIDs: Preferences.value(Prefs.Studio.outputsSeenIDs) ?? [])
     }
 
     func isNew(_ output: NotebookOutput) -> Bool { state.isNew(output) }
@@ -1005,7 +1001,7 @@ final class NotebookOutputSeenTracker {
     func markSeen(_ output: NotebookOutput) {
         guard state.isNew(output) else { return }
         state.markSeen(output.id)
-        UserDefaults.standard.set(state.seenIDs, forKey: Self.idsKey)
+        Preferences.set(state.seenIDs, for: Prefs.Studio.outputsSeenIDs)
     }
 }
 

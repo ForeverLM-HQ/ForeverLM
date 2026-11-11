@@ -16,8 +16,25 @@ struct PreferenceKeyLiteralTests {
 
     static let scannedDirectories = ["App", "Shared", "MCP", "iOS"]
 
-    static let callPattern =
-        #"UserDefaults\.standard|UserDefaults\(suiteName:|@AppStorage\(|@SyncedStorage\(|PreferenceStore\.(set|remove|mirrorExternalWrite)\(|[Dd]efaults[?!]?\.(set|removeObject|object|string|bool|integer|double|float|data|array|stringArray|dictionary|url)\("#
+    /// What reaches defaults without a typed key, as the script's awk reads it.
+    struct Calls {
+        let storage = try! NSRegularExpression(
+            pattern: #"UserDefaults\.standard|UserDefaults\(suiteName:|PreferenceStore\.(set|remove|mirrorExternalWrite)\("#
+        )
+        let wrapper = try! NSRegularExpression(pattern: #"@AppStorage\("#)
+        let typedWrapper = try! NSRegularExpression(pattern: #"@AppStorage\(Prefs\."#)
+        let defaultsCall = try! NSRegularExpression(
+            pattern: #"[Dd]efaults[?!]?\.(set|removeObject|object|string|bool|integer|double|float|data|array|stringArray|dictionary|url)\("#
+        )
+        let typedKey = try! NSRegularExpression(pattern: #"forKey: Prefs\."#)
+
+        func counts(_ line: String) -> Bool {
+            func has(_ regex: NSRegularExpression) -> Bool {
+                regex.firstMatch(in: line, range: NSRange(line.startIndex..., in: line)) != nil
+            }
+            return has(storage) || (has(wrapper) && !has(typedWrapper)) || (has(defaultsCall) && !has(typedKey))
+        }
+    }
 
     /// The declared names and family prefixes, read out of the sources as the
     /// script reads them (the system's own prefixes are too short to scan for).
@@ -35,13 +52,13 @@ struct PreferenceKeyLiteralTests {
     }
 
     /// Lines of one file that count, by the script's rules.
-    static func count(in text: String, calls: NSRegularExpression, names: Set<String>, prefixes: [String]) -> Int {
+    static func count(in text: String, calls: Calls, names: Set<String>, prefixes: [String]) -> Int {
         var count = 0
         for line in text.split(separator: "\n", omittingEmptySubsequences: false) {
             let trimmed = line.drop(while: { $0 == " " || $0 == "\t" })
             if trimmed.hasPrefix("//") { continue }
             let string = String(line)
-            if calls.firstMatch(in: string, range: NSRange(string.startIndex..., in: string)) != nil {
+            if calls.counts(string) {
                 count += 1
                 continue
             }
@@ -78,7 +95,7 @@ struct PreferenceKeyLiteralTests {
     func noFileGainsAStringKey() throws {
         let declared = try Self.declaredNames()
         #expect(declared.names.count > 300 && declared.prefixes.count > 40, "the declarations were not found from this test's path")
-        let calls = try NSRegularExpression(pattern: Self.callPattern)
+        let calls = Calls()
         let allowed = try Self.allowed()
         #expect(!allowed.isEmpty)
 
@@ -109,7 +126,7 @@ struct PreferenceKeyLiteralTests {
 
     @Test("The rules count what they are meant to count")
     func rulesCountTheRightLines() throws {
-        let calls = try NSRegularExpression(pattern: Self.callPattern)
+        let calls = Calls()
         let names: Set<String> = ["studio.hiddenTabs"]
         let prefixes = ["aiTask."]
         func count(_ text: String) -> Int { Self.count(in: text, calls: calls, names: names, prefixes: prefixes) }
@@ -118,13 +135,18 @@ struct PreferenceKeyLiteralTests {
         #expect(count(#"defaults.set(true, forKey: key)"#) == 1)
         #expect(count(#"override.defaults.removeObject(forKey: key)"#) == 1)
         #expect(count(#"@AppStorage(Self.widthKey) private var width = 240.0"#) == 1)
-        #expect(count(#"@SyncedStorage(wrappedValue: true, key) private var shown: Bool"#) == 1)
         #expect(count(#"PreferenceStore.set(order, forKey: key)"#) == 1)
         #expect(count(#"static let key = "studio.hiddenTabs""#) == 1)
         #expect(count(#"let key = "aiTask.\(task.rawValue).prompt""#) == 1)
         #expect(count(#"    // UserDefaults.standard is read here"#) == 0, "a comment line does not count")
         #expect(count(#"let title = "studio.hiddenTabs are hidden""#) == 0, "a longer literal is not the key")
         #expect(count(#"Preferences.set(order, for: Prefs.Studio.tabOrder)"#) == 0)
+        #expect(count(#"@AppStorage(Prefs.Space.sidebarHidden) var hidden"#) == 0, "a typed wrapper is not a string key")
+        #expect(count(#"@AppStorage(Prefs.Planner.activityPaneLayout, default: .bySource) var layout"#) == 0)
+        #expect(count(#"@AppStorage(key.name) var hidden = false"#) == 1, "a wrapper on anything but a typed key still counts")
+        #expect(count(#"defaults.set(rows, forKey: Prefs.Families.spacesDownloadAll.name(id))"#) == 0, "a typed key on an injected defaults is not a string key")
+        #expect(count(#"defaults.set(rows, forKey: key.name)"#) == 1)
+        #expect(count(#"UserDefaults.standard.set(rows, forKey: Prefs.Space.sort.name)"#) == 1, "the standard defaults still go through Preferences")
         #expect(count(#"@PreferenceStorage(Prefs.Rail.chatsExpanded) private var chatsExpanded"#) == 0)
         #expect(count("let a = defaults.bool(forKey: k)\nlet b = \"studio.hiddenTabs\"\nlet c = 1") == 2)
     }

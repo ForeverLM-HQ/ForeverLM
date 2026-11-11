@@ -93,17 +93,9 @@ struct MeetingMetadata: Codable, Equatable, Hashable, Sendable {
 }
 
 extension MeetingMetadata {
-    /// `meetingFolder.image.<groupID>` — the sidebar tile the learner picked for
-    /// one meeting folder.
-    ///
-    /// A synced preference rather than a column on `meeting_groups`: this is
-    /// display chrome, not a fact about the meeting, and one row per folder keeps
-    /// two Macs choosing images for two different folders from overwriting each
-    /// other the way a single shared map would.
-    static let folderImagePreferenceKeyPrefix = "meetingFolder.image."
 
     static func folderImagePreferenceKey(for groupID: String) -> String {
-        folderImagePreferenceKeyPrefix + groupID
+        Prefs.Families.meetingFolderImage.prefix + groupID
     }
 }
 

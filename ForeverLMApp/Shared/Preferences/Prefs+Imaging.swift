@@ -13,9 +13,20 @@ extension Prefs {
         static let imageModel = AccountKey<String?>("images.model")
         static let imageStyle = AccountKey<String?>("images.style")
         static let imageSource = AccountKey<String?>("images.source")
+        /// Whether ForeverLM may pay to draw anything at all. Off until asked for:
+        /// every other way a source gets its thumbnail is free, and this one is not.
         static let generateIcons = AccountKey<Bool?>("images.generateIcons")
+        /// Whether a meeting imported from now on gets an icon without being asked.
+        /// Meaningless while `generateIcons` is false.
         static let generateIconsAutomatic = AccountKey<Bool?>("images.generateIcons.automatic")
+        /// Whether a course quiz gets its picture as soon as it is written.
+        /// Independent of `generateIcons`, which governs meeting icons; a quiz's
+        /// picture was always drawn on the learner's request, and writing the
+        /// quiz is that request.
         static let drawQuizPicturesAutomatic = AccountKey<Bool>("images.drawQuizPictures.automatic", default: true)
+        /// Whether a notebook made one at a time gets its cover drawn without
+        /// being asked, and whether the one-time cover backfill runs. Generation 2
+        /// only: generation 1 has no cover to write.
         static let drawNotebookCoversAutomatic = AccountKey<Bool>("images.drawNotebookCovers.automatic", default: false, .generation2Only)
         /// Generated video: the model and resolution a film is made at, a
         /// spending decision like the image model above. Keys owned by

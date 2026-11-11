@@ -118,7 +118,6 @@ struct StudioNavigationRail: View {
         min(max(value, minRailWidth), maxRailWidth)
     }
 
-    static let widthKey = Prefs.Rail.width.name
 
     /// A width the learner dragged themselves, or nil while the rail has never
     /// been resized. Absent means the golden width is free to follow the

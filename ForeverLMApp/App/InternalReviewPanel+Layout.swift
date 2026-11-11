@@ -566,7 +566,7 @@ extension InternalReviewPanelContent {
         )
         .onReceive(NotificationCenter.default.publisher(for: PreferenceStore.didChangeRemotely)) { note in
             let keys = note.userInfo?[PreferenceStore.changedKeysKey] as? Set<String> ?? []
-            if keys.contains(where: { $0.hasPrefix(NotebookSuggestedQuestions.preferenceKeyPrefix) }) {
+            if keys.contains(where: { $0.hasPrefix(Prefs.Families.notebookQuestions.prefix) }) {
                 notebookQuestionsRevision &+= 1
             }
         }

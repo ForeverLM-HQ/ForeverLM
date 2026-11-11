@@ -19,6 +19,9 @@ extension Prefs {
         /// episodes that already reach both Macs through sync anyway, so a
         /// per-Mac follow costs nothing.)
         static let blockedPodcastShows = AccountKey<[String]?>("podcasts.blockedShows", .record)
+        /// Shows the learner follows whole: discovery brings in every episode
+        /// Apple Podcasts holds for them, not only the listened ones. It steers a
+        /// Mac-only import rather than describing a source.
         static let followedPodcastShows = DeviceKey<[String]?>("podcasts.followedShows", reason: "a follow only adds episodes that already reach every Mac through sync, so a per-Mac follow costs nothing")
         /// `defaults write` escape hatches. Moving them to SQLite would remove the
         /// CLI workaround entirely. (Note: these are currently broken for an

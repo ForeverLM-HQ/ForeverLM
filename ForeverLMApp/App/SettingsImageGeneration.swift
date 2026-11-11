@@ -10,24 +10,10 @@ import SwiftUI
 /// nothing that draws. This is the same split `MacArticleSpeechSettings` makes
 /// for voices.
 enum MacImageGenerationSettings {
-    /// Whether ForeverLM may pay to draw anything at all. Off until asked for:
-    /// every other way a source gets its thumbnail is free, and this one is not.
-    static let enabledKey = Prefs.Imaging.generateIcons.name
-    /// Whether a meeting imported from now on gets an icon without being asked.
-    /// Meaningless while `enabledKey` is false.
-    static let automaticForNewMeetingsKey = Prefs.Imaging.generateIconsAutomatic.name
-    /// Whether a course quiz gets its picture as soon as it is written.
-    /// Independent of `enabledKey`, which governs meeting icons; a quiz's
-    /// picture was always drawn on the learner's request, and writing the
-    /// quiz is that request.
-    static let automaticForNewQuizzesKey = Prefs.Imaging.drawQuizPicturesAutomatic.name
     /// Whether a notebook made one at a time gets its cover drawn without
     /// being asked, and whether the one-time cover backfill runs (schema v2
     /// D53, §5.9). Generation 2 only: generation 1 has no cover to write.
     static let automaticForNewNotebooksKey = Prefs.Imaging.drawNotebookCoversAutomatic.name
-    static let modelKey = Prefs.Imaging.imageModel.name
-    static let styleKey = Prefs.Imaging.imageStyle.name
-    static let sourceKey = Prefs.Imaging.imageSource.name
 
     static var isEnabled: Bool {
         Preferences.value(Prefs.Imaging.generateIcons) ?? false

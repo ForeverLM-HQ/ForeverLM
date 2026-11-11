@@ -497,16 +497,16 @@ struct MobileSpaceDownloads: @unchecked Sendable {
         self.environment = environment
     }
 
-    private var key: String { "ios.spaces.downloadAll.\(environment.rawValue)" }
+    private var key: DeviceKey<[String]?> { Prefs.Families.spacesDownloadAll.key(environment.rawValue) }
 
-    var zoneKeys: Set<String> { Set(defaults.stringArray(forKey: key) ?? []) }
+    var zoneKeys: Set<String> { Set(Preferences.withStorage(defaults) { Preferences.value(key) } ?? []) }
 
     func contains(_ zoneKey: String) -> Bool { zoneKeys.contains(zoneKey) }
 
     func set(_ zoneKey: String, downloaded: Bool) {
         var keys = zoneKeys
         if downloaded { keys.insert(zoneKey) } else { keys.remove(zoneKey) }
-        defaults.set(keys.sorted(), forKey: key)
+        Preferences.withStorage(defaults) { Preferences.set(keys.sorted(), for: key) }
     }
 }
 

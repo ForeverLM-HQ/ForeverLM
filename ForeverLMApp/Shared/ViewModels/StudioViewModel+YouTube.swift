@@ -53,7 +53,6 @@ extension StudioViewModel {
 
     // MARK: - Auto-import preference
 
-    nonisolated static let youtubeAutoImportEnabledKey = Prefs.Discovery.youtubeAutoImportEnabled.name
     nonisolated static let youtubeLikedTranscriptFormattingKey =
         Prefs.Discovery.youtubeLikedTranscriptFormattingEnabled.name
 

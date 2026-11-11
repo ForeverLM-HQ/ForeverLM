@@ -272,23 +272,19 @@ enum AITextRoutingMode: String, Codable, CaseIterable, Sendable {
 }
 
 enum AIModelPreferenceKey {
-    static let defaultChatRoute = "aiRoute.defaultChat"
     /// The effort last picked from a chat's effort control, which a chat with
     /// no effort of its own starts on (`KeychainService.chosenChatEffort`).
-    static let defaultChatEffort = "aiRoute.defaultChat.effort"
-    /// The speed last picked from a chat's speed control, which a chat with
-    /// no speed of its own starts on (`KeychainService.chosenChatSpeed`).
-    static let defaultChatSpeed = "aiRoute.defaultChat.speed"
+    static let defaultChatEffort = Prefs.Models.defaultChatEffort.name
     /// Background text-only route. The unsuffixed key is retained so existing
     /// selections and older clients continue to agree on the text default.
-    static let backgroundRoute = "aiRoute.background"
-    static let backgroundMultimodalRoute = "aiRoute.background.multimodal"
+    static let backgroundRoute = Prefs.Models.backgroundRoute.name
+    static let backgroundMultimodalRoute = Prefs.Models.backgroundMultimodalRoute.name
     /// The model a Doc's Edit with AI runs on (`KeychainService.docsRoute`).
     /// Absent, Docs follow the Default Model.
-    static let docsRoute = "aiRoute.docs"
-    static let textRoutingMode = "aiRoute.textRoutingMode"
+    static let docsRoute = Prefs.Models.docsRoute.name
+    static let textRoutingMode = Prefs.Models.textRoutingMode.name
 
     static func taskRoute(_ task: AITask) -> String {
-        "aiRoute.task.\(task.rawValue)"
+        Prefs.Families.aiTaskRoute.name(task.rawValue)
     }
 }

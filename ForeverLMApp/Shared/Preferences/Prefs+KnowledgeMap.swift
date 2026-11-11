@@ -11,6 +11,7 @@ extension Prefs {
         static let openCanvasID = DeviceKey<String?>("knowledgeMap.openCanvasID", reason: "the canvas this Mac last had open")
         static let summaryCache = DeviceKey<Data?>("knowledgeMap.summaryCache.v1", reason: "cache of generated summaries, rebuilt on demand")
         static let writtenFacesEnabled = DeviceKey<Bool?>("knowledgeMap.writtenFaces.enabled", reason: "whether this Mac's canvas writes card faces; never listed as synced")
+        static let memoryLayer = DeviceKey<Bool>("knowledgeMap.memoryLayer.v1", default: false, reason: "whether this Mac's canvas shows the Memory layer; a view choice")
 
         static let all: [AnyPreferenceKey] = [
             showsLibrary.erased,
@@ -18,6 +19,7 @@ extension Prefs {
             openCanvasID.erased,
             summaryCache.erased,
             writtenFacesEnabled.erased,
+            memoryLayer.erased,
         ]
     }
 }

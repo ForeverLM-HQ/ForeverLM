@@ -26,7 +26,7 @@ import Foundation
 /// (`library-sharing.js`; its test reads them from here, and both run
 /// docs-site/website/test/sharing-rights-affirmation-vectors.json).
 struct SharingRightsAffirmation: Equatable, Sendable {
-    static let preferenceKey = "sharing.rightsAffirmation"
+    static let preferenceKey = Prefs.Account.sharingRightsAffirmation.name
     /// The statement's version. Raise it when the words below change in
     /// meaning, and every learner is asked again.
     static let currentVersion = 1

@@ -56,7 +56,6 @@ enum StudioStripFooterItem: String, CaseIterable, Identifiable, Sendable {
 /// drawn, so the way back never leaves with the icons. Settings stays ⌘,
 /// away with its icon hidden.
 struct StudioStripFooterHiddenItems: Equatable {
-    static let storageKey = "studio.navigation.hiddenFooterItems.v1"
 
     var items: Set<StudioStripFooterItem>
 
@@ -137,10 +136,6 @@ enum StudioStripEntry: Hashable, Identifiable, Sendable {
 /// the hidden rows, the kept shortcuts and the footer's own conditions, and
 /// this only says where each shown icon stands.
 struct StudioStripOrder: Equatable {
-    /// The top group: the strip's rows and the kept places.
-    static let topStorageKey = "studio.navigation.stripOrder.v1"
-    /// The bottom group: the footer's icons.
-    static let footerStorageKey = "studio.navigation.stripFooterOrder.v1"
 
     /// The names in order. A name not shown now (a hidden row, a shortcut
     /// taken off, MCP's icon while its light is off) keeps its place, so it

@@ -158,8 +158,8 @@ extension KnowledgeStore {
             return result
         }
         let excluded = rows(NotebookChatSelection.preferenceKeyPrefix)
-        let contexts = rows(NotebookChatContext.preferenceKeyPrefix)
-        let collections = rows(NotebookCollections.membershipPreferenceKeyPrefix)
+        let contexts = rows(Prefs.Families.notebookChatContextNotebooks.prefix)
+        let collections = rows(Prefs.Families.notebookCollectionMembership.prefix)
         var notebooks: [String] = []
         try query("SELECT id FROM learning_goals WHERE entity_kind = ? ORDER BY id", [.text(LearningGoalEntityKind.notebook)]) { row in
             if let id = row.text(0) { notebooks.append(id) }

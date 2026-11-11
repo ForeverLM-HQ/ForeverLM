@@ -309,9 +309,6 @@ struct ArticleSpeechPlaybackPosition: Codable, Equatable {
 /// transport only: it is state about the listener's progress, keyed by source,
 /// not a setting.
 enum ListeningPositionSync {
-    /// `listen.position.<sourceID>` — one record per source, so two devices
-    /// listening to two different sources never contend.
-    static let preferenceKeyPrefix = Prefs.Families.listeningPosition.prefix
 
     /// How often a device that is still playing republishes to the account. A
     /// pause, a skip, a stop, or leaving the app publishes immediately; this
@@ -323,8 +320,8 @@ enum ListeningPositionSync {
     }
 
     static func sourceID(fromPreferenceKey key: String) -> String? {
-        guard key.hasPrefix(preferenceKeyPrefix) else { return nil }
-        let id = String(key.dropFirst(preferenceKeyPrefix.count))
+        guard key.hasPrefix(Prefs.Families.listeningPosition.prefix) else { return nil }
+        let id = String(key.dropFirst(Prefs.Families.listeningPosition.prefix.count))
         return id.isEmpty ? nil : id
     }
 

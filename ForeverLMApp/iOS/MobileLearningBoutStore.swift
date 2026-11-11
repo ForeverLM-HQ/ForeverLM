@@ -25,11 +25,9 @@ actor MobileLearningBoutStore {
         self.defaults = defaults
     }
 
-    /// The breaks this phone ended, by bout id; kept two days, as long as a bout is read.
-    static let endedBreaksKey = "ios.learningBout.endedBreaks.v1"
-
+    /// The breaks this phone ended, by bout id, are kept two days, as long as a bout is read.
     private func endedBreaks(now: Date) -> [String: Date] {
-        let stored = defaults.dictionary(forKey: Self.endedBreaksKey) as? [String: Double] ?? [:]
+        let stored = Preferences.withStorage(defaults) { Preferences.value(Prefs.Mobile.learningBoutEndedBreaks) } as? [String: Double] ?? [:]
         return stored.compactMapValues { seconds in
             let date = Date(timeIntervalSince1970: seconds)
             return now.timeIntervalSince(date) < 2 * MemoryTutorScheduler.secondsPerDay ? date : nil
@@ -39,7 +37,7 @@ actor MobileLearningBoutStore {
     private func rememberEndedBreak(_ boutID: String, at date: Date) {
         var kept = endedBreaks(now: date).mapValues(\.timeIntervalSince1970)
         kept[boutID] = date.timeIntervalSince1970
-        defaults.set(kept, forKey: Self.endedBreaksKey)
+        Preferences.withStorage(defaults) { Preferences.set(kept, for: Prefs.Mobile.learningBoutEndedBreaks) }
     }
 
     private func requiredWriter() async throws -> MobileRecordWriter {

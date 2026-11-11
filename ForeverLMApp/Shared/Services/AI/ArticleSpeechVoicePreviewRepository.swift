@@ -206,8 +206,7 @@ enum ArticleSpeechVoiceRating: String, Sendable {
     case up
     case down
 
-    static let preferencePrefix = "readAloud.voiceRating."
-
+    static let preferencePrefix = Prefs.Families.voiceRating.prefix
     static func preferenceKey(modelID: String, voiceID: String) -> String {
         "\(preferencePrefix)\(modelID)|\(voiceID)"
     }

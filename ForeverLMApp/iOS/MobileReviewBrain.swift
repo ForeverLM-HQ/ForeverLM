@@ -64,7 +64,6 @@ enum MobileReviewGrader: String, CaseIterable, Identifiable, Sendable {
     case claude
     case appleOnDevice
 
-    static let defaultsKey = "foreverlm.grader.v1"
     static let `default`: MobileReviewGrader = .claude
 
     var id: String { rawValue }

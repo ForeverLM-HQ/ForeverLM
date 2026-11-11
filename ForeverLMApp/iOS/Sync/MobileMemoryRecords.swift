@@ -321,8 +321,8 @@ extension MobileWrite {
         let kind: String
         if key.hasPrefix(LectureQuizScore.courseQuizPreferenceKeyPrefix) {
             (column, kind, id) = ("quiz_id", "courseQuiz", String(key.dropFirst(LectureQuizScore.courseQuizPreferenceKeyPrefix.count)))
-        } else if key.hasPrefix(LectureQuizScore.preferenceKeyPrefix) {
-            (column, kind, id) = ("scope_source_id", "lectureQuiz", String(key.dropFirst(LectureQuizScore.preferenceKeyPrefix.count)))
+        } else if key.hasPrefix(Prefs.Families.lectureQuizScore.prefix) {
+            (column, kind, id) = ("scope_source_id", "lectureQuiz", String(key.dropFirst(Prefs.Families.lectureQuizScore.prefix.count)))
         } else {
             return nil
         }
@@ -350,9 +350,9 @@ extension MobileWrite {
         if key.hasPrefix(LectureQuizScore.courseQuizPreferenceKeyPrefix) {
             kind = "courseQuiz"
             scope = .object(["quizID": .string(String(key.dropFirst(LectureQuizScore.courseQuizPreferenceKeyPrefix.count)))])
-        } else if key.hasPrefix(LectureQuizScore.preferenceKeyPrefix) {
+        } else if key.hasPrefix(Prefs.Families.lectureQuizScore.prefix) {
             kind = "lectureQuiz"
-            scope = .object(["sourceID": .string(String(key.dropFirst(LectureQuizScore.preferenceKeyPrefix.count)))])
+            scope = .object(["sourceID": .string(String(key.dropFirst(Prefs.Families.lectureQuizScore.prefix.count)))])
         } else {
             throw MobileRecordWriterError.refused("\"\(key)\" is not a quiz score.")
         }

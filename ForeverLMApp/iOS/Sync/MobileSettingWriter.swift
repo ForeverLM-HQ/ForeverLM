@@ -33,7 +33,7 @@ extension MobileSettingCatalog {
         ArticleSpeechSelection.syncedVoiceKey: Entry(type: "string"),
         ArticleSpeechSelection.syncedProviderKey: Entry(type: "string"),
         SharingRightsAffirmation.preferenceKey: Entry(type: "string"),
-        RealtimeVoiceDefaults.voicePreferenceKey: Entry(type: "string", values: RealtimeVoiceDefaults.voices),
+        Prefs.ReadAloud.voiceModeVoice.name: Entry(type: "string", values: RealtimeVoiceDefaults.voices),
     ]
 
     /// The key families the phone writes, by prefix (a family's pattern is its prefix and a name).
@@ -162,12 +162,12 @@ enum MobilePreferenceRoute: Equatable, Sendable {
 
     static func of(_ key: String) -> MobilePreferenceRoute {
         if let sourceID = ListeningPositionSync.sourceID(fromPreferenceKey: key) { return .listenPosition(sourceID: sourceID) }
-        if key.hasPrefix(MobileNotebookChatSelection.preferenceKeyPrefix) || key.hasPrefix(NotebookChatContext.preferenceKeyPrefix)
+        if key.hasPrefix(MobileNotebookChatSelection.preferenceKeyPrefix) || key.hasPrefix(Prefs.Families.notebookChatContextNotebooks.prefix)
             || NotebookCollections.notebookID(fromMembershipKey: key) != nil {
             return .notebookRow
         }
         if let field = notebookLists[key] { return .notebookList(field: field) }
-        if key.hasPrefix(LectureQuizScore.courseQuizPreferenceKeyPrefix) || key.hasPrefix(LectureQuizScore.preferenceKeyPrefix) {
+        if key.hasPrefix(LectureQuizScore.courseQuizPreferenceKeyPrefix) || key.hasPrefix(Prefs.Families.lectureQuizScore.prefix) {
             return .quizScore
         }
         if notOnPhoneKeys.contains(key) || notOnPhonePrefixes.contains(where: key.hasPrefix) { return .notOnPhone }
@@ -199,8 +199,8 @@ extension MobileWrite {
 
     /// The Setting a key is held under: a naming mark lives under the notebook it resolves to (§5.2).
     func settingKey(_ key: String) throws -> String {
-        guard key.hasPrefix(NotebookNaming.preferenceKeyPrefix), key.count > NotebookNaming.preferenceKeyPrefix.count else { return key }
-        let id = String(key.dropFirst(NotebookNaming.preferenceKeyPrefix.count))
+        guard key.hasPrefix(Prefs.Families.notebookNaming.prefix), key.count > Prefs.Families.notebookNaming.prefix.count else { return key }
+        let id = String(key.dropFirst(Prefs.Families.notebookNaming.prefix.count))
         return NotebookNaming.preferenceKey(notebookID: (try? resolvedNotebook(id))?.id ?? id)
     }
 
@@ -209,8 +209,8 @@ extension MobileWrite {
         if key.hasPrefix(MobileNotebookChatSelection.preferenceKeyPrefix) {
             guard let selection = try? chatSelection(of: String(key.dropFirst(MobileNotebookChatSelection.preferenceKeyPrefix.count))) else { return nil }
             row = selection.excluded.sorted()
-        } else if key.hasPrefix(NotebookChatContext.preferenceKeyPrefix) {
-            guard let selection = try? chatSelection(of: String(key.dropFirst(NotebookChatContext.preferenceKeyPrefix.count))) else { return nil }
+        } else if key.hasPrefix(Prefs.Families.notebookChatContextNotebooks.prefix) {
+            guard let selection = try? chatSelection(of: String(key.dropFirst(Prefs.Families.notebookChatContextNotebooks.prefix.count))) else { return nil }
             row = selection.contextNotebookIDs.sorted()
         } else if let id = NotebookCollections.notebookID(fromMembershipKey: key) {
             row = try collections(of: id)
@@ -244,8 +244,8 @@ extension MobileWrite {
             let ids = Set(value as? [String] ?? [])
             if key.hasPrefix(MobileNotebookChatSelection.preferenceKeyPrefix) {
                 try setChatExclusions(String(key.dropFirst(MobileNotebookChatSelection.preferenceKeyPrefix.count)), to: ids)
-            } else if key.hasPrefix(NotebookChatContext.preferenceKeyPrefix) {
-                try setContextNotebooks(String(key.dropFirst(NotebookChatContext.preferenceKeyPrefix.count)), to: ids)
+            } else if key.hasPrefix(Prefs.Families.notebookChatContextNotebooks.prefix) {
+                try setContextNotebooks(String(key.dropFirst(Prefs.Families.notebookChatContextNotebooks.prefix.count)), to: ids)
             } else if let id = NotebookCollections.notebookID(fromMembershipKey: key) {
                 try setCollections(id, to: ids)
             }

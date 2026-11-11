@@ -54,6 +54,8 @@ extension Prefs {
         static let ideaExtractionFailures = DeviceKey<[String: Any]?>("sourceIdeas.extractionFailures.v1", coding: .dictionary, reason: "device-local retry backoff for idea extraction")
         static let reviewLayout = DeviceKey<String?>("memoryReviewLayout", reason: "how this device lays out the memory review")
         static let cohortDismissedSignatures = DeviceKey<[String: Any]?>("cohortReview.dismissedSignatures.v1", coding: .dictionary, reason: "\"not right now\" is about the machine being sat at; syncing it would let a dismissal here swallow the phone's morning nudge")
+        static let dailyPreparationLastAttemptDay = DeviceKey<String?>("memoryReview.dailyPreparation.lastAttemptDay.v1", reason: "the day this phone last tried to prepare the review")
+        static let dailyPreparationLastAttemptMessage = DeviceKey<String?>("memoryReview.dailyPreparation.lastAttemptMessage.v1", reason: "what this phone did the last time it tried to prepare the review")
 
         static let all: [AnyPreferenceKey] = [
             newCardsPerDay.erased,
@@ -76,6 +78,8 @@ extension Prefs {
             ideaExtractionFailures.erased,
             reviewLayout.erased,
             cohortDismissedSignatures.erased,
+            dailyPreparationLastAttemptDay.erased,
+            dailyPreparationLastAttemptMessage.erased,
         ]
     }
 }

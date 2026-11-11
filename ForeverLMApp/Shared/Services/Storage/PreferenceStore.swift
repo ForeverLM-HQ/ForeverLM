@@ -43,7 +43,7 @@ enum PreferenceStore {
 
     /// Posted on the main thread after this Mac's own write through the façade
     /// changed a preference: `set`, `remove`, and `mirrorExternalWrite` (a
-    /// `SyncedStorage` binding). The payload is the changed key set under
+    /// `PreferenceStorage` binding). The payload is the changed key set under
     /// `changedKeysKey`, as for `didChangeRemotely`.
     ///
     /// Between them the two notifications name every preference change, so a
@@ -367,7 +367,7 @@ enum PreferenceStore {
 
     /// Persist a value that another mechanism has already written to `UserDefaults`.
     ///
-    /// Exists for `SyncedStorage`, which delegates the actual write to `AppStorage`
+    /// Exists for `PreferenceStorage`, which writes `UserDefaults` itself
     /// and then calls this to mirror the result onto the sync rail. Reads the value
     /// back rather than taking it as a parameter so the persisted value is exactly
     /// what `AppStorage` stored, including its type bridging.
@@ -546,7 +546,7 @@ enum PreferenceStore {
 
 /// Calls back when one preference's value changes, whoever changed it: this
 /// Mac's own writes through `PreferenceStore` (the Settings switch, an MCP
-/// `set_app_setting`, a `SyncedStorage` binding), announced as
+/// `set_app_setting`, a `PreferenceStorage` binding), announced as
 /// `didChangeLocally`, and another device's, applied by `applyInbound` and
 /// announced as `didChangeRemotely`.
 ///
@@ -620,8 +620,7 @@ final class PreferenceKeyWatcher<Value: Equatable> {
 /// beside the value itself, so it survives exactly what the lost write did
 /// not, and it is local: the key matches no synced name or prefix.
 struct PreferenceWriteJournal {
-    static let defaultsKey = "preferenceStore.unconfirmedWrites"
-
+    static let defaultsKey = Prefs.Lifecycle.unconfirmedPreferenceWrites.name
     /// The unconfirmed keys, read from `UserDefaults` once and kept here, so
     /// a caller holding a lock never has to read or write `UserDefaults`.
     private(set) var keys: Set<String>

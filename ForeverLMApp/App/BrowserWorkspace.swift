@@ -35,8 +35,6 @@ struct BrowserProfile: Codable, Identifiable, Hashable, Sendable {
 @MainActor
 @Observable
 final class BrowserProfileStore {
-    static let profilesKey = Prefs.Readers.browserProfiles.name
-
     /// The app's one profile list: every window's Browser pane and every
     /// linked page read the same jars, so a profile made in one window is
     /// offered in the next.
@@ -48,7 +46,7 @@ final class BrowserProfileStore {
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
         var loaded: [BrowserProfile] = []
-        if let data = defaults.data(forKey: Self.profilesKey),
+        if let data = Preferences.withStorage(defaults, { Preferences.value(Prefs.Readers.browserProfiles) }) as? Data,
            let decoded = try? JSONDecoder().decode([BrowserProfile].self, from: data) {
             loaded = decoded
         }
@@ -106,7 +104,7 @@ final class BrowserProfileStore {
 
     private func persist() {
         if let data = try? JSONEncoder().encode(profiles) {
-            defaults.set(data, forKey: Self.profilesKey)
+            Preferences.withStorage(defaults) { Preferences.set(data, for: Prefs.Readers.browserProfiles) }
         }
     }
 
@@ -135,7 +133,7 @@ final class BrowserProfileStore {
 @MainActor
 @Observable
 final class LinkedPageProfiles {
-    static let key = "browser.linkedPageProfiles.v1"
+    static let key = Prefs.Readers.browserLinkedPageProfiles.name
     static let shared = LinkedPageProfiles()
 
     private let defaults: UserDefaults
@@ -143,7 +141,7 @@ final class LinkedPageProfiles {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        assignments = defaults.dictionary(forKey: Self.key) as? [String: String] ?? [:]
+        assignments = Preferences.withStorage(defaults) { Preferences.value(Prefs.Readers.browserLinkedPageProfiles) } as? [String: String] ?? [:]
     }
 
     /// The profile the page opens under; Library when none is assigned or
@@ -160,7 +158,7 @@ final class LinkedPageProfiles {
         } else {
             assignments.removeValue(forKey: artifactID)
         }
-        defaults.set(assignments, forKey: Self.key)
+        Preferences.withStorage(defaults) { Preferences.set(assignments, for: Prefs.Readers.browserLinkedPageProfiles) }
     }
 }
 
@@ -357,7 +355,7 @@ final class BrowserWorkspace {
         self.persistsSession = persistSession
         self.answersPasskeys = answersPasskeys
         if restoreSession,
-           let data = defaults.data(forKey: Self.sessionKey),
+           let data = Preferences.withStorage(defaults, { Preferences.value(Prefs.Readers.browserSession) }) as? Data,
            let snapshot = try? JSONDecoder().decode(BrowserSessionSnapshot.self, from: data) {
             restore(snapshot)
         }
@@ -526,7 +524,7 @@ final class BrowserWorkspace {
             activeIndex: tabs.firstIndex { $0.id == activeTabID }
         )
         if let data = try? JSONEncoder().encode(snapshot) {
-            defaults.set(data, forKey: Self.sessionKey)
+            Preferences.withStorage(defaults) { Preferences.set(data, for: Prefs.Readers.browserSession) }
         }
     }
 

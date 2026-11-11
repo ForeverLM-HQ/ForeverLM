@@ -7,10 +7,6 @@ import Foundation
 enum DailyReviewPreparationKeys {
     /// Synced across the account. Listed in `SyncedPreferenceKeys.synced`.
     static let enabled = "memoryReview.dailyPreparation.enabled.v1"
-    /// Device-local: the hour a review should be waiting is a property of the
-    /// device's mornings, not of the account. The same key on every platform,
-    /// each in its own defaults.
-    static let hour = "memoryReview.dailyPreparation.hour.v1"
     static let defaultHour = 7
 }
 

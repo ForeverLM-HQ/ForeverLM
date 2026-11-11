@@ -351,8 +351,6 @@ enum MacArticleSpeechSettings {
     static let defaultLocalQwen3Model = "qwen3-tts"
     static let defaultLocalQwen3Voice = "Ryan"
     static let defaultLocalQwen3ServerURL = "http://127.0.0.1:8000"
-    static let openAIInstructionsDefaultsKey = Prefs.ReadAloud.openAIInstructions.name
-    static let localQwen3InstructionsDefaultsKey = Prefs.ReadAloud.localQwen3Instructions.name
 
     static let openAIVoices = [
         "alloy", "ash", "ballad", "coral", "echo", "fable", "nova",

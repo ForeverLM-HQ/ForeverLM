@@ -1740,7 +1740,7 @@ struct VoiceModeVoicePicker: View {
         .accessibilityIdentifier("settings.voice.voiceMode.voice")
         .onReceive(NotificationCenter.default.publisher(for: PreferenceStore.didChangeRemotely)) { note in
             guard let keys = note.userInfo?[PreferenceStore.changedKeysKey] as? Set<String>,
-                  keys.contains(RealtimeVoiceDefaults.voicePreferenceKey) else { return }
+                  keys.contains(Prefs.ReadAloud.voiceModeVoice.name) else { return }
             voice = Self.stored
         }
         // set_app_setting writes the same key on this Mac.

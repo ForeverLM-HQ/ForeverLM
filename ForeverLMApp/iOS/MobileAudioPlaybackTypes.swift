@@ -68,9 +68,6 @@ enum MobileAudioPlaybackSpeed {
 }
 
 enum MobileBookPlaybackPreferences {
-    static let automaticallyContinuesKey = Prefs.Mobile.automaticallyContinuesBooks.name
-    static let hasAskedToAutomaticallyContinueKey = Prefs.Mobile.hasAskedToAutomaticallyContinueBooks.name
-
     static var automaticallyContinues: Bool {
         get { Preferences.value(Prefs.Mobile.automaticallyContinuesBooks) }
         set { Preferences.set(newValue, for: Prefs.Mobile.automaticallyContinuesBooks) }

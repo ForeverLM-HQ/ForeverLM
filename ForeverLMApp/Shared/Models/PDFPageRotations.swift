@@ -22,8 +22,7 @@ import Foundation
 /// from the first chapter when none does, so it can be negative.
 /// Foundation-only, so the phone and the web can read the same row.
 struct PDFPageRotations: Equatable, Sendable {
-    static let preferenceKeyPrefix = "reader.pdfRotations."
-
+    static let preferenceKeyPrefix = Prefs.Families.pdfRotations.prefix
     /// Clockwise degrees (90, 180 or 270) by page of the source.
     private(set) var turns: [Int: Int]
 

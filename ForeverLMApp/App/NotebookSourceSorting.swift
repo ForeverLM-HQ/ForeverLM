@@ -93,7 +93,6 @@ enum NotebookSourceSort: String, CaseIterable, Identifiable {
     case longest, shortest
     case inChat, readingStatus, studyOrder
 
-    static let preferenceKey = "notebook.sources.sort"
     static let standard: NotebookSourceSort = .type
 
     var id: String { rawValue }

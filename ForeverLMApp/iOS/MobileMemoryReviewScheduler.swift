@@ -27,8 +27,6 @@ final class MobileMemoryReviewScheduler: ObservableObject {
     /// out loud, so the check starts from the Lock Screen with nothing else
     /// to tap.
     nonisolated static let reviewByVoiceAction = "com.foreverlm.mobile.memory-review.voice"
-    private static let lastAttemptDayKey = "memoryReview.dailyPreparation.lastAttemptDay.v1"
-    private static let lastAttemptMessageKey = "memoryReview.dailyPreparation.lastAttemptMessage.v1"
 
     /// What this phone last did about the day's review, for Settings.
     @Published private(set) var lastAttemptDay: String?
@@ -38,8 +36,8 @@ final class MobileMemoryReviewScheduler: ObservableObject {
     private var didRegister = false
 
     private init() {
-        lastAttemptDay = UserDefaults.standard.string(forKey: Self.lastAttemptDayKey)
-        lastAttemptMessage = UserDefaults.standard.string(forKey: Self.lastAttemptMessageKey)
+        lastAttemptDay = Preferences.value(Prefs.Memory.dailyPreparationLastAttemptDay)
+        lastAttemptMessage = Preferences.value(Prefs.Memory.dailyPreparationLastAttemptMessage)
     }
 
     // MARK: - Settings
@@ -175,12 +173,8 @@ final class MobileMemoryReviewScheduler: ObservableObject {
     private func recordAttempt(day: String, message: String?) {
         lastAttemptDay = day
         lastAttemptMessage = message
-        UserDefaults.standard.set(day, forKey: Self.lastAttemptDayKey)
-        if let message {
-            UserDefaults.standard.set(message, forKey: Self.lastAttemptMessageKey)
-        } else {
-            UserDefaults.standard.removeObject(forKey: Self.lastAttemptMessageKey)
-        }
+        Preferences.set(day, for: Prefs.Memory.dailyPreparationLastAttemptDay)
+        Preferences.set(message, for: Prefs.Memory.dailyPreparationLastAttemptMessage)
     }
 
     // MARK: - Reminder

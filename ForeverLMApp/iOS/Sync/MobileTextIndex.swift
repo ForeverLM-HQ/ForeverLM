@@ -288,11 +288,11 @@ struct MobileTextIndexChoice: @unchecked Sendable {
         self.environment = environment
     }
 
-    private var key: String { "ios.search.wholeLibraryText.\(environment.rawValue)" }
+    private var key: DeviceKey<Bool> { Prefs.Families.wholeLibraryText.key(environment.rawValue) }
 
     var wholeLibrary: Bool {
-        get { defaults.bool(forKey: key) }
-        nonmutating set { defaults.set(newValue, forKey: key) }
+        get { Preferences.withStorage(defaults) { Preferences.value(key) } }
+        nonmutating set { Preferences.withStorage(defaults) { Preferences.set(newValue, for: key) } }
     }
 }
 

@@ -431,8 +431,8 @@ extension KnowledgeStore {
     func deriveCardStates() throws {
         var rows: [(key: String, xml: String)] = []
         try query(
-            "SELECT key, value FROM user_preferences WHERE substr(key, 1, \(MemoryCardDeckState.preferenceKeyPrefix.count)) = ? ORDER BY key",
-            [.text(MemoryCardDeckState.preferenceKeyPrefix)]
+            "SELECT key, value FROM user_preferences WHERE substr(key, 1, \(Prefs.Families.cardDeckState.prefix.count)) = ? ORDER BY key",
+            [.text(Prefs.Families.cardDeckState.prefix)]
         ) { row in
             if let key = row.text(0), let xml = row.text(1) { rows.append((key, xml)) }
         }

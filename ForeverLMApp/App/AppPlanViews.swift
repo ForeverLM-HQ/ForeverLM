@@ -365,8 +365,8 @@ enum FreeDaysNotices {
         return "\(ManagedAI.AppAccess.freeDaysStatus(daysLeft: daysLeft)). Keep your assistants connected with \(deal), no subscription."
     }
 
-    private static func shownKey(_ notice: Notice, freeUntil: Date) -> String {
-        "freeDaysNotice.\(notice.rawValue).\(Int(freeUntil.timeIntervalSince1970))"
+    private static func shownKey(_ notice: Notice, freeUntil: Date) -> DeviceKey<Bool> {
+        Prefs.Families.freeDaysNotice.key("\(notice.rawValue).\(Int(freeUntil.timeIntervalSince1970))")
     }
 
     /// Shows the notice that is due, once. Device-local: a notice seen on
@@ -376,8 +376,8 @@ enum FreeDaysNotices {
               let freeUntil = account.appAccess?.freeUntil,
               let notice = due(daysLeft: daysLeft) else { return }
         let key = shownKey(notice, freeUntil: freeUntil)
-        guard !UserDefaults.standard.bool(forKey: key) else { return }
-        UserDefaults.standard.set(true, forKey: key)
+        guard !Preferences.value(key) else { return }
+        Preferences.set(true, for: key)
         let onceCents = account.planPrices.onceCents
         vm.showToast(
             message(daysLeft: daysLeft, onceCents: onceCents),

@@ -29,7 +29,10 @@ extension Prefs {
         /// a thumb changed on one device from overwriting reactions to other voices.
         static let voiceRating = AccountFamily<String, String?>(prefix: "readAloud.voiceRating.", .phoneWritable)
         /// `meetingFolder.image.<groupID>` — one row per meeting folder that has
-        /// been given its own sidebar tile, for the same reason.
+        /// been given its own sidebar tile, for the same reason. A preference rather
+        /// than a column on `meeting_groups`: this is display chrome, not a fact
+        /// about the meeting, and one row per folder keeps two Macs choosing
+        /// images for two different folders from overwriting each other.
         static let meetingFolderImage = AccountFamily<String, Any?>(prefix: "meetingFolder.image.", coding: .any)
         /// `lectureQuiz.score.<sourceID>` — the latest sitting of each course
         /// lecture's quiz. Per-member state kept in the private database, so a
@@ -159,6 +162,17 @@ extension Prefs {
         static let retiredOpenAISlidesSkill = DeviceFamily<String, Any?>.unread(prefix: "openai_slides_skill_", reason: "cache")
         static let walkthroughDeckPosition = DeviceFamily<String, Any?>(prefix: "walkthroughDeck.position.", coding: .any, reason: "where this phone left each walkthrough deck")
 
+        /// `ios.readAloud.voice.<model id>` — the voice this phone last used with one speech model.
+        static let readAloudDeviceVoice = DeviceFamily<String, String?>(prefix: "ios.readAloud.voice.", reason: "iPhone-local: the voice this phone narrates one model with; the account's pick is the synced voice row")
+        /// `ios.notebooks.columns.<side>Folded` — whether this phone folds a notebook's side column, one value for every notebook.
+        static let notebookColumnFolded = DeviceFamily<String, Bool>(prefix: "ios.notebooks.columns.", id: .string, default: false, coding: .bool, reason: "iPhone-local: how this screen is laid out, never a row of the notebook")
+        /// `ios.spaces.downloadAll.<environment>` — the spaces whose files this phone keeps downloaded, per CloudKit environment.
+        static let spacesDownloadAll = DeviceFamily<String, [String]?>(prefix: "ios.spaces.downloadAll.", reason: "iPhone-local: which spaces this phone downloads in full")
+        /// `ios.search.wholeLibraryText.<environment>` — whether this phone's search covers the text of the whole library, per CloudKit environment.
+        static let wholeLibraryText = DeviceFamily<String, Bool>(prefix: "ios.search.wholeLibraryText.", id: .string, default: false, coding: .bool, reason: "iPhone-local: whether this phone indexes the text of the whole library")
+        /// `freeDaysNotice.<notice>.<free days end>` — that this Mac showed one free-days notice for one set of free days.
+        static let freeDaysNotice = DeviceFamily<String, Bool>(prefix: "freeDaysNotice.", id: .string, default: false, coding: .bool, reason: "a notice seen on one Mac is not owed to another")
+
         static let all: [AnyPreferenceFamily] = [
             workspaceViews.erased,
             aiTask.erased,
@@ -206,6 +220,11 @@ extension Prefs {
             mobile.erased,
             retiredOpenAISlidesSkill.erased,
             walkthroughDeckPosition.erased,
+            readAloudDeviceVoice.erased,
+            notebookColumnFolded.erased,
+            spacesDownloadAll.erased,
+            wholeLibraryText.erased,
+            freeDaysNotice.erased,
         ]
     }
 }

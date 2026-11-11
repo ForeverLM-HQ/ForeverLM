@@ -537,9 +537,6 @@ struct InboxSubjects {
 final class CornerNoticeTray {
     static let shared = CornerNoticeTray(defaults: .standard)
 
-    /// The read marks: each kind's raw value to what it was about when it
-    /// was marked. This Mac's alone (`SyncedPreferenceKeys.excluded`).
-    nonisolated static let readMarksKey = Prefs.Studio.noticeReadMarks.name
 
     private(set) var tucked: Set<CornerNoticeKind> = []
     /// What each kind was about when it was marked read (`CornerNoticeKind.subject`).
@@ -549,7 +546,7 @@ final class CornerNoticeTray {
 
     init(defaults: UserDefaults? = nil) {
         self.defaults = defaults
-        let stored = defaults?.dictionary(forKey: Self.readMarksKey) as? [String: [String]] ?? [:]
+        let stored = defaults?.dictionary(forKey: Prefs.Studio.noticeReadMarks.name) as? [String: [String]] ?? [:]
         for (raw, subject) in stored {
             if let kind = CornerNoticeKind(rawValue: raw) { read[kind] = Set(subject) }
         }
@@ -597,7 +594,7 @@ final class CornerNoticeTray {
     private func store() {
         guard let defaults else { return }
         let marks = Dictionary(uniqueKeysWithValues: read.map { ($0.key.rawValue, $0.value.sorted()) })
-        defaults.set(marks, forKey: Self.readMarksKey)
+        defaults.set(marks, forKey: Prefs.Studio.noticeReadMarks.name)
     }
 }
 

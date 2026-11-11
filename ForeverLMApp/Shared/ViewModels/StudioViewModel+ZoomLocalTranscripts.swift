@@ -69,18 +69,6 @@ extension StudioViewModel {
 
     // MARK: - Folder
 
-    /// Where Zoom saves captions is a Zoom setting, and its default —
-    /// `~/Documents/Zoom` — is not always somewhere the transcripts should
-    /// live: `~/Documents` can be a symlink into cloud storage someone else
-    /// controls, so leaving Zoom at its default files every meeting there.
-    /// Moving Zoom's folder has to be possible without ingestion
-    /// silently stopping, so the folder is a preference and both it and the
-    /// default are watched.
-    ///
-    /// Machine-local on purpose: a path is a fact about one Mac, so this is
-    /// plain `UserDefaults` and never `SyncedStorage`, which would push this
-    /// Mac's path onto the other one.
-    static let zoomLocalTranscriptFolderKey = Prefs.Meetings.zoomLocalTranscriptFolder.name
 
     nonisolated static var zoomLocalTranscriptCustomFolder: String? {
         let stored = Preferences.value(Prefs.Meetings.zoomLocalTranscriptFolder)?
@@ -235,15 +223,6 @@ extension StudioViewModel {
     /// earlier would offer to convert what Zoom is about to convert anyway.
     nonisolated static let zoomLocalRecordingConversionWait: TimeInterval = 15 * 60
 
-    /// Recording folders the learner said to leave alone — a meeting that did
-    /// not happen, a recording not worth transcribing. Paths on this Mac, so
-    /// plain `UserDefaults` like the folder preference and never synced; a
-    /// folder that is gone drops out on the next write.
-    nonisolated static let zoomLocalRecordingIgnoredFoldersKey = Prefs.Meetings.zoomLocalRecordingIgnoredFolders.name
-
-    /// The 2026-09-19 per-launch request counter, retired with the background
-    /// request itself; a pass clears it so old builds' state does not linger.
-    nonisolated static let zoomLocalRecordingConversionRequestsKey = "studio.zoomLocalRecordingConversionRequests"
 
     nonisolated static func zoomLocalRecordingIgnoredFoldersFromDefaults() -> Set<String> {
         Set(Preferences.value(Prefs.Meetings.zoomLocalRecordingIgnoredFolders) ?? [])
@@ -856,8 +835,10 @@ extension StudioViewModel {
         // on disk changing, and the backstop is what brings the row up then.
         let needingConversion = Self.zoomLocalRecordingsNeedingConversion(folders, captions: files)
         let ignored = Self.zoomLocalRecordingIgnoredFoldersFromDefaults()
-        if UserDefaults.standard.object(forKey: Self.zoomLocalRecordingConversionRequestsKey) != nil {
-            UserDefaults.standard.removeObject(forKey: Self.zoomLocalRecordingConversionRequestsKey)
+        // The per-launch request counter, retired with the background request
+        // itself; a pass clears it so old builds' state does not linger.
+        if Preferences.isSet(Prefs.Meetings.retiredZoomLocalRecordingConversionRequests) {
+            Preferences.reset(Prefs.Meetings.retiredZoomLocalRecordingConversionRequests)
         }
         await MainActor.run {
             let knownTitles = self.meetingMetadata.values.compactMap(\.title)
@@ -1640,9 +1621,6 @@ extension StudioViewModel {
     /// the learner, as every waiting recording did before.
     nonisolated static let zoomLocalRecordingAutoConversionCap = 2
 
-    /// Folder path → automatic conversions made, on this Mac. Plain
-    /// `UserDefaults` like the ignore list, pruned of folders that are gone.
-    nonisolated static let zoomLocalRecordingAutoConversionsKey = Prefs.Meetings.zoomLocalRecordingAutoConversions.name
 
     nonisolated static func zoomLocalRecordingAutoConversionsFromDefaults() -> [String: Int] {
         Preferences.value(Prefs.Meetings.zoomLocalRecordingAutoConversions) as? [String: Int] ?? [:]

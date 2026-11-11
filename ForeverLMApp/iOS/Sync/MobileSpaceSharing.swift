@@ -110,8 +110,6 @@ final class MobileSpaceShareModel: ObservableObject {
     @Published var asksAffirmation = false
     @Published var controller: Controller?
 
-    private static let presentedKey = "share.presentedMoveJobs"
-
     init(notebookID: String, title: String) {
         self.notebookID = notebookID
         self.title = title
@@ -211,8 +209,8 @@ final class MobileSpaceShareModel: ObservableObject {
 
     /// The moves whose space this phone already showed the sharing controller for: device-local.
     private var presentedJobs: Set<String> {
-        get { Set(UserDefaults.standard.stringArray(forKey: Self.presentedKey) ?? []) }
-        set { UserDefaults.standard.set(Array(newValue).sorted(), forKey: Self.presentedKey) }
+        get { Set(Preferences.value(Prefs.Mobile.presentedMoveJobs) ?? []) }
+        set { Preferences.set(Array(newValue).sorted(), for: Prefs.Mobile.presentedMoveJobs) }
     }
 }
 

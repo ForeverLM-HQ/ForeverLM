@@ -57,9 +57,8 @@ enum ReaderDarkMode {
     /// leave the paper that is already open inverted until it was rebuilt, which
     /// is precisely the paper the reader just turned this off for. The other
     /// display toggles that must reach live views (`showReadStatus`,
-    /// `uiZoomStep`) are undotted for the same reason. See `SyncedStorage`.
-    static let originalPageColorsKey = "readerOriginalPageColors"
-
+    /// `uiZoomStep`) are undotted for the same reason. See `SyncedStorageObserver`.
+    static let originalPageColorsKey = Prefs.Readers.originalPageColors.name
     /// Whether a reader rendering in `colorScheme` should darken a page that
     /// carries no dark design of its own.
     ///

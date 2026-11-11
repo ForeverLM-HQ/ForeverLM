@@ -629,7 +629,6 @@ struct LectureQuizScore: Equatable, Sendable {
         )
     }
 
-    static let preferenceKeyPrefix = Prefs.Families.lectureQuizScore.prefix
 
     static func preferenceKey(sourceID: String) -> String {
         Prefs.Families.lectureQuizScore.name(sourceID)
@@ -667,7 +666,7 @@ struct LectureQuizScore: Equatable, Sendable {
     /// of the defaults dictionary finds the runtime-built keys.
     static func scoresFromDefaults(
         _ defaults: UserDefaults = .standard,
-        prefix: String = preferenceKeyPrefix
+        prefix: String = Prefs.Families.lectureQuizScore.prefix
     ) -> [String: LectureQuizScore] {
         var scores: [String: LectureQuizScore] = [:]
         for (key, value) in defaults.dictionaryRepresentation() where key.hasPrefix(prefix) {

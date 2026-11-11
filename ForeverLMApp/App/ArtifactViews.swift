@@ -223,7 +223,7 @@ struct ArtifactCanvas: View {
     /// reference or a linked reference followed — held until that doc's
     /// editor takes it (docs/notes-graph-design.md).
     @State var pendingBlockReveal: ArtifactBlockRevealRequest?
-    @SyncedStorage var isArtifactListVisible: Bool
+    @PreferenceStorage var isArtifactListVisible: Bool
     @PreferenceStorage(Prefs.Readers.pageColumnWidth, default: ArtifactPageWidth.standard) var pageWidth
     /// The learner's name, for the initials on the page's top line.
     @PreferenceStorage(Prefs.Account.displayName) var savedDisplayName
@@ -250,14 +250,14 @@ struct ArtifactCanvas: View {
         self.notebookID = notebookID
         self.onBack = onBack
         // Each section remembers its own list: Docs keeps the key it has
-        // always synced under, so nothing a learner set is lost.
-        let listKey: String
+        // always used, so nothing a learner set is lost.
+        let listKey: DeviceKey<Bool>
         switch section {
-        case .docs: listKey = "notepad.artifactListVisible"
-        case .sites: listKey = "sites.listVisible"
-        case .animations: listKey = "animations.listVisible"
+        case .docs: listKey = Prefs.Studio.docsListVisible
+        case .sites: listKey = Prefs.Studio.sitesListVisible
+        case .animations: listKey = Prefs.Studio.animationsListVisible
         }
-        _isArtifactListVisible = SyncedStorage(wrappedValue: false, listKey)
+        _isArtifactListVisible = PreferenceStorage(listKey)
     }
 
     /// Whether the pane can hold the doc list and a readable page side by side.

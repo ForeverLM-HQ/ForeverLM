@@ -21,7 +21,6 @@ extension StudioViewModel {
     // MARK: - Source Discovery
 
     nonisolated static let browserAccessPromptDismissedKey = Prefs.Discovery.browserAccessPromptDismissed.name
-    nonisolated static let podcastAccessPromptDismissedKey = Prefs.Discovery.podcastAccessPromptDismissed.name
 
     func startProtectedSourceAutoSyncIfReady() {
         guard hasCompletedInitialQueueLoad else { return }
@@ -2401,11 +2400,6 @@ extension StudioViewModel {
 
     // MARK: - Followed shows
 
-    /// Shows the learner follows whole: discovery brings in every episode
-    /// Apple Podcasts holds for them, not only the listened ones. Kept in the
-    /// preference store like the discovery scope, since it steers a Mac-only
-    /// import rather than describing a source.
-    nonisolated static let followedPodcastShowsKey = Prefs.Discovery.followedPodcastShows.name
 
     nonisolated static func followedPodcastShowNames() -> Set<String> {
         Set(Preferences.value(Prefs.Discovery.followedPodcastShows) ?? [])

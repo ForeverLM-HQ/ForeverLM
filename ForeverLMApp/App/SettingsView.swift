@@ -53,8 +53,6 @@ enum SettingsScope: Hashable {
 }
 
 enum AssistantIntegrationSettings {
-    static let enabledKey = Prefs.MCP.assistantIntegrationsEnabled.name
-    static let statusLightVisibleKey = Prefs.MCP.showStatusLight.name
 
     static var isEnabled: Bool {
         Preferences.value(Prefs.MCP.assistantIntegrationsEnabled)

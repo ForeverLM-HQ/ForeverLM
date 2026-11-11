@@ -153,11 +153,6 @@ enum JournalWatch {
         return instants.min().map { max($0, now) }
     }
 
-    /// Device-local switch for the banner a check with new matches raises.
-    /// Off by default: the learner opts in from Settings → Journals, and the
-    /// key stays on this Mac because a banner is about the machine that found
-    /// the article, not the account (`SyncedPreferenceKeys.excluded`).
-    static let notifyOnMatchKey = Prefs.Planner.journalsNotifyOnMatch.name
 
     static var notifiesOnMatch: Bool {
         Preferences.value(Prefs.Planner.journalsNotifyOnMatch) ?? false

@@ -79,8 +79,12 @@ enum MobileNotebookColumnLayout {
     /// Where this device remembers a side folded: one value for every
     /// notebook, on this device only. A fold is how this screen is laid out,
     /// not something about the notebook, so it is never a synced row.
+    static func foldedKey(_ side: Side) -> DeviceKey<Bool> {
+        Prefs.Families.notebookColumnFolded.key("\(side.rawValue)Folded")
+    }
+
     static func foldedDefaultsKey(_ side: Side) -> String {
-        "ios.notebooks.columns.\(side.rawValue)Folded"
+        foldedKey(side).name
     }
 
     // MARK: - Home

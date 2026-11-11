@@ -48,8 +48,7 @@ enum AIDataPolicy {
     /// Synced preference key. Listed in `SyncedPreferenceKeys.synced`. The
     /// name predates the hiding half of the switch and stays so the row keeps
     /// syncing between builds.
-    static let denyDataCollectionKey = "aiPrivacy.denyDataCollection"
-
+    static let denyDataCollectionKey = Prefs.AIPolicy.denyDataCollection.name
     /// The value OpenRouter's `provider.data_collection` takes when hosts that
     /// may store or train on prompts are excluded.
     static let openRouterDenyValue = "deny"

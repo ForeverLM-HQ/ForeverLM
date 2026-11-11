@@ -44,8 +44,7 @@ import OSLog
 enum RetiredDefaultsCleanup {
     /// Set once the domain holds nothing retired. To retire another key, add
     /// it below and bump the version; the next launch removes it.
-    static let completionKey = "retiredDefaultsCleanup.v1"
-
+    static let completionKey = Prefs.Lifecycle.retiredDefaultsCleanupDone.name
     /// The AppKit autosave families whose names SwiftUI built from a scene's
     /// type: a window's frame, and the subview frames of a split view in it.
     static let frameAutosavePrefixes = ["NSWindow Frame ", "NSSplitView Subview Frames "]

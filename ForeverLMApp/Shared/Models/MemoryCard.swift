@@ -655,7 +655,6 @@ struct MemoryCardState: Equatable, Sendable {
 /// are shown, and never while a lock is held (a defaults write posts a
 /// notification on the writing thread).
 struct MemoryCardDeckState: Equatable, Sendable {
-    static let preferenceKeyPrefix = "cards.state."
 
     /// Card states by card id.
     var cards: [String: MemoryCardState]
@@ -665,12 +664,12 @@ struct MemoryCardDeckState: Equatable, Sendable {
     }
 
     static func preferenceKey(deckID: String) -> String {
-        preferenceKeyPrefix + deckID
+        Prefs.Families.cardDeckState.prefix + deckID
     }
 
     static func deckID(fromPreferenceKey key: String) -> String? {
-        guard key.hasPrefix(preferenceKeyPrefix) else { return nil }
-        let deckID = String(key.dropFirst(preferenceKeyPrefix.count))
+        guard key.hasPrefix(Prefs.Families.cardDeckState.prefix) else { return nil }
+        let deckID = String(key.dropFirst(Prefs.Families.cardDeckState.prefix.count))
         return deckID.isEmpty ? nil : deckID
     }
 

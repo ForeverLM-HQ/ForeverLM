@@ -352,8 +352,7 @@ enum ScheduledTaskRetry {
 /// The display still sleeps, and closing a laptop's lid still sleeps it.
 enum ScheduledTaskWakePolicy {
     /// Device-local: each Mac decides whether it stays awake.
-    static let keepMacAwakeKey = "scheduledTasks.keepMacAwake"
-
+    static let keepMacAwakeKey = Prefs.Planner.keepMacAwakeForScheduledTasks.name
     /// How far ahead a waiting run keeps the Mac awake: the catch-up window,
     /// so a task set up in the evening for the small hours is covered from
     /// the moment the learner walks away.

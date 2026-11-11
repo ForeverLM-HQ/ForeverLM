@@ -80,7 +80,7 @@ actor MobileModelPreferenceStore {
     /// else the separate provider and model rows, else the phone's own default
     /// (`AIModelDefaults.mobileDefaultChatModel`).
     private func chatRoutePreference() async throws -> AIModelRoutePreference {
-        if let atomic = try await routePreference(forKey: AIModelPreferenceKey.defaultChatRoute) {
+        if let atomic = try await routePreference(forKey: Prefs.Models.defaultChatRoute.name) {
             return atomic
         }
         if let separate = try await providerAndModelChatRoute() {
@@ -194,7 +194,7 @@ actor MobileModelPreferenceStore {
         try await fetchPreference(key) as? Bool
     }
 
-    /// A whole number, as the Mac's `SyncedStorage<Int>` writes it. Plist
+    /// A whole number, as the Mac's `PreferenceStorage` writes an `Int`. Plist
     /// integers come back as `NSNumber`, so a value the Mac stored as a Bool
     /// would read as 0 or 1 here; no key is shared between the two shapes.
     func int(forKey key: String) async throws -> Int? {

@@ -39,6 +39,13 @@ extension Prefs {
         static let autoGenerateAllowPaidVoices = AccountKey<Bool?>("readAloud.autoGenerate.allowPaidVoices")
         static let audioPricesTable = DeviceKey<Data?>("openRouterAudioPrices.table.v1", reason: "remote price cache for speech models")
         static let audioPricesReadAt = DeviceKey<Date?>("openRouterAudioPrices.readAt.v1", reason: "remote price cache for speech models")
+        /// OpenRouter's speech and transcription directories: the last good read and
+        /// when it was made, kept so a model picked from the list is known at the
+        /// next launch before the network answers. One pair per `OpenRouterAudioDirectory.Kind`.
+        static let speechDirectoryRows = DeviceKey<Data?>("openRouterAudioDirectory.speech.rows.v1", reason: "cache of OpenRouter's speech directory, refetched")
+        static let speechDirectoryReadAt = DeviceKey<Date?>("openRouterAudioDirectory.speech.readAt.v1", reason: "when this device last read OpenRouter's speech directory")
+        static let transcriptionDirectoryRows = DeviceKey<Data?>("openRouterAudioDirectory.transcription.rows.v1", reason: "cache of OpenRouter's transcription directory, refetched")
+        static let transcriptionDirectoryReadAt = DeviceKey<Date?>("openRouterAudioDirectory.transcription.readAt.v1", reason: "when this device last read OpenRouter's transcription directory")
 
         static let all: [AnyPreferenceKey] = [
             speed.erased,
@@ -69,6 +76,10 @@ extension Prefs {
             autoGenerateAllowPaidVoices.erased,
             audioPricesTable.erased,
             audioPricesReadAt.erased,
+            speechDirectoryRows.erased,
+            speechDirectoryReadAt.erased,
+            transcriptionDirectoryRows.erased,
+            transcriptionDirectoryReadAt.erased,
         ]
     }
 }

@@ -69,7 +69,7 @@ private struct MobileNotebookColumnsSwitch: ViewModifier {
 /// notebook's **Sources** on the left, its **Chat** in the middle, its
 /// **Studio** on the right, hairlines between.
 /// Each side folds to a strip — the way back and the column's main action —
-/// and stays folded on this device (`MobileNotebookColumnLayout.foldedDefaultsKey`)
+/// and stays folded on this device (`MobileNotebookColumnLayout.foldedKey`)
 /// until it is shown again. The columns are the tabs themselves, as they are;
 /// a source, a chat or a Doc opened from one is pushed over the notebook as
 /// it is from a tab. The chat's sources chip opens the chat's Sources sheet
@@ -82,8 +82,8 @@ struct MobileNotebookColumns: View {
     let onAddSources: () -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @AppStorage(MobileNotebookColumnLayout.foldedDefaultsKey(.sources)) private var sourcesFolded = false
-    @AppStorage(MobileNotebookColumnLayout.foldedDefaultsKey(.studio)) private var studioFolded = false
+    @AppStorage(MobileNotebookColumnLayout.foldedKey(.sources)) private var sourcesFolded
+    @AppStorage(MobileNotebookColumnLayout.foldedKey(.studio)) private var studioFolded
     @AccessibilityFocusState private var focusesSourcesHeader: Bool
     @AccessibilityFocusState private var focusesStudioHeader: Bool
 

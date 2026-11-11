@@ -490,7 +490,7 @@ extension StudioViewModel {
     /// import already had. Whoever wants a transcript for a recording Google
     /// genuinely never transcribed can turn this on.
     ///
-    /// Read live rather than cached: the toggle writes through `SyncedStorage`,
+    /// Read live rather than cached: the toggle writes through `PreferenceStorage`,
     /// and a value synced in from the user's other Mac lands in `UserDefaults`
     /// without passing through this type.
     nonisolated static var isMeetingOwnTranscriptionEnabled: Bool {

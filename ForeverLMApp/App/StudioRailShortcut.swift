@@ -146,7 +146,6 @@ enum StudioRailShortcut: Hashable, Identifiable, Sendable {
 /// strip is the learner's arrangement, not one Mac's. None until the learner
 /// keeps one from the ⋯.
 struct StudioRailShortcuts: Equatable {
-    static let storageKey = "studio.navigation.shortcuts.v1"
 
     var items: [StudioRailShortcut]
 

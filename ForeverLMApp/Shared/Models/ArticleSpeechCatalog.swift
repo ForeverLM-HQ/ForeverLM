@@ -504,12 +504,18 @@ enum OpenRouterAudioDirectory {
             || NSClassFromString("XCTestCase") != nil
     }()
 
-    private static func rowsDefaultsKey(_ kind: Kind) -> String {
-        "openRouterAudioDirectory.\(kind.rawValue).rows.v1"
+    private static func rowsKey(_ kind: Kind) -> DeviceKey<Data?> {
+        switch kind {
+        case .speech: return Prefs.ReadAloud.speechDirectoryRows
+        case .transcription: return Prefs.ReadAloud.transcriptionDirectoryRows
+        }
     }
 
-    private static func readAtDefaultsKey(_ kind: Kind) -> String {
-        "openRouterAudioDirectory.\(kind.rawValue).readAt.v1"
+    private static func readAtKey(_ kind: Kind) -> DeviceKey<Date?> {
+        switch kind {
+        case .speech: return Prefs.ReadAloud.speechDirectoryReadAt
+        case .transcription: return Prefs.ReadAloud.transcriptionDirectoryReadAt
+        }
     }
 
     /// The last read's rows — this launch's, or the one kept from an earlier
@@ -660,9 +666,9 @@ enum OpenRouterAudioDirectory {
             return changed
         }
         if let data = try? JSONEncoder().encode(rows) {
-            UserDefaults.standard.set(data, forKey: rowsDefaultsKey(kind))
+            Preferences.set(data, for: rowsKey(kind))
         }
-        UserDefaults.standard.set(now, forKey: readAtDefaultsKey(kind))
+        Preferences.set(now, for: readAtKey(kind))
         guard changed else { return }
         DispatchQueue.main.async {
             NotificationCenter.default.post(name: .openRouterAudioDirectoryDidChange, object: kind.rawValue)
@@ -675,10 +681,10 @@ enum OpenRouterAudioDirectory {
         let alreadyLoaded = lock.withLock { entries[kind]?.loadedPersisted ?? false }
         guard !alreadyLoaded else { return }
         var persisted: (rows: [OpenRouterAudioModelRow], readAt: Date?)?
-        if let data = UserDefaults.standard.data(forKey: rowsDefaultsKey(kind)),
+        if let data = Preferences.value(rowsKey(kind)),
            let rows = try? JSONDecoder().decode([OpenRouterAudioModelRow].self, from: data),
            !rows.isEmpty {
-            persisted = (rows, UserDefaults.standard.object(forKey: readAtDefaultsKey(kind)) as? Date)
+            persisted = (rows, Preferences.value(readAtKey(kind)))
         }
         lock.withLock {
             var entry = entries[kind] ?? Entry()
@@ -2869,7 +2875,7 @@ enum ArticleSpeechSelection {
     static let syncedProvider = "openrouter"
 
     static func voiceDefaultsKey(forModel modelID: String) -> String {
-        "ios.readAloud.voice.\(modelID)"
+        Prefs.Families.readAloudDeviceVoice.name(modelID)
     }
 
     /// Read off the main actor by `CloudArticleTTS` while it builds a request,
@@ -2887,7 +2893,7 @@ enum ArticleSpeechSelection {
 
     static func voiceID(forModel modelID: String, defaults: UserDefaults = .standard) -> String? {
         ArticleSpeechCatalog.resolvedVoiceID(
-            defaults.string(forKey: voiceDefaultsKey(forModel: modelID)),
+            Preferences.withStorage(defaults) { Preferences.value(Prefs.Families.readAloudDeviceVoice.key(modelID)) },
             forModel: modelID
         )
     }
@@ -2899,7 +2905,7 @@ enum ArticleSpeechSelection {
 
     static func selectVoice(_ voiceID: String, forModel modelID: String, defaults: UserDefaults = .standard) {
         guard ArticleSpeechCatalog.model(id: modelID)?.voice(id: voiceID) != nil else { return }
-        defaults.set(voiceID, forKey: voiceDefaultsKey(forModel: modelID))
+        Preferences.withStorage(defaults) { Preferences.set(voiceID, for: Prefs.Families.readAloudDeviceVoice.key(modelID)) }
     }
 
     /// Applies the account's selection to this device. A model the catalog no
@@ -2920,7 +2926,7 @@ enum ArticleSpeechSelection {
         defaults.set(model, forKey: modelDefaultsKey)
         let resolvedVoice = ArticleSpeechCatalog.resolvedVoiceID(voice, forModel: model)
         if let resolvedVoice {
-            defaults.set(resolvedVoice, forKey: voiceDefaultsKey(forModel: model))
+            Preferences.withStorage(defaults) { Preferences.set(resolvedVoice, for: Prefs.Families.readAloudDeviceVoice.key(model)) }
         }
         return (model, resolvedVoice)
     }
@@ -2949,9 +2955,9 @@ final class ArticleSpeechPreferences: ObservableObject {
     private static func storedVoiceIDs(defaults: UserDefaults) -> [String: String] {
         var selected: [String: String] = [:]
         for model in ArticleSpeechCatalog.models {
-            guard let voice = defaults.string(
-                forKey: ArticleSpeechSelection.voiceDefaultsKey(forModel: model.id)
-            ) else { continue }
+            guard let voice = Preferences.withStorage(defaults, {
+                Preferences.value(Prefs.Families.readAloudDeviceVoice.key(model.id))
+            }) else { continue }
             selected[model.id] = voice
         }
         return selected

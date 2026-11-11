@@ -17,9 +17,20 @@ extension Prefs {
         /// follow the account: leaving it device-local means the other Mac opens
         /// the same meeting and bills a transcription the learner turned off here.
         static let transcribeWhenGoogleDidNot = AccountKey<Bool>("meetings.transcribeWhenGoogleDidNot", default: false)
+        /// Where Zoom saves captions is a Zoom setting, and its default,
+        /// `~/Documents/Zoom`, is not always somewhere the transcripts should
+        /// live: `~/Documents` can be a symlink into cloud storage someone else
+        /// controls. Moving Zoom's folder has to be possible without ingestion
+        /// silently stopping, so the folder is a preference and both it and the
+        /// default are watched. A path is a fact about one Mac, so it never syncs.
         static let zoomLocalTranscriptFolder = DeviceKey<String?>("studio.zoomLocalTranscriptFolder", reason: "a folder on this Mac's disk")
+        /// Recording folders the learner said to leave alone: a meeting that did
+        /// not happen, a recording not worth transcribing. A folder that is gone
+        /// drops out on the next write.
         static let zoomLocalRecordingIgnoredFolders = DeviceKey<[String]?>("studio.zoomLocalRecordingIgnoredFolders", reason: "folders on this Mac's disk")
+        /// Folder path to the automatic conversions made, pruned of folders that are gone.
         static let zoomLocalRecordingAutoConversions = DeviceKey<[String: Any]?>("studio.zoomLocalRecordingAutoConversions", coding: .dictionary, reason: "which of this Mac's recordings it has already converted")
+        static let retiredZoomLocalRecordingConversionRequests = DeviceKey<Any?>.unread("studio.zoomLocalRecordingConversionRequests", reason: "the retired per-launch request counter, cleared on the next pass")
 
         static let all: [AnyPreferenceKey] = [
             userGroupNames.erased,
@@ -29,6 +40,7 @@ extension Prefs {
             zoomLocalTranscriptFolder.erased,
             zoomLocalRecordingIgnoredFolders.erased,
             zoomLocalRecordingAutoConversions.erased,
+            retiredZoomLocalRecordingConversionRequests.erased,
         ]
     }
 }

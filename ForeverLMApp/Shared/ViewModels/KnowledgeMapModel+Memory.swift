@@ -13,21 +13,18 @@ import Observation
 @MainActor
 @Observable
 final class KnowledgeMapMemory {
-    /// Whether the layer shows, on this Mac: a view choice, never synced.
-    static let layerPreferenceKey = "knowledgeMap.memoryLayer.v1"
-
     @ObservationIgnored private let defaults: UserDefaults
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        isShown = defaults.bool(forKey: Self.layerPreferenceKey)
+        isShown = Preferences.withStorage(defaults) { Preferences.value(Prefs.KnowledgeMap.memoryLayer) }
     }
 
     /// Whether the Memory layer shows: off until the learner turns it on.
     var isShown: Bool {
         didSet {
             guard isShown != oldValue else { return }
-            defaults.set(isShown, forKey: Self.layerPreferenceKey)
+            Preferences.withStorage(defaults) { Preferences.set(isShown, for: Prefs.KnowledgeMap.memoryLayer) }
             revision &+= 1
         }
     }

@@ -26,10 +26,9 @@ import Foundation
 /// (docs-site/website/test/notebook-chat-context-vectors.json).
 /// Foundation-only and compiled into the iPhone app too.
 enum NotebookChatContext {
-    static let preferenceKeyPrefix = "notebook.chatContextNotebooks."
 
     static func preferenceKey(notebookID: String) -> String {
-        preferenceKeyPrefix + notebookID
+        Prefs.Families.notebookChatContextNotebooks.prefix + notebookID
     }
 
     /// A notebook the notebook links to, with its own approved sources in its

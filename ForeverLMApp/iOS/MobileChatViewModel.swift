@@ -84,7 +84,7 @@ final class MobileChatViewModel: ObservableObject {
             guard speakReplies != oldValue else { return }
             let value = speakReplies
             Task.detached(priority: .utility) {
-                UserDefaults.standard.set(value, forKey: Self.speakRepliesDefaultsKey)
+                Preferences.set(value, for: Prefs.Mobile.readingChatSpeakReplies)
             }
             if !speakReplies { stopSpeaking() }
         }
@@ -118,8 +118,6 @@ final class MobileChatViewModel: ObservableObject {
     /// typed answer, or by the learner's own Forgot/Remembered): the grading
     /// brief rides only the first answer to each.
     private var answeredQuizStepIDs: Set<String> = []
-
-    nonisolated static let speakRepliesDefaultsKey = "ios.readingChat.speakReplies"
 
     /// One spelling for both ledgers this surface writes: the usage event and
     /// the recorded session must name the same host.
@@ -190,7 +188,7 @@ final class MobileChatViewModel: ObservableObject {
         // that resolves signInState may happen on this path.
         self.sourceText = sourceText
         self.onSessionSaveFailure = onSessionSaveFailure
-        self.speakReplies = UserDefaults.standard.bool(forKey: Self.speakRepliesDefaultsKey)
+        self.speakReplies = Preferences.value(Prefs.Mobile.readingChatSpeakReplies)
         if let initialPrompt = initialPrompt?.trimmingCharacters(in: .whitespacesAndNewlines),
            !initialPrompt.isEmpty {
             self.draft = initialPrompt
@@ -221,7 +219,7 @@ final class MobileChatViewModel: ObservableObject {
         self.modelOverride = modelOverride
         self.onSessionSaveFailure = onSessionSaveFailure
         self.resolveSaveRoute = Self.accountChatRoute
-        self.speakReplies = UserDefaults.standard.bool(forKey: Self.speakRepliesDefaultsKey)
+        self.speakReplies = Preferences.value(Prefs.Mobile.readingChatSpeakReplies)
         if let initialPrompt = initialPrompt?.trimmingCharacters(in: .whitespacesAndNewlines),
            !initialPrompt.isEmpty {
             self.draft = initialPrompt
@@ -260,7 +258,7 @@ final class MobileChatViewModel: ObservableObject {
         self.modelOverride = modelOverride
         self.onSessionSaveFailure = onSessionSaveFailure
         self.resolveSaveRoute = Self.accountChatRoute
-        self.speakReplies = UserDefaults.standard.bool(forKey: Self.speakRepliesDefaultsKey)
+        self.speakReplies = Preferences.value(Prefs.Mobile.readingChatSpeakReplies)
         self.messages = messages
         registerWithAudioArbiter()
         renderSavedReplies()

@@ -51,6 +51,7 @@ extension Prefs {
         /// bar. The checkpoint quiz it turned on is gone (a course quiz is taken
         /// in a chat), so nothing reads it.
         static let retiredVideoQuizCheckpoints = DeviceKey<Any?>.unread("reader.videoQuizCheckpoints", reason: "retired with the video checkpoint quiz; never read")
+        static let browserLinkedPageProfiles = DeviceKey<[String: Any]?>("browser.linkedPageProfiles.v1", coding: .dictionary, reason: "which browser profile a linked page opens under; the profiles are jars on this disk")
 
         static let all: [AnyPreferenceKey] = [
             originalPageColors.erased,
@@ -71,6 +72,7 @@ extension Prefs {
             recentSourceIDs.erased,
             retiredEnrichedChapterTitles.erased,
             retiredVideoQuizCheckpoints.erased,
+            browserLinkedPageProfiles.erased,
         ]
     }
 }

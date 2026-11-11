@@ -430,23 +430,19 @@ enum CalendarEventSpan: String, Sendable {
 actor AppleCalendarService {
     static let shared = AppleCalendarService()
 
-    /// The learner's switch. Off until the Settings pane turns it on. The
-    /// key keeps the name the Planner gave it, so a Mac that had the calendar
-    /// on keeps it on.
-    nonisolated static let enabledKey = "planner.appleCalendar.enabled"
     /// String array of `calendarIdentifier`s the day is read from. Absent
     /// means every calendar but Birthdays.
     ///
     /// Not the Planner's key: a choice made there does not carry over
     /// (`retirePlannerCalendarChoice`).
-    nonisolated static let selectedIDsKey = "calendar.dayCalendarIDs"
+    nonisolated static let selectedIDsKey = Prefs.Planner.dayCalendarIDs.name
     /// The `sourceIdentifier`s of the accounts the Mac held when the learner
     /// last chose. A calendar from any other account — an Exchange account
     /// signed in since — is shown until the learner unticks it. Keyed on the
     /// account rather than the calendar because a full re-sync can hand an
     /// existing calendar a new identifier, and that must not bring back a
     /// calendar the learner left off.
-    nonisolated static let knownAccountIDsKey = "calendar.dayKnownAccountIDs"
+    nonisolated static let knownAccountIDsKey = Prefs.Planner.dayKnownAccountIDs.name
     /// Where the Planner kept the Mac calendars it drew. It drew them beside
     /// the Google Calendar plugin, so a Google account's calendars were often
     /// left off here so as not to draw an event twice, and some Macs kept no
@@ -455,12 +451,9 @@ actor AppleCalendarService {
     /// The product owner's chip said "Nothing on the calendar" over ten events,
     /// six of them the evening a chat had just planned into iCloud.
     nonisolated static let retiredPlannerSelectionKeys = [
-        "planner.appleCalendar.selectedIDs",
-        "planner.appleCalendar.knownAccountIDs",
+        Prefs.Planner.retiredAppleCalendarSelectedIDs.name,
+        Prefs.Planner.retiredAppleCalendarKnownAccountIDs.name,
     ]
-    /// The `calendarIdentifier` new events go to. Absent means the calendar
-    /// the Calendar app itself puts new events on.
-    nonisolated static let newEventsCalendarIDKey = "calendar.newEventsCalendarID"
 
     private let logger = Logger(subsystem: "com.foreverlm", category: "AppleCalendarService")
     /// Replaced after a grant: a store made before access was given does not
@@ -493,7 +486,7 @@ actor AppleCalendarService {
     }
 
     nonisolated var isEnabled: Bool {
-        defaults.bool(forKey: Self.enabledKey)
+        Preferences.value(Prefs.Planner.appleCalendarEnabled)
     }
 
     /// Turned on by the learner and readable.
@@ -504,18 +497,18 @@ actor AppleCalendarService {
     /// The calendars the day is read from, by identifier; nil until the
     /// learner narrows the list.
     nonisolated var selectedIDs: [String]? {
-        get { defaults.stringArray(forKey: Self.selectedIDsKey) }
+        get { Preferences.value(Prefs.Planner.dayCalendarIDs) }
     }
 
     nonisolated var knownAccountIDs: [String]? {
-        defaults.stringArray(forKey: Self.knownAccountIDsKey)
+        Preferences.value(Prefs.Planner.dayKnownAccountIDs)
     }
 
     /// The learner's choice of `ids`, made while the Mac held `calendars`:
     /// their accounts are the ones the choice covers.
     nonisolated func setSelectedIDs(_ ids: [String], among calendars: [AppleCalendarListEntry]) {
-        defaults.set(ids, forKey: Self.selectedIDsKey)
-        defaults.set(Self.accountIDs(of: calendars), forKey: Self.knownAccountIDsKey)
+        Preferences.set(ids, for: Prefs.Planner.dayCalendarIDs)
+        Preferences.set(Self.accountIDs(of: calendars), for: Prefs.Planner.dayKnownAccountIDs)
         Self.notifyChanged()
     }
 
@@ -528,20 +521,19 @@ actor AppleCalendarService {
     /// learner narrows it again in Plugins › Calendar. Nothing
     /// reads those keys any more; removing absent keys is a no-op.
     nonisolated static func retirePlannerCalendarChoice() {
-        for key in retiredPlannerSelectionKeys {
-            UserDefaults.standard.removeObject(forKey: key)
-        }
+        Preferences.reset(Prefs.Planner.retiredAppleCalendarSelectedIDs)
+        Preferences.reset(Prefs.Planner.retiredAppleCalendarKnownAccountIDs)
     }
 
     /// The calendar the learner chose for new events; nil for the Calendar
     /// app's own default.
     nonisolated var newEventsCalendarID: String? {
-        defaults.string(forKey: Self.newEventsCalendarIDKey)
+        Preferences.value(Prefs.Planner.newEventsCalendarID)
     }
 
     nonisolated func setNewEventsCalendarID(_ id: String?) {
-        if let id, !id.isEmpty { defaults.set(id, forKey: Self.newEventsCalendarIDKey) }
-        else { defaults.removeObject(forKey: Self.newEventsCalendarIDKey) }
+        if let id, !id.isEmpty { Preferences.set(id, for: Prefs.Planner.newEventsCalendarID) }
+        else { Preferences.reset(Prefs.Planner.newEventsCalendarID) }
         Self.notifyChanged()
     }
 
@@ -586,7 +578,7 @@ actor AppleCalendarService {
         @unknown default:
             throw AppleCalendarServiceError.accessDenied
         }
-        defaults.set(true, forKey: Self.enabledKey)
+        Preferences.set(true, for: Prefs.Planner.appleCalendarEnabled)
         logger.info("Mac Calendar turned on")
         Self.notifyChanged()
     }
@@ -594,9 +586,9 @@ actor AppleCalendarService {
     /// Turns the calendar off. The system grant stays — it is the learner's
     /// to revoke in System Settings — and so does every event in it.
     nonisolated func disconnect() {
-        defaults.set(false, forKey: Self.enabledKey)
-        defaults.removeObject(forKey: Self.selectedIDsKey)
-        defaults.removeObject(forKey: Self.knownAccountIDsKey)
+        Preferences.set(false, for: Prefs.Planner.appleCalendarEnabled)
+        Preferences.reset(Prefs.Planner.dayCalendarIDs)
+        Preferences.reset(Prefs.Planner.dayKnownAccountIDs)
         Self.notifyChanged()
     }
 
@@ -672,7 +664,7 @@ actor AppleCalendarService {
         // A choice made before accounts were remembered covers the accounts
         // the Mac holds now, so only one signed in from here on is new.
         if selectedIDs != nil, knownAccountIDs == nil {
-            defaults.set(Self.accountIDs(of: calendars), forKey: Self.knownAccountIDsKey)
+            Preferences.set(Self.accountIDs(of: calendars), for: Prefs.Planner.dayKnownAccountIDs)
         }
         return calendars
     }

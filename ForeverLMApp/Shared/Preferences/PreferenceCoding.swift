@@ -29,7 +29,7 @@ enum PreferenceStoredValue {
 /// `decode` answers nil when nothing is stored or when what is stored has
 /// another type, and the reader then takes the key's default: what every
 /// `as? T ?? fallback` reader did before the keys were typed. Numbers read
-/// through `NSNumber`, as `SyncedStorage` and `AppStorage` read them, so a
+/// through `NSNumber`, as `PreferenceStorage` and `AppStorage` read them, so a
 /// value stored as an `Int` reads as a `Double` and the reverse.
 struct PreferenceCoding<Value>: @unchecked Sendable {
     let kind: PreferencePlistKind

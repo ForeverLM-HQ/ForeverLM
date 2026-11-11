@@ -46,9 +46,9 @@ struct PageSpace: Identifiable, Equatable, Hashable, Sendable {
 /// `NotebookTitle` (NotebookIcon.swift) for the order: the Mac and the macOS
 /// unit tests compile it; the web's twin reads the same rows.
 struct PageSpaces: Equatable, Sendable {
-    static let namePreferenceKeyPrefix = "pageSpace."
-    static let membershipPreferenceKeyPrefix = "page.space."
-    static let trashPreferenceKeyPrefix = "pageSpaceTrash."
+    static let namePreferenceKeyPrefix = Prefs.Families.pageSpaceName.prefix
+    static let membershipPreferenceKeyPrefix = Prefs.Families.pageSpaceMembership.prefix
+    static let trashPreferenceKeyPrefix = Prefs.Families.pageSpaceTrash.prefix
     /// What every space id starts with: `psp-` and a lowercased UUID.
     static let idPrefix = "psp-"
     /// The longest name kept; a longer one is cut there.
@@ -288,8 +288,7 @@ struct PageSpaces: Equatable, Sendable {
 /// record (teams-design rule 7), so no schema changes. Foundation-only, like
 /// `PageSpaces`.
 struct PagePins: Equatable, Sendable {
-    static let preferenceKeyPrefix = "page.pinned."
-
+    static let preferenceKeyPrefix = Prefs.Families.pagePins.prefix
     /// The moment each pinned page was pinned, by Artifact id.
     private(set) var pinnedAt: [String: Int]
 
@@ -426,7 +425,7 @@ struct PagePins: Equatable, Sendable {
 /// B under A on the other) is cut at the same page everywhere: the smallest
 /// id of the cycle reads as top-level.
 struct PageParents: Equatable, Sendable {
-    static let preferenceKeyPrefix = "page.parent."
+    static let preferenceKeyPrefix = Prefs.Families.pageParents.prefix
     /// How many levels the lists indent and the trail names; a deeper page is
     /// stored as deep as it is and drawn at this level.
     static let displayDepthLimit = 6

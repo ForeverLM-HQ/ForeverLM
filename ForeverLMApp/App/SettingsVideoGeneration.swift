@@ -11,8 +11,6 @@ import SwiftUI
 /// starts from is written by the Explainer Writing route, which stays in that
 /// list.
 enum MacVideoGenerationSettings {
-    static let modelKey = Prefs.Imaging.videoModel.name
-    static let resolutionKey = Prefs.Imaging.videoResolution.name
 
     /// The stored choice. Before OpenRouter's directory has been read this
     /// launch it is a stand-in named by its slug, and a read starts; filming

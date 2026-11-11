@@ -12,8 +12,7 @@ import Foundation
 /// The ticks govern new chats (and a chat not yet sent). A chat under way keeps
 /// the catalog it began with in `review_session_sources`.
 enum NotebookChatSelection {
-    static let preferenceKeyPrefix = "notebook.chatExcluded."
-
+    static let preferenceKeyPrefix = Prefs.Families.notebookChatExcluded.prefix
     static func preferenceKey(notebookID: String) -> String {
         preferenceKeyPrefix + notebookID
     }

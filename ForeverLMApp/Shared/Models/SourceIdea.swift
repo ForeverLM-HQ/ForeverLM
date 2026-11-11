@@ -121,8 +121,7 @@ enum MemoryReviewDepth: String, Codable, CaseIterable, Sendable {
 
     /// Per-type defaults live in synced preferences, one key per source type,
     /// under this prefix (see `SyncedPreferenceKeys.syncedPrefixes`).
-    static let typePreferenceKeyPrefix = "memory.reviewDepth.type."
-
+    static let typePreferenceKeyPrefix = Prefs.Families.reviewDepthByType.prefix
     static func typePreferenceKey(sourceType: String) -> String {
         typePreferenceKeyPrefix + sourceType.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
     }

@@ -38,10 +38,6 @@ enum RealtimeVoiceDefaults {
         "marin", "cedar", "alloy", "ash", "ballad",
         "coral", "echo", "sage", "shimmer", "verse",
     ]
-    /// Synced preference key for the learner's pick (Settings › Voice on the
-    /// Mac, Settings › Voice Mode on the iPhone). Listed in
-    /// `SyncedPreferenceKeys.synced`; absent is `voice`.
-    static let voicePreferenceKey = "voiceMode.voice"
 
     /// The voice a conversation speaks in: the stored pick when the realtime
     /// models still offer it, else the default.

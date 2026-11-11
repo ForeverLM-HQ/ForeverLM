@@ -353,7 +353,7 @@ extension MCPDataStore {
                 detail: "Whether the account button carries a dot while assistants cannot reach this Mac over MCP: amber while connecting, red while offline or failed. Once connected, or while the learner has turned assistant integrations off, it draws nothing (since 2026-10-06; until then a green dot showed at all times), and the account menu's MCP row still says how the connection stands. On by default; it follows the account to the learner's other Macs. The switch sits under the connection card in Settings › MCP; it had no pane from 2026-09-24 to 2026-09-28.",
                 reach: .account,
                 kind: .boolean,
-                preferenceKeys: [AssistantIntegrationSettings.statusLightVisibleKey],
+                preferenceKeys: [Prefs.MCP.showStatusLight.name],
                 read: { Preferences.value(Prefs.MCP.showStatusLight) },
                 write: { Preferences.set(try AppSettingEntry.bool($0, "mcp.show_status_light"), for: Prefs.MCP.showStatusLight) }
             ),
@@ -689,7 +689,7 @@ extension MCPDataStore {
                 detail: "Draws the pictures the learner asks Chat for, quiz pictures, and meeting icons: every model OpenRouter's Image API serves that draws from a prompt, read live from OpenRouter, newest first. Billed to the learner's own OpenRouter key.",
                 reach: .account,
                 kind: .choice,
-                preferenceKeys: [MacImageGenerationSettings.modelKey],
+                preferenceKeys: [Prefs.Imaging.imageModel.name],
                 options: {
                     let models = (try? await ImageGenerationDirectory.modelsWithPrices()) ?? ImageGenerationCatalog.models
                     return models.map { model in
@@ -725,7 +725,7 @@ extension MCPDataStore {
                 detail: "Whether ForeverLM may pay to draw an icon for a meeting with no picture to take a thumbnail from. Off until the learner asks; every other icon source is free.",
                 reach: .account,
                 kind: .boolean,
-                preferenceKeys: [MacImageGenerationSettings.enabledKey],
+                preferenceKeys: [Prefs.Imaging.generateIcons.name],
                 read: { MacImageGenerationSettings.isEnabled },
                 write: { MacImageGenerationSettings.setEnabled(try AppSettingEntry.bool($0, "images.draw_meeting_icons")) }
             ),
@@ -736,7 +736,7 @@ extension MCPDataStore {
                 detail: "With drawing on, a meeting imported from now on gets an icon without being asked. Off means icons are drawn only on request (run_settings_action draw_missing_meeting_icons).",
                 reach: .account,
                 kind: .boolean,
-                preferenceKeys: [MacImageGenerationSettings.automaticForNewMeetingsKey],
+                preferenceKeys: [Prefs.Imaging.generateIconsAutomatic.name],
                 read: { MacImageGenerationSettings.generatesForNewMeetings },
                 write: { MacImageGenerationSettings.setGeneratesForNewMeetings(try AppSettingEntry.bool($0, "images.draw_for_new_meetings")) }
             ),
@@ -747,7 +747,7 @@ extension MCPDataStore {
                 detail: "A course quiz gets a picture of its topic as soon as it is written, from Write Quizzes or generate_course_quizzes: one small image request per quiz on images.model; and its writer may ask for up to \(CourseQuizPictures.maximumDrawingsPerQuiz) drawings for questions no lecture slide or reading figure shows, drawn at once, one image request each. On by default. Off, a quiz is drawn only from its Draw Picture or the course's Draw Quiz Pictures, and its questions' drawings only from Add Pictures to Questions or add_course_quiz_pictures.",
                 reach: .account,
                 kind: .boolean,
-                preferenceKeys: [MacImageGenerationSettings.automaticForNewQuizzesKey],
+                preferenceKeys: [Prefs.Imaging.drawQuizPicturesAutomatic.name],
                 read: { MacImageGenerationSettings.drawsForNewQuizzes },
                 write: { MacImageGenerationSettings.setDrawsForNewQuizzes(try AppSettingEntry.bool($0, "images.draw_for_new_quizzes")) }
             ),
@@ -758,7 +758,7 @@ extension MCPDataStore {
                 detail: "Prefer a free thumbnail clipped from the call and draw only the rest, or draw every icon. Only matters while drawing is on.",
                 reach: .account,
                 kind: .choice,
-                preferenceKeys: [MacImageGenerationSettings.sourceKey],
+                preferenceKeys: [Prefs.Imaging.imageSource.name],
                 options: {
                     ImageGenerationCatalog.Source.allCases.map { ["value": $0.rawValue, "label": $0.displayName, "detail": $0.detail] }
                 },
@@ -778,7 +778,7 @@ extension MCPDataStore {
                 detail: "One style for every drawn icon.",
                 reach: .account,
                 kind: .choice,
-                preferenceKeys: [MacImageGenerationSettings.styleKey],
+                preferenceKeys: [Prefs.Imaging.imageStyle.name],
                 options: {
                     ImageGenerationCatalog.Style.allCases.map { ["value": $0.rawValue, "label": $0.displayName, "detail": $0.detail] }
                 },
@@ -822,7 +822,7 @@ extension MCPDataStore {
                 detail: "Films explainer videos scene by scene: every model OpenRouter's video API serves that films from a prompt, read live from OpenRouter, newest first. Billed to the learner's own OpenRouter key. The price is asked before a video is made. makes_sound false means a silent film with no narration; clip_seconds is how long each scene runs; usd_per_second is OpenRouter's price by resolution, absent for a model priced by video tokens. Changing it keeps the resolution when the new model offers it, else the one nearest 720p.",
                 reach: .account,
                 kind: .choice,
-                preferenceKeys: [MacVideoGenerationSettings.modelKey],
+                preferenceKeys: [Prefs.Imaging.videoModel.name],
                 options: {
                     let models = (try? await VideoGenerationDirectory.models()) ?? VideoGenerationCatalog.models
                     return models.map { model in
@@ -859,7 +859,7 @@ extension MCPDataStore {
                 detail: "The resolution every scene is filmed at; the options are what the selected model offers, with its published price a second.",
                 reach: .account,
                 kind: .choice,
-                preferenceKeys: [MacVideoGenerationSettings.resolutionKey],
+                preferenceKeys: [Prefs.Imaging.videoResolution.name],
                 options: {
                     let model = (try? await VideoGenerationDirectory.resolve(MacVideoGenerationSettings.model)) ?? MacVideoGenerationSettings.model
                     return model.resolutions.map { resolution in
@@ -917,7 +917,7 @@ extension MCPDataStore {
                 detail: "How far back the Reading List import reaches, measured from the moment it is set: everything, the last 30 days, or only pages saved from now on. Pages saved before the cutoff are never imported; already-imported pages stay. Every imported page is fetched and cleaned up by AI once, so a narrower window costs less.",
                 reach: .thisMac,
                 kind: .choice,
-                preferenceKeys: [SourceDiscovery.ReadingListImportWindow.windowKey, SourceDiscovery.ReadingListImportWindow.sinceKey],
+                preferenceKeys: [Prefs.Discovery.readingListImportWindow.name, Prefs.Discovery.readingListImportSince.name],
                 options: {
                     SourceDiscovery.ReadingListImportWindow.allCases.map { ["value": $0.rawValue, "label": $0.title] }
                 },
@@ -942,7 +942,7 @@ extension MCPDataStore {
                 detail: "The folder Zoom saves captions and local recordings in, if not Zoom's default ~/Documents/Zoom (which is watched as well). An absolute path to an existing folder on this Mac; an empty string goes back to the default only. The folder is read at once for transcripts Zoom wrote before.",
                 reach: .thisMac,
                 kind: .text,
-                preferenceKeys: [StudioViewModel.zoomLocalTranscriptFolderKey],
+                preferenceKeys: [Prefs.Meetings.zoomLocalTranscriptFolder.name],
                 read: { StudioViewModel.zoomLocalTranscriptCustomFolder ?? "" },
                 write: { value in
                     let raw = try AppSettingEntry.string(value, "sources.zoom_transcript_folder")
@@ -1004,7 +1004,7 @@ extension MCPDataStore {
                 detail: "A notification on this Mac when a followed journal publishes an article that matches one of the learner's Notebooks. Turning it on asks macOS for notification permission; if that is refused it stays off.",
                 reach: .thisMac,
                 kind: .boolean,
-                preferenceKeys: [JournalWatch.notifyOnMatchKey],
+                preferenceKeys: [Prefs.Planner.journalsNotifyOnMatch.name],
                 read: { Preferences.value(Prefs.Planner.journalsNotifyOnMatch) ?? false },
                 write: { value in
                     let enabled = try AppSettingEntry.bool(value, "feeds.notify_on_match")

@@ -17,7 +17,7 @@ enum MobileSettingCatalog {
     }
 
     static let leftOut: [LeftOut] = [
-        LeftOut(prefix: NotebookNaming.preferenceKeyPrefix, type: "string", scopes: ["account"]),
+        LeftOut(prefix: Prefs.Families.notebookNaming.prefix, type: "string", scopes: ["account"]),
         LeftOut(prefix: NotebookCollections.namePreferenceKeyPrefix, type: "string", scopes: ["account"]),
         // A saved workspace view is a Mac window arrangement; only the window that saves one writes it.
         LeftOut(prefix: "studio.workspaceView.", type: "array", scopes: ["account"]),
@@ -916,7 +916,7 @@ enum MobileNotebookRows {
                 if let id = suffix(key, MobileNotebookChatSelection.preferenceKeyPrefix) {
                     guard let selection = try? write.chatSelection(of: id) else { continue }
                     row = selection.excluded.sorted()
-                } else if let id = suffix(key, NotebookChatContext.preferenceKeyPrefix) {
+                } else if let id = suffix(key, Prefs.Families.notebookChatContextNotebooks.prefix) {
                     guard let selection = try? write.chatSelection(of: id) else { continue }
                     row = selection.contextNotebookIDs.sorted()
                 } else if let id = NotebookCollections.notebookID(fromMembershipKey: key) {
@@ -946,7 +946,7 @@ enum MobileNotebookRows {
         try await writer.transaction { write in
             if let id = suffix(key, MobileNotebookChatSelection.preferenceKeyPrefix) {
                 try write.setChatExclusions(id, to: Set(ids))
-            } else if let id = suffix(key, NotebookChatContext.preferenceKeyPrefix) {
+            } else if let id = suffix(key, Prefs.Families.notebookChatContextNotebooks.prefix) {
                 try write.setContextNotebooks(id, to: Set(ids))
             } else if let id = NotebookCollections.notebookID(fromMembershipKey: key) {
                 try write.setCollections(id, to: Set(ids))

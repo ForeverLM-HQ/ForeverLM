@@ -18,10 +18,9 @@ import Foundation
 /// guide writes it, never `set_app_setting`. Foundation-only, so every client
 /// compiles the same rules.
 enum NotebookSuggestedQuestions {
-    static let preferenceKeyPrefix = "notebook.questions."
 
     static func preferenceKey(notebookID: String) -> String {
-        preferenceKeyPrefix + notebookID
+        Prefs.Families.notebookQuestions.prefix + notebookID
     }
 
     /// How many questions a notebook keeps, and how many it remembers asked:

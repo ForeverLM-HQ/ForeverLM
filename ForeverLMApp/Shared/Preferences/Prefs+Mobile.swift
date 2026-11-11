@@ -21,6 +21,9 @@ extension Prefs {
         static let spaceSort = DeviceKey<String?>("ios.space.sort", reason: "iPhone-local: the sort in this phone's Space")
         static let reviewGrader = DeviceKey<String?>("foreverlm.grader.v1", reason: "which grader this phone's review uses")
         static let todayWidgetSnapshot = DeviceKey<Data?>("widget.today.snapshot", reason: "the Today widget's snapshot, kept in the app group's suite on this phone")
+        static let readingChatSpeakReplies = DeviceKey<Bool>("ios.readingChat.speakReplies", default: false, reason: "iPhone-local: whether this phone reads a reading chat's replies aloud")
+        static let learningBoutEndedBreaks = DeviceKey<[String: Any]?>("ios.learningBout.endedBreaks.v1", coding: .dictionary, reason: "iPhone-local: the breaks this phone ended, by bout id, for two days")
+        static let presentedMoveJobs = DeviceKey<[String]?>("share.presentedMoveJobs", reason: "iPhone-local: the moves whose space this phone already showed the sharing controller for")
 
         static let all: [AnyPreferenceKey] = [
             automaticallyContinuesBooks.erased,
@@ -38,6 +41,9 @@ extension Prefs {
             spaceSort.erased,
             reviewGrader.erased,
             todayWidgetSnapshot.erased,
+            readingChatSpeakReplies.erased,
+            learningBoutEndedBreaks.erased,
+            presentedMoveJobs.erased,
         ]
     }
 }

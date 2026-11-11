@@ -97,7 +97,6 @@ final class ChatDraftArchive {
         let text: String
     }
 
-    static let defaultsKey = "chat.unsentDrafts"
     static let limit = 40
     static let characterLimit = 200_000
     static let saveDelay: Duration = .milliseconds(600)
@@ -110,7 +109,7 @@ final class ChatDraftArchive {
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
-        entries = Self.decode(defaults.data(forKey: Self.defaultsKey))
+        entries = Self.decode(Preferences.withStorage(defaults) { Preferences.value(Prefs.Studio.unsentChatDrafts) })
         terminationObserver = NotificationCenter.default.addObserver(
             forName: NSApplication.willTerminateNotification,
             object: nil,
@@ -140,10 +139,12 @@ final class ChatDraftArchive {
         saveTask?.cancel()
         saveTask = nil
         let kept = entries.filter { $0.text.count <= Self.characterLimit }
-        if kept.isEmpty {
-            defaults.removeObject(forKey: Self.defaultsKey)
-        } else if let data = try? JSONEncoder().encode(kept) {
-            defaults.set(data, forKey: Self.defaultsKey)
+        Preferences.withStorage(defaults) {
+            if kept.isEmpty {
+                Preferences.reset(Prefs.Studio.unsentChatDrafts)
+            } else if let data = try? JSONEncoder().encode(kept) {
+                Preferences.set(data, for: Prefs.Studio.unsentChatDrafts)
+            }
         }
     }
 

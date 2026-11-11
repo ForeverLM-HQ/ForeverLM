@@ -1606,7 +1606,7 @@ struct StudioSavedWorkspaceWindow: Codable, Equatable {
 /// The windows that were open when the app last quit, so relaunching puts them
 /// back rather than opening one empty Studio.
 ///
-/// Deliberately local, and deliberately not a `SyncedStorage` row: this records
+/// Deliberately local, and deliberately not an account row: this records
 /// window frames and which panes sat in them, which belong to one Mac and one
 /// display arrangement. Syncing it would drag a laptop's two-window layout onto
 /// a desk with a different screen, and would fight the other Mac's own last
@@ -1695,7 +1695,6 @@ enum StudioLastSessionStore {
 /// A named, synced whole-app workspace arrangement. Each view occupies its own
 /// preference row so independently saved notebooks cannot overwrite one another.
 struct StudioSavedWorkspaceView: Identifiable, Equatable {
-    static let preferenceKeyPrefix = Prefs.Families.workspaceViews.prefix
 
     let id: String
     var name: String
@@ -1736,7 +1735,7 @@ struct StudioSavedWorkspaceView: Identifiable, Equatable {
     }
 
     init?(preferenceKey: String, value: Any) {
-        guard preferenceKey.hasPrefix(Self.preferenceKeyPrefix),
+        guard preferenceKey.hasPrefix(Prefs.Families.workspaceViews.prefix),
               let values = value as? [String],
               let version = values.first,
               ["v1", "v2"].contains(version),
@@ -1747,7 +1746,7 @@ struct StudioSavedWorkspaceView: Identifiable, Equatable {
         guard !name.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             return nil
         }
-        let keyID = String(preferenceKey.dropFirst(Self.preferenceKeyPrefix.count))
+        let keyID = String(preferenceKey.dropFirst(Prefs.Families.workspaceViews.prefix.count))
         id = keyID
         self.name = name
         createdAt = Double(values[2]) ?? 0
@@ -1795,7 +1794,7 @@ final class StudioWorkspaceViewStore {
         ) { [weak self] note in
             let changed = note.userInfo?[PreferenceStore.changedKeysKey] as? Set<String> ?? []
             guard changed.contains(where: {
-                $0.hasPrefix(StudioSavedWorkspaceView.preferenceKeyPrefix)
+                $0.hasPrefix(Prefs.Families.workspaceViews.prefix)
             }) else { return }
             MainActor.assumeIsolated { self?.reload() }
         }

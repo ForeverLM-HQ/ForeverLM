@@ -293,6 +293,12 @@
       ]
     },
     {
+      "name": "animations.listVisible",
+      "reason": "whether this Mac's Animations pane shows its list",
+      "scope": "device",
+      "synced": false
+    },
+    {
       "name": "anthropic_model",
       "scope": "account",
       "synced": true,
@@ -331,6 +337,12 @@
       ]
     },
     {
+      "name": "browser.linkedPageProfiles.v1",
+      "reason": "which browser profile a linked page opens under; the profiles are jars on this disk",
+      "scope": "device",
+      "synced": false
+    },
+    {
       "name": "browser.profiles.v1",
       "reason": "a profile names a data store on this disk; a synced list would name jars another Mac does not have",
       "scope": "device",
@@ -343,8 +355,26 @@
       "synced": false
     },
     {
+      "name": "calendar.dayCalendarIDs",
+      "reason": "calendar identifiers are this Mac's",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "calendar.dayKnownAccountIDs",
+      "reason": "the accounts signed in to this Mac when the learner chose",
+      "scope": "device",
+      "synced": false
+    },
+    {
       "name": "calendar.groups",
       "reason": "which of this Mac's calendars belong to which group; calendars are named per Mac",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "calendar.newEventsCalendarID",
+      "reason": "a calendar identifier on this Mac",
       "scope": "device",
       "synced": false
     },
@@ -355,6 +385,12 @@
       "traits": [
         "modelConfiguration"
       ]
+    },
+    {
+      "name": "chat.dismissedIdleSuggestions",
+      "reason": "the idle chat suggestions hidden on this Mac; view chrome",
+      "scope": "device",
+      "synced": false
     },
     {
       "name": "chat.recentModels",
@@ -371,6 +407,12 @@
     {
       "name": "chat.unread.v1",
       "reason": "device-local: the chats this Mac shows as unread",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "chat.unsentDrafts",
+      "reason": "what this Mac's chat boxes held when they were left, JSON; a draft is typed on the Mac being sat at",
       "scope": "device",
       "synced": false
     },
@@ -563,6 +605,12 @@
       "synced": false
     },
     {
+      "name": "ios.learningBout.endedBreaks.v1",
+      "reason": "iPhone-local: the breaks this phone ended, by bout id, for two days",
+      "scope": "device",
+      "synced": false
+    },
+    {
       "name": "ios.listen.automaticallyContinuesBooks",
       "reason": "iPhone-local: whether this phone plays the next chapter of a book",
       "scope": "device",
@@ -617,6 +665,12 @@
       "synced": false
     },
     {
+      "name": "ios.readingChat.speakReplies",
+      "reason": "iPhone-local: whether this phone reads a reading chat's replies aloud",
+      "scope": "device",
+      "synced": false
+    },
+    {
       "name": "ios.siri.pendingCommand",
       "reason": "iPhone-local: a Siri command waiting for this phone's app to open",
       "scope": "device",
@@ -655,6 +709,12 @@
     {
       "name": "knowledgeMap.library.v1",
       "reason": "view state of this Mac's canvas",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "knowledgeMap.memoryLayer.v1",
+      "reason": "whether this Mac's canvas shows the Memory layer; a view choice",
       "scope": "device",
       "synced": false
     },
@@ -935,6 +995,18 @@
       "synced": false
     },
     {
+      "name": "memoryReview.dailyPreparation.lastAttemptDay.v1",
+      "reason": "the day this phone last tried to prepare the review",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "memoryReview.dailyPreparation.lastAttemptMessage.v1",
+      "reason": "what this phone did the last time it tried to prepare the review",
+      "scope": "device",
+      "synced": false
+    },
+    {
       "name": "memoryReview.dailyPreparation.offerDecided.v1",
       "reason": "one-shot marker: the in-chat offer was answered here",
       "scope": "device",
@@ -973,6 +1045,18 @@
       "traits": []
     },
     {
+      "name": "notebook.outputs.seenIDs.v1",
+      "reason": "the notebook outputs opened on this Mac; unread dots are this Mac's",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "notebook.outputs.seenSince.v1",
+      "reason": "when this Mac's Studio first listed notebook outputs; unread dots are this Mac's",
+      "scope": "device",
+      "synced": false
+    },
+    {
       "name": "notebook.sources.sort",
       "reason": "the sort of this Mac's notebook Sources column",
       "scope": "device",
@@ -1003,6 +1087,12 @@
       "synced": false
     },
     {
+      "name": "notepad.artifactListVisible",
+      "reason": "whether this Mac's Docs pane shows its list",
+      "scope": "device",
+      "synced": false
+    },
+    {
       "name": "notepad.pageColumnWidth",
       "scope": "account",
       "synced": true,
@@ -1021,6 +1111,30 @@
       "traits": [
         "modelConfiguration"
       ]
+    },
+    {
+      "name": "openRouterAudioDirectory.speech.readAt.v1",
+      "reason": "when this device last read OpenRouter's speech directory",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "openRouterAudioDirectory.speech.rows.v1",
+      "reason": "cache of OpenRouter's speech directory, refetched",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "openRouterAudioDirectory.transcription.readAt.v1",
+      "reason": "when this device last read OpenRouter's transcription directory",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "openRouterAudioDirectory.transcription.rows.v1",
+      "reason": "cache of OpenRouter's transcription directory, refetched",
+      "scope": "device",
+      "synced": false
     },
     {
       "name": "openRouterAudioPrices.readAt.v1",
@@ -1061,6 +1175,24 @@
     {
       "name": "pendingMigrationV1Done",
       "reason": "one-shot marker",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "planner.appleCalendar.enabled",
+      "reason": "whether this Mac reads its Calendar; access is granted per Mac",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "planner.appleCalendar.knownAccountIDs",
+      "reason": "retired Planner calendar choice, cleared at launch",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "planner.appleCalendar.selectedIDs",
+      "reason": "retired Planner calendar choice, cleared at launch",
       "scope": "device",
       "synced": false
     },
@@ -1415,6 +1547,12 @@
       "synced": false
     },
     {
+      "name": "share.presentedMoveJobs",
+      "reason": "iPhone-local: the moves whose space this phone already showed the sharing controller for",
+      "scope": "device",
+      "synced": false
+    },
+    {
       "name": "sharing.rightsAffirmation",
       "scope": "account",
       "synced": true,
@@ -1441,6 +1579,12 @@
       "traits": []
     },
     {
+      "name": "sites.listVisible",
+      "reason": "whether this Mac's Sites pane shows its list",
+      "scope": "device",
+      "synced": false
+    },
+    {
       "name": "sourceIdeas.extractionFailures.v1",
       "reason": "device-local retry backoff for idea extraction",
       "scope": "device",
@@ -1449,6 +1593,12 @@
     {
       "name": "space.boardLens",
       "reason": "which lens this Mac's Board shows",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "name": "space.createStripHidden",
+      "reason": "device-local: whether this Mac's Space puts away its Create in Space row",
       "scope": "device",
       "synced": false
     },
@@ -1857,6 +2007,12 @@
       "synced": false
     },
     {
+      "name": "studio.zoomLocalRecordingConversionRequests",
+      "reason": "the retired per-launch request counter, cleared on the next pass",
+      "scope": "device",
+      "synced": false
+    },
+    {
       "name": "studio.zoomLocalRecordingIgnoredFolders",
       "reason": "folders on this Mac's disk",
       "scope": "device",
@@ -2252,8 +2408,38 @@
       "synced": true
     },
     {
+      "prefix": "freeDaysNotice.",
+      "reason": "a notice seen on one Mac is not owed to another",
+      "scope": "device",
+      "synced": false
+    },
+    {
       "prefix": "ios.",
       "reason": "iOS-local; reader progress must never sync back",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "prefix": "ios.notebooks.columns.",
+      "reason": "iPhone-local: how this screen is laid out, never a row of the notebook",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "prefix": "ios.readAloud.voice.",
+      "reason": "iPhone-local: the voice this phone narrates one model with; the account's pick is the synced voice row",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "prefix": "ios.search.wholeLibraryText.",
+      "reason": "iPhone-local: whether this phone indexes the text of the whole library",
+      "scope": "device",
+      "synced": false
+    },
+    {
+      "prefix": "ios.spaces.downloadAll.",
+      "reason": "iPhone-local: which spaces this phone downloads in full",
       "scope": "device",
       "synced": false
     },

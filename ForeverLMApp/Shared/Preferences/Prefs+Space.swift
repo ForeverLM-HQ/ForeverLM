@@ -29,6 +29,7 @@ extension Prefs {
         /// window here opens in is this Mac's arrangement, like its windows,
         /// and opening a notebook must write nothing that travels.
         static let notebookLastWorked = DeviceKey<[String: Any]?>("studio.notebookLastWorked.v1", coding: .dictionary, reason: "device-local: the notebook each new window on this Mac opens in")
+        static let createStripHidden = DeviceKey<Bool>("space.createStripHidden", default: false, reason: "device-local: whether this Mac's Space puts away its Create in Space row")
 
         static let all: [AnyPreferenceKey] = [
             recents.erased,
@@ -43,6 +44,7 @@ extension Prefs {
             notebooksHomeSort.erased,
             notebooksHomeSortReversed.erased,
             notebookLastWorked.erased,
+            createStripHidden.erased,
         ]
     }
 }

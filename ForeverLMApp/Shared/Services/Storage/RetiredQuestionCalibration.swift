@@ -22,9 +22,8 @@ import OSLog
 /// value an older Mac writes again never comes back into `UserDefaults`
 /// here. The marker retires the sweep after its first success.
 enum RetiredQuestionCalibration {
-    static let preferenceKey = "review.questionCalibration.v1"
-    static let clearedKey = "retiredQuestionCalibrationCleared.v1"
-
+    static let preferenceKey = Prefs.Lifecycle.retiredQuestionCalibration.name
+    static let clearedKey = Prefs.Lifecycle.retiredQuestionCalibrationCleared.name
     private static let logger = Logger(subsystem: "com.foreverlm", category: "RetiredQuestionCalibration")
 
     static func clearOnce(storage: StorageService, defaults: UserDefaults = .standard) async {

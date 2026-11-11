@@ -18,7 +18,6 @@ import AppKit
 @Observable
 final class IdleSuggestionDismissals {
     static let shared = IdleSuggestionDismissals()
-    private static let defaultsKey = "chat.dismissedIdleSuggestions"
     private static let capacity = 60
 
     private static let dayFormatter: DateFormatter = {
@@ -31,7 +30,7 @@ final class IdleSuggestionDismissals {
     private(set) var keys: [String]
 
     private init() {
-        keys = UserDefaults.standard.stringArray(forKey: Self.defaultsKey) ?? []
+        keys = Preferences.value(Prefs.Studio.dismissedIdleSuggestions) ?? []
     }
 
     /// Scope component for suggestions about *today's* plan, so hiding one
@@ -64,6 +63,6 @@ final class IdleSuggestionDismissals {
 
     private func persist(_ updated: [String]) {
         keys = updated
-        UserDefaults.standard.set(updated, forKey: Self.defaultsKey)
+        Preferences.set(updated, for: Prefs.Studio.dismissedIdleSuggestions)
     }
 }

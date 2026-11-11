@@ -26,9 +26,9 @@ extension KnowledgeStore {
         try query("""
             SELECT key, value FROM user_preferences
             WHERE substr(key, 1, \(LectureQuizScore.courseQuizPreferenceKeyPrefix.count)) = ?
-               OR substr(key, 1, \(LectureQuizScore.preferenceKeyPrefix.count)) = ?
+               OR substr(key, 1, \(Prefs.Families.lectureQuizScore.prefix.count)) = ?
             ORDER BY key
-        """, [.text(LectureQuizScore.courseQuizPreferenceKeyPrefix), .text(LectureQuizScore.preferenceKeyPrefix)]) { row in
+        """, [.text(LectureQuizScore.courseQuizPreferenceKeyPrefix), .text(Prefs.Families.lectureQuizScore.prefix)]) { row in
             if let key = row.text(0), let xml = row.text(1) { rows.append((key, xml)) }
         }
         for row in rows {
@@ -46,9 +46,9 @@ extension KnowledgeStore {
         if key.hasPrefix(LectureQuizScore.courseQuizPreferenceKeyPrefix) {
             kind = "courseQuiz"
             scope = ["quizID": .string(String(key.dropFirst(LectureQuizScore.courseQuizPreferenceKeyPrefix.count)))]
-        } else if key.hasPrefix(LectureQuizScore.preferenceKeyPrefix) {
+        } else if key.hasPrefix(Prefs.Families.lectureQuizScore.prefix) {
             kind = "lectureQuiz"
-            scope = ["sourceID": .string(String(key.dropFirst(LectureQuizScore.preferenceKeyPrefix.count)))]
+            scope = ["sourceID": .string(String(key.dropFirst(Prefs.Families.lectureQuizScore.prefix.count)))]
         } else {
             return nil
         }
@@ -183,8 +183,8 @@ extension KnowledgeStore {
     /// from `writePreference`): a kept quiz score becomes this device's Sitting for that sitting, and a
     /// deck's `cards.state.<deckID>` row its cards' states.
     func mirrorMemoryPreference(key: String, valuePlistXML: String) throws {
-        guard key.hasPrefix(LectureQuizScore.courseQuizPreferenceKeyPrefix) || key.hasPrefix(LectureQuizScore.preferenceKeyPrefix)
-                || key.hasPrefix(MemoryCardDeckState.preferenceKeyPrefix),
+        guard key.hasPrefix(LectureQuizScore.courseQuizPreferenceKeyPrefix) || key.hasPrefix(Prefs.Families.lectureQuizScore.prefix)
+                || key.hasPrefix(Prefs.Families.cardDeckState.prefix),
               try recordsMemoryForGeneration2()
         else { return }
         let device = try MemorySyncDevice.current(self) ?? ""
