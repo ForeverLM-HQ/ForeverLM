@@ -245,22 +245,6 @@ struct InboxReadMarkTests {
         }
     }
 
-    @Test("A card read for what it says now stays out of the corner after a relaunch; news brings it back, and a tuck lasts one launch")
-    func corner() throws {
-        try withDefaults { defaults in
-            let tray = CornerNoticeTray(defaults: defaults)
-            #expect(tray.showsInCorner(.planTheDay, subject: ["2026-10-13"]))
-            tray.markRead(.planTheDay, subject: ["2026-10-13"])
-            #expect(!tray.showsInCorner(.planTheDay, subject: ["2026-10-13"]))
-            let relaunched = CornerNoticeTray(defaults: defaults)
-            #expect(!relaunched.showsInCorner(.planTheDay, subject: ["2026-10-13"]))
-            #expect(relaunched.showsInCorner(.planTheDay, subject: ["2026-10-14"]), "a new day's plan is news")
-            relaunched.tuck(.cardsToCheck)
-            #expect(!relaunched.showsInCorner(.cardsToCheck, subject: ["a"]))
-            #expect(CornerNoticeTray(defaults: defaults).showsInCorner(.cardsToCheck, subject: ["a"]))
-        }
-    }
-
     @Test("A mark is what the notice says now, so it never outgrows it")
     func markIsReplaced() {
         let tray = CornerNoticeTray()
@@ -270,23 +254,10 @@ struct InboxReadMarkTests {
         #expect(!tray.isRead(.cardsToCheck, subject: ["a"]))
     }
 
-    @Test("Cards to check, requests and plugins to reconnect are the bell's alone, each about its own ids")
+    @Test("Requests and plugins to reconnect are each about their own ids")
     func bellOnlyKinds() {
-        #expect(CornerNoticeKind.allCases.filter { !$0.isCornerCard } == [.cardsToCheck, .shareRequests, .pluginReconnect])
         let subjects = InboxSubjects(planDay: nil, cardsToCheck: nil, shareRequestIDs: ["req-1"], reconnectPlugins: ["x"])
         #expect(subjects.subject(.shareRequests) == ["req-1"])
         #expect(subjects.subject(.pluginReconnect) == ["x"])
-    }
-
-    @Test("The bell's dot: an unread chat, a notice only the bell holds, or a tucked card; never a card still in the corner")
-    func dot() {
-        let tray = CornerNoticeTray()
-        #expect(!tray.lightsBell(unread: [], hasUnreadChats: false))
-        #expect(tray.lightsBell(unread: [], hasUnreadChats: true))
-        #expect(tray.lightsBell(unread: [.shareRequests], hasUnreadChats: false))
-        #expect(!tray.lightsBell(unread: [.planTheDay], hasUnreadChats: false), "a card in the corner is in view already")
-        #expect(tray.lightsBell(unread: [.cardsToCheck], hasUnreadChats: false), "cards to check never stand in the corner")
-        tray.tuck(.planTheDay)
-        #expect(tray.lightsBell(unread: [.planTheDay], hasUnreadChats: false))
     }
 }

@@ -467,15 +467,6 @@ enum CornerNoticeKind: String, CaseIterable, Identifiable {
     case pluginReconnect
     var id: String { rawValue }
 
-    /// Whether this kind can stand in the corner; the others are the bell's
-    /// alone, so a notice of theirs is never "in view already".
-    var isCornerCard: Bool {
-        switch self {
-        case .planTheDay: return true
-        case .cardsToCheck, .shareRequests, .pluginReconnect: return false
-        }
-    }
-
     /// What a notice of this kind is about right now, for its read mark: a
     /// mark holds while the notice says nothing it did not say when marked.
     /// A new day's "Plan your day?" is news, and so are cards from a source
@@ -560,17 +551,7 @@ final class CornerNoticeTray {
         return subject.isSubset(of: marked)
     }
 
-    /// Whether a card stands in the corner: not tucked this launch, and not
-    /// read for what it says now.
-    func showsInCorner(_ kind: CornerNoticeKind, subject: Set<String>) -> Bool {
-        // A forced "Plan your day" cannot be tucked or marked read: it stays
-        // until the day is planned (`PlanTheDay.isForced`).
-        if kind == .planTheDay, PlanTheDay.isForced { return true }
-        return !tucked.contains(kind) && !isRead(kind, subject: subject)
-    }
-
-    /// Read is seen: the card leaves the corner as well, as a tucked one
-    /// does. The mark is what the notice says now, so the stored mark never
+    /// The mark is what the notice says now, so the stored mark never
     /// outgrows it.
     func markRead(_ kind: CornerNoticeKind, subject: Set<String>) {
         read[kind] = subject
@@ -578,14 +559,7 @@ final class CornerNoticeTray {
         store()
     }
 
-    /// Whether the bell wears its dot: an unread chat, or an unread notice
-    /// that is not in view already — one only the bell holds, or a card
-    /// tucked out of the corner. A dot, never a count.
-    func lightsBell(unread kinds: [CornerNoticeKind], hasUnreadChats: Bool) -> Bool {
-        hasUnreadChats || kinds.contains { !$0.isCornerCard || tucked.contains($0) }
-    }
-
-    /// Unread again: it lights the bell, and stays out of the corner.
+    /// Unread again.
     func markUnread(_ kind: CornerNoticeKind) {
         read[kind] = nil
         store()
@@ -738,17 +712,11 @@ struct NotificationCenterButton: View {
         let subjects = vm.inboxSubjects(planDay: planDay)
         let unread = kinds.filter { !tray.isRead($0, subject: subjects.subject($0)) }
         let unreadChats = InboxChats.listed(vm: vm)
-        let lightsDot = tray.lightsBell(unread: unread, hasUnreadChats: !unreadChats.isEmpty)
         let unreadCount = unread.count + unreadChats.count
         Button { isShown.toggle() } label: {
             Image(systemName: "bell")
                 .font(.system(size: 14, weight: .medium))
                 .foregroundStyle(.secondary)
-                .overlay(alignment: .topTrailing) {
-                    if lightsDot {
-                        Circle().fill(Color.accentColor).frame(width: 7, height: 7).offset(x: 3, y: -2)
-                    }
-                }
                 .frame(width: 36, height: 30)
                 .contentShape(Rectangle())
         }
@@ -1071,12 +1039,11 @@ private struct CornerCardChrome: ViewModifier {
         switch style {
         case .rail, .tray:
             let isRead = readMark?.isRead == true
-            let tint = isRead ? Color.primary : Color.accentColor
             RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(tint.opacity(isRead ? 0.04 : 0.08))
+                .fill(Color.primary.opacity(isRead ? 0.03 : 0.05))
                 .overlay {
                     RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .strokeBorder(tint.opacity(isRead ? 0.1 : 0.18))
+                        .strokeBorder(Color.primary.opacity(isRead ? 0.08 : 0.12))
                 }
         case .floating:
             RoundedRectangle(cornerRadius: 12, style: .continuous)

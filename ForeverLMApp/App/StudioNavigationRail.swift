@@ -851,22 +851,6 @@ struct StudioNavigationRail: View {
                 .padding(.horizontal, StudioDesign.Spacing.small)
                 .padding(.bottom, StudioDesign.Spacing.large)
             }
-
-            // "Plan your day?" on a morning with nothing planned, over the
-            // Now chip's place, until it is answered
-            // (product owner, 2026-09-28: "maybe in the bottom left? maybe better
-            // than popups"). One corner card at a time.
-            // A card tucked this launch, or read for what it says now, waits
-            // in the bell instead.
-            let tray = CornerNoticeTray.shared
-            let subjects = vm.inboxSubjects(planDay: DayModel.shared.planTheDayAsk)
-            if asksToPlanTheDay, let day = DayModel.shared.planTheDayAsk,
-                      tray.showsInCorner(.planTheDay, subject: subjects.subject(.planTheDay)) {
-                PlanTheDayCard(day: day, style: .rail)
-                    .padding(.horizontal, 10)
-                    .padding(.top, 10)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-            }
         }
     }
 

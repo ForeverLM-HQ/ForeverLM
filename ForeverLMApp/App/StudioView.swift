@@ -26,9 +26,6 @@ struct StudioView: View {
     /// notebook's Sources column alike (`SourceDetailsEditRequest`).
     @State private var editingSourceDetailsID: String?
     @State private var handledCreditsEmptyEpisode = false
-    /// Read here as well as by the day's clock, so switching "Plan your
-    /// day?" off in Settings or over MCP takes the card down at once.
-    @AppStorage(Prefs.Planner.suggestPlanningTheDay) private var asksToPlanTheDay
     /// The Space sidebar the learner hid, which the one sidebar toggle folds
     /// together with Home's sidebar.
     @AppStorage(Prefs.Space.sidebarHidden) private var spaceSidebarHiddenByLearner
@@ -498,37 +495,6 @@ struct StudioView: View {
         return comparisonChats.store(forPane: pane?.id)
     }
 
-    /// The morning's "Plan your day?" (`PlanTheDay`) in the window's
-    /// bottom-left corner, for a window whose rail is hidden; with the rail
-    /// showing, the card is in its footer, over the Now chip. Not drawn over
-    /// the memory review, which this window has given itself to, nor over
-    /// Getting Started, where a new learner is still setting up. "Cards to
-    /// check" is not a corner card: it waits in the bell (`CornerNoticeKind`).
-    /// The corner cards stand clear of a notebook window's icon rail, whose
-    /// clock and account sit in the same corner.
-    private var cornerCardLeadingInset: CGFloat {
-        StudioDesign.Spacing.large + StudioNavigationRail.compactRailWidth
-    }
-
-    @ViewBuilder
-    private var planTheDayCard: some View {
-        // A notebook window's rail is its icon strip, with no room for the
-        // cards: they wait in the corner as they do with the rail hidden.
-        if !windowState.showsHomeSidebar, !isMemoryReviewFocused, !showGettingStarted {
-            // A card tucked this launch, or read for what it says now, waits
-            // in the bell instead.
-            let tray = CornerNoticeTray.shared
-            let subjects = vm.inboxSubjects(planDay: DayModel.shared.planTheDayAsk)
-            if asksToPlanTheDay, let day = DayModel.shared.planTheDayAsk,
-                      tray.showsInCorner(.planTheDay, subject: subjects.subject(.planTheDay)) {
-                PlanTheDayCard(day: day, style: .floating)
-                    .padding(.leading, cornerCardLeadingInset)
-                    .padding(.bottom, StudioDesign.Spacing.large)
-                    .transition(.move(edge: .leading).combined(with: .opacity))
-            }
-        }
-    }
-
     private func studioOverlays(
         _ content: some View,
         titlebarBand: CGFloat?,
@@ -548,12 +514,6 @@ struct StudioView: View {
             : StudioTopBar.leadingControlsLeading
         return VStack(spacing: 0) {
             content
-                // "Plan your day?", for a window without its rail, waits in
-                // the bottom-left corner: above the audiobook player rather
-                // than over it, and under Settings, since a question that
-                // waits can wait for Settings to close.
-                .overlay(alignment: .bottomLeading) { planTheDayCard }
-                .animation(.spring(response: 0.32, dampingFraction: 0.86), value: DayModel.shared.planTheDayAsk)
             StudioAudiobookPlayerHost()
         }
             // The window's own controls, pinned to the top-left on the macOS
