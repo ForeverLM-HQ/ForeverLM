@@ -1239,6 +1239,7 @@ final class ReviewSessionManager {
                 isResumingSession = false
                 await generateQuestion(isFirst: true)
             }
+            noteNewestMessageWithoutReply(in: exchanges, sessionID: session.id)
         } catch {
             let message = error.localizedDescription
             endSession()
@@ -1246,6 +1247,43 @@ final class ReviewSessionManager {
             logger.error("Failed to resume review session: \(error.localizedDescription)")
         }
     }
+
+    /// The newest row of a stored chat when it is the learner's message with
+    /// no reply written to it: the turn failed, the app quit mid-turn, or
+    /// another device is still answering. A turn the learner stopped before
+    /// it said anything closed its row with an empty reply and is not this.
+    nonisolated static func newestMessageWithoutReply(
+        in exchanges: [ReviewExchangeRecord]
+    ) -> ReviewExchangeRecord? {
+        guard let newest = exchanges.max(by: { $0.sequenceNumber < $1.sequenceNumber }),
+              newest.evaluation == nil,
+              newest.userAnswer?.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty == false
+        else { return nil }
+        return newest
+    }
+
+    /// A reopened chat whose newest message has no reply says so and offers
+    /// Retry, with the reply paired to that message's row. Before this the
+    /// chat came back as the learner's bare messages, with nothing to say a
+    /// reply had been tried or to ask for it again (2026-11-12). Chats only:
+    /// a review's turns are graded with their attempt and resume their own way.
+    private func noteNewestMessageWithoutReply(in exchanges: [ReviewExchangeRecord], sessionID: String) {
+        failedTurnCameFromStorage = false
+        guard self.sessionID == sessionID, sessionActive, !isGenerating,
+              !isTutorLed, memoryCompanionPlan == nil, courseQuiz == nil,
+              !MemoryReviewSession.isMemorySession(sessionID),
+              let unanswered = Self.newestMessageWithoutReply(in: exchanges) else { return }
+        newestMessageRow = ReplyRow(sessionID: sessionID, sequence: unanswered.sequenceNumber)
+        errorMessage = Self.messageWithoutReplyNotice
+        lastGenerationFailed = true
+        failedTurnCameFromStorage = true
+    }
+
+    static let messageWithoutReplyNotice = "Your last message has no reply: the reply did not finish. Retry asks it again."
+
+    /// The failed turn on show was read back from storage on reopening
+    /// (`noteNewestMessageWithoutReply`), so nothing of it lives only here.
+    @ObservationIgnored var failedTurnCameFromStorage = false
 
     var optimisticUserMessage: OptimisticUserMessage?
 

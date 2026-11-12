@@ -155,6 +155,96 @@ struct StudioAssistantSessionStoreTests {
         #expect(second.hasGenerationWorkInFlight)
     }
 
+    @Test("A chat whose turn failed keeps its manager across another chat, New chat and back")
+    func failedTurnOutlivesNavigation() {
+        let store = StudioAssistantSessionStore(managerFactory: { ReviewSessionManager() })
+        let failed = store.activeManager
+        failed.configureNavigationStateForTesting(sessionID: "chat-failed", generationInFlight: false)
+        failed.lastGenerationFailed = true
+        failed.errorMessage = "The model stopped answering."
+        failed.enqueueFollowUp("and the Google docs")
+        #expect(failed.holdsFailedTurn)
+        #expect(!failed.hasGenerationWorkInFlight)
+
+        // Another chat: the failed one is parked, not ended, and does not
+        // read as running.
+        guard case .switched = store.prepareToOpen(sessionID: "chat-two") else {
+            Issue.record("Opening another chat did not switch managers")
+            return
+        }
+        #expect(store.backgroundManagersForTesting.contains { $0 === failed })
+        #expect(!store.isRunning(sessionID: "chat-failed"))
+
+        // New chat from there prunes what is finished; the failed turn stays.
+        store.activeManager.configureNavigationStateForTesting(sessionID: "chat-two", generationInFlight: false)
+        store.closeActiveChat()
+        #expect(store.backgroundManagersForTesting.contains { $0 === failed })
+
+        // Coming back shows the same manager: its error, its Retry and the
+        // message waiting under it.
+        guard case .switched = store.prepareToOpen(sessionID: "chat-failed") else {
+            Issue.record("Returning to the failed chat did not switch managers")
+            return
+        }
+        #expect(store.activeManager === failed)
+        #expect(failed.currentSessionID == "chat-failed")
+        #expect(failed.errorMessage == "The model stopped answering.")
+        #expect(failed.canRetryLastGeneration)
+        #expect(failed.queuedFollowUps.map(\.text) == ["and the Google docs"])
+
+        // New chat straight from the failed chat parks it too.
+        let requestID = UUID()
+        #expect(store.prepareForNewChat(requestID: requestID))
+        #expect(store.activeManager !== failed)
+        #expect(store.backgroundManagersForTesting.contains { $0 === failed })
+        #expect(failed.currentSessionID == "chat-failed")
+    }
+
+    @Test("A no-reply notice read back from storage does not hold its manager")
+    func storedNoReplyNoticeIsReleased() {
+        let store = StudioAssistantSessionStore(managerFactory: { ReviewSessionManager() })
+        let reopened = store.activeManager
+        reopened.configureNavigationStateForTesting(sessionID: "chat-reopened", generationInFlight: false)
+        reopened.lastGenerationFailed = true
+        reopened.failedTurnCameFromStorage = true
+        #expect(!reopened.holdsFailedTurn)
+
+        _ = store.prepareToOpen(sessionID: "chat-two")
+        #expect(store.backgroundManagersForTesting.isEmpty)
+        #expect(reopened.currentSessionID == nil)
+    }
+
+    @Test("Only a newest message with no reply written reads as unanswered")
+    func newestMessageWithoutReply() {
+        func row(_ sequence: Int, question: String = "", answer: String?, evaluation: String?) -> ReviewExchangeRecord {
+            ReviewExchangeRecord(
+                id: "exchange-\(sequence)",
+                sessionID: "chat-one",
+                sequenceNumber: sequence,
+                question: question,
+                userAnswer: answer,
+                evaluation: evaluation,
+                score: nil,
+                sourceRefs: [],
+                knowledgeNote: nil,
+                answeredAt: nil,
+                contextContent: nil
+            )
+        }
+        let answered = row(1, answer: "what do we keep coming back to?", evaluation: "Three questions.")
+        let pending = row(2, answer: "read all the standups", evaluation: nil)
+        // A turn stopped before it spoke closes its row with an empty reply.
+        let stopped = row(2, answer: "read all the standups", evaluation: "")
+        // A reply that opened a row of its own after the message's.
+        let ownRow = row(3, question: "Here they are.", answer: nil, evaluation: nil)
+
+        #expect(ReviewSessionManager.newestMessageWithoutReply(in: [pending, answered])?.id == "exchange-2")
+        #expect(ReviewSessionManager.newestMessageWithoutReply(in: [answered]) == nil)
+        #expect(ReviewSessionManager.newestMessageWithoutReply(in: [answered, stopped]) == nil)
+        #expect(ReviewSessionManager.newestMessageWithoutReply(in: [answered, pending, ownRow]) == nil)
+        #expect(ReviewSessionManager.newestMessageWithoutReply(in: []) == nil)
+    }
+
     /// A draft archive on a defaults domain of its own: the unit host's
     /// standard defaults are the app's real ones.
     static func isolatedDrafts() -> ChatDraftArchive {

@@ -291,6 +291,7 @@ extension ReviewSessionManager {
         errorMessage = nil
         lastGenerationError = nil
         lastGenerationFailed = false
+        failedTurnCameFromStorage = false
         userStoppedGeneration = false
         turnReplyWriteStarted = false
         turnFollowsSavedFailedReply = retryFollowsSavedFailedReply
@@ -392,7 +393,9 @@ extension ReviewSessionManager {
             lastGenerationError = error
             lastGenerationFailed = true
             await discardEmptyAutomaticStartIfNeeded(isFirst: isFirst)
-            logger.error("review tutor generation failed: \(error.localizedDescription)")
+            // Public: the words are the ones the chat shows the learner, and a
+            // redacted line left two failed runs with no cause to read back.
+            logger.error("review tutor generation failed: \(error.localizedDescription, privacy: .public)")
         }
         // This reply may have aged a block of turns out of the verbatim window.
         // Fold them now, while the learner reads, so the next turn finds the

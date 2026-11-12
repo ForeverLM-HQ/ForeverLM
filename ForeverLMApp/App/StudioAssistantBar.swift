@@ -519,7 +519,9 @@ final class StudioAssistantSessionStore {
         // A manager still hydrating a chat the new one superseded is left to
         // finish into nothing, as a running turn is parked: clearing it here
         // would only be undone when its transcript lands.
-        guard activeManager.hasGenerationWorkInFlight || pendingResumeSessionID != nil else {
+        // So is a chat whose turn failed: what the turn left is only in its
+        // manager, and New chat must not be what erases it.
+        guard activeManager.mustOutliveNavigation || pendingResumeSessionID != nil else {
             pruneFinishedBackgroundManagers()
             return false
         }
@@ -665,7 +667,7 @@ final class StudioAssistantSessionStore {
     }
 
     private func parkActiveManagerIfNeeded() {
-        guard activeManager.hasGenerationWorkInFlight else {
+        guard activeManager.mustOutliveNavigation else {
             activeManager.endSession()
             return
         }
@@ -675,10 +677,14 @@ final class StudioAssistantSessionStore {
 
     /// Finished background turns are already durable. Keep them until the next
     /// navigation event so their spinner can settle naturally, then release
-    /// them; reopening hydrates the same transcript from SQLite.
+    /// them; reopening hydrates the same transcript from SQLite. A turn that
+    /// failed is not durable (`holdsFailedTurn`): its manager stays until the
+    /// learner comes back to it, so the steps, the error and Retry are still
+    /// there (2026-11-12: a chat that failed after reading every standup came
+    /// back as three bare messages).
     private func pruneFinishedBackgroundManagers() {
         backgroundManagers.removeAll { manager in
-            guard !manager.hasGenerationWorkInFlight else { return false }
+            guard !manager.mustOutliveNavigation else { return false }
             manager.endSession()
             return true
         }

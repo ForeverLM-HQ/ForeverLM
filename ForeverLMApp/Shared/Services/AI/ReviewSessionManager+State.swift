@@ -58,6 +58,20 @@ extension ReviewSessionManager {
             || activeGenerationTask != nil
     }
 
+    /// A turn that failed has saved nothing but the learner's message: the
+    /// steps it ran, its error, Retry and any message waiting under that
+    /// Retry are held here only. Reopening the chat from storage shows the
+    /// bare message, as if nothing had been tried.
+    var holdsFailedTurn: Bool {
+        lastGenerationFailed && sessionActive && sessionID != nil && !failedTurnCameFromStorage
+    }
+
+    /// Whether leaving this chat for another must keep the manager: a turn
+    /// is still at work, or one failed and what it left exists nowhere else.
+    var mustOutliveNavigation: Bool {
+        hasGenerationWorkInFlight || holdsFailedTurn
+    }
+
     /// Covers the source/context preparation that happens before
     /// `sendMessage` enters the manager. Without this lease, an immediate chat
     /// switch could release the manager in the brief interval between showing
