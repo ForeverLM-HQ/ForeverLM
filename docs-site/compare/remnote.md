@@ -12,7 +12,7 @@ RemNote is an all-in-one student platform: notes that auto-generate flashcards, 
 
 | | ForeverLM | RemNote |
 |---|---|---|
-| **Price** | Free, MCP included; AI on your own OpenRouter key at cost | Free tier (capped); Pro $96/yr; Pro + AI $216/yr; $395 lifetime (AI still +$10/mo) |
+| **Price** | Free; MCP is 30 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free tier (capped); Pro $96/yr; Pro + AI $216/yr; $395 lifetime (AI still +$10/mo) |
 | **AI costs** | Your own OpenRouter key, billed by OpenRouter at cost with nothing added, for any model in Chat (free models cost nothing); or an AI subscription you already pay for, over MCP | Metered AI credits included in tiers (1,000/mo on Pro, 20,000/mo on Pro + AI); no bring-your-own-key |
 | **Platforms** | Native macOS app (macOS 14+) | Web, Mac, Windows, Linux, iOS, Android |
 | **Data storage** | Local SQLite + files in your private iCloud container | RemNote's cloud by default; local-only knowledge bases on desktop lose sync |
@@ -27,9 +27,9 @@ RemNote is an all-in-one student platform: notes that auto-generate flashcards, 
 
 Meaningful AI use on RemNote costs **$216/yr** (Pro + AI), and even the $395 lifetime license excludes AI credits — AI stays a $10/mo add-on forever. The credits are RemNote-denominated: you can't bring your own key or your existing ChatGPT/Claude subscription.
 
-ForeverLM is **free**, and its AI takes two routes, mixable: any model in the in-app Chat, on your own OpenRouter key, billed by OpenRouter at its cost with nothing added (free models cost nothing); or drive ForeverLM over MCP from the Claude, ChatGPT, Gemini, or Grok subscription you're already paying for. The inference is on that subscription, and MCP itself is free. Per-conversation costs in the app are shown to the cent.
+ForeverLM is **free**, and its AI takes two routes, mixable: any model in the in-app Chat, on your own OpenRouter key, billed by OpenRouter at its cost with nothing added (free models cost nothing); or drive ForeverLM over MCP from the Claude, ChatGPT, Gemini, or Grok subscription you're already paying for. The inference is on that subscription, and MCP is the one paid part of ForeverLM: 30 days free, then $19 once. Per-conversation costs in the app are shown to the cent.
 
-Three years of RemNote Pro + AI is ~$648 committed up front. ForeverLM's equivalent number is $0, MCP included, plus whatever OpenRouter bills for the AI you chose to run. That is the honest answer, not a dodge: usage is the one line item you control directly.
+Three years of RemNote Pro + AI is ~$648 committed up front. ForeverLM's equivalent number is $0 for the app, or $19 once if you add MCP, plus whatever OpenRouter bills for the AI you chose to run. That is the honest answer, not a dodge: usage is the one line item you control directly.
 
 ## Where RemNote is better
 

@@ -14,7 +14,7 @@ ForeverLM overlaps with that first job: it gives you a reading list for articles
 
 | | ForeverLM | Readwise Reader + Readwise |
 |---|---|---|
-| **Reading-list price** | Free, MCP included; AI on your own OpenRouter key at cost | 30-day trial, then $9.99/month billed annually or $12.99/month billed monthly |
+| **Reading-list price** | Free; MCP is 30 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | 30-day trial, then $9.99/month billed annually or $12.99/month billed monthly |
 | **AI costs** | Your own OpenRouter key, billed by OpenRouter at cost with nothing added, for any model in Chat (free models cost nothing); or an assistant subscription you already use, over MCP | Ghostreader is included; external assistants use your own ChatGPT, Claude, or other MCP client account |
 | **Platforms** | Mac-centered library with synced iPhone reading, listening, and voice access | Web, Mac, Windows, iOS, Android, browser extensions, and e-ink viewing |
 | **Capture** | Safari, Chrome, and Brave reading lists; URL paste; local files; plugins; MCP | Browser extensions, share sheet, email newsletters, RSS, file upload, and imports |
@@ -33,7 +33,7 @@ Readwise Full costs **$119.88 per year** on annual billing or **$155.88 per year
 
 ForeverLM's reading list comes with the app, which is **free**. Articles saved in Safari, Chrome, or Brave flow into Studio, where you can read them, organize them into notebooks, and put them on Schedule without a subscription. Papers, books, podcasts, videos, courses, and meetings share the same library.
 
-Beyond that, only AI and voices cost anything inside the app, and ForeverLM never charges for them. Free voices cost nothing. In-app Chat runs on your own OpenRouter key, billed by OpenRouter at its cost with nothing added, or on free models for nothing. Connecting a Claude, ChatGPT, Gemini, or Grok subscription through MCP is free too. A quiet reading month adds nothing to your OpenRouter bill.
+Beyond that, only AI and voices cost anything inside the app, and ForeverLM never charges for them. Free voices cost nothing. In-app Chat runs on your own OpenRouter key, billed by OpenRouter at its cost with nothing added, or on free models for nothing. Connecting a Claude, ChatGPT, Gemini, or Grok subscription through MCP is the one paid part: 30 days free, then $19 once. A quiet reading month adds nothing to your OpenRouter bill.
 
 ## Where Readwise is better
 

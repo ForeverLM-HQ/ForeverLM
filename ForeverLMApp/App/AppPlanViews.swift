@@ -18,9 +18,9 @@ struct EarlyUserDealOffer: View {
     /// What Billing's section says once the free days are over and nothing is
     /// paid.
     static let lockedTitle = "MCP is locked"
-    /// What Billing says while nothing is sold: MCP is free.
+    /// What Billing says if the account server ever says MCP is free (state `free`).
     static let freeTitle = "MCP is free"
-    /// What the welcome screen says while nothing is sold.
+    /// What the welcome screen says if the account server sells nothing.
     static let freeWelcomeLine = "ForeverLM is free, MCP included."
     /// The line every surface says what AI costs with.
     static let ownKeyLine = "The app is free. AI runs on your OpenRouter API key, at OpenRouter's cost. ForeverLM adds nothing."
@@ -31,7 +31,7 @@ struct EarlyUserDealOffer: View {
         onceCents.map { "Get the Early User Deal: \(ManagedAI.dollars($0))" } ?? "Get the Early User Deal"
     }
 
-    /// "MCP: 7 days free, then $19 once. No subscription." The count of free
+    /// "MCP: 30 days free, then $19 once. No subscription." The count of free
     /// days is the proxy's (`AppAccess.freeDaysTotal`), like the price; a part
     /// the proxy has not said is left unnamed rather than guessed.
     static func headline(onceCents: Int?, freeDays: Int?) -> String {
@@ -45,11 +45,14 @@ struct EarlyUserDealOffer: View {
         "The app is free. \(headline(onceCents: onceCents, freeDays: freeDays))"
     }
 
-    /// The welcome line for an account's access: the price only while the
-    /// account server sells the deal, and "free, MCP included" otherwise,
-    /// before the access is known too, since nothing is sold now.
+    /// The welcome line for an account's access: the price and the count of
+    /// free days, which are the account server's (30 days free, then $19
+    /// once, since 2026-11-11). Before the access is known the line names
+    /// neither; "free, MCP included" only when the server says MCP is free or
+    /// sells nothing.
     static func welcomeLine(access: ManagedAI.AppAccess?) -> String {
-        guard let access, access.state != .free, access.plansOnSale.contains(.once) else { return freeWelcomeLine }
+        guard let access else { return welcomeLine(onceCents: nil, freeDays: nil) }
+        guard access.state != .free, access.plansOnSale.contains(.once) else { return freeWelcomeLine }
         return welcomeLine(onceCents: access.prices.onceCents, freeDays: access.freeDaysTotal)
     }
 

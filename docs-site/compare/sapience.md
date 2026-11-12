@@ -13,7 +13,7 @@ Sapience is a local knowledge workspace built around a visual canvas. Each "spac
 | | ForeverLM | Sapience |
 |---|---|---|
 | **Availability** | Available now for macOS; the newest features reach beta releases first | Invite-only early access (100 tester places announced for Q2 2026) |
-| **Price** | Free, MCP included; AI on your own OpenRouter key at cost, or over MCP from an assistant you already pay for | Not published; "start free", no card needed for sign-up |
+| **Price** | Free; MCP is 30 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost, or over MCP from an assistant you already pay for | Not published; "start free", no card needed for sign-up |
 | **Platforms** | Native macOS app (macOS 14+), with an iPhone app and a web library | Not stated (its screenshots show a Mac app) |
 | **Data storage** | Local SQLite + files in your private iCloud container, CloudKit sync | Plain text files in folders on your computer; sync not stated |
 | **Canvas** | Ideas-first Canvas over the whole library: Ideas, regions inside regions, arrows, sources as evidence (in beta releases) | The centre of the app: every folder is a canvas of cards, concept maps and mind maps, and chats can sit on a board |

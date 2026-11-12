@@ -6,6 +6,7 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 
 ## Unreleased
 
+- **MCP is free for 30 days, then $19 once.** Connecting Claude, ChatGPT, Codex or another assistant is free for 30 days from your first sign-in (no card, nothing to click), then paid once, with no subscription, in Settings › Billing. The app itself, sync and AI on your own OpenRouter key stay free; only MCP locks if the 30 days end unpaid, and nothing is deleted.
 - **CarPlay shows ForeverLM's mark while you talk to it,** in place of the coloured dot. It breathes while listening, a band of light crosses it while thinking, and it pulses while speaking.
 - **On the iPhone, a page shared on its own shows among your pages** and can be edited there when the share allows; sharing, Stop Sharing and Remove from My Library are on the Mac.
 - **The iPhone opens on voice.** Home is ForeverLM's mark: tap it to talk about anything, name a source, or go through today's cards, which voice offers first when they are due; type instead whenever you can't talk (every voice conversation now has a field for that, so the gym is just voice). Everything else (notebooks, the library, To Read, Follow Up, Spaces, **Review Cards** to tap through them with their pictures, Memory and Settings) is in the menu at the bottom.

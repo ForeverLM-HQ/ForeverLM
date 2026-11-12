@@ -12,7 +12,7 @@ NotebookLM, renamed **Gemini Notebook** in July 2026 and now at notebook.google.
 
 | | ForeverLM | NotebookLM |
 |---|---|---|
-| **Price** | Free, MCP included; AI on your own OpenRouter key at cost | Free tier (capped); higher limits via Google AI bundles: $7.99/mo Plus, $19.99/mo Pro, $99.99+/mo Ultra |
+| **Price** | Free; MCP is 30 days free, then $19 once (no subscription); AI on your own OpenRouter key at cost | Free tier (capped); higher limits via Google AI bundles: $7.99/mo Plus, $19.99/mo Pro, $99.99+/mo Ultra |
 | **AI costs** | Your own OpenRouter key, billed by OpenRouter at cost with nothing added, for any model in Chat (free models cost nothing); or an AI subscription you already pay for, over MCP | Included, but capped per day/tier (chats, overviews, quizzes) |
 | **Platforms** | Native macOS app (macOS 14+) | Web + iOS + Android apps; no desktop app |
 | **Data storage** | Local SQLite + files in your private iCloud container | Google's servers — every source must be uploaded |
@@ -29,7 +29,7 @@ NotebookLM, renamed **Gemini Notebook** in July 2026 and now at notebook.google.
 
 Gemini Notebook itself is free, with up to 100 notebooks of 50 sources each and usage that refills every five hours up to a weekly cap; Google no longer publishes the numbers for personal accounts. Raising the limits means a Google AI plan — **$199.99/yr for AI Pro**, with 300 sources per notebook and four times the standard usage — that bundles much more than Gemini Notebook, and the limits still exist, just higher. You're paying a flat annual fee for permission to do more, not for what you did.
 
-ForeverLM is **free**, MCP included, and has no daily caps of its own. There are no tiers to upgrade through: bring your own OpenRouter key, pick any model in the in-app Chat, and OpenRouter bills you at its cost with nothing added by ForeverLM, or use free models and pay nothing. Or connect the Claude, ChatGPT, Gemini, or Grok subscription you already pay for over MCP: that subscription covers the inference, and ForeverLM charges nothing per request. In the app, a little also goes to background work like transcript cleanup, billed the same way; search embeddings are made on your Mac, for free. Every conversation's cost is shown to the cent.
+ForeverLM is **free** and has no daily caps of its own; only MCP is paid, **30 days free, then $19 once** (no subscription). There are no tiers to upgrade through: bring your own OpenRouter key, pick any model in the in-app Chat, and OpenRouter bills you at its cost with nothing added by ForeverLM, or use free models and pay nothing. Or connect the Claude, ChatGPT, Gemini, or Grok subscription you already pay for over MCP: that subscription covers the inference, and ForeverLM charges nothing per request. In the app, a little also goes to background work like transcript cleanup, billed the same way; search embeddings are made on your Mac, for free. Every conversation's cost is shown to the cent.
 
 ## Where NotebookLM is better
 

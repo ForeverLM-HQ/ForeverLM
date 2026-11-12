@@ -45,7 +45,7 @@ struct AppPlanTests {
         #expect(cached?["plan_access"] == nil)
     }
 
-    @Test("MCP is free (2026-11-08): app_state free reads as free, never locks, counts nothing and sells nothing")
+    @Test("If the account server says MCP is free: app_state free reads as free, never locks, counts nothing and sells nothing")
     @MainActor
     func mcpFree() throws {
         // What the proxy sends every open account while MCP is free.
@@ -62,13 +62,14 @@ struct AppPlanTests {
         // The top-level state is app_state's vocabulary too.
         let old = try decode(#"{"state":"free"}"#)
         #expect(old.filling(.init(state: "free", unlocked: true, freeUntil: nil)).state == .free)
-        // The welcome line names no price while nothing is sold, or before the
-        // access is known.
+        // The welcome line names no price while nothing is sold; before the
+        // access is known it names neither the days nor the price (2026-11-11:
+        // MCP is paid again, after 30 free days).
         #expect(EarlyUserDealOffer.welcomeLine(access: access) == "ForeverLM is free, MCP included.")
-        #expect(EarlyUserDealOffer.welcomeLine(access: nil) == "ForeverLM is free, MCP included.")
+        #expect(EarlyUserDealOffer.welcomeLine(access: nil) == "The app is free. MCP: Free to start, then pay once. No subscription.")
         #expect(EarlyUserDealOffer.freeTitle == "MCP is free")
-        let selling = ManagedAI.AppAccess(state: .freeDays, prices: .init(onceCents: 1900, monthlyCents: nil), freeDaysTotal: 7)
-        #expect(EarlyUserDealOffer.welcomeLine(access: selling) == "The app is free. MCP: 7 days free, then $19 once. No subscription.")
+        let selling = ManagedAI.AppAccess(state: .freeDays, prices: .init(onceCents: 1900, monthlyCents: nil), freeDaysTotal: 30)
+        #expect(EarlyUserDealOffer.welcomeLine(access: selling) == "The app is free. MCP: 30 days free, then $19 once. No subscription.")
         for text in [EarlyUserDealOffer.freeWelcomeLine, EarlyUserDealOffer.freeTitle] {
             #expect(!text.contains("$"))
             #expect(!text.contains("—"))
