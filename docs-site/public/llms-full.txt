@@ -6779,6 +6779,16 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 0.217.0 (build 297) — 2026-11-12
+
+**Highlights:**
+- **Drag a book into a Page** and it lands as the book's card.
+- **Press a source card in a Page** to open the source.
+
+- **Drag a book into a Page.** A book dragged from the Library's Books list lands as one card under the book's name, as a paper or an article does; dropped on a paragraph, the book is attached to that paragraph. Before, a book dragged over a Page did nothing.
+- **Press a source card in a Page to open the source.** A press anywhere on the card (its title, picture or the line under it) opens it, where only the small check at its edge did. The second copy of the row that popped up under the pointer is gone; Option-click places the caret in the title without opening.
+- **A meeting Read AI recorded wears Read AI's logo** in the Library, as a Zoom meeting wears Zoom's.
+
 ## 0.216.0 (build 296) — 2026-11-12
 
 **Highlights:**
