@@ -554,7 +554,7 @@ enum RealtimeVoiceTutor {
                     "verdict": [
                         "type": "string",
                         "enum": RealtimeVoiceAnswerRecord.Verdict.allCases.map(\.rawValue),
-                        "description": "had_it when the answer was right and complete, partly when part of it was, missed when it was wrong or they did not know.",
+                        "description": "had_it when the learner got the key point across, even if a detail was left out or loosely put; partly when they were on the right track but missed the key point or a part the question asked for; missed when it was wrong or they did not know.",
                     ],
                     "gap": ["type": "string", "description": "Unless they had it: what was missing or wrong, in a sentence."],
                 ],
