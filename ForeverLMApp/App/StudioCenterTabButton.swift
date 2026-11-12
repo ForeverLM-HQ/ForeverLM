@@ -30,9 +30,20 @@ struct StudioCenterTabButton: View {
     /// explicit non-zero frame. Letting an intrinsic-size-less NSView take its
     /// ideal size inside the ZStack can collapse its hit area to zero even
     /// while the SwiftUI label beside it remains visible.
+    ///
+    /// Only the active tab keeps room for its × after the title. An inactive
+    /// tab's × shows only under the pointer, so the slot kept for it stood
+    /// empty after every title and made the gap after a tab three times the
+    /// gap before it (product owner, 2026-11-11: "the spacing here is kind of
+    /// weirdly or badly designed in this top bar"). A hovered inactive tab
+    /// shows its × in its icon's place instead, as Safari's tabs do, so
+    /// neither the strip nor the title moves.
     private var tabWidth: CGFloat {
-        min(fullTextWidth, Self.maxTextWidth) + tabTextSize + 24 + Self.closeSize + 4
+        min(fullTextWidth, Self.maxTextWidth) + tabTextSize + 24 + (isActive ? Self.closeSize + 4 : 0)
     }
+
+    /// An inactive tab under the pointer, whose × stands where its icon was.
+    private var closeTakesIconPlace: Bool { !isActive && hovering }
 
     /// The most of a title a tab shows; a longer one runs off the edge.
     private static let maxTextWidth: CGFloat = 150
@@ -68,6 +79,7 @@ struct StudioCenterTabButton: View {
                 Image(systemName: systemImage)
                     .font(.system(size: max(10, tabTextSize - 1), weight: .medium))
                     .foregroundStyle(isActive ? Color.accentColor : Color.secondary)
+                    .opacity(closeTakesIconPlace ? 0 : 1)
                 Text(title)
                     .font(.system(size: tabTextSize, weight: isActive ? .semibold : .medium))
                     .foregroundStyle(isActive ? Color.primary : Color.primary.opacity(0.75))
@@ -93,7 +105,7 @@ struct StudioCenterTabButton: View {
                     }
             }
                 .padding(.leading, 9)
-                .padding(.trailing, 9 + Self.closeSize + 4)
+                .padding(.trailing, isActive ? 9 + Self.closeSize + 4 : 9)
                 .frame(width: tabWidth, height: 26, alignment: .leading)
                 .background(StudioSelectionBackground(isSelected: isActive, isHovered: hovering))
                 .allowsHitTesting(false)
@@ -115,8 +127,8 @@ struct StudioCenterTabButton: View {
                     .frame(width: Self.closeSize, height: Self.closeSize)
             }
             .opacity(isActive || hovering ? 1 : 0)
-            .padding(.trailing, 6)
-            .frame(width: tabWidth, height: 26, alignment: .trailing)
+            .padding(isActive ? .trailing : .leading, isActive ? 6 : 8)
+            .frame(width: tabWidth, height: 26, alignment: isActive ? .trailing : .leading)
         }
         .frame(width: tabWidth, height: 26)
         .contentShape(RoundedRectangle(cornerRadius: 7, style: .continuous))
