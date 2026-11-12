@@ -69,6 +69,33 @@ struct CrossWindowReaderNavigationTests {
         #expect(vm.toastAction == nil)
     }
 
+    /// Security audit, 2026-11-12: `foreverlm://source/<unknown>?action=…`
+    /// ran its action on whatever source the Reader had selected.
+    @Test("a source link names the source it opened, and nothing when its source is missing")
+    func sourceLinkActionNeedsItsOwnSource() async throws {
+        let restoreLayout = capturedCenterTabLayout()
+        defer { restoreLayout() }
+        let restoreRegistry = capturedStudioWindowRegistry()
+        defer { restoreRegistry() }
+        let vm = makeViewModel()
+        var selected = makeArticle(url: "https://example.com/selected", title: "Selected", state: .ready, id: "selected-source")
+        selected.content = "Already loaded."
+        vm.articles = [selected]
+        vm.selectedArticleId = selected.id
+
+        #expect(await vm.openLinkedSourceInReader("no-such-source-anywhere") == nil)
+        #expect(vm.selectedArticleId == selected.id)
+        #expect(await vm.openLinkedSourceInReader(selected.id) == selected.id)
+
+        let url = try #require(URL(string: "foreverlm://source/no-such-source?action=transcribe-podcast-audio"))
+        #expect(SourceLinkAction(url: url) == .transcribePodcastAudio)
+        #expect(SourceLinkAction(url: try #require(URL(string: "foreverlm://source/x?action=delete-everything"))) == nil)
+        #expect(SourceLinkAction.transcribePodcastAudio.spendsMoney)
+        #expect(SourceLinkAction.findMentionedPapers.spendsMoney)
+        #expect(SourceLinkAction.getTranscript.spendsMoney)
+        #expect(!SourceLinkAction.refreshFromWebsite.spendsMoney)
+    }
+
     @Test("a web citation opens here even when the other window has the Reader up")
     func webCitationNeverJumpsToTheOtherWindow() {
         let restoreLayout = capturedCenterTabLayout()

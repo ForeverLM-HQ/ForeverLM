@@ -49,7 +49,8 @@ actor SourceService {
         config.timeoutIntervalForRequest = 15
         config.httpShouldSetCookies = true
         config.httpCookieAcceptPolicy = .always
-        self.session = URLSession(configuration: config)
+        // A redirect to this Mac or its network is not followed (`OutboundAddressPolicy`).
+        self.session = URLSession(configuration: config, delegate: OutboundAddressPolicy.redirectGuard, delegateQueue: nil)
     }
     
     // MARK: - Public API
@@ -80,6 +81,7 @@ actor SourceService {
         guard let url = URL(string: urlString) else {
             throw SourceError.invalidURL
         }
+        try await OutboundAddressPolicy.check(url)
 
         if let resource = Self.googleDocsResource(from: url) {
             return try await fetchGoogleDocsText(resource: resource)
@@ -563,6 +565,9 @@ actor SourceService {
     func downloadPDF(from urlString: String, to destinationPath: String) async throws {
         guard let url = URL(string: urlString) else {
             throw SourceError.invalidURL
+        }
+        if !ManagedAI.isForeverLMGatewayURL(url) {
+            try await OutboundAddressPolicy.check(url)
         }
 
         // A publisher that hands the PDF only to a subscriber is answered with
@@ -1128,6 +1133,7 @@ actor SourceService {
         guard let url = URL(string: urlString) else {
             throw SourceError.invalidURL
         }
+        try await OutboundAddressPolicy.check(url)
 
         if let resource = Self.googleDocsResource(from: url) {
             let text = try await fetchGoogleDocsText(resource: resource)

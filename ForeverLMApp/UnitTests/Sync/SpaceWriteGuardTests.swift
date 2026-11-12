@@ -116,3 +116,41 @@ struct SpaceWriteGuardTests {
         #expect(SpaceWriteGuard.refusals(writing: "FutureType", fields: [:], by: Self.member) == [.unknownType("FutureType")])
     }
 }
+
+/// Security audit, 2026-11-12: CloudKit lets any read-write member save a space's root, and every
+/// device took the root it fetched, so a member could rotate the salt (every device drops the
+/// space) or raise `minClientRevision` (every device stops writing).
+@Suite("Space root policy")
+struct SpaceRootPolicyTests {
+    @Test("A joined space takes a root only its owner saved")
+    func joinedSpaceTakesOnlyTheOwnersRoot() {
+        #expect(SpaceRootPolicy.acceptsRoot(modifiedBy: "_owner", zoneOwner: "_owner", isOwned: false, me: "_member"))
+        #expect(!SpaceRootPolicy.acceptsRoot(modifiedBy: "_other_member", zoneOwner: "_owner", isOwned: false, me: "_member"))
+        // A member's own save of the root reads back as the current user, and is still not the owner's.
+        #expect(!SpaceRootPolicy.acceptsRoot(modifiedBy: CloudZoneID.currentUser, zoneOwner: "_owner", isOwned: false, me: "_member"))
+        #expect(!SpaceRootPolicy.acceptsRoot(modifiedBy: "_member", zoneOwner: "_owner", isOwned: false, me: "_member"))
+    }
+
+    @Test("An owned space takes its own saves and no member's")
+    func ownedSpaceTakesOnlyItsOwn() {
+        let zoneOwner = CloudZoneID.currentUser
+        #expect(SpaceRootPolicy.acceptsRoot(modifiedBy: CloudZoneID.currentUser, zoneOwner: zoneOwner, isOwned: true, me: "_owner"))
+        #expect(SpaceRootPolicy.acceptsRoot(modifiedBy: "_owner", zoneOwner: zoneOwner, isOwned: true, me: "_owner"))
+        #expect(!SpaceRootPolicy.acceptsRoot(modifiedBy: "_member", zoneOwner: zoneOwner, isOwned: true, me: "_owner"))
+    }
+
+    @Test("minClientRevision holds writes back only within a real revision's reach")
+    func minClientRevisionIsCapped() {
+        #expect(!SpaceRootPolicy.requiresNewerBuild(nil, revision: 1))
+        #expect(!SpaceRootPolicy.requiresNewerBuild(1, revision: 1))
+        #expect(SpaceRootPolicy.requiresNewerBuild(2, revision: 1))
+        #expect(SpaceRootPolicy.requiresNewerBuild(1 + SpaceRootPolicy.maxRevisionLead, revision: 1))
+        #expect(!SpaceRootPolicy.requiresNewerBuild(2 + SpaceRootPolicy.maxRevisionLead, revision: 1))
+        #expect(!SpaceRootPolicy.requiresNewerBuild(Int.max, revision: 1))
+    }
+
+    @Test("An owner's invitation link reads unless the owner chose editing")
+    func invitationLinkDefaultsToReadOnly() {
+        #expect(StorageService.defaultInvitationLinkPermission == .readOnly)
+    }
+}

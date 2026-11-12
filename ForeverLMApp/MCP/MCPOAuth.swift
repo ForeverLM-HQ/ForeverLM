@@ -684,6 +684,14 @@ actor MCPOAuthProvider {
                   document.getElementById(name).hidden = (name !== id);
                 });
               }
+              // Only ever navigate to an http(s) address: the server checks
+              // the redirect URI too, and this keeps a script URL out.
+              function go(url) {
+                try {
+                  var u = new URL(url);
+                  if (u.protocol === "https:" || u.protocol === "http:") { location.replace(u.href); }
+                } catch (e) {}
+              }
               function poll() {
                 attempts += 1;
                 fetch(pollURL, { cache: "no-store" })
@@ -692,12 +700,12 @@ actor MCPOAuthProvider {
                     if (d.status === "approved") {
                       resolved = true;
                       show("done");
-                      location.replace(d.redirect_url);
+                      go(d.redirect_url);
                     } else if (d.status === "denied") {
                       resolved = true;
                       show("denied");
                       if (d.redirect_url) {
-                        setTimeout(function () { location.replace(d.redirect_url); }, 1500);
+                        setTimeout(function () { go(d.redirect_url); }, 1500);
                       }
                     } else if (d.status === "expired") {
                       resolved = true;
@@ -1066,6 +1074,14 @@ actor MCPOAuthProvider {
         }
 
         let redirectURIs = body["redirect_uris"] as? [String] ?? []
+        // Only https, or http to loopback, may be registered: a code is sent
+        // to these URIs, and the waiting page navigates the browser to them.
+        if redirectURIs.contains(where: { Self.safeRedirectComponents($0) == nil }) {
+            return .json([
+                "error": "invalid_redirect_uri",
+                "error_description": "Each redirect_uri must be https, or http to localhost, with no fragment.",
+            ], status: 400)
+        }
         let authMethod = body["token_endpoint_auth_method"] as? String ?? "client_secret_post"
         let clientName = (body["client_name"] as? String)?
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -1206,10 +1222,60 @@ actor MCPOAuthProvider {
     }
 
     private func isRedirectAllowed(_ uri: String, clientID: String) -> Bool {
-        if let url = URL(string: uri), let host = url.host,
-           allowedRedirectHosts.contains(host) { return true }
-        if let dyn = dynamicClients[clientID], dyn.redirectURIs.contains(uri) { return true }
-        return false
+        Self.isRedirectAllowed(
+            uri,
+            registered: dynamicClients[clientID]?.redirectURIs ?? [],
+            trustedHosts: allowedRedirectHosts
+        )
+    }
+
+    /// Whether the authorization endpoint may send a code to `uri`.
+    ///
+    /// The URI must be https, or http to a loopback host (RFC 8252), with no
+    /// user info and no fragment. A client that registered redirect URIs gets
+    /// only those, exactly; a loopback URI may differ from its registered one
+    /// only in the port, which a native app picks at run time. A client with
+    /// none registered (the provisioner's pre-registered client) may use one of
+    /// the trusted hosts. A host match alone once let
+    /// `javascript://claude.ai/%0A…` through to the waiting page's
+    /// `location.replace` (security audit, 2026-11-12).
+    static func isRedirectAllowed(_ uri: String, registered: [String], trustedHosts: Set<String>) -> Bool {
+        guard let parts = safeRedirectComponents(uri) else { return false }
+        if !registered.isEmpty {
+            if registered.contains(uri) { return true }
+            guard parts.scheme == "http" else { return false }
+            return registered.contains { candidate in
+                guard let other = safeRedirectComponents(candidate), other.scheme == "http" else { return false }
+                return other.host == parts.host && other.path == parts.path && other.query == parts.query
+            }
+        }
+        return trustedHosts.contains(parts.host)
+    }
+
+    /// The scheme and lowercased host of a redirect URI that is safe to send a
+    /// browser to, or nil: https anywhere, or http to localhost, 127.0.0.1 or ::1.
+    static func safeRedirectComponents(_ uri: String) -> (scheme: String, host: String, path: String, query: String?)? {
+        guard !containsAnyControlCharacter(uri),
+              let parts = URLComponents(string: uri),
+              let scheme = parts.scheme?.lowercased(),
+              let host = parts.host?.lowercased(), !host.isEmpty,
+              parts.user == nil, parts.password == nil, parts.fragment == nil else {
+            return nil
+        }
+        let bareHost = host.trimmingCharacters(in: CharacterSet(charactersIn: "[]"))
+        switch scheme {
+        case "https":
+            break
+        case "http":
+            guard ["localhost", "127.0.0.1", "::1"].contains(bareHost) else { return nil }
+        default:
+            return nil
+        }
+        return (scheme, bareHost, parts.path, parts.query)
+    }
+
+    private static func containsAnyControlCharacter(_ s: String) -> Bool {
+        s.unicodeScalars.contains { CharacterSet.controlCharacters.contains($0) || $0 == " " }
     }
 
     private static func isLoopbackRedirect(_ uri: String) -> Bool {

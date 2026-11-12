@@ -412,6 +412,18 @@ struct BrowserWorkspaceTests {
         #expect(WebPagePolicy.action(for: zoom, isLinkActivated: false, isMainFrame: false, shouldPerformDownload: false) == .cancel)
     }
 
+    /// Security audit, 2026-11-12: a page's script or redirect could send any
+    /// registered scheme to its app with no click and no prompt.
+    @Test("Only a click hands another app's scheme on, and only mailto: goes without asking")
+    func otherAppSchemesNeedAClick() throws {
+        let zoom = try #require(URL(string: "zoommtg://zoom.us/join?confno=1"))
+        #expect(WebPagePolicy.action(for: zoom, isLinkActivated: false, isMainFrame: true, shouldPerformDownload: false) == .cancel)
+        #expect(WebPagePolicy.action(for: zoom, isLinkActivated: true, isMainFrame: true, shouldPerformDownload: false) == .openInOtherApp)
+        #expect(WebPagePolicy.needsConfirmationToOpenInOtherApp(zoom))
+        #expect(WebPagePolicy.needsConfirmationToOpenInOtherApp(try #require(URL(string: "x-apple.systempreferences:com.apple.preference.security"))))
+        #expect(!WebPagePolicy.needsConfirmationToOpenInOtherApp(try #require(URL(string: "mailto:someone@example.com"))))
+    }
+
     /// No YouTube rabbit hole inside ForeverLM (product owner, 2026-09-28): a page
     /// in a tab or a reader never becomes YouTube. A video plays in the
     /// Reader's one-video player, at its watch address; YouTube's other pages

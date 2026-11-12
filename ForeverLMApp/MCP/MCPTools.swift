@@ -290,6 +290,23 @@ final class MCPToolRegistry: @unchecked Sendable {
         } else {
             spendLimitUSD = nil
         }
+        // A ceiling above the default is the caller's word until the learner
+        // says yes in the app (security audit, 2026-11-12).
+        if let spendLimitUSD, spendLimitUSD > MCPRunningWork.defaultSpendLimitUSD {
+            let approved = await MCPLearnerConfirmation.ask(
+                MCPLearnerConfirmation.spendRequest(
+                    tool: name,
+                    approvedUSD: spendLimitUSD,
+                    caller: MCPLearnerConfirmation.callerName(access)
+                )
+            )
+            guard approved else {
+                return ToolCallOutcome(
+                    text: String(format: "Error: the learner did not allow $%.2f for %@ in ForeverLM. Run it within the $%.2f default, or ask them to allow more when the app asks.", spendLimitUSD, name, MCPRunningWork.defaultSpendLimitUSD),
+                    isError: true
+                )
+            }
+        }
         // The same call made again while the first still runs, most often an
         // assistant retrying after its request timed out, waits for that one's
         // answer rather than doing the work twice (MCPRepeatedCalls).

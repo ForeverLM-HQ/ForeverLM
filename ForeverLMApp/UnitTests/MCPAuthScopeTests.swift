@@ -822,6 +822,82 @@ struct MCPAuthScopeTests {
         #expect(outcome.text.contains("mcp:ingest"))
         #expect(outcome.text.contains("add_source"))
     }
+
+    /// Security audit, 2026-11-12: any MCP caller could swap the key that pays
+    /// for AI, or name its own spending ceiling, without the learner's word.
+    @Test("A key change and a ceiling above $3 wait for the learner's yes in the app")
+    @MainActor
+    func learnerConfirmsKeyChangeAndLargeSpend() async {
+        var asked: [MCPLearnerConfirmation.Request] = []
+        MCPLearnerConfirmation.answerForTesting = { asked.append($0); return false }
+        defer { MCPLearnerConfirmation.answerForTesting = nil }
+        let remote = MCPAccessContext(clientID: "dyn_remote", scope: .full, connectorLabel: "Remote App")
+        let before = ManagedAI.ownKey
+
+        let keyChange = await MCPToolRegistry.shared.callToolDetailed(
+            name: "set_own_router_key",
+            arguments: ["router": "openrouter", "key": "sk-or-v1-planted-by-a-caller"],
+            access: remote
+        )
+        #expect(keyChange.isError)
+        #expect(keyChange.text.contains("did not approve"))
+        #expect(ManagedAI.ownKey == before)
+        #expect(asked.count == 1)
+        #expect(asked.first?.detail.contains("Remote App") == true)
+
+        asked = []
+        let bigSpend = await MCPToolRegistry.shared.callToolDetailed(
+            name: "draft_cards",
+            arguments: ["approved_spend_usd": 40],
+            access: remote
+        )
+        #expect(bigSpend.isError)
+        #expect(bigSpend.text.contains("did not allow $40.00"))
+        #expect(asked.count == 1)
+
+        asked = []
+        _ = await MCPToolRegistry.shared.callToolDetailed(
+            name: "draft_cards",
+            arguments: ["approved_spend_usd": 2, "source_id": "no-such-source"],
+            access: remote
+        )
+        #expect(asked.isEmpty)
+    }
+
+    @Test("OAuth redirects are https or loopback http, and match what the client registered")
+    func oauthRedirectValidation() {
+        let trusted: Set<String> = ["claude.ai", "localhost", "127.0.0.1", "::1"]
+        func allowed(_ uri: String, _ registered: [String] = []) -> Bool {
+            MCPOAuthProvider.isRedirectAllowed(uri, registered: registered, trustedHosts: trusted)
+        }
+        // The 2026-11-12 audit's bypass: a trusted host behind a script scheme.
+        #expect(!allowed("javascript://claude.ai/%0Aalert(1)"))
+        #expect(!allowed("javascript://claude.ai/%0Aalert(1)", ["javascript://claude.ai/%0Aalert(1)"]))
+        #expect(!allowed("data://claude.ai/x"))
+        #expect(!allowed("http://claude.ai/api/mcp/auth_callback"))
+        #expect(!allowed("https://user@claude.ai/cb"))
+        #expect(!allowed("https://claude.ai/cb#frag"))
+        #expect(!allowed("https://claude.ai/cb\n"))
+        #expect(!allowed("https://evil.example/cb"))
+        // The pre-registered client (nothing registered) may use a trusted host.
+        #expect(allowed("https://claude.ai/api/mcp/auth_callback"))
+        #expect(allowed("http://127.0.0.1:33418/callback"))
+        // A registered client gets exactly what it registered.
+        let reg = ["https://claude.ai/api/mcp/auth_callback"]
+        #expect(allowed("https://claude.ai/api/mcp/auth_callback", reg))
+        #expect(!allowed("https://claude.ai/other", reg))
+        #expect(!allowed("https://evil.example/cb", ["https://evil.example/other"]))
+        #expect(allowed("https://plugin.example/cb", ["https://plugin.example/cb"]))
+        // A loopback URI may differ only in its port.
+        let loop = ["http://127.0.0.1:5000/callback"]
+        #expect(allowed("http://127.0.0.1:61234/callback", loop))
+        #expect(!allowed("http://127.0.0.1:61234/elsewhere", loop))
+        #expect(!allowed("http://localhost:61234/callback", loop))
+        // Registration refuses what the browser must never be sent to.
+        #expect(MCPOAuthProvider.safeRedirectComponents("javascript://claude.ai/%0Aalert(1)") == nil)
+        #expect(MCPOAuthProvider.safeRedirectComponents("http://[::1]:8080/cb")?.host == "::1")
+        #expect(MCPOAuthProvider.safeRedirectComponents("https://claude.ai/cb")?.host == "claude.ai")
+    }
 }
 
 #endif

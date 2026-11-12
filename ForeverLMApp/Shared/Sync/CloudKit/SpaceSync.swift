@@ -410,6 +410,15 @@ actor SpaceSync {
                     }
                 }
                 for share in page.modified.compactMap(\.share) { try await applyShare(share, to: zone) }
+                // A root only its owner saved is taken (`SpaceRootPolicy`); another's is left on
+                // the server, and this device keeps the root it holds.
+                page.modified.removeAll { record in
+                    guard record.id.recordName == SyncSchema.rootRecordName,
+                          !SpaceRootPolicy.acceptsRoot(modifiedBy: record.lastModifiedUserRecordName, zoneOwner: zone.zoneID.ownerName,
+                                                       isOwned: zone.isOwned, me: user) else { return false }
+                    Self.logger.error("A space's root was saved by someone other than its owner; it is ignored")
+                    return true
+                }
                 let complete = fromNil && !page.moreComing && !keepToken
                 if try await absorb(page, zoneKey: zone.zoneKey, passStart: passStart, storeToken: !keepToken, complete: complete) != nil {
                     try await spaceGone(zone, reason: "saltChanged")
@@ -456,6 +465,11 @@ actor SpaceSync {
         }
         switch fetched {
         case .success(let root):
+            guard SpaceRootPolicy.acceptsRoot(modifiedBy: root.lastModifiedUserRecordName, zoneOwner: zone.zoneID.ownerName,
+                                              isOwned: zone.isOwned, me: user) else {
+                Self.logger.error("A space's root was saved by someone other than its owner; it is not adopted")
+                return false
+            }
             guard let payload = root.payload, let envelope = try? SyncEnvelope(storedPayload: payload),
                   let salt = envelope.fields["salt"]?.stringValue.flatMap(RecordNaming.salt(base64:)),
                   envelope.fields["saltID"]?.stringValue == RecordNaming.saltID(salt)
@@ -588,7 +602,7 @@ actor SpaceSync {
         if try await isGone(zoneKey) {
             return try await settleGone(changes, zone: zone)
         }
-        if let minimum = root?.fields["minClientRevision"]?.intValue, minimum > SyncSchema.schemaRevision {
+        if SpaceRootPolicy.requiresNewerBuild(root?.fields["minClientRevision"]?.intValue) {
             // The space asks for a newer build (§12.5): nothing goes to it until an update.
             try await release(changes)
             return false

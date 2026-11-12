@@ -169,6 +169,19 @@ extension MCPToolRegistry {
         case "get_own_router_key":
             return try store.getOwnRouterKey()
         case "set_own_router_key":
+            // What pays for AI changes only on the learner's yes in the app,
+            // whoever asks (security audit, 2026-11-12).
+            let clear = arguments["clear"] as? Bool ?? false
+            let routerLabel = ManagedAI.OwnKeyRouter(rawValue: (arguments["router"] as? String ?? "").lowercased())?.label ?? "router"
+            guard await MCPLearnerConfirmation.ask(
+                MCPLearnerConfirmation.ownRouterKeyRequest(
+                    routerLabel: routerLabel,
+                    clear: clear,
+                    caller: MCPLearnerConfirmation.callerName(access)
+                )
+            ) else {
+                throw MCPError.invalidInput("The learner did not approve this key change in ForeverLM, so nothing changed. Ask them to change it in AI Usage › API keys instead.")
+            }
             return try store.setOwnRouterKey(
                 router: arguments["router"] as? String ?? "",
                 key: arguments["key"] as? String,

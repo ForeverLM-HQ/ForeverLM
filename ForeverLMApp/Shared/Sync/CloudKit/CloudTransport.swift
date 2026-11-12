@@ -164,6 +164,9 @@ struct CloudRecord: Hashable, Sendable {
     var changeTag: String?
     var creationDate: Date?
     var modificationDate: Date?
+    /// The user record name of whoever saved this copy (`CKRecord.lastModifiedUserRecordID`):
+    /// `CloudZoneID.currentUser` for this account. Read only; nil where a transport does not say.
+    var lastModifiedUserRecordName: String?
     /// A `cloudkit.share` record's roster, link and permissions, read only. Nothing sends a share
     /// back through `modifyRecords`: a share changes only through `CloudSharingTransport.saveShare`.
     var share: CloudShare?

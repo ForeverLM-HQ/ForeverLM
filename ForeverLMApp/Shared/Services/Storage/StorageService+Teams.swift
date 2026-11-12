@@ -75,11 +75,10 @@ extension StorageService {
 
     /// Copy Link means anyone with the link. A share whose public permission is
     /// `.none` hands out a URL only named participants can open, so the owner's
-    /// Copy Link opens the share to the public at read/write — what Apple's
-    /// sheet does for "Anyone with the link · can edit" — and returns the URL.
-    /// An already open share is returned as it is.
-    func openTeamShareToAnyoneWithLink(_ team: TeamRecord) async throws -> URL {
-        return try await spaceInvitationLink(teamID: team.id)
+    /// Copy Link opens the share to the public — read-only unless the owner
+    /// chose `canEdit` — and returns the URL.
+    func openTeamShareToAnyoneWithLink(_ team: TeamRecord, canEdit: Bool = false) async throws -> URL {
+        return try await spaceInvitationLink(teamID: team.id, linkPermission: canEdit ? .readWrite : .readOnly)
     }
 
     /// Re-read the roster from the share. Called after the sharing sheet
@@ -553,7 +552,7 @@ extension StorageService {
     }
 
     /// The link Copy Invitation Link copies: an owner's opens the team's
-    /// share to anyone with the link, at read and write, first
+    /// share to anyone with the link, read-only, first
     /// (`openTeamShareToAnyoneWithLink`); a member's is the link as it
     /// stands. A team iCloud has not shared yet has no link.
     func invitationLink(for team: TeamRecord) async throws -> URL {

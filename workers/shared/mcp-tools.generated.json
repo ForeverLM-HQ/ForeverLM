@@ -5046,7 +5046,7 @@
     "readOnlyHint" : true
   },
   {
-    "description" : "Get a team's invitation link — Settings › Data & Privacy › Teams › Copy Invitation Link — and put it on this Mac's clipboard as the button does. For a team this account owns, this opens the team's iCloud share to anyone with the link, at read and write, exactly as the owner's Copy Link does: whoever gets the link can join the team and edit its library. Ask the owner before calling it unless they just asked for the link. For a member, the link is returned as it stands (only people the owner admitted can open it). Adding or removing named members is Apple's sharing sheet, which stays in the window (open_settings team_members).",
+    "description" : "Get a team's invitation link — Settings › Data & Privacy › Teams › Copy Invitation Link — and put it on this Mac's clipboard as the button does. For a team this account owns, ForeverLM first asks the owner in the app, then opens the team's iCloud share to anyone with the link, read-only: whoever gets the link can join the team and read its library. A link that can edit is made only from Copy Invitation Link in the app. For a member, the link is returned as it stands (only people the owner admitted can open it). Adding or removing named members is Apple's sharing sheet, which stays in the window (open_settings team_members).",
     "inputSchema" : {
       "properties" : {
         "team_id" : {

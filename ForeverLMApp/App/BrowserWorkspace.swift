@@ -644,7 +644,10 @@ enum WebPagePolicy {
     ) -> ActionDecision {
         guard let url else { return .allow }
         if !isWebScheme(url) {
-            return isLinkActivated || isMainFrame ? .openInOtherApp : .cancel
+            // Only a click the learner made hands an address to another app,
+            // and `openInOtherApp(_:)` asks first. A page's own script or a
+            // redirect never does (security audit, 2026-11-12).
+            return isLinkActivated ? .openInOtherApp : .cancel
         }
         // A frame's YouTube player stays; its suggestions are hidden
         // (`YouTubeDistractionFilter`). The page itself never becomes YouTube.
@@ -656,6 +659,47 @@ enum WebPagePolicy {
             }
         }
         return shouldPerformDownload ? .download : .allow
+    }
+
+    /// Schemes another app opens without asking, as Safari does: writing an
+    /// email is all they can start.
+    static let schemesOpenedWithoutAsking: Set<String> = ["mailto"]
+
+    /// Whether handing `url` to another app needs the learner's yes first.
+    static func needsConfirmationToOpenInOtherApp(_ url: URL) -> Bool {
+        !schemesOpenedWithoutAsking.contains(url.scheme?.lowercased() ?? "")
+    }
+
+    /// Hands a clicked link with a scheme of another app's (`zoommtg:`,
+    /// `tel:`, an App Store link) to macOS, after asking, as Safari does: a
+    /// page can name any scheme an installed app registered, and some of them
+    /// act on arrival.
+    @MainActor
+    static func openInOtherApp(_ url: URL, window: NSWindow?) {
+        guard needsConfirmationToOpenInOtherApp(url) else {
+            NSWorkspace.shared.open(url)
+            return
+        }
+        let scheme = url.scheme ?? ""
+        let appName = NSWorkspace.shared.urlForApplication(toOpen: url)
+            .map { FileManager.default.displayName(atPath: $0.path) }
+            .map { $0.hasSuffix(".app") ? String($0.dropLast(4)) : $0 }
+        guard let appName else {
+            library?.showToast("No app on this Mac opens \(scheme): links.")
+            return
+        }
+        let alert = NSAlert()
+        alert.messageText = "Open this link in \(appName)?"
+        alert.informativeText = "The page wants to open a \(scheme): link in another app."
+        alert.addButton(withTitle: "Open")
+        alert.addButton(withTitle: "Cancel")
+        if let window {
+            alert.beginSheetModal(for: window) { response in
+                if response == .alertFirstButtonReturn { NSWorkspace.shared.open(url) }
+            }
+        } else if alert.runModal() == .alertFirstButtonReturn {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     /// Where a YouTube video a page would have left for goes: the Reader,
@@ -1211,7 +1255,9 @@ extension BrowserTabController: WKNavigationDelegate {
         case .allow: return (.allow, preferences)
         case .download: return (.download, preferences)
         case .openInOtherApp:
-            if let url = navigationAction.request.url { NSWorkspace.shared.open(url) }
+            if let url = navigationAction.request.url {
+                WebPagePolicy.openInOtherApp(url, window: webView.window)
+            }
             return (.cancel, preferences)
         case .cancel: return (.cancel, preferences)
         case .openYouTubeVideo(let watchURL):
@@ -1330,8 +1376,10 @@ extension BrowserTabController: WKUIDelegate {
         windowFeatures: WKWindowFeatures
     ) -> WKWebView? {
         guard let tab, let workspace else { return nil }
+        // A popup never hands an address to another app: a page can open one
+        // from script, unasked. A click on such a link arrives through
+        // `decidePolicyFor` instead, which asks.
         if let url = navigationAction.request.url, !Self.isWebScheme(url) {
-            NSWorkspace.shared.open(url)
             return nil
         }
         // WebKit loads the popup's request into the view it is handed, body

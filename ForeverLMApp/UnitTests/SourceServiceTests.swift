@@ -786,3 +786,37 @@ struct PaperPDFURLTests {
     }
 }
 
+
+/// Security audit, 2026-11-12: a URL import (from the app or any MCP client)
+/// fetched loopback, link-local and private addresses.
+@Suite("Outbound address policy")
+struct OutboundAddressPolicyTests {
+    @Test("Names and literals of this Mac or its network are refused")
+    func privateHostsAreRefused() {
+        for host in [
+            "localhost", "LOCALHOST.", "printer.local", "app.localhost", "db.internal", "router.home.arpa", "intranet",
+            "127.0.0.1", "127.1", "2130706433", "0x7f.0.0.1", "0.0.0.0", "10.1.2.3", "172.16.0.1", "172.31.255.255",
+            "192.168.1.1", "169.254.169.254", "100.64.0.1", "224.0.0.1", "255.255.255.255",
+            "::1", "[::1]", "::", "fe80::1", "fd00::1", "fc00::1", "::ffff:127.0.0.1", "::ffff:192.168.0.1", "64:ff9b::a9fe:a9fe",
+        ] {
+            #expect(!OutboundAddressPolicy.isPublicHostName(host), "\(host)")
+        }
+        for host in ["example.com", "arxiv.org", "8.8.8.8", "172.32.0.1", "100.128.0.1", "2606:4700:4700::1111", "::ffff:8.8.8.8"] {
+            #expect(OutboundAddressPolicy.isPublicHostName(host), "\(host)")
+        }
+    }
+
+    @Test("A fetch to a private address is refused before it is made")
+    func checkRefusesBeforeTheFetch() async throws {
+        for address in ["http://127.0.0.1:8765/mcp", "http://[::1]/", "https://169.254.169.254/latest/meta-data", "file:///etc/hosts", "http://localhost/"] {
+            await #expect(throws: OutboundAddressPolicy.Refusal.self, "\(address)") {
+                try await OutboundAddressPolicy.check(try #require(URL(string: address)))
+            }
+        }
+        try await OutboundAddressPolicy.check(try #require(URL(string: "https://8.8.8.8/")))
+        #expect(!OutboundAddressPolicy.isAllowed(try #require(URL(string: "http://10.0.0.1/admin"))))
+        await #expect(throws: OutboundAddressPolicy.Refusal.self) {
+            try await SourceService.shared.downloadPDF(from: "http://127.0.0.1:1/paper.pdf", to: NSTemporaryDirectory() + "never.pdf")
+        }
+    }
+}

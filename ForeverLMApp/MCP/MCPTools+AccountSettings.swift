@@ -69,7 +69,7 @@ extension MCPToolRegistry {
             ),
             MCPToolDef(
                 name: "get_team_invitation_link",
-                description: "Get a team's invitation link — Settings › Data & Privacy › Teams › Copy Invitation Link — and put it on this Mac's clipboard as the button does. For a team this account owns, this opens the team's iCloud share to anyone with the link, at read and write, exactly as the owner's Copy Link does: whoever gets the link can join the team and edit its library. Ask the owner before calling it unless they just asked for the link. For a member, the link is returned as it stands (only people the owner admitted can open it). Adding or removing named members is Apple's sharing sheet, which stays in the window (open_settings team_members).",
+                description: "Get a team's invitation link — Settings › Data & Privacy › Teams › Copy Invitation Link — and put it on this Mac's clipboard as the button does. For a team this account owns, ForeverLM first asks the owner in the app, then opens the team's iCloud share to anyone with the link, read-only: whoever gets the link can join the team and read its library. A link that can edit is made only from Copy Invitation Link in the app. For a member, the link is returned as it stands (only people the owner admitted can open it). Adding or removing named members is Apple's sharing sheet, which stays in the window (open_settings team_members).",
                 inputSchema: [
                     "type": "object",
                     "properties": [
@@ -279,8 +279,18 @@ extension MCPDataStore {
         let url: URL
         let openedToAnyone: Bool
         if team.role == .owner {
+            // Opening a team to anyone with its link is the owner's call, made
+            // in the app, and the link it opens only reads (security audit,
+            // 2026-11-12). Editing links come from Copy Invitation Link.
+            guard await MCPLearnerConfirmation.ask(MCPLearnerConfirmation.Request(
+                title: "Let anyone with the link join “\(team.name)”?",
+                detail: "An AI app asked ForeverLM for a link that lets anyone who has it join this team and read its library.",
+                confirmLabel: "Copy View-Only Link"
+            )) else {
+                throw MCPError.invalidInput("The learner did not open ‘\(team.name)’ to a link in ForeverLM, so no link was made.")
+            }
             do {
-                url = try await notebookFileStorage.openTeamShareToAnyoneWithLink(team)
+                url = try await notebookFileStorage.openTeamShareToAnyoneWithLink(team, canEdit: false)
             } catch {
                 throw MCPError.invalidInput("Could not open ‘\(team.name)’ to the link: \(error.localizedDescription)")
             }
@@ -297,7 +307,7 @@ extension MCPDataStore {
             "copied_to_clipboard": true,
             "anyone_with_link_can_join": openedToAnyone,
             "message": openedToAnyone
-                ? "Copied the invitation link for ‘\(team.name)’. Anyone with it can join the team and edit its library."
+                ? "Copied the invitation link for ‘\(team.name)’. Anyone with it can join the team and read its library."
                 : "Copied the invitation link for ‘\(team.name)’. Only people the owner admitted can open it.",
         ] as [String: Any])
     }

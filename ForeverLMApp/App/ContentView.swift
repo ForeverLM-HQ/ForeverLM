@@ -255,32 +255,81 @@ struct ContentView: View {
         // click. Deliberately leaves chat context and the Chat panel
         // alone: these links are mostly clicked from inside the assistant
         // chat, and the conversation must survive the navigation.
-        let action = URLComponents(url: url, resolvingAgainstBaseURL: false)?
-            .queryItems?
-            .first(where: { $0.name == "action" })?
-            .value
+        let action = SourceLinkAction(url: url)
         StudioWorkspaceWindowCoordinator.shared.bringActiveWindowForward()
         Task {
-            await vm.openLinkedSourceInReader(sourceID, at: link.seconds, passage: link.passage, page: link.page)
-            if action == "find-mentioned-papers",
-               let resolvedSourceID = vm.selectedArticleId {
+            // An action runs only on the source the link resolved to: a link
+            // whose source is not found does nothing more, where it once ran
+            // its action on whatever the Reader had selected (security audit,
+            // 2026-11-12). One that spends money asks first.
+            guard let resolvedSourceID = await vm.openLinkedSourceInReader(
+                sourceID, at: link.seconds, passage: link.passage, page: link.page
+            ), let action else { return }
+            if action.spendsMoney {
+                let title = vm.articlesById[resolvedSourceID]?.title ?? "this source"
+                guard SourceLinkAction.confirm(action, sourceTitle: title) else { return }
+            }
+            switch action {
+            case .findMentionedPapers:
                 await vm.extractMentionedPapersFromMeeting(for: resolvedSourceID)
-            } else if action == "get-transcript",
-                      let resolvedSourceID = vm.selectedArticleId {
+            case .getTranscript:
                 do {
                     _ = try await vm.ensureMeetingTranscript(for: resolvedSourceID)
                     vm.showToast("Meeting transcript is ready.")
                 } catch {
                     vm.showToast("Couldn't get transcript: \(error.localizedDescription)")
                 }
-            } else if action == "transcribe-podcast-audio",
-                      let resolvedSourceID = vm.selectedArticleId {
+            case .transcribePodcastAudio:
                 await vm.transcribePodcastEpisodeAudio(for: resolvedSourceID)
-            } else if action == "refresh-from-website",
-                      let resolvedSourceID = vm.selectedArticleId {
+            case .refreshFromWebsite:
                 await vm.refreshArticleFromWebsite(resolvedSourceID)
             }
         }
+    }
+}
+
+/// What a `foreverlm://source/<id>?action=…` link asks for once its source
+/// is open. Anything that can open a URL can send one, so an action runs only
+/// on the source the link names, and one that spends money asks first.
+enum SourceLinkAction: String, CaseIterable {
+    case findMentionedPapers = "find-mentioned-papers"
+    case getTranscript = "get-transcript"
+    case transcribePodcastAudio = "transcribe-podcast-audio"
+    case refreshFromWebsite = "refresh-from-website"
+
+    init?(url: URL) {
+        guard let value = URLComponents(url: url, resolvingAgainstBaseURL: false)?
+            .queryItems?
+            .first(where: { $0.name == "action" })?
+            .value else { return nil }
+        self.init(rawValue: value)
+    }
+
+    /// Whether the action calls a paid model or transcription.
+    var spendsMoney: Bool {
+        switch self {
+        case .findMentionedPapers, .getTranscript, .transcribePodcastAudio: return true
+        case .refreshFromWebsite: return false
+        }
+    }
+
+    func question(title: String) -> String {
+        switch self {
+        case .findMentionedPapers: return "Find the papers mentioned in “\(title)”?"
+        case .getTranscript: return "Get the transcript of “\(title)”?"
+        case .transcribePodcastAudio: return "Transcribe the audio of “\(title)”?"
+        case .refreshFromWebsite: return "Refresh “\(title)” from its website?"
+        }
+    }
+
+    @MainActor
+    static func confirm(_ action: SourceLinkAction, sourceTitle: String) -> Bool {
+        let alert = NSAlert()
+        alert.messageText = action.question(title: sourceTitle)
+        alert.informativeText = "A link asked for this, and it calls a paid AI model."
+        alert.addButton(withTitle: "Continue")
+        alert.addButton(withTitle: "Cancel")
+        return alert.runModal() == .alertFirstButtonReturn
     }
 }
 

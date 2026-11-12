@@ -329,7 +329,7 @@ extension MCPDataStore {
             : "‘\(notebookTitle)’ is in the team ‘\(share.team.name)’, with \(sources)."
         if link != nil {
             message += share.team.role == .owner
-                ? " Anyone with invitation_link can join the team and edit its library: give it to the learner to pass on."
+                ? " Anyone with invitation_link can join the team and read its library: give it to the learner to pass on."
                 : " invitation_link is the team's link as its owner left it: only people the owner admitted can open it."
         } else {
             message += " There is no invitation link yet (\(linkProblem ?? "iCloud has not shared the team")); it appears once iCloud has shared the team, so call share_notebook again in a moment."

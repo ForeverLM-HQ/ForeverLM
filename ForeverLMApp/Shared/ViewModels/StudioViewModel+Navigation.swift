@@ -125,17 +125,19 @@ extension StudioViewModel {
     /// the page of a PDF the citation names (`?page=7`, counted within the
     /// source); the reader opens it when the passage is not on it, or when the
     /// citation carries no passage.
+    /// Returns the id of the source it opened, or nil when the link named none.
+    @discardableResult
     func openLinkedSourceInReader(
         _ sourceID: String,
         at seconds: Double? = nil,
         passage: String? = nil,
         page: Int? = nil,
         beside companion: StudioCenterTab = .chat
-    ) async {
+    ) async -> String? {
         let token = sourceID.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !token.isEmpty else {
             showToast("Source not found in library")
-            return
+            return nil
         }
 
         // The assistant writes citation links from a long, deterministic source id and
@@ -150,7 +152,7 @@ extension StudioViewModel {
             trimmedID = stored
         } else {
             showToast("Source not found in library")
-            return
+            return nil
         }
 
         // The Chat's search tools cite any source in the knowledge base — including
@@ -172,7 +174,7 @@ extension StudioViewModel {
             } catch {
                 logger.error("Failed to restore linked source \(trimmedID, privacy: .public): \(error.localizedDescription, privacy: .public)")
                 showToast("Could not open source: \(error.localizedDescription)")
-                return
+                return nil
             }
             await refreshArticles()
             showToast("Restored source from archive")
@@ -180,7 +182,7 @@ extension StudioViewModel {
 
         guard let article = articles.first(where: { $0.id == trimmedID }) else {
             showToast("Source not found in library")
-            return
+            return nil
         }
 
         // An explainer has no row of its own; its row is folded under the
@@ -216,6 +218,7 @@ extension StudioViewModel {
         // "no actual click on anything should ever open the thing in the
         // other ForeverLM window").
         await showLinkedSourceInReader(article, at: seconds, passage: passage, page: page, beside: companion)
+        return article.id
     }
 
     /// A chat about to point at a figure of `sourceID` opens it first: the

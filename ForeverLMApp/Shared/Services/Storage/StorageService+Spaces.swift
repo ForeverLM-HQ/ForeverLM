@@ -41,11 +41,16 @@ extension StorageService {
 
     /// Copy Link: the owner opens the space's share to anyone with the link, at read and write, as
     /// generation 1 does; a member's link is the share's as it stands.
-    func spaceInvitationLink(teamID: String) async throws -> URL {
+    /// What an owner's invitation link lets anyone holding it do unless the owner chose otherwise:
+    /// read. A link can be forwarded, so editing is something the owner asks for (security audit,
+    /// 2026-11-12).
+    static let defaultInvitationLinkPermission: CloudShare.Permission = .readOnly
+
+    func spaceInvitationLink(teamID: String, linkPermission: CloudShare.Permission = StorageService.defaultInvitationLinkPermission) async throws -> URL {
         let service = try SpaceService.current()
         let space = try await space(forTeam: teamID, service)
         let shared = space.isOwned
-            ? try await service.shares.share(space.zone, publicPermission: .readWrite)
+            ? try await service.shares.share(space.zone, publicPermission: linkPermission)
             : try await service.shares.roster(of: space.zone)
         guard let url = shared.url else { throw TeamError.shareUnavailable(space.name) }
         try notebookFilesKnowledgeStore().execute("UPDATE teams SET share_url = ? WHERE id = ?", [.text(url.absoluteString), .text(teamID)])

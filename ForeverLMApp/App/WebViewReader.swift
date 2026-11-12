@@ -1177,9 +1177,9 @@ struct WebViewReader: NSViewRepresentable {
             }
             if let url = navigationAction.request.url,
                Self.shouldOpenWithSystem(url) {
-                if navigationAction.navigationType == .linkActivated {
-                    _ = NSWorkspace.shared.open(url)
-                }
+                // A popup never hands an address to another app (security
+                // audit, 2026-11-12); a click arrives through decidePolicyFor,
+                // which asks first.
                 return nil
             }
             if navigationAction.shouldPerformDownload {
@@ -1760,8 +1760,13 @@ struct WebViewReader: NSViewRepresentable {
             case .openInOtherApp:
                 // Safari hands mailto:, tel:, App Store, and other registered
                 // URL schemes to macOS.
-                if let url = navigationAction.request.url { _ = NSWorkspace.shared.open(url) }
+                // Only after the learner says yes (`WebPagePolicy.openInOtherApp`).
                 decisionHandler(.cancel, preferences)
+                if let url = navigationAction.request.url {
+                    Task { @MainActor [weak webView] in
+                        WebPagePolicy.openInOtherApp(url, window: webView?.window)
+                    }
+                }
             case .cancel:
                 decisionHandler(.cancel, preferences)
             case .download:

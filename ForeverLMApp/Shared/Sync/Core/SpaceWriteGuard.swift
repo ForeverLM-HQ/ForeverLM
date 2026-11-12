@@ -129,3 +129,31 @@ enum SpaceWriteGuard {
         }
     }
 }
+
+/// What a device takes from a space's root (§3.5.1) on receive. The root holds the space's salt
+/// and `minClientRevision`: a member who rewrote it could make every device drop the space (a new
+/// salt reads as `saltChanged`) or stop every device writing to it. CloudKit lets any read-write
+/// participant save any record, so the owner-only rule is the receiving device's (security audit,
+/// 2026-11-12).
+enum SpaceRootPolicy {
+    /// How far past this build's schema revision a root may ask for. A larger value is not a real
+    /// revision, and stopping every write for it would hand anyone who set it a switch.
+    static let maxRevisionLead = 20
+
+    /// Whether a root saved by `modifiedBy` is the owner's. `zoneOwner` is the zone's owner name
+    /// (`CloudZoneID.currentUser` in the owner's own database); `me` is this account's user record
+    /// name. Nil `modifiedBy` (a transport that does not say) is taken as the owner's.
+    static func acceptsRoot(modifiedBy: String?, zoneOwner: String, isOwned: Bool, me: String?) -> Bool {
+        guard let modifiedBy else { return true }
+        if modifiedBy == zoneOwner { return true }
+        if isOwned { return modifiedBy == CloudZoneID.currentUser || (me != nil && modifiedBy == me) }
+        return false
+    }
+
+    /// Whether `minimum` (a root's `minClientRevision`) holds this build's writes back: above its
+    /// revision, but not absurdly so.
+    static func requiresNewerBuild(_ minimum: Int?, revision: Int = SyncSchema.schemaRevision) -> Bool {
+        guard let minimum else { return false }
+        return minimum > revision && minimum <= revision + maxRevisionLead
+    }
+}

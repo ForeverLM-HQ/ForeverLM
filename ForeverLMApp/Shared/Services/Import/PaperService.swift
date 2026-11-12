@@ -30,7 +30,8 @@ enum PaperService {
         config.timeoutIntervalForRequest = 15
         config.httpShouldSetCookies = true
         config.httpCookieAcceptPolicy = .always
-        return URLSession(configuration: config)
+        // A redirect to this Mac or its network is not followed (`OutboundAddressPolicy`).
+        return URLSession(configuration: config, delegate: OutboundAddressPolicy.redirectGuard, delegateQueue: nil)
     }()
 
     private struct WebPageFetchResult {
@@ -374,6 +375,7 @@ enum PaperService {
     /// surfacing HTTP/decode failures via `FetchError` so callers can distinguish a
     /// network failure from a page that genuinely advertises no result.
     private static func fetchWebPage(at url: URL, allowedStatusCodes: ClosedRange<Int>) async throws -> WebPageFetchResult {
+        try await OutboundAddressPolicy.check(url)
         var request = URLRequest(url: url)
         request.timeoutInterval = 15
         request.setValue(

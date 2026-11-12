@@ -344,6 +344,7 @@ enum CloudKitMapping {
         record.changeTag = ck.recordChangeTag
         record.creationDate = ck.creationDate
         record.modificationDate = ck.modificationDate
+        record.lastModifiedUserRecordName = ck.lastModifiedUserRecordID?.recordName
         let encryptedKeys = ck.encryptedValues.allKeys()
         for key in encryptedKeys {
             if let object = ck.encryptedValues[key], let value = value(object) { record.encryptedFields[key] = value }

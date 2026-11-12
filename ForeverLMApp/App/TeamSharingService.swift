@@ -109,10 +109,12 @@ final class TeamSharingService: NSObject, @preconcurrency NSCloudSharingServiceD
         }
     }
 
-    /// Copy Link with the sheet's meaning — anyone who has the link can join
-    /// and edit. A share whose public permission is `.none` hands out a URL
-    /// only named participants can open, so the owner's copy opens the share
-    /// first; a member copies the URL as it stands. `toast` reports the outcome.
+    /// Copy Link: anyone who has the link can join. A share whose public
+    /// permission is `.none` hands out a URL only named participants can open,
+    /// so the owner's copy opens the share first, after asking whether the
+    /// link may edit or only view (view is the default: a link gets forwarded;
+    /// security audit, 2026-11-12). A member copies the URL as it stands.
+    /// `toast` reports the outcome.
     func copyInvitationLink(for team: TeamRecord, toast: @escaping @MainActor (String) -> Void) {
         guard let link = team.shareURL, let url = URL(string: link) else {
             toast("The link appears once iCloud has shared the team.")
@@ -123,11 +125,25 @@ final class TeamSharingService: NSObject, @preconcurrency NSCloudSharingServiceD
             toast("Invitation link copied")
             return
         }
+        let alert = NSAlert()
+        alert.messageText = "Let anyone with the link join “\(team.name)”?"
+        alert.informativeText = "Whoever has the link can join the team, even if it is forwarded. A view-only link lets them read the team's library; an editing link also lets them change it."
+        alert.addButton(withTitle: "Copy View-Only Link")
+        alert.addButton(withTitle: "Cancel")
+        alert.addButton(withTitle: "Copy Editing Link")
+        let canEdit: Bool
+        switch alert.runModal() {
+        case .alertFirstButtonReturn: canEdit = false
+        case .alertThirdButtonReturn: canEdit = true
+        default: return
+        }
         Task {
             do {
-                let opened = try await StorageService().openTeamShareToAnyoneWithLink(team)
+                let opened = try await StorageService().openTeamShareToAnyoneWithLink(team, canEdit: canEdit)
                 Self.copyToPasteboard(opened)
-                toast("Invitation link copied — anyone with it can join and edit")
+                toast(canEdit
+                    ? "Invitation link copied — anyone with it can join and edit"
+                    : "Invitation link copied — anyone with it can join and read")
             } catch {
                 logger.error("Opening the team share to the link failed: \(error.localizedDescription, privacy: .public)")
                 toast("Could not open the link: \(error.localizedDescription)")
