@@ -96,7 +96,8 @@ struct MCPRelayHeldResponses: Sendable {
 /// Replaces cloudflared — no binary download needed, works in sandbox and on iOS.
 ///
 /// The relay worker sits at `*.foreverlm.com`. This client:
-/// 1. Opens a WebSocket to `wss://{subdomain}.foreverlm.com/ws?token={token}`
+/// 1. Opens a WebSocket to `wss://{subdomain}.foreverlm.com/ws`, the tunnel token in its
+///    `Authorization` header (never the URL, which proxies and logs keep)
 /// 2. Receives HTTP requests forwarded by the relay (from Claude.ai/ChatGPT)
 /// 3. Processes them via the in-process MCP server
 /// 4. Sends responses back over WebSocket
@@ -249,6 +250,16 @@ actor MCPRelayClient {
         logger.info("Disconnected from relay")
     }
 
+    /// The relay's WebSocket request for `base` (an https tunnel address): the
+    /// token rides in the `Authorization` header, never in the URL (security
+    /// audit, 2026-11-12).
+    static func relayWebSocketRequest(base: String, token: String) -> URLRequest? {
+        guard let url = URL(string: base.replacingOccurrences(of: "https://", with: "wss://") + "/ws") else { return nil }
+        var request = URLRequest(url: url)
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        return request
+    }
+
     private func doConnect() async -> String? {
         guard let tunnelURL, let tunnelToken else { return nil }
 
@@ -257,18 +268,14 @@ actor MCPRelayClient {
         var responseStatusCodes: [Int?] = []
 
         for candidateURL in candidates {
-            let wsURL = candidateURL
-                .replacingOccurrences(of: "https://", with: "wss://")
-                .appending("/ws?token=\(tunnelToken)")
-
-            guard let url = URL(string: wsURL) else {
-                attemptErrors.append("invalid URL \(wsURL)")
+            guard let request = Self.relayWebSocketRequest(base: candidateURL, token: tunnelToken) else {
+                attemptErrors.append("invalid URL \(candidateURL)/ws")
                 responseStatusCodes.append(nil)
                 continue
             }
 
             let session = URLSession(configuration: .default)
-            let task = session.webSocketTask(with: url)
+            let task = session.webSocketTask(with: request)
             urlSession = session
             webSocket = task
             task.resume()

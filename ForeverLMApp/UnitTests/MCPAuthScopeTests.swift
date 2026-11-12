@@ -864,6 +864,16 @@ struct MCPAuthScopeTests {
         #expect(asked.isEmpty)
     }
 
+    /// Security audit, 2026-11-12: the tunnel token rode in `?token=`, where
+    /// proxies and request logs keep it.
+    @Test("The relay socket carries its token in a header, never the URL")
+    func relayTokenInHeader() throws {
+        let request = try #require(MCPRelayClient.relayWebSocketRequest(base: "https://abc123.foreverlm.com", token: "tunnel-secret"))
+        #expect(request.url?.absoluteString == "wss://abc123.foreverlm.com/ws")
+        #expect(request.value(forHTTPHeaderField: "Authorization") == "Bearer tunnel-secret")
+        #expect(request.url?.absoluteString.contains("tunnel-secret") == false)
+    }
+
     @Test("OAuth redirects are https or loopback http, and match what the client registered")
     func oauthRedirectValidation() {
         let trusted: Set<String> = ["claude.ai", "localhost", "127.0.0.1", "::1"]
