@@ -1213,8 +1213,13 @@ struct YourModelsSection<Row: View>: View {
     /// Each row's frame in the list, to find the row under the pointer.
     @State private var rowFrames: [String: CGRect] = [:]
     @State private var hovered: String?
+    /// The row whose grip is under the pointer: the grip stands left of
+    /// its row, where the row's own hover does not reach.
+    @State private var gripHovered: String?
 
     private static var listSpace: String { "settings.yourModels" }
+    /// The card's padding left of the rows, where each row's grip stands.
+    private static var gutter: CGFloat { 18 }
 
     private var shown: [ChatModelLists.Suggestion] {
         guard let liveOrder else { return suggestions }
@@ -1279,6 +1284,9 @@ struct YourModelsSection<Row: View>: View {
             }
         }
         .coordinateSpace(.named(Self.listSpace))
+        // The drop target takes in the gutter, where the grips are, so a
+        // row carried straight down by its grip stays in the list.
+        .padding(.leading, Self.gutter)
         // One delegate for the whole list: on macOS an inner drop target
         // under an outer one never hears the drag.
         .onDrop(
@@ -1291,20 +1299,30 @@ struct YourModelsSection<Row: View>: View {
                 move: move
             )
         )
+        .padding(.leading, -Self.gutter)
     }
 
-    /// The row's leading edge, over its padding and logo: under the pointer
-    /// a grip and an open hand, and the place a drag starts.
+    /// The gutter left of the row, and the row's padding and logo: under
+    /// the pointer a grip in the gutter and an open hand, and the place a
+    /// drag starts. In the gutter the grip reads as the row's, not the logo's.
     private func grip(_ suggestion: ChatModelLists.Suggestion, shown: [ChatModelLists.Suggestion]) -> some View {
-        let isShown = hovered == suggestion.slug || (liveOrder != nil && dragged == suggestion.slug)
+        let isShown = hovered == suggestion.slug || gripHovered == suggestion.slug
+            || (liveOrder != nil && dragged == suggestion.slug)
         return Image(systemName: "line.3.horizontal")
             .zoomedSystemFont(size: 9, weight: .semibold)
             .foregroundStyle(.tertiary)
-            .frame(width: 14)
+            .frame(width: Self.gutter)
             .opacity(isShown ? 1 : 0)
-            .frame(width: 44, alignment: .leading)
+            .frame(width: Self.gutter + 44, alignment: .leading)
             .frame(maxHeight: .infinity)
             .contentShape(Rectangle())
+            .onHover { inside in
+                if inside {
+                    gripHovered = suggestion.slug
+                } else if gripHovered == suggestion.slug {
+                    gripHovered = nil
+                }
+            }
             .openHandCursor()
             .help("Drag to reorder")
             .onDrag {
@@ -1318,6 +1336,8 @@ struct YourModelsSection<Row: View>: View {
                     .padding(.vertical, 6)
                     .background(Capsule().fill(.regularMaterial))
             }
+            // Last, so hover, cursor and drag all cover the gutter too.
+            .padding(.leading, -Self.gutter)
             .accessibilityHidden(true)
     }
 }
