@@ -150,6 +150,19 @@ struct StudioArticleTransfer: Codable, Transferable {
         self.content = nil
     }
 
+    /// `sourceType` of a transfer that stands for a dragged group.
+    static let groupSourceType = "group"
+
+    /// A dragged group (a book row) as the sources it carried, for a
+    /// destination that takes sources. Nil for a group that carried none.
+    init?(group: StudioGroupTransfer) {
+        let ids = (group.sourceIDs ?? []).filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        guard let first = ids.first else { return nil }
+        self.init(articleId: first, articleIds: ids, title: group.groupName, sourceType: Self.groupSourceType)
+    }
+
+    var isGroup: Bool { sourceType == Self.groupSourceType }
+
     /// The payload for a drag that starts on `article` and carries `draggedIDs`.
     ///
     /// One source travels with its file and URL representations so external

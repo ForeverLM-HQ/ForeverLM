@@ -2166,6 +2166,9 @@ private extension ArtifactEditor {
                 bookID: bookID
             )]
         }
+        // A dragged group that is not one book (a course, a show, a playlist)
+        // is not written as a card for each thing in it.
+        guard !transfer.isGroup else { return [] }
         return sourceIDs.compactMap { sourceID in
             if let source = vm.articlesById[sourceID] {
                 return ArtifactSourceCitation(sourceID: source.id, title: source.title)

@@ -476,6 +476,7 @@ struct ArtifactEditorPageDragTests {
         let registered = Set(webView.registeredDraggedTypes.map(\.rawValue))
         #expect(registered.contains(UTType.studioArtifact.identifier))
         #expect(registered.contains(UTType.studioNotebook.identifier))
+        #expect(registered.contains(UTType.studioGroup.identifier))
         // The source drag needs no registration of ours: WebKit claims every
         // drag over the view, so the subclass only has to recognise the type.
         #expect(!registered.contains(UTType.studioArticle.identifier))
@@ -567,6 +568,39 @@ struct ArtifactEditorPageDragTests {
         }
         #expect(transfers == [ArtifactPageLinkTransfer(link: .notebook("proj-7"), title: nil)])
         #expect(recorder.dropped.first?.1 == CGPoint(x: 30, y: 270))
+    }
+
+    @Test("A book dragged from the Books list is claimed as a source drag and lands as its chapters")
+    func bookDropIsDelivered() throws {
+        let recorder = Recorder()
+        let webView = makeWebView(recorder)
+        // What `groupDragProvider` puts on the pasteboard: the group alone.
+        let pasteboard = pasteboard()
+        let item = NSPasteboardItem()
+        item.setData(
+            try JSONEncoder().encode(StudioGroupTransfer(groupName: "book-7", sourceIDs: ["c1", "c2", "c3"])),
+            forType: ArtifactEditorWebView.groupTransferType
+        )
+        pasteboard.writeObjects([item])
+        let info = DragInfo(pasteboard: pasteboard, location: NSPoint(x: 30, y: 30))
+
+        #expect(webView.draggingEntered(info) == .copy)
+        #expect(recorder.moved.map { $0.0 } == [.sources])
+        #expect(webView.performDragOperation(info))
+        webView.draggingEnded(info)
+
+        guard case .sources(let transfers)? = recorder.dropped.first?.0 else {
+            Issue.record("Expected a source drop")
+            return
+        }
+        #expect(transfers.count == 1)
+        #expect(transfers.first?.draggedSourceIDs == ["c1", "c2", "c3"])
+        #expect(transfers.first?.title == "book-7")
+        #expect(transfers.first?.isGroup == true)
+        // An ordinary source drag is not a group, and a group with nothing in it is no drag.
+        #expect(!StudioArticleTransfer(articleId: "s1", articleIds: ["s1"], title: "T", sourceType: "paper").isGroup)
+        #expect(StudioArticleTransfer(group: StudioGroupTransfer(groupName: "empty", sourceIDs: [])) == nil)
+        #expect(StudioArticleTransfer(group: StudioGroupTransfer(groupName: "unnamed")) == nil)
     }
 
     @Test("The pasteboard's source payload decodes from the in-app type")

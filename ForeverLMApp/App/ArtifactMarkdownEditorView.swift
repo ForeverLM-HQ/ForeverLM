@@ -314,18 +314,20 @@ final class ArtifactEditorWebView: WKWebView {
     static let sourceTransferType = NSPasteboard.PasteboardType(UTType.studioArticle.identifier)
     static let artifactTransferType = NSPasteboard.PasteboardType(UTType.studioArtifact.identifier)
     static let notebookTransferType = NSPasteboard.PasteboardType(UTType.studioNotebook.identifier)
+    /// What a book row drags: the whole book, as the ids of its chapters.
+    static let groupTransferType = NSPasteboard.PasteboardType(UTType.studioGroup.identifier)
 
     override init(frame: CGRect, configuration: WKWebViewConfiguration) {
         super.init(frame: frame, configuration: configuration)
         // WebKit's own registration covers the source drag's file and string
         // representations. A doc or Notebook drag advertises nothing but its
         // own type, and only a registered type makes this view a destination.
-        registerForDraggedTypes(registeredDraggedTypes + [Self.artifactTransferType, Self.notebookTransferType])
+        registerForDraggedTypes(registeredDraggedTypes + [Self.artifactTransferType, Self.notebookTransferType, Self.groupTransferType])
     }
 
     required init?(coder: NSCoder) {
         super.init(coder: coder)
-        registerForDraggedTypes(registeredDraggedTypes + [Self.artifactTransferType, Self.notebookTransferType])
+        registerForDraggedTypes(registeredDraggedTypes + [Self.artifactTransferType, Self.notebookTransferType, Self.groupTransferType])
     }
 
     /// The sources a drag carries, one per pasteboard item. The sidebar puts
@@ -338,6 +340,24 @@ final class ArtifactEditorWebView: WKWebView {
         }
         let decoder = JSONDecoder()
         return payloads.compactMap { try? decoder.decode(StudioArticleTransfer.self, from: $0) }
+    }
+
+    /// The groups a drag carries, each as the sources it held when the drag
+    /// began. A Books row drags its book this way, carrying no source transfer
+    /// of its own, so a page that read only `sourceTransfers` never saw a book
+    /// (product owner, 2026-11-12: "need to be able to drag a book also into a
+    /// list like this"). The pane decides what a group is on the page: a book
+    /// is one card under the book's name.
+    static func groupSourceTransfers(on pasteboard: NSPasteboard) -> [StudioArticleTransfer] {
+        var payloads = (pasteboard.pasteboardItems ?? []).compactMap { $0.data(forType: groupTransferType) }
+        if payloads.isEmpty, let data = pasteboard.data(forType: groupTransferType) {
+            payloads = [data]
+        }
+        let decoder = JSONDecoder()
+        return payloads.compactMap { data in
+            guard let group = try? decoder.decode(StudioGroupTransfer.self, from: data) else { return nil }
+            return StudioArticleTransfer(group: group)
+        }
     }
 
     /// The docs and Notebooks a drag carries. A Docs row drags one doc with its
@@ -368,7 +388,7 @@ final class ArtifactEditorWebView: WKWebView {
     /// What an in-app drag carries, or nil for a drag that is WebKit's.
     private func carriedKind(_ sender: NSDraggingInfo) -> ArtifactPageDragKind? {
         let pasteboard = sender.draggingPasteboard
-        if pasteboard.availableType(from: [Self.sourceTransferType]) != nil { return .sources }
+        if pasteboard.availableType(from: [Self.sourceTransferType, Self.groupTransferType]) != nil { return .sources }
         if pasteboard.availableType(from: [Self.artifactTransferType, Self.notebookTransferType]) != nil { return .links }
         return nil
     }
@@ -416,6 +436,7 @@ final class ArtifactEditorWebView: WKWebView {
         switch currentDragKind {
         case .sources:
             let transfers = Self.sourceTransfers(on: sender.draggingPasteboard)
+                + Self.groupSourceTransfers(on: sender.draggingPasteboard)
             guard !transfers.isEmpty else { return false }
             pageDrag.dropped(.sources(transfers), point)
         case .links:
