@@ -37,6 +37,21 @@ enum ChatCode {
     /// install step: the stack a learner expects from ChatGPT's code tool.
     static let baselinePackages = ["numpy", "pandas", "matplotlib", "scipy", "sympy"]
 
+    /// The only packages run_code installs. A package's own files run as soon as Python starts with it
+    /// installed (a `.pth` line), and the name comes from the model, which a source it read can steer; so
+    /// an unknown name from PyPI is never fetched. Names are compared PEP 503-normalised.
+    static let installablePackages: Set<String> = [
+        "numpy", "pandas", "matplotlib", "scipy", "sympy", "mpmath", "statsmodels", "scikit-learn",
+        "scikit-image", "seaborn", "plotly", "networkx", "pillow", "rdkit", "biopython", "pyarrow", "polars",
+        "openpyxl", "xlrd", "pyyaml", "ruamel-yaml", "beautifulsoup4", "lxml", "tabulate", "python-dateutil",
+        "pytz", "astropy", "pint", "uncertainties", "shapely", "opencv-python-headless", "numba", "h5py",
+        "xarray", "lifelines", "pingouin", "umap-learn", "pydeseq2", "anndata", "scanpy", "pysam", "mdtraj",
+    ]
+
+    static func normalizedPackageName(_ name: String) -> String {
+        name.lowercased().replacingOccurrences(of: "_", with: "-").replacingOccurrences(of: ".", with: "-")
+    }
+
     /// Pictures one run may hand back, and the largest each may be.
     static let maxImagesPerRun = 8
     static let maxImageBytes = 20 * 1_048_576
@@ -49,7 +64,7 @@ enum ChatCode {
         AIToolSpec(
             name: toolName,
             description: """
-            Run Python code on the learner's Mac and get its output. Use it whenever an answer depends on computing something rather than recalling it: arithmetic and statistics, unit conversions, parsing or reshaping data, simulations, plots and charts, and chemistry or biology work (RDKit draws molecules, Biopython reads sequences). Do not guess a number you can compute. The scientific stack is installed (numpy, pandas, matplotlib, scipy, sympy); name any other package from PyPI in `packages` and it is installed before the script runs (binary wheels only), for example rdkit, biopython, scikit-learn, seaborn, networkx or pillow.
+            Run Python code on the learner's Mac and get its output. Use it whenever an answer depends on computing something rather than recalling it: arithmetic and statistics, unit conversions, parsing or reshaping data, simulations, plots and charts, and chemistry or biology work (RDKit draws molecules, Biopython reads sequences). Do not guess a number you can compute. The scientific stack is installed (numpy, pandas, matplotlib, scipy, sympy); name another package in `packages` and it is installed before the script runs (binary wheels only, from a fixed list), for example rdkit, biopython, scikit-learn, seaborn, networkx or pillow; an unlisted package is refused.
 
             The script runs fresh each call, in a folder that belongs to this chat: files it writes there are still there on the next call, but variables are not, so write what a later call needs to a file. Print what you want back; stdout and stderr return to you. The script cannot reach the network or the learner's other files, and cannot start other programs or processes (no subprocess, no multiprocessing), so pass it data inside the code or write it to the working folder first. To show a picture, save it as PNG, JPEG, GIF or WebP in the working folder (matplotlib: plt.savefig("chart.png", dpi=150, bbox_inches="tight"); RDKit: img.save("molecules.png")): each new picture comes back as a Markdown image line. Include every such line verbatim, on its own line, where the picture belongs in your answer, and the learner sees it there. Other files the script writes (CSV, text, PDF) are listed by name with their size.
 
@@ -102,7 +117,7 @@ enum ChatCode {
             case .missingCode:
                 return "run_code needs code: the complete Python script to run."
             case .notInstallable(let name):
-                return "\"\(name)\" is not a package name run_code installs. Pass a PyPI name, optionally pinned as name==version; flags, URLs and file paths are refused."
+                return "\"\(name)\" is not a package run_code installs. It installs only these, optionally pinned as name==version: \(ChatCode.installablePackages.sorted().joined(separator: ", "))."
             case .tooManyPackages:
                 return "run_code installs at most \(ChatCode.maxPackages) packages in one call."
             }
@@ -147,7 +162,7 @@ enum ChatCode {
             let version = parts[1]
             guard !version.isEmpty, version.unicodeScalars.allSatisfy({ versionCharacters.contains($0) }) else { return false }
         }
-        return true
+        return installablePackages.contains(normalizedPackageName(name))
     }
 
     /// The activity row's caption: the call's own description, else the

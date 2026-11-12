@@ -425,7 +425,7 @@ extension MCPDataStore {
 
             // If no stored content, try extracting from local file on the fly
             if type != "paper", content == nil || content?.isEmpty == true {
-                if let path = localPath ?? (url.hasPrefix("/") ? url : nil) {
+                if let path = localPath ?? clientReadableLocalURL(url) {
                     content = Self.extractTextFromLocalFile(path, pages: Self.bookPages(r))
                     contentIsPersistedCanonical = false
                 }
@@ -1361,7 +1361,7 @@ extension MCPDataStore {
 
                 // If no stored content, try extracting from local file
                 if type != "paper", content == nil || content?.isEmpty == true {
-                    if let path = localPath ?? (url.hasPrefix("/") ? url : nil) {
+                    if let path = localPath ?? clientReadableLocalURL(url) {
                         content = Self.extractTextFromLocalFile(path, pages: Self.bookPages(r))
                     }
                 }

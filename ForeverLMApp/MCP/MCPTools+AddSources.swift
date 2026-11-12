@@ -41,6 +41,9 @@ extension MCPDataStore {
         if let refusal = StudioViewModel.sourceRefusal(forSourceURL: url) {
             throw MCPError.invalidInput("add_source does not import this url. \(refusal)")
         }
+        // A path on this Mac is read later as the source's text, so it is held to the folders a
+        // client may read (a client could otherwise file ~/.ssh and read it back).
+        if Self.isLocalPathURL(url) { _ = try validateClientProvidedPath(url) }
         // A playlist is a course, never a source. Asked to ingest one, an
         // assistant with only this tool builds the course by hand: the
         // playlist page becomes a course source, the course takes its title

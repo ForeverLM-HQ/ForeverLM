@@ -73,7 +73,7 @@ struct ChatCodeTests {
         #expect(repeated.packages == ["rdkit", "pandas==2.2.0"])
     }
 
-    @Test("Only a PyPI name, optionally pinned, is installable")
+    @Test("Only a listed package, optionally pinned, is installable")
     func packageNamesAreNarrow() throws {
         for good in ["rdkit", "scikit-learn", "biopython==1.84", "ruamel.yaml", "Pillow", "numpy==2.1.0rc1"] {
             #expect(ChatCode.isInstallablePackage(good), Comment(rawValue: good))
@@ -81,7 +81,7 @@ struct ChatCodeTests {
         for bad in [
             "", "-e .", "--index-url", "git+https://example.org/x.git", "https://example.org/x.whl",
             "../local", "/tmp/pkg", "numpy; rm -rf ~", "pkg @ file:///x", "numpy>=1", "numpy==", "a==1==2",
-            "pandas --extra-index-url x", String(repeating: "a", count: 90),
+            "pandas --extra-index-url x", String(repeating: "a", count: 90), "tabular-helperz", "requests",
         ] {
             #expect(!ChatCode.isInstallablePackage(bad), Comment(rawValue: bad))
         }

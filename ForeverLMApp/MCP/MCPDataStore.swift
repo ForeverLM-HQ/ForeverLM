@@ -342,6 +342,19 @@ final class MCPDataStore {
         throw MCPError.invalidInput("\(key) must be a whole number.")
     }
 
+    /// A source whose url is a path on this Mac, read for a client only where `validateClientProvidedPath`
+    /// lets a client read: a client can file any url, so the url alone never opens a file elsewhere.
+    func clientReadableLocalURL(_ url: String) -> String? {
+        guard Self.isLocalPathURL(url) else { return nil }
+        return (try? validateClientProvidedPath(url))?.path
+    }
+
+    /// A url naming a file on this Mac rather than a page on the web.
+    static func isLocalPathURL(_ url: String) -> Bool {
+        let trimmed = url.trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.hasPrefix("/") || trimmed.hasPrefix("~") || trimmed.lowercased().hasPrefix("file:")
+    }
+
     func validateClientProvidedPath(_ rawPath: String, additionalRoots: [String] = []) throws -> URL {
         var candidate = rawPath.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !candidate.isEmpty else {

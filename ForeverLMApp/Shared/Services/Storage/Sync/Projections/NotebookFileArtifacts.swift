@@ -29,6 +29,28 @@ enum NotebookFileArtifact {
 
     static func relativePath(notebookID: String, path: String) -> String { "Projects/\(notebookID)/\(path)" }
 
+    /// `Projects/<notebook>/<path>` for an inbound record, or nil when either part could leave the
+    /// notebook's workspace: a notebook id that is not one plain name, or a path that is absolute or
+    /// steps through `.` or `..`. A record's fields are whatever its writer put there.
+    static func safeRelativePath(notebookID: String, path: String) -> String? {
+        guard isPlainName(notebookID), !path.hasPrefix("/") else { return nil }
+        let components = path.split(separator: "/", omittingEmptySubsequences: false)
+        guard !components.isEmpty, components.allSatisfy({ isPlainName(String($0)) }) else { return nil }
+        return relativePath(notebookID: notebookID, path: path)
+    }
+
+    private static func isPlainName(_ name: String) -> Bool {
+        !name.isEmpty && name != "." && name != ".." && !name.contains("/") && !name.contains("\0")
+    }
+
+    /// The file a row names, only while it sits inside its notebook's workspace under `contentDirectory`.
+    static func fileURL(_ row: Row, contentDirectory: URL?) -> URL? {
+        guard let contentDirectory, isPlainName(row.notebookID) else { return nil }
+        let workspace = contentDirectory.appendingPathComponent("Projects/\(row.notebookID)", isDirectory: true).standardizedFileURL.path
+        let url = contentDirectory.appendingPathComponent(row.relativePath).standardizedFileURL
+        return url.path.hasPrefix(workspace + "/") ? url : nil
+    }
+
     static func wireID(notebookID: String, path: String) -> String {
         "file:\(notebookID):\(SyncIdentity.sha256Hex(Data(path.utf8)))"
     }
@@ -122,8 +144,9 @@ enum NotebookFileArtifact {
     /// An inbound file: its index row (kept where it is when this Mac holds it), and the server's
     /// pointer for the materializer.
     static func apply(_ fields: [String: SyncJSON], wireID: String, zoneKey: String, connection: SQLiteConnection) throws -> ProjectionApplyOutcome {
-        guard let notebookID = fields["notebookID"]?.stringValue ?? notebookID(of: wireID), let path = fields["path"]?.stringValue else { return .projected }
-        let relative = relativePath(notebookID: notebookID, path: path)
+        guard let notebookID = fields["notebookID"]?.stringValue ?? notebookID(of: wireID), let path = fields["path"]?.stringValue,
+              let relative = safeRelativePath(notebookID: notebookID, path: path),
+              wireID == Self.wireID(notebookID: notebookID, path: path) else { return .projected }
         let created = fields["createdAt"]?.int64Value.map { SyncTime.cocoaSeconds(milliseconds: $0) } ?? Date().timeIntervalSinceReferenceDate
         let edited = fields["editedAt"]?.int64Value.map { SyncTime.cocoaSeconds(milliseconds: $0) } ?? created
         let body = fields["body"].flatMap(FileRef.init(json:))
@@ -146,7 +169,7 @@ enum NotebookFileArtifact {
     static func applyDeletion(_ wireID: String, connection: SQLiteConnection) throws {
         if let row = try row(for: wireID, connection: connection) {
             try connection.execute("DELETE FROM notebook_files WHERE id = ?", [.text(row.id)])
-            if let url = (connection as? KnowledgeStore)?.contentDirectory?.appendingPathComponent(row.relativePath) {
+            if let url = fileURL(row, contentDirectory: (connection as? KnowledgeStore)?.contentDirectory) {
                 try? FileManager.default.removeItem(at: url)
             }
         }
@@ -191,7 +214,7 @@ enum NotebookFileArtifact {
     /// Brings in a file's server bytes: written over a file this Mac has not changed since the bytes it
     /// last held, else beside it as "<name> (from another device)".
     static func materialize(_ wireID: String, incoming: FileRef, bytes: Data, in store: KnowledgeStore) throws -> DocBodyMaterializer.Outcome {
-        guard let row = try row(for: wireID, connection: store), let url = store.contentDirectory?.appendingPathComponent(row.relativePath) else {
+        guard let row = try row(for: wireID, connection: store), let url = fileURL(row, contentDirectory: store.contentDirectory) else {
             return .unchanged
         }
         let held = try pointer(wireID, connection: store)

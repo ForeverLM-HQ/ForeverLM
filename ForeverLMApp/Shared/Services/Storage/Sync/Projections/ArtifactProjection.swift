@@ -351,6 +351,9 @@ struct ArtifactProjection: RecordProjection {
         // a later package projects, stay in the replica only.
         if ArtifactBody.isCardDeck(id: id, kind: wireKind.flatMap(ArtifactWireKind.local)) { return .projected }
         if wireKind == NotebookFileArtifact.kind || NotebookFileArtifact.notebookID(of: id) != nil {
+            // A notebook's files never reach another person (§10): one arriving through a shared space
+            // is refused, since its writer chooses the path it would land at on this Mac.
+            if record.zone.isSpace { return .projected }
             return try NotebookFileArtifact.apply(fields, wireID: record.wireID, zoneKey: record.zoneKey, connection: connection)
         }
         if wireKind == "picture" { return .projected }

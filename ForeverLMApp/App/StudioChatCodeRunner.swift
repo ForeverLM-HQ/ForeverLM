@@ -250,7 +250,8 @@ actor CodeEnvironment {
         if let runtime { return .success(runtime) }
         let probe = await CodeProcess.run(
             executable: venvPython.path,
-            arguments: ["-I", "-c", "import os, sys; print(os.path.realpath(sys.base_prefix))"],
+            // `-S`: no site-packages, so no installed package's `.pth` line runs outside the sandbox.
+            arguments: ["-I", "-S", "-c", "import os, sys; print(os.path.realpath(sys.base_prefix))"],
             environment: ["PATH": "/usr/bin:/bin", "LANG": "en_US.UTF-8"],
             directory: root.path,
             timeout: 30
@@ -329,24 +330,27 @@ actor CodeEnvironment {
     /// package asked for in every call is installed once.
     private func missingPackages(among packages: [String]) async -> [String] {
         guard !packages.isEmpty else { return [] }
+        // Read from the environment's site-packages by path, with `-S`: starting Python with its
+        // site-packages would run any installed package's `.pth` line, and this runs unsandboxed.
         let check = """
-        import importlib.metadata as m, json, sys
+        import importlib.metadata as m, json, sys, glob, os
+        site = glob.glob(os.path.join(sys.argv[2], "lib", "python*", "site-packages"))
+        def version(name):
+            for found in m.distributions(name=name, path=site):
+                return found.version
+            return None
         missing = []
         for spec in json.loads(sys.argv[1]):
             name, _, pin = spec.partition("==")
-            try:
-                if pin and m.version(name) != pin:
-                    missing.append(spec)
-                else:
-                    m.version(name)
-            except m.PackageNotFoundError:
+            have = version(name)
+            if have is None or (pin and have != pin):
                 missing.append(spec)
         print(json.dumps(missing))
         """
         let encoded = (try? JSONSerialization.data(withJSONObject: packages)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
         let result = await CodeProcess.run(
             executable: venvPython.path,
-            arguments: ["-c", check, encoded],
+            arguments: ["-I", "-S", "-c", check, encoded, venv.path],
             environment: installEnvironment(),
             directory: root.path,
             timeout: 30
