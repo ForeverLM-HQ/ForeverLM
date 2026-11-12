@@ -73,6 +73,9 @@ struct ReviewChatComposerTextView: NSViewRepresentable {
     /// selection: the thing before the text (a side-question token) is what
     /// goes. Nil leaves Backspace to the text view.
     var onDeleteBackwardAtStart: (() -> Void)? = nil
+    /// Where the caret sits, as a UTF-16 offset into the text, each time the
+    /// selection moves: dictation lands there rather than at the end.
+    var onCaretChange: ((Int) -> Void)? = nil
 
     /// The text view is AppKit, so it never sees SwiftUI's font environment.
     /// Scaling its font off the app zoom keeps the draft the same size as the
@@ -84,7 +87,7 @@ struct ReviewChatComposerTextView: NSViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text, onSubmit: onSubmit, focusRequestID: focusRequestID)
+        Coordinator(text: $text, onSubmit: onSubmit, focusRequestID: focusRequestID, onCaretChange: onCaretChange)
     }
 
     func makeNSView(context: Context) -> NSScrollView {
@@ -149,6 +152,7 @@ struct ReviewChatComposerTextView: NSViewRepresentable {
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         context.coordinator.text = $text
         context.coordinator.onSubmit = onSubmit
+        context.coordinator.onCaretChange = onCaretChange
 
         guard let textView = scrollView.documentView as? SubmitOnReturnTextView else { return }
         if textView.font?.pointSize != scaledFontSize {
@@ -178,13 +182,25 @@ struct ReviewChatComposerTextView: NSViewRepresentable {
         }
         if textView.string != text {
             let selectedRange = textView.selectedRange()
+            let oldText = textView.string
             // A caret at the end of the old draft stays at the end of the new
             // one: a quoted passage, an accepted `/` command or a dictated
             // sentence lands with typing resuming after it, not before it.
-            let wasAtEnd = selectedRange.location >= (textView.string as NSString).length
+            let wasAtEnd = selectedRange.location >= (oldText as NSString).length
             textView.string = text
             let newLength = (text as NSString).length
-            let clampedLocation = wasAtEnd ? newLength : min(selectedRange.location, newLength)
+            let clampedLocation: Int
+            if wasAtEnd {
+                clampedLocation = newLength
+            } else if let after = ComposerCaretInsertion.caretAfterInsertion(
+                old: oldText, new: text, caret: selectedRange.location
+            ) {
+                // Words put in at the caret (a dictated sentence) leave it
+                // after them, as typing them would.
+                clampedLocation = after
+            } else {
+                clampedLocation = min(selectedRange.location, newLength)
+            }
             textView.setSelectedRange(NSRange(location: clampedLocation, length: 0))
             textView.scrollRangeToVisible(NSRange(location: clampedLocation, length: 0))
             // Setting `string` doesn't call didChangeText, so a programmatic
@@ -199,16 +215,29 @@ struct ReviewChatComposerTextView: NSViewRepresentable {
         var text: Binding<String>
         var onSubmit: () -> Void
         var focusRequestID: UUID?
+        var onCaretChange: ((Int) -> Void)?
 
-        init(text: Binding<String>, onSubmit: @escaping () -> Void, focusRequestID: UUID?) {
+        init(
+            text: Binding<String>,
+            onSubmit: @escaping () -> Void,
+            focusRequestID: UUID?,
+            onCaretChange: ((Int) -> Void)?
+        ) {
             self.text = text
             self.onSubmit = onSubmit
             self.focusRequestID = focusRequestID
+            self.onCaretChange = onCaretChange
         }
 
         func textDidChange(_ notification: Notification) {
             guard let textView = notification.object as? NSTextView else { return }
             text.wrappedValue = textView.string
+        }
+
+        func textViewDidChangeSelection(_ notification: Notification) {
+            guard let onCaretChange,
+                  let textView = notification.object as? NSTextView else { return }
+            onCaretChange(textView.selectedRange().location)
         }
     }
 
@@ -460,6 +489,10 @@ extension NSEvent {
 @Observable
 final class ReviewComposerDraft {
     var text = ""
+    /// The caret in `text`, as a UTF-16 offset, where the text view last
+    /// reported it. Dictation inserts there. Nil until the field reports one,
+    /// which means the end. Not observed: the caret moving re-renders nothing.
+    @ObservationIgnored var caretLocation: Int?
     /// A passage quoted out of the transcript that the next message carries.
     /// Held apart from `text` so the composer can draw it as a quote and the
     /// learner types only their question; it is folded back into the message as
@@ -491,6 +524,44 @@ final class ReviewComposerDraft {
     /// field; each goes with the next message as reference material
     /// (`ChatReferencedCard.context`).
     var referencedCards: [ChatReferencedCard] = []
+}
+
+/// Dictated words go where the caret is, as typed words would: the learner
+/// who clicks at the start of a long draft and speaks gets the sentence at
+/// the start, not after the last line (product owner, 2026-11-12).
+enum ComposerCaretInsertion {
+    /// `draft` with `transcript` put in at `caret` (a UTF-16 offset). A caret
+    /// at the end, or none known, keeps the old way: the words go on a new
+    /// line after the draft. Inside the draft they are spaced from the words
+    /// either side unless whitespace is already there.
+    static func insert(_ transcript: String, into draft: String, at caret: Int?) -> String {
+        let words = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
+        let ns = draft as NSString
+        guard !words.isEmpty else { return draft }
+        guard !draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return words }
+        guard let caret, caret >= 0, caret < ns.length else {
+            return "\(draft)\n\(words)"
+        }
+        let before = ns.substring(to: caret)
+        let after = ns.substring(from: caret)
+        let leading = before.isEmpty || before.last?.isWhitespace == true ? "" : " "
+        let trailing = after.first?.isWhitespace == true ? "" : " "
+        return before + leading + words + trailing + after
+    }
+
+    /// Where the caret belongs after the field's text changed from `old` to
+    /// `new` without the learner typing: right after the inserted words when
+    /// the change put words in at `caret` and left the rest as it was; nil
+    /// for any other change.
+    static func caretAfterInsertion(old: String, new: String, caret: Int) -> Int? {
+        let oldNS = old as NSString
+        let newNS = new as NSString
+        guard caret >= 0, caret <= oldNS.length, newNS.length > oldNS.length else { return nil }
+        let before = oldNS.substring(to: caret)
+        let after = oldNS.substring(from: caret)
+        guard new.hasPrefix(before), new.hasSuffix(after) else { return nil }
+        return newNS.length - (after as NSString).length
+    }
 }
 
 /// A long paste, attached to the message rather than poured into the field,
@@ -757,7 +828,8 @@ struct ReviewChatComposerBox: View {
                 onRecallPrevious: onRecallPrevious,
                 onSubmitSideQuestion: onSubmitSideQuestion,
                 onDeleteBackwardAtStart: removeSideQuestionToken
-                    ?? (skipGuess == nil ? removeDeepResearchToken : nil)
+                    ?? (skipGuess == nil ? removeDeepResearchToken : nil),
+                onCaretChange: { [composer] location in composer.caretLocation = location }
             )
             .frame(height: boxHeight)
             .padding(.horizontal, ReviewChatComposerTextView.outerHorizontalPadding)

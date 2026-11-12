@@ -607,7 +607,9 @@ extension InternalReviewPanelContent {
         let trimmedTranscript = transcript.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmedDraft.isEmpty else { return trimmedTranscript }
         guard !trimmedTranscript.isEmpty else { return trimmedDraft }
-        return "\(trimmedDraft)\n\(trimmedTranscript)"
+        // Said with the caret inside the draft, the words go there.
+        return ComposerCaretInsertion.insert(trimmedTranscript, into: baseDraft, at: composer.caretLocation)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     @MainActor

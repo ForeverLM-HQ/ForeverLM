@@ -333,11 +333,12 @@ extension InternalReviewPanelContent {
         composer.pastedTexts = []
     }
 
+    /// The transcript goes where the caret is in the draft (`ComposerCaretInsertion`).
     private func appendDictation(_ text: String) {
         if draft.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || draft == lastInsertedDefaultPrompt {
             draft = text
         } else {
-            draft += "\n\(text)"
+            draft = ComposerCaretInsertion.insert(text, into: draft, at: composer.caretLocation)
         }
         lastInsertedDefaultPrompt = nil
     }
