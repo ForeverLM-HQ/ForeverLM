@@ -238,4 +238,19 @@ struct AppcastFeedTests {
         #expect(!RunningBuildChannel.isBeta(stored: nil, build: "191"))
         #expect(!RunningBuildChannel.isBeta(stored: stored, build: ""))
     }
+
+    /// Sparkle's guide says an app that is not sandboxed can leave its XPC
+    /// services off, so the key looks removable. It is not: in-process, Sparkle
+    /// starts the installer with a launchd call on the main thread that hung the
+    /// app for good on 2026-11-11 (see the comment beside the key).
+    @Test("Sparkle starts the installer from its XPC service, off the app's main thread")
+    func installerLaunchesFromTheXPCService() throws {
+        let plistURL = URL(fileURLWithPath: #filePath)
+            .deletingLastPathComponent()
+            .deletingLastPathComponent()
+            .appendingPathComponent("App/Info.plist")
+        let data = try Data(contentsOf: plistURL)
+        let info = try #require(try PropertyListSerialization.propertyList(from: data, format: nil) as? [String: Any])
+        #expect(info["SUEnableInstallerLauncherService"] as? Bool == true)
+    }
 }

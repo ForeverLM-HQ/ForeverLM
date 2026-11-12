@@ -43,6 +43,16 @@
 	<!-- Sparkle clamps this to one hour; anything smaller is silently raised. -->
 	<key>SUScheduledCheckInterval</key>
 	<integer>3600</integer>
+	<!-- Sparkle starts its installer from its Installer XPC service, not from the
+	     app. In-process, it removes the previous installer job with
+	     SMJobRemove(wait: true) on the main thread, and on 2026-11-11 (build 291,
+	     installing 292 after a first try timed out under load) that call never
+	     returned: launchd removed the job, the reply never came, and the app hung
+	     for good. In the service the same call can only stall the update; the
+	     app stays responsive. The app is not sandboxed, so it needs no extra
+	     entitlement; the service ships inside Sparkle.framework, signed with it. -->
+	<key>SUEnableInstallerLauncherService</key>
+	<true/>
 	<key>NSCalendarsFullAccessUsageDescription</key>
 	<string>ForeverLM shows your calendar as your day, and adds, moves or removes the events you or your assistant plan. It never changes an event other people are on.</string>
 	<key>NSCalendarsUsageDescription</key>
