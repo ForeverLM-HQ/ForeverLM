@@ -2031,6 +2031,11 @@ class StudioViewModel {
     /// saved later.
     @ObservationIgnored var xAuthorAvatarURLs: [String: String] = [:]
 
+    /// X posts `fillCutXPosts` captured again this launch and X still answered
+    /// cut short. They wait for the next launch instead of being asked for on
+    /// every bookmark sync.
+    @ObservationIgnored var xPostsLeftCutThisLaunch: Set<String> = []
+
     /// The single in-flight pass of `backfillXPostArtwork`. Every X row asks for
     /// its thumbnail as it appears, and they all appear at once; without this
     /// they would each start their own sweep of the same library.

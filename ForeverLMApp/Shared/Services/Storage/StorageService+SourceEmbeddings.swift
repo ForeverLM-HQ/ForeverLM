@@ -457,6 +457,12 @@ extension StorageService {
         return (try? ks.hasReadableSourceContent(sourceId)) ?? false
     }
 
+    /// The X posts whose saved capture holds only the opening of a post.
+    func xPostSourceIDsSavedCutShort() async -> [String] {
+        guard let ks = try? knowledgeStore() else { return [] }
+        return (try? ks.xPostSourceIDsSavedCutShort()) ?? []
+    }
+
     /// Load persisted source content from SQLite.
     ///
     /// Stored text wins. Deriving text from a local file — a book chapter's

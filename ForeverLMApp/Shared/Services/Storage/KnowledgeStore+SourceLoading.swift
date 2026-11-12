@@ -125,6 +125,24 @@ extension KnowledgeStore {
         return articles
     }
 
+    /// The X posts in the library whose saved capture holds only the opening
+    /// of a post, newest first: the ones `fillCutXPosts` reads the rest of.
+    func xPostSourceIDsSavedCutShort() throws -> [String] {
+        var ids: [String] = []
+        try queryBind("""
+            SELECT x.source_id FROM x_posts x
+            JOIN sources s ON s.id = x.source_id
+            JOIN source_content c ON c.source_id = x.source_id
+            WHERE s.status = 'active' AND instr(c.content, ?) > 0
+            ORDER BY s.date_added DESC
+            """, bind: { stmt in
+            self.bind(stmt, 1, XPostThreadService.cutPostNotePrefix)
+        }) { stmt in
+            if let id = self.string(stmt, 0) { ids.append(id) }
+        }
+        return ids
+    }
+
     func loadSourceContent(_ sourceId: String) throws -> String? {
         var result: String?
         try queryBind("SELECT content FROM source_content WHERE source_id = ?", bind: { stmt in

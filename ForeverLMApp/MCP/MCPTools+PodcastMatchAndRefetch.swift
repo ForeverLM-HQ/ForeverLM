@@ -330,6 +330,9 @@ extension MCPDataStore {
         /// A YouTube video or a Zoom recording: its transcript fetched again
         /// from the video. Its page's text is never its transcript.
         case videoTranscript
+        /// An X post: the post and its thread captured again, keeping the saved
+        /// text when X's public copy holds less of a post than it does.
+        case xPostCapture
         /// Every other type: its text fetched from its address.
         case plainFetch
     }
@@ -353,6 +356,8 @@ extension MCPDataStore {
             return PaperService.isDirectPDFURL(article.url) ? .pdfAddress : .websiteRefresh
         case .podcast:
             return .podcastTranscript
+        case .xPost:
+            return XPostThreadService.postID(from: article.url) != nil ? .xPostCapture : .plainFetch
         default:
             return .plainFetch
         }
@@ -396,6 +401,31 @@ extension MCPDataStore {
         case .videoTranscript:
             // The stored transcript stays unless the fetch brings a new one.
             return try await fetchVideoTranscript(sourceID: id, fetchAgain: true)
+        case .xPostCapture:
+            // X's public copy holds only the first 280 characters of a long
+            // post. The saved text goes along so a bookmark's full text is put
+            // back into the capture, and so a capture that read the post whole
+            // is never replaced by one that could not: fetched without it, a
+            // refetch a Mac ran for the phone left "This post is longer on X"
+            // where the whole post had been (2026-11-11).
+            let content: String
+            do {
+                content = try await XPostThreadService.shared.capture(
+                    postURL: article.url,
+                    existingText: article.content
+                ).plainText
+            } catch XPostThreadError.savedCopyIsFuller {
+                return "Kept the saved text of '\(article.title)': X's public copy cuts this post short, and the rest could not be read through an X account connected on this Mac."
+            }
+            guard !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                throw MCPError.invalidInput("X returned no text for '\(article.title)'.")
+            }
+            article.content = content
+            article.wordCount = content.split(whereSeparator: { $0.isWhitespace || $0.isNewline }).count
+            article.state = .ready
+            article.errorMessage = nil
+            try store.saveSource(article)
+            return "Refetched content for '\(article.title)' (\(article.wordCount ?? 0) words)."
         case .podcastTranscript, .plainFetch:
             break
         }

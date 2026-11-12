@@ -266,6 +266,89 @@ struct XPostThreadTests {
         #expect(!XPostThreadService.isRenderedCapture("the raw post", subjectID: "1"))
     }
 
+    // MARK: - Long Posts
+
+    @Test("Reads which posts a saved capture holds, and which of them are cut short")
+    func readsCutPostsFromCapture() {
+        let capture = XPostThread(
+            subjectID: "2",
+            posts: [
+                post(id: "1", text: "opening", truncated: true),
+                post(id: "2", text: "whole"),
+            ],
+            earlierPostsIncomplete: true
+        ).plainText
+
+        #expect(XPostThreadService.cutPostIDs(inCapture: capture) == ["1"])
+        #expect(XPostThreadService.postIDs(inCapture: capture) == ["1", "2"])
+        // A capture that opens with the earlier-posts note is still a capture,
+        // not a post's own text to put back into the saved post.
+        #expect(XPostThreadService.isRenderedCapture(capture, subjectID: "2"))
+        #expect(XPostThreadService.cutPostIDs(inCapture: "a bookmark's own text").isEmpty)
+    }
+
+    @Test("A bookmark's full text goes back into a post the public copy cut short")
+    func keepsBookmarkText() async throws {
+        XPostThreadMockURLProtocol.install([
+            "7": (200, try syndicationJSON(id: "7", text: "opening", truncated: true)),
+        ])
+        let signedOut = XPostThreadService(
+            session: XPostThreadMockURLProtocol.session(),
+            longPostLookup: { _ in [:] }
+        )
+
+        let thread = try await signedOut.capture(
+            postURL: "https://x.com/owl_posting/status/7",
+            existingText: "opening, and then every paragraph after it"
+        )
+
+        #expect(thread.subject?.text == "opening, and then every paragraph after it")
+        #expect(XPostThreadService.cutPostIDs(inCapture: thread.plainText).isEmpty)
+    }
+
+    @Test("A capture that read only a post's opening never replaces one that read it whole")
+    func keepsFullerSavedCapture() async throws {
+        XPostThreadMockURLProtocol.install([
+            "7": (200, try syndicationJSON(id: "7", text: "opening", truncated: true)),
+        ])
+        let url = "https://x.com/owl_posting/status/7"
+        let signedOut = XPostThreadService(
+            session: XPostThreadMockURLProtocol.session(),
+            longPostLookup: { _ in [:] }
+        )
+
+        // The refetch a Mac without an X account ran for the phone: the saved
+        // capture holds the whole post, the public copy 280 characters of it.
+        let whole = XPostThread(
+            subjectID: "7",
+            posts: [post(id: "7", text: "opening, and then every paragraph after it")],
+            earlierPostsIncomplete: false
+        ).plainText
+        await #expect(throws: XPostThreadError.savedCopyIsFuller) {
+            try await signedOut.capture(postURL: url, existingText: whole)
+        }
+
+        // A saved capture that is cut short itself loses nothing to a new one.
+        let cut = XPostThread(
+            subjectID: "7",
+            posts: [post(id: "7", text: "opening", truncated: true)],
+            earlierPostsIncomplete: false
+        ).plainText
+        let again = try await signedOut.capture(postURL: url, existingText: cut)
+        #expect(XPostThreadService.cutPostIDs(inCapture: again.plainText) == ["7"])
+
+        // With an account connected the rest is read, and the note goes.
+        let signedIn = XPostThreadService(
+            session: XPostThreadMockURLProtocol.session(),
+            longPostLookup: { ids in
+                Dictionary(uniqueKeysWithValues: ids.map { ($0, "opening, and then every paragraph after it") })
+            }
+        )
+        let filled = try await signedIn.capture(postURL: url, existingText: cut)
+        #expect(filled.subject?.text == "opening, and then every paragraph after it")
+        #expect(XPostThreadService.cutPostIDs(inCapture: filled.plainText).isEmpty)
+    }
+
     @Test("Renders canonical dates in UTC on every device")
     func rendersCanonicalDate() throws {
         let date = try #require(ISO8601DateFormatter().date(from: "2026-08-20T10:15:00Z"))

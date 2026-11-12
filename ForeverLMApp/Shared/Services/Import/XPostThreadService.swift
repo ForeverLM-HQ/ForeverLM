@@ -29,8 +29,17 @@ actor XPostThreadService {
     private let logger = Logger(subsystem: "com.foreverlm", category: "XPostThreadService")
     private let session: URLSession
 
-    init(session: URLSession = .shared) {
+    /// Reads the whole text of posts by id. X's public copy cuts a long post
+    /// short, so this is the connected account's route to the rest.
+    typealias LongPostLookup = @Sendable ([String]) async throws -> [String: String]
+
+    /// Nil asks the connected X account, when there is one. A test hands in
+    /// its own so a capture never reaches the Keychain or X's API.
+    private let longPostLookup: LongPostLookup?
+
+    init(session: URLSession = .shared, longPostLookup: LongPostLookup? = nil) {
         self.session = session
+        self.longPostLookup = longPostLookup
     }
 
     // MARK: - URL Identity
@@ -107,7 +116,10 @@ actor XPostThreadService {
     ///
     /// `existingText` is the copy the library already holds — an X bookmark
     /// arrives with the post's full text from the authenticated API, and that
-    /// copy must never be replaced by a shorter public one.
+    /// copy must never be replaced by a shorter public one. A bookmark's text
+    /// is put back into the saved post; an earlier capture that holds whole a
+    /// post this one could only read the opening of ends the capture with
+    /// `savedCopyIsFuller`, before anything is written.
     func capture(postURL: String, existingText: String? = nil) async throws -> XPostThread {
         guard let subjectID = Self.postID(from: postURL) else {
             throw XPostThreadError.notAnXPostURL
@@ -154,12 +166,25 @@ actor XPostThreadService {
         posts = await fillingTruncatedText(in: posts)
 
         if let existingText = existingText?.trimmingCharacters(in: .whitespacesAndNewlines),
-           !existingText.isEmpty,
-           let index = posts.firstIndex(where: { $0.id == subjectID }),
-           posts[index].isTruncated,
-           !Self.isRenderedCapture(existingText, subjectID: subjectID) {
-            posts[index].text = existingText
-            posts[index].isTruncated = false
+           !existingText.isEmpty {
+            if Self.isRenderedCapture(existingText, subjectID: subjectID) {
+                // The library holds an earlier capture. X's public copy cuts a
+                // long post at 280 characters, and the rest comes only from a
+                // connected X account, so a capture made on a Mac without one
+                // (or while X refused the lookup) must not replace a capture
+                // that read the post whole.
+                let cutBefore = Set(Self.cutPostIDs(inCapture: existingText))
+                let heldBefore = Self.postIDs(inCapture: existingText)
+                if posts.contains(where: {
+                    $0.isTruncated && heldBefore.contains($0.id) && !cutBefore.contains($0.id)
+                }) {
+                    throw XPostThreadError.savedCopyIsFuller
+                }
+            } else if let index = posts.firstIndex(where: { $0.id == subjectID }),
+                      posts[index].isTruncated {
+                posts[index].text = existingText
+                posts[index].isTruncated = false
+            }
         }
 
         return XPostThread(
@@ -174,7 +199,38 @@ actor XPostThreadService {
     /// rendering is not the subject post's authenticated text and must never be
     /// inserted into the subject during a re-capture.
     nonisolated static func isRenderedCapture(_ text: String, subjectID: String) -> Bool {
-        text.hasPrefix("## ") && text.contains("/status/\(subjectID)")
+        // A capture opens with its first post's heading, or with the note that
+        // earlier posts are missing when the walk stopped short of the head.
+        (text.hasPrefix("## ") || text.hasPrefix(earlierPostsNote))
+            && text.contains("/status/\(subjectID)")
+    }
+
+    nonisolated static let earlierPostsNote = "(Earlier posts in this thread were not captured.)"
+
+    /// The line a rendering writes under a post X's public copy cut short. It
+    /// is also how a stored capture says which of its posts are incomplete, so
+    /// the rendering and the readers below share this one spelling.
+    nonisolated static let cutPostNotePrefix = "(This post is longer on X: "
+
+    nonisolated static func cutPostNote(permalink: String) -> String {
+        "\(cutPostNotePrefix)\(permalink))"
+    }
+
+    /// The posts a stored capture holds only the opening of, in the order the
+    /// capture lists them.
+    nonisolated static func cutPostIDs(inCapture text: String) -> [String] {
+        text.components(separatedBy: "\n").compactMap { line in
+            guard line.hasPrefix(cutPostNotePrefix), line.hasSuffix(")") else { return nil }
+            return postID(from: String(line.dropFirst(cutPostNotePrefix.count).dropLast()))
+        }
+    }
+
+    /// Every post a stored capture holds, whole or cut: each one ends with its
+    /// permalink on a line of its own.
+    nonisolated static func postIDs(inCapture text: String) -> Set<String> {
+        Set(text.components(separatedBy: "\n").compactMap { line in
+            line.hasPrefix("https://x.com/") ? postID(from: line) : nil
+        })
     }
 
     /// Replace the public endpoint's truncated copies with the authenticated
@@ -183,10 +239,16 @@ actor XPostThreadService {
     /// copy in place with its marker.
     private func fillingTruncatedText(in posts: [XThreadPost]) async -> [XThreadPost] {
         let truncatedIDs = posts.filter(\.isTruncated).map(\.id)
-        guard !truncatedIDs.isEmpty,
-              XBookmarkService.shared.isOAuthSignedIn else { return posts }
+        guard !truncatedIDs.isEmpty else { return posts }
+        let lookup: LongPostLookup
+        if let longPostLookup {
+            lookup = longPostLookup
+        } else {
+            guard XBookmarkService.shared.isOAuthSignedIn else { return posts }
+            lookup = { try await XBookmarkService.shared.fetchPostTexts(forPostIDs: $0) }
+        }
         do {
-            let full = try await XBookmarkService.shared.fetchPostTexts(forPostIDs: truncatedIDs)
+            let full = try await lookup(truncatedIDs)
             guard !full.isEmpty else { return posts }
             return posts.map { post in
                 guard let raw = full[post.id] else { return post }
@@ -518,7 +580,7 @@ extension XPostThread {
     var plainText: String {
         var blocks: [String] = []
         if earlierPostsIncomplete {
-            blocks.append("(Earlier posts in this thread were not captured.)")
+            blocks.append(XPostThreadService.earlierPostsNote)
         }
         for post in posts {
             var lines: [String] = []
@@ -532,7 +594,7 @@ extension XPostThread {
             lines.append("## \(heading)")
             lines.append(post.text)
             if post.isTruncated {
-                lines.append("(This post is longer on X: \(post.permalink))")
+                lines.append(XPostThreadService.cutPostNote(permalink: post.permalink))
             }
             if let quoted = post.quoted {
                 let quotedHandle = quoted.authorHandle.isEmpty ? "" : "@\(quoted.authorHandle) "
@@ -625,9 +687,14 @@ extension XPostThread {
 enum XPostThreadError: LocalizedError, Equatable {
     case notAnXPostURL
     case postUnavailable(String, String)
+    /// The capture holds only the opening of a post the library already holds
+    /// whole. Nothing is wrong with the source; the saved text stays.
+    case savedCopyIsFuller
 
     var errorDescription: String? {
         switch self {
+        case .savedCopyIsFuller:
+            return "X's public copy cuts this post short, and the saved text holds all of it."
         case .notAnXPostURL:
             return "That link is not an X post."
         case let .postUnavailable(id, reason):

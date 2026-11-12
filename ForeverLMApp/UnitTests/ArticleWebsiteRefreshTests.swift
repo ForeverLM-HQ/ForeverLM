@@ -473,6 +473,9 @@ struct RefetchSourceContentTests {
         for type in [StudioSourceType.paper, .xPost, .video] {
             #expect(route("https://example.com/item", type) == .plainFetch)
         }
+        // An X post is captured again with its saved text beside it, so the
+        // public copy's 280 characters never replace a post held whole.
+        #expect(route("https://x.com/owl_posting/status/42", .xPost) == .xPostCapture)
         // A video's text is its transcript, never its page: YouTube and Zoom
         // recordings are fetched again the way fetch_video_transcript fetches.
         #expect(route("https://www.youtube.com/watch?v=dQw4w9WgXcQ", .video) == .videoTranscript)

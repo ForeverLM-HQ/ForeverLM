@@ -1627,7 +1627,8 @@ extension StudioViewModel {
         autoFetchUnfetchedSources()
         let namedCount = await backfillXPostAuthorNames()
         let picturedCount = await backfillXPostArtwork()
-        if importedCount > 0 || namedCount > 0 || picturedCount > 0 {
+        let filledCount = await fillCutXPosts()
+        if importedCount > 0 || namedCount > 0 || picturedCount > 0 || filledCount > 0 {
             syncCloudKitInBackground()
         }
         if showResult {
@@ -1896,6 +1897,76 @@ extension StudioViewModel {
             logger.info("Pictured \(pictured) X post(s)")
         }
         return pictured
+    }
+
+    // MARK: - X Posts Saved Cut Short
+
+    /// How many captures one pass reads again. Each is a walk of the post's
+    /// thread through X's embed endpoint and one lookup through the connected
+    /// account.
+    static let xPostFillsPerPass = 12
+
+    /// Reads the rest of the X posts whose saved capture holds only their
+    /// opening.
+    ///
+    /// X's public copy of a long post stops at 280 characters; the whole post
+    /// comes only through a connected account. A capture made on a Mac with no
+    /// account connected, or while X refused the lookup, saves the opening and
+    /// says so in the text ("This post is longer on X"), and that text is what
+    /// every device then shows. This Mac has an account, so it captures those
+    /// posts again and keeps a capture that holds more than the saved one.
+    /// Returns how many sources were filled.
+    @discardableResult
+    func fillCutXPosts() async -> Int {
+        guard isXOAuthSignedIn else { return 0 }
+        let cutSourceIDs = await storage.xPostSourceIDsSavedCutShort()
+            .filter { !xPostsLeftCutThisLaunch.contains($0) }
+            .prefix(Self.xPostFillsPerPass)
+
+        var filled = 0
+        for sourceID in cutSourceIDs {
+            guard let article = articles.first(where: { $0.id == sourceID }),
+                  article.sourceType == .xPost,
+                  let saved = await storage.loadSourceContent(sourceID) else { continue }
+            let cutBefore = XPostThreadService.cutPostIDs(inCapture: saved).count
+            do {
+                let archived = try await sourceService.fetchAndArchiveWebContent(
+                    url: article.url,
+                    sourceId: sourceID,
+                    existingText: saved
+                )
+                // Re-find: the list can change while the thread is walked.
+                guard XPostThreadService.cutPostIDs(inCapture: archived.plainText).count < cutBefore,
+                      let index = articles.firstIndex(where: { $0.id == sourceID }) else {
+                    xPostsLeftCutThisLaunch.insert(sourceID)
+                    continue
+                }
+                var whole = articles[index]
+                whole.content = archived.plainText
+                whole.wordCount = archived.plainText.split(separator: " ").count
+                if let archivedPath = archived.localHTMLPath {
+                    whole.localFilePath = archivedPath
+                }
+                guard await persistSource(whole, context: "Save X post text", showErrorToast: false) else {
+                    xPostsLeftCutThisLaunch.insert(sourceID)
+                    continue
+                }
+                if let latest = articles.firstIndex(where: { $0.id == sourceID }) {
+                    articles[latest] = whole
+                }
+                queueSourceEmbeddingRefreshIfReady(sourceID)
+                filled += 1
+            } catch {
+                // Deleted, protected, or held whole already by the saved copy:
+                // nothing more to read this launch.
+                xPostsLeftCutThisLaunch.insert(sourceID)
+                logger.info("X post \(sourceID, privacy: .public) stays cut short: \(error.localizedDescription, privacy: .public)")
+            }
+        }
+        if filled > 0 {
+            logger.info("Read the rest of \(filled) X post(s) saved cut short")
+        }
+        return filled
     }
 
     /// The handle in an X post URL: `https://x.com/zaraholt/status/123` →
