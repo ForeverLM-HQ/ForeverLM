@@ -5,6 +5,9 @@ import Foundation
 actor AIService {
 
     let session: URLSession
+    /// The session streams run on once a stream failed to start on `session`:
+    /// same configuration, new connections. See `moveStreamsToFreshConnections`.
+    private var freshStreamSession: URLSession?
     let usageTracker: AIUsageTracker?
     let responseCacheStorage: StorageService?
     /// Meaning-only metadata normalization may see the same author across many
@@ -36,6 +39,21 @@ actor AIService {
         self.session = URLSession(configuration: config)
         self.usageTracker = .shared
         self.responseCacheStorage = StorageService()
+    }
+
+    /// Where a stream's request goes: the shared session, or the one that
+    /// replaced it for streams after a connection went bad.
+    var streamSession: URLSession { freshStreamSession ?? session }
+
+    /// Sends later streams over new connections. URLSession pools connections
+    /// per session and offers no way to drop one (`flush` keeps an HTTP/3
+    /// connection, measured 2026-11-12), so a new session is the only route
+    /// off a connection that stopped carrying requests. Streams still running
+    /// on the replaced session finish there.
+    func moveStreamsToFreshConnections() {
+        let replaced = freshStreamSession
+        freshStreamSession = URLSession(configuration: session.configuration)
+        replaced?.finishTasksAndInvalidate()
     }
 
     init(

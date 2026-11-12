@@ -683,6 +683,36 @@ struct StalledErrorBodyStreamTests {
         try await StalledErrorBodyURLProtocol.waitUntilStopped()
     }
 
+    @Test("A request body that stops going out is a stall; one still moving, or fully sent, is not")
+    func uploadStallIsNoProgressOnAnUnfinishedBody() {
+        let start = ContinuousClock.now
+        // Moving, however slowly, is not a stall; ten seconds on the same byte is.
+        var watch = StreamUploadStallWatch(limit: .seconds(10))
+        let moving = [
+            watch.isStalled(sent: 0, expected: 150_000, at: start),
+            watch.isStalled(sent: 40_000, expected: 150_000, at: start + .seconds(9)),
+            watch.isStalled(sent: 40_000, expected: 150_000, at: start + .seconds(18)),
+            watch.isStalled(sent: 40_000, expected: 150_000, at: start + .seconds(19)),
+        ]
+        #expect(moving == [false, false, false, true])
+
+        // Once the body is out the wait is the model's, for as long as it takes.
+        var sent = StreamUploadStallWatch(limit: .seconds(10))
+        let whole = [
+            sent.isStalled(sent: 150_000, expected: 150_000, at: start),
+            sent.isStalled(sent: 150_000, expected: 150_000, at: start + .seconds(300)),
+        ]
+        #expect(whole == [false, false])
+
+        // A request with no body, or one of unknown size, is never stalled.
+        var bodiless = StreamUploadStallWatch(limit: .seconds(10))
+        let none = [
+            bodiless.isStalled(sent: 0, expected: 0, at: start),
+            bodiless.isStalled(sent: 0, expected: -1, at: start + .seconds(60)),
+        ]
+        #expect(none == [false, false])
+    }
+
     @Test("Stopping a stream that has sent nothing reads as a stop, not a timeout", .timeLimit(.minutes(1)))
     func stoppingASilentStreamIsNotATimeout() async throws {
         StalledErrorBodyURLProtocol.reset(reply: .nothing)

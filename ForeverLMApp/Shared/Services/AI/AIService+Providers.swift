@@ -246,6 +246,7 @@ extension AIService {
         usageModel: String? = nil,
         usageOperation: String = "stream_chat",
         firstByteLimit: Duration = AIService.streamFirstByteLimit,
+        uploadStallLimit: Duration = AIService.streamUploadStallLimit,
         errorBodyReadLimit: Duration = AIService.errorBodyReadLimit,
         onEvent: ([String: Any]) throws -> String?,
         onDelta: (String) -> Void
@@ -266,6 +267,7 @@ extension AIService {
                 usageModel: usageModel,
                 usageOperation: usageOperation,
                 firstByteLimit: firstByteLimit,
+                uploadStallLimit: uploadStallLimit,
                 errorBodyReadLimit: errorBodyReadLimit,
                 onEvent: onEvent,
                 onDelta: onDelta
@@ -284,11 +286,16 @@ extension AIService {
         usageModel: String?,
         usageOperation: String,
         firstByteLimit: Duration,
+        uploadStallLimit: Duration,
         errorBodyReadLimit: Duration,
         onEvent: ([String: Any]) throws -> String?,
         onDelta: (String) -> Void
     ) async throws {
-        let (bytes, response) = try await bytesWithFirstByteDeadline(for: request, limit: firstByteLimit)
+        let (bytes, response) = try await bytesWithFirstByteDeadline(
+            for: request,
+            limit: firstByteLimit,
+            uploadStallLimit: uploadStallLimit
+        )
         let dataTask = bytes.task
         registry.attach(inFlightID) { dataTask.cancel() }
 
@@ -387,12 +394,61 @@ extension AIService {
     /// has begun. The status is the failure; the body only words it.
     static let errorBodyReadLimit: Duration = .seconds(5)
 
-    /// `foreverLMBytes`, cancelled when not even the first byte has arrived
-    /// within `limit` (`streamFirstByteLimit`). A cancellation that was not
-    /// this deadline's — the learner's Stop — is rethrown as it came.
+    /// How long a stream's request body may sit without one more byte going
+    /// out. A pooled HTTP/3 connection can go bad while the network is fine:
+    /// on 2026-11-12 a chat's 110–160 KB requests never finished uploading on
+    /// one, the server answered each with a 408 after 16–44 s that URLSession
+    /// held back (a short `text/plain` body is kept for content sniffing), and
+    /// every step sat out `streamFirstByteLimit`: ten minutes of "Thinking".
+    /// The same upload on a new connection took 0.3 s.
+    static let streamUploadStallLimit: Duration = .seconds(10)
+
+    /// The stream's first byte, on a connection that works. A request whose
+    /// upload stalls is resent once on fresh connections, and after any stream
+    /// that never started the later ones leave the pool it used: the chat's
+    /// retry would otherwise go back onto the connection that just failed.
     private func bytesWithFirstByteDeadline(
         for request: URLRequest,
-        limit: Duration
+        limit: Duration,
+        uploadStallLimit: Duration
+    ) async throws -> (URLSession.AsyncBytes, URLResponse) {
+        do {
+            return try await firstBytes(
+                for: request, on: streamSession, limit: limit, uploadStallLimit: uploadStallLimit
+            )
+        } catch let failure as StreamStartFailure {
+            moveStreamsToFreshConnections()
+            guard failure == .uploadStalled else { throw Self.firstByteTimeout(limit) }
+            let seconds = Int(uploadStallLimit.components.seconds)
+            aiProvidersLogger.error(
+                "AI stream request stopped uploading for \(seconds, privacy: .public) s; resending on a fresh connection"
+            )
+            do {
+                return try await firstBytes(
+                    for: request, on: streamSession, limit: limit, uploadStallLimit: uploadStallLimit
+                )
+            } catch let failure as StreamStartFailure {
+                moveStreamsToFreshConnections()
+                guard failure == .uploadStalled else { throw Self.firstByteTimeout(limit) }
+                aiProvidersLogger.error("AI stream request stopped uploading on a fresh connection too; timed out")
+                // "timed out" is what `isTransient` reads, so the chat retries it.
+                throw AIError.apiError(
+                    "The request to the AI provider stopped uploading twice, so it timed out. Check the network and try again."
+                )
+            }
+        }
+    }
+
+    /// `foreverLMBytes` on `session`, cancelled when the request body stops
+    /// uploading for `uploadStallLimit`, or when not even the first byte has
+    /// arrived within `limit` (`streamFirstByteLimit`); either throws a
+    /// `StreamStartFailure`. A cancellation that was not one of these
+    /// deadlines' — the learner's Stop — is rethrown as it came.
+    private func firstBytes(
+        for request: URLRequest,
+        on session: URLSession,
+        limit: Duration,
+        uploadStallLimit: Duration
     ) async throws -> (URLSession.AsyncBytes, URLResponse) {
         let capture = StreamFirstByteDeadline()
         let deadline = Task {
@@ -400,17 +456,34 @@ extension AIService {
             guard !Task.isCancelled else { return }
             capture.expire()
         }
-        defer { deadline.cancel() }
+        let uploadWatch = Task {
+            var watch = StreamUploadStallWatch(limit: uploadStallLimit)
+            while true {
+                try? await Task.sleep(for: StreamUploadStallWatch.pollInterval)
+                guard !Task.isCancelled else { return }
+                guard let progress = capture.uploadProgress else { continue }
+                if watch.isStalled(sent: progress.sent, expected: progress.expected, at: .now) {
+                    capture.expire(stalledUpload: true)
+                    return
+                }
+                // The whole body is out: what is left is the model's wait.
+                if progress.expected > 0, progress.sent >= progress.expected { return }
+            }
+        }
+        defer {
+            deadline.cancel()
+            uploadWatch.cancel()
+        }
         let result: (URLSession.AsyncBytes, URLResponse)
         do {
             result = try await session.foreverLMBytes(for: request, delegate: capture)
         } catch {
-            guard capture.hasExpired else { throw error }
-            throw Self.firstByteTimeout(limit)
+            guard let failure = capture.failure else { throw error }
+            throw failure
         }
-        // The deadline may have fired between the first byte and here; the
+        // A deadline may have fired between the first byte and here; the
         // request it cancelled is then as dead as one that never started.
-        guard capture.markStarted() else { throw Self.firstByteTimeout(limit) }
+        guard capture.markStarted() else { throw capture.failure ?? .silent }
         return result
     }
 
@@ -1396,6 +1469,7 @@ private final class StreamFirstByteDeadline: NSObject, URLSessionTaskDelegate, @
     private let lock = AppLock()
     private var task: URLSessionTask?
     private var expired = false
+    private var stalledUpload = false
     private var started = false
 
     func urlSession(_ session: URLSession, didCreateTask task: URLSessionTask) {
@@ -1406,17 +1480,29 @@ private final class StreamFirstByteDeadline: NSObject, URLSessionTaskDelegate, @
         if cancelNow { task.cancel() }
     }
 
-    /// Cancels the request unless its first byte has already arrived.
-    func expire() {
+    /// Cancels the request unless its first byte has already arrived, or
+    /// another deadline already cancelled it.
+    func expire(stalledUpload: Bool = false) {
         let toCancel: URLSessionTask? = lock.withLock {
-            guard !started else { return nil }
+            guard !started, !expired else { return nil }
             expired = true
+            self.stalledUpload = stalledUpload
             return task
         }
         toCancel?.cancel()
     }
 
-    var hasExpired: Bool { lock.withLock { expired } }
+    /// Which deadline cancelled the request, if one did.
+    var failure: StreamStartFailure? {
+        lock.withLock { expired ? (stalledUpload ? .uploadStalled : .silent) : nil }
+    }
+
+    /// How much of the request body has gone out, once the request exists.
+    var uploadProgress: (sent: Int64, expected: Int64)? {
+        lock.withLock {
+            task.map { ($0.countOfBytesSent, $0.countOfBytesExpectedToSend) }
+        }
+    }
 
     /// Records that the first byte arrived; false when the deadline won.
     func markStarted() -> Bool {
@@ -1425,5 +1511,38 @@ private final class StreamFirstByteDeadline: NSObject, URLSessionTaskDelegate, @
             started = true
             return true
         }
+    }
+}
+
+/// Why a stream was cancelled before its first byte.
+enum StreamStartFailure: Error, Equatable {
+    /// Nothing came back within the first-byte limit.
+    case silent
+    /// The request body stopped going out.
+    case uploadStalled
+}
+
+/// Decides, from successive readings of a request's upload counters, whether
+/// its body has stopped going out. A body that is fully sent, or whose size
+/// is unknown, is never stalled: the wait is then the model's.
+struct StreamUploadStallWatch {
+    static let pollInterval: Duration = .milliseconds(500)
+
+    let limit: Duration
+    private var lastSent: Int64 = -1
+    private var lastProgressAt: ContinuousClock.Instant?
+
+    init(limit: Duration) {
+        self.limit = limit
+    }
+
+    mutating func isStalled(sent: Int64, expected: Int64, at now: ContinuousClock.Instant) -> Bool {
+        guard expected > 0, sent < expected else { return false }
+        guard sent == lastSent, let lastProgressAt else {
+            lastSent = sent
+            lastProgressAt = now
+            return false
+        }
+        return now - lastProgressAt >= limit
     }
 }
