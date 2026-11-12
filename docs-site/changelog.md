@@ -19,6 +19,24 @@ ForeverLM follows [semantic versioning](https://semver.org) against its public s
 - **iPhone Home follows the text size you set in iOS.** Its menu, suggestions and composer stayed one size under Larger Text.
 - **iPhone Home in dark mode shows its edges:** the menu slides out from under a visible sheet, and the composer and round buttons are raised from the black. The composer grows up to five lines for a long question; Return starts a new line.
 
+## 0.213.0 (build 293) — 2026-11-11
+
+**Highlights:**
+- **Voice waits while you think**, and ignores road noise.
+- **Fewer ways to hang or crash:** updates install from Sparkle's own service, and a source removed mid-fetch no longer crashes the app.
+- **The first notarized build since the clean-up**, with the whole test suite run on it.
+
+- **A source removed while its page was still loading could crash the app.** The fetch now finds its source again when the page arrives.
+- **Installing an update can no longer hang the app:** Sparkle starts its installer from its own service.
+- **Voice waits while you think.** A pause no longer ends your turn, and road noise is not taken for speech.
+- **Web views load plain-http pages**, so sites without https can be read.
+- **A page with no text no longer blames archive.ph**, and a link that serves a PDF is downloaded as one.
+- **Whole-library passes are lighter on the main thread:** each address's identity key is remembered.
+- **Zoom meetings wear the Zoom mark in the Library**, and Home's To read list ends in a quiet See all.
+- **Setup matches the app as it is now**, with a page on using OpenAI and Anthropic credits.
+- **The plugin-setup prompt you copy has its paragraph break back**, and a chat's code environment repairs itself when its folder was emptied.
+- **Under the hood:** the whole Mac test suite ran on this build (8,550 tests), and a build now fails on main-thread code that waits.
+
 ## 0.212.0 (build 292) — 2026-11-11
 
 **Highlights:**
