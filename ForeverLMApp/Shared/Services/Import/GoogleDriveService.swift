@@ -1632,9 +1632,7 @@ private final class GoogleDriveOAuthCallbackServer: @unchecked Sendable {
 
     init(callbackPath: String) throws {
         self.callbackPath = callbackPath
-        let parameters = NWParameters.tcp
-        parameters.acceptLocalOnly = true
-        listener = try NWListener(using: parameters, on: 0)
+        listener = try NWListener(using: .loopbackTCP())
     }
 
     func start() async throws {

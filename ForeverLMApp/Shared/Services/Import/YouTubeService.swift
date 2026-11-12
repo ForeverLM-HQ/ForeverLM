@@ -1197,9 +1197,7 @@ final class GoogleOAuthCallbackServer: @unchecked Sendable {
     init(serviceName: String, callbackPath: String) throws {
         self.serviceName = serviceName
         self.callbackPath = callbackPath
-        let parameters = NWParameters.tcp
-        parameters.acceptLocalOnly = true
-        listener = try NWListener(using: parameters, on: 0)
+        listener = try NWListener(using: .loopbackTCP())
     }
 
     func start() async throws {
