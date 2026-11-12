@@ -91,7 +91,7 @@ actor MobileCloudSourceTextStore {
 
     private static func matchesExpectedHash(_ text: String, expectedSHA256: String?) -> Bool {
         guard let expectedSHA256 else { return true }
-        text.sha256Hex == expectedSHA256
+        return text.sha256Hex == expectedSHA256
     }
 }
 
