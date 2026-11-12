@@ -203,6 +203,32 @@ extension MobileAudioReviewViewModel {
         updateNowPlayingInfo()
     }
 
+    /// What a generation that ended early says to the listener, or nil when
+    /// it says nothing: their own Stop, and a cancellation from anywhere else.
+    /// Neither is a fault in the request, and the text Swift gives a
+    /// cancellation ("The operation couldn’t be completed.
+    /// (Swift.CancellationError error 1.)") is not a sentence for a banner.
+    /// Every caller that shows or speaks a generation's failure asks here.
+    func textToSpeechFailureMessage(_ error: Error, sourceID: String) -> String? {
+        Self.textToSpeechFailureMessage(
+            error,
+            listenerStopped: listenerStoppedTextToSpeechSourceIDs.contains(sourceID)
+        )
+    }
+
+    nonisolated static func textToSpeechFailureMessage(_ error: Error, listenerStopped: Bool) -> String? {
+        if listenerStopped || isCancelledTextToSpeechGeneration(error) { return nil }
+        return error.localizedDescription
+    }
+
+    /// A generation whose task was cancelled, or whose speech request was
+    /// cancelled under it.
+    nonisolated static func isCancelledTextToSpeechGeneration(_ error: Error) -> Bool {
+        if error is CancellationError { return true }
+        let bridged = error as NSError
+        return bridged.domain == NSURLErrorDomain && bridged.code == NSURLErrorCancelled
+    }
+
     /// Runs one source's generation as a task the listener can stop. The task
     /// still ends when its caller is cancelled, as it did when it ran inline.
     private func runStoppableTextToSpeechGeneration<Output: Sendable>(
@@ -481,8 +507,12 @@ extension MobileAudioReviewViewModel {
                 _ = try await prepareSourceAudio(sourceID: source.id)
                 completedCount += 1
             } catch {
+                // A source the listener stopped is still left alone for the
+                // rest of this launch; it only has nothing to report.
                 failedAutomaticSourceAudioIDs.insert(source.id)
-                errorMessage = "Automatic audio for \(source.title) failed: \(error.localizedDescription)"
+                if let message = textToSpeechFailureMessage(error, sourceID: source.id) {
+                    errorMessage = "Automatic audio for \(source.title) failed: \(message)"
+                }
             }
         }
     }
@@ -568,11 +598,14 @@ extension MobileAudioReviewViewModel {
                 playsOpeningWhenReady: true,
                 error: error
             )
-            errorMessage = error.localizedDescription
+            // A cancellation that was not the listener's is resumed above, and
+            // has no message either.
+            guard let message = textToSpeechFailureMessage(error, sourceID: source.id) else { return }
+            errorMessage = message
             if MobileRealtimeVoice.controller.isActive {
                 return
             } else {
-                speakAndResumeListening(error.localizedDescription, pausePlayback: true, resumePlaybackAfterSpeech: true)
+                speakAndResumeListening(message, pausePlayback: true, resumePlaybackAfterSpeech: true)
             }
         }
     }

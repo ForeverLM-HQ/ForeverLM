@@ -483,9 +483,11 @@ extension MobileAudioReviewViewModel {
             }
             if pendingTextToSpeechAfterPreparationSourceID == source.id {
                 pendingTextToSpeechAfterPreparationSourceID = nil
-                errorMessage = error.localizedDescription
-                if !MobileRealtimeVoice.controller.isActive {
-                    speakWithoutListening(error.localizedDescription)
+                if let message = textToSpeechFailureMessage(error, sourceID: source.id) {
+                    errorMessage = message
+                    if !MobileRealtimeVoice.controller.isActive {
+                        speakWithoutListening(message)
+                    }
                 }
             }
             throw error

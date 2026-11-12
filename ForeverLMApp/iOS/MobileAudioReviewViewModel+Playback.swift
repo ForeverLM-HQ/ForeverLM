@@ -237,7 +237,9 @@ extension MobileAudioReviewViewModel {
         do {
             _ = try await prepareSourceAudio(sourceID: nextChapter.id)
         } catch {
-            errorMessage = "The next chapter could not be generated: \(error.localizedDescription)"
+            if let message = textToSpeechFailureMessage(error, sourceID: nextChapter.id) {
+                errorMessage = "The next chapter could not be generated: \(message)"
+            }
         }
     }
 
@@ -328,7 +330,9 @@ extension MobileAudioReviewViewModel {
                 playsOpeningWhenReady: true
             )
         } catch {
-            errorMessage = error.localizedDescription
+            if let message = textToSpeechFailureMessage(error, sourceID: sourceID) {
+                errorMessage = message
+            }
         }
     }
 
@@ -388,7 +392,9 @@ extension MobileAudioReviewViewModel {
             do {
                 _ = try await prepareSourceAudio(sourceID: nextSourceID)
             } catch {
-                errorMessage = "The next chapter could not be generated: \(error.localizedDescription)"
+                if let message = textToSpeechFailureMessage(error, sourceID: nextSourceID) {
+                    errorMessage = "The next chapter could not be generated: \(message)"
+                }
                 return
             }
         } else if isPreparingAudio(sourceID: nextSourceID) {
