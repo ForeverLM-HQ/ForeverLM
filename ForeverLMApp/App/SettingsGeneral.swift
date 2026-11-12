@@ -249,22 +249,29 @@ struct SettingsThinkFirstSection: View {
 
 /// Signed up for beta releases (`BetaReleases`), synced so the switch follows
 /// another Mac or MCP; `AppUpdateController` sees the change and checks the
-/// feed again. A small switch under the version in Settings' sidebar.
+/// feed again. Its own line under the version in Settings' sidebar: the label
+/// leading, a small switch trailing.
 struct SettingsBetaReleasesToggle: View {
     @PreferenceStorage(Prefs.Lifecycle.betaReleases)
     private var betaReleasesSignedUp: Bool
 
     var body: some View {
-        Toggle("Beta releases", isOn: Binding(
-            get: { betaReleasesSignedUp },
-            set: { BetaReleases.setSignedUp($0) }
-        ))
-        .toggleStyle(.switch)
-        .controlSize(.mini)
-        .font(.system(size: 10))
-        .foregroundStyle(.secondary)
+        HStack(spacing: 8) {
+            Text("Beta releases")
+                .font(.system(size: 11))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            Spacer(minLength: 0)
+            Toggle("Beta releases", isOn: Binding(
+                get: { betaReleasesSignedUp },
+                set: { BetaReleases.setSignedUp($0) }
+            ))
+            .toggleStyle(.switch)
+            .controlSize(.mini)
+            .labelsHidden()
+            .accessibilityIdentifier("settings.general.betaReleases")
+        }
         .help("Early builds and beta features, such as the Canvas, on every Mac you use")
-        .accessibilityIdentifier("settings.general.betaReleases")
     }
 }
 

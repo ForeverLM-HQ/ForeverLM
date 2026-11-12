@@ -504,23 +504,27 @@ private struct SettingsSidebar: View {
     }
 
     private var footer: some View {
-        HStack(spacing: 8) {
-            Image(nsImage: AppIconImage.shared)
-                .resizable()
-                .scaledToFit()
-                .frame(width: 24, height: 24)
-            VStack(alignment: .leading, spacing: 0) {
-                Text("ForeverLM")
-                    .font(.system(size: 11, weight: .medium))
-                if let appVersion {
-                    Text(RunningBuildChannel.isBeta ? "Version \(appVersion) Beta" : "Version \(appVersion)")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.tertiary)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 8) {
+                Image(nsImage: AppIconImage.shared)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 24, height: 24)
+                VStack(alignment: .leading, spacing: 0) {
+                    Text("ForeverLM")
+                        .font(.system(size: 11, weight: .medium))
+                    if let appVersion {
+                        Text(RunningBuildChannel.isBeta ? "Version \(appVersion) Beta" : "Version \(appVersion)")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.tertiary)
+                    }
                 }
+                .lineLimit(1)
+                Spacer(minLength: 0)
             }
-            Spacer(minLength: 0)
-            // Beta releases sit with the version they change; the team scope
-            // has no say in updates.
+            // Beta releases sit on their own line under the version they
+            // change, so the label never wraps beside it; the team scope has
+            // no say in updates.
             if scope == .personal {
                 SettingsBetaReleasesToggle()
             }
