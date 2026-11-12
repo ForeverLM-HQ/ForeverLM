@@ -120,9 +120,15 @@ actor ArticleSpeechVoicePreviewRepository {
         return raw.sha256Hex
     }
 
-    /// The device's cache.
+    /// The device's cache. A sample an earlier build wrapped at another sample
+    /// rate than its model sends plays slow and deep (HeyGen's did), so it is
+    /// not a sample: the caller makes it again and `save` replaces the file.
     nonisolated static func cachedData(modelID: String, voiceID: String) -> Data? {
-        try? Data(contentsOf: fileURL(modelID: modelID, voiceID: voiceID))
+        guard let data = try? Data(contentsOf: fileURL(modelID: modelID, voiceID: voiceID)),
+              ArticleSpeechAudioValidation.isWrappedAtModelSampleRate(data, modelID: modelID) else {
+            return nil
+        }
+        return data
     }
 
     /// Where the samples already made live, named by the same key
@@ -141,7 +147,8 @@ actor ArticleSpeechVoicePreviewRepository {
             request.timeoutInterval = 8
             guard let (data, response) = try? await URLSession.shared.data(for: request),
                   (response as? HTTPURLResponse)?.statusCode == 200,
-                  data.count > 1_000 else { continue }
+                  data.count > 1_000,
+                  ArticleSpeechAudioValidation.isWrappedAtModelSampleRate(data, modelID: modelID) else { continue }
             return data
         }
         return nil

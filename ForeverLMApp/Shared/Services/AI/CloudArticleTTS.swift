@@ -452,7 +452,8 @@ enum CloudArticleTTS {
                 narrationVersion: sourceType == "paper" ? PaperNarrationFilter.version : nil,
                 sourceContentSignature: sourceContentSignature,
                 narrationPreparationSignature: narrationPreparationSignature,
-                generatedOnPlatform: generatedOnPlatform
+                generatedOnPlatform: generatedOnPlatform,
+                pcmSampleRate: ArticleSpeechCatalog.pcmSampleRate(forModel: selection.model)
             )
         }
 
@@ -626,10 +627,17 @@ enum CloudArticleTTS {
         guard let progress = SyncedArticleAudioStore.loadGenerationProgress(sourceID: sourceID) else {
             return nil
         }
+        // The prefix must also be wrapped at the model's own sample rate: a
+        // journal an earlier build wrote records none, and its PCM went into
+        // a 24 kHz container whatever the model sent.
+        let modelRate = ArticleSpeechCatalog.pcmSampleRate(forModel: selection.model)
+        let wrappedRate = progress.pcmSampleRate
+            ?? ArticleSpeechPCMTranscode.sampleRateBeforeRatesWereRecorded
         guard progress.contentSignature == signature,
               progress.model == selection.model,
               progress.voice == (selection.voice ?? ""),
-              progress.plannedRequestCount == plannedRequestCount else {
+              progress.plannedRequestCount == plannedRequestCount,
+              modelRate == nil || modelRate == wrappedRate else {
             SyncedArticleAudioStore.clearGenerationProgress(sourceID: sourceID)
             return nil
         }
@@ -656,6 +664,7 @@ enum CloudArticleTTS {
               manifest.schemaVersion == SyncedArticleAudioManifest.schemaVersion,
               manifest.usesCurrentNarration,
               manifest.speaksInOneVoice,
+              manifest.playsAtRecordedSpeed,
               !ArticleSpeechCatalog.isRetiredModel(manifest.model),
               manifest.contentSignature == signature,
               (try? SyncedArticleAudioStore.chunkURLs(for: manifest)) != nil else {
@@ -877,7 +886,7 @@ enum CloudArticleTTS {
         var payload: [String: Any] = [
             "model": model.wireModelID,
             "input": text,
-            "response_format": model.responseFormat.rawValue,
+            "response_format": model.responseFormat.wireValue,
             "voice": voice,
         ]
         var request = URLRequest(url: model.speechEndpoint)
@@ -1207,9 +1216,9 @@ enum CloudArticleTTS {
                 throw malformed("The model provider returned audio that was not a valid MP3 stream.")
             }
             playableData = data
-        case .pcm:
+        case .pcm(let sampleRate):
             do {
-                playableData = try ArticleSpeechPCMTranscode.m4aData(fromPCM: data)
+                playableData = try ArticleSpeechPCMTranscode.m4aData(fromPCM: data, sampleRate: sampleRate)
             } catch {
                 throw malformed(error.localizedDescription)
             }
@@ -1232,7 +1241,7 @@ enum CloudArticleTTS {
         return SpeechResponse(
             data: playableData,
             requestID: requestID?.isEmpty == false ? requestID : nil,
-            contentType: responseFormat == .pcm ? "audio/mp4" : contentType,
+            contentType: responseFormat.pcmSampleRate != nil ? "audio/mp4" : contentType,
             fileExtension: responseFormat.storedFileExtension,
             text: inputText
         )

@@ -318,6 +318,37 @@ final class SyncedArticleAudioStoreTests: XCTestCase {
         ))
     }
 
+    /// HeyGen sends 44.1 kHz PCM, and before 2026-11-11 every PCM answer went
+    /// into a 24 kHz container: such a prefix plays at 0.54x. A journal that
+    /// records no rate is one of those, and is not stitched onto audio
+    /// wrapped at the model's own rate.
+    func testJournalWrappedAtAnotherSampleRateIsRefusedAndDeleted() throws {
+        let sourceID = "resume-\(UUID().uuidString)"
+        defer { try? FileManager.default.removeItem(at: SyncedArticleAudioStore.sourceDirectory(sourceID: sourceID)) }
+        let heygen = "heygen/heygen-voice-1-turbo"
+        let selection = CloudArticleTTS.Selection(model: heygen, voice: "nadine")
+
+        let chunks = try writeChunkFiles(sourceID: sourceID, count: 2)
+        let journal = makeGenerationProgress(sourceID: sourceID, model: heygen, voice: "nadine", chunks: chunks)
+        XCTAssertEqual(journal.pcmSampleRate, 44_100)
+        try writeGenerationProgress(journal)
+        XCTAssertNotNil(CloudArticleTTS.resumableProgress(
+            sourceID: sourceID, signature: "narration-signature", selection: selection, plannedRequestCount: 5
+        ))
+
+        // The same journal as an earlier build wrote it: no rate recorded.
+        let url = SyncedArticleAudioStore.generationProgressURL(sourceID: sourceID)
+        var stored = try XCTUnwrap(
+            JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any]
+        )
+        XCTAssertNotNil(stored.removeValue(forKey: "pcmSampleRate"))
+        try JSONSerialization.data(withJSONObject: stored).write(to: url, options: .atomic)
+        XCTAssertNil(CloudArticleTTS.resumableProgress(
+            sourceID: sourceID, signature: "narration-signature", selection: selection, plannedRequestCount: 5
+        ))
+        XCTAssertFalse(FileManager.default.fileExists(atPath: url.path))
+    }
+
     func testJournalWhoseAudioIsGoneIsNotResumable() throws {
         let sourceID = "resume-\(UUID().uuidString)"
         defer { try? FileManager.default.removeItem(at: SyncedArticleAudioStore.sourceDirectory(sourceID: sourceID)) }

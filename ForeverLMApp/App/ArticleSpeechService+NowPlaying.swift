@@ -183,7 +183,8 @@ extension ArticleSpeechService {
                 : nil,
             sourceContentSignature: context.sourceContentSignature,
             narrationPreparationSignature: context.narrationPreparationSignature,
-            generatedOnPlatform: "macos"
+            generatedOnPlatform: "macos",
+            pcmSampleRate: ArticleSpeechCatalog.pcmSampleRate(forModel: context.model)
         )
 
         do {

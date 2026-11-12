@@ -90,18 +90,38 @@ struct ArticleSpeechVoice: Identifiable, Hashable, Sendable {
 
 /// Wire formats OpenRouter's speech endpoint returns. Its API reference lists
 /// `response_format: mp3 | pcm` for every speech model (checked 2026-09-27).
-/// PCM responses are raw 24 kHz, 16-bit mono samples and must be put in a
-/// playable container before they are cached or synced, so PCM is asked for
-/// only where that sample format is known; everything else is MP3, which
+/// A PCM response is raw 16-bit little-endian mono samples and nothing in it
+/// says how many there are to the second: Gemini and OpenAI send 24 kHz,
+/// HeyGen 44.1 kHz. It is put in a playable container before it is cached or
+/// synced, and a container written at another rate than the samples were made
+/// at plays them at the wrong speed and pitch (HeyGen wrapped at 24 kHz ran at
+/// 0.54x, nearly an octave low). So PCM is asked for only where the rate is
+/// known, and the rate is part of the format; everything else is MP3, which
 /// describes itself.
-enum ArticleSpeechResponseFormat: String, Hashable, Sendable {
+enum ArticleSpeechResponseFormat: Hashable, Sendable {
     case mp3
-    case pcm
+    case pcm(sampleRate: Int)
+
+    /// What `response_format` carries in the request.
+    var wireValue: String {
+        switch self {
+        case .mp3: return "mp3"
+        case .pcm: return "pcm"
+        }
+    }
 
     var storedFileExtension: String {
         switch self {
         case .mp3: return "mp3"
         case .pcm: return "m4a"
+        }
+    }
+
+    /// Samples per second of the raw PCM this format returns; nil for MP3.
+    var pcmSampleRate: Int? {
+        switch self {
+        case .mp3: return nil
+        case .pcm(let sampleRate): return sampleRate
         }
     }
 }
@@ -1450,7 +1470,7 @@ enum ArticleSpeechCatalog {
             maker: "OpenAI",
             voices: openAIRealtimeVoices,
             languages: .multilingual,
-            responseFormat: .pcm,
+            responseFormat: .pcm(sampleRate: 24_000),
             chunkLimit: realtimeChunkLimit,
             leadChunkLimit: standardLeadChunkLimit
         ),
@@ -1587,7 +1607,7 @@ enum ArticleSpeechCatalog {
             languages: geminiLanguages,
             // OpenRouter's Gemini adapter returns Google's 24 kHz PCM, which
             // own-key narration transcodes.
-            responseFormat: .pcm,
+            responseFormat: .pcm(sampleRate: 24_000),
             chunkLimit: geminiChunkLimit,
             leadChunkLimit: geminiLeadChunkLimit
         ),
@@ -1628,10 +1648,11 @@ enum ArticleSpeechCatalog {
             maker: "HeyGen",
             voices: [],
             languages: .unstated,
-            // HeyGen streams 44.1 kHz mono PCM and rejects MP3 requests. This
-            // is a distinct wire contract, not a preference: its OpenRouter
-            // adapter answers `response_format: mp3` with HTTP 400.
-            responseFormat: .pcm,
+            // HeyGen streams 44.1 kHz mono PCM (its OpenRouter model page)
+            // and rejects MP3 requests. This is a distinct wire contract, not
+            // a preference: its OpenRouter adapter answers
+            // `response_format: mp3` with HTTP 400.
+            responseFormat: .pcm(sampleRate: 44_100),
             chunkLimit: untunedChunkLimit,
             leadChunkLimit: untunedLeadChunkLimit,
             curatedVoiceCount: 0
@@ -1643,7 +1664,7 @@ enum ArticleSpeechCatalog {
             maker: "HeyGen",
             voices: [],
             languages: .unstated,
-            responseFormat: .pcm,
+            responseFormat: .pcm(sampleRate: 44_100),
             chunkLimit: untunedChunkLimit,
             leadChunkLimit: untunedLeadChunkLimit,
             curatedVoiceCount: 0
@@ -1655,7 +1676,7 @@ enum ArticleSpeechCatalog {
             maker: "HeyGen",
             voices: [],
             languages: .unstated,
-            responseFormat: .pcm,
+            responseFormat: .pcm(sampleRate: 44_100),
             chunkLimit: untunedChunkLimit,
             leadChunkLimit: untunedLeadChunkLimit,
             curatedVoiceCount: 0
@@ -1700,7 +1721,7 @@ enum ArticleSpeechCatalog {
             voices: geminiVoices,
             languages: .unstated,
             // Every Gemini TTS model takes only PCM; asking for mp3 is a 400.
-            responseFormat: .pcm,
+            responseFormat: .pcm(sampleRate: 24_000),
             chunkLimit: geminiChunkLimit,
             leadChunkLimit: geminiLeadChunkLimit
         ),
@@ -1712,7 +1733,7 @@ enum ArticleSpeechCatalog {
             voices: geminiVoices,
             languages: .unstated,
             // Every Gemini TTS model takes only PCM; asking for mp3 is a 400.
-            responseFormat: .pcm,
+            responseFormat: .pcm(sampleRate: 24_000),
             chunkLimit: geminiChunkLimit,
             leadChunkLimit: geminiLeadChunkLimit
         ),
@@ -1795,6 +1816,23 @@ enum ArticleSpeechCatalog {
     static func model(id: String) -> ArticleSpeechModelOption? {
         models.first { $0.id == id }
     }
+
+    /// Samples per second of the raw PCM `modelID` answers with, from what
+    /// this build records about the model; nil for a model that answers MP3
+    /// and for one this build does not know. Read from the build rather than
+    /// from `models` because it judges audio already stored, which must not
+    /// depend on whether this device has read OpenRouter's directory yet.
+    static func pcmSampleRate(forModel modelID: String) -> Int? {
+        recordedPCMSampleRates[modelID.lowercased()]
+    }
+
+    private static let recordedPCMSampleRates: [String: Int] = {
+        var rates: [String: Int] = [:]
+        for option in curatedModels + learnedModels {
+            rates[option.id.lowercased()] = option.responseFormat.pcmSampleRate
+        }
+        return rates
+    }()
 
     /// USD per million narrated characters for a slug, from OpenRouter's
     /// catalog, whether or not the model is offered today — a ledger row made

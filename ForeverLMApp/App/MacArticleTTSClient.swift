@@ -130,17 +130,17 @@ enum MacArticleTTSClient {
         let payload: [String: Any] = [
             "model": modelOption.wireModelID,
             "input": text,
-            "response_format": modelOption.responseFormat.rawValue,
+            "response_format": modelOption.responseFormat.wireValue,
             "voice": resolvedVoice,
         ]
         return try await postJSONAudio(
             providerName: modelOption.speaksThroughOpenAI ? "OpenAI" : "OpenRouter",
             model: model,
-            cacheParts: ["macos", "openrouter", model, resolvedVoice, modelOption.responseFormat.rawValue, text],
+            cacheParts: ["macos", "openrouter", model, resolvedVoice, modelOption.responseFormat.wireValue, text],
             url: modelOption.speechEndpoint,
             headers: ["Authorization": "Bearer \(apiKey)"],
             payload: payload,
-            transcodePCM: modelOption.responseFormat == .pcm
+            pcmSampleRate: modelOption.responseFormat.pcmSampleRate
         )
     }
 
@@ -165,7 +165,7 @@ enum MacArticleTTSClient {
             let resolvedVoice = availableVoices.isEmpty
                 ? ""
                 : (availableVoices.contains(trimmedVoice) ? trimmedVoice : availableVoices[0])
-            let responseFormat = ArticleSpeechCatalog.model(id: model)?.responseFormat.rawValue ?? "mp3"
+            let responseFormat = ArticleSpeechCatalog.model(id: model)?.responseFormat.wireValue ?? "mp3"
             return ["macos", "openrouter", model, resolvedVoice, responseFormat, text]
         case .groq:
             let availableVoices = MacArticleSpeechSettings.voices(for: .groq, model: model)
@@ -245,16 +245,22 @@ enum MacArticleTTSClient {
         headers: [String: String],
         payload: [String: Any],
         timeoutInterval: TimeInterval = 240,
-        transcodePCM: Bool = false
+        // Samples per second of the raw PCM this model answers with, which is
+        // then wrapped in a playable container; nil for a model that answers
+        // audio that describes itself.
+        pcmSampleRate: Int? = nil
     ) async throws -> Data {
         let cacheKey = ArticleSpeechAudioCache.key(parts: cacheParts)
         if let cached = ArticleSpeechAudioCache.data(for: cacheKey) {
             let spokenText = (payload["input"] ?? payload["text"]) as? String ?? ""
-            if audioValidationFailure(data: cached, text: spokenText) == nil {
+            if audioValidationFailure(data: cached, text: spokenText) == nil,
+               ArticleSpeechAudioValidation.isWrappedAtModelSampleRate(cached, modelID: model) {
                 return cached
             }
             // Never let a malformed provider response become permanent merely
-            // because it was cached without duration validation.
+            // because it was cached without duration validation — nor one an
+            // earlier build wrapped at another sample rate than the model
+            // sends, which plays slow and deep.
             ArticleSpeechAudioCache.removeData(for: cacheKey)
         }
 
@@ -327,9 +333,9 @@ enum MacArticleTTSClient {
                     )
                 }
 
-                let playableData = transcodePCM
-                    ? try ArticleSpeechPCMTranscode.m4aData(fromPCM: data)
-                    : data
+                let playableData = try pcmSampleRate.map {
+                    try ArticleSpeechPCMTranscode.m4aData(fromPCM: data, sampleRate: $0)
+                } ?? data
                 if let failure = audioValidationFailure(data: playableData, text: spokenText) {
                     ArticleSpeechDiagnostics.append(
                         "MALFORMED_AUDIO provider=\(providerName) model=\(model) attempt=\(attempt) \(failure)"

@@ -63,7 +63,7 @@ struct OwnOpenRouterKeyMediaRouteTests {
         #expect(openAI.speaksThroughOpenAI)
         #expect(openAI.wireModelID == "gpt-realtime-2.1-mini")
         #expect(openAI.defaultVoiceID == "marin")
-        #expect(openAI.responseFormat == .pcm)
+        #expect(openAI.responseFormat == .pcm(sampleRate: 24_000))
         #expect(openAI.priceLabel == "Included")
         // The settings tool words the price from the slug alone, and must say
         // the same thing as the card: not "Price unknown" for a voice the
@@ -188,13 +188,15 @@ struct SpeechDirectoryTests {
         let gemini = try #require(options.first { $0.id == ArticleSpeechCatalog.defaultModelID })
         #expect(gemini.voices.map(\.id) == ["Zephyr", "Kore"])
         #expect(gemini.languageSupport(voice: "Kore") == ArticleSpeechCatalog.geminiLanguages)
-        #expect(gemini.responseFormat == .pcm)
+        #expect(gemini.responseFormat == .pcm(sampleRate: 24_000))
         #expect(gemini.maker == "Google")
 
         // HeyGen's adapter is PCM-only. A directory-only model defaults to
         // MP3, so this overlay is the contract that keeps a live row usable.
         let heygen = try #require(options.first { $0.id == "heygen/heygen-voice-1-turbo:free" })
-        #expect(heygen.responseFormat == .pcm)
+        // Its PCM is 44.1 kHz, not the 24 kHz Gemini and OpenAI send.
+        #expect(heygen.responseFormat == .pcm(sampleRate: 44_100))
+        #expect(heygen.responseFormat.wireValue == "pcm")
         #expect(heygen.voices.map(\.id) == ["nadine", "tabitha"])
 
         // OpenRouter lists no voices for Fish Audio; the voice its model page
@@ -343,5 +345,104 @@ struct SpeechDirectoryTests {
         #expect(manifest(model: "fish-audio/drama-3", voice: "b347db033a6549378b48d00acb0d06cd").usesSupportedPlaybackFormat)
         // Any audio made with no voice named is made again, whatever its model.
         #expect(!manifest(model: "bytedance-seed/seed-audio-1-0", voice: "").usesSupportedPlaybackFormat)
+    }
+
+    /// One second of a 440 Hz tone as the raw 16-bit mono PCM a speech model
+    /// sends at `sampleRate`.
+    private func tonePCM(sampleRate: Int) -> Data {
+        var pcm = Data(capacity: sampleRate * 2)
+        for index in 0..<sampleRate {
+            let sample = Int16(12_000 * sin(2 * Double.pi * 440 * Double(index) / Double(sampleRate)))
+            withUnsafeBytes(of: sample.littleEndian) { pcm.append(contentsOf: $0) }
+        }
+        return pcm
+    }
+
+    /// HeyGen sends 44.1 kHz PCM. Wrapped at the 24 kHz Gemini sends, a second
+    /// of it lasted 1.84 s: slow, and nearly an octave low (product owner,
+    /// 2026-11-11: "crazy slowed down. And way too deep").
+    @Test("PCM is wrapped at the rate its model sends, so a second of speech lasts a second")
+    func pcmIsWrappedAtItsModelsSampleRate() throws {
+        let heygen = "heygen/heygen-voice-1-turbo:free"
+        #expect(ArticleSpeechCatalog.pcmSampleRate(forModel: heygen) == 44_100)
+        #expect(ArticleSpeechCatalog.pcmSampleRate(forModel: "heygen/heygen-voice-1") == 44_100)
+        #expect(ArticleSpeechCatalog.pcmSampleRate(forModel: ArticleSpeechCatalog.defaultModelID) == 24_000)
+        #expect(ArticleSpeechCatalog.pcmSampleRate(forModel: ArticleSpeechCatalog.openAIRealtimeModelID) == 24_000)
+        // MP3 describes itself, and nothing is assumed of an unknown model.
+        #expect(ArticleSpeechCatalog.pcmSampleRate(forModel: ArticleSpeechCatalog.grokModelID) == nil)
+        #expect(ArticleSpeechCatalog.pcmSampleRate(forModel: "acme/new-voice") == nil)
+
+        let pcm = tonePCM(sampleRate: 44_100)
+        let wrapped = try ArticleSpeechPCMTranscode.m4aData(fromPCM: pcm, sampleRate: 44_100)
+        let player = try AVAudioPlayer(data: wrapped)
+        #expect(player.format.sampleRate == 44_100)
+        #expect(abs(player.duration - 1) < 0.1)
+        #expect(ArticleSpeechAudioValidation.isWrappedAtModelSampleRate(wrapped, modelID: heygen))
+
+        // What the earlier build stored: the same samples in a 24 kHz
+        // container. A request cache or a voice sample holding it is not reused.
+        let slow = try ArticleSpeechPCMTranscode.m4aData(fromPCM: pcm, sampleRate: 24_000)
+        #expect(abs(try AVAudioPlayer(data: slow).duration - 1.8375) < 0.1)
+        #expect(!ArticleSpeechAudioValidation.isWrappedAtModelSampleRate(slow, modelID: heygen))
+        // The same container is right for a model that does send 24 kHz, and
+        // an MP3 model's audio is never judged by a rate.
+        #expect(ArticleSpeechAudioValidation.isWrappedAtModelSampleRate(
+            slow, modelID: ArticleSpeechCatalog.defaultModelID
+        ))
+        #expect(ArticleSpeechAudioValidation.isWrappedAtModelSampleRate(
+            slow, modelID: ArticleSpeechCatalog.grokModelID
+        ))
+    }
+
+    @Test("a recording wrapped at another rate than its model sends is made again")
+    func slowRecordingsAreMadeAgain() {
+        func manifest(model: String, pcmSampleRate: Int?) -> SyncedArticleAudioManifest {
+            SyncedArticleAudioManifest(
+                schemaVersion: SyncedArticleAudioManifest.schemaVersion,
+                sourceID: "article-1",
+                title: "An article",
+                subtitle: nil,
+                sourceType: "article",
+                sourceURL: "https://example.com/article",
+                provider: ArticleSpeechCatalog.provider,
+                model: model,
+                voice: "nadine",
+                voiceLabel: "Nadine",
+                contentSignature: "content-signature",
+                totalCharacters: 120,
+                createdAt: Date(),
+                chunks: [
+                    SyncedArticleAudioManifest.Chunk(index: 0, fileName: "chunk-0000.m4a", byteCount: 128, text: nil)
+                ],
+                sourceTextFileName: SyncedArticleAudioStore.sourceTextFileName,
+                generatedOnPlatform: "ios",
+                pcmSampleRate: pcmSampleRate
+            )
+        }
+        // A manifest that records no rate was wrapped at 24 kHz: wrong for
+        // HeyGen, right for Gemini, whose recordings keep playing.
+        let heygen = "heygen/heygen-voice-1-turbo"
+        #expect(!manifest(model: heygen, pcmSampleRate: nil).playsAtRecordedSpeed)
+        #expect(!manifest(model: heygen, pcmSampleRate: nil).usesSupportedPlaybackFormat)
+        #expect(manifest(model: heygen, pcmSampleRate: 44_100).usesSupportedPlaybackFormat)
+        #expect(manifest(model: ArticleSpeechCatalog.defaultModelID, pcmSampleRate: nil).usesSupportedPlaybackFormat)
+        #expect(manifest(model: ArticleSpeechCatalog.defaultModelID, pcmSampleRate: 24_000).usesSupportedPlaybackFormat)
+        // MP3 models and models this build does not know have no rate to miss.
+        #expect(manifest(model: ArticleSpeechCatalog.grokModelID, pcmSampleRate: nil).usesSupportedPlaybackFormat)
+        #expect(manifest(model: "acme/new-voice", pcmSampleRate: nil).usesSupportedPlaybackFormat)
+
+        // An interrupted generation is not resumed from a prefix that plays
+        // slow: the journal an earlier build wrote records no rate either.
+        let journal = ArticleSpeechGenerationProgress(
+            sourceID: "article-1",
+            contentSignature: "content-signature",
+            model: heygen,
+            voice: "nadine",
+            plannedRequestCount: 4,
+            completedRequestCount: 2,
+            chunks: [],
+            updatedAt: Date()
+        )
+        #expect(journal.pcmSampleRate == 44_100)
     }
 }

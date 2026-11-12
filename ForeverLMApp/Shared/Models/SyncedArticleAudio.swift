@@ -19,11 +19,20 @@ enum ArticleSpeechPCMTranscodeError: LocalizedError {
     }
 }
 
-/// Converts the raw 24 kHz, mono, 16-bit little-endian PCM returned by Gemini
-/// speech models into compact AAC suitable for AVFoundation playback and iCloud
-/// sync. This performs file I/O and must only be called off the main actor.
+/// Converts the raw mono, 16-bit little-endian PCM a speech model returns into
+/// compact AAC suitable for AVFoundation playback and iCloud sync. The samples
+/// do not say how many there are to the second, so the caller names the rate
+/// the model sends (`ArticleSpeechResponseFormat.pcm`): there is no default,
+/// because a container written at another rate plays at the wrong speed and
+/// pitch. This performs file I/O and must only be called off the main actor.
 enum ArticleSpeechPCMTranscode {
-    static func m4aData(fromPCM pcm: Data, sampleRate: Double = 24_000) throws -> Data {
+    /// The rate every PCM response was wrapped at before the rate became part
+    /// of the format (2026-11-11), whatever the model sent: what stored audio
+    /// that records no rate was written at.
+    static let sampleRateBeforeRatesWereRecorded = 24_000
+
+    static func m4aData(fromPCM pcm: Data, sampleRate: Int) throws -> Data {
+        let sampleRate = Double(sampleRate)
         guard pcm.count >= 2, pcm.count.isMultiple(of: 2) else {
             throw ArticleSpeechPCMTranscodeError.malformedPCM
         }
@@ -81,6 +90,18 @@ enum ArticleSpeechAudioValidation {
     /// the severely compressed response that motivated this guard does not.
     static let maximumPlausibleWordsPerMinute = 300.0
     static let minimumLongFormWordCount = 80
+
+    /// False when `data` is PCM-model audio in a container written at another
+    /// sample rate than `modelID` sends, so it plays at the wrong speed and
+    /// pitch and is made again. The container states its own rate, which is
+    /// what lets a cache keyed only by the request catch an entry an earlier
+    /// build wrapped wrongly. True for a model that answers MP3 and for one
+    /// this build does not know; undecodable audio is another check's finding.
+    static func isWrappedAtModelSampleRate(_ data: Data, modelID: String) -> Bool {
+        guard let expected = ArticleSpeechCatalog.pcmSampleRate(forModel: modelID),
+              let player = try? AVAudioPlayer(data: data) else { return true }
+        return Int(player.format.sampleRate.rounded()) == expected
+    }
 
     static func failureReason(text: String, duration: TimeInterval) -> String? {
         guard duration.isFinite, duration > 0 else {
@@ -189,6 +210,10 @@ struct SyncedArticleAudioManifest: Codable, Equatable, Identifiable {
     /// "ios" or "macos". macOS records TTS usage per API call, so only
     /// iOS-generated manifests are imported as usage events on the Mac.
     var generatedOnPlatform: String? = nil
+    /// The sample rate the model's raw PCM was wrapped at, for a model that
+    /// answers PCM. Nil for MP3 audio, and for a manifest written before the
+    /// rate was recorded (`wrappedPCMSampleRate`).
+    var pcmSampleRate: Int? = nil
 
     var usesCurrentNarration: Bool {
         sourceType != "paper"
@@ -206,6 +231,23 @@ struct SyncedArticleAudioManifest: Codable, Equatable, Identifiable {
         !voice.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
     }
 
+    /// The rate this recording's PCM was wrapped at: what it records, or the
+    /// one rate everything was wrapped at before manifests recorded any.
+    var wrappedPCMSampleRate: Int {
+        pcmSampleRate ?? ArticleSpeechPCMTranscode.sampleRateBeforeRatesWereRecorded
+    }
+
+    /// False for audio whose container was written at another sample rate
+    /// than its model sends: HeyGen's 44.1 kHz PCM wrapped at 24 kHz plays at
+    /// 0.54x, slow and nearly an octave low, and is made again. Only the
+    /// audio: its prepared narration text (`usesCurrentNarration`) is still
+    /// reused. A model that answers MP3, or one this build does not know, has
+    /// no rate to disagree with.
+    var playsAtRecordedSpeed: Bool {
+        guard let modelRate = ArticleSpeechCatalog.pcmSampleRate(forModel: model) else { return true }
+        return wrappedPCMSampleRate == modelRate
+    }
+
     /// Device preferences select future generations; they do not invalidate a
     /// supported, content-matched recording that another device already made.
     /// Nor does OpenRouter's list: the speech catalog follows its directory
@@ -216,6 +258,7 @@ struct SyncedArticleAudioManifest: Codable, Equatable, Identifiable {
         schemaVersion == Self.schemaVersion
             && usesCurrentNarration
             && speaksInOneVoice
+            && playsAtRecordedSpeed
             && !ArticleSpeechCatalog.isRetiredModel(model)
             && !model.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !chunks.isEmpty
@@ -398,6 +441,11 @@ struct ArticleSpeechGenerationProgress: Codable, Equatable, Sendable {
     /// same count as `completedRequestCount`.
     let chunks: [SyncedArticleAudioManifest.Chunk]
     let updatedAt: Date
+    /// The sample rate those files' PCM was wrapped at, as the manifest
+    /// records it (`SyncedArticleAudioManifest.pcmSampleRate`): the model's
+    /// own, when this build wrote the journal. A resume must never stitch
+    /// correctly wrapped audio onto a prefix that plays slow.
+    let pcmSampleRate: Int?
 
     init(
         sourceID: String,
@@ -418,6 +466,7 @@ struct ArticleSpeechGenerationProgress: Codable, Equatable, Sendable {
         self.completedRequestCount = completedRequestCount
         self.chunks = chunks
         self.updatedAt = updatedAt
+        self.pcmSampleRate = ArticleSpeechCatalog.pcmSampleRate(forModel: model)
     }
 }
 
@@ -912,6 +961,7 @@ enum SyncedArticleAudioStore {
               manifest.schemaVersion == SyncedArticleAudioManifest.schemaVersion,
               manifest.usesCurrentNarration,
               manifest.speaksInOneVoice,
+              manifest.playsAtRecordedSpeed,
               hasAllChunks(for: manifest) else {
             return nil
         }
