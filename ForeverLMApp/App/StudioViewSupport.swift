@@ -253,12 +253,19 @@ enum StudioTopBar {
     /// top safe-area inset, ~52pt with the unified toolbar). Zero means the bar
     /// IS the band; raising this makes headers claim content below the band and
     /// StudioWindowChrome re-centers the traffic lights in the taller bar.
-    /// Kept at zero after two failed experiments: shrinking the band itself
+    /// Large changes failed twice: shrinking the band itself
     /// (bare titlebar, 46pt) left the sources tab row blank on macOS 26, and
     /// extending the bar to 60pt (+8) shifted the lights off the
     /// sidebar toggle's line and read as dead air around them. The 52pt band
-    /// with AppKit's own light centering is the known-good configuration.
-    static let extraBandHeight: CGFloat = 0
+    /// with AppKit's own light centering was the known-good configuration.
+    ///
+    /// 2pt (2026-11-11, product owner: "when the app is not in full screen
+    /// mode, this tab bar at the top is a little bit too narrow"): windowed,
+    /// the band is AppKit's 52pt while full screen draws
+    /// `StudioPanelChrome.headerHeight` (54pt), so +2 makes the two match.
+    /// Not seen in the app yet: if the lights sit off the toggle's line, this
+    /// is the one constant to move.
+    static let extraBandHeight: CGFloat = 2
     /// Left edge of the window's own controls beside the lights, Codex's:
     /// ‹ › and the sidebar toggle, 30pt each (~92→186pt).
     static let leadingControlsLeading: CGFloat = 92
