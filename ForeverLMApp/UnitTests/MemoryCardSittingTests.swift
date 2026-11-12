@@ -485,6 +485,85 @@ struct MemoryCardSittingTests {
         #expect(sitting.skippedCount == 0, "the repeat round skipped nothing")
     }
 
+    @Test("Delete takes a kept card out of the round unanswered, never deals it again, and Undo puts it back in front")
+    func deleteAndUndo() throws {
+        let draftCard = MemoryCardToCheck(
+            kind: .draft,
+            face: MemoryCard(cardID: "draft-one", front: "Draft front", back: "Draft back", origin: .drafted, deckID: "carddeck-src"),
+            deckID: "carddeck-src",
+            sourceID: "src",
+            quote: "The passage behind it",
+            seed: "seed-draft-one",
+            ideaID: nil,
+            draftedAt: Date(timeIntervalSinceReferenceDate: 800_000_000),
+            isRequested: false,
+            memoryItemID: nil
+        )
+        var sitting = MemoryCardSitting(
+            key: "cards-2026-11-12-d",
+            kind: .today,
+            cards: [
+                MemoryCardSitting.Card(itemID: "a", prompt: "A", back: "A back"),
+                MemoryCardSitting.Card(itemID: "b", prompt: "B", back: "B back"),
+                MemoryCardSitting.Card(itemID: "c", prompt: "C", back: "C back"),
+            ]
+        )
+        // Before or after the back shows: the card leaves, nothing answered.
+        sitting.showAnswer(attempt: "An answer")
+        let removedFirst = sitting.removeCurrent()
+        let removed = try #require(removedFirst)
+        #expect(removed.card.itemID == "a")
+        #expect(sitting.current?.itemID == "b")
+        #expect(sitting.isAnswerShown == false)
+        #expect(sitting.cardCount == 2)
+        #expect(sitting.results["a"] == nil)
+        #expect(sitting.removedItemIDs == ["a"])
+
+        // Answered on, then Undo: back in front, its question to answer.
+        sitting.showAnswer(attempt: "An answer")
+        _ = sitting.answer(remembered: true)
+        let restored = sitting.restore(removed)
+        #expect(restored)
+        #expect(sitting.current?.itemID == "a")
+        #expect(sitting.cardCount == 3)
+        #expect(sitting.removedItemIDs.isEmpty)
+        let restoredTwice = sitting.restore(removed)
+        #expect(restoredTwice == false, "a card is put back once")
+
+        // Deleting the last card finishes the first deal; Undo unfinishes it.
+        sitting.showAnswer(attempt: "An answer")
+        _ = sitting.answer(remembered: false)
+        let removedLast = sitting.removeCurrent()
+        let last = try #require(removedLast)
+        #expect(sitting.isRoundOver)
+        #expect(sitting.firstDealAnswered)
+        let restoredLast = sitting.restore(last)
+        #expect(restoredLast)
+        #expect(sitting.firstDealAnswered == false)
+        let removedAgain = sitting.removeCurrent()
+        let lastAgain = try #require(removedAgain)
+        #expect(sitting.isRoundOver)
+
+        // A deleted card is never dealt again by the sitting, and Undo after
+        // another round is dealt puts nothing back.
+        let dealt = sitting.dealMore([
+            MemoryCardSitting.Card(itemID: "c", prompt: "C", back: "C back"),
+            MemoryCardSitting.Card(itemID: "d", prompt: "D", back: "D back"),
+        ])
+        #expect(dealt)
+        #expect(sitting.cards.map(\.itemID) == ["d"])
+        let restoredLate = sitting.restore(lastAgain)
+        #expect(restoredLate == false)
+
+        // A draft is skipped, never deleted.
+        var practice = MemoryCardSitting(
+            key: "cards-2026-11-12-p", kind: .practice,
+            cards: [try #require(MemoryCardSitting.Card.draft(draftCard))]
+        )
+        let removedDraft = practice.removeCurrent()
+        #expect(removedDraft == nil)
+    }
+
     @Test("A notebook's Practice reads every kept card of its sources and its undecided drafts, a team copy's own twin included; its counts say kept, due and to check")
     func notebookPracticeRead() throws {
         let store = try KnowledgeStore(inMemory: true)

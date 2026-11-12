@@ -25,7 +25,7 @@ import SwiftUI
 ///
 /// Keys: Return in the answer field checks it (Shift-Return a new line),
 /// Command-Return is Show Answer; once the back shows, Return takes the verdict's grade when the check has
-/// one, ← or 1 is Forgot, → or 2 Remembered, D Go Deeper.
+/// one, ← or 1 is Forgot, → or 2 Remembered, D Go Deeper, ⌫ Delete Card.
 /// They are off while the answer field is up, which takes the keys, while
 /// the Reader is beside the review, which takes keys of its own, while a
 /// draft is being edited, and while Go Deeper's panel is up, whose answer
@@ -249,8 +249,12 @@ struct MemoryCardSessionView: View {
     private func cardView(_ card: MemoryCardSitting.Card) -> some View {
         let shown = sitting.isAnswerShown
         let tags = Self.tags(of: card)
-        let showsWordingMenu = card.isVariant || card.alwaysAsk
-        let hasTopRow = !tags.isEmpty || showsWordingMenu
+        // Every kept card carries its menu (Delete, and how it is worded); a
+        // draft has Skip and Edit under it instead.
+        let showsCardMenu = !card.isDraft
+        // The top row takes room of its own only for tags or the wording
+        // switch; the menu alone sits in the corner above the question.
+        let hasTopRow = !tags.isEmpty || card.isVariant || card.alwaysAsk
         return VStack(alignment: .leading, spacing: 0) {
             Text(card.prompt.foldingMathSpans())
                 .font(MemoryCardMetrics.frontFont)
@@ -288,15 +292,15 @@ struct MemoryCardSessionView: View {
         // card; then it rises to make room under the fold.
         .frame(maxWidth: .infinity, minHeight: Self.cardMinimumHeight, alignment: shown ? .topLeading : .leading)
         .overlay(alignment: .top) {
-            if hasTopRow {
+            if hasTopRow || showsCardMenu {
                 HStack(spacing: 8) {
                     MemoryCardTagLine(tags: tags)
                     Spacer(minLength: 0)
-                    if showsWordingMenu { wordingMenu(card) }
+                    if showsCardMenu { cardMenu(card) }
                 }
                 .padding(.leading, 34)
                 .padding(.trailing, 20)
-                .padding(.top, 18)
+                .padding(.top, hasTopRow ? 18 : 10)
             }
         }
         .memoryCardSurface()
@@ -376,23 +380,31 @@ struct MemoryCardSessionView: View {
         return tags
     }
 
-    /// How a card is worded, on a card asked in a rewording or one the
-    /// learner asked to keep in its own words: "This Asks Something Else"
-    /// takes the rewording out of the card's rotation and asks the card in
-    /// its own words; "Always Ask in Its Own Words" turns rewording off for
-    /// the card, and "Let Its Wording Vary" on again (docs/memory-design.md,
-    /// "Variations"). All Cards' menu carries the switch for any card.
-    private func wordingMenu(_ card: MemoryCardSitting.Card) -> some View {
+    /// The kept card's ⋯ menu. How it is worded, on a card asked in a
+    /// rewording or one the learner asked to keep in its own words: "This
+    /// Asks Something Else" takes the rewording out of the card's rotation and
+    /// asks the card in its own words; "Always Ask in Its Own Words" turns
+    /// rewording off for the card, and "Let Its Wording Vary" on again
+    /// (docs/memory-design.md, "Variations"). All Cards' menu carries the
+    /// switch for any card. Then Delete Card (⌫ once the back shows): the
+    /// card leaves the deck, with Undo at the foot of the window
+    /// (`StudioViewModel.deleteCardFromReview`).
+    private func cardMenu(_ card: MemoryCardSitting.Card) -> some View {
         Menu {
             if card.isVariant {
                 Button("This Asks Something Else") { session.reportAskedSomethingElse() }
                     .help("Take this rewording out and ask the card in its own words")
             }
-            if card.alwaysAsk {
-                Button("Let Its Wording Vary") { session.setAlwaysAsk(false) }
-            } else {
-                Button("Always Ask in Its Own Words") { session.setAlwaysAsk(true) }
+            if card.isVariant || card.alwaysAsk {
+                if card.alwaysAsk {
+                    Button("Let Its Wording Vary") { session.setAlwaysAsk(false) }
+                } else {
+                    Button("Always Ask in Its Own Words") { session.setAlwaysAsk(true) }
+                }
+                Divider()
             }
+            Button("Delete Card", role: .destructive) { deleteCard() }
+                .accessibilityIdentifier("memory.cards.delete")
         } label: {
             Image(systemName: "ellipsis")
                 .font(.system(size: 13, weight: .semibold))
@@ -405,8 +417,8 @@ struct MemoryCardSessionView: View {
         .menuIndicator(.hidden)
         .fixedSize()
         .hoverHighlight(cornerRadius: 6, inset: 0)
-        .help("How this card is worded")
-        .accessibilityLabel("Wording")
+        .help("Delete this card, or change how it is worded")
+        .accessibilityLabel("Card")
         .accessibilityIdentifier("memory.cards.wording")
     }
 
@@ -498,6 +510,10 @@ struct MemoryCardSessionView: View {
                 if keysEnabled, !session.isKeepingDraft {
                     hiddenShortcut("1") { answer(remembered: false) }
                     hiddenShortcut("2") { answer(remembered: true) }
+                    // ⌫ deletes a kept card (its ⋯ menu's Delete Card).
+                    if draft == nil {
+                        hiddenKey(.delete) { deleteCard() }
+                    }
                 }
             } else {
                 // An answer to check, or Show Answer to turn the card with
@@ -630,6 +646,17 @@ struct MemoryCardSessionView: View {
         exitEdge = remembered ? .trailing : .leading
         DispatchQueue.main.async {
             withAnimation(Self.dealAnimation) { session.answer(remembered: remembered) }
+        }
+    }
+
+    /// Delete Card: the card in front leaves to the left, as a card no longer
+    /// in the deck, and the next comes up; Undo at the window's foot puts it
+    /// back.
+    private func deleteCard() {
+        guard sitting.current?.isDraft == false, !session.isKeepingDraft else { return }
+        exitEdge = .leading
+        DispatchQueue.main.async {
+            withAnimation(Self.dealAnimation) { vm.deleteCardFromReview(session) }
         }
     }
 

@@ -663,14 +663,42 @@ extension StudioViewModel {
 
     /// Retires a card: never asked again; its item and answers stay.
     func retireMemoryCard(_ card: MemoryCardListing) async {
+        await retireMemoryCard(itemID: card.itemID)
+    }
+
+    func retireMemoryCard(itemID: String) async {
         do {
-            try await storage.retireMemoryCard(memoryItemID: card.itemID)
+            try await storage.retireMemoryCard(memoryItemID: itemID)
             memoryCardRevision &+= 1
             await refreshMemoryCardCounts()
         } catch {
             errorMessage = "The card could not be retired. \(error.localizedDescription)"
         }
     }
+
+    /// Delete in the card review (⌫, or the card's ⋯ menu): the card leaves
+    /// the deck at once and "Card deleted" waits with Undo at the foot of the
+    /// window. Undo puts it back in front of the learner; once the window
+    /// closes it is retired (`retireMemoryCard`), never asked again, its
+    /// answers kept. Nothing is written before then, so Undo needs nothing
+    /// reversed on any device.
+    func deleteCardFromReview(_ session: MemoryCardSessionModel) {
+        guard let removed = session.deleteCurrent() else { return }
+        let itemID = removed.card.itemID
+        deferDeletion(
+            message: "Card deleted",
+            deletionKey: Self.memoryCardRemovalKey(itemID),
+            gracePeriod: deletionGracePeriod,
+            undo: { [weak session] in
+                _ = session?.restore(removed)
+            },
+            commit: { [weak self] in
+                await self?.retireMemoryCard(itemID: itemID)
+            }
+        )
+    }
+
+    nonisolated static func memoryCardRemovalKey(_ itemID: String) -> String { "memory-card:\(itemID)" }
 
     // MARK: Counts
 

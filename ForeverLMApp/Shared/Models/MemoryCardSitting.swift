@@ -612,6 +612,12 @@ struct MemoryCardSitting: Equatable, Sendable {
     private(set) var recordedItemIDs: Set<String> = []
     /// The drafts this sitting skipped: dropped for good, never answered.
     private(set) var skippedItemIDs: Set<String> = []
+    /// The kept cards deleted in this sitting (`removeCurrent`): out of the
+    /// round, and never dealt again by it, unless Undo puts one back.
+    private(set) var removedItemIDs: Set<String> = []
+    /// Counts the rounds dealt, so Undo puts a card back only into the round
+    /// it was deleted from.
+    private(set) var roundNumber = 0
     /// Whether every card of the first deal has been answered: the sitting
     /// asked for nothing more than that, so leaving after it is not leaving
     /// early.
@@ -760,6 +766,46 @@ struct MemoryCardSitting: Equatable, Sendable {
         return draft
     }
 
+    /// A kept card deleted from the review, for Undo to put back
+    /// (`restore`).
+    struct Removed: Equatable, Sendable {
+        let card: Card
+        let round: Int
+        /// Whether the first deal counted as answered through before the
+        /// delete: deleting the last card of it finishes it.
+        let firstDealAnsweredBefore: Bool
+    }
+
+    /// Delete on the card on screen: it leaves the round, which moves on
+    /// with nothing answered and one card fewer. A draft is skipped, not
+    /// deleted, so nil for one; nil too when no card is on screen.
+    @discardableResult
+    mutating func removeCurrent() -> Removed? {
+        guard let card = current, !card.isDraft else { return nil }
+        let removed = Removed(card: card, round: roundNumber, firstDealAnsweredBefore: firstDealAnswered)
+        cards.remove(at: position)
+        results[card.itemID] = nil
+        removedItemIDs.insert(card.itemID)
+        hideAnswer()
+        if !isRepeat, position >= cards.count { firstDealAnswered = true }
+        return removed
+    }
+
+    /// Undo of a delete: the card comes back in front of the learner, its
+    /// question to answer, in the round it left. False once that round is
+    /// over and another dealt, or when the card is in the round again.
+    @discardableResult
+    mutating func restore(_ removed: Removed) -> Bool {
+        let itemID = removed.card.itemID
+        guard removed.round == roundNumber, removedItemIDs.contains(itemID),
+              !cards.contains(where: { $0.itemID == itemID }) else { return false }
+        removedItemIDs.remove(itemID)
+        cards.insert(removed.card, at: min(position, cards.count))
+        hideAnswer()
+        if !isRepeat { firstDealAnswered = removed.firstDealAnsweredBefore }
+        return true
+    }
+
     /// Edit, then Keep, on a draft before it is answered: the card the
     /// learner kept takes the draft's place, its answer still to give.
     /// Nothing changes when no draft of the round is `itemID`.
@@ -786,7 +832,10 @@ struct MemoryCardSitting: Equatable, Sendable {
     mutating func dealMore(_ more: [Card]) -> Bool {
         guard isRoundOver else { return false }
         var seen = Set<String>()
-        let fresh = more.filter { !recordedItemIDs.contains($0.itemID) && seen.insert($0.itemID).inserted }
+        let fresh = more.filter {
+            !recordedItemIDs.contains($0.itemID) && !removedItemIDs.contains($0.itemID)
+                && seen.insert($0.itemID).inserted
+        }
         guard !fresh.isEmpty else { return false }
         startRound(fresh, isRepeat: false)
         return true
@@ -798,6 +847,7 @@ struct MemoryCardSitting: Equatable, Sendable {
         hideAnswer()
         results = [:]
         self.isRepeat = isRepeat
+        roundNumber += 1
     }
 }
 

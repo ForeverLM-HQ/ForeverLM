@@ -306,6 +306,33 @@ final class MemoryCardSessionModel: Identifiable {
         if sitting.isRoundOver { readFollowup() }
     }
 
+    /// Delete on a kept card, before or after its back shows: it leaves the
+    /// round at once, unanswered. Nothing is written here: the caller retires
+    /// it once Undo's window closes (`StudioViewModel.deleteCardFromReview`),
+    /// and Undo before then puts it back (`restore`). Nil for a draft (Skip
+    /// drops one), while a draft is being kept, and under Go Deeper's panel.
+    @discardableResult
+    func deleteCurrent() -> MemoryCardSitting.Removed? {
+        guard !isKeepingDraft, deeper == nil, let removed = sitting.removeCurrent() else { return nil }
+        checkWork?.cancel()
+        checkWork = nil
+        attemptDraft = ""
+        waitingCards.removeAll { $0.itemID == removed.card.itemID }
+        if sitting.isRoundOver { readFollowup() }
+        return removed
+    }
+
+    /// Undo of a delete: the card back in front of the learner, its question
+    /// to answer. False when its round is over and another dealt.
+    @discardableResult
+    func restore(_ removed: MemoryCardSitting.Removed) -> Bool {
+        guard deeper == nil, sitting.restore(removed) else { return false }
+        checkWork?.cancel()
+        checkWork = nil
+        attemptDraft = ""
+        return true
+    }
+
     /// Edit (E), then Keep, on a draft before it is answered: the card is
     /// kept in the learner's words (`MemoryCardTriageWriter`, as To Check's
     /// Edit), and it stays on screen as the kept card, its answer still to
@@ -571,7 +598,9 @@ final class MemoryCardSessionModel: Identifiable {
             defer { self.isReadingFollowup = false }
             do {
                 let next = try await self.followup()
-                self.waitingCards = next.cards.filter { !self.sitting.recordedItemIDs.contains($0.itemID) }
+                self.waitingCards = next.cards.filter {
+                    !self.sitting.recordedItemIDs.contains($0.itemID) && !self.sitting.removedItemIDs.contains($0.itemID)
+                }
                 guard self.sitting.kind == .today, self.sitting.firstDealAnswered, !self.hasReportedFirstDeal else { return }
                 self.hasReportedFirstDeal = true
                 self.firstDealAnswered(next.dayHasCardsLeft)
