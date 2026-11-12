@@ -152,7 +152,8 @@ extension InternalReviewPanelContent {
     /// Whether this panel is the review the window has given itself over to.
     private var showsMemoryReviewFocusChrome: Bool {
         guard let sessionID = manager.currentSessionID else { return false }
-        return vm.memoryReviewFocusSessionID == sessionID
+        // This panel's own window, not whichever window is key.
+        return (windowState ?? vm.activeWindowState).memoryReviewFocusSessionID == sessionID
     }
 
     /// What a review in focus puts in the header: the way out
